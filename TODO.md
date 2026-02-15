@@ -29,3 +29,4 @@
 - Distribute with docker
 - Distribute on github
 - Distribute on NPM (?)
+- Include licenses of dependencies in packages / containers
