@@ -12,6 +12,17 @@ You can run commands using `./ritual <command>`.
 ./ritual --help
 ```
 
+## Docker
+
+You can also run Ritual using Docker. You should map the following directories as needed:
+
+- `/app/dist` -- Distributable files for building a static magic website.
+- `/app/decks` -- Your deck files after being imported or downloaded.
+- `/app/collections` -- Your collection files.
+- `/app/cache` -- All card cache information used by the command (might be useful to share between instances).
+- `/app/.logins` -- Your login tokens used for Archidekt or other Magic websites.
+
+
 ## Commands
 
 ### `new-deck`
