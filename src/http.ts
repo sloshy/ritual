@@ -1,5 +1,15 @@
 import { type HttpClient } from './interfaces'
 
+function isMoxfieldApiRequest(url: string | URL | Request): boolean {
+  const rawUrl = url instanceof Request ? url.url : String(url)
+  try {
+    const parsed = new URL(rawUrl)
+    return parsed.hostname === 'api2.moxfield.com'
+  } catch {
+    return false
+  }
+}
+
 export function setupGlobalFetch() {
   const originalFetch = global.fetch
 
@@ -7,10 +17,16 @@ export function setupGlobalFetch() {
     const options = init || {}
 
     const headers = new Headers(options.headers)
+    const moxfieldUserAgent = process.env.MOXFIELD_USER_AGENT?.trim()
 
     // Set User-Agent so that APIs know who's calling them
-    // Scryfall especially cares about this
-    headers.set('User-Agent', 'Ritual CLI/0.1.0')
+    // For Moxfield, use a per-user configured user agent when provided.
+    if (isMoxfieldApiRequest(url) && moxfieldUserAgent) {
+      headers.set('User-Agent', moxfieldUserAgent)
+    } else {
+      // Scryfall especially cares about this
+      headers.set('User-Agent', 'Ritual CLI/0.1.0')
+    }
 
     const newOptions = {
       ...options,

@@ -52,6 +52,10 @@ Import a deck from a URL (Archidekt, Moxfield, MTGGoldfish) or local text file.
 - `--non-interactive`: Disable interactive prompts; fail when input is required.
 - `-y, --yes`: Automatically answer yes to prompts (implies overwrite on conflicts).
 - `--dry-run`: Preview import actions without writing deck files.
+- `--moxfield-user-agent <agent>`: Moxfield-approved unique User-Agent string (required for Moxfield imports unless `MOXFIELD_USER_AGENT` is set).
+
+> [!NOTE]
+> Moxfield imports require a unique Moxfield-approved user agent string. Set `MOXFIELD_USER_AGENT` or pass `--moxfield-user-agent <agent>`. If you need one, contact Moxfield support.
 
 ### `import-account`
 

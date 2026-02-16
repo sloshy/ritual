@@ -16,6 +16,38 @@ interface SaveDeckOptions {
   dryRun?: boolean
 }
 
+export function resolveMoxfieldUserAgent(
+  cliOptionValue?: string,
+  envValue: string | undefined = process.env.MOXFIELD_USER_AGENT,
+): string | undefined {
+  const trimmedCliOption = cliOptionValue?.trim()
+  if (trimmedCliOption) {
+    return trimmedCliOption
+  }
+
+  const trimmedEnvValue = envValue?.trim()
+  if (trimmedEnvValue) {
+    return trimmedEnvValue
+  }
+
+  return undefined
+}
+
+async function withMoxfieldUserAgent<T>(userAgent: string, run: () => Promise<T>): Promise<T> {
+  const previousUserAgent = process.env.MOXFIELD_USER_AGENT
+  process.env.MOXFIELD_USER_AGENT = userAgent
+
+  try {
+    return await run()
+  } finally {
+    if (previousUserAgent === undefined) {
+      delete process.env.MOXFIELD_USER_AGENT
+    } else {
+      process.env.MOXFIELD_USER_AGENT = previousUserAgent
+    }
+  }
+}
+
 function normalizeSaveDeckOptions(options?: SaveDeckOptions | boolean): Required<SaveDeckOptions> {
   if (typeof options === 'boolean') {
     return {
@@ -196,10 +228,20 @@ export function registerImportCommand(program: Command) {
     .option('--non-interactive', 'Disable interactive prompts; fail when input is required')
     .option('-y, --yes', 'Automatically answer yes to prompts (implies overwrite on conflicts)')
     .option('--dry-run', 'Preview actions without writing deck files')
+    .option(
+      '--moxfield-user-agent <agent>',
+      'Moxfield-approved unique User-Agent string (required for Moxfield imports unless MOXFIELD_USER_AGENT is set)',
+    )
     .action(
       async (
         source: string,
-        options: { overwrite?: boolean; nonInteractive?: boolean; yes?: boolean; dryRun?: boolean },
+        options: {
+          overwrite?: boolean
+          nonInteractive?: boolean
+          yes?: boolean
+          dryRun?: boolean
+          moxfieldUserAgent?: string
+        },
       ) => {
         try {
           let deckData: DeckData | undefined
@@ -217,8 +259,18 @@ export function registerImportCommand(program: Command) {
               const moxfieldMatch = source.match(/moxfield\.com\/decks\/([a-zA-Z0-9_-]+)/)
               if (moxfieldMatch?.[1]) {
                 const deckId = moxfieldMatch[1]
+                const moxfieldUserAgent = resolveMoxfieldUserAgent(options.moxfieldUserAgent)
+                if (!moxfieldUserAgent) {
+                  getLogger().error(
+                    'Error: Moxfield imports require a unique Moxfield-approved user agent string. Set MOXFIELD_USER_AGENT or pass --moxfield-user-agent <agent>. Contact Moxfield support if you need one.',
+                  )
+                  process.exitCode = ExitCode.UsageError
+                  return
+                }
                 getLogger().info(`Fetching deck ID ${deckId} from Moxfield...`)
-                deckData = await fetchMoxfieldDeck(deckId)
+                deckData = await withMoxfieldUserAgent(moxfieldUserAgent, async () =>
+                  fetchMoxfieldDeck(deckId),
+                )
               } else if (source.includes('mtggoldfish.com')) {
                 getLogger().info('Fetching deck from MTGGoldfish...')
                 deckData = await fetchMtgGoldfishDeck(source)

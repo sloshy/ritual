@@ -13,7 +13,11 @@ interface CliResult {
   stderr: string
 }
 
-async function runCli(args: string[], cwd: string): Promise<CliResult> {
+async function runCli(
+  args: string[],
+  cwd: string,
+  env?: Record<string, string | undefined>,
+): Promise<CliResult> {
   if (!binaryReady) {
     const build = Bun.spawn(['bun', 'run', 'build'], {
       cwd: repoRoot,
@@ -32,6 +36,10 @@ async function runCli(args: string[], cwd: string): Promise<CliResult> {
     cwd,
     stdout: 'pipe',
     stderr: 'pipe',
+    env: {
+      ...process.env,
+      ...env,
+    },
   })
 
   const [exitCode, stdout, stderr] = await Promise.all([
@@ -78,6 +86,20 @@ describe('CLI scripting behavior (Integration)', () => {
 
       expect(result.exitCode).toBe(2)
       expect(result.stderr).toContain('URL not supported')
+    })
+  })
+
+  test('import moxfield url without user agent returns usage exit code', async () => {
+    await withTempDir(async (dir) => {
+      const result = await runCli(
+        ['import', 'https://moxfield.com/decks/abc123', '--non-interactive'],
+        dir,
+        { MOXFIELD_USER_AGENT: undefined },
+      )
+
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain('Moxfield-approved user agent string')
+      expect(result.stderr).toContain('Contact Moxfield support')
     })
   })
 

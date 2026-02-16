@@ -20,12 +20,13 @@ Import a deck from a URL or local text file.
 
 ## Options
 
-| Option              | Description                                                       |
-| ------------------- | ----------------------------------------------------------------- |
-| `-o, --overwrite`   | Overwrite existing decks without prompting                        |
-| `--non-interactive` | Disable interactive prompts; fail when user input is required     |
-| `-y, --yes`         | Automatically answer yes to prompts (implies overwrite conflicts) |
-| `--dry-run`         | Preview actions without writing deck files                        |
+| Option                          | Description                                                                                  |
+| ------------------------------- | -------------------------------------------------------------------------------------------- |
+| `-o, --overwrite`               | Overwrite existing decks without prompting                                                   |
+| `--non-interactive`             | Disable interactive prompts; fail when user input is required                                |
+| `-y, --yes`                     | Automatically answer yes to prompts (implies overwrite conflicts)                            |
+| `--dry-run`                     | Preview actions without writing deck files                                                   |
+| `--moxfield-user-agent <agent>` | Moxfield-approved unique User-Agent string (required for Moxfield imports unless env is set) |
 
 ## Supported Sources
 
@@ -50,6 +51,12 @@ Import from Moxfield:
 ./ritual import https://moxfield.com/decks/abc123
 ```
 
+Import from Moxfield with an explicit user agent:
+
+```bash
+./ritual import https://moxfield.com/decks/abc123 --moxfield-user-agent "YourName Ritual Import/1.0"
+```
+
 Import from a local text file:
 
 ```bash
@@ -61,6 +68,15 @@ Preview import without writing files:
 ```bash
 ./ritual import ./decklist.txt --dry-run --non-interactive
 ```
+
+## Moxfield User-Agent Requirement
+
+Moxfield imports require a unique Moxfield-approved user agent string.
+
+- Set `MOXFIELD_USER_AGENT`, or
+- Pass `--moxfield-user-agent <agent>`
+
+If you need a unique user agent string, contact Moxfield support.
 
 ## Local File Format
 
