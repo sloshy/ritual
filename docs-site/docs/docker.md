@@ -3,21 +3,21 @@
 Ritual can be run inside a Docker container. This is particularly useful for self-hosting the static site generator and cache server.
 The provided Dockerfile uses Alpine Linux and uses the CLI as its entrypoint, so you can run any command directly by passing it to `docker run` or in your `docker-compose.yml`.
 
-## Building the Image
+## Building and Publishing the Image
 
-The Docker image is built using the provided build script so the compiled binary uses the correct version. Run the following from the repository root:
-
-```sh
-docker build --build-arg GIT_VERSION=$(git describe --tags --always) -t ritual .
-```
-
-If you are building outside of a git repository (e.g. in CI after a shallow clone without tags), provide the version string manually:
+Use the provided script so the image build always injects `GIT_VERSION` from the current git ref:
 
 ```sh
-docker build --build-arg GIT_VERSION=1.2.3 -t ritual .
+sh scripts/build-docker.sh
 ```
 
-Omitting `GIT_VERSION` is allowed — the binary will report version `unknown`.
+By default it builds `ghcr.io/sloshy/ritual:<git-ref>`. You can override image/tag, and optionally push:
+
+```sh
+IMAGE=ghcr.io/<owner>/ritual TAG=v1.2.3 PUSH=true sh scripts/build-docker.sh
+```
+
+If git metadata is unavailable, the script falls back to a short commit SHA, then `unknown`.
 
 ## Docker Compose
 
