@@ -1,5 +1,6 @@
 import { describe, test, expect, spyOn, afterEach } from 'bun:test'
 import { setupGlobalFetch } from '../../src/http'
+import { version } from '../../src/version'
 
 describe('Global Fetch Patch', () => {
   const originalFetch = global.fetch
@@ -30,7 +31,7 @@ describe('Global Fetch Patch', () => {
     const options = args![1] as RequestInit
     const headers = new Headers(options.headers)
 
-    expect(headers.get('User-Agent')).toBe('Ritual CLI/0.1.0')
+    expect(headers.get('User-Agent')).toBe(`Ritual CLI/${version}`)
   })
 
   test('should preserve existing headers', async () => {
@@ -46,7 +47,7 @@ describe('Global Fetch Patch', () => {
     const options = args![1] as RequestInit
     const headers = new Headers(options.headers)
 
-    expect(headers.get('User-Agent')).toBe('Ritual CLI/0.1.0')
+    expect(headers.get('User-Agent')).toBe(`Ritual CLI/${version}`)
     expect(headers.get('Authorization')).toBe('Bearer token')
   })
 

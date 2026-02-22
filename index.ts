@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { setupGlobalFetch } from './src/http'
+import { version } from './src/version'
 // Apply global fetch patch immediately
 setupGlobalFetch()
 
@@ -27,7 +28,7 @@ import {
 
 const program = new Command()
 
-program.name('ritual').description('Ritual, a Magic: The Gathering toolkit').version('0.1.0')
+program.name('ritual').description('Ritual, a Magic: The Gathering toolkit').version(version)
 program.option(
   '--cache-server <host:port>',
   'Use a cache server for card and pricing cache (overrides local cache files)',

@@ -1,4 +1,5 @@
 import { type HttpClient } from './interfaces'
+import { version } from './version'
 
 function isMoxfieldApiRequest(url: string | URL | Request): boolean {
   const rawUrl = url instanceof Request ? url.url : String(url)
@@ -25,7 +26,7 @@ export function setupGlobalFetch() {
       headers.set('User-Agent', moxfieldUserAgent)
     } else {
       // Scryfall especially cares about this
-      headers.set('User-Agent', 'Ritual CLI/0.1.0')
+      headers.set('User-Agent', `Ritual CLI/${version}`)
     }
 
     const newOptions = {

@@ -10,12 +10,14 @@
   },
   "license": "AGPL-3.0-only",
   "scripts": {
-    "build": "bun build --compile --minify --sourcemap ./index.ts --outfile ritual",
+    "build": "bash scripts/build.sh",
+    "version:sync": "bun run scripts/sync-version.ts",
     "serve": "bun run index.ts build-site && bun run index.ts serve",
     "format": "prettier --write .",
     "check-format": "prettier --check .",
     "test": "bun test test/unit",
-    "test:it": "bun test test/integration"
+    "test:it": "bun test test/integration",
+    "prepare": "husky"
   },
   "bin": {
     "ritual": "./index.ts"
@@ -27,6 +29,7 @@
     "classnames": "^2.5.1",
     "commander": "^14.0.3",
     "gray-matter": "^4.0.3",
+    "husky": "^9.1.7",
     "moxfield-api": "^1.0.2",
     "preact": "^10.28.3",
     "preact-render-to-string": "^6.6.5",
