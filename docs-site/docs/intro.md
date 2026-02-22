@@ -53,9 +53,9 @@ Import decks from Archidekt, Moxfield, or MTGGoldfish:
 ./ritual price "My Commander Deck"
 ```
 
-### Generate a Static Website
+### Generate a Static Website (Experimental)
 
-Build a beautiful static site showcasing your decks:
+Ritual supports building static websites to showcase your decks (and soon, your collection). This is an experimental feature, so expect some rough edges. To build and serve the site locally:
 
 ```bash
 ./ritual build-site
