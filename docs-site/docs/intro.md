@@ -9,9 +9,29 @@ An all-in-one toolkit for Magic: The Gathering decks, collections, and self-host
 
 ## Installation
 
-### Using a Pre-built Binary
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
-Download the latest binary from the [releases page](https://github.com/sloshy/ritual/releases) and run it directly:
+<Tabs>
+  <TabItem value="unix" label="macOS / Linux" default>
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.sh | bash
+```
+
+  </TabItem>
+  <TabItem value="windows" label="Windows (PowerShell)">
+
+```powershell
+irm https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.ps1 | iex
+```
+
+  </TabItem>
+</Tabs>
+
+### Other Methods
+
+You can also download a platform-specific binary from the [releases page](https://github.com/sloshy/ritual/releases) and run it directly:
 
 ```bash
 ./ritual --help

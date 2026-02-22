@@ -6,7 +6,19 @@ An all-in-one toolkit for Magic: The Gathering for your CLI and self-hosting nee
 
 ## Usage
 
-Download the latest binary from the [releases page](https://github.com/sloshy/ritual/releases), or build from source with `bun run build`.
+For macOS/Linux, install as your user with:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.sh | bash
+```
+
+For Windows (PowerShell), install as your user with:
+
+```powershell
+irm https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.ps1 | iex
+```
+
+You can also download binaries from the [releases page](https://github.com/sloshy/ritual/releases), or build from source with `bun run build`.
 
 ```bash
 ./ritual --help
