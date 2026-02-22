@@ -21,15 +21,16 @@
     "ritual": "./index.ts"
   },
   "devDependencies": {
+    "@docusaurus/tsconfig": "^3.9.2",
     "@types/bun": "^1.3.9",
     "@types/prompts": "^2.4.9",
-    "prettier": "^3.8.1",
     "classnames": "^2.5.1",
     "commander": "^14.0.3",
     "gray-matter": "^4.0.3",
     "moxfield-api": "^1.0.2",
     "preact": "^10.28.3",
     "preact-render-to-string": "^6.6.5",
+    "prettier": "^3.8.1",
     "prompts": "^2.4.2",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.9.3"
