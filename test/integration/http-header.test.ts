@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'bun:test'
 import { setupGlobalFetch } from '../../src/http'
+import { version } from '../../src/version'
 
 describe('HTTP Integration', () => {
   // Apply the patch
@@ -19,7 +20,7 @@ describe('HTTP Integration', () => {
 
     try {
       await fetch(`http://localhost:${port}`)
-      expect(receivedUserAgent!).toBe('Ritual CLI/0.1.0')
+      expect(receivedUserAgent!).toBe(`Ritual CLI/${version}`)
     } finally {
       server.stop()
     }
