@@ -42,6 +42,18 @@ describe('FileCacheManager (Integration)', () => {
     const newManager = new FileCacheManager(TEST_CACHE_FILE, 'prices')
     const result = await newManager.get('Test Card')
     expect(result).toEqual(data)
+
+    const timestamp = await newManager.getTimestamp('Test Card')
+    expect(typeof timestamp).toBe('number')
+
+    const lastRefreshedAt = await newManager.getLastRefreshedAt()
+    expect(lastRefreshedAt).toBeNull()
+
+    await newManager.bulkSet({
+      'Bulk Card': { latest: 11, min: 2, max: 21 },
+    })
+    const refreshedAfterBulkSet = await newManager.getLastRefreshedAt()
+    expect(typeof refreshedAfterBulkSet).toBe('number')
   })
 
   test('should expire items', async () => {

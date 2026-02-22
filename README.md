@@ -12,6 +12,16 @@ You can run commands using `./ritual <command>`.
 ./ritual --help
 ```
 
+Global option:
+
+- `--cache-server <host:port>`: Use a cache server for card and price cache reads/writes. This overrides local `cache/cache.json` usage for those cache sections.
+
+Environment variables:
+
+- `RITUAL_CACHE_SERVER`: Cache server address (`host:port`) used when `--cache-server` is not provided.
+- `RITUAL_CACHE_SERVER_CARDS_REFRESH`: Card cache refresh cadence (`daily`, `weekly`, `monthly`).
+- `RITUAL_CACHE_SERVER_PRICES_REFRESH`: Price cache refresh cadence (`daily`, `weekly`, `monthly`).
+
 ## Docker
 
 You can also run Ritual using Docker. You should map the following directories as needed:
@@ -22,6 +32,40 @@ You can also run Ritual using Docker. You should map the following directories a
 - `/app/cache` -- All card cache information used by the command (might be useful to share between instances).
 - `/app/.logins` -- Your login tokens used for Archidekt or other Magic websites.
 
+### Using Docker Compose
+
+This tool has scripting use cases as well as long-running server commands, some of which might be useful to run on a local docker-compose setup. In this repository is an example file [`docker-compose-cache.yml](./docker-compose-cache.yml) that sets up the local caching server. You can also build your own following this template:
+
+```yaml
+services:
+  ritual:
+    image: ritual
+    build: .
+    ports:
+      - '3000:3000'
+    volumes: # Directories used by the ritual app
+      - ./dist:/app/dist # Used for static site generation
+      - ./decks:/app/decks # Used for loading and downloading decks
+      - ./collections:/app/collections # Used for your collection files
+      - ./cache:/app/cache # Used for scryfall card caches
+      - ./.logins:/app/.logins # Used for your logins to various Magic-related websites
+    command: <your-command-here>
+```
+
+### Manual Docker Run
+
+```bash
+docker build -t ritual .
+
+docker run -d \
+  -p 3000:3000 \
+  -v $(pwd)/dist:/app/dist \
+  -v $(pwd)/decks:/app/decks \
+  -v $(pwd)/collections:/app/collections \
+  -v $(pwd)/cache:/app/cache \
+  -v $(pwd)/.logins:/app/.logins \
+  ritual serve
+```
 
 ## Commands
 
@@ -113,13 +157,43 @@ Manage card cache.
 
 **Usage:**
 
+Preload specific set into cache
+
 ```bash
 ./ritual cache preload-set <setCode>
+```
+
+Preload all cards into cache
+
+```bash
+./ritual cache preload-all
 ```
 
 **Arguments:**
 
 - `<setCode>`: Set code to preload (e.g. `khm`, `lea`).
+
+### `cache-server`
+
+Start a local cache server for card and pricing cache data.
+
+**Usage:**
+
+```bash
+./ritual cache-server [options]
+```
+
+**Options:**
+
+- `-p, --port <number>`: Port for the cache server. Default: `4000`.
+- `--host <hostname>`: Host interface for the cache server. Default: `127.0.0.1`.
+- `--cards-refresh <interval>`: Run full cards cache refresh on a cadence. Supported: `daily`, `weekly`, `monthly`.
+- `--prices-refresh <interval>`: Run price cache refresh scheduling on a cadence. Supported: `daily`, `weekly`, `monthly`.
+- `-v, --verbose`: Log every incoming cache-server request.
+
+The cache server is a way to share a caching implementation for multiple instances of Ritual or other tools. By default, Ritual uses a local file-based cache at `cache/cache.json`, but with `--cache-server` or `RITUAL_CACHE_SERVER`, it will proxy all cache reads and writes through the specified cache server.
+
+For more information on the cache server, see the [cache server documentation](./docs/cache-server.md).
 
 ### `card`
 
@@ -243,6 +317,8 @@ Get pricing for a deck (Latest, Min, Max).
 - `--with-maybeboard`: Include Maybeboard.
 - `--output <format>`: Output format (`json` or `text`). Default: `text`.
 - `--quiet`: Suppress per-section breakdowns and other non-essential output.
+
+If Scryfall reports missing cards in collection pricing (`not_found`), `price` fails and reports the missing card names without writing new cache entries.
 
 ### `build-site`
 

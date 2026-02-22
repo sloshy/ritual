@@ -3,8 +3,18 @@ export interface HttpClient {
   fetch(url: string | URL, init?: RequestInit): Promise<Response>
 }
 
+export interface CacheStreamEntryMeta {
+  updated: boolean
+}
+
 export interface CacheManager<T> {
   get(key: string): Promise<T | null>
+  getTimestamp?(key: string): Promise<number | null>
+  getLastRefreshedAt?(): Promise<number | null>
+  streamGetMany(
+    keys: string[],
+    onEntry: (key: string, value: T, meta: CacheStreamEntryMeta) => void,
+  ): Promise<Record<string, T>>
   set(key: string, value: T): Promise<void>
   bulkSet?(entries: Record<string, T>): Promise<void>
   isEmpty?(): Promise<boolean>

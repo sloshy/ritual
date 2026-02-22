@@ -19,6 +19,7 @@ const sidebars: SidebarsConfig = {
         'commands/import-account',
         'commands/login',
         'commands/cache',
+        'commands/cache-server',
         'commands/card',
         'commands/random',
         'commands/scry',

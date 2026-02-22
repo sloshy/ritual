@@ -29,6 +29,11 @@ export interface ScryfallSymbol {
   colors: string[]
 }
 
+interface ScryfallCollectionResponse {
+  data: ScryfallCard[]
+  not_found?: Array<{ name?: string }>
+}
+
 export class ScryfallClient implements PricingBackend {
   constructor(
     private http: HttpClient,
@@ -302,25 +307,39 @@ export class ScryfallClient implements PricingBackend {
 
     for (let i = 0; i < names.length; i += batchSize) {
       const batch = names.slice(i, i + batchSize)
-      const identifiers = batch.map((name) => ({ name }))
+      const identifiers = batch.map((name) => ({
+        // Ff name contains '//' only search the front face name
+        name: name.includes(' // ') ? name.split(' // ')[0]!.trim() : name.trim(),
+      }))
 
-      try {
-        const response = await this.http.fetch('https://api.scryfall.com/cards/collection', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ identifiers }),
-        })
+      const response = await this.http.fetch('https://api.scryfall.com/cards/collection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifiers }),
+      })
 
-        if (response.ok) {
-          const json = (await response.json()) as ScryfallList<ScryfallCard>
-          for (const card of json.data) {
-            if (card.name && card.prices?.usd) {
-              results.set(card.name, parseFloat(card.prices.usd))
-            }
-          }
+      if (!response.ok) {
+        throw new Error(`Failed to fetch batch prices: ${response.status} ${response.statusText}`)
+      }
+
+      const json = (await response.json()) as ScryfallCollectionResponse
+      const missingNames = (json.not_found ?? [])
+        .map((item) => item.name?.trim())
+        .filter((name): name is string => Boolean(name))
+      if (missingNames.length > 0) {
+        throw new Error(`Scryfall could not find prices for: ${missingNames.join(', ')}`)
+      }
+
+      for (let index = 0; index < batch.length; index++) {
+        const requestedName = batch[index]
+        const card = json.data[index]
+        const usd = card?.prices?.usd
+        if (!requestedName || !usd) continue
+
+        const latestPrice = Number.parseFloat(usd)
+        if (Number.isFinite(latestPrice)) {
+          results.set(requestedName, latestPrice)
         }
-      } catch (e) {
-        getLogger().error('Failed to fetch batch prices', e)
       }
 
       await sleep(50)

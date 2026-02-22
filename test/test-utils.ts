@@ -1,4 +1,5 @@
 import { type HttpClient, type CacheManager } from '../src/interfaces'
+import { streamFromBatchResults } from '../src/cache'
 import { MemoryLogger, resetLogger, setLogger } from '../src/logger'
 
 export class MockHttpClient implements HttpClient {
@@ -65,6 +66,19 @@ export class InMemoryCacheManager<T> implements CacheManager<T> {
 
   async set(key: string, value: T): Promise<void> {
     this.cache.set(key, { timestamp: Date.now(), data: value })
+  }
+
+  async streamGetMany(
+    keys: string[],
+    onEntry: (key: string, value: T, meta: { updated: boolean }) => void,
+  ): Promise<Record<string, T>> {
+    const results: Record<string, T> = {}
+    for (const key of keys) {
+      const value = await this.get(key)
+      if (value === null) continue
+      results[key] = value
+    }
+    return streamFromBatchResults(keys, results, onEntry)
   }
 
   async delete(key: string): Promise<void> {

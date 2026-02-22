@@ -1,0 +1,13 @@
+services:
+  ritual:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./cache:/app/cache # Used for scryfall card caches
+      # - ./dist:/app/dist # Used for static site generation
+      # - ./decks:/app/decks # Used for loading and downloading decks
+      # - ./collections:/app/collections # Used for your collection files
+      # - ./.logins:/app/.logins # Used for your logins to various Magic-related websites
+    command: cache-server --verbose --cards-refresh weekly --prices-refresh weekly
+    restart: unless-stopped

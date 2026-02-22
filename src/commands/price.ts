@@ -136,7 +136,8 @@ export function registerPriceCommand(program: Command) {
       console.log(`Max:    $${grandTotalMax.toFixed(2)}`)
       console.log('------------------------------')
     } catch (e) {
-      emitError('runtime_error', 'Failed to calculate price.', scriptingOptions, e)
+      const message = e instanceof Error ? e.message : 'Failed to calculate price.'
+      emitError('runtime_error', message, scriptingOptions, e)
       process.exitCode = ExitCode.RuntimeError
     }
   })

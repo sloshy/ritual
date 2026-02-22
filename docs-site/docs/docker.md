@@ -7,6 +7,8 @@ The provided Dockerfile uses Alpine Linux and uses the CLI as its entrypoint, so
 
 ### Example `docker-compose.yml`
 
+This `docker-compose.yml` example shows an example of running the `cache-server` command, which starts the [cache server](cache-server.md) with some common options:
+
 ```yaml
 services:
   ritual:
@@ -20,6 +22,7 @@ services:
       - ./collections:/app/collections
       - ./cache:/app/cache
       - ./.logins:/app/.logins
+    command: cache-server --host 0.0.0.0 --port 4000 --verbose --cards-refresh weekly --prices-refresh weekly
 ```
 
 ## Directory Mounts

@@ -63,3 +63,5 @@ The command displays:
 - **Max Price**: Highest recorded price
 
 Prices are fetched from Scryfall's price data.
+
+If Scryfall returns any missing cards in collection pricing (`not_found`), the command fails and reports the missing names without updating the local price cache.

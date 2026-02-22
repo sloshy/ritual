@@ -318,13 +318,14 @@ describe('ScryfallClient', () => {
   })
 
   describe('pricing backend methods', () => {
-    test('should fetch latest prices in batch format', async () => {
+    test('should fetch latest prices in batch format using request order', async () => {
       mockHttp.mock('https://api.scryfall.com/cards/collection', () => {
         return new Response(
           JSON.stringify({
             data: [
-              { name: 'Lightning Bolt', prices: { usd: '2.50' } },
-              { name: 'Counterspell', prices: { usd: '1.25' } },
+              // Intentionally incorrect names to verify mapping by request order, not by response content
+              { name: 'Unexpected Name A', prices: { usd: '2.50' } },
+              { name: 'Unexpected Name B', prices: { usd: '1.25' } },
             ],
           }),
         )
@@ -334,6 +335,21 @@ describe('ScryfallClient', () => {
 
       expect(result.get('Lightning Bolt')).toBe(2.5)
       expect(result.get('Counterspell')).toBe(1.25)
+    })
+
+    test('should throw when collection API returns not_found entries', async () => {
+      mockHttp.mock('https://api.scryfall.com/cards/collection', () => {
+        return new Response(
+          JSON.stringify({
+            data: [{ name: 'Lightning Bolt', prices: { usd: '2.50' } }],
+            not_found: [{ name: 'Counterspell' }, { name: 'Bogus Card' }],
+          }),
+        )
+      })
+
+      await expect(client.fetchLatestPrices(['Lightning Bolt', 'Counterspell'])).rejects.toThrow(
+        'Scryfall could not find prices for: Counterspell, Bogus Card',
+      )
     })
 
     test('should fetch min max pricing for a card', async () => {
