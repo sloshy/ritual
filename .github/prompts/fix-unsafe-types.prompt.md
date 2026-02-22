@@ -9,7 +9,7 @@ Find and reduce unsafe type usage in TypeScript files conservatively.
 
 ## Steps
 
-1. Search `src/` for unsafe patterns such as `: any`, `as any`, and `<any>`.
+1. Search `src/` for unsafe patterns such as `: any`, `as any`, `<any>`, and `as unknown as <other type>`.
 2. For each occurrence:
    - Inspect surrounding code and related types
    - Infer a safer specific type from initialization, function signatures, and interfaces
