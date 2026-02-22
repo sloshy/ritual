@@ -10,7 +10,7 @@
   },
   "license": "AGPL-3.0-only",
   "scripts": {
-    "build": "bash scripts/build.sh",
+    "build": "sh scripts/build.sh",
     "version:sync": "bun run scripts/sync-version.ts",
     "serve": "bun run index.ts build-site && bun run index.ts serve",
     "format": "prettier --write .",

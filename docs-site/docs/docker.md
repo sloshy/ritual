@@ -3,6 +3,22 @@
 Ritual can be run inside a Docker container. This is particularly useful for self-hosting the static site generator and cache server.
 The provided Dockerfile uses Alpine Linux and uses the CLI as its entrypoint, so you can run any command directly by passing it to `docker run` or in your `docker-compose.yml`.
 
+## Building the Image
+
+The Docker image is built using the provided build script so the compiled binary uses the correct version. Run the following from the repository root:
+
+```sh
+docker build --build-arg GIT_VERSION=$(git describe --tags --always) -t ritual .
+```
+
+If you are building outside of a git repository (e.g. in CI after a shallow clone without tags), provide the version string manually:
+
+```sh
+docker build --build-arg GIT_VERSION=1.2.3 -t ritual .
+```
+
+Omitting `GIT_VERSION` is allowed — the binary will report version `unknown`.
+
 ## Docker Compose
 
 ### Example `docker-compose.yml`

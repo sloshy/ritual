@@ -12,6 +12,10 @@ RUN bun install --frozen-lockfile
 # Copy source code
 COPY . .
 
+# Accept version from build arg (e.g. --build-arg GIT_VERSION=$(git describe --tags --always))
+ARG GIT_VERSION=unknown
+ENV GIT_VERSION=$GIT_VERSION
+
 # Build the ritual binary
 RUN bun run build
 

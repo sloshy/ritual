@@ -19,14 +19,7 @@
 - Add scryfall interactive mode
 - Add interactive deck builder
 
-## Caching
-
-- Add hosted caching server
-
 ## Dist
 
-- Build for common OS/arches
-- Distribute with docker
-- Distribute on github
 - Distribute on NPM (?)
 - Include licenses of dependencies in packages / containers
