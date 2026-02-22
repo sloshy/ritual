@@ -31,7 +31,7 @@ describe('Global Fetch Patch', () => {
     const options = args![1] as RequestInit
     const headers = new Headers(options.headers)
 
-    expect(headers.get('User-Agent')).toBe(`Ritual CLI/${version}`)
+    expect(headers.get('User-Agent')).toBe(`Ritual/${version}`)
   })
 
   test('should preserve existing headers', async () => {
@@ -47,7 +47,7 @@ describe('Global Fetch Patch', () => {
     const options = args![1] as RequestInit
     const headers = new Headers(options.headers)
 
-    expect(headers.get('User-Agent')).toBe(`Ritual CLI/${version}`)
+    expect(headers.get('User-Agent')).toBe(`Ritual/${version}`)
     expect(headers.get('Authorization')).toBe('Bearer token')
   })
 

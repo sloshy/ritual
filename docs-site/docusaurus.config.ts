@@ -43,7 +43,7 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'Ritual CLI',
+      title: 'Ritual',
       items: [
         {
           type: 'docSidebar',

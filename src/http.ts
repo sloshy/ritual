@@ -26,7 +26,7 @@ export function setupGlobalFetch() {
       headers.set('User-Agent', moxfieldUserAgent)
     } else {
       // Scryfall especially cares about this
-      headers.set('User-Agent', `Ritual CLI/${version}`)
+      headers.set('User-Agent', `Ritual/${version}`)
     }
 
     const newOptions = {
