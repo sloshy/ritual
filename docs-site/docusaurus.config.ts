@@ -5,7 +5,7 @@ import type * as Preset from '@docusaurus/preset-classic'
 const config: Config = {
   title: 'Ritual',
   tagline: 'An All-In-One "Magic: The Gathering" Tooklit',
-  favicon: 'img/favicon.ico',
+  favicon: 'img/app.svg',
 
   future: {
     v4: true,

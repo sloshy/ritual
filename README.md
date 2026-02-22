@@ -1,5 +1,7 @@
 # Ritual
 
+<img src="app.svg" alt="Ritual icon" width="96" />
+
 An all-in-one toolkit for Magic: The Gathering for your CLI and self-hosting needs.
 
 ## Usage

@@ -43,6 +43,7 @@ export function registerBuildSiteCommand(program: Command) {
       await fs.mkdir(imagesDir, { recursive: true })
       const symbolsDir = path.join(imagesDir, 'symbols')
       await fs.mkdir(symbolsDir, { recursive: true })
+      await fs.copyFile(path.join(process.cwd(), 'app.svg'), path.join(distDir, 'app.svg'))
 
       // Fetch and download symbols
       console.log('Fetching and downloading mana symbols...')
