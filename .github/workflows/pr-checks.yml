@@ -1,0 +1,30 @@
+name: PR Checks
+
+on:
+  pull_request:
+
+jobs:
+  format-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check source formatting
+        run: bunx prettier --check "src/**/*.{ts,tsx}" "test/**/*.ts" "index.ts"
+
+      - name: Run unit tests
+        run: bun run test
+
+      - name: Run integration tests
+        run: bun run test:it
