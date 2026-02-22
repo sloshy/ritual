@@ -3,7 +3,10 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
 import { defaultCache } from '../../src/cache'
-import { clearCacheServerAddressOverride, setCacheServerAddressOverride } from '../../src/cache-config'
+import {
+  clearCacheServerAddressOverride,
+  setCacheServerAddressOverride,
+} from '../../src/cache-config'
 import { PriceService } from '../../src/prices'
 import { type PriceData, type ScryfallCard } from '../../src/types'
 
@@ -135,16 +138,16 @@ async function startServer(options: StartServerOptions = {}): Promise<RunningSer
     args.push('--prices-refresh', options.pricesRefresh)
   }
   const proc = Bun.spawn(args, {
-      cwd,
-      stdout: 'pipe',
-      stderr: 'pipe',
-      env: {
-        ...process.env,
-        RITUAL_CACHE_SERVER: '',
-        RITUAL_CACHE_SERVER_CARDS_REFRESH: '',
-        RITUAL_CACHE_SERVER_PRICES_REFRESH: '',
-      },
-    })
+    cwd,
+    stdout: 'pipe',
+    stderr: 'pipe',
+    env: {
+      ...process.env,
+      RITUAL_CACHE_SERVER: '',
+      RITUAL_CACHE_SERVER_CARDS_REFRESH: '',
+      RITUAL_CACHE_SERVER_PRICES_REFRESH: '',
+    },
+  })
   const stdoutPromise = proc.stdout ? new Response(proc.stdout).text() : Promise.resolve('')
   const stderrPromise = proc.stderr ? new Response(proc.stderr).text() : Promise.resolve('')
 

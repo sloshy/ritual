@@ -87,9 +87,7 @@ describe('PriceService', () => {
       ),
     ).toBeTrue()
     expect(
-      logger.entries.some(
-        (entry) => entry.level === 'progress' && String(entry.args[0]) === '\n',
-      ),
+      logger.entries.some((entry) => entry.level === 'progress' && String(entry.args[0]) === '\n'),
     ).toBeTrue()
   })
 
@@ -128,7 +126,12 @@ describe('PriceService', () => {
     ]
 
     mockBackend = {
-      fetchLatestPrices: async () => new Map([['Alpha', 1], ['Beta', 2], ['Gamma', 3]]),
+      fetchLatestPrices: async () =>
+        new Map([
+          ['Alpha', 1],
+          ['Beta', 2],
+          ['Gamma', 3],
+        ]),
       fetchMinMaxPrice: async (name) => {
         if (name === 'Alpha') await new Promise((resolve) => setTimeout(resolve, 550))
         if (name === 'Beta') await new Promise((resolve) => setTimeout(resolve, 20))
@@ -194,13 +197,12 @@ describe('PriceService', () => {
     expect(
       logger.entries.some(
         (entry) =>
-          entry.level === 'info' && String(entry.args[0]).includes("Updated cached price for 'Sol Ring'."),
+          entry.level === 'info' &&
+          String(entry.args[0]).includes("Updated cached price for 'Sol Ring'."),
       ),
     ).toBeTrue()
     expect(
-      logger.entries.some(
-        (entry) => entry.level === 'progress' && String(entry.args[0]) === '\n',
-      ),
+      logger.entries.some((entry) => entry.level === 'progress' && String(entry.args[0]) === '\n'),
     ).toBeTrue()
     expect(
       logger.entries.some(

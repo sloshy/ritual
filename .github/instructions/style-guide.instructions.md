@@ -21,8 +21,12 @@ Object types must be explicitly defined using `type` or `interface` declarations
 ```ts
 // ✅ Correct
 type Point = { x: number; y: number }
-function getOrigin(): Point { return { x: 0, y: 0 } }
+function getOrigin(): Point {
+  return { x: 0, y: 0 }
+}
 
 // ❌ Incorrect
-function getOrigin(): { x: number; y: number } { return { x: 0, y: 0 } }
+function getOrigin(): { x: number; y: number } {
+  return { x: 0, y: 0 }
+}
 ```

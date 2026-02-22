@@ -14,13 +14,13 @@ Start a local cache server for card and pricing cache data.
 
 ## Options
 
-| Option                     | Description                                                                 | Default     |
-| -------------------------- | --------------------------------------------------------------------------- | ----------- |
-| `-p, --port <number>`      | Port for the cache server                                                   | `4000`      |
-| `--host <hostname>`        | Host interface for the cache server                                         | `127.0.0.1` |
-| `--cards-refresh <interval>`  | Run full cards cache refresh on a cadence (`daily`, `weekly`, `monthly`)   | disabled    |
-| `--prices-refresh <interval>` | Run price cache refresh scheduling on a cadence (`daily`, `weekly`, `monthly`) | disabled |
-| `-v, --verbose`            | Log every incoming cache-server request                                     | disabled    |
+| Option                        | Description                                                                    | Default     |
+| ----------------------------- | ------------------------------------------------------------------------------ | ----------- |
+| `-p, --port <number>`         | Port for the cache server                                                      | `4000`      |
+| `--host <hostname>`           | Host interface for the cache server                                            | `127.0.0.1` |
+| `--cards-refresh <interval>`  | Run full cards cache refresh on a cadence (`daily`, `weekly`, `monthly`)       | disabled    |
+| `--prices-refresh <interval>` | Run price cache refresh scheduling on a cadence (`daily`, `weekly`, `monthly`) | disabled    |
+| `-v, --verbose`               | Log every incoming cache-server request                                        | disabled    |
 
 ## Behavior
 
@@ -39,18 +39,18 @@ Start a local cache server for card and pricing cache data.
 
 `<section>` is `cards` or `prices`.
 
-| Path                               | Methods                  | Description                                           |
-| ---------------------------------- | ------------------------ | ----------------------------------------------------- |
-| `/health`                          | `GET`                    | Health check (`{ "status": "ok" }`)                  |
-| `/cache/<section>`                 | `DELETE`                 | Clear all entries in a section                        |
-| `/cache/<section>/bulk`            | `PUT`                    | Bulk set entries (`{ "entries": { ... } }`)          |
-| `/cache/<section>/is-empty`        | `GET`                    | Check whether a section has any entries               |
-| `/cache/<section>/keys`            | `GET`                    | List keys in a section                                |
-| `/cache/<section>/values`          | `GET`                    | List values in a section                              |
-| `/cache/<section>/metadata`        | `GET`                    | Get section metadata timestamp                        |
-| `/cache/<section>/<key>/timestamp` | `GET`                    | Get timestamp for a specific key                      |
-| `/cache/<section>/<key>`           | `GET`, `PUT`, `DELETE`   | Get/set/delete value for a key                        |
-| `/cache/prices/stream`             | `POST`                   | Stream price entries as SSE (`event: price`, `done`) |
+| Path                               | Methods                | Description                                          |
+| ---------------------------------- | ---------------------- | ---------------------------------------------------- |
+| `/health`                          | `GET`                  | Health check (`{ "status": "ok" }`)                  |
+| `/cache/<section>`                 | `DELETE`               | Clear all entries in a section                       |
+| `/cache/<section>/bulk`            | `PUT`                  | Bulk set entries (`{ "entries": { ... } }`)          |
+| `/cache/<section>/is-empty`        | `GET`                  | Check whether a section has any entries              |
+| `/cache/<section>/keys`            | `GET`                  | List keys in a section                               |
+| `/cache/<section>/values`          | `GET`                  | List values in a section                             |
+| `/cache/<section>/metadata`        | `GET`                  | Get section metadata timestamp                       |
+| `/cache/<section>/<key>/timestamp` | `GET`                  | Get timestamp for a specific key                     |
+| `/cache/<section>/<key>`           | `GET`, `PUT`, `DELETE` | Get/set/delete value for a key                       |
+| `/cache/prices/stream`             | `POST`                 | Stream price entries as SSE (`event: price`, `done`) |
 
 ### SSE event format (`/cache/prices/stream`)
 

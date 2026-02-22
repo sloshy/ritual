@@ -42,14 +42,17 @@ export class PriceService {
       let processed = 0
       getLogger().progress(`Progress: 0/${uniqueNames.length}`)
 
-      const streamedResults = await this.priceCache.streamGetMany(uniqueNames, (name, data, meta) => {
-        pricingMap.set(name, data)
-        if (meta.updated) {
-          logUpdatedPrice(name)
-        }
-        processed++
-        getLogger().progress(`\rProgress: ${processed}/${uniqueNames.length} (${name})`)
-      })
+      const streamedResults = await this.priceCache.streamGetMany(
+        uniqueNames,
+        (name, data, meta) => {
+          pricingMap.set(name, data)
+          if (meta.updated) {
+            logUpdatedPrice(name)
+          }
+          processed++
+          getLogger().progress(`\rProgress: ${processed}/${uniqueNames.length} (${name})`)
+        },
+      )
       const missingCards = uniqueNames.filter((name) => !(name in streamedResults))
 
       if (missingCards.length > 0) {

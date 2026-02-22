@@ -40,30 +40,33 @@ describe('cache-server staleness checks', () => {
 
   test('forces weekly/monthly price refresh after one day before scheduled run', () => {
     const now = 20 * DAY_MS
-    const lastUpdatedAt = now - (2 * DAY_MS)
-    const scheduledAt = now + (3 * DAY_MS)
+    const lastUpdatedAt = now - 2 * DAY_MS
+    const scheduledAt = now + 3 * DAY_MS
     expect(shouldForcePriceRefresh(WEEK_MS, lastUpdatedAt, scheduledAt, now)).toBeTrue()
   })
 
   test('does not force daily price refresh before scheduled run', () => {
     const now = 20 * DAY_MS
-    const lastUpdatedAt = now - (2 * DAY_MS)
-    const scheduledAt = now + (10 * 60 * 1000)
+    const twoDays = 2 * DAY_MS
+    const tenMinutes = 10 * 60 * 1000
+    const lastUpdatedAt = now - twoDays
+    const scheduledAt = now + tenMinutes
     expect(shouldForcePriceRefresh(DAY_MS, lastUpdatedAt, scheduledAt, now)).toBeFalse()
   })
 
   test('stages startup refreshes for stale daily prices by 200ms', () => {
     const now = 10 * DAY_MS
-    const staleTimestamp = now - (2 * DAY_MS)
+    const twoDays = 2 * DAY_MS
+    const staleTimestamp = now - twoDays
     expect(getInitialPriceRefreshAt(DAY_MS, staleTimestamp, now, 0)).toBe(now)
     expect(getInitialPriceRefreshAt(DAY_MS, staleTimestamp, now, 1)).toBe(now + STAGGER_MS)
-    expect(getInitialPriceRefreshAt(DAY_MS, staleTimestamp, now, 2)).toBe(now + (2 * STAGGER_MS))
+    expect(getInitialPriceRefreshAt(DAY_MS, staleTimestamp, now, 2)).toBe(now + 2 * STAGGER_MS)
   })
 
   test('stages startup refreshes for stale weekly and monthly prices by 200ms', () => {
     const now = 20 * DAY_MS
-    const staleWeeklyTimestamp = now - (10 * DAY_MS)
-    const staleMonthlyTimestamp = now - (35 * DAY_MS)
+    const staleWeeklyTimestamp = now - 10 * DAY_MS
+    const staleMonthlyTimestamp = now - 35 * DAY_MS
     expect(getInitialPriceRefreshAt(WEEK_MS, staleWeeklyTimestamp, now, 0)).toBe(now)
     expect(getInitialPriceRefreshAt(MONTH_MS, staleMonthlyTimestamp, now, 1)).toBe(now + STAGGER_MS)
   })
@@ -71,9 +74,11 @@ describe('cache-server staleness checks', () => {
   test('keeps normal cadence timing for fresh daily/weekly/monthly prices', () => {
     const now = 40 * DAY_MS
     const freshDailyTimestamp = now - 60 * 60 * 1000
-    const freshWeeklyTimestamp = now - (2 * DAY_MS)
-    const freshMonthlyTimestamp = now - (10 * DAY_MS)
-    expect(getInitialPriceRefreshAt(DAY_MS, freshDailyTimestamp, now, 0)).toBe(freshDailyTimestamp + DAY_MS)
+    const freshWeeklyTimestamp = now - 2 * DAY_MS
+    const freshMonthlyTimestamp = now - 10 * DAY_MS
+    expect(getInitialPriceRefreshAt(DAY_MS, freshDailyTimestamp, now, 0)).toBe(
+      freshDailyTimestamp + DAY_MS,
+    )
     expect(getInitialPriceRefreshAt(WEEK_MS, freshWeeklyTimestamp, now, 0)).toBe(
       freshWeeklyTimestamp + WEEK_MS,
     )
