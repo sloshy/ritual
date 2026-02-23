@@ -22,9 +22,12 @@ If no decks are specified, builds all imported decks found in the `decks/` direc
 
 ## Options
 
-| Option          | Description                                    |
-| --------------- | ---------------------------------------------- |
-| `-v, --verbose` | Show list of cards being fetched from Scryfall |
+By default, deck card images use Scryfall URLs from card data. This can be overridden with the `--cache-images` option to download and use local images instead.
+
+| Option           | Description                                                              |
+| ---------------- | ------------------------------------------------------------------------ |
+| `-v, --verbose`  | Show list of cards being fetched from Scryfall                           |
+| `--cache-images` | Download and use local deck card images in `dist/images` instead of URLs |
 
 ## Examples
 
@@ -44,6 +47,12 @@ Build with verbose output:
 
 ```bash
 ./ritual build-site --verbose
+```
+
+Build with downloaded local deck card images:
+
+```bash
+./ritual build-site --cache-images
 ```
 
 Build directly from a URL:

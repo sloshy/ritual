@@ -1,15 +1,17 @@
 import type { FunctionalComponent } from 'preact'
 import { Layout } from './Layout'
 import type { DeckData, ScryfallCard } from '../types'
+import { resolveCardImageSources } from './image-sources'
 
 interface IndexPageProps {
   decks: {
     data: DeckData
     featuredCard: ScryfallCard | null
   }[]
+  useScryfallImgUrls?: boolean
 }
 
-export const IndexPage: FunctionalComponent<IndexPageProps> = ({ decks }) => {
+export const IndexPage: FunctionalComponent<IndexPageProps> = ({ decks, useScryfallImgUrls }) => {
   return (
     <Layout title="My Decks">
       <div className="container mx-auto">
@@ -24,7 +26,9 @@ export const IndexPage: FunctionalComponent<IndexPageProps> = ({ decks }) => {
               .replace(/[^a-z0-9]+/g, '-')
               .replace(/(^-|-$)/g, '')
             const link = `${safeName}.html`
-            const imagePath = featuredCard ? `images/${featuredCard.id}.jpg` : null
+            const imagePath = featuredCard
+              ? resolveCardImageSources(featuredCard, Boolean(useScryfallImgUrls)).frontImage
+              : null
 
             return (
               <a href={link} key={data.name} className="block group">

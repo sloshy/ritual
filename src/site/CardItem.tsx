@@ -1,6 +1,7 @@
 import type { FunctionalComponent } from 'preact'
 import type { ScryfallCard } from '../types'
 import classNames from 'classnames'
+import { isDoubleFacedCard, resolveCardImageSources } from './image-sources'
 
 interface CardItemProps {
   name: string
@@ -8,6 +9,7 @@ interface CardItemProps {
   card: ScryfallCard | null
   symbolMap: Record<string, string>
   hideCount?: boolean
+  useScryfallImgUrls?: boolean
 }
 
 export const CardItem: FunctionalComponent<CardItemProps> = ({
@@ -16,6 +18,7 @@ export const CardItem: FunctionalComponent<CardItemProps> = ({
   card,
   symbolMap,
   hideCount,
+  useScryfallImgUrls,
 }) => {
   const renderMana = (cost: string) => {
     if (!cost) return null
@@ -43,16 +46,8 @@ export const CardItem: FunctionalComponent<CardItemProps> = ({
 
   // True Double-Faced Cards have image_uris on faces but not top-level.
   // Split/Room cards have top-level image_uris, so they are effectively single-faced.
-  const isDFC = !card.image_uris && card.card_faces && card.card_faces[0] && card.card_faces[1]
-
-  let frontImage = card.image_uris?.normal ? `images/${card.id}.jpg` : ''
-  let backImage = ''
-  if (isDFC) {
-    frontImage = `images/${card.id}.jpg`
-    backImage = `images/${card.id}_back.jpg`
-  } else if (card.image_uris?.normal) {
-    frontImage = `images/${card.id}.jpg`
-  }
+  const isDFC = isDoubleFacedCard(card)
+  const { frontImage, backImage } = resolveCardImageSources(card, Boolean(useScryfallImgUrls))
 
   // Rotate Room cards (sideways text) and Battles (intended for sideways viewing).
   const frontType = card.card_faces?.[0]?.type_line || card.type_line

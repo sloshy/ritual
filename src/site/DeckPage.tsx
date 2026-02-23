@@ -8,6 +8,7 @@ interface DeckPageProps {
   cards: Record<string, ScryfallCard | null>
   symbolMap: Record<string, string>
   exportPath?: string
+  useScryfallImgUrls?: boolean
 }
 
 export const DeckPage: FunctionalComponent<DeckPageProps> = ({
@@ -15,6 +16,7 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
   cards,
   symbolMap,
   exportPath,
+  useScryfallImgUrls,
 }) => {
   const replaceSymbols = (text: string) => {
     // ... (existing replaceSymbols logic)
@@ -238,6 +240,7 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
                       card={cards[card.name] || null}
                       symbolMap={symbolMap}
                       hideCount={section.name.toLowerCase().includes('commander')}
+                      useScryfallImgUrls={useScryfallImgUrls}
                     />
                   ))}
                 </div>

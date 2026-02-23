@@ -11,21 +11,30 @@ import type { DeckData, ScryfallCard } from '../types'
 import { fetchArchidektDeck } from '../importers/archidekt'
 import { fetchMoxfieldDeck } from '../importers/moxfield-lib'
 
+interface BuildSiteOptions {
+  verbose?: boolean
+  cacheImages?: boolean
+}
+
 export function registerBuildSiteCommand(program: Command) {
   program
     .command('build-site')
     .description('Generate a static website for decks')
+    .argument('[decks...]', 'Optional list of deck names or URLs to build')
     .option('-v, --verbose', 'Show list of cards to be fetched')
-    .action(async (sources: string[] | object | undefined, options: { verbose?: boolean }) => {
-      // Commander might pass options as the first arg if the optional argument is missing in some configs,
-      // but usually it passes undefined for missing variadic args.
-      // Safe check:
+    .option(
+      '--cache-images',
+      'Download and use local deck card images instead of Scryfall image URLs',
+    )
+    .action(async (sources: string[], options: BuildSiteOptions) => {
       const distDir = path.join(process.cwd(), 'dist')
       const imagesDir = path.join(distDir, 'images')
       const decksDir = path.join(process.cwd(), 'decks')
       const bundledSiteAssets = getBundledSiteAssets()
+      const cacheImages = options.cacheImages === true
+      const useScryfallImgUrls = !cacheImages
 
-      let deckSources: string[] = Array.isArray(sources) ? sources : []
+      let deckSources = sources
 
       if (deckSources.length === 0) {
         console.log('No decks specified, building all imported decks...')
@@ -40,6 +49,11 @@ export function registerBuildSiteCommand(program: Command) {
       }
 
       console.log('Building static site...')
+      if (cacheImages) {
+        console.log('Caching deck card images locally and using dist/images paths.')
+      } else {
+        console.log('Using Scryfall image URLs from card data and skipping deck image downloads.')
+      }
 
       await fs.rm(distDir, { recursive: true, force: true })
       await fs.mkdir(imagesDir, { recursive: true })
@@ -178,21 +192,23 @@ export function registerBuildSiteCommand(program: Command) {
             await ensureSymbols(card.mana_cost)
             await ensureSymbols(card.oracle_text)
 
-            if (card.image_uris?.normal) {
-              const imgName = `${card.id}.jpg`
-              await downloadImage(card.image_uris.normal, path.join(imagesDir, imgName))
-            } else if (card.card_faces && card.card_faces[0]) {
-              if (card.card_faces[0].image_uris?.normal) {
-                await downloadImage(
-                  card.card_faces[0].image_uris.normal,
-                  path.join(imagesDir, `${card.id}.jpg`),
-                )
-              }
-              if (card.card_faces[1] && card.card_faces[1].image_uris?.normal) {
-                await downloadImage(
-                  card.card_faces[1].image_uris.normal,
-                  path.join(imagesDir, `${card.id}_back.jpg`),
-                )
+            if (cacheImages) {
+              if (card.image_uris?.normal) {
+                const imgName = `${card.id}.jpg`
+                await downloadImage(card.image_uris.normal, path.join(imagesDir, imgName))
+              } else if (card.card_faces && card.card_faces[0]) {
+                if (card.card_faces[0].image_uris?.normal) {
+                  await downloadImage(
+                    card.card_faces[0].image_uris.normal,
+                    path.join(imagesDir, `${card.id}.jpg`),
+                  )
+                }
+                if (card.card_faces[1] && card.card_faces[1].image_uris?.normal) {
+                  await downloadImage(
+                    card.card_faces[1].image_uris.normal,
+                    path.join(imagesDir, `${card.id}_back.jpg`),
+                  )
+                }
               }
             }
           }
@@ -288,12 +304,15 @@ export function registerBuildSiteCommand(program: Command) {
             cards={globalCardMap}
             symbolMap={symbolMap}
             exportPath={`decks/${safeName}.txt`}
+            useScryfallImgUrls={useScryfallImgUrls}
           />,
         )
         await Bun.write(path.join(distDir, `${safeName}.html`), '<!DOCTYPE html>' + html)
       }
 
-      const indexHtml = render(<IndexPage decks={finalDecks} />)
+      const indexHtml = render(
+        <IndexPage decks={finalDecks} useScryfallImgUrls={useScryfallImgUrls} />,
+      )
       await Bun.write(path.join(distDir, 'index.html'), '<!DOCTYPE html>' + indexHtml)
 
       // Write bundled CSS
