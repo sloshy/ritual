@@ -296,32 +296,9 @@ export function registerBuildSiteCommand(program: Command) {
       const indexHtml = render(<IndexPage decks={finalDecks} />)
       await Bun.write(path.join(distDir, 'index.html'), '<!DOCTYPE html>' + indexHtml)
 
-      // CSS Pipeline (Pure Tailwind)
-      console.log('Compiling CSS...')
-      const tempStylesInputPath = path.join(distDir, '.ritual-site-styles.css')
-      await Bun.write(tempStylesInputPath, bundledSiteAssets.stylesSourceCss)
-      try {
-        const proc = Bun.spawn(
-          [
-            'bunx',
-            '@tailwindcss/cli',
-            '-i',
-            tempStylesInputPath,
-            '-o',
-            path.join(distDir, 'styles.css'),
-            '--minify',
-          ],
-          {
-            stdout: 'inherit',
-            stderr: 'inherit',
-          },
-        )
-        await proc.exited
-      } catch (e) {
-        console.error('Failed to compile CSS:', e)
-      } finally {
-        await fs.rm(tempStylesInputPath, { force: true })
-      }
+      // Write bundled CSS
+      console.log('Writing CSS...')
+      await Bun.write(path.join(distDir, 'styles.css'), bundledSiteAssets.stylesSourceCss)
 
       console.log('Writing client-side scripts...')
       try {

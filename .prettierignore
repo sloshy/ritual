@@ -4,3 +4,4 @@ cache/
 mtg
 docs-site/.docusaurus/
 docs-site/build/
+src/site/styles.compiled.css

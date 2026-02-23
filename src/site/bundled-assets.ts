@@ -1,5 +1,5 @@
 import * as appSvgTextModule from '../../app.svg' with { type: 'text' }
-import * as stylesCssTextModule from './styles.css' with { type: 'text' }
+import * as stylesCssTextModule from './styles.compiled.css' with { type: 'text' }
 import * as tooltipScriptTextModule from './scripts/tooltip.ts' with { type: 'text' }
 import * as deckSortScriptTextModule from './scripts/deck-sort.ts' with { type: 'text' }
 import * as copyButtonScriptTextModule from './scripts/copy-button.ts' with { type: 'text' }
