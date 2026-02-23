@@ -82,6 +82,7 @@ export class ScryfallClient implements PricingBackend {
     const json = (await response.json()) as ScryfallList<ScryfallSymbol>
     const data = json.data
 
+    await this.fileSystem.mkdir(CACHE_DIR, { recursive: true })
     await this.fileSystem.writeFile(cachePath, JSON.stringify(data, null, 2))
     return data
   }
@@ -110,6 +111,7 @@ export class ScryfallClient implements PricingBackend {
     if (!response.ok) throw new Error(`Failed to download symbol ${symbol.symbol}`)
 
     const buffer = await response.arrayBuffer()
+    await this.fileSystem.mkdir(IMAGE_CACHE_DIR, { recursive: true })
     await this.fileSystem.writeFile(cachePath, Buffer.from(buffer))
     await this.fileSystem.copyFile(cachePath, destPath)
 

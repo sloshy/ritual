@@ -75,6 +75,35 @@ describe('ScryfallClient', () => {
         expect(JSON.parse(writeCall[1])).toEqual(mockData)
       }
     })
+
+    test('should fetch symbology when cache file is missing', async () => {
+      const mockData: ScryfallSymbol[] = [
+        {
+          symbol: '{W}',
+          svg_uri: 'https://svg',
+          english: 'white mana',
+          transposable: false,
+          represents_mana: true,
+          appears_in_mana_costs: true,
+          funny: false,
+          colors: ['W'],
+        },
+      ]
+
+      readFileMock.mockImplementationOnce(async () => {
+        throw new Error('ENOENT: no such file or directory')
+      })
+
+      mockHttp.mock('https://api.scryfall.com/symbology', () => {
+        return new Response(JSON.stringify({ data: mockData }))
+      })
+
+      const result = await client.fetchSymbology()
+
+      expect(result).toEqual(mockData)
+      expect(mkdirMock).toHaveBeenCalled()
+      expect(writeFileMock).toHaveBeenCalled()
+    })
   })
 
   describe('fetchCardData', () => {
@@ -371,6 +400,33 @@ describe('ScryfallClient', () => {
       const result = await client.fetchMinMaxPrice('Lightning Bolt')
 
       expect(result).toEqual({ min: 1, max: 5 })
+    })
+  })
+
+  describe('downloadSymbol', () => {
+    test('should create cache directory when downloading a missing symbol', async () => {
+      accessMock.mockRejectedValueOnce(new Error('missing'))
+      mockHttp.mock('https://image.example/symbol-ur.svg', () => {
+        return new Response(new Blob([new Uint8Array([1, 2, 3])]))
+      })
+
+      const symbol: ScryfallSymbol = {
+        symbol: '{U/R}',
+        svg_uri: 'https://image.example/symbol-ur.svg',
+        english: 'blue or red mana',
+        transposable: false,
+        represents_mana: true,
+        appears_in_mana_costs: true,
+        funny: false,
+        colors: ['U', 'R'],
+      }
+
+      const result = await client.downloadSymbol(symbol, '/tmp/symbols')
+
+      expect(result).toBe('UR.svg')
+      expect(mkdirMock).toHaveBeenCalled()
+      expect(writeFileMock).toHaveBeenCalled()
+      expect(copyFileMock).toHaveBeenCalled()
     })
   })
 
