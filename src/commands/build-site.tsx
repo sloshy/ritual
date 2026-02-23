@@ -1,11 +1,12 @@
 import { Command } from 'commander'
-import path from 'path'
-import fs from 'fs/promises'
+import path from 'node:path'
+import fs from 'node:fs/promises'
 import { render } from 'preact-render-to-string'
 import { importFromTextFile } from '../importers/text-file'
 import { fetchCardData, downloadImage } from '../scryfall'
 import { IndexPage } from '../site/IndexPage'
 import { DeckPage } from '../site/DeckPage'
+import { getBundledSiteAssets } from '../site/bundled-assets'
 import type { DeckData, ScryfallCard } from '../types'
 import { fetchArchidektDeck } from '../importers/archidekt'
 import { fetchMoxfieldDeck } from '../importers/moxfield-lib'
@@ -22,6 +23,7 @@ export function registerBuildSiteCommand(program: Command) {
       const distDir = path.join(process.cwd(), 'dist')
       const imagesDir = path.join(distDir, 'images')
       const decksDir = path.join(process.cwd(), 'decks')
+      const bundledSiteAssets = getBundledSiteAssets()
 
       let deckSources: string[] = Array.isArray(sources) ? sources : []
 
@@ -43,7 +45,7 @@ export function registerBuildSiteCommand(program: Command) {
       await fs.mkdir(imagesDir, { recursive: true })
       const symbolsDir = path.join(imagesDir, 'symbols')
       await fs.mkdir(symbolsDir, { recursive: true })
-      await fs.copyFile(path.join(process.cwd(), 'app.svg'), path.join(distDir, 'app.svg'))
+      await Bun.write(path.join(distDir, 'app.svg'), bundledSiteAssets.appSvg)
 
       // Fetch and download symbols
       console.log('Fetching and downloading mana symbols...')
@@ -296,19 +298,20 @@ export function registerBuildSiteCommand(program: Command) {
 
       // CSS Pipeline (Pure Tailwind)
       console.log('Compiling CSS...')
+      const tempStylesInputPath = path.join(distDir, '.ritual-site-styles.css')
+      await Bun.write(tempStylesInputPath, bundledSiteAssets.stylesSourceCss)
       try {
         const proc = Bun.spawn(
           [
             'bunx',
             '@tailwindcss/cli',
             '-i',
-            'src/site/styles.css',
+            tempStylesInputPath,
             '-o',
-            'dist/styles.css',
+            path.join(distDir, 'styles.css'),
             '--minify',
           ],
           {
-            cwd: process.cwd(),
             stdout: 'inherit',
             stderr: 'inherit',
           },
@@ -316,21 +319,17 @@ export function registerBuildSiteCommand(program: Command) {
         await proc.exited
       } catch (e) {
         console.error('Failed to compile CSS:', e)
+      } finally {
+        await fs.rm(tempStylesInputPath, { force: true })
       }
 
-      console.log('Compiling client-side scripts...')
+      console.log('Writing client-side scripts...')
       try {
-        await Bun.build({
-          entrypoints: [
-            'src/site/scripts/tooltip.ts',
-            'src/site/scripts/deck-sort.ts',
-            'src/site/scripts/copy-button.ts',
-          ],
-          outdir: distDir,
-          minify: true,
-        })
+        for (const [scriptFileName, scriptContents] of Object.entries(bundledSiteAssets.scripts)) {
+          await Bun.write(path.join(distDir, scriptFileName), scriptContents)
+        }
       } catch (e) {
-        console.error('Failed to compile scripts:', e)
+        console.error('Failed to write scripts:', e)
       }
 
       console.log(`Site generated in ${distDir}`)
