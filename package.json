@@ -15,7 +15,7 @@
     "serve": "bun run index.ts build-site && bun run index.ts serve",
     "format": "prettier --write .",
     "check-format": "prettier --check .",
-    "test": "bun test test/unit",
+    "test": "bun run build && bun test test/unit",
     "test:it": "bun test test/integration",
     "prepare": "husky"
   },
