@@ -1,10 +1,10 @@
 import * as appSvgTextModule from '../../app.svg' with { type: 'text' }
 import * as stylesCssTextModule from './styles.compiled.css' with { type: 'text' }
-import * as tooltipScriptTextModule from './scripts/tooltip.ts' with { type: 'text' }
+import * as cardModalScriptTextModule from './scripts/card-modal.ts' with { type: 'text' }
 import * as deckSortScriptTextModule from './scripts/deck-sort.ts' with { type: 'text' }
 import * as copyButtonScriptTextModule from './scripts/copy-button.ts' with { type: 'text' }
 
-type SiteScriptOutputName = 'tooltip.js' | 'deck-sort.js' | 'copy-button.js'
+type SiteScriptOutputName = 'card-modal.js' | 'deck-sort.js' | 'copy-button.js'
 
 type BundledSiteScripts = Record<SiteScriptOutputName, string>
 
@@ -31,7 +31,7 @@ function transpileSiteScript(source: string): string {
 export function getBundledSiteAssets(): BundledSiteAssets {
   const appSvg = readTextModule(appSvgTextModule, 'app.svg')
   const stylesCssSource = readTextModule(stylesCssTextModule, 'styles.css')
-  const tooltipScriptSource = readTextModule(tooltipScriptTextModule, 'tooltip.ts')
+  const cardModalScriptSource = readTextModule(cardModalScriptTextModule, 'card-modal.ts')
   const deckSortScriptSource = readTextModule(deckSortScriptTextModule, 'deck-sort.ts')
   const copyButtonScriptSource = readTextModule(copyButtonScriptTextModule, 'copy-button.ts')
 
@@ -39,7 +39,7 @@ export function getBundledSiteAssets(): BundledSiteAssets {
     appSvg,
     stylesSourceCss: stylesCssSource,
     scripts: {
-      'tooltip.js': transpileSiteScript(tooltipScriptSource),
+      'card-modal.js': transpileSiteScript(cardModalScriptSource),
       'deck-sort.js': transpileSiteScript(deckSortScriptSource),
       'copy-button.js': transpileSiteScript(copyButtonScriptSource),
     },

@@ -9,3 +9,727 @@ h2,
 h3 {
   @apply font-bold;
 }
+
+/* ===== View mode toggle buttons ===== */
+.view-toggle {
+  display: inline-flex;
+  border: 1px solid oklch(35% 0.03 260);
+  border-radius: 0.375rem;
+  overflow: hidden;
+}
+
+.view-toggle button {
+  background: oklch(24% 0.025 260);
+  border: none;
+  color: oklch(55% 0.02 260);
+  font-size: 0.7rem;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  transition:
+    background 0.1s,
+    color 0.1s;
+  line-height: 1;
+}
+
+.view-toggle button:not(:last-child) {
+  border-right: 1px solid oklch(35% 0.03 260);
+}
+
+.view-toggle button:hover {
+  background: oklch(30% 0.025 260);
+  color: oklch(75% 0.02 260);
+}
+
+.view-toggle button.active {
+  background: oklch(38% 0.06 280);
+  color: white;
+}
+
+/* ===== Card item: each .card-item holds all 3 representations ===== */
+.card-item .card-binder {
+  display: block;
+}
+.card-item .card-list {
+  display: none;
+}
+.card-item .card-overlap {
+  display: none;
+}
+
+/* View mode classes applied to section containers */
+.view-list .card-item .card-binder {
+  display: none;
+}
+.view-list .card-item .card-list {
+  display: flex;
+}
+.view-list .card-item .card-overlap {
+  display: none;
+}
+
+.view-overlap .card-item .card-binder {
+  display: none;
+}
+.view-overlap .card-item .card-list {
+  display: none;
+}
+.view-overlap .card-item .card-overlap {
+  display: block;
+}
+
+/* ===== BINDER VIEW — dense card image grid ===== */
+.binder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .binder-grid {
+    grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .binder-grid {
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  }
+}
+
+.card-binder {
+  position: relative;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+  aspect-ratio: 488 / 680;
+  background: oklch(24% 0.02 260);
+}
+
+.card-binder:hover {
+  transform: translateY(-4px) scale(1.03);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  z-index: 10;
+}
+
+.card-binder img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 0.5rem;
+}
+
+.card-binder .qty-badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  background: rgba(0, 0, 0, 0.75);
+  color: oklch(80.9% 0.105 251.813);
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  pointer-events: none;
+  line-height: 1.4;
+}
+
+.card-binder .card-label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 4px 6px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85), transparent);
+  font-size: 0.65rem;
+  color: #ccc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.card-binder:hover .card-label {
+  opacity: 1;
+}
+
+/* ===== LIST VIEW — compact text rows ===== */
+.view-list .binder-grid,
+.view-list .card-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.card-list {
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid oklch(28% 0.02 260);
+  cursor: pointer;
+  transition: background 0.1s;
+  font-size: 0.8rem;
+  color: oklch(82% 0.01 260);
+  position: relative;
+}
+
+.card-list:hover {
+  background: oklch(28% 0.025 260);
+}
+
+.card-list .list-qty {
+  color: oklch(65% 0.1 252);
+  font-weight: 700;
+  font-size: 0.75rem;
+  min-width: 1.5rem;
+  text-align: right;
+}
+
+.card-list .list-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-list .list-mana {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.card-list .list-mana img {
+  height: 0.85rem;
+  width: 0.85rem;
+}
+
+.card-list .list-price {
+  color: oklch(55% 0.02 260);
+  font-size: 0.7rem;
+  min-width: 3rem;
+  text-align: right;
+}
+
+/* List view hover tooltip */
+.list-tooltip {
+  position: fixed;
+  z-index: 90;
+  pointer-events: none;
+  width: 240px;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  border: 1px solid oklch(35% 0.03 260);
+  display: none;
+}
+
+.list-tooltip.visible {
+  display: block;
+}
+
+.list-tooltip img {
+  width: 100%;
+  display: block;
+  border-radius: 0.5rem;
+}
+
+/* ===== OVERLAP VIEW — fanned/stacked cards ===== */
+.view-overlap .binder-grid,
+.view-overlap .card-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+/* Each overlap group wraps cards in a horizontal fan */
+.overlap-group {
+  display: flex;
+  position: relative;
+}
+
+.card-overlap {
+  position: relative;
+  width: 130px;
+  aspect-ratio: 488 / 680;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    margin 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    z-index 0s;
+  background: oklch(24% 0.02 260);
+  flex-shrink: 0;
+}
+
+/* Stack overlap: negative margin so cards overlap showing top ~25% */
+.view-overlap .binder-grid,
+.view-overlap .card-grid {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 0;
+  padding-bottom: 0.75rem;
+}
+
+.view-overlap .card-item {
+  flex-shrink: 0;
+  position: relative;
+  transition: transform 0.2s ease;
+}
+
+/* Extend hover zone to fill gap between cards so mouse movement doesn't trigger layout jumps */
+.view-overlap .card-item::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: -10px;
+  width: 10px;
+  height: 100%;
+}
+
+.view-overlap .card-item:not(:first-child) {
+  margin-left: -85px;
+}
+
+.view-overlap .card-item:hover {
+  z-index: 20;
+}
+
+.view-overlap .card-item:hover ~ .card-item {
+  transform: translateX(90px);
+}
+
+.card-overlap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 0.5rem;
+}
+
+.card-overlap:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  z-index: 20;
+}
+
+.card-overlap .qty-badge {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  background: rgba(0, 0, 0, 0.8);
+  color: oklch(80.9% 0.105 251.813);
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.card-overlap .overlap-details-btn {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  background: rgba(0, 0, 0, 0.7);
+  color: oklch(80% 0.01 260);
+  border: none;
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.card-overlap:hover .overlap-details-btn {
+  opacity: 1;
+}
+
+.card-overlap .overlap-details-btn:hover {
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+}
+
+@media (max-width: 639px) {
+  .card-overlap {
+    width: 100px;
+  }
+  .view-overlap .card-item:not(:first-child) {
+    margin-left: -65px;
+  }
+  .view-overlap .card-item:hover ~ .card-item {
+    transform: translateX(70px);
+  }
+}
+
+/* ===== STACK VIEW — vertical columns with vertically stacked/overlapping cards ===== */
+.view-stack .card-item .card-binder {
+  display: none;
+}
+.view-stack .card-item .card-list {
+  display: none;
+}
+.view-stack .card-item .card-overlap {
+  display: block;
+}
+
+/* Main container becomes horizontal columns */
+.view-stack.space-y-6 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+/* Override Tailwind space-y margins */
+.view-stack.space-y-6 > * {
+  margin-block: 0;
+}
+
+/* Each section is a column */
+.view-stack > [data-section] {
+  flex: 0 0 auto;
+  width: 180px;
+}
+
+/* Dynamic sort container also becomes horizontal columns */
+.view-stack #dynamic-sort-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.view-stack #dynamic-sort-container > * {
+  margin-block: 0;
+}
+
+.view-stack #dynamic-sort-container > div {
+  flex: 0 0 auto;
+  width: 180px;
+}
+
+/* Cards stack vertically in each column */
+.view-stack .binder-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: visible;
+}
+
+/* Section divider compact as column header */
+.view-stack .section-divider {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding-bottom: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+
+.view-stack .section-divider h2 {
+  font-size: 0.8rem;
+}
+
+/* Card fills column width */
+.view-stack .card-overlap {
+  width: 100%;
+}
+
+/* Vertical overlap: show only the top ~35px (card name bar) of each card.
+   At 180px width with 488:680 aspect ratio, card height ≈ 251px.
+   Overlap = 251 - 35 = 216px. */
+.view-stack .card-item {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+  overflow: visible;
+}
+
+.view-stack .card-item:not(:first-child) {
+  margin-top: -216px;
+}
+
+/* On hover: reveal the full card and push siblings down */
+.view-stack .card-item:hover {
+  z-index: 20;
+}
+
+.view-stack .card-overlap:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+.view-stack .card-item:hover ~ .card-item {
+  transform: translateY(216px);
+}
+
+@media (max-width: 639px) {
+  .view-stack > [data-section],
+  .view-stack #dynamic-sort-container > div {
+    width: 140px;
+  }
+  /* At 140px width: height ≈ 195px, show 28px, overlap = 167px */
+  .view-stack .card-item:not(:first-child) {
+    margin-top: -167px;
+  }
+  .view-stack .card-item:hover ~ .card-item {
+    transform: translateY(167px);
+  }
+}
+
+/* Card detail modal */
+.card-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+
+.card-modal-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.card-modal {
+  background: oklch(24% 0.025 260);
+  border: 1px solid oklch(35% 0.03 260);
+  border-radius: 0.75rem;
+  display: flex;
+  max-width: 720px;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6);
+  width: 100%;
+}
+
+.card-modal-image {
+  flex: 0 0 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  gap: 0.5rem;
+  background: oklch(20% 0.02 260);
+}
+
+.card-modal-image img {
+  max-width: 100%;
+  border-radius: 0.5rem;
+}
+
+.card-modal-image img.sideways {
+  max-width: 85%;
+  transform: rotate(90deg);
+}
+
+.card-modal-details {
+  flex: 1;
+  padding: 1.25rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.card-modal-details .modal-card-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: white;
+}
+
+.card-modal-details .modal-type-line {
+  font-size: 0.85rem;
+  color: oklch(70% 0.02 260);
+  font-style: italic;
+}
+
+.card-modal-details .modal-mana-cost {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.card-modal-details .modal-oracle-text {
+  font-size: 0.85rem;
+  color: oklch(85% 0.01 260);
+  white-space: pre-wrap;
+  line-height: 1.5;
+  border-left: 2px solid oklch(40% 0.03 260);
+  padding-left: 0.75rem;
+}
+
+.card-modal-details .modal-oracle-text img {
+  display: inline-block;
+  height: 0.9rem;
+  width: 0.9rem;
+  vertical-align: middle;
+  margin: 0 1px;
+}
+
+.card-modal-details .modal-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  color: oklch(60% 0.02 260);
+  border-top: 1px solid oklch(32% 0.025 260);
+  padding-top: 0.5rem;
+  margin-top: auto;
+}
+
+.card-modal .modal-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  color: oklch(60% 0.02 260);
+  font-size: 1.5rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0.25rem;
+  z-index: 2;
+}
+
+.card-modal .modal-close:hover {
+  color: white;
+}
+
+.card-modal .flip-btn {
+  background: oklch(35% 0.03 260);
+  border: 1px solid oklch(45% 0.03 260);
+  color: oklch(80% 0.01 260);
+  font-size: 0.75rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.card-modal .flip-btn:hover {
+  background: oklch(42% 0.03 260);
+}
+
+/* Mobile: stack modal vertically */
+@media (max-width: 639px) {
+  .card-modal {
+    flex-direction: column;
+    max-height: 95vh;
+  }
+  .card-modal-image {
+    flex: 0 0 auto;
+    max-height: 45vh;
+  }
+  .binder-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+  .list-tooltip {
+    width: 180px;
+  }
+}
+
+/* Section divider tab styling */
+.section-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  margin-bottom: 0.75rem;
+  border-bottom: 2px solid oklch(35% 0.04 280);
+}
+
+.section-divider h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: oklch(75% 0.12 280);
+  white-space: nowrap;
+}
+
+.section-divider .section-count {
+  font-size: 0.75rem;
+  color: oklch(55% 0.025 260);
+  font-weight: 400;
+}
+
+/* Deck index cards */
+.deck-cover {
+  position: relative;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+  background: oklch(24% 0.025 260);
+  border: 1px solid oklch(32% 0.03 260);
+}
+
+.deck-cover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  border-color: oklch(50% 0.12 280);
+}
+
+.deck-cover .cover-image {
+  height: 200px;
+  background: oklch(18% 0.02 260);
+  position: relative;
+  overflow: hidden;
+}
+
+.deck-cover .cover-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 25%;
+  transition: transform 0.4s ease;
+}
+
+.deck-cover:hover .cover-image img {
+  transform: scale(1.05);
+}
+
+.deck-cover .cover-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, transparent 60%);
+}
+
+.deck-cover .cover-info {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 1rem;
+}
+
+.deck-cover .cover-info h2 {
+  font-size: 1.15rem;
+  color: white;
+  font-weight: 700;
+}
+
+.deck-cover .cover-info .cover-subtitle {
+  font-size: 0.75rem;
+  color: oklch(65% 0.02 260);
+  margin-top: 0.25rem;
+}
+
+.deck-cover .cover-cardcount {
+  padding: 0.65rem 1rem;
+  font-size: 0.8rem;
+  color: oklch(60% 0.02 260);
+}

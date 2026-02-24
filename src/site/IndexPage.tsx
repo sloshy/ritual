@@ -15,11 +15,9 @@ export const IndexPage: FunctionalComponent<IndexPageProps> = ({ decks, useScryf
   return (
     <Layout title="My Decks">
       <div className="container mx-auto">
-        <h1 className="text-4xl font-bold mb-8 text-center text-transparent bg-clip-text bg-linear-to-r from-purple-400 to-pink-600">
-          My Magic Decks
-        </h1>
+        <h1 className="text-3xl font-bold mb-6 text-white">My Decks</h1>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {decks.map(({ data, featuredCard }) => {
             const safeName = data.name
               .toLowerCase()
@@ -29,37 +27,28 @@ export const IndexPage: FunctionalComponent<IndexPageProps> = ({ decks, useScryf
             const imagePath = featuredCard
               ? resolveCardImageSources(featuredCard, Boolean(useScryfallImgUrls)).frontImage
               : null
+            const cardCount = data.sections.reduce((acc, s) => acc + s.cards.length, 0)
 
             return (
-              <a href={link} key={data.name} className="block group">
-                <div className="bg-gray-800 rounded-xl overflow-hidden border border-gray-700 hover:border-purple-500 transition-all transform hover:-translate-y-1 hover:shadow-2xl">
-                  <div className="h-48 bg-gray-900 relative overflow-hidden">
+              <a href={link} key={data.name} className="block">
+                <div className="deck-cover">
+                  <div className="cover-image">
                     {imagePath ? (
-                      <img
-                        src={imagePath}
-                        alt={data.name}
-                        className="w-full h-full object-cover object-[50%_25%] group-hover:scale-105 transition-transform duration-500"
-                      />
+                      <img src={imagePath} alt={data.name} />
                     ) : (
-                      <div className="flex items-center justify-center h-full text-gray-700">
+                      <div className="flex items-center justify-center h-full text-gray-600 text-sm">
                         No Image
                       </div>
                     )}
-                    <div className="absolute inset-0 bg-linear-to-t from-gray-900 to-transparent opacity-80" />
-                    <div className="absolute bottom-4 left-4">
-                      <h2 className="text-xl font-bold text-white group-hover:text-purple-300">
-                        {data.name}
-                      </h2>
+                    <div className="cover-overlay" />
+                    <div className="cover-info">
+                      <h2>{data.name}</h2>
                       {featuredCard && (
-                        <p className="text-xs text-gray-400">Commander: {featuredCard.name}</p>
+                        <p className="cover-subtitle">Commander: {featuredCard.name}</p>
                       )}
                     </div>
                   </div>
-                  <div className="p-4">
-                    <p className="text-gray-400 text-sm">
-                      {data.sections.reduce((acc, s) => acc + s.cards.length, 0)} Cards
-                    </p>
-                  </div>
+                  <div className="cover-cardcount">{cardCount} cards</div>
                 </div>
               </a>
             )

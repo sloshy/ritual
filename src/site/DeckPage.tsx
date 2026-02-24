@@ -19,7 +19,6 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
   useScryfallImgUrls,
 }) => {
   const replaceSymbols = (text: string) => {
-    // ... (existing replaceSymbols logic)
     if (!text) return text
     const parts = text.split(/(\{.*?\})/g)
     return parts.map((part, i) => {
@@ -40,23 +39,25 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
   return (
     <Layout title={deck.name}>
       <div className="container mx-auto">
-        <div className="mb-8 border-b border-gray-700 pb-4 flex justify-between items-end">
+        {/* Header */}
+        <div className="mb-6 flex flex-wrap justify-between items-start gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">{deck.name}</h1>
+            <h1 className="text-2xl font-bold text-white">{deck.name}</h1>
             {deck.sourceUrl && (
               <a
                 href={deck.sourceUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="text-sm text-blue-400 hover:underline block"
+                className="text-xs text-gray-400 hover:text-white"
               >
-                Deck imported from{' '}
+                Imported from{' '}
                 {(() => {
                   if (deck.sourceUrl.includes('moxfield.com')) return 'Moxfield'
                   if (deck.sourceUrl.includes('archidekt.com')) return 'Archidekt'
                   if (deck.sourceUrl.includes('mtggoldfish.com')) return 'MTGGoldfish'
                   return 'Source'
-                })()}
+                })()}{' '}
+                ↗
               </a>
             )}
           </div>
@@ -65,173 +66,162 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
               <a
                 href={exportPath}
                 download={`${deck.name.replace(/[^a-zA-Z0-9]/g, '_')}.txt`}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-semibold transition-colors flex items-center gap-2"
+                className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs font-semibold transition-colors"
               >
-                <span>Download Text</span>
+                Download
               </a>
               <button
                 data-copy-src={exportPath}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm font-semibold transition-colors flex items-center gap-2 cursor-pointer"
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-semibold transition-colors cursor-pointer"
                 id="btn-copy-deck"
               >
-                <span>Copy Text</span>
+                Copy
               </button>
             </div>
           )}
         </div>
 
-        {/* Sorting Toolbar */}
-        <div className="mb-6 p-4 bg-gray-800 rounded border border-gray-700 flex flex-wrap gap-4 items-center justify-between">
-          <div className="flex gap-4 items-center">
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-400">Group By:</label>
-              <select
-                id="sort-group"
-                className="bg-gray-700 text-white rounded px-2 py-1 text-sm border border-gray-600 focus:border-blue-500 outline-none"
-              >
-                <option value="type">Type</option>
-                <option value="section">Section</option>
-                <option value="cmc">Mana Value</option>
-                <option value="none">None (Full Deck)</option>
-              </select>
-            </div>
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-400">Sort By:</label>
-              <select
-                id="sort-by"
-                className="bg-gray-700 text-white rounded px-2 py-1 text-sm border border-gray-600 focus:border-blue-500 outline-none"
-              >
-                <option value="name">Name</option>
-                <option value="cmc">Mana Value</option>
-                <option value="price">Price</option>
-                <option value="edhrec">EDHRec Rank</option>
-              </select>
-            </div>
+        {/* Toolbar */}
+        <div className="mb-4 flex flex-wrap gap-3 items-center text-xs">
+          <div className="view-toggle" id="view-toggle">
+            <button data-view="binder" className="active" title="Binder View">
+              ▦
+            </button>
+            <button data-view="list" title="List View">
+              ☰
+            </button>
+            <button data-view="overlap" title="Overlapping View">
+              ⧗
+            </button>
+            <button data-view="stack" title="Column Stack View">
+              ▥
+            </button>
           </div>
-          <div className="flex gap-4 items-center">
-            <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                id="sort-reverse"
-                className="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-blue-500"
-              />
-              Reverse
-            </label>
-            <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                id="filter-lands"
-                className="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-blue-500"
-              />
-              Hide Lands
-            </label>
-            <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                id="show-extras"
-                className="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-blue-500"
-              />
-              Show Extras
-            </label>
+          <div className="flex items-center gap-1.5">
+            <label className="text-gray-500">Group:</label>
+            <select
+              id="sort-group"
+              className="bg-gray-800 text-gray-200 rounded px-2 py-1 border border-gray-700 focus:border-blue-500 outline-none"
+            >
+              <option value="type">Type</option>
+              <option value="section">Section</option>
+              <option value="cmc">Mana Value</option>
+              <option value="none">None</option>
+            </select>
           </div>
+          <div className="flex items-center gap-1.5">
+            <label className="text-gray-500">Sort:</label>
+            <select
+              id="sort-by"
+              className="bg-gray-800 text-gray-200 rounded px-2 py-1 border border-gray-700 focus:border-blue-500 outline-none"
+            >
+              <option value="name">Name</option>
+              <option value="cmc">Mana Value</option>
+              <option value="price">Price</option>
+              <option value="edhrec">EDHRec Rank</option>
+            </select>
+          </div>
+          <label className="flex items-center gap-1 text-gray-400 cursor-pointer select-none">
+            <input type="checkbox" id="sort-reverse" className="rounded" />
+            Reverse
+          </label>
+          <label className="flex items-center gap-1 text-gray-400 cursor-pointer select-none">
+            <input type="checkbox" id="filter-lands" className="rounded" />
+            Hide Lands
+          </label>
+          <label className="flex items-center gap-1 text-gray-400 cursor-pointer select-none">
+            <input type="checkbox" id="show-extras" className="rounded" />
+            Extras
+          </label>
         </div>
 
         <script src="deck-sort.js" defer />
-
         <script src="copy-button.js" defer />
 
+        {/* Description / Primer */}
         {(deck.description || deck.primer) && (
-          <div className="mb-8 grid grid-cols-1 gap-6">
-            {/* ... Description/Primer ... */}
+          <div className="mb-6">
             {deck.description && (
-              <div className="bg-gray-800 p-6 rounded border border-gray-700">
-                <h2 className="text-xl font-bold text-white mb-4">Description</h2>
-                {deck.description.length > 250 ? (
-                  <div className="group">
+              <div className="mb-4 text-sm text-gray-300">
+                {deck.description.length > 200 ? (
+                  <div>
                     <input type="checkbox" id="desc-expand" className="peer hidden" />
-                    <div className="peer-checked:hidden text-gray-300 whitespace-pre-wrap">
-                      {replaceSymbols(deck.description.slice(0, 250))}...
+                    <div className="peer-checked:hidden whitespace-pre-wrap">
+                      {replaceSymbols(deck.description.slice(0, 200))}…
                     </div>
-                    <div className="hidden peer-checked:block text-gray-300 whitespace-pre-wrap">
+                    <div className="hidden peer-checked:block whitespace-pre-wrap">
                       {replaceSymbols(deck.description)}
                     </div>
                     <label
                       htmlFor="desc-expand"
-                      className="text-blue-400 cursor-pointer block mt-2 hover:underline peer-checked:hidden"
+                      className="text-blue-400 cursor-pointer text-xs hover:underline peer-checked:hidden"
                     >
-                      Source: Read More
+                      Read more
                     </label>
                     <label
                       htmlFor="desc-expand"
-                      className="text-blue-400 cursor-pointer hidden mt-2 hover:underline peer-checked:block"
+                      className="text-blue-400 cursor-pointer text-xs hover:underline hidden peer-checked:inline"
                     >
-                      Show Less
+                      Show less
                     </label>
                   </div>
                 ) : (
-                  <div className="text-gray-300 whitespace-pre-wrap">
-                    {replaceSymbols(deck.description)}
-                  </div>
+                  <div className="whitespace-pre-wrap">{replaceSymbols(deck.description)}</div>
                 )}
               </div>
             )}
-
             {deck.primer && (
-              <div className="bg-gray-800 p-6 rounded border border-gray-700">
-                <h2 className="text-xl font-bold text-white mb-4">Primer</h2>
-                {deck.primer.length > 250 ? (
-                  <div className="group">
+              <div className="text-sm text-gray-300">
+                {deck.primer.length > 200 ? (
+                  <div>
                     <input type="checkbox" id="primer-expand" className="peer hidden" />
-                    <div className="peer-checked:hidden text-gray-300 whitespace-pre-wrap">
-                      {replaceSymbols(deck.primer.slice(0, 250))}...
+                    <div className="peer-checked:hidden whitespace-pre-wrap">
+                      {replaceSymbols(deck.primer.slice(0, 200))}…
                     </div>
-                    <div className="hidden peer-checked:block text-gray-300 whitespace-pre-wrap">
+                    <div className="hidden peer-checked:block whitespace-pre-wrap">
                       {replaceSymbols(deck.primer)}
                     </div>
                     <label
                       htmlFor="primer-expand"
-                      className="text-blue-400 cursor-pointer block mt-2 hover:underline peer-checked:hidden"
+                      className="text-blue-400 cursor-pointer text-xs hover:underline peer-checked:hidden"
                     >
-                      Read More
+                      Read more
                     </label>
                     <label
                       htmlFor="primer-expand"
-                      className="text-blue-400 cursor-pointer hidden mt-2 hover:underline peer-checked:block"
+                      className="text-blue-400 cursor-pointer text-xs hover:underline hidden peer-checked:inline"
                     >
-                      Show Less
+                      Show less
                     </label>
                   </div>
                 ) : (
-                  <div className="text-gray-300 whitespace-pre-wrap">
-                    {replaceSymbols(deck.primer)}
-                  </div>
+                  <div className="whitespace-pre-wrap">{replaceSymbols(deck.primer)}</div>
                 )}
               </div>
             )}
           </div>
         )}
 
-        <div className="space-y-8">
-          {/* ... Sections ... */}
+        {/* Card sections — binder grid */}
+        <div className="space-y-6">
           {deck.sections.map((section) => {
             if (section.cards.length === 0) return null
             return (
               <div key={section.name} data-section={section.name}>
-                <h2
-                  id={section.name.replace(/[^a-zA-Z0-9]/g, '_')}
-                  className="text-xl font-semibold mb-4 text-purple-400 border-l-4 border-purple-500 pl-3 scroll-mt-20"
-                >
-                  <a
-                    href={`#${section.name.replace(/[^a-zA-Z0-9]/g, '_')}`}
-                    className="hover:underline"
-                  >
-                    {section.name}
-                  </a>{' '}
-                  <span className="text-gray-500 text-sm font-normal ml-2">
-                    ({section.cards.reduce((sum, c) => sum + c.quantity, 0)})
+                <div className="section-divider" id={section.name.replace(/[^a-zA-Z0-9]/g, '_')}>
+                  <h2>
+                    <a
+                      href={`#${section.name.replace(/[^a-zA-Z0-9]/g, '_')}`}
+                      className="hover:underline"
+                    >
+                      {section.name}
+                    </a>
+                  </h2>
+                  <span className="section-count">
+                    {section.cards.reduce((sum, c) => sum + c.quantity, 0)}
                   </span>
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                </div>
+                <div className="binder-grid">
                   {section.cards.map((card) => (
                     <CardItem
                       key={card.name}
@@ -247,6 +237,29 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
               </div>
             )
           })}
+        </div>
+
+        {/* Modal container — populated by card-modal.js */}
+        <div id="card-modal-root" className="card-modal-backdrop" role="dialog" aria-modal="true">
+          <div className="card-modal" style="position:relative;">
+            <button className="modal-close" aria-label="Close">
+              &times;
+            </button>
+            <div className="card-modal-image">
+              <img id="modal-img-front" src="" alt="" />
+              <img id="modal-img-back" src="" alt="" className="hidden" />
+              <button id="modal-flip-btn" className="flip-btn hidden">
+                Flip ↻
+              </button>
+            </div>
+            <div className="card-modal-details">
+              <div className="modal-card-name" id="modal-name" />
+              <div className="modal-type-line" id="modal-type" />
+              <div className="modal-mana-cost" id="modal-mana" />
+              <div className="modal-oracle-text" id="modal-oracle" />
+              <div className="modal-meta" id="modal-meta" />
+            </div>
+          </div>
         </div>
       </div>
     </Layout>

@@ -1,4 +1,4 @@
-// Deck filtering and sorting logic
+// Deck filtering, sorting, and view-mode logic
 interface CardData {
   element: HTMLElement
   originalParent: HTMLElement | null
@@ -10,16 +10,48 @@ interface CardData {
   section: string
 }
 
+type ViewMode = 'binder' | 'list' | 'overlap' | 'stack'
+
 document.addEventListener('DOMContentLoaded', () => {
   const groupSelect = document.getElementById('sort-group') as HTMLSelectElement
   const sortSelect = document.getElementById('sort-by') as HTMLSelectElement
   const reverseCheck = document.getElementById('sort-reverse') as HTMLInputElement
   const landCheck = document.getElementById('filter-lands') as HTMLInputElement
   const extrasCheck = document.getElementById('show-extras') as HTMLInputElement
-  const container = document.querySelector('.space-y-8') // Main sections container
+  const container = document.querySelector('.space-y-6') as HTMLElement | null
+  const viewToggle = document.getElementById('view-toggle')
 
   if (!container || !groupSelect || !sortSelect || !reverseCheck || !landCheck || !extrasCheck) {
     return
+  }
+
+  let currentView: ViewMode = 'binder'
+
+  // View mode toggle
+  if (viewToggle) {
+    viewToggle.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest('[data-view]') as HTMLElement | null
+      if (!btn) return
+      const mode = btn.getAttribute('data-view') as ViewMode
+      if (mode && mode !== currentView) {
+        currentView = mode
+        viewToggle.querySelectorAll('button').forEach((b) => b.classList.remove('active'))
+        btn.classList.add('active')
+        applyViewMode()
+      }
+    })
+  }
+
+  const applyViewMode = () => {
+    // Apply view class on all section containers (including dynamic)
+    container.classList.remove('view-binder', 'view-list', 'view-overlap', 'view-stack')
+    container.classList.add(`view-${currentView}`)
+
+    // Update grid classes
+    container.querySelectorAll('.binder-grid, .card-grid').forEach((grid) => {
+      // Reset to base class so CSS view rules take effect
+      grid.className = currentView === 'binder' ? 'binder-grid' : 'binder-grid'
+    })
   }
 
   // Store original sections structure in allCards
@@ -27,14 +59,11 @@ document.addEventListener('DOMContentLoaded', () => {
   let sectionOrder: string[] = []
 
   document.querySelectorAll('.card-item').forEach((el) => {
-    const parentContainer = el.closest('.grid')
+    const parentContainer = el.closest('.binder-grid')
     if (!parentContainer) return
 
-    const previousSibling = parentContainer.previousElementSibling as HTMLElement
-    if (!previousSibling) return
-
-    const splitName = previousSibling.innerText.split('(')[0]
-    const sectionName = splitName ? splitName.trim() : ''
+    const sectionDiv = el.closest('[data-section]') as HTMLElement | null
+    const sectionName = sectionDiv?.getAttribute('data-section') || ''
     if (!sectionOrder.includes(sectionName)) sectionOrder.push(sectionName)
 
     allCards.push({
@@ -56,14 +85,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const hideLands = landCheck.checked
     const showExtras = extrasCheck.checked
 
-    // Gather cards that are NOT in Commander section
     const sections = Array.from(container.children) as HTMLElement[]
     let dynamicContainer = document.getElementById('dynamic-sort-container')
 
     if (!dynamicContainer) {
       dynamicContainer = document.createElement('div')
       dynamicContainer.id = 'dynamic-sort-container'
-      dynamicContainer.className = 'space-y-8'
+      dynamicContainer.className = 'space-y-6'
       container.appendChild(dynamicContainer)
     }
 
@@ -79,19 +107,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     dynamicContainer.innerHTML = ''
 
-    // Filter available cards (excluding commander and dynamic container children)
+    // Filter available cards (excluding commander)
     let workingCards = allCards.filter(
       (c) =>
         !c.section.toLowerCase().includes('commander') &&
         !c.element.closest('#dynamic-sort-container'),
     )
 
-    // Filter: Extras (Sideboard, Maybeboard, etc)
+    // Filter: Extras
     if (!showExtras) {
       workingCards = workingCards.filter((c) => {
         const s = c.section.toLowerCase()
-        // Keep "main" sections (including "mainboard", "main deck", "creatures", etc.)
-        // Only filter out specific "extra" sections: Sideboard, Maybeboard, Token.
         if (s.includes('sideboard') || s.includes('maybeboard') || s.includes('token')) return false
         return true
       })
@@ -109,7 +135,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (sortBy === 'name') {
         return reverse ? b.name.localeCompare(a.name) : a.name.localeCompare(b.name)
       } else if (sortBy === 'cmc' || sortBy === 'price' || sortBy === 'edhrec') {
-        // Numeric sort
         const key = sortBy as 'cmc' | 'price' | 'edhrec'
         return reverse ? b[key] - a[key] : a[key] - b[key]
       }
@@ -128,7 +153,6 @@ document.addEventListener('DOMContentLoaded', () => {
         groups[key].push(c)
       })
     } else if (groupBy === 'type') {
-      // Priority: Creature > Planeswalker > Instant > Sorcery > Artifact > Enchantment > Land
       const getType = (t: string) => {
         if (t.includes('Creature')) return 'Creature'
         if (t.includes('Planeswalker')) return 'Planeswalker'
@@ -153,7 +177,6 @@ document.addEventListener('DOMContentLoaded', () => {
       })
     }
 
-    // Render Groups
     // Sort group keys
     let keys = Object.keys(groups)
     if (groupBy === 'cmc') {
@@ -180,27 +203,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
       groupCards.sort(sortFn)
 
-      // Create Section Header
+      // Section divider
       const sectionId = key.replace(/[^a-zA-Z0-9]/g, '_')
-      const header = document.createElement('h2')
-      header.id = sectionId
-      header.className =
-        'text-xl font-semibold mb-4 text-purple-400 border-l-4 border-purple-500 pl-3 scroll-mt-20'
-      header.innerHTML = `<a href="#${sectionId}" class="hover:underline">${key}</a> <span class="text-gray-500 text-sm font-normal ml-2">(${groupCards.length})</span>`
+      const divider = document.createElement('div')
+      divider.className = 'section-divider'
+      divider.id = sectionId
 
-      // Create Grid
+      const header = document.createElement('h2')
+      header.innerHTML = `<a href="#${sectionId}">${key}</a>`
+
+      const count = document.createElement('span')
+      count.className = 'section-count'
+      count.textContent = String(groupCards.length)
+
+      divider.appendChild(header)
+      divider.appendChild(count)
+
+      // Grid
       const grid = document.createElement('div')
-      grid.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'
+      grid.className = 'binder-grid'
 
       groupCards.forEach((c) => {
-        grid.appendChild(c.element) // Move element to new location
+        grid.appendChild(c.element)
       })
 
       const secDiv = document.createElement('div')
-      secDiv.appendChild(header)
+      secDiv.appendChild(divider)
       secDiv.appendChild(grid)
       if (dynamicContainer) dynamicContainer.appendChild(secDiv)
     })
+
+    // Reapply view mode after DOM rebuild
+    applyViewMode()
   }
 
   // Listeners

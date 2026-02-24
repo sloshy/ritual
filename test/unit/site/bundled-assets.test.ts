@@ -14,13 +14,13 @@ describe('getBundledSiteAssets', () => {
     const assets = getBundledSiteAssets()
 
     expect(Object.keys(assets.scripts).sort()).toEqual([
+      'card-modal.js',
       'copy-button.js',
       'deck-sort.js',
-      'tooltip.js',
     ])
     expect(assets.scripts['deck-sort.js']).toContain('document.addEventListener')
     expect(assets.scripts['deck-sort.js']).not.toContain('interface CardData')
     expect(assets.scripts['copy-button.js']).toContain('navigator.clipboard.writeText')
-    expect(assets.scripts['tooltip.js']).toContain('data-preview-src')
+    expect(assets.scripts['card-modal.js']).toContain('card-modal-root')
   })
 })
