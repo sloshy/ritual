@@ -9,6 +9,9 @@ interface CardItemProps {
   symbolMap: Record<string, string>
   hideCount?: boolean
   useScryfallImgUrls?: boolean
+  onCardClick?: () => void
+  onTooltipEnter?: (src: string) => void
+  onTooltipLeave?: () => void
 }
 
 export const CardItem: FunctionalComponent<CardItemProps> = ({
@@ -18,6 +21,9 @@ export const CardItem: FunctionalComponent<CardItemProps> = ({
   symbolMap,
   hideCount,
   useScryfallImgUrls,
+  onCardClick,
+  onTooltipEnter,
+  onTooltipLeave,
 }) => {
   if (!card) {
     return (
@@ -46,44 +52,34 @@ export const CardItem: FunctionalComponent<CardItemProps> = ({
   }
 
   const isDFC = isDoubleFacedCard(card)
-  const { frontImage, backImage } = resolveCardImageSources(card, Boolean(useScryfallImgUrls))
-  const frontType = card.card_faces?.[0]?.type_line || card.type_line
-  const isSideways = frontType.includes('Room') || frontType.includes('Battle')
+  const { frontImage } = resolveCardImageSources(card, Boolean(useScryfallImgUrls))
 
-  const oracleHtml = buildOracleHtml(card, isDFC, symbolMap)
   const manaCostHtml = buildManaCostHtml(card, isDFC, symbolMap)
 
-  // Shared data attributes for modal + sorting
   const dataAttrs = {
     'data-name': name.toLowerCase(),
     'data-cmc': card.cmc,
     'data-edhrec': card.edhrec_rank || 999999,
     'data-price': parseFloat(card.prices.usd || '0'),
     'data-type': card.type_line,
-    'data-modal-name': name,
-    'data-modal-type': card.type_line,
-    'data-modal-front': frontImage,
-    'data-modal-back': backImage,
-    'data-modal-sideways': isSideways ? 'true' : 'false',
-    'data-modal-dfc': isDFC ? 'true' : 'false',
-    'data-modal-price': card.prices.usd || '',
-    'data-modal-set': `${card.set_name} (#${card.collector_number})`,
-    'data-modal-rarity': card.rarity,
-    'data-modal-oracle': oracleHtml,
-    'data-modal-mana': manaCostHtml,
   }
 
   return (
     <div className="card-item" {...dataAttrs}>
       {/* Binder view */}
-      <div className="card-binder">
+      <div className="card-binder" onClick={onCardClick}>
         {frontImage && <img src={frontImage} alt={name} loading="lazy" />}
         {!hideCount && quantity > 1 && <span className="qty-badge">{quantity}x</span>}
         <span className="card-label">{name}</span>
       </div>
 
       {/* List view */}
-      <div className="card-list" data-tooltip-src={frontImage}>
+      <div
+        className="card-list"
+        onClick={onCardClick}
+        onMouseEnter={() => frontImage && onTooltipEnter?.(frontImage)}
+        onMouseLeave={() => onTooltipLeave?.()}
+      >
         {!hideCount && <span className="list-qty">{quantity}</span>}
         <span className="list-name">{name}</span>
         <span className="list-mana" dangerouslySetInnerHTML={{ __html: manaCostHtml }} />
@@ -91,10 +87,10 @@ export const CardItem: FunctionalComponent<CardItemProps> = ({
       </div>
 
       {/* Overlap view */}
-      <div className="card-overlap">
+      <div className="card-overlap" onClick={onCardClick}>
         {frontImage && <img src={frontImage} alt={name} loading="lazy" />}
         {!hideCount && quantity > 1 && <span className="qty-badge">{quantity}x</span>}
-        <button className="overlap-details-btn" data-open-modal="true">
+        <button className="overlap-details-btn" onClick={onCardClick}>
           Details
         </button>
       </div>
@@ -114,23 +110,6 @@ function buildManaCostHtml(
       .join(' // ')
   }
   return renderSymbolsToHtml(card.mana_cost || '', symbolMap)
-}
-
-function buildOracleHtml(
-  card: ScryfallCard,
-  isDFC: boolean,
-  symbolMap: Record<string, string>,
-): string {
-  if (isDFC && card.card_faces) {
-    return card.card_faces
-      .map((face) => {
-        const header = `<strong>${escapeHtml(face.name)}</strong> <em>(${escapeHtml(face.type_line)})</em>`
-        const text = renderSymbolsToHtml(face.oracle_text || '', symbolMap)
-        return `${header}\n${text}`
-      })
-      .join('\n\n---\n\n')
-  }
-  return renderSymbolsToHtml(card.oracle_text || '', symbolMap)
 }
 
 function renderSymbolsToHtml(text: string, symbolMap: Record<string, string>): string {

@@ -1,15 +1,14 @@
 import { Command } from 'commander'
 import path from 'node:path'
 import fs from 'node:fs/promises'
-import { render } from 'preact-render-to-string'
 import { importFromTextFile } from '../importers/text-file'
 import { fetchCardData, downloadImage } from '../scryfall'
-import { IndexPage } from '../site/IndexPage'
-import { DeckPage } from '../site/DeckPage'
 import { getBundledSiteAssets } from '../site/bundled-assets'
 import type { DeckData, ScryfallCard } from '../types'
+import type { DeckSummary, DeckIndex, DeckDetail } from '../site/data-types'
 import { fetchArchidektDeck } from '../importers/archidekt'
 import { fetchMoxfieldDeck } from '../importers/moxfield-lib'
+import { resolveCardImageSources } from '../site/image-sources'
 
 interface BuildSiteOptions {
   verbose?: boolean
@@ -218,9 +217,11 @@ export function registerBuildSiteCommand(program: Command) {
       }
       process.stdout.write('\n\n')
 
-      // Phase 3: Generate Site
-      console.log('Generating pages...')
-      const finalDecks: { data: DeckData; featuredCard: ScryfallCard | null }[] = []
+      // Phase 3: Generate JSON data files and SPA bundle
+      console.log('Generating data files...')
+      const decksSummaries: DeckSummary[] = []
+      const decksDataDir = path.join(distDir, 'decks')
+      await fs.mkdir(decksDataDir, { recursive: true })
 
       for (const { data: deckData } of loadedDecks) {
         // Find Featured Card
@@ -252,8 +253,6 @@ export function registerBuildSiteCommand(program: Command) {
             }
           }
         }
-
-        finalDecks.push({ data: deckData, featuredCard: featured })
 
         const safeName = deckData.name
           .toLowerCase()
@@ -294,39 +293,96 @@ export function registerBuildSiteCommand(program: Command) {
         }
 
         const deckText = textLines.join('\n').trim()
-        const deckTextPath = path.join(distDir, 'decks', `${safeName}.txt`)
-        await fs.mkdir(path.dirname(deckTextPath), { recursive: true })
+        const deckTextPath = path.join(decksDataDir, `${safeName}.txt`)
         await Bun.write(deckTextPath, deckText)
 
-        const html = render(
-          <DeckPage
-            deck={deckData}
-            cards={globalCardMap}
-            symbolMap={symbolMap}
-            exportPath={`decks/${safeName}.txt`}
-            useScryfallImgUrls={useScryfallImgUrls}
-          />,
+        // Build deck-specific card map (only cards in this deck)
+        const deckCardMap: Record<string, ScryfallCard | null> = {}
+        deckData.sections.forEach((s) =>
+          s.cards.forEach((c) => {
+            deckCardMap[c.name] = globalCardMap[c.name] ?? null
+          }),
         )
-        await Bun.write(path.join(distDir, `${safeName}.html`), '<!DOCTYPE html>' + html)
+
+        // Write deck detail JSON
+        const deckDetail: DeckDetail = {
+          deck: deckData,
+          cards: deckCardMap,
+          symbolMap,
+          exportPath: `decks/${safeName}.txt`,
+          useScryfallImgUrls,
+        }
+        await Bun.write(path.join(decksDataDir, `${safeName}.json`), JSON.stringify(deckDetail))
+
+        // Build summary for index
+        const cardCount = deckData.sections.reduce((acc, s) => acc + s.cards.length, 0)
+        const featuredImage = featured
+          ? resolveCardImageSources(featured, useScryfallImgUrls).frontImage
+          : ''
+
+        const summary: DeckSummary = {
+          slug: safeName,
+          name: deckData.name,
+          featuredCardImage: featuredImage,
+          commander: featured && commanderSection ? featured.name : null,
+          cardCount,
+        }
+        decksSummaries.push(summary)
       }
 
-      const indexHtml = render(
-        <IndexPage decks={finalDecks} useScryfallImgUrls={useScryfallImgUrls} />,
-      )
-      await Bun.write(path.join(distDir, 'index.html'), '<!DOCTYPE html>' + indexHtml)
+      // Write index JSON
+      const deckIndex: DeckIndex = {
+        decks: decksSummaries,
+        useScryfallImgUrls,
+      }
+      await Bun.write(path.join(distDir, 'index.json'), JSON.stringify(deckIndex))
+
+      // Bundle SPA
+      console.log('Bundling SPA...')
+      const buildResult = await Bun.build({
+        entrypoints: [path.join(import.meta.dir, '../site/app.tsx')],
+        outdir: distDir,
+        target: 'browser',
+        format: 'esm',
+        minify: true,
+        naming: 'app.js',
+        define: {
+          'process.env.NODE_ENV': '"production"',
+        },
+        jsx: {
+          runtime: 'automatic',
+          importSource: 'preact',
+        },
+      })
+
+      if (!buildResult.success) {
+        console.error('SPA bundle failed:')
+        for (const log of buildResult.logs) {
+          console.error(log)
+        }
+        return
+      }
+
+      // Generate index.html shell
+      const indexHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MTG Decks</title>
+  <link rel="icon" type="image/svg+xml" href="app.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="min-h-screen bg-gray-900 text-gray-100 font-sans">
+  <div id="app"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>`
+      await Bun.write(path.join(distDir, 'index.html'), indexHtml)
 
       // Write bundled CSS
       console.log('Writing CSS...')
       await Bun.write(path.join(distDir, 'styles.css'), bundledSiteAssets.stylesSourceCss)
-
-      console.log('Writing client-side scripts...')
-      try {
-        for (const [scriptFileName, scriptContents] of Object.entries(bundledSiteAssets.scripts)) {
-          await Bun.write(path.join(distDir, scriptFileName), scriptContents)
-        }
-      } catch (e) {
-        console.error('Failed to write scripts:', e)
-      }
 
       console.log(`Site generated in ${distDir}`)
     })

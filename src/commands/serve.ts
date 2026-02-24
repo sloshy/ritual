@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import path from 'path'
+import path from 'node:path'
 
 export function registerServeCommand(program: Command) {
   program
@@ -18,20 +18,15 @@ export function registerServeCommand(program: Command) {
           const url = new URL(req.url)
           let filePath = path.join(distDir, url.pathname)
 
-          if (filePath.endsWith('/') || (await Bun.file(filePath).exists()) === false) {
-            if (url.pathname.endsWith('/')) {
-              filePath = path.join(distDir, url.pathname, 'index.html')
-            } else if (path.extname(filePath) === '') {
-              const htmlPath = filePath + '.html'
-              if (await Bun.file(htmlPath).exists()) {
-                filePath = htmlPath
-              }
-            }
-          }
-
           const file = Bun.file(filePath)
           if (await file.exists()) {
             return new Response(file)
+          }
+
+          // SPA fallback: serve index.html for non-file routes
+          const indexFile = Bun.file(path.join(distDir, 'index.html'))
+          if (await indexFile.exists()) {
+            return new Response(indexFile)
           }
 
           return new Response('Not Found', { status: 404 })

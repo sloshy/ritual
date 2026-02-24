@@ -5,6 +5,7 @@ node_modules
 out
 dist
 *.tgz
+src/site/styles.compiled.css
 
 # code coverage
 coverage

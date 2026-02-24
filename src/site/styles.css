@@ -1,5 +1,37 @@
 @import 'tailwindcss';
 
+/* ===== Page transitions ===== */
+.page-transition {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.page-visible {
+  opacity: 1;
+}
+
+.page-hidden {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+/* ===== Loading spinner ===== */
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid oklch(35% 0.03 260);
+  border-top-color: oklch(75% 0.12 280);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 body {
   @apply bg-gray-900 text-gray-100 font-sans;
 }
