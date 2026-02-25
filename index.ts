@@ -17,6 +17,7 @@ import { registerLoginCommand } from './src/commands/login'
 
 import { registerImportAccountCommand } from './src/commands/import-account'
 import { registerCollectionCommand } from './src/commands/collection'
+import { registerPriceCollectionCommand } from './src/commands/price-collection'
 import { registerScryCommand } from './src/commands/scry'
 import { registerCardCommand } from './src/commands/card'
 import { registerRandomCommand } from './src/commands/random'
@@ -57,6 +58,7 @@ registerCacheServerCommand(program)
 registerLoginCommand(program)
 
 registerCollectionCommand(program)
+registerPriceCollectionCommand(program)
 registerScryCommand(program)
 registerCardCommand(program)
 registerRandomCommand(program)
