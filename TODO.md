@@ -1,16 +1,15 @@
 # TODO
 
+## Collection
+
+- Add collection to build-site
+
 ## Static Site Generator
 
 - Add more filtering options (scryfall syntax?)
 - Add search
 - Allow downloading deck info as JSON, CSV pre-rendered
 - Refactor static site generator to first output deck data into a common format, to allow for plugging in different layouts and themes
-
-## Moxfield
-
-- Require MOXFIELD_USER_AGENT for usage
-- Add "this is VERY experimental" prompt and cli flags
 
 ## Other commands
 
