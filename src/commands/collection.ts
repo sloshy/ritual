@@ -196,7 +196,8 @@ export function registerCollectionCommand(program: Command) {
           message: promptMessage,
           choices: choices,
           limit: 10,
-          suggest: async (input, choices) => {
+          suggest: async (rawInput, choices) => {
+            const input = String(rawInput)
             if (sessionConfig.entryMode === 'name') {
               // Name mode suggestion logic
               const isForce = input.endsWith('!')
@@ -210,9 +211,12 @@ export function registerCollectionCommand(program: Command) {
                     c.value === '__COLLECTOR_MODE__',
                 )
 
-              const matches = choices.filter((choice) =>
-                choice.title.toLowerCase().includes(cleanInput.toLowerCase()),
-              )
+              const terms = cleanInput.toLowerCase().split(/\s+/).filter(Boolean)
+
+              const matches = choices.filter((choice) => {
+                const title = choice.title.toLowerCase()
+                return terms.every((term) => title.includes(term))
+              })
 
               if (isForce) {
                 return matches.map((m) => ({
@@ -469,18 +473,20 @@ export function registerCollectionCommand(program: Command) {
               message: 'Select Printing:',
               choices: printingChoices,
               limit: 15,
-              suggest: async (input, choices) => {
+              suggest: async (rawInput, choices) => {
+                const input = String(rawInput)
                 if (!input) return choices
 
-                const lower = input.toLowerCase()
+                const terms = input.toLowerCase().split(/\s+/).filter(Boolean)
                 const codeMatches: Choice[] = []
                 const otherMatches: Choice[] = []
 
                 for (const choice of choices) {
                   const card = choice.value as ScryfallCard
-                  if (card?.set?.toLowerCase().startsWith(lower)) {
+                  const title = choice.title.toLowerCase()
+                  if (terms.length === 1 && card?.set?.toLowerCase().startsWith(terms[0]!)) {
                     codeMatches.push(choice)
-                  } else if (choice.title.toLowerCase().includes(lower)) {
+                  } else if (terms.every((term) => title.includes(term))) {
                     otherMatches.push(choice)
                   }
                 }
