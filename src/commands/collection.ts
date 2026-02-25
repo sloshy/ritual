@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import prompts, { type Choice } from 'prompts'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
-import { getAllCardNames, getCardsBySet } from '../scryfall'
+import { getAllCardNames, getCardsBySet, isDigitalOnlySet } from '../scryfall'
 import type { ScryfallCard } from '../types'
 
 export function registerCollectionCommand(program: Command) {
@@ -14,6 +14,7 @@ export function registerCollectionCommand(program: Command) {
     .option('-f, --finish <finish>', 'Default finish (nonfoil, foil, etched)')
     .option('-c, --condition <condition>', 'Default condition (NM, LP, MP, HP, DMG)')
     .option('--collector', 'Start in collector number mode')
+    .option('--allow-digital-only-cards', 'Include digital-only sets (e.g., Alchemy)')
     .action(async (options) => {
       const parsedSets = options.sets
         ? options.sets
@@ -21,9 +22,10 @@ export function registerCollectionCommand(program: Command) {
             .map((s: string) => s.trim().toLowerCase())
             .filter((s: string) => s.length > 0)
         : undefined
+      const excludeDigitalOnly = !options.allowDigitalOnlyCards
 
       console.log('Loading card database for autocomplete...')
-      let cardNames = await getAllCardNames(parsedSets)
+      let cardNames = await getAllCardNames({ sets: parsedSets, excludeDigitalOnly })
 
       if (cardNames.length === 0) {
         console.log('Cache is empty. Please run preload to populate the cache for autocomplete.')
@@ -363,7 +365,7 @@ export function registerCollectionCommand(program: Command) {
           if (configResponse.sets !== undefined) {
             sessionConfig.sets = configResponse.sets.length > 0 ? configResponse.sets : undefined
             console.log('Reloading card database with new filters...')
-            cardNames = await getAllCardNames(sessionConfig.sets)
+            cardNames = await getAllCardNames({ sets: sessionConfig.sets, excludeDigitalOnly })
             console.log(`Loaded ${cardNames.length} cards.`)
           }
 
@@ -428,6 +430,11 @@ export function registerCollectionCommand(program: Command) {
           // Fetch all printings
           const { getCardPrintings } = await import('../scryfall')
           let printings = await getCardPrintings(cardName)
+
+          // Filter out digital-only printings
+          if (excludeDigitalOnly) {
+            printings = printings.filter((p) => !isDigitalOnlySet(p.set))
+          }
 
           // Apply Set Filter
           if (sessionConfig.sets && sessionConfig.sets.length > 0) {

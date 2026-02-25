@@ -20,6 +20,9 @@ Interactively manage a collection of cards. Alias: `collect`.
 | `-f, --finish <finish>`       | Default finish: `nonfoil`, `foil`, or `etched`            |
 | `-c, --condition <condition>` | Default condition: `NM`, `LP`, `MP`, `HP`, or `DMG`       |
 | `--collector`                 | Start in collector number mode                            |
+| `--allow-digital-only-cards`  | Include digital-only sets (e.g., Alchemy) in results      |
+
+Digital-only sets (Alchemy sets, plus `OM1`) are filtered out by default since they have no paper printings.
 
 Options can be combined. When `--collector` is used with `--sets`, the set card data is pre-loaded automatically.
 

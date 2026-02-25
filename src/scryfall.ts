@@ -17,6 +17,16 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+export type CardNameFilter = {
+  sets?: string[]
+  excludeDigitalOnly?: boolean
+}
+
+export function isDigitalOnlySet(setCode: string): boolean {
+  const lower = setCode.toLowerCase()
+  return (lower.length === 4 && lower.startsWith('a')) || lower === 'om1'
+}
+
 export interface ScryfallSymbol {
   symbol: string
   svg_uri: string
@@ -118,17 +128,20 @@ export class ScryfallClient implements PricingBackend {
     return filename
   }
 
-  async getAllCardNames(sets?: string[]): Promise<string[]> {
+  async getAllCardNames(filter?: CardNameFilter): Promise<string[]> {
     await this.checkAndPromptPreload()
-    // cardCache.values() now returns ScryfallCard[][]
     const allCardsArrays = await this.cardCache.values()
 
     let filteredArrays = allCardsArrays
-    if (sets && sets.length > 0) {
-      const setSet = new Set(sets.map((s) => s.toLowerCase()))
+    if (filter?.sets && filter.sets.length > 0) {
+      const setSet = new Set(filter.sets.map((s) => s.toLowerCase()))
       filteredArrays = allCardsArrays.filter((cards) =>
         cards.some((c) => setSet.has(c.set.toLowerCase())),
       )
+    }
+
+    if (filter?.excludeDigitalOnly) {
+      filteredArrays = filteredArrays.filter((cards) => cards.some((c) => !isDigitalOnlySet(c.set)))
     }
 
     // Flatten to get representative cards for sorting
@@ -668,8 +681,8 @@ export function fetchSearchPage(query: string, page: number, format: 'json' | 'c
   return scryfallClient.fetchSearchPage(query, page, format)
 }
 
-export function getAllCardNames(sets?: string[]) {
-  return scryfallClient.getAllCardNames(sets)
+export function getAllCardNames(filter?: CardNameFilter) {
+  return scryfallClient.getAllCardNames(filter)
 }
 
 export function downloadImage(url: string, destPath: string) {
