@@ -22,10 +22,12 @@ When no collection name is given, all `.md` files in the `collections/` director
 
 ## Options
 
-| Option              | Description                      |
-| ------------------- | -------------------------------- |
-| `--output <format>` | Output format (`json` or `text`) |
-| `--quiet`           | Suppress non-essential output    |
+| Option              | Description                                             |
+| ------------------- | ------------------------------------------------------- |
+| `--sort <field>`    | Sort cards by `name` or `price` (default: listed order) |
+| `--descending`      | Reverse the sort direction                              |
+| `--output <format>` | Output format (`json` or `text`)                        |
+| `--quiet`           | Suppress non-essential output                           |
 
 ## Examples
 
@@ -33,6 +35,12 @@ Price all collections:
 
 ```bash
 ./ritual price-collection
+```
+
+Sort by price, most expensive first:
+
+```bash
+./ritual pc --sort price --descending
 ```
 
 Price a single collection:

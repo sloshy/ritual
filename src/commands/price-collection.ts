@@ -87,7 +87,9 @@ export function registerPriceCollectionCommand(program: Command) {
       .command('price-collection')
       .description('Get pricing for your collection')
       .argument('[collectionName]', 'Name of a single collection file (without extension)')
-      .alias('pc'),
+      .alias('pc')
+      .option('--sort <field>', 'Sort cards by field (name, price)', '')
+      .option('--descending', 'Reverse the sort direction'),
     'text',
   ).action(async (collectionName: string | undefined, options) => {
     const scriptingOptions = normalizeScriptingOptions(options, 'text')
@@ -133,9 +135,22 @@ export function registerPriceCollectionCommand(program: Command) {
     }
 
     try {
+      type PricedCard = {
+        name: string
+        set: string
+        collectorNumber: string
+        finish: string
+        price: number
+        quantity: number
+      }
+
       type CollectionResult = {
         name: string
-        cards: number
+        cards: PricedCard[]
+        totalCards: number
+        foilCount: number
+        etchedCount: number
+        nonfoilCount: number
         total: number
       }
 
@@ -161,13 +176,25 @@ export function registerPriceCollectionCommand(program: Command) {
           continue
         }
 
-        if (!scriptingOptions.quiet && scriptingOptions.output === 'text') {
-          console.log(`\nPricing '${collectionDisplayName}' (${entries.length} cards)...`)
+        // Aggregate entries by name+set+collector+finish for quantity counting
+        const aggregated = new Map<string, CollectionEntry>()
+        for (const entry of entries) {
+          const key = `${entry.name}|${entry.set}|${entry.collectorNumber}|${entry.finish ?? ''}`
+          const existing = aggregated.get(key)
+          if (existing) {
+            existing.quantity++
+          } else {
+            aggregated.set(key, { ...entry })
+          }
         }
 
+        const pricedCards: PricedCard[] = []
         let fileTotal = 0
+        let foilCount = 0
+        let etchedCount = 0
+        let nonfoilCount = 0
 
-        for (const entry of entries) {
+        for (const entry of aggregated.values()) {
           const printings = await getCardPrintings(entry.name)
           const exactPrinting = printings.find(
             (p) =>
@@ -186,17 +213,67 @@ export function registerPriceCollectionCommand(program: Command) {
 
           const finish = resolveFinish(entry, exactPrinting)
           const price = getPriceForFinish(exactPrinting, finish)
-          fileTotal += price * entry.quantity
+          const lineTotal = price * entry.quantity
+          fileTotal += lineTotal
+
+          if (finish === 'foil') foilCount += entry.quantity
+          else if (finish === 'etched') etchedCount += entry.quantity
+          else nonfoilCount += entry.quantity
+
+          pricedCards.push({
+            name: entry.name,
+            set: entry.set,
+            collectorNumber: entry.collectorNumber,
+            finish,
+            price,
+            quantity: entry.quantity,
+          })
         }
 
         grandTotal += fileTotal
+        const totalCards = nonfoilCount + foilCount + etchedCount
+
+        const sortField: string = options.sort || ''
+        const descending: boolean = options.descending || false
+
+        if (sortField === 'name') {
+          pricedCards.sort((a, b) => a.name.localeCompare(b.name))
+        } else if (sortField === 'price') {
+          pricedCards.sort((a, b) => a.price - b.price)
+        }
+
+        if (descending) {
+          pricedCards.reverse()
+        }
+
         collectionResults.push({
           name: collectionDisplayName,
-          cards: entries.reduce((sum, e) => sum + e.quantity, 0),
+          cards: pricedCards,
+          totalCards,
+          foilCount,
+          etchedCount,
+          nonfoilCount,
           total: fileTotal,
         })
 
         if (!scriptingOptions.quiet && scriptingOptions.output === 'text') {
+          console.log(`\n[${collectionDisplayName}]`)
+
+          for (const card of pricedCards) {
+            const qty = card.quantity > 1 ? ` (${card.quantity}x)` : ''
+            const finishTag = card.finish !== 'nonfoil' ? ` [${card.finish}]` : ''
+            const totalSuffix =
+              card.quantity > 1 ? ` ($${(card.price * card.quantity).toFixed(2)} total)` : ''
+            console.log(
+              `  ${card.name} (${card.set.toUpperCase()}:${card.collectorNumber})${finishTag}${qty} — $${card.price.toFixed(2)}${totalSuffix}`,
+            )
+          }
+
+          console.log('')
+          const stats: string[] = [`${totalCards} cards`]
+          if (foilCount > 0) stats.push(`${foilCount} foil`)
+          if (etchedCount > 0) stats.push(`${etchedCount} etched`)
+          console.log(`  ${stats.join(', ')}`)
           console.log(`  Total: $${fileTotal.toFixed(2)}`)
         }
       }
