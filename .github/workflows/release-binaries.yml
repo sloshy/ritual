@@ -39,6 +39,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Compile Tailwind CSS
+        run: bunx @tailwindcss/cli@4.1.18 -i ./src/site/styles.css -o ./src/site/styles.compiled.css --minify
+
       - name: Build binary
         run: bun build --compile --minify --sourcemap --bytecode ./index.ts --target="${{ matrix.target }}" --outfile "${{ matrix.asset_name }}"
 
