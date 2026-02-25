@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import prompts, { type Choice } from 'prompts'
-import * as fs from 'fs/promises'
-import path from 'path'
+import * as fs from 'node:fs/promises'
+import path from 'node:path'
 import { getAllCardNames, getCardsBySet } from '../scryfall'
 import type { ScryfallCard } from '../types'
 
@@ -10,9 +10,20 @@ export function registerCollectionCommand(program: Command) {
     .command('collection')
     .alias('collect')
     .description('Manage your collection of cards by interactively adding them')
-    .action(async () => {
+    .option('-s, --sets <codes>', 'Filter by set codes (comma-separated, e.g., "FDN, SPG")')
+    .option('-f, --finish <finish>', 'Default finish (nonfoil, foil, etched)')
+    .option('-c, --condition <condition>', 'Default condition (NM, LP, MP, HP, DMG)')
+    .option('--collector', 'Start in collector number mode')
+    .action(async (options) => {
+      const parsedSets = options.sets
+        ? options.sets
+            .split(',')
+            .map((s: string) => s.trim().toLowerCase())
+            .filter((s: string) => s.length > 0)
+        : undefined
+
       console.log('Loading card database for autocomplete...')
-      let cardNames = await getAllCardNames()
+      let cardNames = await getAllCardNames(parsedSets)
 
       if (cardNames.length === 0) {
         console.log('Cache is empty. Please run preload to populate the cache for autocomplete.')
@@ -75,6 +86,9 @@ export function registerCollectionCommand(program: Command) {
         console.log(`Using collection file: ${selectedCollection}.md`)
       }
 
+      const validFinishes = ['nonfoil', 'foil', 'etched']
+      const validConditions = ['NM', 'LP', 'MP', 'HP', 'DMG']
+
       let sessionConfig: {
         sets?: string[]
         finish?: string
@@ -84,10 +98,28 @@ export function registerCollectionCommand(program: Command) {
         activeSetIndex: number
         setCardMaps: Map<string, Map<string, ScryfallCard>>
       } = {
-        entryMode: 'name',
+        sets: parsedSets,
+        finish: validFinishes.includes(options.finish) ? options.finish : undefined,
+        condition: validConditions.includes(options.condition?.toUpperCase())
+          ? options.condition.toUpperCase()
+          : undefined,
+        entryMode: options.collector ? 'collector' : 'name',
         collectorSets: [],
         activeSetIndex: 0,
         setCardMaps: new Map(),
+      }
+
+      // Pre-load set data when starting in collector mode with sets provided
+      if (options.collector && parsedSets && parsedSets.length > 0) {
+        console.log('Loading set data...')
+        for (const setCode of parsedSets) {
+          console.log(`Loading ${setCode.toUpperCase()}...`)
+          const cardMap = await getCardsBySet(setCode)
+          sessionConfig.setCardMaps.set(setCode.toLowerCase(), cardMap)
+          console.log(`  ${cardMap.size} cards loaded`)
+        }
+        sessionConfig.collectorSets = parsedSets
+        sessionConfig.activeSetIndex = 0
       }
 
       let lastAddedCard: { name: string; line: string } | null = null
@@ -437,6 +469,24 @@ export function registerCollectionCommand(program: Command) {
               message: 'Select Printing:',
               choices: printingChoices,
               limit: 15,
+              suggest: async (input, choices) => {
+                if (!input) return choices
+
+                const lower = input.toLowerCase()
+                const codeMatches: Choice[] = []
+                const otherMatches: Choice[] = []
+
+                for (const choice of choices) {
+                  const card = choice.value as ScryfallCard
+                  if (card?.set?.toLowerCase().startsWith(lower)) {
+                    codeMatches.push(choice)
+                  } else if (choice.title.toLowerCase().includes(lower)) {
+                    otherMatches.push(choice)
+                  }
+                }
+
+                return [...codeMatches, ...otherMatches]
+              },
             })
 
             if (!printingResponse.printing) continue // Cancelled

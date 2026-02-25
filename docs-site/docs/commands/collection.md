@@ -9,10 +9,19 @@ Interactively manage a collection of cards. Alias: `collect`.
 ## Usage
 
 ```bash
-./ritual collection
+./ritual collection [options]
 ```
 
-No arguments or options — the command launches a fully interactive session.
+### Options
+
+| Flag                          | Description                                               |
+| ----------------------------- | --------------------------------------------------------- |
+| `-s, --sets <codes>`          | Filter by set codes (comma-separated, e.g., `"FDN, SPG"`) |
+| `-f, --finish <finish>`       | Default finish: `nonfoil`, `foil`, or `etched`            |
+| `-c, --condition <condition>` | Default condition: `NM`, `LP`, `MP`, `HP`, or `DMG`       |
+| `--collector`                 | Start in collector number mode                            |
+
+Options can be combined. When `--collector` is used with `--sets`, the set card data is pre-loaded automatically.
 
 ## Entry Modes
 
@@ -58,8 +67,20 @@ Start the collection manager:
 ./ritual collection
 ```
 
-Or use the alias:
+Pre-set condition and finish:
 
 ```bash
-./ritual collect
+./ritual collect --condition NM --finish foil
+```
+
+Start in collector number mode with sets pre-loaded:
+
+```bash
+./ritual collect --collector --sets "FDN, SPG"
+```
+
+Filter by set in name mode:
+
+```bash
+./ritual collect -s "MOM, ONE" -c NM
 ```
