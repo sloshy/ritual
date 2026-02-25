@@ -125,6 +125,7 @@ export function registerCollectionCommand(program: Command) {
       }
 
       let lastAddedCard: { name: string; line: string } | null = null
+      let lastAddedCount = 0
 
       while (true) {
         let isExited = false
@@ -135,6 +136,14 @@ export function registerCollectionCommand(program: Command) {
 
         if (sessionConfig.entryMode === 'name') {
           choices = [
+            ...(lastAddedCard
+              ? [
+                  {
+                    title: `➕ Add Another Copy (${lastAddedCard.name})`,
+                    value: '__ADD_ANOTHER__',
+                  },
+                ]
+              : []),
             { title: '⚙️  Configure Session Filters', value: '__CONFIG__' },
             { title: '🔢 Switch to Collector Number Mode', value: '__COLLECTOR_MODE__' },
             ...(lastAddedCard
@@ -170,6 +179,14 @@ export function registerCollectionCommand(program: Command) {
           })
 
           choices = [
+            ...(lastAddedCard
+              ? [
+                  {
+                    title: `➕ Add Another Copy (${lastAddedCard.name})`,
+                    value: '__ADD_ANOTHER__',
+                  },
+                ]
+              : []),
             {
               title: `📦 Manage Set Codes (Active: ${activeSet.toUpperCase() || 'none'})`,
               value: '__MANAGE_SETS__',
@@ -187,10 +204,12 @@ export function registerCollectionCommand(program: Command) {
           ]
         }
 
-        const promptMessage =
+        const streakHint: string =
+          lastAddedCard && lastAddedCount > 0 ? ` (${lastAddedCount}x ${lastAddedCard.name})` : ''
+        const promptMessage: string =
           sessionConfig.entryMode === 'name'
-            ? 'Enter card name to add (or press ESC to exit)'
-            : `Enter collector # for ${sessionConfig.collectorSets[sessionConfig.activeSetIndex]?.toUpperCase() || 'SET'} (or ESC to exit)`
+            ? `Enter card name to add${streakHint} (or press ESC to exit)`
+            : `Enter collector # for ${sessionConfig.collectorSets[sessionConfig.activeSetIndex]?.toUpperCase() || 'SET'}${streakHint} (or ESC to exit)`
 
         const response = await prompts({
           type: 'autocomplete',
@@ -208,6 +227,7 @@ export function registerCollectionCommand(program: Command) {
               if (!cleanInput)
                 return choices.filter(
                   (c) =>
+                    c.value === '__ADD_ANOTHER__' ||
                     c.value === '__CONFIG__' ||
                     c.value === '__EDIT_LAST__' ||
                     c.value === '__COLLECTOR_MODE__',
@@ -234,6 +254,7 @@ export function registerCollectionCommand(program: Command) {
               if (!input)
                 return choices.filter(
                   (c) =>
+                    c.value === '__ADD_ANOTHER__' ||
                     c.value === '__MANAGE_SETS__' ||
                     c.value === '__EDIT_LAST__' ||
                     c.value === '__NAME_MODE__',
@@ -269,6 +290,17 @@ export function registerCollectionCommand(program: Command) {
         }
 
         // Handle mode switches
+        if (response.cardName === '__ADD_ANOTHER__' && lastAddedCard) {
+          try {
+            await fs.appendFile(collectionFile, lastAddedCard.line)
+            lastAddedCount++
+            console.log(`Added: ${lastAddedCard.line.trim()} (${lastAddedCount}x total)`)
+          } catch (e) {
+            console.error(`Failed to write to file: ${e}`)
+          }
+          continue
+        }
+
         if (response.cardName === '__COLLECTOR_MODE__') {
           // Switch to collector number mode
           if (sessionConfig.collectorSets.length === 0) {
@@ -565,7 +597,7 @@ export function registerCollectionCommand(program: Command) {
         // Construct Output Line
         // Format: - [Card Name] (SET:CN) [Finish] [Condition]
         // E.g. - Sol Ring (C19:221) [foil] [NM]
-        let line = `- ${cardName} (${selectedPrinting.set.toUpperCase()}:${selectedPrinting.collector_number})`
+        let line: string = `- ${cardName} (${selectedPrinting.set.toUpperCase()}:${selectedPrinting.collector_number})`
 
         if (selectedFinish !== 'nonfoil') {
           line += ` [${selectedFinish}]`
@@ -582,6 +614,7 @@ export function registerCollectionCommand(program: Command) {
           await fs.appendFile(collectionFile, line)
           console.log(`Added: ${line.trim()}`)
           lastAddedCard = { name: cardName, line: line }
+          lastAddedCount = 1
         } catch (e) {
           console.error(`Failed to write to file: ${e}`)
         }
