@@ -619,7 +619,7 @@ export class ScryfallClient implements PricingBackend {
         }
       }
 
-      getLogger().info('Done! valid cache populated.')
+      getLogger().info('Done! Card cache populated.')
     } catch (e) {
       getLogger().error('\nFailed to preload all cards:', e)
     }
