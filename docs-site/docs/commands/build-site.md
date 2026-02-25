@@ -4,7 +4,7 @@ sidebar_position: 12
 
 # build-site
 
-Generate a static website for your decks.
+Generate a website for your decks.
 
 ## Usage
 
@@ -63,12 +63,18 @@ Build directly from a URL:
 
 ## Output
 
-Generates a static website in the `dist/` directory containing:
+Generates a single-page application in the `dist/` directory containing:
 
-- Index page with deck listing
-- Individual deck pages with card images
+- `index.html` — SPA shell that loads the Preact application
+- `app.js` — Bundled SPA with client-side routing
+- `index.json` — Deck listing used by the index page
+- `decks/{slug}.json` — Full deck data loaded on demand
+- `decks/{slug}.txt` — Exportable deck lists
+- `styles.css` — Compiled Tailwind CSS
 - Responsive design for desktop and mobile
 - Dark mode support
+- Client-side hash routing (`#/` for index, `#/deck/{slug}` for deck pages)
+- Page transition animations
 
 ## Serving the Site
 

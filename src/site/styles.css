@@ -1,7 +1,48 @@
 @import 'tailwindcss';
 
+/* ===== Page transitions ===== */
+.page-transition {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.page-visible {
+  opacity: 1;
+}
+
+.page-hidden {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+/* ===== Loading spinner ===== */
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid oklch(35% 0.03 260);
+  border-top-color: oklch(75% 0.12 280);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 body {
   @apply bg-gray-900 text-gray-100 font-sans;
+}
+
+/* ===== Mana symbol images ===== */
+.mana-symbol {
+  display: inline-block;
+  height: 1rem;
+  width: 1rem;
+  vertical-align: middle;
+  margin: 0 1px;
 }
 
 h1,
@@ -235,6 +276,25 @@ h3 {
   width: 100%;
   display: block;
   border-radius: 0.5rem;
+}
+
+/* Sideways card tooltip (e.g. Battles, Rooms) */
+.list-tooltip-sideways {
+  width: 358px;
+  height: 256px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.list-tooltip-sideways.visible {
+  display: flex;
+}
+
+.list-tooltip-sideways img.tooltip-rotated {
+  width: 256px;
+  transform: rotate(90deg);
+  transform-origin: center;
 }
 
 /* ===== OVERLAP VIEW — fanned/stacked cards ===== */
