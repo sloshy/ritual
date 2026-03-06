@@ -2,8 +2,17 @@ import { Command } from 'commander'
 import prompts, { type Choice } from 'prompts'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
-import { getAllCardNames, getCardsBySet, isDigitalOnlySet } from '../scryfall'
+import { getAllCardNames, getCardsBySet } from '../scryfall'
 import type { ScryfallCard } from '../types'
+import {
+  type SessionConfig,
+  resolveCardPrinting,
+  promptFinishAndCondition,
+  formatCollectionLine,
+  promptConfigUpdate,
+  manageSetCodes,
+  replaceLastLine,
+} from './collection-helpers'
 
 export function registerCollectionCommand(program: Command) {
   program
@@ -29,7 +38,6 @@ export function registerCollectionCommand(program: Command) {
 
       if (cardNames.length === 0) {
         console.log('Cache is empty. Please run preload to populate the cache for autocomplete.')
-        // getAllCardNames should have already prompted, but if they declined, we can't do much.
         return
       }
 
@@ -91,15 +99,7 @@ export function registerCollectionCommand(program: Command) {
       const validFinishes = ['nonfoil', 'foil', 'etched']
       const validConditions = ['NM', 'LP', 'MP', 'HP', 'DMG']
 
-      let sessionConfig: {
-        sets?: string[]
-        finish?: string
-        condition?: string
-        entryMode: 'name' | 'collector'
-        collectorSets: string[]
-        activeSetIndex: number
-        setCardMaps: Map<string, Map<string, ScryfallCard>>
-      } = {
+      const sessionConfig: SessionConfig = {
         sets: parsedSets,
         finish: validFinishes.includes(options.finish) ? options.finish : undefined,
         condition: validConditions.includes(options.condition?.toUpperCase())
@@ -124,12 +124,13 @@ export function registerCollectionCommand(program: Command) {
         sessionConfig.activeSetIndex = 0
       }
 
-      let lastAddedCard: { name: string; line: string } | null = null
+      let lastAddedCard: { name: string; line: string; hasNote: boolean } | null = null
       let lastAddedCount = 0
 
       while (true) {
         let isExited = false
         let forcePrompts = false
+        let isEditing = false
 
         // Build choices based on entry mode
         let choices: Choice[]
@@ -141,6 +142,14 @@ export function registerCollectionCommand(program: Command) {
                   {
                     title: `➕ Add Another Copy (${lastAddedCard.name})`,
                     value: '__ADD_ANOTHER__',
+                  },
+                ]
+              : []),
+            ...(lastAddedCard && !lastAddedCard.hasNote
+              ? [
+                  {
+                    title: `📝 Add Note (${lastAddedCard.name})`,
+                    value: '__ADD_NOTE__',
                   },
                 ]
               : []),
@@ -187,6 +196,14 @@ export function registerCollectionCommand(program: Command) {
                   },
                 ]
               : []),
+            ...(lastAddedCard && !lastAddedCard.hasNote
+              ? [
+                  {
+                    title: `📝 Add Note (${lastAddedCard.name})`,
+                    value: '__ADD_NOTE__',
+                  },
+                ]
+              : []),
             {
               title: `📦 Manage Set Codes (Active: ${activeSet.toUpperCase() || 'none'})`,
               value: '__MANAGE_SETS__',
@@ -228,6 +245,7 @@ export function registerCollectionCommand(program: Command) {
                 return choices.filter(
                   (c) =>
                     c.value === '__ADD_ANOTHER__' ||
+                    c.value === '__ADD_NOTE__' ||
                     c.value === '__CONFIG__' ||
                     c.value === '__EDIT_LAST__' ||
                     c.value === '__COLLECTOR_MODE__',
@@ -255,6 +273,7 @@ export function registerCollectionCommand(program: Command) {
                 return choices.filter(
                   (c) =>
                     c.value === '__ADD_ANOTHER__' ||
+                    c.value === '__ADD_NOTE__' ||
                     c.value === '__MANAGE_SETS__' ||
                     c.value === '__EDIT_LAST__' ||
                     c.value === '__NAME_MODE__',
@@ -301,10 +320,35 @@ export function registerCollectionCommand(program: Command) {
           continue
         }
 
+        if (response.cardName === '__ADD_NOTE__' && lastAddedCard) {
+          const noteResponse = await prompts({
+            type: 'text',
+            name: 'note',
+            message: 'Enter note:',
+          })
+          const note = noteResponse.note?.trim()
+          if (note) {
+            try {
+              const fileContent = await fs.readFile(collectionFile, 'utf-8')
+              const lines = fileContent.trimEnd().split('\n')
+              if ((lines[lines.length - 1] ?? '').trim() === lastAddedCard.line.trim()) {
+                const newLine: string = lastAddedCard.line.trimEnd() + ` {${note}}`
+                lines[lines.length - 1] = newLine
+                await fs.writeFile(collectionFile, lines.join('\n') + '\n')
+                lastAddedCard = { name: lastAddedCard.name, line: newLine + '\n', hasNote: true }
+                console.log(`Note added: ${newLine}`)
+              } else {
+                console.warn("Last line in file doesn't match last added card. Note not added.")
+              }
+            } catch (e) {
+              console.error(`Failed to add note: ${e}`)
+            }
+          }
+          continue
+        }
+
         if (response.cardName === '__COLLECTOR_MODE__') {
-          // Switch to collector number mode
           if (sessionConfig.collectorSets.length === 0) {
-            // Need to set up sets first
             const setsResponse = await prompts({
               type: 'text',
               name: 'sets',
@@ -319,7 +363,6 @@ export function registerCollectionCommand(program: Command) {
               .map((s: string) => s.trim().toLowerCase())
               .filter((s: string) => s.length > 0)
 
-            // Load card data for each set
             console.log('Loading set data...')
             for (const setCode of setCodes) {
               console.log(`Loading ${setCode.toUpperCase()}...`)
@@ -351,66 +394,7 @@ export function registerCollectionCommand(program: Command) {
         }
 
         if (response.cardName === '__CONFIG__') {
-          const configResponse = await prompts([
-            {
-              type: 'text',
-              name: 'sets',
-              message: 'Filter by Set Codes (comma separated, e.g. "ECL, ECC"):',
-              initial: sessionConfig.sets ? sessionConfig.sets.join(', ') : '',
-              format: (val) =>
-                val
-                  .split(',')
-                  .map((s: string) => s.trim().toLowerCase())
-                  .filter((s: string) => s.length > 0),
-            },
-            {
-              type: 'select',
-              name: 'finish',
-              message: 'Default Finish:',
-              choices: [
-                { title: 'None (Always Prompt)', value: '' },
-                { title: 'Nonfoil', value: 'nonfoil' },
-                { title: 'Foil', value: 'foil' },
-                { title: 'Etched', value: 'etched' },
-              ],
-              initial: sessionConfig.finish
-                ? ['', 'nonfoil', 'foil', 'etched'].indexOf(sessionConfig.finish)
-                : 0,
-            },
-            {
-              type: 'select',
-              name: 'condition',
-              message: 'Default Condition:',
-              choices: [
-                { title: 'None (Always Prompt)', value: '' },
-                { title: "Don't Care", value: 'NONE' },
-                { title: 'Near Mint', value: 'NM' },
-                { title: 'Lightly Played', value: 'LP' },
-                { title: 'Moderately Played', value: 'MP' },
-                { title: 'Heavily Played', value: 'HP' },
-                { title: 'Damaged', value: 'DMG' },
-              ],
-              initial: 0,
-            },
-          ])
-
-          if (configResponse.sets !== undefined) {
-            sessionConfig.sets = configResponse.sets.length > 0 ? configResponse.sets : undefined
-            console.log('Reloading card database with new filters...')
-            cardNames = await getAllCardNames({ sets: sessionConfig.sets, excludeDigitalOnly })
-            console.log(`Loaded ${cardNames.length} cards.`)
-          }
-
-          if (configResponse.finish !== undefined) {
-            sessionConfig.finish = configResponse.finish === '' ? undefined : configResponse.finish
-          }
-
-          if (configResponse.condition !== undefined) {
-            sessionConfig.condition =
-              configResponse.condition === '' ? undefined : configResponse.condition
-          }
-
-          console.log('Session filters updated.')
+          cardNames = await promptConfigUpdate(sessionConfig, excludeDigitalOnly)
           continue
         }
 
@@ -437,54 +421,17 @@ export function registerCollectionCommand(program: Command) {
           if (response.cardName === '__EDIT_LAST__' && lastAddedCard) {
             cardName = lastAddedCard.name
             forcePrompts = true
-            // Remove last line from file
-            try {
-              const fileContent = await fs.readFile(collectionFile, 'utf-8')
-              const lines = fileContent.trimEnd().split('\n')
-              // Verify last line matches what we expect
-              if ((lines[lines.length - 1] ?? '').trim() === lastAddedCard.line.trim()) {
-                lines.pop()
-                await fs.writeFile(collectionFile, lines.join('\n') + '\n')
-                console.log(`Editing: ${lastAddedCard.name}`)
-              } else {
-                console.warn(
-                  "Last line in file doesn't match last added card. Proceeding with add as new.",
-                )
-              }
-            } catch (e) {
-              console.error(`Failed to prepare edit: ${e}`)
-            }
+            isEditing = true
+            console.log(`Editing: ${lastAddedCard.name}`)
           }
         }
 
         // If we don't have a printing selected (name mode), fetch printings
         if (!selectedPrinting) {
-          // Fetch all printings
-          const { getCardPrintings } = await import('../scryfall')
-          let printings = await getCardPrintings(cardName)
-
-          // Filter out digital-only printings
-          if (excludeDigitalOnly) {
-            printings = printings.filter((p) => !isDigitalOnlySet(p.set))
-          }
-
-          // Apply Set Filter
-          if (sessionConfig.sets && sessionConfig.sets.length > 0) {
-            const filtered = printings.filter((p) =>
-              sessionConfig.sets!.includes(p.set.toLowerCase()),
-            )
-            if (filtered.length > 0) {
-              printings = filtered
-            } else {
-              console.warn(
-                `No printings found matching set filters [${sessionConfig.sets.join(', ')}]. Showing all printings.`,
-              )
-            }
-          }
-
-          if (printings.length === 0) {
+          const result = await resolveCardPrinting(cardName, sessionConfig, excludeDigitalOnly)
+          if (!result) {
+            if (isEditing) continue
             console.error('No printings found for validation. Using default name.')
-            // Append to file as fallback
             try {
               await fs.appendFile(collectionFile, `- ${cardName}\n`)
               console.log(`Added: ${cardName}`)
@@ -493,50 +440,7 @@ export function registerCollectionCommand(program: Command) {
             }
             continue
           }
-
-          // Prompt for Printing Selection
-          selectedPrinting = printings[0]! // Always exists because we checked for 0 above
-          if (printings.length > 1) {
-            // Sort by Date (newest first) or Set? Let's sort by Set Name approx or just list them.
-            // Scryfall bulk data is usually comprehensive.
-            // We want to differentiate by set code/name and collector number.
-
-            const printingChoices = printings.map((p) => ({
-              title: `${p.set_name} (${p.set.toUpperCase()}) #${p.collector_number} [${p.rarity}]`,
-              value: p,
-            }))
-
-            const printingResponse = await prompts({
-              type: 'autocomplete',
-              name: 'printing',
-              message: 'Select Printing:',
-              choices: printingChoices,
-              limit: 15,
-              suggest: async (rawInput, choices) => {
-                const input = String(rawInput)
-                if (!input) return choices
-
-                const terms = input.toLowerCase().split(/\s+/).filter(Boolean)
-                const codeMatches: Choice[] = []
-                const otherMatches: Choice[] = []
-
-                for (const choice of choices) {
-                  const card = choice.value as ScryfallCard
-                  const title = choice.title.toLowerCase()
-                  if (terms.length === 1 && card?.set?.toLowerCase().startsWith(terms[0]!)) {
-                    codeMatches.push(choice)
-                  } else if (terms.every((term) => title.includes(term))) {
-                    otherMatches.push(choice)
-                  }
-                }
-
-                return [...codeMatches, ...otherMatches]
-              },
-            })
-
-            if (!printingResponse.printing) continue // Cancelled
-            selectedPrinting = printingResponse.printing
-          }
+          selectedPrinting = result.printing
         }
 
         // Guard: at this point selectedPrinting should be set
@@ -545,172 +449,47 @@ export function registerCollectionCommand(program: Command) {
           continue
         }
 
-        // Prompt for Finish
-        let selectedFinish = 'nonfoil'
-        const availableFinishes = selectedPrinting.finishes || []
+        const finishAndCondition = await promptFinishAndCondition(
+          selectedPrinting,
+          sessionConfig,
+          forcePrompts,
+        )
+        if (!finishAndCondition) continue
 
-        if (
-          !forcePrompts &&
-          sessionConfig.finish &&
-          availableFinishes.includes(sessionConfig.finish)
-        ) {
-          selectedFinish = sessionConfig.finish
-        } else if (availableFinishes.length > 1) {
-          const finishChoices = availableFinishes.map((f) => ({
-            title: f.charAt(0).toUpperCase() + f.slice(1),
-            value: f,
-          }))
-          const finishResponse = await prompts({
-            type: 'select',
-            name: 'finish',
-            message: 'Select Finish:',
-            choices: finishChoices,
-          })
-          if (!finishResponse.finish) continue
-          selectedFinish = finishResponse.finish
-        } else if (availableFinishes[0]) {
-          selectedFinish = availableFinishes[0]
-        }
+        const line = formatCollectionLine(
+          cardName,
+          selectedPrinting,
+          finishAndCondition.finish,
+          finishAndCondition.condition,
+        )
 
-        // Prompt for Condition
-        let selectedCondition = ''
-        if (!forcePrompts && sessionConfig.condition !== undefined) {
-          selectedCondition =
-            sessionConfig.condition === 'NONE' ? '' : sessionConfig.condition || ''
-        } else {
-          const conditionResponse = await prompts({
-            type: 'select',
-            name: 'condition',
-            message: 'Condition:',
-            choices: [
-              { title: "Don't Care", value: '' },
-              { title: 'Near Mint', value: 'NM' },
-              { title: 'Lightly Played', value: 'LP' },
-              { title: 'Moderately Played', value: 'MP' },
-              { title: 'Heavily Played', value: 'HP' },
-              { title: 'Damaged', value: 'DMG' },
-            ],
-          })
-          selectedCondition = conditionResponse.condition
-        }
-
-        // Construct Output Line
-        // Format: - [Card Name] (SET:CN) [Finish] [Condition]
-        // E.g. - Sol Ring (C19:221) [foil] [NM]
-        let line: string = `- ${cardName} (${selectedPrinting.set.toUpperCase()}:${selectedPrinting.collector_number})`
-
-        if (selectedFinish !== 'nonfoil') {
-          line += ` [${selectedFinish}]`
-        }
-
-        if (selectedCondition) {
-          line += ` [${selectedCondition}]`
-        }
-
-        line += '\n'
-
-        // Append to file
-        try {
-          await fs.appendFile(collectionFile, line)
-          console.log(`Added: ${line.trim()}`)
-          lastAddedCard = { name: cardName, line: line }
-          lastAddedCount = 1
-        } catch (e) {
-          console.error(`Failed to write to file: ${e}`)
-        }
-      }
-    })
-}
-
-/**
- * Submenu for managing set codes in collector number mode
- */
-async function manageSetCodes(sessionConfig: {
-  collectorSets: string[]
-  activeSetIndex: number
-  setCardMaps: Map<string, Map<string, ScryfallCard>>
-}): Promise<void> {
-  while (true) {
-    const setChoices: Choice[] = sessionConfig.collectorSets.map((code, idx) => ({
-      title: `${idx === sessionConfig.activeSetIndex ? '→ ' : '  '}${code.toUpperCase()}${idx === sessionConfig.activeSetIndex ? ' (active)' : ''}`,
-      value: { type: 'toggle', index: idx },
-    }))
-
-    setChoices.push(
-      { title: '+ Add Set Code', value: { type: 'add' } },
-      { title: '- Remove Set Code', value: { type: 'remove' } },
-      { title: '← Back', value: { type: 'back' } },
-    )
-
-    const response = await prompts({
-      type: 'select',
-      name: 'action',
-      message: 'Manage Set Codes:',
-      choices: setChoices,
-    })
-
-    if (!response.action || response.action.type === 'back') {
-      break
-    }
-
-    if (response.action.type === 'toggle') {
-      sessionConfig.activeSetIndex = response.action.index
-      console.log(
-        `Active set changed to: ${sessionConfig.collectorSets[sessionConfig.activeSetIndex]?.toUpperCase()}`,
-      )
-      break // Return to main loop with new active set
-    }
-
-    if (response.action.type === 'add') {
-      const addResponse = await prompts({
-        type: 'text',
-        name: 'code',
-        message: 'Enter set code to add:',
-        validate: (val) => (val.trim().length > 0 ? true : 'Set code cannot be empty'),
-      })
-
-      if (addResponse.code) {
-        const newCode = addResponse.code.trim().toLowerCase()
-        if (!sessionConfig.collectorSets.includes(newCode)) {
-          console.log(`Loading ${newCode.toUpperCase()}...`)
-          const cardMap = await getCardsBySet(newCode)
-          sessionConfig.setCardMaps.set(newCode, cardMap)
-          sessionConfig.collectorSets.push(newCode)
-          console.log(`  ${cardMap.size} cards loaded`)
-        } else {
-          console.log(`Set ${newCode.toUpperCase()} already added.`)
-        }
-      }
-    }
-
-    if (response.action.type === 'remove') {
-      if (sessionConfig.collectorSets.length === 0) {
-        console.log('No sets to remove.')
-        continue
-      }
-
-      const removeResponse = await prompts({
-        type: 'select',
-        name: 'code',
-        message: 'Select set to remove:',
-        choices: sessionConfig.collectorSets.map((code) => ({
-          title: code.toUpperCase(),
-          value: code,
-        })),
-      })
-
-      if (removeResponse.code) {
-        const idx = sessionConfig.collectorSets.indexOf(removeResponse.code)
-        if (idx !== -1) {
-          sessionConfig.collectorSets.splice(idx, 1)
-          sessionConfig.setCardMaps.delete(removeResponse.code)
-          // Adjust active index if needed
-          if (sessionConfig.activeSetIndex >= sessionConfig.collectorSets.length) {
-            sessionConfig.activeSetIndex = Math.max(0, sessionConfig.collectorSets.length - 1)
+        // Remove old line when editing, then append new line
+        if (isEditing && lastAddedCard) {
+          try {
+            const result = await replaceLastLine(collectionFile, lastAddedCard.line, line)
+            if (result.replaced) {
+              console.log(`Edited: ${line.trim()}`)
+            } else {
+              console.warn("Last line in file doesn't match last added card. Adding as new entry.")
+              await fs.appendFile(collectionFile, line)
+              console.log(`Added: ${line.trim()}`)
+            }
+            lastAddedCard = { name: cardName, line: line, hasNote: false }
+            lastAddedCount = 1
+          } catch (e) {
+            console.error(`Failed to edit card: ${e}`)
           }
-          console.log(`Removed ${removeResponse.code.toUpperCase()}`)
+        } else {
+          // Append to file
+          try {
+            await fs.appendFile(collectionFile, line)
+            console.log(`Added: ${line.trim()}`)
+            lastAddedCard = { name: cardName, line: line, hasNote: false }
+            lastAddedCount = 1
+          } catch (e) {
+            console.error(`Failed to write to file: ${e}`)
+          }
         }
       }
-    }
-  }
+    })
 }

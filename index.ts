@@ -21,6 +21,7 @@ import { registerPriceCollectionCommand } from './src/commands/price-collection'
 import { registerScryCommand } from './src/commands/scry'
 import { registerCardCommand } from './src/commands/card'
 import { registerRandomCommand } from './src/commands/random'
+import { registerGetPrimerCommand } from './src/commands/get-primer'
 import {
   resolveCacheServerAddress,
   setCacheServerAddressOverride,
@@ -62,5 +63,6 @@ registerPriceCollectionCommand(program)
 registerScryCommand(program)
 registerCardCommand(program)
 registerRandomCommand(program)
+registerGetPrimerCommand(program)
 
 program.parse()

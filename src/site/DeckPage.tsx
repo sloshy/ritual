@@ -1,107 +1,166 @@
 import type { FunctionalComponent } from 'preact'
-import { useState, useMemo, useCallback, useEffect, useRef } from 'preact/hooks'
+import { useState, useMemo, useCallback, useEffect } from 'preact/hooks'
 import { CardItem } from './CardItem'
 import type { DeckData, ScryfallCard } from '../types'
-import { isDoubleFacedCard, resolveCardImageSources } from './image-sources'
-import { SymbolText, ManaCost, OracleText } from './symbols'
+import { SymbolText } from './symbols'
+import type { PriceCurrency } from '../price-currency'
+import { getCardPrice, formatPrice } from '../price-currency'
+import {
+  type GroupBy,
+  type CardData,
+  type CardGroup,
+  groupAndSortCards,
+  groupTotalPrice,
+  CARD_SIZE_WIDTHS,
+} from './card-sorting'
+import { CardModal } from './CardModal'
+import { useTooltip } from './useTooltip'
+import { Toolbar } from './Toolbar'
+import { CardSection } from './CardSection'
+import { useToolbarState } from './useToolbarState'
+import { PrimerRenderer, buildToc } from './PrimerRenderer'
 
-type ViewMode = 'binder' | 'list' | 'overlap' | 'stack'
-type GroupBy = 'type' | 'section' | 'cmc' | 'none'
-type SortBy = 'name' | 'cmc' | 'price' | 'edhrec'
-
-interface CardData {
-  name: string
-  quantity: number
-  cmc: number
-  edhrec: number
-  price: number
-  type: string
-  section: string
-  card: ScryfallCard | null
-}
-
-interface CardGroup {
-  key: string
-  cards: CardData[]
+const isCommanderSection = (s: string): boolean => s.toLowerCase().includes('commander')
+const isSideboardSection = (s: string): boolean => s.toLowerCase().includes('sideboard')
+const isExtraSection = (s: string): boolean => {
+  const low = s.toLowerCase()
+  return low.includes('maybeboard') || low.includes('token')
 }
 
 interface DeckPageProps {
   deck: DeckData
   cards: Record<string, ScryfallCard | null>
+  printings: Record<string, ScryfallCard[]>
+  lowestPriceCards?: Record<string, ScryfallCard | null>
+  lowestPriceCardsEur?: Record<string, ScryfallCard | null>
+  lowestPriceCardsTix?: Record<string, ScryfallCard | null>
   symbolMap: Record<string, string>
   exportPath?: string
   useScryfallImgUrls?: boolean
   modalCardName: string | null
   onOpenModal: (cardName: string) => void
   onCloseModal: () => void
+  currency: PriceCurrency
+  missingCards?: Partial<Record<PriceCurrency, string[]>>
+  slug: string
+  primerOpen?: boolean
+  sectionId?: string
 }
-
-type TooltipInfo = { src: string; sideways: boolean }
 
 export const DeckPage: FunctionalComponent<DeckPageProps> = ({
   deck,
   cards,
+  printings,
+  lowestPriceCards,
+  lowestPriceCardsEur,
+  lowestPriceCardsTix,
   symbolMap,
   exportPath,
   useScryfallImgUrls,
   modalCardName,
   onOpenModal,
   onCloseModal,
+  currency,
+  missingCards,
+  slug,
+  primerOpen,
+  sectionId,
 }) => {
-  const [viewMode, setViewMode] = useState<ViewMode>('binder')
-  const [groupBy, setGroupBy] = useState<GroupBy>('type')
-  const [sortBy, setSortBy] = useState<SortBy>('name')
-  const [reverse, setReverse] = useState(false)
-  const [hideLands, setHideLands] = useState(false)
-  const [showExtras, setShowExtras] = useState(false)
-  const [showingBack, setShowingBack] = useState(false)
+  const {
+    viewMode,
+    setViewMode,
+    cardSize,
+    setCardSize,
+    groupBy,
+    setGroupBy,
+    sortBy,
+    setSortBy,
+    reverse,
+    setReverse,
+    hideLands,
+    setHideLands,
+    priceGroupStrategy,
+    setPriceGroupStrategy,
+  } = useToolbarState<GroupBy>({ groupBy: 'type', sortBy: 'name' })
+  const [hideExtras, setHideExtras] = useState(false)
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
+  const [lowestPrice, setLowestPrice] = useState(false)
+  const [missingCardsExpanded, setMissingCardsExpanded] = useState(false)
+
+  // Missing cards for current currency
+  const currentMissingCards = useMemo(() => {
+    if (!missingCards) return []
+    return missingCards[currency] ?? []
+  }, [missingCards, currency])
+
+  // Active card map based on lowest price toggle and currency
+  const activeCards = useMemo(() => {
+    if (lowestPrice) {
+      if (currency === 'eur' && lowestPriceCardsEur) return lowestPriceCardsEur
+      if (currency === 'tix' && lowestPriceCardsTix) return lowestPriceCardsTix
+      if (lowestPriceCards) return lowestPriceCards
+    }
+    return cards
+  }, [lowestPrice, lowestPriceCards, lowestPriceCardsEur, lowestPriceCardsTix, cards, currency])
+
+  const hasLowestPriceCards = Boolean(
+    lowestPriceCards || lowestPriceCardsEur || lowestPriceCardsTix,
+  )
 
   // Tooltip state for list-view hover preview
-  const [tooltip, setTooltip] = useState<TooltipInfo | null>(null)
-  const [tooltipPos, setTooltipPos] = useState({ left: 0, top: 0 })
-  const tooltipRef = useRef<HTMLDivElement>(null)
+  const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
 
   // Build flat card list with metadata
   const allCards = useMemo((): CardData[] => {
     const result: CardData[] = []
+    let order = 0
     for (const section of deck.sections) {
       for (const entry of section.cards) {
-        const card = cards[entry.name] ?? null
+        const card = activeCards[entry.name] ?? null
         result.push({
           name: entry.name,
           quantity: entry.quantity,
           cmc: card?.cmc ?? 0,
           edhrec: card?.edhrec_rank ?? 999999,
-          price: parseFloat(card?.prices.usd || '0'),
+          price: card ? getCardPrice(card, currency) : 0,
           type: card?.type_line ?? '',
           section: section.name,
+          fileOrder: order++,
+          setCode: card?.set ?? '',
+          colorIdentity: card?.color_identity ?? [],
           card,
         })
       }
     }
     return result
-  }, [deck, cards])
+  }, [deck, activeCards, currency])
 
   const sectionOrder = useMemo(() => {
     return deck.sections.map((s) => s.name)
   }, [deck])
 
-  // Commander cards (always shown separately)
-  const commanderCards = useMemo(() => {
-    return allCards.filter((c) => c.section.toLowerCase().includes('commander'))
+  // Partition all cards into categories in a single O(n) pass so we avoid
+  // re-scanning allCards separately for commander, sideboard, extras, and
+  // mainboard.  cardGroups can then depend on mainboardCards rather than
+  // allCards, so toolbar changes (groupBy, sortBy…) no longer re-trigger the
+  // categorisation step.
+  const { commanderCards, sideboardCards, extraCards, mainboardCards } = useMemo(() => {
+    const commanderCards: CardData[] = []
+    const sideboardCards: CardData[] = []
+    const extraCards: CardData[] = []
+    const mainboardCards: CardData[] = []
+    for (const c of allCards) {
+      if (isCommanderSection(c.section)) commanderCards.push(c)
+      else if (isSideboardSection(c.section)) sideboardCards.push(c)
+      else if (isExtraSection(c.section)) extraCards.push(c)
+      else mainboardCards.push(c)
+    }
+    return { commanderCards, sideboardCards, extraCards, mainboardCards }
   }, [allCards])
 
-  // Sorted and grouped cards
+  // Sorted and grouped cards (mainboard only)
   const cardGroups = useMemo((): CardGroup[] => {
-    let working = allCards.filter((c) => !c.section.toLowerCase().includes('commander'))
-
-    if (!showExtras) {
-      working = working.filter((c) => {
-        const s = c.section.toLowerCase()
-        return !s.includes('sideboard') && !s.includes('maybeboard') && !s.includes('token')
-      })
-    }
+    let working = mainboardCards
 
     if (hideLands) {
       working = working.filter(
@@ -109,93 +168,45 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
       )
     }
 
-    const sortFn = (a: CardData, b: CardData): number => {
-      if (sortBy === 'name') {
-        return reverse ? b.name.localeCompare(a.name) : a.name.localeCompare(b.name)
-      }
-      const key = sortBy as 'cmc' | 'price' | 'edhrec'
-      return reverse ? b[key] - a[key] : a[key] - b[key]
-    }
+    return groupAndSortCards(
+      working,
+      groupBy,
+      sortBy,
+      reverse,
+      sectionOrder,
+      priceGroupStrategy,
+      currency,
+    )
+  }, [
+    mainboardCards,
+    groupBy,
+    sortBy,
+    reverse,
+    hideLands,
+    sectionOrder,
+    priceGroupStrategy,
+    currency,
+  ])
 
-    let groups: Record<string, CardData[]> = {}
+  // Deck price = mainboard + commander + sideboard only
+  const mainAndSideboardCards = useMemo(() => {
+    return [...commanderCards, ...mainboardCards, ...sideboardCards]
+  }, [commanderCards, mainboardCards, sideboardCards])
 
-    if (groupBy === 'none') {
-      groups['Full Deck'] = [...working].sort(sortFn)
-    } else if (groupBy === 'cmc') {
-      for (const c of working) {
-        const key = c.cmc.toString()
-        if (!groups[key]) groups[key] = []
-        groups[key]!.push(c)
-      }
-    } else if (groupBy === 'type') {
-      const getType = (t: string): string => {
-        if (t.includes('Creature')) return 'Creature'
-        if (t.includes('Planeswalker')) return 'Planeswalker'
-        if (t.includes('Instant')) return 'Instant'
-        if (t.includes('Sorcery')) return 'Sorcery'
-        if (t.includes('Artifact')) return 'Artifact'
-        if (t.includes('Enchantment')) return 'Enchantment'
-        if (t.includes('Land')) return 'Land'
-        return 'Other'
-      }
-      for (const c of working) {
-        const key = getType(c.type)
-        if (!groups[key]) groups[key] = []
-        groups[key]!.push(c)
-      }
-    } else if (groupBy === 'section') {
-      for (const c of working) {
-        if (!groups[c.section]) groups[c.section] = []
-        groups[c.section]!.push(c)
-      }
-    }
+  const totalPrice = useMemo(() => {
+    return groupTotalPrice(mainAndSideboardCards)
+  }, [mainAndSideboardCards])
 
-    let keys = Object.keys(groups)
-    if (groupBy === 'cmc') {
-      keys.sort((a, b) => parseInt(a) - parseInt(b))
-    } else if (groupBy === 'type') {
-      const order = [
-        'Creature',
-        'Planeswalker',
-        'Instant',
-        'Sorcery',
-        'Artifact',
-        'Enchantment',
-        'Land',
-        'Other',
-      ]
-      keys.sort((a, b) => order.indexOf(a) - order.indexOf(b))
-    } else if (groupBy === 'section') {
-      keys.sort((a, b) => sectionOrder.indexOf(a) - sectionOrder.indexOf(b))
-    }
-
-    return keys
-      .filter((key) => groups[key] && groups[key]!.length > 0)
-      .map((key) => ({
-        key,
-        cards: groups[key]!.sort(sortFn),
-      }))
-  }, [allCards, groupBy, sortBy, reverse, hideLands, showExtras, sectionOrder])
+  // Extras price (maybeboard, tokens)
+  const extrasPrice = useMemo(() => {
+    return groupTotalPrice(extraCards)
+  }, [extraCards])
 
   // Modal card data
   const modalCard = useMemo((): ScryfallCard | null => {
     if (!modalCardName) return null
-    return cards[modalCardName] ?? null
-  }, [modalCardName, cards])
-
-  // Close modal on Escape
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCloseModal()
-    }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [onCloseModal])
-
-  // Reset flip state when modal changes
-  useEffect(() => {
-    setShowingBack(false)
-  }, [modalCardName])
+    return activeCards[modalCardName] ?? null
+  }, [modalCardName, activeCards])
 
   const handleCopy = useCallback(async () => {
     if (!exportPath) return
@@ -213,136 +224,34 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
     }
   }, [exportPath])
 
-  // Tooltip mouse tracking
-  const handleMouseMove = useCallback(
-    (e: MouseEvent) => {
-      if (!tooltip) return
-      const tooltipW = tooltip.sideways ? 358 : 240
-      const tooltipH = tooltipRef.current?.offsetHeight || (tooltip.sideways ? 256 : 340)
-      const margin = 16
-      const x = e.clientX
-      const y = e.clientY
-      const vw = window.innerWidth
-      const vh = window.innerHeight
-
-      let left = x + margin
-      let top = y - tooltipH / 2
-
-      if (left + tooltipW > vw) left = x - tooltipW - margin
-      if (top < margin) top = margin
-      if (top + tooltipH > vh - margin) top = vh - tooltipH - margin
-
-      setTooltipPos({ left, top })
-    },
-    [tooltip],
-  )
-
-  useEffect(() => {
-    document.addEventListener('mousemove', handleMouseMove)
-    return () => document.removeEventListener('mousemove', handleMouseMove)
-  }, [handleMouseMove])
-
   const viewModeClass = `view-${viewMode}`
 
-  const renderSection = (label: string, sectionCards: CardData[], isCommander: boolean) => {
-    if (sectionCards.length === 0) return null
-    const sectionId = label.replace(/[^a-zA-Z0-9]/g, '_')
-    return (
-      <div key={label} data-section={label}>
-        <div className="section-divider" id={sectionId}>
-          <h2>
-            <a href={`#${sectionId}`} className="hover:underline">
-              {label}
-            </a>
-          </h2>
-          <span className="section-count">
-            {sectionCards.reduce((sum, c) => sum + c.quantity, 0)}
-          </span>
-        </div>
-        <div className="binder-grid">
-          {sectionCards.map((c) => (
-            <CardItem
-              key={c.name}
-              name={c.name}
-              quantity={c.quantity}
-              card={c.card}
-              symbolMap={symbolMap}
-              hideCount={isCommander}
-              useScryfallImgUrls={useScryfallImgUrls}
-              onCardClick={() => onOpenModal(c.name)}
-              onTooltipEnter={(src, sideways) => setTooltip({ src, sideways })}
-              onTooltipLeave={() => setTooltip(null)}
-            />
-          ))}
-        </div>
-      </div>
-    )
-  }
+  const renderDeckCard = (hideCount: boolean) => (c: CardData) => (
+    <CardItem
+      key={c.name}
+      name={c.name}
+      quantity={c.quantity}
+      card={c.card}
+      symbolMap={symbolMap}
+      viewMode={viewMode}
+      hideCount={hideCount}
+      useScryfallImgUrls={useScryfallImgUrls}
+      onCardClick={() => onOpenModal(c.name)}
+      onTooltipEnter={(src, sideways) => setTooltip({ src, sideways })}
+      onTooltipLeave={() => setTooltip(null)}
+      currency={currency}
+    />
+  )
 
-  // Modal rendering
-  const renderModal = () => {
-    const isDfc = modalCard ? isDoubleFacedCard(modalCard) : false
-    const imgSources = modalCard
-      ? resolveCardImageSources(modalCard, Boolean(useScryfallImgUrls))
-      : null
-
-    const frontType = modalCard?.card_faces?.[0]?.type_line || modalCard?.type_line || ''
-    const isSideways = frontType.includes('Room') || frontType.includes('Battle')
-
-    const metaParts: string[] = []
-    if (modalCard?.prices.usd) metaParts.push(`$${modalCard.prices.usd}`)
-    if (modalCard) metaParts.push(`${modalCard.set_name} (#${modalCard.collector_number})`)
-    if (modalCard)
-      metaParts.push(modalCard.rarity.charAt(0).toUpperCase() + modalCard.rarity.slice(1))
-
-    return (
-      <div
-        className={`card-modal-backdrop ${modalCard ? 'open' : ''}`}
-        role="dialog"
-        aria-modal="true"
-        onClick={(e) => {
-          if (e.target === e.currentTarget) onCloseModal()
-        }}
-      >
-        <div className="card-modal" style="position:relative;">
-          <button className="modal-close" aria-label="Close" onClick={onCloseModal}>
-            &times;
-          </button>
-          <div className="card-modal-image">
-            {!showingBack ? (
-              <img
-                src={imgSources?.frontImage || ''}
-                alt={modalCardName || ''}
-                className={isSideways ? 'sideways' : ''}
-              />
-            ) : (
-              <img src={imgSources?.backImage || ''} alt={`${modalCardName || ''} (Back)`} />
-            )}
-            {isDfc && imgSources?.backImage && (
-              <button className="flip-btn" onClick={() => setShowingBack(!showingBack)}>
-                Flip ↻
-              </button>
-            )}
-          </div>
-          <div className="card-modal-details">
-            <div className="modal-card-name">{modalCardName}</div>
-            <div className="modal-type-line">{modalCard?.type_line}</div>
-            <div className="modal-mana-cost">
-              {modalCard && <ManaCost card={modalCard} isDFC={isDfc} symbolMap={symbolMap} />}
-            </div>
-            <div className="modal-oracle-text">
-              {modalCard && <OracleText card={modalCard} isDFC={isDfc} symbolMap={symbolMap} />}
-            </div>
-            <div className="modal-meta">
-              {metaParts.map((p) => (
-                <span key={p}>{p}</span>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  const modalPrintings = useMemo(() => {
+    if (!modalCardName) return []
+    const direct = printings[modalCardName]
+    if (direct) return direct
+    // Fall back to the card's actual Scryfall name — primer keys may differ in
+    // punctuation/casing from the deck's card name key used to index printings.
+    const actualName = modalCard?.name
+    return (actualName ? printings[actualName] : undefined) ?? []
+  }, [modalCardName, modalCard, printings])
 
   return (
     <div className="container mx-auto">
@@ -350,6 +259,15 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
       <div className="mb-6 flex flex-wrap justify-between items-start gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">{deck.name}</h1>
+          <p className="text-sm text-gray-400">
+            Total: {formatPrice(totalPrice, currency)}
+            {!hideExtras && extraCards.length > 0 && (
+              <span className="text-gray-500">
+                {' '}
+                (all cards: {formatPrice(totalPrice + extrasPrice, currency)})
+              </span>
+            )}
+          </p>
           {deck.sourceUrl && (
             <a
               href={deck.sourceUrl}
@@ -381,81 +299,60 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
               onClick={handleCopy}
               className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-semibold transition-colors cursor-pointer"
             >
-              {copyStatus || 'Copy'}
+              {copyStatus ?? 'Copy'}
             </button>
           </div>
         )}
       </div>
 
       {/* Toolbar */}
-      <div className="mb-4 flex flex-wrap gap-3 items-center text-xs">
-        <div className="view-toggle">
-          {(['binder', 'list', 'overlap', 'stack'] as ViewMode[]).map((mode) => (
-            <button
-              key={mode}
-              data-view={mode}
-              className={viewMode === mode ? 'active' : ''}
-              title={`${mode.charAt(0).toUpperCase() + mode.slice(1)} View`}
-              onClick={() => setViewMode(mode)}
-            >
-              {mode === 'binder' ? '▦' : mode === 'list' ? '☰' : mode === 'overlap' ? '⧗' : '▥'}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-1.5">
-          <label className="text-gray-500">Group:</label>
-          <select
-            className="bg-gray-800 text-gray-200 rounded px-2 py-1 border border-gray-700 focus:border-blue-500 outline-none"
-            value={groupBy}
-            onChange={(e) => setGroupBy((e.target as HTMLSelectElement).value as GroupBy)}
-          >
-            <option value="type">Type</option>
-            <option value="section">Section</option>
-            <option value="cmc">Mana Value</option>
-            <option value="none">None</option>
-          </select>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <label className="text-gray-500">Sort:</label>
-          <select
-            className="bg-gray-800 text-gray-200 rounded px-2 py-1 border border-gray-700 focus:border-blue-500 outline-none"
-            value={sortBy}
-            onChange={(e) => setSortBy((e.target as HTMLSelectElement).value as SortBy)}
-          >
-            <option value="name">Name</option>
-            <option value="cmc">Mana Value</option>
-            <option value="price">Price</option>
-            <option value="edhrec">EDHRec Rank</option>
-          </select>
-        </div>
-        <label className="flex items-center gap-1 text-gray-400 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            className="rounded"
-            checked={reverse}
-            onChange={() => setReverse(!reverse)}
-          />
-          Reverse
-        </label>
-        <label className="flex items-center gap-1 text-gray-400 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            className="rounded"
-            checked={hideLands}
-            onChange={() => setHideLands(!hideLands)}
-          />
-          Hide Lands
-        </label>
-        <label className="flex items-center gap-1 text-gray-400 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            className="rounded"
-            checked={showExtras}
-            onChange={() => setShowExtras(!showExtras)}
-          />
-          Extras
-        </label>
-      </div>
+      <Toolbar
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        cardSize={cardSize}
+        onCardSizeChange={setCardSize}
+        groupBy={groupBy}
+        groupByOptions={[
+          { value: 'type', label: 'Type' },
+          { value: 'section', label: 'Section' },
+          { value: 'cmc', label: 'Mana Value' },
+          { value: 'color-identity', label: 'Color Identity' },
+          { value: 'price', label: 'Price' },
+          { value: 'none', label: 'None' },
+        ]}
+        onGroupByChange={(v) => setGroupBy(v as GroupBy)}
+        sortBy={sortBy}
+        sortByOptions={[
+          { value: 'name', label: 'Name' },
+          { value: 'cmc', label: 'Mana Value' },
+          { value: 'price', label: 'Price' },
+          { value: 'color-identity', label: 'Color Identity' },
+          { value: 'edhrec', label: 'EDHRec Rank' },
+        ]}
+        onSortByChange={setSortBy}
+        priceGroupStrategy={priceGroupStrategy}
+        onPriceGroupStrategyChange={setPriceGroupStrategy}
+        reverse={reverse}
+        onReverseChange={() => setReverse((prev) => !prev)}
+        hideLands={hideLands}
+        onHideLandsChange={() => setHideLands((prev) => !prev)}
+        extraCheckboxes={[
+          {
+            label: 'Hide Extras',
+            checked: hideExtras,
+            onChange: () => setHideExtras((prev) => !prev),
+          },
+          ...(hasLowestPriceCards
+            ? [
+                {
+                  label: 'Lowest Price',
+                  checked: lowestPrice,
+                  onChange: () => setLowestPrice((prev) => !prev),
+                },
+              ]
+            : []),
+        ]}
+      />
 
       {/* Description / Primer */}
       {(deck.description || deck.primer) && (
@@ -473,31 +370,103 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
           )}
           {deck.primer && (
             <div className="text-sm text-gray-300">
-              {deck.primer.length > 200 ? (
-                <ExpandableText text={deck.primer} symbolMap={symbolMap} />
-              ) : (
-                <div className="whitespace-pre-wrap">
-                  <SymbolText text={deck.primer} symbolMap={symbolMap} />
-                </div>
-              )}
+              <ExpandablePrimer
+                primer={deck.primer}
+                slug={slug}
+                cards={activeCards}
+                onOpenModal={onOpenModal}
+                primerOpen={primerOpen}
+                sectionId={sectionId}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Missing cards warning banner */}
+      {currentMissingCards.length > 0 && (
+        <div className="missing-cards-banner">
+          <button
+            type="button"
+            className="missing-cards-banner-toggle"
+            onClick={() => setMissingCardsExpanded((prev) => !prev)}
+          >
+            <span>⚠️</span>
+            <span className="flex-1 text-left">
+              {currentMissingCards.length} card{currentMissingCards.length > 1 ? 's' : ''} missing{' '}
+              {currency.toUpperCase()} pricing
+            </span>
+            <span className="text-xs">{missingCardsExpanded ? '▲' : '▼'}</span>
+          </button>
+          {missingCardsExpanded && (
+            <div className="missing-cards-banner-list">
+              <ul>
+                {currentMissingCards.map((name) => (
+                  <li key={name}>{name}</li>
+                ))}
+              </ul>
             </div>
           )}
         </div>
       )}
 
       {/* Card sections */}
-      <div className={`space-y-6 ${viewModeClass}`}>
+      <div
+        className={`space-y-6 ${viewModeClass}`}
+        style={`--card-width:${CARD_SIZE_WIDTHS[cardSize]}px`}
+      >
         {/* Commander section always shown first */}
-        {commanderCards.length > 0 &&
-          renderSection(
-            deck.sections.find((s) => s.name.toLowerCase().includes('commander'))?.name ||
-              'Commander',
-            commanderCards,
-            true,
-          )}
+        {commanderCards.length > 0 && (
+          <CardSection
+            label={
+              deck.sections.find((s) => s.name.toLowerCase().includes('commander'))?.name ??
+              'Commander'
+            }
+            cards={commanderCards}
+            currency={currency}
+            renderCard={renderDeckCard(true)}
+          />
+        )}
 
-        {/* Dynamic sorted/grouped sections */}
-        {cardGroups.map((group) => renderSection(group.key, group.cards, false))}
+        {/* Dynamic sorted/grouped sections (mainboard only) */}
+        {cardGroups.map((group) => (
+          <CardSection
+            key={group.key}
+            label={group.key}
+            cards={group.cards}
+            currency={currency}
+            renderCard={renderDeckCard(false)}
+          />
+        ))}
+
+        {/* Sideboard always shown at bottom, ungrouped */}
+        {sideboardCards.length > 0 && (
+          <CardSection
+            label={deck.sections.find((s) => isSideboardSection(s.name))?.name ?? 'Sideboard'}
+            cards={sideboardCards}
+            currency={currency}
+            renderCard={renderDeckCard(false)}
+          />
+        )}
+
+        {/* Extras (maybeboard, tokens) shown below sideboard, ungrouped */}
+        {!hideExtras &&
+          extraCards.length > 0 &&
+          deck.sections
+            .filter((s) => isExtraSection(s.name))
+            .map((s) => {
+              const sectionCards = extraCards.filter((c) => c.section === s.name)
+              if (sectionCards.length === 0) return null
+              return (
+                <CardSection
+                  key={s.name}
+                  label={s.name}
+                  cards={sectionCards}
+                  currency={currency}
+                  renderCard={renderDeckCard(false)}
+                />
+              )
+            })}
       </div>
 
       {/* List-view hover tooltip */}
@@ -512,12 +481,21 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
       </div>
 
       {/* Card detail modal */}
-      {renderModal()}
+      <CardModal
+        open={Boolean(modalCard)}
+        card={modalCard}
+        cardName={modalCardName}
+        symbolMap={symbolMap}
+        useScryfallImgUrls={useScryfallImgUrls}
+        currency={currency}
+        printings={modalPrintings}
+        onClose={onCloseModal}
+      />
     </div>
   )
 }
 
-// Expandable text component for long descriptions/primers
+// Expandable text component for long plain-text descriptions
 type ExpandableTextProps = {
   text: string
   symbolMap: Record<string, string>
@@ -533,10 +511,97 @@ function ExpandableText({ text, symbolMap }: ExpandableTextProps) {
       </div>
       <button
         className="text-blue-400 cursor-pointer text-xs hover:underline"
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => setExpanded((prev) => !prev)}
       >
         {expanded ? 'Show less' : 'Read more'}
       </button>
+    </div>
+  )
+}
+
+// Expandable primer component with Markdown rendering and an optional TOC sidebar
+type ExpandablePrimerProps = {
+  primer: string
+  slug: string
+  cards: Record<string, ScryfallCard | null>
+  onOpenModal: (cardName: string) => void
+  primerOpen?: boolean
+  sectionId?: string
+}
+
+function ExpandablePrimer({
+  primer,
+  slug,
+  cards,
+  onOpenModal,
+  primerOpen,
+  sectionId,
+}: ExpandablePrimerProps) {
+  const [expanded, setExpanded] = useState(() => Boolean(primerOpen || sectionId))
+
+  // buildToc is a fast O(n) line-scan; useMemo with [primer] ensures it only
+  // recomputes when the primer text changes, not on every re-render.
+  const toc = useMemo(() => buildToc(primer), [primer])
+
+  // Re-expand whenever the route navigates to the primer or a specific section
+  useEffect(() => {
+    if (primerOpen || sectionId) setExpanded(true)
+  }, [primerOpen, sectionId])
+
+  // Scroll to the target section after the primer is expanded
+  useEffect(() => {
+    if (!expanded || !sectionId) return
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [expanded, sectionId])
+
+  // Use a ternary rather than two separate `&&` guards so the mutual exclusivity
+  // of the collapsed/expanded states is obvious to the reader (and to the
+  // Preact reconciler, which can reuse the single root <div> across transitions).
+  return (
+    <div>
+      {!expanded ? (
+        <div>
+          <p className="text-gray-400 italic text-xs mb-1">This deck has a primer.</p>
+          <button
+            className="text-blue-400 cursor-pointer text-xs hover:underline"
+            aria-expanded={false}
+            onClick={() => {
+              setExpanded(true)
+              history.replaceState(null, '', `#/deck/${slug}/primer`)
+            }}
+          >
+            Read more
+          </button>
+        </div>
+      ) : (
+        <div>
+          <div className={`primer-layout ${toc.length > 0 ? 'primer-layout--with-toc' : ''}`}>
+            {toc.length > 0 && (
+              <nav className="primer-toc">
+                <p className="primer-toc-title">Contents</p>
+                <ul>
+                  {toc.map((h) => (
+                    <li key={h.id} className={`primer-toc-item primer-toc-level-${h.level}`}>
+                      <a href={`#/deck/${slug}/primer/${h.id}`}>{h.text.replace(/\*+/g, '')}</a>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            )}
+            <PrimerRenderer primerMarkdown={primer} cards={cards} onOpenModal={onOpenModal} />
+          </div>
+          <button
+            className="text-blue-400 cursor-pointer text-xs hover:underline mt-4 block"
+            aria-expanded={true}
+            onClick={() => {
+              setExpanded(false)
+              history.replaceState(null, '', `#/deck/${slug}`)
+            }}
+          >
+            Show less
+          </button>
+        </div>
+      )}
     </div>
   )
 }

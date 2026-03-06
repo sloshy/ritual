@@ -1,11 +1,12 @@
 import { describe, expect, test, beforeEach, afterEach } from 'bun:test'
 import { FileCacheManager } from '../../src/cache'
-import path from 'path'
-import fs from 'fs/promises'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import fs from 'node:fs/promises'
 import { type PriceData } from '../../src/types'
 
-const TEST_CACHE_DIR = path.join(process.cwd(), 'test_cache')
-const TEST_CACHE_FILE = path.join(TEST_CACHE_DIR, 'test_cache.json')
+const TEST_CACHE_DIR = join(tmpdir(), `ritual-test-cache-${crypto.randomUUID()}`)
+const TEST_CACHE_FILE = join(TEST_CACHE_DIR, 'test_cache.json')
 
 describe('FileCacheManager (Integration)', () => {
   let cacheManager: FileCacheManager<'prices'>

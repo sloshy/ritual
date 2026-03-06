@@ -1,5 +1,6 @@
 import prompts from 'prompts'
 import { ArchidektAuth } from './ArchidektAuth'
+import { getErrorMessage } from '../errors'
 
 export async function promptForLogin(auth: ArchidektAuth): Promise<boolean> {
   const response = await prompts([
@@ -29,7 +30,7 @@ export async function promptForLogin(auth: ArchidektAuth): Promise<boolean> {
     console.log(`Login successful! Logged in as ${user?.username}`)
     return true
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error)
+    const msg = getErrorMessage(error)
     console.error('Login failed:', msg)
     return false
   }

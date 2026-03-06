@@ -1,12 +1,13 @@
 import { describe, expect, test, beforeEach, afterEach } from 'bun:test'
 import { PriceService } from '../../src/prices'
 import { InMemoryCacheManager, MemoryLogger, resetLogger, setLogger } from '../test-utils'
-import { type PriceData, type Card } from '../../src/types'
+import { type PriceData, type Card, type ScryfallCard } from '../../src/types'
 import type { CacheManager, PricingBackend } from '../../src/interfaces'
 
 describe('PriceService', () => {
   let priceService: PriceService
   let mockCache: InMemoryCacheManager<PriceData>
+  let mockCardCache: InMemoryCacheManager<ScryfallCard[]>
   let mockBackend: PricingBackend
   let logger: MemoryLogger
 
@@ -14,11 +15,12 @@ describe('PriceService', () => {
     logger = new MemoryLogger()
     setLogger(logger)
     mockCache = new InMemoryCacheManager()
+    mockCardCache = new InMemoryCacheManager()
     mockBackend = {
       fetchLatestPrices: async () => new Map(),
       fetchMinMaxPrice: async () => ({ min: 0, max: 0 }),
     }
-    priceService = new PriceService(mockBackend, mockCache)
+    priceService = new PriceService(mockBackend, mockCache, mockCardCache)
   })
 
   afterEach(() => {
@@ -35,7 +37,7 @@ describe('PriceService', () => {
 
   test('should use cached prices if available', async () => {
     const cachedPrice: PriceData = { latest: 10, min: 5, max: 20 }
-    await mockCache.set('Black Lotus', cachedPrice)
+    await mockCache.set('Black Lotus:usd', cachedPrice)
 
     const cards: Card[] = [{ name: 'Black Lotus', quantity: 1 }]
 
@@ -59,7 +61,7 @@ describe('PriceService', () => {
         return { min: 0, max: 0 }
       },
     }
-    priceService = new PriceService(mockBackend, mockCache)
+    priceService = new PriceService(mockBackend, mockCache, mockCardCache)
 
     const result = await priceService.getDeckPricing(cards)
 
@@ -74,7 +76,7 @@ describe('PriceService', () => {
     expect(result.totalMax).toBe(5.0 * 4)
 
     // Verify cache was updated
-    const cached = await mockCache.get('Lightning Bolt')
+    const cached = await mockCache.get('Lightning Bolt:usd')
     expect(cached).not.toBeNull()
     expect(cached).toEqual({ latest: 2.5, min: 1, max: 5 })
 
@@ -107,7 +109,7 @@ describe('PriceService', () => {
         return { min: 0, max: 0 }
       },
     }
-    priceService = new PriceService(mockBackend, mockCache)
+    priceService = new PriceService(mockBackend, mockCache, mockCardCache)
 
     await expect(priceService.getDeckPricing(cards)).rejects.toThrow(
       'Scryfall could not find prices for: Missing Card',
@@ -139,7 +141,7 @@ describe('PriceService', () => {
         return { min: 0, max: 0 }
       },
     }
-    priceService = new PriceService(mockBackend, mockCache)
+    priceService = new PriceService(mockBackend, mockCache, mockCardCache)
 
     const result = await priceService.getDeckPricing(cards)
 
@@ -175,8 +177,8 @@ describe('PriceService', () => {
     const streamCache = new InMemoryCacheManager<PriceData>() as InMemoryCacheManager<PriceData>
     streamCache.streamGetMany = async (keys, onEntry) => {
       const values: Record<string, PriceData> = {
-        'Sol Ring': { latest: 1, min: 0.5, max: 2 },
-        'Arcane Signet': { latest: 2, min: 1, max: 3 },
+        'Sol Ring:usd': { latest: 1, min: 0.5, max: 2 },
+        'Arcane Signet:usd': { latest: 2, min: 1, max: 3 },
       }
       for (const key of keys) {
         const value = values[key]
@@ -186,7 +188,7 @@ describe('PriceService', () => {
       return values
     }
 
-    priceService = new PriceService(mockBackend, streamCache)
+    priceService = new PriceService(mockBackend, streamCache, mockCardCache)
     const result = await priceService.getDeckPricing(cards)
 
     expect(result.totalLatest).toBe(5)
@@ -229,8 +231,8 @@ describe('PriceService', () => {
       async streamGetMany(keys, onEntry) {
         streamCallCount++
         const values: Record<string, PriceData> = {
-          'Sol Ring': { latest: 1, min: 0.5, max: 2 },
-          'Arcane Signet': { latest: 2, min: 1, max: 3 },
+          'Sol Ring:usd': { latest: 1, min: 0.5, max: 2 },
+          'Arcane Signet:usd': { latest: 2, min: 1, max: 3 },
         }
         for (const key of keys) {
           const value = values[key]
@@ -261,7 +263,7 @@ describe('PriceService', () => {
       },
     }
 
-    priceService = new PriceService(mockBackend, streamOnlyCache)
+    priceService = new PriceService(mockBackend, streamOnlyCache, mockCardCache)
     const result = await priceService.getDeckPricing(cards)
 
     expect(result.totalLatest).toBe(3)

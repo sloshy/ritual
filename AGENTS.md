@@ -1,0 +1,68 @@
+# Agent Instructions
+
+## Git Usage
+
+Do NOT ever make a git commit unless explicitly asked to. I want to review any code changes you suggest, so they should just be left in the git tree unstaged as if I wasn't using version control.
+
+## Coding Style
+
+### Object Types
+
+Object types must be explicitly defined using `type` or `interface` declarations — never left as implicit inline object shapes inferred by the compiler. This applies to function return types, variable declarations, and any other context where an object type would otherwise be anonymous.
+
+```ts
+// ✅ Correct
+type Point = { x: number; y: number }
+function getOrigin(): Point {
+  return { x: 0, y: 0 }
+}
+
+// ❌ Incorrect
+function getOrigin(): { x: number; y: number } {
+  return { x: 0, y: 0 }
+}
+```
+
+### Parsers
+
+When writing code that's meant to parse a data type, that should always imply validation and returning an error. If a data type would ever be parsed, such as from a string, make sure that any appropraite errors are properly represented. It's okay to use TypeScript union types for this, such as returning "ProperType | string", where the string represents an error. Or, you can use a structured error type if having separate data points makes sense.
+
+### Organization
+
+New CLI commands should be added to `src/commands/` rather than directly in `index.ts`.
+
+Any new command, flag, option, or feature adjusted or added must also be reflected in the Docusaurus docs under `docs-site/`.
+
+### Research Tasks
+
+When asked to do research work (for example external API exploration or reverse engineering), save created files in `research/`.
+
+### Naming Conventions
+
+#### Interfaces
+
+- Do not prefix interface names with `I` (use `CacheManager`, not `ICacheManager`).
+- Use PascalCase for interface names.
+
+#### Imports
+
+For imports from the Bun or Node standard library, always use the `node:` prefix. For example, importing `fs/promises` should be imported from `node:fs/promises` instead.
+
+## Tests
+
+When adding a new feature, include tests.
+
+- For non-side-effecting business logic, add unit tests.
+- For code that depends on interfaces, prefer non-side-effecting interface designs and add test implementations when needed.
+- For side-effecting code (file writes, HTTP calls, external APIs), prefer end-to-end integration tests over unit tests.
+
+Test locations:
+
+- Unit and non-side-effecting tests: `test/unit/`
+- Integration tests that hit APIs or write files: `test/integration/`
+
+After writing tests, run them and fix compiler or linting issues before finishing.
+
+### Testing Strategy
+
+Always run `bun run test` after adding new code, so that it may be properly tested. Following running tests, format all code with `bun run format`.

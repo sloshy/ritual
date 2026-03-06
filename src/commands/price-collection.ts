@@ -1,8 +1,15 @@
 import { Command } from 'commander'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
-import { getCardPrintings } from '../scryfall'
+import { getCardPrintings, getCardGames } from '../scryfall'
 import type { ScryfallCard } from '../types'
+import {
+  parseCurrencyFlagOrError,
+  formatPrice,
+  getCardPriceForFinish,
+  isCurrencyAvailableForCard,
+} from '../price-currency'
+import type { PriceCurrency } from '../price-currency'
 import {
   addScriptingOptions,
   emitError,
@@ -10,6 +17,7 @@ import {
   ExitCode,
   normalizeScriptingOptions,
 } from './scripting'
+import { getErrorMessage } from '../errors'
 
 export type CollectionEntry = {
   name: string
@@ -18,6 +26,7 @@ export type CollectionEntry = {
   collectorNumber: string
   finish?: string
   condition?: string
+  note?: string
 }
 
 export type CollectionParseResult = {
@@ -34,7 +43,7 @@ export function parseCollectionFile(content: string): CollectionParseResult {
     if (!trimmed.startsWith('- ')) continue
 
     const match = trimmed.match(
-      /^- (.+?)(?:\s\(([A-Za-z0-9]+):([A-Za-z0-9-]+)\))?(?:\s\[(nonfoil|foil|etched)\])?(?:\s\[(NM|LP|MP|HP|DMG)\])?$/,
+      /^- (.+?)(?:\s\(([A-Za-z0-9]+):([^)]+)\))?(?:\s\[(nonfoil|foil|etched)\])?(?:\s\[(NM|LP|MP|HP|DMG)\])?(?:\s\{(.+)\})?$/,
     )
     if (!match) continue
 
@@ -54,28 +63,21 @@ export function parseCollectionFile(content: string): CollectionParseResult {
       collectorNumber,
       finish: match[4],
       condition: match[5],
+      note: match[6],
     })
   }
   return { entries, warnings }
 }
 
-function getPriceForFinish(card: ScryfallCard, finish: string): number {
-  let raw: string | null = null
-  if (finish === 'foil') {
-    raw = card.prices.usd_foil
-  } else if (finish === 'etched') {
-    raw = card.prices.usd_etched
-  } else {
-    raw = card.prices.usd
-  }
-  if (raw !== null) {
-    const parsed = parseFloat(raw)
-    if (Number.isFinite(parsed)) return parsed
-  }
-  return 0
+export function getPriceForFinish(
+  card: ScryfallCard,
+  finish: string,
+  currency: PriceCurrency = 'usd',
+): number {
+  return getCardPriceForFinish(card, finish, currency)
 }
 
-function resolveFinish(entry: CollectionEntry, card: ScryfallCard): string {
+export function resolveFinish(entry: CollectionEntry, card: ScryfallCard): string {
   if (entry.finish) return entry.finish
   if (card.finishes.includes('nonfoil')) return 'nonfoil'
   return card.finishes[0] ?? 'nonfoil'
@@ -89,10 +91,20 @@ export function registerPriceCollectionCommand(program: Command) {
       .argument('[collectionName]', 'Name of a single collection file (without extension)')
       .alias('pc')
       .option('--sort <field>', 'Sort cards by field (name, price)', '')
-      .option('--descending', 'Reverse the sort direction'),
+      .option('--descending', 'Reverse the sort direction')
+      .option('--prices <currency>', 'Price currency: usd, eur, or tix (default: usd)'),
     'text',
   ).action(async (collectionName: string | undefined, options) => {
     const scriptingOptions = normalizeScriptingOptions(options, 'text')
+
+    const currency = parseCurrencyFlagOrError(
+      options.prices,
+      emitError,
+      scriptingOptions,
+      ExitCode.UsageError,
+    )
+    if (!currency) return
+
     const collectionsDir = path.join(process.cwd(), 'collections')
 
     try {
@@ -196,6 +208,18 @@ export function registerPriceCollectionCommand(program: Command) {
 
         for (const entry of aggregated.values()) {
           const printings = await getCardPrintings(entry.name)
+
+          // Check game format availability for the selected currency
+          const games = getCardGames(printings)
+          if (!isCurrencyAvailableForCard(games, currency)) {
+            if (!scriptingOptions.quiet && scriptingOptions.output === 'text') {
+              console.warn(
+                `⚠️  '${entry.name}' is not available in ${currency === 'tix' ? 'MTGO' : 'paper'}, skipping ${currency.toUpperCase()} pricing.`,
+              )
+            }
+            continue
+          }
+
           const exactPrinting = printings.find(
             (p) =>
               p.set.toLowerCase() === entry.set.toLowerCase() &&
@@ -212,7 +236,7 @@ export function registerPriceCollectionCommand(program: Command) {
           }
 
           const finish = resolveFinish(entry, exactPrinting)
-          const price = getPriceForFinish(exactPrinting, finish)
+          const price = getPriceForFinish(exactPrinting, finish, currency)
           const lineTotal = price * entry.quantity
           fileTotal += lineTotal
 
@@ -263,9 +287,11 @@ export function registerPriceCollectionCommand(program: Command) {
             const qty = card.quantity > 1 ? ` (${card.quantity}x)` : ''
             const finishTag = card.finish !== 'nonfoil' ? ` [${card.finish}]` : ''
             const totalSuffix =
-              card.quantity > 1 ? ` ($${(card.price * card.quantity).toFixed(2)} total)` : ''
+              card.quantity > 1
+                ? ` (${formatPrice(card.price * card.quantity, currency)} total)`
+                : ''
             console.log(
-              `  ${card.name} (${card.set.toUpperCase()}:${card.collectorNumber})${finishTag}${qty} — $${card.price.toFixed(2)}${totalSuffix}`,
+              `  ${card.name} (${card.set.toUpperCase()}:${card.collectorNumber})${finishTag}${qty} — ${formatPrice(card.price, currency)}${totalSuffix}`,
             )
           }
 
@@ -274,7 +300,7 @@ export function registerPriceCollectionCommand(program: Command) {
           if (foilCount > 0) stats.push(`${foilCount} foil`)
           if (etchedCount > 0) stats.push(`${etchedCount} etched`)
           console.log(`  ${stats.join(', ')}`)
-          console.log(`  Total: $${fileTotal.toFixed(2)}`)
+          console.log(`  Total: ${formatPrice(fileTotal, currency)}`)
         }
       }
 
@@ -292,7 +318,7 @@ export function registerPriceCollectionCommand(program: Command) {
       if (collectionResults.length > 1) {
         console.log('\n------------------------------')
         console.log('TOTAL (all collections)')
-        console.log(`Total: $${grandTotal.toFixed(2)}`)
+        console.log(`Total: ${formatPrice(grandTotal, currency)}`)
         console.log('------------------------------')
       }
 
@@ -300,7 +326,7 @@ export function registerPriceCollectionCommand(program: Command) {
         '\n⚠️  Disclaimer: Prices are from Scryfall and reflect NM (Near Mint) market values. Card condition (LP, MP, HP, DMG) can significantly decrease actual value.',
       )
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to calculate collection price.'
+      const message = getErrorMessage(e)
       emitError('runtime_error', message, scriptingOptions, e)
       process.exitCode = ExitCode.RuntimeError
     }

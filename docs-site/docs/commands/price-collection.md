@@ -22,12 +22,13 @@ When no collection name is given, all `.md` files in the `collections/` director
 
 ## Options
 
-| Option              | Description                                             |
-| ------------------- | ------------------------------------------------------- |
-| `--sort <field>`    | Sort cards by `name` or `price` (default: listed order) |
-| `--descending`      | Reverse the sort direction                              |
-| `--output <format>` | Output format (`json` or `text`)                        |
-| `--quiet`           | Suppress non-essential output                           |
+| Option                | Description                                             |
+| --------------------- | ------------------------------------------------------- |
+| `--sort <field>`      | Sort cards by `name` or `price` (default: listed order) |
+| `--descending`        | Reverse the sort direction                              |
+| `--prices <currency>` | Price currency: `usd`, `eur`, or `tix` (default: `usd`) |
+| `--output <format>`   | Output format (`json` or `text`)                        |
+| `--quiet`             | Suppress non-essential output                           |
 
 ## Examples
 
@@ -55,15 +56,23 @@ Machine-readable JSON output:
 ./ritual pc --output json
 ```
 
+Show EUR (Cardmarket) prices:
+
+```bash
+./ritual pc --prices eur
+```
+
 ## Output
 
 For each collection the command displays the total price based on exact printings.
 
-Each card is priced using its specific set and collector number. The finish determines which price is used (`usd`, `usd_foil`, or `usd_etched`). Cards without a finish default to nonfoil.
+Each card is priced using its specific set and collector number. The finish determines which price is used (`usd`, `usd_foil`, or `usd_etched` for USD; `eur` or `eur_foil` for EUR; `tix` for MTGO). Cards without a finish default to nonfoil.
 
 Cards missing a set code and collector number are skipped with a warning.
 
-Prices are fetched from Scryfall's price data.
+Prices are fetched from Scryfall's price data. Use `--prices eur` for Cardmarket EUR prices or `--prices tix` for MTGO ticket prices.
+
+Cards that are not available in the selected currency's game format (e.g., a paper-only card when pricing in TIX) are skipped with a warning and omitted from totals.
 
 :::warning
 Prices reflect Near Mint (NM) market values. Card condition (LP, MP, HP, DMG) can significantly decrease actual value.

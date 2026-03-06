@@ -22,3 +22,13 @@
 
 - Distribute on NPM (?)
 - Include licenses of dependencies in packages / containers
+
+## Misc
+
+- Multi-language support
+- Trades page
+- Wanted lists (functionally like collections, but without needing specific card details. Only name is required.)
+- Add note to existing card (separate command)
+- Move cards between collections
+- Fix colors of index price text
+- Fix overlapping buttons on modal dialog

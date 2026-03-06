@@ -1,11 +1,12 @@
 import { Command } from 'commander'
-import path from 'path'
-import { createInterface } from 'readline'
-import { fetchArchidektDeck } from '../importers/archidekt'
+import path from 'node:path'
+import { createInterface } from 'node:readline'
+import { ArchidektClient } from '../clients/ArchidektClient'
 import { fetchMtgGoldfishDeck } from '../importers/mtggoldfish'
 import { fetchMoxfieldDeck } from '../importers/moxfield-lib'
-import { importFromTextFile } from '../importers/text-file'
+import { importFromTextFile, listDeckFiles } from '../importers/text-file'
 import { type DeckData } from '../types'
+import { parseMoxfieldPrimer } from '../primer-parser'
 import { ExitCode } from './scripting'
 import { getLogger } from '../logger'
 
@@ -14,6 +15,18 @@ interface SaveDeckOptions {
   nonInteractive?: boolean
   assumeYes?: boolean
   dryRun?: boolean
+}
+
+type DeckFileFrontmatter = {
+  sourceId?: string
+}
+
+type ImportCommandOptions = {
+  overwrite?: boolean
+  nonInteractive?: boolean
+  yes?: boolean
+  dryRun?: boolean
+  moxfieldUserAgent?: string
 }
 
 export function resolveMoxfieldUserAgent(
@@ -86,14 +99,13 @@ export async function saveDeck(
 
   let existingFiles: string[] = []
   try {
-    const fs = await import('fs/promises')
-    existingFiles = await fs.readdir(decksDir)
+    existingFiles = await listDeckFiles(decksDir)
   } catch (e) {
     existingFiles = []
   }
 
   // Helper to read simple frontmatter without heavy parser
-  const readFrontmatter = async (fPath: string): Promise<{ sourceId?: string }> => {
+  const readFrontmatter = async (fPath: string): Promise<DeckFileFrontmatter> => {
     const content = await Bun.file(fPath).text()
     const match = content.match(/^sourceId:\s*"?([^\s"]+)"?/m)
     return match ? { sourceId: match[1] } : {}
@@ -101,14 +113,12 @@ export async function saveDeck(
 
   if (deckData.sourceId) {
     for (const f of existingFiles) {
-      if (f.endsWith('.md')) {
-        const fPath = path.join(decksDir, f)
-        const meta = await readFrontmatter(fPath)
-        if (meta.sourceId === deckData.sourceId) {
-          conflictFile = f
-          conflictReason = 'id'
-          break
-        }
+      const fPath = path.join(decksDir, f)
+      const meta = await readFrontmatter(fPath)
+      if (meta.sourceId === deckData.sourceId) {
+        conflictFile = f
+        conflictReason = 'id'
+        break
       }
     }
   }
@@ -184,6 +194,7 @@ export async function saveDeck(
 
   const sourceIdLine = deckData.sourceId ? `sourceId: "${deckData.sourceId}"\n` : ''
   const sourceUrlLine = deckData.sourceUrl ? `sourceUrl: "${deckData.sourceUrl}"\n` : ''
+
   const descriptionLine = deckData.description
     ? `description: "${deckData.description.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"\n`
     : ''
@@ -210,13 +221,25 @@ tags: []
 
   const fileContent = fileHeader + cardList
 
+  // Derive primer sidecar path from the deck file path
+  const primerPath = filePath.replace(/\.md$/, '.primer.md')
+  const primerMarkdown = deckData.primer ? parseMoxfieldPrimer(deckData.primer).markdown : undefined
+
   if (resolvedOptions.dryRun) {
     getLogger().info(`[dry-run] Would save deck to: ${filePath}`)
+    if (primerMarkdown) {
+      getLogger().info(`[dry-run] Would save primer to: ${primerPath}`)
+    }
     return
   }
 
   await Bun.write(filePath, fileContent)
   getLogger().info(`Successfully imported deck to: ${filePath}`)
+
+  if (primerMarkdown) {
+    await Bun.write(primerPath, primerMarkdown + '\n')
+    getLogger().info(`Successfully saved primer to: ${primerPath}`)
+  }
 }
 
 export function registerImportCommand(program: Command) {
@@ -232,77 +255,66 @@ export function registerImportCommand(program: Command) {
       '--moxfield-user-agent <agent>',
       'Moxfield-approved unique User-Agent string (required for Moxfield imports unless MOXFIELD_USER_AGENT is set)',
     )
-    .action(
-      async (
-        source: string,
-        options: {
-          overwrite?: boolean
-          nonInteractive?: boolean
-          yes?: boolean
-          dryRun?: boolean
-          moxfieldUserAgent?: string
-        },
-      ) => {
-        try {
-          let deckData: DeckData | undefined
+    .action(async (source: string, options: ImportCommandOptions) => {
+      try {
+        let deckData: DeckData | undefined
 
-          if (source.startsWith('https://')) {
-            // Check for Archidekt
-            const archidektMatch = source.match(/archidekt\.com\/decks\/(\d+)/)
+        if (source.startsWith('https://')) {
+          // Check for Archidekt
+          const archidektMatch = source.match(/archidekt\.com\/decks\/(\d+)/)
 
-            if (archidektMatch?.[1]) {
-              const deckId = archidektMatch[1]
-              getLogger().info(`Fetching deck ID ${deckId} from Archidekt...`)
-              deckData = await fetchArchidektDeck(deckId)
-            } else {
-              // Check for Moxfield
-              const moxfieldMatch = source.match(/moxfield\.com\/decks\/([a-zA-Z0-9_-]+)/)
-              if (moxfieldMatch?.[1]) {
-                const deckId = moxfieldMatch[1]
-                const moxfieldUserAgent = resolveMoxfieldUserAgent(options.moxfieldUserAgent)
-                if (!moxfieldUserAgent) {
-                  getLogger().error(
-                    'Error: Moxfield imports require a unique Moxfield-approved user agent string. Set MOXFIELD_USER_AGENT or pass --moxfield-user-agent <agent>. Contact Moxfield support if you need one.',
-                  )
-                  process.exitCode = ExitCode.UsageError
-                  return
-                }
-                getLogger().info(`Fetching deck ID ${deckId} from Moxfield...`)
-                deckData = await withMoxfieldUserAgent(moxfieldUserAgent, async () =>
-                  fetchMoxfieldDeck(deckId),
-                )
-              } else if (source.includes('mtggoldfish.com')) {
-                getLogger().info('Fetching deck from MTGGoldfish...')
-                deckData = await fetchMtgGoldfishDeck(source)
-              } else {
+          if (archidektMatch?.[1]) {
+            const deckId = archidektMatch[1]
+            getLogger().info(`Fetching deck ID ${deckId} from Archidekt...`)
+            deckData = await new ArchidektClient().fetchDeck(deckId)
+          } else {
+            // Check for Moxfield
+            const moxfieldMatch = source.match(/moxfield\.com\/decks\/([a-zA-Z0-9_-]+)/)
+            if (moxfieldMatch?.[1]) {
+              const deckId = moxfieldMatch[1]
+              const moxfieldUserAgent = resolveMoxfieldUserAgent(options.moxfieldUserAgent)
+              if (!moxfieldUserAgent) {
                 getLogger().error(
-                  'Error: URL not supported. Use Archidekt, Moxfield or MTGGoldfish URLs.',
+                  'Error: Moxfield imports require a unique Moxfield-approved user agent string. Set MOXFIELD_USER_AGENT or pass --moxfield-user-agent <agent>. Contact Moxfield support if you need one.',
                 )
                 process.exitCode = ExitCode.UsageError
                 return
               }
+              getLogger().info(`Fetching deck ID ${deckId} from Moxfield...`)
+              deckData = await withMoxfieldUserAgent(moxfieldUserAgent, async () =>
+                fetchMoxfieldDeck(deckId),
+              )
+            } else if (source.includes('mtggoldfish.com')) {
+              getLogger().info('Fetching deck from MTGGoldfish...')
+              deckData = await fetchMtgGoldfishDeck(source)
+            } else {
+              getLogger().error(
+                'Error: URL not supported. Use Archidekt, Moxfield or MTGGoldfish URLs.',
+              )
+              process.exitCode = ExitCode.UsageError
+              return
             }
-          } else {
-            // Assume file path
-            getLogger().info(`Reading deck from file: ${source}...`)
-            deckData = await importFromTextFile(source)
           }
-
-          if (!deckData) {
-            throw new Error('Failed to parse deck data')
-          }
-
-          const decksDir = path.join(process.cwd(), 'decks')
-          await saveDeck(deckData, decksDir, {
-            forceOverwrite: options.overwrite === true,
-            nonInteractive: options.nonInteractive === true || options.yes === true,
-            assumeYes: options.yes === true,
-            dryRun: options.dryRun === true,
-          })
-        } catch (error) {
-          getLogger().error('Failed to import deck:', error)
-          process.exitCode = ExitCode.RuntimeError
+        } else {
+          // Assume file path
+          getLogger().info(`Reading deck from file: ${source}...`)
+          deckData = await importFromTextFile(source)
         }
-      },
-    )
+
+        if (!deckData) {
+          throw new Error('Failed to parse deck data')
+        }
+
+        const decksDir = path.join(process.cwd(), 'decks')
+        await saveDeck(deckData, decksDir, {
+          forceOverwrite: options.overwrite === true,
+          nonInteractive: options.nonInteractive === true || options.yes === true,
+          assumeYes: options.yes === true,
+          dryRun: options.dryRun === true,
+        })
+      } catch (error) {
+        getLogger().error('Failed to import deck:', error)
+        process.exitCode = ExitCode.RuntimeError
+      }
+    })
 }

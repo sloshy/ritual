@@ -1,10 +1,11 @@
 import { describe, expect, test, beforeAll, afterAll } from 'bun:test'
 import { importFromTextFile } from '../../../src/importers/text-file'
-import path from 'path'
-import { rmdir, unlink } from 'fs/promises'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { unlink } from 'node:fs/promises'
 
-const TEST_DIR = path.join(process.cwd(), 'test', 'temp')
-const TEST_FILE = path.join(TEST_DIR, 'test_deck.txt')
+const TEST_FILE = join(tmpdir(), `ritual-test-${crypto.randomUUID()}.txt`)
+const TEST_PRIMER_FILE = TEST_FILE.replace(/\.txt$/, '.primer.md')
 
 describe('Text File Importer', () => {
   beforeAll(async () => {
@@ -23,6 +24,7 @@ description: "My cool deck"
 
   afterAll(async () => {
     await unlink(TEST_FILE).catch(() => {})
+    await unlink(TEST_PRIMER_FILE).catch(() => {})
   })
 
   test('parses text file with frontmatter and sections', async () => {
@@ -40,5 +42,17 @@ description: "My cool deck"
     const commander = deck.sections.find((s) => s.name === 'Commander')
     expect(commander).toBeDefined()
     expect(commander?.cards[0]?.name).toBe('Test Commander')
+  })
+
+  test('loads primer from sidecar .primer.md file', async () => {
+    await Bun.write(TEST_PRIMER_FILE, '## Overview\n\nThis deck does stuff.\n')
+    const deck = await importFromTextFile(TEST_FILE)
+    expect(deck.primer).toBe('## Overview\n\nThis deck does stuff.')
+  })
+
+  test('returns undefined primer when no sidecar file exists', async () => {
+    await unlink(TEST_PRIMER_FILE).catch(() => {})
+    const deck = await importFromTextFile(TEST_FILE)
+    expect(deck.primer).toBeUndefined()
   })
 })

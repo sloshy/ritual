@@ -1,0 +1,357 @@
+import { describe, expect, test } from 'bun:test'
+import {
+  sortCards,
+  groupAndSortCards,
+  getCardTypeCategory,
+  colorIdentityKey,
+  colorIdentityName,
+  colorIdentitySortValue,
+  getPriceGroupKey,
+  groupTotalPrice,
+  type CardData,
+} from '../../../src/site/card-sorting'
+
+function makeCard(overrides: Partial<CardData> = {}): CardData {
+  return {
+    name: 'Test Card',
+    quantity: 1,
+    cmc: 3,
+    edhrec: 1000,
+    price: 1.5,
+    type: 'Creature — Human',
+    section: 'Main',
+    fileOrder: 0,
+    setCode: 'FDN',
+    colorIdentity: [],
+    card: null,
+    ...overrides,
+  }
+}
+
+describe('sortCards', () => {
+  test('sorts by name ascending', () => {
+    const a = makeCard({ name: 'Alpha' })
+    const b = makeCard({ name: 'Beta' })
+    expect(sortCards(a, b, 'name', false)).toBeLessThan(0)
+    expect(sortCards(b, a, 'name', false)).toBeGreaterThan(0)
+  })
+
+  test('sorts by name descending when reversed', () => {
+    const a = makeCard({ name: 'Alpha' })
+    const b = makeCard({ name: 'Beta' })
+    expect(sortCards(a, b, 'name', true)).toBeGreaterThan(0)
+  })
+
+  test('sorts by cmc', () => {
+    const a = makeCard({ cmc: 2 })
+    const b = makeCard({ cmc: 5 })
+    expect(sortCards(a, b, 'cmc', false)).toBeLessThan(0)
+    expect(sortCards(a, b, 'cmc', true)).toBeGreaterThan(0)
+  })
+
+  test('sorts by price', () => {
+    const a = makeCard({ price: 0.5 })
+    const b = makeCard({ price: 10.0 })
+    expect(sortCards(a, b, 'price', false)).toBeLessThan(0)
+  })
+
+  test('sorts by file-order', () => {
+    const a = makeCard({ fileOrder: 0 })
+    const b = makeCard({ fileOrder: 5 })
+    expect(sortCards(a, b, 'file-order', false)).toBeLessThan(0)
+    expect(sortCards(a, b, 'file-order', true)).toBeGreaterThan(0)
+  })
+
+  test('sorts by set-code then name', () => {
+    const a = makeCard({ setCode: 'AAA', name: 'Beta' })
+    const b = makeCard({ setCode: 'BBB', name: 'Alpha' })
+    expect(sortCards(a, b, 'set-code', false)).toBeLessThan(0)
+
+    // Same set code, sort by name
+    const c = makeCard({ setCode: 'AAA', name: 'Alpha' })
+    const d = makeCard({ setCode: 'AAA', name: 'Beta' })
+    expect(sortCards(c, d, 'set-code', false)).toBeLessThan(0)
+  })
+
+  test('sorts by edhrec rank', () => {
+    const a = makeCard({ edhrec: 100 })
+    const b = makeCard({ edhrec: 5000 })
+    expect(sortCards(a, b, 'edhrec', false)).toBeLessThan(0)
+  })
+
+  test('sorts by color identity in WUBRG order', () => {
+    const white = makeCard({ name: 'White Card', colorIdentity: ['W'] })
+    const blue = makeCard({ name: 'Blue Card', colorIdentity: ['U'] })
+    const black = makeCard({ name: 'Black Card', colorIdentity: ['B'] })
+    const red = makeCard({ name: 'Red Card', colorIdentity: ['R'] })
+    const green = makeCard({ name: 'Green Card', colorIdentity: ['G'] })
+    const colorless = makeCard({ name: 'Colorless Card', colorIdentity: [] })
+
+    expect(sortCards(colorless, white, 'color-identity', false)).toBeLessThan(0)
+    expect(sortCards(white, blue, 'color-identity', false)).toBeLessThan(0)
+    expect(sortCards(blue, black, 'color-identity', false)).toBeLessThan(0)
+    expect(sortCards(black, red, 'color-identity', false)).toBeLessThan(0)
+    expect(sortCards(red, green, 'color-identity', false)).toBeLessThan(0)
+  })
+
+  test('sorts multicolor by first then second color', () => {
+    const wu = makeCard({ name: 'WU Card', colorIdentity: ['W', 'U'] })
+    const wb = makeCard({ name: 'WB Card', colorIdentity: ['W', 'B'] })
+    const ur = makeCard({ name: 'UR Card', colorIdentity: ['U', 'R'] })
+
+    expect(sortCards(wu, wb, 'color-identity', false)).toBeLessThan(0)
+    expect(sortCards(wb, ur, 'color-identity', false)).toBeLessThan(0)
+  })
+
+  test('sorts mono before multicolor', () => {
+    const mono = makeCard({ name: 'Mono', colorIdentity: ['G'] })
+    const multi = makeCard({ name: 'Multi', colorIdentity: ['W', 'U'] })
+    expect(sortCards(mono, multi, 'color-identity', false)).toBeLessThan(0)
+  })
+})
+
+describe('getCardTypeCategory', () => {
+  test('identifies creature', () => {
+    expect(getCardTypeCategory('Creature — Human Wizard')).toBe('Creature')
+  })
+
+  test('identifies instant', () => {
+    expect(getCardTypeCategory('Instant')).toBe('Instant')
+  })
+
+  test('identifies land', () => {
+    expect(getCardTypeCategory('Basic Land — Mountain')).toBe('Land')
+  })
+
+  test('identifies artifact', () => {
+    expect(getCardTypeCategory('Artifact')).toBe('Artifact')
+  })
+
+  test('returns Other for unknown types', () => {
+    expect(getCardTypeCategory('Conspiracy')).toBe('Other')
+  })
+})
+
+describe('groupAndSortCards', () => {
+  const cards = [
+    makeCard({ name: 'Bolt', type: 'Instant', cmc: 1, fileOrder: 2 }),
+    makeCard({ name: 'Sol Ring', type: 'Artifact', cmc: 1, fileOrder: 0 }),
+    makeCard({ name: 'Grizzly Bears', type: 'Creature — Bear', cmc: 2, fileOrder: 1 }),
+  ]
+
+  test('groups by none puts all in one group', () => {
+    const groups = groupAndSortCards(cards, 'none', 'name', false, [])
+    expect(groups).toHaveLength(1)
+    expect(groups[0]!.key).toBe('All Cards')
+    expect(groups[0]!.cards).toHaveLength(3)
+  })
+
+  test('groups by type', () => {
+    const groups = groupAndSortCards(cards, 'type', 'name', false, [])
+    const keys = groups.map((g) => g.key)
+    expect(keys).toContain('Creature')
+    expect(keys).toContain('Instant')
+    expect(keys).toContain('Artifact')
+  })
+
+  test('groups by cmc', () => {
+    const groups = groupAndSortCards(cards, 'cmc', 'name', false, [])
+    const keys = groups.map((g) => g.key)
+    expect(keys).toContain('1')
+    expect(keys).toContain('2')
+  })
+
+  test('sorts within groups', () => {
+    const groups = groupAndSortCards(cards, 'none', 'file-order', false, [])
+    expect(groups[0]!.cards[0]!.name).toBe('Sol Ring')
+    expect(groups[0]!.cards[1]!.name).toBe('Grizzly Bears')
+    expect(groups[0]!.cards[2]!.name).toBe('Bolt')
+  })
+
+  test('respects reverse flag', () => {
+    const groups = groupAndSortCards(cards, 'none', 'file-order', true, [])
+    expect(groups[0]!.cards[0]!.name).toBe('Bolt')
+    expect(groups[0]!.cards[2]!.name).toBe('Sol Ring')
+  })
+
+  test('groups by section with section order', () => {
+    const sectionCards = [
+      makeCard({ name: 'A', section: 'Sideboard' }),
+      makeCard({ name: 'B', section: 'Main' }),
+    ]
+    const groups = groupAndSortCards(sectionCards, 'section', 'name', false, ['Main', 'Sideboard'])
+    expect(groups[0]!.key).toBe('Main')
+    expect(groups[1]!.key).toBe('Sideboard')
+  })
+
+  test('groups by color identity with WUBRG-ordered names', () => {
+    const colorCards = [
+      makeCard({ name: 'Green Card', colorIdentity: ['G'] }),
+      makeCard({ name: 'White Card', colorIdentity: ['W'] }),
+      makeCard({ name: 'Azorius Card', colorIdentity: ['W', 'U'] }),
+      makeCard({ name: 'Colorless Card', colorIdentity: [] }),
+    ]
+    const groups = groupAndSortCards(colorCards, 'color-identity', 'name', false, [])
+    const keys = groups.map((g) => g.key)
+    expect(keys[0]).toBe('Colorless')
+    expect(keys[1]).toBe('White')
+    expect(keys[2]).toBe('Green')
+    expect(keys[3]).toBe('Azorius (WU)')
+  })
+})
+
+describe('colorIdentityKey', () => {
+  test('returns empty string for colorless', () => {
+    expect(colorIdentityKey([])).toBe('')
+  })
+
+  test('normalizes to WUBRG order', () => {
+    expect(colorIdentityKey(['G', 'W'])).toBe('WG')
+    expect(colorIdentityKey(['R', 'U', 'B'])).toBe('UBR')
+  })
+
+  test('handles all five colors', () => {
+    expect(colorIdentityKey(['G', 'B', 'R', 'U', 'W'])).toBe('WUBRG')
+  })
+})
+
+describe('colorIdentityName', () => {
+  test('returns Colorless for empty', () => {
+    expect(colorIdentityName([])).toBe('Colorless')
+  })
+
+  test('returns mono color names', () => {
+    expect(colorIdentityName(['W'])).toBe('White')
+    expect(colorIdentityName(['U'])).toBe('Blue')
+    expect(colorIdentityName(['B'])).toBe('Black')
+    expect(colorIdentityName(['R'])).toBe('Red')
+    expect(colorIdentityName(['G'])).toBe('Green')
+  })
+
+  test('returns guild names for two-color combos', () => {
+    expect(colorIdentityName(['W', 'U'])).toBe('Azorius (WU)')
+    expect(colorIdentityName(['U', 'R'])).toBe('Izzet (UR)')
+    expect(colorIdentityName(['B', 'G'])).toBe('Golgari (BG)')
+  })
+
+  test('returns shard/wedge names for three-color combos', () => {
+    expect(colorIdentityName(['W', 'U', 'B'])).toBe('Esper (WUB)')
+    expect(colorIdentityName(['B', 'R', 'G'])).toBe('Jund (BRG)')
+  })
+
+  test('returns WUBRG (Five Color) for all five', () => {
+    expect(colorIdentityName(['W', 'U', 'B', 'R', 'G'])).toBe('WUBRG (Five Color)')
+  })
+})
+
+describe('colorIdentitySortValue', () => {
+  test('colorless sorts first', () => {
+    expect(colorIdentitySortValue([])).toBe(0)
+  })
+
+  test('mono colors sort in WUBRG order', () => {
+    const w = colorIdentitySortValue(['W'])
+    const u = colorIdentitySortValue(['U'])
+    const b = colorIdentitySortValue(['B'])
+    const r = colorIdentitySortValue(['R'])
+    const g = colorIdentitySortValue(['G'])
+    expect(w).toBeLessThan(u)
+    expect(u).toBeLessThan(b)
+    expect(b).toBeLessThan(r)
+    expect(r).toBeLessThan(g)
+  })
+
+  test('mono sorts before two-color', () => {
+    const g = colorIdentitySortValue(['G'])
+    const wu = colorIdentitySortValue(['W', 'U'])
+    expect(g).toBeLessThan(wu)
+  })
+
+  test('two-color sorts by first then second color', () => {
+    const wu = colorIdentitySortValue(['W', 'U'])
+    const wb = colorIdentitySortValue(['W', 'B'])
+    const ur = colorIdentitySortValue(['U', 'R'])
+    expect(wu).toBeLessThan(wb)
+    expect(wb).toBeLessThan(ur)
+  })
+})
+
+describe('getPriceGroupKey', () => {
+  test('archidekt strategy groups into correct brackets', () => {
+    expect(getPriceGroupKey(0.25, 'archidekt')).toBe('$0 – $0.50')
+    expect(getPriceGroupKey(0.75, 'archidekt')).toBe('$0.50 – $1')
+    expect(getPriceGroupKey(3.0, 'archidekt')).toBe('$1 – $5')
+    expect(getPriceGroupKey(7.5, 'archidekt')).toBe('$5 – $10')
+    expect(getPriceGroupKey(15, 'archidekt')).toBe('$10 – $20')
+    expect(getPriceGroupKey(35, 'archidekt')).toBe('$20 – $50')
+    expect(getPriceGroupKey(75, 'archidekt')).toBe('$50 – $100')
+    expect(getPriceGroupKey(150, 'archidekt')).toBe('$100+')
+  })
+
+  test('five-dollar strategy groups correctly', () => {
+    expect(getPriceGroupKey(2.5, 'five')).toBe('$0 – $5')
+    expect(getPriceGroupKey(7.5, 'five')).toBe('$5 – $10')
+    expect(getPriceGroupKey(22.0, 'five')).toBe('$20 – $25')
+  })
+
+  test('ten-dollar strategy groups correctly', () => {
+    expect(getPriceGroupKey(2.5, 'ten')).toBe('$0 – $10')
+    expect(getPriceGroupKey(15, 'ten')).toBe('$10 – $20')
+    expect(getPriceGroupKey(95, 'ten')).toBe('$90 – $100')
+  })
+
+  test('zero price goes to No Price Data group', () => {
+    expect(getPriceGroupKey(0, 'archidekt')).toBe('No Price Data')
+    expect(getPriceGroupKey(0, 'five')).toBe('No Price Data')
+    expect(getPriceGroupKey(0, 'ten')).toBe('No Price Data')
+  })
+})
+
+describe('groupAndSortCards with price grouping', () => {
+  test('groups cards by archidekt price brackets', () => {
+    const cards = [
+      makeCard({ name: 'Cheap', price: 0.25 }),
+      makeCard({ name: 'Mid', price: 7.5 }),
+      makeCard({ name: 'Expensive', price: 150 }),
+    ]
+    const groups = groupAndSortCards(cards, 'price', 'name', false, [], 'archidekt')
+    const keys = groups.map((g) => g.key)
+    expect(keys).toContain('$0 – $0.50')
+    expect(keys).toContain('$5 – $10')
+    expect(keys).toContain('$100+')
+  })
+
+  test('sorts price groups in ascending bracket order', () => {
+    const cards = [
+      makeCard({ name: 'Expensive', price: 150 }),
+      makeCard({ name: 'Cheap', price: 0.25 }),
+      makeCard({ name: 'Mid', price: 7.5 }),
+    ]
+    const groups = groupAndSortCards(cards, 'price', 'name', false, [], 'archidekt')
+    const keys = groups.map((g) => g.key)
+    expect(keys.indexOf('$0 – $0.50')).toBeLessThan(keys.indexOf('$5 – $10'))
+    expect(keys.indexOf('$5 – $10')).toBeLessThan(keys.indexOf('$100+'))
+  })
+
+  test('No Price Data group sorts after all price brackets', () => {
+    const cards = [
+      makeCard({ name: 'No Price', price: 0 }),
+      makeCard({ name: 'Cheap', price: 0.25 }),
+      makeCard({ name: 'Expensive', price: 150 }),
+    ]
+    const groups = groupAndSortCards(cards, 'price', 'name', false, [], 'archidekt')
+    const keys = groups.map((g) => g.key)
+    expect(keys[keys.length - 1]).toBe('No Price Data')
+  })
+})
+
+describe('groupTotalPrice', () => {
+  test('sums prices of all cards', () => {
+    const cards = [makeCard({ price: 1.5, quantity: 2 }), makeCard({ price: 3.0, quantity: 1 })]
+    expect(groupTotalPrice(cards)).toBeCloseTo(6.0)
+  })
+
+  test('returns 0 for empty array', () => {
+    expect(groupTotalPrice([])).toBe(0)
+  })
+})

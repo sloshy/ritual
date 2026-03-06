@@ -1,89 +1,50 @@
 import { render } from 'preact'
 import { useState, useEffect, useCallback } from 'preact/hooks'
-import type { DeckSummary, DeckDetail } from './data-types'
+import type { DeckDetail, CollectionDetail } from './data-types'
+import type { PriceCurrency } from '../price-currency'
 import { IndexPage } from './IndexPage'
 import { DeckPage } from './DeckPage'
-
-type Route = { page: 'index' } | { page: 'deck'; slug: string }
-
-function parseHash(): Route {
-  const hash = window.location.hash.replace(/^#\/?/, '')
-  if (hash.startsWith('deck/')) {
-    const slug = hash.slice('deck/'.length)
-    if (slug) return { page: 'deck', slug }
-  }
-  return { page: 'index' }
-}
+import { CollectionPage } from './CollectionPage'
+import { useRouting } from './useRouting'
+import { useSiteData } from './useSiteData'
+import { useFetchJson } from './useFetchJson'
 
 function App() {
-  const [route, setRoute] = useState<Route>(parseHash)
-  const [transitioning, setTransitioning] = useState(false)
-  const [visible, setVisible] = useState(true)
-
-  // Index data
-  const [deckList, setDeckList] = useState<DeckSummary[] | null>(null)
-  const [useScryfallImgUrls, setUseScryfallImgUrls] = useState(true)
-
-  // Deck data
-  const [deckDetail, setDeckDetail] = useState<DeckDetail | null>(null)
-  const [deckLoading, setDeckLoading] = useState(false)
+  const { route, visible } = useRouting()
+  const {
+    deckList,
+    collectionList,
+    useScryfallImgUrls,
+    currency,
+    setCurrency,
+    availableCurrencies,
+    pricesDate,
+  } = useSiteData()
 
   // Card modal state
   const [modalCard, setModalCard] = useState<string | null>(null)
 
-  const navigate = useCallback(
-    (newRoute: Route) => {
-      if (transitioning) return
-      setTransitioning(true)
-      setVisible(false)
-
-      setTimeout(() => {
-        setRoute(newRoute)
-        setModalCard(null)
-        if (newRoute.page === 'index') {
-          setDeckDetail(null)
-        }
-        window.scrollTo(0, 0)
-        setVisible(true)
-        setTransitioning(false)
-      }, 200)
-    },
-    [transitioning],
-  )
-
-  // Hash change listener
+  // Reset modal on route changes
   useEffect(() => {
-    const handler = () => navigate(parseHash())
-    window.addEventListener('hashchange', handler)
-    return () => window.removeEventListener('hashchange', handler)
-  }, [navigate])
+    setModalCard(null)
+  }, [route])
 
-  // Fetch index data on mount
-  useEffect(() => {
-    fetch('index.json')
-      .then((r) => r.json())
-      .then((data: { decks: DeckSummary[]; useScryfallImgUrls: boolean }) => {
-        setDeckList(data.decks)
-        setUseScryfallImgUrls(data.useScryfallImgUrls)
-      })
-      .catch((e) => console.error('Failed to load index:', e))
-  }, [])
+  const deckSlug = route.page === 'deck' ? route.slug : null
+  const deckPrimerOpen = route.page === 'deck' ? (route.primerOpen ?? false) : false
+  const deckSectionId = route.page === 'deck' ? route.sectionId : undefined
+  const collectionSlug = route.page === 'collection' ? route.slug : null
 
-  // Fetch deck data when navigating to a deck
-  useEffect(() => {
-    if (route.page !== 'deck') return
-    setDeckLoading(true)
-    fetch(`decks/${route.slug}.json`)
-      .then((r) => r.json())
-      .then((data: DeckDetail) => {
-        setDeckDetail(data)
-        setDeckLoading(false)
-      })
-      .catch((e) => {
-        console.error('Failed to load deck:', e)
-        setDeckLoading(false)
-      })
-  }, [route.page === 'deck' ? route.slug : null])
+  // Fetch deck/collection data (auto-cleared when navigating away)
+  const {
+    data: deckDetail,
+    loading: deckLoading,
+    error: deckError,
+  } = useFetchJson<DeckDetail>(deckSlug ? `decks/${deckSlug}.json` : null)
+  const {
+    data: collectionDetail,
+    loading: collectionLoading,
+    error: collectionError,
+  } = useFetchJson<CollectionDetail>(collectionSlug ? `collections/${collectionSlug}.json` : null)
 
   const openModal = useCallback((cardName: string) => {
     setModalCard(cardName)
@@ -95,7 +56,7 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col" style="padding: 1.5rem 2rem;">
-      <header className="mb-6 flex items-center justify-between">
+      <header className="mb-6 flex items-center gap-4">
         <a
           href="#/"
           className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
@@ -103,28 +64,114 @@ function App() {
           <img src="app.svg" alt="Ritual logo" className="h-6 w-6" />
           <span className="font-semibold text-sm">Ritual</span>
         </a>
+        <span className="text-gray-700">|</span>
+        <nav className="flex gap-3">
+          <a
+            href="#/"
+            className={`text-sm font-medium transition-colors ${
+              (route.page === 'index' && (!route.tab || route.tab === 'decks')) ||
+              route.page === 'deck'
+                ? 'text-white'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Decks
+          </a>
+          <a
+            href="#/collections"
+            className={`text-sm font-medium transition-colors ${
+              (route.page === 'index' && route.tab === 'collections') || route.page === 'collection'
+                ? 'text-white'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Collections
+          </a>
+        </nav>
+        <div className="ml-auto flex items-center gap-1.5">
+          <label className="text-xs text-gray-500">Prices:</label>
+          <select
+            className="bg-gray-800 text-gray-200 rounded px-2 py-1 border border-gray-700 focus:border-blue-500 outline-none text-xs"
+            value={currency}
+            onChange={(e) => setCurrency((e.target as HTMLSelectElement).value as PriceCurrency)}
+          >
+            {availableCurrencies.includes('usd') && <option value="usd">USD ($)</option>}
+            {availableCurrencies.includes('eur') && <option value="eur">EUR (€)</option>}
+            {availableCurrencies.includes('tix') && <option value="tix">TIX</option>}
+          </select>
+        </div>
       </header>
+
+      {pricesDate && (
+        <div className="mb-4 text-center text-xs text-gray-500">
+          Prices accurate as of{' '}
+          {new Date(pricesDate).toLocaleDateString(undefined, {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })}
+        </div>
+      )}
 
       <main className="grow">
         <div className={`page-transition ${visible ? 'page-visible' : 'page-hidden'}`}>
           {route.page === 'index' ? (
             deckList ? (
-              <IndexPage decks={deckList} useScryfallImgUrls={useScryfallImgUrls} />
+              <IndexPage
+                decks={deckList}
+                collections={collectionList || []}
+                useScryfallImgUrls={useScryfallImgUrls}
+                activeTab={route.tab ?? 'decks'}
+                currency={currency}
+              />
             ) : (
               <LoadingSpinner />
             )
+          ) : route.page === 'collection' ? (
+            collectionError ? (
+              <ErrorMessage message={collectionError} />
+            ) : collectionLoading || !collectionDetail ? (
+              <LoadingSpinner />
+            ) : (
+              <CollectionPage
+                name={collectionDetail.name}
+                entries={collectionDetail.entries}
+                cards={collectionDetail.cards}
+                printings={collectionDetail.printings ?? {}}
+                symbolMap={collectionDetail.symbolMap}
+                useScryfallImgUrls={collectionDetail.useScryfallImgUrls}
+                totalPrice={collectionDetail.totalPrice}
+                exportMdPath={collectionDetail.exportMdPath}
+                exportCsvPath={collectionDetail.exportCsvPath}
+                modalCardKey={modalCard}
+                onOpenModal={openModal}
+                onCloseModal={closeModal}
+                currency={currency}
+              />
+            )
+          ) : deckError ? (
+            <ErrorMessage message={deckError} />
           ) : deckLoading || !deckDetail ? (
             <LoadingSpinner />
           ) : (
             <DeckPage
               deck={deckDetail.deck}
               cards={deckDetail.cards}
+              printings={deckDetail.printings ?? {}}
+              lowestPriceCards={deckDetail.lowestPriceCards}
+              lowestPriceCardsEur={deckDetail.lowestPriceCardsEur}
+              lowestPriceCardsTix={deckDetail.lowestPriceCardsTix}
               symbolMap={deckDetail.symbolMap}
               exportPath={deckDetail.exportPath}
               useScryfallImgUrls={deckDetail.useScryfallImgUrls}
               modalCardName={modalCard}
               onOpenModal={openModal}
               onCloseModal={closeModal}
+              currency={currency}
+              missingCards={deckDetail.missingCards}
+              slug={deckSlug ?? ''}
+              primerOpen={deckPrimerOpen}
+              sectionId={deckSectionId}
             />
           )}
         </div>
@@ -146,6 +193,17 @@ function LoadingSpinner() {
   return (
     <div className="flex items-center justify-center" style="min-height: 40vh;">
       <div className="loading-spinner" />
+    </div>
+  )
+}
+
+function ErrorMessage({ message }: { message: string }) {
+  return (
+    <div
+      className="flex items-center justify-center text-red-400 text-sm"
+      style="min-height: 40vh;"
+    >
+      {message}
     </div>
   )
 }

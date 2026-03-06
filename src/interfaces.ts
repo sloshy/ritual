@@ -1,3 +1,6 @@
+import * as fs from 'node:fs/promises'
+import type { PriceCurrency } from './price-currency'
+
 /** A wrapper for making fetch requests and being able to mock responses. */
 export interface HttpClient {
   fetch(url: string | URL, init?: RequestInit): Promise<Response>
@@ -22,6 +25,10 @@ export interface CacheManager<T> {
   clear(): Promise<void>
   keys(): Promise<string[]>
   values(): Promise<T[]>
+  resolveCardName?(lowercaseName: string): Promise<string | null>
+  addToBlocklist?(name: string): Promise<void>
+  isBlocked?(name: string): Promise<boolean>
+  purgeExpiredBlocklist?(): Promise<void>
 }
 
 export interface FileSystemClient {
@@ -32,7 +39,20 @@ export interface FileSystemClient {
   mkdir(path: string, options?: { recursive?: boolean }): Promise<void>
 }
 
+/** Create a FileSystemClient backed by node:fs/promises. */
+export function createDefaultFileSystemClient(): FileSystemClient {
+  return {
+    readFile: (filePath, encoding) => fs.readFile(filePath, encoding),
+    writeFile: async (filePath, data) => {
+      await fs.writeFile(filePath, data)
+    },
+    access: (filePath) => fs.access(filePath),
+    copyFile: (source, destination) => fs.copyFile(source, destination),
+    mkdir: (dirPath, options) => fs.mkdir(dirPath, options).then(() => {}),
+  }
+}
+
 export interface PricingBackend {
-  fetchLatestPrices(names: string[]): Promise<Map<string, number>>
-  fetchMinMaxPrice(name: string): Promise<{ min: number; max: number }>
+  fetchLatestPrices(names: string[], currency: PriceCurrency): Promise<Map<string, number>>
+  fetchMinMaxPrice(name: string, currency: PriceCurrency): Promise<{ min: number; max: number }>
 }

@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import prompts from 'prompts'
-import path from 'path'
+import path from 'node:path'
 import {
   ArchidektClient,
   type ArchidektDeckSimple,
@@ -10,6 +10,7 @@ import { FileTokenStore } from '../auth/FileTokenStore'
 import { ArchidektAuth } from '../auth/ArchidektAuth'
 import { saveDeck } from './import'
 import { ExitCode } from './scripting'
+import { getErrorMessage } from '../errors'
 
 export function registerImportAccountCommand(program: Command) {
   program
@@ -163,7 +164,7 @@ export function registerImportAccountCommand(program: Command) {
               const statusLabel = options.dryRun ? 'Planned' : 'Saved'
               console.log(`  - ${statusLabel} ${deck.name}`)
             } catch (e: unknown) {
-              const msg = e instanceof Error ? e.message : String(e)
+              const msg = getErrorMessage(e)
               console.error(`  - Failed to import ${deck.name}:`, msg)
               process.exitCode = ExitCode.RuntimeError
             }
@@ -175,7 +176,7 @@ export function registerImportAccountCommand(program: Command) {
             console.log('Done!')
           }
         } catch (e: unknown) {
-          const msg = e instanceof Error ? e.message : String(e)
+          const msg = getErrorMessage(e)
           console.error('Error:', msg)
           process.exitCode = ExitCode.RuntimeError
         }

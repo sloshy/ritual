@@ -1,30 +1,134 @@
-import { type ScryfallCard, type ScryfallList } from './types'
-import { cardCache, CACHE_DIR, IMAGE_CACHE_DIR } from './cache'
+import { type ScryfallCard, type ScryfallList } from '../types'
+import { CACHE_DIR, IMAGE_CACHE_DIR } from '../cache'
 import {
   type HttpClient,
   type CacheManager,
   type PricingBackend,
   type FileSystemClient,
-} from './interfaces'
-import { getLogger } from './logger'
-import path from 'path'
-import * as fs from 'node:fs/promises'
+  createDefaultFileSystemClient,
+} from '../interfaces'
+import type { PriceCurrency } from '../price-currency'
+import { getPriceField } from '../price-currency'
+import { getLogger } from '../logger'
+import { throwHttpError } from '../errors'
+import path from 'node:path'
 import prompts from 'prompts'
+import {
+  type CardNameFilter,
+  isDigitalOnlySet,
+  isArenaOnly,
+  isToken,
+  getFrontFaceName,
+  mapScryfallCard,
+} from './card-utils'
 
 const RATE_LIMIT_MS = 100
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+class RequestQueue {
+  private readonly queue: Array<() => Promise<void>> = []
+  private tickPending = false
+  private lastFiredAt = 0
+
+  constructor(private readonly intervalMs: number) {}
+
+  enqueueBack(task: () => Promise<void>): void {
+    this.queue.push(task)
+    this.scheduleIfNeeded()
+  }
+
+  enqueueFront(task: () => Promise<void>): void {
+    this.queue.unshift(task)
+    this.scheduleIfNeeded()
+  }
+
+  private scheduleIfNeeded(): void {
+    if (this.tickPending || this.queue.length === 0) return
+    const elapsed = Date.now() - this.lastFiredAt
+    const delay = Math.max(0, this.intervalMs - elapsed)
+    this.tickPending = true
+    setTimeout(() => this.tick(), delay)
+  }
+
+  private tick(): void {
+    this.tickPending = false
+    this.lastFiredAt = Date.now()
+    const task = this.queue.shift()
+    if (task) void task()
+    this.scheduleIfNeeded()
+  }
 }
 
-export type CardNameFilter = {
-  sets?: string[]
-  excludeDigitalOnly?: boolean
+export type CurrencyPrint = {
+  representative: ScryfallCard | null
+  cheapest: ScryfallCard | null
 }
 
-export function isDigitalOnlySet(setCode: string): boolean {
-  const lower = setCode.toLowerCase()
-  return (lower.length === 4 && lower.startsWith('a')) || lower === 'om1'
+export type RepresentativePrintsResult = Partial<Record<PriceCurrency, CurrencyPrint>>
+
+export type MinMaxPrice = {
+  min: number
+  max: number
+}
+
+export type SearchPageResult = {
+  data: ScryfallList<ScryfallCard> | null
+  raw: string
+  hasMore: boolean
+}
+
+/**
+ * Compute representative and cheapest prints from cached card data.
+ * @param recentPrintings - Printings sorted by release date descending, used to pick the representative.
+ * @param allPrintings - All printings for the card, used to find the cheapest.
+ */
+export function computeRepresentativePrints(
+  recentPrintings: ScryfallCard[],
+  allPrintings: ScryfallCard[],
+  currencies: PriceCurrency[],
+): RepresentativePrintsResult {
+  type Candidate = { card: ScryfallCard; price: number }
+  const result: RepresentativePrintsResult = {}
+
+  for (const currency of currencies) {
+    const priceField = getPriceField(currency)
+
+    const candidates: Candidate[] = []
+    for (const card of recentPrintings) {
+      if (candidates.length >= 5) break
+      const raw = card.prices?.[priceField]
+      if (!raw) continue
+      const price = parseFloat(raw)
+      if (Number.isFinite(price) && price > 0) candidates.push({ card, price })
+    }
+
+    let representative: ScryfallCard | null = null
+    if (candidates.length > 0) {
+      const sorted = [...candidates].sort((a, b) => a.price - b.price)
+      const mid = Math.floor(sorted.length / 2)
+      const median =
+        sorted.length % 2 === 1
+          ? sorted[mid]!.price
+          : (sorted[mid - 1]!.price + sorted[mid]!.price) / 2
+      const chosen = candidates.find((c) => c.price <= median * 1.5)
+      representative = chosen?.card ?? null
+    }
+
+    let cheapest: ScryfallCard | null = null
+    let minPrice = Infinity
+    for (const card of allPrintings) {
+      const raw = card.prices?.[priceField]
+      if (!raw) continue
+      const price = parseFloat(raw)
+      if (Number.isFinite(price) && price > 0 && price < minPrice) {
+        minPrice = price
+        cheapest = card
+      }
+    }
+
+    result[currency] = { representative, cheapest }
+  }
+
+  return result
 }
 
 export interface ScryfallSymbol {
@@ -45,11 +149,18 @@ interface ScryfallCollectionResponse {
 }
 
 export class ScryfallClient implements PricingBackend {
+  private fileSystem: FileSystemClient
+  private readonly requestQueue: RequestQueue
+
   constructor(
     private http: HttpClient,
     private cardCache: CacheManager<ScryfallCard[]>,
-    private fileSystem: FileSystemClient = defaultFileSystemClient,
-  ) {}
+    fileSystem?: FileSystemClient,
+    requestQueueIntervalMs?: number,
+  ) {
+    this.fileSystem = fileSystem ?? createDefaultFileSystemClient()
+    this.requestQueue = new RequestQueue(requestQueueIntervalMs ?? RATE_LIMIT_MS * 2)
+  }
 
   private hasPrompted = false
 
@@ -87,7 +198,7 @@ export class ScryfallClient implements PricingBackend {
 
     getLogger().info('Fetching symbology from Scryfall...')
     const response = await this.http.fetch('https://api.scryfall.com/symbology')
-    if (!response.ok) throw new Error(`Failed to fetch symbology: ${response.status}`)
+    if (!response.ok) throwHttpError(response, 'Failed to fetch symbology')
 
     const json = (await response.json()) as ScryfallList<ScryfallSymbol>
     const data = json.data
@@ -115,7 +226,7 @@ export class ScryfallClient implements PricingBackend {
     }
 
     // Apply rate limiting to avoid server load, even for static resources
-    await sleep(50)
+    await Bun.sleep(50)
 
     const response = await this.http.fetch(symbol.svg_uri)
     if (!response.ok) throw new Error(`Failed to download symbol ${symbol.symbol}`)
@@ -164,7 +275,17 @@ export class ScryfallClient implements PricingBackend {
 
   async getCardPrintings(name: string): Promise<ScryfallCard[]> {
     const cached = await this.cardCache.get(name)
-    if (cached) return cached
+    if (cached) {
+      for (const c of cached) {
+        if (!c.color_identity) c.color_identity = []
+      }
+      const filtered = cached.filter((c) => !isToken(c))
+      if (filtered.length !== cached.length) {
+        // Evict tokens found in existing cache entry
+        this.cardCache.set(name, filtered).catch(() => {})
+      }
+      return filtered
+    }
     const single = await this.fetchCardData(name, { silent: true })
     return single ? [single] : []
   }
@@ -182,6 +303,7 @@ export class ScryfallClient implements PricingBackend {
 
     for (const cards of allCardsArrays) {
       for (const card of cards) {
+        if (!card.color_identity) card.color_identity = []
         if (card.set.toLowerCase() === normalizedSet) {
           result.set(card.collector_number, card)
         }
@@ -199,8 +321,10 @@ export class ScryfallClient implements PricingBackend {
     const cached = await this.cardCache.get(name)
     // Cached is now ScryfallCard[]
     if (cached && cached.length > 0) {
-      // Return the first one as default
-      return cached[0] || null
+      // Return the first one as default, ensuring color_identity is present (may be missing in older cache)
+      const card = cached[0]!
+      if (!card.color_identity) card.color_identity = []
+      return card
     }
 
     if (!options?.silent) {
@@ -208,35 +332,28 @@ export class ScryfallClient implements PricingBackend {
     }
     try {
       // Use exact name match to avoid ambiguity
-      const queryName = name.includes(' // ') ? name.split(' // ')[0] : name
+      const queryName = getFrontFaceName(name)
       if (!queryName) return null
       const url = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(queryName)}`
       const response = await this.http.fetch(url)
 
       if (response.ok) {
         const json = (await response.json()) as ScryfallCard
-        const card: ScryfallCard = {
-          id: json.id,
-          name: json.name,
-          cmc: json.cmc || 0,
-          edhrec_rank: json.edhrec_rank || 999999,
-          mana_cost: json.mana_cost,
-          type_line: json.type_line,
-          oracle_text: json.oracle_text,
-          image_uris: json.image_uris,
-          card_faces: json.card_faces,
-          prices: json.prices,
-          finishes: json.finishes,
-          set: json.set,
-          set_name: json.set_name,
-          collector_number: json.collector_number,
-          rarity: json.rarity,
+        const card = mapScryfallCard(json)
+
+        if (isArenaOnly(card)) {
+          getLogger().warn(`Card '${name}' is arena-only, skipping.`)
+          await Bun.sleep(RATE_LIMIT_MS)
+          return null
         }
 
         await this.cardCache.set(name, [card]) // wrap in array
-        await sleep(RATE_LIMIT_MS)
+        await Bun.sleep(RATE_LIMIT_MS)
         return card
       } else {
+        if (response.status === 404) {
+          await this.cardCache.addToBlocklist?.(name)
+        }
         getLogger().warn(
           `Failed to fetch card '${name}': ${response.status} ${response.statusText}`,
         )
@@ -245,7 +362,7 @@ export class ScryfallClient implements PricingBackend {
       getLogger().error(`Error fetching card '${name}':`, e)
     }
 
-    await sleep(RATE_LIMIT_MS)
+    await Bun.sleep(RATE_LIMIT_MS)
     return null
   }
 
@@ -266,7 +383,7 @@ export class ScryfallClient implements PricingBackend {
 
       if (response.ok) {
         const json = (await response.json()) as ScryfallCard
-        await sleep(RATE_LIMIT_MS)
+        await Bun.sleep(RATE_LIMIT_MS)
         return json
       } else {
         const errorBody = await response.json().catch(() => null)
@@ -280,7 +397,7 @@ export class ScryfallClient implements PricingBackend {
       getLogger().error(`Error fetching card '${name}':`, e)
     }
 
-    await sleep(RATE_LIMIT_MS)
+    await Bun.sleep(RATE_LIMIT_MS)
     return null
   }
 
@@ -298,7 +415,7 @@ export class ScryfallClient implements PricingBackend {
 
       if (response.ok) {
         const json = (await response.json()) as ScryfallCard
-        await sleep(RATE_LIMIT_MS)
+        await Bun.sleep(RATE_LIMIT_MS)
         return json
       } else {
         const errorBody = await response.json().catch(() => null)
@@ -312,19 +429,22 @@ export class ScryfallClient implements PricingBackend {
       getLogger().error('Error fetching random card:', e)
     }
 
-    await sleep(RATE_LIMIT_MS)
+    await Bun.sleep(RATE_LIMIT_MS)
     return null
   }
 
-  async fetchLatestPrices(names: string[]): Promise<Map<string, number>> {
+  async fetchLatestPrices(
+    names: string[],
+    currency: PriceCurrency = 'usd',
+  ): Promise<Map<string, number>> {
     const results = new Map<string, number>()
     const batchSize = 75
+    const priceField = getPriceField(currency)
 
     for (let i = 0; i < names.length; i += batchSize) {
       const batch = names.slice(i, i + batchSize)
       const identifiers = batch.map((name) => ({
-        // Ff name contains '//' only search the front face name
-        name: name.includes(' // ') ? name.split(' // ')[0]!.trim() : name.trim(),
+        name: getFrontFaceName(name),
       }))
 
       const response = await this.http.fetch('https://api.scryfall.com/cards/collection', {
@@ -334,7 +454,7 @@ export class ScryfallClient implements PricingBackend {
       })
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch batch prices: ${response.status} ${response.statusText}`)
+        throwHttpError(response, 'Failed to fetch batch prices')
       }
 
       const json = (await response.json()) as ScryfallCollectionResponse
@@ -348,24 +468,82 @@ export class ScryfallClient implements PricingBackend {
       for (let index = 0; index < batch.length; index++) {
         const requestedName = batch[index]
         const card = json.data[index]
-        const usd = card?.prices?.usd
-        if (!requestedName || !usd) continue
+        const raw = card?.prices?.[priceField]
+        if (!requestedName || !raw) continue
 
-        const latestPrice = Number.parseFloat(usd)
-        if (Number.isFinite(latestPrice)) {
+        const latestPrice = Number.parseFloat(raw)
+        if (Number.isFinite(latestPrice) && latestPrice > 0) {
           results.set(requestedName, latestPrice)
         }
       }
 
-      await sleep(50)
+      await Bun.sleep(50)
     }
 
     return results
   }
 
-  async fetchMinMaxPrice(name: string): Promise<{ min: number; max: number }> {
+  /** Per-currency representative and cheapest prints, fetching all pages via the request queue. */
+  async fetchRepresentativePrints(
+    name: string,
+    currencies: PriceCurrency[],
+  ): Promise<RepresentativePrintsResult> {
     const encodedName = encodeURIComponent(`!"${name}"`)
-    const url = `https://api.scryfall.com/cards/search?q=${encodedName}+unique%3Aprints&order=usd&dir=asc`
+    const firstPageUrl = `https://api.scryfall.com/cards/search?q=${encodedName}+unique%3Aprints&order=released`
+
+    return new Promise<RepresentativePrintsResult>((resolve) => {
+      const firstPageCards: ScryfallCard[] = []
+      let firstPageDone = false
+      const allCards: ScryfallCard[] = []
+
+      const finish = () => {
+        const nonTokens = allCards.filter((c) => !isArenaOnly(c) && !isToken(c))
+        const mapped = nonTokens.map((c) => mapScryfallCard(c))
+        if (mapped.length > 0) {
+          this.cardCache.set(name, mapped).catch(() => {})
+        }
+        const nonTokenFirstPage = firstPageCards.filter((c) => !isToken(c))
+        resolve(computeRepresentativePrints(nonTokenFirstPage, nonTokens, currencies))
+      }
+
+      const processPage =
+        (url: string): (() => Promise<void>) =>
+        async () => {
+          try {
+            const response = await this.http.fetch(url)
+            if (!response.ok) {
+              if (response.status === 404 && !firstPageDone) {
+                await this.cardCache.addToBlocklist?.(name)
+              }
+              finish()
+              return
+            }
+            const json = (await response.json()) as ScryfallList<ScryfallCard>
+            const data = json.data ?? []
+            if (!firstPageDone) {
+              firstPageCards.push(...data)
+              firstPageDone = true
+            }
+            allCards.push(...data)
+            if (json.has_more && json.next_page) {
+              this.requestQueue.enqueueFront(processPage(json.next_page))
+            } else {
+              finish()
+            }
+          } catch {
+            finish()
+          }
+        }
+
+      this.requestQueue.enqueueBack(processPage(firstPageUrl))
+    })
+  }
+
+  async fetchMinMaxPrice(name: string, currency: PriceCurrency = 'usd'): Promise<MinMaxPrice> {
+    const priceField = getPriceField(currency)
+    const orderField = priceField
+    const encodedName = encodeURIComponent(`!"${name}"`)
+    const url = `https://api.scryfall.com/cards/search?q=${encodedName}+unique%3Aprints&order=${orderField}&dir=asc`
 
     try {
       const response = await this.http.fetch(url)
@@ -374,9 +552,10 @@ export class ScryfallClient implements PricingBackend {
         const data = json.data
         if (data && data.length > 0) {
           const prices = data
-            .map((card) => card.prices?.usd)
-            .filter((price) => price !== null && price !== undefined)
-            .map((price: string) => parseFloat(price))
+            .map((card) => card.prices?.[priceField])
+            .filter((price): price is string => price !== null && price !== undefined)
+            .map((price) => parseFloat(price))
+            .filter((p) => Number.isFinite(p) && p > 0)
 
           if (prices.length > 0) {
             return {
@@ -410,23 +589,9 @@ export class ScryfallClient implements PricingBackend {
           const data = json.data || []
 
           for (const item of data) {
-            const card: ScryfallCard = {
-              id: item.id,
-              name: item.name,
-              cmc: item.cmc || 0,
-              edhrec_rank: item.edhrec_rank || 999999,
-              mana_cost: item.mana_cost,
-              type_line: item.type_line,
-              oracle_text: item.oracle_text,
-              image_uris: item.image_uris,
-              card_faces: item.card_faces,
-              prices: item.prices,
-              finishes: item.finishes,
-              set: item.set,
-              set_name: item.set_name,
-              collector_number: item.collector_number,
-              rarity: item.rarity,
-            }
+            if (isArenaOnly(item)) continue
+
+            const card = mapScryfallCard(item)
 
             const existing = await this.cardCache.get(card.name)
             if (!existing) {
@@ -438,7 +603,7 @@ export class ScryfallClient implements PricingBackend {
 
           if (json.has_more && json.next_page) {
             nextUrl = json.next_page
-            await sleep(RATE_LIMIT_MS)
+            await Bun.sleep(RATE_LIMIT_MS)
           } else {
             nextUrl = undefined
           }
@@ -465,7 +630,7 @@ export class ScryfallClient implements PricingBackend {
     query: string,
     page: number,
     format: 'json' | 'csv',
-  ): Promise<{ data: ScryfallList<ScryfallCard> | null; raw: string; hasMore: boolean }> {
+  ): Promise<SearchPageResult> {
     const formatParam = format === 'csv' ? '&format=csv' : '' // json is default
     const pageParam = `&page=${page}`
     const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(query)}&order=edhrec${formatParam}${pageParam}`
@@ -476,7 +641,7 @@ export class ScryfallClient implements PricingBackend {
       if (response.status === 404) {
         return { data: null, raw: '', hasMore: false }
       }
-      throw new Error(`Scryfall API returned ${response.status}: ${response.statusText}`)
+      throwHttpError(response, 'Scryfall API error')
     }
 
     if (format === 'csv') {
@@ -534,7 +699,7 @@ export class ScryfallClient implements PricingBackend {
     try {
       const metaResponse = await this.http.fetch('https://api.scryfall.com/bulk-data')
       if (!metaResponse.ok) {
-        throw new Error(`Failed to fetch bulk metadata: ${metaResponse.status}`)
+        throwHttpError(metaResponse, 'Failed to fetch bulk metadata')
       }
       const metaJson = (await metaResponse.json()) as ScryfallList<{
         type: string
@@ -553,7 +718,7 @@ export class ScryfallClient implements PricingBackend {
       getLogger().info(`Download size: ${(totalBytes / 1024 / 1024).toFixed(2)} MiB`)
 
       const response = await this.http.fetch(BULK_URL)
-      if (!response.ok) throw new Error(`Failed to fetch bulk data: ${response.status}`)
+      if (!response.ok) throwHttpError(response, 'Failed to fetch bulk data')
 
       const reader = response.body?.getReader()
       if (!reader) throw new Error('Failed to get response reader')
@@ -598,29 +763,22 @@ export class ScryfallClient implements PricingBackend {
 
       getLogger().info(`Processing ${json.length} cards...`)
 
-      getLogger().info(`Processing ${json.length} cards...`)
-
       const entries: Record<string, ScryfallCard[]> = {}
+      let filteredCount = 0
       for (const item of json) {
-        const card: ScryfallCard = {
-          id: item.id,
-          name: item.name,
-          cmc: item.cmc || 0,
-          edhrec_rank: item.edhrec_rank || 999999,
-          mana_cost: item.mana_cost,
-          type_line: item.type_line,
-          oracle_text: item.oracle_text,
-          image_uris: item.image_uris,
-          card_faces: item.card_faces,
-          prices: item.prices,
-          finishes: item.finishes,
-          set: item.set,
-          set_name: item.set_name,
-          collector_number: item.collector_number,
-          rarity: item.rarity,
+        // Filter out arena-only and token printings
+        if (isArenaOnly(item) || isToken(item)) {
+          filteredCount++
+          continue
         }
+
+        const card = mapScryfallCard(item)
         const newEntries = [...(entries[card.name] ?? []), card]
         entries[card.name] = newEntries
+      }
+
+      if (filteredCount > 0) {
+        getLogger().info(`Filtered out ${filteredCount} arena-only or token printings.`)
       }
 
       getLogger().info('Saving to cache...')
@@ -637,82 +795,4 @@ export class ScryfallClient implements PricingBackend {
       getLogger().error('\nFailed to preload all cards:', e)
     }
   }
-}
-
-// Default instance with system defaults
-const defaultHttpClient: HttpClient = {
-  fetch: (url, init) => global.fetch(url, init),
-}
-
-const defaultFileSystemClient: FileSystemClient = {
-  readFile: (filePath, encoding) => fs.readFile(filePath, encoding),
-  writeFile: async (filePath, data) => {
-    await fs.writeFile(filePath, data)
-  },
-  access: (filePath) => fs.access(filePath),
-  copyFile: (source, destination) => fs.copyFile(source, destination),
-  mkdir: (dirPath, options) => fs.mkdir(dirPath, options).then(() => {}),
-}
-
-export const scryfallClient = new ScryfallClient(
-  defaultHttpClient,
-  cardCache,
-  defaultFileSystemClient,
-)
-
-// Helper wrappers for backward compatibility
-export function fetchSymbology(forceRefresh = false) {
-  return scryfallClient.fetchSymbology(forceRefresh)
-}
-
-export function downloadSymbol(symbol: ScryfallSymbol, destDir: string) {
-  return scryfallClient.downloadSymbol(symbol, destDir)
-}
-
-export function fetchCardData(name: string, options?: { silent?: boolean }) {
-  return scryfallClient.fetchCardData(name, options)
-}
-
-export function searchCards(query: string) {
-  return scryfallClient.searchCards(query)
-}
-
-export function fetchSearchPage(query: string, page: number, format: 'json' | 'csv') {
-  return scryfallClient.fetchSearchPage(query, page, format)
-}
-
-export function getAllCardNames(filter?: CardNameFilter) {
-  return scryfallClient.getAllCardNames(filter)
-}
-
-export function downloadImage(url: string, destPath: string) {
-  return scryfallClient.downloadImage(url, destPath)
-}
-
-export function preloadCache() {
-  return scryfallClient.preloadCache()
-}
-
-export function getCardPrintings(name: string) {
-  return scryfallClient.getCardPrintings(name)
-}
-
-export function fetchNamedCard(name: string, options?: { fuzzy?: boolean; set?: string }) {
-  return scryfallClient.fetchNamedCard(name, options)
-}
-
-export function fetchRandomCard(filter?: string) {
-  return scryfallClient.fetchRandomCard(filter)
-}
-
-export function fetchLatestPrices(names: string[]) {
-  return scryfallClient.fetchLatestPrices(names)
-}
-
-export function fetchMinMaxPrice(name: string) {
-  return scryfallClient.fetchMinMaxPrice(name)
-}
-
-export function getCardsBySet(setCode: string) {
-  return scryfallClient.getCardsBySet(setCode)
 }

@@ -98,4 +98,11 @@ export class InMemoryCacheManager<T> implements CacheManager<T> {
   }
 }
 
+/** HttpClient that throws on any fetch call, for tests that must not make external requests. */
+export class DenyHttpClient implements HttpClient {
+  async fetch(url: string | URL): Promise<Response> {
+    throw new Error(`DenyHttpClient: HTTP request to ${url} is not allowed in tests.`)
+  }
+}
+
 export { MemoryLogger, setLogger, resetLogger }

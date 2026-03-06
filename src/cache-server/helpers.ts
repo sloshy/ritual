@@ -1,6 +1,5 @@
-import * as fs from 'node:fs/promises'
 import { type CacheSection } from '../cache'
-import { type FileSystemClient } from '../interfaces'
+import { createDefaultFileSystemClient, type FileSystemClient } from '../interfaces'
 import { CACHE_SERVER_LOG_PREFIX, DAY_REFRESH_MS, PRICE_REFRESH_STAGGER_MS } from './constants'
 
 const textEncoder = new TextEncoder()
@@ -27,15 +26,7 @@ export function getSection(section: string): CacheSection | null {
 }
 
 export function createFileSystemClient(): FileSystemClient {
-  return {
-    readFile: (filePath, encoding) => fs.readFile(filePath, encoding),
-    writeFile: async (filePath, data) => {
-      await fs.writeFile(filePath, data)
-    },
-    access: (filePath) => fs.access(filePath),
-    copyFile: (source, destination) => fs.copyFile(source, destination),
-    mkdir: (dirPath, options) => fs.mkdir(dirPath, options).then(() => {}),
-  }
+  return createDefaultFileSystemClient()
 }
 
 export function logCacheUpdate(message: string): void {

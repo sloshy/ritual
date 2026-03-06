@@ -31,6 +31,7 @@ interface StartServerOptions {
   verbose?: boolean
   cardsRefresh?: 'daily' | 'weekly' | 'monthly'
   pricesRefresh?: 'daily' | 'weekly' | 'monthly'
+  denyHttp?: boolean
 }
 
 const testCard: ScryfallCard = {
@@ -38,12 +39,14 @@ const testCard: ScryfallCard = {
   name: 'Sol Ring',
   cmc: 1,
   type_line: 'Artifact',
-  prices: { usd: '1.00', usd_foil: '2.00', usd_etched: null },
+  prices: { usd: '1.00', usd_foil: '2.00', usd_etched: null, eur: null, eur_foil: null, tix: null },
   finishes: ['nonfoil'],
+  games: ['paper'],
   set: 'lea',
   set_name: 'Limited Edition Alpha',
   collector_number: '233',
   rarity: 'uncommon',
+  color_identity: [],
 }
 
 const testPrice: PriceData = {
@@ -78,6 +81,7 @@ async function waitForHealth(port: number): Promise<void> {
 }
 
 async function startServer(options: StartServerOptions = {}): Promise<RunningServer> {
+  const { denyHttp = true } = options
   if (!binaryReady) {
     const build = Bun.spawn(['bun', 'run', 'build'], {
       cwd: repoRoot,
@@ -105,7 +109,15 @@ async function startServer(options: StartServerOptions = {}): Promise<RunningSer
             timestamp: now,
             data: testPrice,
           },
+          'Sol Ring:usd': {
+            timestamp: now,
+            data: testPrice,
+          },
           'Arcane Signet': {
+            timestamp: now,
+            data: testPrice2,
+          },
+          'Arcane Signet:usd': {
             timestamp: now,
             data: testPrice2,
           },
@@ -136,6 +148,9 @@ async function startServer(options: StartServerOptions = {}): Promise<RunningSer
   }
   if (options.pricesRefresh) {
     args.push('--prices-refresh', options.pricesRefresh)
+  }
+  if (denyHttp) {
+    args.push('--deny-http')
   }
   const proc = Bun.spawn(args, {
     cwd,
@@ -322,12 +337,19 @@ describe('cache-server command (Integration)', () => {
     const server = await startServer({ verbose: true })
 
     setCacheServerAddressOverride(`127.0.0.1:${server.port}`)
+    const mockCardCache = {
+      get: async () => null,
+      set: async () => {},
+      delete: async () => {},
+      keys: async () => [],
+    } as unknown as import('../../src/interfaces').CacheManager<ScryfallCard[]>
     const service = new PriceService(
       {
         fetchLatestPrices: async () => new Map(),
         fetchMinMaxPrice: async () => ({ min: 0, max: 0 }),
       },
       defaultCache,
+      mockCardCache,
     )
 
     await service.getDeckPricing([

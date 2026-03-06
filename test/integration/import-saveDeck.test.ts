@@ -12,6 +12,12 @@ const sampleDeck: DeckData = {
   sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] }],
 }
 
+const deckWithPrimer: DeckData = {
+  name: 'Primer Deck',
+  sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] }],
+  primer: '## Overview\n\nThis is a great deck.',
+}
+
 async function withTempDir(run: (dir: string) => Promise<void>): Promise<void> {
   const dir = path.join(tmpdir(), `ritual-save-deck-${crypto.randomUUID()}`)
   await fs.mkdir(dir, { recursive: true })
@@ -51,6 +57,23 @@ describe('saveDeck (Integration)', () => {
     })
   })
 
+  test('dry-run with primer logs primer sidecar path but writes nothing', async () => {
+    await withTempDir(async (dir) => {
+      await saveDeck(deckWithPrimer, dir, { dryRun: true, nonInteractive: true })
+
+      const files = await fs.readdir(dir)
+      expect(files).toHaveLength(0)
+      expect(
+        logger.entries.some(
+          (entry) =>
+            entry.level === 'info' &&
+            typeof entry.args[0] === 'string' &&
+            entry.args[0].includes('[dry-run] Would save primer to:'),
+        ),
+      ).toBeTrue()
+    })
+  })
+
   test('non-interactive conflict without overwrite throws', async () => {
     await withTempDir(async (dir) => {
       const conflictPath = path.join(dir, 'integration-deck.md')
@@ -72,6 +95,19 @@ describe('saveDeck (Integration)', () => {
       const updated = await Bun.file(conflictPath).text()
       expect(updated).toContain('# Integration Deck')
       expect(updated).toContain('1 Sol Ring')
+    })
+  })
+
+  test('deck with primer writes .primer.md sidecar and no primer in frontmatter', async () => {
+    await withTempDir(async (dir) => {
+      await saveDeck(deckWithPrimer, dir, { nonInteractive: true })
+
+      const deckContent = await Bun.file(path.join(dir, 'primer-deck.md')).text()
+      expect(deckContent).not.toContain('primer:')
+
+      const primerContent = await Bun.file(path.join(dir, 'primer-deck.primer.md')).text()
+      expect(primerContent).toContain('## Overview')
+      expect(primerContent).toContain('This is a great deck.')
     })
   })
 })

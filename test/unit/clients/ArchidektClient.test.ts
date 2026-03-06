@@ -1,8 +1,8 @@
-import { describe, it, expect, mock } from 'bun:test'
-import { ArchidektClient } from '../../../src/clients/ArchidektClient'
+import { describe, test, expect, mock } from 'bun:test'
+import { ArchidektClient, getArchidektFormat } from '../../../src/clients/ArchidektClient'
 
 describe('ArchidektClient', () => {
-  it('should fetch public decks', async () => {
+  test('should fetch public decks', async () => {
     const mockFetch = mock(async () => {
       return new Response(
         JSON.stringify({
@@ -35,7 +35,7 @@ describe('ArchidektClient', () => {
     expect(decks[1]?.name).toBe('Deck 2')
   })
 
-  it('should fetch own decks with JWT token', async () => {
+  test('should fetch own decks with JWT token', async () => {
     const mockFetch = mock(async (_url: string | URL | Request, opts?: any) => {
       if (opts?.headers?.Authorization !== 'JWT mytoken') {
         return new Response('Unauthorized', { status: 401 })
@@ -63,21 +63,20 @@ describe('ArchidektClient', () => {
     expect(decks[0]?.name).toBe('My Private Deck')
   })
 
-  it('should throw error on failure', async () => {
+  test('should throw error on failure', async () => {
     const mockFetch = mock(async () => new Response('Error', { status: 500 }))
     const client = new ArchidektClient({ fetch: mockFetch } as any)
 
     expect(client.fetchPublicDecks('bad')).rejects.toThrow('Failed to fetch public decks')
   })
 
-  it('should map format IDs to strings', () => {
-    const { getArchidektFormat } = require('../../../src/clients/ArchidektClient')
+  test('should map format IDs to strings', () => {
     expect(getArchidektFormat(1)).toBe('Standard')
     expect(getArchidektFormat(3)).toBe('Commander / EDH')
     expect(getArchidektFormat(999)).toBe('Unknown')
   })
 
-  it('should fetch deck details', async () => {
+  test('should fetch deck details', async () => {
     const mockFetch = mock(async (_url) => {
       return new Response(
         JSON.stringify({
@@ -102,7 +101,54 @@ describe('ArchidektClient', () => {
     expect(deck.sections[0]?.name).toBe('Main')
   })
 
-  it('should fetch deck details with token', async () => {
+  test('should parse categories and description from deck response', async () => {
+    const mockFetch = mock(async () => {
+      return new Response(
+        JSON.stringify({
+          id: 12345,
+          name: 'Test Deck',
+          description: '{"ops":[{"insert":"Hello world"}]}',
+          categories: [
+            { id: 1, name: 'Commander' },
+            { id: 2, name: 'Land' },
+          ],
+          cards: [
+            {
+              card: { oracleCard: { name: 'Sol Ring' } },
+              quantity: 1,
+              categories: [1],
+            },
+            {
+              card: { oracleCard: { name: 'Forest' } },
+              quantity: 10,
+              categories: [2],
+            },
+          ],
+        }),
+      )
+    })
+
+    const client = new ArchidektClient({ fetch: mockFetch } as any)
+    const deck = await client.fetchDeck('12345')
+
+    expect(deck.name).toBe('Test Deck')
+    expect(deck.sourceId).toBe('12345')
+    expect(deck.description).toBe('Hello world')
+    expect(deck.sections).toHaveLength(2)
+
+    const commander = deck.sections.find((s) => s.name === 'Commander')
+    expect(commander).toBeDefined()
+    expect(commander?.cards).toHaveLength(1)
+    expect(commander?.cards[0]?.name).toBe('Sol Ring')
+
+    const main = deck.sections.find((s) => s.name === 'Main')
+    expect(main).toBeDefined()
+    expect(main?.cards).toHaveLength(1)
+    expect(main?.cards[0]?.name).toBe('Forest')
+    expect(main?.cards[0]?.quantity).toBe(10)
+  })
+
+  test('should fetch deck details with token', async () => {
     const mockFetch = mock(async (_url: any, opts: any) => {
       if (opts.headers.Authorization !== 'JWT token') {
         return new Response('Unauthorized', { status: 401 })
@@ -118,5 +164,13 @@ describe('ArchidektClient', () => {
     const client = new ArchidektClient({ fetch: mockFetch } as any)
     const deck = await client.fetchDeck('1', 'token')
     expect(deck.name).toBe('Private Deck')
+  })
+
+  test('should throw error when fetchDeck fails', async () => {
+    const mockFetch = mock(
+      async () => new Response('Not Found', { status: 404, statusText: 'Not Found' }),
+    )
+    const client = new ArchidektClient({ fetch: mockFetch } as any)
+    expect(client.fetchDeck('bad-id')).rejects.toThrow(/Failed to fetch deck/)
   })
 })

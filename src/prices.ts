@@ -1,7 +1,9 @@
 import { type Card, type PriceData } from './types'
-import { defaultCache } from './cache'
+import { defaultCache, cardCache as globalCardCache } from './cache'
 import { type CacheManager, type PricingBackend } from './interfaces'
-import { scryfallClient } from './scryfall'
+import { scryfallClient, getCardGames } from './scryfall'
+import { isCurrencyAvailableForCard } from './price-currency'
+import type { PriceCurrency } from './price-currency'
 import { getLogger } from './logger'
 
 // Scryfall Rate Limit: 100ms per request. We launch one request every 2x the
@@ -9,8 +11,24 @@ import { getLogger } from './logger'
 const RATE_LIMIT_DELAY = 100
 const REQUEST_INTERVAL = RATE_LIMIT_DELAY * 2
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+/** Build a currency-keyed cache key. */
+export function priceCacheKey(cardName: string, currency: PriceCurrency): string {
+  return `${cardName}:${currency}`
+}
+
+export type ParsePriceCacheKeyResult =
+  | { ok: true; cardName: string; currency: PriceCurrency }
+  | { ok: false; error: string }
+
+/** Parse a price cache key back into card name and currency. */
+export function parsePriceCacheKey(key: string): ParsePriceCacheKeyResult {
+  const lastColon = key.lastIndexOf(':')
+  if (lastColon === -1) return { ok: false, error: `Cache key '${key}' is missing currency suffix` }
+  const suffix = key.slice(lastColon + 1)
+  if (suffix === 'usd' || suffix === 'eur' || suffix === 'tix') {
+    return { ok: true, cardName: key.slice(0, lastColon), currency: suffix }
+  }
+  return { ok: false, error: `Cache key '${key}' has unknown currency suffix '${suffix}'` }
 }
 
 // Map of Card Name -> Price Data
@@ -21,52 +39,84 @@ export interface PriceResult {
   totalMin: number
   totalMax: number
   breakdown: PricingMap
+  missingCards: string[]
 }
 
 export class PriceService {
   constructor(
     private backend: PricingBackend,
     private priceCache: CacheManager<PriceData>,
+    private cardCacheForGames: CacheManager<import('./types').ScryfallCard[]>,
   ) {}
 
-  async getDeckPricing(cards: Card[]): Promise<PriceResult> {
+  async getDeckPricing(cards: Card[], currency: PriceCurrency = 'usd'): Promise<PriceResult> {
     const uniqueNames = Array.from(new Set(cards.map((c) => c.name)))
     const pricingMap: PricingMap = new Map()
+    const missingCards: string[] = []
     const logUpdatedPrice = (name: string) => {
       getLogger().progress('\n')
       getLogger().info(`Updated cached price for '${name}'.`)
     }
 
     if (uniqueNames.length > 0) {
-      getLogger().info(`Fetching prices for ${uniqueNames.length} cards...`)
+      getLogger().info(
+        `Fetching prices (${currency.toUpperCase()}) for ${uniqueNames.length} cards...`,
+      )
       let processed = 0
       getLogger().progress(`Progress: 0/${uniqueNames.length}`)
 
-      const streamedResults = await this.priceCache.streamGetMany(
-        uniqueNames,
-        (name, data, meta) => {
-          pricingMap.set(name, data)
-          if (meta.updated) {
-            logUpdatedPrice(name)
-          }
+      // Check game format availability and separate eligible vs ineligible
+      const eligibleNames: string[] = []
+      for (const name of uniqueNames) {
+        const printings = await this.cardCacheForGames.get(name)
+        const games = printings ? getCardGames(printings) : []
+        if (!isCurrencyAvailableForCard(games, currency)) {
+          getLogger().warn(
+            `Card '${name}' is not available in ${currency === 'tix' ? 'MTGO' : 'paper'}, skipping ${currency.toUpperCase()} pricing.`,
+          )
+          missingCards.push(name)
           processed++
           getLogger().progress(`\rProgress: ${processed}/${uniqueNames.length} (${name})`)
-        },
-      )
-      const missingCards = uniqueNames.filter((name) => !(name in streamedResults))
+          continue
+        }
+        eligibleNames.push(name)
+      }
 
-      if (missingCards.length > 0) {
-        const latestPrices = await this.backend.fetchLatestPrices(missingCards)
+      // Use currency-keyed cache keys (card-name:currency)
+      const cacheKeys = eligibleNames.map((name) => priceCacheKey(name, currency))
+
+      const streamedResults = await this.priceCache.streamGetMany(cacheKeys, (key, data, meta) => {
+        const parsed = parsePriceCacheKey(key)
+        if (!parsed.ok) {
+          getLogger().error(`Skipping cache entry with invalid key '${key}': ${parsed.error}`)
+          return
+        }
+        const { cardName: name } = parsed
+        pricingMap.set(name, data)
+        if (meta.updated) {
+          logUpdatedPrice(name)
+        }
+        processed++
+        getLogger().progress(`\rProgress: ${processed}/${uniqueNames.length} (${name})`)
+      })
+      const missingCacheKeys = cacheKeys.filter((key) => !(key in streamedResults))
+      const missingNames = missingCacheKeys.flatMap((key) => {
+        const parsed = parsePriceCacheKey(key)
+        return parsed.ok ? [parsed.cardName] : []
+      })
+
+      if (missingNames.length > 0) {
+        const latestPrices = await this.backend.fetchLatestPrices(missingNames, currency)
         await new Promise<void>((resolve, reject) => {
-          let remaining = missingCards.length
+          let remaining = missingNames.length
           let failed = false
 
-          for (const [index, name] of missingCards.entries()) {
+          for (const [index, name] of missingNames.entries()) {
             void (async () => {
-              await sleep(index * REQUEST_INTERVAL)
-              const minMax = await this.backend.fetchMinMaxPrice(name)
-              const latest = latestPrices.get(name) || 0
-              const finalLatest = latest > 0 ? latest : minMax.min || 0
+              await Bun.sleep(index * REQUEST_INTERVAL)
+              const minMax = await this.backend.fetchMinMaxPrice(name, currency)
+              const latest = latestPrices.get(name) ?? 0
+              const finalLatest = latest > 0 ? latest : (minMax.min ?? 0)
 
               const data: PriceData = {
                 latest: finalLatest,
@@ -76,7 +126,7 @@ export class PriceService {
 
               if (failed) return
               pricingMap.set(name, data)
-              await this.priceCache.set(name, data)
+              await this.priceCache.set(priceCacheKey(name, currency), data)
               logUpdatedPrice(name)
 
               processed++
@@ -119,12 +169,13 @@ export class PriceService {
       totalMin,
       totalMax,
       breakdown: pricingMap,
+      missingCards,
     }
   }
 }
 
-export const priceService = new PriceService(scryfallClient, defaultCache)
+export const priceService = new PriceService(scryfallClient, defaultCache, globalCardCache)
 
-export function getDeckPricing(cards: Card[]) {
-  return priceService.getDeckPricing(cards)
+export function getDeckPricing(cards: Card[], currency: PriceCurrency = 'usd') {
+  return priceService.getDeckPricing(cards, currency)
 }

@@ -1,6 +1,7 @@
 import { type DeckData, type DeckSection } from '../types'
 import { type HttpClient } from '../interfaces'
 import { defaultHttpClient } from '../http'
+import { throwHttpError } from '../errors'
 
 export async function fetchMtgGoldfishDeck(
   url: string,
@@ -8,7 +9,7 @@ export async function fetchMtgGoldfishDeck(
 ): Promise<DeckData> {
   const response = await http.fetch(url)
   if (!response.ok) {
-    throw new Error(`Failed to fetch MTGGoldfish page: ${response.status}`)
+    throwHttpError(response, 'Failed to fetch MTGGoldfish page')
   }
   const html = await response.text()
 
@@ -42,7 +43,7 @@ export async function fetchMtgGoldfishDeck(
   // Fetch text list
   const listResponse = await http.fetch(downloadUrl)
   if (!listResponse.ok) {
-    throw new Error(`Failed to fetch deck list text: ${listResponse.status}`)
+    throwHttpError(listResponse, 'Failed to fetch deck list text')
   }
   const listText = await listResponse.text()
 

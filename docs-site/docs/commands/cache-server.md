@@ -21,6 +21,7 @@ Start a local cache server for card and pricing cache data.
 | `--cards-refresh <interval>`  | Run full cards cache refresh on a cadence (`daily`, `weekly`, `monthly`)       | disabled    |
 | `--prices-refresh <interval>` | Run price cache refresh scheduling on a cadence (`daily`, `weekly`, `monthly`) | disabled    |
 | `-v, --verbose`               | Log every incoming cache-server request                                        | disabled    |
+| `--deny-http`                 | Reject all outgoing HTTP requests (can be used for testing)                    | disabled    |
 
 ## Behavior
 
@@ -28,12 +29,14 @@ Start a local cache server for card and pricing cache data.
 - If the card cache is empty or stale for the selected cards cadence (weekly if unset) on startup, it performs a full preload before serving requests.
 - On cache misses, it performs read-through fetches and stores the results back into local cache.
 - Price entries can be grouped into cadence buckets and refreshed on schedule.
+- Price refresh scheduling is game-format-aware: USD/EUR price refreshes are skipped for cards without paper printings, and TIX refreshes are skipped for cards without MTGO printings.
 - For weekly/monthly price cadence, a manual read after one day can invalidate the pending schedule, refresh immediately, and re-schedule.
 - For daily/weekly/monthly price cadence, startup entries older than the selected cadence window are enqueued immediately with 200ms staggering between refreshes.
 - For streamed/fallback refreshes, network refresh starts are staggered by 200ms and `price` events are emitted in completion order.
 - Cache updates are always logged.
 - Price min/max batch lookups can be streamed with SSE using `POST /cache/prices/stream`.
 - With `--verbose`, each incoming request is logged with method, path, status, and duration.
+- With `--deny-http`, the server will not make any outgoing HTTP requests. The startup card cache preload is skipped, and any cache-miss read-through that would normally fetch from Scryfall will throw an error. Use this for testing with pre-populated caches.
 
 ## HTTP endpoints
 

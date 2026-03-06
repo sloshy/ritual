@@ -24,7 +24,10 @@ export function parseOutputFormat(value: string): OutputFormat {
   )
 }
 
-export function addScriptingOptions(command: Command, defaultOutput: OutputFormat = 'text') {
+export function addScriptingOptions(
+  command: Command,
+  defaultOutput: OutputFormat = 'text',
+): Command {
   return command
     .option(
       '--output <format>',
@@ -96,6 +99,10 @@ export function parseFields(value: string): string[] {
   return fields
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 function projectRecordFields(
   record: Record<string, unknown>,
   fields: string[],
@@ -125,7 +132,7 @@ function projectRecordFields(
         target[part] = source
       } else {
         const current = target[part]
-        if (typeof current !== 'object' || current === null || Array.isArray(current)) {
+        if (!isRecord(current)) {
           target[part] = {}
         }
         target = target[part] as Record<string, unknown>
@@ -143,14 +150,14 @@ export function projectFields(data: unknown, fields?: string[]): unknown {
 
   if (Array.isArray(data)) {
     return data.map((entry) => {
-      if (typeof entry === 'object' && entry !== null && !Array.isArray(entry)) {
+      if (isRecord(entry)) {
         return projectRecordFields(entry as Record<string, unknown>, fields)
       }
       return entry
     })
   }
 
-  if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
+  if (isRecord(data)) {
     return projectRecordFields(data as Record<string, unknown>, fields)
   }
 

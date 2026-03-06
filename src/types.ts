@@ -26,6 +26,7 @@ export interface PriceData {
 export interface ScryfallCard {
   id: string
   name: string
+  layout?: string
   cmc: number
   edhrec_rank?: number
   mana_cost?: string
@@ -52,12 +53,18 @@ export interface ScryfallCard {
     usd: string | null
     usd_foil: string | null
     usd_etched: string | null
+    eur: string | null
+    eur_foil: string | null
+    tix: string | null
   }
   finishes: string[]
+  games: string[]
   set: string
   set_name: string
   collector_number: string
   rarity: string
+  color_identity: string[]
+  released_at?: string
 }
 
 export interface ScryfallList<T> {

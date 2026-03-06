@@ -18,13 +18,13 @@ export function resolveCardImageSources(
   if (useScryfallImgUrls) {
     if (isDFC) {
       return {
-        frontImage: card.card_faces?.[0]?.image_uris?.normal || '',
-        backImage: card.card_faces?.[1]?.image_uris?.normal || '',
+        frontImage: card.card_faces?.[0]?.image_uris?.normal ?? '',
+        backImage: card.card_faces?.[1]?.image_uris?.normal ?? '',
       }
     }
 
     return {
-      frontImage: card.image_uris?.normal || '',
+      frontImage: card.image_uris?.normal ?? '',
       backImage: '',
     }
   }

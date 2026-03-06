@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach, afterEach } from 'bun:test'
+import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test'
 import { ArchidektAuth } from '../../../src/auth/ArchidektAuth'
 import type { TokenStore, ArchidektToken } from '../../../src/auth/interfaces'
 import { MemoryLogger, resetLogger, setLogger } from '../../test-utils'
@@ -19,8 +19,10 @@ class MockTokenStore implements TokenStore {
 describe('ArchidektAuth', () => {
   let tokenStore: MockTokenStore
   let auth: ArchidektAuth
+  let originalFetch: typeof global.fetch
 
   beforeEach(() => {
+    originalFetch = global.fetch
     setLogger(new MemoryLogger())
     tokenStore = new MockTokenStore()
     auth = new ArchidektAuth(tokenStore)
@@ -28,15 +30,16 @@ describe('ArchidektAuth', () => {
   })
 
   afterEach(() => {
+    global.fetch = originalFetch
     resetLogger()
   })
 
-  it('should return null if no token exists', async () => {
+  test('should return null if no token exists', async () => {
     const token = await auth.getToken()
     expect(token).toBeNull()
   })
 
-  it('should return valid token if not expired', async () => {
+  test('should return valid token if not expired', async () => {
     const validToken: ArchidektToken = {
       access_token: 'accessRepo',
       refresh_token: 'refreshRepo',
@@ -51,7 +54,7 @@ describe('ArchidektAuth', () => {
     expect(token).toBe('accessRepo')
   })
 
-  it('should refresh token if expired', async () => {
+  test('should refresh token if expired', async () => {
     const expiredToken: ArchidektToken = {
       access_token: 'expiredAccess',
       refresh_token: 'validRefresh',
@@ -83,7 +86,7 @@ describe('ArchidektAuth', () => {
     expect(savedToken?.refresh_token).toBe('newRefresh')
   })
 
-  it('should return stored user', async () => {
+  test('should return stored user', async () => {
     const validToken: ArchidektToken = {
       access_token: 'accessRepo',
       refresh_token: 'refreshRepo',
@@ -100,7 +103,7 @@ describe('ArchidektAuth', () => {
     expect(user?.id).toBe(123)
   })
 
-  it('should return null user if no token', async () => {
+  test('should return null user if no token', async () => {
     const user = await auth.getStoredUser()
     expect(user).toBeNull()
   })

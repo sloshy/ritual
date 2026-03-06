@@ -1,6 +1,15 @@
 import { type DeckData, type DeckSection } from '../types'
-import path from 'path'
+import path from 'node:path'
+import { readdir } from 'node:fs/promises'
 import matter from 'gray-matter'
+
+export function isDeckFile(filename: string): boolean {
+  return filename.endsWith('.md') && !filename.endsWith('.primer.md')
+}
+
+export async function listDeckFiles(decksDir: string): Promise<string[]> {
+  return (await readdir(decksDir)).filter(isDeckFile)
+}
 
 function getString(value: unknown): string | undefined {
   return typeof value === 'string' ? value.replace(/\\n/g, '\n') : undefined
@@ -24,6 +33,12 @@ export async function importFromTextFile(filePath: string): Promise<DeckData> {
   const description = getString(parsed.data.description)
   const sourceUrl = getString(parsed.data.sourceUrl)
   const sourceId = getString(parsed.data.sourceId)
+
+  const primerPath = filePath.replace(/\.[^.]+$/, '.primer.md')
+  const primerFile = Bun.file(primerPath)
+  const primer = (await primerFile.exists())
+    ? (await primerFile.text()).trim() || undefined
+    : undefined
 
   const sections: DeckSection[] = []
   let currentSection: DeckSection = { name: 'Main', cards: [] }
@@ -62,6 +77,7 @@ export async function importFromTextFile(filePath: string): Promise<DeckData> {
   return {
     name,
     description,
+    primer,
     sourceUrl,
     sourceId,
     sections: validSections,

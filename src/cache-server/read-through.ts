@@ -1,5 +1,7 @@
 import { type FileCacheManager } from '../cache'
-import { ScryfallClient } from '../scryfall'
+import { isCurrencyAvailableForCard } from '../price-currency'
+import { parsePriceCacheKey } from '../prices'
+import { ScryfallClient, getCardGames } from '../scryfall'
 import { type PriceData, type ScryfallCard } from '../types'
 import { shouldForcePriceRefresh } from './helpers'
 import { type PriceRefreshScheduler } from './scheduler'
@@ -34,10 +36,26 @@ export async function refreshPriceCacheEntry(
   key: string,
   onCacheUpdate: CacheUpdateLogger,
   action: PriceRefreshAction,
-): Promise<PriceData> {
-  const latestByName = await scryfallClient.fetchLatestPrices([key])
-  const minMax = await scryfallClient.fetchMinMaxPrice(key)
-  const latest = latestByName.get(key) || 0
+  cardCache?: FileCacheManager<'cards'>,
+): Promise<PriceData | null> {
+  const parsed = parsePriceCacheKey(key)
+  if (!parsed.ok) return null
+  const { cardName, currency } = parsed
+
+  // Check game-format availability before making API calls
+  if (cardCache) {
+    const printings = await cardCache.get(cardName)
+    if (printings) {
+      const games = getCardGames(printings)
+      if (!isCurrencyAvailableForCard(games, currency)) {
+        return null
+      }
+    }
+  }
+
+  const latestByName = await scryfallClient.fetchLatestPrices([cardName], currency)
+  const minMax = await scryfallClient.fetchMinMaxPrice(cardName, currency)
+  const latest = latestByName.get(cardName) || 0
   const value: PriceData = {
     latest: latest > 0 ? latest : minMax.min || 0,
     min: minMax.min,
@@ -54,6 +72,7 @@ export async function resolvePriceCacheReadThrough(
   key: string,
   onCacheUpdate: CacheUpdateLogger,
   priceRefreshScheduler: PriceRefreshScheduler | null,
+  cardCache?: FileCacheManager<'cards'>,
 ): Promise<PriceReadThroughResult> {
   const cached = await cache.get(key)
   if (cached) {
@@ -82,6 +101,7 @@ export async function resolvePriceCacheReadThrough(
     key,
     onCacheUpdate,
     'read-through-fill',
+    cardCache,
   )
   if (priceRefreshScheduler) {
     priceRefreshScheduler.scheduleFromNow(key)

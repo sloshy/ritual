@@ -50,7 +50,7 @@ Look up cards by collector number within one or more loaded sets.
 Each card entry is written to a markdown collection file in the `collections/` directory:
 
 ```
-- Card Name (SET:CN) [finish] [condition]
+- Card Name (SET:CN) [finish] [condition] {note}
 ```
 
 For example:
@@ -58,9 +58,10 @@ For example:
 ```
 - Sol Ring (C19:221) [foil] [NM]
 - Lightning Bolt (LEA:161)
+- Mana Crypt (2XM:270) [foil] [NM] {Japanese language, ignore pricing}
 ```
 
-Non-foil finish and no-preference condition are omitted for brevity.
+Non-foil finish and no-preference condition are omitted for brevity. The note is optional and can be added after entry via the `📝 Add Note` menu option. Notes are displayed in the card detail modal on the generated site.
 
 ## Examples
 

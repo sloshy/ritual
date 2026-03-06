@@ -1,8 +1,9 @@
 import { Command } from 'commander'
-import path from 'path'
-import * as fs from 'fs/promises'
+import path from 'node:path'
+import * as fs from 'node:fs/promises'
 import { searchCards } from '../scryfall'
-import * as readline from 'readline'
+import * as readline from 'node:readline'
+import { listDeckFiles } from '../importers/text-file'
 
 export function registerAddCardCommand(program: Command) {
   program
@@ -25,7 +26,7 @@ export function registerAddCardCommand(program: Command) {
       let deckFilePath = path.join(decksDir, deckFileName)
 
       if (!(await Bun.file(deckFilePath).exists())) {
-        const files = await fs.readdir(decksDir)
+        const files = await listDeckFiles(decksDir)
         const match = files.find((f) => f.toLowerCase().includes(deckName.toLowerCase()))
         if (match) {
           deckFileName = match

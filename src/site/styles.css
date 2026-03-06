@@ -121,25 +121,13 @@ h3 {
 /* ===== BINDER VIEW — dense card image grid ===== */
 .binder-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-width, 190px), 1fr));
   gap: 0.75rem;
-}
-
-@media (min-width: 640px) {
-  .binder-grid {
-    grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
-  }
-}
-
-@media (min-width: 1024px) {
-  .binder-grid {
-    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-  }
 }
 
 .card-binder {
   position: relative;
-  border-radius: 0.5rem;
+  border-radius: 0.6rem;
   overflow: hidden;
   cursor: pointer;
   transition:
@@ -176,23 +164,47 @@ h3 {
   line-height: 1.4;
 }
 
-.card-binder .card-label {
+.card-binder .card-label,
+.card-overlap .card-label {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 4px 6px;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.85), transparent);
+  padding: 20px 6px 4px;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.95) 0%,
+    rgba(0, 0, 0, 0.6) 50%,
+    transparent 100%
+  );
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+
+.card-label .card-label-name {
   font-size: 0.65rem;
   color: #ccc;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  opacity: 0;
-  transition: opacity 0.15s;
 }
 
-.card-binder:hover .card-label {
+.card-label .card-label-finish {
+  color: #aaa;
+  font-style: italic;
+}
+
+.card-label .card-label-price {
+  font-size: 0.6rem;
+  color: oklch(75% 0.15 145);
+}
+
+.card-binder:hover .card-label,
+.card-overlap:hover .card-label {
   opacity: 1;
 }
 
@@ -314,7 +326,7 @@ h3 {
 
 .card-overlap {
   position: relative;
-  width: 130px;
+  width: var(--card-width, 190px);
   aspect-ratio: 488 / 680;
   border-radius: 0.5rem;
   overflow: hidden;
@@ -354,7 +366,8 @@ h3 {
 }
 
 .view-overlap .card-item:not(:first-child) {
-  margin-left: -85px;
+  /* Keep ~35% of each card visible; overlap = 65.4% of width */
+  margin-left: calc(var(--card-width, 190px) * -0.654);
 }
 
 .view-overlap .card-item:hover {
@@ -362,7 +375,7 @@ h3 {
 }
 
 .view-overlap .card-item:hover ~ .card-item {
-  transform: translateX(90px);
+  transform: translateX(calc(var(--card-width, 190px) * 0.692));
 }
 
 .card-overlap img {
@@ -389,42 +402,6 @@ h3 {
   padding: 1px 4px;
   border-radius: 3px;
   pointer-events: none;
-}
-
-.card-overlap .overlap-details-btn {
-  position: absolute;
-  bottom: 4px;
-  right: 4px;
-  background: rgba(0, 0, 0, 0.7);
-  color: oklch(80% 0.01 260);
-  border: none;
-  font-size: 0.65rem;
-  padding: 2px 6px;
-  border-radius: 3px;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.card-overlap:hover .overlap-details-btn {
-  opacity: 1;
-}
-
-.card-overlap .overlap-details-btn:hover {
-  background: rgba(0, 0, 0, 0.9);
-  color: white;
-}
-
-@media (max-width: 639px) {
-  .card-overlap {
-    width: 100px;
-  }
-  .view-overlap .card-item:not(:first-child) {
-    margin-left: -65px;
-  }
-  .view-overlap .card-item:hover ~ .card-item {
-    transform: translateX(70px);
-  }
 }
 
 /* ===== STACK VIEW — vertical columns with vertically stacked/overlapping cards ===== */
@@ -454,7 +431,7 @@ h3 {
 /* Each section is a column */
 .view-stack > [data-section] {
   flex: 0 0 auto;
-  width: 180px;
+  width: var(--card-width, 190px);
 }
 
 /* Dynamic sort container also becomes horizontal columns */
@@ -472,7 +449,7 @@ h3 {
 
 .view-stack #dynamic-sort-container > div {
   flex: 0 0 auto;
-  width: 180px;
+  width: var(--card-width, 190px);
 }
 
 /* Cards stack vertically in each column */
@@ -502,8 +479,8 @@ h3 {
 }
 
 /* Vertical overlap: show only the top ~35px (card name bar) of each card.
-   At 180px width with 488:680 aspect ratio, card height ≈ 251px.
-   Overlap = 251 - 35 = 216px. */
+   card height = card-width * (680/488) ≈ card-width * 1.393
+   margin = -(card-height - 35px) */
 .view-stack .card-item {
   flex-shrink: 0;
   transition: transform 0.2s ease;
@@ -511,7 +488,7 @@ h3 {
 }
 
 .view-stack .card-item:not(:first-child) {
-  margin-top: -216px;
+  margin-top: calc(var(--card-width, 190px) * -1.393 + 35px);
 }
 
 /* On hover: reveal the full card and push siblings down */
@@ -524,21 +501,7 @@ h3 {
 }
 
 .view-stack .card-item:hover ~ .card-item {
-  transform: translateY(216px);
-}
-
-@media (max-width: 639px) {
-  .view-stack > [data-section],
-  .view-stack #dynamic-sort-container > div {
-    width: 140px;
-  }
-  /* At 140px width: height ≈ 195px, show 28px, overlap = 167px */
-  .view-stack .card-item:not(:first-child) {
-    margin-top: -167px;
-  }
-  .view-stack .card-item:hover ~ .card-item {
-    transform: translateY(167px);
-  }
+  transform: translateY(calc(var(--card-width, 190px) * 1.393 - 35px));
 }
 
 /* Card detail modal */
@@ -586,7 +549,7 @@ h3 {
 
 .card-modal-image img {
   max-width: 100%;
-  border-radius: 0.5rem;
+  border-radius: 0.7rem;
 }
 
 .card-modal-image img.sideways {
@@ -649,6 +612,16 @@ h3 {
   border-top: 1px solid oklch(32% 0.025 260);
   padding-top: 0.5rem;
   margin-top: auto;
+}
+
+.card-modal-details .modal-note {
+  font-size: 0.8rem;
+  color: oklch(80% 0.12 85);
+  background: oklch(25% 0.02 85 / 0.3);
+  border: 1px solid oklch(45% 0.06 85 / 0.4);
+  border-radius: 0.375rem;
+  padding: 0.4rem 0.6rem;
+  margin-top: 0.5rem;
 }
 
 .card-modal .modal-close {
@@ -725,6 +698,13 @@ h3 {
   font-weight: 400;
 }
 
+.section-divider .section-price {
+  font-size: 0.75rem;
+  color: oklch(70% 0.15 150);
+  font-weight: 500;
+  margin-left: auto;
+}
+
 /* Deck index cards */
 .deck-cover {
   position: relative;
@@ -789,7 +769,503 @@ h3 {
 }
 
 .deck-cover .cover-cardcount {
+  display: flex;
+  justify-content: space-between;
   padding: 0.65rem 1rem;
   font-size: 0.8rem;
   color: oklch(60% 0.02 260);
+}
+
+.cover-prices {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  color: oklch(70% 0.15 150);
+  font-weight: 500;
+}
+
+.cover-prices .cover-lowest {
+  color: oklch(55% 0.06 260);
+  font-weight: 400;
+  font-size: 0.7rem;
+}
+
+/* ===== FOIL RAINBOW SHEEN ===== */
+
+.card-binder.foil-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 0, 0, 0.3) 0%,
+    rgba(255, 165, 0, 0.3) 15%,
+    rgba(255, 255, 0, 0.3) 30%,
+    rgba(0, 255, 0, 0.3) 45%,
+    rgba(0, 127, 255, 0.3) 60%,
+    rgba(75, 0, 130, 0.3) 75%,
+    rgba(148, 0, 211, 0.3) 90%,
+    rgba(255, 0, 0, 0.3) 100%
+  );
+  background-size: 200% 200%;
+  background-position: 0% 0%;
+  pointer-events: none;
+  border-radius: 0.5rem;
+  opacity: 0.6;
+  transition:
+    opacity 0.3s ease,
+    background-position 0.4s ease;
+  mix-blend-mode: screen;
+}
+
+.card-binder.foil-card:hover::after {
+  opacity: 1;
+  background-position: 100% 100%;
+}
+
+/* ===== EMPTY CARD FALLBACKS (no card data) ===== */
+
+.card-binder--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-list--empty {
+  color: oklch(60% 0.02 260);
+}
+
+.card-overlap--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ===== MISSING CARDS BANNER ===== */
+
+.missing-cards-banner {
+  margin-bottom: 1rem;
+  border: 1px solid #b59420;
+  border-radius: 0.5rem;
+  background: rgba(181, 148, 32, 0.1);
+}
+
+.missing-cards-banner-toggle {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  color: #e5c34a;
+  cursor: pointer;
+  font-size: 0.8125rem;
+}
+
+.missing-cards-banner-list {
+  padding: 0 0.75rem 0.5rem;
+  color: #c9a82e;
+  font-size: 0.75rem;
+}
+
+.missing-cards-banner-list ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+/* ===== MODAL ACTION BUTTONS ===== */
+
+.modal-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+
+.modal-actions a,
+.modal-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: oklch(30% 0.03 260);
+  border: 1px solid oklch(40% 0.03 260);
+  color: oklch(80% 0.01 260);
+  font-size: 0.75rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.modal-actions a:hover,
+.modal-actions button:hover {
+  background: oklch(38% 0.03 260);
+  color: white;
+}
+
+/* ===== OTHER PRINTINGS GRID ===== */
+
+.modal-printings-view {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 90vh;
+  overflow: hidden;
+}
+
+.modal-printings-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 3rem 0.75rem 1rem;
+  border-bottom: 1px solid oklch(32% 0.025 260);
+  flex-shrink: 0;
+}
+
+.modal-printings-header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: white;
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.printings-sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.printings-sort-select {
+  background: oklch(30% 0.03 260);
+  border: 1px solid oklch(40% 0.03 260);
+  color: oklch(80% 0.01 260);
+  font-size: 0.7rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  appearance: auto;
+}
+
+.printings-sort-select:hover {
+  background: oklch(35% 0.03 260);
+}
+
+.printings-sort-reverse {
+  background: oklch(30% 0.03 260);
+  border: 1px solid oklch(40% 0.03 260);
+  color: oklch(80% 0.01 260);
+  font-size: 0.75rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  line-height: 1;
+  transition: background 0.15s;
+}
+
+.printings-sort-reverse:hover {
+  background: oklch(38% 0.03 260);
+  color: white;
+}
+
+.modal-printings-back {
+  background: oklch(30% 0.03 260);
+  border: 1px solid oklch(40% 0.03 260);
+  color: oklch(80% 0.01 260);
+  font-size: 0.75rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.modal-printings-back:hover {
+  background: oklch(38% 0.03 260);
+  color: white;
+}
+
+.modal-printings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+  padding: 1rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-printings-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.8125rem;
+  color: oklch(70% 0.02 260);
+}
+
+.modal-printings-pagination button {
+  background: oklch(30% 0.02 260);
+  color: oklch(85% 0.02 260);
+  border: 1px solid oklch(40% 0.02 260);
+  border-radius: 0.375rem;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  transition: background 0.15s ease;
+}
+
+.modal-printings-pagination button:hover:not(:disabled) {
+  background: oklch(38% 0.02 260);
+}
+
+.modal-printings-pagination button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.modal-printing-card {
+  position: relative;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.modal-printing-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+}
+
+.modal-printing-card img {
+  width: 100%;
+  display: block;
+  border-radius: 0.5rem;
+}
+
+.modal-printing-card .printing-label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, transparent 100%);
+  padding: 1.5rem 0.4rem 0.35rem;
+  font-size: 0.65rem;
+  color: oklch(80% 0.01 260);
+  line-height: 1.3;
+}
+
+.modal-printing-card .printing-label-set {
+  font-weight: 600;
+  color: white;
+}
+
+.modal-printing-card .printing-label-price {
+  color: oklch(70% 0.15 150);
+}
+
+/* Foil treatment on printing cards (reuse existing foil sheen) */
+.modal-printing-card.foil-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 0, 0, 0.3) 0%,
+    rgba(255, 165, 0, 0.3) 15%,
+    rgba(255, 255, 0, 0.3) 30%,
+    rgba(0, 255, 0, 0.3) 45%,
+    rgba(0, 127, 255, 0.3) 60%,
+    rgba(75, 0, 130, 0.3) 75%,
+    rgba(148, 0, 211, 0.3) 90%,
+    rgba(255, 0, 0, 0.3) 100%
+  );
+  background-size: 200% 200%;
+  background-position: 0% 0%;
+  pointer-events: none;
+  border-radius: 0.5rem;
+  opacity: 0.6;
+  transition:
+    opacity 0.3s ease,
+    background-position 0.4s ease;
+  mix-blend-mode: screen;
+}
+
+.modal-printing-card.foil-card:hover::after {
+  opacity: 1;
+  background-position: 100% 100%;
+}
+
+@media (max-width: 639px) {
+  .modal-printings-grid {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 0.5rem;
+    padding: 0.75rem;
+  }
+}
+
+/* =========================================================
+   Primer styles
+   ========================================================= */
+
+.primer-layout {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.primer-layout--with-toc {
+  flex-direction: row;
+}
+
+/* Table of contents */
+.primer-toc {
+  flex-shrink: 0;
+  width: 200px;
+  position: sticky;
+  top: 1rem;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  font-size: 0.75rem;
+}
+
+.primer-toc-title {
+  color: #9ca3af;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.primer-toc ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.primer-toc-item {
+  margin-bottom: 0.25rem;
+  line-height: 1.3;
+}
+
+.primer-toc-item a {
+  color: #93c5fd;
+  text-decoration: none;
+}
+
+.primer-toc-item a:hover {
+  text-decoration: underline;
+  color: #bfdbfe;
+}
+
+.primer-toc-level-2 {
+  padding-left: 0;
+}
+.primer-toc-level-3 {
+  padding-left: 0.75rem;
+}
+.primer-toc-level-4 {
+  padding-left: 1.5rem;
+}
+.primer-toc-level-5 {
+  padding-left: 2rem;
+}
+.primer-toc-level-6 {
+  padding-left: 2.5rem;
+}
+
+/* Primer content area */
+.primer-content {
+  flex: 1;
+  min-width: 0;
+  color: #d1d5db;
+  line-height: 1.6;
+}
+
+.primer-heading {
+  color: #f3f4f6;
+  font-weight: 700;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  scroll-margin-top: 1rem;
+}
+
+.primer-h2 {
+  font-size: 1.125rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 0.25rem;
+}
+.primer-h3 {
+  font-size: 1rem;
+}
+.primer-h4 {
+  font-size: 0.9rem;
+}
+.primer-h5,
+.primer-h6 {
+  font-size: 0.85rem;
+}
+
+.primer-paragraph {
+  margin-bottom: 0.75rem;
+}
+
+.primer-list {
+  list-style: disc;
+  padding-left: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.primer-list li {
+  margin-bottom: 0.25rem;
+}
+
+/* Card link tokens */
+.primer-card-link {
+  color: #fbbf24;
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+
+.primer-card-link:hover {
+  color: #fde68a;
+}
+
+.primer-card-link--missing {
+  color: #9ca3af;
+  text-decoration: underline dotted;
+}
+
+/* YouTube embeds */
+.primer-youtube {
+  margin: 1rem 0;
+  max-width: 560px;
+}
+
+.primer-youtube iframe {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: none;
+  border-radius: 0.375rem;
+}
+
+@media (max-width: 639px) {
+  .primer-layout--with-toc {
+    flex-direction: column;
+  }
+
+  .primer-toc {
+    width: 100%;
+    position: static;
+    max-height: none;
+  }
 }

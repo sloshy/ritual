@@ -10,6 +10,7 @@ import {
   parseFields,
   projectFields,
 } from './scripting'
+import { getErrorMessage } from '../errors'
 
 export function registerScryCommand(program: Command) {
   addScriptingOptions(
@@ -131,7 +132,7 @@ export function registerScryCommand(program: Command) {
 
           page++
         } catch (e: unknown) {
-          const message = e instanceof Error ? e.message : String(e)
+          const message = getErrorMessage(e)
           emitError('runtime_error', `Error fetching page ${page}: ${message}`, scriptingOptions)
           process.exitCode = ExitCode.RuntimeError
           break

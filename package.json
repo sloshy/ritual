@@ -15,8 +15,8 @@
     "serve": "bun run index.ts build-site && bun run index.ts serve",
     "format": "prettier --write .",
     "check-format": "prettier --check .",
-    "test": "bun run build && bun test test/unit",
-    "test:it": "bun test test/integration",
+    "test": "bun run build && bunx tsc --noEmit && bun test test/unit",
+    "test:it": "rm -rf cache && mkdir -p cache && bun run build && bunx tsc --noEmit && bun test test/integration",
     "prepare": "husky"
   },
   "bin": {
@@ -30,7 +30,6 @@
     "commander": "^14.0.3",
     "gray-matter": "^4.0.3",
     "husky": "^9.1.7",
-    "moxfield-api": "^1.0.2",
     "preact": "^10.28.3",
     "preact-render-to-string": "^6.6.5",
     "prettier": "^3.8.1",

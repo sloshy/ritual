@@ -1,7 +1,8 @@
 import { Command } from 'commander'
-import path from 'path'
+import path from 'node:path'
 import { importFromTextFile } from '../importers/text-file'
 import { getDeckPricing } from '../prices'
+import { parseCurrencyFlagOrError, formatPrice } from '../price-currency'
 import {
   addScriptingOptions,
   emitError,
@@ -9,6 +10,7 @@ import {
   ExitCode,
   normalizeScriptingOptions,
 } from './scripting'
+import { getErrorMessage } from '../errors'
 
 export function registerPriceCommand(program: Command) {
   addScriptingOptions(
@@ -18,10 +20,20 @@ export function registerPriceCommand(program: Command) {
       .argument('<deckName>', 'Name of the deck file (without extension)')
       .option('--all', 'Include all sections (Sideboard, Maybeboard, etc)')
       .option('--with-sideboard', 'Include Sideboard')
-      .option('--with-maybeboard', 'Include Maybeboard'),
+      .option('--with-maybeboard', 'Include Maybeboard')
+      .option('--prices <currency>', 'Price currency: usd, eur, or tix (default: usd)'),
     'text',
   ).action(async (deckName, options) => {
     const scriptingOptions = normalizeScriptingOptions(options, 'text')
+
+    const currency = parseCurrencyFlagOrError(
+      options.prices,
+      emitError,
+      scriptingOptions,
+      ExitCode.UsageError,
+    )
+    if (!currency) return
+
     const decksDir = path.join(process.cwd(), 'decks')
     const fileName = deckName.endsWith('.md') ? deckName : `${deckName}.md`
     const filePath = path.join(decksDir, fileName)
@@ -73,7 +85,19 @@ export function registerPriceCommand(program: Command) {
       // We pass ALL cards to getDeckPricing to fetch data efficiently
       // It returns a breakdown map (cardName -> prices).
       // We can then calculate per-section totals.
-      const pricingResult = await getDeckPricing(allCards)
+      const pricingResult = await getDeckPricing(allCards, currency)
+
+      // Warn about missing cards
+      if (pricingResult.missingCards.length > 0) {
+        if (!scriptingOptions.quiet && scriptingOptions.output === 'text') {
+          console.warn(
+            `\n⚠️  ${pricingResult.missingCards.length} card(s) have no ${currency.toUpperCase()} pricing and are omitted from totals:`,
+          )
+          for (const name of pricingResult.missingCards) {
+            console.warn(`   - ${name}`)
+          }
+        }
+      }
 
       let grandTotalLatest = 0
       let grandTotalMin = 0
@@ -106,9 +130,9 @@ export function registerPriceCommand(program: Command) {
 
         if (!scriptingOptions.quiet && scriptingOptions.output === 'text') {
           console.log(`\n[${section.name}]`)
-          console.log(`  Latest: $${sectLatest.toFixed(2)}`)
-          console.log(`  Min:    $${sectMin.toFixed(2)}`)
-          console.log(`  Max:    $${sectMax.toFixed(2)}`)
+          console.log(`  Latest: ${formatPrice(sectLatest, currency)}`)
+          console.log(`  Min:    ${formatPrice(sectMin, currency)}`)
+          console.log(`  Max:    ${formatPrice(sectMax, currency)}`)
         }
       }
 
@@ -123,6 +147,7 @@ export function registerPriceCommand(program: Command) {
               min: grandTotalMin,
               max: grandTotalMax,
             },
+            missingCards: pricingResult.missingCards,
           },
           scriptingOptions,
         )
@@ -131,12 +156,12 @@ export function registerPriceCommand(program: Command) {
 
       console.log('\n------------------------------')
       console.log(`TOTAL (${sectionsToPrice.map((s) => s.name).join('+')})`)
-      console.log(`Latest: $${grandTotalLatest.toFixed(2)}`)
-      console.log(`Min:    $${grandTotalMin.toFixed(2)}`)
-      console.log(`Max:    $${grandTotalMax.toFixed(2)}`)
+      console.log(`Latest: ${formatPrice(grandTotalLatest, currency)}`)
+      console.log(`Min:    ${formatPrice(grandTotalMin, currency)}`)
+      console.log(`Max:    ${formatPrice(grandTotalMax, currency)}`)
       console.log('------------------------------')
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to calculate price.'
+      const message = getErrorMessage(e)
       emitError('runtime_error', message, scriptingOptions, e)
       process.exitCode = ExitCode.RuntimeError
     }

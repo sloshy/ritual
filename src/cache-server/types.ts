@@ -27,4 +27,5 @@ export interface CacheServerCommandOptions {
   cardsRefresh?: RefreshCadence
   pricesRefresh?: RefreshCadence
   verbose?: boolean
+  denyHttp?: boolean
 }

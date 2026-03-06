@@ -7,11 +7,10 @@ describe('HTTP Integration', () => {
   setupGlobalFetch()
 
   test('should send correct User-Agent to a real server', async () => {
-    const port = 8080
     let receivedUserAgent: string | null = null
 
     const server = Bun.serve({
-      port,
+      port: 0,
       fetch(req) {
         receivedUserAgent = req.headers.get('user-agent')
         return new Response('ok')
@@ -19,7 +18,7 @@ describe('HTTP Integration', () => {
     })
 
     try {
-      await fetch(`http://localhost:${port}`)
+      await fetch(`http://localhost:${server.port}`)
       expect(receivedUserAgent!).toBe(`Ritual/${version}`)
     } finally {
       server.stop()

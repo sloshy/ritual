@@ -1,4 +1,7 @@
 import { type FileCacheManager } from '../cache'
+import { isCurrencyAvailableForCard } from '../price-currency'
+import { parsePriceCacheKey } from '../prices'
+import { getCardGames } from '../scryfall'
 import { type PriceData } from '../types'
 import { CACHE_SERVER_LOG_PREFIX, PRICE_REFRESH_STAGGER_MS } from './constants'
 import { getInitialPriceRefreshAt } from './helpers'
@@ -27,6 +30,8 @@ export class PriceRefreshScheduler {
     private cache: FileCacheManager<'prices'>,
     /** Refresh function invoked for scheduled/manual refreshes. */
     private refreshKey: (key: string, reason: PriceRefreshReason) => Promise<PriceData | null>,
+    /** Card cache for game-format checks. */
+    private cardCache?: FileCacheManager<'cards'>,
   ) {}
 
   /** Returns the configured refresh interval in milliseconds. */
@@ -39,12 +44,27 @@ export class PriceRefreshScheduler {
     return this.keySchedules.get(key)?.refreshAt ?? null
   }
 
-  /** Seeds schedules for all cached keys using their cache timestamps. */
+  /** Seeds schedules for all cached keys using their cache timestamps, filtering out invalid game-format combos. */
   async initializeFromCache(): Promise<void> {
     const keys = await this.cache.keys()
     const now = Date.now()
     let staleQueueIndex = 0
     for (const key of keys) {
+      // Check game-format availability for currency-keyed entries
+      if (this.cardCache) {
+        const parsed = parsePriceCacheKey(key)
+        if (!parsed.ok) continue
+        const { cardName, currency } = parsed
+        const printings = await this.cardCache.get(cardName)
+        if (printings) {
+          const games = getCardGames(printings)
+          if (!isCurrencyAvailableForCard(games, currency)) {
+            this.unscheduleKey(key)
+            continue
+          }
+        }
+      }
+
       const timestamp = await this.cache.getTimestamp(key)
       if (timestamp === null) {
         this.unscheduleKey(key)

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 import { importFromTextFile } from '../../src/importers/text-file'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -15,7 +15,7 @@ async function withTempFile(content: string, run: (filePath: string) => Promise<
 }
 
 describe('importFromTextFile (frontmatter)', () => {
-  it('parses YAML frontmatter and deck content', async () => {
+  test('parses YAML frontmatter and deck content', async () => {
     await withTempFile(
       `---
 name: "My Deck"
@@ -44,7 +44,7 @@ sourceId: "123"
     )
   })
 
-  it('falls back to filename when frontmatter name is missing', async () => {
+  test('falls back to filename when frontmatter name is missing', async () => {
     await withTempFile(
       `## Main
 3 Island

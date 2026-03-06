@@ -15,11 +15,35 @@ describe('Scryfall Preload', () => {
     resetLogger()
   })
 
-  test('preloadCache should fetching and cache data', async () => {
+  test('preloadCache should fetch and cache data', async () => {
     // Mock fetch response with a stream
     const mockData = [
-      { id: '1', name: 'Card A', set: 'set1' },
-      { id: '2', name: 'Card B', set: 'set1' },
+      {
+        id: '1',
+        name: 'Card A',
+        set: 'set1',
+        prices: {
+          usd: null,
+          usd_foil: null,
+          usd_etched: null,
+          eur: null,
+          eur_foil: null,
+          tix: null,
+        },
+      },
+      {
+        id: '2',
+        name: 'Card B',
+        set: 'set1',
+        prices: {
+          usd: null,
+          usd_foil: null,
+          usd_etched: null,
+          eur: null,
+          eur_foil: null,
+          tix: null,
+        },
+      },
     ]
     const jsonString = JSON.stringify(mockData)
     const stream = new ReadableStream({

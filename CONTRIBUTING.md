@@ -7,6 +7,7 @@ All TypeScript code should follow these conventions:
 - **Interface names**: Use PascalCase without an `I` prefix (e.g. `CacheManager`, not `ICacheManager`).
 - **Standard library imports**: Always use the `node:` prefix (e.g. `import fs from 'node:fs/promises'`).
 - **Object types**: Always define object types explicitly with `type` or `interface` — never use inline anonymous object shapes as return types or variable types.
+- **Parsers**: When writing parsing code, ensure that errors are properly represented, either through union types or structured error objects.
 
 ## Organization
 

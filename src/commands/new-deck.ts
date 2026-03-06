@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import path from 'path'
+import path from 'node:path'
 
 export function registerNewDeckCommand(program: Command) {
   program

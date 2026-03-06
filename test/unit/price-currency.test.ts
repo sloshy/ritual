@@ -1,0 +1,192 @@
+import { describe, test, expect } from 'bun:test'
+import {
+  parsePriceCurrencyFlag,
+  getCurrencySymbol,
+  getCurrencySuffix,
+  formatPrice,
+  formatPriceWithMissing,
+  getCardPrice,
+  getCardPriceForFinish,
+  VALID_CURRENCIES,
+} from '../../src/price-currency'
+import type { ScryfallCard } from '../../src/types'
+
+function makeCard(prices: Partial<ScryfallCard['prices']> = {}): ScryfallCard {
+  return {
+    id: 'test-id',
+    name: 'Test Card',
+    set: 'tst',
+    set_name: 'Test Set',
+    collector_number: '1',
+    rarity: 'rare',
+    oracle_id: 'oracle-1',
+    colors: ['W'],
+    color_identity: ['W'],
+    cmc: 3,
+    type_line: 'Creature',
+    finishes: ['nonfoil'],
+    games: ['paper'],
+    image_uris: { normal: '', small: '', large: '', png: '', art_crop: '', border_crop: '' },
+    prices: {
+      usd: null,
+      usd_foil: null,
+      usd_etched: null,
+      eur: null,
+      eur_foil: null,
+      tix: null,
+      ...prices,
+    },
+  } as ScryfallCard
+}
+
+describe('parsePriceCurrencyFlag', () => {
+  test('defaults to usd when undefined', () => {
+    expect(parsePriceCurrencyFlag(undefined)).toBe('usd')
+  })
+
+  test('parses case-insensitively', () => {
+    expect(parsePriceCurrencyFlag('USD')).toBe('usd')
+    expect(parsePriceCurrencyFlag('usd')).toBe('usd')
+    expect(parsePriceCurrencyFlag('Usd')).toBe('usd')
+    expect(parsePriceCurrencyFlag('EUR')).toBe('eur')
+    expect(parsePriceCurrencyFlag('eur')).toBe('eur')
+    expect(parsePriceCurrencyFlag('Eur')).toBe('eur')
+    expect(parsePriceCurrencyFlag('TIX')).toBe('tix')
+    expect(parsePriceCurrencyFlag('tix')).toBe('tix')
+    expect(parsePriceCurrencyFlag('Tix')).toBe('tix')
+  })
+
+  test('trims whitespace', () => {
+    expect(parsePriceCurrencyFlag('  eur  ')).toBe('eur')
+  })
+
+  test('throws on invalid input', () => {
+    expect(() => parsePriceCurrencyFlag('gbp')).toThrow(/Invalid price currency/)
+    expect(() => parsePriceCurrencyFlag('jpy')).toThrow(/Invalid price currency/)
+  })
+})
+
+describe('getCurrencySymbol', () => {
+  test('returns $ for usd', () => {
+    expect(getCurrencySymbol('usd')).toBe('$')
+  })
+
+  test('returns € for eur', () => {
+    expect(getCurrencySymbol('eur')).toBe('€')
+  })
+
+  test('returns empty string for tix', () => {
+    expect(getCurrencySymbol('tix')).toBe('')
+  })
+})
+
+describe('getCurrencySuffix', () => {
+  test('returns empty for usd and eur', () => {
+    expect(getCurrencySuffix('usd')).toBe('')
+    expect(getCurrencySuffix('eur')).toBe('')
+  })
+
+  test('returns " tix" for tix', () => {
+    expect(getCurrencySuffix('tix')).toBe(' tix')
+  })
+})
+
+describe('formatPrice', () => {
+  test('formats usd with dollar sign', () => {
+    expect(formatPrice(12.5, 'usd')).toBe('$12.50')
+  })
+
+  test('formats eur with euro sign', () => {
+    expect(formatPrice(8, 'eur')).toBe('€8.00')
+  })
+
+  test('formats tix with suffix', () => {
+    expect(formatPrice(3.25, 'tix')).toBe('3.25 tix')
+  })
+
+  test('formats zero', () => {
+    expect(formatPrice(0, 'usd')).toBe('$0.00')
+  })
+})
+
+describe('formatPriceWithMissing', () => {
+  test('returns normal format when no cards are missing', () => {
+    expect(formatPriceWithMissing(12.5, 'usd', 0)).toBe('$12.50')
+  })
+
+  test('returns "At least" format when cards are missing', () => {
+    expect(formatPriceWithMissing(10.0, 'usd', 3)).toBe('At least $10.00 (missing 3 cards)')
+    expect(formatPriceWithMissing(8.5, 'eur', 2)).toBe('At least €8.50 (missing 2 cards)')
+    expect(formatPriceWithMissing(5.0, 'tix', 10)).toBe('At least 5.00 tix (missing 10 cards)')
+  })
+
+  test('uses singular "card" when only 1 is missing', () => {
+    expect(formatPriceWithMissing(20.0, 'usd', 1)).toBe('At least $20.00 (missing 1 card)')
+  })
+
+  test('returns normal format for zero missing with tix', () => {
+    expect(formatPriceWithMissing(3.25, 'tix', 0)).toBe('3.25 tix')
+  })
+})
+
+describe('getCardPrice', () => {
+  test('returns price per currency', () => {
+    const card = makeCard({ usd: '12.50', eur: '9.99', tix: '3.00' })
+    expect(getCardPrice(card, 'usd')).toBe(12.5)
+    expect(getCardPrice(card, 'eur')).toBe(9.99)
+    expect(getCardPrice(card, 'tix')).toBe(3)
+  })
+
+  test('returns 0 when price is null', () => {
+    const card = makeCard()
+    expect(getCardPrice(card, 'usd')).toBe(0)
+    expect(getCardPrice(card, 'eur')).toBe(0)
+    expect(getCardPrice(card, 'tix')).toBe(0)
+  })
+})
+
+describe('getCardPriceForFinish', () => {
+  test('returns nonfoil usd price by default', () => {
+    const card = makeCard({ usd: '5.00', usd_foil: '10.00' })
+    expect(getCardPriceForFinish(card, 'nonfoil', 'usd')).toBe(5)
+  })
+
+  test('returns foil usd price', () => {
+    const card = makeCard({ usd: '5.00', usd_foil: '10.00' })
+    expect(getCardPriceForFinish(card, 'foil', 'usd')).toBe(10)
+  })
+
+  test('returns etched usd price', () => {
+    const card = makeCard({ usd_etched: '15.00' })
+    expect(getCardPriceForFinish(card, 'etched', 'usd')).toBe(15)
+  })
+
+  test('returns eur nonfoil price', () => {
+    const card = makeCard({ eur: '7.50' })
+    expect(getCardPriceForFinish(card, 'nonfoil', 'eur')).toBe(7.5)
+  })
+
+  test('returns eur foil price', () => {
+    const card = makeCard({ eur_foil: '20.00' })
+    expect(getCardPriceForFinish(card, 'foil', 'eur')).toBe(20)
+  })
+
+  test('returns tix price regardless of finish', () => {
+    const card = makeCard({ tix: '2.50' })
+    expect(getCardPriceForFinish(card, 'nonfoil', 'tix')).toBe(2.5)
+    expect(getCardPriceForFinish(card, 'foil', 'tix')).toBe(2.5)
+  })
+
+  test('returns 0 when price is null', () => {
+    const card = makeCard()
+    expect(getCardPriceForFinish(card, 'nonfoil', 'usd')).toBe(0)
+    expect(getCardPriceForFinish(card, 'foil', 'eur')).toBe(0)
+    expect(getCardPriceForFinish(card, 'nonfoil', 'tix')).toBe(0)
+  })
+})
+
+describe('VALID_CURRENCIES', () => {
+  test('contains all three currencies', () => {
+    expect(VALID_CURRENCIES).toEqual(['usd', 'eur', 'tix'])
+  })
+})

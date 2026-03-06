@@ -11,7 +11,7 @@ function isMoxfieldApiRequest(url: string | URL | Request): boolean {
   }
 }
 
-export function setupGlobalFetch() {
+export function setupGlobalFetch(): void {
   const originalFetch = global.fetch
 
   const newFetch = async (url: string | URL | Request, init?: RequestInit) => {

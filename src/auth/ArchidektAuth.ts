@@ -1,5 +1,6 @@
 import type { AuthService, TokenStore, ArchidektToken, ArchidektCredentials } from './interfaces'
 import { getLogger } from '../logger'
+import { throwHttpError } from '../errors'
 
 export class ArchidektAuth implements AuthService<ArchidektCredentials> {
   private readonly SITE_NAME = 'archidekt'
@@ -22,7 +23,7 @@ export class ArchidektAuth implements AuthService<ArchidektCredentials> {
     })
 
     if (!response.ok) {
-      throw new Error(`Login failed: ${response.status} ${response.statusText}`)
+      throwHttpError(response, 'Login failed')
     }
 
     const data = (await response.json()) as ArchidektToken
@@ -69,7 +70,7 @@ export class ArchidektAuth implements AuthService<ArchidektCredentials> {
     })
 
     if (!response.ok) {
-      throw new Error(`Token refresh failed: ${response.status} ${response.statusText}`)
+      throwHttpError(response, 'Token refresh failed')
     }
 
     const data = (await response.json()) as {

@@ -2,8 +2,10 @@ import { Command } from 'commander'
 import * as fs from 'node:fs/promises'
 import { CACHE_DIR, CACHE_FILE, FileCacheManager } from '../cache'
 import { defaultHttpClient } from '../http'
+import { type HttpClient } from '../interfaces'
 import { ScryfallClient } from '../scryfall'
 import { type PriceData, type ScryfallCard } from '../types'
+import { getErrorMessage } from '../errors'
 import { parsePort, parseRefreshCadence, resolveRefreshCadence, resolveRefreshMs } from './cadence'
 import { CACHE_SERVER_LOG_PREFIX, PRICE_REFRESH_STAGGER_MS, WEEKLY_REFRESH_MS } from './constants'
 import {
@@ -53,17 +55,23 @@ function createPriceRefreshScheduler(
   pricesRefreshMs: number | undefined,
   localPriceCache: FileCacheManager<'prices'>,
   localScryfallClient: ScryfallClient,
+  localCardCache?: FileCacheManager<'cards'>,
 ): PriceRefreshScheduler | null {
   if (!pricesRefreshMs) return null
 
-  return new PriceRefreshScheduler(pricesRefreshMs, localPriceCache, async (key, reason) =>
-    refreshPriceCacheEntry(
-      localPriceCache,
-      localScryfallClient,
-      key,
-      logCacheUpdate,
-      reason === 'scheduled' ? 'scheduled-refresh' : 'manual-refresh',
-    ),
+  return new PriceRefreshScheduler(
+    pricesRefreshMs,
+    localPriceCache,
+    async (key, reason) =>
+      refreshPriceCacheEntry(
+        localPriceCache,
+        localScryfallClient,
+        key,
+        logCacheUpdate,
+        reason === 'scheduled' ? 'scheduled-refresh' : 'manual-refresh',
+        localCardCache,
+      ),
+    localCardCache,
   )
 }
 
@@ -71,7 +79,7 @@ function createPriceStream(
   keys: string[],
   runtime: CacheServerRuntime,
 ): ReadableStream<Uint8Array> {
-  const { localPriceCache, localScryfallClient, priceRefreshScheduler } = runtime
+  const { localCardCache, localPriceCache, localScryfallClient, priceRefreshScheduler } = runtime
 
   return new ReadableStream<Uint8Array>({
     start(controller) {
@@ -116,7 +124,7 @@ function createPriceStream(
             controller.enqueue(
               sseEvent('error', {
                 key,
-                message: error instanceof Error ? error.message : String(error),
+                message: getErrorMessage(error),
               }),
             )
           }
@@ -132,6 +140,7 @@ function createPriceStream(
                 key,
                 logCacheUpdate,
                 priceRefreshScheduler,
+                localCardCache,
               ),
             }),
           ),
@@ -151,7 +160,7 @@ function createPriceStream(
             controller.enqueue(
               sseEvent('error', {
                 key,
-                message: error instanceof Error ? error.message : String(error),
+                message: getErrorMessage(error),
               }),
             )
           },
@@ -162,7 +171,7 @@ function createPriceStream(
       })().catch((error) => {
         controller.enqueue(
           sseEvent('error', {
-            message: error instanceof Error ? error.message : String(error),
+            message: getErrorMessage(error),
           }),
         )
         controller.close()
@@ -325,6 +334,7 @@ function createCacheServerFetchHandler(
           key,
           logCacheUpdate,
           priceRefreshScheduler,
+          localCardCache,
         )
         return respond(jsonResponse({ value: result.value }))
       }
@@ -363,7 +373,7 @@ function createCacheServerFetchHandler(
         jsonResponse(
           {
             error: 'Cache server request failed.',
-            details: error instanceof Error ? error.message : String(error),
+            details: getErrorMessage(error),
           },
           500,
         ),
@@ -393,13 +403,28 @@ export function registerCacheServerCommand(program: Command): void {
       parseRefreshCadence,
     )
     .option('-v, --verbose', 'Log every cache-server request', false)
+    .option(
+      '--deny-http',
+      'Reject all outgoing HTTP requests (for testing with pre-populated caches)',
+      false,
+    )
     .action(async (options: CacheServerCommandOptions) => {
       await fs.mkdir(CACHE_DIR, { recursive: true })
+
+      const httpClient: HttpClient = options.denyHttp
+        ? {
+            fetch: () => {
+              throw new Error(
+                'HTTP requests are denied (--deny-http). Pre-populate the cache for testing.',
+              )
+            },
+          }
+        : defaultHttpClient
 
       const localCardCache = new FileCacheManager(CACHE_FILE, 'cards', 0)
       const localPriceCache = new FileCacheManager(CACHE_FILE, 'prices')
       const localScryfallClient = new ScryfallClient(
-        defaultHttpClient,
+        httpClient,
         localCardCache,
         createFileSystemClient(),
       )
@@ -425,13 +450,14 @@ export function registerCacheServerCommand(program: Command): void {
         pricesRefreshMs,
         localPriceCache,
         localScryfallClient,
+        localCardCache,
       )
 
       const cardCacheIsEmpty = await localCardCache.isEmpty()
       const cardsLastRefreshedAt = await localCardCache.getLastRefreshedAt()
       const cardsStaleThresholdMs = cardsRefreshMs ?? WEEKLY_REFRESH_MS
       const cardCacheIsStale = isOlderThan(cardsLastRefreshedAt, cardsStaleThresholdMs)
-      if (cardCacheIsEmpty || cardCacheIsStale) {
+      if (!options.denyHttp && (cardCacheIsEmpty || cardCacheIsStale)) {
         const reason = cardCacheIsEmpty ? 'empty' : 'stale'
         console.log(`${CACHE_SERVER_LOG_PREFIX} Card cache is ${reason}; running full preload...`)
         await localScryfallClient.preloadCache()
@@ -473,6 +499,9 @@ export function registerCacheServerCommand(program: Command): void {
         fetch: createCacheServerFetchHandler(runtime, options.verbose ?? false),
       })
 
+      if (options.denyHttp) {
+        console.log(`${CACHE_SERVER_LOG_PREFIX} HTTP requests denied (--deny-http).`)
+      }
       if (options.verbose) {
         console.log(`${CACHE_SERVER_LOG_PREFIX} Verbose request logging enabled.`)
       }

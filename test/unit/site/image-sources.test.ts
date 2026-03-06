@@ -25,12 +25,17 @@ function makeBaseCard(): ScryfallCard {
       usd: '1.00',
       usd_foil: null,
       usd_etched: null,
+      eur: null,
+      eur_foil: null,
+      tix: null,
     },
     finishes: [],
+    games: ['paper'],
     set: 'set',
     set_name: 'Set Name',
     collector_number: '1',
     rarity: 'common',
+    color_identity: [],
   }
 }
 

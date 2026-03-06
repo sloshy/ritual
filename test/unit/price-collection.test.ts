@@ -69,4 +69,43 @@ describe('parseCollectionFile', () => {
     expect(entries).toHaveLength(1)
     expect(entries[0]!.collectorNumber).toBe('10E-30')
   })
+
+  test('handles collector numbers with special characters', () => {
+    const content = `- Serpent of Yawning Depths (SLD:1489★) [foil] [NM]\n`
+    const { entries, warnings } = parseCollectionFile(content)
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.name).toBe('Serpent of Yawning Depths')
+    expect(entries[0]!.set).toBe('SLD')
+    expect(entries[0]!.collectorNumber).toBe('1489★')
+    expect(entries[0]!.finish).toBe('foil')
+    expect(entries[0]!.condition).toBe('NM')
+    expect(warnings).toHaveLength(0)
+  })
+
+  test('parses card with note', () => {
+    const content = `- Mana Crypt (2XM:270) [foil] [NM] {Japanese language, ignore pricing}\n`
+    const { entries } = parseCollectionFile(content)
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.name).toBe('Mana Crypt')
+    expect(entries[0]!.finish).toBe('foil')
+    expect(entries[0]!.condition).toBe('NM')
+    expect(entries[0]!.note).toBe('Japanese language, ignore pricing')
+  })
+
+  test('parses card with note but no finish or condition', () => {
+    const content = `- Sol Ring (C19:221) {Signed by artist}\n`
+    const { entries } = parseCollectionFile(content)
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.name).toBe('Sol Ring')
+    expect(entries[0]!.finish).toBeUndefined()
+    expect(entries[0]!.condition).toBeUndefined()
+    expect(entries[0]!.note).toBe('Signed by artist')
+  })
+
+  test('card without note has undefined note field', () => {
+    const content = `- Arcane Signet (ECC:55)\n`
+    const { entries } = parseCollectionFile(content)
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.note).toBeUndefined()
+  })
 })
