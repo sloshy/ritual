@@ -5,7 +5,7 @@ import {
   resolveCacheServerAddress,
   setCacheServerAddressOverride,
   toCacheServerBaseUrl,
-} from '../../src/cache-config'
+} from '../../src/cache/config'
 
 const originalCacheServerEnv = process.env.RITUAL_CACHE_SERVER
 

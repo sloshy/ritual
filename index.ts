@@ -26,7 +26,7 @@ import {
   resolveCacheServerAddress,
   setCacheServerAddressOverride,
   toCacheServerBaseUrl,
-} from './src/cache-config'
+} from './src/cache/config'
 
 const program = new Command()
 

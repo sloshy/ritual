@@ -35,9 +35,9 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Project specific
 ritual
-decks/
-cache/
-collections/
+/decks/
+/cache/
+/collections/
 
 .vscode/
 

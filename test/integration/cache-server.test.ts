@@ -6,7 +6,7 @@ import { defaultCache } from '../../src/cache'
 import {
   clearCacheServerAddressOverride,
   setCacheServerAddressOverride,
-} from '../../src/cache-config'
+} from '../../src/cache/config'
 import { PriceService } from '../../src/prices'
 import { type PriceData, type ScryfallCard } from '../../src/types'
 
