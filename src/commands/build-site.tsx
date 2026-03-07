@@ -363,6 +363,9 @@ export function registerBuildSiteCommand(program: Command) {
         globalMissingCards[cur] = new Set()
       }
 
+      let latestPriceTimestamp: number | null =
+        typeof lastBulkRefresh === 'number' ? lastBulkRefresh : null
+
       for (const name of uniqueCards) {
         if (await cardCache.isBlocked(name)) {
           processed++
@@ -382,6 +385,12 @@ export function registerBuildSiteCommand(program: Command) {
             priceTimestamp !== null &&
             priceTimestamp !== undefined &&
             Date.now() - priceTimestamp < DAY_MS
+          if (
+            priceTimestamp != null &&
+            (latestPriceTimestamp == null || priceTimestamp > latestPriceTimestamp)
+          ) {
+            latestPriceTimestamp = priceTimestamp
+          }
           let repPrints
           if (pricesFresh) {
             const sortedPrintings = [...printings].sort((a, b) =>
@@ -467,7 +476,10 @@ export function registerBuildSiteCommand(program: Command) {
       }
       process.stdout.write('\n\n')
 
-      const pricesDate = new Date().toISOString()
+      if (latestPriceTimestamp == null) {
+        throw new Error('No price data found. Run the cache refresh before building the site.')
+      }
+      const pricesDate = new Date(latestPriceTimestamp).toISOString()
 
       // Phase 3: Generate JSON data files and SPA bundle
       console.log('Generating data files...')
