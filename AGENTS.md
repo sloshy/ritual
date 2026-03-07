@@ -1,5 +1,9 @@
 # Agent Instructions
 
+## LSP
+
+Whenever possible, prefer using Language Server Protocol (LSP) features for code analysis, refactoring, and navigation. This allows you to leverage the full power of the editor's understanding of the codebase, including type information, symbol references, and so on. For example, use "Go to Definition", "Find All References", and "Rename Symbol" features instead of manually searching for code patterns.
+
 ## Git Usage
 
 Do NOT ever make a git commit unless explicitly asked to. I want to review any code changes you suggest, so they should just be left in the git tree unstaged as if I wasn't using version control.
