@@ -27,7 +27,7 @@ jobs:
           - target: bun-windows-x64
             asset_name: ritual-windows-x86_64.exe
           - target: bun-windows-arm64
-            asset_name: ritual-windows-arm64
+            asset_name: ritual-windows-arm64.exe
 
     steps:
       - name: Checkout
