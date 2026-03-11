@@ -2,7 +2,7 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import { resolveDeckFilePath, serializeDeckToMarkdown } from '../../deck-file'
 import { loadConfig } from '../config'
-import { shouldAutoCommit, commitFiles } from '../git'
+import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { getErrorMessage } from '../../errors'
 import type { DeckData } from '../../types'
 import type { ChangeEvent } from '../site/types/deck-changes'
@@ -90,6 +90,9 @@ export async function handleDeckSave(req: Request): Promise<Response> {
     const config = await loadConfig()
     if (shouldAutoCommit(config, decksDir)) {
       commitFiles(filesToCommit, `Edit deck: ${deck.name} (${changes.length} changes)`)
+      if (shouldAutoPush(config, decksDir)) {
+        pushChanges(decksDir)
+      }
     }
 
     return Response.json({

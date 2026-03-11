@@ -12,6 +12,7 @@ import { ArchidektLogin } from './pages/ArchidektLogin'
 import { Settings } from './pages/Settings'
 import { AuditLog } from './pages/AuditLog'
 import { DeckEditor } from './pages/DeckEditor'
+import { DeckManager } from './pages/DeckManager'
 import { CollectionEditor } from './pages/CollectionEditor'
 
 function App() {
@@ -80,6 +81,7 @@ function App() {
   const pages = {
     dashboard: () => <Dashboard onNavigate={setPage} />,
     'deck-editor': () => <DeckEditor />,
+    'deck-manager': () => <DeckManager />,
     'collection-editor': () => <CollectionEditor />,
     'import-deck': () => <ImportDeck />,
     'build-site': () => <BuildSite />,

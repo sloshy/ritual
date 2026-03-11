@@ -36,6 +36,18 @@ export function commitFiles(files: string[], message: string, cwd?: string): voi
   })
 }
 
+export function pushChanges(cwd?: string): void {
+  const workDir = cwd ?? process.cwd()
+  execSync('git push', {
+    cwd: workDir,
+    stdio: ['pipe', 'pipe', 'pipe'],
+  })
+}
+
 export function shouldAutoCommit(config: AdminConfig, dir: string): boolean {
   return config.gitEnabled && config.gitAutoCommit && isGitRepo(dir)
+}
+
+export function shouldAutoPush(config: AdminConfig, dir: string): boolean {
+  return config.gitEnabled && config.gitAutoPush && isGitRepo(dir)
 }

@@ -5,7 +5,7 @@ import { fetchMoxfieldDeck } from '../../importers/moxfield-lib'
 import { importFromTextFile } from '../../importers/text-file'
 import { saveDeck } from '../../commands/import'
 import { loadConfig } from '../config'
-import { shouldAutoCommit, commitFiles } from '../git'
+import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { apiHandler } from '../utils'
 import type { DeckData } from '../../types'
 
@@ -75,6 +75,9 @@ export function handleImportDeck(req: Request): Promise<Response> {
 
     if (shouldAutoCommit(config, decksDir)) {
       commitFiles([filePath], `Import deck: ${deckData.name}`)
+      if (shouldAutoPush(config, decksDir)) {
+        pushChanges(decksDir)
+      }
     }
 
     const resp: ImportDeckResponse = {

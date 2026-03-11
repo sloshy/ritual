@@ -110,8 +110,18 @@ export function Settings() {
           />
           Auto-commit changes
         </label>
+        <label class="checkbox-label">
+          <input
+            type="checkbox"
+            checked={config.gitAutoPush}
+            onChange={(e) => updateField('gitAutoPush', e.currentTarget.checked)}
+            disabled={!config.gitEnabled || !config.gitAutoCommit}
+          />
+          Auto-push after commit
+        </label>
         <p class="form-hint">
-          When enabled, file changes from admin actions will be automatically committed to git.
+          When enabled, file changes from admin actions will be automatically committed to git and
+          pushed to the remote.
         </p>
 
         {/* Proxy & Cookie Security */}

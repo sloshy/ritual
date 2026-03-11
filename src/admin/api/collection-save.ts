@@ -1,7 +1,7 @@
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { loadConfig } from '../config'
-import { shouldAutoCommit, commitFiles } from '../git'
+import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { getErrorMessage } from '../../errors'
 import type { CollectionCardEntry } from '../../site/data-types'
 import type { ChangeEvent } from '../site/types/deck-changes'
@@ -121,6 +121,9 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
     const config = await loadConfig()
     if (shouldAutoCommit(config, collectionsDir)) {
       commitFiles(filesToCommit, `Edit collection: ${slug} (${changes.length} changes)`)
+      if (shouldAutoPush(config, collectionsDir)) {
+        pushChanges(collectionsDir)
+      }
     }
 
     return Response.json({

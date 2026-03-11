@@ -8,6 +8,91 @@ The admin site exposes these API endpoints for deck and collection editing. All 
 
 For general admin API endpoints (authentication, config, audit log, etc.), see the [admin command reference](/docs/commands/admin#http-api-reference).
 
+## Create Deck
+
+```
+POST /api/deck/create
+```
+
+Create a new deck file. The slug is auto-generated from the name.
+
+**Request Body:**
+
+```json
+{
+  "name": "My Commander Deck",
+  "format": "commander"
+}
+```
+
+| Field    | Description                           | Required |
+| -------- | ------------------------------------- | -------- |
+| `name`   | Deck name (used to generate the slug) | Yes      |
+| `format` | Deck format (default: `"commander"`)  | No       |
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Created deck 'My Commander Deck'",
+  "slug": "my-commander-deck"
+}
+```
+
+## Rename Deck
+
+```
+POST /api/deck/:slug/rename
+```
+
+Rename a deck. Updates the frontmatter `name` field and renames the file to match the new slug. Also renames any associated changelog and primer files.
+
+**Request Body:**
+
+```json
+{
+  "newName": "New Deck Name"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Renamed deck to 'New Deck Name'",
+  "newSlug": "new-deck-name"
+}
+```
+
+## Delete Deck
+
+```
+DELETE /api/deck/:slug
+```
+
+Delete a deck. Requires the full deck name to be provided as confirmation. Removes the deck file along with any changelog and primer files.
+
+**Request Body:**
+
+```json
+{
+  "confirmName": "My Commander Deck"
+}
+```
+
+The `confirmName` must match the deck's `name` field exactly. Returns `400` if they don't match.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Deleted deck 'My Commander Deck'"
+}
+```
+
 ## Card Autocomplete
 
 ```

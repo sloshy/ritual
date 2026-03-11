@@ -6,6 +6,7 @@ export interface AdminConfig {
   collectionsDir: string
   gitEnabled: boolean
   gitAutoCommit: boolean
+  gitAutoPush: boolean
   trustProxy: boolean
   secureCookies: boolean
   ipAllowList: string[]
@@ -23,6 +24,7 @@ const DEFAULT_CONFIG = {
   collectionsDir: './collections',
   gitEnabled: false,
   gitAutoCommit: false,
+  gitAutoPush: false,
   trustProxy: false,
   secureCookies: false,
   ipAllowList: [] as string[],

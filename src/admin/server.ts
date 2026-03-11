@@ -23,6 +23,9 @@ import { handleDeckLoad } from './api/deck-load'
 import { handleCardPrintings } from './api/card-printings'
 import { handleCardPrice } from './api/card-price'
 import { handleDeckSave } from './api/deck-save'
+import { handleDeckCreate } from './api/deck-create'
+import { handleDeckRename } from './api/deck-rename'
+import { handleDeckDelete } from './api/deck-delete'
 import { handleListCollections } from './api/collection-list'
 import { handleCollectionLoad } from './api/collection-load'
 import { handleCollectionSave } from './api/collection-save'
@@ -113,7 +116,10 @@ const routes: Route[] = [
     requiresAuth: true,
   },
   { method: 'GET', path: '/api/deck/:slug', handler: handleDeckLoad, requiresAuth: true },
+  { method: 'POST', path: '/api/deck/create', handler: handleDeckCreate, requiresAuth: true },
   { method: 'POST', path: '/api/deck/:slug/save', handler: handleDeckSave, requiresAuth: true },
+  { method: 'POST', path: '/api/deck/:slug/rename', handler: handleDeckRename, requiresAuth: true },
+  { method: 'DELETE', path: '/api/deck/:slug', handler: handleDeckDelete, requiresAuth: true },
 ]
 
 export function getClientIp(req: Request, server: RequestIPServer, trustProxy: boolean): string {

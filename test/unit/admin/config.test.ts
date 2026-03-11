@@ -30,6 +30,7 @@ describe('admin config', () => {
     expect(config.collectionsDir).toBe('./collections')
     expect(config.gitEnabled).toBe(false)
     expect(config.gitAutoCommit).toBe(false)
+    expect(config.gitAutoPush).toBe(false)
   })
 
   test('loadConfig returns defaults when file does not exist', async () => {
@@ -44,6 +45,7 @@ describe('admin config', () => {
       collectionsDir: './my-collections',
       gitEnabled: true,
       gitAutoCommit: true,
+      gitAutoPush: false,
       trustProxy: false,
       secureCookies: false,
       ipAllowList: ['192.168.1.*'],

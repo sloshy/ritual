@@ -11,6 +11,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: '📊' },
   { id: 'deck-editor', label: 'Deck Editor', icon: '✏️' },
+  { id: 'deck-manager', label: 'Deck Manager', icon: '🗂️' },
   { id: 'collection-editor', label: 'Collection Editor', icon: '📦' },
   { id: 'import-deck', label: 'Import Deck', icon: '📥' },
   { id: 'build-site', label: 'Build Site', icon: '🔨' },

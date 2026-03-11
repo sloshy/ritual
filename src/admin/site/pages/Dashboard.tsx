@@ -15,6 +15,12 @@ const actions: ActionCard[] = [
     icon: '✏️',
   },
   {
+    id: 'deck-manager',
+    title: 'Deck Manager',
+    description: 'Create, rename, and delete decks',
+    icon: '🗂️',
+  },
+  {
     id: 'collection-editor',
     title: 'Collection Editor',
     description: 'Edit collection contents and cards',
