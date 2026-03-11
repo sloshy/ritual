@@ -1,0 +1,615 @@
+---
+sidebar_position: 16
+---
+
+# admin
+
+Start the web admin interface for managing Ritual from a browser.
+
+## Usage
+
+```bash
+ritual admin [options]
+```
+
+## Options
+
+| Option                | Description             | Default   |
+| --------------------- | ----------------------- | --------- |
+| `-p, --port <number>` | Port to serve on        | `8080`    |
+| `--host <address>`    | Host address to bind to | `0.0.0.0` |
+
+## First-Time Setup
+
+When you first start the admin interface, navigate to the displayed URL in your browser. You will be prompted to create an admin account:
+
+- **Username**: any username of your choice
+- **Password**: must be at least 4 characters (no other restrictions)
+
+Credentials are hashed with bcrypt and stored in `.logins/admin-auth.json`. Subsequent visits require signing in with these credentials via HTTP Basic Auth.
+
+## Available Actions
+
+The admin dashboard provides a web interface for the following operations:
+
+### Import Deck
+
+Import a deck from a URL (Archidekt, Moxfield, MTGGoldfish). Optionally overwrite an existing deck with the same name or source ID.
+
+### Build Site
+
+Trigger a full static site build from the browser. This runs the same process as `ritual build-site`.
+
+### Refresh Cache
+
+Download and cache all Scryfall card data. Equivalent to `ritual cache preload-all`.
+
+The Refresh Cache page shows real-time progress during the operation:
+
+- **Progress bar** with download percentage and MiB counter
+- **Stage indicators** tracking each phase: Downloading → Parsing → Processing → Saving
+- Falls back gracefully if streaming is unavailable
+
+### Archidekt Login
+
+Sign in to your Archidekt account through the web interface. Credentials are sent to the Ritual server, which handles authentication server-side.
+
+### Settings
+
+Configure admin settings including:
+
+- **Decks Directory**: path to the decks folder (default: `./decks`)
+- **Collections Directory**: path to the collections folder (default: `./collections`)
+- **Git Integration**: enable/disable git auto-commit
+- **Two-Factor Authentication (TOTP)**: set up or disable TOTP 2FA
+- **Rate Limiting**: configure failed login attempt limits and lockout duration
+- **IP Filtering**: allow/deny lists for IP addresses
+- **User-Agent Filtering**: allow/deny lists for browser user agents
+
+### Audit Log
+
+View a chronological log of all login attempts, including timestamp, IP address, username, success/failure status, and user agent. Useful for monitoring unauthorized access attempts.
+
+## Configuration File
+
+Settings are stored in `ritual.config.json` in the project root:
+
+```json
+{
+  "decksDir": "./decks",
+  "collectionsDir": "./collections",
+  "gitEnabled": false,
+  "gitAutoCommit": false,
+  "ipAllowList": [],
+  "ipDenyList": [],
+  "userAgentAllowList": [],
+  "userAgentDenyList": [],
+  "rateLimitEnabled": true,
+  "rateLimitMaxAttempts": 5,
+  "rateLimitWindowMinutes": 5,
+  "failedAuthDelayMs": 3000
+}
+```
+
+## Git Integration
+
+When git integration is enabled in settings:
+
+1. The admin checks if the target directory (decks, collections, or config) is inside a git repository
+2. After file-modifying operations (editing decks or collections, importing decks, updating config), changed files are automatically staged and committed
+3. Commit messages describe the action performed (e.g., "Save 3 changes to burn.md")
+
+Enable this feature in the Settings page by checking both **Enable Git integration** and **Auto-commit changes**.
+
+## Security
+
+### Failed Login Delay
+
+Every failed authentication attempt incurs a configurable delay (default: 3 seconds) before the server responds. This is implemented using `Bun.sleep()` so it does not block other requests — the server remains fully responsive during the delay.
+
+### Rate Limiting
+
+After a configurable number of consecutive failed login attempts (default: 5) from a single IP address, that IP is locked out for a configurable duration (default: 5 minutes). Rate limiting can be disabled entirely in settings.
+
+| Config Field             | Default | Description                    |
+| ------------------------ | ------- | ------------------------------ |
+| `rateLimitEnabled`       | `true`  | Enable/disable rate limiting   |
+| `rateLimitMaxAttempts`   | `5`     | Failed attempts before lockout |
+| `rateLimitWindowMinutes` | `5`     | Lockout duration in minutes    |
+| `failedAuthDelayMs`      | `3000`  | Delay (ms) on failed auth      |
+
+Rate limit state is stored in memory and resets when the server restarts.
+
+### Two-Factor Authentication (TOTP)
+
+TOTP (Time-based One-Time Password) adds a second factor to authentication. When enabled, login requires both your password and a 6-digit code from an authenticator app (e.g., Google Authenticator, Authy, 1Password).
+
+**Setup:**
+
+1. Go to Settings → Two-Factor Authentication
+2. Click "Set Up TOTP" — the server generates a secret key
+3. Add the secret to your authenticator app (manual entry or use the `otpauth://` URI with a QR code generator)
+4. Enter the current 6-digit code to verify and activate TOTP
+
+**Login with TOTP:**
+When TOTP is enabled, the login form shows an additional code field. For API access, include the `totpCode` field in the `POST /api/login` request body.
+
+The TOTP secret is stored in `.logins/admin-auth.json` alongside the password hash.
+
+### IP Allow/Deny Lists
+
+Control which IP addresses can access the admin interface:
+
+- **Allow list**: If non-empty, only IPs matching a pattern can connect. All others are blocked with `403 Forbidden`.
+- **Deny list**: IPs matching any pattern are blocked. Deny is checked before allow.
+
+Patterns support simple wildcards: `192.168.1.*`, `10.0.*`, `*` (match all).
+
+### User-Agent Allow/Deny Lists
+
+Control which browsers/clients can access the admin interface:
+
+- **Allow list**: If non-empty, only matching User-Agent strings can connect.
+- **Deny list**: Matching User-Agent strings are blocked.
+
+Patterns support wildcards: `*bot*` (blocks common bots), `Mozilla*` (allows browsers).
+
+## HTTP API Reference
+
+All API endpoints are served under `/api/`. Except where noted, endpoints require an active session.
+
+### Authentication
+
+The admin uses **session-based authentication**. To start a session, send a `POST /api/login` request with your credentials. If TOTP is enabled, include the TOTP code. The server responds with a `Set-Cookie` header containing the session token. All subsequent requests are authenticated automatically via the session cookie.
+
+Sessions expire after 24 hours. To end a session, call `POST /api/logout`.
+
+Unauthenticated requests to protected endpoints receive a `401 Unauthorized` JSON response.
+
+Rate-limited requests receive a `429 Too Many Requests` response with a `Retry-After` header indicating the remaining lockout seconds.
+
+### Audit Log
+
+Every login attempt (successful or failed) is logged to `.logins/admin-audit.log` with timestamp, IP address, username, result, reason, and user agent. The log can be viewed in the admin UI under "Audit Log" or via the `GET /api/audit-log` endpoint.
+
+### `GET /api/status`
+
+**Auth required:** No
+
+Returns server health and whether first-time setup is needed.
+
+**Response:**
+
+```json
+{
+  "ok": true,
+  "setupRequired": false,
+  "totpEnabled": true
+}
+```
+
+### `POST /api/setup`
+
+**Auth required:** No (only works when no admin user exists)
+
+Create the initial admin account. Returns `409 Conflict` if an admin already exists.
+
+**Request body:**
+
+```json
+{
+  "username": "admin",
+  "password": "mypassword"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Admin account created successfully"
+}
+```
+
+### `POST /api/login`
+
+**Auth required:** No
+
+Authenticate with username, password, and optionally a TOTP code. On success, the response sets a session cookie.
+
+**Request body:**
+
+```json
+{
+  "username": "admin",
+  "password": "mypassword",
+  "totpCode": "123456"
+}
+```
+
+| Field      | Type   | Required | Description                             |
+| ---------- | ------ | -------- | --------------------------------------- |
+| `username` | string | Yes      | Admin username                          |
+| `password` | string | Yes      | Admin password                          |
+| `totpCode` | string | No       | TOTP code (required if TOTP is enabled) |
+
+**Response (success):**
+
+```json
+{
+  "success": true
+}
+```
+
+The response includes a `Set-Cookie` header with the session token.
+
+**Response (TOTP required):**
+
+```json
+{
+  "success": false,
+  "message": "TOTP code required",
+  "totpRequired": true
+}
+```
+
+### `POST /api/logout`
+
+**Auth required:** Yes
+
+Destroys the current session.
+
+**Request body:** None
+
+**Response:**
+
+```json
+{
+  "success": true
+}
+```
+
+### `GET /api/audit-log`
+
+**Auth required:** Yes
+
+Returns recent login attempt records.
+
+**Query parameters:**
+
+| Parameter | Type   | Default | Description                    |
+| --------- | ------ | ------- | ------------------------------ |
+| `limit`   | number | `100`   | Max entries to return (1–1000) |
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "entries": [
+    {
+      "timestamp": "2026-02-26T19:00:00.000Z",
+      "ip": "127.0.0.1",
+      "username": "admin",
+      "success": true,
+      "reason": "Login successful",
+      "userAgent": "Mozilla/5.0 ..."
+    }
+  ]
+}
+```
+
+Entries are returned most recent first.
+
+### `GET /api/decks`
+
+**Auth required:** Yes
+
+List all deck files in the decks directory.
+
+**Response:**
+
+```json
+{
+  "decks": ["burn", "elves", "mono-red-aggro"]
+}
+```
+
+### `POST /api/search-cards`
+
+**Auth required:** Yes
+
+Search for cards by name using the Scryfall API. Returns up to 20 results.
+
+**Request body:**
+
+```json
+{
+  "query": "Lightning Bolt"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "cards": [{ "name": "Lightning Bolt" }, { "name": "Lightning Bolt (Textless)" }]
+}
+```
+
+### `POST /api/import-deck`
+
+**Auth required:** Yes
+
+Import a deck from a URL or file path.
+
+**Request body:**
+
+```json
+{
+  "source": "https://archidekt.com/decks/123456",
+  "overwrite": false
+}
+```
+
+| Field       | Type    | Required | Default | Description                             |
+| ----------- | ------- | -------- | ------- | --------------------------------------- |
+| `source`    | string  | Yes      | —       | Archidekt, Moxfield, or MTGGoldfish URL |
+| `overwrite` | boolean | No       | `false` | Overwrite existing deck on conflict     |
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Successfully imported 'My Deck'",
+  "deckName": "My Deck"
+}
+```
+
+### `POST /api/build-site`
+
+**Auth required:** Yes
+
+Trigger a full static site build. This is equivalent to running `ritual build-site`. May take several minutes.
+
+**Request body:** None
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Site built successfully"
+}
+```
+
+### `POST /api/cache/refresh`
+
+**Auth required:** Yes
+
+Download and cache all Scryfall card data. Equivalent to `ritual cache preload-all`. Returns a JSON response when complete.
+
+**Request body:** None
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Cache refreshed successfully"
+}
+```
+
+### `GET /api/cache/refresh/stream`
+
+**Auth required:** Yes
+
+Stream cache refresh progress via Server-Sent Events (SSE). The UI uses this endpoint to show a real-time progress bar.
+
+**Response:** `text/event-stream` with the following event types:
+
+| Event      | Data Fields                       | Description                    |
+| ---------- | --------------------------------- | ------------------------------ |
+| `progress` | `stage`, `percentage?`, `message` | Progress update during refresh |
+| `done`     | `message`                         | Refresh completed successfully |
+| `error`    | `message`                         | Refresh failed                 |
+
+**Stage values:** `download`, `parse`, `process`, `save`, `done`, `info`
+
+**Example event stream:**
+
+```
+event: progress
+data: {"stage":"download","percentage":45,"message":"Downloading: 45% (112.50/250.45 MiB)"}
+
+event: progress
+data: {"stage":"parse","message":"Parsing JSON..."}
+
+event: done
+data: {"message":"Cache refreshed successfully"}
+```
+
+### `POST /api/login/archidekt`
+
+**Auth required:** Yes
+
+Login to Archidekt. Credentials are sent to the server which authenticates with the Archidekt API and stores the session token locally.
+
+**Request body:**
+
+```json
+{
+  "username": "myuser",
+  "password": "mypassword"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Logged in as myuser",
+  "username": "myuser"
+}
+```
+
+### `POST /api/totp/setup`
+
+**Auth required:** Yes
+
+Generate a new TOTP secret for two-factor authentication. The secret is stored in a pending state until verified.
+
+**Request body:** None
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "secret": "JBSWY3DPEHPK3PXP",
+  "uri": "otpauth://totp/Ritual:admin?secret=JBSWY3DPEHPK3PXP&issuer=Ritual&algorithm=SHA1&digits=6&period=30"
+}
+```
+
+### `POST /api/totp/verify-setup`
+
+**Auth required:** Yes
+
+Verify a TOTP code to activate the pending secret. This must be called after `/api/totp/setup` to confirm the user has successfully configured their authenticator app.
+
+**Request body:**
+
+```json
+{
+  "code": "123456"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "TOTP enabled successfully"
+}
+```
+
+### `POST /api/totp/disable`
+
+**Auth required:** Yes
+
+Disable TOTP two-factor authentication.
+
+**Request body:** None
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "TOTP disabled"
+}
+```
+
+### `GET /api/totp/status`
+
+**Auth required:** Yes
+
+Check whether TOTP is enabled for the admin account.
+
+**Response:**
+
+```json
+{
+  "enabled": true
+}
+```
+
+### `GET /api/config`
+
+**Auth required:** Yes
+
+Returns the current application configuration.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "config": {
+    "decksDir": "./decks",
+    "collectionsDir": "./collections",
+    "gitEnabled": false,
+    "gitAutoCommit": false,
+    "ipAllowList": [],
+    "ipDenyList": [],
+    "userAgentAllowList": [],
+    "userAgentDenyList": [],
+    "rateLimitEnabled": true,
+    "rateLimitMaxAttempts": 5,
+    "rateLimitWindowMinutes": 5,
+    "failedAuthDelayMs": 3000
+  }
+}
+```
+
+### `PUT /api/config`
+
+**Auth required:** Yes
+
+Update the application configuration. Partial updates are supported — only the fields you include will be changed.
+
+**Request body:**
+
+```json
+{
+  "gitEnabled": true,
+  "gitAutoCommit": true
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "config": {
+    "decksDir": "./decks",
+    "collectionsDir": "./collections",
+    "gitEnabled": true,
+    "gitAutoCommit": true,
+    "ipAllowList": [],
+    "ipDenyList": [],
+    "userAgentAllowList": [],
+    "userAgentDenyList": [],
+    "rateLimitEnabled": true,
+    "rateLimitMaxAttempts": 5,
+    "rateLimitWindowMinutes": 5,
+    "failedAuthDelayMs": 3000
+  }
+}
+```
+
+## Examples
+
+Start the admin on the default port:
+
+```bash
+ritual admin
+```
+
+Start on a custom port:
+
+```bash
+ritual admin --port 9090
+```
+
+Bind to localhost only:
+
+```bash
+ritual admin --host 127.0.0.1
+```

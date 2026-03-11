@@ -1,0 +1,193 @@
+import { describe, expect, it } from 'bun:test'
+import { applyChangeToCollection } from '../../src/admin/site/types/collection-changes'
+import type { CollectionCardEntry } from '../../src/site/data-types'
+
+function makeEntry(overrides: Partial<CollectionCardEntry> = {}): CollectionCardEntry {
+  return {
+    name: 'Lightning Bolt',
+    set: 'lea',
+    collectorNumber: '161',
+    finish: 'nonfoil',
+    condition: 'NM',
+    price: 0,
+    fileOrder: 0,
+    ...overrides,
+  }
+}
+
+describe('applyChangeToCollection', () => {
+  it('add — adds a new entry to the end with correct fields', () => {
+    const entries: CollectionCardEntry[] = [makeEntry()]
+    const result = applyChangeToCollection(entries, {
+      action: 'add',
+      cardName: 'Dark Ritual',
+    })
+
+    expect(result).toHaveLength(2)
+    expect(result[1]!.name).toBe('Dark Ritual')
+    expect(result[1]!.price).toBe(0)
+    expect(result[1]!.fileOrder).toBe(1)
+  })
+
+  it('add with printing options — set, collectorNumber, finish, condition are all populated', () => {
+    const result = applyChangeToCollection([], {
+      action: 'add',
+      cardName: 'Tarmogoyf',
+      set: 'fut',
+      collectorNumber: '153',
+      finish: 'foil',
+      condition: 'LP',
+    })
+
+    expect(result).toHaveLength(1)
+    const entry = result[0]!
+    expect(entry.name).toBe('Tarmogoyf')
+    expect(entry.set).toBe('fut')
+    expect(entry.collectorNumber).toBe('153')
+    expect(entry.finish).toBe('foil')
+    expect(entry.condition).toBe('LP')
+  })
+
+  it('remove — removes the first matching entry by name', () => {
+    const entries = [makeEntry(), makeEntry({ name: 'Dark Ritual', fileOrder: 1 })]
+    const result = applyChangeToCollection(entries, {
+      action: 'remove',
+      cardName: 'Lightning Bolt',
+    })
+
+    expect(result).toHaveLength(1)
+    expect(result[0]!.name).toBe('Dark Ritual')
+  })
+
+  it('remove by name + set — with set specified, only removes matching set', () => {
+    const entries = [
+      makeEntry({ set: 'lea', fileOrder: 0 }),
+      makeEntry({ set: '2ed', fileOrder: 1 }),
+    ]
+    const result = applyChangeToCollection(entries, {
+      action: 'remove',
+      cardName: 'Lightning Bolt',
+      set: '2ed',
+    })
+
+    expect(result).toHaveLength(1)
+    expect(result[0]!.set).toBe('lea')
+  })
+
+  it('remove non-existent — returns unchanged array', () => {
+    const entries = [makeEntry()]
+    const result = applyChangeToCollection(entries, {
+      action: 'remove',
+      cardName: 'Ancestral Recall',
+    })
+
+    expect(result).toBe(entries)
+  })
+
+  it('set-finish — updates finish on matching entry', () => {
+    const entries = [makeEntry({ finish: 'nonfoil' })]
+    const result = applyChangeToCollection(entries, {
+      action: 'set-finish',
+      cardName: 'Lightning Bolt',
+      finish: 'foil',
+    })
+
+    expect(result).toHaveLength(1)
+    expect(result[0]!.finish).toBe('foil')
+  })
+
+  it('set-commander — returns unchanged array (no-op for collections)', () => {
+    const entries = [makeEntry()]
+    const result = applyChangeToCollection(entries, {
+      action: 'set-commander',
+      cardName: 'Lightning Bolt',
+    })
+
+    expect(result).toBe(entries)
+  })
+
+  it('multiple adds then remove — add 2, remove 1, verify 1 remains', () => {
+    let entries: CollectionCardEntry[] = []
+    entries = applyChangeToCollection(entries, {
+      action: 'add',
+      cardName: 'Lightning Bolt',
+      set: 'lea',
+      collectorNumber: '161',
+    })
+    entries = applyChangeToCollection(entries, {
+      action: 'add',
+      cardName: 'Dark Ritual',
+      set: 'lea',
+      collectorNumber: '104',
+    })
+    entries = applyChangeToCollection(entries, {
+      action: 'remove',
+      cardName: 'Lightning Bolt',
+    })
+
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.name).toBe('Dark Ritual')
+  })
+
+  it('remove by fileOrder — targets the exact entry among duplicates', () => {
+    const entries = [
+      makeEntry({ name: 'Sheltered by Ghosts', set: 'dsk', collectorNumber: '30', fileOrder: 0 }),
+      makeEntry({ name: 'Sheltered by Ghosts', set: 'dsk', collectorNumber: '30', fileOrder: 1 }),
+      makeEntry({ name: 'Sheltered by Ghosts', set: 'dsk', collectorNumber: '30', fileOrder: 2 }),
+    ]
+
+    const result = applyChangeToCollection(entries, {
+      action: 'remove',
+      cardName: 'Sheltered by Ghosts',
+      set: 'dsk',
+      collectorNumber: '30',
+      fileOrder: 1,
+    })
+
+    expect(result).toHaveLength(2)
+    expect(result[0]!.fileOrder).toBe(0)
+    expect(result[1]!.fileOrder).toBe(2)
+  })
+
+  it('remove by fileOrder — non-existent fileOrder returns unchanged', () => {
+    const entries = [makeEntry({ fileOrder: 0 }), makeEntry({ fileOrder: 1 })]
+    const result = applyChangeToCollection(entries, {
+      action: 'remove',
+      cardName: 'Lightning Bolt',
+      fileOrder: 99,
+    })
+
+    expect(result).toBe(entries)
+  })
+
+  it('add copy — duplicates entry with same printing info', () => {
+    const entries = [
+      makeEntry({
+        name: 'Arahbo, the First Fang',
+        set: 'fdn',
+        collectorNumber: '294',
+        finish: 'foil',
+        condition: 'LP',
+        fileOrder: 0,
+      }),
+    ]
+
+    const result = applyChangeToCollection(entries, {
+      action: 'add',
+      cardName: 'Arahbo, the First Fang',
+      set: 'fdn',
+      collectorNumber: '294',
+      finish: 'foil',
+      condition: 'LP',
+    })
+
+    expect(result).toHaveLength(2)
+    const copy = result[1]!
+    expect(copy.name).toBe('Arahbo, the First Fang')
+    expect(copy.set).toBe('fdn')
+    expect(copy.collectorNumber).toBe('294')
+    expect(copy.finish).toBe('foil')
+    expect(copy.condition).toBe('LP')
+    expect(copy.fileOrder).toBe(1)
+  })
+})

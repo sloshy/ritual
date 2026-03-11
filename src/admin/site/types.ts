@@ -1,0 +1,10 @@
+export type Page =
+  | 'dashboard'
+  | 'import-deck'
+  | 'deck-editor'
+  | 'collection-editor'
+  | 'build-site'
+  | 'cache-refresh'
+  | 'archidekt-login'
+  | 'settings'
+  | 'audit-log'

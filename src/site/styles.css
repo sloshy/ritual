@@ -1269,3 +1269,182 @@ h3 {
     max-height: none;
   }
 }
+
+/* ===== Changelog modal ===== */
+.changelog-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.changelog-modal {
+  background: oklch(24% 0.025 260);
+  border: 1px solid oklch(35% 0.03 260);
+  border-radius: 0.75rem;
+  max-width: 560px;
+  max-height: 80vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+.changelog-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid oklch(35% 0.03 260);
+  flex-shrink: 0;
+}
+
+.changelog-modal-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: oklch(95% 0 0);
+}
+
+.changelog-modal .modal-close {
+  background: none;
+  border: none;
+  color: oklch(60% 0.02 260);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.changelog-modal .modal-close:hover {
+  color: oklch(90% 0 0);
+}
+
+.changelog-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.changelog-timestamp {
+  padding: 0.75rem 1.25rem 0.25rem;
+  font-size: 0.75rem;
+  color: oklch(60% 0.02 260);
+  font-weight: 600;
+}
+
+.changelog-change-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 1.25rem;
+  font-size: 0.8125rem;
+  border-bottom: 1px solid oklch(30% 0.02 260);
+}
+
+.changelog-change-item:last-child {
+  border-bottom: none;
+}
+
+.changelog-change-item--add {
+  color: oklch(72% 0.18 145);
+}
+
+.changelog-change-item--remove {
+  color: oklch(72% 0.16 25);
+}
+
+.changelog-change-item--other {
+  color: oklch(72% 0.14 260);
+}
+
+.changelog-change-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+}
+
+.changelog-card-link {
+  text-decoration: underline;
+  text-decoration-color: oklch(50% 0.03 260);
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: text-decoration-color 0.15s;
+}
+
+.changelog-card-link:hover {
+  text-decoration-color: currentColor;
+}
+
+.changelog-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid oklch(35% 0.03 260);
+  flex-shrink: 0;
+}
+
+.changelog-modal-footer button {
+  background: oklch(30% 0.03 260);
+  border: 1px solid oklch(40% 0.03 260);
+  color: oklch(80% 0.02 260);
+  padding: 4px 14px;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.changelog-modal-footer button:hover:not(:disabled) {
+  background: oklch(35% 0.03 260);
+}
+
+.changelog-modal-footer button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.changelog-modal-footer span {
+  font-size: 0.75rem;
+  color: oklch(60% 0.02 260);
+}
+
+.changelog-card-tooltip {
+  position: fixed;
+  z-index: 200;
+  pointer-events: none;
+  width: 240px;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  border: 1px solid oklch(35% 0.03 260);
+  display: none;
+}
+
+.changelog-card-tooltip.visible {
+  display: block;
+}
+
+.changelog-card-tooltip img {
+  width: 100%;
+  display: block;
+  border-radius: 0.5rem;
+}
+
+.card-modal-backdrop.changelog-card-modal {
+  z-index: 120;
+}
+
+.btn-view-changes {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}

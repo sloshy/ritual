@@ -3,6 +3,7 @@ import { useState, useMemo } from 'preact/hooks'
 import { CardItem } from './CardItem'
 import type { ScryfallCard } from '../types'
 import type { CollectionCardEntry } from './data-types'
+import type { ChangelogPage } from '../changelog-parser'
 import type { PriceCurrency } from '../price-currency'
 import { getCardPriceForFinish, formatPrice } from '../price-currency'
 import {
@@ -13,6 +14,7 @@ import {
   CARD_SIZE_WIDTHS,
 } from './card-sorting'
 import { CardModal } from './CardModal'
+import { ChangelogModal } from './ChangelogModal'
 import { capitalize } from './utils'
 import { useTooltip } from './useTooltip'
 import { Toolbar } from './Toolbar'
@@ -35,6 +37,13 @@ interface CollectionPageProps {
   onOpenModal: (cardKey: string) => void
   onCloseModal: () => void
   currency: PriceCurrency
+  editMode?: boolean
+  onAddCard?: () => void
+  onCardIncrement?: (entry: CollectionCardEntry) => void
+  onCardDecrement?: (entry: CollectionCardEntry) => void
+  onCardContextMenu?: (cardKey: string, card: ScryfallCard | null) => void
+  unsavedChangeCount?: number
+  changelog?: ChangelogPage[]
 }
 
 export const CollectionPage: FunctionalComponent<CollectionPageProps> = ({
@@ -51,6 +60,13 @@ export const CollectionPage: FunctionalComponent<CollectionPageProps> = ({
   onOpenModal,
   onCloseModal,
   currency,
+  editMode,
+  onAddCard,
+  onCardIncrement,
+  onCardDecrement,
+  onCardContextMenu,
+  unsavedChangeCount: _unsavedChangeCount,
+  changelog,
 }) => {
   const {
     viewMode,
@@ -69,6 +85,7 @@ export const CollectionPage: FunctionalComponent<CollectionPageProps> = ({
     setPriceGroupStrategy,
   } = useToolbarState<CollectionGroupBy>({ groupBy: 'none', sortBy: 'file-order' })
   const [groupDuplicates, setGroupDuplicates] = useState(false)
+  const [showChangelog, setShowChangelog] = useState(false)
 
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
 
@@ -193,9 +210,10 @@ export const CollectionPage: FunctionalComponent<CollectionPageProps> = ({
   const renderCollectionCard = (c: CardData) => {
     const entryIdx = findEntryIndex(c)
     const entry = currencyEntries[entryIdx]
+    const cardKey = `${c.name}|${c.setCode}|${c.fileOrder}`
     return (
       <CardItem
-        key={`${c.name}-${c.setCode}-${c.fileOrder}`}
+        key={cardKey}
         name={c.name}
         quantity={c.quantity}
         card={c.card}
@@ -211,6 +229,10 @@ export const CollectionPage: FunctionalComponent<CollectionPageProps> = ({
         collectionSetCN={entry ? `${entry.set.toUpperCase()}:${entry.collectorNumber}` : undefined}
         collectionPrice={entry?.price}
         currency={currency}
+        editMode={editMode}
+        onIncrement={editMode && entry ? () => onCardIncrement?.(entry) : undefined}
+        onDecrement={editMode && entry ? () => onCardDecrement?.(entry) : undefined}
+        onContextMenu={editMode ? () => onCardContextMenu?.(c.name, c.card) : undefined}
       />
     )
   }
@@ -246,7 +268,7 @@ export const CollectionPage: FunctionalComponent<CollectionPageProps> = ({
   )
 
   return (
-    <div className="container mx-auto">
+    <div className={editMode ? 'w-full' : 'container mx-auto'}>
       {/* Header */}
       <div className="mb-6 flex flex-wrap justify-between items-start gap-4">
         <div>
@@ -256,6 +278,22 @@ export const CollectionPage: FunctionalComponent<CollectionPageProps> = ({
           </p>
         </div>
         <div className="flex gap-2">
+          {editMode && (
+            <button
+              className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-xs font-semibold transition-colors cursor-pointer"
+              onClick={onAddCard}
+            >
+              + Add Card
+            </button>
+          )}
+          {changelog && changelog.length > 0 && (
+            <button
+              onClick={() => setShowChangelog(true)}
+              className="btn-view-changes px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs font-semibold transition-colors cursor-pointer"
+            >
+              View Changes
+            </button>
+          )}
           {exportMdPath && (
             <a
               href={exportMdPath}
@@ -356,6 +394,20 @@ export const CollectionPage: FunctionalComponent<CollectionPageProps> = ({
         meta={modalMeta}
         note={modalEntry?.note}
       />
+
+      {/* Changelog modal */}
+      {changelog && changelog.length > 0 && (
+        <ChangelogModal
+          open={showChangelog}
+          changelog={changelog}
+          cards={cards}
+          printings={printings}
+          symbolMap={symbolMap}
+          useScryfallImgUrls={useScryfallImgUrls}
+          currency={currency}
+          onClose={() => setShowChangelog(false)}
+        />
+      )}
     </div>
   )
 }

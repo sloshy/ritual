@@ -30,6 +30,17 @@ const sidebars: SidebarsConfig = {
         'commands/serve',
       ],
     },
+    {
+      type: 'category',
+      label: 'Admin Site',
+      link: {
+        type: 'generated-index',
+        title: 'Admin Site',
+        description: 'Documentation for the Ritual admin interface.',
+        slug: '/admin',
+      },
+      items: ['admin/deck-editor', 'admin/collection-editor', 'admin/api'],
+    },
     'development',
   ],
 }

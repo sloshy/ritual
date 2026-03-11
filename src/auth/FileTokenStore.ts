@@ -1,26 +1,15 @@
 import type { TokenStore } from './interfaces'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { ensureLoginsDir, getLoginsDir } from '../logins-dir'
 
 export class FileTokenStore implements TokenStore {
   private getFilePath(site: string): string {
-    const cwd = process.cwd()
-    const loginDir = path.join(cwd, '.logins')
-    return path.join(loginDir, `${site}.json`)
-  }
-
-  private async ensureDir(): Promise<void> {
-    const cwd = process.cwd()
-    const loginDir = path.join(cwd, '.logins')
-    try {
-      await fs.access(loginDir)
-    } catch {
-      await fs.mkdir(loginDir, { recursive: true, mode: 0o700 })
-    }
+    return path.join(getLoginsDir(), `${site}.json`)
   }
 
   async save(site: string, data: unknown): Promise<void> {
-    await this.ensureDir()
+    await ensureLoginsDir()
     const filePath = this.getFilePath(site)
     await fs.writeFile(filePath, JSON.stringify(data, null, 2), {
       mode: 0o600,

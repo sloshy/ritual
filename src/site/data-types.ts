@@ -1,5 +1,6 @@
 import type { DeckData, ScryfallCard } from '../types'
 import type { PriceCurrency } from '../price-currency'
+import type { ChangelogPage } from '../changelog-parser'
 
 export interface DeckSummary {
   slug: string
@@ -32,6 +33,7 @@ export interface DeckDetail {
   availableCurrencies: PriceCurrency[]
   missingCards?: Partial<Record<PriceCurrency, string[]>>
   pricesDate?: string
+  changelog?: ChangelogPage[]
 }
 
 export interface CollectionCardEntry {
@@ -70,6 +72,7 @@ export interface CollectionDetail {
   exportMdPath?: string
   exportCsvPath?: string
   pricesDate?: string
+  changelog?: ChangelogPage[]
 }
 
 export interface SiteIndex {

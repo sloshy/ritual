@@ -1,6 +1,7 @@
 import prompts, { type Choice } from 'prompts'
 import { getCardsBySet, getAllCardNames, getCardPrintings, isDigitalOnlySet } from '../scryfall'
 import type { ScryfallCard } from '../types'
+import { capitalize } from '../utils'
 
 export type SessionConfig = {
   sets?: string[]
@@ -107,7 +108,7 @@ export async function promptFinishAndCondition(
     selectedFinish = sessionConfig.finish
   } else if (availableFinishes.length > 1) {
     const finishChoices = availableFinishes.map((f) => ({
-      title: f.charAt(0).toUpperCase() + f.slice(1),
+      title: capitalize(f),
       value: f,
     }))
     const finishResponse = await prompts({

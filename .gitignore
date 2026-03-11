@@ -47,7 +47,14 @@ research/
 
 .logins/
 
+.admin-dist/
+
 styles.compiled.css
 
 # Personal files
 install_dev.sh
+
+# Test files
+test-results/
+playwright-report/
+.playwright-cli/

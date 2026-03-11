@@ -147,6 +147,7 @@ function App() {
                 onOpenModal={openModal}
                 onCloseModal={closeModal}
                 currency={currency}
+                changelog={collectionDetail.changelog}
               />
             )
           ) : deckError ? (
@@ -172,6 +173,7 @@ function App() {
               slug={deckSlug ?? ''}
               primerOpen={deckPrimerOpen}
               sectionId={deckSectionId}
+              changelog={deckDetail.changelog}
             />
           )}
         </div>

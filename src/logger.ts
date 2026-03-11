@@ -58,6 +58,57 @@ export class MemoryLogger implements Logger {
   }
 }
 
+export type CacheProgressEvent = {
+  stage: 'download' | 'parse' | 'process' | 'save' | 'done' | 'info'
+  percentage?: number
+  message: string
+}
+
+export class StreamingLogger implements Logger {
+  constructor(
+    private readonly onEvent: (event: CacheProgressEvent) => void,
+    private readonly mirrorTo?: Logger,
+  ) {}
+
+  info(message?: unknown, ...optionalParams: unknown[]): void {
+    const msg = String(message ?? '')
+    this.mirrorTo?.info(message, ...optionalParams)
+
+    if (msg.includes('Parsing JSON')) {
+      this.onEvent({ stage: 'parse', message: msg })
+    } else if (msg.includes('Processing') && msg.includes('cards')) {
+      this.onEvent({ stage: 'process', message: msg })
+    } else if (msg.includes('Saving to cache')) {
+      this.onEvent({ stage: 'save', message: msg })
+    } else if (msg.includes('Done!')) {
+      this.onEvent({ stage: 'done', message: msg })
+    } else {
+      this.onEvent({ stage: 'info', message: msg })
+    }
+  }
+
+  warn(message?: unknown, ...optionalParams: unknown[]): void {
+    this.mirrorTo?.warn(message, ...optionalParams)
+    this.onEvent({ stage: 'info', message: `Warning: ${String(message ?? '')}` })
+  }
+
+  error(message?: unknown, ...optionalParams: unknown[]): void {
+    this.mirrorTo?.error(message, ...optionalParams)
+  }
+
+  progress(message: string): void {
+    this.mirrorTo?.progress(message)
+    const match = message.match(/Downloading:\s*(\d+)%\s*\(([^)]+)\)/)
+    if (match && match[1] && match[2]) {
+      this.onEvent({
+        stage: 'download',
+        percentage: parseInt(match[1], 10),
+        message: `Downloading: ${match[1]}% (${match[2]})`,
+      })
+    }
+  }
+}
+
 const defaultLogger = new ConsoleLogger()
 let activeLogger: Logger = defaultLogger
 

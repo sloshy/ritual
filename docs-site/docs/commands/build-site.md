@@ -211,6 +211,20 @@ Deck pages include:
 - Sideboard always displayed in its own section at the bottom, ungrouped
 - Extras (maybeboard, tokens) displayed below sideboard, toggled via "Hide Extras" checkbox
 - Only printings with a listed price are considered for price analysis
+- **View Changes** button (when a changelog exists) opens a paginated modal showing the edit history
+
+## Change History
+
+When a deck or collection has a `.changes.md` changelog file (created by the admin editor when saving changes), its edit history is included in the generated site.
+
+- A **View Changes** button appears next to the download buttons in the page header
+- Clicking it opens a modal dialog showing paginated change entries, sorted most recent first
+- Each page shows one editing session with its timestamp and a list of additions, removals, and other changes
+- Prev/Next buttons allow paging through older and newer changes
+- Card names in the change list are clickable links that open the card detail modal
+- Hovering a card name shows a preview image of the card
+
+Cards referenced in changelogs that are no longer in the deck or collection are automatically resolved during the build so their card data is available for previews and modals.
 
 ## Serving the Site
 

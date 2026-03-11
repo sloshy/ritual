@@ -70,3 +70,10 @@ After writing tests, run them and fix compiler or linting issues before finishin
 ### Testing Strategy
 
 Always run `bun run test` after adding new code, so that it may be properly tested. Following running tests, format all code with `bun run format`.
+
+### Playwright Tests
+
+When writing a new feature for the public site or admin site, ensure there's a new Playwright test or an additional expectation for an existing, related test.
+Tests using the built site should always use synthetic data created for running the tests.
+Do not bother writing tests just to see if an element is visible, except for one or two basic smoke tests, or smoke testing inside of other behavior tests.
+Most playwright testing should be focused on state transitions, such as adding a card to a collection and seeing if it appears, or editing a deck and seeing if the changes persist.

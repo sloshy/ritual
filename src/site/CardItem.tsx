@@ -1,4 +1,5 @@
 import type { FunctionalComponent } from 'preact'
+import type { JSX } from 'preact'
 import type { ScryfallCard } from '../types'
 import { isDoubleFacedCard, resolveCardImageSources } from './image-sources'
 import { ManaCost } from './symbols'
@@ -6,6 +7,14 @@ import type { PriceCurrency } from '../price-currency'
 import { getCardPrice, formatPrice } from '../price-currency'
 import type { ViewMode } from './card-sorting'
 import { capitalize } from './utils'
+
+/** Wraps a callback with stopPropagation so click events don't bubble to the card container. */
+const stopPropAnd =
+  (fn?: () => void): JSX.MouseEventHandler<HTMLButtonElement> =>
+  (e) => {
+    e.stopPropagation()
+    fn?.()
+  }
 
 export interface CardItemProps {
   name: string
@@ -23,6 +32,10 @@ export interface CardItemProps {
   collectionSetCN?: string
   collectionPrice?: number
   currency?: PriceCurrency
+  editMode?: boolean
+  onIncrement?: () => void
+  onDecrement?: () => void
+  onContextMenu?: () => void
 }
 
 export const CardItem: FunctionalComponent<CardItemProps> = ({
@@ -41,6 +54,10 @@ export const CardItem: FunctionalComponent<CardItemProps> = ({
   collectionSetCN,
   collectionPrice,
   currency = 'usd',
+  editMode,
+  onIncrement,
+  onDecrement,
+  onContextMenu,
 }) => {
   if (!card) {
     return (
@@ -104,6 +121,31 @@ export const CardItem: FunctionalComponent<CardItemProps> = ({
         <div className={binderClass} onClick={onCardClick}>
           {frontImage && <img src={frontImage} alt={name} loading="lazy" />}
           {!hideCount && quantity > 1 && <span className="qty-badge">{quantity}x</span>}
+          {editMode && (
+            <div className="edit-overlay">
+              <button
+                className="edit-btn edit-btn-increment"
+                onClick={stopPropAnd(onIncrement)}
+                title="Add copy"
+              >
+                +
+              </button>
+              <button
+                className="edit-btn edit-btn-decrement"
+                onClick={stopPropAnd(onDecrement)}
+                title="Remove copy"
+              >
+                −
+              </button>
+              <button
+                className="edit-btn edit-btn-context"
+                onClick={stopPropAnd(onContextMenu)}
+                title="More options"
+              >
+                ⋯
+              </button>
+            </div>
+          )}
           <div className="card-label">
             <span className="card-label-name">
               {name}
@@ -134,6 +176,27 @@ export const CardItem: FunctionalComponent<CardItemProps> = ({
           <span className="list-mana">
             <ManaCost card={card} isDFC={isDFC} symbolMap={symbolMap} />
           </span>
+          {editMode && (
+            <span className="edit-controls-list">
+              <button className="edit-btn-list" onClick={stopPropAnd(onIncrement)} title="Add copy">
+                +
+              </button>
+              <button
+                className="edit-btn-list"
+                onClick={stopPropAnd(onDecrement)}
+                title="Remove copy"
+              >
+                −
+              </button>
+              <button
+                className="edit-btn-list"
+                onClick={stopPropAnd(onContextMenu)}
+                title="More options"
+              >
+                ⋯
+              </button>
+            </span>
+          )}
           {showPrice && <span className="list-price">{formatPrice(displayPrice, currency)}</span>}
         </div>
       )}
@@ -143,6 +206,31 @@ export const CardItem: FunctionalComponent<CardItemProps> = ({
         <div className="card-overlap" onClick={onCardClick}>
           {frontImage && <img src={frontImage} alt={name} loading="lazy" />}
           {!hideCount && quantity > 1 && <span className="qty-badge">{quantity}x</span>}
+          {editMode && (
+            <div className="edit-overlay">
+              <button
+                className="edit-btn edit-btn-increment"
+                onClick={stopPropAnd(onIncrement)}
+                title="Add copy"
+              >
+                +
+              </button>
+              <button
+                className="edit-btn edit-btn-decrement"
+                onClick={stopPropAnd(onDecrement)}
+                title="Remove copy"
+              >
+                −
+              </button>
+              <button
+                className="edit-btn edit-btn-context"
+                onClick={stopPropAnd(onContextMenu)}
+                title="More options"
+              >
+                ⋯
+              </button>
+            </div>
+          )}
           <div className="card-label">
             <span className="card-label-name">
               {name}

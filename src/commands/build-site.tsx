@@ -12,6 +12,8 @@ import {
 import { getBundledSiteAssets } from '../site/bundled-assets'
 import type { DeckData, ScryfallCard } from '../types'
 import { extractPrimerCardNames } from '../primer-parser'
+import { parseChangelog, extractChangelogCardNames } from '../changelog-parser'
+import type { ChangelogPage } from '../changelog-parser'
 import type {
   DeckSummary,
   DeckDetail,
@@ -232,11 +234,12 @@ export function registerBuildSiteCommand(program: Command) {
         }
       }
 
-      const loadedDecks: { data: DeckData }[] = []
+      const loadedDecks: { data: DeckData; changelog: ChangelogPage[] }[] = []
       const globalCardMap: Record<string, ScryfallCard | null> = {}
       const globalPrintingsMap: Record<string, ScryfallCard[]> = {}
       const allCardNames = new Set<string>()
       const primerCardNames = new Set<string>()
+      const changelogCardNames = new Set<string>()
 
       // Phase 1: Load Decks
       console.log('Loading decks...')
@@ -261,7 +264,20 @@ export function registerBuildSiteCommand(program: Command) {
         }
 
         if (deckData) {
-          loadedDecks.push({ data: deckData })
+          // Load changelog if it exists
+          let changelog: ChangelogPage[] = []
+          if (!source.startsWith('http')) {
+            const baseName = source.endsWith('.md') ? source.slice(0, -3) : source
+            const changelogPath = path.join(decksDir, `${baseName}.changes.md`)
+            try {
+              const changelogContent = await fs.readFile(changelogPath, 'utf-8')
+              changelog = parseChangelog(changelogContent)
+            } catch {
+              // No changelog file, that's fine
+            }
+          }
+
+          loadedDecks.push({ data: deckData, changelog })
           console.log(`  - Loaded ${deckData.name}`)
           // Collect deck card names
           deckData.sections.forEach((s) => s.cards.forEach((c) => allCardNames.add(c.name)))
@@ -271,6 +287,10 @@ export function registerBuildSiteCommand(program: Command) {
               primerCardNames.add(name)
             }
           }
+          // Collect card names referenced in the changelog
+          for (const name of extractChangelogCardNames(changelog)) {
+            changelogCardNames.add(name)
+          }
         }
       }
 
@@ -279,6 +299,12 @@ export function registerBuildSiteCommand(program: Command) {
 
       // Resolve primer card names to their canonical (proper-case) names via the cache index
       for (const name of primerCardNames) {
+        const canonical = await cardCache.resolveCardName(name.toLowerCase())
+        allCardNames.add(canonical ?? name)
+      }
+
+      // Resolve changelog card names (cards referenced in change history)
+      for (const name of changelogCardNames) {
         const canonical = await cardCache.resolveCardName(name.toLowerCase())
         allCardNames.add(canonical ?? name)
       }
@@ -487,7 +513,7 @@ export function registerBuildSiteCommand(program: Command) {
       const decksDataDir = path.join(distDir, 'decks')
       await fs.mkdir(decksDataDir, { recursive: true })
 
-      for (const { data: deckData } of loadedDecks) {
+      for (const { data: deckData, changelog } of loadedDecks) {
         // Find Featured Card
         let featured: ScryfallCard | null = null
         const commanderSection = deckData.sections.find(
@@ -597,6 +623,19 @@ export function registerBuildSiteCommand(program: Command) {
           }
         }
 
+        // Also include changelog-referenced cards so change history card links resolve at runtime
+        for (const name of extractChangelogCardNames(changelog)) {
+          const canonical = (await cardCache.resolveCardName(name.toLowerCase())) ?? name
+          if (!(canonical in deckCardMap)) {
+            deckCardMap[canonical] = globalCardMap[canonical] ?? null
+          }
+          if (!(canonical in deckPrintingsMap)) {
+            const actualName = deckCardMap[canonical]?.name ?? canonical
+            deckPrintingsMap[canonical] =
+              globalPrintingsMap[canonical] ?? globalPrintingsMap[actualName] ?? []
+          }
+        }
+
         // Collect missing cards for this deck
         const deckMissingCards: Partial<Record<PriceCurrency, string[]>> = {}
         for (const cur of availableCurrencies) {
@@ -623,6 +662,7 @@ export function registerBuildSiteCommand(program: Command) {
           availableCurrencies,
           missingCards: deckMissingCards,
           pricesDate,
+          changelog: changelog.length > 0 ? changelog : undefined,
         }
         await Bun.write(path.join(decksDataDir, `${safeName}.json`), JSON.stringify(deckDetail))
 
@@ -709,7 +749,9 @@ export function registerBuildSiteCommand(program: Command) {
         // No --collections flag or flag without names: build all collections found
         try {
           const files = await fs.readdir(collectionsDir)
-          collectionSources = files.filter((f) => f.endsWith('.md')).map((f) => f.slice(0, -3))
+          collectionSources = files
+            .filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))
+            .map((f) => f.slice(0, -3))
           if (collectionSources.length > 0) {
             console.log(
               `Found ${collectionSources.length} collections: ${collectionSources.join(', ')}`,
@@ -747,6 +789,17 @@ export function registerBuildSiteCommand(program: Command) {
         }
 
         const displayName = content.match(/^#\s+(.+)$/m)?.[1] || colName
+
+        // Load changelog if it exists
+        let collectionChangelog: ChangelogPage[] = []
+        const baseName = colName.endsWith('.md') ? colName.slice(0, -3) : colName
+        const changelogPath = path.join(collectionsDir, `${baseName}.changes.md`)
+        try {
+          const changelogContent = await fs.readFile(changelogPath, 'utf-8')
+          collectionChangelog = parseChangelog(changelogContent)
+        } catch {
+          // No changelog file
+        }
 
         // Resolve exact printings for each entry
         const collectionCardMap: Record<string, ScryfallCard | null> = {}
@@ -868,6 +921,25 @@ export function registerBuildSiteCommand(program: Command) {
         await Bun.write(path.join(distDir, exportCsvPath), csvLines.join('\n'))
 
         // Write collection detail JSON
+        // Include changelog-referenced cards in the card maps
+        for (const clName of extractChangelogCardNames(collectionChangelog)) {
+          const canonical = (await cardCache.resolveCardName(clName.toLowerCase())) ?? clName
+          if (!collectionCardMap[canonical]) {
+            // Find a representative card for this name
+            const printingsForCard = await getCardPrintings(canonical)
+            if (printingsForCard.length > 0) {
+              if (!collectionPrintingsMap[canonical]) {
+                collectionPrintingsMap[canonical] = printingsForCard
+              }
+              const sorted = [...printingsForCard].sort((a, b) =>
+                (b.released_at ?? '').localeCompare(a.released_at ?? ''),
+              )
+              const repPrints = computeRepresentativePrints(sorted, sorted, availableCurrencies)
+              collectionCardMap[canonical] = repPrints.usd?.representative ?? sorted[0]!
+            }
+          }
+        }
+
         const collectionDetailData: CollectionDetail = {
           name: displayName,
           entries: cardEntries,
@@ -880,6 +952,7 @@ export function registerBuildSiteCommand(program: Command) {
           exportMdPath,
           exportCsvPath,
           pricesDate,
+          changelog: collectionChangelog.length > 0 ? collectionChangelog : undefined,
         }
         await Bun.write(
           path.join(collectionsDataDir, `${safeName}.json`),

@@ -4,7 +4,11 @@ import { readdir } from 'node:fs/promises'
 import matter from 'gray-matter'
 
 export function isDeckFile(filename: string): boolean {
-  return filename.endsWith('.md') && !filename.endsWith('.primer.md')
+  return (
+    filename.endsWith('.md') &&
+    !filename.endsWith('.primer.md') &&
+    !filename.endsWith('.changes.md')
+  )
 }
 
 export async function listDeckFiles(decksDir: string): Promise<string[]> {
@@ -63,11 +67,17 @@ export async function importFromTextFile(filePath: string): Promise<DeckData> {
       continue
     }
 
-    const quantityMatch = trimmed.match(/^(\d+)[xX]?\s+(.+)$/)
+    const quantityMatch = trimmed.match(
+      /^(\d+)[xX]?\s+(.+?)(?:\s+\(([A-Za-z0-9_]+):([^)]+)\))?(?:\s+\[(nonfoil|foil|etched)\])?(?:\s+\[(NM|LP|MP|HP|DMG)\])?$/,
+    )
     if (quantityMatch?.[1] && quantityMatch?.[2]) {
       currentSection.cards.push({
         quantity: Number.parseInt(quantityMatch[1], 10),
         name: quantityMatch[2].trim(),
+        set: quantityMatch[3],
+        collectorNumber: quantityMatch[4],
+        finish: quantityMatch[5],
+        condition: quantityMatch[6],
       })
     }
   }

@@ -1,6 +1,10 @@
 export interface Card {
   quantity: number
   name: string
+  set?: string
+  collectorNumber?: string
+  finish?: string
+  condition?: string
 }
 
 export interface DeckSection {

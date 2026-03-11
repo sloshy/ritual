@@ -2,6 +2,7 @@ import type { FunctionalComponent } from 'preact'
 import { useState, useMemo, useCallback, useEffect } from 'preact/hooks'
 import { CardItem } from './CardItem'
 import type { DeckData, ScryfallCard } from '../types'
+import type { ChangelogPage } from '../changelog-parser'
 import { SymbolText } from './symbols'
 import type { PriceCurrency } from '../price-currency'
 import { getCardPrice, formatPrice } from '../price-currency'
@@ -14,6 +15,7 @@ import {
   CARD_SIZE_WIDTHS,
 } from './card-sorting'
 import { CardModal } from './CardModal'
+import { ChangelogModal } from './ChangelogModal'
 import { useTooltip } from './useTooltip'
 import { Toolbar } from './Toolbar'
 import { CardSection } from './CardSection'
@@ -27,7 +29,7 @@ const isExtraSection = (s: string): boolean => {
   return low.includes('maybeboard') || low.includes('token')
 }
 
-interface DeckPageProps {
+export interface DeckPageProps {
   deck: DeckData
   cards: Record<string, ScryfallCard | null>
   printings: Record<string, ScryfallCard[]>
@@ -45,6 +47,13 @@ interface DeckPageProps {
   slug: string
   primerOpen?: boolean
   sectionId?: string
+  editMode?: boolean
+  onAddCard?: () => void
+  onCardIncrement?: (cardName: string) => void
+  onCardDecrement?: (cardName: string) => void
+  onCardContextMenu?: (cardName: string, card: ScryfallCard | null) => void
+  unsavedChangeCount?: number
+  changelog?: ChangelogPage[]
 }
 
 export const DeckPage: FunctionalComponent<DeckPageProps> = ({
@@ -65,6 +74,13 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
   slug,
   primerOpen,
   sectionId,
+  editMode,
+  onAddCard,
+  onCardIncrement,
+  onCardDecrement,
+  onCardContextMenu,
+  unsavedChangeCount: _unsavedChangeCount,
+  changelog,
 }) => {
   const {
     viewMode,
@@ -86,6 +102,7 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
   const [copyStatus, setCopyStatus] = useState<string | null>(null)
   const [lowestPrice, setLowestPrice] = useState(false)
   const [missingCardsExpanded, setMissingCardsExpanded] = useState(false)
+  const [showChangelog, setShowChangelog] = useState(false)
 
   // Missing cards for current currency
   const currentMissingCards = useMemo(() => {
@@ -240,6 +257,10 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
       onTooltipEnter={(src, sideways) => setTooltip({ src, sideways })}
       onTooltipLeave={() => setTooltip(null)}
       currency={currency}
+      editMode={editMode}
+      onIncrement={editMode ? () => onCardIncrement?.(c.name) : undefined}
+      onDecrement={editMode ? () => onCardDecrement?.(c.name) : undefined}
+      onContextMenu={editMode ? () => onCardContextMenu?.(c.name, c.card) : undefined}
     />
   )
 
@@ -254,7 +275,7 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
   }, [modalCardName, modalCard, printings])
 
   return (
-    <div className="container mx-auto">
+    <div className={editMode ? 'w-full' : 'container mx-auto'}>
       {/* Header */}
       <div className="mb-6 flex flex-wrap justify-between items-start gap-4">
         <div>
@@ -286,21 +307,41 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
             </a>
           )}
         </div>
-        {exportPath && (
+        {(exportPath || editMode || (changelog && changelog.length > 0)) && (
           <div className="flex gap-2">
-            <a
-              href={exportPath}
-              download={`${deck.name.replace(/[^a-zA-Z0-9]/g, '_')}.txt`}
-              className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs font-semibold transition-colors"
-            >
-              Download
-            </a>
-            <button
-              onClick={handleCopy}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-semibold transition-colors cursor-pointer"
-            >
-              {copyStatus ?? 'Copy'}
-            </button>
+            {editMode && (
+              <button
+                className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-xs font-semibold transition-colors cursor-pointer"
+                onClick={onAddCard}
+              >
+                + Add Card
+              </button>
+            )}
+            {changelog && changelog.length > 0 && (
+              <button
+                onClick={() => setShowChangelog(true)}
+                className="btn-view-changes px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs font-semibold transition-colors cursor-pointer"
+              >
+                View Changes
+              </button>
+            )}
+            {exportPath && (
+              <a
+                href={exportPath}
+                download={`${deck.name.replace(/[^a-zA-Z0-9]/g, '_')}.txt`}
+                className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs font-semibold transition-colors"
+              >
+                Download
+              </a>
+            )}
+            {exportPath && (
+              <button
+                onClick={handleCopy}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-semibold transition-colors cursor-pointer"
+              >
+                {copyStatus ?? 'Copy'}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -491,6 +532,20 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
         printings={modalPrintings}
         onClose={onCloseModal}
       />
+
+      {/* Changelog modal */}
+      {changelog && changelog.length > 0 && (
+        <ChangelogModal
+          open={showChangelog}
+          changelog={changelog}
+          cards={cards}
+          printings={printings}
+          symbolMap={symbolMap}
+          useScryfallImgUrls={useScryfallImgUrls}
+          currency={currency}
+          onClose={() => setShowChangelog(false)}
+        />
+      )}
     </div>
   )
 }

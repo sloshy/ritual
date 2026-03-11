@@ -22,6 +22,7 @@ import { registerScryCommand } from './src/commands/scry'
 import { registerCardCommand } from './src/commands/card'
 import { registerRandomCommand } from './src/commands/random'
 import { registerGetPrimerCommand } from './src/commands/get-primer'
+import { registerAdminCommand } from './src/commands/admin'
 import {
   resolveCacheServerAddress,
   setCacheServerAddressOverride,
@@ -64,5 +65,6 @@ registerScryCommand(program)
 registerCardCommand(program)
 registerRandomCommand(program)
 registerGetPrimerCommand(program)
+registerAdminCommand(program)
 
 program.parse()

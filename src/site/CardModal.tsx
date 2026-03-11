@@ -25,6 +25,7 @@ interface CardModalProps {
   onClose: () => void
   meta?: CardModalMetaEntry[]
   note?: string
+  backdropClass?: string
 }
 
 export const CardModal: FunctionalComponent<CardModalProps> = ({
@@ -38,6 +39,7 @@ export const CardModal: FunctionalComponent<CardModalProps> = ({
   onClose,
   meta,
   note,
+  backdropClass,
 }) => {
   const [showingBack, setShowingBack] = useState(false)
   const [showPrintings, setShowPrintings] = useState(false)
@@ -213,7 +215,7 @@ export const CardModal: FunctionalComponent<CardModalProps> = ({
 
   return (
     <div
-      className={`card-modal-backdrop ${open ? 'open' : ''}`}
+      className={`card-modal-backdrop ${open ? 'open' : ''}${backdropClass ? ` ${backdropClass}` : ''}`}
       role="dialog"
       aria-modal="true"
       aria-label={`Card details: ${card?.name ?? cardName ?? 'Card'}`}

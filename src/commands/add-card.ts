@@ -1,9 +1,8 @@
 import { Command } from 'commander'
 import path from 'node:path'
-import * as fs from 'node:fs/promises'
 import { searchCards } from '../scryfall'
-import * as readline from 'node:readline'
-import { listDeckFiles } from '../importers/text-file'
+import { createInterface } from 'node:readline/promises'
+import { resolveDeckFilePath, addCardToDeckFile } from '../deck-file'
 
 export function registerAddCardCommand(program: Command) {
   program
@@ -16,27 +15,19 @@ export function registerAddCardCommand(program: Command) {
       const cardName = cardNameParts.join(' ')
       const decksDir = path.join(process.cwd(), 'decks')
 
-      const quantity = parseInt(options.quantity, 10)
-      if (isNaN(quantity) || quantity <= 0) {
+      const quantity = Number.parseInt(options.quantity, 10)
+      if (Number.isNaN(quantity) || quantity <= 0) {
         console.error('Quantity must be a positive integer')
         process.exit(1)
       }
 
-      let deckFileName = deckName.endsWith('.md') ? deckName : `${deckName}.md`
-      let deckFilePath = path.join(decksDir, deckFileName)
-
-      if (!(await Bun.file(deckFilePath).exists())) {
-        const files = await listDeckFiles(decksDir)
-        const match = files.find((f) => f.toLowerCase().includes(deckName.toLowerCase()))
-        if (match) {
-          deckFileName = match
-          deckFilePath = path.join(decksDir, match)
-          console.log(`Found deck file: ${match}`)
-        } else {
-          console.error(`Deck file not found for '${deckName}'`)
-          process.exit(1)
-        }
+      const deckFilePath = await resolveDeckFilePath(decksDir, deckName)
+      if (!deckFilePath) {
+        console.error(`Deck file not found for '${deckName}'`)
+        process.exit(1)
       }
+      const deckFileName = path.basename(deckFilePath)
+      console.log(`Found deck file: ${deckFileName}`)
 
       console.log(`Searching for '${cardName}'...`)
       const results = await searchCards(cardName)
@@ -56,7 +47,7 @@ export function registerAddCardCommand(program: Command) {
         results.forEach((c, i) => console.log(`${i + 1}. ${c.name}`))
 
         const answer = await promptUser('Select a card (1-3) or return to cancel: ')
-        const index = parseInt(answer) - 1
+        const index = Number.parseInt(answer, 10) - 1
         const selection = results[index]
         if (selection) {
           selectedName = selection.name
@@ -66,7 +57,7 @@ export function registerAddCardCommand(program: Command) {
         }
       } else {
         // More than 3
-        const terminalHeight = process.stdout.rows || 20
+        const terminalHeight = process.stdout.rows ?? 20
         const limit = Math.max(5, terminalHeight - 5) // Leave room for prompt
         const displayList = results.slice(0, limit)
 
@@ -76,7 +67,7 @@ export function registerAddCardCommand(program: Command) {
         const answer = await promptUser(
           `Select a card (1-${displayList.length}) or return to cancel: `,
         )
-        const index = parseInt(answer) - 1
+        const index = Number.parseInt(answer, 10) - 1
         const selection = displayList[index]
         if (selection) {
           selectedName = selection.name
@@ -92,19 +83,7 @@ export function registerAddCardCommand(program: Command) {
       }
 
       try {
-        const fileContent = await fs.readFile(deckFilePath, 'utf-8')
-        const lines = fileContent.split('\n')
-        let mainIndex = lines.findIndex((l) => l.trim() === '## Main')
-        if (mainIndex === -1) {
-          // If not found, create it at end
-          lines.push('')
-          lines.push('## Main')
-          mainIndex = lines.length - 1
-        }
-
-        lines.splice(mainIndex + 1, 0, `${quantity} ${selectedName}`)
-
-        await fs.writeFile(deckFilePath, lines.join('\n'))
+        await addCardToDeckFile(deckFilePath, { quantity, name: selectedName })
         console.log(`Added '${quantity} ${selectedName}' to ${deckFileName}`)
       } catch (e) {
         console.error('Failed to update deck file:', e)
@@ -112,15 +91,14 @@ export function registerAddCardCommand(program: Command) {
     })
 }
 
-function promptUser(question: string): Promise<string> {
-  const rl = readline.createInterface({
+async function promptUser(question: string): Promise<string> {
+  const rl = createInterface({
     input: process.stdin,
     output: process.stdout,
   })
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close()
-      resolve(answer)
-    })
-  })
+  try {
+    return await rl.question(question)
+  } finally {
+    rl.close()
+  }
 }
