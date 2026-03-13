@@ -58,3 +58,6 @@ install_dev.sh
 test-results/
 playwright-report/
 .playwright-cli/
+
+# Dev files
+*.js.map
