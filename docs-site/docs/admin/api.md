@@ -6,7 +6,7 @@ sidebar_position: 3
 
 The admin site exposes these API endpoints for deck and collection editing. All endpoints require authentication.
 
-For general admin API endpoints (authentication, config, audit log, etc.), see the [admin command reference](/docs/commands/admin#http-api-reference).
+For general admin API endpoints (authentication, config, audit log, etc.), see the [admin command reference](/commands/admin#http-api-reference).
 
 ## Create Deck
 
