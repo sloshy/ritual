@@ -76,5 +76,6 @@ export async function addCardToDeckFile(filePath: string, card: Card): Promise<v
     mainIndex = lines.length - 1
   }
   lines.splice(mainIndex + 1, 0, serializeCardLine(card))
-  await fs.writeFile(filePath, lines.join('\n'))
+  const content = lines.join('\n')
+  await fs.writeFile(filePath, content.endsWith('\n') ? content : content + '\n')
 }
