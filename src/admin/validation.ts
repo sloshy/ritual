@@ -13,6 +13,3 @@ export const MAX_PASSWORD_LENGTH = 128
 
 /** Minimum length for a password field. */
 export const MIN_PASSWORD_LENGTH = 8
-
-/** Maximum length for a TOTP code field. */
-export const MAX_TOTP_LENGTH = 6

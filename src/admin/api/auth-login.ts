@@ -9,12 +9,7 @@ import {
 import { appendAuditLog, createAuditEntry } from '../audit-log'
 import { loadConfig } from '../config'
 import { globalRateLimiter } from '../rate-limit'
-import {
-  MAX_BODY_SIZE,
-  MAX_USERNAME_LENGTH,
-  MAX_PASSWORD_LENGTH,
-  MAX_TOTP_LENGTH,
-} from '../validation'
+import { MAX_BODY_SIZE, MAX_USERNAME_LENGTH, MAX_PASSWORD_LENGTH } from '../validation'
 
 interface LoginRequest {
   username: string
@@ -72,7 +67,7 @@ export async function handleLogin(req: Request, clientIp: string): Promise<Respo
   if (
     username.length > MAX_USERNAME_LENGTH ||
     password.length > MAX_PASSWORD_LENGTH ||
-    (totpCode && totpCode.length > MAX_TOTP_LENGTH)
+    (totpCode && (totpCode.length !== 6 || !/^\d{6}$/.test(totpCode)))
   ) {
     return Response.json(
       { success: false, message: 'Input exceeds maximum length' },
