@@ -98,7 +98,7 @@ export const ChangelogModal: FunctionalComponent<ChangelogModalProps> = ({
   const formattedTimestamp = useMemo(() => {
     if (!currentPage) return ''
     try {
-      return new Date(currentPage.timestamp).toLocaleDateString(undefined, {
+      return new Date(currentPage.timestamp).toLocaleString(undefined, {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
