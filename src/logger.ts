@@ -94,6 +94,7 @@ export class StreamingLogger implements Logger {
 
   error(message?: unknown, ...optionalParams: unknown[]): void {
     this.mirrorTo?.error(message, ...optionalParams)
+    this.onEvent({ stage: 'info', message: `Error: ${String(message ?? '')}` })
   }
 
   progress(message: string): void {
