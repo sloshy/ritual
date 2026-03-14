@@ -39,6 +39,8 @@ interface CacheServerStreamEntry<T> {
   updated: boolean
 }
 
+const MAX_SSE_BUFFER_SIZE = 10 * 1024 * 1024 // 10MB
+
 export class HttpCacheManager<K extends CacheSection> implements CacheManager<DataType<K>> {
   constructor(
     private baseUrl: string,
@@ -136,10 +138,15 @@ export class HttpCacheManager<K extends CacheSection> implements CacheManager<Da
       }
       if (eventType !== 'price') return
 
-      const payload = JSON.parse(data) as CacheServerStreamEntry<DataType<K> | null>
-      if (payload.value === null) return
-      results[payload.key] = payload.value
-      onEntry(payload.key, payload.value, { updated: payload.updated })
+      try {
+        const payload = JSON.parse(data) as CacheServerStreamEntry<DataType<K> | null>
+        if (payload.value === null) return
+        results[payload.key] = payload.value
+        onEntry(payload.key, payload.value, { updated: payload.updated })
+      } catch {
+        // Skip malformed SSE events
+        return
+      }
     }
 
     const processBuffer = (flush: boolean) => {
@@ -162,6 +169,9 @@ export class HttpCacheManager<K extends CacheSection> implements CacheManager<Da
       const { value, done } = await reader.read()
       if (done) break
       buffer += decoder.decode(value, { stream: true })
+      if (buffer.length > MAX_SSE_BUFFER_SIZE) {
+        throw new Error('Cache server stream buffer exceeded maximum size')
+      }
       processBuffer(false)
     }
     buffer += decoder.decode()
