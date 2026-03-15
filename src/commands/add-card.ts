@@ -87,6 +87,7 @@ export function registerAddCardCommand(program: Command) {
         console.log(`Added '${quantity} ${selectedName}' to ${deckFileName}`)
       } catch (e) {
         console.error('Failed to update deck file:', e)
+process.exit(1)
       }
     })
 }

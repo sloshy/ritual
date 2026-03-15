@@ -41,6 +41,7 @@ tags: []
         console.log(`Created new deck: ${filePath}`)
       } catch (error) {
         console.error('Failed to create deck:', error)
+        process.exit(1)
       }
     })
 }
