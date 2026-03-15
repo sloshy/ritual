@@ -107,8 +107,8 @@ export async function saveDeck(
   // Helper to read simple frontmatter without heavy parser
   const readFrontmatter = async (fPath: string): Promise<DeckFileFrontmatter> => {
     const content = await Bun.file(fPath).text()
-    const match = content.match(/^sourceId:\s*"?([^\s"]+)"?/m)
-    return match ? { sourceId: match[1] } : {}
+    const match = content.match(/^sourceId:\s*(?:"([^"]*)"|(\S+))/m)
+    return match ? { sourceId: match[1] ?? match[2] } : {}
   }
 
   if (deckData.sourceId) {
