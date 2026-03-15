@@ -47,14 +47,13 @@ export function registerAddCardCommand(program: Command) {
         results.forEach((c, i) => console.log(`${i + 1}. ${c.name}`))
 
         const answer = await promptUser('Select a card (1-3) or return to cancel: ')
-        const index = Number.parseInt(answer, 10) - 1
-        const selection = results[index]
-        if (selection) {
-          selectedName = selection.name
-        } else {
+        const parsed = Number.parseInt(answer, 10)
+        if (Number.isNaN(parsed) || parsed < 1 || parsed > results.length) {
           console.log('Cancelled.')
           process.exit(0)
         }
+        const selection = results[parsed - 1]!
+        selectedName = selection.name
       } else {
         // More than 3
         const terminalHeight = process.stdout.rows ?? 20
@@ -67,14 +66,13 @@ export function registerAddCardCommand(program: Command) {
         const answer = await promptUser(
           `Select a card (1-${displayList.length}) or return to cancel: `,
         )
-        const index = Number.parseInt(answer, 10) - 1
-        const selection = displayList[index]
-        if (selection) {
-          selectedName = selection.name
-        } else {
+        const parsed = Number.parseInt(answer, 10)
+        if (Number.isNaN(parsed) || parsed < 1 || parsed > displayList.length) {
           console.log('Cancelled.')
           process.exit(0)
         }
+        const selection = displayList[parsed - 1]!
+        selectedName = selection.name
       }
 
       if (!selectedName) {
@@ -87,7 +85,7 @@ export function registerAddCardCommand(program: Command) {
         console.log(`Added '${quantity} ${selectedName}' to ${deckFileName}`)
       } catch (e) {
         console.error('Failed to update deck file:', e)
-process.exit(1)
+        process.exit(1)
       }
     })
 }
