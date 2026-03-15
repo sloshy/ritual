@@ -29,6 +29,7 @@ export function useSiteData(): UseSiteDataResult {
     void (async () => {
       try {
         const response = await fetch('index.json', { signal: controller.signal })
+        if (!response.ok) throw new Error(`Failed to load site data: HTTP ${response.status}`)
         const data = (await response.json()) as SiteIndex
         setDeckList(data.decks)
         setCollectionList(data.collections ?? [])
