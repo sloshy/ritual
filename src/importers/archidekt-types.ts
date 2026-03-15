@@ -38,7 +38,7 @@ export function parseArchidektDeckResponse(json: ArchidektDeckResponse, deckId: 
   if (json.cards && Array.isArray(json.cards)) {
     for (const entry of json.cards) {
       const cardName = entry.card?.oracleCard?.name || entry.card?.name
-      const quantity = entry.quantity || 1
+      const quantity = entry.quantity ?? 1
 
       if (!cardName) continue
 
