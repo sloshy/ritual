@@ -23,6 +23,7 @@ import {
 } from './card-utils'
 
 const RATE_LIMIT_MS = 100
+const SCRYFALL_CARDS_PER_PAGE = 175
 
 class RequestQueue {
   private readonly queue: Array<() => Promise<void>> = []
@@ -226,7 +227,7 @@ export class ScryfallClient implements PricingBackend {
     }
 
     // Apply rate limiting to avoid server load, even for static resources
-    await Bun.sleep(50)
+    await Bun.sleep(RATE_LIMIT_MS)
 
     const response = await this.http.fetch(symbol.svg_uri)
     if (!response.ok) throw new Error(`Failed to download symbol ${symbol.symbol}`)
@@ -477,7 +478,7 @@ export class ScryfallClient implements PricingBackend {
         }
       }
 
-      await Bun.sleep(50)
+      await Bun.sleep(RATE_LIMIT_MS)
     }
 
     return results
@@ -500,7 +501,9 @@ export class ScryfallClient implements PricingBackend {
         const nonTokens = allCards.filter((c) => !isArenaOnly(c) && !isToken(c))
         const mapped = nonTokens.map((c) => mapScryfallCard(c))
         if (mapped.length > 0) {
-          this.cardCache.set(name, mapped).catch(() => {})
+          this.cardCache.set(name, mapped).catch((e) => {
+            getLogger().warn(`Failed to cache printings for '${name}':`, e)
+          })
         }
         const nonTokenFirstPage = firstPageCards.filter((c) => !isToken(c))
         resolve(computeRepresentativePrints(nonTokenFirstPage, nonTokens, currencies))
@@ -647,7 +650,7 @@ export class ScryfallClient implements PricingBackend {
     if (format === 'csv') {
       const text = await response.text()
       const lineCount = text.trim().split('\n').length
-      const hasMore = lineCount >= 176
+      const hasMore = lineCount >= SCRYFALL_CARDS_PER_PAGE + 1
 
       return { data: null, raw: text, hasMore }
     } else {

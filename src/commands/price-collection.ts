@@ -263,7 +263,7 @@ export function registerPriceCollectionCommand(program: Command) {
         if (sortField === 'name') {
           pricedCards.sort((a, b) => a.name.localeCompare(b.name))
         } else if (sortField === 'price') {
-          pricedCards.sort((a, b) => a.price - b.price)
+          pricedCards.sort((a, b) => a.price - b.price || a.name.localeCompare(b.name))
         }
 
         if (descending) {

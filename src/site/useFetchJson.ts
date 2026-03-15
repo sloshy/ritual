@@ -25,6 +25,7 @@ export function useFetchJson<T>(url: string | null): UseFetchJsonResult<T> {
     void (async () => {
       try {
         const response = await fetch(url, { signal: controller.signal })
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
         const json = (await response.json()) as T
         setData(json)
         setLoading(false)
