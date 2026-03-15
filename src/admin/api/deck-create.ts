@@ -2,6 +2,8 @@ import path from 'node:path'
 import { loadConfig } from '../config'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { getErrorMessage } from '../../errors'
+import { isPathWithinDir } from '../../path-validation'
+import { MAX_BODY_SIZE } from '../validation'
 
 interface DeckCreateRequest {
   name: string
@@ -16,6 +18,10 @@ interface DeckCreateResponse {
 
 export async function handleDeckCreate(req: Request): Promise<Response> {
   try {
+    const contentLength = Number(req.headers.get('Content-Length') ?? '0')
+    if (contentLength > MAX_BODY_SIZE) {
+      return Response.json({ success: false, message: 'Request body too large' }, { status: 413 })
+    }
     const body = (await req.json()) as DeckCreateRequest
     const { name, format = 'commander' } = body
 
@@ -40,6 +46,11 @@ export async function handleDeckCreate(req: Request): Promise<Response> {
 
     const decksDir = path.join(process.cwd(), 'decks')
     const filePath = path.join(decksDir, `${slug}.md`)
+
+    if (!isPathWithinDir(filePath, decksDir)) {
+      const resp: DeckCreateResponse = { success: false, message: 'Invalid deck name' }
+      return Response.json(resp, { status: 400 })
+    }
 
     if (await Bun.file(filePath).exists()) {
       const resp: DeckCreateResponse = {

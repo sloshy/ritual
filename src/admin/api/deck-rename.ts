@@ -4,6 +4,7 @@ import { resolveDeckFilePath, parseDeckFrontMatter } from '../../deck-file'
 import { loadConfig } from '../config'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { getErrorMessage } from '../../errors'
+import { MAX_BODY_SIZE } from '../validation'
 
 interface DeckRenameRequest {
   newName: string
@@ -26,6 +27,10 @@ export async function handleDeckRename(req: Request): Promise<Response> {
       return Response.json(resp, { status: 400 })
     }
 
+    const contentLength = Number(req.headers.get('Content-Length') ?? '0')
+    if (contentLength > MAX_BODY_SIZE) {
+      return Response.json({ success: false, message: 'Request body too large' }, { status: 413 })
+    }
     const body = (await req.json()) as DeckRenameRequest
     const { newName } = body
 

@@ -1,6 +1,7 @@
 import { isTotpEnabled, getTotpSecret, setTotpSecret, getAdminUsername } from '../auth'
 import { generateTotpSecret, verifyTotp, buildTotpUri } from '../totp'
 import { apiHandler } from '../utils'
+import { MAX_BODY_SIZE } from '../validation'
 
 interface TotpSetupResponse {
   success: boolean
@@ -42,6 +43,10 @@ interface TotpVerifySetupResponse {
 
 export function handleTotpVerifySetup(req: Request): Promise<Response> {
   return apiHandler(async () => {
+    const contentLength = Number(req.headers.get('Content-Length') ?? '0')
+    if (contentLength > MAX_BODY_SIZE) {
+      return Response.json({ success: false, message: 'Request body too large' }, { status: 413 })
+    }
     const body = (await req.json()) as TotpVerifySetupRequest
     const { code } = body
 

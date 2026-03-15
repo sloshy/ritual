@@ -106,12 +106,13 @@ describe('StreamingLogger', () => {
     expect(events[0]!.message).toBe('Warning: Something unexpected happened')
   })
 
-  test('error does not emit events', () => {
+  test('error emits events', () => {
     const events = collect((logger) => {
       logger.error('Failed to fetch')
     })
 
-    expect(events).toHaveLength(0)
+    expect(events).toHaveLength(1)
+    expect(events[0]).toEqual({ stage: 'info', message: 'Error: Failed to fetch' })
   })
 
   test('mirrors to secondary logger', () => {
@@ -135,7 +136,7 @@ describe('StreamingLogger', () => {
       'progress:\rDownloading: 50% (125.00/250.00 MiB)',
       'error:oops',
     ])
-    expect(events).toHaveLength(2)
+    expect(events).toHaveLength(3)
   })
 
   test('full cache refresh lifecycle produces correct stage sequence', () => {

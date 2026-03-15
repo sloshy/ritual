@@ -3,6 +3,8 @@ import fs from 'node:fs/promises'
 import { loadConfig } from '../config'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { getErrorMessage } from '../../errors'
+import { isPathWithinDir } from '../../path-validation'
+import { MAX_BODY_SIZE } from '../validation'
 import type { CollectionCardEntry } from '../../site/data-types'
 import type { ChangeEvent } from '../site/types/deck-changes'
 
@@ -40,6 +42,10 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
 
     const slug = decodeURIComponent(rawSlug)
 
+    const contentLength = Number(req.headers.get('Content-Length') ?? '0')
+    if (contentLength > MAX_BODY_SIZE) {
+      return Response.json({ success: false, message: 'Request body too large' }, { status: 413 })
+    }
     const body = (await req.json()) as CollectionSaveRequest
     const { changes, entries } = body
 
@@ -52,6 +58,9 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
 
     const collectionsDir = path.join(process.cwd(), 'collections')
     const filePath = path.join(collectionsDir, slug + '.md')
+    if (!isPathWithinDir(filePath, collectionsDir)) {
+      return Response.json({ success: false, message: 'Invalid collection slug' }, { status: 400 })
+    }
     const file = Bun.file(filePath)
 
     if (!(await file.exists())) {

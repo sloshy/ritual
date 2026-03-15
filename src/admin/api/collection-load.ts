@@ -5,6 +5,7 @@ import { fetchCardData, fetchSymbology, getCardPrintings } from '../../scryfall'
 import { computeRepresentativePrints } from '../../scryfall/client'
 import { getErrorMessage } from '../../errors'
 import { extractChangelogCardNames, parseChangelog } from '../../changelog-parser'
+import { isPathWithinDir } from '../../path-validation'
 import type { ScryfallCard } from '../../types'
 import type { PriceCurrency } from '../../price-currency'
 
@@ -26,6 +27,9 @@ export async function handleCollectionLoad(req: Request): Promise<Response> {
     const slug = decodeURIComponent(rawSlug)
     const collectionsDir = path.join(process.cwd(), 'collections')
     const filePath = path.join(collectionsDir, slug + '.md')
+    if (!isPathWithinDir(filePath, collectionsDir)) {
+      return Response.json({ success: false, message: 'Invalid collection slug' }, { status: 400 })
+    }
     const file = Bun.file(filePath)
 
     if (!(await file.exists())) {

@@ -4,6 +4,7 @@ import { resolveDeckFilePath, serializeDeckToMarkdown } from '../../deck-file'
 import { loadConfig } from '../config'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { getErrorMessage } from '../../errors'
+import { MAX_BODY_SIZE } from '../validation'
 import type { DeckData } from '../../types'
 import type { ChangeEvent } from '../site/types/deck-changes'
 
@@ -23,6 +24,10 @@ export async function handleDeckSave(req: Request): Promise<Response> {
       return Response.json({ success: false, message: 'Deck slug is required' }, { status: 400 })
     }
 
+    const contentLength = Number(req.headers.get('Content-Length') ?? '0')
+    if (contentLength > MAX_BODY_SIZE) {
+      return Response.json({ success: false, message: 'Request body too large' }, { status: 413 })
+    }
     const body = (await req.json()) as DeckSaveRequest
     const { changes, deck, frontMatter } = body
 

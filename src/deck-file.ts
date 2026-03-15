@@ -3,11 +3,12 @@ import path from 'node:path'
 import matter from 'gray-matter'
 import { type Card, type DeckData } from './types'
 import { listDeckFiles } from './importers/text-file'
+import { isPathWithinDir } from './path-validation'
 
 /**
  * Resolve a deck name to its file path. Tries exact match first,
  * then tries with .md extension, then case-insensitive match.
- * Returns null if not found.
+ * Returns null if not found or if the resolved path escapes the decks directory.
  */
 export async function resolveDeckFilePath(
   decksDir: string,
@@ -16,11 +17,19 @@ export async function resolveDeckFilePath(
   const deckFileName = deckName.endsWith('.md') ? deckName : `${deckName}.md`
   const deckFilePath = path.join(decksDir, deckFileName)
 
+  if (!isPathWithinDir(deckFilePath, decksDir)) {
+    return null
+  }
+
   if (await Bun.file(deckFilePath).exists()) {
     return deckFilePath
   }
 
   const files = await listDeckFiles(decksDir)
+  const deckFileNameLower = deckFileName.toLowerCase()
+  const exactMatch = files.find((f) => f.toLowerCase() === deckFileNameLower)
+  if (exactMatch) return path.join(decksDir, exactMatch)
+
   const match = files.find((f) => f.toLowerCase().includes(deckName.toLowerCase()))
   return match ? path.join(decksDir, match) : null
 }
