@@ -215,7 +215,7 @@ export const CardSearchModal: FunctionalComponent<CardSearchModalProps> = ({
   const selectPrinting = useCallback(
     (printing: ScryfallCard | null) => {
       if (!printing) {
-        const cheapest = getCheapestPrinting(printings)
+        const cheapest = printings.length > 0 ? getCheapestPrinting(printings) : undefined
         onAddCard(selectedCardName, undefined, cheapest, printings)
         onClose()
         return
