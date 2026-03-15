@@ -21,13 +21,10 @@ export async function resolveCardCacheReadThrough(
   const card = await scryfallClient.fetchCardData(key, { silent: true })
   if (!card) return null
 
-  const refreshed = await cache.get(key)
-  if (refreshed) {
-    onCacheUpdate(`section=cards action=read-through-fill key='${key}'`)
-    return refreshed
-  }
+  const cards = [card]
+  await cache.set(key, cards)
   onCacheUpdate(`section=cards action=read-through-fill key='${key}'`)
-  return [card]
+  return cards
 }
 
 export async function refreshPriceCacheEntry(
