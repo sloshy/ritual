@@ -2,14 +2,14 @@
 sidebar_position: 9
 ---
 
-# price
+# price-deck
 
 Get pricing information for a deck.
 
 ## Usage
 
 ```bash
-./ritual price <deckName> [options]
+./ritual price-deck <deckName> [options]
 ```
 
 ## Arguments
@@ -34,37 +34,37 @@ Get pricing information for a deck.
 Get pricing for main deck only:
 
 ```bash
-./ritual price "Atraxa Superfriends"
+./ritual price-deck "Atraxa Superfriends"
 ```
 
 Include sideboard cards:
 
 ```bash
-./ritual price "Mono Red Aggro" --with-sideboard
+./ritual price-deck "Mono Red Aggro" --with-sideboard
 ```
 
 Include all sections:
 
 ```bash
-./ritual price "Atraxa Superfriends" --all
+./ritual price-deck "Atraxa Superfriends" --all
 ```
 
 Output machine-readable JSON:
 
 ```bash
-./ritual price "Atraxa Superfriends" --output json
+./ritual price-deck "Atraxa Superfriends" --output json
 ```
 
 Show EUR (Cardmarket) prices:
 
 ```bash
-./ritual price "Atraxa Superfriends" --prices eur
+./ritual price-deck "Atraxa Superfriends" --prices eur
 ```
 
 Show MTGO tix prices:
 
 ```bash
-./ritual price "Mono Red Aggro" --prices tix
+./ritual price-deck "Mono Red Aggro" --prices tix
 ```
 
 ## Output

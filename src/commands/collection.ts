@@ -12,6 +12,9 @@ import {
   promptConfigUpdate,
   manageSetCodes,
   replaceLastLine,
+  ensureCollectionFile,
+  isFinish,
+  isCondition,
 } from './collection-helpers'
 
 export function registerCollectionCommand(program: Command) {
@@ -45,9 +48,7 @@ export function registerCollectionCommand(program: Command) {
 
       // Ensure collections directory exists
       const collectionsDir = path.join(process.cwd(), 'collections')
-      if (!(await Bun.file(collectionsDir).exists())) {
-        await fs.mkdir(collectionsDir, { recursive: true })
-      }
+      await fs.mkdir(collectionsDir, { recursive: true })
 
       // List existing collections
       const files = await fs.readdir(collectionsDir)
@@ -86,23 +87,12 @@ export function registerCollectionCommand(program: Command) {
         selectedCollection = selectionResponse.collection
       }
 
-      const collectionFile = path.join(collectionsDir, `${selectedCollection}.md`)
-
-      // Ensure file exists with header if new
-      if (!(await Bun.file(collectionFile).exists())) {
-        await fs.writeFile(collectionFile, `# ${selectedCollection}\n\n`)
-        console.log(`Created new collection file: ${selectedCollection}.md`)
-      } else {
-        console.log(`Using collection file: ${selectedCollection}.md`)
-      }
-
-      const validFinishes = ['nonfoil', 'foil', 'etched']
-      const validConditions = ['NM', 'LP', 'MP', 'HP', 'DMG']
+      const collectionFile = await ensureCollectionFile(selectedCollection)
 
       const sessionConfig: SessionConfig = {
         sets: parsedSets,
-        finish: validFinishes.includes(options.finish) ? options.finish : undefined,
-        condition: validConditions.includes(options.condition?.toUpperCase())
+        finish: isFinish(options.finish) ? options.finish : undefined,
+        condition: isCondition(options.condition?.toUpperCase())
           ? options.condition.toUpperCase()
           : undefined,
         entryMode: options.collector ? 'collector' : 'name',

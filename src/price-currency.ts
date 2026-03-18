@@ -1,6 +1,6 @@
 export type PriceCurrency = 'usd' | 'eur' | 'tix'
 
-import type { ScryfallCard } from './types'
+import type { ScryfallCard, ErrorCode } from './types'
 import { getErrorMessage } from './errors'
 
 export function parsePriceCurrencyFlag(input: string | undefined): PriceCurrency {
@@ -110,7 +110,7 @@ export function isCurrencyAvailableForCard(games: string[], currency: PriceCurre
  */
 export function parseCurrencyFlagOrError<T>(
   input: string | undefined,
-  emitError: (type: string, message: string, options: T) => void,
+  emitError: (code: ErrorCode, message: string, options: T) => void,
   scriptingOptions: T,
   exitCode: number,
 ): PriceCurrency | null {

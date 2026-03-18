@@ -144,38 +144,42 @@ export async function saveDeck(
       )
     }
 
-    const rl = createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    })
-
-    const question = (q: string) => new Promise<string>((resolve) => rl.question(q, resolve))
-
     if (conflictReason === 'id') {
       getLogger().info(`\nDeck already exists (ID Match): ${conflictFile}`)
     } else {
       getLogger().info(`\nFile already exists (Name Conflict): ${conflictFile}`)
     }
 
-    let response = ''
-    while (!['o', 'r', 'c'].includes(response)) {
-      response = (await question('Action: [O]verwrite, [R]ename, [C]ancel? ')).toLowerCase()
-    }
+    const rl = createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    })
 
-    rl.close()
+    let response = ''
+    try {
+      const question = (q: string) => new Promise<string>((resolve) => rl.question(q, resolve))
+      while (!['o', 'r', 'c'].includes(response)) {
+        response = (await question('Action: [O]verwrite, [R]ename, [C]ancel? ')).toLowerCase()
+      }
+    } finally {
+      rl.close()
+    }
 
     if (response === 'c') {
       getLogger().info('Import cancelled.')
       return
     } else if (response === 'r') {
       const rl2 = createInterface({ input: process.stdin, output: process.stdout })
-      const q2 = (q: string) => new Promise<string>((resolve) => rl2.question(q, resolve))
 
       let newName = ''
-      while (!newName) {
-        newName = await q2('Enter new filename (without .md): ')
+      try {
+        const q2 = (q: string) => new Promise<string>((resolve) => rl2.question(q, resolve))
+        while (!newName) {
+          newName = await q2('Enter new filename (without .md): ')
+        }
+      } finally {
+        rl2.close()
       }
-      rl2.close()
 
       fileName = newName.endsWith('.md') ? newName : `${newName}.md`
       filePath = path.join(decksDir, fileName)

@@ -1,3 +1,7 @@
+export type Finish = 'nonfoil' | 'foil' | 'etched'
+export type Condition = 'NM' | 'LP' | 'MP' | 'HP' | 'DMG'
+export type ErrorCode = 'not_found' | 'usage_error' | 'runtime_error'
+
 export interface Card {
   quantity: number
   name: string

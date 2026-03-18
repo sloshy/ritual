@@ -1,17 +1,59 @@
 import prompts, { type Choice } from 'prompts'
+import * as fs from 'node:fs/promises'
+import path from 'node:path'
 import { getCardsBySet, getAllCardNames, getCardPrintings, isDigitalOnlySet } from '../scryfall'
-import type { ScryfallCard } from '../types'
+import type { ScryfallCard, Finish, Condition } from '../types'
 import { capitalize } from '../utils'
+
+export const VALID_FINISHES = ['nonfoil', 'foil', 'etched'] as const satisfies readonly Finish[]
+export const VALID_CONDITIONS = [
+  'NM',
+  'LP',
+  'MP',
+  'HP',
+  'DMG',
+] as const satisfies readonly Condition[]
+
+export function isFinish(value: string): value is Finish {
+  return (VALID_FINISHES as readonly string[]).includes(value)
+}
+
+export function isCondition(value: string): value is Condition {
+  return (VALID_CONDITIONS as readonly string[]).includes(value)
+}
+
+/**
+ * Ensure the collections directory and named collection file exist.
+ * Creates the file with a markdown heading if new.
+ * Returns the resolved file path.
+ */
+export async function ensureCollectionFile(collectionName: string): Promise<string> {
+  const collectionsDir = path.join(process.cwd(), 'collections')
+  await fs.mkdir(collectionsDir, { recursive: true })
+  const filePath = path.join(collectionsDir, `${collectionName}.md`)
+  if (!(await Bun.file(filePath).exists())) {
+    await fs.writeFile(filePath, `# ${collectionName}\n\n`)
+    console.log(`Created new collection file: ${collectionName}.md`)
+  } else {
+    console.log(`Using collection file: ${collectionName}.md`)
+  }
+  return filePath
+}
 
 export type SessionConfig = {
   sets?: string[]
-  finish?: string
-  condition?: string
+  finish?: Finish
+  condition?: Condition | 'NONE'
   entryMode: 'name' | 'collector'
   collectorSets: string[]
   activeSetIndex: number
   setCardMaps: Map<string, Map<string, ScryfallCard>>
 }
+
+type CollectorSessionConfig = Pick<
+  SessionConfig,
+  'collectorSets' | 'activeSetIndex' | 'setCardMaps'
+>
 
 type PrintingResult = {
   cardName: string
@@ -141,6 +183,7 @@ export async function promptFinishAndCondition(
         { title: 'Damaged', value: 'DMG' },
       ],
     })
+    if (conditionResponse.condition === undefined) return null
     selectedCondition = conditionResponse.condition
   }
 
@@ -261,11 +304,7 @@ export async function promptConfigUpdate(
   return cardNames
 }
 
-export async function manageSetCodes(sessionConfig: {
-  collectorSets: string[]
-  activeSetIndex: number
-  setCardMaps: Map<string, Map<string, ScryfallCard>>
-}): Promise<void> {
+export async function manageSetCodes(sessionConfig: CollectorSessionConfig): Promise<void> {
   while (true) {
     const setChoices: Choice[] = sessionConfig.collectorSets.map((code, idx) => ({
       title: `${idx === sessionConfig.activeSetIndex ? '→ ' : '  '}${code.toUpperCase()}${idx === sessionConfig.activeSetIndex ? ' (active)' : ''}`,

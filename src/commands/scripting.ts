@@ -1,4 +1,5 @@
 import { InvalidArgumentError, type Command } from 'commander'
+import type { ErrorCode } from '../types'
 
 export type OutputFormat = 'text' | 'json' | 'ndjson'
 
@@ -69,7 +70,7 @@ export function emitOutput(data: unknown, options: ScriptingOptions): void {
 }
 
 export function emitError(
-  code: string,
+  code: ErrorCode,
   message: string,
   options: ScriptingOptions,
   details?: unknown,

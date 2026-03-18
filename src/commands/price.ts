@@ -9,13 +9,28 @@ import {
   emitOutput,
   ExitCode,
   normalizeScriptingOptions,
+  type ScriptingOptions,
 } from './scripting'
 import { getErrorMessage } from '../errors'
+
+type SectionPricingResult = {
+  name: string
+  latest: number
+  min: number
+  max: number
+}
+
+type PriceDeckOptions = {
+  all?: boolean
+  withSideboard?: boolean
+  withMaybeboard?: boolean
+  prices?: string
+} & Partial<ScriptingOptions>
 
 export function registerPriceCommand(program: Command) {
   addScriptingOptions(
     program
-      .command('price')
+      .command('price-deck')
       .description('Get pricing for a deck (Latest, Min, Max)')
       .argument('<deckName>', 'Name of the deck file (without extension)')
       .option('--all', 'Include all sections (Sideboard, Maybeboard, etc)')
@@ -23,7 +38,7 @@ export function registerPriceCommand(program: Command) {
       .option('--with-maybeboard', 'Include Maybeboard')
       .option('--prices <currency>', 'Price currency: usd, eur, or tix (default: usd)'),
     'text',
-  ).action(async (deckName, options) => {
+  ).action(async (deckName: string, options: PriceDeckOptions) => {
     const scriptingOptions = normalizeScriptingOptions(options, 'text')
 
     const currency = parseCurrencyFlagOrError(
@@ -102,7 +117,7 @@ export function registerPriceCommand(program: Command) {
       let grandTotalLatest = 0
       let grandTotalMin = 0
       let grandTotalMax = 0
-      const sectionResults: Array<{ name: string; latest: number; min: number; max: number }> = []
+      const sectionResults: SectionPricingResult[] = []
 
       for (const section of sectionsToPrice) {
         let sectLatest = 0
