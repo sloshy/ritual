@@ -31,10 +31,11 @@ export async function ensureCollectionFile(collectionName: string): Promise<stri
   const collectionsDir = path.join(process.cwd(), 'collections')
   await fs.mkdir(collectionsDir, { recursive: true })
   const filePath = path.join(collectionsDir, `${collectionName}.md`)
-  if (!(await Bun.file(filePath).exists())) {
-    await fs.writeFile(filePath, `# ${collectionName}\n\n`)
+  try {
+    await fs.writeFile(filePath, `# ${collectionName}\n\n`, { flag: 'wx' })
     console.log(`Created new collection file: ${collectionName}.md`)
-  } else {
+  } catch (e: unknown) {
+    if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e
     console.log(`Using collection file: ${collectionName}.md`)
   }
   return filePath
