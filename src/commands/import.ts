@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import path from 'node:path'
-import { createInterface } from 'node:readline'
+import { promptUser } from '../utils'
 import { ArchidektClient } from '../clients/ArchidektClient'
 import { fetchMtgGoldfishDeck } from '../importers/mtggoldfish'
 import { fetchMoxfieldDeck } from '../importers/moxfield-lib'
@@ -150,35 +150,18 @@ export async function saveDeck(
       getLogger().info(`\nFile already exists (Name Conflict): ${conflictFile}`)
     }
 
-    const rl = createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    })
-
     let response = ''
-    try {
-      const question = (q: string) => new Promise<string>((resolve) => rl.question(q, resolve))
-      while (!['o', 'r', 'c'].includes(response)) {
-        response = (await question('Action: [O]verwrite, [R]ename, [C]ancel? ')).toLowerCase()
-      }
-    } finally {
-      rl.close()
+    while (!['o', 'r', 'c'].includes(response)) {
+      response = (await promptUser('Action: [O]verwrite, [R]ename, [C]ancel? ')).toLowerCase()
     }
 
     if (response === 'c') {
       getLogger().info('Import cancelled.')
       return
     } else if (response === 'r') {
-      const rl2 = createInterface({ input: process.stdin, output: process.stdout })
-
       let newName = ''
-      try {
-        const q2 = (q: string) => new Promise<string>((resolve) => rl2.question(q, resolve))
-        while (!newName) {
-          newName = await q2('Enter new filename (without .md): ')
-        }
-      } finally {
-        rl2.close()
+      while (!newName) {
+        newName = await promptUser('Enter new filename (without .md): ')
       }
 
       fileName = newName.endsWith('.md') ? newName : `${newName}.md`
