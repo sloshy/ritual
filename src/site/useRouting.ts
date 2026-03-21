@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'preact/hooks'
 
 export type Route =
-  | { page: 'index'; tab?: 'decks' | 'collections' }
+  | { page: 'index'; tab?: 'decks' | 'collections' | 'wanted' }
   | { page: 'deck'; slug: string; primerOpen?: boolean; sectionId?: string }
   | { page: 'collection'; slug: string }
+  | { page: 'wanted'; slug: string }
 
 export type UseRoutingResult = {
   route: Route
@@ -27,8 +28,15 @@ function parseHash(): Route {
     const slug = hash.slice('collection/'.length)
     if (slug) return { page: 'collection', slug }
   }
+  if (hash.startsWith('wanted/')) {
+    const slug = hash.slice('wanted/'.length)
+    if (slug) return { page: 'wanted', slug }
+  }
   if (hash === 'collections') {
     return { page: 'index', tab: 'collections' }
+  }
+  if (hash === 'wanted') {
+    return { page: 'index', tab: 'wanted' }
   }
   return { page: 'index', tab: 'decks' }
 }

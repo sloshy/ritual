@@ -18,6 +18,8 @@ import { registerLoginCommand } from './src/commands/login'
 import { registerImportAccountCommand } from './src/commands/import-account'
 import { registerCollectionCommand } from './src/commands/collection'
 import { registerPriceCollectionCommand } from './src/commands/price-collection'
+import { registerWantedListCommand } from './src/commands/wanted'
+import { registerPriceWantedListCommand } from './src/commands/price-wanted'
 import { registerScryCommand } from './src/commands/scry'
 import { registerCardCommand } from './src/commands/card'
 import { registerRandomCommand } from './src/commands/random'
@@ -62,6 +64,10 @@ registerPriceCommand(program)
 program.commandsGroup('Collection Management')
 registerCollectionCommand(program)
 registerPriceCollectionCommand(program)
+
+program.commandsGroup('Wanted List Management')
+registerWantedListCommand(program)
+registerPriceWantedListCommand(program)
 
 program.commandsGroup('Card Lookup')
 registerCardCommand(program)

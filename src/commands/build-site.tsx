@@ -10,7 +10,7 @@ import {
   computeRepresentativePrints,
 } from '../scryfall'
 import { getBundledSiteAssets } from '../site/bundled-assets'
-import type { DeckData, ScryfallCard } from '../types'
+import type { DeckData, Finish, ScryfallCard } from '../types'
 import { extractPrimerCardNames } from '../primer-parser'
 import { parseChangelog, extractChangelogCardNames } from '../changelog-parser'
 import type { ChangelogPage } from '../changelog-parser'
@@ -20,12 +20,17 @@ import type {
   CollectionSummary,
   CollectionDetail,
   CollectionCardEntry,
+  WantedListSummary,
+  WantedListDetail,
+  WantedListCardEntry,
+  WantedListEntryState,
   SiteIndex,
 } from '../site/data-types'
 import { ArchidektClient } from '../clients/ArchidektClient'
 import { fetchMoxfieldDeck } from '../importers/moxfield-lib'
 import { resolveCardImageSources } from '../site/image-sources'
 import { parseCollectionFile, getPriceForFinish, resolveFinish } from './price-collection'
+import { parseWantedListFile } from './wanted-helpers'
 import { parseCurrenciesFlag, getCardPrice, getCardPriceForFinish } from '../price-currency'
 import type { PriceCurrency } from '../price-currency'
 import { getErrorMessage } from '../errors'
@@ -41,6 +46,7 @@ interface BuildSiteOptions {
   cacheImages?: boolean
   decks?: string[]
   collections?: string[]
+  wantedLists?: string[]
   collectionSort?: string
   deckSort?: string
   currencies?: string
@@ -103,6 +109,7 @@ export function registerBuildSiteCommand(program: Command) {
     )
     .option('--decks [names...]', 'Deck names or URLs to build (default: all in decks/)')
     .option('--collections [names...]', 'Collection names to build (default: all in collections/)')
+    .option('--wanted-lists [names...]', 'Wanted list names to build (default: all in wanted/)')
     .option(
       '--collection-sort <field>',
       'Default sort order for collections (file-order, name, price, set-code, type, cmc, color-identity)',
@@ -291,6 +298,28 @@ export function registerBuildSiteCommand(program: Command) {
           for (const name of extractChangelogCardNames(changelog)) {
             changelogCardNames.add(name)
           }
+        }
+      }
+
+      // Pre-load wanted list card names so they're fetched along with deck/collection cards
+      {
+        const wlDir = path.join(process.cwd(), 'wanted')
+        try {
+          const wlFiles = await fs.readdir(wlDir)
+          const wlMdFiles = wlFiles.filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))
+          for (const f of wlMdFiles) {
+            try {
+              const wlContent = await fs.readFile(path.join(wlDir, f), 'utf-8')
+              const { entries: wlEntries } = parseWantedListFile(wlContent)
+              for (const entry of wlEntries) {
+                allCardNames.add(entry.name)
+              }
+            } catch {
+              // Skip unreadable files
+            }
+          }
+        } catch {
+          // No wanted/ directory
         }
       }
 
@@ -868,7 +897,9 @@ export function registerBuildSiteCommand(program: Command) {
           }
 
           const card = collectionCardMap[cardKey] ?? null
-          const finish = card ? resolveFinish(entry, card) : entry.finish || 'nonfoil'
+          const finish: Finish = card
+            ? resolveFinish(entry, card)
+            : (entry.finish as Finish) || 'nonfoil'
           const price = card ? getPriceForFinish(card, finish) : 0
           const priceEur = card ? getCardPriceForFinish(card, finish, 'eur') : 0
           const priceTix = card ? getCardPriceForFinish(card, finish, 'tix') : 0
@@ -982,10 +1013,302 @@ export function registerBuildSiteCommand(program: Command) {
         )
       }
 
+      // Phase 5: Load and process wanted lists
+      const wantedListsSourceDir = path.join(process.cwd(), 'wanted')
+      const wantedListsSummaries: WantedListSummary[] = []
+      const wantedListsDataDir = path.join(distDir, 'wanted')
+      await fs.mkdir(wantedListsDataDir, { recursive: true })
+
+      let wantedListSources: string[] = []
+      if (
+        options.wantedLists &&
+        Array.isArray(options.wantedLists) &&
+        options.wantedLists.length > 0
+      ) {
+        wantedListSources = options.wantedLists
+      } else {
+        try {
+          const files = await fs.readdir(wantedListsSourceDir)
+          wantedListSources = files
+            .filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))
+            .map((f) => f.slice(0, -3))
+          if (wantedListSources.length > 0) {
+            console.log(
+              `Found ${wantedListSources.length} wanted lists: ${wantedListSources.join(', ')}`,
+            )
+          }
+        } catch {
+          // No wanted/ directory, skip silently
+        }
+      }
+
+      if (wantedListSources.length > 0) {
+        console.log('Loading wanted lists...')
+      }
+
+      for (const wlName of wantedListSources) {
+        const fileName = wlName.endsWith('.md') ? wlName : `${wlName}.md`
+        const filePath = path.join(wantedListsSourceDir, fileName)
+
+        let content: string
+        try {
+          content = await fs.readFile(filePath, 'utf-8')
+        } catch {
+          console.error(`Failed to read wanted list file: ${fileName}`)
+          continue
+        }
+
+        const { entries } = parseWantedListFile(content)
+
+        if (entries.length === 0) {
+          console.log(`  ${wlName}: no valid entries, skipping`)
+          continue
+        }
+
+        const displayName = content.match(/^#\s+(.+)$/m)?.[1] || wlName
+
+        // Load changelog if it exists
+        let wlChangelog: ChangelogPage[] = []
+        const baseName = wlName.endsWith('.md') ? wlName.slice(0, -3) : wlName
+        const changelogPath = path.join(wantedListsSourceDir, `${baseName}.changes.md`)
+        try {
+          const changelogContent = await fs.readFile(changelogPath, 'utf-8')
+          wlChangelog = parseChangelog(changelogContent)
+        } catch {
+          // No changelog file
+        }
+
+        const wlCardMap: Record<string, ScryfallCard | null> = {}
+        const wlPrintingsMap: Record<string, ScryfallCard[]> = {}
+        const cardEntries: WantedListCardEntry[] = []
+        let totalPrice = 0
+        let totalPriceEur = 0
+        let totalPriceTix = 0
+        let missingPriceCount = 0
+        let missingPriceCountEur = 0
+        let missingPriceCountTix = 0
+        let featured: ScryfallCard | null = null
+        let featuredPrice = -1
+
+        for (let i = 0; i < entries.length; i++) {
+          const entry = entries[i]!
+
+          // Determine state
+          let state: WantedListEntryState
+          if (!entry.set || !entry.collectorNumber) {
+            state = 'name-only'
+          } else if (!entry.finish) {
+            state = 'printing'
+          } else {
+            state = 'fully-specified'
+          }
+
+          // Ensure printings are fetched
+          if (!wlPrintingsMap[entry.name]) {
+            const printings = await getCardPrintings(entry.name)
+            wlPrintingsMap[entry.name] = printings
+          }
+          const printings = wlPrintingsMap[entry.name]!
+
+          let price = 0
+          let priceEur = 0
+          let priceTix = 0
+          let card: ScryfallCard | null = null
+
+          if (state === 'name-only') {
+            // Use cheapest printing for wanted list entries
+            const cheapUsd = globalCheapestCardMap[entry.name]
+            const cheapEur = globalCheapestCardMapEur[entry.name]
+            const cheapTix = globalCheapestCardMapTix[entry.name]
+            card = cheapUsd ?? cheapEur ?? cheapTix ?? globalCardMap[entry.name] ?? null
+            if (card) {
+              const cardKey = `${card.set}:${card.collector_number}`
+              wlCardMap[cardKey] = card
+              wlCardMap[entry.name] = card
+
+              if (hasUsd) {
+                const c = cheapUsd ?? card
+                price = parseFloat(c.prices.usd || '0')
+                if (price === 0) missingPriceCount++
+              }
+              if (hasEur) {
+                const c = cheapEur ?? card
+                priceEur = getCardPrice(c, 'eur')
+                if (priceEur === 0) missingPriceCountEur++
+              }
+              if (hasTix) {
+                const c = cheapTix ?? card
+                priceTix = getCardPrice(c, 'tix')
+                if (priceTix === 0) missingPriceCountTix++
+              }
+            } else {
+              missingPriceCount++
+              missingPriceCountEur++
+              missingPriceCountTix++
+            }
+          } else {
+            // State 2 or 3: find exact printing
+            const exactPrinting = printings.find(
+              (p) =>
+                p.set.toLowerCase() === entry.set!.toLowerCase() &&
+                p.collector_number === entry.collectorNumber,
+            )
+            const cardKey = `${entry.set!.toLowerCase()}:${entry.collectorNumber}`
+
+            if (exactPrinting) {
+              card = exactPrinting
+              wlCardMap[cardKey] = exactPrinting
+              wlCardMap[entry.name] = wlCardMap[entry.name] ?? exactPrinting
+
+              await ensureSymbols(exactPrinting.mana_cost)
+              await ensureSymbols(exactPrinting.oracle_text)
+
+              if (cacheImages) {
+                await downloadCardImages(exactPrinting, imagesDir)
+              }
+
+              if (state === 'fully-specified') {
+                if (hasUsd) {
+                  price = getCardPriceForFinish(exactPrinting, entry.finish!, 'usd')
+                  if (price === 0) missingPriceCount++
+                }
+                if (hasEur) {
+                  priceEur = getCardPriceForFinish(exactPrinting, entry.finish!, 'eur')
+                  if (priceEur === 0) missingPriceCountEur++
+                }
+                if (hasTix) {
+                  priceTix = getCardPriceForFinish(exactPrinting, entry.finish!, 'tix')
+                  if (priceTix === 0) missingPriceCountTix++
+                }
+              } else {
+                // State 2: cheapest finish of this printing
+                const defaultFinish = resolveFinish(
+                  {
+                    name: entry.name,
+                    quantity: 1,
+                    set: entry.set!,
+                    collectorNumber: entry.collectorNumber!,
+                  },
+                  exactPrinting,
+                )
+
+                if (hasUsd) {
+                  price = getCardPriceForFinish(exactPrinting, defaultFinish, 'usd')
+                  if (price === 0) missingPriceCount++
+                }
+                if (hasEur) {
+                  priceEur = getCardPriceForFinish(exactPrinting, defaultFinish, 'eur')
+                  if (priceEur === 0) missingPriceCountEur++
+                }
+                if (hasTix) {
+                  priceTix = getCardPriceForFinish(exactPrinting, defaultFinish, 'tix')
+                  if (priceTix === 0) missingPriceCountTix++
+                }
+              }
+            } else {
+              console.warn(
+                `  ⚠️  Could not find printing for '${entry.name}' (${entry.set!.toUpperCase()}:${entry.collectorNumber})`,
+              )
+              wlCardMap[cardKey] = null
+              missingPriceCount++
+              missingPriceCountEur++
+              missingPriceCountTix++
+            }
+          }
+
+          totalPrice += price
+          totalPriceEur += priceEur
+          totalPriceTix += priceTix
+
+          if (card && price > featuredPrice) {
+            featuredPrice = price
+            featured = card
+          }
+
+          cardEntries.push({
+            name: entry.name,
+            set: entry.set,
+            collectorNumber: entry.collectorNumber,
+            finish: entry.finish,
+            price,
+            fileOrder: i,
+            note: entry.note,
+            state,
+          })
+        }
+
+        const safeName = displayName
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)/g, '')
+
+        // Write wanted list export MD
+        const exportMdPath = `wanted/${safeName}.md`
+        await Bun.write(path.join(distDir, exportMdPath), content)
+
+        // Include changelog-referenced cards
+        for (const clName of extractChangelogCardNames(wlChangelog)) {
+          const canonical = (await cardCache.resolveCardName(clName.toLowerCase())) ?? clName
+          if (!wlCardMap[canonical]) {
+            const printingsForCard = await getCardPrintings(canonical)
+            if (printingsForCard.length > 0) {
+              if (!wlPrintingsMap[canonical]) {
+                wlPrintingsMap[canonical] = printingsForCard
+              }
+              const sorted = [...printingsForCard].sort((a, b) =>
+                (b.released_at ?? '').localeCompare(a.released_at ?? ''),
+              )
+              const repPrints = computeRepresentativePrints(sorted, sorted, availableCurrencies)
+              wlCardMap[canonical] = repPrints.usd?.representative ?? sorted[0]!
+            }
+          }
+        }
+
+        const wlDetailData: WantedListDetail = {
+          name: displayName,
+          entries: cardEntries,
+          cards: wlCardMap,
+          printings: wlPrintingsMap,
+          symbolMap,
+          useScryfallImgUrls,
+          totalPrice,
+          defaultCurrency,
+          exportMdPath,
+          pricesDate,
+          changelog: wlChangelog.length > 0 ? wlChangelog : undefined,
+        }
+        await Bun.write(
+          path.join(wantedListsDataDir, `${safeName}.json`),
+          JSON.stringify(wlDetailData),
+        )
+
+        const featuredImage = featured
+          ? resolveCardImageSources(featured, useScryfallImgUrls).frontImage
+          : ''
+
+        const summary: WantedListSummary = {
+          slug: safeName,
+          name: displayName,
+          featuredCardImage: featuredImage,
+          cardCount: entries.length,
+          totalPrice,
+          totalPriceEur,
+          totalPriceTix,
+          missingPriceCount,
+          missingPriceCountEur,
+          missingPriceCountTix,
+        }
+        wantedListsSummaries.push(summary)
+        console.log(
+          `  - Loaded ${displayName} (${entries.length} cards, $${totalPrice.toFixed(2)})`,
+        )
+      }
+
       // Write index JSON
       const siteIndex: SiteIndex = {
         decks: decksSummaries,
         collections: collectionsSummaries,
+        wantedLists: wantedListsSummaries.length > 0 ? wantedListsSummaries : undefined,
         useScryfallImgUrls,
         defaultCurrency,
         availableCurrencies,

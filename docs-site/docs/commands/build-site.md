@@ -22,6 +22,7 @@ By default, deck card images use Scryfall URLs from card data. This can be overr
 | `--cache-images`            | Download and use local deck card images in `dist/images` instead of URLs                                             |
 | `--decks [names...]`        | Deck names or URLs to include in the site (default: all in `decks/`)                                                 |
 | `--collections [names...]`  | Collection names to include in the site (default: all in `collections/`)                                             |
+| `--wanted-lists [names...]` | Wanted list names to include in the site (default: all in `wanted/`)                                                 |
 | `--collection-sort <field>` | Default sort order for collection pages (`file-order`, `name`, `price`, `set-code`, `type`, `cmc`, `color-identity`) |
 | `--deck-sort <field>`       | Default sort order for deck pages (`name`, `cmc`, `price`, `type`, `edhrec`, `color-identity`)                       |
 | `--currencies <list>`       | Comma-separated currencies to include on the site: `usd`, `eur`, `tix` (default: all three; first listed is default) |
@@ -65,6 +66,12 @@ Build with specific collections:
 ./ritual build-site --collections "Red Binder" "ECL"
 ```
 
+Build with specific wanted lists:
+
+```bash
+./ritual build-site --wanted-lists "High Priority" "Trade Targets"
+```
+
 Build with custom collection sort order:
 
 ```bash
@@ -95,11 +102,13 @@ Generates a single-page application in the `dist/` directory containing:
 - `collections/{slug}.json` — Full collection data with pricing loaded on demand
 - `collections/{slug}.md` — Original collection Markdown file for download
 - `collections/{slug}.csv` — Collection exported as CSV for importing into other sites
+- `wanted/{slug}.json` — Full wanted list data with pricing loaded on demand
+- `wanted/{slug}.md` — Original wanted list Markdown file for download
 - `styles.css` — Compiled Tailwind CSS
 - Responsive design for desktop and mobile
 - Dark mode support
-- Client-side hash routing (`#/` for index, `#/deck/{slug}` for deck pages, `#/collection/{slug}` for collection pages)
-- Navigation bar with "Decks" and "Collections" links always visible
+- Client-side hash routing (`#/` for index, `#/deck/{slug}` for deck pages, `#/collection/{slug}` for collection pages, `#/wanted/{slug}` for wanted list pages)
+- Navigation bar with "Decks", "Collections", and "Wanted Lists" links always visible
 - Page transition animations
 
 ## View Modes and Card Size
@@ -196,6 +205,22 @@ Collection pages show:
 - A "No Price Data" group that appears at the bottom when grouping by price, collecting cards without price data for their finish
 - Download as original Markdown or CSV for importing into other sites
 - Section/group price totals that update dynamically
+
+## Wanted Lists
+
+When `--wanted-lists` is specified, wanted list files from the `wanted/` directory are included in the generated site. Unlike collections, wanted list entries can have varying levels of specificity — from just a card name to a fully pinned printing and finish.
+
+Wanted list pages show:
+
+- Total wanted list value based on current card prices
+- Prices always reflect the cheapest option for each entry's state:
+  - **Name only** entries use the cheapest printing across all sets
+  - **Printing** entries use the cheapest finish of that exact printing
+  - **Fully specified** entries use the exact printing and finish specified
+- Individual card prices in the card detail modal
+- State indicator showing whether each card is name-only, printing-specific, or fully specified
+- Download as original Markdown
+- No condition display (wanted lists track desired cards, not owned cards)
 
 ## Deck Features
 

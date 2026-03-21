@@ -14,6 +14,7 @@ import { AuditLog } from './pages/AuditLog'
 import { DeckEditor } from './pages/DeckEditor'
 import { DeckManager } from './pages/DeckManager'
 import { CollectionEditor } from './pages/CollectionEditor'
+import { WantedListEditor } from './pages/WantedListEditor'
 
 function App() {
   const [page, setPage] = useState<Page>('dashboard')
@@ -83,6 +84,7 @@ function App() {
     'deck-editor': () => <DeckEditor />,
     'deck-manager': () => <DeckManager />,
     'collection-editor': () => <CollectionEditor />,
+    'wanted-list-editor': () => <WantedListEditor />,
     'import-deck': () => <ImportDeck />,
     'build-site': () => <BuildSite />,
     'cache-refresh': () => <CacheRefresh />,
@@ -98,7 +100,9 @@ function App() {
       currentPage={page}
       onNavigate={setPage}
       onLogout={onLogout}
-      fullWidth={page === 'deck-editor' || page === 'collection-editor'}
+      fullWidth={
+        page === 'deck-editor' || page === 'collection-editor' || page === 'wanted-list-editor'
+      }
     >
       {renderPage()}
     </Layout>

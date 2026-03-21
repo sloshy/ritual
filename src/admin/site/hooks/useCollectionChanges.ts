@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'preact/hooks'
+import type { Finish } from '../../../types'
 import {
   type ChangeEvent,
   type CardPrintingOptions,
@@ -15,7 +16,7 @@ export type UseCollectionChangesResult = {
   decrementCard: (cardName: string) => void
   addCard: (cardName: string, options?: CardPrintingOptions) => void
   removeCard: (cardName: string, options?: CardPrintingOptions) => void
-  setFinish: (cardName: string, finish: string) => void
+  setFinish: (cardName: string, finish: Finish) => void
 }
 
 export function useCollectionChanges(): UseCollectionChangesResult {
@@ -74,7 +75,7 @@ export function useCollectionChanges(): UseCollectionChangesResult {
   )
 
   const setFinish = useCallback(
-    (cardName: string, finish: string) => {
+    (cardName: string, finish: Finish) => {
       addChange({ action: 'set-finish', cardName, finish })
     },
     [addChange],

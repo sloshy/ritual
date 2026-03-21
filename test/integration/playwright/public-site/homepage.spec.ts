@@ -37,6 +37,13 @@ test.describe('Homepage', () => {
     await expect(collectionCards.first()).toBeVisible()
   })
 
+  test('wanted lists tab shows wanted list cards', async ({ page }) => {
+    await page.goto('#/wanted')
+    await expect(page.locator('h1')).toContainText('My Wanted Lists')
+    const wantedListCards = page.locator('.deck-cover')
+    await expect(wantedListCards.first()).toBeVisible()
+  })
+
   test('deck cards have links to deck pages', async ({ page }) => {
     await page.goto('/')
     const firstLink = page.locator('a[href^="#/deck/"]').first()

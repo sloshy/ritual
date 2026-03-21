@@ -1,6 +1,6 @@
 import type { FunctionalComponent } from 'preact'
 import { useState, useEffect, useRef, useCallback } from 'preact/hooks'
-import type { ScryfallCard } from '../../../types'
+import type { Finish, ScryfallCard } from '../../../types'
 import type { CardPrintingOptions } from '../types/deck-changes'
 import { getCardImageUrl } from '../card-utils'
 
@@ -63,7 +63,7 @@ export const CardSearchModal: FunctionalComponent<CardSearchModalProps> = ({
 
   // Step 3: Finish & condition
   const [selectedPrinting, setSelectedPrinting] = useState<ScryfallCard | null>(null)
-  const [selectedFinish, setSelectedFinish] = useState('nonfoil')
+  const [selectedFinish, setSelectedFinish] = useState<Finish>('nonfoil')
   const [selectedCondition, setSelectedCondition] = useState('NM')
 
   const onCloseRef = useRef(onClose)
@@ -231,7 +231,7 @@ export const CardSearchModal: FunctionalComponent<CardSearchModalProps> = ({
           {
             set: printing.set,
             collectorNumber: printing.collector_number,
-            finish: printing.finishes[0],
+            finish: printing.finishes[0] as Finish,
             condition: 'NM',
           },
           printing,
@@ -243,7 +243,9 @@ export const CardSearchModal: FunctionalComponent<CardSearchModalProps> = ({
 
       setSelectedPrinting(printing)
       setSelectedFinish(
-        printing.finishes.includes('nonfoil') ? 'nonfoil' : (printing.finishes[0] ?? 'nonfoil'),
+        printing.finishes.includes('nonfoil')
+          ? 'nonfoil'
+          : ((printing.finishes[0] as Finish) ?? 'nonfoil'),
       )
       setSelectedCondition('NM')
       setStep('finish-condition')
@@ -529,7 +531,7 @@ export const CardSearchModal: FunctionalComponent<CardSearchModalProps> = ({
                             name="finish"
                             value={finish}
                             checked={selectedFinish === finish}
-                            onChange={() => setSelectedFinish(finish)}
+                            onChange={() => setSelectedFinish(finish as Finish)}
                           />
                           {finish}
                         </label>

@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'preact/hooks'
+import type { Finish } from '../../../types'
 import {
   type ChangeEvent,
   type CardPrintingOptions,
@@ -16,7 +17,7 @@ export type UseDeckChangesResult = {
   addCard: (cardName: string, options?: CardPrintingOptions) => void
   removeCard: (cardName: string, options?: CardPrintingOptions) => void
   setCommander: (cardName: string) => void
-  setFinish: (cardName: string, finish: string) => void
+  setFinish: (cardName: string, finish: Finish) => void
 }
 
 export function useDeckChanges(): UseDeckChangesResult {
@@ -82,7 +83,7 @@ export function useDeckChanges(): UseDeckChangesResult {
   )
 
   const setFinish = useCallback(
-    (cardName: string, finish: string) => {
+    (cardName: string, finish: Finish) => {
       addChange({ action: 'set-finish', cardName, finish })
     },
     [addChange],

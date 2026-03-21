@@ -1,10 +1,11 @@
 import { render } from 'preact'
 import { useState, useEffect, useCallback } from 'preact/hooks'
-import type { DeckDetail, CollectionDetail } from './data-types'
+import type { DeckDetail, CollectionDetail, WantedListDetail } from './data-types'
 import type { PriceCurrency } from '../price-currency'
 import { IndexPage } from './IndexPage'
 import { DeckPage } from './DeckPage'
 import { CollectionPage } from './CollectionPage'
+import { WantedListPage } from './WantedListPage'
 import { useRouting } from './useRouting'
 import { useSiteData } from './useSiteData'
 import { useFetchJson } from './useFetchJson'
@@ -14,6 +15,7 @@ function App() {
   const {
     deckList,
     collectionList,
+    wantedListList,
     useScryfallImgUrls,
     currency,
     setCurrency,
@@ -33,6 +35,7 @@ function App() {
   const deckPrimerOpen = route.page === 'deck' ? (route.primerOpen ?? false) : false
   const deckSectionId = route.page === 'deck' ? route.sectionId : undefined
   const collectionSlug = route.page === 'collection' ? route.slug : null
+  const wantedListSlug = route.page === 'wanted' ? route.slug : null
 
   // Fetch deck/collection data (auto-cleared when navigating away)
   const {
@@ -45,6 +48,11 @@ function App() {
     loading: collectionLoading,
     error: collectionError,
   } = useFetchJson<CollectionDetail>(collectionSlug ? `collections/${collectionSlug}.json` : null)
+  const {
+    data: wantedListDetail,
+    loading: wantedListLoading,
+    error: wantedListError,
+  } = useFetchJson<WantedListDetail>(wantedListSlug ? `wanted/${wantedListSlug}.json` : null)
 
   const openModal = useCallback((cardName: string) => {
     setModalCard(cardName)
@@ -87,6 +95,16 @@ function App() {
           >
             Collections
           </a>
+          <a
+            href="#/wanted"
+            className={`text-sm font-medium transition-colors ${
+              (route.page === 'index' && route.tab === 'wanted') || route.page === 'wanted'
+                ? 'text-white'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Wanted Lists
+          </a>
         </nav>
         <div className="ml-auto flex items-center gap-1.5">
           <label className="text-xs text-gray-500">Prices:</label>
@@ -120,12 +138,35 @@ function App() {
               <IndexPage
                 decks={deckList}
                 collections={collectionList || []}
+                wantedLists={wantedListList || []}
                 useScryfallImgUrls={useScryfallImgUrls}
                 activeTab={route.tab ?? 'decks'}
                 currency={currency}
               />
             ) : (
               <LoadingSpinner />
+            )
+          ) : route.page === 'wanted' ? (
+            wantedListError ? (
+              <ErrorMessage message={wantedListError} />
+            ) : wantedListLoading || !wantedListDetail ? (
+              <LoadingSpinner />
+            ) : (
+              <WantedListPage
+                name={wantedListDetail.name}
+                entries={wantedListDetail.entries}
+                cards={wantedListDetail.cards}
+                printings={wantedListDetail.printings ?? {}}
+                symbolMap={wantedListDetail.symbolMap}
+                useScryfallImgUrls={wantedListDetail.useScryfallImgUrls}
+                totalPrice={wantedListDetail.totalPrice}
+                exportMdPath={wantedListDetail.exportMdPath}
+                modalCardKey={modalCard}
+                onOpenModal={openModal}
+                onCloseModal={closeModal}
+                currency={currency}
+                changelog={wantedListDetail.changelog}
+              />
             )
           ) : route.page === 'collection' ? (
             collectionError ? (

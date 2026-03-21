@@ -1,0 +1,105 @@
+---
+sidebar_position: 13
+---
+
+# wanted-list
+
+Interactively manage a wanted list of cards you're looking for. Alias: `wanted`.
+
+## Usage
+
+```bash
+./ritual wanted-list [options]
+```
+
+### Options
+
+| Flag                         | Description                                               |
+| ---------------------------- | --------------------------------------------------------- |
+| `-s, --sets <codes>`         | Filter by set codes (comma-separated, e.g., `"FDN, SPG"`) |
+| `-f, --finish <finish>`      | Default finish: `nonfoil`, `foil`, or `etched`            |
+| `--collector`                | Start in collector number mode                            |
+| `--allow-digital-only-cards` | Include digital-only sets (e.g., Alchemy) in results      |
+
+Digital-only sets (Alchemy sets, plus `OM1`) are filtered out by default since they have no paper printings.
+
+Unlike the `collection` command, there is no `--condition` option — wanted lists track desired cards, not owned cards.
+
+## Card States
+
+Each card on a wanted list exists in one of three states, which determines how pricing works:
+
+| State               | Format                          | Pricing Behavior                              |
+| ------------------- | ------------------------------- | --------------------------------------------- |
+| **Name only**       | `- Card Name`                   | Uses cheapest printing across all sets        |
+| **Printing**        | `- Card Name (SET:CN)`          | Uses cheapest _finish_ of that exact printing |
+| **Fully specified** | `- Card Name (SET:CN) [finish]` | Uses the exact printing and finish specified  |
+
+When adding a card, you are prompted to choose the specificity level:
+
+1. **Name only (cheapest printing)** — skips printing and finish selection entirely
+2. **Choose specific printing** — enters the printing selection flow, then optionally choose a finish
+
+## Entry Modes
+
+The wanted list manager supports two entry modes that you can toggle between during a session:
+
+### Name Mode (default)
+
+Autocomplete-driven card name entry. Type a card name and select from suggestions.
+
+- **Session Filters** — Configure default set codes and finish via the `⚙️ Configure Session Filters` menu option. When set, these defaults are applied automatically to each card without prompting.
+- **Force Prompts** — Append `!` to a card name to override finish session filters for that entry, forcing the prompts to appear regardless of filter settings.
+- **Edit Last Card** — Re-enter the most recently added card with forced prompts, useful for correcting mistakes.
+
+### Collector Number Mode
+
+Look up cards by collector number within one or more loaded sets.
+
+- **Set Management** — Add, remove, and switch between multiple active set codes via the `📦 Manage Set Codes` menu.
+- **Autocomplete** — Type a collector number prefix to filter the card list for the active set.
+
+## Output Format
+
+Each card entry is written to a markdown file in the `wanted/` directory:
+
+```
+- Card Name (SET:CN) [finish] {note}
+```
+
+For example:
+
+```
+- Sol Ring
+- Lightning Bolt (LEA:161)
+- Mana Crypt (2XM:270) [foil]
+- Black Lotus (LEB:233) [nonfoil] {birthday present to self}
+```
+
+Any combination of set/collector number and finish can be omitted depending on the desired specificity level. The note is optional.
+
+## Examples
+
+Start the wanted list manager:
+
+```bash
+./ritual wanted-list
+```
+
+Pre-set finish:
+
+```bash
+./ritual wanted --finish foil
+```
+
+Start in collector number mode with sets pre-loaded:
+
+```bash
+./ritual wanted --collector --sets "FDN, SPG"
+```
+
+Filter by set in name mode:
+
+```bash
+./ritual wanted -s "MOM, ONE"
+```

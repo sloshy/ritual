@@ -1,15 +1,16 @@
 import type { FunctionalComponent } from 'preact'
-import type { DeckSummary, CollectionSummary } from './data-types'
+import type { DeckSummary, CollectionSummary, WantedListSummary } from './data-types'
 import type { PriceCurrency } from '../price-currency'
 import { formatPriceWithMissing } from '../price-currency'
 import { getCurrencyValue } from './utils'
 import { CoverCard } from './CoverCard'
 
-type IndexTab = 'decks' | 'collections'
+type IndexTab = 'decks' | 'collections' | 'wanted'
 
 interface IndexPageProps {
   decks: DeckSummary[]
   collections: CollectionSummary[]
+  wantedLists: WantedListSummary[]
   useScryfallImgUrls: boolean
   activeTab: IndexTab
   currency: PriceCurrency
@@ -18,6 +19,7 @@ interface IndexPageProps {
 export const IndexPage: FunctionalComponent<IndexPageProps> = ({
   decks,
   collections,
+  wantedLists,
   activeTab,
   currency,
 }) => {
@@ -64,7 +66,7 @@ export const IndexPage: FunctionalComponent<IndexPageProps> = ({
             })}
           </div>
         </>
-      ) : (
+      ) : activeTab === 'collections' ? (
         <>
           <h1 className="text-3xl font-bold mb-6 text-white">My Collections</h1>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -88,6 +90,37 @@ export const IndexPage: FunctionalComponent<IndexPageProps> = ({
                     name={col.name}
                     image={col.featuredCardImage || null}
                     cardCount={col.cardCount}
+                    priceLabel={formatPriceWithMissing(total, currency, missing)}
+                  />
+                </a>
+              )
+            })}
+          </div>
+        </>
+      ) : (
+        <>
+          <h1 className="text-3xl font-bold mb-6 text-white">My Wanted Lists</h1>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {wantedLists.map((wl) => {
+              const link = `#/wanted/${wl.slug}`
+              const total = getCurrencyValue(
+                wl.totalPrice,
+                wl.totalPriceEur,
+                wl.totalPriceTix,
+                currency,
+              )
+              const missing = getCurrencyValue(
+                wl.missingPriceCount,
+                wl.missingPriceCountEur,
+                wl.missingPriceCountTix,
+                currency,
+              )
+              return (
+                <a href={link} key={wl.slug} className="block">
+                  <CoverCard
+                    name={wl.name}
+                    image={wl.featuredCardImage || null}
+                    cardCount={wl.cardCount}
                     priceLabel={formatPriceWithMissing(total, currency, missing)}
                   />
                 </a>

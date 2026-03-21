@@ -371,9 +371,230 @@ export async function mockPublicSiteDeckWithChangelog(page: Page): Promise<void>
   })
 }
 
+const MOCK_WANTED_LISTS = [{ slug: 'test-wanted-list', name: 'Test Wanted List' }]
+
+const MOCK_WANTED_LIST_CARD_BOLT = {
+  id: 'bolt-id',
+  name: 'Lightning Bolt',
+  cmc: 1,
+  type_line: 'Instant',
+  oracle_text: 'Lightning Bolt deals 3 damage to any target.',
+  mana_cost: '{R}',
+  image_uris: {
+    small: '',
+    normal: '',
+    large: '',
+    png: '',
+    art_crop: '',
+    border_crop: '',
+  },
+  prices: {
+    usd: '2.00',
+    usd_foil: '5.00',
+    usd_etched: null,
+    eur: '1.50',
+    eur_foil: '4.00',
+    tix: '0.10',
+  },
+  finishes: ['nonfoil', 'foil'],
+  games: ['paper'],
+  set: 'a25',
+  set_name: 'Masters 25',
+  collector_number: '141',
+  rarity: 'uncommon',
+  color_identity: ['R'],
+}
+
+const MOCK_WANTED_LIST_CARD_SOL = {
+  id: 'sol-id',
+  name: 'Sol Ring',
+  cmc: 1,
+  type_line: 'Artifact',
+  oracle_text: '{T}: Add {C}{C}.',
+  mana_cost: '{1}',
+  image_uris: {
+    small: '',
+    normal: '',
+    large: '',
+    png: '',
+    art_crop: '',
+    border_crop: '',
+  },
+  prices: {
+    usd: '3.00',
+    usd_foil: '8.00',
+    usd_etched: null,
+    eur: '2.50',
+    eur_foil: '7.00',
+    tix: null,
+  },
+  finishes: ['nonfoil', 'foil'],
+  games: ['paper'],
+  set: 'c19',
+  set_name: 'Commander 2019',
+  collector_number: '221',
+  rarity: 'uncommon',
+  color_identity: [],
+}
+
+const MOCK_WANTED_LIST_CARD_CRYPT = {
+  id: 'crypt-id',
+  name: 'Mana Crypt',
+  cmc: 0,
+  type_line: 'Artifact',
+  oracle_text: 'At the beginning of your upkeep, flip a coin...',
+  mana_cost: '{0}',
+  image_uris: {
+    small: '',
+    normal: '',
+    large: '',
+    png: '',
+    art_crop: '',
+    border_crop: '',
+  },
+  prices: {
+    usd: '150.00',
+    usd_foil: '200.00',
+    usd_etched: null,
+    eur: '130.00',
+    eur_foil: '180.00',
+    tix: '5.00',
+  },
+  finishes: ['nonfoil', 'foil'],
+  games: ['paper'],
+  set: '2xm',
+  set_name: 'Double Masters',
+  collector_number: '270',
+  rarity: 'mythic',
+  color_identity: [],
+}
+
+const MOCK_WANTED_LIST_DETAIL = {
+  name: 'Test Wanted List',
+  entries: [
+    { name: 'Lightning Bolt', price: 2.0, fileOrder: 0, state: 'name-only' },
+    {
+      name: 'Sol Ring',
+      set: 'c19',
+      collectorNumber: '221',
+      price: 3.0,
+      fileOrder: 1,
+      state: 'printing',
+    },
+    {
+      name: 'Mana Crypt',
+      set: '2xm',
+      collectorNumber: '270',
+      finish: 'foil',
+      price: 200.0,
+      fileOrder: 2,
+      state: 'fully-specified',
+    },
+  ],
+  cards: {
+    'Lightning Bolt': MOCK_WANTED_LIST_CARD_BOLT,
+    'Sol Ring': MOCK_WANTED_LIST_CARD_SOL,
+    'Mana Crypt': MOCK_WANTED_LIST_CARD_CRYPT,
+    'c19:221': MOCK_WANTED_LIST_CARD_SOL,
+    '2xm:270': MOCK_WANTED_LIST_CARD_CRYPT,
+  },
+  printings: {
+    'Lightning Bolt': [MOCK_WANTED_LIST_CARD_BOLT],
+    'Sol Ring': [MOCK_WANTED_LIST_CARD_SOL],
+    'Mana Crypt': [MOCK_WANTED_LIST_CARD_CRYPT],
+  },
+  symbolMap: {},
+  useScryfallImgUrls: true,
+  totalPrice: 205.0,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+}
+
+const MOCK_SITE_INDEX_WITH_WANTED_LIST = {
+  decks: [],
+  collections: [],
+  wantedLists: [
+    {
+      slug: 'test-wanted-list',
+      name: 'Test Wanted List',
+      featuredCardImage: '',
+      cardCount: 3,
+      totalPrice: 205.0,
+      totalPriceEur: 0,
+      totalPriceTix: 0,
+    },
+  ],
+  useScryfallImgUrls: true,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+}
+
+/**
+ * Mock the public site JSON endpoints with a synthetic wanted list.
+ */
+export async function mockPublicSiteWantedList(page: Page): Promise<void> {
+  await page.route('**/index.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_SITE_INDEX_WITH_WANTED_LIST),
+    })
+  })
+
+  await page.route('**/wanted/test-wanted-list.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_WANTED_LIST_DETAIL),
+    })
+  })
+}
+
+/**
+ * Mock the wanted lists list API endpoint
+ */
+export async function mockWantedListsApi(page: Page): Promise<void> {
+  await page.route('**/api/wanted', async (route: Route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ wantedLists: MOCK_WANTED_LISTS }),
+      })
+    } else {
+      await route.continue()
+    }
+  })
+}
+
+/**
+ * Mock a wanted list load API endpoint
+ */
+export async function mockWantedListLoadApi(page: Page): Promise<void> {
+  await page.route('**/api/wanted/test-wanted-list', async (route: Route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          entries: MOCK_WANTED_LIST_DETAIL.entries,
+          cards: MOCK_WANTED_LIST_DETAIL.cards,
+          printings: MOCK_WANTED_LIST_DETAIL.printings,
+          symbolMap: {},
+          slug: 'test-wanted-list',
+        }),
+      })
+    } else {
+      await route.continue()
+    }
+  })
+}
+
 export {
   MOCK_DECKS,
   MOCK_COLLECTIONS,
+  MOCK_WANTED_LISTS,
   MOCK_AUTOCOMPLETE_RESULTS,
   MOCK_SEARCH_RESULTS,
   MOCK_AUDIT_ENTRIES,

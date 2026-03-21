@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'preact/hooks'
-import type { DeckSummary, CollectionSummary, SiteIndex } from './data-types'
+import type { DeckSummary, CollectionSummary, WantedListSummary, SiteIndex } from './data-types'
 import type { PriceCurrency } from '../price-currency'
 
 export type UseSiteDataResult = {
   deckList: DeckSummary[] | null
   collectionList: CollectionSummary[] | null
+  wantedListList: WantedListSummary[] | null
   useScryfallImgUrls: boolean
   currency: PriceCurrency
   setCurrency: (c: PriceCurrency) => void
@@ -15,6 +16,7 @@ export type UseSiteDataResult = {
 export function useSiteData(): UseSiteDataResult {
   const [deckList, setDeckList] = useState<DeckSummary[] | null>(null)
   const [collectionList, setCollectionList] = useState<CollectionSummary[] | null>(null)
+  const [wantedListList, setWantedListList] = useState<WantedListSummary[] | null>(null)
   const [useScryfallImgUrls, setUseScryfallImgUrls] = useState(true)
   const [currency, setCurrency] = useState<PriceCurrency>('usd')
   const [availableCurrencies, setAvailableCurrencies] = useState<PriceCurrency[]>([
@@ -33,6 +35,7 @@ export function useSiteData(): UseSiteDataResult {
         const data = (await response.json()) as SiteIndex
         setDeckList(data.decks)
         setCollectionList(data.collections ?? [])
+        setWantedListList(data.wantedLists ?? [])
         setUseScryfallImgUrls(data.useScryfallImgUrls)
         if (data.defaultCurrency) setCurrency(data.defaultCurrency)
         if (data.availableCurrencies) setAvailableCurrencies(data.availableCurrencies)
@@ -50,6 +53,7 @@ export function useSiteData(): UseSiteDataResult {
   return {
     deckList,
     collectionList,
+    wantedListList,
     useScryfallImgUrls,
     currency,
     setCurrency,

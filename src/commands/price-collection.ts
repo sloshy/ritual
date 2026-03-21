@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { getCardPrintings, getCardGames } from '../scryfall'
-import type { ScryfallCard } from '../types'
+import type { Finish, ScryfallCard } from '../types'
 import {
   parseCurrencyFlagOrError,
   formatPrice,
@@ -77,10 +77,10 @@ export function getPriceForFinish(
   return getCardPriceForFinish(card, finish, currency)
 }
 
-export function resolveFinish(entry: CollectionEntry, card: ScryfallCard): string {
-  if (entry.finish) return entry.finish
+export function resolveFinish(entry: CollectionEntry, card: ScryfallCard): Finish {
+  if (entry.finish) return entry.finish as Finish
   if (card.finishes.includes('nonfoil')) return 'nonfoil'
-  return card.finishes[0] ?? 'nonfoil'
+  return (card.finishes[0] as Finish) ?? 'nonfoil'
 }
 
 export function registerPriceCollectionCommand(program: Command) {

@@ -29,6 +29,9 @@ import { handleDeckDelete } from './api/deck-delete'
 import { handleListCollections } from './api/collection-list'
 import { handleCollectionLoad } from './api/collection-load'
 import { handleCollectionSave } from './api/collection-save'
+import { handleListWantedLists } from './api/wanted-list'
+import { handleWantedListLoad } from './api/wanted-load'
+import { handleWantedListSave } from './api/wanted-save'
 
 interface AdminServerOptions {
   port: number
@@ -120,6 +123,24 @@ const routes: Route[] = [
   { method: 'POST', path: '/api/deck/:slug/save', handler: handleDeckSave, requiresAuth: true },
   { method: 'POST', path: '/api/deck/:slug/rename', handler: handleDeckRename, requiresAuth: true },
   { method: 'DELETE', path: '/api/deck/:slug', handler: handleDeckDelete, requiresAuth: true },
+  {
+    method: 'GET',
+    path: '/api/wanted',
+    handler: handleListWantedLists,
+    requiresAuth: true,
+  },
+  {
+    method: 'GET',
+    path: '/api/wanted/:slug',
+    handler: handleWantedListLoad,
+    requiresAuth: true,
+  },
+  {
+    method: 'POST',
+    path: '/api/wanted/:slug/save',
+    handler: handleWantedListSave,
+    requiresAuth: true,
+  },
 ]
 
 export function getClientIp(req: Request, server: RequestIPServer, trustProxy: boolean): string {

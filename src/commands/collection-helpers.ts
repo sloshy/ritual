@@ -134,7 +134,7 @@ export async function resolveCardPrinting(
 }
 
 type FinishAndConditionResult = {
-  finish: string
+  finish: Finish
   condition: string
 } | null
 
@@ -144,7 +144,7 @@ export async function promptFinishAndCondition(
   forcePrompts: boolean,
 ): Promise<FinishAndConditionResult> {
   // Prompt for Finish
-  let selectedFinish = 'nonfoil'
+  let selectedFinish: Finish = 'nonfoil'
   const availableFinishes = selectedPrinting.finishes || []
 
   if (!forcePrompts && sessionConfig.finish && availableFinishes.includes(sessionConfig.finish)) {
@@ -161,9 +161,9 @@ export async function promptFinishAndCondition(
       choices: finishChoices,
     })
     if (!finishResponse.finish) return null
-    selectedFinish = finishResponse.finish
+    selectedFinish = finishResponse.finish as Finish
   } else if (availableFinishes[0]) {
-    selectedFinish = availableFinishes[0]
+    selectedFinish = availableFinishes[0] as Finish
   }
 
   // Prompt for Condition
@@ -194,7 +194,7 @@ export async function promptFinishAndCondition(
 export function formatCollectionLine(
   cardName: string,
   printing: ScryfallCard,
-  finish: string,
+  finish: Finish,
   condition: string,
   note?: string,
 ): string {

@@ -17,7 +17,7 @@ test.describe('Navigation', () => {
     await page.goto('#/collections')
     const firstLink = page.locator('a[href^="#/collection/"]').first()
     await firstLink.click()
-    await expect(page.url()).toContain('#/collection/')
+    expect(page.url()).toContain('#/collection/')
   })
 
   test('header Ritual logo navigates to home', async ({ page }) => {
@@ -48,6 +48,12 @@ test.describe('Navigation', () => {
     // Click Decks nav back
     await page.locator('a[href="#/"]').first().click()
     await expect(page.locator('h1')).toContainText('My Decks')
+  })
+
+  test('Wanted Lists nav link navigates to wanted lists tab', async ({ page }) => {
+    await page.goto('/')
+    await page.locator('a[href="#/wanted"]').click()
+    await expect(page.locator('h1')).toContainText('My Wanted Lists')
   })
 
   test('prices date disclaimer is shown', async ({ page }) => {

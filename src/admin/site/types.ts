@@ -4,6 +4,7 @@ export type Page =
   | 'deck-editor'
   | 'deck-manager'
   | 'collection-editor'
+  | 'wanted-list-editor'
   | 'build-site'
   | 'cache-refresh'
   | 'archidekt-login'

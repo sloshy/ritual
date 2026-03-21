@@ -1,3 +1,5 @@
+import type { Finish } from '../../../types'
+
 export type ChangeAction = 'add' | 'remove' | 'set-commander' | 'set-finish'
 
 export type ChangeEvent = {
@@ -7,7 +9,7 @@ export type ChangeEvent = {
   cardName: string
   set?: string
   collectorNumber?: string
-  finish?: string
+  finish?: Finish
   condition?: string
 }
 
