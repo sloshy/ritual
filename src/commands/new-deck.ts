@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import path from 'node:path'
+import * as fs from 'node:fs/promises'
 
 export function registerNewDeckCommand(program: Command) {
   program
@@ -30,6 +31,8 @@ tags: []
 `
 
       try {
+        await fs.mkdir(decksDir, { recursive: true })
+
         // Simple file check to avoid overwrite
         const fileExists = await Bun.file(filePath).exists()
         if (fileExists) {

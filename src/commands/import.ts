@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import path from 'node:path'
+import * as fs from 'node:fs/promises'
 import { promptUser } from '../utils'
 import { ArchidektClient } from '../clients/ArchidektClient'
 import { fetchMtgGoldfishDeck } from '../importers/mtggoldfish'
@@ -96,6 +97,8 @@ export async function saveDeck(
   // Scan Existing Decks for ID Conflict
   let conflictFile: string | null = null
   let conflictReason: 'id' | 'name' | null = null
+
+  await fs.mkdir(decksDir, { recursive: true })
 
   let existingFiles: string[] = []
   try {

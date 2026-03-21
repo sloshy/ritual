@@ -88,6 +88,6 @@ export function registerAdminCommand(program: Command) {
 
       console.log('Admin interface built successfully.')
 
-      startAdminServer({ port, host, distDir: adminDistDir })
+      await startAdminServer({ port, host, distDir: adminDistDir })
     })
 }

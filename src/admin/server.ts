@@ -1,4 +1,5 @@
 import path from 'node:path'
+import fs from 'node:fs/promises'
 import { adminUserExists } from './auth'
 import { loadConfig } from './config'
 import { parseSessionCookie, validateSession } from './session'
@@ -274,8 +275,14 @@ async function handleRequest(
   return new Response('Not Found', { status: 404 })
 }
 
-export function startAdminServer(options: AdminServerOptions): void {
+export async function startAdminServer(options: AdminServerOptions): Promise<void> {
   const { port, host, distDir } = options
+
+  await Promise.all(
+    ['decks', 'collections', 'wanted'].map((dir) =>
+      fs.mkdir(path.join(process.cwd(), dir), { recursive: true }),
+    ),
+  )
 
   const server = Bun.serve({
     port,
