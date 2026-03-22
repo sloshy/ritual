@@ -3,13 +3,14 @@ import prompts, { type Choice } from 'prompts'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { getAllCardNames, getCardsBySet } from '../scryfall'
-import type { Finish, ScryfallCard } from '../types'
+import type { ScryfallCard } from '../types'
 import { resolveCardPrinting, manageSetCodes, replaceLastLine } from './collection-helpers'
 import {
   type WantedListSessionConfig,
   ensureWantedListFile,
   formatWantedListLine,
   promptWantedListConfigUpdate,
+  promptWantedFinish,
   isFinish,
 } from './wanted-helpers'
 
@@ -408,15 +409,8 @@ export function registerWantedListCommand(program: Command) {
 
         // Specific printing flow
         if (!selectedPrinting) {
-          // Cast sessionConfig to satisfy resolveCardPrinting's SessionConfig type
-          const result = await resolveCardPrinting(
-            cardName,
-            {
-              ...sessionConfig,
-              condition: undefined,
-            },
-            excludeDigitalOnly,
-          )
+          // Cast sessionConfig to satisfy resolveCardPrinting's PrintingFilterConfig type
+          const result = await resolveCardPrinting(cardName, sessionConfig, excludeDigitalOnly)
           if (!result) {
             if (isEditing) continue
             console.error('No printings found. Adding name only.')
@@ -435,61 +429,18 @@ export function registerWantedListCommand(program: Command) {
           continue
         }
 
-        // Optional finish prompt (no condition for wanted lists)
-        let selectedFinish: Finish = 'nonfoil'
-        const availableFinishes = selectedPrinting.finishes || []
+        // Prompt for finish (with "No preference" option for wanted lists)
+        const finishResult = await promptWantedFinish(selectedPrinting, sessionConfig.finish)
+        if (finishResult === 'cancelled') continue
 
-        if (sessionConfig.finish && availableFinishes.includes(sessionConfig.finish)) {
-          selectedFinish = sessionConfig.finish
-        } else if (availableFinishes.length > 1) {
-          const finishChoices = availableFinishes.map((f) => ({
-            title: f.charAt(0).toUpperCase() + f.slice(1),
-            value: f,
-          }))
-          // Add "No preference" option for wanted lists
-          finishChoices.unshift({ title: 'No preference (any finish)', value: '__NONE__' })
-          const finishResponse = await prompts({
-            type: 'select',
-            name: 'finish',
-            message: 'Select Finish:',
-            choices: finishChoices,
-          })
-          if (!finishResponse.finish) continue
-          if (finishResponse.finish === '__NONE__') {
-            // State 2: printing without finish
-            const line = formatWantedListLine(cardName, {
-              set: selectedPrinting.set,
-              collectorNumber: selectedPrinting.collector_number,
-            })
-
-            if (isEditing && lastAddedCard) {
-              const result = await replaceLastLine(listFile, lastAddedCard.line, line)
-              if (result.replaced) {
-                console.log(`Edited: ${line.trim()}`)
-              } else {
-                await fs.appendFile(listFile, line)
-                console.log(`Added: ${line.trim()}`)
-              }
-            } else {
-              await fs.appendFile(listFile, line)
-              console.log(`Added: ${line.trim()}`)
-            }
-            lastAddedCard = { name: cardName, line: line, hasNote: false }
-            lastAddedCount = 1
-            continue
-          }
-          selectedFinish = finishResponse.finish as Finish
-        } else if (availableFinishes[0]) {
-          selectedFinish = availableFinishes[0] as Finish
-        }
-
+        const finish = finishResult === 'nopreference' ? undefined : finishResult
         const line = formatWantedListLine(
           cardName,
           {
             set: selectedPrinting.set,
             collectorNumber: selectedPrinting.collector_number,
           },
-          selectedFinish,
+          finish,
         )
 
         if (isEditing && lastAddedCard) {

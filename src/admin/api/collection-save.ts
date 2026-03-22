@@ -5,6 +5,7 @@ import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../g
 import { getErrorMessage } from '../../errors'
 import { isPathWithinDir } from '../../path-validation'
 import { MAX_BODY_SIZE } from '../validation'
+import { appendChangelog } from '../../changelog-writer'
 import type { CollectionCardEntry } from '../../site/data-types'
 import type { ChangeEvent } from '../site/types/deck-changes'
 
@@ -88,41 +89,7 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
 
     // Write changelog
     if (changes.length > 0) {
-      const changelogPath = filePath.replace(/\.md$/, '.changes.md')
-      const timestamp = new Date().toISOString()
-      const changeLines = changes.map((c) => {
-        let desc = ''
-        const printingInfo = c.set && c.collectorNumber ? ` (${c.set}:${c.collectorNumber})` : ''
-        const finishInfo = c.finish && c.finish !== 'nonfoil' ? ` [${c.finish}]` : ''
-        const conditionInfo = c.condition && c.condition !== 'NM' ? ` [${c.condition}]` : ''
-
-        switch (c.action) {
-          case 'add':
-            desc = `Added ${c.cardName}${printingInfo}${finishInfo}${conditionInfo}`
-            break
-          case 'remove':
-            desc = `Removed ${c.cardName}${printingInfo}${finishInfo}${conditionInfo}`
-            break
-          case 'set-commander':
-            desc = `Set ${c.cardName} as commander`
-            break
-          case 'set-finish':
-            desc = `Set ${c.cardName} finish to ${c.finish ?? 'nonfoil'}`
-            break
-        }
-        return `- ${desc}`
-      })
-
-      const changelogEntry = `\n## ${timestamp}\n\n${changeLines.join('\n')}\n`
-
-      let existingChangelog = ''
-      try {
-        existingChangelog = await fs.readFile(changelogPath, 'utf-8')
-      } catch {
-        existingChangelog = `# Changelog for ${slug}\n`
-      }
-
-      await fs.writeFile(changelogPath, existingChangelog + changelogEntry)
+      const changelogPath = await appendChangelog(filePath, slug, changes)
       filesToCommit.push(changelogPath)
     }
 

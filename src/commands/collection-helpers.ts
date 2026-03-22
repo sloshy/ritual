@@ -51,6 +51,17 @@ export type SessionConfig = {
   setCardMaps: Map<string, Map<string, ScryfallCard>>
 }
 
+/** Minimal config used when filtering card printings by set. */
+export type PrintingFilterConfig = {
+  sets?: string[]
+}
+
+/** Minimal config used when resolving finish and condition defaults. */
+export type FinishConditionConfig = {
+  finish?: Finish
+  condition?: Condition | 'NONE'
+}
+
 type CollectorSessionConfig = Pick<
   SessionConfig,
   'collectorSets' | 'activeSetIndex' | 'setCardMaps'
@@ -63,7 +74,7 @@ type PrintingResult = {
 
 export async function resolveCardPrinting(
   cardName: string,
-  sessionConfig: SessionConfig,
+  config: PrintingFilterConfig,
   excludeDigitalOnly: boolean,
 ): Promise<PrintingResult> {
   let printings = await getCardPrintings(cardName)
@@ -72,13 +83,13 @@ export async function resolveCardPrinting(
     printings = printings.filter((p) => !isDigitalOnlySet(p.set))
   }
 
-  if (sessionConfig.sets && sessionConfig.sets.length > 0) {
-    const filtered = printings.filter((p) => sessionConfig.sets!.includes(p.set.toLowerCase()))
+  if (config.sets && config.sets.length > 0) {
+    const filtered = printings.filter((p) => config.sets!.includes(p.set.toLowerCase()))
     if (filtered.length > 0) {
       printings = filtered
     } else {
       console.warn(
-        `No printings found matching set filters [${sessionConfig.sets.join(', ')}]. Showing all printings.`,
+        `No printings found matching set filters [${config.sets.join(', ')}]. Showing all printings.`,
       )
     }
   }
@@ -135,20 +146,20 @@ export async function resolveCardPrinting(
 
 type FinishAndConditionResult = {
   finish: Finish
-  condition: string
+  condition: Condition | undefined
 } | null
 
 export async function promptFinishAndCondition(
   selectedPrinting: ScryfallCard,
-  sessionConfig: SessionConfig,
+  config: FinishConditionConfig,
   forcePrompts: boolean,
 ): Promise<FinishAndConditionResult> {
   // Prompt for Finish
   let selectedFinish: Finish = 'nonfoil'
-  const availableFinishes = selectedPrinting.finishes || []
+  const availableFinishes = (selectedPrinting.finishes ?? []).filter(isFinish)
 
-  if (!forcePrompts && sessionConfig.finish && availableFinishes.includes(sessionConfig.finish)) {
-    selectedFinish = sessionConfig.finish
+  if (!forcePrompts && config.finish && availableFinishes.includes(config.finish)) {
+    selectedFinish = config.finish
   } else if (availableFinishes.length > 1) {
     const finishChoices = availableFinishes.map((f) => ({
       title: capitalize(f),
@@ -160,16 +171,18 @@ export async function promptFinishAndCondition(
       message: 'Select Finish:',
       choices: finishChoices,
     })
-    if (!finishResponse.finish) return null
-    selectedFinish = finishResponse.finish as Finish
-  } else if (availableFinishes[0]) {
-    selectedFinish = availableFinishes[0] as Finish
+    const chosenFinish = finishResponse.finish
+    if (!chosenFinish || !isFinish(chosenFinish)) return null
+    selectedFinish = chosenFinish
+  } else {
+    const only = availableFinishes[0]
+    if (only !== undefined) selectedFinish = only
   }
 
   // Prompt for Condition
-  let selectedCondition = ''
-  if (!forcePrompts && sessionConfig.condition !== undefined) {
-    selectedCondition = sessionConfig.condition === 'NONE' ? '' : sessionConfig.condition || ''
+  let selectedCondition: Condition | undefined = undefined
+  if (!forcePrompts && config.condition !== undefined) {
+    selectedCondition = config.condition === 'NONE' ? undefined : config.condition
   } else {
     const conditionResponse = await prompts({
       type: 'select',
@@ -185,7 +198,8 @@ export async function promptFinishAndCondition(
       ],
     })
     if (conditionResponse.condition === undefined) return null
-    selectedCondition = conditionResponse.condition
+    selectedCondition =
+      conditionResponse.condition === '' ? undefined : (conditionResponse.condition as Condition)
   }
 
   return { finish: selectedFinish, condition: selectedCondition }
@@ -195,7 +209,7 @@ export function formatCollectionLine(
   cardName: string,
   printing: ScryfallCard,
   finish: Finish,
-  condition: string,
+  condition: Condition | undefined,
   note?: string,
 ): string {
   let line = `- ${cardName} (${printing.set.toUpperCase()}:${printing.collector_number})`
@@ -227,7 +241,6 @@ export async function replaceLastLine(
   expectedLine: string,
   newLine: string,
 ): Promise<ReplaceLastLineResult> {
-  const fs = await import('node:fs/promises')
   const fileContent = await fs.readFile(filePath, 'utf-8')
   const lines = fileContent.trimEnd().split('\n')
   if ((lines[lines.length - 1] ?? '').trim() === expectedLine.trim()) {

@@ -2,7 +2,9 @@ import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import prompts from 'prompts'
 import type { Finish, ScryfallCard } from '../types'
-import { isFinish, VALID_FINISHES } from './collection-helpers'
+import { capitalize } from '../utils'
+import { getAllCardNames } from '../scryfall'
+import { isFinish, VALID_FINISHES, type SessionConfig } from './collection-helpers'
 
 export type WantedListEntry = {
   name: string
@@ -91,21 +93,62 @@ export async function ensureWantedListFile(name: string): Promise<string> {
   return filePath
 }
 
-export type WantedListSessionConfig = {
-  sets?: string[]
-  finish?: Finish
-  entryMode: 'name' | 'collector'
-  collectorSets: string[]
-  activeSetIndex: number
-  setCardMaps: Map<string, Map<string, ScryfallCard>>
+export type WantedListSessionConfig = Omit<SessionConfig, 'condition'>
+
+export type WantedFinishResult = Finish | 'nopreference' | 'cancelled'
+
+/**
+ * Prompt the user to select a finish for a wanted list entry.
+ * Returns:
+ *  - A specific `Finish` value if selected
+ *  - `'nopreference'` if the user chose "No preference"
+ *  - `'cancelled'` if the user cancelled
+ *
+ * If `defaultFinish` is provided and available on the card, it is used
+ * without prompting.
+ */
+export async function promptWantedFinish(
+  printing: ScryfallCard,
+  defaultFinish?: Finish,
+): Promise<WantedFinishResult> {
+  const availableFinishes = (printing.finishes ?? []).filter(isFinish)
+
+  if (defaultFinish && availableFinishes.includes(defaultFinish)) {
+    return defaultFinish
+  }
+
+  if (availableFinishes.length === 0) return 'nopreference'
+
+  if (availableFinishes.length === 1) {
+    const only = availableFinishes[0]
+    return only !== undefined ? only : 'nopreference'
+  }
+
+  const choices: Array<{ title: string; value: string }> = [
+    { title: 'No preference (any finish)', value: '__NONE__' },
+    ...availableFinishes.map((f) => ({ title: capitalize(f), value: f })),
+  ]
+
+  let isExited = false
+  const response = await prompts({
+    type: 'select',
+    name: 'finish',
+    message: 'Select Finish:',
+    choices,
+    onState: (state: { exited: boolean }) => {
+      if (state.exited) isExited = true
+    },
+  })
+
+  if (isExited || response.finish === undefined) return 'cancelled'
+  if (response.finish === '__NONE__') return 'nopreference'
+  return response.finish as Finish
 }
 
 export async function promptWantedListConfigUpdate(
   sessionConfig: WantedListSessionConfig,
   excludeDigitalOnly: boolean,
 ): Promise<string[]> {
-  const { getAllCardNames } = await import('../scryfall')
-
   const configResponse = await prompts([
     {
       type: 'text',

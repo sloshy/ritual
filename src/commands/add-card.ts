@@ -1,7 +1,8 @@
 import { Command } from 'commander'
+import prompts from 'prompts'
 import path from 'node:path'
 import * as fs from 'node:fs/promises'
-import { searchCards } from '../scryfall'
+import { getAllCardNames } from '../scryfall'
 import { resolveDeckFilePath, addCardToDeckFile } from '../deck-file'
 import {
   resolveCardPrinting,
@@ -10,33 +11,150 @@ import {
   ensureCollectionFile,
   isFinish,
   isCondition,
-  type SessionConfig,
+  type PrintingFilterConfig,
+  type FinishConditionConfig,
 } from './collection-helpers'
-import type { ScryfallCard } from '../types'
-import { promptUser } from '../utils'
+import { ensureWantedListFile, formatWantedListLine, promptWantedFinish } from './wanted-helpers'
+import { ensureFreshCardCache } from '../cache/freshness'
+import { appendChangelog } from '../changelog-writer'
+import { createChangeId } from '../admin/site/types/deck-changes'
+import type { ChangeEvent } from '../admin/site/types/deck-changes'
+import type { Finish } from '../types'
 
-type TargetType = 'deck' | 'collection'
+type TargetType = 'deck' | 'collection' | 'wanted'
 
 function isTargetType(value: string): value is TargetType {
-  return value === 'deck' || value === 'collection'
+  return value === 'deck' || value === 'collection' || value === 'wanted'
 }
 
 type AddCardOptions = {
   quantity: string
   finish?: string
   condition?: string
+  exact?: boolean
+}
+
+/**
+ * Normalize a card name for exact matching by stripping punctuation
+ * and collapsing to lowercase.
+ */
+export function normalizeCardName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * Attempt an exact match against cached card names.
+ * Returns the canonical card name if exactly one match is found, null otherwise.
+ */
+function findExactMatch(inputName: string, cardNames: string[]): string | null {
+  const normalized = normalizeCardName(inputName)
+  const matches = cardNames.filter((name) => normalizeCardName(name) === normalized)
+  if (matches.length === 1 && matches[0]) return matches[0]
+  return null
+}
+
+/**
+ * Count how many card names contain the input as a normalized substring.
+ * Short-circuits at `limit` to avoid scanning the full list unnecessarily.
+ */
+function countSubstringMatches(inputName: string, cardNames: string[], limit: number): number {
+  const normalized = normalizeCardName(inputName)
+  let count = 0
+  for (const name of cardNames) {
+    if (normalizeCardName(name).includes(normalized)) {
+      count++
+      if (count >= limit) return count
+    }
+  }
+  return count
+}
+
+/**
+ * Select a card name using an autocomplete prompt backed by the card cache.
+ * When initialSearch is provided, pre-sorts matching cards to the top.
+ */
+async function selectCardAutocomplete(
+  cardNames: string[],
+  initialSearch: string,
+): Promise<string | null> {
+  // Pre-filter: only include cards whose normalized name contains the normalized search as a substring
+  let filteredNames = cardNames
+  if (initialSearch) {
+    const normalizedSearch = normalizeCardName(initialSearch)
+    filteredNames = cardNames.filter((name) => normalizeCardName(name).includes(normalizedSearch))
+
+    if (filteredNames.length === 0) {
+      console.log(`No cards found matching '${initialSearch}'.`)
+      return null
+    }
+
+    console.log(
+      `Found ${filteredNames.length} card${filteredNames.length !== 1 ? 's' : ''} matching '${initialSearch}'.`,
+    )
+  }
+
+  const choices = filteredNames.map((name) => ({ title: name, value: name }))
+
+  let isExited = false
+  const response = await prompts({
+    type: 'autocomplete',
+    name: 'cardName',
+    message: 'Select a card:',
+    choices,
+    limit: 15,
+    suggest: async (rawInput, choices) => {
+      const input = String(rawInput)
+      if (!input) return choices.slice(0, 15)
+
+      const terms = input.toLowerCase().split(/\s+/).filter(Boolean)
+      return choices.filter((choice) => {
+        const title = choice.title.toLowerCase()
+        return terms.every((term) => title.includes(term))
+      })
+    },
+    onState: (state: { exited: boolean }) => {
+      if (state.exited) isExited = true
+    },
+  })
+
+  if (isExited || !response.cardName) return null
+  return response.cardName as string
+}
+
+function createAddChangeEvent(
+  cardName: string,
+  options?: { set?: string; collectorNumber?: string; finish?: Finish; condition?: string },
+): ChangeEvent {
+  return {
+    id: createChangeId(),
+    timestamp: Date.now(),
+    action: 'add',
+    cardName,
+    set: options?.set,
+    collectorNumber: options?.collectorNumber,
+    finish: options?.finish,
+    condition: options?.condition,
+  }
 }
 
 export function registerAddCardCommand(program: Command) {
   program
     .command('add-card')
-    .description('Add a card to a deck or collection by name')
-    .argument('<type>', 'Target type: "deck" or "collection"')
-    .argument('<targetName>', 'Name of the deck or collection (file name without extension)')
+    .description('Add a card to a deck, collection, or wanted list by name')
+    .argument('<type>', 'Target type: "deck", "collection", or "wanted"')
+    .argument(
+      '<targetName>',
+      'Name of the deck, collection, or wanted list (file name without extension)',
+    )
     .argument('<cardName...>', 'Name of the card to search for')
     .option('-q, --quantity <number>', 'Number of copies to add (deck only)', '1')
-    .option('-f, --finish <finish>', 'Card finish: nonfoil, foil, etched (collection only)')
+    .option('-f, --finish <finish>', 'Card finish: nonfoil, foil, etched (collection/wanted only)')
     .option('-c, --condition <condition>', 'Card condition: NM, LP, MP, HP, DMG (collection only)')
+    .option('-e, --exact', 'Use exact matching (skip interactive selection if name matches)', false)
     .action(
       async (
         type: string,
@@ -45,16 +163,57 @@ export function registerAddCardCommand(program: Command) {
         options: AddCardOptions,
       ) => {
         if (!isTargetType(type)) {
-          console.error(`Invalid type '${type}'. Must be 'deck' or 'collection'.`)
+          console.error(`Invalid type '${type}'. Must be 'deck', 'collection', or 'wanted'.`)
           process.exit(1)
         }
 
-        const cardName = cardNameParts.join(' ')
+        const cardNameInput = cardNameParts.join(' ')
 
-        if (type === 'deck') {
-          await handleDeckAddCard(targetName, cardName, options)
+        // Ensure card cache is available and fresh
+        const cacheResult = await ensureFreshCardCache()
+        if (!cacheResult.ready) {
+          console.error('Card cache is not available. Cannot proceed without cached card data.')
+          process.exit(1)
+        }
+
+        console.log(`Loaded ${cacheResult.cardCount} cards from cache.`)
+
+        const cardNames = await getAllCardNames()
+
+        // Resolve the card name (exact match or autocomplete)
+        let selectedName: string | null = null
+
+        if (options.exact) {
+          selectedName = findExactMatch(cardNameInput, cardNames)
+          if (selectedName) {
+            console.log(`Exact match found: ${selectedName}`)
+          } else {
+            const matchCount = countSubstringMatches(cardNameInput, cardNames, 100)
+            const countLabel = matchCount >= 100 ? '100+' : String(matchCount)
+            console.error(
+              `No exact match for '${cardNameInput}'. ${countLabel} card${matchCount !== 1 ? 's' : ''} contain that name.`,
+            )
+            process.exit(1)
+          }
         } else {
-          await handleCollectionAddCard(targetName, cardName, options)
+          selectedName = await selectCardAutocomplete(cardNames, cardNameInput)
+        }
+
+        if (!selectedName) {
+          console.log('Cancelled.')
+          process.exit(0)
+        }
+
+        switch (type) {
+          case 'deck':
+            await handleDeckAddCard(targetName, selectedName, options)
+            break
+          case 'collection':
+            await handleCollectionAddCard(targetName, selectedName, options)
+            break
+          case 'wanted':
+            await handleWantedAddCard(targetName, selectedName, options)
+            break
         }
       },
     )
@@ -62,7 +221,7 @@ export function registerAddCardCommand(program: Command) {
 
 async function handleDeckAddCard(
   deckName: string,
-  cardName: string,
+  selectedName: string,
   options: AddCardOptions,
 ): Promise<void> {
   const decksDir = path.join(process.cwd(), 'decks')
@@ -79,18 +238,6 @@ async function handleDeckAddCard(
     process.exit(1)
   }
   const deckFileName = path.basename(deckFilePath)
-  console.log(`Found deck file: ${deckFileName}`)
-
-  console.log(`Searching for '${cardName}'...`)
-  const results = await searchCards(cardName)
-
-  if (results.length === 0) {
-    console.error(`No cards found for '${cardName}'`)
-    process.exit(1)
-  }
-
-  const selectedName = await selectCardFromResults(results)
-  if (!selectedName) return
 
   try {
     await addCardToDeckFile(deckFilePath, { quantity, name: selectedName })
@@ -99,39 +246,27 @@ async function handleDeckAddCard(
     console.error('Failed to update deck file:', e)
     process.exit(1)
   }
+
+  const change = createAddChangeEvent(selectedName)
+  await appendChangelog(deckFilePath, deckName, [change])
 }
 
 async function handleCollectionAddCard(
   collectionName: string,
-  cardName: string,
+  selectedName: string,
   options: AddCardOptions,
 ): Promise<void> {
   const collectionFilePath = await ensureCollectionFile(collectionName)
 
-  console.log(`Searching for '${cardName}'...`)
-  const results = await searchCards(cardName)
-
-  if (results.length === 0) {
-    console.error(`No cards found for '${cardName}'`)
-    process.exit(1)
-  }
-
-  const selectedName = await selectCardFromResults(results)
-  if (!selectedName) return
-
   const normalizedCondition = options.condition?.toUpperCase()
-  const sessionConfig: SessionConfig = {
-    sets: undefined,
+  const printingConfig: PrintingFilterConfig = {}
+  const finishConditionConfig: FinishConditionConfig = {
     finish: options.finish && isFinish(options.finish) ? options.finish : undefined,
     condition:
       normalizedCondition && isCondition(normalizedCondition) ? normalizedCondition : undefined,
-    entryMode: 'name',
-    collectorSets: [],
-    activeSetIndex: 0,
-    setCardMaps: new Map<string, Map<string, ScryfallCard>>(),
   }
 
-  const printingResult = await resolveCardPrinting(selectedName, sessionConfig, true)
+  const printingResult = await resolveCardPrinting(selectedName, printingConfig, true)
   if (!printingResult) {
     console.error('No printing selected.')
     process.exit(1)
@@ -139,7 +274,7 @@ async function handleCollectionAddCard(
 
   const finishAndCondition = await promptFinishAndCondition(
     printingResult.printing,
-    sessionConfig,
+    finishConditionConfig,
     false,
   )
   if (!finishAndCondition) {
@@ -156,40 +291,83 @@ async function handleCollectionAddCard(
 
   await fs.appendFile(collectionFilePath, line)
   console.log(`Added: ${line.trim()}`)
+
+  const change = createAddChangeEvent(selectedName, {
+    set: printingResult.printing.set.toUpperCase(),
+    collectorNumber: printingResult.printing.collector_number,
+    finish: finishAndCondition.finish,
+    condition: finishAndCondition.condition,
+  })
+  await appendChangelog(collectionFilePath, collectionName, [change])
 }
 
-async function selectCardFromResults(results: ScryfallCard[]): Promise<string | null> {
-  if (results.length === 1 && results[0]) {
-    const selectedName = results[0].name
-    console.log(`Found: ${selectedName}`)
-    return selectedName
-  }
+async function handleWantedAddCard(
+  wantedListName: string,
+  selectedName: string,
+  options: AddCardOptions,
+): Promise<void> {
+  const listFile = await ensureWantedListFile(wantedListName)
+  const userFinish = options.finish && isFinish(options.finish) ? options.finish : undefined
 
-  if (results.length <= 3) {
-    console.log('Multiple matches found:')
-    results.forEach((c, i) => console.log(`${i + 1}. ${c.name}`))
+  const specificityResponse = await prompts({
+    type: 'select',
+    name: 'specificity',
+    message: `How specific for ${selectedName}?`,
+    choices: [
+      { title: 'Name only (any copy)', value: 'name-only' },
+      { title: 'Choose specific printing', value: 'specific' },
+    ],
+  })
 
-    const answer = await promptUser(`Select a card (1-${results.length}) or return to cancel: `)
-    const parsed = Number.parseInt(answer, 10)
-    if (Number.isNaN(parsed) || parsed < 1 || parsed > results.length) {
-      console.log('Cancelled.')
-      process.exit(0)
-    }
-    return results[parsed - 1]!.name
-  }
-
-  const terminalHeight = process.stdout.rows ?? 20
-  const limit = Math.max(5, terminalHeight - 5)
-  const displayList = results.slice(0, limit)
-
-  console.log(`Found ${results.length} results. Top matches:`)
-  displayList.forEach((c, i) => console.log(`${i + 1}. ${c.name}`))
-
-  const answer = await promptUser(`Select a card (1-${displayList.length}) or return to cancel: `)
-  const parsed = Number.parseInt(answer, 10)
-  if (Number.isNaN(parsed) || parsed < 1 || parsed > displayList.length) {
+  if (!specificityResponse.specificity) {
     console.log('Cancelled.')
     process.exit(0)
   }
-  return displayList[parsed - 1]!.name
+
+  if (specificityResponse.specificity === 'name-only') {
+    const line = formatWantedListLine(selectedName, undefined, userFinish)
+    await fs.appendFile(listFile, line)
+    console.log(`Added: ${line.trim()}`)
+    const change = createAddChangeEvent(selectedName, { finish: userFinish })
+    await appendChangelog(listFile, wantedListName, [change])
+    return
+  }
+
+  // Specific printing flow
+  const printingResult = await resolveCardPrinting(selectedName, {}, true)
+  if (!printingResult) {
+    console.log('No printing selected. Adding name only.')
+    const line = formatWantedListLine(selectedName, undefined, userFinish)
+    await fs.appendFile(listFile, line)
+    console.log(`Added: ${line.trim()}`)
+    const change = createAddChangeEvent(selectedName, { finish: userFinish })
+    await appendChangelog(listFile, wantedListName, [change])
+    return
+  }
+
+  const finishResult = await promptWantedFinish(printingResult.printing, userFinish)
+  if (finishResult === 'cancelled') {
+    console.log('Cancelled.')
+    process.exit(0)
+  }
+
+  const finish = finishResult === 'nopreference' ? undefined : finishResult
+  const line = formatWantedListLine(
+    selectedName,
+    {
+      set: printingResult.printing.set,
+      collectorNumber: printingResult.printing.collector_number,
+    },
+    finish,
+  )
+
+  await fs.appendFile(listFile, line)
+  console.log(`Added: ${line.trim()}`)
+
+  const change = createAddChangeEvent(selectedName, {
+    set: printingResult.printing.set.toUpperCase(),
+    collectorNumber: printingResult.printing.collector_number,
+    finish: finish,
+  })
+  await appendChangelog(listFile, wantedListName, [change])
 }
