@@ -24,6 +24,7 @@ import { registerScryCommand } from './src/commands/scry'
 import { registerCardCommand } from './src/commands/card'
 import { registerRandomCommand } from './src/commands/random'
 import { registerGetPrimerCommand } from './src/commands/get-primer'
+import { registerInitSiteCommand } from './src/commands/init-site'
 import { registerAdminCommand } from './src/commands/admin'
 import { registerLicenseCommand } from './src/commands/license'
 import { registerDepLicenseCommand } from './src/commands/dep-license'
@@ -79,6 +80,7 @@ registerRandomCommand(program)
 program.commandsGroup('Site')
 registerBuildSiteCommand(program)
 registerServeCommand(program)
+registerInitSiteCommand(program)
 registerAdminCommand(program)
 
 program.commandsGroup('Cache')
