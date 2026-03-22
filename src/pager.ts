@@ -1,7 +1,10 @@
 export type PagerMode = 'interactive' | 'plain'
 
-export function resolvePagerMode(plain: boolean): PagerMode {
-  if (plain || !process.stdout.isTTY) return 'plain'
+export function resolvePagerMode(
+  plain: boolean,
+  isTTY: boolean | undefined = process.stdout.isTTY,
+): PagerMode {
+  if (plain || !isTTY) return 'plain'
   return 'interactive'
 }
 
