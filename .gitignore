@@ -50,6 +50,7 @@ research/
 .admin-dist/
 
 styles.compiled.css
+src/generated/
 
 # Personal files
 install_dev.sh

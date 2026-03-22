@@ -25,6 +25,8 @@ import { registerCardCommand } from './src/commands/card'
 import { registerRandomCommand } from './src/commands/random'
 import { registerGetPrimerCommand } from './src/commands/get-primer'
 import { registerAdminCommand } from './src/commands/admin'
+import { registerLicenseCommand } from './src/commands/license'
+import { registerDepLicenseCommand } from './src/commands/dep-license'
 import {
   resolveCacheServerAddress,
   setCacheServerAddressOverride,
@@ -82,5 +84,9 @@ registerAdminCommand(program)
 program.commandsGroup('Cache')
 registerCacheCommand(program)
 registerCacheServerCommand(program)
+
+program.commandsGroup('Legal')
+registerLicenseCommand(program)
+registerDepLicenseCommand(program)
 
 program.parse()
