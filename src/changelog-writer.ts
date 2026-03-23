@@ -6,7 +6,9 @@ import type { ChangeEvent } from './admin/site/types/deck-changes'
  */
 function formatChangelogLine(change: ChangeEvent): string {
   const printingInfo =
-    change.set && change.collectorNumber ? ` (${change.set}:${change.collectorNumber})` : ''
+    change.set && change.collectorNumber
+      ? ` (${change.set.toUpperCase()}:${change.collectorNumber})`
+      : ''
   const finishInfo = change.finish && change.finish !== 'nonfoil' ? ` [${change.finish}]` : ''
   const conditionInfo =
     change.condition && change.condition !== 'NM' ? ` [${change.condition}]` : ''

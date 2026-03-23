@@ -63,7 +63,7 @@ export function mapScryfallCard(item: ScryfallCard): ScryfallCard {
     },
     finishes: item.finishes,
     games: item.games ?? [],
-    set: item.set,
+    set: item.set.toLowerCase(),
     set_name: item.set_name,
     collector_number: item.collector_number,
     rarity: item.rarity,

@@ -31,6 +31,25 @@ function getOrigin(): { x: number; y: number } {
 
 When writing code that's meant to parse a data type, that should always imply validation and returning an error. If a data type would ever be parsed, such as from a string, make sure that any appropraite errors are properly represented. It's okay to use TypeScript union types for this, such as returning "ProperType | string", where the string represents an error. Or, you can use a structured error type if having separate data points makes sense.
 
+### Set Code Normalization
+
+Set codes (e.g. `mkm`, `lea`, `2xm`) must follow these rules throughout the codebase:
+
+- **Lowercase internally**: Normalize to lowercase when reading from user input, file parsers, or any external source. All in-memory representations, cache keys, and comparisons must use lowercase.
+- **Lowercase in data files**: Cache files and any non-markdown data files must store set codes in lowercase.
+- **Uppercase in output**: Markdown files (deck, collection, wanted lists), CLI display text, and site UI must always render set codes in uppercase (`.toUpperCase()`).
+
+```ts
+// ✅ Reading/parsing — normalize to lowercase
+set: match[3]?.toLowerCase()
+
+// ✅ Writing to markdown or displaying to user — uppercase
+`${card.set.toUpperCase()}:${card.collectorNumber}`
+
+// ✅ Comparisons — always lowercase both sides
+entry.set.toLowerCase() === change.set.toLowerCase()
+```
+
 ### Organization
 
 New CLI commands should be added to `src/commands/` rather than directly in `index.ts`.

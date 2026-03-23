@@ -11,7 +11,7 @@ describe('parseWantedListFile', () => {
 
   test('parses an entry with a specific printing', () => {
     const { entries } = parseWantedListFile('- Sol Ring (LEA:232)\n')
-    expect(entries[0]).toMatchObject({ name: 'Sol Ring', set: 'LEA', collectorNumber: '232' })
+    expect(entries[0]).toMatchObject({ name: 'Sol Ring', set: 'lea', collectorNumber: '232' })
   })
 
   test('parses an entry with a foil finish', () => {
@@ -23,7 +23,7 @@ describe('parseWantedListFile', () => {
     const { entries } = parseWantedListFile('- Sol Ring (LEA:232) [etched]\n')
     expect(entries[0]).toMatchObject({
       name: 'Sol Ring',
-      set: 'LEA',
+      set: 'lea',
       collectorNumber: '232',
       finish: 'etched',
     })

@@ -39,8 +39,9 @@ export function areOppositeChanges(a: ChangeEvent, b: ChangeEvent): boolean {
   // Card name must match
   if (a.cardName !== b.cardName) return false
 
-  // Printing must match (both undefined or both same)
-  if (a.set !== b.set || a.collectorNumber !== b.collectorNumber) return false
+  // Printing must match (both undefined or both same, case-insensitive)
+  if (a.set?.toLowerCase() !== b.set?.toLowerCase() || a.collectorNumber !== b.collectorNumber)
+    return false
 
   // Finish must match
   if (a.finish !== b.finish) return false
@@ -59,7 +60,9 @@ export function isAdditiveChange(action: ChangeAction): boolean {
 /** Format a change event as a human-readable description */
 export function formatChange(change: ChangeEvent): string {
   const printingInfo =
-    change.set && change.collectorNumber ? ` (${change.set}:${change.collectorNumber})` : ''
+    change.set && change.collectorNumber
+      ? ` (${change.set.toUpperCase()}:${change.collectorNumber})`
+      : ''
   const finishInfo = change.finish && change.finish !== 'nonfoil' ? ` [${change.finish}]` : ''
   const conditionInfo =
     change.condition && change.condition !== 'NM' ? ` [${change.condition}]` : ''

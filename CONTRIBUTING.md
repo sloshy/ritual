@@ -9,6 +9,8 @@ All TypeScript code should follow these conventions:
 - **Object types**: Always define object types explicitly with `type` or `interface` — never use inline anonymous object shapes as return types or variable types.
 - **Parsers**: When writing parsing code, ensure that errors are properly represented, either through union types or structured error objects.
 
+- **Set code normalization**: Set codes must always be lowercase in memory, cache keys, and data files. They must always be uppercase in markdown output (deck/collection/wanted files), CLI display text, and site UI. Normalize on read with `.toLowerCase()`; format on write/display with `.toUpperCase()`.
+
 ## Organization
 
 - New CLI commands belong in `src/commands/`, not directly in `index.ts`.

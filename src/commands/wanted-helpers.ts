@@ -47,7 +47,7 @@ export function parseWantedListFile(content: string): WantedListParseResult {
     entries.push({
       name,
       quantity: 1,
-      set: setCode,
+      set: setCode?.toLowerCase(),
       collectorNumber,
       finish,
       note,

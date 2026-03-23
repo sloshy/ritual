@@ -38,7 +38,7 @@ export async function resolveDeckFilePath(
 export function serializeCardLine(card: Card): string {
   let line = `${card.quantity} ${card.name}`
   if (card.set && card.collectorNumber) {
-    line += ` (${card.set}:${card.collectorNumber})`
+    line += ` (${card.set.toUpperCase()}:${card.collectorNumber})`
   }
   if (card.finish && card.finish !== 'nonfoil') {
     line += ` [${card.finish}]`

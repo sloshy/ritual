@@ -105,7 +105,7 @@ export function registerCardCommand(program: Command) {
       for (const cardName of names) {
         const card = await scryfallClient.fetchNamedCard(cardName, {
           fuzzy: options.fuzzy,
-          set: options.set,
+          set: options.set?.toLowerCase(),
         })
 
         if (!card) {

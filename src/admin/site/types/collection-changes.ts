@@ -40,7 +40,7 @@ export function applyChangeToCollection(
       // Fallback: match by name + optional set/collectorNumber
       const idx = entries.findIndex((e) => {
         if (e.name !== change.cardName) return false
-        if (change.set && e.set !== change.set) return false
+        if (change.set && e.set.toLowerCase() !== change.set.toLowerCase()) return false
         if (change.collectorNumber && e.collectorNumber !== change.collectorNumber) return false
         return true
       })

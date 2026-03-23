@@ -946,7 +946,7 @@ export function registerBuildSiteCommand(program: Command) {
           const condition = entry.condition || ''
           const csvName = entry.name.includes(',') ? `"${entry.name}"` : entry.name
           csvLines.push(
-            `${csvName},${entry.set},${entry.collectorNumber},${finish},${condition},${entry.quantity}`,
+            `${csvName},${entry.set.toUpperCase()},${entry.collectorNumber},${finish},${condition},${entry.quantity}`,
           )
         }
         await Bun.write(path.join(distDir, exportCsvPath), csvLines.join('\n'))

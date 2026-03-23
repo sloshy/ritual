@@ -42,7 +42,7 @@ describe('importFromTextFile - basic card lines', () => {
     const card = deck.sections[0]!.cards[0]!
     expect(card.quantity).toBe(2)
     expect(card.name).toBe('Lightning Bolt')
-    expect(card.set).toBe('2XM')
+    expect(card.set).toBe('2xm')
     expect(card.collectorNumber).toBe('157')
     expect(card.finish).toBeUndefined()
     expect(card.condition).toBeUndefined()
@@ -54,7 +54,7 @@ describe('importFromTextFile - basic card lines', () => {
     const card = deck.sections[0]!.cards[0]!
     expect(card.quantity).toBe(1)
     expect(card.name).toBe('Mana Crypt')
-    expect(card.set).toBe('2XM')
+    expect(card.set).toBe('2xm')
     expect(card.collectorNumber).toBe('1')
     expect(card.finish).toBe('foil')
     expect(card.condition).toBeUndefined()
@@ -68,7 +68,7 @@ describe('importFromTextFile - basic card lines', () => {
     const card = deck.sections[0]!.cards[0]!
     expect(card.quantity).toBe(3)
     expect(card.name).toBe('Island')
-    expect(card.set).toBe('SLD')
+    expect(card.set).toBe('sld')
     expect(card.collectorNumber).toBe('63')
     expect(card.finish).toBe('nonfoil')
     expect(card.condition).toBe('LP')
@@ -195,7 +195,7 @@ describe('importFromTextFile - mixed extended format', () => {
     expect(cards[0]!.set).toBeUndefined()
 
     expect(cards[1]!.name).toBe('Lightning Bolt')
-    expect(cards[1]!.set).toBe('2XM')
+    expect(cards[1]!.set).toBe('2xm')
     expect(cards[1]!.collectorNumber).toBe('157')
 
     expect(cards[2]!.name).toBe('Mana Crypt')

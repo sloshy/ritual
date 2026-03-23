@@ -7,7 +7,7 @@ describe('parseCollectionFile', () => {
 
     expect(result.entries).toHaveLength(1)
     expect(result.entries[0]!.name).toBe('Lightning Bolt')
-    expect(result.entries[0]!.set).toBe('LEA')
+    expect(result.entries[0]!.set).toBe('lea')
     expect(result.entries[0]!.collectorNumber).toBe('161')
   })
 
@@ -31,7 +31,7 @@ describe('parseCollectionFile', () => {
     expect(result.entries).toHaveLength(1)
     const entry = result.entries[0]!
     expect(entry.name).toBe('Lightning Bolt')
-    expect(entry.set).toBe('LEA')
+    expect(entry.set).toBe('lea')
     expect(entry.collectorNumber).toBe('161')
     expect(entry.finish).toBe('foil')
     expect(entry.condition).toBe('LP')

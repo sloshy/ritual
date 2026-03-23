@@ -74,7 +74,7 @@ export async function importFromTextFile(filePath: string): Promise<DeckData> {
       currentSection.cards.push({
         quantity: Number.parseInt(quantityMatch[1], 10),
         name: quantityMatch[2].trim(),
-        set: quantityMatch[3],
+        set: quantityMatch[3]?.toLowerCase(),
         collectorNumber: quantityMatch[4],
         finish: quantityMatch[5],
         condition: quantityMatch[6],

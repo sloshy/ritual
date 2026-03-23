@@ -293,7 +293,7 @@ async function handleCollectionAddCard(
   console.log(`Added: ${line.trim()}`)
 
   const change = createAddChangeEvent(selectedName, {
-    set: printingResult.printing.set.toUpperCase(),
+    set: printingResult.printing.set.toLowerCase(),
     collectorNumber: printingResult.printing.collector_number,
     finish: finishAndCondition.finish,
     condition: finishAndCondition.condition,
@@ -365,7 +365,7 @@ async function handleWantedAddCard(
   console.log(`Added: ${line.trim()}`)
 
   const change = createAddChangeEvent(selectedName, {
-    set: printingResult.printing.set.toUpperCase(),
+    set: printingResult.printing.set.toLowerCase(),
     collectorNumber: printingResult.printing.collector_number,
     finish: finish,
   })

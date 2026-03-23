@@ -7,7 +7,7 @@ describe('parseCollectionFile', () => {
     const { entries, warnings } = parseCollectionFile(content)
     expect(entries).toHaveLength(1)
     expect(entries[0]!.name).toBe('Arcane Signet')
-    expect(entries[0]!.set).toBe('ECC')
+    expect(entries[0]!.set).toBe('ecc')
     expect(entries[0]!.collectorNumber).toBe('55')
     expect(entries[0]!.quantity).toBe(1)
     expect(warnings).toHaveLength(0)
@@ -45,8 +45,8 @@ describe('parseCollectionFile', () => {
     const content = `- Sol Ring (C19:221)\n- Sol Ring (MH3:300)\n`
     const { entries } = parseCollectionFile(content)
     expect(entries).toHaveLength(2)
-    expect(entries[0]!.set).toBe('C19')
-    expect(entries[1]!.set).toBe('MH3')
+    expect(entries[0]!.set).toBe('c19')
+    expect(entries[1]!.set).toBe('mh3')
   })
 
   test('handles double-faced card names', () => {
@@ -75,7 +75,7 @@ describe('parseCollectionFile', () => {
     const { entries, warnings } = parseCollectionFile(content)
     expect(entries).toHaveLength(1)
     expect(entries[0]!.name).toBe('Serpent of Yawning Depths')
-    expect(entries[0]!.set).toBe('SLD')
+    expect(entries[0]!.set).toBe('sld')
     expect(entries[0]!.collectorNumber).toBe('1489★')
     expect(entries[0]!.finish).toBe('foil')
     expect(entries[0]!.condition).toBe('NM')

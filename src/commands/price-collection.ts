@@ -59,7 +59,7 @@ export function parseCollectionFile(content: string): CollectionParseResult {
     entries.push({
       name,
       quantity: 1,
-      set: setCode,
+      set: setCode.toLowerCase(),
       collectorNumber,
       finish: match[4],
       condition: match[5],
