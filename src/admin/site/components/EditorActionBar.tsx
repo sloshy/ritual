@@ -1,3 +1,5 @@
+import { memo } from 'preact/compat'
+
 type EditorActionBarProps = {
   changeCount: number
   canUndo: boolean
@@ -8,7 +10,7 @@ type EditorActionBarProps = {
   onDiscard: () => void
 }
 
-export function EditorActionBar({
+export const EditorActionBar = memo(function EditorActionBar({
   changeCount,
   canUndo,
   saving,
@@ -19,19 +21,24 @@ export function EditorActionBar({
 }: EditorActionBarProps) {
   return (
     <div class="editor-action-bar">
-      <button class="btn-changes" onClick={onShowChanges}>
+      <button type="button" class="btn-changes" onClick={onShowChanges}>
         Changes
         {changeCount > 0 && <span class="changes-badge">{changeCount}</span>}
       </button>
-      <button class="btn-undo" disabled={!canUndo} onClick={onUndo}>
+      <button type="button" class="btn-undo" disabled={!canUndo} onClick={onUndo}>
         Undo
       </button>
-      <button class="btn-save" disabled={changeCount === 0 || saving} onClick={onSave}>
+      <button
+        type="button"
+        class="btn-save"
+        disabled={changeCount === 0 || saving}
+        onClick={onSave}
+      >
         {saving ? 'Saving...' : 'Save Changes'}
       </button>
-      <button class="btn-discard" disabled={changeCount === 0} onClick={onDiscard}>
+      <button type="button" class="btn-discard" disabled={changeCount === 0} onClick={onDiscard}>
         Discard Changes
       </button>
     </div>
   )
-}
+})

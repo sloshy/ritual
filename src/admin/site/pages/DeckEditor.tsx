@@ -81,11 +81,16 @@ export function DeckEditor() {
     undo,
   } = useDeckChanges<Card>()
 
-  const idPool = useCardIdPool()
+  const { allocate, release, resetPool, claim } = useCardIdPool()
   const originalDeckRef = useRef<DeckData | null>(null)
 
   const deckDataRef = useRef(deckData)
   deckDataRef.current = deckData
+
+  const changesRef = useRef(changes)
+  changesRef.current = changes
+  const frontMatterRef = useRef(frontMatter)
+  frontMatterRef.current = frontMatter
 
   /** Find a card's ID from the current deck state by name and optional section hint. */
   const findCardId = useCallback(
@@ -117,11 +122,12 @@ export function DeckEditor() {
   // Fetch full deck data when slug changes
   useEffect(() => {
     if (!deckSlug) return
+    const controller = new AbortController()
     setLoading(true)
     setError(null)
     setSaveStatus(null)
 
-    fetch(`/api/deck/${deckSlug}`, { credentials: 'same-origin' })
+    fetch(`/api/deck/${deckSlug}`, { credentials: 'same-origin', signal: controller.signal })
       .then((r) => r.json() as Promise<DeckDataResponse>)
       .then((data) => {
         if (data.success) {
@@ -150,7 +156,7 @@ export function DeckEditor() {
 
           setDeckData(deckWithIds)
           originalDeckRef.current = deckWithIds
-          idPool.resetPool([...pool.usedIds])
+          resetPool([...pool.usedIds])
           setCards(data.cards)
           setPrintings(data.printings)
           setLowestPriceCards(data.lowestPriceCards)
@@ -163,9 +169,16 @@ export function DeckEditor() {
           setError('Failed to load deck')
         }
       })
-      .catch(() => setError('Failed to load deck'))
-      .finally(() => setLoading(false))
-  }, [deckSlug, discardAll, refreshKey])
+      .catch((err) => {
+        if (err instanceof Error && err.name === 'AbortError') return
+        setError('Failed to load deck')
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [deckSlug, discardAll, resetPool, refreshKey])
 
   const handleDeckSelect = useCallback((e: Event) => {
     const value = (e.target as HTMLSelectElement).value
@@ -194,7 +207,7 @@ export function DeckEditor() {
           const card = section.cards.find((c) => c.name === cardName)
           if (card && card.quantity <= 1 && card.cardId !== undefined) {
             removedCardData = { ...card }
-            idPool.release(card.cardId)
+            release(card.cardId)
             break
           }
         }
@@ -205,7 +218,7 @@ export function DeckEditor() {
         prev ? applyChangeToDeck(prev, { action: 'remove', cardName, cardId }) : prev,
       )
     },
-    [decrementCard, findCardId, idPool],
+    [decrementCard, findCardId, release],
   )
 
   const handleContextMenu = useCallback(
@@ -276,7 +289,7 @@ export function DeckEditor() {
       scryfallCard?: ScryfallCard,
       allPrintings?: ScryfallCard[],
     ) => {
-      const cardId = idPool.allocate()
+      const cardId = allocate()
       addCard(cardName, { ...options, cardId })
       setDeckData((prev) =>
         prev
@@ -325,7 +338,7 @@ export function DeckEditor() {
         // Price fetch failure doesn't block adding the card
       }
     },
-    [addCard, idPool],
+    [addCard, allocate],
   )
 
   const handleUndo = useCallback(() => {
@@ -335,7 +348,7 @@ export function DeckEditor() {
     const { entry, remainingChanges } = result
 
     // Handle ID pool updates
-    reconcileIdPoolForUndo(idPool, entry)
+    reconcileIdPoolForUndo(release, claim, entry)
 
     // Rebuild deck state from original by replaying remaining changes
     let rebuilt = originalDeckRef.current
@@ -343,10 +356,10 @@ export function DeckEditor() {
       rebuilt = applyChangeToDeck(rebuilt, change)
     }
     setDeckData(rebuilt)
-  }, [undo, idPool])
+  }, [undo, release, claim])
 
   const handleSave = useCallback(async () => {
-    if (!deckSlug || !deckData || changeCount === 0) return
+    if (!deckSlug || !deckDataRef.current || changesRef.current.length === 0) return
     setSaving(true)
     setSaveStatus(null)
     try {
@@ -354,9 +367,11 @@ export function DeckEditor() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        // `deckData` is the raw structural deck (sections, card names, quantities) and is never
-        // mutated by the lowest price toggle, which is a view-only display concern inside DeckPage.
-        body: JSON.stringify({ changes, deck: deckData, frontMatter }),
+        body: JSON.stringify({
+          changes: changesRef.current,
+          deck: deckDataRef.current,
+          frontMatter: frontMatterRef.current,
+        }),
       })
       const data = (await resp.json()) as SaveResponse
       if (data.success) {
@@ -370,7 +385,7 @@ export function DeckEditor() {
     } finally {
       setSaving(false)
     }
-  }, [deckSlug, deckData, changeCount, changes, frontMatter, discardAll])
+  }, [deckSlug, discardAll])
 
   const handleDiscard = useCallback(() => {
     discardAll()
@@ -381,12 +396,21 @@ export function DeckEditor() {
           if (card.cardId !== undefined) ids.push(card.cardId)
         }
       }
-      idPool.resetPool(ids)
+      resetPool(ids)
     }
     setShowDiscard(false)
     // Increment refreshKey to trigger a re-fetch of the deck data
     setRefreshKey((k) => k + 1)
-  }, [discardAll, idPool])
+  }, [discardAll, resetPool])
+
+  const closeModal = useCallback(() => setModalCardName(null), [])
+  const closeContextMenu = useCallback(() => setContextMenuCard(null), [])
+  const openSearchModal = useCallback(() => setShowSearchModal(true), [])
+  const closeSearchModal = useCallback(() => setShowSearchModal(false), [])
+  const openChanges = useCallback(() => setShowChanges(true), [])
+  const closeChanges = useCallback(() => setShowChanges(false), [])
+  const openDiscard = useCallback(() => setShowDiscard(true), [])
+  const closeDiscard = useCallback(() => setShowDiscard(false), [])
 
   return (
     <div>
@@ -394,8 +418,15 @@ export function DeckEditor() {
 
       {/* Deck selector */}
       <div class="deck-selector-container">
-        <label class="deck-selector-label">Select Deck</label>
-        <select class="deck-selector" value={deckSlug ?? ''} onChange={handleDeckSelect}>
+        <label class="deck-selector-label" for="deck-select">
+          Select Deck
+        </label>
+        <select
+          id="deck-select"
+          class="deck-selector"
+          value={deckSlug ?? ''}
+          onChange={handleDeckSelect}
+        >
           <option value="">— Choose a deck —</option>
           {deckList.map(({ slug, name }) => (
             <option key={slug} value={slug}>
@@ -431,11 +462,11 @@ export function DeckEditor() {
           useScryfallImgUrls={true}
           modalCardName={modalCardName}
           onOpenModal={setModalCardName}
-          onCloseModal={() => setModalCardName(null)}
+          onCloseModal={closeModal}
           currency={currency}
           slug={deckSlug}
           editMode={true}
-          onAddCard={() => setShowSearchModal(true)}
+          onAddCard={openSearchModal}
           onCardIncrement={handleIncrement}
           onCardDecrement={handleDecrement}
           onCardContextMenu={handleContextMenu}
@@ -453,14 +484,14 @@ export function DeckEditor() {
           onUnsetCommander={handleUnsetCommander}
           isCommander={contextMenuCard.isInCommanderSection}
           anchorRect={contextMenuCard.anchorRect}
-          onClose={() => setContextMenuCard(null)}
+          onClose={closeContextMenu}
         />
       )}
 
       {/* Card search modal */}
       <CardSearchModal
         open={showSearchModal}
-        onClose={() => setShowSearchModal(false)}
+        onClose={closeSearchModal}
         onAddCard={handleAddCardFromSearch}
       />
 
@@ -472,7 +503,7 @@ export function DeckEditor() {
         printings={printings}
         symbolMap={symbolMap}
         currency={currency}
-        onClose={() => setShowChanges(false)}
+        onClose={closeChanges}
       />
 
       {/* Discard confirm dialog */}
@@ -480,7 +511,7 @@ export function DeckEditor() {
         open={showDiscard}
         changes={changes}
         onConfirm={handleDiscard}
-        onCancel={() => setShowDiscard(false)}
+        onCancel={closeDiscard}
       />
 
       {/* Sticky action bar */}
@@ -489,10 +520,10 @@ export function DeckEditor() {
           changeCount={changeCount}
           canUndo={canUndo}
           saving={saving}
-          onShowChanges={() => setShowChanges(true)}
+          onShowChanges={openChanges}
           onUndo={handleUndo}
           onSave={handleSave}
-          onDiscard={() => setShowDiscard(true)}
+          onDiscard={openDiscard}
         />
       )}
     </div>

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'preact/hooks'
+import { useState, useCallback, useRef } from 'preact/hooks'
 import {
   type CardIdPool,
   createIdPool,
@@ -22,41 +22,39 @@ export type UseCardIdPoolResult = {
  * Provides allocate/release/claim operations that trigger re-renders.
  */
 export function useCardIdPool(): UseCardIdPoolResult {
+  const poolRef = useRef<CardIdPool>(createIdPool([]))
   const [pool, setPool] = useState<CardIdPool>(() => createIdPool([]))
 
   const allocate = useCallback((): number => {
-    let allocated = 0
-    setPool((prev) => {
-      const next = clonePool(prev)
-      allocated = allocateId(next)
-      return next
-    })
-    return allocated
+    const next = clonePool(poolRef.current)
+    const id = allocateId(next)
+    poolRef.current = next
+    setPool(poolRef.current)
+    return id
   }, [])
 
   const release = useCallback((id: number): void => {
-    setPool((prev) => {
-      const next = clonePool(prev)
-      releaseId(next, id)
-      return next
-    })
+    const next = clonePool(poolRef.current)
+    releaseId(next, id)
+    poolRef.current = next
+    setPool(poolRef.current)
   }, [])
 
   const claim = useCallback((id: number): void => {
-    setPool((prev) => {
-      const next = clonePool(prev)
-      claimId(next, id)
-      return next
-    })
+    const next = clonePool(poolRef.current)
+    claimId(next, id)
+    poolRef.current = next
+    setPool(poolRef.current)
   }, [])
 
   const resetPool = useCallback((existingIds: number[]): void => {
-    setPool(createIdPool(existingIds))
+    poolRef.current = createIdPool(existingIds)
+    setPool(poolRef.current)
   }, [])
 
   const cloneCurrentPool = useCallback((): CardIdPool => {
-    return clonePool(pool)
-  }, [pool])
+    return clonePool(poolRef.current)
+  }, [])
 
   return { pool, allocate, release, claim, resetPool, cloneCurrentPool }
 }

@@ -53,8 +53,12 @@ export function CollectionEditor() {
   const { changes, changeCount, addCard, removeCard, setFinish, discardAll, canUndo, undo } =
     useCollectionChanges<CollectionCardEntry>()
 
-  const idPool = useCardIdPool()
+  const { allocate, release, claim, resetPool } = useCardIdPool()
   const originalEntriesRef = useRef<CollectionCardEntry[]>([])
+  const entriesRef = useRef(entries)
+  entriesRef.current = entries
+  const changesRef = useRef(changes)
+  changesRef.current = changes
 
   // Fetch collection list on mount
   useEffect(() => {
@@ -69,19 +73,23 @@ export function CollectionEditor() {
   // Fetch full collection data when slug changes
   useEffect(() => {
     if (!collectionSlug) return
+    const controller = new AbortController()
     setLoading(true)
     setError(null)
     setSaveStatus(null)
 
-    fetch(`/api/collection/${collectionSlug}`, { credentials: 'same-origin' })
+    fetch(`/api/collection/${collectionSlug}`, {
+      credentials: 'same-origin',
+      signal: controller.signal,
+    })
       .then((r) => r.json() as Promise<CollectionDataResponse>)
       .then((data) => {
+        if (controller.signal.aborted) return
         if (data.success) {
           const { entries: entriesWithIds, pool } = initializeEntriesWithIds(data.entries)
-
           setEntries(entriesWithIds)
           originalEntriesRef.current = entriesWithIds
-          idPool.resetPool([...pool.usedIds])
+          resetPool([...pool.usedIds])
           setCards(data.cards)
           setPrintings(data.printings)
           setSymbolMap(data.symbolMap)
@@ -90,9 +98,16 @@ export function CollectionEditor() {
           setError('Failed to load collection')
         }
       })
-      .catch(() => setError('Failed to load collection'))
-      .finally(() => setLoading(false))
-  }, [collectionSlug, discardAll, refreshKey])
+      .catch((err) => {
+        if (err instanceof Error && err.name === 'AbortError') return
+        setError('Failed to load collection')
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [collectionSlug, discardAll, resetPool, refreshKey])
 
   const handleCollectionSelect = useCallback((e: Event) => {
     const value = (e.target as HTMLSelectElement).value
@@ -101,7 +116,7 @@ export function CollectionEditor() {
 
   const handleIncrement = useCallback(
     (entry: CollectionCardEntry) => {
-      const cardId = idPool.allocate()
+      const cardId = allocate()
       addCard(entry.name, {
         set: entry.set,
         collectorNumber: entry.collectorNumber,
@@ -121,14 +136,14 @@ export function CollectionEditor() {
         }),
       )
     },
-    [addCard, idPool],
+    [addCard, allocate],
   )
 
   const handleDecrement = useCallback(
     (entry: CollectionCardEntry) => {
       // In collections, each entry is a single card — removal always releases the ID
       if (entry.cardId !== undefined) {
-        idPool.release(entry.cardId)
+        release(entry.cardId)
       }
       removeCard(
         entry.name,
@@ -152,7 +167,7 @@ export function CollectionEditor() {
         }),
       )
     },
-    [removeCard, idPool],
+    [removeCard, release],
   )
 
   const handleContextMenu = useCallback(
@@ -164,8 +179,7 @@ export function CollectionEditor() {
 
   const handleSetFoil = useCallback(() => {
     if (!contextMenuCard) return
-    // Find the entry to get its cardId
-    const entry = entries.find((e) => e.name === contextMenuCard.cardName)
+    const entry = entriesRef.current.find((e) => e.name === contextMenuCard.cardName)
     const cardId = entry?.cardId
     setFinish(contextMenuCard.cardName, 'foil', cardId)
     setEntries((prev) =>
@@ -177,7 +191,7 @@ export function CollectionEditor() {
       }),
     )
     setContextMenuCard(null)
-  }, [contextMenuCard, setFinish, entries])
+  }, [contextMenuCard, setFinish])
 
   const handleAddCardFromSearch = useCallback(
     async (
@@ -186,7 +200,7 @@ export function CollectionEditor() {
       scryfallCard?: ScryfallCard,
       allPrintings?: ScryfallCard[],
     ) => {
-      const cardId = idPool.allocate()
+      const cardId = allocate()
       addCard(cardName, { ...options, cardId })
       setEntries((prev) =>
         applyChangeToCollection(prev, {
@@ -236,7 +250,7 @@ export function CollectionEditor() {
         // Price fetch failure doesn't block adding the card
       }
     },
-    [addCard, idPool],
+    [addCard, allocate],
   )
 
   const handleUndo = useCallback(() => {
@@ -246,7 +260,7 @@ export function CollectionEditor() {
     const { entry, remainingChanges } = result
 
     // Handle ID pool updates
-    reconcileIdPoolForUndo(idPool, entry)
+    reconcileIdPoolForUndo(release, claim, entry)
 
     // Rebuild entries from original by replaying remaining changes
     let rebuilt = originalEntriesRef.current
@@ -254,10 +268,11 @@ export function CollectionEditor() {
       rebuilt = applyChangeToCollection(rebuilt, change)
     }
     setEntries(rebuilt)
-  }, [undo, idPool])
+  }, [undo, release, claim])
 
   const handleSave = useCallback(async () => {
-    if (!collectionSlug || entries.length === 0 || changeCount === 0) return
+    if (!collectionSlug || entriesRef.current.length === 0 || changesRef.current.length === 0)
+      return
     setSaving(true)
     setSaveStatus(null)
     try {
@@ -265,7 +280,7 @@ export function CollectionEditor() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ changes, entries }),
+        body: JSON.stringify({ changes: changesRef.current, entries: entriesRef.current }),
       })
       const data = (await resp.json()) as SaveResponse
       if (data.success) {
@@ -279,17 +294,26 @@ export function CollectionEditor() {
     } finally {
       setSaving(false)
     }
-  }, [collectionSlug, entries, changeCount, changes, discardAll])
+  }, [collectionSlug, discardAll])
 
   const handleDiscard = useCallback(() => {
     discardAll()
     const ids = originalEntriesRef.current
       .map((e) => e.cardId)
       .filter((id): id is number => id !== undefined)
-    idPool.resetPool(ids)
+    resetPool(ids)
     setShowDiscard(false)
     setRefreshKey((k) => k + 1)
-  }, [discardAll, idPool])
+  }, [discardAll, resetPool])
+
+  const closeModal = useCallback(() => setModalCardKey(null), [])
+  const closeContextMenu = useCallback(() => setContextMenuCard(null), [])
+  const openSearchModal = useCallback(() => setShowSearchModal(true), [])
+  const closeSearchModal = useCallback(() => setShowSearchModal(false), [])
+  const openChanges = useCallback(() => setShowChanges(true), [])
+  const closeChanges = useCallback(() => setShowChanges(false), [])
+  const openDiscard = useCallback(() => setShowDiscard(true), [])
+  const closeDiscard = useCallback(() => setShowDiscard(false), [])
 
   return (
     <div>
@@ -297,8 +321,11 @@ export function CollectionEditor() {
 
       {/* Collection selector */}
       <div class="deck-selector-container">
-        <label class="deck-selector-label">Select Collection</label>
+        <label class="deck-selector-label" for="collection-select">
+          Select Collection
+        </label>
         <select
+          id="collection-select"
           class="deck-selector"
           value={collectionSlug ?? ''}
           onChange={handleCollectionSelect}
@@ -337,10 +364,10 @@ export function CollectionEditor() {
           totalPrice={0}
           modalCardKey={modalCardKey}
           onOpenModal={setModalCardKey}
-          onCloseModal={() => setModalCardKey(null)}
+          onCloseModal={closeModal}
           currency={currency}
           editMode={true}
-          onAddCard={() => setShowSearchModal(true)}
+          onAddCard={openSearchModal}
           onCardIncrement={handleIncrement}
           onCardDecrement={handleDecrement}
           onCardContextMenu={handleContextMenu}
@@ -354,9 +381,9 @@ export function CollectionEditor() {
           cardName={contextMenuCard.cardName}
           card={contextMenuCard.card}
           onSetFoil={handleSetFoil}
-          onUnsetCommander={() => setContextMenuCard(null)}
+          onUnsetCommander={closeContextMenu}
           anchorRect={contextMenuCard.anchorRect}
-          onClose={() => setContextMenuCard(null)}
+          onClose={closeContextMenu}
           hideCommander={true}
         />
       )}
@@ -364,7 +391,7 @@ export function CollectionEditor() {
       {/* Card search modal — requirePrinting forces printing/finish/condition selection */}
       <CardSearchModal
         open={showSearchModal}
-        onClose={() => setShowSearchModal(false)}
+        onClose={closeSearchModal}
         onAddCard={handleAddCardFromSearch}
         requirePrinting={true}
       />
@@ -377,7 +404,7 @@ export function CollectionEditor() {
         printings={printings}
         symbolMap={symbolMap}
         currency={currency}
-        onClose={() => setShowChanges(false)}
+        onClose={closeChanges}
       />
 
       {/* Discard confirm dialog */}
@@ -385,7 +412,7 @@ export function CollectionEditor() {
         open={showDiscard}
         changes={changes}
         onConfirm={handleDiscard}
-        onCancel={() => setShowDiscard(false)}
+        onCancel={closeDiscard}
       />
 
       {/* Sticky action bar */}
@@ -394,10 +421,10 @@ export function CollectionEditor() {
           changeCount={changeCount}
           canUndo={canUndo}
           saving={saving}
-          onShowChanges={() => setShowChanges(true)}
+          onShowChanges={openChanges}
           onUndo={handleUndo}
           onSave={handleSave}
-          onDiscard={() => setShowDiscard(true)}
+          onDiscard={openDiscard}
         />
       )}
     </div>

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'preact/hooks'
+import { useState, useCallback, useRef } from 'preact/hooks'
 import type { Finish } from '../../../types'
 import type { ChangeInput } from '../../../change-event'
 import {
@@ -43,6 +43,8 @@ export type UseCardChangesResult<T = unknown> = {
 export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
   const [changes, setChanges] = useState<ChangeEvent[]>([])
   const [undoStack, setUndoStack] = useState<UndoEntry<T>[]>([])
+  const changesRef = useRef<ChangeEvent[]>([])
+  const undoStackRef = useRef<UndoEntry<T>[]>([])
 
   const addChange = useCallback((partial: ChangeInput, removedCardData?: T): ChangeEvent | null => {
     // The spread of a discriminated-union input with id+timestamp is structurally
@@ -53,64 +55,58 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
       timestamp: Date.now(),
     } as ChangeEvent
 
-    const ref = {
-      addedChange: newEvent as ChangeEvent | null,
-      cancelledChange: null as ChangeEvent | null,
+    let addedChange: ChangeEvent | null = newEvent
+    let cancelledChange: ChangeEvent | null = null
+
+    const oppositeIndex = changesRef.current.findIndex((existing) =>
+      areOppositeChanges(existing, newEvent),
+    )
+
+    if (oppositeIndex !== -1) {
+      cancelledChange = changesRef.current[oppositeIndex] ?? null
+      addedChange = null
+      changesRef.current = changesRef.current.filter((_, i) => i !== oppositeIndex)
+    } else {
+      changesRef.current = [...changesRef.current, newEvent]
     }
 
-    setChanges((prev) => {
-      const oppositeIndex = prev.findIndex((existing) => areOppositeChanges(existing, newEvent))
+    undoStackRef.current = [
+      ...undoStackRef.current,
+      { addedChange, cancelledChange, removedCardData },
+    ]
 
-      if (oppositeIndex !== -1) {
-        ref.cancelledChange = prev[oppositeIndex] ?? null
-        ref.addedChange = null
-        return prev.filter((_, i) => i !== oppositeIndex)
-      }
+    setChanges([...changesRef.current])
+    setUndoStack([...undoStackRef.current])
 
-      return [...prev, newEvent]
-    })
-
-    setUndoStack((prev) => [
-      ...prev,
-      { addedChange: ref.addedChange, cancelledChange: ref.cancelledChange, removedCardData },
-    ])
-
-    return ref.addedChange
+    return addedChange
   }, [])
 
   const discardAll = useCallback(() => {
+    changesRef.current = []
+    undoStackRef.current = []
     setChanges([])
     setUndoStack([])
   }, [])
 
   const undo = useCallback((): UndoResult<T> | null => {
-    // Use a mutable container because setState callback modifies the value,
-    // but TypeScript's narrowing doesn't track mutations inside closures.
-    const ref: { entry: UndoEntry<T> | null } = { entry: null }
+    if (undoStackRef.current.length === 0) return null
 
-    setUndoStack((prev) => {
-      if (prev.length === 0) return prev
-      ref.entry = prev[prev.length - 1] ?? null
-      return prev.slice(0, -1)
-    })
+    const entry = undoStackRef.current[undoStackRef.current.length - 1]!
+    undoStackRef.current = undoStackRef.current.slice(0, -1)
 
-    if (!ref.entry) return null
+    let next = changesRef.current
+    if (entry.addedChange) {
+      next = next.filter((c) => c.id !== entry.addedChange!.id)
+    }
+    if (entry.cancelledChange) {
+      next = [...next, entry.cancelledChange]
+    }
+    changesRef.current = next
 
-    const undoEntry = ref.entry
-    let remainingChanges: ChangeEvent[] = []
-    setChanges((prev) => {
-      let next = prev
-      if (undoEntry.addedChange) {
-        next = next.filter((c) => c.id !== undoEntry.addedChange!.id)
-      }
-      if (undoEntry.cancelledChange) {
-        next = [...next, undoEntry.cancelledChange]
-      }
-      remainingChanges = next
-      return next
-    })
+    setUndoStack([...undoStackRef.current])
+    setChanges([...changesRef.current])
 
-    return { entry: undoEntry, remainingChanges }
+    return { entry, remainingChanges: changesRef.current }
   }, [])
 
   const incrementCard = useCallback(

@@ -32,12 +32,12 @@ export const DiscardConfirmDialog: FunctionalComponent<DiscardConfirmDialogProps
 
   return (
     <div
-      className="confirm-dialog-backdrop"
+      class="confirm-dialog-backdrop"
       onClick={(e) => {
         if (e.target === e.currentTarget) onCancel()
       }}
     >
-      <div className="confirm-dialog">
+      <div class="confirm-dialog">
         <h3>
           Discard {changes.length} change{changes.length !== 1 ? 's' : ''}?
         </h3>
@@ -45,7 +45,7 @@ export const DiscardConfirmDialog: FunctionalComponent<DiscardConfirmDialogProps
           The following changes will be lost:
         </p>
         <div
-          className="changes-dialog"
+          class="changes-dialog"
           style="max-height: 200px; margin-bottom: 16px; border: 1px solid var(--border); border-radius: 6px;"
         >
           {changes.map((change) => {
@@ -53,19 +53,19 @@ export const DiscardConfirmDialog: FunctionalComponent<DiscardConfirmDialogProps
             return (
               <div
                 key={change.id}
-                className={`change-item ${additive ? 'change-item--add' : 'change-item--remove'}`}
+                class={`change-item ${additive ? 'change-item--add' : 'change-item--remove'}`}
               >
-                <span className="change-item-icon">{additive ? '+' : '−'}</span>
+                <span class="change-item-icon">{additive ? '+' : '−'}</span>
                 <span>{formatChange(change)}</span>
               </div>
             )
           })}
         </div>
-        <div className="confirm-dialog-actions">
-          <button className="btn btn-secondary" onClick={onCancel}>
+        <div class="confirm-dialog-actions">
+          <button class="btn btn-secondary" onClick={onCancel}>
             Cancel
           </button>
-          <button className="btn-discard" onClick={onConfirm}>
+          <button class="btn-discard" onClick={onConfirm}>
             Yes, discard
           </button>
         </div>

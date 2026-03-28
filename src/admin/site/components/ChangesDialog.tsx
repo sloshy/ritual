@@ -1,5 +1,5 @@
 import type { FunctionalComponent } from 'preact'
-import { useState, useEffect, useRef, useMemo } from 'preact/hooks'
+import { useState, useEffect, useRef } from 'preact/hooks'
 import type { ScryfallCard } from '../../../types'
 import type { PriceCurrency } from '../../../price-currency'
 import { type ChangeEvent, isAdditiveChange, formatChange } from '../types/deck-changes'
@@ -50,35 +50,28 @@ export const ChangesDialog: FunctionalComponent<ChangesDialogProps> = ({
     }
   }, [open, selectedCard])
 
-  const modalCard = useMemo(() => {
-    if (!selectedCard) return null
-    return cards[selectedCard] ?? null
-  }, [selectedCard, cards])
-
-  const modalPrintings = useMemo(() => {
-    if (!selectedCard) return []
-    return printings[selectedCard] ?? []
-  }, [selectedCard, printings])
+  const modalCard = selectedCard ? (cards[selectedCard] ?? null) : null
+  const modalPrintings = selectedCard ? (printings[selectedCard] ?? []) : []
 
   if (!open) return null
 
   return (
     <div
-      className="search-modal-backdrop"
+      class="search-modal-backdrop"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="search-modal" style="max-width: 500px;">
-        <div className="search-modal-header">
+      <div class="search-modal" style="max-width: 500px;">
+        <div class="search-modal-header">
           <h3 style="margin: 0; font-size: 1rem; font-weight: 700;">
             Pending Changes ({changes.length})
           </h3>
-          <button className="modal-close" onClick={onClose}>
+          <button class="modal-close" onClick={onClose}>
             &times;
           </button>
         </div>
-        <div className="changes-dialog">
+        <div class="changes-dialog">
           {changes.length === 0 ? (
             <div style="padding: 24px; text-align: center; color: var(--text-muted);">
               No pending changes
@@ -91,9 +84,9 @@ export const ChangesDialog: FunctionalComponent<ChangesDialogProps> = ({
               return (
                 <div
                   key={change.id}
-                  className={`change-item ${additive ? 'change-item--add' : 'change-item--remove'}`}
+                  class={`change-item ${additive ? 'change-item--add' : 'change-item--remove'}`}
                 >
-                  <span className="change-item-icon">{additive ? '+' : '−'}</span>
+                  <span class="change-item-icon">{additive ? '+' : '−'}</span>
                   <ChangeText
                     change={change}
                     onCardClick={() => setSelectedCard(change.cardName)}
@@ -103,7 +96,7 @@ export const ChangesDialog: FunctionalComponent<ChangesDialogProps> = ({
                     onHoverLeave={() => setTooltip(null)}
                   />
                   {change.cardId !== undefined && (
-                    <span className="change-item-id">&amp;{change.cardId}</span>
+                    <span class="change-item-id">&amp;{change.cardId}</span>
                   )}
                 </div>
               )
@@ -115,7 +108,7 @@ export const ChangesDialog: FunctionalComponent<ChangesDialogProps> = ({
       {/* Card hover tooltip — rendered outside modal div to avoid clipping */}
       <div
         ref={tooltipRef}
-        className={`changes-card-tooltip ${tooltip ? 'visible' : ''}`}
+        class={`changes-card-tooltip ${tooltip ? 'visible' : ''}`}
         style={`left:${tooltipPos.left}px;top:${tooltipPos.top}px;`}
       >
         {tooltip && <img src={tooltip.src} alt="" />}

@@ -32,7 +32,7 @@ type SaveResponse = { success: boolean; error?: string }
 
 export function WantedListEditor() {
   const [listSlug, setListSlug] = useState<string | null>(null)
-  const [listList, setListList] = useState<WantedListItem[]>([])
+  const [wantedLists, setWantedLists] = useState<WantedListItem[]>([])
   const [entries, setEntries] = useState<WantedListCardEntry[]>([])
   const [cards, setCards] = useState<Record<string, ScryfallCard | null>>({})
   const [printings, setPrintings] = useState<Record<string, ScryfallCard[]>>({})
@@ -53,33 +53,38 @@ export function WantedListEditor() {
   const { changes, changeCount, addCard, removeCard, setFinish, discardAll, canUndo, undo } =
     useCollectionChanges<WantedListCardEntry>()
 
-  const idPool = useCardIdPool()
+  const { allocate, release, claim, resetPool } = useCardIdPool()
   const originalEntriesRef = useRef<WantedListCardEntry[]>([])
+  const entriesRef = useRef(entries)
+  entriesRef.current = entries
+  const changesRef = useRef(changes)
+  changesRef.current = changes
 
   useEffect(() => {
     fetch('/api/wanted', { credentials: 'same-origin' })
       .then((r) => r.json() as Promise<{ wantedLists: WantedListItem[] }>)
       .then((data) => {
-        if (data.wantedLists) setListList(data.wantedLists)
+        if (data.wantedLists) setWantedLists(data.wantedLists)
       })
       .catch(() => setError('Failed to load wanted list list'))
   }, [])
 
   useEffect(() => {
     if (!listSlug) return
+    const controller = new AbortController()
     setLoading(true)
     setError(null)
     setSaveStatus(null)
 
-    fetch(`/api/wanted/${listSlug}`, { credentials: 'same-origin' })
+    fetch(`/api/wanted/${listSlug}`, { credentials: 'same-origin', signal: controller.signal })
       .then((r) => r.json() as Promise<WantedListDataResponse>)
       .then((data) => {
+        if (controller.signal.aborted) return
         if (data.success) {
           const { entries: entriesWithIds, pool } = initializeEntriesWithIds(data.entries)
-
           setEntries(entriesWithIds)
           originalEntriesRef.current = entriesWithIds
-          idPool.resetPool([...pool.usedIds])
+          resetPool([...pool.usedIds])
           setCards(data.cards)
           setPrintings(data.printings)
           setSymbolMap(data.symbolMap)
@@ -88,9 +93,16 @@ export function WantedListEditor() {
           setError('Failed to load wanted list')
         }
       })
-      .catch(() => setError('Failed to load wanted list'))
-      .finally(() => setLoading(false))
-  }, [listSlug, discardAll, refreshKey])
+      .catch((err) => {
+        if (err instanceof Error && err.name === 'AbortError') return
+        setError('Failed to load wanted list')
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [listSlug, discardAll, resetPool, refreshKey])
 
   const handleListSelect = useCallback((e: Event) => {
     const value = (e.target as HTMLSelectElement).value
@@ -99,7 +111,7 @@ export function WantedListEditor() {
 
   const handleIncrement = useCallback(
     (entry: WantedListCardEntry) => {
-      const cardId = idPool.allocate()
+      const cardId = allocate()
       addCard(entry.name, {
         set: entry.set,
         collectorNumber: entry.collectorNumber,
@@ -117,13 +129,13 @@ export function WantedListEditor() {
         }),
       )
     },
-    [addCard, idPool],
+    [addCard, allocate],
   )
 
   const handleDecrement = useCallback(
     (entry: WantedListCardEntry) => {
       if (entry.cardId !== undefined) {
-        idPool.release(entry.cardId)
+        release(entry.cardId)
       }
       removeCard(
         entry.name,
@@ -146,7 +158,7 @@ export function WantedListEditor() {
         }),
       )
     },
-    [removeCard, idPool],
+    [removeCard, release],
   )
 
   const handleContextMenu = useCallback(
@@ -158,7 +170,7 @@ export function WantedListEditor() {
 
   const handleSetFoil = useCallback(() => {
     if (!contextMenuCard) return
-    const entry = entries.find((e) => e.name === contextMenuCard.cardName)
+    const entry = entriesRef.current.find((e) => e.name === contextMenuCard.cardName)
     const cardId = entry?.cardId
     setFinish(contextMenuCard.cardName, 'foil', cardId)
     setEntries((prev) =>
@@ -170,7 +182,7 @@ export function WantedListEditor() {
       }),
     )
     setContextMenuCard(null)
-  }, [contextMenuCard, setFinish, entries])
+  }, [contextMenuCard, setFinish])
 
   const handleAddCardFromSearch = useCallback(
     async (
@@ -179,7 +191,7 @@ export function WantedListEditor() {
       scryfallCard?: ScryfallCard,
       allPrintings?: ScryfallCard[],
     ) => {
-      const cardId = idPool.allocate()
+      const cardId = allocate()
       addCard(cardName, { ...options, cardId })
       setEntries((prev) =>
         applyChangeToWantedList(prev, {
@@ -226,7 +238,7 @@ export function WantedListEditor() {
         // Price fetch failure doesn't block adding the card
       }
     },
-    [addCard, idPool],
+    [addCard, allocate],
   )
 
   const handleUndo = useCallback(() => {
@@ -235,17 +247,17 @@ export function WantedListEditor() {
 
     const { entry, remainingChanges } = result
 
-    reconcileIdPoolForUndo(idPool, entry)
+    reconcileIdPoolForUndo(release, claim, entry)
 
     let rebuilt = originalEntriesRef.current
     for (const change of remainingChanges) {
       rebuilt = applyChangeToWantedList(rebuilt, change)
     }
     setEntries(rebuilt)
-  }, [undo, idPool])
+  }, [undo, release, claim])
 
   const handleSave = useCallback(async () => {
-    if (!listSlug || entries.length === 0 || changeCount === 0) return
+    if (!listSlug || entriesRef.current.length === 0 || changesRef.current.length === 0) return
     setSaving(true)
     setSaveStatus(null)
     try {
@@ -253,7 +265,7 @@ export function WantedListEditor() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ changes, entries }),
+        body: JSON.stringify({ changes: changesRef.current, entries: entriesRef.current }),
       })
       const data = (await resp.json()) as SaveResponse
       if (data.success) {
@@ -267,27 +279,43 @@ export function WantedListEditor() {
     } finally {
       setSaving(false)
     }
-  }, [listSlug, entries, changeCount, changes, discardAll])
+  }, [listSlug, discardAll])
 
   const handleDiscard = useCallback(() => {
     discardAll()
     const ids = originalEntriesRef.current
       .map((e) => e.cardId)
       .filter((id): id is number => id !== undefined)
-    idPool.resetPool(ids)
+    resetPool(ids)
     setShowDiscard(false)
     setRefreshKey((k) => k + 1)
-  }, [discardAll, idPool])
+  }, [discardAll, resetPool])
+
+  const closeModal = useCallback(() => setModalCardKey(null), [])
+  const closeContextMenu = useCallback(() => setContextMenuCard(null), [])
+  const openSearchModal = useCallback(() => setShowSearchModal(true), [])
+  const closeSearchModal = useCallback(() => setShowSearchModal(false), [])
+  const openChanges = useCallback(() => setShowChanges(true), [])
+  const closeChanges = useCallback(() => setShowChanges(false), [])
+  const openDiscard = useCallback(() => setShowDiscard(true), [])
+  const closeDiscard = useCallback(() => setShowDiscard(false), [])
 
   return (
     <div>
       <h2 class="section-heading">Wanted List Editor</h2>
 
       <div class="deck-selector-container">
-        <label class="deck-selector-label">Select Wanted List</label>
-        <select class="deck-selector" value={listSlug ?? ''} onChange={handleListSelect}>
+        <label class="deck-selector-label" for="wanted-list-select">
+          Select Wanted List
+        </label>
+        <select
+          id="wanted-list-select"
+          class="deck-selector"
+          value={listSlug ?? ''}
+          onChange={handleListSelect}
+        >
           <option value="">— Choose a wanted list —</option>
-          {listList.map(({ slug, name }) => (
+          {wantedLists.map(({ slug, name }) => (
             <option key={slug} value={slug}>
               {name}
             </option>
@@ -309,7 +337,7 @@ export function WantedListEditor() {
 
       {entries.length > 0 && listSlug && !loading && (
         <WantedListPage
-          name={listList.find((c) => c.slug === listSlug)?.name ?? listSlug}
+          name={wantedLists.find((c) => c.slug === listSlug)?.name ?? listSlug}
           entries={entries}
           cards={cards}
           printings={printings}
@@ -318,10 +346,10 @@ export function WantedListEditor() {
           totalPrice={0}
           modalCardKey={modalCardKey}
           onOpenModal={setModalCardKey}
-          onCloseModal={() => setModalCardKey(null)}
+          onCloseModal={closeModal}
           currency={currency}
           editMode={true}
-          onAddCard={() => setShowSearchModal(true)}
+          onAddCard={openSearchModal}
           onCardIncrement={handleIncrement}
           onCardDecrement={handleDecrement}
           onCardContextMenu={handleContextMenu}
@@ -334,16 +362,16 @@ export function WantedListEditor() {
           cardName={contextMenuCard.cardName}
           card={contextMenuCard.card}
           onSetFoil={handleSetFoil}
-          onUnsetCommander={() => setContextMenuCard(null)}
+          onUnsetCommander={closeContextMenu}
           anchorRect={contextMenuCard.anchorRect}
-          onClose={() => setContextMenuCard(null)}
+          onClose={closeContextMenu}
           hideCommander={true}
         />
       )}
 
       <CardSearchModal
         open={showSearchModal}
-        onClose={() => setShowSearchModal(false)}
+        onClose={closeSearchModal}
         onAddCard={handleAddCardFromSearch}
         requirePrinting={false}
       />
@@ -355,14 +383,14 @@ export function WantedListEditor() {
         printings={printings}
         symbolMap={symbolMap}
         currency={currency}
-        onClose={() => setShowChanges(false)}
+        onClose={closeChanges}
       />
 
       <DiscardConfirmDialog
         open={showDiscard}
         changes={changes}
         onConfirm={handleDiscard}
-        onCancel={() => setShowDiscard(false)}
+        onCancel={closeDiscard}
       />
 
       {entries.length > 0 && (
@@ -370,10 +398,10 @@ export function WantedListEditor() {
           changeCount={changeCount}
           canUndo={canUndo}
           saving={saving}
-          onShowChanges={() => setShowChanges(true)}
+          onShowChanges={openChanges}
           onUndo={handleUndo}
           onSave={handleSave}
-          onDiscard={() => setShowDiscard(true)}
+          onDiscard={openDiscard}
         />
       )}
     </div>
