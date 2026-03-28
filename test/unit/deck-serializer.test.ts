@@ -82,6 +82,29 @@ describe('serializeCardLine', () => {
     const card: Card = { quantity: 1, name: 'Sol Ring', set: '2XM' }
     expect(serializeCardLine(card)).toBe('1 Sol Ring')
   })
+
+  test('card with cardId appends &N suffix', () => {
+    const card: Card = { quantity: 1, name: 'Sol Ring', cardId: 5 }
+    expect(serializeCardLine(card)).toBe('1 Sol Ring &5')
+  })
+
+  test('card with all metadata and cardId', () => {
+    const card: Card = {
+      quantity: 1,
+      name: 'Mana Crypt',
+      set: '2XM',
+      collectorNumber: '1',
+      finish: 'foil',
+      condition: 'LP',
+      cardId: 42,
+    }
+    expect(serializeCardLine(card)).toBe('1 Mana Crypt (2XM:1) [foil] [LP] &42')
+  })
+
+  test('card without cardId has no &N suffix', () => {
+    const card: Card = { quantity: 1, name: 'Sol Ring' }
+    expect(serializeCardLine(card)).not.toContain('&')
+  })
 })
 
 describe('serializeDeckToMarkdown', () => {
@@ -178,6 +201,48 @@ describe('round-trip: parse → serialize → parse', () => {
         if (c1.condition && c1.condition !== 'NM') {
           expect(c2.condition).toBe(c1.condition)
         }
+      }
+    }
+  })
+
+  test('deck with card IDs round-trips correctly', async () => {
+    const original = [
+      '---',
+      'name: Card ID Deck',
+      '---',
+      '',
+      '## Commander',
+      '1 Kenrith, the Returned King &1',
+      '',
+      '## Main',
+      '1 Sol Ring &2',
+      '1 Mana Crypt (2XM:1) [foil] &3',
+      '3 Island (SLD:63) [LP] &4',
+      '',
+    ].join('\n')
+
+    const filePath1 = makeTempPath()
+    await writeFile(filePath1, original)
+    const deck1 = await importFromTextFile(filePath1)
+
+    // Verify IDs parsed correctly
+    expect(deck1.sections[0]!.cards[0]!.cardId).toBe(1)
+    expect(deck1.sections[1]!.cards[0]!.cardId).toBe(2)
+    expect(deck1.sections[1]!.cards[1]!.cardId).toBe(3)
+    expect(deck1.sections[1]!.cards[2]!.cardId).toBe(4)
+
+    const serialized = serializeDeckToMarkdown(deck1, { name: deck1.name })
+
+    const filePath2 = makeTempPath()
+    await writeFile(filePath2, serialized)
+    const deck2 = await importFromTextFile(filePath2)
+
+    // Verify IDs survive round-trip
+    for (let i = 0; i < deck1.sections.length; i++) {
+      const s1 = deck1.sections[i]!
+      const s2 = deck2.sections[i]!
+      for (let j = 0; j < s1.cards.length; j++) {
+        expect(s2.cards[j]!.cardId).toBe(s1.cards[j]!.cardId)
       }
     }
   })

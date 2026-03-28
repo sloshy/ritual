@@ -1,24 +1,24 @@
 import { useCallback } from 'preact/hooks'
 import { useCardChanges, type UseCardChangesResult } from './useCardChanges'
 
-export type UseDeckChangesResult = UseCardChangesResult & {
-  setCommander: (cardName: string) => void
-  unsetCommander: (cardName: string) => void
+export type UseDeckChangesResult<T = unknown> = UseCardChangesResult<T> & {
+  setCommander: (cardName: string, cardId?: number) => void
+  unsetCommander: (cardName: string, cardId?: number) => void
 }
 
-export function useDeckChanges(): UseDeckChangesResult {
-  const core = useCardChanges()
+export function useDeckChanges<T = unknown>(): UseDeckChangesResult<T> {
+  const core = useCardChanges<T>()
 
   const setCommander = useCallback(
-    (cardName: string) => {
-      core.addChange({ action: 'set-commander', cardName })
+    (cardName: string, cardId?: number) => {
+      core.addChange({ action: 'set-commander', cardName, cardId })
     },
     [core.addChange],
   )
 
   const unsetCommander = useCallback(
-    (cardName: string) => {
-      core.addChange({ action: 'unset-commander', cardName })
+    (cardName: string, cardId?: number) => {
+      core.addChange({ action: 'unset-commander', cardName, cardId })
     },
     [core.addChange],
   )

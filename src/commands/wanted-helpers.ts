@@ -13,6 +13,7 @@ export type WantedListEntry = {
   collectorNumber?: string
   finish?: Finish
   note?: string
+  cardId?: number
 }
 
 export type CardPrinting = { set: string; collectorNumber: string }
@@ -31,7 +32,7 @@ export function parseWantedListFile(content: string): WantedListParseResult {
     if (!trimmed.startsWith('- ')) continue
 
     const match = trimmed.match(
-      /^- (.+?)(?:\s\(([A-Za-z0-9]+):([^)]+)\))?(?:\s\[(nonfoil|foil|etched)\])?(?:\s\{(.+)\})?$/,
+      /^- (.+?)(?:\s\(([A-Za-z0-9]+):([^)]+)\))?(?:\s\[(nonfoil|foil|etched)\])?(?:\s\{(.+)\})?(?:\s&(\d+))?$/,
     )
     if (!match) {
       warnings.push(`Skipped malformed line: ${trimmed}`)
@@ -41,7 +42,8 @@ export function parseWantedListFile(content: string): WantedListParseResult {
     const name = match[1]!
     const setCode = match[2]
     const collectorNumber = match[3]
-    const finish = match[4] as Finish | undefined
+    const rawFinish = match[4]
+    const finish = rawFinish !== undefined && isFinish(rawFinish) ? rawFinish : undefined
     const note = match[5]
 
     entries.push({
@@ -51,6 +53,7 @@ export function parseWantedListFile(content: string): WantedListParseResult {
       collectorNumber,
       finish,
       note,
+      cardId: match[6] ? Number.parseInt(match[6], 10) : undefined,
     })
   }
   return { entries, warnings }
@@ -61,6 +64,7 @@ export function formatWantedListLine(
   printing?: CardPrinting,
   finish?: Finish,
   note?: string,
+  cardId?: number,
 ): string {
   let line = `- ${name}`
 
@@ -74,6 +78,10 @@ export function formatWantedListLine(
 
   if (note) {
     line += ` {${note}}`
+  }
+
+  if (cardId !== undefined) {
+    line += ` &${cardId}`
   }
 
   line += '\n'
@@ -142,7 +150,7 @@ export async function promptWantedFinish(
 
   if (isExited || response.finish === undefined) return 'cancelled'
   if (response.finish === '__NONE__') return 'nopreference'
-  return response.finish as Finish
+  return isFinish(response.finish) ? response.finish : 'cancelled'
 }
 
 export async function promptWantedListConfigUpdate(

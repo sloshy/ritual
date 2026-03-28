@@ -1,4 +1,4 @@
-import type { DeckData, Finish, ScryfallCard } from '../types'
+import type { Condition, DeckData, Finish, ScryfallCard } from '../types'
 import type { PriceCurrency } from '../price-currency'
 import type { ChangelogPage } from '../changelog-parser'
 
@@ -41,10 +41,11 @@ export interface CollectionCardEntry {
   set: string
   collectorNumber: string
   finish: Finish
-  condition: string
+  condition: Condition
   price: number
   fileOrder: number
   note?: string
+  cardId?: number
 }
 
 export interface CollectionSummary {
@@ -86,6 +87,7 @@ export interface WantedListCardEntry {
   fileOrder: number
   note?: string
   state: WantedListEntryState
+  cardId?: number
 }
 
 export interface WantedListSummary {

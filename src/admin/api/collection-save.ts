@@ -8,6 +8,7 @@ import { MAX_BODY_SIZE } from '../validation'
 import { appendChangelog } from '../../changelog-writer'
 import type { CollectionCardEntry } from '../../site/data-types'
 import type { ChangeEvent } from '../site/types/deck-changes'
+import { formatCollectionLine } from '../../commands/collection-helpers'
 
 interface CollectionSaveRequest {
   changes: ChangeEvent[]
@@ -15,17 +16,15 @@ interface CollectionSaveRequest {
 }
 
 function serializeCollectionEntry(entry: CollectionCardEntry): string {
-  let line = `- ${entry.name} (${entry.set.toUpperCase()}:${entry.collectorNumber})`
-  if (entry.finish && entry.finish !== 'nonfoil') {
-    line += ` [${entry.finish}]`
-  }
-  if (entry.condition) {
-    line += ` [${entry.condition}]`
-  }
-  if (entry.note) {
-    line += ` {${entry.note}}`
-  }
-  return line
+  return formatCollectionLine(
+    entry.name,
+    entry.set,
+    entry.collectorNumber,
+    entry.finish,
+    entry.condition,
+    entry.note,
+    entry.cardId,
+  ).trimEnd()
 }
 
 export async function handleCollectionSave(req: Request): Promise<Response> {

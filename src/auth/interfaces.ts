@@ -4,7 +4,7 @@ export interface TokenStore {
   clear(site: string): Promise<void>
 }
 
-export interface AuthService<C = any> {
+export interface AuthService<C = unknown> {
   login(credentials: C): Promise<void>
   getToken(): Promise<string | null>
 }

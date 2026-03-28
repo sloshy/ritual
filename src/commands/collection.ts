@@ -464,7 +464,8 @@ export function registerCollectionCommand(program: Command) {
 
         const line = formatCollectionLine(
           cardName,
-          selectedPrinting,
+          selectedPrinting.set,
+          selectedPrinting.collector_number,
           finishAndCondition.finish,
           finishAndCondition.condition,
         )

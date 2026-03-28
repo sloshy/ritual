@@ -119,5 +119,41 @@ test.describe('Deck Editor Page', () => {
       // The two changes cancel out — badge should be gone (no pending changes)
       await expect(page.locator('.changes-badge')).toHaveCount(0)
     })
+
+    test('undo button is disabled when no changes exist', async ({ page }) => {
+      const undoBtn = page.locator('.btn-undo')
+      await expect(undoBtn).toBeVisible({ timeout: 5_000 })
+      await expect(undoBtn).toBeDisabled()
+    })
+
+    test('undo reverses the last change', async ({ page }) => {
+      // Unset Sol Ring as commander to create a change
+      const commanderCard = page.locator('.card-item').filter({ hasText: 'Sol Ring' }).first()
+      await expect(commanderCard).toBeVisible({ timeout: 10_000 })
+      await commanderCard.locator('.edit-btn-context').click()
+      await page.locator('.card-context-menu button', { hasText: 'Unset as Commander' }).click()
+
+      // Changes badge should appear
+      await expect(page.locator('.changes-badge')).toBeVisible({ timeout: 5_000 })
+
+      // Undo button should be enabled
+      const undoBtn = page.locator('.btn-undo')
+      await expect(undoBtn).toBeEnabled()
+
+      // Click undo
+      await undoBtn.click()
+
+      // Changes badge should be gone
+      await expect(page.locator('.changes-badge')).toHaveCount(0)
+
+      // Undo button should be disabled again
+      await expect(undoBtn).toBeDisabled()
+
+      // Sol Ring should be back in commander section
+      const restoredCard = page.locator('.card-item').filter({ hasText: 'Sol Ring' }).first()
+      await restoredCard.locator('.edit-btn-context').click()
+      const menu = page.locator('.card-context-menu')
+      await expect(menu.locator('button', { hasText: 'Unset as Commander' })).toBeVisible()
+    })
   })
 })

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'preact/hooks'
+import { useState, useEffect, useCallback, useRef } from 'preact/hooks'
 import type { ScryfallCard } from '../../../types'
 import type { PriceCurrency } from '../../../price-currency'
 import type { CardPrintingOptions } from '../types/deck-changes'
@@ -7,13 +7,28 @@ import type { CardPriceResponse } from '../../api/card-price'
 import type { ContextMenuState } from '../types/context-menu'
 import { WantedListPage } from '../../../site/WantedListPage'
 import { useCollectionChanges } from '../hooks/useCollectionChanges'
+import { useCardIdPool } from '../hooks/useCardIdPool'
 import { applyChangeToWantedList } from '../types/wanted-changes'
 import { ChangesDialog } from '../components/ChangesDialog'
 import { DiscardConfirmDialog } from '../components/DiscardConfirmDialog'
 import { CardContextMenu } from '../components/CardContextMenu'
 import { CardSearchModal } from '../components/CardSearchModal'
+import { EditorActionBar } from '../components/EditorActionBar'
+import { reconcileIdPoolForUndo } from '../hooks/reconcile-undo'
+import { initializeEntriesWithIds } from '../../../card-id'
 
 type WantedListItem = { slug: string; name: string }
+
+type WantedListDataResponse = {
+  success: boolean
+  entries: WantedListCardEntry[]
+  cards: Record<string, ScryfallCard | null>
+  printings: Record<string, ScryfallCard[]>
+  symbolMap: Record<string, string>
+  slug: string
+}
+
+type SaveResponse = { success: boolean; error?: string }
 
 export function WantedListEditor() {
   const [listSlug, setListSlug] = useState<string | null>(null)
@@ -35,8 +50,11 @@ export function WantedListEditor() {
 
   const currency: PriceCurrency = 'usd'
 
-  const { changes, changeCount, addCard, removeCard, setFinish, discardAll } =
-    useCollectionChanges()
+  const { changes, changeCount, addCard, removeCard, setFinish, discardAll, canUndo, undo } =
+    useCollectionChanges<WantedListCardEntry>()
+
+  const idPool = useCardIdPool()
+  const originalEntriesRef = useRef<WantedListCardEntry[]>([])
 
   useEffect(() => {
     fetch('/api/wanted', { credentials: 'same-origin' })
@@ -54,20 +72,14 @@ export function WantedListEditor() {
     setSaveStatus(null)
 
     fetch(`/api/wanted/${listSlug}`, { credentials: 'same-origin' })
-      .then(
-        (r) =>
-          r.json() as Promise<{
-            success: boolean
-            entries: WantedListCardEntry[]
-            cards: Record<string, ScryfallCard | null>
-            printings: Record<string, ScryfallCard[]>
-            symbolMap: Record<string, string>
-            slug: string
-          }>,
-      )
+      .then((r) => r.json() as Promise<WantedListDataResponse>)
       .then((data) => {
         if (data.success) {
-          setEntries(data.entries.map((e, i) => ({ ...e, fileOrder: i })))
+          const { entries: entriesWithIds, pool } = initializeEntriesWithIds(data.entries)
+
+          setEntries(entriesWithIds)
+          originalEntriesRef.current = entriesWithIds
+          idPool.resetPool([...pool.usedIds])
           setCards(data.cards)
           setPrintings(data.printings)
           setSymbolMap(data.symbolMap)
@@ -87,10 +99,12 @@ export function WantedListEditor() {
 
   const handleIncrement = useCallback(
     (entry: WantedListCardEntry) => {
+      const cardId = idPool.allocate()
       addCard(entry.name, {
         set: entry.set,
         collectorNumber: entry.collectorNumber,
         finish: entry.finish,
+        cardId,
       })
       setEntries((prev) =>
         applyChangeToWantedList(prev, {
@@ -99,30 +113,40 @@ export function WantedListEditor() {
           set: entry.set,
           collectorNumber: entry.collectorNumber,
           finish: entry.finish,
+          cardId,
         }),
       )
     },
-    [addCard],
+    [addCard, idPool],
   )
 
   const handleDecrement = useCallback(
     (entry: WantedListCardEntry) => {
-      removeCard(entry.name, {
-        set: entry.set,
-        collectorNumber: entry.collectorNumber,
-        finish: entry.finish,
-      })
+      if (entry.cardId !== undefined) {
+        idPool.release(entry.cardId)
+      }
+      removeCard(
+        entry.name,
+        {
+          set: entry.set,
+          collectorNumber: entry.collectorNumber,
+          finish: entry.finish,
+          cardId: entry.cardId,
+        },
+        { ...entry },
+      )
       setEntries((prev) =>
         applyChangeToWantedList(prev, {
           action: 'remove',
           cardName: entry.name,
           set: entry.set,
           collectorNumber: entry.collectorNumber,
+          cardId: entry.cardId,
           fileOrder: entry.fileOrder,
         }),
       )
     },
-    [removeCard],
+    [removeCard, idPool],
   )
 
   const handleContextMenu = useCallback(
@@ -134,16 +158,19 @@ export function WantedListEditor() {
 
   const handleSetFoil = useCallback(() => {
     if (!contextMenuCard) return
-    setFinish(contextMenuCard.cardName, 'foil')
+    const entry = entries.find((e) => e.name === contextMenuCard.cardName)
+    const cardId = entry?.cardId
+    setFinish(contextMenuCard.cardName, 'foil', cardId)
     setEntries((prev) =>
       applyChangeToWantedList(prev, {
         action: 'set-finish',
         cardName: contextMenuCard.cardName,
         finish: 'foil',
+        cardId,
       }),
     )
     setContextMenuCard(null)
-  }, [contextMenuCard, setFinish])
+  }, [contextMenuCard, setFinish, entries])
 
   const handleAddCardFromSearch = useCallback(
     async (
@@ -152,7 +179,8 @@ export function WantedListEditor() {
       scryfallCard?: ScryfallCard,
       allPrintings?: ScryfallCard[],
     ) => {
-      addCard(cardName, options)
+      const cardId = idPool.allocate()
+      addCard(cardName, { ...options, cardId })
       setEntries((prev) =>
         applyChangeToWantedList(prev, {
           action: 'add',
@@ -160,6 +188,7 @@ export function WantedListEditor() {
           set: options?.set,
           collectorNumber: options?.collectorNumber,
           finish: options?.finish,
+          cardId,
         }),
       )
       if (scryfallCard) {
@@ -197,8 +226,23 @@ export function WantedListEditor() {
         // Price fetch failure doesn't block adding the card
       }
     },
-    [addCard],
+    [addCard, idPool],
   )
+
+  const handleUndo = useCallback(() => {
+    const result = undo()
+    if (!result) return
+
+    const { entry, remainingChanges } = result
+
+    reconcileIdPoolForUndo(idPool, entry)
+
+    let rebuilt = originalEntriesRef.current
+    for (const change of remainingChanges) {
+      rebuilt = applyChangeToWantedList(rebuilt, change)
+    }
+    setEntries(rebuilt)
+  }, [undo, idPool])
 
   const handleSave = useCallback(async () => {
     if (!listSlug || entries.length === 0 || changeCount === 0) return
@@ -211,7 +255,7 @@ export function WantedListEditor() {
         credentials: 'same-origin',
         body: JSON.stringify({ changes, entries }),
       })
-      const data = (await resp.json()) as { success: boolean; error?: string }
+      const data = (await resp.json()) as SaveResponse
       if (data.success) {
         setSaveStatus('Changes saved successfully')
         discardAll()
@@ -227,9 +271,13 @@ export function WantedListEditor() {
 
   const handleDiscard = useCallback(() => {
     discardAll()
+    const ids = originalEntriesRef.current
+      .map((e) => e.cardId)
+      .filter((id): id is number => id !== undefined)
+    idPool.resetPool(ids)
     setShowDiscard(false)
     setRefreshKey((k) => k + 1)
-  }, [discardAll])
+  }, [discardAll, idPool])
 
   return (
     <div>
@@ -318,22 +366,15 @@ export function WantedListEditor() {
       />
 
       {entries.length > 0 && (
-        <div class="editor-action-bar">
-          <button class="btn-changes" onClick={() => setShowChanges(true)}>
-            Changes
-            {changeCount > 0 && <span class="changes-badge">{changeCount}</span>}
-          </button>
-          <button class="btn-save" disabled={changeCount === 0 || saving} onClick={handleSave}>
-            {saving ? 'Saving...' : 'Save Changes'}
-          </button>
-          <button
-            class="btn-discard"
-            disabled={changeCount === 0}
-            onClick={() => setShowDiscard(true)}
-          >
-            Discard Changes
-          </button>
-        </div>
+        <EditorActionBar
+          changeCount={changeCount}
+          canUndo={canUndo}
+          saving={saving}
+          onShowChanges={() => setShowChanges(true)}
+          onUndo={handleUndo}
+          onSave={handleSave}
+          onDiscard={() => setShowDiscard(true)}
+        />
       )}
     </div>
   )

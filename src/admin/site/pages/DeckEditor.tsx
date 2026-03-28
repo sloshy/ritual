@@ -1,16 +1,20 @@
 import { useState, useEffect, useCallback, useRef } from 'preact/hooks'
-import type { DeckData, ScryfallCard } from '../../../types'
+import type { DeckData, Card, ScryfallCard } from '../../../types'
 import type { PriceCurrency } from '../../../price-currency'
 import type { CardPrintingOptions } from '../types/deck-changes'
 import type { CardPriceResponse } from '../../api/card-price'
 import type { ContextMenuState } from '../types/context-menu'
 import { DeckPage } from '../../../site/DeckPage'
 import { useDeckChanges } from '../hooks/useDeckChanges'
+import { useCardIdPool } from '../hooks/useCardIdPool'
 import { applyChangeToDeck } from '../types/deck-changes'
 import { ChangesDialog } from '../components/ChangesDialog'
 import { DiscardConfirmDialog } from '../components/DiscardConfirmDialog'
 import { CardContextMenu } from '../components/CardContextMenu'
 import { CardSearchModal } from '../components/CardSearchModal'
+import { EditorActionBar } from '../components/EditorActionBar'
+import { reconcileIdPoolForUndo } from '../hooks/reconcile-undo'
+import { initializePoolFromEntries } from '../../../card-id'
 
 type DeckListItem = { slug: string; name: string }
 
@@ -73,10 +77,32 @@ export function DeckEditor() {
     unsetCommander,
     setFinish,
     discardAll,
-  } = useDeckChanges()
+    canUndo,
+    undo,
+  } = useDeckChanges<Card>()
+
+  const idPool = useCardIdPool()
+  const originalDeckRef = useRef<DeckData | null>(null)
 
   const deckDataRef = useRef(deckData)
   deckDataRef.current = deckData
+
+  /** Find a card's ID from the current deck state by name and optional section hint. */
+  const findCardId = useCallback(
+    (cardName: string, inCommanderSection?: boolean): number | undefined => {
+      if (!deckDataRef.current) return undefined
+      for (const section of deckDataRef.current.sections) {
+        if (inCommanderSection !== undefined) {
+          const isCmd = section.name.toLowerCase().includes('commander')
+          if (inCommanderSection !== isCmd) continue
+        }
+        const card = section.cards.find((c) => c.name === cardName)
+        if (card?.cardId !== undefined) return card.cardId
+      }
+      return undefined
+    },
+    [],
+  )
 
   // Fetch deck list on mount
   useEffect(() => {
@@ -99,7 +125,32 @@ export function DeckEditor() {
       .then((r) => r.json() as Promise<DeckDataResponse>)
       .then((data) => {
         if (data.success) {
-          setDeckData(data.deck)
+          // Initialize card ID pool from loaded deck data
+          const allCards: Card[] = []
+          for (const section of data.deck.sections) {
+            for (const card of section.cards) {
+              allCards.push(card)
+            }
+          }
+          const existingIds = allCards.map((c) => c.cardId)
+          const { pool, assignedIds } = initializePoolFromEntries(allCards.length, existingIds)
+
+          // Assign IDs back to cards
+          let idx = 0
+          const deckWithIds: DeckData = {
+            ...data.deck,
+            sections: data.deck.sections.map((s) => ({
+              ...s,
+              cards: s.cards.map((c) => {
+                const cardId = assignedIds[idx++]!
+                return { ...c, cardId }
+              }),
+            })),
+          }
+
+          setDeckData(deckWithIds)
+          originalDeckRef.current = deckWithIds
+          idPool.resetPool([...pool.usedIds])
           setCards(data.cards)
           setPrintings(data.printings)
           setLowestPriceCards(data.lowestPriceCards)
@@ -123,18 +174,38 @@ export function DeckEditor() {
 
   const handleIncrement = useCallback(
     (cardName: string) => {
-      incrementCard(cardName)
-      setDeckData((prev) => (prev ? applyChangeToDeck(prev, { action: 'add', cardName }) : prev))
+      const cardId = findCardId(cardName)
+      incrementCard(cardName, cardId)
+      setDeckData((prev) =>
+        prev ? applyChangeToDeck(prev, { action: 'add', cardName, cardId }) : prev,
+      )
     },
-    [incrementCard],
+    [incrementCard, findCardId],
   )
 
   const handleDecrement = useCallback(
     (cardName: string) => {
-      decrementCard(cardName)
-      setDeckData((prev) => (prev ? applyChangeToDeck(prev, { action: 'remove', cardName }) : prev))
+      const cardId = findCardId(cardName)
+
+      // Check if this removal will delete the line (quantity → 0)
+      let removedCardData: Card | undefined
+      if (deckDataRef.current) {
+        for (const section of deckDataRef.current.sections) {
+          const card = section.cards.find((c) => c.name === cardName)
+          if (card && card.quantity <= 1 && card.cardId !== undefined) {
+            removedCardData = { ...card }
+            idPool.release(card.cardId)
+            break
+          }
+        }
+      }
+
+      decrementCard(cardName, cardId, removedCardData)
+      setDeckData((prev) =>
+        prev ? applyChangeToDeck(prev, { action: 'remove', cardName, cardId }) : prev,
+      )
     },
-    [decrementCard],
+    [decrementCard, findCardId, idPool],
   )
 
   const handleContextMenu = useCallback(
@@ -151,46 +222,52 @@ export function DeckEditor() {
 
   const handleSetFoil = useCallback(() => {
     if (!contextMenuCard) return
-    setFinish(contextMenuCard.cardName, 'foil')
+    const cardId = findCardId(contextMenuCard.cardName)
+    setFinish(contextMenuCard.cardName, 'foil', cardId)
     setDeckData((prev) =>
       prev
         ? applyChangeToDeck(prev, {
             action: 'set-finish',
             cardName: contextMenuCard.cardName,
             finish: 'foil',
+            cardId,
           })
         : prev,
     )
     setContextMenuCard(null)
-  }, [contextMenuCard, setFinish])
+  }, [contextMenuCard, setFinish, findCardId])
 
   const handleSetCommander = useCallback(() => {
     if (!contextMenuCard) return
-    setCommander(contextMenuCard.cardName)
+    const cardId = findCardId(contextMenuCard.cardName, false)
+    setCommander(contextMenuCard.cardName, cardId)
     setDeckData((prev) =>
       prev
         ? applyChangeToDeck(prev, {
             action: 'set-commander',
             cardName: contextMenuCard.cardName,
+            cardId,
           })
         : prev,
     )
     setContextMenuCard(null)
-  }, [contextMenuCard, setCommander])
+  }, [contextMenuCard, setCommander, findCardId])
 
   const handleUnsetCommander = useCallback(() => {
     if (!contextMenuCard) return
-    unsetCommander(contextMenuCard.cardName)
+    const cardId = findCardId(contextMenuCard.cardName, true)
+    unsetCommander(contextMenuCard.cardName, cardId)
     setDeckData((prev) =>
       prev
         ? applyChangeToDeck(prev, {
             action: 'unset-commander',
             cardName: contextMenuCard.cardName,
+            cardId,
           })
         : prev,
     )
     setContextMenuCard(null)
-  }, [contextMenuCard, unsetCommander])
+  }, [contextMenuCard, unsetCommander, findCardId])
 
   const handleAddCardFromSearch = useCallback(
     async (
@@ -199,7 +276,8 @@ export function DeckEditor() {
       scryfallCard?: ScryfallCard,
       allPrintings?: ScryfallCard[],
     ) => {
-      addCard(cardName, options)
+      const cardId = idPool.allocate()
+      addCard(cardName, { ...options, cardId })
       setDeckData((prev) =>
         prev
           ? applyChangeToDeck(prev, {
@@ -209,6 +287,7 @@ export function DeckEditor() {
               collectorNumber: options?.collectorNumber,
               finish: options?.finish,
               condition: options?.condition,
+              cardId,
             })
           : prev,
       )
@@ -246,8 +325,25 @@ export function DeckEditor() {
         // Price fetch failure doesn't block adding the card
       }
     },
-    [addCard],
+    [addCard, idPool],
   )
+
+  const handleUndo = useCallback(() => {
+    const result = undo()
+    if (!result || !originalDeckRef.current) return
+
+    const { entry, remainingChanges } = result
+
+    // Handle ID pool updates
+    reconcileIdPoolForUndo(idPool, entry)
+
+    // Rebuild deck state from original by replaying remaining changes
+    let rebuilt = originalDeckRef.current
+    for (const change of remainingChanges) {
+      rebuilt = applyChangeToDeck(rebuilt, change)
+    }
+    setDeckData(rebuilt)
+  }, [undo, idPool])
 
   const handleSave = useCallback(async () => {
     if (!deckSlug || !deckData || changeCount === 0) return
@@ -278,10 +374,19 @@ export function DeckEditor() {
 
   const handleDiscard = useCallback(() => {
     discardAll()
+    if (originalDeckRef.current) {
+      const ids: number[] = []
+      for (const section of originalDeckRef.current.sections) {
+        for (const card of section.cards) {
+          if (card.cardId !== undefined) ids.push(card.cardId)
+        }
+      }
+      idPool.resetPool(ids)
+    }
     setShowDiscard(false)
     // Increment refreshKey to trigger a re-fetch of the deck data
     setRefreshKey((k) => k + 1)
-  }, [discardAll])
+  }, [discardAll, idPool])
 
   return (
     <div>
@@ -380,22 +485,15 @@ export function DeckEditor() {
 
       {/* Sticky action bar */}
       {deckData && (
-        <div class="editor-action-bar">
-          <button class="btn-changes" onClick={() => setShowChanges(true)}>
-            Changes
-            {changeCount > 0 && <span class="changes-badge">{changeCount}</span>}
-          </button>
-          <button class="btn-save" disabled={changeCount === 0 || saving} onClick={handleSave}>
-            {saving ? 'Saving...' : 'Save Changes'}
-          </button>
-          <button
-            class="btn-discard"
-            disabled={changeCount === 0}
-            onClick={() => setShowDiscard(true)}
-          >
-            Discard Changes
-          </button>
-        </div>
+        <EditorActionBar
+          changeCount={changeCount}
+          canUndo={canUndo}
+          saving={saving}
+          onShowChanges={() => setShowChanges(true)}
+          onUndo={handleUndo}
+          onSave={handleSave}
+          onDiscard={() => setShowDiscard(true)}
+        />
       )}
     </div>
   )

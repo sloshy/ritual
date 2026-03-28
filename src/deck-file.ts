@@ -4,6 +4,7 @@ import matter from 'gray-matter'
 import { type Card, type DeckData } from './types'
 import { listDeckFiles } from './importers/text-file'
 import { isPathWithinDir } from './path-validation'
+import { allocateNextIdFromContent } from './card-id'
 
 /**
  * Resolve a deck name to its file path. Tries exact match first,
@@ -46,6 +47,9 @@ export function serializeCardLine(card: Card): string {
   if (card.condition && card.condition !== 'NM') {
     line += ` [${card.condition}]`
   }
+  if (card.cardId !== undefined) {
+    line += ` &${card.cardId}`
+  }
   return line
 }
 
@@ -78,13 +82,17 @@ export async function parseDeckFrontMatter(filePath: string): Promise<Record<str
 export async function addCardToDeckFile(filePath: string, card: Card): Promise<void> {
   const fileContent = await fs.readFile(filePath, 'utf-8')
   const lines = fileContent.split('\n')
+
+  // Parse existing card IDs to find the next available
+  const { nextId: cardId } = allocateNextIdFromContent(fileContent)
+
   let mainIndex = lines.findIndex((l) => l.trim() === '## Main')
   if (mainIndex === -1) {
     lines.push('')
     lines.push('## Main')
     mainIndex = lines.length - 1
   }
-  lines.splice(mainIndex + 1, 0, serializeCardLine(card))
+  lines.splice(mainIndex + 1, 0, serializeCardLine({ ...card, cardId }))
   const content = lines.join('\n')
   await fs.writeFile(filePath, content.endsWith('\n') ? content : content + '\n')
 }

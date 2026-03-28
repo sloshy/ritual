@@ -71,6 +71,25 @@ When asked to do research work (for example external API exploration or reverse 
 
 For imports from the Bun or Node standard library, always use the `node:` prefix. For example, importing `fs/promises` should be imported from `node:fs/promises` instead.
 
+### Card IDs
+
+Every card entry in deck, collection, and wanted list markdown files has a persistent numeric ID suffix (`&N`). These IDs are stable across non-removal edits and only released back to a reuse pool when a card line is entirely removed.
+
+**Format**: `&` followed by a number at the end of a card line (e.g., `1 Sol Ring &5`, `- Lightning Bolt (LEA:161) &12`).
+
+**Rules**:
+
+- IDs are sequential starting from 1 within each list file
+- When a card is removed, its ID is released to a reuse pool
+- New cards take the smallest available ID from the pool, then fall back to the next sequential number
+- Decrementing deck quantity does NOT release the ID — only full line removal does
+- IDs are an internal implementation detail — NOT exposed on the public site
+- The `src/card-id.ts` module contains all pool allocation logic (`createIdPool`, `allocateId`, `releaseId`, `claimId`, `initializePoolFromEntries`)
+- Files without IDs get auto-assigned IDs on load and persisted on save
+- Changelog entries include card IDs
+
+**Undo system**: The admin site editors support linear undo of individual changes. Undo of a removal reclaims the original card ID. Implemented via `useCardChanges` hook with `UndoEntry` stack.
+
 ## Tests
 
 When adding a new feature, include tests.

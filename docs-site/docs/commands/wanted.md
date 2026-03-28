@@ -64,19 +64,19 @@ Look up cards by collector number within one or more loaded sets.
 Each card entry is written to a markdown file in the `wanted/` directory:
 
 ```
-- Card Name (SET:CN) [finish] {note}
+- Card Name (SET:CN) [finish] {note} &N
 ```
 
 For example:
 
 ```
-- Sol Ring
-- Lightning Bolt (LEA:161)
-- Mana Crypt (2XM:270) [foil]
-- Black Lotus (LEB:233) [nonfoil] {birthday present to self}
+- Sol Ring &1
+- Lightning Bolt (LEA:161) &2
+- Mana Crypt (2XM:270) [foil] &3
+- Black Lotus (LEB:233) [nonfoil] {birthday present to self} &4
 ```
 
-Any combination of set/collector number and finish can be omitted depending on the desired specificity level. The note is optional.
+Any combination of set/collector number and finish can be omitted depending on the desired specificity level. The note is optional. The `&N` suffix is a persistent card ID used internally for change tracking and is auto-assigned.
 
 ## Examples
 

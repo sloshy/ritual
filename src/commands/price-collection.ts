@@ -2,7 +2,8 @@ import { Command } from 'commander'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { getCardPrintings, getCardGames } from '../scryfall'
-import type { Finish, ScryfallCard } from '../types'
+import type { Condition, Finish, ScryfallCard } from '../types'
+import { isCondition, isFinish } from './collection-helpers'
 import {
   parseCurrencyFlagOrError,
   formatPrice,
@@ -24,9 +25,10 @@ export type CollectionEntry = {
   quantity: number
   set: string
   collectorNumber: string
-  finish?: string
-  condition?: string
+  finish?: Finish
+  condition?: Condition
   note?: string
+  cardId?: number
 }
 
 export type CollectionParseResult = {
@@ -43,7 +45,7 @@ export function parseCollectionFile(content: string): CollectionParseResult {
     if (!trimmed.startsWith('- ')) continue
 
     const match = trimmed.match(
-      /^- (.+?)(?:\s\(([A-Za-z0-9]+):([^)]+)\))?(?:\s\[(nonfoil|foil|etched)\])?(?:\s\[(NM|LP|MP|HP|DMG)\])?(?:\s\{(.+)\})?$/,
+      /^- (.+?)(?:\s\(([A-Za-z0-9]+):([^)]+)\))?(?:\s\[(nonfoil|foil|etched)\])?(?:\s\[(NM|LP|MP|HP|DMG)\])?(?:\s\{(.+)\})?(?:\s&(\d+))?$/,
     )
     if (!match) continue
 
@@ -61,9 +63,10 @@ export function parseCollectionFile(content: string): CollectionParseResult {
       quantity: 1,
       set: setCode.toLowerCase(),
       collectorNumber,
-      finish: match[4],
-      condition: match[5],
+      finish: match[4] && isFinish(match[4]) ? match[4] : undefined,
+      condition: match[5] && isCondition(match[5]) ? match[5] : undefined,
       note: match[6],
+      cardId: match[7] ? Number.parseInt(match[7], 10) : undefined,
     })
   }
   return { entries, warnings }
@@ -78,9 +81,10 @@ export function getPriceForFinish(
 }
 
 export function resolveFinish(entry: CollectionEntry, card: ScryfallCard): Finish {
-  if (entry.finish) return entry.finish as Finish
+  if (entry.finish) return entry.finish
   if (card.finishes.includes('nonfoil')) return 'nonfoil'
-  return (card.finishes[0] as Finish) ?? 'nonfoil'
+  const first = card.finishes[0]
+  return first !== undefined && isFinish(first) ? first : 'nonfoil'
 }
 
 export function registerPriceCollectionCommand(program: Command) {

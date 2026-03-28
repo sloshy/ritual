@@ -18,6 +18,19 @@ import { ensureWantedListFile, formatWantedListLine, promptWantedFinish } from '
 import { ensureFreshCardCache } from '../cache/freshness'
 import { appendChangelog } from '../changelog-writer'
 import { createChangeEvent } from '../change-event'
+import { allocateNextIdFromContent } from '../card-id'
+
+/** Parse existing &N IDs from a file and allocate the next available ID. */
+async function allocateNextIdFromFile(filePath: string): Promise<number> {
+  let content = ''
+  try {
+    content = await fs.readFile(filePath, 'utf-8')
+  } catch {
+    // File may not exist yet
+  }
+  const { nextId } = allocateNextIdFromContent(content)
+  return nextId
+}
 
 type TargetType = 'deck' | 'collection' | 'wanted'
 
@@ -229,6 +242,8 @@ async function handleDeckAddCard(
     process.exit(1)
   }
 
+  // Note: addCardToDeckFile allocates the cardId internally.
+  // The changelog records the change without the ID since it was assigned during file write.
   const change = createChangeEvent('add', selectedName)
   await appendChangelog(deckFilePath, deckName, [change])
 }
@@ -264,11 +279,17 @@ async function handleCollectionAddCard(
     process.exit(0)
   }
 
+  // Parse existing IDs to allocate the next one
+  const cardId = await allocateNextIdFromFile(collectionFilePath)
+
   const line = formatCollectionLine(
     selectedName,
-    printingResult.printing,
+    printingResult.printing.set,
+    printingResult.printing.collector_number,
     finishAndCondition.finish,
     finishAndCondition.condition,
+    undefined,
+    cardId,
   )
 
   await fs.appendFile(collectionFilePath, line)
@@ -279,6 +300,7 @@ async function handleCollectionAddCard(
     collectorNumber: printingResult.printing.collector_number,
     finish: finishAndCondition.finish,
     condition: finishAndCondition.condition,
+    cardId,
   })
   await appendChangelog(collectionFilePath, collectionName, [change])
 }
@@ -307,10 +329,11 @@ async function handleWantedAddCard(
   }
 
   if (specificityResponse.specificity === 'name-only') {
-    const line = formatWantedListLine(selectedName, undefined, userFinish)
+    const cardId = await allocateNextIdFromFile(listFile)
+    const line = formatWantedListLine(selectedName, undefined, userFinish, undefined, cardId)
     await fs.appendFile(listFile, line)
     console.log(`Added: ${line.trim()}`)
-    const change = createChangeEvent('add', selectedName, { finish: userFinish })
+    const change = createChangeEvent('add', selectedName, { finish: userFinish, cardId })
     await appendChangelog(listFile, wantedListName, [change])
     return
   }
@@ -319,10 +342,11 @@ async function handleWantedAddCard(
   const printingResult = await resolveCardPrinting(selectedName, {}, true)
   if (!printingResult) {
     console.log('No printing selected. Adding name only.')
-    const line = formatWantedListLine(selectedName, undefined, userFinish)
+    const cardId = await allocateNextIdFromFile(listFile)
+    const line = formatWantedListLine(selectedName, undefined, userFinish, undefined, cardId)
     await fs.appendFile(listFile, line)
     console.log(`Added: ${line.trim()}`)
-    const change = createChangeEvent('add', selectedName, { finish: userFinish })
+    const change = createChangeEvent('add', selectedName, { finish: userFinish, cardId })
     await appendChangelog(listFile, wantedListName, [change])
     return
   }
@@ -334,6 +358,7 @@ async function handleWantedAddCard(
   }
 
   const finish = finishResult === 'nopreference' ? undefined : finishResult
+  const cardId = await allocateNextIdFromFile(listFile)
   const line = formatWantedListLine(
     selectedName,
     {
@@ -341,6 +366,8 @@ async function handleWantedAddCard(
       collectorNumber: printingResult.printing.collector_number,
     },
     finish,
+    undefined,
+    cardId,
   )
 
   await fs.appendFile(listFile, line)
@@ -350,6 +377,7 @@ async function handleWantedAddCard(
     set: printingResult.printing.set.toLowerCase(),
     collectorNumber: printingResult.printing.collector_number,
     finish: finish,
+    cardId,
   })
   await appendChangelog(listFile, wantedListName, [change])
 }

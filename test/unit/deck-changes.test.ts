@@ -1,15 +1,22 @@
 import { describe, test, expect } from 'bun:test'
-import { areOppositeChanges, isAdditiveChange, createChangeId } from '../../src/change-event'
-import type { ChangeEvent } from '../../src/change-event'
+import {
+  areOppositeChanges,
+  isAdditiveChange,
+  createChangeId,
+  formatChange,
+} from '../../src/change-event'
+import type { ChangeEvent, AddChange, RemoveChange } from '../../src/change-event'
 
+/** Test helper — builds a ChangeEvent with add-change defaults.
+ *  Uses assertion since overrides may switch to a different union branch. */
 function makeChange(
-  overrides: Partial<ChangeEvent> & Pick<ChangeEvent, 'action' | 'cardName'>,
+  overrides: Record<string, unknown> & { action: string; cardName: string },
 ): ChangeEvent {
   return {
     id: createChangeId(),
     timestamp: Date.now(),
     ...overrides,
-  }
+  } as ChangeEvent
 }
 
 describe('areOppositeChanges', () => {
@@ -112,8 +119,8 @@ describe('areOppositeChanges', () => {
   })
 
   test('both with undefined set/CN match (both undefined)', () => {
-    const a = makeChange({ action: 'add', cardName: 'Sol Ring' })
-    const b = makeChange({ action: 'remove', cardName: 'Sol Ring' })
+    const a = makeChange({ action: 'add', cardName: 'Sol Ring' }) as AddChange
+    const b = makeChange({ action: 'remove', cardName: 'Sol Ring' }) as RemoveChange
     expect(a.set).toBeUndefined()
     expect(b.set).toBeUndefined()
     expect(areOppositeChanges(a, b)).toBe(true)
@@ -122,6 +129,44 @@ describe('areOppositeChanges', () => {
   test('one with set, other without returns false', () => {
     const a = makeChange({ action: 'add', cardName: 'Sol Ring', set: '2XM', collectorNumber: '1' })
     const b = makeChange({ action: 'remove', cardName: 'Sol Ring' })
+    expect(areOppositeChanges(a, b)).toBe(false)
+  })
+
+  test('same card with matching cardId cancels', () => {
+    const a = makeChange({ action: 'add', cardName: 'Sol Ring', cardId: 5 })
+    const b = makeChange({ action: 'remove', cardName: 'Sol Ring', cardId: 5 })
+    expect(areOppositeChanges(a, b)).toBe(true)
+  })
+
+  test('same card with different cardIds does not cancel', () => {
+    const a = makeChange({ action: 'add', cardName: 'Sol Ring', cardId: 5 })
+    const b = makeChange({ action: 'remove', cardName: 'Sol Ring', cardId: 7 })
+    expect(areOppositeChanges(a, b)).toBe(false)
+  })
+
+  test('both undefined cardIds still cancel', () => {
+    const a = makeChange({ action: 'add', cardName: 'Sol Ring' })
+    const b = makeChange({ action: 'remove', cardName: 'Sol Ring' })
+    expect(a.cardId).toBeUndefined()
+    expect(b.cardId).toBeUndefined()
+    expect(areOppositeChanges(a, b)).toBe(true)
+  })
+
+  test('one with cardId and one without still cancel (backwards compat)', () => {
+    const a = makeChange({ action: 'add', cardName: 'Sol Ring', cardId: 5 })
+    const b = makeChange({ action: 'remove', cardName: 'Sol Ring' })
+    expect(areOppositeChanges(a, b)).toBe(true)
+  })
+
+  test('commander changes with matching cardIds cancel', () => {
+    const a = makeChange({ action: 'set-commander', cardName: 'Kenrith', cardId: 1 })
+    const b = makeChange({ action: 'unset-commander', cardName: 'Kenrith', cardId: 1 })
+    expect(areOppositeChanges(a, b)).toBe(true)
+  })
+
+  test('commander changes with different cardIds do not cancel', () => {
+    const a = makeChange({ action: 'set-commander', cardName: 'Kenrith', cardId: 1 })
+    const b = makeChange({ action: 'unset-commander', cardName: 'Kenrith', cardId: 2 })
     expect(areOppositeChanges(a, b)).toBe(false)
   })
 })
@@ -162,5 +207,49 @@ describe('createChangeId', () => {
   test('matches expected format (timestamp-random)', () => {
     const id = createChangeId()
     expect(id).toMatch(/^\d+-[a-z0-9]+$/)
+  })
+})
+
+describe('formatChange', () => {
+  test('includes card ID in add format', () => {
+    const change = makeChange({ action: 'add', cardName: 'Sol Ring', cardId: 5 })
+    expect(formatChange(change)).toBe('Add Sol Ring &5')
+  })
+
+  test('includes card ID with printing info', () => {
+    const change = makeChange({
+      action: 'add',
+      cardName: 'Mana Crypt',
+      set: '2xm',
+      collectorNumber: '1',
+      finish: 'foil',
+      cardId: 42,
+    })
+    expect(formatChange(change)).toBe('Add Mana Crypt (2XM:1) [foil] &42')
+  })
+
+  test('includes card ID for remove', () => {
+    const change = makeChange({ action: 'remove', cardName: 'Sol Ring', cardId: 3 })
+    expect(formatChange(change)).toBe('Remove Sol Ring &3')
+  })
+
+  test('includes card ID for set-commander', () => {
+    const change = makeChange({ action: 'set-commander', cardName: 'Kenrith', cardId: 1 })
+    expect(formatChange(change)).toBe('Set Kenrith as commander &1')
+  })
+
+  test('includes card ID for set-finish', () => {
+    const change = makeChange({
+      action: 'set-finish',
+      cardName: 'Sol Ring',
+      finish: 'foil',
+      cardId: 7,
+    })
+    expect(formatChange(change)).toBe('Set Sol Ring finish to foil &7')
+  })
+
+  test('omits card ID when undefined', () => {
+    const change = makeChange({ action: 'add', cardName: 'Sol Ring' })
+    expect(formatChange(change)).toBe('Add Sol Ring')
   })
 })

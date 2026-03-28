@@ -5,14 +5,16 @@ import * as path from 'node:path'
 import { appendChangelog } from '../../src/changelog-writer'
 import type { ChangeEvent } from '../../src/change-event'
 
-function makeChange(overrides: Partial<ChangeEvent> = {}): ChangeEvent {
+/** Test helper — builds a ChangeEvent with add-change defaults.
+ *  Uses assertion since overrides may switch to a different union branch. */
+function makeChange(overrides: Record<string, unknown> = {}): ChangeEvent {
   return {
     id: 'test-id',
     timestamp: Date.now(),
     action: 'add',
     cardName: 'Sol Ring',
     ...overrides,
-  }
+  } as ChangeEvent
 }
 
 describe('appendChangelog', () => {

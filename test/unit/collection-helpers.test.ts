@@ -2,77 +2,149 @@ import { describe, test, expect } from 'bun:test'
 import { formatCollectionLine, isFinish, isCondition } from '../../src/commands/collection-helpers'
 import type { Finish, Condition } from '../../src/types'
 
-// Minimal ScryfallCard stub for testing formatCollectionLine
+// Minimal card data for testing formatCollectionLine
 function makeCard(set: string, collectorNumber: string) {
-  return {
-    id: 'stub',
-    name: 'Test Card',
-    cmc: 0,
-    type_line: 'Artifact',
-    prices: { usd: null, usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
-    finishes: ['nonfoil', 'foil'] as string[],
-    games: ['paper'],
-    set,
-    set_name: 'Test Set',
-    collector_number: collectorNumber,
-    rarity: 'uncommon',
-    color_identity: [],
-  }
+  return { set, collectorNumber }
 }
 
 describe('formatCollectionLine', () => {
   test('formats a basic nonfoil entry without condition', () => {
     const card = makeCard('neo', '123')
-    const line = formatCollectionLine('Farewell', card, 'nonfoil', undefined)
+    const line = formatCollectionLine(
+      'Farewell',
+      card.set,
+      card.collectorNumber,
+      'nonfoil',
+      undefined,
+    )
     expect(line).toBe('- Farewell (NEO:123)\n')
   })
 
   test('omits [nonfoil] tag (nonfoil is the default)', () => {
     const card = makeCard('mrd', '215')
-    const line = formatCollectionLine('Skullclamp', card, 'nonfoil', undefined)
+    const line = formatCollectionLine(
+      'Skullclamp',
+      card.set,
+      card.collectorNumber,
+      'nonfoil',
+      undefined,
+    )
     expect(line).not.toContain('[nonfoil]')
   })
 
   test('includes [foil] tag for foil finish', () => {
     const card = makeCard('lea', '232')
-    const line = formatCollectionLine('Sol Ring', card, 'foil', undefined)
+    const line = formatCollectionLine('Sol Ring', card.set, card.collectorNumber, 'foil', undefined)
     expect(line).toBe('- Sol Ring (LEA:232) [foil]\n')
   })
 
   test('includes [etched] tag for etched finish', () => {
     const card = makeCard('cmr', '1')
-    const line = formatCollectionLine('Sol Ring', card, 'etched', undefined)
+    const line = formatCollectionLine(
+      'Sol Ring',
+      card.set,
+      card.collectorNumber,
+      'etched',
+      undefined,
+    )
     expect(line).toBe('- Sol Ring (CMR:1) [etched]\n')
   })
 
   test('includes condition when provided', () => {
     const card = makeCard('lea', '206')
-    const line = formatCollectionLine('Lightning Bolt', card, 'nonfoil', 'LP')
+    const line = formatCollectionLine(
+      'Lightning Bolt',
+      card.set,
+      card.collectorNumber,
+      'nonfoil',
+      'LP',
+    )
     expect(line).toBe('- Lightning Bolt (LEA:206) [LP]\n')
   })
 
   test('includes both finish and condition', () => {
     const card = makeCard('lea', '232')
-    const line = formatCollectionLine('Sol Ring', card, 'foil', 'NM')
+    const line = formatCollectionLine('Sol Ring', card.set, card.collectorNumber, 'foil', 'NM')
     expect(line).toBe('- Sol Ring (LEA:232) [foil] [NM]\n')
   })
 
   test('omits condition when undefined', () => {
     const card = makeCard('lea', '232')
-    const line = formatCollectionLine('Sol Ring', card, 'nonfoil', undefined)
+    const line = formatCollectionLine(
+      'Sol Ring',
+      card.set,
+      card.collectorNumber,
+      'nonfoil',
+      undefined,
+    )
     expect(line).not.toContain('[NM]')
     expect(line).not.toContain('[undefined]')
   })
 
   test('includes optional note', () => {
     const card = makeCard('lea', '232')
-    const line = formatCollectionLine('Sol Ring', card, 'foil', 'NM', 'signed')
+    const line = formatCollectionLine(
+      'Sol Ring',
+      card.set,
+      card.collectorNumber,
+      'foil',
+      'NM',
+      'signed',
+    )
     expect(line).toBe('- Sol Ring (LEA:232) [foil] [NM] {signed}\n')
+  })
+
+  test('includes card ID suffix', () => {
+    const card = makeCard('lea', '232')
+    const line = formatCollectionLine(
+      'Sol Ring',
+      card.set,
+      card.collectorNumber,
+      'foil',
+      'NM',
+      undefined,
+      5,
+    )
+    expect(line).toBe('- Sol Ring (LEA:232) [foil] [NM] &5\n')
+  })
+
+  test('includes both note and card ID', () => {
+    const card = makeCard('lea', '232')
+    const line = formatCollectionLine(
+      'Sol Ring',
+      card.set,
+      card.collectorNumber,
+      'foil',
+      'NM',
+      'signed',
+      42,
+    )
+    expect(line).toBe('- Sol Ring (LEA:232) [foil] [NM] {signed} &42\n')
+  })
+
+  test('card ID without note', () => {
+    const card = makeCard('neo', '123')
+    const line = formatCollectionLine(
+      'Farewell',
+      card.set,
+      card.collectorNumber,
+      'nonfoil',
+      undefined,
+      undefined,
+      1,
+    )
+    expect(line).toBe('- Farewell (NEO:123) &1\n')
   })
 
   test('set code is uppercased', () => {
     const card = makeCard('mh2', '100')
-    const line = formatCollectionLine('Dragon', card, 'nonfoil', undefined)
+    const line = formatCollectionLine(
+      'Dragon',
+      card.set,
+      card.collectorNumber,
+      'nonfoil',
+      undefined,
+    )
     expect(line).toContain('(MH2:100)')
   })
 })

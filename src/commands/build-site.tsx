@@ -676,9 +676,18 @@ export function registerBuildSiteCommand(program: Command) {
           }
         }
 
+        // Strip internal cardId fields before writing public site JSON
+        const publicDeckData: DeckData = {
+          ...deckData,
+          sections: deckData.sections.map((s) => ({
+            ...s,
+            cards: s.cards.map(({ cardId: _, ...card }) => card),
+          })),
+        }
+
         // Write deck detail JSON
         const deckDetail: DeckDetail = {
-          deck: deckData,
+          deck: publicDeckData,
           cards: deckCardMap,
           printings: deckPrintingsMap,
           lowestPriceCards: hasUsd ? deckLowestPriceCardMap : undefined,
@@ -897,9 +906,7 @@ export function registerBuildSiteCommand(program: Command) {
           }
 
           const card = collectionCardMap[cardKey] ?? null
-          const finish: Finish = card
-            ? resolveFinish(entry, card)
-            : (entry.finish as Finish) || 'nonfoil'
+          const finish: Finish = card ? resolveFinish(entry, card) : entry.finish || 'nonfoil'
           const price = card ? getPriceForFinish(card, finish) : 0
           const priceEur = card ? getCardPriceForFinish(card, finish, 'eur') : 0
           const priceTix = card ? getCardPriceForFinish(card, finish, 'tix') : 0
@@ -920,7 +927,7 @@ export function registerBuildSiteCommand(program: Command) {
             set: entry.set,
             collectorNumber: entry.collectorNumber,
             finish,
-            condition: entry.condition || '',
+            condition: entry.condition ?? 'NM',
             price,
             fileOrder: i,
             note: entry.note,

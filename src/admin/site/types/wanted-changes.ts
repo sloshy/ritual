@@ -1,5 +1,6 @@
 import type { ChangeInput } from './deck-changes'
 import type { WantedListCardEntry } from '../../../site/data-types'
+import { findTargetEntryIndex } from './entry-targeting.js'
 
 type WantedListChangeInput = ChangeInput & {
   fileOrder?: number
@@ -22,36 +23,24 @@ export function applyChangeToWantedList(
         price: 0,
         fileOrder: entries.length,
         state,
+        cardId: change.cardId,
       }
       return [...entries, newEntry]
     }
 
     case 'remove': {
-      if (change.fileOrder !== undefined) {
-        const idx = entries.findIndex((e) => e.fileOrder === change.fileOrder)
-        if (idx === -1) return entries
-        return entries.filter((_, i) => i !== idx)
-      }
-
-      const idx = entries.findIndex((e) => {
-        if (e.name !== change.cardName) return false
-        if (change.set && e.set?.toLowerCase() !== change.set.toLowerCase()) return false
-        if (change.collectorNumber && e.collectorNumber !== change.collectorNumber) return false
-        return true
-      })
+      const idx = findTargetEntryIndex(entries, change)
       if (idx === -1) return entries
       return entries.filter((_, i) => i !== idx)
     }
 
     case 'set-finish': {
-      return entries.map((e) => {
-        if (e.name === change.cardName) {
-          const finish = change.finish ?? undefined
-          const state = !e.set ? 'name-only' : finish ? 'fully-specified' : 'printing'
-          return { ...e, finish, state }
-        }
-        return e
-      })
+      const idx = findTargetEntryIndex(entries, change)
+      if (idx === -1) return entries
+      const target = entries[idx]!
+      const finish = change.finish
+      const state = !target.set ? 'name-only' : finish ? 'fully-specified' : 'printing'
+      return entries.map((e, i) => (i === idx ? { ...e, finish, state } : e))
     }
 
     case 'set-commander':

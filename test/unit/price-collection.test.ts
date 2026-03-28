@@ -108,4 +108,33 @@ describe('parseCollectionFile', () => {
     expect(entries).toHaveLength(1)
     expect(entries[0]!.note).toBeUndefined()
   })
+
+  test('parses card ID suffix', () => {
+    const content = `- Sol Ring (C19:221) [foil] [NM] &5\n`
+    const { entries } = parseCollectionFile(content)
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.name).toBe('Sol Ring')
+    expect(entries[0]!.cardId).toBe(5)
+  })
+
+  test('parses card ID with note', () => {
+    const content = `- Mana Crypt (2XM:270) [foil] [NM] {JP} &12\n`
+    const { entries } = parseCollectionFile(content)
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.note).toBe('JP')
+    expect(entries[0]!.cardId).toBe(12)
+  })
+
+  test('parses card ID without finish or condition', () => {
+    const content = `- Arcane Signet (ECC:55) &1\n`
+    const { entries } = parseCollectionFile(content)
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.cardId).toBe(1)
+  })
+
+  test('entry without card ID has undefined cardId', () => {
+    const content = `- Arcane Signet (ECC:55)\n`
+    const { entries } = parseCollectionFile(content)
+    expect(entries[0]!.cardId).toBeUndefined()
+  })
 })

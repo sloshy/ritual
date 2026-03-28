@@ -7,8 +7,9 @@ export interface Card {
   name: string
   set?: string
   collectorNumber?: string
-  finish?: string
-  condition?: string
+  finish?: Finish
+  condition?: Condition
+  cardId?: number
 }
 
 export interface DeckSection {

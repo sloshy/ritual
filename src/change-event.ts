@@ -1,26 +1,67 @@
-import type { Finish } from './types'
+import type { Finish, Condition } from './types'
 
-export type ChangeAction = 'add' | 'remove' | 'set-commander' | 'unset-commander' | 'set-finish'
+// ── Discriminated union types ───────────────────────────────────────
 
-export type ChangeEvent = {
+export type BaseChange = {
   id: string
   timestamp: number
-  action: ChangeAction
   cardName: string
+  cardId?: number
+}
+
+export type AddChange = BaseChange & {
+  action: 'add'
   set?: string
   collectorNumber?: string
   finish?: Finish
-  condition?: string
+  condition?: Condition
 }
 
+export type RemoveChange = BaseChange & {
+  action: 'remove'
+  set?: string
+  collectorNumber?: string
+  finish?: Finish
+  condition?: Condition
+}
+
+export type SetCommanderChange = BaseChange & {
+  action: 'set-commander'
+}
+
+export type UnsetCommanderChange = BaseChange & {
+  action: 'unset-commander'
+}
+
+export type SetFinishChange = BaseChange & {
+  action: 'set-finish'
+  finish: Finish
+}
+
+export type ChangeEvent =
+  | AddChange
+  | RemoveChange
+  | SetCommanderChange
+  | UnsetCommanderChange
+  | SetFinishChange
+
+/** Derived from the union — kept as a convenience alias for switch statements. */
+export type ChangeAction = ChangeEvent['action']
+
+/** Distributes Omit over each member of a union, preserving discriminated-union structure. */
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
+
 /** The subset of ChangeEvent fields that applyChange* functions need (no id/timestamp). */
-export type ChangeInput = Omit<ChangeEvent, 'id' | 'timestamp'>
+export type ChangeInput = DistributiveOmit<ChangeEvent, 'id' | 'timestamp'>
 
 /** Printing metadata shared by ChangeEvent, Card operations, and API boundaries */
-export type CardPrintingOptions = Pick<
-  ChangeEvent,
-  'set' | 'collectorNumber' | 'finish' | 'condition'
->
+export type CardPrintingOptions = {
+  set?: string
+  collectorNumber?: string
+  finish?: Finish
+  condition?: Condition
+  cardId?: number
+}
 
 /** Create a unique ID for a change event */
 export function createChangeId(): string {
@@ -33,15 +74,39 @@ export function createChangeEvent(
   cardName: string,
   options?: CardPrintingOptions,
 ): ChangeEvent {
-  return {
+  const base: BaseChange = {
     id: createChangeId(),
     timestamp: Date.now(),
-    action,
     cardName,
-    set: options?.set,
-    collectorNumber: options?.collectorNumber,
-    finish: options?.finish,
-    condition: options?.condition,
+    cardId: options?.cardId,
+  }
+  switch (action) {
+    case 'add':
+      return {
+        ...base,
+        action,
+        set: options?.set,
+        collectorNumber: options?.collectorNumber,
+        finish: options?.finish,
+        condition: options?.condition,
+      }
+    case 'remove':
+      return {
+        ...base,
+        action,
+        set: options?.set,
+        collectorNumber: options?.collectorNumber,
+        finish: options?.finish,
+        condition: options?.condition,
+      }
+    case 'set-commander':
+      return { ...base, action }
+    case 'unset-commander':
+      return { ...base, action }
+    case 'set-finish': {
+      if (!options?.finish) throw new Error('set-finish action requires a finish value')
+      return { ...base, action, finish: options.finish }
+    }
   }
 }
 
@@ -52,6 +117,7 @@ export function areOppositeChanges(a: ChangeEvent, b: ChangeEvent): boolean {
     (a.action === 'set-commander' && b.action === 'unset-commander') ||
     (a.action === 'unset-commander' && b.action === 'set-commander')
   ) {
+    if (a.cardId !== undefined && b.cardId !== undefined && a.cardId !== b.cardId) return false
     return a.cardName === b.cardName
   }
 
@@ -65,18 +131,25 @@ export function areOppositeChanges(a: ChangeEvent, b: ChangeEvent): boolean {
     return false
   }
 
+  // Narrow to AddChange | RemoveChange for field access
+  const ac = a as AddChange | RemoveChange
+  const bc = b as AddChange | RemoveChange
+
   // Card name must match
-  if (a.cardName !== b.cardName) return false
+  if (ac.cardName !== bc.cardName) return false
+
+  // Card ID must match when both are present
+  if (ac.cardId !== undefined && bc.cardId !== undefined && ac.cardId !== bc.cardId) return false
 
   // Printing must match (both undefined or both same, case-insensitive)
-  if (a.set?.toLowerCase() !== b.set?.toLowerCase() || a.collectorNumber !== b.collectorNumber)
+  if (ac.set?.toLowerCase() !== bc.set?.toLowerCase() || ac.collectorNumber !== bc.collectorNumber)
     return false
 
   // Finish must match
-  if (a.finish !== b.finish) return false
+  if (ac.finish !== bc.finish) return false
 
   // Condition must match
-  if (a.condition !== b.condition) return false
+  if (ac.condition !== bc.condition) return false
 
   return true
 }
@@ -89,24 +162,26 @@ export function isAdditiveChange(action: ChangeAction): boolean {
 
 /** Format a change event as a human-readable description */
 export function formatChange(change: ChangeEvent): string {
-  const printingInfo =
-    change.set && change.collectorNumber
-      ? ` (${change.set.toUpperCase()}:${change.collectorNumber})`
-      : ''
-  const finishInfo = change.finish && change.finish !== 'nonfoil' ? ` [${change.finish}]` : ''
-  const conditionInfo =
-    change.condition && change.condition !== 'NM' ? ` [${change.condition}]` : ''
+  const idInfo = change.cardId !== undefined ? ` &${change.cardId}` : ''
 
   switch (change.action) {
     case 'add':
-      return `Add ${change.cardName}${printingInfo}${finishInfo}${conditionInfo}`
-    case 'remove':
-      return `Remove ${change.cardName}${printingInfo}${finishInfo}${conditionInfo}`
+    case 'remove': {
+      const printingInfo =
+        change.set && change.collectorNumber
+          ? ` (${change.set.toUpperCase()}:${change.collectorNumber})`
+          : ''
+      const finishInfo = change.finish && change.finish !== 'nonfoil' ? ` [${change.finish}]` : ''
+      const conditionInfo =
+        change.condition && change.condition !== 'NM' ? ` [${change.condition}]` : ''
+      const verb = change.action === 'add' ? 'Add' : 'Remove'
+      return `${verb} ${change.cardName}${printingInfo}${finishInfo}${conditionInfo}${idInfo}`
+    }
     case 'set-commander':
-      return `Set ${change.cardName} as commander`
+      return `Set ${change.cardName} as commander${idInfo}`
     case 'unset-commander':
-      return `Unset ${change.cardName} as commander`
+      return `Unset ${change.cardName} as commander${idInfo}`
     case 'set-finish':
-      return `Set ${change.cardName} finish to ${change.finish ?? 'nonfoil'}`
+      return `Set ${change.cardName} finish to ${change.finish}${idInfo}`
   }
 }

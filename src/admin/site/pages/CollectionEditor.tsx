@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'preact/hooks'
+import { useState, useEffect, useCallback, useRef } from 'preact/hooks'
 import type { ScryfallCard } from '../../../types'
 import type { PriceCurrency } from '../../../price-currency'
 import type { CardPrintingOptions } from '../types/deck-changes'
@@ -7,13 +7,28 @@ import type { CardPriceResponse } from '../../api/card-price'
 import type { ContextMenuState } from '../types/context-menu'
 import { CollectionPage } from '../../../site/CollectionPage'
 import { useCollectionChanges } from '../hooks/useCollectionChanges'
+import { useCardIdPool } from '../hooks/useCardIdPool'
 import { applyChangeToCollection } from '../types/collection-changes'
 import { ChangesDialog } from '../components/ChangesDialog'
 import { DiscardConfirmDialog } from '../components/DiscardConfirmDialog'
 import { CardContextMenu } from '../components/CardContextMenu'
 import { CardSearchModal } from '../components/CardSearchModal'
+import { EditorActionBar } from '../components/EditorActionBar'
+import { reconcileIdPoolForUndo } from '../hooks/reconcile-undo'
+import { initializeEntriesWithIds } from '../../../card-id'
 
 type CollectionListItem = { slug: string; name: string }
+
+type CollectionDataResponse = {
+  success: boolean
+  entries: CollectionCardEntry[]
+  cards: Record<string, ScryfallCard | null>
+  printings: Record<string, ScryfallCard[]>
+  symbolMap: Record<string, string>
+  slug: string
+}
+
+type SaveResponse = { success: boolean; error?: string }
 
 export function CollectionEditor() {
   const [collectionSlug, setCollectionSlug] = useState<string | null>(null)
@@ -35,8 +50,11 @@ export function CollectionEditor() {
 
   const currency: PriceCurrency = 'usd'
 
-  const { changes, changeCount, addCard, removeCard, setFinish, discardAll } =
-    useCollectionChanges()
+  const { changes, changeCount, addCard, removeCard, setFinish, discardAll, canUndo, undo } =
+    useCollectionChanges<CollectionCardEntry>()
+
+  const idPool = useCardIdPool()
+  const originalEntriesRef = useRef<CollectionCardEntry[]>([])
 
   // Fetch collection list on mount
   useEffect(() => {
@@ -56,20 +74,14 @@ export function CollectionEditor() {
     setSaveStatus(null)
 
     fetch(`/api/collection/${collectionSlug}`, { credentials: 'same-origin' })
-      .then(
-        (r) =>
-          r.json() as Promise<{
-            success: boolean
-            entries: CollectionCardEntry[]
-            cards: Record<string, ScryfallCard | null>
-            printings: Record<string, ScryfallCard[]>
-            symbolMap: Record<string, string>
-            slug: string
-          }>,
-      )
+      .then((r) => r.json() as Promise<CollectionDataResponse>)
       .then((data) => {
         if (data.success) {
-          setEntries(data.entries.map((e, i) => ({ ...e, fileOrder: i })))
+          const { entries: entriesWithIds, pool } = initializeEntriesWithIds(data.entries)
+
+          setEntries(entriesWithIds)
+          originalEntriesRef.current = entriesWithIds
+          idPool.resetPool([...pool.usedIds])
           setCards(data.cards)
           setPrintings(data.printings)
           setSymbolMap(data.symbolMap)
@@ -89,11 +101,13 @@ export function CollectionEditor() {
 
   const handleIncrement = useCallback(
     (entry: CollectionCardEntry) => {
+      const cardId = idPool.allocate()
       addCard(entry.name, {
         set: entry.set,
         collectorNumber: entry.collectorNumber,
         finish: entry.finish,
         condition: entry.condition,
+        cardId,
       })
       setEntries((prev) =>
         applyChangeToCollection(prev, {
@@ -103,31 +117,42 @@ export function CollectionEditor() {
           collectorNumber: entry.collectorNumber,
           finish: entry.finish,
           condition: entry.condition,
+          cardId,
         }),
       )
     },
-    [addCard],
+    [addCard, idPool],
   )
 
   const handleDecrement = useCallback(
     (entry: CollectionCardEntry) => {
-      removeCard(entry.name, {
-        set: entry.set,
-        collectorNumber: entry.collectorNumber,
-        finish: entry.finish,
-        condition: entry.condition,
-      })
+      // In collections, each entry is a single card — removal always releases the ID
+      if (entry.cardId !== undefined) {
+        idPool.release(entry.cardId)
+      }
+      removeCard(
+        entry.name,
+        {
+          set: entry.set,
+          collectorNumber: entry.collectorNumber,
+          finish: entry.finish,
+          condition: entry.condition,
+          cardId: entry.cardId,
+        },
+        { ...entry },
+      )
       setEntries((prev) =>
         applyChangeToCollection(prev, {
           action: 'remove',
           cardName: entry.name,
           set: entry.set,
           collectorNumber: entry.collectorNumber,
+          cardId: entry.cardId,
           fileOrder: entry.fileOrder,
         }),
       )
     },
-    [removeCard],
+    [removeCard, idPool],
   )
 
   const handleContextMenu = useCallback(
@@ -139,16 +164,20 @@ export function CollectionEditor() {
 
   const handleSetFoil = useCallback(() => {
     if (!contextMenuCard) return
-    setFinish(contextMenuCard.cardName, 'foil')
+    // Find the entry to get its cardId
+    const entry = entries.find((e) => e.name === contextMenuCard.cardName)
+    const cardId = entry?.cardId
+    setFinish(contextMenuCard.cardName, 'foil', cardId)
     setEntries((prev) =>
       applyChangeToCollection(prev, {
         action: 'set-finish',
         cardName: contextMenuCard.cardName,
         finish: 'foil',
+        cardId,
       }),
     )
     setContextMenuCard(null)
-  }, [contextMenuCard, setFinish])
+  }, [contextMenuCard, setFinish, entries])
 
   const handleAddCardFromSearch = useCallback(
     async (
@@ -157,7 +186,8 @@ export function CollectionEditor() {
       scryfallCard?: ScryfallCard,
       allPrintings?: ScryfallCard[],
     ) => {
-      addCard(cardName, options)
+      const cardId = idPool.allocate()
+      addCard(cardName, { ...options, cardId })
       setEntries((prev) =>
         applyChangeToCollection(prev, {
           action: 'add',
@@ -166,6 +196,7 @@ export function CollectionEditor() {
           collectorNumber: options?.collectorNumber,
           finish: options?.finish,
           condition: options?.condition,
+          cardId,
         }),
       )
       if (scryfallCard) {
@@ -205,8 +236,25 @@ export function CollectionEditor() {
         // Price fetch failure doesn't block adding the card
       }
     },
-    [addCard],
+    [addCard, idPool],
   )
+
+  const handleUndo = useCallback(() => {
+    const result = undo()
+    if (!result) return
+
+    const { entry, remainingChanges } = result
+
+    // Handle ID pool updates
+    reconcileIdPoolForUndo(idPool, entry)
+
+    // Rebuild entries from original by replaying remaining changes
+    let rebuilt = originalEntriesRef.current
+    for (const change of remainingChanges) {
+      rebuilt = applyChangeToCollection(rebuilt, change)
+    }
+    setEntries(rebuilt)
+  }, [undo, idPool])
 
   const handleSave = useCallback(async () => {
     if (!collectionSlug || entries.length === 0 || changeCount === 0) return
@@ -219,7 +267,7 @@ export function CollectionEditor() {
         credentials: 'same-origin',
         body: JSON.stringify({ changes, entries }),
       })
-      const data = (await resp.json()) as { success: boolean; error?: string }
+      const data = (await resp.json()) as SaveResponse
       if (data.success) {
         setSaveStatus('Changes saved successfully')
         discardAll()
@@ -235,9 +283,13 @@ export function CollectionEditor() {
 
   const handleDiscard = useCallback(() => {
     discardAll()
+    const ids = originalEntriesRef.current
+      .map((e) => e.cardId)
+      .filter((id): id is number => id !== undefined)
+    idPool.resetPool(ids)
     setShowDiscard(false)
     setRefreshKey((k) => k + 1)
-  }, [discardAll])
+  }, [discardAll, idPool])
 
   return (
     <div>
@@ -338,22 +390,15 @@ export function CollectionEditor() {
 
       {/* Sticky action bar */}
       {entries.length > 0 && (
-        <div class="editor-action-bar">
-          <button class="btn-changes" onClick={() => setShowChanges(true)}>
-            Changes
-            {changeCount > 0 && <span class="changes-badge">{changeCount}</span>}
-          </button>
-          <button class="btn-save" disabled={changeCount === 0 || saving} onClick={handleSave}>
-            {saving ? 'Saving...' : 'Save Changes'}
-          </button>
-          <button
-            class="btn-discard"
-            disabled={changeCount === 0}
-            onClick={() => setShowDiscard(true)}
-          >
-            Discard Changes
-          </button>
-        </div>
+        <EditorActionBar
+          changeCount={changeCount}
+          canUndo={canUndo}
+          saving={saving}
+          onShowChanges={() => setShowChanges(true)}
+          onUndo={handleUndo}
+          onSave={handleSave}
+          onDiscard={() => setShowDiscard(true)}
+        />
       )}
     </div>
   )

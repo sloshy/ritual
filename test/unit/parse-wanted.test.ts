@@ -111,6 +111,36 @@ describe('parseWantedListFile', () => {
     expect(entries).toHaveLength(1)
     expect(entries[0]!.note).toBeUndefined()
   })
+
+  test('parses card ID suffix', () => {
+    const content = `- Sol Ring (C19:221) [foil] &7\n`
+    const { entries } = parseWantedListFile(content)
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.name).toBe('Sol Ring')
+    expect(entries[0]!.cardId).toBe(7)
+  })
+
+  test('parses card ID on name-only entry', () => {
+    const content = `- Lightning Bolt &3\n`
+    const { entries } = parseWantedListFile(content)
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.name).toBe('Lightning Bolt')
+    expect(entries[0]!.cardId).toBe(3)
+  })
+
+  test('parses card ID with note', () => {
+    const content = `- Mana Crypt (2XM:270) [foil] {JP} &12\n`
+    const { entries } = parseWantedListFile(content)
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.note).toBe('JP')
+    expect(entries[0]!.cardId).toBe(12)
+  })
+
+  test('entry without card ID has undefined cardId', () => {
+    const content = `- Lightning Bolt\n`
+    const { entries } = parseWantedListFile(content)
+    expect(entries[0]!.cardId).toBeUndefined()
+  })
 })
 
 describe('formatWantedListLine', () => {
@@ -147,5 +177,32 @@ describe('formatWantedListLine', () => {
   test('formats name-only entry with note', () => {
     const line = formatWantedListLine('Sol Ring', undefined, undefined, 'Need foil version')
     expect(line).toBe('- Sol Ring {Need foil version}\n')
+  })
+
+  test('formats entry with card ID', () => {
+    const line = formatWantedListLine(
+      'Sol Ring',
+      { set: 'c19', collectorNumber: '221' },
+      'foil',
+      undefined,
+      5,
+    )
+    expect(line).toBe('- Sol Ring (C19:221) [foil] &5\n')
+  })
+
+  test('formats name-only entry with card ID', () => {
+    const line = formatWantedListLine('Lightning Bolt', undefined, undefined, undefined, 3)
+    expect(line).toBe('- Lightning Bolt &3\n')
+  })
+
+  test('formats entry with note and card ID', () => {
+    const line = formatWantedListLine(
+      'Sol Ring',
+      { set: 'c19', collectorNumber: '221' },
+      undefined,
+      'for EDH',
+      10,
+    )
+    expect(line).toBe('- Sol Ring (C19:221) {for EDH} &10\n')
   })
 })

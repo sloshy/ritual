@@ -8,6 +8,7 @@ import { MAX_BODY_SIZE } from '../validation'
 import { appendChangelog } from '../../changelog-writer'
 import type { WantedListCardEntry } from '../../site/data-types'
 import type { ChangeEvent } from '../site/types/deck-changes'
+import { formatWantedListLine } from '../../commands/wanted-helpers'
 
 interface WantedListSaveRequest {
   changes: ChangeEvent[]
@@ -15,17 +16,15 @@ interface WantedListSaveRequest {
 }
 
 function serializeWantedListEntry(entry: WantedListCardEntry): string {
-  let line = `- ${entry.name}`
-  if (entry.set && entry.collectorNumber) {
-    line += ` (${entry.set.toUpperCase()}:${entry.collectorNumber})`
-  }
-  if (entry.finish && entry.finish !== 'nonfoil') {
-    line += ` [${entry.finish}]`
-  }
-  if (entry.note) {
-    line += ` {${entry.note}}`
-  }
-  return line
+  return formatWantedListLine(
+    entry.name,
+    entry.set && entry.collectorNumber
+      ? { set: entry.set, collectorNumber: entry.collectorNumber }
+      : undefined,
+    entry.finish,
+    entry.note,
+    entry.cardId,
+  ).trimEnd()
 }
 
 export async function handleWantedListSave(req: Request): Promise<Response> {

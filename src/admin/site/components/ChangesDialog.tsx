@@ -96,13 +96,15 @@ export const ChangesDialog: FunctionalComponent<ChangesDialogProps> = ({
                   <span className="change-item-icon">{additive ? '+' : '−'}</span>
                   <ChangeText
                     change={change}
-                    imageUrl={imageUrl}
                     onCardClick={() => setSelectedCard(change.cardName)}
                     onHoverEnter={() =>
                       imageUrl ? setTooltip({ src: imageUrl, sideways: false }) : undefined
                     }
                     onHoverLeave={() => setTooltip(null)}
                   />
+                  {change.cardId !== undefined && (
+                    <span className="change-item-id">&amp;{change.cardId}</span>
+                  )}
                 </div>
               )
             })
@@ -138,7 +140,6 @@ export const ChangesDialog: FunctionalComponent<ChangesDialogProps> = ({
 
 type ChangeTextProps = {
   change: ChangeEvent
-  imageUrl: string | null
   onCardClick: () => void
   onHoverEnter: () => void
   onHoverLeave: () => void

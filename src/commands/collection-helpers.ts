@@ -199,7 +199,11 @@ export async function promptFinishAndCondition(
     })
     if (conditionResponse.condition === undefined) return null
     selectedCondition =
-      conditionResponse.condition === '' ? undefined : (conditionResponse.condition as Condition)
+      conditionResponse.condition === ''
+        ? undefined
+        : isCondition(conditionResponse.condition)
+          ? conditionResponse.condition
+          : undefined
   }
 
   return { finish: selectedFinish, condition: selectedCondition }
@@ -207,12 +211,14 @@ export async function promptFinishAndCondition(
 
 export function formatCollectionLine(
   cardName: string,
-  printing: ScryfallCard,
+  set: string,
+  collectorNumber: string,
   finish: Finish,
   condition: Condition | undefined,
   note?: string,
+  cardId?: number,
 ): string {
-  let line = `- ${cardName} (${printing.set.toUpperCase()}:${printing.collector_number})`
+  let line = `- ${cardName} (${set.toUpperCase()}:${collectorNumber})`
 
   if (finish !== 'nonfoil') {
     line += ` [${finish}]`
@@ -224,6 +230,10 @@ export function formatCollectionLine(
 
   if (note) {
     line += ` {${note}}`
+  }
+
+  if (cardId !== undefined) {
+    line += ` &${cardId}`
   }
 
   line += '\n'

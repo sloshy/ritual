@@ -80,9 +80,9 @@ The save button is disabled when there are no pending changes.
 Cards can now include optional printing metadata:
 
 ```
-1 Sol Ring (2XM:1) [foil] [NM]
-1 Lightning Bolt
-4 Island
+1 Sol Ring (2XM:1) [foil] [NM] &1
+1 Lightning Bolt &2
+4 Island &3
 ```
 
 Fields in order:
@@ -90,5 +90,6 @@ Fields in order:
 - `(SET:CN)` — Set code and collector number
 - `[finish]` — `nonfoil`, `foil`, or `etched`
 - `[condition]` — `NM`, `LP`, `MP`, `HP`, or `DMG`
+- `&N` — Persistent card ID (auto-assigned, used internally for change tracking)
 
 All fields are optional and backwards-compatible with the existing format.

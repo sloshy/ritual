@@ -1,8 +1,9 @@
 import type { FunctionalComponent } from 'preact'
 import { useState, useEffect, useRef, useCallback } from 'preact/hooks'
-import type { Finish, ScryfallCard } from '../../../types'
+import type { Finish, Condition, ScryfallCard } from '../../../types'
 import type { CardPrintingOptions } from '../types/deck-changes'
 import { getCardImageUrl } from '../card-utils'
+import { isFinish } from '../../../commands/collection-helpers'
 
 type CardSearchModalProps = {
   open: boolean
@@ -64,7 +65,7 @@ export const CardSearchModal: FunctionalComponent<CardSearchModalProps> = ({
   // Step 3: Finish & condition
   const [selectedPrinting, setSelectedPrinting] = useState<ScryfallCard | null>(null)
   const [selectedFinish, setSelectedFinish] = useState<Finish>('nonfoil')
-  const [selectedCondition, setSelectedCondition] = useState('NM')
+  const [selectedCondition, setSelectedCondition] = useState<Condition>('NM')
 
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
@@ -206,7 +207,10 @@ export const CardSearchModal: FunctionalComponent<CardSearchModalProps> = ({
           {
             set: printing.set,
             collectorNumber: printing.collector_number,
-            finish: printing.finishes[0] as Finish,
+            finish:
+              printing.finishes[0] !== undefined && isFinish(printing.finishes[0])
+                ? printing.finishes[0]
+                : 'nonfoil',
             condition: 'NM',
           },
           printing,
@@ -220,7 +224,9 @@ export const CardSearchModal: FunctionalComponent<CardSearchModalProps> = ({
       setSelectedFinish(
         printing.finishes.includes('nonfoil')
           ? 'nonfoil'
-          : ((printing.finishes[0] as Finish) ?? 'nonfoil'),
+          : printing.finishes[0] !== undefined && isFinish(printing.finishes[0])
+            ? printing.finishes[0]
+            : 'nonfoil',
       )
       setSelectedCondition('NM')
       setStep('finish-condition')
@@ -513,7 +519,9 @@ export const CardSearchModal: FunctionalComponent<CardSearchModalProps> = ({
                             name="finish"
                             value={finish}
                             checked={selectedFinish === finish}
-                            onChange={() => setSelectedFinish(finish as Finish)}
+                            onChange={() => {
+                              if (isFinish(finish)) setSelectedFinish(finish)
+                            }}
                           />
                           {finish}
                         </label>

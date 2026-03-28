@@ -147,7 +147,7 @@ describe('applyChangeToWantedList', () => {
       expect(result[0]!.state).toBe('fully-specified')
     })
 
-    test('updates state to printing when finish is cleared on entry with set', () => {
+    test('updates state to fully-specified when nonfoil is set on entry with set', () => {
       const entries = [
         makeEntry({
           set: 'LEA',
@@ -159,10 +159,10 @@ describe('applyChangeToWantedList', () => {
       const result = applyChangeToWantedList(entries, {
         action: 'set-finish',
         cardName: 'Lightning Bolt',
-        finish: undefined,
+        finish: 'nonfoil',
       })
-      expect(result[0]!.state).toBe('printing')
-      expect(result[0]!.finish).toBeUndefined()
+      expect(result[0]!.state).toBe('fully-specified')
+      expect(result[0]!.finish).toBe('nonfoil')
     })
   })
 

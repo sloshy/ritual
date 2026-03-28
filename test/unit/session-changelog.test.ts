@@ -1,8 +1,8 @@
 import { describe, test, expect } from 'bun:test'
-import type { ChangeEvent } from '../../src/change-event'
+import type { ChangeEvent, AddChange } from '../../src/change-event'
 import { trackAdd, trackEdit, trackAnotherCopy } from '../../src/session-changelog'
 
-function makeEvent(overrides: Partial<ChangeEvent> = {}): ChangeEvent {
+function makeEvent(overrides: Partial<AddChange> = {}): AddChange {
   return {
     id: 'test-id',
     timestamp: 1000,
@@ -39,8 +39,8 @@ describe('trackAdd', () => {
     trackAdd(changes, event)
 
     expect(changes[0]!.cardName).toBe('Lightning Bolt')
-    expect(changes[0]!.set).toBe('lea')
-    expect(changes[0]!.collectorNumber).toBe('161')
+    expect((changes[0] as AddChange).set).toBe('lea')
+    expect((changes[0] as AddChange).collectorNumber).toBe('161')
   })
 })
 
@@ -70,9 +70,9 @@ describe('trackEdit', () => {
     trackEdit(changes, 0, edited, true)
 
     expect(changes[0]!.cardName).toBe('Tarmogoyf')
-    expect(changes[0]!.set).toBe('fut')
-    expect(changes[0]!.finish).toBe('foil')
-    expect(changes[0]!.condition).toBe('LP')
+    expect((changes[0] as AddChange).set).toBe('fut')
+    expect((changes[0] as AddChange).finish).toBe('foil')
+    expect((changes[0] as AddChange).condition).toBe('LP')
   })
 
   test('replaced=true with lastChangeIndex=null — pushes as new event', () => {
@@ -159,7 +159,7 @@ describe('trackAnotherCopy', () => {
 
     trackAnotherCopy(changes, 0)
 
-    const copy = changes[1]!
+    const copy = changes[1]! as AddChange
     expect(copy.cardName).toBe('Black Lotus')
     expect(copy.set).toBe('lea')
     expect(copy.collectorNumber).toBe('1')
@@ -197,7 +197,7 @@ describe('trackAnotherCopy', () => {
 
     expect(idx).toBe(2)
     expect(changes[2]!.cardName).toBe('Second')
-    expect(changes[2]!.set).toBe('grn')
+    expect((changes[2] as AddChange).set).toBe('grn')
   })
 
   test('multiple consecutive copies all preserve card identity', () => {
@@ -212,7 +212,7 @@ describe('trackAnotherCopy', () => {
     expect(changes).toHaveLength(4)
     for (const event of changes) {
       expect(event.cardName).toBe('Mox Ruby')
-      expect(event.set).toBe('lea')
+      expect((event as AddChange).set).toBe('lea')
     }
     // All IDs should be unique
     const ids = changes.map((e) => e.id)

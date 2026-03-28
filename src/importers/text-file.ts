@@ -2,6 +2,7 @@ import { type DeckData, type DeckSection } from '../types'
 import path from 'node:path'
 import { readdir } from 'node:fs/promises'
 import matter from 'gray-matter'
+import { isFinish, isCondition } from '../commands/collection-helpers'
 
 export function isDeckFile(filename: string): boolean {
   return (
@@ -68,7 +69,7 @@ export async function importFromTextFile(filePath: string): Promise<DeckData> {
     }
 
     const quantityMatch = trimmed.match(
-      /^(\d+)[xX]?\s+(.+?)(?:\s+\(([A-Za-z0-9_]+):([^)]+)\))?(?:\s+\[(nonfoil|foil|etched)\])?(?:\s+\[(NM|LP|MP|HP|DMG)\])?$/,
+      /^(\d+)[xX]?\s+(.+?)(?:\s+\(([A-Za-z0-9_]+):([^)]+)\))?(?:\s+\[(nonfoil|foil|etched)\])?(?:\s+\[(NM|LP|MP|HP|DMG)\])?(?:\s+&(\d+))?$/,
     )
     if (quantityMatch?.[1] && quantityMatch?.[2]) {
       currentSection.cards.push({
@@ -76,8 +77,9 @@ export async function importFromTextFile(filePath: string): Promise<DeckData> {
         name: quantityMatch[2].trim(),
         set: quantityMatch[3]?.toLowerCase(),
         collectorNumber: quantityMatch[4],
-        finish: quantityMatch[5],
-        condition: quantityMatch[6],
+        finish: quantityMatch[5] && isFinish(quantityMatch[5]) ? quantityMatch[5] : undefined,
+        condition: quantityMatch[6] && isCondition(quantityMatch[6]) ? quantityMatch[6] : undefined,
+        cardId: quantityMatch[7] ? Number.parseInt(quantityMatch[7], 10) : undefined,
       })
     }
   }
