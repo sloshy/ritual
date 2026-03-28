@@ -24,7 +24,6 @@
 - Allow exporting deck information to be used by other tooling
 - Add scryfall interactive mode
 - Add interactive deck builder
-- Add setup init command to create config file and directories
 
 ## Dist
 
