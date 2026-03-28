@@ -34,11 +34,6 @@ export const ChangesDialog: FunctionalComponent<ChangesDialogProps> = ({
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
   const [selectedCard, setSelectedCard] = useState<string | null>(null)
 
-  // Close selected card when dialog closes
-  useEffect(() => {
-    if (!open) setSelectedCard(null)
-  }, [open])
-
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -126,6 +121,7 @@ export const ChangesDialog: FunctionalComponent<ChangesDialogProps> = ({
 
       {/* Card detail modal opened from change item */}
       <CardModal
+        key={selectedCard ?? ''}
         open={Boolean(modalCard)}
         card={modalCard}
         cardName={selectedCard}

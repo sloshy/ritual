@@ -47,14 +47,6 @@ export const CardModal: FunctionalComponent<CardModalProps> = ({
   const [printingsSortField, setPrintingsSortField] = useState<PrintingsSortField>('released_at')
   const [printingsSortReversed, setPrintingsSortReversed] = useState(false)
 
-  useEffect(() => {
-    setShowingBack(false)
-    setShowPrintings(false)
-    setPrintingsPage(0)
-    setPrintingsSortField('released_at')
-    setPrintingsSortReversed(false)
-  }, [cardName])
-
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
 

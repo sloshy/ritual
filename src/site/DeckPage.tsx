@@ -523,6 +523,7 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
 
       {/* Card detail modal */}
       <CardModal
+        key={modalCardName ?? ''}
         open={Boolean(modalCard)}
         card={modalCard}
         cardName={modalCardName}

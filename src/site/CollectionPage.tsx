@@ -383,6 +383,7 @@ export const CollectionPage: FunctionalComponent<CollectionPageProps> = ({
 
       {/* Card detail modal */}
       <CardModal
+        key={modalEntry?.name ?? ''}
         open={Boolean(modalCard)}
         card={modalCard}
         cardName={modalEntry?.name ?? null}

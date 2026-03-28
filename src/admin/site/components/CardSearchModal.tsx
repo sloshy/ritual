@@ -74,26 +74,6 @@ export const CardSearchModal: FunctionalComponent<CardSearchModalProps> = ({
   const typedQueryRef = useRef('')
   const cardImageCache = useRef(new Map<string, string>())
 
-  // Reset all state when modal closes
-  useEffect(() => {
-    if (!open) {
-      setStep('search')
-      setQuery('')
-      setResults([])
-      setHighlightedIndex(-1)
-      setPreviewCard(null)
-      setSelectedCardName('')
-      setPrintings([])
-      setPrintingHighlightIndex(0)
-      setLoadingPrintings(false)
-      setSelectedPrinting(null)
-      setSelectedFinish('nonfoil')
-      setSelectedCondition('NM')
-      typedQueryRef.current = ''
-      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current)
-    }
-  }, [open])
-
   // Auto-focus search input when modal opens or returns to search step
   useEffect(() => {
     if (open && step === 'search') {
@@ -118,42 +98,6 @@ export const CardSearchModal: FunctionalComponent<CardSearchModalProps> = ({
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current)
     },
     [],
-  )
-
-  const performSearch = useCallback(async (searchQuery: string) => {
-    if (searchQuery.length < 2) {
-      setResults([])
-      setHighlightedIndex(-1)
-      setPreviewCard(null)
-      return
-    }
-    try {
-      const resp = await fetch(`/api/autocomplete?q=${encodeURIComponent(searchQuery)}`, {
-        credentials: 'same-origin',
-      })
-      const data = (await resp.json()) as { success: boolean; names: string[] }
-      if (data.success) {
-        setResults(data.names)
-        setHighlightedIndex(data.names.length > 0 ? 0 : -1)
-      }
-    } catch {
-      // Silently ignore network errors
-    }
-  }, [])
-
-  const handleInputChange = useCallback(
-    (value: string) => {
-      setQuery(value)
-      typedQueryRef.current = value
-      setHighlightedIndex(-1)
-      setPreviewCard(null)
-
-      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current)
-      searchTimeoutRef.current = setTimeout(() => {
-        performSearch(value)
-      }, 1000)
-    },
-    [performSearch],
   )
 
   const fetchCardImage = useCallback(async (cardName: string) => {
@@ -182,15 +126,46 @@ export const CardSearchModal: FunctionalComponent<CardSearchModalProps> = ({
     }
   }, [])
 
-  // Fetch preview when highlighted card changes
-  useEffect(() => {
-    if (step === 'search' && highlightedIndex >= 0) {
-      const cardName = results[highlightedIndex]
-      if (cardName) fetchCardImage(cardName)
-    } else {
+  const performSearch = useCallback(
+    async (searchQuery: string) => {
+      if (searchQuery.length < 2) {
+        setResults([])
+        setHighlightedIndex(-1)
+        setPreviewCard(null)
+        return
+      }
+      try {
+        const resp = await fetch(`/api/autocomplete?q=${encodeURIComponent(searchQuery)}`, {
+          credentials: 'same-origin',
+        })
+        const data = (await resp.json()) as { success: boolean; names: string[] }
+        if (data.success) {
+          setResults(data.names)
+          setHighlightedIndex(data.names.length > 0 ? 0 : -1)
+          const firstName = data.names[0]
+          if (firstName) fetchCardImage(firstName)
+        }
+      } catch {
+        // Silently ignore network errors
+      }
+    },
+    [fetchCardImage],
+  )
+
+  const handleInputChange = useCallback(
+    (value: string) => {
+      setQuery(value)
+      typedQueryRef.current = value
+      setHighlightedIndex(-1)
       setPreviewCard(null)
-    }
-  }, [step, highlightedIndex, results, fetchCardImage])
+
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current)
+      searchTimeoutRef.current = setTimeout(() => {
+        performSearch(value)
+      }, 1000)
+    },
+    [performSearch],
+  )
 
   // Select card name → move to printing selection
   const selectCardName = useCallback(async (cardName: string) => {
@@ -258,24 +233,28 @@ export const CardSearchModal: FunctionalComponent<CardSearchModalProps> = ({
     (e: KeyboardEvent) => {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setHighlightedIndex((prev) => {
-          const next = Math.min(prev + 1, results.length - 1)
-          const name = results[next]
-          if (name) setQuery(name)
-          return next
-        })
+        const next = Math.min(highlightedIndex + 1, results.length - 1)
+        setHighlightedIndex(next)
+        const name = results[next]
+        if (name) {
+          setQuery(name)
+          fetchCardImage(name)
+        }
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
-        setHighlightedIndex((prev) => {
-          if (prev <= 0) {
-            setQuery(typedQueryRef.current)
-            return -1
-          }
-          const next = prev - 1
+        if (highlightedIndex <= 0) {
+          setQuery(typedQueryRef.current)
+          setHighlightedIndex(-1)
+          setPreviewCard(null)
+        } else {
+          const next = highlightedIndex - 1
+          setHighlightedIndex(next)
           const name = results[next]
-          if (name) setQuery(name)
-          return next
-        })
+          if (name) {
+            setQuery(name)
+            fetchCardImage(name)
+          }
+        }
       } else if (e.key === 'Enter') {
         e.preventDefault()
         const index = highlightedIndex >= 0 ? highlightedIndex : 0
@@ -286,6 +265,7 @@ export const CardSearchModal: FunctionalComponent<CardSearchModalProps> = ({
           e.preventDefault()
           setQuery(typedQueryRef.current)
           setHighlightedIndex(-1)
+          setPreviewCard(null)
         }
       } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
         // Printable character during navigation — restore original query and append
@@ -295,6 +275,7 @@ export const CardSearchModal: FunctionalComponent<CardSearchModalProps> = ({
           typedQueryRef.current = newQuery
           setQuery(newQuery)
           setHighlightedIndex(-1)
+          setPreviewCard(null)
           if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current)
           searchTimeoutRef.current = setTimeout(() => {
             performSearch(newQuery)
@@ -302,7 +283,7 @@ export const CardSearchModal: FunctionalComponent<CardSearchModalProps> = ({
         }
       }
     },
-    [results, highlightedIndex, query, selectCardName, performSearch],
+    [results, highlightedIndex, query, selectCardName, performSearch, fetchCardImage],
   )
 
   // Keyboard navigation for printing grid
@@ -424,6 +405,7 @@ export const CardSearchModal: FunctionalComponent<CardSearchModalProps> = ({
                   onMouseEnter={() => {
                     setHighlightedIndex(i)
                     setQuery(name)
+                    fetchCardImage(name)
                   }}
                 >
                   {name}

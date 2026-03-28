@@ -79,11 +79,6 @@ export const ChangelogModal: FunctionalComponent<ChangelogModalProps> = ({
   onCloseRef.current = onClose
 
   useEffect(() => {
-    setPage(0)
-    setCardModalName(null)
-  }, [open])
-
-  useEffect(() => {
     if (!open || cardModalName) return
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onCloseRef.current()
@@ -209,6 +204,7 @@ export const ChangelogModal: FunctionalComponent<ChangelogModalProps> = ({
 
       {/* Secondary card modal (rendered above changelog via CSS z-index) */}
       <CardModal
+        key={cardModalName ?? ''}
         open={Boolean(cardModalCard)}
         card={cardModalCard}
         cardName={cardModalName}
