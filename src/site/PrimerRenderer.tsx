@@ -56,10 +56,7 @@ type InlineProps = {
   onOpenModal: (cardName: string) => void
 }
 
-// InlineContent is a proper Preact component rather than a plain helper function so
-// that Preact establishes a component boundary for each inline segment.  This lets
-// the reconciler diff at the component level and makes the tree easier to optimise
-// (e.g. wrap with memo) in the future.
+// Component (not a plain function) so Preact establishes a reconciler boundary per segment.
 const InlineContent: FunctionalComponent<InlineProps> = ({ text, cards, onOpenModal }) => {
   const parts: Array<VNode | string> = []
   const tokenRe = /(\[\[[^\]]+\]\]|\*\*[^*]+\*\*|\*[^*]+\*)/g
@@ -138,14 +135,8 @@ type BlockProps = {
   onOpenModal: (cardName: string) => void
 }
 
-// BlockContent is a proper Preact component (returning a Fragment) rather than a
-// plain helper function so that Preact establishes a component boundary for the
-// entire block tree — enabling proper reconciliation and future memoisation.
-//
-// Keys are derived from the *starting line index* of each block (`h${level}-${i}`,
-// `ul-${listStartI}`, `p-${paraStartI}`).  This is more stable than a sequential
-// counter: if blocks are added/removed earlier in the document the unchanged blocks
-// at their original line positions keep their keys and are not needlessly remounted.
+// Component (not a plain function) so Preact establishes a reconciler boundary.
+// Keys use the starting line index of each block for stable identity across edits.
 const BlockContent: FunctionalComponent<BlockProps> = ({ markdown, cards, onOpenModal }) => {
   const inlineProps = { cards, onOpenModal }
   const blocks: VNode[] = []

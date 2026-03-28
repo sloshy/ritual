@@ -188,7 +188,7 @@ export function registerPriceWantedListCommand(program: Command) {
               if (max === 0) max = latest
             }
           } else {
-            // State 2 or 3: find exact printing
+            // 'printing' or 'fully-specified': find exact printing
             const exactPrinting = printings.find(
               (p) =>
                 p.set.toLowerCase() === entry.set!.toLowerCase() &&

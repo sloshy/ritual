@@ -43,8 +43,8 @@ export class ArchidektAuth implements AuthService<ArchidektCredentials> {
         return await this.refreshToken(token)
       } catch (error) {
         getLogger().error('Failed to refresh token:', error)
-        // If refresh fails, we might want to prompt for re-login, but for now just return null
-        return null // Or throw, depending on desired behavior. Returning null forces re-login flow usually.
+        // Returning null signals the caller to re-enter the login flow.
+        return null
       }
     }
 
@@ -53,9 +53,9 @@ export class ArchidektAuth implements AuthService<ArchidektCredentials> {
 
   private isExpired(token: ArchidektToken): boolean {
     if (!token.access_token_expiration) {
-      return true // Assume expired if no timestamp
+      return true
     }
-    // Check if expired or about to expire in the next 30 seconds
+    // Include a 30-second buffer so we refresh before actual expiry
     const expirationDate = new Date(token.access_token_expiration)
     return Date.now() >= expirationDate.getTime() - 30000
   }
@@ -79,9 +79,7 @@ export class ArchidektAuth implements AuthService<ArchidektCredentials> {
       refresh_token?: string
       access_token_expiration?: string
     }
-    // Merge new data with old token data (preserve user info if not returned)
-    // The refresh endpoint usually returns at least access_token.
-    // It might return a new refresh_token too.
+    // Preserve fields (e.g. user info) that the refresh endpoint may omit
     const newToken: ArchidektToken = {
       ...oldToken,
     }

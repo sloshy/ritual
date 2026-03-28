@@ -193,7 +193,7 @@ export class ScryfallClient implements PricingBackend {
         const data = JSON.parse(cached)
         if (data && Array.isArray(data)) return data
       } catch (e) {
-        // ignore
+        // Cache miss or corrupt JSON — fall through to fetch from API
       }
     }
 

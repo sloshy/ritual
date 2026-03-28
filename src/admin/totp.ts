@@ -52,8 +52,7 @@ export function generateTotpSecret(): string {
 }
 
 async function hmacSha1(key: Uint8Array, message: Uint8Array): Promise<Uint8Array> {
-  // Uint8Array.buffer is typed as ArrayBufferLike in TS 5.7+ (may be
-  // SharedArrayBuffer), but the WebCrypto API requires ArrayBuffer.
+  // TS 5.7+ types Uint8Array.buffer as ArrayBufferLike; WebCrypto needs ArrayBuffer.
   // At runtime these are always plain ArrayBuffers, so the cast is safe.
   const cryptoKey = await subtle.importKey(
     'raw',

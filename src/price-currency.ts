@@ -27,7 +27,8 @@ export function getCurrencySuffix(currency: PriceCurrency): string {
   return currency === 'tix' ? ' tix' : ''
 }
 
-/** Map a PriceCurrency to the corresponding Scryfall price field key. */
+/** Abstraction point for mapping PriceCurrency to a Scryfall price field key.
+ *  Currently an identity mapping since PriceCurrency values match Scryfall keys. */
 export function getPriceField(currency: PriceCurrency): PriceCurrency {
   return currency
 }

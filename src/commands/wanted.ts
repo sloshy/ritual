@@ -429,7 +429,6 @@ export function registerWantedListCommand(program: Command) {
 
         // Specific printing flow
         if (!selectedPrinting) {
-          // Cast sessionConfig to satisfy resolveCardPrinting's PrintingFilterConfig type
           const result = await resolveCardPrinting(cardName, sessionConfig, excludeDigitalOnly)
           if (!result) {
             if (isEditing) continue
