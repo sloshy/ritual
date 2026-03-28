@@ -540,8 +540,8 @@ body {
 
 /* Card context menu */
 .card-context-menu {
-  position: absolute;
-  z-index: 50;
+  position: fixed;
+  z-index: 200;
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 6px;

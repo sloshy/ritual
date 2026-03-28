@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback } from 'preact/hooks'
+import { useState, useEffect, useCallback, useRef } from 'preact/hooks'
 import type { DeckData, ScryfallCard } from '../../../types'
 import type { PriceCurrency } from '../../../price-currency'
-import type { ChangeEvent, CardPrintingOptions } from '../types/deck-changes'
+import type { CardPrintingOptions } from '../types/deck-changes'
 import type { CardPriceResponse } from '../../api/card-price'
+import type { ContextMenuState } from '../types/context-menu'
 import { DeckPage } from '../../../site/DeckPage'
 import { useDeckChanges } from '../hooks/useDeckChanges'
+import { applyChangeToDeck } from '../types/deck-changes'
 import { ChangesDialog } from '../components/ChangesDialog'
 import { DiscardConfirmDialog } from '../components/DiscardConfirmDialog'
 import { CardContextMenu } from '../components/CardContextMenu'
@@ -12,104 +14,26 @@ import { CardSearchModal } from '../components/CardSearchModal'
 
 type DeckListItem = { slug: string; name: string }
 
-type ContextMenuState = {
-  cardName: string
-  card: ScryfallCard | null
+type DeckContextMenuState = ContextMenuState & {
+  isInCommanderSection: boolean
 }
 
-/** The subset of ChangeEvent fields that applyChangeToDeck actually needs. */
-type ChangeInput = Omit<ChangeEvent, 'id' | 'timestamp'>
+type DeckListResponse = { decks: DeckListItem[] }
 
-function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData {
-  const sections = deck.sections.map((s) => ({
-    ...s,
-    cards: s.cards.map((c) => ({ ...c })),
-  }))
-
-  const isCommander = (name: string) => name.toLowerCase().includes('commander')
-  const isSideboard = (name: string) => name.toLowerCase().includes('sideboard')
-
-  switch (change.action) {
-    case 'add': {
-      // Find existing card in any section and increment, or add to first main section
-      for (const section of sections) {
-        const existing = section.cards.find((c) => c.name === change.cardName)
-        if (existing) {
-          existing.quantity += 1
-          return { ...deck, sections }
-        }
-      }
-
-      // No existing entry — add to first non-commander, non-sideboard section
-      let targetSection = sections.find((s) => !isCommander(s.name) && !isSideboard(s.name))
-      if (!targetSection) {
-        targetSection = { name: 'Main', cards: [] }
-        sections.push(targetSection)
-      }
-      targetSection.cards.push({
-        quantity: 1,
-        name: change.cardName,
-        set: change.set,
-        collectorNumber: change.collectorNumber,
-        finish: change.finish,
-        condition: change.condition,
-      })
-      return { ...deck, sections }
-    }
-
-    case 'remove': {
-      for (const section of sections) {
-        const idx = section.cards.findIndex((c) => c.name === change.cardName)
-        if (idx !== -1) {
-          const card = section.cards[idx]
-          if (card) {
-            card.quantity -= 1
-            if (card.quantity <= 0) {
-              section.cards.splice(idx, 1)
-            }
-          }
-          return { ...deck, sections }
-        }
-      }
-      return { ...deck, sections }
-    }
-
-    case 'set-commander': {
-      // Find or create Commander section
-      let commanderSection = sections.find((s) => isCommander(s.name))
-      if (!commanderSection) {
-        commanderSection = { name: 'Commander', cards: [] }
-        sections.unshift(commanderSection)
-      }
-
-      // Remove card from its current section
-      for (const section of sections) {
-        const idx = section.cards.findIndex((c) => c.name === change.cardName)
-        if (idx !== -1 && section !== commanderSection) {
-          const [removed] = section.cards.splice(idx, 1)
-          if (removed) {
-            commanderSection.cards.push(removed)
-          }
-          return { ...deck, sections }
-        }
-      }
-
-      // Card already in commander section or not found
-      return { ...deck, sections }
-    }
-
-    case 'set-finish': {
-      for (const section of sections) {
-        const card = section.cards.find((c) => c.name === change.cardName)
-        if (card) {
-          card.finish = change.finish
-          return { ...deck, sections }
-        }
-      }
-      return { ...deck, sections }
-    }
-  }
+type DeckDataResponse = {
+  success: boolean
+  deck: DeckData
+  cards: Record<string, ScryfallCard | null>
+  printings: Record<string, ScryfallCard[]>
+  lowestPriceCards: Record<string, ScryfallCard | null>
+  lowestPriceCardsEur: Record<string, ScryfallCard | null>
+  lowestPriceCardsTix: Record<string, ScryfallCard | null>
+  symbolMap: Record<string, string>
+  frontMatter: Record<string, unknown>
+  slug: string
 }
+
+type SaveResponse = { success: boolean; error?: string }
 
 export function DeckEditor() {
   const [deckSlug, setDeckSlug] = useState<string | null>(null)
@@ -129,7 +53,7 @@ export function DeckEditor() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [modalCardName, setModalCardName] = useState<string | null>(null)
-  const [contextMenuCard, setContextMenuCard] = useState<ContextMenuState | null>(null)
+  const [contextMenuCard, setContextMenuCard] = useState<DeckContextMenuState | null>(null)
   const [showChanges, setShowChanges] = useState(false)
   const [showDiscard, setShowDiscard] = useState(false)
   const [showSearchModal, setShowSearchModal] = useState(false)
@@ -146,14 +70,18 @@ export function DeckEditor() {
     incrementCard,
     decrementCard,
     setCommander,
+    unsetCommander,
     setFinish,
     discardAll,
   } = useDeckChanges()
 
+  const deckDataRef = useRef(deckData)
+  deckDataRef.current = deckData
+
   // Fetch deck list on mount
   useEffect(() => {
     fetch('/api/decks', { credentials: 'same-origin' })
-      .then((r) => r.json() as Promise<{ decks: DeckListItem[] }>)
+      .then((r) => r.json() as Promise<DeckListResponse>)
       .then((data) => {
         if (data.decks) setDeckList(data.decks)
       })
@@ -168,21 +96,7 @@ export function DeckEditor() {
     setSaveStatus(null)
 
     fetch(`/api/deck/${deckSlug}`, { credentials: 'same-origin' })
-      .then(
-        (r) =>
-          r.json() as Promise<{
-            success: boolean
-            deck: DeckData
-            cards: Record<string, ScryfallCard | null>
-            printings: Record<string, ScryfallCard[]>
-            lowestPriceCards: Record<string, ScryfallCard | null>
-            lowestPriceCardsEur: Record<string, ScryfallCard | null>
-            lowestPriceCardsTix: Record<string, ScryfallCard | null>
-            symbolMap: Record<string, string>
-            frontMatter: Record<string, unknown>
-            slug: string
-          }>,
-      )
+      .then((r) => r.json() as Promise<DeckDataResponse>)
       .then((data) => {
         if (data.success) {
           setDeckData(data.deck)
@@ -223,9 +137,17 @@ export function DeckEditor() {
     [decrementCard],
   )
 
-  const handleContextMenu = useCallback((cardName: string, card: ScryfallCard | null) => {
-    setContextMenuCard({ cardName, card })
-  }, [])
+  const handleContextMenu = useCallback(
+    (cardName: string, card: ScryfallCard | null, rect: DOMRect) => {
+      const isInCommanderSection =
+        deckDataRef.current?.sections.some(
+          (s) =>
+            s.name.toLowerCase().includes('commander') && s.cards.some((c) => c.name === cardName),
+        ) ?? false
+      setContextMenuCard({ cardName, card, isInCommanderSection, anchorRect: rect })
+    },
+    [],
+  )
 
   const handleSetFoil = useCallback(() => {
     if (!contextMenuCard) return
@@ -255,6 +177,20 @@ export function DeckEditor() {
     )
     setContextMenuCard(null)
   }, [contextMenuCard, setCommander])
+
+  const handleUnsetCommander = useCallback(() => {
+    if (!contextMenuCard) return
+    unsetCommander(contextMenuCard.cardName)
+    setDeckData((prev) =>
+      prev
+        ? applyChangeToDeck(prev, {
+            action: 'unset-commander',
+            cardName: contextMenuCard.cardName,
+          })
+        : prev,
+    )
+    setContextMenuCard(null)
+  }, [contextMenuCard, unsetCommander])
 
   const handleAddCardFromSearch = useCallback(
     async (
@@ -326,7 +262,7 @@ export function DeckEditor() {
         // mutated by the lowest price toggle, which is a view-only display concern inside DeckPage.
         body: JSON.stringify({ changes, deck: deckData, frontMatter }),
       })
-      const data = (await resp.json()) as { success: boolean; error?: string }
+      const data = (await resp.json()) as SaveResponse
       if (data.success) {
         setSaveStatus('Changes saved successfully')
         discardAll()
@@ -409,6 +345,9 @@ export function DeckEditor() {
           card={contextMenuCard.card}
           onSetFoil={handleSetFoil}
           onSetCommander={handleSetCommander}
+          onUnsetCommander={handleUnsetCommander}
+          isCommander={contextMenuCard.isInCommanderSection}
+          anchorRect={contextMenuCard.anchorRect}
           onClose={() => setContextMenuCard(null)}
         />
       )}

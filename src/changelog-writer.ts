@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises'
-import type { ChangeEvent } from './admin/site/types/deck-changes'
+import type { ChangeEvent } from './change-event'
 
 /**
  * Format a single change event as a markdown changelog line.
@@ -23,6 +23,9 @@ function formatChangelogLine(change: ChangeEvent): string {
       break
     case 'set-commander':
       desc = `Set ${change.cardName} as commander`
+      break
+    case 'unset-commander':
+      desc = `Unset ${change.cardName} as commander`
       break
     case 'set-finish':
       desc = `Set ${change.cardName} finish to ${change.finish ?? 'nonfoil'}`

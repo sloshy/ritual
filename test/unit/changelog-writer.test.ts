@@ -3,7 +3,7 @@ import * as fs from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { appendChangelog } from '../../src/changelog-writer'
-import type { ChangeEvent } from '../../src/admin/site/types/deck-changes'
+import type { ChangeEvent } from '../../src/change-event'
 
 function makeChange(overrides: Partial<ChangeEvent> = {}): ChangeEvent {
   return {
@@ -95,6 +95,20 @@ describe('appendChangelog', () => {
 
     const content = await fs.readFile(path.join(tmpDir, 'Test.changes.md'), 'utf-8')
     expect(content).toContain('- Set Atraxa as commander')
+
+    await fs.rm(tmpDir, { recursive: true })
+  })
+
+  test('formats unset-commander action', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'changelog-test-'))
+    const filePath = path.join(tmpDir, 'Test.md')
+    await fs.writeFile(filePath, '# Test\n')
+
+    const change = makeChange({ action: 'unset-commander', cardName: 'Atraxa' })
+    await appendChangelog(filePath, 'Test', [change])
+
+    const content = await fs.readFile(path.join(tmpDir, 'Test.changes.md'), 'utf-8')
+    expect(content).toContain('- Unset Atraxa as commander')
 
     await fs.rm(tmpDir, { recursive: true })
   })

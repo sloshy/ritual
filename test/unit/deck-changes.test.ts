@@ -1,10 +1,6 @@
 import { describe, test, expect } from 'bun:test'
-import {
-  areOppositeChanges,
-  isAdditiveChange,
-  createChangeId,
-} from '../../src/admin/site/types/deck-changes'
-import type { ChangeEvent } from '../../src/admin/site/types/deck-changes'
+import { areOppositeChanges, isAdditiveChange, createChangeId } from '../../src/change-event'
+import type { ChangeEvent } from '../../src/change-event'
 
 function makeChange(
   overrides: Partial<ChangeEvent> & Pick<ChangeEvent, 'action' | 'cardName'>,
@@ -71,6 +67,30 @@ describe('areOppositeChanges', () => {
     expect(areOppositeChanges(a, b)).toBe(false)
   })
 
+  test('set-commander + unset-commander of same card returns true', () => {
+    const a = makeChange({ action: 'set-commander', cardName: 'Sol Ring' })
+    const b = makeChange({ action: 'unset-commander', cardName: 'Sol Ring' })
+    expect(areOppositeChanges(a, b)).toBe(true)
+  })
+
+  test('unset-commander + set-commander of same card returns true', () => {
+    const a = makeChange({ action: 'unset-commander', cardName: 'Sol Ring' })
+    const b = makeChange({ action: 'set-commander', cardName: 'Sol Ring' })
+    expect(areOppositeChanges(a, b)).toBe(true)
+  })
+
+  test('set-commander + unset-commander of different cards returns false', () => {
+    const a = makeChange({ action: 'set-commander', cardName: 'Sol Ring' })
+    const b = makeChange({ action: 'unset-commander', cardName: 'Mana Crypt' })
+    expect(areOppositeChanges(a, b)).toBe(false)
+  })
+
+  test('set-commander + set-commander same card returns false (same action)', () => {
+    const a = makeChange({ action: 'set-commander', cardName: 'Sol Ring' })
+    const b = makeChange({ action: 'set-commander', cardName: 'Sol Ring' })
+    expect(areOppositeChanges(a, b)).toBe(false)
+  })
+
   test('both with matching set/CN/finish/condition returns true', () => {
     const a = makeChange({
       action: 'add',
@@ -121,6 +141,10 @@ describe('isAdditiveChange', () => {
 
   test('remove is not additive', () => {
     expect(isAdditiveChange('remove')).toBe(false)
+  })
+
+  test('unset-commander is not additive', () => {
+    expect(isAdditiveChange('unset-commander')).toBe(false)
   })
 })
 

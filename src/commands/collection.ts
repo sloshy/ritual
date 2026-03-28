@@ -16,6 +16,10 @@ import {
   isFinish,
   isCondition,
 } from './collection-helpers'
+import { appendChangelog } from '../changelog-writer'
+import { createChangeEvent } from '../change-event'
+import type { ChangeEvent } from '../change-event'
+import { trackAdd, trackEdit, trackAnotherCopy } from '../session-changelog'
 
 export function registerCollectionCommand(program: Command) {
   program
@@ -114,8 +118,11 @@ export function registerCollectionCommand(program: Command) {
         sessionConfig.activeSetIndex = 0
       }
 
-      let lastAddedCard: { name: string; line: string; hasNote: boolean } | null = null
+      type LastAddedCard = { name: string; line: string; hasNote: boolean }
+      let lastAddedCard: LastAddedCard | null = null
       let lastAddedCount = 0
+      const sessionChanges: ChangeEvent[] = []
+      let lastChangeIndex: number | null = null
 
       while (true) {
         let isExited = false
@@ -284,6 +291,10 @@ export function registerCollectionCommand(program: Command) {
         })
 
         if (isExited) {
+          if (sessionChanges.length > 0) {
+            await appendChangelog(collectionFile, selectedCollection, sessionChanges)
+            console.log('Changelog saved.')
+          }
           console.log('Exiting collection manager.')
           break
         }
@@ -304,6 +315,8 @@ export function registerCollectionCommand(program: Command) {
             await fs.appendFile(collectionFile, lastAddedCard.line)
             lastAddedCount++
             console.log(`Added: ${lastAddedCard.line.trim()} (${lastAddedCount}x total)`)
+            const newIdx = trackAnotherCopy(sessionChanges, lastChangeIndex)
+            if (newIdx !== null) lastChangeIndex = newIdx
           } catch (e) {
             console.error(`Failed to write to file: ${e}`)
           }
@@ -425,6 +438,9 @@ export function registerCollectionCommand(program: Command) {
             try {
               await fs.appendFile(collectionFile, `- ${cardName}\n`)
               console.log(`Added: ${cardName}`)
+              lastAddedCard = { name: cardName, line: `- ${cardName}\n`, hasNote: false }
+              lastAddedCount = 1
+              lastChangeIndex = trackAdd(sessionChanges, createChangeEvent('add', cardName))
             } catch (e) {
               console.error(`Failed to write to file: ${e}`)
             }
@@ -453,6 +469,13 @@ export function registerCollectionCommand(program: Command) {
           finishAndCondition.condition,
         )
 
+        const cardChangeEvent: ChangeEvent = createChangeEvent('add', cardName, {
+          set: selectedPrinting.set.toLowerCase(),
+          collectorNumber: selectedPrinting.collector_number,
+          finish: finishAndCondition.finish,
+          condition: finishAndCondition.condition,
+        })
+
         // Remove old line when editing, then append new line
         if (isEditing && lastAddedCard) {
           try {
@@ -464,6 +487,12 @@ export function registerCollectionCommand(program: Command) {
               await fs.appendFile(collectionFile, line)
               console.log(`Added: ${line.trim()}`)
             }
+            lastChangeIndex = trackEdit(
+              sessionChanges,
+              lastChangeIndex,
+              cardChangeEvent,
+              result.replaced,
+            )
             lastAddedCard = { name: cardName, line: line, hasNote: false }
             lastAddedCount = 1
           } catch (e) {
@@ -476,6 +505,7 @@ export function registerCollectionCommand(program: Command) {
             console.log(`Added: ${line.trim()}`)
             lastAddedCard = { name: cardName, line: line, hasNote: false }
             lastAddedCount = 1
+            lastChangeIndex = trackAdd(sessionChanges, cardChangeEvent)
           } catch (e) {
             console.error(`Failed to write to file: ${e}`)
           }

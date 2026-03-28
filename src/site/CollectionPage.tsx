@@ -41,7 +41,7 @@ interface CollectionPageProps {
   onAddCard?: () => void
   onCardIncrement?: (entry: CollectionCardEntry) => void
   onCardDecrement?: (entry: CollectionCardEntry) => void
-  onCardContextMenu?: (cardKey: string, card: ScryfallCard | null) => void
+  onCardContextMenu?: (cardKey: string, card: ScryfallCard | null, rect: DOMRect) => void
   unsavedChangeCount?: number
   changelog?: ChangelogPage[]
 }
@@ -232,7 +232,7 @@ export const CollectionPage: FunctionalComponent<CollectionPageProps> = ({
         editMode={editMode}
         onIncrement={editMode && entry ? () => onCardIncrement?.(entry) : undefined}
         onDecrement={editMode && entry ? () => onCardDecrement?.(entry) : undefined}
-        onContextMenu={editMode ? () => onCardContextMenu?.(c.name, c.card) : undefined}
+        onContextMenu={editMode ? (rect) => onCardContextMenu?.(c.name, c.card, rect) : undefined}
       />
     )
   }

@@ -1,13 +1,13 @@
-import type { ChangeEvent } from './deck-changes'
+import type { ChangeInput } from './deck-changes'
 import type { WantedListCardEntry } from '../../../site/data-types'
 
-type ChangeInput = Omit<ChangeEvent, 'id' | 'timestamp'> & {
+type WantedListChangeInput = ChangeInput & {
   fileOrder?: number
 }
 
 export function applyChangeToWantedList(
   entries: WantedListCardEntry[],
-  change: ChangeInput,
+  change: WantedListChangeInput,
 ): WantedListCardEntry[] {
   switch (change.action) {
     case 'add': {
@@ -54,7 +54,8 @@ export function applyChangeToWantedList(
       })
     }
 
-    case 'set-commander': {
+    case 'set-commander':
+    case 'unset-commander': {
       return entries
     }
   }

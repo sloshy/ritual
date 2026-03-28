@@ -13,6 +13,10 @@ import {
   promptWantedFinish,
   isFinish,
 } from './wanted-helpers'
+import { appendChangelog } from '../changelog-writer'
+import { createChangeEvent } from '../change-event'
+import type { ChangeEvent } from '../change-event'
+import { trackAdd, trackEdit, trackAnotherCopy } from '../session-changelog'
 
 export function registerWantedListCommand(program: Command) {
   program
@@ -107,6 +111,8 @@ export function registerWantedListCommand(program: Command) {
       type LastAddedCard = { name: string; line: string; hasNote: boolean }
       let lastAddedCard: LastAddedCard | null = null
       let lastAddedCount = 0
+      const sessionChanges: ChangeEvent[] = []
+      let lastChangeIndex: number | null = null
 
       while (true) {
         let isExited = false
@@ -253,6 +259,10 @@ export function registerWantedListCommand(program: Command) {
         })
 
         if (isExited) {
+          if (sessionChanges.length > 0) {
+            await appendChangelog(listFile, selectedList, sessionChanges)
+            console.log('Changelog saved.')
+          }
           console.log('Exiting wanted list manager.')
           break
         }
@@ -268,6 +278,8 @@ export function registerWantedListCommand(program: Command) {
             await fs.appendFile(listFile, lastAddedCard.line)
             lastAddedCount++
             console.log(`Added: ${lastAddedCard.line.trim()} (${lastAddedCount}x total)`)
+            const newIdx = trackAnotherCopy(sessionChanges, lastChangeIndex)
+            if (newIdx !== null) lastChangeIndex = newIdx
           } catch (e) {
             console.error(`Failed to write to file: ${e}`)
           }
@@ -388,6 +400,7 @@ export function registerWantedListCommand(program: Command) {
 
         if (specificityResponse.specificity === 'name-only') {
           const line = formatWantedListLine(cardName)
+          const nameOnlyEvent: ChangeEvent = createChangeEvent('add', cardName)
 
           if (isEditing && lastAddedCard) {
             const result = await replaceLastLine(listFile, lastAddedCard.line, line)
@@ -398,9 +411,16 @@ export function registerWantedListCommand(program: Command) {
               await fs.appendFile(listFile, line)
               console.log(`Added: ${line.trim()}`)
             }
+            lastChangeIndex = trackEdit(
+              sessionChanges,
+              lastChangeIndex,
+              nameOnlyEvent,
+              result.replaced,
+            )
           } else {
             await fs.appendFile(listFile, line)
             console.log(`Added: ${line.trim()}`)
+            lastChangeIndex = trackAdd(sessionChanges, nameOnlyEvent)
           }
           lastAddedCard = { name: cardName, line: line, hasNote: false }
           lastAddedCount = 1
@@ -419,6 +439,7 @@ export function registerWantedListCommand(program: Command) {
             console.log(`Added: ${line.trim()}`)
             lastAddedCard = { name: cardName, line: line, hasNote: false }
             lastAddedCount = 1
+            lastChangeIndex = trackAdd(sessionChanges, createChangeEvent('add', cardName))
             continue
           }
           selectedPrinting = result.printing
@@ -443,6 +464,12 @@ export function registerWantedListCommand(program: Command) {
           finish,
         )
 
+        const printingEvent: ChangeEvent = createChangeEvent('add', cardName, {
+          set: selectedPrinting.set.toLowerCase(),
+          collectorNumber: selectedPrinting.collector_number,
+          finish: finish,
+        })
+
         if (isEditing && lastAddedCard) {
           try {
             const result = await replaceLastLine(listFile, lastAddedCard.line, line)
@@ -453,6 +480,12 @@ export function registerWantedListCommand(program: Command) {
               await fs.appendFile(listFile, line)
               console.log(`Added: ${line.trim()}`)
             }
+            lastChangeIndex = trackEdit(
+              sessionChanges,
+              lastChangeIndex,
+              printingEvent,
+              result.replaced,
+            )
             lastAddedCard = { name: cardName, line: line, hasNote: false }
             lastAddedCount = 1
           } catch (e) {
@@ -464,6 +497,7 @@ export function registerWantedListCommand(program: Command) {
             console.log(`Added: ${line.trim()}`)
             lastAddedCard = { name: cardName, line: line, hasNote: false }
             lastAddedCount = 1
+            lastChangeIndex = trackAdd(sessionChanges, printingEvent)
           } catch (e) {
             console.error(`Failed to write to file: ${e}`)
           }

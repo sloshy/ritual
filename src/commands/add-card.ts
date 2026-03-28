@@ -17,9 +17,7 @@ import {
 import { ensureWantedListFile, formatWantedListLine, promptWantedFinish } from './wanted-helpers'
 import { ensureFreshCardCache } from '../cache/freshness'
 import { appendChangelog } from '../changelog-writer'
-import { createChangeId } from '../admin/site/types/deck-changes'
-import type { ChangeEvent } from '../admin/site/types/deck-changes'
-import type { Finish } from '../types'
+import { createChangeEvent } from '../change-event'
 
 type TargetType = 'deck' | 'collection' | 'wanted'
 
@@ -123,22 +121,6 @@ async function selectCardAutocomplete(
 
   if (isExited || !response.cardName) return null
   return response.cardName as string
-}
-
-function createAddChangeEvent(
-  cardName: string,
-  options?: { set?: string; collectorNumber?: string; finish?: Finish; condition?: string },
-): ChangeEvent {
-  return {
-    id: createChangeId(),
-    timestamp: Date.now(),
-    action: 'add',
-    cardName,
-    set: options?.set,
-    collectorNumber: options?.collectorNumber,
-    finish: options?.finish,
-    condition: options?.condition,
-  }
 }
 
 export function registerAddCardCommand(program: Command) {
@@ -247,7 +229,7 @@ async function handleDeckAddCard(
     process.exit(1)
   }
 
-  const change = createAddChangeEvent(selectedName)
+  const change = createChangeEvent('add', selectedName)
   await appendChangelog(deckFilePath, deckName, [change])
 }
 
@@ -292,7 +274,7 @@ async function handleCollectionAddCard(
   await fs.appendFile(collectionFilePath, line)
   console.log(`Added: ${line.trim()}`)
 
-  const change = createAddChangeEvent(selectedName, {
+  const change = createChangeEvent('add', selectedName, {
     set: printingResult.printing.set.toLowerCase(),
     collectorNumber: printingResult.printing.collector_number,
     finish: finishAndCondition.finish,
@@ -328,7 +310,7 @@ async function handleWantedAddCard(
     const line = formatWantedListLine(selectedName, undefined, userFinish)
     await fs.appendFile(listFile, line)
     console.log(`Added: ${line.trim()}`)
-    const change = createAddChangeEvent(selectedName, { finish: userFinish })
+    const change = createChangeEvent('add', selectedName, { finish: userFinish })
     await appendChangelog(listFile, wantedListName, [change])
     return
   }
@@ -340,7 +322,7 @@ async function handleWantedAddCard(
     const line = formatWantedListLine(selectedName, undefined, userFinish)
     await fs.appendFile(listFile, line)
     console.log(`Added: ${line.trim()}`)
-    const change = createAddChangeEvent(selectedName, { finish: userFinish })
+    const change = createChangeEvent('add', selectedName, { finish: userFinish })
     await appendChangelog(listFile, wantedListName, [change])
     return
   }
@@ -364,7 +346,7 @@ async function handleWantedAddCard(
   await fs.appendFile(listFile, line)
   console.log(`Added: ${line.trim()}`)
 
-  const change = createAddChangeEvent(selectedName, {
+  const change = createChangeEvent('add', selectedName, {
     set: printingResult.printing.set.toLowerCase(),
     collectorNumber: printingResult.printing.collector_number,
     finish: finish,

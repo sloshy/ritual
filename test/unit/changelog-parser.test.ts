@@ -67,6 +67,20 @@ describe('parseChangelog', () => {
     })
   })
 
+  test('parses "Unset X as commander"', () => {
+    const content = `# Changelog
+
+## 2026-01-01T00:00:00Z
+
+- Unset Avacyn, Angel of Hope as commander
+`
+    const pages = parseChangelog(content)
+    expect(pages[0]!.changes[0]).toEqual({
+      action: 'Unset as commander',
+      cardName: 'Avacyn, Angel of Hope',
+    })
+  })
+
   test('parses "Set X finish to foil"', () => {
     const content = `# Changelog
 

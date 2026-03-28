@@ -1,8 +1,7 @@
-import type { ChangeEvent } from './deck-changes'
+import type { ChangeInput } from './deck-changes'
 import type { CollectionCardEntry } from '../../../site/data-types'
 
-/** The subset of ChangeEvent fields that applyChangeToCollection needs. */
-type ChangeInput = Omit<ChangeEvent, 'id' | 'timestamp'> & {
+type CollectionChangeInput = ChangeInput & {
   /** When provided, targets the exact entry by fileOrder for precise removal. */
   fileOrder?: number
 }
@@ -13,7 +12,7 @@ type ChangeInput = Omit<ChangeEvent, 'id' | 'timestamp'> & {
  */
 export function applyChangeToCollection(
   entries: CollectionCardEntry[],
-  change: ChangeInput,
+  change: CollectionChangeInput,
 ): CollectionCardEntry[] {
   switch (change.action) {
     case 'add': {
@@ -57,7 +56,8 @@ export function applyChangeToCollection(
       })
     }
 
-    case 'set-commander': {
+    case 'set-commander':
+    case 'unset-commander': {
       // Not applicable to collections, return unchanged
       return entries
     }

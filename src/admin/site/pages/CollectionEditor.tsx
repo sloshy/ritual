@@ -4,6 +4,7 @@ import type { PriceCurrency } from '../../../price-currency'
 import type { CardPrintingOptions } from '../types/deck-changes'
 import type { CollectionCardEntry } from '../../../site/data-types'
 import type { CardPriceResponse } from '../../api/card-price'
+import type { ContextMenuState } from '../types/context-menu'
 import { CollectionPage } from '../../../site/CollectionPage'
 import { useCollectionChanges } from '../hooks/useCollectionChanges'
 import { applyChangeToCollection } from '../types/collection-changes'
@@ -13,11 +14,6 @@ import { CardContextMenu } from '../components/CardContextMenu'
 import { CardSearchModal } from '../components/CardSearchModal'
 
 type CollectionListItem = { slug: string; name: string }
-
-type ContextMenuState = {
-  cardName: string
-  card: ScryfallCard | null
-}
 
 export function CollectionEditor() {
   const [collectionSlug, setCollectionSlug] = useState<string | null>(null)
@@ -134,9 +130,12 @@ export function CollectionEditor() {
     [removeCard],
   )
 
-  const handleContextMenu = useCallback((cardName: string, card: ScryfallCard | null) => {
-    setContextMenuCard({ cardName, card })
-  }, [])
+  const handleContextMenu = useCallback(
+    (cardName: string, card: ScryfallCard | null, rect: DOMRect) => {
+      setContextMenuCard({ cardName, card, anchorRect: rect })
+    },
+    [],
+  )
 
   const handleSetFoil = useCallback(() => {
     if (!contextMenuCard) return
@@ -303,7 +302,8 @@ export function CollectionEditor() {
           cardName={contextMenuCard.cardName}
           card={contextMenuCard.card}
           onSetFoil={handleSetFoil}
-          onSetCommander={() => setContextMenuCard(null)}
+          onUnsetCommander={() => setContextMenuCard(null)}
+          anchorRect={contextMenuCard.anchorRect}
           onClose={() => setContextMenuCard(null)}
           hideCommander={true}
         />

@@ -13,8 +13,15 @@
  * ```
  */
 
+export type ChangelogAction =
+  | 'Added'
+  | 'Removed'
+  | 'Set as commander'
+  | 'Unset as commander'
+  | 'Set finish'
+
 export type ChangelogChange = {
-  action: string
+  action: ChangelogAction
   cardName: string
   set?: string
   collectorNumber?: string
@@ -28,7 +35,7 @@ export type ChangelogPage = {
 }
 
 const CHANGE_LINE_REGEX =
-  /^-\s+(Added|Removed|Set)\s+(.+?)(?:\s+\(([^)]+)\))?(?:\s+\[([^\]]+)\])?(?:\s+\[([^\]]+)\])?\s*$/
+  /^-\s+(Added|Removed|Set|Unset)\s+(.+?)(?:\s+\(([^)]+)\))?(?:\s+\[([^\]]+)\])?(?:\s+\[([^\]]+)\])?\s*$/
 
 const FINISH_VALUES = new Set(['foil', 'nonfoil', 'etched'])
 const CONDITION_VALUES = new Set(['NM', 'LP', 'MP', 'HP', 'DMG'])
@@ -41,20 +48,28 @@ function parseChangeLine(line: string): ChangelogChange | null {
   if (!action || !rawCardName) return null
 
   let cardName = rawCardName
+  let resolvedAction: ChangelogAction | undefined
 
-  // Handle "Set X as commander" / "Set X finish to foil"
-  if (action === 'Set') {
+  // Handle "Set X as commander" / "Unset X as commander" / "Set X finish to foil"
+  if (action === 'Set' || action === 'Unset') {
     const asCommander = rawCardName.match(/^(.+?)\s+as\s+commander$/i)
     if (asCommander?.[1]) {
-      return { action: 'Set as commander', cardName: asCommander[1] }
+      const changeAction = action === 'Unset' ? 'Unset as commander' : 'Set as commander'
+      return { action: changeAction, cardName: asCommander[1] }
     }
-    const finishMatch = rawCardName.match(/^(.+?)\s+finish\s+to\s+(\w+)$/i)
-    if (finishMatch?.[1] && finishMatch[2]) {
-      return { action: 'Set finish', cardName: finishMatch[1], finish: finishMatch[2] }
+    if (action === 'Set') {
+      const finishMatch = rawCardName.match(/^(.+?)\s+finish\s+to\s+(\w+)$/i)
+      if (finishMatch?.[1] && finishMatch[2]) {
+        return { action: 'Set finish', cardName: finishMatch[1], finish: finishMatch[2] }
+      }
     }
     // Fallback: just use the raw name
     cardName = rawCardName
   }
+
+  if (action === 'Added') resolvedAction = 'Added'
+  else if (action === 'Removed') resolvedAction = 'Removed'
+  if (!resolvedAction) return null
 
   let set: string | undefined
   let collectorNumber: string | undefined
@@ -78,7 +93,7 @@ function parseChangeLine(line: string): ChangelogChange | null {
     }
   }
 
-  return { action: action!, cardName, set, collectorNumber, finish, condition }
+  return { action: resolvedAction, cardName, set, collectorNumber, finish, condition }
 }
 
 /**

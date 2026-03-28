@@ -16,6 +16,14 @@ const stopPropAnd =
     fn?.()
   }
 
+/** Like stopPropAnd but passes the button's bounding rect to the callback. */
+const stopPropAndRect =
+  (fn?: (rect: DOMRect) => void): JSX.MouseEventHandler<HTMLButtonElement> =>
+  (e) => {
+    e.stopPropagation()
+    fn?.(e.currentTarget.getBoundingClientRect())
+  }
+
 export interface CardItemProps {
   name: string
   quantity: number
@@ -35,7 +43,7 @@ export interface CardItemProps {
   editMode?: boolean
   onIncrement?: () => void
   onDecrement?: () => void
-  onContextMenu?: () => void
+  onContextMenu?: (rect: DOMRect) => void
 }
 
 export const CardItem: FunctionalComponent<CardItemProps> = ({
@@ -139,7 +147,7 @@ export const CardItem: FunctionalComponent<CardItemProps> = ({
               </button>
               <button
                 className="edit-btn edit-btn-context"
-                onClick={stopPropAnd(onContextMenu)}
+                onClick={stopPropAndRect(onContextMenu)}
                 title="More options"
               >
                 ⋯
@@ -190,7 +198,7 @@ export const CardItem: FunctionalComponent<CardItemProps> = ({
               </button>
               <button
                 className="edit-btn-list"
-                onClick={stopPropAnd(onContextMenu)}
+                onClick={stopPropAndRect(onContextMenu)}
                 title="More options"
               >
                 ⋯
@@ -224,7 +232,7 @@ export const CardItem: FunctionalComponent<CardItemProps> = ({
               </button>
               <button
                 className="edit-btn edit-btn-context"
-                onClick={stopPropAnd(onContextMenu)}
+                onClick={stopPropAndRect(onContextMenu)}
                 title="More options"
               >
                 ⋯

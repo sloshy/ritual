@@ -51,7 +51,7 @@ export interface DeckPageProps {
   onAddCard?: () => void
   onCardIncrement?: (cardName: string) => void
   onCardDecrement?: (cardName: string) => void
-  onCardContextMenu?: (cardName: string, card: ScryfallCard | null) => void
+  onCardContextMenu?: (cardName: string, card: ScryfallCard | null, rect: DOMRect) => void
   unsavedChangeCount?: number
   changelog?: ChangelogPage[]
 }
@@ -260,7 +260,7 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
       editMode={editMode}
       onIncrement={editMode ? () => onCardIncrement?.(c.name) : undefined}
       onDecrement={editMode ? () => onCardDecrement?.(c.name) : undefined}
-      onContextMenu={editMode ? () => onCardContextMenu?.(c.name, c.card) : undefined}
+      onContextMenu={editMode ? (rect) => onCardContextMenu?.(c.name, c.card, rect) : undefined}
     />
   )
 
