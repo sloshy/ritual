@@ -8,6 +8,8 @@ import type { ContextMenuState } from '../types/context-menu'
 import { WantedListPage } from '../../../site/WantedListPage'
 import { useCollectionChanges } from '../hooks/useCollectionChanges'
 import { useCardIdPool } from '../hooks/useCardIdPool'
+import { useEditorStatus } from '../hooks/useEditorStatus'
+import { useEntryCardData } from '../hooks/useEntryCardData'
 import { applyChangeToWantedList } from '../types/wanted-changes'
 import { ChangesDialog } from '../components/ChangesDialog'
 import { DiscardConfirmDialog } from '../components/DiscardConfirmDialog'
@@ -34,19 +36,18 @@ export function WantedListEditor() {
   const [listSlug, setListSlug] = useState<string | null>(null)
   const [wantedLists, setWantedLists] = useState<WantedListItem[]>([])
   const [entries, setEntries] = useState<WantedListCardEntry[]>([])
-  const [cards, setCards] = useState<Record<string, ScryfallCard | null>>({})
-  const [printings, setPrintings] = useState<Record<string, ScryfallCard[]>>({})
-  const [symbolMap, setSymbolMap] = useState<Record<string, string>>({})
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [modalCardKey, setModalCardKey] = useState<string | null>(null)
   const [contextMenuCard, setContextMenuCard] = useState<ContextMenuState | null>(null)
   const [showChanges, setShowChanges] = useState(false)
   const [showDiscard, setShowDiscard] = useState(false)
   const [showSearchModal, setShowSearchModal] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [saveStatus, setSaveStatus] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+
+  const [status, statusDispatch] = useEditorStatus()
+  const { loading, error, saving, saveStatus } = status
+
+  const [cardData, cardDispatch] = useEntryCardData()
+  const { cards, printings, symbolMap } = cardData
 
   const currency: PriceCurrency = 'usd'
 
@@ -66,15 +67,13 @@ export function WantedListEditor() {
       .then((data) => {
         if (data.wantedLists) setWantedLists(data.wantedLists)
       })
-      .catch(() => setError('Failed to load wanted list list'))
+      .catch(() => statusDispatch({ type: 'SET_ERROR', error: 'Failed to load wanted list list' }))
   }, [])
 
   useEffect(() => {
     if (!listSlug) return
     const controller = new AbortController()
-    setLoading(true)
-    setError(null)
-    setSaveStatus(null)
+    statusDispatch({ type: 'LOAD_START' })
 
     fetch(`/api/wanted/${listSlug}`, { credentials: 'same-origin', signal: controller.signal })
       .then((r) => r.json() as Promise<WantedListDataResponse>)
@@ -85,20 +84,19 @@ export function WantedListEditor() {
           setEntries(entriesWithIds)
           originalEntriesRef.current = entriesWithIds
           resetPool([...pool.usedIds])
-          setCards(data.cards)
-          setPrintings(data.printings)
-          setSymbolMap(data.symbolMap)
+          cardDispatch({
+            type: 'LOAD',
+            data: { cards: data.cards, printings: data.printings, symbolMap: data.symbolMap },
+          })
           discardAll()
+          statusDispatch({ type: 'LOAD_SUCCESS' })
         } else {
-          setError('Failed to load wanted list')
+          statusDispatch({ type: 'LOAD_ERROR', error: 'Failed to load wanted list' })
         }
       })
       .catch((err) => {
         if (err instanceof Error && err.name === 'AbortError') return
-        setError('Failed to load wanted list')
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false)
+        statusDispatch({ type: 'LOAD_ERROR', error: 'Failed to load wanted list' })
       })
 
     return () => controller.abort()
@@ -203,18 +201,12 @@ export function WantedListEditor() {
           cardId,
         }),
       )
-      if (scryfallCard) {
-        const key = `${scryfallCard.set}:${scryfallCard.collector_number}`
-        setCards((prev) => ({ ...prev, [cardName]: scryfallCard, [key]: scryfallCard }))
-      }
-      if (allPrintings && allPrintings.length > 0) {
-        setPrintings((prev) => ({ ...prev, [cardName]: allPrintings }))
-        const cardUpdates: Record<string, ScryfallCard> = {}
-        for (const p of allPrintings) {
-          cardUpdates[`${p.set}:${p.collector_number}`] = p
-        }
-        setCards((prev) => ({ ...prev, ...cardUpdates }))
-      }
+      cardDispatch({
+        type: 'ADD_CARD',
+        cardName,
+        card: scryfallCard,
+        printings: allPrintings,
+      })
 
       try {
         const resp = await fetch(`/api/card-price?name=${encodeURIComponent(cardName)}`, {
@@ -222,17 +214,12 @@ export function WantedListEditor() {
         })
         const data = (await resp.json()) as CardPriceResponse
         if (data.success) {
-          if (!scryfallCard && data.representative) {
-            setCards((prev) => ({ ...prev, [cardName]: data.representative }))
-          }
-          if (data.printings.length > 0) {
-            setPrintings((prev) => ({ ...prev, [cardName]: data.printings }))
-            const cardUpdates: Record<string, ScryfallCard> = {}
-            for (const p of data.printings) {
-              cardUpdates[`${p.set}:${p.collector_number}`] = p
-            }
-            setCards((prev) => ({ ...prev, ...cardUpdates }))
-          }
+          cardDispatch({
+            type: 'SET_PRICES',
+            cardName,
+            representative: !scryfallCard ? (data.representative ?? undefined) : undefined,
+            printings: data.printings.length > 0 ? data.printings : undefined,
+          })
         }
       } catch {
         // Price fetch failure doesn't block adding the card
@@ -258,8 +245,7 @@ export function WantedListEditor() {
 
   const handleSave = useCallback(async () => {
     if (!listSlug || entriesRef.current.length === 0 || changesRef.current.length === 0) return
-    setSaving(true)
-    setSaveStatus(null)
+    statusDispatch({ type: 'SAVE_START' })
     try {
       const resp = await fetch(`/api/wanted/${listSlug}/save`, {
         method: 'POST',
@@ -269,15 +255,13 @@ export function WantedListEditor() {
       })
       const data = (await resp.json()) as SaveResponse
       if (data.success) {
-        setSaveStatus('Changes saved successfully')
+        statusDispatch({ type: 'SAVE_SUCCESS', message: 'Changes saved successfully' })
         discardAll()
       } else {
-        setError(data.error ?? 'Save failed')
+        statusDispatch({ type: 'SAVE_ERROR', error: data.error ?? 'Save failed' })
       }
     } catch {
-      setError('Failed to save changes')
-    } finally {
-      setSaving(false)
+      statusDispatch({ type: 'SAVE_ERROR', error: 'Failed to save changes' })
     }
   }, [listSlug, discardAll])
 

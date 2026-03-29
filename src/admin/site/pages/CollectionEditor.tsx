@@ -6,6 +6,8 @@ import type { CollectionCardEntry } from '../../../site/data-types'
 import type { CardPriceResponse } from '../../api/card-price'
 import type { ContextMenuState } from '../types/context-menu'
 import { CollectionPage } from '../../../site/CollectionPage'
+import { useEditorStatus } from '../hooks/useEditorStatus'
+import { useEntryCardData } from '../hooks/useEntryCardData'
 import { useCollectionChanges } from '../hooks/useCollectionChanges'
 import { useCardIdPool } from '../hooks/useCardIdPool'
 import { applyChangeToCollection } from '../types/collection-changes'
@@ -34,19 +36,18 @@ export function CollectionEditor() {
   const [collectionSlug, setCollectionSlug] = useState<string | null>(null)
   const [collectionList, setCollectionList] = useState<CollectionListItem[]>([])
   const [entries, setEntries] = useState<CollectionCardEntry[]>([])
-  const [cards, setCards] = useState<Record<string, ScryfallCard | null>>({})
-  const [printings, setPrintings] = useState<Record<string, ScryfallCard[]>>({})
-  const [symbolMap, setSymbolMap] = useState<Record<string, string>>({})
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [modalCardKey, setModalCardKey] = useState<string | null>(null)
   const [contextMenuCard, setContextMenuCard] = useState<ContextMenuState | null>(null)
   const [showChanges, setShowChanges] = useState(false)
   const [showDiscard, setShowDiscard] = useState(false)
   const [showSearchModal, setShowSearchModal] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [saveStatus, setSaveStatus] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+
+  const [status, statusDispatch] = useEditorStatus()
+  const { loading, error, saving, saveStatus } = status
+
+  const [cardData, cardDispatch] = useEntryCardData()
+  const { cards, printings, symbolMap } = cardData
 
   const currency: PriceCurrency = 'usd'
 
@@ -67,16 +68,14 @@ export function CollectionEditor() {
       .then((data) => {
         if (data.collections) setCollectionList(data.collections)
       })
-      .catch(() => setError('Failed to load collection list'))
+      .catch(() => statusDispatch({ type: 'SET_ERROR', error: 'Failed to load collection list' }))
   }, [])
 
   // Fetch full collection data when slug changes
   useEffect(() => {
     if (!collectionSlug) return
     const controller = new AbortController()
-    setLoading(true)
-    setError(null)
-    setSaveStatus(null)
+    statusDispatch({ type: 'LOAD_START' })
 
     fetch(`/api/collection/${collectionSlug}`, {
       credentials: 'same-origin',
@@ -90,20 +89,19 @@ export function CollectionEditor() {
           setEntries(entriesWithIds)
           originalEntriesRef.current = entriesWithIds
           resetPool([...pool.usedIds])
-          setCards(data.cards)
-          setPrintings(data.printings)
-          setSymbolMap(data.symbolMap)
+          cardDispatch({
+            type: 'LOAD',
+            data: { cards: data.cards, printings: data.printings, symbolMap: data.symbolMap },
+          })
           discardAll()
+          statusDispatch({ type: 'LOAD_SUCCESS' })
         } else {
-          setError('Failed to load collection')
+          statusDispatch({ type: 'LOAD_ERROR', error: 'Failed to load collection' })
         }
       })
       .catch((err) => {
         if (err instanceof Error && err.name === 'AbortError') return
-        setError('Failed to load collection')
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false)
+        statusDispatch({ type: 'LOAD_ERROR', error: 'Failed to load collection' })
       })
 
     return () => controller.abort()
@@ -213,19 +211,12 @@ export function CollectionEditor() {
           cardId,
         }),
       )
-      if (scryfallCard) {
-        const key = `${scryfallCard.set}:${scryfallCard.collector_number}`
-        setCards((prev) => ({ ...prev, [cardName]: scryfallCard, [key]: scryfallCard }))
-      }
-      if (allPrintings && allPrintings.length > 0) {
-        setPrintings((prev) => ({ ...prev, [cardName]: allPrintings }))
-        // Also key each printing by set:collectorNumber
-        const cardUpdates: Record<string, ScryfallCard> = {}
-        for (const p of allPrintings) {
-          cardUpdates[`${p.set}:${p.collector_number}`] = p
-        }
-        setCards((prev) => ({ ...prev, ...cardUpdates }))
-      }
+      cardDispatch({
+        type: 'ADD_CARD',
+        cardName,
+        card: scryfallCard,
+        printings: allPrintings,
+      })
 
       // Fetch price data from server
       try {
@@ -234,17 +225,12 @@ export function CollectionEditor() {
         })
         const data = (await resp.json()) as CardPriceResponse
         if (data.success) {
-          if (!scryfallCard && data.representative) {
-            setCards((prev) => ({ ...prev, [cardName]: data.representative }))
-          }
-          if (data.printings.length > 0) {
-            setPrintings((prev) => ({ ...prev, [cardName]: data.printings }))
-            const cardUpdates: Record<string, ScryfallCard> = {}
-            for (const p of data.printings) {
-              cardUpdates[`${p.set}:${p.collector_number}`] = p
-            }
-            setCards((prev) => ({ ...prev, ...cardUpdates }))
-          }
+          cardDispatch({
+            type: 'SET_PRICES',
+            cardName,
+            representative: !scryfallCard ? (data.representative ?? undefined) : undefined,
+            printings: data.printings.length > 0 ? data.printings : undefined,
+          })
         }
       } catch {
         // Price fetch failure doesn't block adding the card
@@ -273,8 +259,7 @@ export function CollectionEditor() {
   const handleSave = useCallback(async () => {
     if (!collectionSlug || entriesRef.current.length === 0 || changesRef.current.length === 0)
       return
-    setSaving(true)
-    setSaveStatus(null)
+    statusDispatch({ type: 'SAVE_START' })
     try {
       const resp = await fetch(`/api/collection/${collectionSlug}/save`, {
         method: 'POST',
@@ -284,15 +269,13 @@ export function CollectionEditor() {
       })
       const data = (await resp.json()) as SaveResponse
       if (data.success) {
-        setSaveStatus('Changes saved successfully')
+        statusDispatch({ type: 'SAVE_SUCCESS', message: 'Changes saved successfully' })
         discardAll()
       } else {
-        setError(data.error ?? 'Save failed')
+        statusDispatch({ type: 'SAVE_ERROR', error: data.error ?? 'Save failed' })
       }
     } catch {
-      setError('Failed to save changes')
-    } finally {
-      setSaving(false)
+      statusDispatch({ type: 'SAVE_ERROR', error: 'Failed to save changes' })
     }
   }, [collectionSlug, discardAll])
 

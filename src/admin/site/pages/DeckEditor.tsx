@@ -5,6 +5,8 @@ import type { CardPrintingOptions } from '../types/deck-changes'
 import type { CardPriceResponse } from '../../api/card-price'
 import type { ContextMenuState } from '../types/context-menu'
 import { DeckPage } from '../../../site/DeckPage'
+import { useEditorStatus } from '../hooks/useEditorStatus'
+import { useDeckCardData } from '../hooks/useDeckCardData'
 import { useDeckChanges } from '../hooks/useDeckChanges'
 import { useCardIdPool } from '../hooks/useCardIdPool'
 import { applyChangeToDeck } from '../types/deck-changes'
@@ -44,26 +46,25 @@ export function DeckEditor() {
   const [deckList, setDeckList] = useState<DeckListItem[]>([])
   const [deckData, setDeckData] = useState<DeckData | null>(null)
   const [frontMatter, setFrontMatter] = useState<Record<string, unknown>>({})
-  const [cards, setCards] = useState<Record<string, ScryfallCard | null>>({})
-  const [printings, setPrintings] = useState<Record<string, ScryfallCard[]>>({})
-  const [lowestPriceCards, setLowestPriceCards] = useState<Record<string, ScryfallCard | null>>({})
-  const [lowestPriceCardsEur, setLowestPriceCardsEur] = useState<
-    Record<string, ScryfallCard | null>
-  >({})
-  const [lowestPriceCardsTix, setLowestPriceCardsTix] = useState<
-    Record<string, ScryfallCard | null>
-  >({})
-  const [symbolMap, setSymbolMap] = useState<Record<string, string>>({})
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [modalCardName, setModalCardName] = useState<string | null>(null)
   const [contextMenuCard, setContextMenuCard] = useState<DeckContextMenuState | null>(null)
   const [showChanges, setShowChanges] = useState(false)
   const [showDiscard, setShowDiscard] = useState(false)
   const [showSearchModal, setShowSearchModal] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [saveStatus, setSaveStatus] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+
+  const [status, statusDispatch] = useEditorStatus()
+  const { loading, error, saving, saveStatus } = status
+
+  const [cardData, cardDispatch] = useDeckCardData()
+  const {
+    cards,
+    printings,
+    lowestPriceCards,
+    lowestPriceCardsEur,
+    lowestPriceCardsTix,
+    symbolMap,
+  } = cardData
 
   const currency: PriceCurrency = 'usd'
 
@@ -116,20 +117,19 @@ export function DeckEditor() {
       .then((data) => {
         if (data.decks) setDeckList(data.decks)
       })
-      .catch(() => setError('Failed to load deck list'))
+      .catch(() => statusDispatch({ type: 'SET_ERROR', error: 'Failed to load deck list' }))
   }, [])
 
   // Fetch full deck data when slug changes
   useEffect(() => {
     if (!deckSlug) return
     const controller = new AbortController()
-    setLoading(true)
-    setError(null)
-    setSaveStatus(null)
+    statusDispatch({ type: 'LOAD_START' })
 
     fetch(`/api/deck/${deckSlug}`, { credentials: 'same-origin', signal: controller.signal })
       .then((r) => r.json() as Promise<DeckDataResponse>)
       .then((data) => {
+        if (controller.signal.aborted) return
         if (data.success) {
           // Initialize card ID pool from loaded deck data
           const allCards: Card[] = []
@@ -157,28 +157,31 @@ export function DeckEditor() {
           setDeckData(deckWithIds)
           originalDeckRef.current = deckWithIds
           resetPool([...pool.usedIds])
-          setCards(data.cards)
-          setPrintings(data.printings)
-          setLowestPriceCards(data.lowestPriceCards)
-          setLowestPriceCardsEur(data.lowestPriceCardsEur)
-          setLowestPriceCardsTix(data.lowestPriceCardsTix)
-          setSymbolMap(data.symbolMap)
+          cardDispatch({
+            type: 'LOAD',
+            data: {
+              cards: data.cards,
+              printings: data.printings,
+              lowestPriceCards: data.lowestPriceCards,
+              lowestPriceCardsEur: data.lowestPriceCardsEur,
+              lowestPriceCardsTix: data.lowestPriceCardsTix,
+              symbolMap: data.symbolMap,
+            },
+          })
           setFrontMatter(data.frontMatter)
           discardAll()
+          statusDispatch({ type: 'LOAD_SUCCESS' })
         } else {
-          setError('Failed to load deck')
+          statusDispatch({ type: 'LOAD_ERROR', error: 'Failed to load deck' })
         }
       })
       .catch((err) => {
         if (err instanceof Error && err.name === 'AbortError') return
-        setError('Failed to load deck')
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false)
+        statusDispatch({ type: 'LOAD_ERROR', error: 'Failed to load deck' })
       })
 
     return () => controller.abort()
-  }, [deckSlug, discardAll, resetPool, refreshKey])
+  }, [deckSlug, discardAll, resetPool, refreshKey, statusDispatch, cardDispatch])
 
   const handleDeckSelect = useCallback((e: Event) => {
     const value = (e.target as HTMLSelectElement).value
@@ -304,17 +307,12 @@ export function DeckEditor() {
             })
           : prev,
       )
-      if (scryfallCard) {
-        setCards((prev) => ({ ...prev, [cardName]: scryfallCard }))
-        // Use selected printing as immediate fallback so the card is visible in lowest price view
-        // before the server responds with the actual cheapest printing.
-        setLowestPriceCards((prev) => ({ ...prev, [cardName]: scryfallCard }))
-        setLowestPriceCardsEur((prev) => ({ ...prev, [cardName]: scryfallCard }))
-        setLowestPriceCardsTix((prev) => ({ ...prev, [cardName]: scryfallCard }))
-      }
-      if (allPrintings && allPrintings.length > 0) {
-        setPrintings((prev) => ({ ...prev, [cardName]: allPrintings }))
-      }
+      cardDispatch({
+        type: 'ADD_CARD',
+        cardName,
+        card: scryfallCard,
+        printings: allPrintings,
+      })
 
       // Fetch price data from server: checks if cache is stale (>1 day), refreshes if needed,
       // and returns computed representative/cheapest printings for all currencies.
@@ -324,21 +322,21 @@ export function DeckEditor() {
         })
         const data = (await resp.json()) as CardPriceResponse
         if (data.success) {
-          if (!scryfallCard && data.representative) {
-            setCards((prev) => ({ ...prev, [cardName]: data.representative }))
-          }
-          if (data.printings.length > 0) {
-            setPrintings((prev) => ({ ...prev, [cardName]: data.printings }))
-          }
-          setLowestPriceCards((prev) => ({ ...prev, [cardName]: data.lowestPriceCard }))
-          setLowestPriceCardsEur((prev) => ({ ...prev, [cardName]: data.lowestPriceCardEur }))
-          setLowestPriceCardsTix((prev) => ({ ...prev, [cardName]: data.lowestPriceCardTix }))
+          cardDispatch({
+            type: 'SET_PRICES',
+            cardName,
+            representative: !scryfallCard ? (data.representative ?? undefined) : undefined,
+            printings: data.printings.length > 0 ? data.printings : undefined,
+            lowestPriceCard: data.lowestPriceCard,
+            lowestPriceCardEur: data.lowestPriceCardEur,
+            lowestPriceCardTix: data.lowestPriceCardTix,
+          })
         }
       } catch {
         // Price fetch failure doesn't block adding the card
       }
     },
-    [addCard, allocate],
+    [addCard, allocate, cardDispatch],
   )
 
   const handleUndo = useCallback(() => {
@@ -360,8 +358,7 @@ export function DeckEditor() {
 
   const handleSave = useCallback(async () => {
     if (!deckSlug || !deckDataRef.current || changesRef.current.length === 0) return
-    setSaving(true)
-    setSaveStatus(null)
+    statusDispatch({ type: 'SAVE_START' })
     try {
       const resp = await fetch(`/api/deck/${deckSlug}/save`, {
         method: 'POST',
@@ -375,17 +372,15 @@ export function DeckEditor() {
       })
       const data = (await resp.json()) as SaveResponse
       if (data.success) {
-        setSaveStatus('Changes saved successfully')
+        statusDispatch({ type: 'SAVE_SUCCESS', message: 'Changes saved successfully' })
         discardAll()
       } else {
-        setError(data.error ?? 'Save failed')
+        statusDispatch({ type: 'SAVE_ERROR', error: data.error ?? 'Save failed' })
       }
     } catch {
-      setError('Failed to save changes')
-    } finally {
-      setSaving(false)
+      statusDispatch({ type: 'SAVE_ERROR', error: 'Failed to save changes' })
     }
-  }, [deckSlug, discardAll])
+  }, [deckSlug, discardAll, statusDispatch])
 
   const handleDiscard = useCallback(() => {
     discardAll()
