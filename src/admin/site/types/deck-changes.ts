@@ -21,7 +21,7 @@ export {
 
 import type { DeckData } from '../../../types'
 import type { ChangeInput } from '../../../change-event'
-import { isCondition } from '../../../commands/collection-helpers'
+import { isCondition } from '../../../finish-condition'
 
 export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData {
   const sections = deck.sections.map((s) => ({

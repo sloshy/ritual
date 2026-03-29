@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'preact/hooks'
 import type { Finish, Condition, ScryfallCard } from '../../../types'
 import type { CardPrintingOptions } from '../types/deck-changes'
 import { getCardImageUrl } from '../card-utils'
-import { isFinish } from '../../../commands/collection-helpers'
+import { isFinish } from '../../../finish-condition'
 
 type CardSearchModalProps = {
   open: boolean

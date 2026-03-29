@@ -4,23 +4,9 @@ import path from 'node:path'
 import { getCardsBySet, getAllCardNames, getCardPrintings, isDigitalOnlySet } from '../scryfall'
 import type { ScryfallCard, Finish, Condition } from '../types'
 import { capitalize } from '../utils'
+import { VALID_FINISHES, VALID_CONDITIONS, isFinish, isCondition } from '../finish-condition'
 
-export const VALID_FINISHES = ['nonfoil', 'foil', 'etched'] as const satisfies readonly Finish[]
-export const VALID_CONDITIONS = [
-  'NM',
-  'LP',
-  'MP',
-  'HP',
-  'DMG',
-] as const satisfies readonly Condition[]
-
-export function isFinish(value: string): value is Finish {
-  return (VALID_FINISHES as readonly string[]).includes(value)
-}
-
-export function isCondition(value: string): value is Condition {
-  return (VALID_CONDITIONS as readonly string[]).includes(value)
-}
+export { VALID_FINISHES, VALID_CONDITIONS, isFinish, isCondition }
 
 /**
  * Ensure the collections directory and named collection file exist.
