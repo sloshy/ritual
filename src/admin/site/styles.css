@@ -1,49 +1,10 @@
 @import '../../css/reset.css';
+@import '../../css/theme.css';
 @import '../../site/card-styles.css';
-
-/* ===== OKLch Theme — matches build-site palette ===== */
-:root {
-  /* Backgrounds */
-  --bg-body: oklch(20% 0.02 260);
-  --bg-panel: oklch(24% 0.025 260);
-  --bg-hover: oklch(30% 0.03 260);
-  --bg-active: oklch(38% 0.06 280);
-  --bg-subtle: oklch(18% 0.02 260);
-
-  /* Borders */
-  --border: oklch(35% 0.03 260);
-  --border-hover: oklch(50% 0.12 280);
-
-  /* Text */
-  --text-primary: oklch(85% 0.01 260);
-  --text-secondary: oklch(70% 0.02 260);
-  --text-muted: oklch(55% 0.02 260);
-  --text-accent: oklch(75% 0.12 280);
-  --text-dim: oklch(60% 0.02 260);
-
-  /* Accent */
-  --accent: oklch(75% 0.12 280);
-  --accent-dim: oklch(55% 0.08 280);
-
-  /* Buttons */
-  --btn-bg: oklch(30% 0.03 260);
-  --btn-hover: oklch(38% 0.03 260);
-  --btn-text: oklch(80% 0.01 260);
-  --btn-primary: oklch(55% 0.15 280);
-  --btn-primary-hover: oklch(50% 0.15 280);
-
-  /* Success / Error (keep Tailwind-compatible) */
-  --success-bg: rgba(20, 83, 45, 0.5);
-  --success-border: #15803d;
-  --success-text: #86efac;
-  --error-bg: rgba(127, 29, 29, 0.5);
-  --error-border: #b91c1c;
-  --error-text: #fca5a5;
-}
 
 body {
   background: var(--bg-body);
-  color: var(--text-primary);
+  color: var(--text-body);
   font-family:
     ui-sans-serif,
     system-ui,
@@ -203,7 +164,7 @@ body {
   background: var(--bg-hover);
   border: 1px solid var(--border);
   border-radius: 0.375rem;
-  color: var(--text-primary);
+  color: var(--text-body);
   font-size: 0.8125rem;
   outline: none;
   transition: border-color 0.15s;
@@ -428,7 +389,7 @@ body {
   max-width: 28rem;
   padding: 0.5rem 2rem 0.5rem 0.75rem;
   font-size: 0.9375rem;
-  color: var(--text-primary);
+  color: var(--text-body);
   background: var(--bg-body);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -454,7 +415,7 @@ body {
 
 .deck-selector option {
   background: var(--bg-panel);
-  color: var(--text-primary);
+  color: var(--text-body);
 }
 
 /* Edit overlay on cards (binder/overlap/stack views) */
@@ -619,7 +580,7 @@ body {
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 8px 12px;
-  color: var(--text-primary);
+  color: var(--text-body);
   font-size: 0.9375rem;
   outline: none;
 }

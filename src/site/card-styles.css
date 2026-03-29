@@ -31,8 +31,8 @@
 }
 
 body {
-  background-color: #111827;
-  color: #f3f4f6;
+  background-color: var(--bg-body);
+  color: var(--text-body);
   font-family:
     ui-sans-serif,
     system-ui,
@@ -143,7 +143,7 @@ h3 {
 
 .card-binder:hover {
   transform: translateY(-4px) scale(1.03);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 24px var(--overlay-light);
   z-index: 10;
 }
 
@@ -191,14 +191,14 @@ h3 {
 
 .card-label .card-label-name {
   font-size: 0.65rem;
-  color: #ccc;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .card-label .card-label-finish {
-  color: #aaa;
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -723,7 +723,7 @@ h3 {
 
 .deck-cover:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 12px 32px var(--overlay-light);
   border-color: oklch(50% 0.12 280);
 }
 
@@ -1043,7 +1043,7 @@ h3 {
 
 .modal-printing-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 20px var(--overlay-light);
 }
 
 .modal-printing-card img {
@@ -1143,7 +1143,7 @@ h3 {
 }
 
 .primer-toc-title {
-  color: #9ca3af;
+  color: var(--text-secondary);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -1191,12 +1191,12 @@ h3 {
 .primer-content {
   flex: 1;
   min-width: 0;
-  color: #d1d5db;
+  color: var(--text-body);
   line-height: 1.6;
 }
 
 .primer-heading {
-  color: #f3f4f6;
+  color: var(--text-primary);
   font-weight: 700;
   margin-top: 1.25rem;
   margin-bottom: 0.5rem;
@@ -1245,7 +1245,7 @@ h3 {
 }
 
 .primer-card-link--missing {
-  color: #9ca3af;
+  color: var(--text-secondary);
   text-decoration: underline dotted;
 }
 
