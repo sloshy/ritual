@@ -1,5 +1,5 @@
 import type { FunctionalComponent } from 'preact'
-import { useEffect, useRef } from 'preact/hooks'
+import { useEffect, useRef, useCallback } from 'preact/hooks'
 import { type ChangeEvent, isAdditiveChange, formatChange } from '../types/deck-changes'
 
 interface DiscardConfirmDialogProps {
@@ -15,27 +15,25 @@ export const DiscardConfirmDialog: FunctionalComponent<DiscardConfirmDialogProps
   onConfirm,
   onCancel,
 }) => {
-  const onCancelRef = useRef(onCancel)
-  onCancelRef.current = onCancel
+  const dialogRef = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancelRef.current()
-    }
-    if (open) {
-      document.addEventListener('keydown', handler)
-      return () => document.removeEventListener('keydown', handler)
-    }
+    const dialog = dialogRef.current
+    if (!dialog) return
+    if (open && !dialog.open) dialog.showModal()
+    else if (!open && dialog.open) dialog.close()
   }, [open])
 
-  if (!open) return null
+  const handleBackdropClick = useCallback((e: MouseEvent) => {
+    if ((e.target as Element) === dialogRef.current) dialogRef.current?.close()
+  }, [])
 
   return (
-    <div
-      class="confirm-dialog-backdrop"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onCancel()
-      }}
+    <dialog
+      ref={dialogRef}
+      class="discard-dialog-native"
+      onClose={onCancel}
+      onClick={handleBackdropClick}
     >
       <div class="confirm-dialog">
         <h3>
@@ -62,14 +60,18 @@ export const DiscardConfirmDialog: FunctionalComponent<DiscardConfirmDialogProps
           })}
         </div>
         <div class="confirm-dialog-actions">
-          <button class="btn btn-secondary" onClick={onCancel}>
+          <button
+            type="button"
+            class="btn btn-secondary"
+            onClick={() => dialogRef.current?.close()}
+          >
             Cancel
           </button>
-          <button class="btn-discard" onClick={onConfirm}>
+          <button type="button" class="btn-discard" onClick={onConfirm}>
             Yes, discard
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   )
 }

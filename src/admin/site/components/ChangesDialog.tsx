@@ -1,5 +1,5 @@
 import type { FunctionalComponent } from 'preact'
-import { useState, useEffect, useRef } from 'preact/hooks'
+import { useState, useEffect, useRef, useCallback } from 'preact/hooks'
 import type { ScryfallCard } from '../../../types'
 import type { PriceCurrency } from '../../../price-currency'
 import { type ChangeEvent, isAdditiveChange, formatChange } from '../types/deck-changes'
@@ -28,46 +28,54 @@ export const ChangesDialog: FunctionalComponent<ChangesDialogProps> = ({
   currency = 'usd',
   onClose,
 }) => {
-  const onCloseRef = useRef(onClose)
-  onCloseRef.current = onClose
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const selectedCardRef = useRef<string | null>(null)
 
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
   const [selectedCard, setSelectedCard] = useState<string | null>(null)
+  selectedCardRef.current = selectedCard
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (selectedCard) {
-          setSelectedCard(null)
-        } else {
-          onCloseRef.current()
-        }
+    const dialog = dialogRef.current
+    if (!dialog) return
+    if (open && !dialog.open) dialog.showModal()
+    else if (!open && dialog.open) dialog.close()
+  }, [open])
+
+  // Intercept Escape: close CardModal first, then allow dialog to close
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+    const handleCancel = (e: Event) => {
+      if (selectedCardRef.current) {
+        e.preventDefault()
+        setSelectedCard(null)
       }
     }
-    if (open) {
-      document.addEventListener('keydown', handler)
-      return () => document.removeEventListener('keydown', handler)
-    }
-  }, [open, selectedCard])
+    dialog.addEventListener('cancel', handleCancel)
+    return () => dialog.removeEventListener('cancel', handleCancel)
+  }, [])
+
+  const handleBackdropClick = useCallback((e: MouseEvent) => {
+    if ((e.target as Element) === dialogRef.current) dialogRef.current?.close()
+  }, [])
 
   const modalCard = selectedCard ? (cards[selectedCard] ?? null) : null
   const modalPrintings = selectedCard ? (printings[selectedCard] ?? []) : []
 
-  if (!open) return null
-
   return (
-    <div
-      class="search-modal-backdrop"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
+    <dialog
+      ref={dialogRef}
+      class="changes-dialog-native"
+      onClose={onClose}
+      onClick={handleBackdropClick}
     >
       <div class="search-modal" style="max-width: 500px;">
         <div class="search-modal-header">
           <h3 style="margin: 0; font-size: 1rem; font-weight: 700;">
             Pending Changes ({changes.length})
           </h3>
-          <button class="modal-close" onClick={onClose}>
+          <button type="button" class="modal-close" onClick={() => dialogRef.current?.close()}>
             &times;
           </button>
         </div>
@@ -127,7 +135,7 @@ export const ChangesDialog: FunctionalComponent<ChangesDialogProps> = ({
         onClose={() => setSelectedCard(null)}
         backdropClass="changelog-card-modal"
       />
-    </div>
+    </dialog>
   )
 }
 
