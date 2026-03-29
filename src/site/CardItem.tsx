@@ -72,7 +72,7 @@ export const CardItem: FunctionalComponent<CardItemProps> = ({
       <div className="card-item">
         {viewMode === 'binder' && (
           <div className="card-binder card-binder--empty">
-            <span className="text-xs text-gray-500">{name}</span>
+            <span className="card-empty-label">{name}</span>
           </div>
         )}
         {viewMode === 'list' && (
@@ -83,7 +83,7 @@ export const CardItem: FunctionalComponent<CardItemProps> = ({
         )}
         {(viewMode === 'overlap' || viewMode === 'stack') && (
           <div className="card-overlap card-overlap--empty">
-            <span className="text-xs text-gray-500">{name}</span>
+            <span className="card-empty-label">{name}</span>
           </div>
         )}
       </div>

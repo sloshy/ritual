@@ -65,8 +65,8 @@ function App() {
 
   if (setupRequired === null) {
     return (
-      <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh;">
-        <p style="color: var(--text-muted);">Loading...</p>
+      <div class="flex-center-vh">
+        <p class="text-muted">Loading...</p>
       </div>
     )
   }

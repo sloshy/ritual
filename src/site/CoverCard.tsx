@@ -20,13 +20,7 @@ export const CoverCard: FunctionalComponent<CoverCardProps> = ({
   return (
     <div className="deck-cover">
       <div className="cover-image">
-        {image ? (
-          <img src={image} alt={name} />
-        ) : (
-          <div className="flex items-center justify-center h-full text-gray-600 text-sm">
-            No Image
-          </div>
-        )}
+        {image ? <img src={image} alt={name} /> : <div className="cover-placeholder">No Image</div>}
         <div className="cover-overlay" />
         <div className="cover-info">
           <h2>{name}</h2>

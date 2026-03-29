@@ -57,7 +57,7 @@ export function Settings() {
   if (!config) {
     return (
       <div>
-        <p style="color: var(--text-muted);">Loading settings...</p>
+        <p class="text-muted">Loading settings...</p>
       </div>
     )
   }
@@ -66,7 +66,7 @@ export function Settings() {
     <div>
       <h2 class="section-heading">⚙️ Settings</h2>
       <StatusAlerts status={status} error={error} />
-      <div class="space-y-4 max-w-lg">
+      <div class="form-container">
         {/* Directories */}
         <div>
           <label class="form-label">Decks Directory</label>
@@ -167,7 +167,7 @@ export function Settings() {
         </label>
 
         {config.rateLimitEnabled && (
-          <div class="grid grid-cols-2 gap-3">
+          <div class="form-grid-2col">
             <div>
               <label class="form-label">Max failed attempts</label>
               <input
@@ -205,14 +205,14 @@ export function Settings() {
             value={config.failedAuthDelayMs}
             onInput={(e) => updateField('failedAuthDelayMs', parseInt(e.currentTarget.value) || 0)}
           />
-          <p class="form-hint" style="margin-top: 0.25rem;">
+          <p class="form-hint form-hint-top">
             Delay before responding to invalid login attempts (helps prevent brute force).
           </p>
         </div>
 
         {/* IP Allow/Deny Lists */}
         <h3 class="section-subheading">IP Filtering</h3>
-        <p class="form-hint" style="margin-bottom: 0.5rem;">
+        <p class="form-hint form-hint-gap">
           One entry per line. Supports wildcards (*). Leave empty to allow all. If allow list is
           set, only listed IPs can connect.
         </p>
@@ -220,8 +220,7 @@ export function Settings() {
         <div>
           <label class="form-label">IP Allow List</label>
           <textarea
-            class="form-input"
-            style="font-family: monospace; height: 5rem; resize: vertical;"
+            class="form-input form-input-monospace"
             value={listToString(config.ipAllowList)}
             onInput={(e) => updateListField('ipAllowList', e.currentTarget.value)}
             placeholder="e.g. 192.168.1.*"
@@ -230,8 +229,7 @@ export function Settings() {
         <div>
           <label class="form-label">IP Deny List</label>
           <textarea
-            class="form-input"
-            style="font-family: monospace; height: 5rem; resize: vertical;"
+            class="form-input form-input-monospace"
             value={listToString(config.ipDenyList)}
             onInput={(e) => updateListField('ipDenyList', e.currentTarget.value)}
             placeholder="e.g. 10.0.0.5"
@@ -240,15 +238,14 @@ export function Settings() {
 
         {/* User-Agent Allow/Deny Lists */}
         <h3 class="section-subheading">User-Agent Filtering</h3>
-        <p class="form-hint" style="margin-bottom: 0.5rem;">
+        <p class="form-hint form-hint-gap">
           One entry per line. Supports wildcards (*). Leave empty to allow all.
         </p>
 
         <div>
           <label class="form-label">User-Agent Allow List</label>
           <textarea
-            class="form-input"
-            style="font-family: monospace; height: 5rem; resize: vertical;"
+            class="form-input form-input-monospace"
             value={listToString(config.userAgentAllowList)}
             onInput={(e) => updateListField('userAgentAllowList', e.currentTarget.value)}
             placeholder="e.g. Mozilla*"
@@ -257,8 +254,7 @@ export function Settings() {
         <div>
           <label class="form-label">User-Agent Deny List</label>
           <textarea
-            class="form-input"
-            style="font-family: monospace; height: 5rem; resize: vertical;"
+            class="form-input form-input-monospace"
             value={listToString(config.userAgentDenyList)}
             onInput={(e) => updateListField('userAgentDenyList', e.currentTarget.value)}
             placeholder="e.g. *bot*"
@@ -266,12 +262,7 @@ export function Settings() {
         </div>
 
         {/* Save */}
-        <button
-          class="btn btn-primary"
-          style="margin-top: 1rem;"
-          onClick={handleSave}
-          disabled={loading}
-        >
+        <button class="btn btn-primary" onClick={handleSave} disabled={loading}>
           {loading ? 'Saving...' : 'Save Settings'}
         </button>
       </div>

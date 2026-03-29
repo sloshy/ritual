@@ -54,23 +54,18 @@ export function Layout({ currentPage, onNavigate, onLogout, children, fullWidth 
   ))
 
   return (
-    <div style="min-height: 100vh; display: flex; flex-direction: column;">
+    <div class="layout-root">
       {/* Header */}
       <header class="admin-header">
         <span class="admin-logo">⚗️ Ritual Admin</span>
-        <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <div class="admin-header-actions">
           {onLogout && (
-            <button
-              class="btn btn-secondary desktop-only"
-              onClick={onLogout}
-              style="padding: 0.25rem 0.75rem; font-size: 0.75rem;"
-            >
+            <button class="btn btn-secondary btn-xs desktop-only" onClick={onLogout}>
               Logout
             </button>
           )}
           <button
-            class="mobile-only"
-            style="padding: 0.5rem; background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 1.25rem;"
+            class="btn-mobile-menu mobile-only"
             onClick={() => setMenuOpen(!menuOpen)}
             aria-label="Toggle menu"
           >
@@ -78,28 +73,21 @@ export function Layout({ currentPage, onNavigate, onLogout, children, fullWidth 
           </button>
         </div>
       </header>
-      <div style="display: flex; flex: 1;">
+      <div class="layout-body">
         {/* Desktop sidebar */}
-        <nav
-          class="admin-sidebar desktop-only"
-          style="width: 14rem; min-height: calc(100vh - 3rem); padding-top: 0.5rem;"
-        >
+        <nav class="admin-sidebar admin-sidebar-panel desktop-only">
           {navList}
-          {onLogout && (
-            <div style="margin-top: auto; padding-top: 0.5rem; border-top: 1px solid var(--border); margin: 0.5rem 0;" />
-          )}
+          {onLogout && <div class="sidebar-divider" />}
         </nav>
         {/* Mobile nav overlay */}
         {menuOpen && (
           <div>
             <div class="mobile-backdrop mobile-only" onClick={() => setMenuOpen(false)} />
             <nav class="mobile-nav mobile-only">
-              <div style="padding: 0.75rem 1rem 0.75rem; font-weight: 700; color: var(--text-accent); font-size: 0.875rem; border-bottom: 1px solid var(--border); margin-bottom: 0.5rem;">
-                ⚗️ Ritual Admin
-              </div>
+              <div class="mobile-nav-header">⚗️ Ritual Admin</div>
               {navList}
               {onLogout && (
-                <div style="border-top: 1px solid var(--border); margin-top: 0.5rem; padding-top: 0.5rem;">
+                <div class="nav-divider">
                   <button
                     class="admin-nav-item"
                     onClick={() => {
@@ -116,9 +104,7 @@ export function Layout({ currentPage, onNavigate, onLogout, children, fullWidth 
           </div>
         )}
         {/* Main content */}
-        <main style={`flex: 1; padding: 1.5rem;${fullWidth ? '' : ' max-width: 56rem;'}`}>
-          {children}
-        </main>
+        <main class={fullWidth ? 'main-content' : 'main-content-constrained'}>{children}</main>
       </div>
     </div>
   )

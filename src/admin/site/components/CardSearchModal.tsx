@@ -387,11 +387,7 @@ export const CardSearchModal: FunctionalComponent<CardSearchModalProps> = ({
                 onInput={(e) => handleInputChange(e.currentTarget.value)}
                 onKeyDown={handleSearchKeyDown}
               />
-              <button
-                class="modal-close"
-                onClick={onClose}
-                style="position: absolute; top: 0.5rem; right: 0.75rem; background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer;"
-              >
+              <button class="modal-close modal-close-btn-abs" onClick={onClose}>
                 &times;
               </button>
             </div>
@@ -424,28 +420,17 @@ export const CardSearchModal: FunctionalComponent<CardSearchModalProps> = ({
         {step === 'printing' && (
           <>
             <div class="search-modal-header">
-              <button
-                onClick={goBack}
-                style="background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 0.875rem; padding: 4px 8px;"
-              >
+              <button onClick={goBack} class="search-tab-btn">
                 ← Back
               </button>
-              <h3 style="margin: 0; font-size: 1rem; font-weight: 700; flex: 1;">
-                Select a printing for {selectedCardName}
-              </h3>
-              <button
-                class="modal-close"
-                onClick={onClose}
-                style="background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer;"
-              >
+              <h3 class="modal-heading-flex">Select a printing for {selectedCardName}</h3>
+              <button class="modal-close modal-close-btn" onClick={onClose}>
                 &times;
               </button>
             </div>
             <div class="search-modal-body">
               {loadingPrintings ? (
-                <div style="padding: 24px; text-align: center; color: var(--text-muted);">
-                  Loading printings…
-                </div>
+                <div class="empty-state">Loading printings…</div>
               ) : (
                 <div class="printing-select-grid">
                   {!requirePrinting && (
@@ -462,9 +447,8 @@ export const CardSearchModal: FunctionalComponent<CardSearchModalProps> = ({
                     return (
                       <button
                         key={printing.id}
-                        class={`printing-select-card${i + offset === printingHighlightIndex ? ' printing-select-card--highlighted' : ''}`}
+                        class={`printing-select-card btn-unstyled${i + offset === printingHighlightIndex ? ' printing-select-card--highlighted' : ''}`}
                         onClick={() => selectPrinting(printing)}
-                        style="background: none; padding: 0; text-align: left;"
                       >
                         {imageUrl && <img src={imageUrl} alt={printing.name} loading="lazy" />}
                         <div class="printing-label">
@@ -484,21 +468,14 @@ export const CardSearchModal: FunctionalComponent<CardSearchModalProps> = ({
         {step === 'finish-condition' && selectedPrinting && (
           <>
             <div class="search-modal-header">
-              <button
-                onClick={goBack}
-                style="background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 0.875rem; padding: 4px 8px;"
-              >
+              <button onClick={goBack} class="search-tab-btn">
                 ← Back
               </button>
-              <h3 style="margin: 0; font-size: 1rem; font-weight: 700; flex: 1;">
+              <h3 class="modal-heading-flex">
                 Set finish & condition for {selectedCardName} ({selectedPrinting.set.toUpperCase()}:
                 {selectedPrinting.collector_number})
               </h3>
-              <button
-                class="modal-close"
-                onClick={onClose}
-                style="background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer;"
-              >
+              <button class="modal-close modal-close-btn" onClick={onClose}>
                 &times;
               </button>
             </div>
@@ -551,10 +528,7 @@ export const CardSearchModal: FunctionalComponent<CardSearchModalProps> = ({
                   </div>
                 </div>
 
-                <button
-                  onClick={handleAddWithOptions}
-                  style="width: 100%; padding: 10px; background: var(--green, #22c55e); color: white; border: none; border-radius: 6px; font-size: 0.9375rem; font-weight: 600; cursor: pointer; margin-top: 8px;"
-                >
+                <button onClick={handleAddWithOptions} class="btn-add-card">
                   Add Card
                 </button>
               </div>

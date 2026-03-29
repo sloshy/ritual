@@ -57,7 +57,7 @@ export const OracleText: FunctionalComponent<OracleTextProps> = ({ card, isDFC, 
       <>
         {card.card_faces.map((face, i) => (
           <Fragment key={i}>
-            {i > 0 && <hr className="my-2 border-gray-600" />}
+            {i > 0 && <hr className="dfc-separator" />}
             <div>
               <strong>{face.name}</strong> <em>({face.type_line})</em>
             </div>

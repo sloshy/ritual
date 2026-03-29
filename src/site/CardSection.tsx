@@ -26,7 +26,7 @@ export const CardSection: FunctionalComponent<CardSectionProps> = ({
         <h2>
           <a
             href={`#${sectionId}`}
-            className="hover:underline"
+            className="section-header-link"
             onClick={(e) => {
               e.preventDefault()
               document

@@ -63,7 +63,7 @@ export const Toolbar: FunctionalComponent<ToolbarProps> = ({
   extraCheckboxes,
 }) => {
   return (
-    <div className="mb-4 flex flex-wrap gap-3 items-center text-xs">
+    <div className="toolbar">
       <div className="view-toggle">
         {(['binder', 'list', 'overlap', 'stack'] as ViewMode[]).map((mode) => (
           <button
@@ -91,10 +91,10 @@ export const Toolbar: FunctionalComponent<ToolbarProps> = ({
           ))}
         </div>
       )}
-      <div className="flex items-center gap-1.5">
-        <label className="text-gray-500">Group:</label>
+      <div className="toolbar-group">
+        <label className="toolbar-label">Group:</label>
         <select
-          className="bg-gray-800 text-gray-200 rounded px-2 py-1 border border-gray-700 focus:border-blue-500 outline-none"
+          className="toolbar-select"
           value={groupBy}
           onChange={(e) => onGroupByChange((e.target as HTMLSelectElement).value)}
         >
@@ -106,10 +106,10 @@ export const Toolbar: FunctionalComponent<ToolbarProps> = ({
         </select>
       </div>
       {groupBy === 'price' && (
-        <div className="flex items-center gap-1.5">
-          <label className="text-gray-500">Brackets:</label>
+        <div className="toolbar-group">
+          <label className="toolbar-label">Brackets:</label>
           <select
-            className="bg-gray-800 text-gray-200 rounded px-2 py-1 border border-gray-700 focus:border-blue-500 outline-none"
+            className="toolbar-select"
             value={priceGroupStrategy}
             onChange={(e) =>
               onPriceGroupStrategyChange(
@@ -123,10 +123,10 @@ export const Toolbar: FunctionalComponent<ToolbarProps> = ({
           </select>
         </div>
       )}
-      <div className="flex items-center gap-1.5">
-        <label className="text-gray-500">Sort:</label>
+      <div className="toolbar-group">
+        <label className="toolbar-label">Sort:</label>
         <select
-          className="bg-gray-800 text-gray-200 rounded px-2 py-1 border border-gray-700 focus:border-blue-500 outline-none"
+          className="toolbar-select"
           value={sortBy}
           onChange={(e) => onSortByChange((e.target as HTMLSelectElement).value as SortBy)}
         >
@@ -137,25 +137,17 @@ export const Toolbar: FunctionalComponent<ToolbarProps> = ({
           ))}
         </select>
       </div>
-      <label className="flex items-center gap-1 text-gray-400 cursor-pointer select-none">
-        <input type="checkbox" className="rounded" checked={reverse} onChange={onReverseChange} />
+      <label className="toolbar-checkbox">
+        <input type="checkbox" checked={reverse} onChange={onReverseChange} />
         Reverse
       </label>
-      <label className="flex items-center gap-1 text-gray-400 cursor-pointer select-none">
-        <input
-          type="checkbox"
-          className="rounded"
-          checked={hideLands}
-          onChange={onHideLandsChange}
-        />
+      <label className="toolbar-checkbox">
+        <input type="checkbox" checked={hideLands} onChange={onHideLandsChange} />
         Hide Lands
       </label>
       {extraCheckboxes?.map((cb) => (
-        <label
-          key={cb.label}
-          className="flex items-center gap-1 text-gray-400 cursor-pointer select-none"
-        >
-          <input type="checkbox" className="rounded" checked={cb.checked} onChange={cb.onChange} />
+        <label key={cb.label} className="toolbar-checkbox">
+          <input type="checkbox" checked={cb.checked} onChange={cb.onChange} />
           {cb.label}
         </label>
       ))}

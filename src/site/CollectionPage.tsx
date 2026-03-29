@@ -268,47 +268,36 @@ export const CollectionPage: FunctionalComponent<CollectionPageProps> = ({
   )
 
   return (
-    <div className={editMode ? 'w-full' : 'container mx-auto'}>
+    <div className={editMode ? 'page-full-width' : 'page-container'}>
       {/* Header */}
-      <div className="mb-6 flex flex-wrap justify-between items-start gap-4">
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold text-white">{name}</h1>
-          <p className="text-sm text-gray-400">
+          <h1 className="page-title">{name}</h1>
+          <p className="page-stats">
             {entries.length} cards · Total: {formatPrice(computedTotalPrice, currency)}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="btn-group">
           {editMode && (
-            <button
-              className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-xs font-semibold transition-colors cursor-pointer"
-              onClick={onAddCard}
-            >
+            <button className="site-btn site-btn-add" onClick={onAddCard}>
               + Add Card
             </button>
           )}
           {changelog && changelog.length > 0 && (
             <button
               onClick={() => setShowChangelog(true)}
-              className="btn-view-changes px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs font-semibold transition-colors cursor-pointer"
+              className="site-btn site-btn-secondary btn-view-changes"
             >
               View Changes
             </button>
           )}
           {exportMdPath && (
-            <a
-              href={exportMdPath}
-              download
-              className="px-3 py-1 bg-gray-800 text-gray-200 rounded border border-gray-700 hover:bg-gray-700 text-sm"
-            >
+            <a href={exportMdPath} download className="site-btn-download">
               Download MD
             </a>
           )}
           {exportCsvPath && (
-            <a
-              href={exportCsvPath}
-              download
-              className="px-3 py-1 bg-gray-800 text-gray-200 rounded border border-gray-700 hover:bg-gray-700 text-sm"
-            >
+            <a href={exportCsvPath} download className="site-btn-download">
               Download CSV
             </a>
           )}
@@ -356,7 +345,7 @@ export const CollectionPage: FunctionalComponent<CollectionPageProps> = ({
 
       {/* Card sections */}
       <div
-        className={`space-y-6 ${viewModeClass}`}
+        className={`card-sections ${viewModeClass}`}
         style={`--card-width:${CARD_SIZE_WIDTHS[cardSize]}px`}
       >
         {cardGroups.map((group) => (

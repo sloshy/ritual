@@ -24,11 +24,11 @@ export const IndexPage: FunctionalComponent<IndexPageProps> = ({
   currency,
 }) => {
   return (
-    <div className="container mx-auto">
+    <div className="page-container">
       {activeTab === 'decks' ? (
         <>
-          <h1 className="text-3xl font-bold mb-6 text-white">My Decks</h1>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <h1 className="section-title">My Decks</h1>
+          <div className="card-grid-responsive">
             {decks.map((deck) => {
               const link = `#/deck/${deck.slug}`
               const total = getCurrencyValue(
@@ -50,7 +50,7 @@ export const IndexPage: FunctionalComponent<IndexPageProps> = ({
                 currency,
               )
               return (
-                <a href={link} key={deck.slug} className="block">
+                <a href={link} key={deck.slug} className="card-grid-link">
                   <CoverCard
                     name={deck.name}
                     image={deck.featuredCardImage || null}
@@ -68,8 +68,8 @@ export const IndexPage: FunctionalComponent<IndexPageProps> = ({
         </>
       ) : activeTab === 'collections' ? (
         <>
-          <h1 className="text-3xl font-bold mb-6 text-white">My Collections</h1>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <h1 className="section-title">My Collections</h1>
+          <div className="card-grid-responsive">
             {collections.map((col) => {
               const link = `#/collection/${col.slug}`
               const total = getCurrencyValue(
@@ -85,7 +85,7 @@ export const IndexPage: FunctionalComponent<IndexPageProps> = ({
                 currency,
               )
               return (
-                <a href={link} key={col.slug} className="block">
+                <a href={link} key={col.slug} className="card-grid-link">
                   <CoverCard
                     name={col.name}
                     image={col.featuredCardImage || null}
@@ -99,8 +99,8 @@ export const IndexPage: FunctionalComponent<IndexPageProps> = ({
         </>
       ) : (
         <>
-          <h1 className="text-3xl font-bold mb-6 text-white">My Wanted Lists</h1>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <h1 className="section-title">My Wanted Lists</h1>
+          <div className="card-grid-responsive">
             {wantedLists.map((wl) => {
               const link = `#/wanted/${wl.slug}`
               const total = getCurrencyValue(
@@ -116,7 +116,7 @@ export const IndexPage: FunctionalComponent<IndexPageProps> = ({
                 currency,
               )
               return (
-                <a href={link} key={wl.slug} className="block">
+                <a href={link} key={wl.slug} className="card-grid-link">
                   <CoverCard
                     name={wl.name}
                     image={wl.featuredCardImage || null}

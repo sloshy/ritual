@@ -143,22 +143,18 @@ export function CacheRefresh() {
 
       {/* Progress section */}
       {isRunning && (
-        <div style="background: var(--bg-panel); border: 1px solid var(--border); border-radius: 0.5rem; padding: 1.25rem; margin-bottom: 1rem;">
+        <div class="progress-section">
           {/* Progress bar (visible during download) */}
           {stage === 'download' && (
-            <div style="margin-bottom: 1rem;">
-              <div style="display: flex; justify-content: space-between; margin-bottom: 0.375rem; font-size: 0.8125rem;">
-                <span style="color: var(--text-accent);">Downloading</span>
-                <span style="color: var(--text-secondary);">{percentage}%</span>
+            <div class="progress-gap">
+              <div class="progress-label">
+                <span class="text-accent">Downloading</span>
+                <span class="text-secondary">{percentage}%</span>
               </div>
               <div class="progress-track">
                 <div class="progress-fill" style={`width: ${percentage}%;`} />
               </div>
-              {progressMessage && (
-                <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.375rem; font-family: monospace;">
-                  {progressMessage}
-                </p>
-              )}
+              {progressMessage && <p class="progress-message">{progressMessage}</p>}
             </div>
           )}
 
@@ -179,12 +175,7 @@ export function CacheRefresh() {
         </div>
       )}
 
-      <button
-        class="btn btn-primary"
-        style="padding: 0.75rem 1.5rem;"
-        onClick={handleRefresh}
-        disabled={isRunning}
-      >
+      <button class="btn btn-primary btn-lg" onClick={handleRefresh} disabled={isRunning}>
         {isRunning ? 'Refreshing...' : 'Refresh Cache'}
       </button>
     </div>

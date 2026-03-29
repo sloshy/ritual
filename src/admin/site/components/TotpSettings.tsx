@@ -103,44 +103,31 @@ export function TotpSettings() {
 
       {totpEnabled ? (
         <div>
-          <p style="font-size: 0.8125rem; color: var(--success-text); margin-bottom: 0.5rem;">
-            ✓ TOTP is enabled
-          </p>
+          <p class="totp-status text-success">✓ TOTP is enabled</p>
           <button class="btn btn-danger" onClick={handleDisable} disabled={loading}>
             {loading ? 'Disabling...' : 'Disable TOTP'}
           </button>
         </div>
       ) : totpSetup ? (
-        <div class="space-y-3">
-          <p style="font-size: 0.8125rem; color: var(--text-secondary);">
-            Add this account to your authenticator app:
-          </p>
-          <div style="background: var(--bg-hover); padding: 0.75rem; border-radius: 0.375rem;">
-            <p class="form-hint" style="margin-bottom: 0.25rem;">
-              Secret key (manual entry):
-            </p>
-            <code style="font-size: 0.8125rem; color: oklch(75% 0.15 85); font-family: monospace; word-break: break-all; user-select: all;">
-              {totpSetup.secret}
-            </code>
+        <div class="totp-setup">
+          <p class="totp-instruction">Add this account to your authenticator app:</p>
+          <div class="code-container">
+            <p class="form-hint">Secret key (manual entry):</p>
+            <code class="code-display">{totpSetup.secret}</code>
           </div>
-          <div style="background: var(--bg-hover); padding: 0.75rem; border-radius: 0.375rem;">
-            <p class="form-hint" style="margin-bottom: 0.25rem;">
-              URI (for QR code generators):
-            </p>
-            <code style="font-size: 0.75rem; color: var(--text-secondary); font-family: monospace; word-break: break-all; user-select: all;">
-              {totpSetup.uri}
-            </code>
+          <div class="code-container">
+            <p class="form-hint">URI (for QR code generators):</p>
+            <code class="code-display-sm">{totpSetup.uri}</code>
           </div>
           <div>
             <label class="form-label">Enter code from authenticator to verify:</label>
-            <div class="flex gap-2">
+            <div class="totp-verify-row">
               <input
                 type="text"
                 inputMode="numeric"
                 pattern="[0-9]*"
                 maxLength={6}
-                class="form-input"
-                style="width: 8rem; font-family: monospace; letter-spacing: 0.15em; text-align: center;"
+                class="form-input input-code-wide"
                 value={totpCode}
                 onInput={(e) => setTotpCode(e.currentTarget.value)}
                 placeholder="000000"

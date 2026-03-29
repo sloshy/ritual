@@ -16,12 +16,7 @@ export function BuildSite() {
         Generate the static website from your deck files. This may take a few minutes.
       </p>
       <StatusAlerts status={status} error={error} />
-      <button
-        class="btn btn-primary"
-        style="padding: 0.75rem 1.5rem;"
-        onClick={handleBuild}
-        disabled={loading}
-      >
+      <button class="btn btn-primary btn-lg" onClick={handleBuild} disabled={loading}>
         {loading ? 'Building... (this may take a while)' : 'Build Site'}
       </button>
     </div>

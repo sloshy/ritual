@@ -39,13 +39,8 @@ export const DiscardConfirmDialog: FunctionalComponent<DiscardConfirmDialogProps
         <h3>
           Discard {changes.length} change{changes.length !== 1 ? 's' : ''}?
         </h3>
-        <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 12px;">
-          The following changes will be lost:
-        </p>
-        <div
-          class="changes-dialog"
-          style="max-height: 200px; margin-bottom: 16px; border: 1px solid var(--border); border-radius: 6px;"
-        >
+        <p class="dialog-message">The following changes will be lost:</p>
+        <div class="changes-dialog changes-list-box">
           {changes.map((change) => {
             const additive = isAdditiveChange(change.action)
             return (

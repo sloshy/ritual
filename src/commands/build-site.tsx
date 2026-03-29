@@ -1359,7 +1359,7 @@ export function registerBuildSiteCommand(program: Command) {
   <link rel="icon" type="image/svg+xml" href="app.svg">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body class="min-h-screen bg-gray-900 text-gray-100 font-sans">
+<body>
   <div id="app"></div>
   <script type="module" src="app.js"></script>
 </body>

@@ -116,17 +116,15 @@ export function AuthGuard(props: AuthGuardProps) {
   }
 
   return (
-    <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--bg-body);">
-      <div style="background: var(--bg-panel); padding: 1.5rem; border-radius: 0.5rem; border: 1px solid var(--border); width: 100%; max-width: 24rem; margin: 0 1rem;">
-        <h1 style="font-size: 1.25rem; font-weight: 700; color: var(--text-accent); margin-bottom: 0.25rem; text-align: center;">
-          ⚗️ Ritual Admin
-        </h1>
-        <p style="color: var(--text-muted); font-size: 0.8125rem; text-align: center; margin-bottom: 1rem;">
+    <div class="login-page">
+      <div class="login-card">
+        <h1 class="login-title">⚗️ Ritual Admin</h1>
+        <p class="login-subtitle">
           {isLogin ? 'Sign in to continue' : 'Create your admin account'}
         </p>
         {error && <div class="alert alert-error">{error}</div>}
         <form onSubmit={handleSubmit}>
-          <div style="margin-bottom: 0.75rem;">
+          <div class="form-group">
             <label class="form-label">Username</label>
             <input
               type="text"
@@ -136,7 +134,7 @@ export function AuthGuard(props: AuthGuardProps) {
               autoFocus
             />
           </div>
-          <div style="margin-bottom: 0.75rem;">
+          <div class="form-group">
             <label class="form-label">Password</label>
             <input
               type="password"
@@ -146,15 +144,14 @@ export function AuthGuard(props: AuthGuardProps) {
             />
           </div>
           {showTotp && (
-            <div style="margin-bottom: 0.75rem;">
+            <div class="form-group">
               <label class="form-label">Two-Factor Code</label>
               <input
                 type="text"
                 inputMode="numeric"
                 pattern="[0-9]*"
                 maxLength={6}
-                class="form-input"
-                style="letter-spacing: 0.15em; text-align: center; font-family: monospace;"
+                class="form-input input-code"
                 value={totpCode}
                 onInput={(e) => setTotpCode(e.currentTarget.value)}
                 placeholder="000000"
@@ -162,12 +159,8 @@ export function AuthGuard(props: AuthGuardProps) {
               />
             </div>
           )}
-          {!isLogin && (
-            <p class="form-hint" style="margin-bottom: 0.75rem;">
-              Password must be at least 4 characters.
-            </p>
-          )}
-          <button type="submit" class="btn btn-primary" style="width: 100%;" disabled={loading}>
+          {!isLogin && <p class="form-hint auth-hint">Password must be at least 4 characters.</p>}
+          <button type="submit" class="btn btn-primary btn-full" disabled={loading}>
             {loading ? 'Please wait...' : isLogin ? 'Sign In' : 'Create Account'}
           </button>
         </form>

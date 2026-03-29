@@ -70,20 +70,16 @@ export const ChangesDialog: FunctionalComponent<ChangesDialogProps> = ({
       onClose={onClose}
       onClick={handleBackdropClick}
     >
-      <div class="search-modal" style="max-width: 500px;">
+      <div class="search-modal changes-modal">
         <div class="search-modal-header">
-          <h3 style="margin: 0; font-size: 1rem; font-weight: 700;">
-            Pending Changes ({changes.length})
-          </h3>
+          <h3 class="modal-heading">Pending Changes ({changes.length})</h3>
           <button type="button" class="modal-close" onClick={() => dialogRef.current?.close()}>
             &times;
           </button>
         </div>
         <div class="changes-dialog">
           {changes.length === 0 ? (
-            <div style="padding: 24px; text-align: center; color: var(--text-muted);">
-              No pending changes
-            </div>
+            <div class="empty-state">No pending changes</div>
           ) : (
             changes.map((change) => {
               const additive = isAdditiveChange(change.action)

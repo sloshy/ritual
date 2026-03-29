@@ -31,7 +31,13 @@
 }
 
 body {
-  @apply bg-gray-900 text-gray-100 font-sans;
+  background-color: #111827;
+  color: #f3f4f6;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    sans-serif;
 }
 
 /* ===== Mana symbol images ===== */
@@ -46,7 +52,7 @@ body {
 h1,
 h2,
 h3 {
-  @apply font-bold;
+  font-weight: 700;
 }
 
 /* ===== View mode toggle buttons ===== */

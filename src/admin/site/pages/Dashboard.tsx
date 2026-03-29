@@ -56,7 +56,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   return (
     <div>
       <h2 class="section-heading">Dashboard</h2>
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div class="admin-grid">
         {actions.map((action) => (
           <button key={action.id} class="admin-card" onClick={() => onNavigate(action.id)}>
             <div class="admin-card-icon">{action.icon}</div>

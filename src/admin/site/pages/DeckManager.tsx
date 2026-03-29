@@ -131,7 +131,7 @@ export function DeckManager() {
     return (
       <div>
         <h2 class="section-heading">🗂️ Deck Manager</h2>
-        <p style="color: var(--color-danger);">{loadError}</p>
+        <p class="text-danger">{loadError}</p>
       </div>
     )
   }
@@ -143,7 +143,7 @@ export function DeckManager() {
 
       {view === 'list' && (
         <div>
-          <div style="margin-bottom: 1rem;">
+          <div class="deck-manager-actions">
             <button
               class="btn btn-primary"
               onClick={() => {
@@ -156,33 +156,20 @@ export function DeckManager() {
           </div>
 
           {decks.length === 0 ? (
-            <p style="color: var(--text-muted);">No decks found.</p>
+            <p class="text-muted">No decks found.</p>
           ) : (
-            <div class="space-y-2">
+            <div class="deck-list">
               {decks.map((deck) => (
-                <div
-                  key={deck.slug}
-                  style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 0.375rem;"
-                >
+                <div key={deck.slug} class="deck-list-item">
                   <div>
-                    <span style="font-weight: 500;">{deck.name}</span>
-                    <span style="margin-left: 0.5rem; font-size: 0.75rem; color: var(--text-muted);">
-                      {deck.slug}
-                    </span>
+                    <span class="deck-name">{deck.name}</span>
+                    <span class="deck-slug">{deck.slug}</span>
                   </div>
-                  <div style="display: flex; gap: 0.5rem;">
-                    <button
-                      class="btn btn-secondary"
-                      style="padding: 0.25rem 0.75rem; font-size: 0.8125rem;"
-                      onClick={() => openRename(deck)}
-                    >
+                  <div class="deck-list-actions">
+                    <button class="btn btn-secondary btn-sm" onClick={() => openRename(deck)}>
                       Rename
                     </button>
-                    <button
-                      class="btn"
-                      style="padding: 0.25rem 0.75rem; font-size: 0.8125rem; background: var(--color-danger); color: white; border: none; border-radius: 0.25rem; cursor: pointer;"
-                      onClick={() => openDelete(deck)}
-                    >
+                    <button class="btn btn-danger btn-sm" onClick={() => openDelete(deck)}>
                       Delete
                     </button>
                   </div>
@@ -194,7 +181,7 @@ export function DeckManager() {
       )}
 
       {view === 'create' && (
-        <div class="space-y-4 max-w-lg">
+        <div class="form-container">
           <h3 class="section-subheading">Create New Deck</h3>
           <div>
             <label class="form-label">Deck Name</label>
@@ -211,7 +198,7 @@ export function DeckManager() {
               autoFocus
             />
             {newName.trim() && (
-              <p class="form-hint" style="margin-top: 0.25rem;">
+              <p class="form-hint form-hint-top">
                 Slug: <code>{slugify(newName)}</code>
               </p>
             )}
@@ -235,7 +222,7 @@ export function DeckManager() {
               <option value="other">Other</option>
             </select>
           </div>
-          <div style="display: flex; gap: 0.5rem;">
+          <div class="form-actions">
             <button
               class="btn btn-primary"
               onClick={handleCreate}
@@ -251,9 +238,9 @@ export function DeckManager() {
       )}
 
       {view === 'rename' && selectedDeck && (
-        <div class="space-y-4 max-w-lg">
+        <div class="form-container">
           <h3 class="section-subheading">Rename Deck</h3>
-          <p style="color: var(--text-muted);">
+          <p class="text-muted">
             Renaming: <strong>{selectedDeck.name}</strong>
           </p>
           <div>
@@ -270,12 +257,12 @@ export function DeckManager() {
               autoFocus
             />
             {renameName.trim() && (
-              <p class="form-hint" style="margin-top: 0.25rem;">
+              <p class="form-hint form-hint-top">
                 New slug: <code>{slugify(renameName)}</code>
               </p>
             )}
           </div>
-          <div style="display: flex; gap: 0.5rem;">
+          <div class="form-actions">
             <button
               class="btn btn-primary"
               onClick={handleRename}
@@ -291,12 +278,10 @@ export function DeckManager() {
       )}
 
       {view === 'delete' && selectedDeck && (
-        <div class="space-y-4 max-w-lg">
-          <h3 class="section-subheading" style="color: var(--color-danger);">
-            Delete Deck
-          </h3>
-          <div style="padding: 0.75rem 1rem; background: color-mix(in srgb, var(--color-danger) 10%, transparent); border: 1px solid var(--color-danger); border-radius: 0.375rem;">
-            <p style="margin: 0; font-weight: 500;">
+        <div class="form-container">
+          <h3 class="section-subheading text-danger">Delete Deck</h3>
+          <div class="delete-warning-box">
+            <p>
               This will permanently delete <strong>{selectedDeck.name}</strong> and its changelog.
               This cannot be undone.
             </p>
@@ -318,10 +303,9 @@ export function DeckManager() {
               autoFocus
             />
           </div>
-          <div style="display: flex; gap: 0.5rem;">
+          <div class="form-actions">
             <button
-              class="btn"
-              style="background: var(--color-danger); color: white; border: none; border-radius: 0.25rem; cursor: pointer; padding: 0.5rem 1rem; font-size: 0.875rem; opacity: 1;"
+              class="btn btn-delete"
               onClick={handleDelete}
               disabled={loading || deleteConfirm !== selectedDeck.name}
             >

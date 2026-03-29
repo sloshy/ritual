@@ -1,4 +1,39 @@
-@import 'tailwindcss';
+@import '../css/reset.css';
+
+/* ===== Theme Variables ===== */
+:root {
+  /* Backgrounds */
+  --bg-body: oklch(20% 0.02 260);
+  --bg-input: oklch(24% 0.02 260);
+  --bg-input-hover: oklch(30% 0.03 260);
+
+  /* Borders */
+  --border: oklch(30% 0.02 260);
+  --border-focus: oklch(58% 0.16 265);
+
+  /* Text */
+  --text-primary: oklch(95% 0.005 260);
+  --text-body: oklch(85% 0.01 260);
+  --text-secondary: oklch(70% 0.01 260);
+  --text-muted: oklch(55% 0.01 260);
+  --text-dim: oklch(40% 0.01 260);
+
+  /* Accent */
+  --accent: oklch(68% 0.15 265);
+  --accent-hover: oklch(72% 0.15 265);
+
+  /* Buttons */
+  --btn-add: oklch(52% 0.16 155);
+  --btn-add-hover: oklch(60% 0.16 155);
+  --btn-secondary: oklch(30% 0.02 260);
+  --btn-secondary-hover: oklch(38% 0.02 260);
+  --btn-export: oklch(50% 0.18 265);
+  --btn-export-hover: oklch(58% 0.16 265);
+
+  /* Semantic */
+  --error: oklch(65% 0.2 25);
+  --border-separator: oklch(25% 0.02 260);
+}
 
 /* ===== Page transitions ===== */
 .page-transition {
@@ -32,8 +67,456 @@
   }
 }
 
+.app-padding {
+  padding: 1.5rem 2rem;
+}
+
+.flex-center-40vh {
+  min-height: 40vh;
+}
+
 body {
-  @apply bg-gray-900 text-gray-100 font-sans;
+  background-color: var(--bg-body);
+  color: var(--text-body);
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    sans-serif;
+  min-height: 100vh;
+}
+
+/* ===== Site Layout ===== */
+.site-app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.site-header {
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.site-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-secondary);
+  transition: color 150ms;
+  text-decoration: none;
+}
+
+.site-logo:hover {
+  color: var(--text-primary);
+}
+
+.site-logo-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.site-logo-text {
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.site-nav-sep {
+  color: var(--text-dim);
+}
+
+.site-nav {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.site-nav-link {
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: color 150ms;
+  text-decoration: none;
+}
+
+.site-nav-link-active {
+  color: var(--text-primary);
+}
+
+.site-nav-link-inactive {
+  color: var(--text-secondary);
+}
+
+.site-nav-link-inactive:hover {
+  color: var(--text-body);
+}
+
+.currency-selector {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.currency-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.currency-select {
+  background-color: var(--bg-input);
+  color: var(--text-body);
+  border-radius: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  outline: none;
+  font-size: 0.75rem;
+}
+
+.currency-select:focus {
+  border-color: var(--border-focus);
+}
+
+.prices-date {
+  margin-bottom: 1rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.site-main {
+  flex-grow: 1;
+}
+
+.site-footer {
+  margin-top: 3rem;
+  border-top: 1px solid var(--border-separator);
+  padding-top: 1.5rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.site-footer a {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  color: var(--text-primary);
+}
+
+/* ===== Page Structure ===== */
+.page-container {
+  max-width: 80rem;
+  margin: 0 auto;
+}
+
+.page-full-width {
+  width: 100%;
+}
+
+.page-header {
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.page-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.section-title {
+  font-size: 1.875rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+  color: var(--text-primary);
+}
+
+.page-stats {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.page-stats-label {
+  color: var(--text-muted);
+}
+
+.btn-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* ===== Site Buttons ===== */
+.site-btn {
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition: background-color 150ms;
+  cursor: pointer;
+  border: none;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.site-btn-add {
+  background-color: var(--btn-add);
+  color: var(--text-primary);
+}
+
+.site-btn-add:hover {
+  background-color: var(--btn-add-hover);
+}
+
+.site-btn-secondary {
+  background-color: var(--text-dim);
+  color: var(--text-primary);
+}
+
+.site-btn-secondary:hover {
+  background-color: var(--btn-secondary-hover);
+}
+
+.site-btn-export {
+  background-color: var(--btn-export);
+  color: var(--text-primary);
+}
+
+.site-btn-export:hover {
+  background-color: var(--accent-hover);
+}
+
+.site-btn-download {
+  padding: 0.25rem 0.75rem;
+  background-color: var(--bg-input);
+  color: var(--text-body);
+  border-radius: 0.25rem;
+  border: 1px solid var(--border);
+  font-size: 0.875rem;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.site-btn-download:hover {
+  background-color: var(--text-dim);
+}
+
+/* ===== Toolbar ===== */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.toolbar-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.toolbar-select {
+  background-color: var(--bg-input);
+  color: var(--text-body);
+  border-radius: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  outline: none;
+  font-size: 0.75rem;
+}
+
+.toolbar-select:focus {
+  border-color: var(--border-focus);
+}
+
+.toolbar-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.75rem;
+}
+
+/* ===== Content Helpers ===== */
+.card-sections > * + * {
+  margin-top: 1.5rem;
+}
+
+.card-grid-responsive {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .card-grid-responsive {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .card-grid-responsive {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.text-preformatted {
+  white-space: pre-wrap;
+}
+
+.link-action {
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.75rem;
+  text-decoration: none;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.link-action:hover {
+  text-decoration: underline;
+}
+
+.link-action-block {
+  display: block;
+  margin-top: 1rem;
+}
+
+.copy-link {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.copy-link:hover {
+  color: var(--text-primary);
+}
+
+.text-hint {
+  color: var(--text-secondary);
+  font-style: italic;
+  font-size: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+/* ===== Missing Cards ===== */
+.missing-section {
+  margin-bottom: 1.5rem;
+}
+
+.missing-label {
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  color: var(--text-body);
+}
+
+.missing-details {
+  font-size: 0.875rem;
+  color: var(--text-body);
+}
+
+.missing-toggle-label {
+  flex: 1;
+  text-align: left;
+}
+
+.missing-toggle-arrow {
+  font-size: 0.75rem;
+}
+
+/* ===== Loading / Error States ===== */
+.loading-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40vh;
+}
+
+.error-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40vh;
+  color: var(--error);
+  font-size: 0.875rem;
+}
+
+/* ===== Cover Card Placeholder ===== */
+.cover-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-dim);
+  font-size: 0.875rem;
+}
+
+/* ===== Card Empty Label ===== */
+.card-empty-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* ===== Deck Description / Primer ===== */
+.deck-description-section {
+  margin-bottom: 1.5rem;
+}
+
+.deck-description {
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  color: var(--text-body);
+}
+
+.deck-primer {
+  font-size: 0.875rem;
+  color: var(--text-body);
+}
+
+/* ===== Card Grid Links ===== */
+.card-grid-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
+/* ===== Section Header Link ===== */
+.section-header-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.section-header-link:hover {
+  text-decoration: underline;
+}
+
+/* ===== Toolbar Checkbox Input ===== */
+.toolbar-checkbox input[type='checkbox'] {
+  border-radius: 0.25rem;
+}
+
+/* ===== DFC Card Face Separator ===== */
+.dfc-separator {
+  margin: 0.5rem 0;
+  border-color: var(--border);
 }
 
 /* ===== Mana symbol images ===== */
@@ -48,7 +531,7 @@ body {
 h1,
 h2,
 h3 {
-  @apply font-bold;
+  font-weight: 700;
 }
 
 /* ===== View mode toggle buttons ===== */

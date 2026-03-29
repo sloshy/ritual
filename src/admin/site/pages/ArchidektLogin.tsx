@@ -33,7 +33,7 @@ export function ArchidektLogin() {
         authentication.
       </p>
       <StatusAlerts status={status} error={error} />
-      <form onSubmit={handleLogin} class="space-y-4 max-w-lg">
+      <form onSubmit={handleLogin} class="form-container">
         <div>
           <label class="form-label">Username or Email</label>
           <input

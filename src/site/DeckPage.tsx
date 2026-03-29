@@ -275,27 +275,22 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
   }, [modalCardName, modalCard, printings])
 
   return (
-    <div className={editMode ? 'w-full' : 'container mx-auto'}>
+    <div className={editMode ? 'page-full-width' : 'page-container'}>
       {/* Header */}
-      <div className="mb-6 flex flex-wrap justify-between items-start gap-4">
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold text-white">{deck.name}</h1>
-          <p className="text-sm text-gray-400">
+          <h1 className="page-title">{deck.name}</h1>
+          <p className="page-stats">
             Total: {formatPrice(totalPrice, currency)}
             {!hideExtras && extraCards.length > 0 && (
-              <span className="text-gray-500">
+              <span className="page-stats-label">
                 {' '}
                 (all cards: {formatPrice(totalPrice + extrasPrice, currency)})
               </span>
             )}
           </p>
           {deck.sourceUrl && (
-            <a
-              href={deck.sourceUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs text-gray-400 hover:text-white"
-            >
+            <a href={deck.sourceUrl} target="_blank" rel="noreferrer" className="copy-link">
               Imported from{' '}
               {(() => {
                 if (deck.sourceUrl.includes('moxfield.com')) return 'Moxfield'
@@ -308,19 +303,16 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
           )}
         </div>
         {(exportPath || editMode || (changelog && changelog.length > 0)) && (
-          <div className="flex gap-2">
+          <div className="btn-group">
             {editMode && (
-              <button
-                className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-xs font-semibold transition-colors cursor-pointer"
-                onClick={onAddCard}
-              >
+              <button className="site-btn site-btn-add" onClick={onAddCard}>
                 + Add Card
               </button>
             )}
             {changelog && changelog.length > 0 && (
               <button
                 onClick={() => setShowChangelog(true)}
-                className="btn-view-changes px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs font-semibold transition-colors cursor-pointer"
+                className="site-btn site-btn-secondary btn-view-changes"
               >
                 View Changes
               </button>
@@ -329,16 +321,13 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
               <a
                 href={exportPath}
                 download={`${deck.name.replace(/[^a-zA-Z0-9]/g, '_')}.txt`}
-                className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs font-semibold transition-colors"
+                className="site-btn site-btn-secondary"
               >
                 Download
               </a>
             )}
             {exportPath && (
-              <button
-                onClick={handleCopy}
-                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-semibold transition-colors cursor-pointer"
-              >
+              <button onClick={handleCopy} className="site-btn site-btn-export">
                 {copyStatus ?? 'Copy'}
               </button>
             )}
@@ -397,20 +386,20 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
 
       {/* Description / Primer */}
       {(deck.description || deck.primer) && (
-        <div className="mb-6">
+        <div className="deck-description-section">
           {deck.description && (
-            <div className="mb-4 text-sm text-gray-300">
+            <div className="deck-description">
               {deck.description.length > 200 ? (
                 <ExpandableText text={deck.description} symbolMap={symbolMap} />
               ) : (
-                <div className="whitespace-pre-wrap">
+                <div className="text-preformatted">
                   <SymbolText text={deck.description} symbolMap={symbolMap} />
                 </div>
               )}
             </div>
           )}
           {deck.primer && (
-            <div className="text-sm text-gray-300">
+            <div className="deck-primer">
               <ExpandablePrimer
                 primer={deck.primer}
                 slug={slug}
@@ -433,11 +422,11 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
             onClick={() => setMissingCardsExpanded((prev) => !prev)}
           >
             <span>⚠️</span>
-            <span className="flex-1 text-left">
+            <span className="missing-toggle-label">
               {currentMissingCards.length} card{currentMissingCards.length > 1 ? 's' : ''} missing{' '}
               {currency.toUpperCase()} pricing
             </span>
-            <span className="text-xs">{missingCardsExpanded ? '▲' : '▼'}</span>
+            <span className="missing-toggle-arrow">{missingCardsExpanded ? '▲' : '▼'}</span>
           </button>
           {missingCardsExpanded && (
             <div className="missing-cards-banner-list">
@@ -453,7 +442,7 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
 
       {/* Card sections */}
       <div
-        className={`space-y-6 ${viewModeClass}`}
+        className={`card-sections ${viewModeClass}`}
         style={`--card-width:${CARD_SIZE_WIDTHS[cardSize]}px`}
       >
         {/* Commander section always shown first */}
@@ -562,13 +551,10 @@ function ExpandableText({ text, symbolMap }: ExpandableTextProps) {
 
   return (
     <div>
-      <div className="whitespace-pre-wrap">
+      <div className="text-preformatted">
         <SymbolText text={expanded ? text : text.slice(0, 200) + '…'} symbolMap={symbolMap} />
       </div>
-      <button
-        className="text-blue-400 cursor-pointer text-xs hover:underline"
-        onClick={() => setExpanded((prev) => !prev)}
-      >
+      <button className="link-action" onClick={() => setExpanded((prev) => !prev)}>
         {expanded ? 'Show less' : 'Read more'}
       </button>
     </div>
@@ -617,9 +603,9 @@ function ExpandablePrimer({
     <div>
       {!expanded ? (
         <div>
-          <p className="text-gray-400 italic text-xs mb-1">This deck has a primer.</p>
+          <p className="text-hint">This deck has a primer.</p>
           <button
-            className="text-blue-400 cursor-pointer text-xs hover:underline"
+            className="link-action"
             aria-expanded={false}
             onClick={() => {
               setExpanded(true)
@@ -647,7 +633,7 @@ function ExpandablePrimer({
             <PrimerRenderer primerMarkdown={primer} cards={cards} onOpenModal={onOpenModal} />
           </div>
           <button
-            className="text-blue-400 cursor-pointer text-xs hover:underline mt-4 block"
+            className="link-action link-action-block"
             aria-expanded={true}
             onClick={() => {
               setExpanded(false)

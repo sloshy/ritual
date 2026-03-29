@@ -6,7 +6,8 @@ describe('getBundledSiteAssets', () => {
     const assets = getBundledSiteAssets()
 
     expect(assets.appSvg.trimStart().startsWith('<svg')).toBeTrue()
-    expect(assets.stylesSourceCss).toContain('.bg-gray-900')
+    expect(assets.stylesSourceCss).toContain('.page-container')
     expect(assets.stylesSourceCss).not.toContain("@import 'tailwindcss';")
+    expect(assets.stylesSourceCss).not.toContain('.bg-gray-900')
   })
 })

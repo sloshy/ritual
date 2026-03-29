@@ -215,7 +215,7 @@ export const CardModal: FunctionalComponent<CardModalProps> = ({
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="card-modal" style="position:relative;">
+      <div className="card-modal">
         <button className="modal-close" aria-label="Close" onClick={onClose}>
           &times;
         </button>

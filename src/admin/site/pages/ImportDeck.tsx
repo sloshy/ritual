@@ -29,7 +29,7 @@ export function ImportDeck() {
     <div>
       <h2 class="section-heading">📥 Import Deck</h2>
       <StatusAlerts status={status} error={error} />
-      <form onSubmit={handleImport} class="space-y-4 max-w-lg">
+      <form onSubmit={handleImport} class="form-container">
         <div>
           <label class="form-label">Deck URL or File Path</label>
           <input
@@ -39,14 +39,13 @@ export function ImportDeck() {
             onInput={(e) => setSource(e.currentTarget.value)}
             placeholder="https://archidekt.com/decks/..."
           />
-          <p class="form-hint mt-1">Supports Archidekt, Moxfield, and MTGGoldfish URLs</p>
+          <p class="form-hint form-hint-top">Supports Archidekt, Moxfield, and MTGGoldfish URLs</p>
         </div>
-        <label class="flex items-center gap-2 text-sm text-gray-300">
+        <label class="checkbox-label">
           <input
             type="checkbox"
             checked={overwrite}
             onChange={(e) => setOverwrite(e.currentTarget.checked)}
-            class="rounded bg-gray-700 border-gray-600"
           />
           Overwrite existing deck if it exists
         </label>

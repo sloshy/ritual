@@ -415,17 +415,9 @@ export function DeckEditor() {
       </div>
 
       {/* Status messages */}
-      {error && (
-        <div class="alert alert-error" style="margin-bottom: 1rem;">
-          {error}
-        </div>
-      )}
-      {saveStatus && (
-        <div class="alert alert-success" style="margin-bottom: 1rem;">
-          {saveStatus}
-        </div>
-      )}
-      {loading && <p style="color: var(--text-muted);">Loading deck...</p>}
+      {error && <div class="alert alert-error">{error}</div>}
+      {saveStatus && <div class="alert alert-success">{saveStatus}</div>}
+      {loading && <p class="text-muted">Loading deck...</p>}
 
       {/* Deck content */}
       {deckData && deckSlug && !loading && (
