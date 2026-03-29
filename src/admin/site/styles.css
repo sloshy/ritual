@@ -913,6 +913,27 @@ body {
   background: var(--btn-hover);
 }
 
+.btn-undo {
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  border: 1px solid var(--border);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-undo:hover:not(:disabled) {
+  background: var(--btn-hover);
+}
+
+.btn-undo:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* Discard confirmation modal */
 .confirm-dialog-backdrop {
   position: fixed;
@@ -1490,4 +1511,196 @@ dialog.discard-dialog-native[open] {
 .deck-list-actions {
   display: flex;
   gap: 0.5rem;
+}
+
+/* ===== Site Component Styles (used by embedded public-site components in admin editor) ===== */
+
+.btn-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.site-btn {
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition: background-color 150ms;
+  cursor: pointer;
+  border: none;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.site-btn-add {
+  background-color: var(--btn-add);
+  color: var(--text-primary);
+}
+
+.site-btn-add:hover {
+  background-color: var(--btn-add-hover);
+}
+
+.site-btn-secondary {
+  background-color: var(--btn-bg);
+  color: var(--text-primary);
+}
+
+.site-btn-secondary:hover {
+  background-color: var(--btn-hover);
+}
+
+.site-btn-export {
+  background-color: var(--btn-export);
+  color: var(--text-primary);
+}
+
+.site-btn-export:hover {
+  background-color: var(--accent-hover);
+}
+
+.site-btn-download {
+  padding: 0.25rem 0.75rem;
+  background-color: var(--bg-panel);
+  color: var(--text-body);
+  border-radius: 0.25rem;
+  border: 1px solid var(--border);
+  font-size: 0.875rem;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.site-btn-download:hover {
+  background-color: var(--btn-bg);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.toolbar-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.toolbar-select {
+  background-color: var(--bg-panel);
+  color: var(--text-body);
+  border-radius: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  outline: none;
+  font-size: 0.75rem;
+}
+
+.toolbar-select:focus {
+  border-color: var(--border-focus);
+}
+
+.toolbar-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.75rem;
+}
+
+.toolbar-checkbox input[type='checkbox'] {
+  border-radius: 0.25rem;
+}
+
+.view-toggle {
+  display: inline-flex;
+  border: 1px solid oklch(35% 0.03 260);
+  border-radius: 0.375rem;
+  overflow: hidden;
+}
+
+.view-toggle button {
+  background: oklch(24% 0.025 260);
+  border: none;
+  color: oklch(55% 0.02 260);
+  font-size: 0.7rem;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  transition:
+    background 0.1s,
+    color 0.1s;
+  line-height: 1;
+}
+
+.view-toggle button:not(:last-child) {
+  border-right: 1px solid oklch(35% 0.03 260);
+}
+
+.view-toggle button:hover {
+  background: oklch(30% 0.025 260);
+  color: oklch(75% 0.02 260);
+}
+
+.view-toggle button.active {
+  background: oklch(38% 0.06 280);
+  color: white;
+}
+
+.link-action {
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.75rem;
+  text-decoration: none;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.link-action:hover {
+  text-decoration: underline;
+}
+
+.link-action-block {
+  display: block;
+  margin-top: 1rem;
+}
+
+.missing-cards-banner {
+  margin-bottom: 1rem;
+  border: 1px solid #b59420;
+  border-radius: 0.5rem;
+  background: rgba(181, 148, 32, 0.1);
+}
+
+.missing-cards-banner-toggle {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  color: #e5c34a;
+  cursor: pointer;
+  font-size: 0.8125rem;
+}
+
+.missing-cards-banner-list {
+  padding: 0 0.75rem 0.5rem;
+  color: #c9a82e;
+  font-size: 0.75rem;
+}
+
+.missing-cards-banner-list ul {
+  margin: 0;
+  padding-left: 1.25rem;
 }
