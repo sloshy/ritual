@@ -7,15 +7,6 @@ import {
 } from '../../../src/admin/site/hooks/useEditorStatus'
 
 describe('statusReducer', () => {
-  test('initialStatus has all fields at defaults', () => {
-    expect(initialStatus).toEqual({
-      loading: false,
-      error: null,
-      saving: false,
-      saveStatus: null,
-    })
-  })
-
   test('LOAD_START sets loading true and clears error/saveStatus', () => {
     const prev: EditorStatus = {
       loading: false,

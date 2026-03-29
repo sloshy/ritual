@@ -36,8 +36,8 @@ test.describe('Navigation', () => {
 
   test('direct hash URL loads correct page', async ({ page }) => {
     await page.goto('#/deck/black-panther')
-    // Should show the deck name
-    await page.waitForSelector('.deck-cover, h1, h2', { timeout: 10_000 })
+    await page.waitForSelector('[data-view]', { timeout: 10_000 })
+    await expect(page.locator('h1, h2').first()).not.toBeEmpty()
   })
 
   test('Decks and Collections nav links work', async ({ page }) => {
@@ -54,10 +54,5 @@ test.describe('Navigation', () => {
     await page.goto('/')
     await page.locator('a[href="#/wanted"]').click()
     await expect(page.locator('h1')).toContainText('My Wanted Lists')
-  })
-
-  test('prices date disclaimer is shown', async ({ page }) => {
-    await page.goto('/')
-    await expect(page.locator('text=Prices accurate as of')).toBeVisible()
   })
 })

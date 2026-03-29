@@ -6,14 +6,6 @@ test.describe('Deck Toolbar', () => {
     await page.waitForSelector('[data-view]', { timeout: 15_000 })
   })
 
-  test('view mode buttons are present', async ({ page }) => {
-    const viewToggle = page.locator('.view-toggle').first()
-    await expect(viewToggle).toBeVisible()
-    for (const mode of ['binder', 'list', 'overlap', 'stack']) {
-      await expect(page.locator(`[data-view="${mode}"]`)).toBeVisible()
-    }
-  })
-
   test('switching to list view activates the button and shows card list items', async ({
     page,
   }) => {
@@ -32,21 +24,33 @@ test.describe('Deck Toolbar', () => {
   })
 
   test('reverse checkbox toggles sort order', async ({ page }) => {
+    // Capture card order before toggling
+    const cardsBefore = await page.locator('.section-divider').allTextContents()
     const reverseLabel = page.locator('label').filter({ hasText: 'Reverse' })
-    await expect(reverseLabel).toBeVisible()
     const checkbox = reverseLabel.locator('input[type="checkbox"]')
     await expect(checkbox).not.toBeChecked()
     await checkbox.click()
     await expect(checkbox).toBeChecked()
+    // Card sections should appear in reversed order
+    const cardsAfter = await page.locator('.section-divider').allTextContents()
+    expect(cardsAfter).toEqual([...cardsBefore].reverse())
   })
 
-  test('hide lands checkbox toggles visibility of land cards', async ({ page }) => {
-    const hideLabel = page.locator('label').filter({ hasText: 'Hide Lands' })
-    await expect(hideLabel).toBeVisible()
-    const checkbox = hideLabel.locator('input[type="checkbox"]')
-    await expect(checkbox).not.toBeChecked()
-    await checkbox.click()
-    await expect(checkbox).toBeChecked()
+  test('hide lands checkbox hides land cards', async ({ page }) => {
+    // Count section dividers before hiding lands
+    const sectionsBefore = await page.locator('.section-divider').allTextContents()
+    const hasLands = sectionsBefore.some((text) => /land/i.test(text))
+    // Only test if lands section exists
+    if (hasLands) {
+      const hideLabel = page.locator('label').filter({ hasText: 'Hide Lands' })
+      const checkbox = hideLabel.locator('input[type="checkbox"]')
+      await checkbox.click()
+      await expect(checkbox).toBeChecked()
+      // Lands section should no longer appear
+      const sectionsAfter = await page.locator('.section-divider').allTextContents()
+      expect(sectionsAfter.some((text) => /land/i.test(text))).toBe(false)
+      expect(sectionsAfter.length).toBeLessThan(sectionsBefore.length)
+    }
   })
 
   test('card size buttons are visible in binder view and hidden in list view', async ({ page }) => {

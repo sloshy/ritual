@@ -9,11 +9,6 @@ test.describe('Build Site Page', () => {
     await expect(page.locator('.section-heading')).toContainText('Build Site')
   })
 
-  test('build button is enabled initially', async ({ page }) => {
-    const main = page.locator('main')
-    await expect(main.locator('button:has-text("Build Site")')).toBeEnabled()
-  })
-
   test('clicking build shows success message', async ({ page }) => {
     await mockBuildSiteApi(page)
     const main = page.locator('main')

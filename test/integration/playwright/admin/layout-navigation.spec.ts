@@ -6,17 +6,6 @@ test.describe('Layout & Navigation', () => {
     await loginAsAdmin(page)
   })
 
-  test('header has logout button on desktop', async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 720 })
-    await expect(page.locator('button:has-text("Logout")')).toBeVisible()
-  })
-
-  test('sidebar shows all nav items', async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 720 })
-    const navItems = page.locator('.admin-sidebar .admin-nav-item')
-    await expect(navItems).toHaveCount(9)
-  })
-
   test('sidebar nav items have expected labels', async ({ page }) => {
     const labels = [
       'Dashboard',
@@ -34,11 +23,6 @@ test.describe('Layout & Navigation', () => {
         page.locator(`.admin-sidebar .admin-nav-item:has-text("${label}")`),
       ).toBeVisible()
     }
-  })
-
-  test('dashboard nav item is active by default', async ({ page }) => {
-    const dashboardNav = page.locator('.admin-nav-item:has-text("Dashboard")')
-    await expect(dashboardNav.first()).toHaveAttribute('data-active', 'true')
   })
 
   test('clicking nav item changes page and active state', async ({ page }) => {

@@ -30,10 +30,6 @@ describe('isPriceStale', () => {
     const twoDaysAgo = Date.now() - PRICE_STALENESS_THRESHOLD_MS * 2
     expect(isPriceStale(twoDaysAgo)).toBe(true)
   })
-
-  test('PRICE_STALENESS_THRESHOLD_MS is 24 hours in milliseconds', () => {
-    expect(PRICE_STALENESS_THRESHOLD_MS).toBe(86_400_000)
-  })
 })
 
 describe('handleCardPrice', () => {

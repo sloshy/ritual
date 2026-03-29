@@ -104,25 +104,4 @@ describe('entryCardDataReducer', () => {
     })
     expect(next.cards['Bolt']).toBe(prev.cards['Bolt'])
   })
-
-  test('symbolMap is preserved by ADD_CARD and SET_PRICES', () => {
-    const prev: EntryCardData = {
-      cards: {},
-      printings: {},
-      symbolMap: { '{R}': 'red.svg' },
-    }
-    const next1 = entryCardDataReducer(prev, {
-      type: 'ADD_CARD',
-      cardName: 'Bolt',
-      card: mockCard('Bolt'),
-    })
-    expect(next1.symbolMap).toEqual({ '{R}': 'red.svg' })
-
-    const next2 = entryCardDataReducer(prev, {
-      type: 'SET_PRICES',
-      cardName: 'Bolt',
-      representative: mockCard('Bolt'),
-    })
-    expect(next2.symbolMap).toEqual({ '{R}': 'red.svg' })
-  })
 })

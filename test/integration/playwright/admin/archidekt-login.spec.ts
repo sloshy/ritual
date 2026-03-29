@@ -8,27 +8,15 @@ test.describe('Archidekt Login Page', () => {
     await expect(page.locator('.section-heading')).toContainText('Archidekt Login')
   })
 
-  test('login button is disabled when fields are empty', async ({ page }) => {
+  test('login button enables only when both fields are filled', async ({ page }) => {
     const button = page.locator('button:has-text("Login to Archidekt")')
+    // Disabled when empty
     await expect(button).toBeDisabled()
-  })
-
-  test('login button remains disabled when only username is filled', async ({ page }) => {
+    // Still disabled with only username
     await page.fill('input[type="text"]', 'myuser')
-    const button = page.locator('button:has-text("Login to Archidekt")')
     await expect(button).toBeDisabled()
-  })
-
-  test('login button remains disabled when only password is filled', async ({ page }) => {
+    // Enabled when both are filled
     await page.fill('input[type="password"]', 'mypass')
-    const button = page.locator('button:has-text("Login to Archidekt")')
-    await expect(button).toBeDisabled()
-  })
-
-  test('login button enables when both fields are filled', async ({ page }) => {
-    await page.fill('input[type="text"]', 'myuser')
-    await page.fill('input[type="password"]', 'mypass')
-    const button = page.locator('button:has-text("Login to Archidekt")')
     await expect(button).toBeEnabled()
   })
 

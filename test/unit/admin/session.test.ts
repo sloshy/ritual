@@ -10,13 +10,16 @@ import {
 } from '../../../src/admin/session'
 
 describe('session manager', () => {
-  test('createSession returns a session with token', () => {
-    const session = createSession('admin', '127.0.0.1')
-    expect(session.token).toBeString()
-    expect(session.token.length).toBe(64) // 32 bytes hex
-    expect(session.username).toBe('admin')
-    expect(session.ip).toBe('127.0.0.1')
-    expect(session.expiresAt).toBeGreaterThan(Date.now())
+  test('createSession returns a session with unique token', () => {
+    const session1 = createSession('admin', '127.0.0.1')
+    const session2 = createSession('admin', '127.0.0.1')
+    expect(session1.token).toBeString()
+    expect(session1.token.length).toBe(64) // 32 bytes hex
+    expect(session1.username).toBe('admin')
+    expect(session1.ip).toBe('127.0.0.1')
+    expect(session1.expiresAt).toBeGreaterThan(Date.now())
+    // Tokens must be unique across sessions
+    expect(session1.token).not.toBe(session2.token)
   })
 
   test('validateSession accepts a valid session', () => {

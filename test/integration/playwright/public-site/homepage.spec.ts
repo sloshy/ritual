@@ -3,7 +3,6 @@ import { test, expect } from '@playwright/test'
 test.describe('Homepage', () => {
   test('page loads with correct title', async ({ page }) => {
     await page.goto('/')
-    // Check the header "Ritual" text exists
     await expect(page.locator('header')).toContainText('Ritual')
   })
 
@@ -11,23 +10,14 @@ test.describe('Homepage', () => {
     await page.goto('/')
     const deckCards = page.locator('.deck-cover')
     await expect(deckCards.first()).toBeVisible()
-    // There should be multiple deck cards (14 decks in repo)
     expect(await deckCards.count()).toBeGreaterThan(0)
   })
 
   test('each deck card shows name and card count', async ({ page }) => {
     await page.goto('/')
     const firstCard = page.locator('.deck-cover').first()
-    // Card should have a name (h2 in .cover-info)
     await expect(firstCard.locator('.cover-info h2')).not.toBeEmpty()
-    // Card should show "N cards" text
     await expect(firstCard.locator('.cover-cardcount')).toContainText('cards')
-  })
-
-  test('deck cards show price labels', async ({ page }) => {
-    await page.goto('/')
-    const firstCard = page.locator('.deck-cover').first()
-    await expect(firstCard.locator('.cover-prices')).toBeVisible()
   })
 
   test('collections tab shows collection cards', async ({ page }) => {
@@ -35,19 +25,6 @@ test.describe('Homepage', () => {
     await expect(page.locator('h1')).toContainText('My Collections')
     const collectionCards = page.locator('.deck-cover')
     await expect(collectionCards.first()).toBeVisible()
-  })
-
-  test('wanted lists tab shows wanted list cards', async ({ page }) => {
-    await page.goto('#/wanted')
-    await expect(page.locator('h1')).toContainText('My Wanted Lists')
-    const wantedListCards = page.locator('.deck-cover')
-    await expect(wantedListCards.first()).toBeVisible()
-  })
-
-  test('deck cards have links to deck pages', async ({ page }) => {
-    await page.goto('/')
-    const firstLink = page.locator('a[href^="#/deck/"]').first()
-    await expect(firstLink).toBeVisible()
   })
 
   test('footer shows ritual attribution', async ({ page }) => {

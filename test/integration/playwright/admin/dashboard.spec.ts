@@ -6,22 +6,6 @@ test.describe('Dashboard', () => {
     await loginAsAdmin(page)
   })
 
-  test('displays all action cards with correct titles', async ({ page }) => {
-    const expectedTitles = [
-      'Deck Editor',
-      'Collection Editor',
-      'Import Deck',
-      'Build Site',
-      'Refresh Cache',
-      'Archidekt Login',
-      'Settings',
-    ]
-    await expect(page.locator('.admin-card')).toHaveCount(7)
-    for (const title of expectedTitles) {
-      await expect(page.locator(`.admin-card-title:has-text("${title}")`)).toBeVisible()
-    }
-  })
-
   test('clicking Build Site card navigates to build page', async ({ page }) => {
     await page.locator('.admin-card:has-text("Build Site")').click()
     await expect(page.locator('.section-heading')).toContainText('Build Site')

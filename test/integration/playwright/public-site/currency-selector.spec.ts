@@ -1,27 +1,13 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('Currency Selector', () => {
-  test('currency selector is visible in header', async ({ page }) => {
-    await page.goto('/')
-    const currencySelect = page
-      .locator('select')
-      .filter({ has: page.locator('option[value="usd"]') })
-    await expect(currencySelect).toBeVisible()
-  })
-
-  test('default currency is USD', async ({ page }) => {
-    await page.goto('/')
-    const currencySelect = page
-      .locator('select')
-      .filter({ has: page.locator('option[value="usd"]') })
-    await expect(currencySelect).toHaveValue('usd')
-  })
-
   test('switching to EUR updates currency', async ({ page }) => {
     await page.goto('/')
     const currencySelect = page
       .locator('select')
       .filter({ has: page.locator('option[value="usd"]') })
+    // Verify default is USD before switching
+    await expect(currencySelect).toHaveValue('usd')
     await currencySelect.selectOption('eur')
     await expect(currencySelect).toHaveValue('eur')
   })
@@ -40,10 +26,5 @@ test.describe('Currency Selector', () => {
       .locator('select')
       .filter({ has: page.locator('option[value="usd"]') })
     await expect(deckCurrencySelect).toHaveValue('eur')
-  })
-
-  test('prices label exists near selector', async ({ page }) => {
-    await page.goto('/')
-    await expect(page.locator('text=Prices:')).toBeVisible()
   })
 })

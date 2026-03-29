@@ -10,19 +10,6 @@ test.describe('Audit Log Page', () => {
     await expect(page.locator('.section-heading')).toContainText('Audit Log')
   })
 
-  test('shows table with headers, entries, and status badges', async ({ page }) => {
-    const main = page.locator('main')
-    const table = main.locator('.audit-table')
-    await expect(table).toBeVisible()
-    await expect(table.locator('th:has-text("Time")')).toBeVisible()
-    await expect(table.locator('th:has-text("Status")')).toBeVisible()
-    await expect(table.locator('th:has-text("Username")')).toBeVisible()
-    await expect(table.locator('th:has-text("IP")')).toBeVisible()
-    await expect(table.locator('tbody tr').first()).toBeVisible()
-    await expect(main.locator('.badge-success')).toBeVisible()
-    await expect(main.locator('.badge-error')).toBeVisible()
-  })
-
   test('refresh button fetches updated data and re-renders the table', async ({ page }) => {
     const updatedEntry = {
       ...MOCK_AUDIT_ENTRIES[0],

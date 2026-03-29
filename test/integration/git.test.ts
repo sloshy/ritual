@@ -4,6 +4,7 @@ import { getDefaultConfig } from '../../src/admin/config'
 import type { AdminConfig } from '../../src/admin/config'
 import path from 'node:path'
 import os from 'node:os'
+import fs from 'node:fs'
 
 describe('admin git', () => {
   test('isGitRepo returns true for a directory inside a git repo', () => {
@@ -12,42 +13,28 @@ describe('admin git', () => {
   })
 
   test('isGitRepo returns false for a non-git directory', () => {
-    expect(isGitRepo(os.tmpdir())).toBe(false)
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ritual-test-'))
+    try {
+      expect(isGitRepo(tmpDir)).toBe(false)
+    } finally {
+      fs.rmdirSync(tmpDir)
+    }
   })
 
-  test('shouldAutoCommit returns true when git is enabled and dir is a repo', () => {
-    const config: AdminConfig = {
-      ...getDefaultConfig(),
-      decksDir: './decks',
-      collectionsDir: './collections',
-      gitEnabled: true,
-      gitAutoCommit: true,
-    }
+  test('shouldAutoCommit requires both gitEnabled and gitAutoCommit in a repo', () => {
     const projectRoot = path.join(import.meta.dir, '../..')
-    expect(shouldAutoCommit(config, projectRoot)).toBe(true)
-  })
+    const base = { ...getDefaultConfig(), decksDir: './decks', collectionsDir: './collections' }
 
-  test('shouldAutoCommit returns false when git is disabled', () => {
-    const config: AdminConfig = {
-      ...getDefaultConfig(),
-      decksDir: './decks',
-      collectionsDir: './collections',
-      gitEnabled: false,
-      gitAutoCommit: true,
-    }
-    const projectRoot = path.join(import.meta.dir, '../..')
-    expect(shouldAutoCommit(config, projectRoot)).toBe(false)
-  })
+    const cases: Array<{ gitEnabled: boolean; gitAutoCommit: boolean; expected: boolean }> = [
+      { gitEnabled: true, gitAutoCommit: true, expected: true },
+      { gitEnabled: false, gitAutoCommit: true, expected: false },
+      { gitEnabled: true, gitAutoCommit: false, expected: false },
+      { gitEnabled: false, gitAutoCommit: false, expected: false },
+    ]
 
-  test('shouldAutoCommit returns false when autoCommit is disabled', () => {
-    const config: AdminConfig = {
-      ...getDefaultConfig(),
-      decksDir: './decks',
-      collectionsDir: './collections',
-      gitEnabled: true,
-      gitAutoCommit: false,
+    for (const { gitEnabled, gitAutoCommit, expected } of cases) {
+      const config: AdminConfig = { ...base, gitEnabled, gitAutoCommit }
+      expect(shouldAutoCommit(config, projectRoot)).toBe(expected)
     }
-    const projectRoot = path.join(import.meta.dir, '../..')
-    expect(shouldAutoCommit(config, projectRoot)).toBe(false)
   })
 })
