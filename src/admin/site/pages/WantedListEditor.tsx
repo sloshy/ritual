@@ -10,13 +10,15 @@ import { useCollectionChanges } from '../hooks/useCollectionChanges'
 import { useCardIdPool } from '../hooks/useCardIdPool'
 import { useEditorStatus } from '../hooks/useEditorStatus'
 import { useEntryCardData } from '../hooks/useEntryCardData'
+import { useDialogState } from '../hooks/useDialogState'
 import { applyChangeToWantedList } from '../types/wanted-changes'
 import { ChangesDialog } from '../components/ChangesDialog'
 import { DiscardConfirmDialog } from '../components/DiscardConfirmDialog'
 import { CardContextMenu } from '../components/CardContextMenu'
 import { CardSearchModal } from '../components/CardSearchModal'
 import { EditorActionBar } from '../components/EditorActionBar'
-import { reconcileIdPoolForUndo } from '../hooks/reconcile-undo'
+import { reconcileIdPoolForUndo, replayChanges } from '../hooks/reconcile-undo'
+import { saveEditorChanges } from '../hooks/saveEditorChanges'
 import { initializeEntriesWithIds } from '../../../card-id'
 
 type WantedListItem = { slug: string; name: string }
@@ -30,17 +32,12 @@ type WantedListDataResponse = {
   slug: string
 }
 
-type SaveResponse = { success: boolean; error?: string }
-
 export function WantedListEditor() {
   const [listSlug, setListSlug] = useState<string | null>(null)
   const [wantedLists, setWantedLists] = useState<WantedListItem[]>([])
   const [entries, setEntries] = useState<WantedListCardEntry[]>([])
   const [modalCardKey, setModalCardKey] = useState<string | null>(null)
   const [contextMenuCard, setContextMenuCard] = useState<ContextMenuState | null>(null)
-  const [showChanges, setShowChanges] = useState(false)
-  const [showDiscard, setShowDiscard] = useState(false)
-  const [showSearchModal, setShowSearchModal] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
   const [status, statusDispatch] = useEditorStatus()
@@ -50,6 +47,18 @@ export function WantedListEditor() {
   const { cards, printings, symbolMap } = cardData
 
   const currency: PriceCurrency = 'usd'
+
+  const {
+    showChanges,
+    showDiscard,
+    showSearchModal,
+    openChanges,
+    closeChanges,
+    openDiscard,
+    closeDiscard,
+    openSearchModal,
+    closeSearchModal,
+  } = useDialogState()
 
   const { changes, changeCount, addCard, removeCard, setFinish, discardAll, canUndo, undo } =
     useCollectionChanges<WantedListCardEntry>()
@@ -233,37 +242,19 @@ export function WantedListEditor() {
     if (!result) return
 
     const { entry, remainingChanges } = result
-
     reconcileIdPoolForUndo(release, claim, entry)
-
-    let rebuilt = originalEntriesRef.current
-    for (const change of remainingChanges) {
-      rebuilt = applyChangeToWantedList(rebuilt, change)
-    }
-    setEntries(rebuilt)
+    setEntries(replayChanges(originalEntriesRef.current, remainingChanges, applyChangeToWantedList))
   }, [undo, release, claim])
 
   const handleSave = useCallback(async () => {
     if (!listSlug || entriesRef.current.length === 0 || changesRef.current.length === 0) return
-    statusDispatch({ type: 'SAVE_START' })
-    try {
-      const resp = await fetch(`/api/wanted/${listSlug}/save`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ changes: changesRef.current, entries: entriesRef.current }),
-      })
-      const data = (await resp.json()) as SaveResponse
-      if (data.success) {
-        statusDispatch({ type: 'SAVE_SUCCESS', message: 'Changes saved successfully' })
-        discardAll()
-      } else {
-        statusDispatch({ type: 'SAVE_ERROR', error: data.error ?? 'Save failed' })
-      }
-    } catch {
-      statusDispatch({ type: 'SAVE_ERROR', error: 'Failed to save changes' })
-    }
-  }, [listSlug, discardAll])
+    await saveEditorChanges(
+      `/api/wanted/${listSlug}/save`,
+      { changes: changesRef.current, entries: entriesRef.current },
+      statusDispatch,
+      discardAll,
+    )
+  }, [listSlug, discardAll, statusDispatch])
 
   const handleDiscard = useCallback(() => {
     discardAll()
@@ -271,18 +262,12 @@ export function WantedListEditor() {
       .map((e) => e.cardId)
       .filter((id): id is number => id !== undefined)
     resetPool(ids)
-    setShowDiscard(false)
+    closeDiscard()
     setRefreshKey((k) => k + 1)
-  }, [discardAll, resetPool])
+  }, [discardAll, resetPool, closeDiscard])
 
   const closeModal = useCallback(() => setModalCardKey(null), [])
   const closeContextMenu = useCallback(() => setContextMenuCard(null), [])
-  const openSearchModal = useCallback(() => setShowSearchModal(true), [])
-  const closeSearchModal = useCallback(() => setShowSearchModal(false), [])
-  const openChanges = useCallback(() => setShowChanges(true), [])
-  const closeChanges = useCallback(() => setShowChanges(false), [])
-  const openDiscard = useCallback(() => setShowDiscard(true), [])
-  const closeDiscard = useCallback(() => setShowDiscard(false), [])
 
   return (
     <div>

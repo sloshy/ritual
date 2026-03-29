@@ -8,6 +8,7 @@ import type { ContextMenuState } from '../types/context-menu'
 import { CollectionPage } from '../../../site/CollectionPage'
 import { useEditorStatus } from '../hooks/useEditorStatus'
 import { useEntryCardData } from '../hooks/useEntryCardData'
+import { useDialogState } from '../hooks/useDialogState'
 import { useCollectionChanges } from '../hooks/useCollectionChanges'
 import { useCardIdPool } from '../hooks/useCardIdPool'
 import { applyChangeToCollection } from '../types/collection-changes'
@@ -16,7 +17,8 @@ import { DiscardConfirmDialog } from '../components/DiscardConfirmDialog'
 import { CardContextMenu } from '../components/CardContextMenu'
 import { CardSearchModal } from '../components/CardSearchModal'
 import { EditorActionBar } from '../components/EditorActionBar'
-import { reconcileIdPoolForUndo } from '../hooks/reconcile-undo'
+import { reconcileIdPoolForUndo, replayChanges } from '../hooks/reconcile-undo'
+import { saveEditorChanges } from '../hooks/saveEditorChanges'
 import { initializeEntriesWithIds } from '../../../card-id'
 
 type CollectionListItem = { slug: string; name: string }
@@ -30,17 +32,12 @@ type CollectionDataResponse = {
   slug: string
 }
 
-type SaveResponse = { success: boolean; error?: string }
-
 export function CollectionEditor() {
   const [collectionSlug, setCollectionSlug] = useState<string | null>(null)
   const [collectionList, setCollectionList] = useState<CollectionListItem[]>([])
   const [entries, setEntries] = useState<CollectionCardEntry[]>([])
   const [modalCardKey, setModalCardKey] = useState<string | null>(null)
   const [contextMenuCard, setContextMenuCard] = useState<ContextMenuState | null>(null)
-  const [showChanges, setShowChanges] = useState(false)
-  const [showDiscard, setShowDiscard] = useState(false)
-  const [showSearchModal, setShowSearchModal] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
   const [status, statusDispatch] = useEditorStatus()
@@ -50,6 +47,18 @@ export function CollectionEditor() {
   const { cards, printings, symbolMap } = cardData
 
   const currency: PriceCurrency = 'usd'
+
+  const {
+    showChanges,
+    showDiscard,
+    showSearchModal,
+    openChanges,
+    closeChanges,
+    openDiscard,
+    closeDiscard,
+    openSearchModal,
+    closeSearchModal,
+  } = useDialogState()
 
   const { changes, changeCount, addCard, removeCard, setFinish, discardAll, canUndo, undo } =
     useCollectionChanges<CollectionCardEntry>()
@@ -244,40 +253,20 @@ export function CollectionEditor() {
     if (!result) return
 
     const { entry, remainingChanges } = result
-
-    // Handle ID pool updates
     reconcileIdPoolForUndo(release, claim, entry)
-
-    // Rebuild entries from original by replaying remaining changes
-    let rebuilt = originalEntriesRef.current
-    for (const change of remainingChanges) {
-      rebuilt = applyChangeToCollection(rebuilt, change)
-    }
-    setEntries(rebuilt)
+    setEntries(replayChanges(originalEntriesRef.current, remainingChanges, applyChangeToCollection))
   }, [undo, release, claim])
 
   const handleSave = useCallback(async () => {
     if (!collectionSlug || entriesRef.current.length === 0 || changesRef.current.length === 0)
       return
-    statusDispatch({ type: 'SAVE_START' })
-    try {
-      const resp = await fetch(`/api/collection/${collectionSlug}/save`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ changes: changesRef.current, entries: entriesRef.current }),
-      })
-      const data = (await resp.json()) as SaveResponse
-      if (data.success) {
-        statusDispatch({ type: 'SAVE_SUCCESS', message: 'Changes saved successfully' })
-        discardAll()
-      } else {
-        statusDispatch({ type: 'SAVE_ERROR', error: data.error ?? 'Save failed' })
-      }
-    } catch {
-      statusDispatch({ type: 'SAVE_ERROR', error: 'Failed to save changes' })
-    }
-  }, [collectionSlug, discardAll])
+    await saveEditorChanges(
+      `/api/collection/${collectionSlug}/save`,
+      { changes: changesRef.current, entries: entriesRef.current },
+      statusDispatch,
+      discardAll,
+    )
+  }, [collectionSlug, discardAll, statusDispatch])
 
   const handleDiscard = useCallback(() => {
     discardAll()
@@ -285,18 +274,12 @@ export function CollectionEditor() {
       .map((e) => e.cardId)
       .filter((id): id is number => id !== undefined)
     resetPool(ids)
-    setShowDiscard(false)
+    closeDiscard()
     setRefreshKey((k) => k + 1)
-  }, [discardAll, resetPool])
+  }, [discardAll, resetPool, closeDiscard])
 
   const closeModal = useCallback(() => setModalCardKey(null), [])
   const closeContextMenu = useCallback(() => setContextMenuCard(null), [])
-  const openSearchModal = useCallback(() => setShowSearchModal(true), [])
-  const closeSearchModal = useCallback(() => setShowSearchModal(false), [])
-  const openChanges = useCallback(() => setShowChanges(true), [])
-  const closeChanges = useCallback(() => setShowChanges(false), [])
-  const openDiscard = useCallback(() => setShowDiscard(true), [])
-  const closeDiscard = useCallback(() => setShowDiscard(false), [])
 
   return (
     <div>

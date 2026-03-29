@@ -25,3 +25,16 @@ export function reconcileIdPoolForUndo(
     }
   }
 }
+
+/** Rebuild data state by replaying a list of changes on top of original data. */
+export function replayChanges<T, C>(
+  original: T,
+  changes: C[],
+  applyChange: (data: T, change: C) => T,
+): T {
+  let rebuilt = original
+  for (const change of changes) {
+    rebuilt = applyChange(rebuilt, change)
+  }
+  return rebuilt
+}

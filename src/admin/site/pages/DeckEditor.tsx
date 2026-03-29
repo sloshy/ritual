@@ -7,6 +7,7 @@ import type { ContextMenuState } from '../types/context-menu'
 import { DeckPage } from '../../../site/DeckPage'
 import { useEditorStatus } from '../hooks/useEditorStatus'
 import { useDeckCardData } from '../hooks/useDeckCardData'
+import { useDialogState } from '../hooks/useDialogState'
 import { useDeckChanges } from '../hooks/useDeckChanges'
 import { useCardIdPool } from '../hooks/useCardIdPool'
 import { applyChangeToDeck } from '../types/deck-changes'
@@ -15,7 +16,8 @@ import { DiscardConfirmDialog } from '../components/DiscardConfirmDialog'
 import { CardContextMenu } from '../components/CardContextMenu'
 import { CardSearchModal } from '../components/CardSearchModal'
 import { EditorActionBar } from '../components/EditorActionBar'
-import { reconcileIdPoolForUndo } from '../hooks/reconcile-undo'
+import { reconcileIdPoolForUndo, replayChanges } from '../hooks/reconcile-undo'
+import { saveEditorChanges } from '../hooks/saveEditorChanges'
 import { initializePoolFromEntries } from '../../../card-id'
 
 type DeckListItem = { slug: string; name: string }
@@ -39,8 +41,6 @@ type DeckDataResponse = {
   slug: string
 }
 
-type SaveResponse = { success: boolean; error?: string }
-
 export function DeckEditor() {
   const [deckSlug, setDeckSlug] = useState<string | null>(null)
   const [deckList, setDeckList] = useState<DeckListItem[]>([])
@@ -48,9 +48,6 @@ export function DeckEditor() {
   const [frontMatter, setFrontMatter] = useState<Record<string, unknown>>({})
   const [modalCardName, setModalCardName] = useState<string | null>(null)
   const [contextMenuCard, setContextMenuCard] = useState<DeckContextMenuState | null>(null)
-  const [showChanges, setShowChanges] = useState(false)
-  const [showDiscard, setShowDiscard] = useState(false)
-  const [showSearchModal, setShowSearchModal] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
   const [status, statusDispatch] = useEditorStatus()
@@ -67,6 +64,18 @@ export function DeckEditor() {
   } = cardData
 
   const currency: PriceCurrency = 'usd'
+
+  const {
+    showChanges,
+    showDiscard,
+    showSearchModal,
+    openChanges,
+    closeChanges,
+    openDiscard,
+    closeDiscard,
+    openSearchModal,
+    closeSearchModal,
+  } = useDialogState()
 
   const {
     changes,
@@ -344,42 +353,22 @@ export function DeckEditor() {
     if (!result || !originalDeckRef.current) return
 
     const { entry, remainingChanges } = result
-
-    // Handle ID pool updates
     reconcileIdPoolForUndo(release, claim, entry)
-
-    // Rebuild deck state from original by replaying remaining changes
-    let rebuilt = originalDeckRef.current
-    for (const change of remainingChanges) {
-      rebuilt = applyChangeToDeck(rebuilt, change)
-    }
-    setDeckData(rebuilt)
+    setDeckData(replayChanges(originalDeckRef.current, remainingChanges, applyChangeToDeck))
   }, [undo, release, claim])
 
   const handleSave = useCallback(async () => {
     if (!deckSlug || !deckDataRef.current || changesRef.current.length === 0) return
-    statusDispatch({ type: 'SAVE_START' })
-    try {
-      const resp = await fetch(`/api/deck/${deckSlug}/save`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({
-          changes: changesRef.current,
-          deck: deckDataRef.current,
-          frontMatter: frontMatterRef.current,
-        }),
-      })
-      const data = (await resp.json()) as SaveResponse
-      if (data.success) {
-        statusDispatch({ type: 'SAVE_SUCCESS', message: 'Changes saved successfully' })
-        discardAll()
-      } else {
-        statusDispatch({ type: 'SAVE_ERROR', error: data.error ?? 'Save failed' })
-      }
-    } catch {
-      statusDispatch({ type: 'SAVE_ERROR', error: 'Failed to save changes' })
-    }
+    await saveEditorChanges(
+      `/api/deck/${deckSlug}/save`,
+      {
+        changes: changesRef.current,
+        deck: deckDataRef.current,
+        frontMatter: frontMatterRef.current,
+      },
+      statusDispatch,
+      discardAll,
+    )
   }, [deckSlug, discardAll, statusDispatch])
 
   const handleDiscard = useCallback(() => {
@@ -393,19 +382,13 @@ export function DeckEditor() {
       }
       resetPool(ids)
     }
-    setShowDiscard(false)
+    closeDiscard()
     // Increment refreshKey to trigger a re-fetch of the deck data
     setRefreshKey((k) => k + 1)
-  }, [discardAll, resetPool])
+  }, [discardAll, resetPool, closeDiscard])
 
   const closeModal = useCallback(() => setModalCardName(null), [])
   const closeContextMenu = useCallback(() => setContextMenuCard(null), [])
-  const openSearchModal = useCallback(() => setShowSearchModal(true), [])
-  const closeSearchModal = useCallback(() => setShowSearchModal(false), [])
-  const openChanges = useCallback(() => setShowChanges(true), [])
-  const closeChanges = useCallback(() => setShowChanges(false), [])
-  const openDiscard = useCallback(() => setShowDiscard(true), [])
-  const closeDiscard = useCallback(() => setShowDiscard(false), [])
 
   return (
     <div>
