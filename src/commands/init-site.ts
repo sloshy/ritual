@@ -38,20 +38,28 @@ jobs:
 
       - name: Get Ritual version
         id: ritual-version
-        run: echo "version=\${RITUAL_VERSION:-latest}" >> "\$GITHUB_OUTPUT"
+        run: |
+          VERSION="\${RITUAL_VERSION:-latest}"
+          if [ "\$VERSION" = "latest" ]; then
+            VERSION=\$(curl -s https://api.github.com/repos/sloshy/ritual/releases/latest \\
+              | grep '"tag_name"' | head -1 | cut -d'"' -f4)
+          fi
+          echo "version=\$VERSION" >> "\$GITHUB_OUTPUT"
         env:
           RITUAL_VERSION: \${{ vars.RITUAL_VERSION }}
 
+      - name: Cache Ritual binary
+        id: ritual-cache
+        uses: actions/cache@v5
+        with:
+          path: ritual
+          key: ritual-binary-\${{ steps.ritual-version.outputs.version }}-linux-x86_64
+
       - name: Download Ritual
+        if: steps.ritual-cache.outputs.cache-hit != 'true'
         run: |
           VERSION="\${{ steps.ritual-version.outputs.version }}"
-          if [ "\$VERSION" = "latest" ]; then
-            DOWNLOAD_URL=\$(curl -s https://api.github.com/repos/sloshy/ritual/releases/latest \\
-              | grep browser_download_url | grep linux-x86_64 | head -1 | cut -d'"' -f4)
-          else
-            DOWNLOAD_URL="https://github.com/sloshy/ritual/releases/download/\${VERSION}/ritual-linux-x86_64"
-          fi
-          curl -L -o ritual "\$DOWNLOAD_URL"
+          curl -L -o ritual "https://github.com/sloshy/ritual/releases/download/\${VERSION}/ritual-linux-x86_64"
           chmod +x ritual
 
       - name: Restore Scryfall cache
@@ -134,8 +142,8 @@ This repository is configured with a GitHub Action that automatically builds and
 deploys your site to GitHub Pages on every push to \`main\`.
 
 The action downloads Ritual, fetches the latest card data from Scryfall, builds
-your site, and deploys it. The Scryfall cache is persisted between runs so
-subsequent builds are fast.
+your site, and deploys it. Both the Ritual binary and Scryfall cache are
+persisted between runs so subsequent builds are fast.
 
 ### Customizing the Ritual version
 

@@ -13,6 +13,7 @@ type WorkflowStep = {
   id?: string
   uses?: string
   run?: string
+  if?: string
   env?: Record<string, string>
   with?: Record<string, string>
 }
@@ -86,18 +87,31 @@ describe('generatePublishForMeWorkflow', () => {
     expect(job.steps[0]?.uses).toBe('actions/checkout@v6')
   })
 
-  test('resolves Ritual version from RITUAL_VERSION variable', () => {
+  test('resolves Ritual version from RITUAL_VERSION variable, falling back to latest release', () => {
     const step = findStep(job.steps, 'Get Ritual version')
     expect(step).toBeDefined()
     expect(step!.id).toBe('ritual-version')
     expect(step!.env?.RITUAL_VERSION).toBe('${{ vars.RITUAL_VERSION }}')
     expect(step!.run).toContain('RITUAL_VERSION:-latest')
+    expect(step!.run).toContain('tag_name')
+  })
+
+  test('caches Ritual binary keyed by resolved version', () => {
+    const step = findStep(job.steps, 'Cache Ritual binary')
+    expect(step).toBeDefined()
+    expect(step!.id).toBe('ritual-cache')
+    expect(step!.uses).toBe('actions/cache@v5')
+    expect(step!.with?.path).toBe('ritual')
+    expect(step!.with?.key).toBe(
+      'ritual-binary-${{ steps.ritual-version.outputs.version }}-linux-x86_64',
+    )
   })
 
   test('downloads Ritual binary from sloshy/ritual releases', () => {
     const step = findStep(job.steps, 'Download Ritual')
     expect(step).toBeDefined()
-    expect(step!.run).toContain('api.github.com/repos/sloshy/ritual/releases/latest')
+    expect(step!.if).toBe("steps.ritual-cache.outputs.cache-hit != 'true'")
+    expect(step!.run).not.toContain('api.github.com')
     expect(step!.run).toContain(
       'github.com/sloshy/ritual/releases/download/${VERSION}/ritual-linux-x86_64',
     )
@@ -134,11 +148,12 @@ describe('generatePublishForMeWorkflow', () => {
     expect(step!.id).toBe('deployment')
   })
 
-  test('has exactly 8 steps in the expected order', () => {
+  test('has exactly 9 steps in the expected order', () => {
     const stepNames = job.steps.map((s) => s.name ?? s.uses)
     expect(stepNames).toEqual([
       'actions/checkout@v6',
       'Get Ritual version',
+      'Cache Ritual binary',
       'Download Ritual',
       'Restore Scryfall cache',
       'Build site',

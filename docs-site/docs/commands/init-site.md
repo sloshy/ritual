@@ -26,10 +26,11 @@ This interactive command creates the scaffolding files needed to deploy a Ritual
 
 **Publish for me** generates a GitHub Action that:
 
-1. Downloads the latest Ritual release
-2. Restores the Scryfall card cache from a previous run (using GitHub Actions caching)
-3. Runs `ritual build-site -y` to build your site
-4. Deploys the `dist/` directory to GitHub Pages
+1. Resolves the Ritual version (or uses the pinned `RITUAL_VERSION` variable) and restores the Ritual binary from cache if the version hasn't changed
+2. Downloads the Ritual binary only when the resolved version is not already cached
+3. Restores the Scryfall card cache from a previous run (using GitHub Actions caching)
+4. Runs `ritual build-site -y` to build your site
+5. Deploys the `dist/` directory to GitHub Pages
 
 **Deploy my local build** generates a simpler action that deploys a pre-built directory you commit to the repository.
 
@@ -62,7 +63,7 @@ When using the "Publish for me" workflow, the action downloads the latest Ritual
 3. Create a repository variable named `RITUAL_VERSION`
 4. Set it to the desired release tag (e.g. `v1.0.0`)
 
-The workflow checks this variable on each run and downloads the specified version instead of the latest.
+The workflow checks this variable on each run and downloads the specified version instead of the latest. The binary is cached between runs using GitHub Actions caching, keyed by version — so if the version hasn't changed since the last run, no download occurs.
 
 ## Examples
 
