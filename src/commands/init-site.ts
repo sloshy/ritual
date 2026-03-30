@@ -2,13 +2,18 @@ import { Command } from 'commander'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import prompts from 'prompts'
-
-type DeployMode = 'publish-for-me' | 'local-build'
-
-type InitSiteConfig = {
-  deployMode: DeployMode
-  distDir: string
-}
+import type {
+  CISystem,
+  DeployMode,
+  GitHubActionsInitConfig,
+  InitSiteConfig,
+  RitualSiteConfig,
+} from '../ritual-site-config'
+import { loadRitualSiteConfig, saveRitualSiteConfig } from '../ritual-site-config'
+import type { ActiveManagedFile, ManagedFile, Migration } from '../managed-files'
+import { computeMigrations, isActiveManagedFile } from '../managed-files'
+import { compareVersions } from '../semver'
+import { version as ritualVersion } from '../version'
 
 export function generatePublishForMeWorkflow(): string {
   return `name: Build and Deploy Ritual Site
@@ -126,7 +131,7 @@ jobs:
 `
 }
 
-export function generateWorkflow(config: InitSiteConfig): string {
+export function generateWorkflow(config: GitHubActionsInitConfig): string {
   if (config.deployMode === 'publish-for-me') {
     return generatePublishForMeWorkflow()
   }
@@ -134,6 +139,31 @@ export function generateWorkflow(config: InitSiteConfig): string {
 }
 
 export function generateReadme(config: InitSiteConfig): string {
+  if (config.ciSystem === 'manual') {
+    return `# My Ritual Site
+
+A Magic: The Gathering deck site built with [Ritual](https://github.com/sloshy/ritual).
+
+## Getting Started
+
+Add your decks to the \`decks/\` directory as Markdown files. For example:
+
+\`\`\`sh
+ritual new-deck "My Commander Deck"
+\`\`\`
+
+## Building
+
+Install [Ritual](https://github.com/sloshy/ritual) and run:
+
+\`\`\`sh
+ritual build-site
+\`\`\`
+
+The generated site is written to \`dist/\`. Deploy it to any static hosting provider.
+`
+  }
+
   const buildInstructions =
     config.deployMode === 'publish-for-me'
       ? `## Deploying
@@ -226,8 +256,9 @@ async function promptOverwrite(filePath: string): Promise<boolean> {
 async function writeFileWithOverwritePrompt(
   filePath: string,
   content: string,
+  opts: { force: boolean } = { force: false },
 ): Promise<'written' | 'skipped' | 'cancelled'> {
-  if (await fileExists(filePath)) {
+  if (!opts.force && (await fileExists(filePath))) {
     const shouldOverwrite = await promptOverwrite(filePath)
     if (!shouldOverwrite) return 'skipped'
   }
@@ -269,116 +300,283 @@ async function updateGitignore(entries: string): Promise<'created' | 'updated' |
   return 'updated'
 }
 
+// Registry of all files ever managed by `ritual init-site`.
+// Active files are regenerated on version upgrade for matching CI systems.
+// Historical files are deleted (or have their old path cleaned up on rename) during migration.
+const MANAGED_FILES: ManagedFile[] = [
+  {
+    ciSystem: 'github-actions',
+    paths: [{ path: '.github/workflows/deploy-site.yml' }],
+    generate: (config: InitSiteConfig): string => {
+      if (config.ciSystem !== 'github-actions') throw new Error('invariant: wrong ciSystem')
+      return generateWorkflow(config)
+    },
+  } satisfies ActiveManagedFile,
+]
+
+async function applyMigrations(migrations: Migration[]): Promise<void> {
+  for (const migration of migrations) {
+    const fullPath = path.join(process.cwd(), migration.path)
+    if (migration.type === 'write') {
+      await fs.mkdir(path.dirname(fullPath), { recursive: true })
+      await fs.writeFile(fullPath, migration.content, 'utf-8')
+      console.log(`↻ Updated ${migration.path}`)
+    } else {
+      try {
+        await fs.rm(fullPath)
+        console.log(`✕ Removed ${migration.path}`)
+      } catch {
+        // File may not exist — that's fine
+      }
+    }
+  }
+}
+
 export function registerInitSiteCommand(program: Command) {
   program
     .command('init-site')
-    .description('Initialize the current directory for publishing a Ritual site to GitHub Pages')
-    .action(async () => {
-      let cancelled = false
-      const onCancel = () => {
-        cancelled = true
-      }
-
-      const modeResponse = await prompts(
-        {
-          type: 'select',
-          name: 'deployMode',
-          message: 'How would you like to deploy your site?',
-          choices: [
-            {
-              title: 'Publish for me',
-              description:
-                'Generate a GitHub Action that builds your site and deploys it automatically',
-              value: 'publish-for-me',
-            },
-            {
-              title: 'Deploy my local build',
-              description:
-                'Generate a GitHub Action that deploys a directory you build locally with build-site',
-              value: 'local-build',
-            },
-          ],
-        },
-        { onCancel },
-      )
-
-      if (cancelled || modeResponse.deployMode === undefined) {
-        console.log('Cancelled.')
+    .description('Initialize the current directory for publishing a Ritual site')
+    .option(
+      '-f, --force',
+      'Re-initialize and overwrite all generated files, ignoring ritual-site.json',
+    )
+    .option('-u, --upgrade', 'Upgrade tracked workflows to the current version without prompting')
+    .action(async (options: { force?: boolean; upgrade?: boolean }) => {
+      // --force: ignore saved state, prompt fresh, overwrite everything
+      if (options.force) {
+        const config = await promptForConfig()
+        if (!config) return
+        await writeInitFiles(config, { force: true })
+        await saveConfigOrExit({ ...config, version: ritualVersion })
+        printNextSteps(config)
         return
       }
 
-      const deployMode: DeployMode = modeResponse.deployMode
+      // Check for existing ritual-site.json
+      const loaded = await loadRitualSiteConfig()
 
-      let distDir = 'dist'
-      if (deployMode === 'local-build') {
-        const dirResponse = await prompts(
-          {
-            type: 'text',
-            name: 'distDir',
-            message: 'Which directory contains your built site?',
-            initial: 'dist',
-          },
-          { onCancel },
-        )
+      if (typeof loaded === 'string') {
+        console.error(`Error: ${loaded}`)
+        console.error('Fix ritual-site.json manually, or use --force to re-initialize.')
+        process.exit(1)
+      }
 
-        if (cancelled || dirResponse.distDir === undefined) {
-          console.log('Cancelled.')
+      if (loaded !== null) {
+        const cmp = compareVersions(ritualVersion, loaded.version)
+
+        if (cmp === 0) {
+          console.log(`Already initialized with the current version (${ritualVersion}).`)
           return
         }
 
-        distDir = dirResponse.distDir
+        if (cmp < 0) {
+          console.warn(
+            `Warning: The current Ritual build (${ritualVersion}) is older than the version ` +
+              `last used to initialize this repository (${loaded.version}).`,
+          )
+          console.warn(
+            'Use --force to re-initialize with current settings, or delete ritual-site.json ' +
+              'if you want to use this older version.',
+          )
+          return
+        }
+
+        // Newer build: prompt unless --upgrade was passed
+        if (!options.upgrade) {
+          let cancelled = false
+          const response = await prompts(
+            {
+              type: 'confirm',
+              name: 'confirm',
+              message: `Ritual has been upgraded (${loaded.version} → ${ritualVersion}). Regenerate tracked managed files?`,
+              initial: true,
+            },
+            {
+              onCancel: () => {
+                cancelled = true
+              },
+            },
+          )
+          if (cancelled || !response.confirm) {
+            console.log('Skipped.')
+            return
+          }
+        }
+
+        console.log(`Upgrading from ${loaded.version} to ${ritualVersion}...`)
+        const { version: _version, ...config } = loaded
+        const migrations = computeMigrations(loaded.version, ritualVersion, MANAGED_FILES, config)
+        await applyMigrations(migrations)
+        const updatedConfig: RitualSiteConfig = { ...config, version: ritualVersion }
+        await saveConfigOrExit(updatedConfig)
+        console.log(`✓ ritual-site.json updated to ${ritualVersion}`)
+        return
       }
 
-      const config: InitSiteConfig = { deployMode, distDir }
-
-      // Generate and write workflow
-      const workflowPath = path.join(process.cwd(), '.github', 'workflows', 'deploy-site.yml')
-      const workflowContent = generateWorkflow(config)
-      const workflowResult = await writeFileWithOverwritePrompt(workflowPath, workflowContent)
-
-      if (workflowResult === 'written') {
-        console.log('✓ Created .github/workflows/deploy-site.yml')
-      } else {
-        console.log('⊘ Skipped .github/workflows/deploy-site.yml')
-      }
-
-      // Generate and write README
-      const readmePath = path.join(process.cwd(), 'README.md')
-      const readmeContent = generateReadme(config)
-      const readmeResult = await writeFileWithOverwritePrompt(readmePath, readmeContent)
-
-      if (readmeResult === 'written') {
-        console.log('✓ Created README.md')
-      } else {
-        console.log('⊘ Skipped README.md')
-      }
-
-      // Update .gitignore
-      const gitignoreEntries = generateGitignoreEntries()
-      const gitignoreResult = await updateGitignore(gitignoreEntries)
-
-      if (gitignoreResult === 'created') {
-        console.log('✓ Created .gitignore')
-      } else if (gitignoreResult === 'updated') {
-        console.log('✓ Updated .gitignore')
-      } else {
-        console.log('⊘ .gitignore already up to date')
-      }
-
-      // Print next steps
-      console.log()
-      console.log('Your site is ready! Next steps:')
-      console.log('  1. Add decks to the decks/ directory (ritual new-deck "My Deck")')
-      console.log(
-        '  2. Enable GitHub Pages in your repo: Settings → Pages → Source: GitHub Actions',
-      )
-      console.log('  3. Push to main to trigger a deploy')
-
-      if (deployMode === 'publish-for-me') {
-        console.log()
-        console.log(
-          'Tip: Pin a specific Ritual version by setting a RITUAL_VERSION repository variable.',
-        )
-      }
+      // Fresh init (no ritual-site.json found)
+      const config = await promptForConfig()
+      if (!config) return
+      await writeInitFiles(config, { force: false })
+      await saveConfigOrExit({ ...config, version: ritualVersion })
+      printNextSteps(config)
     })
+}
+
+async function saveConfigOrExit(config: RitualSiteConfig): Promise<void> {
+  try {
+    await saveRitualSiteConfig(config)
+  } catch (err) {
+    console.error(
+      `Error: Failed to write ritual-site.json: ${err instanceof Error ? err.message : String(err)}`,
+    )
+    process.exit(1)
+  }
+}
+
+async function promptForConfig(): Promise<InitSiteConfig | null> {
+  let cancelled = false
+  const onCancel = () => {
+    cancelled = true
+  }
+
+  const ciResponse = await prompts(
+    {
+      type: 'select',
+      name: 'ciSystem',
+      message: 'Which CI system are you using?',
+      choices: [
+        {
+          title: 'GitHub Actions',
+          description: 'Generate a GitHub Actions workflow that builds and deploys automatically',
+          value: 'github-actions',
+        },
+        {
+          title: 'Manual / None',
+          description: 'No CI integration — build and deploy manually',
+          value: 'manual',
+        },
+      ],
+    },
+    { onCancel },
+  )
+
+  if (cancelled || ciResponse.ciSystem === undefined) {
+    console.log('Cancelled.')
+    return null
+  }
+
+  const ciSystem: CISystem = ciResponse.ciSystem
+
+  if (ciSystem === 'manual') {
+    return { ciSystem }
+  }
+
+  const modeResponse = await prompts(
+    {
+      type: 'select',
+      name: 'deployMode',
+      message: 'How would you like to deploy your site?',
+      choices: [
+        {
+          title: 'Publish for me',
+          description:
+            'Generate a GitHub Action that builds your site and deploys it automatically',
+          value: 'publish-for-me',
+        },
+        {
+          title: 'Deploy my local build',
+          description:
+            'Generate a GitHub Action that deploys a directory you build locally with build-site',
+          value: 'local-build',
+        },
+      ],
+    },
+    { onCancel },
+  )
+
+  if (cancelled || modeResponse.deployMode === undefined) {
+    console.log('Cancelled.')
+    return null
+  }
+
+  const deployMode: DeployMode = modeResponse.deployMode
+  let distDir = 'dist'
+
+  if (deployMode === 'local-build') {
+    const dirResponse = await prompts(
+      {
+        type: 'text',
+        name: 'distDir',
+        message: 'Which directory contains your built site?',
+        initial: 'dist',
+      },
+      { onCancel },
+    )
+
+    if (cancelled || dirResponse.distDir === undefined) {
+      console.log('Cancelled.')
+      return null
+    }
+
+    distDir = dirResponse.distDir
+  }
+
+  return { ciSystem, deployMode, distDir }
+}
+
+async function writeInitFiles(config: InitSiteConfig, opts: { force: boolean }): Promise<void> {
+  // Write managed files filtered to the selected CI system
+  for (const file of MANAGED_FILES) {
+    if (!isActiveManagedFile(file)) continue
+    if (file.ciSystem !== config.ciSystem) continue
+    const currentRecord = file.paths.find((r) => r.until === undefined)
+    if (!currentRecord) continue
+    const filePath = path.join(process.cwd(), currentRecord.path)
+    const result = await writeFileWithOverwritePrompt(filePath, file.generate(config), opts)
+    if (result === 'written') {
+      console.log(`✓ Created ${currentRecord.path}`)
+    } else {
+      console.log(`⊘ Skipped ${currentRecord.path}`)
+    }
+  }
+
+  // Write README (user-editable — always prompt, even with --force)
+  const readmePath = path.join(process.cwd(), 'README.md')
+  const readmeResult = await writeFileWithOverwritePrompt(readmePath, generateReadme(config))
+  if (readmeResult === 'written') {
+    console.log('✓ Created README.md')
+  } else {
+    console.log('⊘ Skipped README.md')
+  }
+
+  // Update .gitignore
+  const gitignoreResult = await updateGitignore(generateGitignoreEntries())
+  if (gitignoreResult === 'created') {
+    console.log('✓ Created .gitignore')
+  } else if (gitignoreResult === 'updated') {
+    console.log('✓ Updated .gitignore')
+  } else {
+    console.log('⊘ .gitignore already up to date')
+  }
+}
+
+function printNextSteps(config: InitSiteConfig): void {
+  console.log()
+  console.log('Your site is ready! Next steps:')
+  console.log('  1. Add decks to the decks/ directory (ritual new-deck "My Deck")')
+
+  if (config.ciSystem === 'manual') {
+    console.log('  2. Run ritual build-site to build your site')
+    console.log('  3. Deploy the dist/ directory to your hosting provider')
+  } else {
+    console.log('  2. Enable GitHub Pages in your repo: Settings → Pages → Source: GitHub Actions')
+    console.log('  3. Push to main to trigger a deploy')
+
+    if (config.deployMode === 'publish-for-me') {
+      console.log()
+      console.log(
+        'Tip: Pin a specific Ritual version by setting a RITUAL_VERSION repository variable.',
+      )
+    }
+  }
 }

@@ -224,7 +224,11 @@ describe('generateLocalBuildWorkflow', () => {
 describe('generateWorkflow', () => {
   test('publish-for-me produces the full build workflow', () => {
     const workflow = parseWorkflow(
-      generateWorkflow({ deployMode: 'publish-for-me', distDir: 'dist' }),
+      generateWorkflow({
+        ciSystem: 'github-actions',
+        deployMode: 'publish-for-me',
+        distDir: 'dist',
+      }),
     )
     expect(workflow.name).toBe('Build and Deploy Ritual Site')
     expect(getJob(workflow, 'build-and-deploy')).toBeDefined()
@@ -232,7 +236,11 @@ describe('generateWorkflow', () => {
 
   test('local-build produces the simple deploy workflow', () => {
     const workflow = parseWorkflow(
-      generateWorkflow({ deployMode: 'local-build', distDir: 'public' }),
+      generateWorkflow({
+        ciSystem: 'github-actions',
+        deployMode: 'local-build',
+        distDir: 'public',
+      }),
     )
     expect(workflow.name).toBe('Deploy Ritual Site')
     const job = getJob(workflow, 'deploy')
@@ -243,44 +251,82 @@ describe('generateWorkflow', () => {
 
 describe('generateReadme', () => {
   test('includes project title and Ritual link', () => {
-    const readme = generateReadme({ deployMode: 'publish-for-me', distDir: 'dist' })
+    const readme = generateReadme({
+      ciSystem: 'github-actions',
+      deployMode: 'publish-for-me',
+      distDir: 'dist',
+    })
 
     expect(readme).toContain('# My Ritual Site')
     expect(readme).toContain('github.com/sloshy/ritual')
   })
 
   test('publish-for-me mode includes RITUAL_VERSION docs', () => {
-    const readme = generateReadme({ deployMode: 'publish-for-me', distDir: 'dist' })
+    const readme = generateReadme({
+      ciSystem: 'github-actions',
+      deployMode: 'publish-for-me',
+      distDir: 'dist',
+    })
 
     expect(readme).toContain('RITUAL_VERSION')
     expect(readme).toContain('automatically builds and')
   })
 
   test('publish-for-me mode does not include manual build instructions', () => {
-    const readme = generateReadme({ deployMode: 'publish-for-me', distDir: 'dist' })
+    const readme = generateReadme({
+      ciSystem: 'github-actions',
+      deployMode: 'publish-for-me',
+      distDir: 'dist',
+    })
 
     expect(readme).not.toContain('ritual build-site')
   })
 
   test('local-build mode includes build instructions', () => {
-    const readme = generateReadme({ deployMode: 'local-build', distDir: 'dist' })
+    const readme = generateReadme({
+      ciSystem: 'github-actions',
+      deployMode: 'local-build',
+      distDir: 'dist',
+    })
 
     expect(readme).toContain('ritual build-site')
     expect(readme).toContain('Commit the built')
   })
 
   test('local-build mode uses specified dist directory', () => {
-    const readme = generateReadme({ deployMode: 'local-build', distDir: 'public' })
+    const readme = generateReadme({
+      ciSystem: 'github-actions',
+      deployMode: 'local-build',
+      distDir: 'public',
+    })
 
     expect(readme).toContain('written to `public`')
     expect(readme).toContain('`public` directory')
   })
 
-  test('includes GitHub Pages setup instructions', () => {
-    const readme = generateReadme({ deployMode: 'publish-for-me', distDir: 'dist' })
+  test('includes GitHub Pages setup instructions for github-actions mode', () => {
+    const readme = generateReadme({
+      ciSystem: 'github-actions',
+      deployMode: 'publish-for-me',
+      distDir: 'dist',
+    })
 
     expect(readme).toContain('Settings → Pages')
     expect(readme).toContain('GitHub Actions')
+  })
+
+  test('manual mode includes project title and build instructions', () => {
+    const readme = generateReadme({ ciSystem: 'manual' })
+
+    expect(readme).toContain('# My Ritual Site')
+    expect(readme).toContain('ritual build-site')
+  })
+
+  test('manual mode does not include GitHub Pages setup', () => {
+    const readme = generateReadme({ ciSystem: 'manual' })
+
+    expect(readme).not.toContain('Settings → Pages')
+    expect(readme).not.toContain('RITUAL_VERSION')
   })
 })
 
