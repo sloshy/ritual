@@ -1323,28 +1323,9 @@ export function registerBuildSiteCommand(program: Command) {
       }
       await Bun.write(path.join(distDir, 'index.json'), JSON.stringify(siteIndex))
 
-      // Bundle SPA
-      console.log('Bundling Web App...')
-      const buildResult = await Bun.build({
-        entrypoints: [path.join(import.meta.dir, '../site/app.tsx')],
-        outdir: distDir,
-        target: 'browser',
-        format: 'esm',
-        minify: true,
-        naming: 'app.js',
-        define: {
-          'process.env.NODE_ENV': '"production"',
-        },
-        plugins: [(await import('@dschz/bun-plugin-solid')).SolidPlugin()],
-      })
-
-      if (!buildResult.success) {
-        console.error('SPA bundle failed:')
-        for (const log of buildResult.logs) {
-          console.error(log)
-        }
-        return
-      }
+      // Write pre-built SPA
+      console.log('Writing Web App...')
+      await Bun.write(path.join(distDir, 'app.js'), bundledSiteAssets.appJs)
 
       // Generate index.html shell
       const indexHtml = `<!DOCTYPE html>

@@ -51,6 +51,7 @@ research/
 .admin-dist/
 
 styles.compiled.css
+app.compiled.js
 src/generated/
 
 # Personal files
