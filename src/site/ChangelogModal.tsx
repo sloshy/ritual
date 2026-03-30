@@ -1,5 +1,5 @@
-import type { FunctionalComponent } from 'preact'
-import { useState, useEffect, useMemo, useRef } from 'preact/hooks'
+import type { Component } from 'solid-js'
+import { createSignal, createEffect, createMemo, onCleanup, Show, For } from 'solid-js'
 import type { ChangelogPage } from '../changelog-parser'
 import type { ScryfallCard } from '../types'
 import type { PriceCurrency } from '../price-currency'
@@ -60,40 +60,29 @@ function formatChangeText(change: {
   return { prefix, suffix: parts.length > 0 ? ' ' + parts.join(' ') : '' }
 }
 
-export const ChangelogModal: FunctionalComponent<ChangelogModalProps> = ({
-  open,
-  changelog,
-  cards,
-  printings,
-  symbolMap,
-  useScryfallImgUrls,
-  currency,
-  onClose,
-}) => {
-  const [page, setPage] = useState(0)
-  const [cardModalName, setCardModalName] = useState<string | null>(null)
+export const ChangelogModal: Component<ChangelogModalProps> = (props) => {
+  const [page, setPage] = createSignal(0)
+  const [cardModalName, setCardModalName] = createSignal<string | null>(null)
 
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
 
-  const onCloseRef = useRef(onClose)
-  onCloseRef.current = onClose
-
-  useEffect(() => {
-    if (!open || cardModalName) return
+  createEffect(() => {
+    if (!props.open || cardModalName()) return
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCloseRef.current()
+      if (e.key === 'Escape') props.onClose()
     }
     document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [open, cardModalName])
+    onCleanup(() => document.removeEventListener('keydown', handler))
+  })
 
-  const totalPages = changelog.length
-  const currentPage = changelog[page]
+  const totalPages = createMemo(() => props.changelog.length)
+  const currentPage = createMemo(() => props.changelog[page()])
 
-  const formattedTimestamp = useMemo(() => {
-    if (!currentPage) return ''
+  const formattedTimestamp = createMemo(() => {
+    const cp = currentPage()
+    if (!cp) return ''
     try {
-      return new Date(currentPage.timestamp).toLocaleString(undefined, {
+      return new Date(cp.timestamp).toLocaleString(undefined, {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
@@ -101,48 +90,48 @@ export const ChangelogModal: FunctionalComponent<ChangelogModalProps> = ({
         minute: '2-digit',
       })
     } catch {
-      return currentPage.timestamp
+      return cp.timestamp
     }
-  }, [currentPage])
+  })
 
-  const cardModalCard = useMemo((): ScryfallCard | null => {
-    if (!cardModalName) return null
-    return cards[cardModalName] ?? null
-  }, [cardModalName, cards])
+  const cardModalCard = createMemo((): ScryfallCard | null => {
+    const name = cardModalName()
+    if (!name) return null
+    return props.cards[name] ?? null
+  })
 
-  const cardModalPrintings = useMemo(() => {
-    if (!cardModalName) return []
-    return printings[cardModalName] ?? []
-  }, [cardModalName, printings])
-
-  if (!open || changelog.length === 0) return null
+  const cardModalPrintings = createMemo(() => {
+    const name = cardModalName()
+    if (!name) return []
+    return props.printings[name] ?? []
+  })
 
   return (
-    <>
+    <Show when={props.open && props.changelog.length > 0}>
       <div
-        className="changelog-modal-backdrop"
+        class="changelog-modal-backdrop"
         onClick={(e) => {
-          if (e.target === e.currentTarget) onClose()
+          if (e.target === e.currentTarget) props.onClose()
         }}
       >
-        <div className="changelog-modal">
-          <div className="changelog-modal-header">
+        <div class="changelog-modal">
+          <div class="changelog-modal-header">
             <h3>Change History</h3>
-            <button className="modal-close" aria-label="Close" onClick={onClose}>
+            <button class="modal-close" aria-label="Close" onClick={props.onClose}>
               &times;
             </button>
           </div>
 
-          <div className="changelog-modal-body">
-            {currentPage && (
-              <>
-                <div className="changelog-timestamp">{formattedTimestamp}</div>
-                {currentPage.changes.map((change, i) => {
+          <div class="changelog-modal-body">
+            <Show when={currentPage()}>
+              <div class="changelog-timestamp">{formattedTimestamp()}</div>
+              <For each={currentPage()!.changes}>
+                {(change) => {
                   const additive = isAdditiveAction(change.action)
-                  const card = cards[change.cardName] ?? null
+                  const card = props.cards[change.cardName] ?? null
                   const imageUrl =
-                    card && useScryfallImgUrls !== undefined
-                      ? getCardImageUrl(card, useScryfallImgUrls)
+                    card && props.useScryfallImgUrls !== undefined
+                      ? getCardImageUrl(card, props.useScryfallImgUrls!)
                       : null
                   const { prefix, suffix } = formatChangeText(change)
                   const colorClass = additive
@@ -152,12 +141,12 @@ export const ChangelogModal: FunctionalComponent<ChangelogModalProps> = ({
                       : 'changelog-change-item--other'
 
                   return (
-                    <div key={`${page}-${i}`} className={`changelog-change-item ${colorClass}`}>
-                      <span className="changelog-change-icon">{additive ? '+' : '−'}</span>
+                    <div class={`changelog-change-item ${colorClass}`}>
+                      <span class="changelog-change-icon">{additive ? '+' : '−'}</span>
                       <span>
                         {prefix}
                         <span
-                          className={card ? 'changelog-card-link' : ''}
+                          class={card ? 'changelog-card-link' : ''}
                           onClick={card ? () => setCardModalName(change.cardName) : undefined}
                           onMouseEnter={
                             imageUrl
@@ -172,49 +161,50 @@ export const ChangelogModal: FunctionalComponent<ChangelogModalProps> = ({
                       </span>
                     </div>
                   )
-                })}
-              </>
-            )}
+                }}
+              </For>
+            </Show>
           </div>
 
-          {totalPages > 1 && (
-            <div className="changelog-modal-footer">
-              <button disabled={page <= 0} onClick={() => setPage((p) => p - 1)}>
+          <Show when={totalPages() > 1}>
+            <div class="changelog-modal-footer">
+              <button disabled={page() <= 0} onClick={() => setPage((p) => p - 1)}>
                 ← Newer
               </button>
               <span>
-                {page + 1} / {totalPages}
+                {page() + 1} / {totalPages()}
               </span>
-              <button disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>
+              <button disabled={page() >= totalPages() - 1} onClick={() => setPage((p) => p + 1)}>
                 Older →
               </button>
             </div>
-          )}
+          </Show>
         </div>
 
         {/* Hover tooltip */}
         <div
           ref={tooltipRef}
-          className={`changelog-card-tooltip ${tooltip ? 'visible' : ''}`}
-          style={`left:${tooltipPos.left}px;top:${tooltipPos.top}px;`}
+          class={`changelog-card-tooltip ${tooltip() ? 'visible' : ''}`}
+          style={{ left: `${tooltipPos().left}px`, top: `${tooltipPos().top}px` }}
         >
-          {tooltip && <img src={tooltip.src} alt="" />}
+          <Show when={tooltip()}>
+            <img src={tooltip()!.src} alt="" />
+          </Show>
         </div>
       </div>
 
       {/* Secondary card modal (rendered above changelog via CSS z-index) */}
       <CardModal
-        key={cardModalName ?? ''}
-        open={Boolean(cardModalCard)}
-        card={cardModalCard}
-        cardName={cardModalName}
-        symbolMap={symbolMap}
-        useScryfallImgUrls={useScryfallImgUrls}
-        currency={currency}
-        printings={cardModalPrintings}
+        open={Boolean(cardModalCard())}
+        card={cardModalCard()}
+        cardName={cardModalName()}
+        symbolMap={props.symbolMap}
+        useScryfallImgUrls={props.useScryfallImgUrls}
+        currency={props.currency}
+        printings={cardModalPrintings()}
         onClose={() => setCardModalName(null)}
         backdropClass="changelog-card-modal"
       />
-    </>
+    </Show>
   )
 }

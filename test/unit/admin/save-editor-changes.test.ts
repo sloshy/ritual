@@ -1,77 +1,89 @@
 import { describe, it, expect, beforeEach } from 'bun:test'
 import { saveEditorChanges } from '../../../src/admin/site/hooks/saveEditorChanges'
-import type { StatusAction } from '../../../src/admin/site/hooks/useEditorStatus'
+import type { EditorStatusActions } from '../../../src/admin/site/hooks/useEditorStatus'
 
 describe('saveEditorChanges', () => {
-  let dispatched: StatusAction[]
+  type Call = { method: string; args: unknown[] }
+  let calls: Call[]
   let discardCalled: boolean
-  const dispatch = (action: StatusAction) => {
-    dispatched.push(action)
-  }
+  let statusActions: EditorStatusActions
+
   const discardAll = () => {
     discardCalled = true
   }
 
   beforeEach(() => {
-    dispatched = []
+    calls = []
     discardCalled = false
+    statusActions = {
+      loadStart: () => calls.push({ method: 'loadStart', args: [] }),
+      loadSuccess: () => calls.push({ method: 'loadSuccess', args: [] }),
+      loadError: (error) => calls.push({ method: 'loadError', args: [error] }),
+      saveStart: () => calls.push({ method: 'saveStart', args: [] }),
+      saveSuccess: (message) => calls.push({ method: 'saveSuccess', args: [message] }),
+      saveError: (error) => calls.push({ method: 'saveError', args: [error] }),
+      setError: (error) => calls.push({ method: 'setError', args: [error] }),
+    }
   })
 
-  it('dispatches SAVE_START then SAVE_SUCCESS on success', async () => {
+  it('calls saveStart then saveSuccess on success', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     globalThis.fetch = (async () =>
       ({
         json: async () => ({ success: true }),
       }) as Response) as any
 
-    await saveEditorChanges('/api/test/save', { data: 'test' }, dispatch, discardAll)
+    await saveEditorChanges('/api/test/save', { data: 'test' }, statusActions, discardAll)
 
-    expect(dispatched).toEqual([
-      { type: 'SAVE_START' },
-      { type: 'SAVE_SUCCESS', message: 'Changes saved successfully' },
+    expect(calls).toEqual([
+      { method: 'saveStart', args: [] },
+      { method: 'saveSuccess', args: ['Changes saved successfully'] },
     ])
     expect(discardCalled).toBe(true)
   })
 
-  it('dispatches SAVE_ERROR when response has success=false', async () => {
+  it('calls saveError when response has success=false', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     globalThis.fetch = (async () =>
       ({
         json: async () => ({ success: false, error: 'Conflict' }),
       }) as Response) as any
 
-    await saveEditorChanges('/api/test/save', { data: 'test' }, dispatch, discardAll)
+    await saveEditorChanges('/api/test/save', { data: 'test' }, statusActions, discardAll)
 
-    expect(dispatched).toEqual([{ type: 'SAVE_START' }, { type: 'SAVE_ERROR', error: 'Conflict' }])
+    expect(calls).toEqual([
+      { method: 'saveStart', args: [] },
+      { method: 'saveError', args: ['Conflict'] },
+    ])
     expect(discardCalled).toBe(false)
   })
 
-  it('dispatches SAVE_ERROR with fallback message when no error provided', async () => {
+  it('calls saveError with fallback message when no error provided', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     globalThis.fetch = (async () =>
       ({
         json: async () => ({ success: false }),
       }) as Response) as any
 
-    await saveEditorChanges('/api/test/save', {}, dispatch, discardAll)
+    await saveEditorChanges('/api/test/save', {}, statusActions, discardAll)
 
-    expect(dispatched).toEqual([
-      { type: 'SAVE_START' },
-      { type: 'SAVE_ERROR', error: 'Save failed' },
+    expect(calls).toEqual([
+      { method: 'saveStart', args: [] },
+      { method: 'saveError', args: ['Save failed'] },
     ])
   })
 
-  it('dispatches SAVE_ERROR on network failure', async () => {
+  it('calls saveError on network failure', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     globalThis.fetch = (async () => {
       throw new Error('Network error')
     }) as any
 
-    await saveEditorChanges('/api/test/save', {}, dispatch, discardAll)
+    await saveEditorChanges('/api/test/save', {}, statusActions, discardAll)
 
-    expect(dispatched).toEqual([
-      { type: 'SAVE_START' },
-      { type: 'SAVE_ERROR', error: 'Failed to save changes' },
+    expect(calls).toEqual([
+      { method: 'saveStart', args: [] },
+      { method: 'saveError', args: ['Failed to save changes'] },
     ])
     expect(discardCalled).toBe(false)
   })
@@ -89,7 +101,7 @@ describe('saveEditorChanges', () => {
     }) as any
 
     const body = { changes: [1, 2], entries: ['a'] }
-    await saveEditorChanges('/api/collection/my-col/save', body, dispatch, discardAll)
+    await saveEditorChanges('/api/collection/my-col/save', body, statusActions, discardAll)
 
     expect(capturedUrl).toBe('/api/collection/my-col/save')
     expect(capturedInit.method).toBe('POST')

@@ -1,5 +1,5 @@
-import type { FunctionalComponent } from 'preact'
-import { useState, useMemo, useCallback, useEffect } from 'preact/hooks'
+import type { Component } from 'solid-js'
+import { createSignal, createMemo, createEffect, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import type { DeckData, ScryfallCard } from '../types'
 import type { ChangelogPage } from '../changelog-parser'
@@ -56,32 +56,7 @@ export interface DeckPageProps {
   changelog?: ChangelogPage[]
 }
 
-export const DeckPage: FunctionalComponent<DeckPageProps> = ({
-  deck,
-  cards,
-  printings,
-  lowestPriceCards,
-  lowestPriceCardsEur,
-  lowestPriceCardsTix,
-  symbolMap,
-  exportPath,
-  useScryfallImgUrls,
-  modalCardName,
-  onOpenModal,
-  onCloseModal,
-  currency,
-  missingCards,
-  slug,
-  primerOpen,
-  sectionId,
-  editMode,
-  onAddCard,
-  onCardIncrement,
-  onCardDecrement,
-  onCardContextMenu,
-  unsavedChangeCount: _unsavedChangeCount,
-  changelog,
-}) => {
+export const DeckPage: Component<DeckPageProps> = (props) => {
   const {
     viewMode,
     setViewMode,
@@ -98,48 +73,48 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
     priceGroupStrategy,
     setPriceGroupStrategy,
   } = useToolbarState<GroupBy>({ groupBy: 'type', sortBy: 'name' })
-  const [hideExtras, setHideExtras] = useState(false)
-  const [copyStatus, setCopyStatus] = useState<string | null>(null)
-  const [lowestPrice, setLowestPrice] = useState(false)
-  const [missingCardsExpanded, setMissingCardsExpanded] = useState(false)
-  const [showChangelog, setShowChangelog] = useState(false)
+  const [hideExtras, setHideExtras] = createSignal(false)
+  const [copyStatus, setCopyStatus] = createSignal<string | null>(null)
+  const [lowestPrice, setLowestPrice] = createSignal(false)
+  const [missingCardsExpanded, setMissingCardsExpanded] = createSignal(false)
+  const [showChangelog, setShowChangelog] = createSignal(false)
 
   // Missing cards for current currency
-  const currentMissingCards = useMemo(() => {
-    if (!missingCards) return []
-    return missingCards[currency] ?? []
-  }, [missingCards, currency])
+  const currentMissingCards = createMemo(() => {
+    if (!props.missingCards) return []
+    return props.missingCards[props.currency] ?? []
+  })
 
   // Active card map based on lowest price toggle and currency
-  const activeCards = useMemo(() => {
-    if (lowestPrice) {
-      if (currency === 'eur' && lowestPriceCardsEur) return lowestPriceCardsEur
-      if (currency === 'tix' && lowestPriceCardsTix) return lowestPriceCardsTix
-      if (lowestPriceCards) return lowestPriceCards
+  const activeCards = createMemo(() => {
+    if (lowestPrice()) {
+      if (props.currency === 'eur' && props.lowestPriceCardsEur) return props.lowestPriceCardsEur
+      if (props.currency === 'tix' && props.lowestPriceCardsTix) return props.lowestPriceCardsTix
+      if (props.lowestPriceCards) return props.lowestPriceCards
     }
-    return cards
-  }, [lowestPrice, lowestPriceCards, lowestPriceCardsEur, lowestPriceCardsTix, cards, currency])
+    return props.cards
+  })
 
-  const hasLowestPriceCards = Boolean(
-    lowestPriceCards || lowestPriceCardsEur || lowestPriceCardsTix,
+  const hasLowestPriceCards = createMemo(() =>
+    Boolean(props.lowestPriceCards || props.lowestPriceCardsEur || props.lowestPriceCardsTix),
   )
 
   // Tooltip state for list-view hover preview
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
 
   // Build flat card list with metadata
-  const allCards = useMemo((): CardData[] => {
+  const allCards = createMemo((): CardData[] => {
     const result: CardData[] = []
     let order = 0
-    for (const section of deck.sections) {
+    for (const section of props.deck.sections) {
       for (const entry of section.cards) {
-        const card = activeCards[entry.name] ?? null
+        const card = activeCards()[entry.name] ?? null
         result.push({
           name: entry.name,
           quantity: entry.quantity,
           cmc: card?.cmc ?? 0,
           edhrec: card?.edhrec_rank ?? 999999,
-          price: card ? getCardPrice(card, currency) : 0,
+          price: card ? getCardPrice(card, props.currency) : 0,
           type: card?.type_line ?? '',
           section: section.name,
           fileOrder: order++,
@@ -150,36 +125,36 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
       }
     }
     return result
-  }, [deck, activeCards, currency])
+  })
 
-  const sectionOrder = useMemo(() => {
-    return deck.sections.map((s) => s.name)
-  }, [deck])
+  const sectionOrder = createMemo(() => {
+    return props.deck.sections.map((s) => s.name)
+  })
 
   // Partition all cards into categories in a single O(n) pass so we avoid
   // re-scanning allCards separately for commander, sideboard, extras, and
   // mainboard.  cardGroups can then depend on mainboardCards rather than
   // allCards, so toolbar changes (groupBy, sortBy…) no longer re-trigger the
   // categorisation step.
-  const { commanderCards, sideboardCards, extraCards, mainboardCards } = useMemo(() => {
+  const partitioned = createMemo(() => {
     const commanderCards: CardData[] = []
     const sideboardCards: CardData[] = []
     const extraCards: CardData[] = []
     const mainboardCards: CardData[] = []
-    for (const c of allCards) {
+    for (const c of allCards()) {
       if (isCommanderSection(c.section)) commanderCards.push(c)
       else if (isSideboardSection(c.section)) sideboardCards.push(c)
       else if (isExtraSection(c.section)) extraCards.push(c)
       else mainboardCards.push(c)
     }
     return { commanderCards, sideboardCards, extraCards, mainboardCards }
-  }, [allCards])
+  })
 
   // Sorted and grouped cards (mainboard only)
-  const cardGroups = useMemo((): CardGroup[] => {
-    let working = mainboardCards
+  const cardGroups = createMemo((): CardGroup[] => {
+    let working = partitioned().mainboardCards
 
-    if (hideLands) {
+    if (hideLands()) {
       working = working.filter(
         (c) => !(c.cmc === 0 && (c.type.includes('Land') || c.type.includes('Basic'))),
       )
@@ -187,49 +162,41 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
 
     return groupAndSortCards(
       working,
-      groupBy,
-      sortBy,
-      reverse,
-      sectionOrder,
-      priceGroupStrategy,
-      currency,
+      groupBy(),
+      sortBy(),
+      reverse(),
+      sectionOrder(),
+      priceGroupStrategy(),
+      props.currency,
     )
-  }, [
-    mainboardCards,
-    groupBy,
-    sortBy,
-    reverse,
-    hideLands,
-    sectionOrder,
-    priceGroupStrategy,
-    currency,
-  ])
+  })
 
   // Deck price = mainboard + commander + sideboard only
-  const mainAndSideboardCards = useMemo(() => {
-    return [...commanderCards, ...mainboardCards, ...sideboardCards]
-  }, [commanderCards, mainboardCards, sideboardCards])
+  const mainAndSideboardCards = createMemo(() => {
+    const p = partitioned()
+    return [...p.commanderCards, ...p.mainboardCards, ...p.sideboardCards]
+  })
 
-  const totalPrice = useMemo(() => {
-    return groupTotalPrice(mainAndSideboardCards)
-  }, [mainAndSideboardCards])
+  const totalPrice = createMemo(() => {
+    return groupTotalPrice(mainAndSideboardCards())
+  })
 
   // Extras price (maybeboard, tokens)
-  const extrasPrice = useMemo(() => {
-    return groupTotalPrice(extraCards)
-  }, [extraCards])
+  const extrasPrice = createMemo(() => {
+    return groupTotalPrice(partitioned().extraCards)
+  })
 
   // Modal card data
-  const modalCard = useMemo((): ScryfallCard | null => {
-    if (!modalCardName) return null
-    return activeCards[modalCardName] ?? null
-  }, [modalCardName, activeCards])
+  const modalCard = createMemo((): ScryfallCard | null => {
+    if (!props.modalCardName) return null
+    return activeCards()[props.modalCardName] ?? null
+  })
 
-  const handleCopy = useCallback(async () => {
-    if (!exportPath) return
+  const handleCopy = async () => {
+    if (!props.exportPath) return
     try {
       setCopyStatus('Fetching...')
-      const response = await fetch(exportPath)
+      const response = await fetch(props.exportPath)
       if (!response.ok) throw new Error('Failed to fetch deck list')
       const text = await response.text()
       await navigator.clipboard.writeText(text)
@@ -239,109 +206,124 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
       setCopyStatus('Error!')
       setTimeout(() => setCopyStatus(null), 2000)
     }
-  }, [exportPath])
-
-  const viewModeClass = `view-${viewMode}`
+  }
 
   const renderDeckCard = (hideCount: boolean) => (c: CardData) => (
     <CardItem
-      key={c.name}
       name={c.name}
       quantity={c.quantity}
       card={c.card}
-      symbolMap={symbolMap}
-      viewMode={viewMode}
+      symbolMap={props.symbolMap}
+      viewMode={viewMode()}
       hideCount={hideCount}
-      useScryfallImgUrls={useScryfallImgUrls}
-      onCardClick={() => onOpenModal(c.name)}
+      useScryfallImgUrls={props.useScryfallImgUrls}
+      onCardClick={() => props.onOpenModal(c.name)}
       onTooltipEnter={(src, sideways) => setTooltip({ src, sideways })}
       onTooltipLeave={() => setTooltip(null)}
-      currency={currency}
-      editMode={editMode}
-      onIncrement={editMode ? () => onCardIncrement?.(c.name) : undefined}
-      onDecrement={editMode ? () => onCardDecrement?.(c.name) : undefined}
-      onContextMenu={editMode ? (rect) => onCardContextMenu?.(c.name, c.card, rect) : undefined}
+      currency={props.currency}
+      editMode={props.editMode}
+      onIncrement={props.editMode ? () => props.onCardIncrement?.(c.name) : undefined}
+      onDecrement={props.editMode ? () => props.onCardDecrement?.(c.name) : undefined}
+      onContextMenu={
+        props.editMode ? (rect) => props.onCardContextMenu?.(c.name, c.card, rect) : undefined
+      }
     />
   )
 
-  const modalPrintings = useMemo(() => {
-    if (!modalCardName) return []
-    const direct = printings[modalCardName]
+  const modalPrintings = createMemo(() => {
+    if (!props.modalCardName) return []
+    const direct = props.printings[props.modalCardName]
     if (direct) return direct
     // Fall back to the card's actual Scryfall name — primer keys may differ in
     // punctuation/casing from the deck's card name key used to index printings.
-    const actualName = modalCard?.name
-    return (actualName ? printings[actualName] : undefined) ?? []
-  }, [modalCardName, modalCard, printings])
+    const actualName = modalCard()?.name
+    return (actualName ? props.printings[actualName] : undefined) ?? []
+  })
+
+  // Pre-compute extra sections for reactive rendering
+  const extraSections = createMemo(() => {
+    if (hideExtras() || partitioned().extraCards.length === 0) return []
+    return props.deck.sections
+      .filter((s) => isExtraSection(s.name))
+      .map((s) => ({
+        name: s.name,
+        cards: partitioned().extraCards.filter((c) => c.section === s.name),
+      }))
+      .filter((s) => s.cards.length > 0)
+  })
 
   return (
-    <div className={editMode ? 'page-full-width' : 'page-container'}>
+    <div class={props.editMode ? 'page-full-width' : 'page-container'}>
       {/* Header */}
-      <div className="page-header">
+      <div class="page-header">
         <div>
-          <h1 className="page-title">{deck.name}</h1>
-          <p className="page-stats">
-            Total: {formatPrice(totalPrice, currency)}
-            {!hideExtras && extraCards.length > 0 && (
-              <span className="page-stats-label">
+          <h1 class="page-title">{props.deck.name}</h1>
+          <p class="page-stats">
+            Total: {formatPrice(totalPrice(), props.currency)}
+            <Show when={!hideExtras() && partitioned().extraCards.length > 0}>
+              <span class="page-stats-label">
                 {' '}
-                (all cards: {formatPrice(totalPrice + extrasPrice, currency)})
+                (all cards: {formatPrice(totalPrice() + extrasPrice(), props.currency)})
               </span>
-            )}
+            </Show>
           </p>
-          {deck.sourceUrl && (
-            <a href={deck.sourceUrl} target="_blank" rel="noreferrer" className="copy-link">
+          <Show when={props.deck.sourceUrl}>
+            <a href={props.deck.sourceUrl} target="_blank" rel="noreferrer" class="copy-link">
               Imported from{' '}
               {(() => {
-                if (deck.sourceUrl.includes('moxfield.com')) return 'Moxfield'
-                if (deck.sourceUrl.includes('archidekt.com')) return 'Archidekt'
-                if (deck.sourceUrl.includes('mtggoldfish.com')) return 'MTGGoldfish'
+                if (props.deck.sourceUrl!.includes('moxfield.com')) return 'Moxfield'
+                if (props.deck.sourceUrl!.includes('archidekt.com')) return 'Archidekt'
+                if (props.deck.sourceUrl!.includes('mtggoldfish.com')) return 'MTGGoldfish'
                 return 'Source'
               })()}{' '}
               ↗
             </a>
-          )}
+          </Show>
         </div>
-        {(exportPath || editMode || (changelog && changelog.length > 0)) && (
-          <div className="btn-group">
-            {editMode && (
-              <button className="site-btn site-btn-add" onClick={onAddCard}>
+        <Show
+          when={
+            props.exportPath || props.editMode || (props.changelog && props.changelog!.length > 0)
+          }
+        >
+          <div class="btn-group">
+            <Show when={props.editMode}>
+              <button class="site-btn site-btn-add" onClick={props.onAddCard}>
                 + Add Card
               </button>
-            )}
-            {changelog && changelog.length > 0 && (
+            </Show>
+            <Show when={props.changelog && props.changelog!.length > 0}>
               <button
                 onClick={() => setShowChangelog(true)}
-                className="site-btn site-btn-secondary btn-view-changes"
+                class="site-btn site-btn-secondary btn-view-changes"
               >
                 View Changes
               </button>
-            )}
-            {exportPath && (
+            </Show>
+            <Show when={props.exportPath}>
               <a
-                href={exportPath}
-                download={`${deck.name.replace(/[^a-zA-Z0-9]/g, '_')}.txt`}
-                className="site-btn site-btn-secondary"
+                href={props.exportPath}
+                download={`${props.deck.name.replace(/[^a-zA-Z0-9]/g, '_')}.txt`}
+                class="site-btn site-btn-secondary"
               >
                 Download
               </a>
-            )}
-            {exportPath && (
-              <button onClick={handleCopy} className="site-btn site-btn-export">
-                {copyStatus ?? 'Copy'}
+            </Show>
+            <Show when={props.exportPath}>
+              <button onClick={handleCopy} class="site-btn site-btn-export">
+                {copyStatus() ?? 'Copy'}
               </button>
-            )}
+            </Show>
           </div>
-        )}
+        </Show>
       </div>
 
       {/* Toolbar */}
       <Toolbar
-        viewMode={viewMode}
+        viewMode={viewMode()}
         onViewModeChange={setViewMode}
-        cardSize={cardSize}
+        cardSize={cardSize()}
         onCardSizeChange={setCardSize}
-        groupBy={groupBy}
+        groupBy={groupBy()}
         groupByOptions={[
           { value: 'type', label: 'Type' },
           { value: 'section', label: 'Section' },
@@ -351,7 +333,7 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
           { value: 'none', label: 'None' },
         ]}
         onGroupByChange={(v) => setGroupBy(v as GroupBy)}
-        sortBy={sortBy}
+        sortBy={sortBy()}
         sortByOptions={[
           { value: 'name', label: 'Name' },
           { value: 'cmc', label: 'Mana Value' },
@@ -360,23 +342,23 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
           { value: 'edhrec', label: 'EDHRec Rank' },
         ]}
         onSortByChange={setSortBy}
-        priceGroupStrategy={priceGroupStrategy}
+        priceGroupStrategy={priceGroupStrategy()}
         onPriceGroupStrategyChange={setPriceGroupStrategy}
-        reverse={reverse}
+        reverse={reverse()}
         onReverseChange={() => setReverse((prev) => !prev)}
-        hideLands={hideLands}
+        hideLands={hideLands()}
         onHideLandsChange={() => setHideLands((prev) => !prev)}
         extraCheckboxes={[
           {
             label: 'Hide Extras',
-            checked: hideExtras,
+            checked: hideExtras(),
             onChange: () => setHideExtras((prev) => !prev),
           },
-          ...(hasLowestPriceCards
+          ...(hasLowestPriceCards()
             ? [
                 {
                   label: 'Lowest Price',
-                  checked: lowestPrice,
+                  checked: lowestPrice(),
                   onChange: () => setLowestPrice((prev) => !prev),
                 },
               ]
@@ -385,157 +367,152 @@ export const DeckPage: FunctionalComponent<DeckPageProps> = ({
       />
 
       {/* Description / Primer */}
-      {(deck.description || deck.primer) && (
-        <div className="deck-description-section">
-          {deck.description && (
-            <div className="deck-description">
-              {deck.description.length > 200 ? (
-                <ExpandableText text={deck.description} symbolMap={symbolMap} />
-              ) : (
-                <div className="text-preformatted">
-                  <SymbolText text={deck.description} symbolMap={symbolMap} />
-                </div>
-              )}
+      <Show when={props.deck.description || props.deck.primer}>
+        <div class="deck-description-section">
+          <Show when={props.deck.description}>
+            <div class="deck-description">
+              <Show
+                when={props.deck.description!.length > 200}
+                fallback={
+                  <div class="text-preformatted">
+                    <SymbolText text={props.deck.description!} symbolMap={props.symbolMap} />
+                  </div>
+                }
+              >
+                <ExpandableText text={props.deck.description!} symbolMap={props.symbolMap} />
+              </Show>
             </div>
-          )}
-          {deck.primer && (
-            <div className="deck-primer">
+          </Show>
+          <Show when={props.deck.primer}>
+            <div class="deck-primer">
               <ExpandablePrimer
-                primer={deck.primer}
-                slug={slug}
-                cards={activeCards}
-                onOpenModal={onOpenModal}
-                primerOpen={primerOpen}
-                sectionId={sectionId}
+                primer={props.deck.primer!}
+                slug={props.slug}
+                cards={activeCards()}
+                onOpenModal={props.onOpenModal}
+                primerOpen={props.primerOpen}
+                sectionId={props.sectionId}
               />
             </div>
-          )}
+          </Show>
         </div>
-      )}
+      </Show>
 
       {/* Missing cards warning banner */}
-      {currentMissingCards.length > 0 && (
-        <div className="missing-cards-banner">
+      <Show when={currentMissingCards().length > 0}>
+        <div class="missing-cards-banner">
           <button
             type="button"
-            className="missing-cards-banner-toggle"
+            class="missing-cards-banner-toggle"
             onClick={() => setMissingCardsExpanded((prev) => !prev)}
           >
             <span>⚠️</span>
-            <span className="missing-toggle-label">
-              {currentMissingCards.length} card{currentMissingCards.length > 1 ? 's' : ''} missing{' '}
-              {currency.toUpperCase()} pricing
+            <span class="missing-toggle-label">
+              {currentMissingCards().length} card
+              {currentMissingCards().length > 1 ? 's' : ''} missing {props.currency.toUpperCase()}{' '}
+              pricing
             </span>
-            <span className="missing-toggle-arrow">{missingCardsExpanded ? '▲' : '▼'}</span>
+            <span class="missing-toggle-arrow">{missingCardsExpanded() ? '▲' : '▼'}</span>
           </button>
-          {missingCardsExpanded && (
-            <div className="missing-cards-banner-list">
+          <Show when={missingCardsExpanded()}>
+            <div class="missing-cards-banner-list">
               <ul>
-                {currentMissingCards.map((name) => (
-                  <li key={name}>{name}</li>
-                ))}
+                <For each={currentMissingCards()}>{(name) => <li>{name}</li>}</For>
               </ul>
             </div>
-          )}
+          </Show>
         </div>
-      )}
+      </Show>
 
       {/* Card sections */}
       <div
-        className={`card-sections ${viewModeClass}`}
-        style={`--card-width:${CARD_SIZE_WIDTHS[cardSize]}px`}
+        class={`card-sections view-${viewMode()}`}
+        style={`--card-width:${CARD_SIZE_WIDTHS[cardSize()]}px`}
       >
         {/* Commander section always shown first */}
-        {commanderCards.length > 0 && (
+        <Show when={partitioned().commanderCards.length > 0}>
           <CardSection
             label={
-              deck.sections.find((s) => s.name.toLowerCase().includes('commander'))?.name ??
+              props.deck.sections.find((s) => s.name.toLowerCase().includes('commander'))?.name ??
               'Commander'
             }
-            cards={commanderCards}
-            currency={currency}
+            cards={partitioned().commanderCards}
+            currency={props.currency}
             renderCard={renderDeckCard(true)}
           />
-        )}
+        </Show>
 
         {/* Dynamic sorted/grouped sections (mainboard only) */}
-        {cardGroups.map((group) => (
-          <CardSection
-            key={group.key}
-            label={group.key}
-            cards={group.cards}
-            currency={currency}
-            renderCard={renderDeckCard(false)}
-          />
-        ))}
+        <For each={cardGroups()}>
+          {(group) => (
+            <CardSection
+              label={group.key}
+              cards={group.cards}
+              currency={props.currency}
+              renderCard={renderDeckCard(false)}
+            />
+          )}
+        </For>
 
         {/* Sideboard always shown at bottom, ungrouped */}
-        {sideboardCards.length > 0 && (
+        <Show when={partitioned().sideboardCards.length > 0}>
           <CardSection
-            label={deck.sections.find((s) => isSideboardSection(s.name))?.name ?? 'Sideboard'}
-            cards={sideboardCards}
-            currency={currency}
+            label={props.deck.sections.find((s) => isSideboardSection(s.name))?.name ?? 'Sideboard'}
+            cards={partitioned().sideboardCards}
+            currency={props.currency}
             renderCard={renderDeckCard(false)}
           />
-        )}
+        </Show>
 
         {/* Extras (maybeboard, tokens) shown below sideboard, ungrouped */}
-        {!hideExtras &&
-          extraCards.length > 0 &&
-          deck.sections
-            .filter((s) => isExtraSection(s.name))
-            .map((s) => {
-              const sectionCards = extraCards.filter((c) => c.section === s.name)
-              if (sectionCards.length === 0) return null
-              return (
-                <CardSection
-                  key={s.name}
-                  label={s.name}
-                  cards={sectionCards}
-                  currency={currency}
-                  renderCard={renderDeckCard(false)}
-                />
-              )
-            })}
+        <For each={extraSections()}>
+          {(s) => (
+            <CardSection
+              label={s.name}
+              cards={s.cards}
+              currency={props.currency}
+              renderCard={renderDeckCard(false)}
+            />
+          )}
+        </For>
       </div>
 
       {/* List-view hover tooltip */}
       <div
         ref={tooltipRef}
-        className={`list-tooltip ${tooltip ? 'visible' : ''} ${tooltip?.sideways ? 'list-tooltip-sideways' : ''}`}
-        style={`left:${tooltipPos.left}px;top:${tooltipPos.top}px;`}
+        class={`list-tooltip ${tooltip() ? 'visible' : ''} ${tooltip()?.sideways ? 'list-tooltip-sideways' : ''}`}
+        style={`left:${tooltipPos().left}px;top:${tooltipPos().top}px;`}
       >
-        {tooltip && (
-          <img src={tooltip.src} alt="" className={tooltip.sideways ? 'tooltip-rotated' : ''} />
-        )}
+        <Show when={tooltip()}>
+          <img src={tooltip()!.src} alt="" class={tooltip()!.sideways ? 'tooltip-rotated' : ''} />
+        </Show>
       </div>
 
       {/* Card detail modal */}
       <CardModal
-        key={modalCardName ?? ''}
-        open={Boolean(modalCard)}
-        card={modalCard}
-        cardName={modalCardName}
-        symbolMap={symbolMap}
-        useScryfallImgUrls={useScryfallImgUrls}
-        currency={currency}
-        printings={modalPrintings}
-        onClose={onCloseModal}
+        open={Boolean(modalCard())}
+        card={modalCard()}
+        cardName={props.modalCardName}
+        symbolMap={props.symbolMap}
+        useScryfallImgUrls={props.useScryfallImgUrls}
+        currency={props.currency}
+        printings={modalPrintings()}
+        onClose={props.onCloseModal}
       />
 
       {/* Changelog modal */}
-      {changelog && changelog.length > 0 && (
+      <Show when={props.changelog && props.changelog!.length > 0}>
         <ChangelogModal
-          open={showChangelog}
-          changelog={changelog}
-          cards={cards}
-          printings={printings}
-          symbolMap={symbolMap}
-          useScryfallImgUrls={useScryfallImgUrls}
-          currency={currency}
+          open={showChangelog()}
+          changelog={props.changelog!}
+          cards={props.cards}
+          printings={props.printings}
+          symbolMap={props.symbolMap}
+          useScryfallImgUrls={props.useScryfallImgUrls}
+          currency={props.currency}
           onClose={() => setShowChangelog(false)}
         />
-      )}
+      </Show>
     </div>
   )
 }
@@ -546,16 +523,19 @@ type ExpandableTextProps = {
   symbolMap: Record<string, string>
 }
 
-function ExpandableText({ text, symbolMap }: ExpandableTextProps) {
-  const [expanded, setExpanded] = useState(false)
+function ExpandableText(props: ExpandableTextProps) {
+  const [expanded, setExpanded] = createSignal(false)
 
   return (
     <div>
-      <div className="text-preformatted">
-        <SymbolText text={expanded ? text : text.slice(0, 200) + '…'} symbolMap={symbolMap} />
+      <div class="text-preformatted">
+        <SymbolText
+          text={expanded() ? props.text : props.text.slice(0, 200) + '…'}
+          symbolMap={props.symbolMap}
+        />
       </div>
-      <button className="link-action" onClick={() => setExpanded((prev) => !prev)}>
-        {expanded ? 'Show less' : 'Read more'}
+      <button class="link-action" onClick={() => setExpanded((prev) => !prev)}>
+        {expanded() ? 'Show less' : 'Read more'}
       </button>
     </div>
   )
@@ -571,79 +551,80 @@ type ExpandablePrimerProps = {
   sectionId?: string
 }
 
-function ExpandablePrimer({
-  primer,
-  slug,
-  cards,
-  onOpenModal,
-  primerOpen,
-  sectionId,
-}: ExpandablePrimerProps) {
-  const [expanded, setExpanded] = useState(() => Boolean(primerOpen || sectionId))
+function ExpandablePrimer(props: ExpandablePrimerProps) {
+  const [expanded, setExpanded] = createSignal(Boolean(props.primerOpen || props.sectionId))
 
-  // buildToc is a fast O(n) line-scan; useMemo with [primer] ensures it only
+  // buildToc is a fast O(n) line-scan; createMemo with auto-tracking ensures it only
   // recomputes when the primer text changes, not on every re-render.
-  const toc = useMemo(() => buildToc(primer), [primer])
+  const toc = createMemo(() => buildToc(props.primer))
 
   // Re-expand whenever the route navigates to the primer or a specific section
-  useEffect(() => {
-    if (primerOpen || sectionId) setExpanded(true)
-  }, [primerOpen, sectionId])
+  createEffect(() => {
+    if (props.primerOpen || props.sectionId) setExpanded(true)
+  })
 
   // Scroll to the target section after the primer is expanded
-  useEffect(() => {
-    if (!expanded || !sectionId) return
-    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [expanded, sectionId])
+  createEffect(() => {
+    if (!expanded() || !props.sectionId) return
+    document.getElementById(props.sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
 
-  // Use a ternary rather than two separate `&&` guards so the mutual exclusivity
-  // of the collapsed/expanded states is obvious to the reader (and to the
-  // Preact reconciler, which can reuse the single root <div> across transitions).
   return (
     <div>
-      {!expanded ? (
+      <Show
+        when={expanded()}
+        fallback={
+          <div>
+            <p class="text-hint">This deck has a primer.</p>
+            <button
+              class="link-action"
+              aria-expanded={false}
+              onClick={() => {
+                setExpanded(true)
+                history.replaceState(null, '', `#/deck/${props.slug}/primer`)
+              }}
+            >
+              Read more
+            </button>
+          </div>
+        }
+      >
         <div>
-          <p className="text-hint">This deck has a primer.</p>
-          <button
-            className="link-action"
-            aria-expanded={false}
-            onClick={() => {
-              setExpanded(true)
-              history.replaceState(null, '', `#/deck/${slug}/primer`)
-            }}
-          >
-            Read more
-          </button>
-        </div>
-      ) : (
-        <div>
-          <div className={`primer-layout ${toc.length > 0 ? 'primer-layout--with-toc' : ''}`}>
-            {toc.length > 0 && (
-              <nav className="primer-toc">
-                <p className="primer-toc-title">Contents</p>
+          <div class={`primer-layout ${toc().length > 0 ? 'primer-layout--with-toc' : ''}`}>
+            <Show when={toc().length > 0}>
+              <nav class="primer-toc">
+                <p class="primer-toc-title">Contents</p>
                 <ul>
-                  {toc.map((h) => (
-                    <li key={h.id} className={`primer-toc-item primer-toc-level-${h.level}`}>
-                      <a href={`#/deck/${slug}/primer/${h.id}`}>{h.text.replace(/\*+/g, '')}</a>
-                    </li>
-                  ))}
+                  <For each={toc()}>
+                    {(h) => (
+                      <li class={`primer-toc-item primer-toc-level-${h.level}`}>
+                        <a href={`#/deck/${props.slug}/primer/${h.id}`}>
+                          {h.text.replace(/\*+/g, '')}
+                        </a>
+                      </li>
+                    )}
+                  </For>
                 </ul>
               </nav>
-            )}
-            <PrimerRenderer primerMarkdown={primer} cards={cards} onOpenModal={onOpenModal} />
+            </Show>
+            <PrimerRenderer
+              primerMarkdown={props.primer}
+              cards={props.cards}
+              onOpenModal={props.onOpenModal}
+            />
           </div>
           <button
-            className="link-action link-action-block"
+            class="link-action link-action-block"
             aria-expanded={true}
             onClick={() => {
               setExpanded(false)
-              history.replaceState(null, '', `#/deck/${slug}`)
+              history.replaceState(null, '', `#/deck/${props.slug}`)
             }}
           >
             Show less
           </button>
         </div>
-      )}
+      </Show>
     </div>
   )
 }

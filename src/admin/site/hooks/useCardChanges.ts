@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'preact/hooks'
+import { type Accessor, createSignal, createMemo } from 'solid-js'
 import type { Finish } from '../../../types'
 import type { ChangeInput } from '../../../change-event'
 import {
@@ -26,13 +26,13 @@ export type UndoResult<T = unknown> = {
 }
 
 export type UseCardChangesResult<T = unknown> = {
-  changes: ChangeEvent[]
-  changeCount: number
+  changes: Accessor<ChangeEvent[]>
+  changeCount: Accessor<number>
   addChange: (change: ChangeInput, removedCardData?: T) => ChangeEvent | null
   discardAll: () => void
-  canUndo: boolean
+  canUndo: Accessor<boolean>
   undo: () => UndoResult<T> | null
-  undoStack: UndoEntry<T>[]
+  undoStack: Accessor<UndoEntry<T>[]>
   incrementCard: (cardName: string, cardId?: number) => void
   decrementCard: (cardName: string, cardId?: number, removedCardData?: T) => void
   addCard: (cardName: string, options?: CardPrintingOptions) => void
@@ -41,12 +41,12 @@ export type UseCardChangesResult<T = unknown> = {
 }
 
 export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
-  const [changes, setChanges] = useState<ChangeEvent[]>([])
-  const [undoStack, setUndoStack] = useState<UndoEntry<T>[]>([])
-  const changesRef = useRef<ChangeEvent[]>([])
-  const undoStackRef = useRef<UndoEntry<T>[]>([])
+  const [changes, setChanges] = createSignal<ChangeEvent[]>([])
+  const [undoStack, setUndoStack] = createSignal<UndoEntry<T>[]>([])
+  let changesRef: ChangeEvent[] = []
+  let undoStackRef: UndoEntry<T>[] = []
 
-  const addChange = useCallback((partial: ChangeInput, removedCardData?: T): ChangeEvent | null => {
+  function addChange(partial: ChangeInput, removedCardData?: T): ChangeEvent | null {
     // The spread of a discriminated-union input with id+timestamp is structurally
     // correct at runtime but TypeScript can't verify it; a type assertion is needed.
     const newEvent = {
@@ -58,94 +58,74 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     let addedChange: ChangeEvent | null = newEvent
     let cancelledChange: ChangeEvent | null = null
 
-    const oppositeIndex = changesRef.current.findIndex((existing) =>
-      areOppositeChanges(existing, newEvent),
-    )
+    const oppositeIndex = changesRef.findIndex((existing) => areOppositeChanges(existing, newEvent))
 
     if (oppositeIndex !== -1) {
-      cancelledChange = changesRef.current[oppositeIndex] ?? null
+      cancelledChange = changesRef[oppositeIndex] ?? null
       addedChange = null
-      changesRef.current = changesRef.current.filter((_, i) => i !== oppositeIndex)
+      changesRef = changesRef.filter((_, i) => i !== oppositeIndex)
     } else {
-      changesRef.current = [...changesRef.current, newEvent]
+      changesRef = [...changesRef, newEvent]
     }
 
-    undoStackRef.current = [
-      ...undoStackRef.current,
-      { addedChange, cancelledChange, removedCardData },
-    ]
+    undoStackRef = [...undoStackRef, { addedChange, cancelledChange, removedCardData }]
 
-    setChanges([...changesRef.current])
-    setUndoStack([...undoStackRef.current])
+    setChanges([...changesRef])
+    setUndoStack([...undoStackRef])
 
     return addedChange
-  }, [])
+  }
 
-  const discardAll = useCallback(() => {
-    changesRef.current = []
-    undoStackRef.current = []
+  function discardAll() {
+    changesRef = []
+    undoStackRef = []
     setChanges([])
     setUndoStack([])
-  }, [])
+  }
 
-  const undo = useCallback((): UndoResult<T> | null => {
-    if (undoStackRef.current.length === 0) return null
+  function undo(): UndoResult<T> | null {
+    if (undoStackRef.length === 0) return null
 
-    const entry = undoStackRef.current[undoStackRef.current.length - 1]!
-    undoStackRef.current = undoStackRef.current.slice(0, -1)
+    const entry = undoStackRef[undoStackRef.length - 1]!
+    undoStackRef = undoStackRef.slice(0, -1)
 
-    let next = changesRef.current
+    let next = changesRef
     if (entry.addedChange) {
       next = next.filter((c) => c.id !== entry.addedChange!.id)
     }
     if (entry.cancelledChange) {
       next = [...next, entry.cancelledChange]
     }
-    changesRef.current = next
+    changesRef = next
 
-    setUndoStack([...undoStackRef.current])
-    setChanges([...changesRef.current])
+    setUndoStack([...undoStackRef])
+    setChanges([...changesRef])
 
-    return { entry, remainingChanges: changesRef.current }
-  }, [])
+    return { entry, remainingChanges: changesRef }
+  }
 
-  const incrementCard = useCallback(
-    (cardName: string, cardId?: number) => {
-      addChange({ action: 'add', cardName, cardId })
-    },
-    [addChange],
-  )
+  function incrementCard(cardName: string, cardId?: number) {
+    addChange({ action: 'add', cardName, cardId })
+  }
 
-  const decrementCard = useCallback(
-    (cardName: string, cardId?: number, removedCardData?: T) => {
-      addChange({ action: 'remove', cardName, cardId }, removedCardData)
-    },
-    [addChange],
-  )
+  function decrementCard(cardName: string, cardId?: number, removedCardData?: T) {
+    addChange({ action: 'remove', cardName, cardId }, removedCardData)
+  }
 
-  const addCard = useCallback(
-    (cardName: string, options?: CardPrintingOptions) => {
-      addChange({ action: 'add', cardName, ...options })
-    },
-    [addChange],
-  )
+  function addCard(cardName: string, options?: CardPrintingOptions) {
+    addChange({ action: 'add', cardName, ...options })
+  }
 
-  const removeCard = useCallback(
-    (cardName: string, options?: CardPrintingOptions, removedCardData?: T) => {
-      addChange({ action: 'remove', cardName, ...options }, removedCardData)
-    },
-    [addChange],
-  )
+  function removeCard(cardName: string, options?: CardPrintingOptions, removedCardData?: T) {
+    addChange({ action: 'remove', cardName, ...options }, removedCardData)
+  }
 
-  const setFinish = useCallback(
-    (cardName: string, finish: Finish, cardId?: number) => {
-      addChange({ action: 'set-finish', cardName, finish, cardId })
-    },
-    [addChange],
-  )
+  function setFinish(cardName: string, finish: Finish, cardId?: number) {
+    addChange({ action: 'set-finish', cardName, finish, cardId })
+  }
 
-  const changeCount = changes.length
-  const canUndo = undoStack.length > 0
+  const changeCount = createMemo(() => changes().length)
+  const canUndo = createMemo(() => undoStack().length > 0)
 
   return {
     changes,

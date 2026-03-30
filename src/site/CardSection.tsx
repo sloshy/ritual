@@ -1,4 +1,5 @@
-import type { FunctionalComponent, ComponentChildren } from 'preact'
+import type { Component, JSX } from 'solid-js'
+import { Show, For } from 'solid-js'
 import type { CardData } from './card-sorting'
 import type { PriceCurrency } from '../price-currency'
 import { formatPrice } from '../price-currency'
@@ -8,39 +9,38 @@ interface CardSectionProps {
   label: string
   cards: CardData[]
   currency: PriceCurrency
-  renderCard: (card: CardData, index: number) => ComponentChildren
+  renderCard: (card: CardData, index: number) => JSX.Element
 }
 
-export const CardSection: FunctionalComponent<CardSectionProps> = ({
-  label,
-  cards,
-  currency,
-  renderCard,
-}) => {
-  if (cards.length === 0) return null
-  const sectionId = label.replace(/[^a-zA-Z0-9]/g, '_')
-  const sectionTotal = groupTotalPrice(cards)
+export const CardSection: Component<CardSectionProps> = (props) => {
+  const sectionId = () => props.label.replace(/[^a-zA-Z0-9]/g, '_')
+  const sectionTotal = () => groupTotalPrice(props.cards)
+
   return (
-    <div key={label} data-section={label}>
-      <div className="section-divider" id={sectionId}>
-        <h2>
-          <a
-            href={`#${sectionId}`}
-            className="section-header-link"
-            onClick={(e) => {
-              e.preventDefault()
-              document
-                .getElementById(sectionId)
-                ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-            }}
-          >
-            {label}
-          </a>
-        </h2>
-        <span className="section-count">{cards.reduce((sum, c) => sum + c.quantity, 0)}</span>
-        <span className="section-price">{formatPrice(sectionTotal, currency)}</span>
+    <Show when={props.cards.length > 0}>
+      <div data-section={props.label}>
+        <div class="section-divider" id={sectionId()}>
+          <h2>
+            <a
+              href={`#${sectionId()}`}
+              class="section-header-link"
+              onClick={(e) => {
+                e.preventDefault()
+                document
+                  .getElementById(sectionId())
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }}
+            >
+              {props.label}
+            </a>
+          </h2>
+          <span class="section-count">{props.cards.reduce((sum, c) => sum + c.quantity, 0)}</span>
+          <span class="section-price">{formatPrice(sectionTotal(), props.currency)}</span>
+        </div>
+        <div class="binder-grid">
+          <For each={props.cards}>{(card, i) => props.renderCard(card, i())}</For>
+        </div>
       </div>
-      <div className="binder-grid">{cards.map((card, i) => renderCard(card, i))}</div>
-    </div>
+    </Show>
   )
 }

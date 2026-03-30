@@ -115,3 +115,9 @@ When writing a new feature for the public site or admin site, ensure there's a n
 Tests using the built site should always use synthetic data created for running the tests.
 Do not bother writing tests just to see if an element is visible, except for one or two basic smoke tests, or smoke testing inside of other behavior tests.
 Most playwright testing should be focused on state transitions, such as adding a card to a collection and seeing if it appears, or editing a deck and seeing if the changes persist.
+
+### Test Data
+
+All tests — especially integration and Playwright tests — **must use fake or synthetic data**, never real data files. Directories listed in `.gitignore` (e.g., `decks/`, `collections/`, `wanted/`, `cache/`, `dist/`) are not available from a fresh clone. Tests that depend on those files will fail in CI or on a new machine.
+
+For Playwright tests, use route interception with mock data defined in `test/integration/playwright/helpers/mock-data.ts`. See `mockPublicSiteDeckWithChangelog` or `mockPublicSiteDeckWithDescription` as examples.

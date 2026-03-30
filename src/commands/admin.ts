@@ -36,10 +36,7 @@ export function registerAdminCommand(program: Command) {
         define: {
           'process.env.NODE_ENV': '"production"',
         },
-        jsx: {
-          runtime: 'automatic',
-          importSource: 'preact',
-        },
+        plugins: [(await import('@dschz/bun-plugin-solid')).SolidPlugin()],
       })
 
       if (!buildResult.success) {

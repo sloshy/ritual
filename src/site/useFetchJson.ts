@@ -1,19 +1,21 @@
-import { useState, useEffect } from 'preact/hooks'
+import { createSignal, createEffect, onCleanup } from 'solid-js'
+import type { Accessor } from 'solid-js'
 
 export type UseFetchJsonResult<T> = {
-  data: T | null
-  loading: boolean
-  error: string | null
+  data: Accessor<T | null>
+  loading: Accessor<boolean>
+  error: Accessor<string | null>
 }
 
 /** Fetches JSON from a URL with automatic AbortController cleanup. Pass null to skip fetching. */
-export function useFetchJson<T>(url: string | null): UseFetchJsonResult<T> {
-  const [data, setData] = useState<T | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+export function useFetchJson<T>(url: Accessor<string | null>): UseFetchJsonResult<T> {
+  const [data, setData] = createSignal<T | null>(null)
+  const [loading, setLoading] = createSignal(false)
+  const [error, setError] = createSignal<string | null>(null)
 
-  useEffect(() => {
-    if (!url) {
+  createEffect(() => {
+    const currentUrl = url()
+    if (!currentUrl) {
       setData(null)
       return
     }
@@ -24,21 +26,21 @@ export function useFetchJson<T>(url: string | null): UseFetchJsonResult<T> {
 
     void (async () => {
       try {
-        const response = await fetch(url, { signal: controller.signal })
+        const response = await fetch(currentUrl, { signal: controller.signal })
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
         const json = (await response.json()) as T
-        setData(json)
+        setData(() => json)
         setLoading(false)
       } catch (e) {
         if ((e as Error).name === 'AbortError') return
-        console.error(`Failed to load ${url}:`, e)
+        console.error(`Failed to load ${currentUrl}:`, e)
         setError('Failed to load data.')
         setLoading(false)
       }
     })()
 
-    return () => controller.abort()
-  }, [url])
+    onCleanup(() => controller.abort())
+  })
 
   return { data, loading, error }
 }

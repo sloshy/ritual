@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'preact/hooks'
+import { createSignal, createMemo, onCleanup, Show, For } from 'solid-js'
 import { StatusAlerts } from '../components/StatusAlerts'
 
 type Stage = 'idle' | 'connecting' | 'download' | 'parse' | 'process' | 'save' | 'done' | 'error'
@@ -32,14 +32,16 @@ function stageStatus(info: StageInfo, current: Stage): 'pending' | 'active' | 'd
 }
 
 export function CacheRefresh() {
-  const [stage, setStage] = useState<Stage>('idle')
-  const [percentage, setPercentage] = useState(0)
-  const [progressMessage, setProgressMessage] = useState('')
-  const [status, setStatus] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const eventSourceRef = useRef<EventSource | null>(null)
-
-  const fallbackRefresh = useCallback(async () => {
+  const [stage, setStage] = createSignal<Stage>('idle')
+  const [percentage, setPercentage] = createSignal(0)
+  const [progressMessage, setProgressMessage] = createSignal('')
+  const [status, setStatus] = createSignal<string | null>(null)
+  const [error, setError] = createSignal<string | null>(null)
+  let eventSourceRef: EventSource | null = null
+  onCleanup(() => {
+    eventSourceRef?.close()
+  })
+  const fallbackRefresh = async () => {
     setStage('download')
     setProgressMessage('Refreshing cache (progress unavailable)...')
     try {
@@ -60,9 +62,9 @@ export function CacheRefresh() {
       setStage('error')
       setError('Failed to refresh cache')
     }
-  }, [])
+  }
 
-  const handleRefresh = useCallback(async () => {
+  const handleRefresh = async () => {
     setStage('connecting')
     setPercentage(0)
     setProgressMessage('')
@@ -71,7 +73,7 @@ export function CacheRefresh() {
 
     try {
       const es = new EventSource('/api/cache/refresh/stream')
-      eventSourceRef.current = es
+      eventSourceRef = es
 
       es.addEventListener('progress', (e: MessageEvent) => {
         try {
@@ -104,7 +106,7 @@ export function CacheRefresh() {
           setStatus('Cache refreshed successfully')
         }
         es.close()
-        eventSourceRef.current = null
+        eventSourceRef = null
       })
 
       es.addEventListener('error', (e: Event) => {
@@ -120,63 +122,67 @@ export function CacheRefresh() {
         } else {
           // Connection error — fall back to POST
           es.close()
-          eventSourceRef.current = null
+          eventSourceRef = null
           fallbackRefresh()
           return
         }
         setStage('error')
         es.close()
-        eventSourceRef.current = null
+        eventSourceRef = null
       })
     } catch {
       fallbackRefresh()
     }
-  }, [fallbackRefresh])
+  }
 
-  const isRunning = stage !== 'idle' && stage !== 'done' && stage !== 'error'
+  const isRunning = createMemo(() => {
+    const s = stage()
+    return s !== 'idle' && s !== 'done' && s !== 'error'
+  })
 
   return (
     <div>
       <h2 class="section-heading">🔄 Refresh Cache</h2>
       <p class="page-desc">Download and cache all Scryfall card data. This will take some time.</p>
-      <StatusAlerts status={status} error={error} />
+      <StatusAlerts status={status()} error={error()} />
 
-      {/* Progress section */}
-      {isRunning && (
+      <Show when={isRunning()}>
         <div class="progress-section">
-          {/* Progress bar (visible during download) */}
-          {stage === 'download' && (
+          <Show when={stage() === 'download'}>
             <div class="progress-gap">
               <div class="progress-label">
                 <span class="text-accent">Downloading</span>
-                <span class="text-secondary">{percentage}%</span>
+                <span class="text-secondary">{percentage()}%</span>
               </div>
               <div class="progress-track">
-                <div class="progress-fill" style={`width: ${percentage}%;`} />
+                <div class="progress-fill" style={`width: ${percentage()}%;`} />
               </div>
-              {progressMessage && <p class="progress-message">{progressMessage}</p>}
+              <Show when={progressMessage()}>
+                <p class="progress-message">{progressMessage()}</p>
+              </Show>
             </div>
-          )}
+          </Show>
 
-          {/* Stage list */}
           <div class="progress-stages">
-            {stages.map((s) => {
-              const st = stageStatus(s, stage)
-              return (
-                <div key={s.id} class="progress-stage" data-status={st}>
-                  <span class="progress-stage-icon">
-                    {st === 'done' ? '✓' : st === 'active' ? s.icon : '○'}
-                  </span>
-                  {s.label}
-                </div>
-              )
-            })}
+            <For each={stages}>
+              {(s) => {
+                const st = () => stageStatus(s, stage())
+                return (
+                  <div class="progress-stage" data-status={st()}>
+                    <span class="progress-stage-icon">
+                      {st() === 'done' ? '✓' : st() === 'active' ? s.icon : '○'}
+                    </span>
+                    {s.label}
+                  </div>
+                )
+              }}
+            </For>
           </div>
         </div>
-      )}
+      </Show>
 
-      <button class="btn btn-primary btn-lg" onClick={handleRefresh} disabled={isRunning}>
-        {isRunning ? 'Refreshing...' : 'Refresh Cache'}
+      <button class="btn btn-primary btn-lg" onClick={handleRefresh} disabled={isRunning()}>
+        {isRunning() ? 'Refreshing...' : 'Refresh Cache'}
       </button>
     </div>
   )

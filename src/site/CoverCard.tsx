@@ -1,4 +1,5 @@
-import type { FunctionalComponent } from 'preact'
+import type { Component } from 'solid-js'
+import { Show } from 'solid-js'
 
 interface CoverCardProps {
   name: string
@@ -9,29 +10,28 @@ interface CoverCardProps {
   secondaryPriceLabel?: string
 }
 
-export const CoverCard: FunctionalComponent<CoverCardProps> = ({
-  name,
-  image,
-  subtitle,
-  cardCount,
-  priceLabel,
-  secondaryPriceLabel,
-}) => {
+export const CoverCard: Component<CoverCardProps> = (props) => {
   return (
-    <div className="deck-cover">
-      <div className="cover-image">
-        {image ? <img src={image} alt={name} /> : <div className="cover-placeholder">No Image</div>}
-        <div className="cover-overlay" />
-        <div className="cover-info">
-          <h2>{name}</h2>
-          {subtitle && <p className="cover-subtitle">{subtitle}</p>}
+    <div class="deck-cover">
+      <div class="cover-image">
+        <Show when={props.image} fallback={<div class="cover-placeholder">No Image</div>}>
+          {(src) => <img src={src()} alt={props.name} />}
+        </Show>
+        <div class="cover-overlay" />
+        <div class="cover-info">
+          <h2>{props.name}</h2>
+          <Show when={props.subtitle}>
+            <p class="cover-subtitle">{props.subtitle}</p>
+          </Show>
         </div>
       </div>
-      <div className="cover-cardcount">
-        <span>{cardCount} cards</span>
-        <span className="cover-prices">
-          <span>{priceLabel}</span>
-          {secondaryPriceLabel && <span className="cover-lowest">low {secondaryPriceLabel}</span>}
+      <div class="cover-cardcount">
+        <span>{props.cardCount} cards</span>
+        <span class="cover-prices">
+          <span>{props.priceLabel}</span>
+          <Show when={props.secondaryPriceLabel}>
+            <span class="cover-lowest">low {props.secondaryPriceLabel}</span>
+          </Show>
         </span>
       </div>
     </div>

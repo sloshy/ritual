@@ -1,9 +1,9 @@
-import { useState, useCallback } from 'preact/hooks'
+import { type Accessor, createSignal } from 'solid-js'
 
 export type DialogState = {
-  showChanges: boolean
-  showDiscard: boolean
-  showSearchModal: boolean
+  showChanges: Accessor<boolean>
+  showDiscard: Accessor<boolean>
+  showSearchModal: Accessor<boolean>
   openChanges: () => void
   closeChanges: () => void
   openDiscard: () => void
@@ -13,16 +13,16 @@ export type DialogState = {
 }
 
 export function useDialogState(): DialogState {
-  const [showChanges, setShowChanges] = useState(false)
-  const [showDiscard, setShowDiscard] = useState(false)
-  const [showSearchModal, setShowSearchModal] = useState(false)
+  const [showChanges, setShowChanges] = createSignal(false)
+  const [showDiscard, setShowDiscard] = createSignal(false)
+  const [showSearchModal, setShowSearchModal] = createSignal(false)
 
-  const openChanges = useCallback(() => setShowChanges(true), [])
-  const closeChanges = useCallback(() => setShowChanges(false), [])
-  const openDiscard = useCallback(() => setShowDiscard(true), [])
-  const closeDiscard = useCallback(() => setShowDiscard(false), [])
-  const openSearchModal = useCallback(() => setShowSearchModal(true), [])
-  const closeSearchModal = useCallback(() => setShowSearchModal(false), [])
+  const openChanges = () => setShowChanges(true)
+  const closeChanges = () => setShowChanges(false)
+  const openDiscard = () => setShowDiscard(true)
+  const closeDiscard = () => setShowDiscard(false)
+  const openSearchModal = () => setShowSearchModal(true)
+  const closeSearchModal = () => setShowSearchModal(false)
 
   return {
     showChanges,

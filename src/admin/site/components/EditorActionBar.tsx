@@ -1,4 +1,5 @@
-import { memo } from 'preact/compat'
+import type { Component } from 'solid-js'
+import { Show } from 'solid-js'
 
 type EditorActionBarProps = {
   changeCount: number
@@ -10,35 +11,34 @@ type EditorActionBarProps = {
   onDiscard: () => void
 }
 
-export const EditorActionBar = memo(function EditorActionBar({
-  changeCount,
-  canUndo,
-  saving,
-  onShowChanges,
-  onUndo,
-  onSave,
-  onDiscard,
-}: EditorActionBarProps) {
+export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
   return (
     <div class="editor-action-bar">
-      <button type="button" class="btn-changes" onClick={onShowChanges}>
+      <button type="button" class="btn-changes" onClick={props.onShowChanges}>
         Changes
-        {changeCount > 0 && <span class="changes-badge">{changeCount}</span>}
+        <Show when={props.changeCount > 0}>
+          <span class="changes-badge">{props.changeCount}</span>
+        </Show>
       </button>
-      <button type="button" class="btn-undo" disabled={!canUndo} onClick={onUndo}>
+      <button type="button" class="btn-undo" disabled={!props.canUndo} onClick={props.onUndo}>
         Undo
       </button>
       <button
         type="button"
         class="btn-save"
-        disabled={changeCount === 0 || saving}
-        onClick={onSave}
+        disabled={props.changeCount === 0 || props.saving}
+        onClick={props.onSave}
       >
-        {saving ? 'Saving...' : 'Save Changes'}
+        {props.saving ? 'Saving...' : 'Save Changes'}
       </button>
-      <button type="button" class="btn-discard" disabled={changeCount === 0} onClick={onDiscard}>
+      <button
+        type="button"
+        class="btn-discard"
+        disabled={props.changeCount === 0}
+        onClick={props.onDiscard}
+      >
         Discard Changes
       </button>
     </div>
   )
-})
+}

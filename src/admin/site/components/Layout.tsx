@@ -1,5 +1,5 @@
-import type { ComponentChildren } from 'preact'
-import { useState, useCallback } from 'preact/hooks'
+import type { ParentComponent } from 'solid-js'
+import { createSignal, For, Show } from 'solid-js'
 import type { Page } from '../types'
 
 interface NavItem {
@@ -26,32 +26,31 @@ interface LayoutProps {
   currentPage: Page
   onNavigate: (page: Page) => void
   onLogout?: () => void
-  children?: ComponentChildren
   fullWidth?: boolean
 }
 
-export function Layout({ currentPage, onNavigate, onLogout, children, fullWidth }: LayoutProps) {
-  const [menuOpen, setMenuOpen] = useState(false)
+export const Layout: ParentComponent<LayoutProps> = (props) => {
+  const [menuOpen, setMenuOpen] = createSignal(false)
 
-  const handleNav = useCallback(
-    (page: Page) => {
-      onNavigate(page)
-      setMenuOpen(false)
-    },
-    [onNavigate],
+  const handleNav = (page: Page) => {
+    props.onNavigate(page)
+    setMenuOpen(false)
+  }
+
+  const navList = () => (
+    <For each={navItems}>
+      {(item) => (
+        <button
+          class="admin-nav-item"
+          data-active={props.currentPage === item.id ? 'true' : undefined}
+          onClick={() => handleNav(item.id)}
+        >
+          <span class="nav-icon">{item.icon}</span>
+          {item.label}
+        </button>
+      )}
+    </For>
   )
-
-  const navList = navItems.map((item) => (
-    <button
-      key={item.id}
-      class="admin-nav-item"
-      data-active={currentPage === item.id ? 'true' : undefined}
-      onClick={() => handleNav(item.id)}
-    >
-      <span class="nav-icon">{item.icon}</span>
-      {item.label}
-    </button>
-  ))
 
   return (
     <div class="layout-root">
@@ -59,52 +58,60 @@ export function Layout({ currentPage, onNavigate, onLogout, children, fullWidth 
       <header class="admin-header">
         <span class="admin-logo">⚗️ Ritual Admin</span>
         <div class="admin-header-actions">
-          {onLogout && (
-            <button class="btn btn-secondary btn-xs desktop-only" onClick={onLogout}>
-              Logout
-            </button>
-          )}
+          <Show when={props.onLogout}>
+            {(logout) => (
+              <button class="btn btn-secondary btn-xs desktop-only" onClick={() => logout()()}>
+                Logout
+              </button>
+            )}
+          </Show>
           <button
             class="btn-mobile-menu mobile-only"
-            onClick={() => setMenuOpen(!menuOpen)}
+            onClick={() => setMenuOpen(!menuOpen())}
             aria-label="Toggle menu"
           >
-            {menuOpen ? '✕' : '☰'}
+            {menuOpen() ? '✕' : '☰'}
           </button>
         </div>
       </header>
       <div class="layout-body">
         {/* Desktop sidebar */}
         <nav class="admin-sidebar admin-sidebar-panel desktop-only">
-          {navList}
-          {onLogout && <div class="sidebar-divider" />}
+          {navList()}
+          <Show when={props.onLogout}>
+            <div class="sidebar-divider" />
+          </Show>
         </nav>
         {/* Mobile nav overlay */}
-        {menuOpen && (
+        <Show when={menuOpen()}>
           <div>
             <div class="mobile-backdrop mobile-only" onClick={() => setMenuOpen(false)} />
             <nav class="mobile-nav mobile-only">
               <div class="mobile-nav-header">⚗️ Ritual Admin</div>
-              {navList}
-              {onLogout && (
-                <div class="nav-divider">
-                  <button
-                    class="admin-nav-item"
-                    onClick={() => {
-                      setMenuOpen(false)
-                      onLogout()
-                    }}
-                  >
-                    <span class="nav-icon">🚪</span>
-                    Logout
-                  </button>
-                </div>
-              )}
+              {navList()}
+              <Show when={props.onLogout}>
+                {(logout) => (
+                  <div class="nav-divider">
+                    <button
+                      class="admin-nav-item"
+                      onClick={() => {
+                        setMenuOpen(false)
+                        logout()()
+                      }}
+                    >
+                      <span class="nav-icon">🚪</span>
+                      Logout
+                    </button>
+                  </div>
+                )}
+              </Show>
             </nav>
           </div>
-        )}
+        </Show>
         {/* Main content */}
-        <main class={fullWidth ? 'main-content' : 'main-content-constrained'}>{children}</main>
+        <main class={props.fullWidth ? 'main-content' : 'main-content-constrained'}>
+          {props.children}
+        </main>
       </div>
     </div>
   )

@@ -1,33 +1,35 @@
-import { useState, useEffect } from 'preact/hooks'
+import { createSignal, onMount, onCleanup } from 'solid-js'
+import type { Accessor, Setter } from 'solid-js'
 import type { DeckSummary, CollectionSummary, WantedListSummary, SiteIndex } from './data-types'
 import type { PriceCurrency } from '../price-currency'
 
 export type UseSiteDataResult = {
-  deckList: DeckSummary[] | null
-  collectionList: CollectionSummary[] | null
-  wantedListList: WantedListSummary[] | null
-  useScryfallImgUrls: boolean
-  currency: PriceCurrency
-  setCurrency: (c: PriceCurrency) => void
-  availableCurrencies: PriceCurrency[]
-  pricesDate: string | null
+  deckList: Accessor<DeckSummary[] | null>
+  collectionList: Accessor<CollectionSummary[] | null>
+  wantedListList: Accessor<WantedListSummary[] | null>
+  useScryfallImgUrls: Accessor<boolean>
+  currency: Accessor<PriceCurrency>
+  setCurrency: Setter<PriceCurrency>
+  availableCurrencies: Accessor<PriceCurrency[]>
+  pricesDate: Accessor<string | null>
 }
 
 export function useSiteData(): UseSiteDataResult {
-  const [deckList, setDeckList] = useState<DeckSummary[] | null>(null)
-  const [collectionList, setCollectionList] = useState<CollectionSummary[] | null>(null)
-  const [wantedListList, setWantedListList] = useState<WantedListSummary[] | null>(null)
-  const [useScryfallImgUrls, setUseScryfallImgUrls] = useState(true)
-  const [currency, setCurrency] = useState<PriceCurrency>('usd')
-  const [availableCurrencies, setAvailableCurrencies] = useState<PriceCurrency[]>([
+  const [deckList, setDeckList] = createSignal<DeckSummary[] | null>(null)
+  const [collectionList, setCollectionList] = createSignal<CollectionSummary[] | null>(null)
+  const [wantedListList, setWantedListList] = createSignal<WantedListSummary[] | null>(null)
+  const [useScryfallImgUrls, setUseScryfallImgUrls] = createSignal(true)
+  const [currency, setCurrency] = createSignal<PriceCurrency>('usd')
+  const [availableCurrencies, setAvailableCurrencies] = createSignal<PriceCurrency[]>([
     'usd',
     'eur',
     'tix',
   ])
-  const [pricesDate, setPricesDate] = useState<string | null>(null)
+  const [pricesDate, setPricesDate] = createSignal<string | null>(null)
 
-  useEffect(() => {
+  onMount(() => {
     const controller = new AbortController()
+    onCleanup(() => controller.abort())
     void (async () => {
       try {
         const response = await fetch('index.json', { signal: controller.signal })
@@ -47,8 +49,7 @@ export function useSiteData(): UseSiteDataResult {
         setCollectionList([])
       }
     })()
-    return () => controller.abort()
-  }, [])
+  })
 
   return {
     deckList,

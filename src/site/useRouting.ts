@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'preact/hooks'
+import { createSignal, onMount, onCleanup } from 'solid-js'
+import type { Accessor } from 'solid-js'
 
 export type Route =
   | { page: 'index'; tab?: 'decks' | 'collections' | 'wanted' }
@@ -7,8 +8,8 @@ export type Route =
   | { page: 'wanted'; slug: string }
 
 export type UseRoutingResult = {
-  route: Route
-  visible: boolean
+  route: Accessor<Route>
+  visible: Accessor<boolean>
   navigate: (newRoute: Route) => void
 }
 
@@ -42,48 +43,42 @@ function parseHash(): Route {
 }
 
 export function useRouting(): UseRoutingResult {
-  const [route, setRoute] = useState<Route>(parseHash)
-  const routeRef = useRef(route)
-  routeRef.current = route
+  const [route, setRoute] = createSignal<Route>(parseHash())
+  let transitioning = false
+  let timer: ReturnType<typeof setTimeout> | null = null
 
-  const transitioningRef = useRef(false)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [visible, setVisible] = createSignal(true)
 
-  const [visible, setVisible] = useState(true)
-
-  const navigate = useCallback((newRoute: Route) => {
-    if (transitioningRef.current) return
+  const navigate = (newRoute: Route): void => {
+    if (transitioning) return
     // Skip the fade transition for within-deck navigation (primer open/close,
     // section jumps) so the page doesn't flash on every TOC click.
-    const cur = routeRef.current
+    const cur = route()
     if (cur.page === 'deck' && newRoute.page === 'deck' && cur.slug === newRoute.slug) {
       setRoute(newRoute)
       return
     }
-    transitioningRef.current = true
+    transitioning = true
     setVisible(false)
 
-    timerRef.current = setTimeout(() => {
+    timer = setTimeout(() => {
       setRoute(newRoute)
       window.scrollTo(0, 0)
       setVisible(true)
-      transitioningRef.current = false
+      transitioning = false
     }, 200)
-  }, [])
+  }
 
-  // Cancel any in-flight transition timer if the component unmounts.
-  useEffect(
-    () => () => {
-      if (timerRef.current !== null) clearTimeout(timerRef.current)
-    },
-    [],
-  )
+  const hashHandler = () => navigate(parseHash())
 
-  useEffect(() => {
-    const handler = () => navigate(parseHash())
-    window.addEventListener('hashchange', handler)
-    return () => window.removeEventListener('hashchange', handler)
-  }, [navigate])
+  onMount(() => {
+    window.addEventListener('hashchange', hashHandler)
+  })
+
+  onCleanup(() => {
+    window.removeEventListener('hashchange', hashHandler)
+    if (timer !== null) clearTimeout(timer)
+  })
 
   return { route, visible, navigate }
 }

@@ -1,14 +1,14 @@
-import type { StatusAction } from './useEditorStatus'
+import type { EditorStatusActions } from './useEditorStatus'
 
 type SaveResponse = { success: boolean; error?: string }
 
 export async function saveEditorChanges(
   endpoint: string,
   body: unknown,
-  statusDispatch: (action: StatusAction) => void,
+  statusActions: EditorStatusActions,
   discardAll: () => void,
 ): Promise<void> {
-  statusDispatch({ type: 'SAVE_START' })
+  statusActions.saveStart()
   try {
     const resp = await fetch(endpoint, {
       method: 'POST',
@@ -18,12 +18,12 @@ export async function saveEditorChanges(
     })
     const data = (await resp.json()) as SaveResponse
     if (data.success) {
-      statusDispatch({ type: 'SAVE_SUCCESS', message: 'Changes saved successfully' })
+      statusActions.saveSuccess('Changes saved successfully')
       discardAll()
     } else {
-      statusDispatch({ type: 'SAVE_ERROR', error: data.error ?? 'Save failed' })
+      statusActions.saveError(data.error ?? 'Save failed')
     }
   } catch {
-    statusDispatch({ type: 'SAVE_ERROR', error: 'Failed to save changes' })
+    statusActions.saveError('Failed to save changes')
   }
 }

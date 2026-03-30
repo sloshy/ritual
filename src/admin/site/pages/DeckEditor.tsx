@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'preact/hooks'
+import { createSignal, createEffect, on, onMount, onCleanup, Show, For } from 'solid-js'
 import type { DeckData, Card, ScryfallCard } from '../../../types'
 import type { PriceCurrency } from '../../../price-currency'
 import type { CardPrintingOptions } from '../types/deck-changes'
@@ -42,26 +42,16 @@ type DeckDataResponse = {
 }
 
 export function DeckEditor() {
-  const [deckSlug, setDeckSlug] = useState<string | null>(null)
-  const [deckList, setDeckList] = useState<DeckListItem[]>([])
-  const [deckData, setDeckData] = useState<DeckData | null>(null)
-  const [frontMatter, setFrontMatter] = useState<Record<string, unknown>>({})
-  const [modalCardName, setModalCardName] = useState<string | null>(null)
-  const [contextMenuCard, setContextMenuCard] = useState<DeckContextMenuState | null>(null)
-  const [refreshKey, setRefreshKey] = useState(0)
+  const [deckSlug, setDeckSlug] = createSignal<string | null>(null)
+  const [deckList, setDeckList] = createSignal<DeckListItem[]>([])
+  const [deckData, setDeckData] = createSignal<DeckData | null>(null)
+  const [frontMatter, setFrontMatter] = createSignal<Record<string, unknown>>({})
+  const [modalCardName, setModalCardName] = createSignal<string | null>(null)
+  const [contextMenuCard, setContextMenuCard] = createSignal<DeckContextMenuState | null>(null)
+  const [refreshKey, setRefreshKey] = createSignal(0)
 
-  const [status, statusDispatch] = useEditorStatus()
-  const { loading, error, saving, saveStatus } = status
-
-  const [cardData, cardDispatch] = useDeckCardData()
-  const {
-    cards,
-    printings,
-    lowestPriceCards,
-    lowestPriceCardsEur,
-    lowestPriceCardsTix,
-    symbolMap,
-  } = cardData
+  const [status, statusActions] = useEditorStatus()
+  const [cardData, cardActions] = useDeckCardData()
 
   const currency: PriceCurrency = 'usd'
 
@@ -92,290 +82,266 @@ export function DeckEditor() {
   } = useDeckChanges<Card>()
 
   const { allocate, release, resetPool, claim } = useCardIdPool()
-  const originalDeckRef = useRef<DeckData | null>(null)
-
-  const deckDataRef = useRef(deckData)
-  deckDataRef.current = deckData
-
-  const changesRef = useRef(changes)
-  changesRef.current = changes
-  const frontMatterRef = useRef(frontMatter)
-  frontMatterRef.current = frontMatter
+  let originalDeck: DeckData | null = null
 
   /** Find a card's ID from the current deck state by name and optional section hint. */
-  const findCardId = useCallback(
-    (cardName: string, inCommanderSection?: boolean): number | undefined => {
-      if (!deckDataRef.current) return undefined
-      for (const section of deckDataRef.current.sections) {
-        if (inCommanderSection !== undefined) {
-          const isCmd = section.name.toLowerCase().includes('commander')
-          if (inCommanderSection !== isCmd) continue
-        }
-        const card = section.cards.find((c) => c.name === cardName)
-        if (card?.cardId !== undefined) return card.cardId
+  const findCardId = (cardName: string, inCommanderSection?: boolean): number | undefined => {
+    const current = deckData()
+    if (!current) return undefined
+    for (const section of current.sections) {
+      if (inCommanderSection !== undefined) {
+        const isCmd = section.name.toLowerCase().includes('commander')
+        if (inCommanderSection !== isCmd) continue
       }
-      return undefined
-    },
-    [],
-  )
+      const card = section.cards.find((c) => c.name === cardName)
+      if (card?.cardId !== undefined) return card.cardId
+    }
+    return undefined
+  }
 
   // Fetch deck list on mount
-  useEffect(() => {
+  onMount(() => {
     fetch('/api/decks', { credentials: 'same-origin' })
       .then((r) => r.json() as Promise<DeckListResponse>)
       .then((data) => {
         if (data.decks) setDeckList(data.decks)
       })
-      .catch(() => statusDispatch({ type: 'SET_ERROR', error: 'Failed to load deck list' }))
-  }, [])
+      .catch(() => statusActions.setError('Failed to load deck list'))
+  })
 
   // Fetch full deck data when slug changes
-  useEffect(() => {
-    if (!deckSlug) return
-    const controller = new AbortController()
-    statusDispatch({ type: 'LOAD_START' })
+  createEffect(
+    on([deckSlug, refreshKey], ([slug]) => {
+      if (!slug) return
+      const controller = new AbortController()
+      statusActions.loadStart()
 
-    fetch(`/api/deck/${deckSlug}`, { credentials: 'same-origin', signal: controller.signal })
-      .then((r) => r.json() as Promise<DeckDataResponse>)
-      .then((data) => {
-        if (controller.signal.aborted) return
-        if (data.success) {
-          // Initialize card ID pool from loaded deck data
-          const allCards: Card[] = []
-          for (const section of data.deck.sections) {
-            for (const card of section.cards) {
-              allCards.push(card)
+      fetch(`/api/deck/${slug}`, { credentials: 'same-origin', signal: controller.signal })
+        .then((r) => r.json() as Promise<DeckDataResponse>)
+        .then((data) => {
+          if (controller.signal.aborted) return
+          if (data.success) {
+            // Initialize card ID pool from loaded deck data
+            const allCards: Card[] = []
+            for (const section of data.deck.sections) {
+              for (const card of section.cards) {
+                allCards.push(card)
+              }
             }
-          }
-          const existingIds = allCards.map((c) => c.cardId)
-          const { pool, assignedIds } = initializePoolFromEntries(allCards.length, existingIds)
+            const existingIds = allCards.map((c) => c.cardId)
+            const { pool, assignedIds } = initializePoolFromEntries(allCards.length, existingIds)
 
-          // Assign IDs back to cards
-          let idx = 0
-          const deckWithIds: DeckData = {
-            ...data.deck,
-            sections: data.deck.sections.map((s) => ({
-              ...s,
-              cards: s.cards.map((c) => {
-                const cardId = assignedIds[idx++]!
-                return { ...c, cardId }
-              }),
-            })),
-          }
+            // Assign IDs back to cards
+            let idx = 0
+            const deckWithIds: DeckData = {
+              ...data.deck,
+              sections: data.deck.sections.map((s) => ({
+                ...s,
+                cards: s.cards.map((c) => {
+                  const cardId = assignedIds[idx++]!
+                  return { ...c, cardId }
+                }),
+              })),
+            }
 
-          setDeckData(deckWithIds)
-          originalDeckRef.current = deckWithIds
-          resetPool([...pool.usedIds])
-          cardDispatch({
-            type: 'LOAD',
-            data: {
+            setDeckData(deckWithIds)
+            originalDeck = deckWithIds
+            resetPool([...pool.usedIds])
+            cardActions.load({
               cards: data.cards,
               printings: data.printings,
               lowestPriceCards: data.lowestPriceCards,
               lowestPriceCardsEur: data.lowestPriceCardsEur,
               lowestPriceCardsTix: data.lowestPriceCardsTix,
               symbolMap: data.symbolMap,
-            },
-          })
-          setFrontMatter(data.frontMatter)
-          discardAll()
-          statusDispatch({ type: 'LOAD_SUCCESS' })
-        } else {
-          statusDispatch({ type: 'LOAD_ERROR', error: 'Failed to load deck' })
-        }
-      })
-      .catch((err) => {
-        if (err instanceof Error && err.name === 'AbortError') return
-        statusDispatch({ type: 'LOAD_ERROR', error: 'Failed to load deck' })
-      })
+            })
+            setFrontMatter(data.frontMatter)
+            discardAll()
+            statusActions.loadSuccess()
+          } else {
+            statusActions.loadError('Failed to load deck')
+          }
+        })
+        .catch((err) => {
+          if (err instanceof Error && err.name === 'AbortError') return
+          statusActions.loadError('Failed to load deck')
+        })
 
-    return () => controller.abort()
-  }, [deckSlug, discardAll, resetPool, refreshKey, statusDispatch, cardDispatch])
-
-  const handleDeckSelect = useCallback((e: Event) => {
-    const value = (e.target as HTMLSelectElement).value
-    setDeckSlug(value || null)
-  }, [])
-
-  const handleIncrement = useCallback(
-    (cardName: string) => {
-      const cardId = findCardId(cardName)
-      incrementCard(cardName, cardId)
-      setDeckData((prev) =>
-        prev ? applyChangeToDeck(prev, { action: 'add', cardName, cardId }) : prev,
-      )
-    },
-    [incrementCard, findCardId],
+      onCleanup(() => controller.abort())
+    }),
   )
 
-  const handleDecrement = useCallback(
-    (cardName: string) => {
-      const cardId = findCardId(cardName)
+  const handleDeckSelect = (e: Event) => {
+    const value = (e.currentTarget as HTMLSelectElement).value
+    setDeckSlug(value || null)
+  }
 
-      // Check if this removal will delete the line (quantity → 0)
-      let removedCardData: Card | undefined
-      if (deckDataRef.current) {
-        for (const section of deckDataRef.current.sections) {
-          const card = section.cards.find((c) => c.name === cardName)
-          if (card && card.quantity <= 1 && card.cardId !== undefined) {
-            removedCardData = { ...card }
-            release(card.cardId)
-            break
-          }
+  const handleIncrement = (cardName: string) => {
+    const cardId = findCardId(cardName)
+    incrementCard(cardName, cardId)
+    setDeckData((prev) =>
+      prev ? applyChangeToDeck(prev, { action: 'add', cardName, cardId }) : prev,
+    )
+  }
+
+  const handleDecrement = (cardName: string) => {
+    const cardId = findCardId(cardName)
+    const current = deckData()
+
+    // Check if this removal will delete the line (quantity → 0)
+    let removedCardData: Card | undefined
+    if (current) {
+      for (const section of current.sections) {
+        const card = section.cards.find((c) => c.name === cardName)
+        if (card && card.quantity <= 1 && card.cardId !== undefined) {
+          removedCardData = { ...card }
+          release(card.cardId)
+          break
         }
       }
+    }
 
-      decrementCard(cardName, cardId, removedCardData)
-      setDeckData((prev) =>
-        prev ? applyChangeToDeck(prev, { action: 'remove', cardName, cardId }) : prev,
-      )
-    },
-    [decrementCard, findCardId, release],
-  )
+    decrementCard(cardName, cardId, removedCardData)
+    setDeckData((prev) =>
+      prev ? applyChangeToDeck(prev, { action: 'remove', cardName, cardId }) : prev,
+    )
+  }
 
-  const handleContextMenu = useCallback(
-    (cardName: string, card: ScryfallCard | null, rect: DOMRect) => {
-      const isInCommanderSection =
-        deckDataRef.current?.sections.some(
-          (s) =>
-            s.name.toLowerCase().includes('commander') && s.cards.some((c) => c.name === cardName),
-        ) ?? false
-      setContextMenuCard({ cardName, card, isInCommanderSection, anchorRect: rect })
-    },
-    [],
-  )
+  const handleContextMenu = (cardName: string, card: ScryfallCard | null, rect: DOMRect) => {
+    const isInCommanderSection =
+      deckData()?.sections.some(
+        (s) =>
+          s.name.toLowerCase().includes('commander') && s.cards.some((c) => c.name === cardName),
+      ) ?? false
+    setContextMenuCard({ cardName, card, isInCommanderSection, anchorRect: rect })
+  }
 
-  const handleSetFoil = useCallback(() => {
-    if (!contextMenuCard) return
-    const cardId = findCardId(contextMenuCard.cardName)
-    setFinish(contextMenuCard.cardName, 'foil', cardId)
+  const handleSetFoil = () => {
+    const menu = contextMenuCard()
+    if (!menu) return
+    const cardId = findCardId(menu.cardName)
+    setFinish(menu.cardName, 'foil', cardId)
     setDeckData((prev) =>
       prev
         ? applyChangeToDeck(prev, {
             action: 'set-finish',
-            cardName: contextMenuCard.cardName,
+            cardName: menu.cardName,
             finish: 'foil',
             cardId,
           })
         : prev,
     )
     setContextMenuCard(null)
-  }, [contextMenuCard, setFinish, findCardId])
+  }
 
-  const handleSetCommander = useCallback(() => {
-    if (!contextMenuCard) return
-    const cardId = findCardId(contextMenuCard.cardName, false)
-    setCommander(contextMenuCard.cardName, cardId)
+  const handleSetCommander = () => {
+    const menu = contextMenuCard()
+    if (!menu) return
+    const cardId = findCardId(menu.cardName, false)
+    setCommander(menu.cardName, cardId)
     setDeckData((prev) =>
       prev
         ? applyChangeToDeck(prev, {
             action: 'set-commander',
-            cardName: contextMenuCard.cardName,
+            cardName: menu.cardName,
             cardId,
           })
         : prev,
     )
     setContextMenuCard(null)
-  }, [contextMenuCard, setCommander, findCardId])
+  }
 
-  const handleUnsetCommander = useCallback(() => {
-    if (!contextMenuCard) return
-    const cardId = findCardId(contextMenuCard.cardName, true)
-    unsetCommander(contextMenuCard.cardName, cardId)
+  const handleUnsetCommander = () => {
+    const menu = contextMenuCard()
+    if (!menu) return
+    const cardId = findCardId(menu.cardName, true)
+    unsetCommander(menu.cardName, cardId)
     setDeckData((prev) =>
       prev
         ? applyChangeToDeck(prev, {
             action: 'unset-commander',
-            cardName: contextMenuCard.cardName,
+            cardName: menu.cardName,
             cardId,
           })
         : prev,
     )
     setContextMenuCard(null)
-  }, [contextMenuCard, unsetCommander, findCardId])
+  }
 
-  const handleAddCardFromSearch = useCallback(
-    async (
-      cardName: string,
-      options?: CardPrintingOptions,
-      scryfallCard?: ScryfallCard,
-      allPrintings?: ScryfallCard[],
-    ) => {
-      const cardId = allocate()
-      addCard(cardName, { ...options, cardId })
-      setDeckData((prev) =>
-        prev
-          ? applyChangeToDeck(prev, {
-              action: 'add',
-              cardName,
-              set: options?.set,
-              collectorNumber: options?.collectorNumber,
-              finish: options?.finish,
-              condition: options?.condition,
-              cardId,
-            })
-          : prev,
-      )
-      cardDispatch({
-        type: 'ADD_CARD',
-        cardName,
-        card: scryfallCard,
-        printings: allPrintings,
-      })
-
-      // Fetch price data from server: checks if cache is stale (>1 day), refreshes if needed,
-      // and returns computed representative/cheapest printings for all currencies.
-      try {
-        const resp = await fetch(`/api/card-price?name=${encodeURIComponent(cardName)}`, {
-          credentials: 'same-origin',
-        })
-        const data = (await resp.json()) as CardPriceResponse
-        if (data.success) {
-          cardDispatch({
-            type: 'SET_PRICES',
+  const handleAddCardFromSearch = async (
+    cardName: string,
+    options?: CardPrintingOptions,
+    scryfallCard?: ScryfallCard,
+    allPrintings?: ScryfallCard[],
+  ) => {
+    const cardId = allocate()
+    addCard(cardName, { ...options, cardId })
+    setDeckData((prev) =>
+      prev
+        ? applyChangeToDeck(prev, {
+            action: 'add',
             cardName,
-            representative: !scryfallCard ? (data.representative ?? undefined) : undefined,
-            printings: data.printings.length > 0 ? data.printings : undefined,
-            lowestPriceCard: data.lowestPriceCard,
-            lowestPriceCardEur: data.lowestPriceCardEur,
-            lowestPriceCardTix: data.lowestPriceCardTix,
+            set: options?.set,
+            collectorNumber: options?.collectorNumber,
+            finish: options?.finish,
+            condition: options?.condition,
+            cardId,
           })
-        }
-      } catch {
-        // Price fetch failure doesn't block adding the card
-      }
-    },
-    [addCard, allocate, cardDispatch],
-  )
+        : prev,
+    )
+    cardActions.addCard(cardName, scryfallCard, allPrintings)
 
-  const handleUndo = useCallback(() => {
+    // Fetch price data from server: checks if cache is stale (>1 day), refreshes if needed,
+    // and returns computed representative/cheapest printings for all currencies.
+    try {
+      const resp = await fetch(`/api/card-price?name=${encodeURIComponent(cardName)}`, {
+        credentials: 'same-origin',
+      })
+      const data = (await resp.json()) as CardPriceResponse
+      if (data.success) {
+        cardActions.setPrices(
+          cardName,
+          data.lowestPriceCard,
+          data.lowestPriceCardEur,
+          data.lowestPriceCardTix,
+          !scryfallCard ? (data.representative ?? undefined) : undefined,
+          data.printings.length > 0 ? data.printings : undefined,
+        )
+      }
+    } catch {
+      // Price fetch failure doesn't block adding the card
+    }
+  }
+
+  const handleUndo = () => {
     const result = undo()
-    if (!result || !originalDeckRef.current) return
+    if (!result || !originalDeck) return
 
     const { entry, remainingChanges } = result
     reconcileIdPoolForUndo(release, claim, entry)
-    setDeckData(replayChanges(originalDeckRef.current, remainingChanges, applyChangeToDeck))
-  }, [undo, release, claim])
+    setDeckData(replayChanges(originalDeck, remainingChanges, applyChangeToDeck))
+  }
 
-  const handleSave = useCallback(async () => {
-    if (!deckSlug || !deckDataRef.current || changesRef.current.length === 0) return
+  const handleSave = async () => {
+    const slug = deckSlug()
+    if (!slug || !deckData() || changes().length === 0) return
     await saveEditorChanges(
-      `/api/deck/${deckSlug}/save`,
+      `/api/deck/${slug}/save`,
       {
-        changes: changesRef.current,
-        deck: deckDataRef.current,
-        frontMatter: frontMatterRef.current,
+        changes: changes(),
+        deck: deckData()!,
+        frontMatter: frontMatter(),
       },
-      statusDispatch,
+      statusActions,
       discardAll,
     )
-  }, [deckSlug, discardAll, statusDispatch])
+  }
 
-  const handleDiscard = useCallback(() => {
+  const handleDiscard = () => {
     discardAll()
-    if (originalDeckRef.current) {
+    if (originalDeck) {
       const ids: number[] = []
-      for (const section of originalDeckRef.current.sections) {
+      for (const section of originalDeck.sections) {
         for (const card of section.cards) {
           if (card.cardId !== undefined) ids.push(card.cardId)
         }
@@ -385,10 +351,10 @@ export function DeckEditor() {
     closeDiscard()
     // Increment refreshKey to trigger a re-fetch of the deck data
     setRefreshKey((k) => k + 1)
-  }, [discardAll, resetPool, closeDiscard])
+  }
 
-  const closeModal = useCallback(() => setModalCardName(null), [])
-  const closeContextMenu = useCallback(() => setContextMenuCard(null), [])
+  const closeModal = () => setModalCardName(null)
+  const closeContextMenu = () => setContextMenuCard(null)
 
   return (
     <div>
@@ -402,100 +368,104 @@ export function DeckEditor() {
         <select
           id="deck-select"
           class="deck-selector"
-          value={deckSlug ?? ''}
+          value={deckSlug() ?? ''}
           onChange={handleDeckSelect}
         >
           <option value="">— Choose a deck —</option>
-          {deckList.map(({ slug, name }) => (
-            <option key={slug} value={slug}>
-              {name}
-            </option>
-          ))}
+          <For each={deckList()}>{(item) => <option value={item.slug}>{item.name}</option>}</For>
         </select>
       </div>
 
       {/* Status messages */}
-      {error && <div class="alert alert-error">{error}</div>}
-      {saveStatus && <div class="alert alert-success">{saveStatus}</div>}
-      {loading && <p class="text-muted">Loading deck...</p>}
+      <Show when={status.error}>
+        <div class="alert alert-error">{status.error}</div>
+      </Show>
+      <Show when={status.saveStatus}>
+        <div class="alert alert-success">{status.saveStatus}</div>
+      </Show>
+      <Show when={status.loading}>
+        <p class="text-muted">Loading deck...</p>
+      </Show>
 
       {/* Deck content */}
-      {deckData && deckSlug && !loading && (
+      <Show when={deckData() && deckSlug() && !status.loading}>
         <DeckPage
-          deck={deckData}
-          cards={cards}
-          printings={printings}
-          lowestPriceCards={lowestPriceCards}
-          lowestPriceCardsEur={lowestPriceCardsEur}
-          lowestPriceCardsTix={lowestPriceCardsTix}
-          symbolMap={symbolMap}
+          deck={deckData()!}
+          cards={cardData.cards}
+          printings={cardData.printings}
+          lowestPriceCards={cardData.lowestPriceCards}
+          lowestPriceCardsEur={cardData.lowestPriceCardsEur}
+          lowestPriceCardsTix={cardData.lowestPriceCardsTix}
+          symbolMap={cardData.symbolMap}
           useScryfallImgUrls={true}
-          modalCardName={modalCardName}
+          modalCardName={modalCardName()}
           onOpenModal={setModalCardName}
           onCloseModal={closeModal}
           currency={currency}
-          slug={deckSlug}
+          slug={deckSlug()!}
           editMode={true}
           onAddCard={openSearchModal}
           onCardIncrement={handleIncrement}
           onCardDecrement={handleDecrement}
           onCardContextMenu={handleContextMenu}
-          unsavedChangeCount={changeCount}
+          unsavedChangeCount={changeCount()}
         />
-      )}
+      </Show>
 
       {/* Context menu */}
-      {contextMenuCard && (
-        <CardContextMenu
-          cardName={contextMenuCard.cardName}
-          card={contextMenuCard.card}
-          onSetFoil={handleSetFoil}
-          onSetCommander={handleSetCommander}
-          onUnsetCommander={handleUnsetCommander}
-          isCommander={contextMenuCard.isInCommanderSection}
-          anchorRect={contextMenuCard.anchorRect}
-          onClose={closeContextMenu}
-        />
-      )}
+      <Show when={contextMenuCard()}>
+        {(menu) => (
+          <CardContextMenu
+            cardName={menu().cardName}
+            card={menu().card}
+            onSetFoil={handleSetFoil}
+            onSetCommander={handleSetCommander}
+            onUnsetCommander={handleUnsetCommander}
+            isCommander={menu().isInCommanderSection}
+            anchorRect={menu().anchorRect}
+            onClose={closeContextMenu}
+          />
+        )}
+      </Show>
 
       {/* Card search modal */}
       <CardSearchModal
-        open={showSearchModal}
+        open={showSearchModal()}
         onClose={closeSearchModal}
         onAddCard={handleAddCardFromSearch}
       />
 
       {/* Changes dialog */}
       <ChangesDialog
-        open={showChanges}
-        changes={changes}
-        cards={cards}
-        printings={printings}
-        symbolMap={symbolMap}
+        open={showChanges()}
+        changes={changes()}
+        cards={cardData.cards}
+        printings={cardData.printings}
+        symbolMap={cardData.symbolMap}
         currency={currency}
         onClose={closeChanges}
       />
 
       {/* Discard confirm dialog */}
       <DiscardConfirmDialog
-        open={showDiscard}
-        changes={changes}
+        open={showDiscard()}
+        changes={changes()}
         onConfirm={handleDiscard}
         onCancel={closeDiscard}
       />
 
       {/* Sticky action bar */}
-      {deckData && (
+      <Show when={deckData()}>
         <EditorActionBar
-          changeCount={changeCount}
-          canUndo={canUndo}
-          saving={saving}
+          changeCount={changeCount()}
+          canUndo={canUndo()}
+          saving={status.saving}
           onShowChanges={openChanges}
           onUndo={handleUndo}
           onSave={handleSave}
           onDiscard={openDiscard}
         />
-      )}
+      </Show>
     </div>
   )
 }

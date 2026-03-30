@@ -1,7 +1,6 @@
-import { useState } from 'preact/hooks'
+import { createSignal } from 'solid-js'
+import type { Accessor, Setter } from 'solid-js'
 import type { ViewMode, CardSize, SortBy, PriceGroupStrategy } from './card-sorting'
-
-type Setter<T> = (value: T | ((prev: T) => T)) => void
 
 export type UseToolbarStateDefaults<G extends string> = {
   groupBy?: G
@@ -9,19 +8,19 @@ export type UseToolbarStateDefaults<G extends string> = {
 }
 
 export type UseToolbarStateResult<G extends string> = {
-  viewMode: ViewMode
+  viewMode: Accessor<ViewMode>
   setViewMode: Setter<ViewMode>
-  cardSize: CardSize
+  cardSize: Accessor<CardSize>
   setCardSize: Setter<CardSize>
-  groupBy: G
+  groupBy: Accessor<G>
   setGroupBy: Setter<G>
-  sortBy: SortBy
+  sortBy: Accessor<SortBy>
   setSortBy: Setter<SortBy>
-  reverse: boolean
+  reverse: Accessor<boolean>
   setReverse: Setter<boolean>
-  hideLands: boolean
+  hideLands: Accessor<boolean>
   setHideLands: Setter<boolean>
-  priceGroupStrategy: PriceGroupStrategy
+  priceGroupStrategy: Accessor<PriceGroupStrategy>
   setPriceGroupStrategy: Setter<PriceGroupStrategy>
 }
 
@@ -29,13 +28,13 @@ export type UseToolbarStateResult<G extends string> = {
 export function useToolbarState<G extends string>(
   defaults?: UseToolbarStateDefaults<G>,
 ): UseToolbarStateResult<G> {
-  const [viewMode, setViewMode] = useState<ViewMode>('binder')
-  const [cardSize, setCardSize] = useState<CardSize>('large')
-  const [groupBy, setGroupBy] = useState<G>((defaults?.groupBy ?? 'type') as G)
-  const [sortBy, setSortBy] = useState<SortBy>(defaults?.sortBy ?? 'name')
-  const [reverse, setReverse] = useState(false)
-  const [hideLands, setHideLands] = useState(false)
-  const [priceGroupStrategy, setPriceGroupStrategy] = useState<PriceGroupStrategy>('archidekt')
+  const [viewMode, setViewMode] = createSignal<ViewMode>('binder')
+  const [cardSize, setCardSize] = createSignal<CardSize>('large')
+  const [groupBy, setGroupBy] = createSignal<G>((defaults?.groupBy ?? 'type') as G)
+  const [sortBy, setSortBy] = createSignal<SortBy>(defaults?.sortBy ?? 'name')
+  const [reverse, setReverse] = createSignal(false)
+  const [hideLands, setHideLands] = createSignal(false)
+  const [priceGroupStrategy, setPriceGroupStrategy] = createSignal<PriceGroupStrategy>('archidekt')
 
   return {
     viewMode,

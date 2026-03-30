@@ -1,4 +1,5 @@
-import { useState } from 'preact/hooks'
+import type { Component } from 'solid-js'
+import { createSignal, Show } from 'solid-js'
 
 interface AuthGuardSetupProps {
   onSetupComplete: () => void
@@ -16,26 +17,24 @@ interface AuthGuardLoginProps {
 
 type AuthGuardProps = AuthGuardSetupProps | AuthGuardLoginProps
 
-export function AuthGuard(props: AuthGuardProps) {
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [totpCode, setTotpCode] = useState('')
-  const [showTotp, setShowTotp] = useState(props.totpEnabled === true)
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  const isLogin = props.isLogin === true
+export const AuthGuard: Component<AuthGuardProps> = (props) => {
+  const [username, setUsername] = createSignal('')
+  const [password, setPassword] = createSignal('')
+  const [totpCode, setTotpCode] = createSignal('')
+  const [showTotp, setShowTotp] = createSignal(props.totpEnabled === true)
+  const [error, setError] = createSignal<string | null>(null)
+  const [loading, setLoading] = createSignal(false)
 
   const handleSubmit = async (e: Event) => {
     e.preventDefault()
     setError(null)
 
-    if (!username || !password) {
+    if (!username() || !password()) {
       setError('Username and password are required')
       return
     }
 
-    if (!isLogin && password.length < 4) {
+    if (!props.isLogin && password().length < 4) {
       setError('Password must be at least 4 characters')
       return
     }
@@ -43,10 +42,10 @@ export function AuthGuard(props: AuthGuardProps) {
     setLoading(true)
 
     try {
-      if (isLogin) {
-        const body: Record<string, string> = { username, password }
-        if (totpCode) {
-          body.totpCode = totpCode
+      if (props.isLogin) {
+        const body: Record<string, string> = { username: username(), password: password() }
+        if (totpCode()) {
+          body.totpCode = totpCode()
         }
 
         const resp = await fetch('/api/login', {
@@ -61,7 +60,7 @@ export function AuthGuard(props: AuthGuardProps) {
         } else if (resp.status === 401) {
           try {
             const data = (await resp.json()) as { totpRequired?: boolean; message?: string }
-            if (data.totpRequired && !showTotp) {
+            if (data.totpRequired && !showTotp()) {
               setShowTotp(true)
               setError('Two-factor authentication code required')
             } else if (data.totpRequired) {
@@ -87,7 +86,7 @@ export function AuthGuard(props: AuthGuardProps) {
         const resp = await fetch('/api/setup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password }),
+          body: JSON.stringify({ username: username(), password: password() }),
           credentials: 'same-origin',
         })
         const data = (await resp.json()) as { success: boolean; message: string }
@@ -96,7 +95,7 @@ export function AuthGuard(props: AuthGuardProps) {
           const loginResp = await fetch('/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password }),
+            body: JSON.stringify({ username: username(), password: password() }),
             credentials: 'same-origin',
           })
           if (loginResp.ok) {
@@ -120,18 +119,20 @@ export function AuthGuard(props: AuthGuardProps) {
       <div class="login-card">
         <h1 class="login-title">⚗️ Ritual Admin</h1>
         <p class="login-subtitle">
-          {isLogin ? 'Sign in to continue' : 'Create your admin account'}
+          {props.isLogin ? 'Sign in to continue' : 'Create your admin account'}
         </p>
-        {error && <div class="alert alert-error">{error}</div>}
+        <Show when={error()}>
+          <div class="alert alert-error">{error()}</div>
+        </Show>
         <form onSubmit={handleSubmit}>
           <div class="form-group">
             <label class="form-label">Username</label>
             <input
               type="text"
               class="form-input"
-              value={username}
+              value={username()}
               onInput={(e) => setUsername(e.currentTarget.value)}
-              autoFocus
+              autofocus
             />
           </div>
           <div class="form-group">
@@ -139,11 +140,11 @@ export function AuthGuard(props: AuthGuardProps) {
             <input
               type="password"
               class="form-input"
-              value={password}
+              value={password()}
               onInput={(e) => setPassword(e.currentTarget.value)}
             />
           </div>
-          {showTotp && (
+          <Show when={showTotp()}>
             <div class="form-group">
               <label class="form-label">Two-Factor Code</label>
               <input
@@ -152,16 +153,18 @@ export function AuthGuard(props: AuthGuardProps) {
                 pattern="[0-9]*"
                 maxLength={6}
                 class="form-input input-code"
-                value={totpCode}
+                value={totpCode()}
                 onInput={(e) => setTotpCode(e.currentTarget.value)}
                 placeholder="000000"
-                autoComplete="one-time-code"
+                autocomplete="one-time-code"
               />
             </div>
-          )}
-          {!isLogin && <p class="form-hint auth-hint">Password must be at least 4 characters.</p>}
-          <button type="submit" class="btn btn-primary btn-full" disabled={loading}>
-            {loading ? 'Please wait...' : isLogin ? 'Sign In' : 'Create Account'}
+          </Show>
+          <Show when={!props.isLogin}>
+            <p class="form-hint auth-hint">Password must be at least 4 characters.</p>
+          </Show>
+          <button type="submit" class="btn btn-primary btn-full" disabled={loading()}>
+            {loading() ? 'Please wait...' : props.isLogin ? 'Sign In' : 'Create Account'}
           </button>
         </form>
       </div>

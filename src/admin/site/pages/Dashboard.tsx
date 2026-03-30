@@ -1,3 +1,4 @@
+import { For } from 'solid-js'
 import type { Page } from '../types'
 
 interface ActionCard {
@@ -52,18 +53,20 @@ interface DashboardProps {
   onNavigate: (page: Page) => void
 }
 
-export function Dashboard({ onNavigate }: DashboardProps) {
+export function Dashboard(props: DashboardProps) {
   return (
     <div>
       <h2 class="section-heading">Dashboard</h2>
       <div class="admin-grid">
-        {actions.map((action) => (
-          <button key={action.id} class="admin-card" onClick={() => onNavigate(action.id)}>
-            <div class="admin-card-icon">{action.icon}</div>
-            <h3 class="admin-card-title">{action.title}</h3>
-            <p class="admin-card-desc">{action.description}</p>
-          </button>
-        ))}
+        <For each={actions}>
+          {(action) => (
+            <button class="admin-card" onClick={() => props.onNavigate(action.id)}>
+              <div class="admin-card-icon">{action.icon}</div>
+              <h3 class="admin-card-title">{action.title}</h3>
+              <p class="admin-card-desc">{action.description}</p>
+            </button>
+          )}
+        </For>
       </div>
     </div>
   )

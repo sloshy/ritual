@@ -1,5 +1,5 @@
-import type { FunctionalComponent } from 'preact'
-import { useState, useEffect, useMemo, useRef } from 'preact/hooks'
+import type { Component } from 'solid-js'
+import { createSignal, createMemo, onMount, onCleanup, For, Show } from 'solid-js'
 import type { ScryfallCard } from '../types'
 import { isDoubleFacedCard, resolveCardImageSources } from './image-sources'
 import { ManaCost, OracleText } from './symbols'
@@ -28,66 +28,65 @@ interface CardModalProps {
   backdropClass?: string
 }
 
-export const CardModal: FunctionalComponent<CardModalProps> = ({
-  open,
-  card,
-  cardName,
-  symbolMap,
-  useScryfallImgUrls,
-  currency,
-  printings,
-  onClose,
-  meta,
-  note,
-  backdropClass,
-}) => {
-  const [showingBack, setShowingBack] = useState(false)
-  const [showPrintings, setShowPrintings] = useState(false)
-  const [printingsPage, setPrintingsPage] = useState(0)
-  const [printingsSortField, setPrintingsSortField] = useState<PrintingsSortField>('released_at')
-  const [printingsSortReversed, setPrintingsSortReversed] = useState(false)
+export const CardModal: Component<CardModalProps> = (props) => {
+  const [showingBack, setShowingBack] = createSignal(false)
+  const [showPrintings, setShowPrintings] = createSignal(false)
+  const [printingsPage, setPrintingsPage] = createSignal(0)
+  const [printingsSortField, setPrintingsSortField] =
+    createSignal<PrintingsSortField>('released_at')
+  const [printingsSortReversed, setPrintingsSortReversed] = createSignal(false)
 
-  const onCloseRef = useRef(onClose)
-  onCloseRef.current = onClose
-
-  useEffect(() => {
+  onMount(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCloseRef.current()
+      if (e.key === 'Escape') props.onClose()
     }
     document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [])
+    onCleanup(() => document.removeEventListener('keydown', handler))
+  })
 
-  const isDfc = card ? isDoubleFacedCard(card) : false
-  const imgSources = card ? resolveCardImageSources(card, Boolean(useScryfallImgUrls)) : null
+  const isDfc = createMemo(() => (props.card ? isDoubleFacedCard(props.card) : false))
+  const imgSources = createMemo(() =>
+    props.card ? resolveCardImageSources(props.card, Boolean(props.useScryfallImgUrls)) : null,
+  )
 
-  const frontType = card?.card_faces?.[0]?.type_line ?? card?.type_line ?? ''
-  const isSideways = frontType.includes('Room') || frontType.includes('Battle')
+  const frontType = createMemo(
+    () => props.card?.card_faces?.[0]?.type_line ?? props.card?.type_line ?? '',
+  )
+  const isSideways = createMemo(
+    () => frontType().includes('Room') || frontType().includes('Battle'),
+  )
 
-  const scryfallUrl = card ? `https://scryfall.com/card/${card.set}/${card.collector_number}` : null
+  const scryfallUrl = createMemo(() =>
+    props.card
+      ? `https://scryfall.com/card/${props.card.set}/${props.card.collector_number}`
+      : null,
+  )
 
-  const defaultMeta = useMemo((): CardModalMetaEntry[] => {
-    if (meta) return meta
+  const defaultMeta = createMemo((): CardModalMetaEntry[] => {
+    if (props.meta) return props.meta
     const parts: CardModalMetaEntry[] = []
-    if (card) {
-      const price = getCardPrice(card, currency)
-      if (price > 0) parts.push({ label: 'price', value: formatPrice(price, currency) })
-      parts.push({ label: 'set', value: `${card.set_name} (#${card.collector_number})` })
+    if (props.card) {
+      const price = getCardPrice(props.card, props.currency)
+      if (price > 0) parts.push({ label: 'price', value: formatPrice(price, props.currency) })
+      parts.push({
+        label: 'set',
+        value: `${props.card.set_name} (#${props.card.collector_number})`,
+      })
       parts.push({
         label: 'rarity',
-        value: capitalize(card.rarity),
+        value: capitalize(props.card.rarity),
       })
     }
     return parts
-  }, [meta, card, currency])
+  })
 
   const PRINTINGS_PAGE_SIZE = 8
 
-  const sortedPrintings = useMemo(() => {
-    const sorted = [...printings]
-    const dir = printingsSortReversed ? -1 : 1
+  const sortedPrintings = createMemo(() => {
+    const sorted = [...props.printings]
+    const dir = printingsSortReversed() ? -1 : 1
     sorted.sort((a, b) => {
-      switch (printingsSortField) {
+      switch (printingsSortField()) {
         case 'released_at': {
           const da = a.released_at ?? ''
           const db = b.released_at ?? ''
@@ -101,8 +100,8 @@ export const CardModal: FunctionalComponent<CardModalProps> = ({
           return dir * (na - nb)
         }
         case 'price': {
-          const pa = getCardPrice(a, currency)
-          const pb = getCardPrice(b, currency)
+          const pa = getCardPrice(a, props.currency)
+          const pb = getCardPrice(b, props.currency)
           return dir * (pb - pa)
         }
         default:
@@ -110,27 +109,32 @@ export const CardModal: FunctionalComponent<CardModalProps> = ({
       }
     })
     return sorted
-  }, [printings, printingsSortField, printingsSortReversed, currency])
+  })
 
-  const totalPrintingsPages = Math.ceil(sortedPrintings.length / PRINTINGS_PAGE_SIZE)
-  const paginatedPrintings = sortedPrintings.slice(
-    printingsPage * PRINTINGS_PAGE_SIZE,
-    (printingsPage + 1) * PRINTINGS_PAGE_SIZE,
+  const totalPrintingsPages = createMemo(() =>
+    Math.ceil(sortedPrintings().length / PRINTINGS_PAGE_SIZE),
+  )
+  const paginatedPrintings = createMemo(() =>
+    sortedPrintings().slice(
+      printingsPage() * PRINTINGS_PAGE_SIZE,
+      (printingsPage() + 1) * PRINTINGS_PAGE_SIZE,
+    ),
   )
 
   const renderPrintingsView = () => (
-    <div className="modal-printings-view">
-      <div className="modal-printings-header">
-        <button className="modal-printings-back" onClick={() => setShowPrintings(false)}>
+    <div class="modal-printings-view">
+      <div class="modal-printings-header">
+        <button class="modal-printings-back" onClick={() => setShowPrintings(false)}>
           ← Back
         </button>
         <h3>
-          Other Printings of {card?.name ?? cardName ?? 'Unknown'} ({printings.length})
+          Other Printings of {props.card?.name ?? props.cardName ?? 'Unknown'} (
+          {props.printings.length})
         </h3>
-        <div className="printings-sort-controls">
+        <div class="printings-sort-controls">
           <select
-            className="printings-sort-select"
-            value={printingsSortField}
+            class="printings-sort-select"
+            value={printingsSortField()}
             onChange={(e) => {
               setPrintingsSortField((e.target as HTMLSelectElement).value as PrintingsSortField)
               setPrintingsPage(0)
@@ -141,134 +145,152 @@ export const CardModal: FunctionalComponent<CardModalProps> = ({
             <option value="price">Price</option>
           </select>
           <button
-            className="printings-sort-reverse"
-            title={printingsSortReversed ? 'Reversed' : 'Normal order'}
+            class="printings-sort-reverse"
+            title={printingsSortReversed() ? 'Reversed' : 'Normal order'}
             onClick={() => {
               setPrintingsSortReversed((prev) => !prev)
               setPrintingsPage(0)
             }}
           >
-            {printingsSortReversed ? '↑' : '↓'}
+            {printingsSortReversed() ? '↑' : '↓'}
           </button>
         </div>
       </div>
-      <div className="modal-printings-grid">
-        {paginatedPrintings.map((p) => {
-          const pImg = p.image_uris?.normal ?? p.card_faces?.[0]?.image_uris?.normal ?? ''
-          const pUrl = `https://scryfall.com/card/${p.set}/${p.collector_number}`
-          const isFoil = p.finishes?.length === 1 && p.finishes[0] !== 'nonfoil'
-          const pPrice = getCardPriceForFinish(p, isFoil ? p.finishes[0]! : 'nonfoil', currency)
-          return (
-            <a
-              key={`${p.set}-${p.collector_number}`}
-              href={pUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`modal-printing-card${isFoil ? ' foil-card' : ''}`}
-              title={`${p.set_name} (${p.set.toUpperCase()}:${p.collector_number})`}
-            >
-              {pImg && <img src={pImg} alt={`${p.name} (${p.set.toUpperCase()})`} loading="lazy" />}
-              <div className="printing-label">
-                <span className="printing-label-set">
-                  {p.set.toUpperCase()}:{p.collector_number}
-                </span>
-                {pPrice > 0 && (
-                  <>
+      <div class="modal-printings-grid">
+        <For each={paginatedPrintings()}>
+          {(p) => {
+            const pImg = p.image_uris?.normal ?? p.card_faces?.[0]?.image_uris?.normal ?? ''
+            const pUrl = `https://scryfall.com/card/${p.set}/${p.collector_number}`
+            const isFoil = p.finishes?.length === 1 && p.finishes[0] !== 'nonfoil'
+            const pPrice = getCardPriceForFinish(
+              p,
+              isFoil ? p.finishes[0]! : 'nonfoil',
+              props.currency,
+            )
+            return (
+              <a
+                href={pUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                class={`modal-printing-card${isFoil ? ' foil-card' : ''}`}
+                title={`${p.set_name} (${p.set.toUpperCase()}:${p.collector_number})`}
+              >
+                <Show when={pImg}>
+                  <img src={pImg} alt={`${p.name} (${p.set.toUpperCase()})`} loading="lazy" />
+                </Show>
+                <div class="printing-label">
+                  <span class="printing-label-set">
+                    {p.set.toUpperCase()}:{p.collector_number}
+                  </span>
+                  <Show when={pPrice > 0}>
                     {' '}
-                    <span className="printing-label-price">{formatPrice(pPrice, currency)}</span>
-                  </>
-                )}
-              </div>
-            </a>
-          )
-        })}
+                    <span class="printing-label-price">{formatPrice(pPrice, props.currency)}</span>
+                  </Show>
+                </div>
+              </a>
+            )
+          }}
+        </For>
       </div>
-      {totalPrintingsPages > 1 && (
-        <div className="modal-printings-pagination">
+      <Show when={totalPrintingsPages() > 1}>
+        <div class="modal-printings-pagination">
           <button
-            disabled={printingsPage === 0}
-            onClick={() => setPrintingsPage(printingsPage - 1)}
+            disabled={printingsPage() === 0}
+            onClick={() => setPrintingsPage(printingsPage() - 1)}
           >
             ← Prev
           </button>
           <span>
-            Page {printingsPage + 1} of {totalPrintingsPages}
+            Page {printingsPage() + 1} of {totalPrintingsPages()}
           </span>
           <button
-            disabled={printingsPage >= totalPrintingsPages - 1}
-            onClick={() => setPrintingsPage(printingsPage + 1)}
+            disabled={printingsPage() >= totalPrintingsPages() - 1}
+            onClick={() => setPrintingsPage(printingsPage() + 1)}
           >
             Next →
           </button>
         </div>
-      )}
+      </Show>
     </div>
   )
 
   return (
     <div
-      className={`card-modal-backdrop ${open ? 'open' : ''}${backdropClass ? ` ${backdropClass}` : ''}`}
+      class={`card-modal-backdrop ${props.open ? 'open' : ''}${props.backdropClass ? ` ${props.backdropClass}` : ''}`}
       role="dialog"
       aria-modal="true"
-      aria-label={`Card details: ${card?.name ?? cardName ?? 'Card'}`}
+      aria-label={`Card details: ${props.card?.name ?? props.cardName ?? 'Card'}`}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
+        if (e.target === e.currentTarget) props.onClose()
       }}
     >
-      <div className="card-modal">
-        <button className="modal-close" aria-label="Close" onClick={onClose}>
+      <div class="card-modal">
+        <button class="modal-close" aria-label="Close" onClick={props.onClose}>
           &times;
         </button>
-        {showPrintings ? (
-          renderPrintingsView()
-        ) : (
-          <>
-            <div className="card-modal-image">
-              {!showingBack ? (
-                <img
-                  src={imgSources?.frontImage ?? ''}
-                  alt={cardName || ''}
-                  className={isSideways ? 'sideways' : ''}
-                />
-              ) : (
-                <img src={imgSources?.backImage ?? ''} alt={`${cardName ?? ''} (Back)`} />
-              )}
-              {isDfc && imgSources?.backImage && (
-                <button className="flip-btn" onClick={() => setShowingBack((prev) => !prev)}>
-                  Flip ↻
-                </button>
-              )}
-            </div>
-            <div className="card-modal-details">
-              <div className="modal-card-name">{card?.name ?? cardName}</div>
-              <div className="modal-type-line">{card?.type_line}</div>
-              <div className="modal-mana-cost">
-                {card && <ManaCost card={card} isDFC={isDfc} symbolMap={symbolMap} />}
-              </div>
-              <div className="modal-oracle-text">
-                {card && <OracleText card={card} isDFC={isDfc} symbolMap={symbolMap} />}
-              </div>
-              <div className="modal-meta">
-                {defaultMeta.map((m) => (
-                  <span key={m.label}>{m.value}</span>
-                ))}
-              </div>
-              {note && <div className="modal-note">NOTE: {note}</div>}
-              <div className="modal-actions">
-                {scryfallUrl && (
-                  <a href={scryfallUrl} target="_blank" rel="noopener noreferrer">
-                    View on Scryfall ↗
-                  </a>
-                )}
-                {printings.length > 0 && (
-                  <button onClick={() => setShowPrintings(true)}>
-                    Other Printings ({printings.length})
+        <Show
+          when={showPrintings()}
+          fallback={
+            <>
+              <div class="card-modal-image">
+                <Show
+                  when={!showingBack()}
+                  fallback={
+                    <img
+                      src={imgSources()?.backImage ?? ''}
+                      alt={`${props.cardName ?? ''} (Back)`}
+                    />
+                  }
+                >
+                  <img
+                    src={imgSources()?.frontImage ?? ''}
+                    alt={props.cardName || ''}
+                    class={isSideways() ? 'sideways' : ''}
+                  />
+                </Show>
+                <Show when={isDfc() && imgSources()?.backImage}>
+                  <button class="flip-btn" onClick={() => setShowingBack((prev) => !prev)}>
+                    Flip ↻
                   </button>
-                )}
+                </Show>
               </div>
-            </div>
-          </>
-        )}
+              <div class="card-modal-details">
+                <div class="modal-card-name">{props.card?.name ?? props.cardName}</div>
+                <div class="modal-type-line">{props.card?.type_line}</div>
+                <div class="modal-mana-cost">
+                  <Show when={props.card}>
+                    <ManaCost card={props.card!} isDFC={isDfc()} symbolMap={props.symbolMap} />
+                  </Show>
+                </div>
+                <div class="modal-oracle-text">
+                  <Show when={props.card}>
+                    <OracleText card={props.card!} isDFC={isDfc()} symbolMap={props.symbolMap} />
+                  </Show>
+                </div>
+                <div class="modal-meta">
+                  <For each={defaultMeta()}>{(m) => <span>{m.value}</span>}</For>
+                </div>
+                <Show when={props.note}>
+                  <div class="modal-note">NOTE: {props.note}</div>
+                </Show>
+                <div class="modal-actions">
+                  <Show when={scryfallUrl()}>
+                    <a href={scryfallUrl()!} target="_blank" rel="noopener noreferrer">
+                      View on Scryfall ↗
+                    </a>
+                  </Show>
+                  <Show when={props.printings.length > 0}>
+                    <button onClick={() => setShowPrintings(true)}>
+                      Other Printings ({props.printings.length})
+                    </button>
+                  </Show>
+                </div>
+              </div>
+            </>
+          }
+        >
+          {renderPrintingsView()}
+        </Show>
       </div>
     </div>
   )

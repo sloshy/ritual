@@ -371,6 +371,70 @@ export async function mockPublicSiteDeckWithChangelog(page: Page): Promise<void>
   })
 }
 
+const LONG_DESCRIPTION =
+  'This is a test deck with a long description that exceeds the 200-character truncation ' +
+  'threshold used by the ExpandableText component. It contains enough text to ensure the ' +
+  'Read more and Show less buttons appear and function correctly when toggling.'
+
+const MOCK_DECK_WITH_DESCRIPTION = {
+  deck: {
+    name: 'Test Description Deck',
+    description: LONG_DESCRIPTION,
+    sections: [
+      {
+        name: 'Main',
+        cards: [{ quantity: 1, name: 'Test Creature', set: 'tst', collectorNumber: '1' }],
+      },
+    ],
+  },
+  cards: { 'Test Creature': MOCK_SCRYFALL_CARD },
+  printings: { 'Test Creature': [MOCK_SCRYFALL_CARD] },
+  symbolMap: {},
+  exportPath: 'decks/test-description-deck.txt',
+  useScryfallImgUrls: false,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+  missingCards: { usd: [], eur: [], tix: [] },
+}
+
+const MOCK_SITE_INDEX_WITH_DESCRIPTION_DECK = {
+  decks: [
+    {
+      slug: 'test-description-deck',
+      name: 'Test Description Deck',
+      featuredCardImage: '',
+      commander: null,
+      cardCount: 1,
+    },
+  ],
+  collections: [],
+  useScryfallImgUrls: false,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+}
+
+/**
+ * Mock the public site JSON endpoints with a synthetic deck that has a long description.
+ * Intercepts index.json and the deck JSON for 'test-description-deck'.
+ */
+export async function mockPublicSiteDeckWithDescription(page: Page): Promise<void> {
+  await page.route('**/index.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_SITE_INDEX_WITH_DESCRIPTION_DECK),
+    })
+  })
+
+  await page.route('**/decks/test-description-deck.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_DECK_WITH_DESCRIPTION),
+    })
+  })
+}
+
 const MOCK_WANTED_LISTS = [{ slug: 'test-wanted-list', name: 'Test Wanted List' }]
 
 const MOCK_WANTED_LIST_CARD_BOLT = {

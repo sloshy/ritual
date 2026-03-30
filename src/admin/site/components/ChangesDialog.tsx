@@ -1,5 +1,5 @@
-import type { FunctionalComponent } from 'preact'
-import { useState, useEffect, useRef, useCallback } from 'preact/hooks'
+import type { Component } from 'solid-js'
+import { createSignal, createEffect, createMemo, onCleanup, For, Show } from 'solid-js'
 import type { ScryfallCard } from '../../../types'
 import type { PriceCurrency } from '../../../price-currency'
 import { type ChangeEvent, isAdditiveChange, formatChange } from '../types/deck-changes'
@@ -18,116 +18,113 @@ interface ChangesDialogProps {
   onClose: () => void
 }
 
-export const ChangesDialog: FunctionalComponent<ChangesDialogProps> = ({
-  open,
-  changes,
-  cards,
-  printings = {},
-  symbolMap = {},
-  useScryfallImgUrls,
-  currency = 'usd',
-  onClose,
-}) => {
-  const dialogRef = useRef<HTMLDialogElement>(null)
-  const selectedCardRef = useRef<string | null>(null)
+export const ChangesDialog: Component<ChangesDialogProps> = (props) => {
+  let dialogRef: HTMLDialogElement | undefined
 
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
-  const [selectedCard, setSelectedCard] = useState<string | null>(null)
-  selectedCardRef.current = selectedCard
+  const [selectedCard, setSelectedCard] = createSignal<string | null>(null)
 
-  useEffect(() => {
-    const dialog = dialogRef.current
+  createEffect(() => {
+    const dialog = dialogRef
     if (!dialog) return
-    if (open && !dialog.open) dialog.showModal()
-    else if (!open && dialog.open) dialog.close()
-  }, [open])
+    if (props.open && !dialog.open) dialog.showModal()
+    else if (!props.open && dialog.open) dialog.close()
+  })
 
   // Intercept Escape: close CardModal first, then allow dialog to close
-  useEffect(() => {
-    const dialog = dialogRef.current
+  createEffect(() => {
+    const dialog = dialogRef
     if (!dialog) return
     const handleCancel = (e: Event) => {
-      if (selectedCardRef.current) {
+      if (selectedCard()) {
         e.preventDefault()
         setSelectedCard(null)
       }
     }
     dialog.addEventListener('cancel', handleCancel)
-    return () => dialog.removeEventListener('cancel', handleCancel)
-  }, [])
+    onCleanup(() => dialog.removeEventListener('cancel', handleCancel))
+  })
 
-  const handleBackdropClick = useCallback((e: MouseEvent) => {
-    if ((e.target as Element) === dialogRef.current) dialogRef.current?.close()
-  }, [])
+  const handleBackdropClick = (e: MouseEvent) => {
+    if ((e.target as Element) === dialogRef) dialogRef?.close()
+  }
 
-  const modalCard = selectedCard ? (cards[selectedCard] ?? null) : null
-  const modalPrintings = selectedCard ? (printings[selectedCard] ?? []) : []
+  const modalCard = () => {
+    const name = selectedCard()
+    return name ? (props.cards[name] ?? null) : null
+  }
+  const modalPrintings = () => {
+    const name = selectedCard()
+    const printingsMap = props.printings ?? {}
+    return name ? (printingsMap[name] ?? []) : []
+  }
 
   return (
     <dialog
-      ref={dialogRef}
+      ref={dialogRef!}
       class="changes-dialog-native"
-      onClose={onClose}
+      onClose={props.onClose}
       onClick={handleBackdropClick}
     >
       <div class="search-modal changes-modal">
         <div class="search-modal-header">
-          <h3 class="modal-heading">Pending Changes ({changes.length})</h3>
-          <button type="button" class="modal-close" onClick={() => dialogRef.current?.close()}>
+          <h3 class="modal-heading">Pending Changes ({props.changes.length})</h3>
+          <button type="button" class="modal-close" onClick={() => dialogRef?.close()}>
             &times;
           </button>
         </div>
         <div class="changes-dialog">
-          {changes.length === 0 ? (
-            <div class="empty-state">No pending changes</div>
-          ) : (
-            changes.map((change) => {
-              const additive = isAdditiveChange(change.action)
-              const card = cards[change.cardName] ?? null
-              const imageUrl = card ? getCardImageUrl(card) : null
-              return (
-                <div
-                  key={change.id}
-                  class={`change-item ${additive ? 'change-item--add' : 'change-item--remove'}`}
-                >
-                  <span class="change-item-icon">{additive ? '+' : '−'}</span>
-                  <ChangeText
-                    change={change}
-                    onCardClick={() => setSelectedCard(change.cardName)}
-                    onHoverEnter={() =>
-                      imageUrl ? setTooltip({ src: imageUrl, sideways: false }) : undefined
-                    }
-                    onHoverLeave={() => setTooltip(null)}
-                  />
-                  {change.cardId !== undefined && (
-                    <span class="change-item-id">&amp;{change.cardId}</span>
-                  )}
-                </div>
-              )
-            })
-          )}
+          <Show
+            when={props.changes.length > 0}
+            fallback={<div class="empty-state">No pending changes</div>}
+          >
+            <For each={props.changes}>
+              {(change) => {
+                const additive = isAdditiveChange(change.action)
+                const card = props.cards[change.cardName] ?? null
+                const imageUrl = card ? getCardImageUrl(card) : null
+                return (
+                  <div
+                    class={`change-item ${additive ? 'change-item--add' : 'change-item--remove'}`}
+                  >
+                    <span class="change-item-icon">{additive ? '+' : '−'}</span>
+                    <ChangeText
+                      change={change}
+                      onCardClick={() => setSelectedCard(change.cardName)}
+                      onHoverEnter={() =>
+                        imageUrl ? setTooltip({ src: imageUrl, sideways: false }) : undefined
+                      }
+                      onHoverLeave={() => setTooltip(null)}
+                    />
+                    <Show when={change.cardId !== undefined}>
+                      <span class="change-item-id">&amp;{change.cardId}</span>
+                    </Show>
+                  </div>
+                )
+              }}
+            </For>
+          </Show>
         </div>
       </div>
 
       {/* Card hover tooltip — rendered outside modal div to avoid clipping */}
       <div
         ref={tooltipRef}
-        class={`changes-card-tooltip ${tooltip ? 'visible' : ''}`}
-        style={`left:${tooltipPos.left}px;top:${tooltipPos.top}px;`}
+        class={`changes-card-tooltip ${tooltip() ? 'visible' : ''}`}
+        style={`left:${tooltipPos().left}px;top:${tooltipPos().top}px;`}
       >
-        {tooltip && <img src={tooltip.src} alt="" />}
+        <Show when={tooltip()}>{(t) => <img src={t().src} alt="" />}</Show>
       </div>
 
       {/* Card detail modal opened from change item */}
       <CardModal
-        key={selectedCard ?? ''}
-        open={Boolean(modalCard)}
-        card={modalCard}
-        cardName={selectedCard}
-        symbolMap={symbolMap}
-        useScryfallImgUrls={useScryfallImgUrls}
-        currency={currency}
-        printings={modalPrintings}
+        open={Boolean(modalCard())}
+        card={modalCard()}
+        cardName={selectedCard()}
+        symbolMap={props.symbolMap ?? {}}
+        useScryfallImgUrls={props.useScryfallImgUrls}
+        currency={props.currency ?? 'usd'}
+        printings={modalPrintings()}
         onClose={() => setSelectedCard(null)}
         backdropClass="changelog-card-modal"
       />
@@ -142,32 +139,39 @@ type ChangeTextProps = {
   onHoverLeave: () => void
 }
 
-function ChangeText({ change, onCardClick, onHoverEnter, onHoverLeave }: ChangeTextProps) {
-  const formatted = formatChange(change)
-  const cardName = change.cardName
-  const idx = formatted.indexOf(cardName)
-  if (idx === -1) {
-    return <span>{formatted}</span>
-  }
-  const before = formatted.slice(0, idx)
-  const after = formatted.slice(idx + cardName.length)
+const ChangeText: Component<ChangeTextProps> = (props) => {
+  const parts = createMemo(() => {
+    const formatted = formatChange(props.change)
+    const cardName = props.change.cardName
+    const idx = formatted.indexOf(cardName)
+    if (idx === -1) return { formatted, before: null, cardName, after: null }
+    return {
+      formatted,
+      before: formatted.slice(0, idx),
+      cardName,
+      after: formatted.slice(idx + cardName.length),
+    }
+  })
+
   return (
-    <span>
-      {before}
-      <a
-        href="#"
-        class="changelog-card-link"
-        onClick={(e: Event) => {
-          e.preventDefault()
-          e.stopPropagation()
-          onCardClick()
-        }}
-        onMouseEnter={onHoverEnter}
-        onMouseLeave={onHoverLeave}
-      >
-        {cardName}
-      </a>
-      {after}
-    </span>
+    <Show when={parts().before !== null} fallback={<span>{parts().formatted}</span>}>
+      <span>
+        {parts().before}
+        <a
+          href="#"
+          class="changelog-card-link"
+          onClick={(e: Event) => {
+            e.preventDefault()
+            e.stopPropagation()
+            props.onCardClick()
+          }}
+          onMouseEnter={props.onHoverEnter}
+          onMouseLeave={props.onHoverLeave}
+        >
+          {parts().cardName}
+        </a>
+        {parts().after}
+      </span>
+    </Show>
   )
 }

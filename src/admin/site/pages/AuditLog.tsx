@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'preact/hooks'
+import { createSignal, onMount, Show, For } from 'solid-js'
 import type { AuditEntry } from '../../audit-log'
 
 function formatDate(ts: string): string {
@@ -10,11 +10,11 @@ function formatDate(ts: string): string {
 }
 
 export function AuditLog() {
-  const [entries, setEntries] = useState<AuditEntry[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [entries, setEntries] = createSignal<AuditEntry[]>([])
+  const [loading, setLoading] = createSignal(true)
+  const [error, setError] = createSignal<string | null>(null)
 
-  const fetchLog = useCallback(async () => {
+  const fetchLog = async () => {
     setLoading(true)
     try {
       const resp = await fetch('/api/audit-log?limit=200', { credentials: 'same-origin' })
@@ -27,65 +27,71 @@ export function AuditLog() {
     } finally {
       setLoading(false)
     }
-  }, [])
-
-  useEffect(() => {
-    fetchLog()
-  }, [fetchLog])
-
-  if (loading) {
-    return (
-      <div>
-        <p class="text-muted">Loading audit log...</p>
-      </div>
-    )
   }
 
+  onMount(() => {
+    fetchLog()
+  })
+
   return (
-    <div>
-      <div class="audit-header">
-        <h2 class="section-heading">📋 Audit Log</h2>
-        <button class="btn btn-secondary" onClick={fetchLog}>
-          Refresh
-        </button>
-      </div>
-
-      {error && <div class="alert alert-error">{error}</div>}
-
-      {entries.length === 0 ? (
-        <p class="text-muted">No login attempts recorded yet.</p>
-      ) : (
-        <div class="audit-scroll">
-          <table class="audit-table">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Status</th>
-                <th>Username</th>
-                <th>IP</th>
-                <th class="audit-responsive-md">Reason</th>
-                <th class="audit-responsive-lg">User Agent</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((entry, i) => (
-                <tr key={i} class={entry.success ? undefined : 'audit-row-failed'}>
-                  <td class="audit-cell-nowrap">{formatDate(entry.timestamp)}</td>
-                  <td>
-                    <span class={entry.success ? 'badge badge-success' : 'badge badge-error'}>
-                      {entry.success ? 'Success' : 'Failed'}
-                    </span>
-                  </td>
-                  <td>{entry.username}</td>
-                  <td class="audit-cell-mono">{entry.ip}</td>
-                  <td class="audit-responsive-md">{entry.reason}</td>
-                  <td class="audit-responsive-lg text-ellipsis-sm">{entry.userAgent}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    <Show
+      when={!loading()}
+      fallback={
+        <div>
+          <p class="text-muted">Loading audit log...</p>
         </div>
-      )}
-    </div>
+      }
+    >
+      <div>
+        <div class="audit-header">
+          <h2 class="section-heading">📋 Audit Log</h2>
+          <button class="btn btn-secondary" onClick={fetchLog}>
+            Refresh
+          </button>
+        </div>
+
+        <Show when={error()}>
+          <div class="alert alert-error">{error()}</div>
+        </Show>
+
+        <Show
+          when={entries().length > 0}
+          fallback={<p class="text-muted">No login attempts recorded yet.</p>}
+        >
+          <div class="audit-scroll">
+            <table class="audit-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Status</th>
+                  <th>Username</th>
+                  <th>IP</th>
+                  <th class="audit-responsive-md">Reason</th>
+                  <th class="audit-responsive-lg">User Agent</th>
+                </tr>
+              </thead>
+              <tbody>
+                <For each={entries()}>
+                  {(entry) => (
+                    <tr class={entry.success ? undefined : 'audit-row-failed'}>
+                      <td class="audit-cell-nowrap">{formatDate(entry.timestamp)}</td>
+                      <td>
+                        <span class={entry.success ? 'badge badge-success' : 'badge badge-error'}>
+                          {entry.success ? 'Success' : 'Failed'}
+                        </span>
+                      </td>
+                      <td>{entry.username}</td>
+                      <td class="audit-cell-mono">{entry.ip}</td>
+                      <td class="audit-responsive-md">{entry.reason}</td>
+                      <td class="audit-responsive-lg text-ellipsis-sm">{entry.userAgent}</td>
+                    </tr>
+                  )}
+                </For>
+              </tbody>
+            </table>
+          </div>
+        </Show>
+      </div>
+    </Show>
   )
 }

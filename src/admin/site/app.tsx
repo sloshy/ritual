@@ -1,6 +1,5 @@
-import type { ComponentChild } from 'preact'
-import { render } from 'preact'
-import { useState, useEffect, useCallback } from 'preact/hooks'
+import { render } from 'solid-js/web'
+import { createSignal, onMount, Switch, Match } from 'solid-js'
 import type { Page } from './types'
 import { Layout } from './components/Layout'
 import { AuthGuard } from './components/AuthGuard'
@@ -17,12 +16,12 @@ import { CollectionEditor } from './pages/CollectionEditor'
 import { WantedListEditor } from './pages/WantedListEditor'
 
 function App() {
-  const [page, setPage] = useState<Page>('dashboard')
-  const [setupRequired, setSetupRequired] = useState<boolean | null>(null)
-  const [totpEnabled, setTotpEnabled] = useState(false)
-  const [loggedIn, setLoggedIn] = useState(false)
+  const [page, setPage] = createSignal<Page>('dashboard')
+  const [setupRequired, setSetupRequired] = createSignal<boolean | null>(null)
+  const [totpEnabled, setTotpEnabled] = createSignal(false)
+  const [loggedIn, setLoggedIn] = createSignal(false)
 
-  const checkStatus = useCallback(async () => {
+  const checkStatus = async () => {
     try {
       const resp = await fetch('/api/status')
       const data = (await resp.json()) as { setupRequired: boolean; totpEnabled?: boolean }
@@ -39,77 +38,96 @@ function App() {
     } catch {
       setSetupRequired(true)
     }
-  }, [])
+  }
 
-  useEffect(() => {
+  onMount(() => {
     checkStatus()
-  }, [checkStatus])
+  })
 
-  const onSetupComplete = useCallback(() => {
+  const onSetupComplete = () => {
     setSetupRequired(false)
     setLoggedIn(true)
-  }, [])
+  }
 
-  const onLogin = useCallback(() => {
+  const onLogin = () => {
     setLoggedIn(true)
-  }, [])
+  }
 
-  const onLogout = useCallback(async () => {
+  const onLogout = async () => {
     try {
       await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' })
     } catch {
       // ignore
     }
     setLoggedIn(false)
-  }, [])
-
-  if (setupRequired === null) {
-    return (
-      <div class="flex-center-vh">
-        <p class="text-muted">Loading...</p>
-      </div>
-    )
   }
-
-  if (setupRequired) {
-    return <AuthGuard onSetupComplete={onSetupComplete} />
-  }
-
-  if (!loggedIn) {
-    return <AuthGuard onLogin={onLogin} isLogin totpEnabled={totpEnabled} />
-  }
-
-  const pages = {
-    dashboard: () => <Dashboard onNavigate={setPage} />,
-    'deck-editor': () => <DeckEditor />,
-    'deck-manager': () => <DeckManager />,
-    'collection-editor': () => <CollectionEditor />,
-    'wanted-list-editor': () => <WantedListEditor />,
-    'import-deck': () => <ImportDeck />,
-    'build-site': () => <BuildSite />,
-    'cache-refresh': () => <CacheRefresh />,
-    'archidekt-login': () => <ArchidektLogin />,
-    settings: () => <Settings />,
-    'audit-log': () => <AuditLog />,
-  } satisfies Record<Page, () => ComponentChild>
-
-  const renderPage = pages[page] ?? pages['dashboard']
 
   return (
-    <Layout
-      currentPage={page}
-      onNavigate={setPage}
-      onLogout={onLogout}
-      fullWidth={
-        page === 'deck-editor' || page === 'collection-editor' || page === 'wanted-list-editor'
-      }
-    >
-      {renderPage()}
-    </Layout>
+    <Switch>
+      <Match when={setupRequired() === null}>
+        <div class="flex-center-vh">
+          <p class="text-muted">Loading...</p>
+        </div>
+      </Match>
+      <Match when={setupRequired()}>
+        <AuthGuard onSetupComplete={onSetupComplete} />
+      </Match>
+      <Match when={!loggedIn()}>
+        <AuthGuard onLogin={onLogin} isLogin totpEnabled={totpEnabled()} />
+      </Match>
+      <Match when={loggedIn()}>
+        <Layout
+          currentPage={page()}
+          onNavigate={setPage}
+          onLogout={onLogout}
+          fullWidth={
+            page() === 'deck-editor' ||
+            page() === 'collection-editor' ||
+            page() === 'wanted-list-editor'
+          }
+        >
+          <Switch>
+            <Match when={page() === 'dashboard'}>
+              <Dashboard onNavigate={setPage} />
+            </Match>
+            <Match when={page() === 'deck-editor'}>
+              <DeckEditor />
+            </Match>
+            <Match when={page() === 'deck-manager'}>
+              <DeckManager />
+            </Match>
+            <Match when={page() === 'collection-editor'}>
+              <CollectionEditor />
+            </Match>
+            <Match when={page() === 'wanted-list-editor'}>
+              <WantedListEditor />
+            </Match>
+            <Match when={page() === 'import-deck'}>
+              <ImportDeck />
+            </Match>
+            <Match when={page() === 'build-site'}>
+              <BuildSite />
+            </Match>
+            <Match when={page() === 'cache-refresh'}>
+              <CacheRefresh />
+            </Match>
+            <Match when={page() === 'archidekt-login'}>
+              <ArchidektLogin />
+            </Match>
+            <Match when={page() === 'settings'}>
+              <Settings />
+            </Match>
+            <Match when={page() === 'audit-log'}>
+              <AuditLog />
+            </Match>
+          </Switch>
+        </Layout>
+      </Match>
+    </Switch>
   )
 }
 
 const root = document.getElementById('app')
 if (root) {
-  render(<App />, root)
+  render(() => <App />, root)
 }

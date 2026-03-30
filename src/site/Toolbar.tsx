@@ -1,4 +1,5 @@
-import type { FunctionalComponent } from 'preact'
+import type { Component } from 'solid-js'
+import { Show, For } from 'solid-js'
 import type { ViewMode, CardSize, SortBy, PriceGroupStrategy } from './card-sorting'
 import { capitalize } from './utils'
 
@@ -43,78 +44,54 @@ const CARD_SIZE_LABELS: Record<CardSize, string> = {
   small: 'S',
 }
 
-export const Toolbar: FunctionalComponent<ToolbarProps> = ({
-  viewMode,
-  onViewModeChange,
-  cardSize,
-  onCardSizeChange,
-  groupBy,
-  groupByOptions,
-  onGroupByChange,
-  sortBy,
-  sortByOptions,
-  onSortByChange,
-  priceGroupStrategy,
-  onPriceGroupStrategyChange,
-  reverse,
-  onReverseChange,
-  hideLands,
-  onHideLandsChange,
-  extraCheckboxes,
-}) => {
+export const Toolbar: Component<ToolbarProps> = (props) => {
   return (
-    <div className="toolbar">
-      <div className="view-toggle">
+    <div class="toolbar">
+      <div class="view-toggle">
         {(['binder', 'list', 'overlap', 'stack'] as ViewMode[]).map((mode) => (
           <button
-            key={mode}
             data-view={mode}
-            className={viewMode === mode ? 'active' : ''}
+            class={props.viewMode === mode ? 'active' : ''}
             title={`${capitalize(mode)} View`}
-            onClick={() => onViewModeChange(mode)}
+            onClick={() => props.onViewModeChange(mode)}
           >
             {VIEW_MODE_ICONS[mode]}
           </button>
         ))}
       </div>
-      {viewMode !== 'list' && (
-        <div className="view-toggle">
+      <Show when={props.viewMode !== 'list'}>
+        <div class="view-toggle">
           {(['large', 'medium', 'small'] as CardSize[]).map((size) => (
             <button
-              key={size}
-              className={cardSize === size ? 'active' : ''}
+              class={props.cardSize === size ? 'active' : ''}
               title={`${capitalize(size)} cards`}
-              onClick={() => onCardSizeChange(size)}
+              onClick={() => props.onCardSizeChange(size)}
             >
               {CARD_SIZE_LABELS[size]}
             </button>
           ))}
         </div>
-      )}
-      <div className="toolbar-group">
-        <label className="toolbar-label">Group:</label>
+      </Show>
+      <div class="toolbar-group">
+        <label class="toolbar-label">Group:</label>
         <select
-          className="toolbar-select"
-          value={groupBy}
-          onChange={(e) => onGroupByChange((e.target as HTMLSelectElement).value)}
+          class="toolbar-select"
+          value={props.groupBy}
+          onChange={(e) => props.onGroupByChange(e.currentTarget.value)}
         >
-          {groupByOptions.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
+          <For each={props.groupByOptions}>
+            {(opt) => <option value={opt.value}>{opt.label}</option>}
+          </For>
         </select>
       </div>
-      {groupBy === 'price' && (
-        <div className="toolbar-group">
-          <label className="toolbar-label">Brackets:</label>
+      <Show when={props.groupBy === 'price'}>
+        <div class="toolbar-group">
+          <label class="toolbar-label">Brackets:</label>
           <select
-            className="toolbar-select"
-            value={priceGroupStrategy}
+            class="toolbar-select"
+            value={props.priceGroupStrategy}
             onChange={(e) =>
-              onPriceGroupStrategyChange(
-                (e.target as HTMLSelectElement).value as PriceGroupStrategy,
-              )
+              props.onPriceGroupStrategyChange(e.currentTarget.value as PriceGroupStrategy)
             }
           >
             <option value="archidekt">Archidekt</option>
@@ -122,35 +99,39 @@ export const Toolbar: FunctionalComponent<ToolbarProps> = ({
             <option value="ten">Every $10</option>
           </select>
         </div>
-      )}
-      <div className="toolbar-group">
-        <label className="toolbar-label">Sort:</label>
+      </Show>
+      <div class="toolbar-group">
+        <label class="toolbar-label">Sort:</label>
         <select
-          className="toolbar-select"
-          value={sortBy}
-          onChange={(e) => onSortByChange((e.target as HTMLSelectElement).value as SortBy)}
+          class="toolbar-select"
+          value={props.sortBy}
+          onChange={(e) => props.onSortByChange(e.currentTarget.value as SortBy)}
         >
-          {sortByOptions.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
+          <For each={props.sortByOptions}>
+            {(opt) => <option value={opt.value}>{opt.label}</option>}
+          </For>
         </select>
       </div>
-      <label className="toolbar-checkbox">
-        <input type="checkbox" checked={reverse} onChange={onReverseChange} />
+      <label class="toolbar-checkbox">
+        <input type="checkbox" checked={props.reverse} onChange={props.onReverseChange} />
         Reverse
       </label>
-      <label className="toolbar-checkbox">
-        <input type="checkbox" checked={hideLands} onChange={onHideLandsChange} />
+      <label class="toolbar-checkbox">
+        <input type="checkbox" checked={props.hideLands} onChange={props.onHideLandsChange} />
         Hide Lands
       </label>
-      {extraCheckboxes?.map((cb) => (
-        <label key={cb.label} className="toolbar-checkbox">
-          <input type="checkbox" checked={cb.checked} onChange={cb.onChange} />
-          {cb.label}
-        </label>
-      ))}
+      <Show when={props.extraCheckboxes}>
+        {(checkboxes) => (
+          <For each={checkboxes()}>
+            {(cb) => (
+              <label class="toolbar-checkbox">
+                <input type="checkbox" checked={cb.checked} onChange={cb.onChange} />
+                {cb.label}
+              </label>
+            )}
+          </For>
+        )}
+      </Show>
     </div>
   )
 }

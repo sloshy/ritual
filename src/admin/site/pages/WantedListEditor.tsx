@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'preact/hooks'
+import { createSignal, createEffect, on, onMount, onCleanup, Show, For } from 'solid-js'
 import type { ScryfallCard } from '../../../types'
 import type { PriceCurrency } from '../../../price-currency'
 import type { CardPrintingOptions } from '../types/deck-changes'
@@ -33,18 +33,15 @@ type WantedListDataResponse = {
 }
 
 export function WantedListEditor() {
-  const [listSlug, setListSlug] = useState<string | null>(null)
-  const [wantedLists, setWantedLists] = useState<WantedListItem[]>([])
-  const [entries, setEntries] = useState<WantedListCardEntry[]>([])
-  const [modalCardKey, setModalCardKey] = useState<string | null>(null)
-  const [contextMenuCard, setContextMenuCard] = useState<ContextMenuState | null>(null)
-  const [refreshKey, setRefreshKey] = useState(0)
+  const [listSlug, setListSlug] = createSignal<string | null>(null)
+  const [wantedLists, setWantedLists] = createSignal<WantedListItem[]>([])
+  const [entries, setEntries] = createSignal<WantedListCardEntry[]>([])
+  const [modalCardKey, setModalCardKey] = createSignal<string | null>(null)
+  const [contextMenuCard, setContextMenuCard] = createSignal<ContextMenuState | null>(null)
+  const [refreshKey, setRefreshKey] = createSignal(0)
 
-  const [status, statusDispatch] = useEditorStatus()
-  const { loading, error, saving, saveStatus } = status
-
-  const [cardData, cardDispatch] = useEntryCardData()
-  const { cards, printings, symbolMap } = cardData
+  const [status, statusActions] = useEditorStatus()
+  const [cardData, cardActions] = useEntryCardData()
 
   const currency: PriceCurrency = 'usd'
 
@@ -64,210 +61,191 @@ export function WantedListEditor() {
     useCollectionChanges<WantedListCardEntry>()
 
   const { allocate, release, claim, resetPool } = useCardIdPool()
-  const originalEntriesRef = useRef<WantedListCardEntry[]>([])
-  const entriesRef = useRef(entries)
-  entriesRef.current = entries
-  const changesRef = useRef(changes)
-  changesRef.current = changes
+  let originalEntries: WantedListCardEntry[] = []
 
-  useEffect(() => {
+  onMount(() => {
     fetch('/api/wanted', { credentials: 'same-origin' })
       .then((r) => r.json() as Promise<{ wantedLists: WantedListItem[] }>)
       .then((data) => {
         if (data.wantedLists) setWantedLists(data.wantedLists)
       })
-      .catch(() => statusDispatch({ type: 'SET_ERROR', error: 'Failed to load wanted list list' }))
-  }, [])
+      .catch(() => statusActions.setError('Failed to load wanted list list'))
+  })
 
-  useEffect(() => {
-    if (!listSlug) return
-    const controller = new AbortController()
-    statusDispatch({ type: 'LOAD_START' })
+  createEffect(
+    on([listSlug, refreshKey], ([slug]) => {
+      if (!slug) return
+      const controller = new AbortController()
+      statusActions.loadStart()
 
-    fetch(`/api/wanted/${listSlug}`, { credentials: 'same-origin', signal: controller.signal })
-      .then((r) => r.json() as Promise<WantedListDataResponse>)
-      .then((data) => {
-        if (controller.signal.aborted) return
-        if (data.success) {
-          const { entries: entriesWithIds, pool } = initializeEntriesWithIds(data.entries)
-          setEntries(entriesWithIds)
-          originalEntriesRef.current = entriesWithIds
-          resetPool([...pool.usedIds])
-          cardDispatch({
-            type: 'LOAD',
-            data: { cards: data.cards, printings: data.printings, symbolMap: data.symbolMap },
-          })
-          discardAll()
-          statusDispatch({ type: 'LOAD_SUCCESS' })
-        } else {
-          statusDispatch({ type: 'LOAD_ERROR', error: 'Failed to load wanted list' })
-        }
-      })
-      .catch((err) => {
-        if (err instanceof Error && err.name === 'AbortError') return
-        statusDispatch({ type: 'LOAD_ERROR', error: 'Failed to load wanted list' })
-      })
+      fetch(`/api/wanted/${slug}`, { credentials: 'same-origin', signal: controller.signal })
+        .then((r) => r.json() as Promise<WantedListDataResponse>)
+        .then((data) => {
+          if (controller.signal.aborted) return
+          if (data.success) {
+            const { entries: entriesWithIds, pool } = initializeEntriesWithIds(data.entries)
+            setEntries(entriesWithIds)
+            originalEntries = entriesWithIds
+            resetPool([...pool.usedIds])
+            cardActions.load({
+              cards: data.cards,
+              printings: data.printings,
+              symbolMap: data.symbolMap,
+            })
+            discardAll()
+            statusActions.loadSuccess()
+          } else {
+            statusActions.loadError('Failed to load wanted list')
+          }
+        })
+        .catch((err) => {
+          if (err instanceof Error && err.name === 'AbortError') return
+          statusActions.loadError('Failed to load wanted list')
+        })
 
-    return () => controller.abort()
-  }, [listSlug, discardAll, resetPool, refreshKey])
+      onCleanup(() => controller.abort())
+    }),
+  )
 
-  const handleListSelect = useCallback((e: Event) => {
-    const value = (e.target as HTMLSelectElement).value
+  const handleListSelect = (e: Event) => {
+    const value = (e.currentTarget as HTMLSelectElement).value
     setListSlug(value || null)
-  }, [])
+  }
 
-  const handleIncrement = useCallback(
-    (entry: WantedListCardEntry) => {
-      const cardId = allocate()
-      addCard(entry.name, {
+  const handleIncrement = (entry: WantedListCardEntry) => {
+    const cardId = allocate()
+    addCard(entry.name, {
+      set: entry.set,
+      collectorNumber: entry.collectorNumber,
+      finish: entry.finish,
+      cardId,
+    })
+    setEntries((prev) =>
+      applyChangeToWantedList(prev, {
+        action: 'add',
+        cardName: entry.name,
         set: entry.set,
         collectorNumber: entry.collectorNumber,
         finish: entry.finish,
         cardId,
-      })
-      setEntries((prev) =>
-        applyChangeToWantedList(prev, {
-          action: 'add',
-          cardName: entry.name,
-          set: entry.set,
-          collectorNumber: entry.collectorNumber,
-          finish: entry.finish,
-          cardId,
-        }),
-      )
-    },
-    [addCard, allocate],
-  )
+      }),
+    )
+  }
 
-  const handleDecrement = useCallback(
-    (entry: WantedListCardEntry) => {
-      if (entry.cardId !== undefined) {
-        release(entry.cardId)
-      }
-      removeCard(
-        entry.name,
-        {
-          set: entry.set,
-          collectorNumber: entry.collectorNumber,
-          finish: entry.finish,
-          cardId: entry.cardId,
-        },
-        { ...entry },
-      )
-      setEntries((prev) =>
-        applyChangeToWantedList(prev, {
-          action: 'remove',
-          cardName: entry.name,
-          set: entry.set,
-          collectorNumber: entry.collectorNumber,
-          cardId: entry.cardId,
-          fileOrder: entry.fileOrder,
-        }),
-      )
-    },
-    [removeCard, release],
-  )
+  const handleDecrement = (entry: WantedListCardEntry) => {
+    if (entry.cardId !== undefined) {
+      release(entry.cardId)
+    }
+    removeCard(
+      entry.name,
+      {
+        set: entry.set,
+        collectorNumber: entry.collectorNumber,
+        finish: entry.finish,
+        cardId: entry.cardId,
+      },
+      { ...entry },
+    )
+    setEntries((prev) =>
+      applyChangeToWantedList(prev, {
+        action: 'remove',
+        cardName: entry.name,
+        set: entry.set,
+        collectorNumber: entry.collectorNumber,
+        cardId: entry.cardId,
+        fileOrder: entry.fileOrder,
+      }),
+    )
+  }
 
-  const handleContextMenu = useCallback(
-    (cardName: string, card: ScryfallCard | null, rect: DOMRect) => {
-      setContextMenuCard({ cardName, card, anchorRect: rect })
-    },
-    [],
-  )
+  const handleContextMenu = (cardName: string, card: ScryfallCard | null, rect: DOMRect) => {
+    setContextMenuCard({ cardName, card, anchorRect: rect })
+  }
 
-  const handleSetFoil = useCallback(() => {
-    if (!contextMenuCard) return
-    const entry = entriesRef.current.find((e) => e.name === contextMenuCard.cardName)
+  const handleSetFoil = () => {
+    const menu = contextMenuCard()
+    if (!menu) return
+    const entry = entries().find((e) => e.name === menu.cardName)
     const cardId = entry?.cardId
-    setFinish(contextMenuCard.cardName, 'foil', cardId)
+    setFinish(menu.cardName, 'foil', cardId)
     setEntries((prev) =>
       applyChangeToWantedList(prev, {
         action: 'set-finish',
-        cardName: contextMenuCard.cardName,
+        cardName: menu.cardName,
         finish: 'foil',
         cardId,
       }),
     )
     setContextMenuCard(null)
-  }, [contextMenuCard, setFinish])
+  }
 
-  const handleAddCardFromSearch = useCallback(
-    async (
-      cardName: string,
-      options?: CardPrintingOptions,
-      scryfallCard?: ScryfallCard,
-      allPrintings?: ScryfallCard[],
-    ) => {
-      const cardId = allocate()
-      addCard(cardName, { ...options, cardId })
-      setEntries((prev) =>
-        applyChangeToWantedList(prev, {
-          action: 'add',
-          cardName,
-          set: options?.set,
-          collectorNumber: options?.collectorNumber,
-          finish: options?.finish,
-          cardId,
-        }),
-      )
-      cardDispatch({
-        type: 'ADD_CARD',
+  const handleAddCardFromSearch = async (
+    cardName: string,
+    options?: CardPrintingOptions,
+    scryfallCard?: ScryfallCard,
+    allPrintings?: ScryfallCard[],
+  ) => {
+    const cardId = allocate()
+    addCard(cardName, { ...options, cardId })
+    setEntries((prev) =>
+      applyChangeToWantedList(prev, {
+        action: 'add',
         cardName,
-        card: scryfallCard,
-        printings: allPrintings,
+        set: options?.set,
+        collectorNumber: options?.collectorNumber,
+        finish: options?.finish,
+        cardId,
+      }),
+    )
+    cardActions.addCard(cardName, scryfallCard, allPrintings)
+
+    try {
+      const resp = await fetch(`/api/card-price?name=${encodeURIComponent(cardName)}`, {
+        credentials: 'same-origin',
       })
-
-      try {
-        const resp = await fetch(`/api/card-price?name=${encodeURIComponent(cardName)}`, {
-          credentials: 'same-origin',
-        })
-        const data = (await resp.json()) as CardPriceResponse
-        if (data.success) {
-          cardDispatch({
-            type: 'SET_PRICES',
-            cardName,
-            representative: !scryfallCard ? (data.representative ?? undefined) : undefined,
-            printings: data.printings.length > 0 ? data.printings : undefined,
-          })
-        }
-      } catch {
-        // Price fetch failure doesn't block adding the card
+      const data = (await resp.json()) as CardPriceResponse
+      if (data.success) {
+        cardActions.setPrices(
+          cardName,
+          !scryfallCard ? (data.representative ?? undefined) : undefined,
+          data.printings.length > 0 ? data.printings : undefined,
+        )
       }
-    },
-    [addCard, allocate],
-  )
+    } catch {
+      // Price fetch failure doesn't block adding the card
+    }
+  }
 
-  const handleUndo = useCallback(() => {
+  const handleUndo = () => {
     const result = undo()
     if (!result) return
 
     const { entry, remainingChanges } = result
     reconcileIdPoolForUndo(release, claim, entry)
-    setEntries(replayChanges(originalEntriesRef.current, remainingChanges, applyChangeToWantedList))
-  }, [undo, release, claim])
+    setEntries(replayChanges(originalEntries, remainingChanges, applyChangeToWantedList))
+  }
 
-  const handleSave = useCallback(async () => {
-    if (!listSlug || entriesRef.current.length === 0 || changesRef.current.length === 0) return
+  const handleSave = async () => {
+    const slug = listSlug()
+    if (!slug || entries().length === 0 || changes().length === 0) return
     await saveEditorChanges(
-      `/api/wanted/${listSlug}/save`,
-      { changes: changesRef.current, entries: entriesRef.current },
-      statusDispatch,
+      `/api/wanted/${slug}/save`,
+      { changes: changes(), entries: entries() },
+      statusActions,
       discardAll,
     )
-  }, [listSlug, discardAll, statusDispatch])
+  }
 
-  const handleDiscard = useCallback(() => {
+  const handleDiscard = () => {
     discardAll()
-    const ids = originalEntriesRef.current
-      .map((e) => e.cardId)
-      .filter((id): id is number => id !== undefined)
+    const ids = originalEntries.map((e) => e.cardId).filter((id): id is number => id !== undefined)
     resetPool(ids)
     closeDiscard()
     setRefreshKey((k) => k + 1)
-  }, [discardAll, resetPool, closeDiscard])
+  }
 
-  const closeModal = useCallback(() => setModalCardKey(null), [])
-  const closeContextMenu = useCallback(() => setContextMenuCard(null), [])
+  const closeModal = () => setModalCardKey(null)
+  const closeContextMenu = () => setContextMenuCard(null)
 
   return (
     <div>
@@ -280,32 +258,34 @@ export function WantedListEditor() {
         <select
           id="wanted-list-select"
           class="deck-selector"
-          value={listSlug ?? ''}
+          value={listSlug() ?? ''}
           onChange={handleListSelect}
         >
           <option value="">— Choose a wanted list —</option>
-          {wantedLists.map(({ slug, name }) => (
-            <option key={slug} value={slug}>
-              {name}
-            </option>
-          ))}
+          <For each={wantedLists()}>{(item) => <option value={item.slug}>{item.name}</option>}</For>
         </select>
       </div>
 
-      {error && <div class="alert alert-error">{error}</div>}
-      {saveStatus && <div class="alert alert-success">{saveStatus}</div>}
-      {loading && <p class="text-muted">Loading wanted list...</p>}
+      <Show when={status.error}>
+        <div class="alert alert-error">{status.error}</div>
+      </Show>
+      <Show when={status.saveStatus}>
+        <div class="alert alert-success">{status.saveStatus}</div>
+      </Show>
+      <Show when={status.loading}>
+        <p class="text-muted">Loading wanted list...</p>
+      </Show>
 
-      {entries.length > 0 && listSlug && !loading && (
+      <Show when={entries().length > 0 && listSlug() && !status.loading}>
         <WantedListPage
-          name={wantedLists.find((c) => c.slug === listSlug)?.name ?? listSlug}
-          entries={entries}
-          cards={cards}
-          printings={printings}
-          symbolMap={symbolMap}
+          name={wantedLists().find((c) => c.slug === listSlug())?.name ?? listSlug()!}
+          entries={entries()}
+          cards={cardData.cards}
+          printings={cardData.printings}
+          symbolMap={cardData.symbolMap}
           useScryfallImgUrls={true}
           totalPrice={0}
-          modalCardKey={modalCardKey}
+          modalCardKey={modalCardKey()}
           onOpenModal={setModalCardKey}
           onCloseModal={closeModal}
           currency={currency}
@@ -314,57 +294,59 @@ export function WantedListEditor() {
           onCardIncrement={handleIncrement}
           onCardDecrement={handleDecrement}
           onCardContextMenu={handleContextMenu}
-          unsavedChangeCount={changeCount}
+          unsavedChangeCount={changeCount()}
         />
-      )}
+      </Show>
 
-      {contextMenuCard && (
-        <CardContextMenu
-          cardName={contextMenuCard.cardName}
-          card={contextMenuCard.card}
-          onSetFoil={handleSetFoil}
-          onUnsetCommander={closeContextMenu}
-          anchorRect={contextMenuCard.anchorRect}
-          onClose={closeContextMenu}
-          hideCommander={true}
-        />
-      )}
+      <Show when={contextMenuCard()}>
+        {(menu) => (
+          <CardContextMenu
+            cardName={menu().cardName}
+            card={menu().card}
+            onSetFoil={handleSetFoil}
+            onUnsetCommander={closeContextMenu}
+            anchorRect={menu().anchorRect}
+            onClose={closeContextMenu}
+            hideCommander={true}
+          />
+        )}
+      </Show>
 
       <CardSearchModal
-        open={showSearchModal}
+        open={showSearchModal()}
         onClose={closeSearchModal}
         onAddCard={handleAddCardFromSearch}
         requirePrinting={false}
       />
 
       <ChangesDialog
-        open={showChanges}
-        changes={changes}
-        cards={cards}
-        printings={printings}
-        symbolMap={symbolMap}
+        open={showChanges()}
+        changes={changes()}
+        cards={cardData.cards}
+        printings={cardData.printings}
+        symbolMap={cardData.symbolMap}
         currency={currency}
         onClose={closeChanges}
       />
 
       <DiscardConfirmDialog
-        open={showDiscard}
-        changes={changes}
+        open={showDiscard()}
+        changes={changes()}
         onConfirm={handleDiscard}
         onCancel={closeDiscard}
       />
 
-      {entries.length > 0 && (
+      <Show when={entries().length > 0}>
         <EditorActionBar
-          changeCount={changeCount}
-          canUndo={canUndo}
-          saving={saving}
+          changeCount={changeCount()}
+          canUndo={canUndo()}
+          saving={status.saving}
           onShowChanges={openChanges}
           onUndo={handleUndo}
           onSave={handleSave}
           onDiscard={openDiscard}
         />
-      )}
+      </Show>
     </div>
   )
 }

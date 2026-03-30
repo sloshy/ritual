@@ -1,5 +1,5 @@
-import type { FunctionalComponent } from 'preact'
-import { useState, useMemo } from 'preact/hooks'
+import type { Component } from 'solid-js'
+import { createSignal, createMemo, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import type { ScryfallCard } from '../types'
 import type { WantedListCardEntry } from './data-types'
@@ -57,26 +57,7 @@ function resolveCardForEntry(
   return cards[entry.name] ?? null
 }
 
-export const WantedListPage: FunctionalComponent<WantedListPageProps> = ({
-  name,
-  entries,
-  cards,
-  printings,
-  symbolMap,
-  useScryfallImgUrls,
-  totalPrice: _totalPrice,
-  exportMdPath,
-  modalCardKey,
-  onOpenModal,
-  onCloseModal,
-  currency,
-  editMode,
-  onAddCard,
-  onCardIncrement,
-  onCardDecrement,
-  onCardContextMenu,
-  changelog,
-}) => {
+export const WantedListPage: Component<WantedListPageProps> = (props) => {
   const {
     viewMode,
     setViewMode,
@@ -93,27 +74,27 @@ export const WantedListPage: FunctionalComponent<WantedListPageProps> = ({
     priceGroupStrategy,
     setPriceGroupStrategy,
   } = useToolbarState<WantedListGroupBy>({ groupBy: 'none', sortBy: 'file-order' })
-  const [showChangelog, setShowChangelog] = useState(false)
+  const [showChangelog, setShowChangelog] = createSignal(false)
 
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
 
-  const currencyEntries = useMemo((): WantedListCardEntry[] => {
-    return entries.map((entry) => {
-      const card = resolveCardForEntry(entry, cards)
+  const currencyEntries = createMemo((): WantedListCardEntry[] => {
+    return props.entries.map((entry) => {
+      const card = resolveCardForEntry(entry, props.cards)
       if (!card) return entry
 
-      const price = getCardPriceForFinish(card, entry.finish ?? 'nonfoil', currency)
+      const price = getCardPriceForFinish(card, entry.finish ?? 'nonfoil', props.currency)
       return { ...entry, price }
     })
-  }, [entries, cards, currency])
+  })
 
-  const computedTotalPrice = useMemo(() => {
-    return currencyEntries.reduce((sum, e) => sum + e.price, 0)
-  }, [currencyEntries])
+  const computedTotalPrice = createMemo(() => {
+    return currencyEntries().reduce((sum, e) => sum + e.price, 0)
+  })
 
-  const allCards = useMemo((): CardData[] => {
-    return currencyEntries.map((entry) => {
-      const card = resolveCardForEntry(entry, cards)
+  const allCards = createMemo((): CardData[] => {
+    return currencyEntries().map((entry) => {
+      const card = resolveCardForEntry(entry, props.cards)
       return {
         name: entry.name,
         quantity: 1,
@@ -128,12 +109,12 @@ export const WantedListPage: FunctionalComponent<WantedListPageProps> = ({
         card,
       }
     })
-  }, [currencyEntries, cards])
+  })
 
-  const cardGroups = useMemo((): CardGroup[] => {
-    let working = [...allCards]
+  const cardGroups = createMemo((): CardGroup[] => {
+    let working = [...allCards()]
 
-    if (hideLands) {
+    if (hideLands()) {
       working = working.filter(
         (c) => !(c.cmc === 0 && (c.type.includes('Land') || c.type.includes('Basic'))),
       )
@@ -141,40 +122,38 @@ export const WantedListPage: FunctionalComponent<WantedListPageProps> = ({
 
     return groupAndSortCards(
       working,
-      groupBy as GroupBy,
-      sortBy,
-      reverse,
+      groupBy() as GroupBy,
+      sortBy(),
+      reverse(),
       [],
-      priceGroupStrategy,
-      currency,
+      priceGroupStrategy(),
+      props.currency,
     )
-  }, [allCards, groupBy, sortBy, reverse, hideLands, priceGroupStrategy, currency])
+  })
 
-  const modalEntry = useMemo((): WantedListCardEntry | null => {
-    if (!modalCardKey) return null
-    const idx = parseInt(modalCardKey)
-    if (!isNaN(idx) && currencyEntries[idx]) return currencyEntries[idx]
+  const modalEntry = createMemo((): WantedListCardEntry | null => {
+    if (!props.modalCardKey) return null
+    const idx = parseInt(props.modalCardKey)
+    if (!isNaN(idx) && currencyEntries()[idx]) return currencyEntries()[idx] ?? null
     return null
-  }, [modalCardKey, currencyEntries])
+  })
 
-  const modalCard = useMemo((): ScryfallCard | null => {
-    if (!modalEntry) return null
-    return resolveCardForEntry(modalEntry, cards)
-  }, [modalEntry, cards])
+  const modalCard = createMemo((): ScryfallCard | null => {
+    if (!modalEntry()) return null
+    return resolveCardForEntry(modalEntry()!, props.cards)
+  })
 
-  const viewModeClass = `view-${viewMode}`
-
-  const entryIndexMap = useMemo(() => {
+  const entryIndexMap = createMemo(() => {
     const map = new Map<string, number>()
-    currencyEntries.forEach((e, i) => {
+    currencyEntries().forEach((e, i) => {
       map.set(`${e.name}|${e.set ?? ''}|${e.fileOrder}`, i)
     })
     return map
-  }, [currencyEntries])
+  })
 
   const findEntryIndex = (cardData: CardData): number => {
     return (
-      entryIndexMap.get(`${cardData.name}|${cardData.setCode ?? ''}|${cardData.fileOrder}`) ?? -1
+      entryIndexMap().get(`${cardData.name}|${cardData.setCode ?? ''}|${cardData.fileOrder}`) ?? -1
     )
   }
 
@@ -191,19 +170,17 @@ export const WantedListPage: FunctionalComponent<WantedListPageProps> = ({
 
   const renderWantedListCard = (c: CardData) => {
     const entryIdx = findEntryIndex(c)
-    const entry = currencyEntries[entryIdx]
-    const cardKey = `${c.name}|${c.setCode ?? ''}|${c.fileOrder}`
+    const entry = currencyEntries()[entryIdx]
     return (
       <CardItem
-        key={cardKey}
         name={c.name}
         quantity={c.quantity}
         card={c.card}
-        symbolMap={symbolMap}
-        viewMode={viewMode}
+        symbolMap={props.symbolMap}
+        viewMode={viewMode()}
         hideCount={true}
-        useScryfallImgUrls={useScryfallImgUrls}
-        onCardClick={() => onOpenModal(String(entryIdx))}
+        useScryfallImgUrls={props.useScryfallImgUrls}
+        onCardClick={() => props.onOpenModal(String(entryIdx))}
         onTooltipEnter={(src, sideways) => setTooltip({ src, sideways })}
         onTooltipLeave={() => setTooltip(null)}
         collectionFinish={entry?.finish}
@@ -213,87 +190,91 @@ export const WantedListPage: FunctionalComponent<WantedListPageProps> = ({
             : undefined
         }
         collectionPrice={entry?.price}
-        currency={currency}
-        editMode={editMode}
-        onIncrement={editMode && entry ? () => onCardIncrement?.(entry) : undefined}
-        onDecrement={editMode && entry ? () => onCardDecrement?.(entry) : undefined}
-        onContextMenu={editMode ? (rect) => onCardContextMenu?.(c.name, c.card, rect) : undefined}
+        currency={props.currency}
+        editMode={props.editMode}
+        onIncrement={props.editMode && entry ? () => props.onCardIncrement?.(entry) : undefined}
+        onDecrement={props.editMode && entry ? () => props.onCardDecrement?.(entry) : undefined}
+        onContextMenu={
+          props.editMode ? (rect) => props.onCardContextMenu?.(c.name, c.card, rect) : undefined
+        }
       />
     )
   }
 
-  const modalMeta = useMemo(() => {
-    if (!modalEntry || !modalCard) return undefined
+  const modalMeta = createMemo(() => {
+    if (!modalEntry() || !modalCard()) return undefined
+    const entry = modalEntry()!
+    const card = modalCard()!
     const parts: MetaEntry[] = []
     parts.push({
       label: 'price',
-      value: formatPrice(modalEntry.price, currency),
+      value: formatPrice(entry.price, props.currency),
     })
-    if (modalEntry.set && modalEntry.collectorNumber) {
+    if (entry.set && entry.collectorNumber) {
       parts.push({
         label: 'set',
-        value: `${modalEntry.set.toUpperCase()}:${modalEntry.collectorNumber}`,
+        value: `${entry.set.toUpperCase()}:${entry.collectorNumber}`,
       })
     }
-    if (modalEntry.finish) {
+    if (entry.finish) {
       parts.push({
         label: 'finish',
-        value: capitalize(modalEntry.finish),
+        value: capitalize(entry.finish),
       })
     }
-    const sl = stateLabel(modalEntry.state)
+    const sl = stateLabel(entry.state)
     if (sl) {
       parts.push({ label: 'specificity', value: sl })
     }
     parts.push({
       label: 'rarity',
-      value: capitalize(modalCard.rarity),
+      value: capitalize(card.rarity),
     })
     return parts
-  }, [modalEntry, modalCard, currency])
+  })
 
-  const modalPrintings = useMemo(
-    () => (modalEntry ? (printings[modalEntry.name] ?? []) : []),
-    [modalEntry, printings],
+  const modalPrintings = createMemo(() =>
+    modalEntry() ? (props.printings[modalEntry()!.name] ?? []) : [],
   )
 
   return (
-    <div className={editMode ? 'page-full-width' : 'page-container'}>
+    <div class={props.editMode ? 'page-full-width' : 'page-container'}>
       {/* Header */}
-      <div className="page-header">
+      <div class="page-header">
         <div>
-          <h1 className="page-title">{name}</h1>
-          <p className="page-stats">
-            {entries.length} cards · Total: {formatPrice(computedTotalPrice, currency)}
+          <h1 class="page-title">{props.name}</h1>
+          <p class="page-stats">
+            {props.entries.length} cards · Total:{' '}
+            {formatPrice(computedTotalPrice(), props.currency)}
           </p>
         </div>
-        <div className="btn-group">
-          {editMode && (
-            <button className="site-btn site-btn-add" onClick={onAddCard}>
+        <div class="btn-group">
+          <Show when={props.editMode}>
+            <button class="site-btn site-btn-add" onClick={props.onAddCard}>
               + Add Card
             </button>
-          )}
-          {changelog && changelog.length > 0 && (
+          </Show>
+          <Show when={props.changelog && props.changelog!.length > 0}>
             <button
               onClick={() => setShowChangelog(true)}
-              className="site-btn site-btn-secondary btn-view-changes"
+              class="site-btn site-btn-secondary btn-view-changes"
             >
               View Changes
             </button>
-          )}
-          {exportMdPath && (
-            <a href={exportMdPath} download className="site-btn-download">
+          </Show>
+          <Show when={props.exportMdPath}>
+            <a href={props.exportMdPath} download="" class="site-btn-download">
               Download MD
             </a>
-          )}
+          </Show>
         </div>
       </div>
       <Toolbar
-        viewMode={viewMode}
+        viewMode={viewMode()}
         onViewModeChange={setViewMode}
-        cardSize={cardSize}
+        cardSize={cardSize()}
         onCardSizeChange={setCardSize}
-        groupBy={groupBy}
+        groupBy={groupBy()}
         groupByOptions={[
           { value: 'type', label: 'Type' },
           { value: 'cmc', label: 'Mana Value' },
@@ -302,7 +283,7 @@ export const WantedListPage: FunctionalComponent<WantedListPageProps> = ({
           { value: 'none', label: 'None' },
         ]}
         onGroupByChange={(v) => setGroupBy(v as WantedListGroupBy)}
-        sortBy={sortBy}
+        sortBy={sortBy()}
         sortByOptions={[
           { value: 'file-order', label: 'File Order' },
           { value: 'name', label: 'Name' },
@@ -313,70 +294,70 @@ export const WantedListPage: FunctionalComponent<WantedListPageProps> = ({
           { value: 'edhrec', label: 'EDHRec Rank' },
         ]}
         onSortByChange={setSortBy}
-        priceGroupStrategy={priceGroupStrategy}
+        priceGroupStrategy={priceGroupStrategy()}
         onPriceGroupStrategyChange={setPriceGroupStrategy}
-        reverse={reverse}
+        reverse={reverse()}
         onReverseChange={() => setReverse((prev) => !prev)}
-        hideLands={hideLands}
+        hideLands={hideLands()}
         onHideLandsChange={() => setHideLands((prev) => !prev)}
         extraCheckboxes={[]}
       />
 
       {/* Card sections */}
       <div
-        className={`card-sections ${viewModeClass}`}
-        style={`--card-width:${CARD_SIZE_WIDTHS[cardSize]}px`}
+        class={`card-sections view-${viewMode()}`}
+        style={`--card-width:${CARD_SIZE_WIDTHS[cardSize()]}px`}
       >
-        {cardGroups.map((group) => (
-          <CardSection
-            key={group.key}
-            label={group.key}
-            cards={group.cards}
-            currency={currency}
-            renderCard={renderWantedListCard}
-          />
-        ))}
+        <For each={cardGroups()}>
+          {(group) => (
+            <CardSection
+              label={group.key}
+              cards={group.cards}
+              currency={props.currency}
+              renderCard={renderWantedListCard}
+            />
+          )}
+        </For>
       </div>
 
       {/* List-view hover tooltip */}
       <div
         ref={tooltipRef}
-        className={`list-tooltip ${tooltip ? 'visible' : ''} ${tooltip?.sideways ? 'list-tooltip-sideways' : ''}`}
-        style={`left:${tooltipPos.left}px;top:${tooltipPos.top}px;`}
+        class={`list-tooltip ${tooltip() ? 'visible' : ''} ${tooltip()?.sideways ? 'list-tooltip-sideways' : ''}`}
+        style={`left:${tooltipPos().left}px;top:${tooltipPos().top}px;`}
       >
-        {tooltip && (
-          <img src={tooltip.src} alt="" className={tooltip.sideways ? 'tooltip-rotated' : ''} />
-        )}
+        <Show when={tooltip()}>
+          <img src={tooltip()!.src} alt="" class={tooltip()!.sideways ? 'tooltip-rotated' : ''} />
+        </Show>
       </div>
 
       {/* Card detail modal */}
       <CardModal
-        key={modalEntry?.name ?? ''}
-        open={Boolean(modalCard)}
-        card={modalCard}
-        cardName={modalEntry?.name ?? null}
-        symbolMap={symbolMap}
-        useScryfallImgUrls={useScryfallImgUrls}
-        currency={currency}
-        printings={modalPrintings}
-        onClose={onCloseModal}
-        meta={modalMeta}
-        note={modalEntry?.note}
+        open={Boolean(modalCard())}
+        card={modalCard()}
+        cardName={modalEntry()?.name ?? null}
+        symbolMap={props.symbolMap}
+        useScryfallImgUrls={props.useScryfallImgUrls}
+        currency={props.currency}
+        printings={modalPrintings()}
+        onClose={props.onCloseModal}
+        meta={modalMeta()}
+        note={modalEntry()?.note}
       />
 
       {/* Changelog modal */}
-      {changelog && changelog.length > 0 && (
+      <Show when={props.changelog && props.changelog!.length > 0}>
         <ChangelogModal
-          open={showChangelog}
-          changelog={changelog}
-          cards={cards}
-          printings={printings}
-          symbolMap={symbolMap}
-          useScryfallImgUrls={useScryfallImgUrls}
-          currency={currency}
+          open={showChangelog()}
+          changelog={props.changelog!}
+          cards={props.cards}
+          printings={props.printings}
+          symbolMap={props.symbolMap}
+          useScryfallImgUrls={props.useScryfallImgUrls}
+          currency={props.currency}
           onClose={() => setShowChangelog(false)}
         />
-      )}
+      </Show>
     </div>
   )
 }

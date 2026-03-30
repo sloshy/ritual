@@ -1,5 +1,5 @@
-import { Fragment } from 'preact'
-import type { FunctionalComponent } from 'preact'
+import type { Component } from 'solid-js'
+import { createMemo, Show, For } from 'solid-js'
 import type { ScryfallCard } from '../types'
 
 type SymbolTextProps = {
@@ -7,18 +7,16 @@ type SymbolTextProps = {
   symbolMap: Record<string, string>
 }
 
-export const SymbolText: FunctionalComponent<SymbolTextProps> = ({ text, symbolMap }) => {
-  if (!text) return null
-  const parts = text.split(/(\{.*?\})/g)
+export const SymbolText: Component<SymbolTextProps> = (props) => {
+  const parts = createMemo(() => (props.text ? props.text.split(/(\{.*?\})/g) : []))
   return (
-    <>
-      {parts.map((part, i) => {
-        if (symbolMap[part]) {
-          return <img key={i} src={symbolMap[part]} alt={part} className="mana-symbol" />
-        }
-        return <Fragment key={i}>{part}</Fragment>
-      })}
-    </>
+    <For each={parts()}>
+      {(part) => (
+        <Show when={props.symbolMap[part]} fallback={<>{part}</>}>
+          {(src) => <img src={src()} alt={part} class="mana-symbol" />}
+        </Show>
+      )}
+    </For>
   )
 }
 
@@ -28,21 +26,29 @@ type ManaCostProps = {
   symbolMap: Record<string, string>
 }
 
-export const ManaCost: FunctionalComponent<ManaCostProps> = ({ card, isDFC, symbolMap }) => {
-  if (isDFC && card.card_faces) {
-    const costs = card.card_faces.map((f) => f.mana_cost || '').filter(Boolean)
-    return (
-      <>
-        {costs.map((cost, i) => (
-          <Fragment key={i}>
-            {i > 0 && ' // '}
-            <SymbolText text={cost} symbolMap={symbolMap} />
-          </Fragment>
-        ))}
-      </>
-    )
-  }
-  return <SymbolText text={card.mana_cost || ''} symbolMap={symbolMap} />
+export const ManaCost: Component<ManaCostProps> = (props) => {
+  const costs = createMemo(() =>
+    props.isDFC && props.card.card_faces
+      ? props.card.card_faces.map((f) => f.mana_cost || '').filter(Boolean)
+      : null,
+  )
+  return (
+    <Show
+      when={costs()}
+      fallback={<SymbolText text={props.card.mana_cost || ''} symbolMap={props.symbolMap} />}
+    >
+      {(c) => (
+        <For each={c()}>
+          {(cost, i) => (
+            <>
+              {i() > 0 && ' // '}
+              <SymbolText text={cost} symbolMap={props.symbolMap} />
+            </>
+          )}
+        </For>
+      )}
+    </Show>
+  )
 }
 
 type OracleTextProps = {
@@ -51,21 +57,25 @@ type OracleTextProps = {
   symbolMap: Record<string, string>
 }
 
-export const OracleText: FunctionalComponent<OracleTextProps> = ({ card, isDFC, symbolMap }) => {
-  if (isDFC && card.card_faces) {
-    return (
-      <>
-        {card.card_faces.map((face, i) => (
-          <Fragment key={i}>
-            {i > 0 && <hr className="dfc-separator" />}
+export const OracleText: Component<OracleTextProps> = (props) => {
+  return (
+    <Show
+      when={props.isDFC && props.card.card_faces}
+      fallback={<SymbolText text={props.card.oracle_text || ''} symbolMap={props.symbolMap} />}
+    >
+      <For each={props.card.card_faces}>
+        {(face, i) => (
+          <>
+            <Show when={i() > 0}>
+              <hr class="dfc-separator" />
+            </Show>
             <div>
               <strong>{face.name}</strong> <em>({face.type_line})</em>
             </div>
-            <SymbolText text={face.oracle_text || ''} symbolMap={symbolMap} />
-          </Fragment>
-        ))}
-      </>
-    )
-  }
-  return <SymbolText text={card.oracle_text || ''} symbolMap={symbolMap} />
+            <SymbolText text={face.oracle_text || ''} symbolMap={props.symbolMap} />
+          </>
+        )}
+      </For>
+    </Show>
+  )
 }
