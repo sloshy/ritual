@@ -94,7 +94,7 @@ Build with only USD and EUR (no TIX):
 
 Generates a single-page application in the `dist/` directory containing:
 
-- `index.html` — SPA shell that loads the Preact application
+- `index.html` — SPA shell that loads the application
 - `app.js` — Bundled SPA with client-side routing
 - `index.json` — Deck and collection listing used by the index page
 - `decks/{slug}.json` — Full deck data loaded on demand
