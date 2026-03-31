@@ -28,6 +28,7 @@ import { registerInitSiteCommand } from './src/commands/init-site'
 import { registerAdminCommand } from './src/commands/admin'
 import { registerLicenseCommand } from './src/commands/license'
 import { registerDepLicenseCommand } from './src/commands/dep-license'
+import { registerGitDetectChangesCommand } from './src/commands/git-detect-changes'
 import {
   resolveCacheServerAddress,
   setCacheServerAddressOverride,
@@ -86,6 +87,9 @@ registerAdminCommand(program)
 program.commandsGroup('Cache')
 registerCacheCommand(program)
 registerCacheServerCommand(program)
+
+program.commandsGroup('Utilities')
+registerGitDetectChangesCommand(program)
 
 program.commandsGroup('Legal')
 registerLicenseCommand(program)
