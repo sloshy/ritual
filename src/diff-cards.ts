@@ -171,14 +171,21 @@ export function diffDeckCards(
 
 // ── Collection / Wanted diffing ──────────────────────────────────────
 
+type DiffEntriesOptions = {
+  trackFinish?: boolean
+  trackQuantity?: boolean
+}
+
 /**
- * Generic entry-level diff. Detects additions and removals of distinct
- * printings. Quantity changes within the same printing are NOT tracked —
- * only presence/absence matters.
+ * Generic entry-level diff. Always detects additions and removals of distinct
+ * printings. Optionally detects finish changes and quantity changes for entries
+ * matched by the same identity key (requires card IDs for finish-change
+ * detection when finish is part of the composite key).
  */
-function diffEntries<T extends CardIdentity & { name: string }>(
+function diffEntries<T extends CardIdentity & { name: string; quantity?: number }>(
   oldEntries: T[],
   newEntries: T[],
+  options: DiffEntriesOptions = {},
 ): ChangeEvent[] {
   const changes: ChangeEvent[] = []
   const oldMap = new Map<string, T>()
@@ -199,27 +206,66 @@ function diffEntries<T extends CardIdentity & { name: string }>(
     }
   }
 
+  if (options.trackFinish || options.trackQuantity) {
+    for (const [key, newEntry] of newMap) {
+      const oldEntry = oldMap.get(key)
+      if (!oldEntry) continue
+
+      if (options.trackFinish && oldEntry.finish !== newEntry.finish && newEntry.finish) {
+        changes.push(
+          createChangeEvent('set-finish', newEntry.name, {
+            finish: newEntry.finish,
+            cardId: newEntry.cardId,
+          }),
+        )
+      }
+
+      if (options.trackQuantity) {
+        const oldQty = oldEntry.quantity ?? 1
+        const newQty = newEntry.quantity ?? 1
+        const qtyDiff = newQty - oldQty
+        if (qtyDiff > 0) {
+          for (let i = 0; i < qtyDiff; i++) {
+            changes.push(createChangeEvent('add', newEntry.name, printingOptions(newEntry)))
+          }
+        } else if (qtyDiff < 0) {
+          for (let i = 0; i < -qtyDiff; i++) {
+            changes.push(createChangeEvent('remove', oldEntry.name, printingOptions(oldEntry)))
+          }
+        }
+      }
+    }
+  }
+
   return changes
 }
 
 /**
  * Diff two collection entry lists and produce change events.
+ *
+ * Detects:
+ * - Cards added / removed
+ * - Finish changes (only when setting TO a finish — matched by card ID when available)
+ *
  * Quantity changes within the same printing are NOT tracked.
  */
 export function diffCollectionEntries(
   oldEntries: CollectionEntry[],
   newEntries: CollectionEntry[],
 ): ChangeEvent[] {
-  return diffEntries(oldEntries, newEntries)
+  return diffEntries(oldEntries, newEntries, { trackFinish: true })
 }
 
 /**
  * Diff two wanted list entry lists and produce change events.
- * Quantity changes within the same printing are NOT tracked.
+ *
+ * Detects:
+ * - Cards added / removed (including quantity changes)
+ * - Finish changes (only when setting TO a finish — matched by card ID when available)
  */
 export function diffWantedEntries(
   oldEntries: WantedListEntry[],
   newEntries: WantedListEntry[],
 ): ChangeEvent[] {
-  return diffEntries(oldEntries, newEntries)
+  return diffEntries(oldEntries, newEntries, { trackFinish: true, trackQuantity: true })
 }

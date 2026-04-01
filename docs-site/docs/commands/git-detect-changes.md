@@ -62,11 +62,11 @@ For each changed file, the old version (at the specified commit) and current ver
 
 - **Added cards** → `Added` changelog entries
 - **Removed cards** → `Removed` changelog entries
-- **Quantity increases** (decks) → additional `Added` entries
-- **Quantity decreases** (decks) → additional `Removed` entries
-- **Commander promotions** (decks) → `Set as commander` entries
-- **Commander demotions** (decks) → `Unset as commander` entries
-- **Finish changes** (decks) → `Set finish` entries
+- **Finish changes** → `Set finish` entries
+- **Quantity increases** (decks, wanted lists) → additional `Added` entries
+- **Quantity decreases** (decks, wanted lists) → additional `Removed` entries
+- **Commander promotions** (decks only) → `Set as commander` entries
+- **Commander demotions** (decks only) → `Unset as commander` entries
 
 ### Card Matching
 
@@ -76,6 +76,8 @@ Cards are matched between old and new versions using:
 2. **Composite key** — fallback using card name + set code + collector number + finish + condition
 
 ### File Operations
+
+Depending on what happens to each list, the command will perform different actions:
 
 | Git Status   | Action                                                              |
 | ------------ | ------------------------------------------------------------------- |

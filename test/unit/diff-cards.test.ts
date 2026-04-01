@@ -239,6 +239,46 @@ describe('diffCollectionEntries', () => {
     expect(add!.cardName).toBe('Sol Ring')
   })
 
+  test('detects finish changes by cardId', () => {
+    const oldEntries: CollectionEntry[] = [
+      {
+        name: 'Sol Ring',
+        quantity: 1,
+        set: 'c21',
+        collectorNumber: '167',
+        finish: 'nonfoil',
+        cardId: 5,
+      },
+    ]
+    const newEntries: CollectionEntry[] = [
+      {
+        name: 'Sol Ring',
+        quantity: 1,
+        set: 'c21',
+        collectorNumber: '167',
+        finish: 'foil',
+        cardId: 5,
+      },
+    ]
+
+    const changes = diffCollectionEntries(oldEntries, newEntries)
+    expect(changes).toHaveLength(1)
+    expect(changes[0]!.action).toBe('set-finish')
+    expect(changes[0]!.cardName).toBe('Sol Ring')
+  })
+
+  test('does not track quantity changes', () => {
+    const oldEntries: CollectionEntry[] = [
+      { name: 'Island', quantity: 2, set: 'lea', collectorNumber: '288', cardId: 6 },
+    ]
+    const newEntries: CollectionEntry[] = [
+      { name: 'Island', quantity: 5, set: 'lea', collectorNumber: '288', cardId: 6 },
+    ]
+
+    const changes = diffCollectionEntries(oldEntries, newEntries)
+    expect(changes).toHaveLength(0)
+  })
+
   test('returns empty for identical collections', () => {
     const entries: CollectionEntry[] = [
       { name: 'Black Lotus', quantity: 1, set: 'lea', collectorNumber: '233', cardId: 1 },
@@ -311,5 +351,57 @@ describe('diffWantedEntries', () => {
     const add = changes.find((c) => c.action === 'add')
     expect(remove!.cardName).toBe('Mana Drain')
     expect(add!.cardName).toBe('Cyclonic Rift')
+  })
+
+  test('detects quantity increases', () => {
+    const oldEntries: WantedListEntry[] = [
+      { name: 'Lightning Bolt', quantity: 1, set: 'lea', collectorNumber: '161', cardId: 5 },
+    ]
+    const newEntries: WantedListEntry[] = [
+      { name: 'Lightning Bolt', quantity: 3, set: 'lea', collectorNumber: '161', cardId: 5 },
+    ]
+
+    const changes = diffWantedEntries(oldEntries, newEntries)
+    const adds = changes.filter((c) => c.action === 'add')
+    expect(adds).toHaveLength(2)
+    expect(adds[0]!.cardName).toBe('Lightning Bolt')
+  })
+
+  test('detects quantity decreases', () => {
+    const oldEntries: WantedListEntry[] = [{ name: 'Island', quantity: 4, cardId: 6 }]
+    const newEntries: WantedListEntry[] = [{ name: 'Island', quantity: 2, cardId: 6 }]
+
+    const changes = diffWantedEntries(oldEntries, newEntries)
+    const removes = changes.filter((c) => c.action === 'remove')
+    expect(removes).toHaveLength(2)
+    expect(removes[0]!.cardName).toBe('Island')
+  })
+
+  test('detects finish changes by cardId', () => {
+    const oldEntries: WantedListEntry[] = [
+      {
+        name: 'Mox Ruby',
+        quantity: 1,
+        set: 'lea',
+        collectorNumber: '265',
+        finish: 'nonfoil',
+        cardId: 7,
+      },
+    ]
+    const newEntries: WantedListEntry[] = [
+      {
+        name: 'Mox Ruby',
+        quantity: 1,
+        set: 'lea',
+        collectorNumber: '265',
+        finish: 'foil',
+        cardId: 7,
+      },
+    ]
+
+    const changes = diffWantedEntries(oldEntries, newEntries)
+    expect(changes).toHaveLength(1)
+    expect(changes[0]!.action).toBe('set-finish')
+    expect(changes[0]!.cardName).toBe('Mox Ruby')
   })
 })
