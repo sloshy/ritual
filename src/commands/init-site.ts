@@ -15,7 +15,14 @@ import { computeMigrations, isActiveManagedFile } from '../managed-files'
 import { compareVersions } from '../semver'
 import { version as ritualVersion } from '../version'
 
-export function generatePublishForMeWorkflow(): string {
+export function generatePublishForMeWorkflow(config?: GitHubActionsInitConfig): string {
+  if (config?.detectChanges) {
+    return generatePublishForMeWithDetectChanges()
+  }
+  return generatePublishForMeBase()
+}
+
+function generatePublishForMeBase(): string {
   return `name: Build and Deploy Ritual Site
 
 on:
@@ -91,6 +98,107 @@ jobs:
 `
 }
 
+function generatePublishForMeWithDetectChanges(): string {
+  return `name: Build and Deploy Ritual Site
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: \${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Get Ritual version
+        id: ritual-version
+        run: |
+          VERSION="\${RITUAL_VERSION:-latest}"
+          if [ "\$VERSION" = "latest" ]; then
+            VERSION=\$(curl -s https://api.github.com/repos/sloshy/ritual/releases/latest \\
+              | grep '"tag_name"' | head -1 | cut -d'"' -f4)
+          fi
+          echo "version=\$VERSION" >> "\$GITHUB_OUTPUT"
+        env:
+          RITUAL_VERSION: \${{ vars.RITUAL_VERSION }}
+
+      - name: Cache Ritual binary
+        id: ritual-cache
+        uses: actions/cache@v5
+        with:
+          path: ritual
+          key: ritual-binary-\${{ steps.ritual-version.outputs.version }}-linux-x86_64
+
+      - name: Download Ritual
+        if: steps.ritual-cache.outputs.cache-hit != 'true'
+        run: |
+          VERSION="\${{ steps.ritual-version.outputs.version }}"
+          curl -L -o ritual "https://github.com/sloshy/ritual/releases/download/\${VERSION}/ritual-linux-x86_64"
+          chmod +x ritual
+
+      - name: Detect and commit changes
+        id: detect-changes
+        run: |
+          BEFORE="\${{ github.event.before }}"
+          if [ -z "\$BEFORE" ] || [ "\$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            BEFORE="HEAD~1"
+          fi
+          ./ritual git-detect-changes "\$BEFORE"
+          if [ -n "\$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            SHORT_SHA=\$(git rev-parse --short HEAD)
+            git add -A
+            git commit -m "Generated changes from commit \$SHORT_SHA"
+            git push
+            echo "has-changes=true" >> "\$GITHUB_OUTPUT"
+          fi
+
+      - name: Restore Scryfall cache
+        if: steps.detect-changes.outputs.has-changes != 'true'
+        uses: actions/cache@v5
+        with:
+          path: cache/
+          key: ritual-cache-\${{ hashFiles('decks/**', 'collections/**', 'wanted/**') }}
+          restore-keys: ritual-cache-
+
+      - name: Build site
+        if: steps.detect-changes.outputs.has-changes != 'true'
+        run: ./ritual build-site -y
+
+      - name: Setup Pages
+        if: steps.detect-changes.outputs.has-changes != 'true'
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        if: steps.detect-changes.outputs.has-changes != 'true'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+      - name: Deploy to GitHub Pages
+        if: steps.detect-changes.outputs.has-changes != 'true'
+        id: deployment
+        uses: actions/deploy-pages@v4
+`
+}
+
 export function generateLocalBuildWorkflow(distDir: string): string {
   return `name: Deploy Ritual Site
 
@@ -133,7 +241,7 @@ jobs:
 
 export function generateWorkflow(config: GitHubActionsInitConfig): string {
   if (config.deployMode === 'publish-for-me') {
-    return generatePublishForMeWorkflow()
+    return generatePublishForMeWorkflow(config)
   }
   return generateLocalBuildWorkflow(config.distDir)
 }
@@ -521,7 +629,27 @@ async function promptForConfig(): Promise<InitSiteConfig | null> {
     distDir = dirResponse.distDir
   }
 
-  return { ciSystem, deployMode, distDir }
+  let detectChanges = false
+  if (deployMode === 'publish-for-me') {
+    const detectResponse = await prompts(
+      {
+        type: 'confirm',
+        name: 'detectChanges',
+        message: 'Enable automatic change detection? (commits changelogs when list files change)',
+        initial: false,
+      },
+      { onCancel },
+    )
+
+    if (cancelled) {
+      console.log('Cancelled.')
+      return null
+    }
+
+    detectChanges = detectResponse.detectChanges === true
+  }
+
+  return { ciSystem, deployMode, distDir, detectChanges }
 }
 
 async function writeInitFiles(config: InitSiteConfig, opts: { force: boolean }): Promise<void> {

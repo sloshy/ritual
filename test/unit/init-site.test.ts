@@ -15,7 +15,7 @@ type WorkflowStep = {
   run?: string
   if?: string
   env?: Record<string, string>
-  with?: Record<string, string>
+  with?: Record<string, string | number>
 }
 
 type WorkflowJob = {
@@ -164,6 +164,83 @@ describe('generatePublishForMeWorkflow', () => {
   })
 })
 
+describe('generatePublishForMeWorkflow with detectChanges', () => {
+  const config = {
+    ciSystem: 'github-actions' as const,
+    deployMode: 'publish-for-me' as const,
+    distDir: 'dist',
+    detectChanges: true,
+  }
+  const workflow = parseWorkflow(generatePublishForMeWorkflow(config))
+  const job = getJob(workflow, 'build-and-deploy')
+
+  test('produces valid YAML that parses without error', () => {
+    expect(workflow).toBeDefined()
+  })
+
+  test('has the correct workflow name', () => {
+    expect(workflow.name).toBe('Build and Deploy Ritual Site')
+  })
+
+  test('sets contents: write permission for git push', () => {
+    expect(workflow.permissions.contents).toBe('write')
+  })
+
+  test('checks out with full history for git-detect-changes', () => {
+    const checkout = job.steps[0]
+    expect(checkout?.uses).toBe('actions/checkout@v6')
+    expect(checkout?.with?.['fetch-depth']).toBe(0)
+  })
+
+  test('includes detect-and-commit-changes step after Ritual download', () => {
+    const step = findStep(job.steps, 'Detect and commit changes')
+    expect(step).toBeDefined()
+    expect(step!.id).toBe('detect-changes')
+    expect(step!.run).toContain('git-detect-changes')
+    expect(step!.run).toContain('github.event.before')
+    expect(step!.run).toContain('git commit')
+    expect(step!.run).toContain('Generated changes from commit')
+    expect(step!.run).toContain('has-changes=true')
+  })
+
+  test('falls back to HEAD~1 when github.event.before is empty or zeroed', () => {
+    const step = findStep(job.steps, 'Detect and commit changes')
+    expect(step!.run).toContain('BEFORE="HEAD~1"')
+    expect(step!.run).toContain('0000000000000000000000000000000000000000')
+  })
+
+  test('build and deploy steps are conditional on no changes detected', () => {
+    const conditionalSteps = [
+      'Restore Scryfall cache',
+      'Build site',
+      'Setup Pages',
+      'Upload artifact',
+      'Deploy to GitHub Pages',
+    ]
+    for (const name of conditionalSteps) {
+      const step = findStep(job.steps, name)
+      expect(step).toBeDefined()
+      expect(step!.if).toBe("steps.detect-changes.outputs.has-changes != 'true'")
+    }
+  })
+
+  test('has exactly 10 steps in the expected order', () => {
+    const stepNames = job.steps.map((s) => s.name ?? s.uses)
+    expect(stepNames).toEqual([
+      'actions/checkout@v6',
+      'Get Ritual version',
+      'Cache Ritual binary',
+      'Download Ritual',
+      'Detect and commit changes',
+      'Restore Scryfall cache',
+      'Build site',
+      'Setup Pages',
+      'Upload artifact',
+      'Deploy to GitHub Pages',
+    ])
+  })
+})
+
 describe('generateLocalBuildWorkflow', () => {
   test('has the correct workflow name', () => {
     const workflow = parseWorkflow(generateLocalBuildWorkflow('dist'))
@@ -228,6 +305,7 @@ describe('generateWorkflow', () => {
         ciSystem: 'github-actions',
         deployMode: 'publish-for-me',
         distDir: 'dist',
+        detectChanges: false,
       }),
     )
     expect(workflow.name).toBe('Build and Deploy Ritual Site')
@@ -240,12 +318,41 @@ describe('generateWorkflow', () => {
         ciSystem: 'github-actions',
         deployMode: 'local-build',
         distDir: 'public',
+        detectChanges: false,
       }),
     )
     expect(workflow.name).toBe('Deploy Ritual Site')
     const job = getJob(workflow, 'deploy')
     const step = findStep(job.steps, 'Upload artifact')
     expect(step!.with?.path).toBe('public')
+  })
+
+  test('publish-for-me with detectChanges includes detect step', () => {
+    const workflow = parseWorkflow(
+      generateWorkflow({
+        ciSystem: 'github-actions',
+        deployMode: 'publish-for-me',
+        distDir: 'dist',
+        detectChanges: true,
+      }),
+    )
+    const job = getJob(workflow, 'build-and-deploy')
+    expect(findStep(job.steps, 'Detect and commit changes')).toBeDefined()
+    expect(workflow.permissions.contents).toBe('write')
+  })
+
+  test('publish-for-me without detectChanges omits detect step', () => {
+    const workflow = parseWorkflow(
+      generateWorkflow({
+        ciSystem: 'github-actions',
+        deployMode: 'publish-for-me',
+        distDir: 'dist',
+        detectChanges: false,
+      }),
+    )
+    const job = getJob(workflow, 'build-and-deploy')
+    expect(findStep(job.steps, 'Detect and commit changes')).toBeUndefined()
+    expect(workflow.permissions.contents).toBe('read')
   })
 })
 
@@ -255,6 +362,7 @@ describe('generateReadme', () => {
       ciSystem: 'github-actions',
       deployMode: 'publish-for-me',
       distDir: 'dist',
+      detectChanges: false,
     })
 
     expect(readme).toContain('# My Ritual Site')
@@ -266,6 +374,7 @@ describe('generateReadme', () => {
       ciSystem: 'github-actions',
       deployMode: 'publish-for-me',
       distDir: 'dist',
+      detectChanges: false,
     })
 
     expect(readme).toContain('RITUAL_VERSION')
@@ -277,6 +386,7 @@ describe('generateReadme', () => {
       ciSystem: 'github-actions',
       deployMode: 'publish-for-me',
       distDir: 'dist',
+      detectChanges: false,
     })
 
     expect(readme).not.toContain('ritual build-site')
@@ -287,6 +397,7 @@ describe('generateReadme', () => {
       ciSystem: 'github-actions',
       deployMode: 'local-build',
       distDir: 'dist',
+      detectChanges: false,
     })
 
     expect(readme).toContain('ritual build-site')
@@ -298,6 +409,7 @@ describe('generateReadme', () => {
       ciSystem: 'github-actions',
       deployMode: 'local-build',
       distDir: 'public',
+      detectChanges: false,
     })
 
     expect(readme).toContain('written to `public`')
@@ -309,6 +421,7 @@ describe('generateReadme', () => {
       ciSystem: 'github-actions',
       deployMode: 'publish-for-me',
       distDir: 'dist',
+      detectChanges: false,
     })
 
     expect(readme).toContain('Settings → Pages')

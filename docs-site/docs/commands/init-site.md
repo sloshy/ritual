@@ -17,7 +17,7 @@ ritual init-site [options]
 | `-u, --upgrade` | Upgrade tracked files to the current version without prompting               |
 | `-f, --force`   | Re-initialize and overwrite all generated files, ignoring `ritual-site.json` |
 
-This interactive command creates the scaffolding files needed to publish a Ritual-built deck site. It first prompts you to choose a CI system, then a deployment strategy, and generates the appropriate files.
+This interactive command creates the scaffolding files needed to publish a Ritual-built deck and collection site. It first prompts you to choose a CI system, then a deployment strategy, and generates the appropriate files.
 
 On subsequent runs, `init-site` compares the current Ritual version to the version recorded in `ritual-site.json`. If a newer version is detected, it prompts you to confirm before regenerating any tracked managed files.
 
@@ -63,6 +63,18 @@ If you choose "Deploy my local build", you'll be asked which directory contains 
 
 The default is `dist`, which is where [`build-site`](./build-site) writes its output.
 
+### Automatic change detection (publish for me only)
+
+If you choose "Publish for me", you'll be asked whether to enable automatic change detection:
+
+```
+? Enable automatic change detection? (commits changelogs when list files change) (y/N)
+```
+
+When enabled, the generated workflow runs [`git-detect-changes`](./git-detect-changes) before building the site. If any deck, collection, or wanted list files were modified in the push, it generates changelog entries and commits them automatically. The site build is skipped for that run since the new commit will trigger a fresh build with the updated changelogs.
+
+This is useful when you edit list files directly (outside the admin UI or CLI) and want changelogs to stay up to date without manual intervention.
+
 ## Generated Files
 
 ### GitHub Actions
@@ -94,6 +106,16 @@ If any file already exists, you'll be prompted before overwriting.
   "ciSystem": "github-actions",
   "deployMode": "publish-for-me",
   "distDir": "dist"
+}
+```
+
+```json
+{
+  "version": "0.1.0",
+  "ciSystem": "github-actions",
+  "deployMode": "publish-for-me",
+  "distDir": "dist",
+  "detectChanges": true
 }
 ```
 

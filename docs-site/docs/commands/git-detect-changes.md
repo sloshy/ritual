@@ -87,3 +87,16 @@ Cards are matched between old and new versions using:
 ### Dry Run
 
 When `--dry-run` is specified, the command prints what it would do without modifying any files. This is useful for previewing detected changes before committing them.
+
+## CI Integration
+
+You can run `git-detect-changes` automatically in your GitHub Actions workflow. When you run [`init-site`](./init-site) with the "Publish for me" deploy mode, you'll be offered the option to enable automatic change detection.
+
+When enabled, the generated workflow:
+
+1. Checks out the repository with full history
+2. Runs `git-detect-changes` against the previous branch state (`github.event.before`)
+3. If changelog files were generated, commits and pushes them with a message like `Generated changes from commit abc1234`
+4. Skips the site build for that run — the new commit will trigger a fresh build with the updated changelogs
+
+You can also enable it later by setting `"detectChanges": true` in `ritual-site.json` and re-running `ritual init-site --upgrade`.

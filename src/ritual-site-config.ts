@@ -9,6 +9,7 @@ export type GitHubActionsInitConfig = {
   ciSystem: 'github-actions'
   deployMode: DeployMode
   distDir: string
+  detectChanges: boolean
 }
 
 export type ManualInitConfig = {
@@ -60,11 +61,15 @@ export function parseRitualSiteConfig(content: string): RitualSiteConfig | strin
     if (typeof obj.distDir !== 'string') {
       return 'ritual-site.json: "distDir" must be a string'
     }
+    if (typeof obj.detectChanges !== 'boolean') {
+      return 'ritual-site.json: "detectChanges" must be a boolean'
+    }
     return {
       version: obj.version,
       ciSystem: obj.ciSystem,
       deployMode: obj.deployMode,
       distDir: obj.distDir,
+      detectChanges: obj.detectChanges,
     }
   }
 

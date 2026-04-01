@@ -7,6 +7,7 @@ const config: InitSiteConfig = {
   ciSystem: 'github-actions',
   deployMode: 'publish-for-me',
   distDir: 'dist',
+  detectChanges: false,
 }
 
 const manualConfig: InitSiteConfig = { ciSystem: 'manual' }
@@ -64,6 +65,7 @@ describe('computeMigrations', () => {
       ciSystem: 'github-actions',
       deployMode: 'local-build',
       distDir: 'public',
+      detectChanges: false,
     }
     const file: ActiveManagedFile = {
       ciSystem: 'github-actions',

@@ -9,6 +9,7 @@ describe('parseRitualSiteConfig', () => {
         ciSystem: 'github-actions',
         deployMode: 'publish-for-me',
         distDir: 'dist',
+        detectChanges: false,
       }),
     )
     expect(result).toEqual({
@@ -16,6 +17,7 @@ describe('parseRitualSiteConfig', () => {
       ciSystem: 'github-actions',
       deployMode: 'publish-for-me',
       distDir: 'dist',
+      detectChanges: false,
     })
   })
 
@@ -26,6 +28,7 @@ describe('parseRitualSiteConfig', () => {
         ciSystem: 'github-actions',
         deployMode: 'local-build',
         distDir: 'public',
+        detectChanges: false,
       }),
     )
     expect(result).toEqual({
@@ -33,6 +36,7 @@ describe('parseRitualSiteConfig', () => {
       ciSystem: 'github-actions',
       deployMode: 'local-build',
       distDir: 'public',
+      detectChanges: false,
     })
   })
 
@@ -126,6 +130,7 @@ describe('parseRitualSiteConfig', () => {
         ciSystem: 'github-actions',
         deployMode: 'publish-for-me',
         distDir: 'dist',
+        detectChanges: false,
         unknown: 'field',
       }),
     )
@@ -134,6 +139,7 @@ describe('parseRitualSiteConfig', () => {
       ciSystem: 'github-actions',
       deployMode: 'publish-for-me',
       distDir: 'dist',
+      detectChanges: false,
     })
   })
 
@@ -142,5 +148,41 @@ describe('parseRitualSiteConfig', () => {
       JSON.stringify({ version: '1.0.0', ciSystem: 'manual', unknown: 'field' }),
     )
     expect(result).toEqual({ version: '1.0.0', ciSystem: 'manual' })
+  })
+
+  test('parses detectChanges for github-actions config', () => {
+    const result = parseRitualSiteConfig(
+      JSON.stringify({
+        version: '1.0.0',
+        ciSystem: 'github-actions',
+        deployMode: 'publish-for-me',
+        distDir: 'dist',
+        detectChanges: true,
+      }),
+    )
+    expect(result).toEqual({
+      version: '1.0.0',
+      ciSystem: 'github-actions',
+      deployMode: 'publish-for-me',
+      distDir: 'dist',
+      detectChanges: true,
+    })
+
+    const resultFalse = parseRitualSiteConfig(
+      JSON.stringify({
+        version: '1.0.0',
+        ciSystem: 'github-actions',
+        deployMode: 'publish-for-me',
+        distDir: 'dist',
+        detectChanges: false,
+      }),
+    )
+    expect(resultFalse).toEqual({
+      version: '1.0.0',
+      ciSystem: 'github-actions',
+      deployMode: 'publish-for-me',
+      distDir: 'dist',
+      detectChanges: false,
+    })
   })
 })

@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test'
-import { parseNameStatus } from '../../src/git-diff'
+import { parseNameStatus, classifyFile, changesPath } from '../../src/git-diff'
 
 describe('parseNameStatus', () => {
   test('parses modified deck file', () => {
@@ -113,5 +113,55 @@ describe('parseNameStatus', () => {
     const result = parseNameStatus(raw)
     expect(result).toHaveLength(1)
     expect(result[0]!.status).toBe('M')
+  })
+})
+
+describe('classifyFile', () => {
+  test('classifies deck files', () => {
+    expect(classifyFile('decks/my-deck.md')).toBe('deck')
+  })
+
+  test('classifies collection files', () => {
+    expect(classifyFile('collections/my-collection.md')).toBe('collection')
+  })
+
+  test('classifies wanted files', () => {
+    expect(classifyFile('wanted/my-list.md')).toBe('wanted')
+  })
+
+  test('returns null for non-list files', () => {
+    expect(classifyFile('README.md')).toBeNull()
+    expect(classifyFile('src/index.ts')).toBeNull()
+  })
+
+  test('returns null for .changes.md files', () => {
+    expect(classifyFile('decks/my-deck.changes.md')).toBeNull()
+  })
+
+  test('returns null for .primer.md files', () => {
+    expect(classifyFile('decks/my-deck.primer.md')).toBeNull()
+  })
+
+  test('returns null for non-md files in list directories', () => {
+    expect(classifyFile('decks/notes.txt')).toBeNull()
+  })
+
+  test('classifies files in subdirectories', () => {
+    expect(classifyFile('decks/edh/voltron.md')).toBe('deck')
+    expect(classifyFile('collections/sets/mh3.md')).toBe('collection')
+  })
+})
+
+describe('changesPath', () => {
+  test('converts a deck path to its changes path', () => {
+    expect(changesPath('decks/my-deck.md')).toBe('decks/my-deck.changes.md')
+  })
+
+  test('converts a collection path to its changes path', () => {
+    expect(changesPath('collections/my-collection.md')).toBe('collections/my-collection.changes.md')
+  })
+
+  test('works with subdirectories', () => {
+    expect(changesPath('wanted/sets/mh3.md')).toBe('wanted/sets/mh3.changes.md')
   })
 })
