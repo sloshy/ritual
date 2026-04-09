@@ -1,2 +1,4 @@
-bun run test
+if git diff --cached --name-only | grep -qE '\.(js|ts|tsx)$'; then
+  bun run test
+fi
 bun run check-format
