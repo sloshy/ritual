@@ -21,6 +21,101 @@ export interface ArchidektDeckResponse {
   cards?: ArchidektCardEntry[]
 }
 
+export interface ArchidektDeckSimple {
+  id: number
+  name: string
+  updatedAt: string
+  deckFormat: number
+  owner: {
+    username: string
+  }
+}
+
+export const ARCHIDEKT_FORMATS: Record<number, string> = {
+  1: 'Standard',
+  2: 'Modern',
+  3: 'Commander / EDH',
+  4: 'Legacy',
+  5: 'Vintage',
+  6: 'Pauper',
+  7: 'Custom',
+  8: 'Frontier',
+  9: 'Future Standard',
+  10: 'Penny Dreadful',
+  11: '1v1 Commander',
+  12: 'Dual Commander',
+  13: 'Brawl',
+  14: 'Pioneer',
+  15: 'Oathbreaker',
+  16: 'Historic',
+  17: 'Alchemy',
+  18: 'Explorer',
+  19: 'Timeless',
+}
+
+export function getArchidektFormat(formatId: number): string {
+  return ARCHIDEKT_FORMATS[formatId] || 'Unknown'
+}
+
+export type ArchidektCardModifier = 'Normal' | 'Foil' | 'Etched'
+
+export interface ArchidektRawCardEntry {
+  id: number // Deck-card relation ID (deckRelationId for modifyCards)
+  quantity: number
+  modifier: ArchidektCardModifier
+  categories: string[]
+  companion: boolean
+  flippedDefault: boolean
+  label: string // "name,hexcolor" — default ",#656565"
+  customCmc: number | null
+  card: {
+    id: number // Archidekt card edition ID — sent as cardid to modifyCards/v2/
+    uid: string // Scryfall UUID
+    collectorNumber: string
+    options: ArchidektCardModifier[]
+    oracleCard: { id: number; name: string; defaultCategory: string }
+    edition: { editioncode: string }
+  }
+}
+
+export interface ArchidektRawDeckResponse {
+  id: number
+  name: string
+  description?: string
+  owner: { id: number; username: string }
+  categories: ArchidektCategory[]
+  cards: ArchidektRawCardEntry[]
+  updatedAt: string
+}
+
+export type ModifyCardAction = 'add' | 'modify' | 'remove'
+
+export interface ModifyCardModifications {
+  quantity: number
+  modifier: ArchidektCardModifier
+  customCmc: number | null
+  companion: boolean
+  flippedDefault: boolean
+  label: string // "name,hexcolor" — default ",#656565"
+}
+
+export interface ModifyCardEntry {
+  action: ModifyCardAction
+  cardid: number // Archidekt card edition ID
+  customCardId: number | null
+  categories: string[]
+  patchId: string // Client-generated tracking ID
+  modifications: ModifyCardModifications
+  deckRelationId?: number // Required for "modify" and "remove" actions
+}
+
+export interface ArchidektCardSearchResult {
+  id: number
+  collectorNumber: string
+  options: ArchidektCardModifier[]
+  oracleCard: { name: string; defaultCategory: string }
+}
+
 /** Parse an Archidekt deck response into a DeckData object. */
 export function parseArchidektDeckResponse(json: ArchidektDeckResponse, deckId: string): DeckData {
   // Categories map: ID -> Name

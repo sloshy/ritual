@@ -25,6 +25,7 @@ const sidebars: SidebarsConfig = {
         'commands/scry',
         'commands/price',
         'commands/add-card',
+        'commands/deck-sync',
         'commands/collection',
         'commands/build-site',
         'commands/serve',

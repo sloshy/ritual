@@ -29,6 +29,7 @@ import { registerAdminCommand } from './src/commands/admin'
 import { registerLicenseCommand } from './src/commands/license'
 import { registerDepLicenseCommand } from './src/commands/dep-license'
 import { registerGitDetectChangesCommand } from './src/commands/git-detect-changes'
+import { registerDeckSyncCommand } from './src/commands/deck-sync'
 import {
   resolveCacheServerAddress,
   setCacheServerAddressOverride,
@@ -64,6 +65,7 @@ registerImportCommand(program)
 registerImportAccountCommand(program)
 registerGetPrimerCommand(program)
 registerPriceCommand(program)
+registerDeckSyncCommand(program)
 
 program.commandsGroup('Collection Management')
 registerCollectionCommand(program)
