@@ -7,7 +7,7 @@ setupGlobalFetch()
 import { Command } from 'commander'
 import { registerNewDeckCommand } from './src/commands/new-deck'
 import { registerImportCommand } from './src/commands/import'
-import { registerPriceCommand } from './src/commands/price'
+import { registerPriceDeckCommand } from './src/commands/price'
 import { registerBuildSiteCommand } from './src/commands/build-site'
 import { registerServeCommand } from './src/commands/serve'
 import { registerAddCardCommand } from './src/commands/add-card'
@@ -58,14 +58,16 @@ program.hook('preAction', (command) => {
 program.commandsGroup('Account & Auth')
 registerLoginCommand(program)
 
+program.commandsGroup('Scripting')
+registerAddCardCommand(program)
+
 program.commandsGroup('Deck Management')
 registerNewDeckCommand(program)
-registerAddCardCommand(program)
 registerImportCommand(program)
 registerImportAccountCommand(program)
 registerGetPrimerCommand(program)
-registerPriceCommand(program)
 registerDeckSyncCommand(program)
+registerPriceDeckCommand(program)
 
 program.commandsGroup('Collection Management')
 registerCollectionCommand(program)
