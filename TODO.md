@@ -37,7 +37,6 @@
 - Move cards between collections
 - Fix colors of index price text
 - If a card has no price, display "N/A" in the price font style
-- Normalize set codes to use lowercase consistently across the app
 - Add "last updated" timestamp to collection and deck files, and display this in the UI
 - Add "created at" timestamp to collection and deck files
-- Really, REALLY double check the logic of editing a collection because the changes should keep track of exactly which card is removed (should use some kind of internal ID system)
+- Replace editor and manager pages in admin site with unified interface
