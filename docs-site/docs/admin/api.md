@@ -285,3 +285,66 @@ Save collection changes. Writes the updated collection file and creates a change
   "message": "Saved 3 changes to My Collection"
 }
 ```
+
+## List Wanted Lists
+
+```
+GET /api/wanted
+```
+
+Returns the list of available wanted lists.
+
+**Response:**
+
+```json
+{
+  "wantedLists": [{ "slug": "high-priority", "name": "High Priority" }]
+}
+```
+
+## Load Wanted List
+
+```
+GET /api/wanted/:slug
+```
+
+Load a wanted list with full card data, printings, and mana symbol map.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "entries": [{ "name": "Sol Ring", "set": "2xm", "collectorNumber": "270" }],
+  "cards": { "Sol Ring": {} },
+  "printings": { "Sol Ring": [] },
+  "symbolMap": { "{W}": "https://..." },
+  "slug": "high-priority"
+}
+```
+
+## Save Wanted List
+
+```
+POST /api/wanted/:slug/save
+```
+
+Save wanted list changes. Writes the updated wanted list file and appends to the changelog.
+
+**Request Body:**
+
+```json
+{
+  "changes": [{ "id": "...", "timestamp": 123, "action": "add", "cardName": "Sol Ring" }],
+  "entries": [{ "name": "Sol Ring", "set": "2xm", "collectorNumber": "270" }]
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Saved 3 changes to high-priority"
+}
+```
