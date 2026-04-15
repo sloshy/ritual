@@ -4,6 +4,7 @@ import fs from 'node:fs/promises'
 import { startAdminServer } from '../admin/server'
 import { getBundledAdminCss, getBundledAdminJs } from '../admin/bundled-assets'
 import { getBaseDir } from '../base-dir'
+import { ensureFreshCardCache } from '../cache/freshness'
 
 type AdminCommandOptions = {
   port: string
@@ -22,6 +23,8 @@ export function registerAdminCommand(program: Command) {
       const adminDistDir = path.join(getBaseDir(), '.admin-dist')
 
       console.log('Preparing admin interface...')
+
+      await ensureFreshCardCache()
 
       await fs.rm(adminDistDir, { recursive: true, force: true })
       await fs.mkdir(adminDistDir, { recursive: true })
