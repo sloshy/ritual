@@ -6,6 +6,7 @@ import { capitalize } from '../utils'
 import { getAllCardNames } from '../scryfall'
 import { isFinish, VALID_FINISHES, type SessionConfig } from './collection-helpers'
 import { getBaseDir } from '../base-dir'
+import { writeFileWithHash } from '../content-hash'
 
 export type WantedListEntry = {
   name: string
@@ -94,7 +95,7 @@ export async function ensureWantedListFile(name: string): Promise<string> {
   await fs.mkdir(wantedListsDir, { recursive: true })
   const filePath = path.join(wantedListsDir, `${name}.md`)
   if (!(await Bun.file(filePath).exists())) {
-    await fs.writeFile(filePath, `# ${name}\n\n`)
+    await writeFileWithHash(filePath, `# ${name}\n\n`)
     console.log(`Created new wanted list file: ${name}.md`)
   } else {
     console.log(`Using wanted list file: ${name}.md`)

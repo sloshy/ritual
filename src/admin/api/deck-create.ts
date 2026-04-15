@@ -5,6 +5,7 @@ import { getErrorMessage } from '../../errors'
 import { isPathWithinDir } from '../../path-validation'
 import { MAX_BODY_SIZE } from '../validation'
 import { getBaseDir } from '../../base-dir'
+import { writeFileWithHash, hashPath } from '../../content-hash'
 
 interface DeckCreateRequest {
   name: string
@@ -73,11 +74,11 @@ tags: []
 // Add your cards here
 `
 
-    await Bun.write(filePath, content)
+    await writeFileWithHash(filePath, content)
 
     const config = await loadConfig()
     if (shouldAutoCommit(config, decksDir)) {
-      commitFiles([filePath], `Create deck: ${trimmedName}`)
+      commitFiles([filePath, hashPath(filePath)], `Create deck: ${trimmedName}`)
       if (shouldAutoPush(config, decksDir)) {
         pushChanges(decksDir)
       }

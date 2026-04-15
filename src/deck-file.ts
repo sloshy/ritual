@@ -5,6 +5,7 @@ import { type Card, type DeckData } from './types'
 import { listDeckFiles } from './importers/text-file'
 import { isPathWithinDir } from './path-validation'
 import { allocateNextIdFromContent } from './card-id'
+import { writeFileWithHash } from './content-hash'
 
 /**
  * Resolve a deck name to its file path. Tries exact match first,
@@ -94,5 +95,5 @@ export async function addCardToDeckFile(filePath: string, card: Card): Promise<v
   }
   lines.splice(mainIndex + 1, 0, serializeCardLine({ ...card, cardId }))
   const content = lines.join('\n')
-  await fs.writeFile(filePath, content.endsWith('\n') ? content : content + '\n')
+  await writeFileWithHash(filePath, content.endsWith('\n') ? content : content + '\n')
 }

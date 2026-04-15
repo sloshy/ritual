@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { getContentHash } from '../../content-hash'
 import { importFromTextFile } from '../../importers/text-file'
 import { resolveDeckFilePath, parseDeckFrontMatter } from '../../deck-file'
 import { cardCache } from '../../cache'
@@ -30,6 +31,7 @@ export async function handleDeckLoad(req: Request): Promise<Response> {
       return Response.json({ success: false, message: `Deck '${slug}' not found` }, { status: 404 })
     }
 
+    const rawContent = await Bun.file(filePath).text()
     const deck = await importFromTextFile(filePath)
     const frontMatter = await parseDeckFrontMatter(filePath)
 
@@ -111,6 +113,8 @@ export async function handleDeckLoad(req: Request): Promise<Response> {
       }
     }
 
+    const contentHash = await getContentHash(filePath, rawContent)
+
     return Response.json({
       success: true,
       deck,
@@ -122,6 +126,7 @@ export async function handleDeckLoad(req: Request): Promise<Response> {
       symbolMap,
       frontMatter,
       slug,
+      contentHash,
     })
   } catch (error) {
     return Response.json({ success: false, message: getErrorMessage(error) }, { status: 500 })

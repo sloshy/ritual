@@ -1,5 +1,4 @@
 import path from 'node:path'
-import fs from 'node:fs/promises'
 import { Command } from 'commander'
 import { ArchidektClient } from '../clients/ArchidektClient'
 import { FileTokenStore } from '../auth/FileTokenStore'
@@ -23,6 +22,7 @@ import {
   type NameDiff,
 } from './deck-sync-helpers'
 import { getBaseDir } from '../base-dir'
+import { writeFileWithHash } from '../content-hash'
 
 // ── Archidekt raw response helpers ────────────────────────────────────
 
@@ -236,7 +236,7 @@ async function resolveTargetDecks(deckNames: string[], decksDir: string): Promis
 async function saveDeckWithSyncTimestamp(target: DeckTarget, deck: DeckData): Promise<void> {
   const updatedFrontMatter = { ...target.frontMatter, lastSynced: new Date().toISOString() }
   const markdown = serializeDeckToMarkdown(deck, updatedFrontMatter)
-  await fs.writeFile(target.filePath, markdown)
+  await writeFileWithHash(target.filePath, markdown)
 }
 
 // ── Command registration ──────────────────────────────────────────────

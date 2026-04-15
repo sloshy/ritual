@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { getContentHash } from '../../content-hash'
 import { parseCollectionFile } from '../../commands/price-collection'
 import { cardCache } from '../../cache'
 import { fetchCardData, fetchSymbology, getCardPrintings } from '../../scryfall'
@@ -118,6 +119,8 @@ export async function handleCollectionLoad(req: Request): Promise<Response> {
       }
     }
 
+    const contentHash = await getContentHash(filePath, content)
+
     return Response.json({
       success: true,
       entries,
@@ -125,6 +128,7 @@ export async function handleCollectionLoad(req: Request): Promise<Response> {
       printings,
       symbolMap,
       slug,
+      contentHash,
     })
   } catch (error) {
     return Response.json({ success: false, message: getErrorMessage(error) }, { status: 500 })

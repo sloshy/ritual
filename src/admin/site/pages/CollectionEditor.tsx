@@ -30,6 +30,7 @@ type CollectionDataResponse = {
   printings: Record<string, ScryfallCard[]>
   symbolMap: Record<string, string>
   slug: string
+  contentHash: string
 }
 
 export function CollectionEditor() {
@@ -39,6 +40,7 @@ export function CollectionEditor() {
   const [modalCardKey, setModalCardKey] = createSignal<string | null>(null)
   const [contextMenuCard, setContextMenuCard] = createSignal<ContextMenuState | null>(null)
   const [refreshKey, setRefreshKey] = createSignal(0)
+  const [contentHash, setContentHash] = createSignal<string>('')
 
   const [status, statusActions] = useEditorStatus()
   const [cardData, cardActions] = useEntryCardData()
@@ -98,6 +100,7 @@ export function CollectionEditor() {
               symbolMap: data.symbolMap,
             })
             discardAll()
+            setContentHash(data.contentHash)
             statusActions.loadSuccess()
           } else {
             statusActions.loadError('Failed to load collection')
@@ -239,12 +242,15 @@ export function CollectionEditor() {
   const handleSave = async () => {
     const slug = collectionSlug()
     if (!slug || entries().length === 0 || changes().length === 0) return
-    await saveEditorChanges(
+    const result = await saveEditorChanges(
       `/api/collection/${slug}/save`,
-      { changes: changes(), entries: entries() },
+      { changes: changes(), contentHash: contentHash() },
       statusActions,
       discardAll,
     )
+    if (result?.contentHash) {
+      setContentHash(result.contentHash)
+    }
   }
 
   const handleDiscard = () => {

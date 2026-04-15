@@ -11,6 +11,7 @@ import { parseMoxfieldPrimer } from '../primer-parser'
 import { ExitCode } from './scripting'
 import { getLogger } from '../logger'
 import { getBaseDir } from '../base-dir'
+import { writeFileWithHash } from '../content-hash'
 
 interface SaveDeckOptions {
   forceOverwrite?: boolean
@@ -224,7 +225,7 @@ tags: []
     return
   }
 
-  await Bun.write(filePath, fileContent)
+  await writeFileWithHash(filePath, fileContent)
   getLogger().info(`Successfully imported deck to: ${filePath}`)
 
   if (primerMarkdown) {

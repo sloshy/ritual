@@ -1,5 +1,5 @@
 import path from 'node:path'
-import fs from 'node:fs/promises'
+import { loadHash, computeHash, writeFileWithHash, hashPath } from '../../content-hash'
 import { resolveDeckFilePath, serializeDeckToMarkdown } from '../../deck-file'
 import { loadConfig } from '../config'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
@@ -14,6 +14,7 @@ interface DeckSaveRequest {
   changes: ChangeEvent[]
   deck: DeckData
   frontMatter: Record<string, unknown>
+  contentHash: string
 }
 
 export async function handleDeckSave(req: Request): Promise<Response> {
@@ -31,11 +32,11 @@ export async function handleDeckSave(req: Request): Promise<Response> {
       return Response.json({ success: false, message: 'Request body too large' }, { status: 413 })
     }
     const body = (await req.json()) as DeckSaveRequest
-    const { changes, deck, frontMatter } = body
+    const { changes, deck, frontMatter, contentHash } = body
 
-    if (!deck || !changes) {
+    if (!deck || !changes || typeof contentHash !== 'string') {
       return Response.json(
-        { success: false, message: 'changes and deck are required' },
+        { success: false, message: 'changes, deck, and contentHash are required' },
         { status: 400 },
       )
     }
@@ -47,7 +48,21 @@ export async function handleDeckSave(req: Request): Promise<Response> {
       return Response.json({ success: false, message: `Deck '${slug}' not found` }, { status: 404 })
     }
 
-    const filesToCommit: string[] = [filePath]
+    // Validate content hash for conflict detection
+    const existingContent = await Bun.file(filePath).text()
+    const existingHash = (await loadHash(filePath)) ?? computeHash(existingContent)
+    if (existingHash !== contentHash) {
+      return Response.json(
+        {
+          success: false,
+          message: 'Deck has been modified since you loaded it. Please reload.',
+          conflict: true,
+        },
+        { status: 409 },
+      )
+    }
+
+    const filesToCommit: string[] = [filePath, hashPath(filePath)]
 
     // Write changelog
     if (changes.length > 0) {
@@ -57,7 +72,7 @@ export async function handleDeckSave(req: Request): Promise<Response> {
 
     // Write deck file
     const markdown = serializeDeckToMarkdown(deck, frontMatter)
-    await fs.writeFile(filePath, markdown)
+    const newContentHash = await writeFileWithHash(filePath, markdown)
 
     // Auto-commit if enabled
     const config = await loadConfig()
@@ -71,6 +86,7 @@ export async function handleDeckSave(req: Request): Promise<Response> {
     return Response.json({
       success: true,
       message: `Saved ${changes.length} changes to ${deck.name}`,
+      contentHash: newContentHash,
     })
   } catch (error) {
     return Response.json({ success: false, message: getErrorMessage(error) }, { status: 500 })

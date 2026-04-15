@@ -1,5 +1,5 @@
 import path from 'node:path'
-import fs from 'node:fs/promises'
+import { loadHash, computeHash, writeFileWithHash, hashPath } from '../../content-hash'
 import { loadConfig } from '../config'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { getErrorMessage } from '../../errors'
@@ -14,6 +14,7 @@ import { getBaseDir } from '../../base-dir'
 interface WantedListSaveRequest {
   changes: ChangeEvent[]
   entries: WantedListCardEntry[]
+  contentHash: string
 }
 
 function serializeWantedListEntry(entry: WantedListCardEntry): string {
@@ -48,11 +49,11 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
       return Response.json({ success: false, message: 'Request body too large' }, { status: 413 })
     }
     const body = (await req.json()) as WantedListSaveRequest
-    const { changes, entries } = body
+    const { changes, entries, contentHash } = body
 
-    if (!entries || !changes) {
+    if (!entries || !changes || typeof contentHash !== 'string') {
       return Response.json(
-        { success: false, message: 'changes and entries are required' },
+        { success: false, message: 'changes, entries, and contentHash are required' },
         { status: 400 },
       )
     }
@@ -71,10 +72,22 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
       )
     }
 
-    const filesToCommit: string[] = [filePath]
+    const filesToCommit: string[] = [filePath, hashPath(filePath)]
 
-    // Read existing file to preserve header/front matter
+    // Read existing file and validate content hash for conflict detection
     const existingContent = await file.text()
+    const existingHash = (await loadHash(filePath)) ?? computeHash(existingContent)
+    if (existingHash !== contentHash) {
+      return Response.json(
+        {
+          success: false,
+          message: 'Wanted list has been modified since you loaded it. Please reload.',
+          conflict: true,
+        },
+        { status: 409 },
+      )
+    }
+
     const existingLines = existingContent.split('\n')
     const headerLines: string[] = []
     for (const line of existingLines) {
@@ -85,7 +98,7 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
     // Serialize entries
     const entryLines = entries.map(serializeWantedListEntry)
     const newContent = headerLines.join('\n') + entryLines.join('\n') + '\n'
-    await fs.writeFile(filePath, newContent)
+    const newContentHash = await writeFileWithHash(filePath, newContent)
 
     // Write changelog
     if (changes.length > 0) {
@@ -105,6 +118,7 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
     return Response.json({
       success: true,
       message: `Saved ${changes.length} changes to ${slug}`,
+      contentHash: newContentHash,
     })
   } catch (error) {
     return Response.json({ success: false, message: getErrorMessage(error) }, { status: 500 })

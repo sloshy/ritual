@@ -18,6 +18,7 @@ import { appendChangelog } from '../changelog-writer'
 import { createChangeEvent } from '../change-event'
 import type { ChangeEvent } from '../change-event'
 import { trackAdd, trackEdit, trackAnotherCopy } from '../session-changelog'
+import { appendFileWithHash, writeFileWithHash } from '../content-hash'
 
 export function registerWantedListCommand(program: Command) {
   program
@@ -276,7 +277,7 @@ export function registerWantedListCommand(program: Command) {
         // Handle mode switches
         if (response.cardName === '__ADD_ANOTHER__' && lastAddedCard) {
           try {
-            await fs.appendFile(listFile, lastAddedCard.line)
+            await appendFileWithHash(listFile, lastAddedCard.line)
             lastAddedCount++
             console.log(`Added: ${lastAddedCard.line.trim()} (${lastAddedCount}x total)`)
             const newIdx = trackAnotherCopy(sessionChanges, lastChangeIndex)
@@ -301,7 +302,7 @@ export function registerWantedListCommand(program: Command) {
               if ((lines[lines.length - 1] ?? '').trim() === lastAddedCard.line.trim()) {
                 const newLine: string = lastAddedCard.line.trimEnd() + ` {${note}}`
                 lines[lines.length - 1] = newLine
-                await fs.writeFile(listFile, lines.join('\n') + '\n')
+                await writeFileWithHash(listFile, lines.join('\n') + '\n')
                 lastAddedCard = { name: lastAddedCard.name, line: newLine + '\n', hasNote: true }
                 console.log(`Note added: ${newLine}`)
               } else {
@@ -409,7 +410,7 @@ export function registerWantedListCommand(program: Command) {
               console.log(`Edited: ${line.trim()}`)
             } else {
               console.warn("Last line in file doesn't match last added card. Adding as new entry.")
-              await fs.appendFile(listFile, line)
+              await appendFileWithHash(listFile, line)
               console.log(`Added: ${line.trim()}`)
             }
             lastChangeIndex = trackEdit(
@@ -419,7 +420,7 @@ export function registerWantedListCommand(program: Command) {
               result.replaced,
             )
           } else {
-            await fs.appendFile(listFile, line)
+            await appendFileWithHash(listFile, line)
             console.log(`Added: ${line.trim()}`)
             lastChangeIndex = trackAdd(sessionChanges, nameOnlyEvent)
           }
@@ -435,7 +436,7 @@ export function registerWantedListCommand(program: Command) {
             if (isEditing) continue
             console.error('No printings found. Adding name only.')
             const line = formatWantedListLine(cardName)
-            await fs.appendFile(listFile, line)
+            await appendFileWithHash(listFile, line)
             console.log(`Added: ${line.trim()}`)
             lastAddedCard = { name: cardName, line: line, hasNote: false }
             lastAddedCount = 1
@@ -477,7 +478,7 @@ export function registerWantedListCommand(program: Command) {
               console.log(`Edited: ${line.trim()}`)
             } else {
               console.warn("Last line in file doesn't match last added card. Adding as new entry.")
-              await fs.appendFile(listFile, line)
+              await appendFileWithHash(listFile, line)
               console.log(`Added: ${line.trim()}`)
             }
             lastChangeIndex = trackEdit(
@@ -493,7 +494,7 @@ export function registerWantedListCommand(program: Command) {
           }
         } else {
           try {
-            await fs.appendFile(listFile, line)
+            await appendFileWithHash(listFile, line)
             console.log(`Added: ${line.trim()}`)
             lastAddedCard = { name: cardName, line: line, hasNote: false }
             lastAddedCount = 1

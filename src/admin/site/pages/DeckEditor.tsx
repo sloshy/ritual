@@ -39,6 +39,7 @@ type DeckDataResponse = {
   symbolMap: Record<string, string>
   frontMatter: Record<string, unknown>
   slug: string
+  contentHash: string
 }
 
 export function DeckEditor() {
@@ -46,6 +47,7 @@ export function DeckEditor() {
   const [deckList, setDeckList] = createSignal<DeckListItem[]>([])
   const [deckData, setDeckData] = createSignal<DeckData | null>(null)
   const [frontMatter, setFrontMatter] = createSignal<Record<string, unknown>>({})
+  const [contentHash, setContentHash] = createSignal<string>('')
   const [modalCardName, setModalCardName] = createSignal<string | null>(null)
   const [contextMenuCard, setContextMenuCard] = createSignal<DeckContextMenuState | null>(null)
   const [refreshKey, setRefreshKey] = createSignal(0)
@@ -156,6 +158,7 @@ export function DeckEditor() {
               symbolMap: data.symbolMap,
             })
             setFrontMatter(data.frontMatter)
+            setContentHash(data.contentHash)
             discardAll()
             statusActions.loadSuccess()
           } else {
@@ -325,16 +328,20 @@ export function DeckEditor() {
   const handleSave = async () => {
     const slug = deckSlug()
     if (!slug || !deckData() || changes().length === 0) return
-    await saveEditorChanges(
+    const result = await saveEditorChanges(
       `/api/deck/${slug}/save`,
       {
         changes: changes(),
         deck: deckData()!,
         frontMatter: frontMatter(),
+        contentHash: contentHash(),
       },
       statusActions,
       discardAll,
     )
+    if (result?.contentHash) {
+      setContentHash(result.contentHash)
+    }
   }
 
   const handleDiscard = () => {

@@ -6,6 +6,7 @@ import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../g
 import { getErrorMessage } from '../../errors'
 import { MAX_BODY_SIZE } from '../validation'
 import { getBaseDir } from '../../base-dir'
+import { writeFileWithHash, hashPath } from '../../content-hash'
 
 interface DeckRenameRequest {
   newName: string
@@ -93,10 +94,11 @@ export async function handleDeckRename(req: Request): Promise<Response> {
     const filesToCommit: string[] = []
 
     if (newFilePath !== filePath) {
-      // Write new file with updated content, then remove old file
-      await Bun.write(newFilePath, finalContent)
+      // Write new file with updated content, then remove old file and its sidecar
+      await writeFileWithHash(newFilePath, finalContent)
       await fs.unlink(filePath)
-      filesToCommit.push(filePath, newFilePath)
+      await fs.unlink(hashPath(filePath)).catch(() => undefined)
+      filesToCommit.push(filePath, hashPath(filePath), newFilePath, hashPath(newFilePath))
 
       // Handle changelog file
       const oldChangelogPath = filePath.replace(/\.md$/, '.changes.md')
@@ -119,8 +121,8 @@ export async function handleDeckRename(req: Request): Promise<Response> {
       }
     } else {
       // Same slug, just update name in file
-      await Bun.write(filePath, finalContent)
-      filesToCommit.push(filePath)
+      await writeFileWithHash(filePath, finalContent)
+      filesToCommit.push(filePath, hashPath(filePath))
     }
 
     const config = await loadConfig()

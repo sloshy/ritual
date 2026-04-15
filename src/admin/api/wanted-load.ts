@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { getContentHash } from '../../content-hash'
 import { parseWantedListFile } from '../../commands/wanted-helpers'
 import { cardCache } from '../../cache'
 import { fetchCardData, fetchSymbology, getCardPrintings } from '../../scryfall'
@@ -111,6 +112,8 @@ export async function handleWantedListLoad(req: Request): Promise<Response> {
       }
     }
 
+    const contentHash = await getContentHash(filePath, content)
+
     return Response.json({
       success: true,
       entries,
@@ -118,6 +121,7 @@ export async function handleWantedListLoad(req: Request): Promise<Response> {
       printings,
       symbolMap,
       slug,
+      contentHash,
     })
   } catch (error) {
     return Response.json({ success: false, message: getErrorMessage(error) }, { status: 500 })

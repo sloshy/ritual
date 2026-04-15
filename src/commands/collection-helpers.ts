@@ -6,6 +6,7 @@ import type { ScryfallCard, Finish, Condition } from '../types'
 import { capitalize } from '../utils'
 import { VALID_FINISHES, VALID_CONDITIONS, isFinish, isCondition } from '../finish-condition'
 import { getBaseDir } from '../base-dir'
+import { writeFileWithHash, saveHash, computeHash } from '../content-hash'
 
 export { VALID_FINISHES, VALID_CONDITIONS, isFinish, isCondition }
 
@@ -19,7 +20,9 @@ export async function ensureCollectionFile(collectionName: string): Promise<stri
   await fs.mkdir(collectionsDir, { recursive: true })
   const filePath = path.join(collectionsDir, `${collectionName}.md`)
   try {
-    await fs.writeFile(filePath, `# ${collectionName}\n\n`, { flag: 'wx' })
+    const content = `# ${collectionName}\n\n`
+    await fs.writeFile(filePath, content, { flag: 'wx' })
+    await saveHash(filePath, computeHash(content))
     console.log(`Created new collection file: ${collectionName}.md`)
   } catch (e: unknown) {
     if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e
@@ -242,7 +245,7 @@ export async function replaceLastLine(
   const lines = fileContent.trimEnd().split('\n')
   if ((lines[lines.length - 1] ?? '').trim() === expectedLine.trim()) {
     lines[lines.length - 1] = newLine.trimEnd()
-    await fs.writeFile(filePath, lines.join('\n') + '\n')
+    await writeFileWithHash(filePath, lines.join('\n') + '\n')
     return { replaced: true }
   }
   return { replaced: false }

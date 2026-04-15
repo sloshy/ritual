@@ -20,6 +20,7 @@ import { appendChangelog } from '../changelog-writer'
 import { createChangeEvent } from '../change-event'
 import { allocateNextIdFromContent } from '../card-id'
 import { getBaseDir } from '../base-dir'
+import { appendFileWithHash } from '../content-hash'
 
 /** Parse existing &N IDs from a file and allocate the next available ID. */
 async function allocateNextIdFromFile(filePath: string): Promise<number> {
@@ -293,7 +294,7 @@ async function handleCollectionAddCard(
     cardId,
   )
 
-  await fs.appendFile(collectionFilePath, line)
+  await appendFileWithHash(collectionFilePath, line)
   console.log(`Added: ${line.trim()}`)
 
   const change = createChangeEvent('add', selectedName, {
@@ -332,7 +333,7 @@ async function handleWantedAddCard(
   if (specificityResponse.specificity === 'name-only') {
     const cardId = await allocateNextIdFromFile(listFile)
     const line = formatWantedListLine(selectedName, undefined, userFinish, undefined, cardId)
-    await fs.appendFile(listFile, line)
+    await appendFileWithHash(listFile, line)
     console.log(`Added: ${line.trim()}`)
     const change = createChangeEvent('add', selectedName, { finish: userFinish, cardId })
     await appendChangelog(listFile, wantedListName, [change])
@@ -345,7 +346,7 @@ async function handleWantedAddCard(
     console.log('No printing selected. Adding name only.')
     const cardId = await allocateNextIdFromFile(listFile)
     const line = formatWantedListLine(selectedName, undefined, userFinish, undefined, cardId)
-    await fs.appendFile(listFile, line)
+    await appendFileWithHash(listFile, line)
     console.log(`Added: ${line.trim()}`)
     const change = createChangeEvent('add', selectedName, { finish: userFinish, cardId })
     await appendChangelog(listFile, wantedListName, [change])
@@ -371,7 +372,7 @@ async function handleWantedAddCard(
     cardId,
   )
 
-  await fs.appendFile(listFile, line)
+  await appendFileWithHash(listFile, line)
   console.log(`Added: ${line.trim()}`)
 
   const change = createChangeEvent('add', selectedName, {

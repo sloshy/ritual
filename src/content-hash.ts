@@ -1,0 +1,81 @@
+import fs from 'node:fs/promises'
+
+/**
+ * Centralized SHA-256 content hashing for list files (collections, decks, wanted lists).
+ *
+ * Hashes are stored in sidecar `.sha256` files alongside the original `.md` file.
+ * This avoids recomputing hashes on every request — the hash is read from disk
+ * and only recomputed when a write occurs or the sidecar is missing.
+ */
+
+/** Derive the `.sha256` sidecar path from a `.md` file path. */
+export function hashPath(filePath: string): string {
+  return filePath + '.sha256'
+}
+
+/** Compute the SHA-256 hex digest of a string. */
+export function computeHash(content: string): string {
+  const hasher = new Bun.CryptoHasher('sha256')
+  hasher.update(content)
+  return hasher.digest('hex')
+}
+
+/**
+ * Load the precomputed hash from the `.sha256` sidecar file.
+ * Returns `null` if the sidecar doesn't exist or can't be read.
+ */
+export async function loadHash(filePath: string): Promise<string | null> {
+  try {
+    const hash = await fs.readFile(hashPath(filePath), 'utf-8')
+    return hash.trim()
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Save a hash to the `.sha256` sidecar file.
+ */
+export async function saveHash(filePath: string, hash: string): Promise<void> {
+  await fs.writeFile(hashPath(filePath), hash + '\n')
+}
+
+/**
+ * Load the content hash for a file, reading from the sidecar if available.
+ * Falls back to computing from the file content if the sidecar is missing.
+ */
+export async function getContentHash(filePath: string, content: string): Promise<string> {
+  const cached = await loadHash(filePath)
+  if (cached) return cached
+
+  const hash = computeHash(content)
+  await saveHash(filePath, hash)
+  return hash
+}
+
+/**
+ * Write file content and its hash sidecar atomically (as much as the FS allows).
+ * Returns the new content hash.
+ */
+export async function writeFileWithHash(filePath: string, content: string): Promise<string> {
+  const hash = computeHash(content)
+  await fs.writeFile(filePath, content)
+  await saveHash(filePath, hash)
+  return hash
+}
+
+/**
+ * Append content to a file and update its hash sidecar.
+ * Reads the existing content, appends, writes, and saves the new hash.
+ * Returns the new content hash.
+ */
+export async function appendFileWithHash(filePath: string, data: string): Promise<string> {
+  let existing = ''
+  try {
+    existing = await fs.readFile(filePath, 'utf-8')
+  } catch {
+    // File may not exist yet
+  }
+  const newContent = existing + data
+  return writeFileWithHash(filePath, newContent)
+}

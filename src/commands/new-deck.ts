@@ -2,6 +2,7 @@ import { Command } from 'commander'
 import path from 'node:path'
 import * as fs from 'node:fs/promises'
 import { getBaseDir } from '../base-dir'
+import { writeFileWithHash } from '../content-hash'
 
 export function registerNewDeckCommand(program: Command) {
   program
@@ -41,7 +42,7 @@ tags: []
           process.exit(1)
         }
 
-        await Bun.write(filePath, content)
+        await writeFileWithHash(filePath, content)
         console.log(`Created new deck: ${filePath}`)
       } catch (error) {
         console.error('Failed to create deck:', error)

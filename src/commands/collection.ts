@@ -21,6 +21,7 @@ import { appendChangelog } from '../changelog-writer'
 import { createChangeEvent } from '../change-event'
 import type { ChangeEvent } from '../change-event'
 import { trackAdd, trackEdit, trackAnotherCopy } from '../session-changelog'
+import { appendFileWithHash, writeFileWithHash } from '../content-hash'
 
 export function registerCollectionCommand(program: Command) {
   program
@@ -313,7 +314,7 @@ export function registerCollectionCommand(program: Command) {
         // Handle mode switches
         if (response.cardName === '__ADD_ANOTHER__' && lastAddedCard) {
           try {
-            await fs.appendFile(collectionFile, lastAddedCard.line)
+            await appendFileWithHash(collectionFile, lastAddedCard.line)
             lastAddedCount++
             console.log(`Added: ${lastAddedCard.line.trim()} (${lastAddedCount}x total)`)
             const newIdx = trackAnotherCopy(sessionChanges, lastChangeIndex)
@@ -338,7 +339,7 @@ export function registerCollectionCommand(program: Command) {
               if ((lines[lines.length - 1] ?? '').trim() === lastAddedCard.line.trim()) {
                 const newLine: string = lastAddedCard.line.trimEnd() + ` {${note}}`
                 lines[lines.length - 1] = newLine
-                await fs.writeFile(collectionFile, lines.join('\n') + '\n')
+                await writeFileWithHash(collectionFile, lines.join('\n') + '\n')
                 lastAddedCard = { name: lastAddedCard.name, line: newLine + '\n', hasNote: true }
                 console.log(`Note added: ${newLine}`)
               } else {
@@ -437,7 +438,7 @@ export function registerCollectionCommand(program: Command) {
             if (isEditing) continue
             console.error('No printings found for validation. Using default name.')
             try {
-              await fs.appendFile(collectionFile, `- ${cardName}\n`)
+              await appendFileWithHash(collectionFile, `- ${cardName}\n`)
               console.log(`Added: ${cardName}`)
               lastAddedCard = { name: cardName, line: `- ${cardName}\n`, hasNote: false }
               lastAddedCount = 1
@@ -486,7 +487,7 @@ export function registerCollectionCommand(program: Command) {
               console.log(`Edited: ${line.trim()}`)
             } else {
               console.warn("Last line in file doesn't match last added card. Adding as new entry.")
-              await fs.appendFile(collectionFile, line)
+              await appendFileWithHash(collectionFile, line)
               console.log(`Added: ${line.trim()}`)
             }
             lastChangeIndex = trackEdit(
@@ -503,7 +504,7 @@ export function registerCollectionCommand(program: Command) {
         } else {
           // Append to file
           try {
-            await fs.appendFile(collectionFile, line)
+            await appendFileWithHash(collectionFile, line)
             console.log(`Added: ${line.trim()}`)
             lastAddedCard = { name: cardName, line: line, hasNote: false }
             lastAddedCount = 1

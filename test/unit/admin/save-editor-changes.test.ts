@@ -109,4 +109,92 @@ describe('saveEditorChanges', () => {
     expect(capturedInit.credentials).toBe('same-origin')
     expect(capturedInit.body).toBe(JSON.stringify(body))
   })
+
+  it('returns data on success', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    globalThis.fetch = (async () =>
+      ({
+        json: async () => ({ success: true, contentHash: 'abc123' }),
+      }) as Response) as any
+
+    const result = await saveEditorChanges('/api/test/save', {}, statusActions, discardAll)
+
+    expect(result).toEqual({ success: true, contentHash: 'abc123' })
+  })
+
+  it('returns undefined on network failure', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    globalThis.fetch = (async () => {
+      throw new Error('Network error')
+    }) as any
+
+    const result = await saveEditorChanges('/api/test/save', {}, statusActions, discardAll)
+
+    expect(result).toBeUndefined()
+  })
+
+  it('handles 409 conflict response', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    globalThis.fetch = (async () =>
+      ({
+        status: 409,
+        json: async () => ({
+          success: false,
+          conflict: true,
+          message: 'Deck has been modified since you loaded it. Please reload.',
+        }),
+      }) as Response) as any
+
+    const result = await saveEditorChanges('/api/test/save', {}, statusActions, discardAll)
+
+    expect(calls).toEqual([
+      { method: 'saveStart', args: [] },
+      {
+        method: 'saveError',
+        args: ['Deck has been modified since you loaded it. Please reload.'],
+      },
+    ])
+    expect(discardCalled).toBe(false)
+    expect(result).toEqual({
+      success: false,
+      conflict: true,
+      message: 'Deck has been modified since you loaded it. Please reload.',
+    })
+  })
+
+  it('handles conflict flag without 409 status', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    globalThis.fetch = (async () =>
+      ({
+        status: 200,
+        json: async () => ({ success: false, conflict: true }),
+      }) as Response) as any
+
+    const result = await saveEditorChanges('/api/test/save', {}, statusActions, discardAll)
+
+    expect(calls).toEqual([
+      { method: 'saveStart', args: [] },
+      {
+        method: 'saveError',
+        args: ['Content has been modified. Please reload to continue editing.'],
+      },
+    ])
+    expect(result?.conflict).toBe(true)
+  })
+
+  it('uses message field as fallback when error is absent', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    globalThis.fetch = (async () =>
+      ({
+        status: 400,
+        json: async () => ({ success: false, message: 'Bad request data' }),
+      }) as Response) as any
+
+    await saveEditorChanges('/api/test/save', {}, statusActions, discardAll)
+
+    expect(calls).toEqual([
+      { method: 'saveStart', args: [] },
+      { method: 'saveError', args: ['Bad request data'] },
+    ])
+  })
 })

@@ -30,12 +30,14 @@ type WantedListDataResponse = {
   printings: Record<string, ScryfallCard[]>
   symbolMap: Record<string, string>
   slug: string
+  contentHash: string
 }
 
 export function WantedListEditor() {
   const [listSlug, setListSlug] = createSignal<string | null>(null)
   const [wantedLists, setWantedLists] = createSignal<WantedListItem[]>([])
   const [entries, setEntries] = createSignal<WantedListCardEntry[]>([])
+  const [contentHash, setContentHash] = createSignal<string>('')
   const [modalCardKey, setModalCardKey] = createSignal<string | null>(null)
   const [contextMenuCard, setContextMenuCard] = createSignal<ContextMenuState | null>(null)
   const [refreshKey, setRefreshKey] = createSignal(0)
@@ -92,6 +94,7 @@ export function WantedListEditor() {
               printings: data.printings,
               symbolMap: data.symbolMap,
             })
+            setContentHash(data.contentHash)
             discardAll()
             statusActions.loadSuccess()
           } else {
@@ -228,12 +231,15 @@ export function WantedListEditor() {
   const handleSave = async () => {
     const slug = listSlug()
     if (!slug || entries().length === 0 || changes().length === 0) return
-    await saveEditorChanges(
+    const result = await saveEditorChanges(
       `/api/wanted/${slug}/save`,
-      { changes: changes(), entries: entries() },
+      { changes: changes(), entries: entries(), contentHash: contentHash() },
       statusActions,
       discardAll,
     )
+    if (result?.contentHash) {
+      setContentHash(result.contentHash)
+    }
   }
 
   const handleDiscard = () => {

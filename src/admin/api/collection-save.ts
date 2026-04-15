@@ -1,5 +1,5 @@
 import path from 'node:path'
-import fs from 'node:fs/promises'
+import { loadHash, computeHash, writeFileWithHash, hashPath } from '../../content-hash'
 import { loadConfig } from '../config'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { getErrorMessage } from '../../errors'
@@ -10,10 +10,14 @@ import type { CollectionCardEntry } from '../../site/data-types'
 import type { ChangeEvent } from '../site/types/deck-changes'
 import { formatCollectionLine } from '../../commands/collection-helpers'
 import { getBaseDir } from '../../base-dir'
+import { parseCollectionFile } from '../../commands/price-collection'
+import { applyChangeToCollection } from '../site/types/collection-changes'
+import { initializeEntriesWithIds } from '../../card-id'
+import type { Finish, Condition } from '../../types'
 
 interface CollectionSaveRequest {
   changes: ChangeEvent[]
-  entries: CollectionCardEntry[]
+  contentHash: string
 }
 
 function serializeCollectionEntry(entry: CollectionCardEntry): string {
@@ -48,11 +52,11 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
       return Response.json({ success: false, message: 'Request body too large' }, { status: 413 })
     }
     const body = (await req.json()) as CollectionSaveRequest
-    const { changes, entries } = body
+    const { changes, contentHash } = body
 
-    if (!entries || !changes) {
+    if (!changes || typeof contentHash !== 'string') {
       return Response.json(
-        { success: false, message: 'changes and entries are required' },
+        { success: false, message: 'changes and contentHash are required' },
         { status: 400 },
       )
     }
@@ -71,10 +75,45 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
       )
     }
 
-    const filesToCommit: string[] = [filePath]
+    const filesToCommit: string[] = [filePath, hashPath(filePath)]
 
-    // Read existing file to preserve header/front matter
+    // Read existing file and verify content hash for conflict detection
     const existingContent = await file.text()
+    const existingHash = (await loadHash(filePath)) ?? computeHash(existingContent)
+
+    if (existingHash !== contentHash) {
+      return Response.json(
+        {
+          success: false,
+          message: 'Collection has been modified since you loaded it. Please reload.',
+          conflict: true,
+        },
+        { status: 409 },
+      )
+    }
+
+    // Parse the file and build card entries
+    const parsed = parseCollectionFile(existingContent)
+    const cardEntries: CollectionCardEntry[] = parsed.entries.map((e, i) => ({
+      name: e.name,
+      set: e.set.toLowerCase(),
+      collectorNumber: e.collectorNumber,
+      finish: (e.finish ?? 'nonfoil') as Finish,
+      condition: (e.condition ?? 'NM') as Condition,
+      price: 0,
+      fileOrder: i,
+      note: e.note,
+      cardId: e.cardId,
+    }))
+
+    // Initialize IDs and apply changes
+    const { entries: entriesWithIds } = initializeEntriesWithIds(cardEntries)
+    let current = entriesWithIds as CollectionCardEntry[]
+    for (const change of changes) {
+      current = applyChangeToCollection(current, change)
+    }
+
+    // Preserve header lines (everything before first `- ` line)
     const existingLines = existingContent.split('\n')
     const headerLines: string[] = []
     for (const line of existingLines) {
@@ -83,9 +122,9 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
     }
 
     // Serialize entries
-    const entryLines = entries.map(serializeCollectionEntry)
+    const entryLines = current.map(serializeCollectionEntry)
     const newContent = headerLines.join('\n') + entryLines.join('\n') + '\n'
-    await fs.writeFile(filePath, newContent)
+    const newContentHash = await writeFileWithHash(filePath, newContent)
 
     // Write changelog
     if (changes.length > 0) {
@@ -105,6 +144,7 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
     return Response.json({
       success: true,
       message: `Saved ${changes.length} changes to ${slug}`,
+      contentHash: newContentHash,
     })
   } catch (error) {
     return Response.json({ success: false, message: getErrorMessage(error) }, { status: 500 })
