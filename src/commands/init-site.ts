@@ -328,8 +328,11 @@ Make sure GitHub Pages is enabled in your repository settings:
 }
 
 export function generateGitignoreEntries(): string {
-  return `cache/
+  return `# Ritual files
+cache/
 dist/
+.admin-dist/
+.logins/
 `
 }
 

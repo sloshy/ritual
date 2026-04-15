@@ -453,8 +453,8 @@ describe('generateGitignoreEntries', () => {
 
   test('each entry is on its own line', () => {
     const entries = generateGitignoreEntries()
-    const lines = entries.split('\n').filter((l) => l.trim().length > 0)
+    const lines = entries.split('\n').filter((l) => l.trim().length > 0 && !l.startsWith('#'))
 
-    expect(lines).toEqual(['cache/', 'dist/'])
+    expect(lines).toEqual(['cache/', 'dist/', '.admin-dist/', '.logins/'])
   })
 })
