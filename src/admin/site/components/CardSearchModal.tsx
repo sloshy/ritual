@@ -19,6 +19,8 @@ type CardSearchModalProps = {
 
 type Step = 'search' | 'printing' | 'finish-condition'
 
+const PRINTING_PAGE_SIZE = 8
+
 type PreviewCard = {
   name: string
   imageUrl: string
@@ -55,7 +57,16 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   const [selectedCardName, setSelectedCardName] = createSignal('')
   const [printings, setPrintings] = createSignal<ScryfallCard[]>([])
   const [printingHighlightIndex, setPrintingHighlightIndex] = createSignal(0)
+  const [printingsPage, setPrintingsPage] = createSignal(0)
   const [loadingPrintings, setLoadingPrintings] = createSignal(false)
+
+  const totalPrintingsPages = createMemo(() => Math.ceil(printings().length / PRINTING_PAGE_SIZE))
+  const paginatedPrintings = createMemo(() =>
+    printings().slice(
+      printingsPage() * PRINTING_PAGE_SIZE,
+      (printingsPage() + 1) * PRINTING_PAGE_SIZE,
+    ),
+  )
 
   // Step 3: Finish & condition
   const [selectedPrinting, setSelectedPrinting] = createSignal<ScryfallCard | null>(null)
@@ -67,6 +78,26 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   let searchTimeout: ReturnType<typeof setTimeout> | null = null
   let typedQuery = ''
   const cardImageCache = new Map<string, string>()
+
+  // Reset all state when modal opens
+  createEffect(() => {
+    if (props.open) {
+      setStep('search')
+      setQuery('')
+      setResults([])
+      setHighlightedIndex(-1)
+      setPreviewCard(null)
+      setSelectedCardName('')
+      setPrintings([])
+      setPrintingHighlightIndex(0)
+      setPrintingsPage(0)
+      setLoadingPrintings(false)
+      setSelectedPrinting(null)
+      setSelectedFinish('nonfoil')
+      setSelectedCondition('NM')
+      typedQuery = ''
+    }
+  })
 
   // Auto-focus search input when modal opens or returns to search step
   createEffect(() => {
@@ -158,6 +189,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     setStep('printing')
     setLoadingPrintings(true)
     setPrintingHighlightIndex(0)
+    setPrintingsPage(0)
     try {
       const resp = await fetch(`/api/card-printings?name=${encodeURIComponent(cardName)}`, {
         credentials: 'same-origin',
@@ -277,22 +309,34 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   createEffect(() => {
     if (!props.open || step() !== 'printing') return
     const hasNoPrintingOption = !props.requirePrinting
+    const offset = hasNoPrintingOption ? 1 : 0
     const handler = (e: KeyboardEvent) => {
       const currentPrintings = printings()
-      const totalItems = currentPrintings.length + (hasNoPrintingOption ? 1 : 0)
+      const totalItems = currentPrintings.length + offset
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
         e.preventDefault()
-        setPrintingHighlightIndex((prev) => Math.min(prev + 1, totalItems - 1))
+        const newIdx = Math.min(printingHighlightIndex() + 1, totalItems - 1)
+        setPrintingHighlightIndex(newIdx)
+        const printingIdx = newIdx - offset
+        if (printingIdx >= 0) {
+          setPrintingsPage(Math.floor(printingIdx / PRINTING_PAGE_SIZE))
+        }
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
         e.preventDefault()
-        setPrintingHighlightIndex((prev) => Math.max(prev - 1, 0))
+        const newIdx = Math.max(printingHighlightIndex() - 1, 0)
+        setPrintingHighlightIndex(newIdx)
+        const printingIdx = newIdx - offset
+        if (printingIdx >= 0) {
+          setPrintingsPage(Math.floor(printingIdx / PRINTING_PAGE_SIZE))
+        } else {
+          setPrintingsPage(0)
+        }
       } else if (e.key === 'Enter') {
         e.preventDefault()
         const idx = printingHighlightIndex()
         if (hasNoPrintingOption && idx === 0) {
           selectPrinting(null)
         } else {
-          const offset = hasNoPrintingOption ? 1 : 0
           const printing = currentPrintings[idx - offset]
           if (printing) selectPrinting(printing)
         }
@@ -330,6 +374,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       setHighlightedIndex(-1)
       setSelectedCardName('')
       setPrintings([])
+      setPrintingsPage(0)
     }
   }
 
@@ -410,7 +455,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                   fallback={<div class="empty-state">Loading printings…</div>}
                 >
                   <div class="printing-select-grid">
-                    <Show when={!props.requirePrinting}>
+                    <Show when={!props.requirePrinting && printingsPage() === 0}>
                       <button
                         class={`printing-no-printing${printingHighlightIndex() === 0 ? ' printing-no-printing--highlighted' : ''}`}
                         onClick={() => selectPrinting(null)}
@@ -418,13 +463,14 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                         No specific printing
                       </button>
                     </Show>
-                    <For each={printings()}>
+                    <For each={paginatedPrintings()}>
                       {(printing, i) => {
                         const offset = props.requirePrinting ? 0 : 1
+                        const globalIdx = printingsPage() * PRINTING_PAGE_SIZE + i() + offset
                         const imageUrl = getCardImageUrl(printing)
                         return (
                           <button
-                            class={`printing-select-card btn-unstyled${i() + offset === printingHighlightIndex() ? ' printing-select-card--highlighted' : ''}`}
+                            class={`printing-select-card btn-unstyled${globalIdx === printingHighlightIndex() ? ' printing-select-card--highlighted' : ''}`}
                             onClick={() => selectPrinting(printing)}
                           >
                             <Show when={imageUrl}>
@@ -442,6 +488,31 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                   </div>
                 </Show>
               </div>
+              <Show when={totalPrintingsPages() > 1}>
+                <div class="printing-select-pagination">
+                  <button
+                    disabled={printingsPage() === 0}
+                    onClick={() => {
+                      setPrintingsPage((p) => p - 1)
+                      setPrintingHighlightIndex(0)
+                    }}
+                  >
+                    ← Prev
+                  </button>
+                  <span>
+                    Page {printingsPage() + 1} of {totalPrintingsPages()}
+                  </span>
+                  <button
+                    disabled={printingsPage() >= totalPrintingsPages() - 1}
+                    onClick={() => {
+                      setPrintingsPage((p) => p + 1)
+                      setPrintingHighlightIndex(0)
+                    }}
+                  >
+                    Next →
+                  </button>
+                </div>
+              </Show>
             </>
           </Show>
 

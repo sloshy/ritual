@@ -156,4 +156,134 @@ test.describe('Deck Editor Page', () => {
       await expect(menu.locator('button', { hasText: 'Unset as Commander' })).toBeVisible()
     })
   })
+
+  test.describe('add card dialog state reset', () => {
+    const MOCK_BOLT_CARD = {
+      id: 'bolt-id',
+      name: 'Lightning Bolt',
+      cmc: 1,
+      type_line: 'Instant',
+      oracle_text: 'Lightning Bolt deals 3 damage to any target.',
+      image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
+      prices: {
+        usd: '1.00',
+        usd_foil: null,
+        usd_etched: null,
+        eur: '0.80',
+        eur_foil: null,
+        tix: null,
+      },
+      finishes: ['nonfoil'],
+      games: ['paper'],
+      set: 'lea',
+      set_name: 'Limited Edition Alpha',
+      collector_number: '161',
+      rarity: 'common',
+      color_identity: ['R'],
+    }
+
+    test.beforeEach(async ({ page }) => {
+      await loginAsAdmin(page)
+
+      await page.route('**/api/decks', async (route) => {
+        if (route.request().method() === 'GET') {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ decks: [{ slug: 'test-modal-deck', name: 'Test Modal Deck' }] }),
+          })
+        } else {
+          await route.continue()
+        }
+      })
+
+      await page.route('**/api/deck/test-modal-deck', async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            slug: 'test-modal-deck',
+            deck: {
+              name: 'Test Modal Deck',
+              sections: [
+                {
+                  name: 'Main',
+                  cards: [
+                    { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' },
+                  ],
+                },
+              ],
+            },
+            cards: { 'Lightning Bolt': MOCK_BOLT_CARD },
+            printings: { 'Lightning Bolt': [MOCK_BOLT_CARD] },
+            lowestPriceCards: { 'Lightning Bolt': MOCK_BOLT_CARD },
+            lowestPriceCardsEur: { 'Lightning Bolt': MOCK_BOLT_CARD },
+            lowestPriceCardsTix: {},
+            symbolMap: {},
+            frontMatter: {},
+          }),
+        })
+      })
+
+      await page.route('**/api/autocomplete*', async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, names: ['Lightning Bolt', 'Lightning Helix'] }),
+        })
+      })
+
+      await page.route('**/api/card-printings*', async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, printings: [MOCK_BOLT_CARD] }),
+        })
+      })
+
+      await page.locator('.admin-nav-item:has-text("Deck Editor")').click()
+      await expect(page.locator('.section-heading')).toContainText('Deck Editor')
+
+      const select = page.locator('select').first()
+      await page.waitForFunction(
+        () => (document.querySelector('select')?.options.length ?? 0) > 1,
+        {
+          timeout: 10_000,
+        },
+      )
+      await select.selectOption('test-modal-deck')
+      await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
+    })
+
+    test('resets to search step when reopened after navigating to printing step', async ({
+      page,
+    }) => {
+      // Open the add card modal
+      await page.locator('.site-btn-add').click()
+      const searchInput = page.locator('.search-modal input[type="text"]')
+      await expect(searchInput).toBeVisible({ timeout: 5_000 })
+
+      // Type to trigger autocomplete (debounced 1s)
+      await searchInput.fill('Lightning')
+      const boltResult = page.locator('.search-result-item', { hasText: 'Lightning Bolt' })
+      await expect(boltResult).toBeVisible({ timeout: 5_000 })
+
+      // Click Lightning Bolt → advances to printing step
+      await boltResult.click()
+      await expect(page.locator('.modal-heading-flex')).toContainText('Select a printing', {
+        timeout: 5_000,
+      })
+      await expect(searchInput).toHaveCount(0)
+
+      // Close the modal via Escape
+      await page.keyboard.press('Escape')
+      await expect(page.locator('.modal-heading-flex')).toHaveCount(0, { timeout: 3_000 })
+
+      // Reopen the modal — must start back on the search step, not the printing step
+      await page.locator('.site-btn-add').click()
+      await expect(searchInput).toBeVisible({ timeout: 5_000 })
+      await expect(page.locator('.modal-heading-flex')).toHaveCount(0)
+    })
+  })
 })

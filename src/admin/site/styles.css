@@ -688,6 +688,39 @@
   color: var(--text-primary);
 }
 
+.printing-select-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.printing-select-pagination button {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  transition: background 0.1s;
+}
+
+.printing-select-pagination button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.printing-select-pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* Finish/condition selection */
 .finish-condition-grid {
   padding: 16px;
