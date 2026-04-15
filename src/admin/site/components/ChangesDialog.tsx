@@ -69,7 +69,7 @@ export const ChangesDialog: Component<ChangesDialogProps> = (props) => {
       <div class="search-modal changes-modal">
         <div class="search-modal-header">
           <h3 class="modal-heading">Pending Changes ({props.changes.length})</h3>
-          <button type="button" class="modal-close" onClick={() => dialogRef?.close()}>
+          <button type="button" class="modal-close-btn" onClick={() => dialogRef?.close()}>
             &times;
           </button>
         </div>
@@ -96,9 +96,6 @@ export const ChangesDialog: Component<ChangesDialogProps> = (props) => {
                       }
                       onHoverLeave={() => setTooltip(null)}
                     />
-                    <Show when={change.cardId !== undefined}>
-                      <span class="change-item-id">&amp;{change.cardId}</span>
-                    </Show>
                   </div>
                 )
               }}
