@@ -35,7 +35,7 @@ export type ChangelogPage = {
 }
 
 const CHANGE_LINE_REGEX =
-  /^-\s+(Added|Removed|Set|Unset)\s+(.+?)(?:\s+\(([^)]+)\))?(?:\s+\[([^\]]+)\])?(?:\s+\[([^\]]+)\])?\s*$/
+  /^-\s+(Added|Removed|Set|Unset)\s+(.+?)(?:\s+\(([^)]+)\))?(?:\s+\[([^\]]+)\])?(?:\s+\[([^\]]+)\])?(?:\s+&\d+)?\s*$/
 
 const FINISH_VALUES = new Set(['foil', 'nonfoil', 'etched'])
 const CONDITION_VALUES = new Set(['NM', 'LP', 'MP', 'HP', 'DMG'])

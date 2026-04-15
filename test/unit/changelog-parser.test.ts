@@ -152,6 +152,37 @@ describe('parseChangelog', () => {
     expect(pages).toHaveLength(1)
     expect(pages[0]!.timestamp).toBe('2026-02-01T00:00:00Z')
   })
+
+  test('parses card with &N card ID suffix', () => {
+    const content = `# Changelog
+
+## 2026-04-15T14:22:02.299Z
+
+- Added Elvish Reclaimer (M20:169) &151
+- Added Nissa, Ascended Animist (ONE:454) [foil] &152
+- Added The Earth Crystal (FIN:184) &153
+`
+    const pages = parseChangelog(content)
+    expect(pages[0]!.changes[0]).toEqual({
+      action: 'Added',
+      cardName: 'Elvish Reclaimer',
+      set: 'm20',
+      collectorNumber: '169',
+    })
+    expect(pages[0]!.changes[1]).toEqual({
+      action: 'Added',
+      cardName: 'Nissa, Ascended Animist',
+      set: 'one',
+      collectorNumber: '454',
+      finish: 'foil',
+    })
+    expect(pages[0]!.changes[2]).toEqual({
+      action: 'Added',
+      cardName: 'The Earth Crystal',
+      set: 'fin',
+      collectorNumber: '184',
+    })
+  })
 })
 
 describe('extractChangelogCardNames', () => {
