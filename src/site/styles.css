@@ -200,6 +200,25 @@ body {
   }
 }
 
+@media (max-width: 480px) {
+  .app-padding {
+    padding: 1rem;
+  }
+
+  .site-header {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .site-nav-sep {
+    display: none;
+  }
+
+  .currency-label {
+    display: none;
+  }
+}
+
 .text-preformatted {
   white-space: pre-wrap;
 }

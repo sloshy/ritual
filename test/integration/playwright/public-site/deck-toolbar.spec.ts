@@ -24,16 +24,22 @@ test.describe('Deck Toolbar', () => {
   })
 
   test('reverse checkbox toggles sort order', async ({ page }) => {
-    // Capture card order before toggling
-    const cardsBefore = await page.locator('.section-divider').allTextContents()
+    // Switch to list view so card names are visible as text
+    await page.locator('[data-view="list"]').click()
+    // Grab card names within the first non-commander section before toggling
+    const firstSection = page
+      .locator('[data-section]')
+      .filter({ hasNotText: /Commander/ })
+      .first()
+    const namesBefore = await firstSection.locator('.card-list .list-name').allTextContents()
     const reverseLabel = page.locator('label').filter({ hasText: 'Reverse' })
     const checkbox = reverseLabel.locator('input[type="checkbox"]')
     await expect(checkbox).not.toBeChecked()
     await checkbox.click()
     await expect(checkbox).toBeChecked()
-    // Card sections should appear in reversed order
-    const cardsAfter = await page.locator('.section-divider').allTextContents()
-    expect(cardsAfter).toEqual([...cardsBefore].reverse())
+    // Cards within the section should appear in reversed order
+    const namesAfter = await firstSection.locator('.card-list .list-name').allTextContents()
+    expect(namesAfter).toEqual([...namesBefore].reverse())
   })
 
   test('hide lands checkbox hides land cards', async ({ page }) => {
