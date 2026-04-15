@@ -9,6 +9,7 @@ import { isPathWithinDir } from '../../path-validation'
 import type { ScryfallCard } from '../../types'
 import type { PriceCurrency } from '../../price-currency'
 import { getBaseDir } from '../../base-dir'
+import { ensureCacheForCards } from '../../cache'
 
 const ALL_CURRENCIES: PriceCurrency[] = ['usd', 'eur', 'tix']
 
@@ -59,6 +60,9 @@ export async function handleWantedListLoad(req: Request): Promise<Response> {
         cardNames.add(name)
       }
     }
+
+    // If many cards are uncached, do a bulk cache refresh first
+    await ensureCacheForCards(cardNames)
 
     const cards: Record<string, ScryfallCard | null> = {}
     const printings: Record<string, ScryfallCard[]> = {}

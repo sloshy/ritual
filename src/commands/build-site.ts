@@ -36,11 +36,8 @@ import { parseCurrenciesFlag, getCardPrice, getCardPriceForFinish } from '../pri
 import type { PriceCurrency } from '../price-currency'
 import { getErrorMessage } from '../errors'
 import type { CacheManager } from '../interfaces'
+import { PRICE_MAX_AGE_MS, BULK_FETCH_THRESHOLD } from '../cache/constants'
 import prompts from 'prompts'
-
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000
-const DAY_MS = 24 * 60 * 60 * 1000
-const BULK_REFRESH_THRESHOLD = 100
 
 interface BuildSiteOptions {
   verbose?: boolean
@@ -63,19 +60,20 @@ async function checkAndOfferBulkPriceRefresh(
   assumeYes: boolean,
 ): Promise<void> {
   const bulkCacheIsRecent =
-    cacheJustRefreshed || (lastBulkRefresh != null && Date.now() - lastBulkRefresh < DAY_MS)
+    cacheJustRefreshed ||
+    (lastBulkRefresh != null && Date.now() - lastBulkRefresh < PRICE_MAX_AGE_MS)
   if (bulkCacheIsRecent) return
 
   let stalePriceCount = 0
   for (const name of uniqueCards) {
     if (await cardCache.isBlocked?.(name)) continue
     const timestamp = await cardCache.getTimestamp?.(name)
-    if (timestamp == null || Date.now() - timestamp >= DAY_MS) {
+    if (timestamp == null || Date.now() - timestamp >= PRICE_MAX_AGE_MS) {
       stalePriceCount++
     }
   }
 
-  if (stalePriceCount <= BULK_REFRESH_THRESHOLD) return
+  if (stalePriceCount <= BULK_FETCH_THRESHOLD) return
 
   console.log(`\n${stalePriceCount} of ${totalCards} card(s) have prices older than 24 hours.`)
   console.log(
@@ -346,23 +344,13 @@ export function registerBuildSiteCommand(program: Command) {
       const totalCards = uniqueCards.length
       console.log(`\nFound ${totalCards} unique cards.`)
 
-      // Pre-check for missing cards
+      // Ensure the full card cache has been bulk-downloaded at least once per week,
+      // and trigger a bulk refresh if many cards are missing.
+      const { ensureCacheForCards } = await import('../cache')
+      const { refreshed: cacheJustRefreshed } = await ensureCacheForCards(allCardNames)
+
+      // Collect missing card names (for verbose output and individual fetching)
       const missingCards: string[] = []
-
-      // Ensure the full card cache has been bulk-downloaded at least once per week
-      const lastBulkRefresh = await cardCache.getLastRefreshedAt?.()
-      let cacheJustRefreshed = false
-      if (!lastBulkRefresh || Date.now() - lastBulkRefresh > WEEK_MS) {
-        console.log(
-          lastBulkRefresh
-            ? 'Card cache bulk download is more than a week old. Re-downloading...'
-            : 'Card cache has never been bulk-downloaded. Downloading from Scryfall...',
-        )
-        const { preloadCache } = await import('../scryfall')
-        await preloadCache()
-        cacheJustRefreshed = true
-      }
-
       for (const name of uniqueCards) {
         const cached = await cardCache.get(name)
         if (!cached) {
@@ -379,6 +367,7 @@ export function registerBuildSiteCommand(program: Command) {
         }
       }
 
+      const lastBulkRefresh = await cardCache.getLastRefreshedAt?.()
       await checkAndOfferBulkPriceRefresh(
         uniqueCards,
         totalCards,
@@ -440,7 +429,7 @@ export function registerBuildSiteCommand(program: Command) {
           const pricesFresh =
             priceTimestamp !== null &&
             priceTimestamp !== undefined &&
-            Date.now() - priceTimestamp < DAY_MS
+            Date.now() - priceTimestamp < PRICE_MAX_AGE_MS
           if (
             priceTimestamp != null &&
             (latestPriceTimestamp == null || priceTimestamp > latestPriceTimestamp)

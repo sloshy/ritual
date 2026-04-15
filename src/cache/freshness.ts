@@ -1,8 +1,7 @@
 import prompts from 'prompts'
 import { cardCache } from './index'
 import { preloadCache } from '../scryfall'
-
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
+import { BULK_CACHE_MAX_AGE_MS } from './constants'
 
 type CacheFreshnessResult = {
   ready: boolean
@@ -40,7 +39,7 @@ export async function ensureFreshCardCache(): Promise<CacheFreshnessResult> {
 
     if (lastRefreshed !== null) {
       const age = Date.now() - lastRefreshed
-      if (age > SEVEN_DAYS_MS) {
+      if (age > BULK_CACHE_MAX_AGE_MS) {
         const days = Math.floor(age / (24 * 60 * 60 * 1000))
         const response = await prompts({
           type: 'confirm',

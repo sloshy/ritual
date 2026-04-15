@@ -22,7 +22,7 @@ import {
   mapScryfallCard,
 } from './card-utils'
 
-const RATE_LIMIT_MS = 100
+const RATE_LIMIT_MS = 150
 const SCRYFALL_CARDS_PER_PAGE = 175
 
 class RequestQueue {
