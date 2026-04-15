@@ -1,5 +1,5 @@
 import { createSignal, createEffect, on, onMount, onCleanup, Show, For } from 'solid-js'
-import type { DeckData, Card, ScryfallCard } from '../../../types'
+import type { DeckData, Card, Finish, ScryfallCard } from '../../../types'
 import type { PriceCurrency } from '../../../price-currency'
 import type { CardPrintingOptions } from '../types/deck-changes'
 import type { CardPriceResponse } from '../../api/card-price'
@@ -223,13 +223,26 @@ export function DeckEditor() {
     const menu = contextMenuCard()
     if (!menu) return
     const cardId = findCardId(menu.cardName)
-    setFinish(menu.cardName, 'foil', cardId)
+    const current = deckData()
+    let currentFinish: Finish = 'nonfoil'
+    if (current) {
+      for (const section of current.sections) {
+        const card = section.cards.find((c) => c.name === menu.cardName)
+        if (card?.finish) {
+          currentFinish = card.finish
+          break
+        }
+      }
+    }
+    const newFinish: Finish =
+      currentFinish === 'foil' || currentFinish === 'etched' ? 'nonfoil' : 'foil'
+    setFinish(menu.cardName, newFinish, cardId)
     setDeckData((prev) =>
       prev
         ? applyChangeToDeck(prev, {
             action: 'set-finish',
             cardName: menu.cardName,
-            finish: 'foil',
+            finish: newFinish,
             cardId,
           })
         : prev,
@@ -425,6 +438,11 @@ export function DeckEditor() {
           <CardContextMenu
             cardName={menu().cardName}
             card={menu().card}
+            currentFinish={
+              deckData()
+                ?.sections.flatMap((s) => s.cards)
+                .find((c) => c.name === menu().cardName)?.finish
+            }
             onSetFoil={handleSetFoil}
             onSetCommander={handleSetCommander}
             onUnsetCommander={handleUnsetCommander}

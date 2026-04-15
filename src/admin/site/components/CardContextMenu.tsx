@@ -1,6 +1,6 @@
 import type { Component } from 'solid-js'
 import { createMemo, onMount, onCleanup, Show } from 'solid-js'
-import type { ScryfallCard } from '../../../types'
+import type { Finish, ScryfallCard } from '../../../types'
 
 const MENU_WIDTH = 180
 const MENU_OFFSET = 4
@@ -10,6 +10,7 @@ interface CardContextMenuProps {
   cardName: string
   card: ScryfallCard | null
   anchorRect: DOMRect
+  currentFinish?: Finish
   onSetFoil: () => void
   onSetCommander?: () => void
   onUnsetCommander: () => void
@@ -22,6 +23,14 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
   let menuRef: HTMLDivElement | undefined
 
   const supportsFoil = createMemo(() => props.card?.finishes?.includes('foil') ?? false)
+  const supportsNonfoil = createMemo(() => props.card?.finishes?.includes('nonfoil') ?? false)
+  const isFoilOrEtched = createMemo(
+    () => props.currentFinish === 'foil' || props.currentFinish === 'etched',
+  )
+  const foilButtonLabel = createMemo(() => (isFoilOrEtched() ? 'Set as Nonfoil' : 'Set as Foil'))
+  const foilButtonDisabled = createMemo(() =>
+    isFoilOrEtched() ? !supportsNonfoil() : !supportsFoil(),
+  )
 
   const menuStyle = createMemo(() => {
     const spaceBelow = window.innerHeight - props.anchorRect.bottom - MENU_OFFSET
@@ -60,13 +69,13 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
       aria-label={`Options for ${props.cardName}`}
     >
       <button
-        class={`card-context-menu-item${supportsFoil() ? '' : ' card-context-menu-item--disabled'}`}
+        class={`card-context-menu-item${foilButtonDisabled() ? ' card-context-menu-item--disabled' : ''}`}
         onClick={() => {
-          if (supportsFoil()) props.onSetFoil()
+          if (!foilButtonDisabled()) props.onSetFoil()
         }}
-        disabled={!supportsFoil()}
+        disabled={foilButtonDisabled()}
       >
-        Set as Foil
+        {foilButtonLabel()}
       </button>
       <Show when={!props.hideCommander}>
         <Show

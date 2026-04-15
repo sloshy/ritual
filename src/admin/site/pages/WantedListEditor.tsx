@@ -1,5 +1,5 @@
 import { createSignal, createEffect, on, onMount, onCleanup, Show, For } from 'solid-js'
-import type { ScryfallCard } from '../../../types'
+import type { Finish, ScryfallCard } from '../../../types'
 import type { PriceCurrency } from '../../../price-currency'
 import type { CardPrintingOptions } from '../types/deck-changes'
 import type { WantedListCardEntry } from '../../../site/data-types'
@@ -170,12 +170,15 @@ export function WantedListEditor() {
     if (!menu) return
     const entry = entries().find((e) => e.name === menu.cardName)
     const cardId = entry?.cardId
-    setFinish(menu.cardName, 'foil', cardId)
+    const currentFinish: Finish = entry?.finish ?? 'nonfoil'
+    const newFinish: Finish =
+      currentFinish === 'foil' || currentFinish === 'etched' ? 'nonfoil' : 'foil'
+    setFinish(menu.cardName, newFinish, cardId)
     setEntries((prev) =>
       applyChangeToWantedList(prev, {
         action: 'set-finish',
         cardName: menu.cardName,
-        finish: 'foil',
+        finish: newFinish,
         cardId,
       }),
     )
@@ -309,6 +312,7 @@ export function WantedListEditor() {
           <CardContextMenu
             cardName={menu().cardName}
             card={menu().card}
+            currentFinish={entries().find((e) => e.name === menu().cardName)?.finish}
             onSetFoil={handleSetFoil}
             onUnsetCommander={closeContextMenu}
             anchorRect={menu().anchorRect}
