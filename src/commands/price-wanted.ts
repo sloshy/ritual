@@ -5,6 +5,7 @@ import { getCardPrintings, getCardGames, computeRepresentativePrints } from '../
 import { parseWantedListFile } from './wanted-helpers'
 import { getPriceForFinish, resolveFinish } from './price-collection'
 import type { CollectionEntry } from './price-collection'
+import { getBaseDir } from '../base-dir'
 import {
   parseCurrencyFlagOrError,
   formatPrice,
@@ -64,7 +65,7 @@ export function registerPriceWantedListCommand(program: Command) {
     )
     if (!currency) return
 
-    const wantedListsDir = path.join(process.cwd(), 'wanted')
+    const wantedListsDir = path.join(getBaseDir(), 'wanted')
 
     try {
       await fs.access(wantedListsDir)

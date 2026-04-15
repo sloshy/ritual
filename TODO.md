@@ -11,7 +11,7 @@
 - Display price of card when added
   - Also add this to the quick add admin site thing, and also for adding to decks once that is improved to be similar to the collection CLI.
 
-## Static Site Generator
+## Public Site
 
 - Add more filtering options (scryfall syntax?)
 - Add filtering printings from appearing as default

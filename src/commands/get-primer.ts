@@ -7,6 +7,7 @@ import { ExitCode } from './scripting'
 import { getLogger } from '../logger'
 import { resolveMoxfieldUserAgent } from './import'
 import type { DeckData } from '../types'
+import { getBaseDir } from '../base-dir'
 
 type GetPrimerOptions = {
   moxfieldUserAgent?: string
@@ -65,7 +66,7 @@ export function registerGetPrimerCommand(program: Command) {
       }
 
       // Local deck file path
-      const decksDir = path.join(process.cwd(), 'decks')
+      const decksDir = path.join(getBaseDir(), 'decks')
       const fileName = source.endsWith('.md') ? source : `${source}.md`
       const filePath = path.join(decksDir, fileName)
 

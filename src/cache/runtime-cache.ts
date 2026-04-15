@@ -8,7 +8,7 @@ export class RuntimeCacheManager<K extends CacheSection> implements CacheManager
   private httpCachesByBaseUrl: Map<string, HttpCacheManager<K>> = new Map()
 
   constructor(
-    filePath: string,
+    filePath: string | (() => string),
     private section: K,
     expirationMs: number = DEFAULT_EXPIRATION_MS,
   ) {

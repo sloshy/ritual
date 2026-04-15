@@ -5,6 +5,7 @@ import { loadConfig } from '../config'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { getErrorMessage } from '../../errors'
 import { MAX_BODY_SIZE } from '../validation'
+import { getBaseDir } from '../../base-dir'
 
 interface DeckDeleteRequest {
   confirmName: string
@@ -41,7 +42,7 @@ export async function handleDeckDelete(req: Request): Promise<Response> {
       return Response.json(resp, { status: 400 })
     }
 
-    const decksDir = path.join(process.cwd(), 'decks')
+    const decksDir = path.join(getBaseDir(), 'decks')
     const filePath = await resolveDeckFilePath(decksDir, slug)
 
     if (!filePath) {

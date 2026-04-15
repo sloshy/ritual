@@ -3,10 +3,17 @@ import { mkdir } from 'node:fs/promises'
 import { type PriceData, type ScryfallCard } from '../types'
 import { type CacheManager, type CacheStreamEntryMeta } from '../interfaces'
 import { getLogger } from '../logger'
+import { getBaseDir } from '../base-dir'
 
-export const CACHE_DIR = path.join(process.cwd(), 'cache')
-export const IMAGE_CACHE_DIR = path.join(CACHE_DIR, 'images')
-export const CACHE_FILE = path.join(CACHE_DIR, 'cache.json')
+export function getCacheDir(): string {
+  return path.join(getBaseDir(), 'cache')
+}
+export function getImageCacheDir(): string {
+  return path.join(getCacheDir(), 'images')
+}
+export function getCacheFile(): string {
+  return path.join(getCacheDir(), 'cache.json')
+}
 export const DEFAULT_EXPIRATION_MS = 86400000 // 24 hours
 const BLOCKLIST_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
@@ -49,13 +56,17 @@ export function streamFromBatchResults<T>(
 }
 
 export class FileCacheManager<K extends CacheSection> implements CacheManager<DataType<K>> {
-  private filePath: string
+  private filePathGetter: () => string
   private section: K
   private memoryCache: CacheSchema | null = null
   private expirationMs: number
 
-  constructor(filePath: string, section: K, expirationMs: number = DEFAULT_EXPIRATION_MS) {
-    this.filePath = filePath
+  constructor(
+    filePath: string | (() => string),
+    section: K,
+    expirationMs: number = DEFAULT_EXPIRATION_MS,
+  ) {
+    this.filePathGetter = typeof filePath === 'function' ? filePath : () => filePath
     this.section = section
     this.expirationMs = expirationMs
   }
@@ -66,7 +77,7 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
     const defaultSchema: CacheSchema = { prices: {}, cards: {} }
     let result: CacheSchema = defaultSchema
     try {
-      const file = Bun.file(this.filePath)
+      const file = Bun.file(this.filePathGetter())
       if (await file.exists()) {
         const text = await file.text()
         const json = JSON.parse(text)
@@ -102,8 +113,9 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
   private async save(): Promise<void> {
     if (!this.memoryCache) return
     try {
-      await mkdir(path.dirname(this.filePath), { recursive: true })
-      await Bun.write(this.filePath, JSON.stringify(this.memoryCache, null, 2))
+      const filePath = this.filePathGetter()
+      await mkdir(path.dirname(filePath), { recursive: true })
+      await Bun.write(filePath, JSON.stringify(this.memoryCache, null, 2))
     } catch (e) {
       getLogger().error('Failed to save cache:', e)
     }

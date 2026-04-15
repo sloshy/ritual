@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { getBaseDir } from '../../base-dir'
 
 type CollectionListItem = { slug: string; name: string }
 
@@ -17,7 +18,7 @@ function parseTitleFromContent(content: string): string | null {
 }
 
 export async function handleListCollections(): Promise<Response> {
-  const collectionsDir = path.join(process.cwd(), 'collections')
+  const collectionsDir = path.join(getBaseDir(), 'collections')
   try {
     const files = await fs.readdir(collectionsDir)
     const collectionFiles = files.filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))

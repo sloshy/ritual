@@ -12,6 +12,7 @@ import {
   type ScriptingOptions,
 } from './scripting'
 import { getErrorMessage } from '../errors'
+import { getBaseDir } from '../base-dir'
 
 type SectionPricingResult = {
   name: string
@@ -49,7 +50,7 @@ export function registerPriceDeckCommand(program: Command) {
     )
     if (!currency) return
 
-    const decksDir = path.join(process.cwd(), 'decks')
+    const decksDir = path.join(getBaseDir(), 'decks')
     const fileName = deckName.endsWith('.md') ? deckName : `${deckName}.md`
     const filePath = path.join(decksDir, fileName)
 

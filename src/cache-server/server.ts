@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import * as fs from 'node:fs/promises'
-import { CACHE_DIR, CACHE_FILE, FileCacheManager } from '../cache'
+import { getCacheDir, getCacheFile, FileCacheManager } from '../cache'
 import { defaultHttpClient } from '../http'
 import { type HttpClient } from '../interfaces'
 import { ScryfallClient } from '../scryfall'
@@ -409,7 +409,7 @@ export function registerCacheServerCommand(program: Command): void {
       false,
     )
     .action(async (options: CacheServerCommandOptions) => {
-      await fs.mkdir(CACHE_DIR, { recursive: true })
+      await fs.mkdir(getCacheDir(), { recursive: true })
 
       const httpClient: HttpClient = options.denyHttp
         ? {
@@ -421,8 +421,8 @@ export function registerCacheServerCommand(program: Command): void {
           }
         : defaultHttpClient
 
-      const localCardCache = new FileCacheManager(CACHE_FILE, 'cards', 0)
-      const localPriceCache = new FileCacheManager(CACHE_FILE, 'prices')
+      const localCardCache = new FileCacheManager(getCacheFile, 'cards', 0)
+      const localPriceCache = new FileCacheManager(getCacheFile, 'prices')
       const localScryfallClient = new ScryfallClient(
         httpClient,
         localCardCache,

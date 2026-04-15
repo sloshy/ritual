@@ -1,5 +1,5 @@
 import { type ScryfallCard, type ScryfallList } from '../types'
-import { CACHE_DIR, IMAGE_CACHE_DIR } from '../cache'
+import { getCacheDir, getImageCacheDir } from '../cache'
 import {
   type HttpClient,
   type CacheManager,
@@ -185,7 +185,7 @@ export class ScryfallClient implements PricingBackend {
   }
 
   async fetchSymbology(forceRefresh = false): Promise<ScryfallSymbol[]> {
-    const cachePath = path.join(CACHE_DIR, 'symbology.json')
+    const cachePath = path.join(getCacheDir(), 'symbology.json')
 
     if (!forceRefresh) {
       try {
@@ -204,7 +204,7 @@ export class ScryfallClient implements PricingBackend {
     const json = (await response.json()) as ScryfallList<ScryfallSymbol>
     const data = json.data
 
-    await this.fileSystem.mkdir(CACHE_DIR, { recursive: true })
+    await this.fileSystem.mkdir(getCacheDir(), { recursive: true })
     await this.fileSystem.writeFile(cachePath, JSON.stringify(data, null, 2))
     return data
   }
@@ -213,7 +213,7 @@ export class ScryfallClient implements PricingBackend {
     // Convert symbol to safe filename (e.g. {W} -> W.svg)
     const safeName = symbol.symbol.replace(/[{}]/g, '').replace(/\//g, '')
     const filename = `${safeName}.svg`
-    const cachePath = path.join(IMAGE_CACHE_DIR, `symbol_${filename}`)
+    const cachePath = path.join(getImageCacheDir(), `symbol_${filename}`)
     const destPath = path.join(destDir, filename)
 
     // Check image cache
@@ -233,7 +233,7 @@ export class ScryfallClient implements PricingBackend {
     if (!response.ok) throw new Error(`Failed to download symbol ${symbol.symbol}`)
 
     const buffer = await response.arrayBuffer()
-    await this.fileSystem.mkdir(IMAGE_CACHE_DIR, { recursive: true })
+    await this.fileSystem.mkdir(getImageCacheDir(), { recursive: true })
     await this.fileSystem.writeFile(cachePath, Buffer.from(buffer))
     await this.fileSystem.copyFile(cachePath, destPath)
 
@@ -664,7 +664,7 @@ export class ScryfallClient implements PricingBackend {
     try {
       // Determine cache path from destPath which includes ID
       const filename = path.basename(destPath)
-      const cachedPath = path.join(IMAGE_CACHE_DIR, filename)
+      const cachedPath = path.join(getImageCacheDir(), filename)
 
       try {
         await this.fileSystem.access(cachedPath)
@@ -676,7 +676,7 @@ export class ScryfallClient implements PricingBackend {
       }
 
       // Download if not in cache
-      await this.fileSystem.mkdir(IMAGE_CACHE_DIR, { recursive: true })
+      await this.fileSystem.mkdir(getImageCacheDir(), { recursive: true })
 
       const response = await this.http.fetch(url)
       if (!response.ok) return false

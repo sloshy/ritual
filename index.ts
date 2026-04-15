@@ -35,6 +35,7 @@ import {
   setCacheServerAddressOverride,
   toCacheServerBaseUrl,
 } from './src/cache/config'
+import { setBaseDir } from './src/base-dir'
 
 const program = new Command()
 
@@ -43,11 +44,16 @@ program.option(
   '--cache-server <host:port>',
   'Use a cache server for card and pricing cache (overrides local cache files)',
 )
+program.option('--base-dir <path>', 'Use this directory instead of the current working directory')
+type GlobalOptions = { cacheServer?: string; baseDir?: string }
+type CommandWithGlobals = Command & { optsWithGlobals: () => GlobalOptions }
+
 program.hook('preAction', (command) => {
-  const commandWithGlobals = command as Command & {
-    optsWithGlobals: () => { cacheServer?: string }
-  }
+  const commandWithGlobals = command as CommandWithGlobals
   const options = commandWithGlobals.optsWithGlobals()
+  if (options.baseDir) {
+    setBaseDir(options.baseDir)
+  }
   const resolved = resolveCacheServerAddress(options.cacheServer, process.env.RITUAL_CACHE_SERVER)
   if (resolved) {
     toCacheServerBaseUrl(resolved)

@@ -3,6 +3,7 @@ import { shouldAutoCommit, commitFiles } from '../git'
 import { apiHandler } from '../utils'
 import path from 'node:path'
 import { MAX_BODY_SIZE } from '../validation'
+import { getBaseDir } from '../../base-dir'
 
 interface ConfigResponse {
   success: boolean
@@ -27,8 +28,8 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
     const merged: AdminConfig = { ...current, ...updates }
     await saveConfig(merged)
 
-    const configPath = path.join(process.cwd(), 'ritual.config.json')
-    if (shouldAutoCommit(merged, process.cwd())) {
+    const configPath = path.join(getBaseDir(), 'ritual.config.json')
+    if (shouldAutoCommit(merged, getBaseDir())) {
       commitFiles([configPath], 'Update ritual configuration')
     }
 

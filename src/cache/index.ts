@@ -1,7 +1,7 @@
 export {
-  CACHE_DIR,
-  IMAGE_CACHE_DIR,
-  CACHE_FILE,
+  getCacheDir,
+  getImageCacheDir,
+  getCacheFile,
   type CacheSection,
   type DataType,
   streamFromBatchResults,
@@ -11,11 +11,11 @@ export {
 export { HttpCacheManager } from './http-cache'
 export { RuntimeCacheManager } from './runtime-cache'
 
-import { CACHE_FILE } from './file-cache'
+import { getCacheFile } from './file-cache'
 import { RuntimeCacheManager } from './runtime-cache'
 
-// Instances
-export const defaultCache = new RuntimeCacheManager(CACHE_FILE, 'prices')
+// Instances — use lazy path getters so --base-dir is respected at call time
+export const defaultCache = new RuntimeCacheManager(getCacheFile, 'prices')
 
 // 0 means no expiration (infinite)
-export const cardCache = new RuntimeCacheManager(CACHE_FILE, 'cards', 0)
+export const cardCache = new RuntimeCacheManager(getCacheFile, 'cards', 0)

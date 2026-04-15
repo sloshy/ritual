@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process'
 import path from 'node:path'
 import type { AdminConfig } from './config'
+import { getBaseDir } from '../base-dir'
 
 export function isGitRepo(dir: string): boolean {
   try {
@@ -20,7 +21,7 @@ export function isGitRepo(dir: string): boolean {
 }
 
 export function commitFiles(files: string[], message: string, cwd?: string): void {
-  const workDir = cwd ?? process.cwd()
+  const workDir = cwd ?? getBaseDir()
   const relativePaths = files.map((f) => path.relative(workDir, f))
 
   for (const file of relativePaths) {
@@ -37,7 +38,7 @@ export function commitFiles(files: string[], message: string, cwd?: string): voi
 }
 
 export function pushChanges(cwd?: string): void {
-  const workDir = cwd ?? process.cwd()
+  const workDir = cwd ?? getBaseDir()
   execSync('git push', {
     cwd: workDir,
     stdio: ['pipe', 'pipe', 'pipe'],

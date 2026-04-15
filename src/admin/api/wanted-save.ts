@@ -9,6 +9,7 @@ import { appendChangelog } from '../../changelog-writer'
 import type { WantedListCardEntry } from '../../site/data-types'
 import type { ChangeEvent } from '../site/types/deck-changes'
 import { formatWantedListLine } from '../../commands/wanted-helpers'
+import { getBaseDir } from '../../base-dir'
 
 interface WantedListSaveRequest {
   changes: ChangeEvent[]
@@ -56,7 +57,7 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
       )
     }
 
-    const wantedListsDir = path.join(process.cwd(), 'wanted')
+    const wantedListsDir = path.join(getBaseDir(), 'wanted')
     const filePath = path.join(wantedListsDir, slug + '.md')
     if (!isPathWithinDir(filePath, wantedListsDir)) {
       return Response.json({ success: false, message: 'Invalid wanted list slug' }, { status: 400 })

@@ -84,6 +84,29 @@ Ritual supports building static websites to showcase your decks (and soon, your 
 
 Then open http://localhost:3000 to view your deck collection.
 
+## Global Options
+
+These options are available on every command:
+
+| Option                       | Description                                                 |
+| ---------------------------- | ----------------------------------------------------------- |
+| `--base-dir <path>`          | Use this directory instead of the current working directory |
+| `--cache-server <host:port>` | Use a remote cache server instead of local cache files      |
+
+### `--base-dir`
+
+By default, Ritual reads and writes files relative to the directory you run it from (the current working directory). Use `--base-dir` to point Ritual at a different directory without needing to `cd` there first:
+
+```bash
+# Run from anywhere, but operate on files in ~/my-collection
+ritual --base-dir ~/my-collection build-site
+
+# Price all decks in a specific project directory
+ritual --base-dir /projects/mtg price "My Deck"
+```
+
+This affects all file paths: decks, collections, wanted lists, cache, config files, and the output `dist/` directory.
+
 ## Features
 
 - **Deck Management**: Create and organize your MTG decks

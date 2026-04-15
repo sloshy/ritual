@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { getBaseDir } from '../base-dir'
 
 export interface AdminConfig {
   decksDir: string
@@ -38,7 +39,7 @@ const DEFAULT_CONFIG = {
 } satisfies AdminConfig
 
 function getConfigPath(): string {
-  return path.join(process.cwd(), 'ritual.config.json')
+  return path.join(getBaseDir(), 'ritual.config.json')
 }
 
 export async function loadConfig(): Promise<AdminConfig> {

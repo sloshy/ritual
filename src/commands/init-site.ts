@@ -13,6 +13,7 @@ import { loadRitualSiteConfig, saveRitualSiteConfig } from '../ritual-site-confi
 import type { ActiveManagedFile, ManagedFile, Migration } from '../managed-files'
 import { computeMigrations, isActiveManagedFile } from '../managed-files'
 import { compareVersions } from '../semver'
+import { getBaseDir } from '../base-dir'
 import { version as ritualVersion } from '../version'
 
 export function generatePublishForMeWorkflow(config?: GitHubActionsInitConfig): string {
@@ -342,7 +343,7 @@ async function fileExists(filePath: string): Promise<boolean> {
 }
 
 async function promptOverwrite(filePath: string): Promise<boolean> {
-  const relativePath = path.relative(process.cwd(), filePath)
+  const relativePath = path.relative(getBaseDir(), filePath)
   let cancelled = false
   const response = await prompts(
     {
@@ -376,7 +377,7 @@ async function writeFileWithOverwritePrompt(
 }
 
 async function updateGitignore(entries: string): Promise<'created' | 'updated' | 'unchanged'> {
-  const gitignorePath = path.join(process.cwd(), '.gitignore')
+  const gitignorePath = path.join(getBaseDir(), '.gitignore')
   const linesToAdd = entries
     .split('\n')
     .map((l) => l.trim())
@@ -424,7 +425,7 @@ const MANAGED_FILES: ManagedFile[] = [
 
 async function applyMigrations(migrations: Migration[]): Promise<void> {
   for (const migration of migrations) {
-    const fullPath = path.join(process.cwd(), migration.path)
+    const fullPath = path.join(getBaseDir(), migration.path)
     if (migration.type === 'write') {
       await fs.mkdir(path.dirname(fullPath), { recursive: true })
       await fs.writeFile(fullPath, migration.content, 'utf-8')
@@ -659,7 +660,7 @@ async function writeInitFiles(config: InitSiteConfig, opts: { force: boolean }):
     if (file.ciSystem !== config.ciSystem) continue
     const currentRecord = file.paths.find((r) => r.until === undefined)
     if (!currentRecord) continue
-    const filePath = path.join(process.cwd(), currentRecord.path)
+    const filePath = path.join(getBaseDir(), currentRecord.path)
     const result = await writeFileWithOverwritePrompt(filePath, file.generate(config), opts)
     if (result === 'written') {
       console.log(`✓ Created ${currentRecord.path}`)
@@ -669,7 +670,7 @@ async function writeInitFiles(config: InitSiteConfig, opts: { force: boolean }):
   }
 
   // Write README (user-editable — always prompt, even with --force)
-  const readmePath = path.join(process.cwd(), 'README.md')
+  const readmePath = path.join(getBaseDir(), 'README.md')
   const readmeResult = await writeFileWithOverwritePrompt(readmePath, generateReadme(config))
   if (readmeResult === 'written') {
     console.log('✓ Created README.md')

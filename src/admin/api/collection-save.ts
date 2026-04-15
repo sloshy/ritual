@@ -9,6 +9,7 @@ import { appendChangelog } from '../../changelog-writer'
 import type { CollectionCardEntry } from '../../site/data-types'
 import type { ChangeEvent } from '../site/types/deck-changes'
 import { formatCollectionLine } from '../../commands/collection-helpers'
+import { getBaseDir } from '../../base-dir'
 
 interface CollectionSaveRequest {
   changes: ChangeEvent[]
@@ -56,7 +57,7 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
       )
     }
 
-    const collectionsDir = path.join(process.cwd(), 'collections')
+    const collectionsDir = path.join(getBaseDir(), 'collections')
     const filePath = path.join(collectionsDir, slug + '.md')
     if (!isPathWithinDir(filePath, collectionsDir)) {
       return Response.json({ success: false, message: 'Invalid collection slug' }, { status: 400 })

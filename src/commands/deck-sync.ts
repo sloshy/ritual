@@ -22,6 +22,7 @@ import {
   applyDownloadDiff,
   type NameDiff,
 } from './deck-sync-helpers'
+import { getBaseDir } from '../base-dir'
 
 // ── Archidekt raw response helpers ────────────────────────────────────
 
@@ -272,7 +273,7 @@ export function registerDeckSyncCommand(program: Command): void {
           process.exit(1)
         }
 
-        const decksDir = path.join(process.cwd(), 'decks')
+        const decksDir = path.join(getBaseDir(), 'decks')
         const targets = await resolveTargetDecks(decks, decksDir)
 
         if (targets.length === 0) {

@@ -4,6 +4,7 @@ import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { getAllCardNames, getCardsBySet } from '../scryfall'
 import type { ScryfallCard } from '../types'
+import { getBaseDir } from '../base-dir'
 import { resolveCardPrinting, manageSetCodes, replaceLastLine } from './collection-helpers'
 import {
   type WantedListSessionConfig,
@@ -47,7 +48,7 @@ export function registerWantedListCommand(program: Command) {
       console.log(`Loaded ${cardNames.length} cards.`)
 
       // Ensure wanted directory exists
-      const wantedListsDir = path.join(process.cwd(), 'wanted')
+      const wantedListsDir = path.join(getBaseDir(), 'wanted')
       await fs.mkdir(wantedListsDir, { recursive: true })
 
       // List existing wanted lists

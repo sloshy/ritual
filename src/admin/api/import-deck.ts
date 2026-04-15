@@ -8,6 +8,7 @@ import { loadConfig } from '../config'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { apiHandler } from '../utils'
 import type { DeckData } from '../../types'
+import { getBaseDir } from '../../base-dir'
 
 interface ImportDeckRequest {
   source: string
@@ -59,7 +60,7 @@ export function handleImportDeck(req: Request): Promise<Response> {
       return Response.json(resp, { status: 500 })
     }
 
-    const decksDir = path.join(process.cwd(), 'decks')
+    const decksDir = path.join(getBaseDir(), 'decks')
     await saveDeck(deckData, decksDir, {
       forceOverwrite: overwrite,
       nonInteractive: true,

@@ -3,6 +3,7 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import { startAdminServer } from '../admin/server'
 import { getBundledAdminCss, getBundledAdminJs } from '../admin/bundled-assets'
+import { getBaseDir } from '../base-dir'
 
 type AdminCommandOptions = {
   port: string
@@ -18,7 +19,7 @@ export function registerAdminCommand(program: Command) {
     .action(async (options: AdminCommandOptions) => {
       const port = parseInt(options.port, 10)
       const host = options.host
-      const adminDistDir = path.join(process.cwd(), '.admin-dist')
+      const adminDistDir = path.join(getBaseDir(), '.admin-dist')
 
       console.log('Preparing admin interface...')
 

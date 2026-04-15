@@ -1,8 +1,9 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { getBaseDir } from './base-dir'
 
 export function getLoginsDir(): string {
-  return path.join(process.cwd(), '.logins')
+  return path.join(getBaseDir(), '.logins')
 }
 
 export async function ensureLoginsDir(): Promise<void> {

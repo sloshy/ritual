@@ -8,6 +8,7 @@ import { MAX_BODY_SIZE } from '../validation'
 import { appendChangelog } from '../../changelog-writer'
 import type { DeckData } from '../../types'
 import type { ChangeEvent } from '../site/types/deck-changes'
+import { getBaseDir } from '../../base-dir'
 
 interface DeckSaveRequest {
   changes: ChangeEvent[]
@@ -39,7 +40,7 @@ export async function handleDeckSave(req: Request): Promise<Response> {
       )
     }
 
-    const decksDir = path.join(process.cwd(), 'decks')
+    const decksDir = path.join(getBaseDir(), 'decks')
     const filePath = await resolveDeckFilePath(decksDir, slug)
 
     if (!filePath) {

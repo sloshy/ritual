@@ -8,6 +8,7 @@ import { extractChangelogCardNames, parseChangelog } from '../../changelog-parse
 import { isPathWithinDir } from '../../path-validation'
 import type { ScryfallCard } from '../../types'
 import type { PriceCurrency } from '../../price-currency'
+import { getBaseDir } from '../../base-dir'
 
 const ALL_CURRENCIES: PriceCurrency[] = ['usd', 'eur', 'tix']
 
@@ -25,7 +26,7 @@ export async function handleWantedListLoad(req: Request): Promise<Response> {
     }
 
     const slug = decodeURIComponent(rawSlug)
-    const wantedListsDir = path.join(process.cwd(), 'wanted')
+    const wantedListsDir = path.join(getBaseDir(), 'wanted')
     const filePath = path.join(wantedListsDir, slug + '.md')
     if (!isPathWithinDir(filePath, wantedListsDir)) {
       return Response.json({ success: false, message: 'Invalid wanted list slug' }, { status: 400 })

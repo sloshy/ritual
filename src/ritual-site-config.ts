@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { isValidSemver } from './semver'
+import { getBaseDir } from './base-dir'
 
 export type CISystem = 'github-actions' | 'manual'
 export type DeployMode = 'publish-for-me' | 'local-build'
@@ -23,7 +24,7 @@ export type RitualSiteConfig = InitSiteConfig & { version: string }
 const CONFIG_FILENAME = 'ritual-site.json'
 
 export function getRitualSiteConfigPath(): string {
-  return path.join(process.cwd(), CONFIG_FILENAME)
+  return path.join(getBaseDir(), CONFIG_FILENAME)
 }
 
 /**

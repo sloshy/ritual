@@ -15,6 +15,7 @@ import { parseCollectionFile } from './price-collection'
 import { parseWantedListFile } from './wanted-helpers'
 import { appendChangelog } from '../changelog-writer'
 import { formatChange, type ChangeEvent } from '../change-event'
+import { getBaseDir } from '../base-dir'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -153,7 +154,7 @@ export function registerGitDetectChangesCommand(program: Command) {
     .argument('<commit>', 'Git commit hash or ref to diff against (e.g. HEAD~1, abc123)')
     .option('--dry-run', 'Preview detected changes without writing files')
     .action(async (commit: string, options: GitDetectChangesOptions) => {
-      const cwd = process.cwd()
+      const cwd = getBaseDir()
       const dryRun = options.dryRun ?? false
 
       console.log(`Comparing against ${commit}...`)

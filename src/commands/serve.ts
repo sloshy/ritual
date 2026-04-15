@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import path from 'node:path'
+import { getBaseDir } from '../base-dir'
 
 export function registerServeCommand(program: Command) {
   program
@@ -7,7 +8,7 @@ export function registerServeCommand(program: Command) {
     .description('Serve the generated static site')
     .option('-p, --port <number>', 'Port to serve on', '3000')
     .action((options) => {
-      const distDir = path.join(process.cwd(), 'dist')
+      const distDir = path.join(getBaseDir(), 'dist')
       const port = parseInt(options.port)
 
       console.log(`Serving site from ${distDir} at http://localhost:${port}...`)

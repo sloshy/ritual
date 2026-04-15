@@ -4,6 +4,7 @@ import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../g
 import { getErrorMessage } from '../../errors'
 import { isPathWithinDir } from '../../path-validation'
 import { MAX_BODY_SIZE } from '../validation'
+import { getBaseDir } from '../../base-dir'
 
 interface DeckCreateRequest {
   name: string
@@ -44,7 +45,7 @@ export async function handleDeckCreate(req: Request): Promise<Response> {
       return Response.json(resp, { status: 400 })
     }
 
-    const decksDir = path.join(process.cwd(), 'decks')
+    const decksDir = path.join(getBaseDir(), 'decks')
     const filePath = path.join(decksDir, `${slug}.md`)
 
     if (!isPathWithinDir(filePath, decksDir)) {

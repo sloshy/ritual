@@ -10,6 +10,7 @@ import { type DeckData } from '../types'
 import { parseMoxfieldPrimer } from '../primer-parser'
 import { ExitCode } from './scripting'
 import { getLogger } from '../logger'
+import { getBaseDir } from '../base-dir'
 
 interface SaveDeckOptions {
   forceOverwrite?: boolean
@@ -295,7 +296,7 @@ export function registerImportCommand(program: Command) {
           throw new Error('Failed to parse deck data')
         }
 
-        const decksDir = path.join(process.cwd(), 'decks')
+        const decksDir = path.join(getBaseDir(), 'decks')
         await saveDeck(deckData, decksDir, {
           forceOverwrite: options.overwrite === true,
           nonInteractive: options.nonInteractive === true || options.yes === true,

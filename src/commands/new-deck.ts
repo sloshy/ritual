@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 import path from 'node:path'
 import * as fs from 'node:fs/promises'
+import { getBaseDir } from '../base-dir'
 
 export function registerNewDeckCommand(program: Command) {
   program
@@ -9,7 +10,7 @@ export function registerNewDeckCommand(program: Command) {
     .argument('<name>', 'Name of the deck')
     .option('-f, --format <format>', 'Deck format (e.g., standard, commander)', 'commander')
     .action(async (name, options) => {
-      const decksDir = path.join(process.cwd(), 'decks')
+      const decksDir = path.join(getBaseDir(), 'decks')
       const safeName = name
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')

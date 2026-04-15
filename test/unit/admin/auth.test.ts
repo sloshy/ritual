@@ -9,6 +9,7 @@ import {
   isTotpEnabled,
   setTotpSecret,
 } from '../../../src/admin/auth'
+import { setBaseDir } from '../../../src/base-dir'
 
 const testDir = path.join(import.meta.dir, '../../.test-admin-auth')
 
@@ -17,11 +18,11 @@ describe('admin auth', () => {
 
   beforeEach(async () => {
     await fs.mkdir(testDir, { recursive: true })
-    process.chdir(testDir)
+    setBaseDir(testDir)
   })
 
   afterEach(async () => {
-    process.chdir(originalCwd)
+    setBaseDir(originalCwd)
     await fs.rm(testDir, { recursive: true, force: true })
   })
 

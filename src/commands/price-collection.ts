@@ -4,6 +4,7 @@ import path from 'node:path'
 import { getCardPrintings, getCardGames } from '../scryfall'
 import type { Condition, Finish, ScryfallCard } from '../types'
 import { isCondition, isFinish } from './collection-helpers'
+import { getBaseDir } from '../base-dir'
 import {
   parseCurrencyFlagOrError,
   formatPrice,
@@ -109,7 +110,7 @@ export function registerPriceCollectionCommand(program: Command) {
     )
     if (!currency) return
 
-    const collectionsDir = path.join(process.cwd(), 'collections')
+    const collectionsDir = path.join(getBaseDir(), 'collections')
 
     try {
       await fs.access(collectionsDir)

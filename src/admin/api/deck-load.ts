@@ -8,6 +8,7 @@ import { getErrorMessage } from '../../errors'
 import { extractChangelogCardNames, parseChangelog } from '../../changelog-parser'
 import type { ScryfallCard } from '../../types'
 import type { PriceCurrency } from '../../price-currency'
+import { getBaseDir } from '../../base-dir'
 
 const ALL_CURRENCIES: PriceCurrency[] = ['usd', 'eur', 'tix']
 
@@ -21,7 +22,7 @@ export async function handleDeckLoad(req: Request): Promise<Response> {
       return Response.json({ success: false, message: 'Deck slug is required' }, { status: 400 })
     }
 
-    const decksDir = path.join(process.cwd(), 'decks')
+    const decksDir = path.join(getBaseDir(), 'decks')
     const filePath = await resolveDeckFilePath(decksDir, slug)
 
     if (!filePath) {

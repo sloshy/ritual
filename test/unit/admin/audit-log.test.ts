@@ -2,13 +2,14 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { appendAuditLog, createAuditEntry, readAuditLog } from '../../../src/admin/audit-log'
+import { getBaseDir } from '../../../src/base-dir'
 
 describe('audit log', () => {
-  const logPath = path.join(process.cwd(), '.logins', 'admin-audit.log')
+  const logPath = () => path.join(getBaseDir(), '.logins', 'admin-audit.log')
 
   beforeEach(async () => {
     try {
-      await fs.unlink(logPath)
+      await fs.unlink(logPath())
     } catch {
       // ignore
     }
@@ -16,7 +17,7 @@ describe('audit log', () => {
 
   afterEach(async () => {
     try {
-      await fs.unlink(logPath)
+      await fs.unlink(logPath())
     } catch {
       // ignore
     }

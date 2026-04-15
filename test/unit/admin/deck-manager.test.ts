@@ -4,6 +4,7 @@ import path from 'node:path'
 import { handleDeckCreate } from '../../../src/admin/api/deck-create'
 import { handleDeckRename } from '../../../src/admin/api/deck-rename'
 import { handleDeckDelete } from '../../../src/admin/api/deck-delete'
+import { setBaseDir } from '../../../src/base-dir'
 
 const testDir = path.join(import.meta.dir, '../../.test-deck-manager')
 const decksDir = path.join(testDir, 'decks')
@@ -22,11 +23,11 @@ describe('deck-create handler', () => {
 
   beforeEach(async () => {
     await fs.mkdir(decksDir, { recursive: true })
-    process.chdir(testDir)
+    setBaseDir(testDir)
   })
 
   afterEach(async () => {
-    process.chdir(originalCwd)
+    setBaseDir(originalCwd)
     await fs.rm(testDir, { recursive: true, force: true })
   })
 
@@ -94,7 +95,7 @@ describe('deck-rename handler', () => {
 
   beforeEach(async () => {
     await fs.mkdir(decksDir, { recursive: true })
-    process.chdir(testDir)
+    setBaseDir(testDir)
 
     // Create a test deck
     await Bun.write(
@@ -104,7 +105,7 @@ describe('deck-rename handler', () => {
   })
 
   afterEach(async () => {
-    process.chdir(originalCwd)
+    setBaseDir(originalCwd)
     await fs.rm(testDir, { recursive: true, force: true })
   })
 
@@ -175,7 +176,7 @@ describe('deck-delete handler', () => {
 
   beforeEach(async () => {
     await fs.mkdir(decksDir, { recursive: true })
-    process.chdir(testDir)
+    setBaseDir(testDir)
 
     await Bun.write(
       path.join(decksDir, 'test-deck.md'),
@@ -184,7 +185,7 @@ describe('deck-delete handler', () => {
   })
 
   afterEach(async () => {
-    process.chdir(originalCwd)
+    setBaseDir(originalCwd)
     await fs.rm(testDir, { recursive: true, force: true })
   })
 

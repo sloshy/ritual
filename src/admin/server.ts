@@ -11,6 +11,7 @@ import { handleArchidektLogin } from './api/login'
 import { handleGetConfig, handleUpdateConfig } from './api/config'
 import { handleSetup } from './api/setup'
 import { handleSearchCards } from './api/search-cards'
+import { getBaseDir } from '../base-dir'
 import {
   handleTotpSetup,
   handleTotpVerifySetup,
@@ -280,7 +281,7 @@ export async function startAdminServer(options: AdminServerOptions): Promise<voi
 
   await Promise.all(
     ['decks', 'collections', 'wanted'].map((dir) =>
-      fs.mkdir(path.join(process.cwd(), dir), { recursive: true }),
+      fs.mkdir(path.join(getBaseDir(), dir), { recursive: true }),
     ),
   )
 

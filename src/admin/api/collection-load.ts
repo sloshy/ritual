@@ -8,6 +8,7 @@ import { extractChangelogCardNames, parseChangelog } from '../../changelog-parse
 import { isPathWithinDir } from '../../path-validation'
 import type { ScryfallCard } from '../../types'
 import type { PriceCurrency } from '../../price-currency'
+import { getBaseDir } from '../../base-dir'
 
 const ALL_CURRENCIES: PriceCurrency[] = ['usd', 'eur', 'tix']
 
@@ -25,7 +26,7 @@ export async function handleCollectionLoad(req: Request): Promise<Response> {
     }
 
     const slug = decodeURIComponent(rawSlug)
-    const collectionsDir = path.join(process.cwd(), 'collections')
+    const collectionsDir = path.join(getBaseDir(), 'collections')
     const filePath = path.join(collectionsDir, slug + '.md')
     if (!isPathWithinDir(filePath, collectionsDir)) {
       return Response.json({ success: false, message: 'Invalid collection slug' }, { status: 400 })

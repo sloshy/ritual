@@ -19,6 +19,7 @@ import { ensureFreshCardCache } from '../cache/freshness'
 import { appendChangelog } from '../changelog-writer'
 import { createChangeEvent } from '../change-event'
 import { allocateNextIdFromContent } from '../card-id'
+import { getBaseDir } from '../base-dir'
 
 /** Parse existing &N IDs from a file and allocate the next available ID. */
 async function allocateNextIdFromFile(filePath: string): Promise<number> {
@@ -219,7 +220,7 @@ async function handleDeckAddCard(
   selectedName: string,
   options: AddCardOptions,
 ): Promise<void> {
-  const decksDir = path.join(process.cwd(), 'decks')
+  const decksDir = path.join(getBaseDir(), 'decks')
 
   const quantity = Number.parseInt(options.quantity, 10)
   if (Number.isNaN(quantity) || quantity <= 0) {
