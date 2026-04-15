@@ -2,6 +2,7 @@ import { Command } from 'commander'
 
 import { ArchidektAuth } from '../auth/ArchidektAuth'
 import { FileTokenStore } from '../auth/FileTokenStore'
+import { promptForLogin } from '../auth/login-helper'
 
 export function registerLoginCommand(program: Command) {
   const loginCommand = program.command('login').description('Login to a supported website')
@@ -30,7 +31,6 @@ export function registerLoginCommand(program: Command) {
         }
       }
 
-      const { promptForLogin } = await import('../auth/login-helper')
       await promptForLogin(auth)
     })
 }

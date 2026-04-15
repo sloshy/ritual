@@ -8,7 +8,11 @@ import {
   getCardPrintings,
   fetchRepresentativePrints,
   computeRepresentativePrints,
+  fetchSymbology,
+  downloadSymbol,
+  preloadCache,
 } from '../scryfall'
+import { cardCache, ensureCacheForCards } from '../cache'
 import { getBundledSiteAssets } from '../site/bundled-assets'
 import type { DeckData, Finish, ScryfallCard } from '../types'
 import { extractPrimerCardNames } from '../primer-parser'
@@ -92,7 +96,6 @@ async function checkAndOfferBulkPriceRefresh(
     ).value === true
 
   if (shouldPreload) {
-    const { preloadCache } = await import('../scryfall')
     await preloadCache()
   }
 }
@@ -192,7 +195,6 @@ export function registerBuildSiteCommand(program: Command) {
 
       // Fetch and download symbols
       console.log('Fetching and downloading mana symbols...')
-      const { fetchSymbology, downloadSymbol } = await import('../scryfall')
       let symbols = await fetchSymbology()
       const symbolMap: Record<string, string> = {} // { "{W}": "images/symbols/W.svg" }
       const missingSymbols = new Set<string>()
@@ -323,7 +325,6 @@ export function registerBuildSiteCommand(program: Command) {
       }
 
       // Phase 2: Fetch Cards with Progress Bar
-      const { cardCache } = await import('../cache') // Dynamic import to avoid earlier execution if needed
 
       // Resolve primer card names to their canonical (proper-case) names via the cache index
       for (const name of primerCardNames) {
@@ -346,7 +347,6 @@ export function registerBuildSiteCommand(program: Command) {
 
       // Ensure the full card cache has been bulk-downloaded at least once per week,
       // and trigger a bulk refresh if many cards are missing.
-      const { ensureCacheForCards } = await import('../cache')
       const { refreshed: cacheJustRefreshed } = await ensureCacheForCards(allCardNames)
 
       // Collect missing card names (for verbose output and individual fetching)

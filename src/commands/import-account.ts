@@ -12,6 +12,7 @@ import { saveDeck } from './import'
 import { ExitCode } from './scripting'
 import { getErrorMessage } from '../errors'
 import { getBaseDir } from '../base-dir'
+import { promptForLogin } from '../auth/login-helper'
 
 export function registerImportAccountCommand(program: Command) {
   program
@@ -63,7 +64,6 @@ export function registerImportAccountCommand(program: Command) {
                 return undefined
               }
               console.log('Session expired or invalid. Please login again.')
-              const { promptForLogin } = await import('../auth/login-helper')
               const success = await promptForLogin(auth)
               if (success) {
                 token = (await auth.getToken()) ?? undefined
