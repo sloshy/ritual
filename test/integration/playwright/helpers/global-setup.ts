@@ -52,15 +52,10 @@ function killPort(port: number): void {
 async function globalSetup() {
   const cwd = path.resolve(__dirname, '../../../..')
 
-  // Build the site only if dist/ doesn't already exist
-  const distDir = path.join(cwd, 'dist')
-  if (!fs.existsSync(path.join(distDir, 'index.html'))) {
-    console.log('[global-setup] Building site...')
-    execSync('bun run index.ts build-site --yes', { cwd, stdio: 'pipe', timeout: 300_000 })
-    console.log('[global-setup] Site built.')
-  } else {
-    console.log('[global-setup] Site already built, skipping build.')
-  }
+  // Always rebuild the site to ensure latest code is served
+  console.log('[global-setup] Building site...')
+  execSync('bun run index.ts build-site --yes', { cwd, stdio: 'pipe', timeout: 300_000 })
+  console.log('[global-setup] Site built.')
 
   // Clean up any previous admin auth state so setup flow works
   const loginsDir = path.join(cwd, '.logins')
