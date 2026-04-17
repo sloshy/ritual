@@ -17,6 +17,7 @@ import {
 import { appendChangelog } from '../changelog-writer'
 import { createChangeEvent } from '../change-event'
 import type { ChangeEvent } from '../change-event'
+import { allocateNextIdFromContent } from '../card-id'
 import { trackAdd, trackEdit, trackAnotherCopy } from '../session-changelog'
 import { appendFileWithHash, writeFileWithHash } from '../content-hash'
 
@@ -112,7 +113,7 @@ export function registerWantedListCommand(program: Command) {
         sessionConfig.activeSetIndex = 0
       }
 
-      type LastAddedCard = { name: string; line: string; hasNote: boolean }
+      type LastAddedCard = { name: string; line: string; hasNote: boolean; cardId?: number }
       let lastAddedCard: LastAddedCard | null = null
       let lastAddedCount = 0
       const sessionChanges: ChangeEvent[] = []
@@ -279,10 +280,14 @@ export function registerWantedListCommand(program: Command) {
         // Handle mode switches
         if (response.cardName === '__ADD_ANOTHER__' && lastAddedCard) {
           try {
-            await appendFileWithHash(listFile, lastAddedCard.line)
+            const fileContent = await fs.readFile(listFile, 'utf-8')
+            const { nextId: cardId } = allocateNextIdFromContent(fileContent)
+            const lineWithoutId = lastAddedCard.line.trimEnd().replace(/\s*&\d+$/, '')
+            const newLine = `${lineWithoutId} &${cardId}\n`
+            await appendFileWithHash(listFile, newLine)
             lastAddedCount++
-            console.log(`Added: ${lastAddedCard.line.trim()} (${lastAddedCount}x total)`)
-            const newIdx = trackAnotherCopy(sessionChanges, lastChangeIndex)
+            console.log(`Added: ${newLine.trim()} (${lastAddedCount}x total)`)
+            const newIdx = trackAnotherCopy(sessionChanges, lastChangeIndex, cardId)
             if (newIdx !== null) lastChangeIndex = newIdx
           } catch (e) {
             console.error(`Failed to write to file: ${e}`)
@@ -302,10 +307,18 @@ export function registerWantedListCommand(program: Command) {
               const fileContent = await fs.readFile(listFile, 'utf-8')
               const lines = fileContent.trimEnd().split('\n')
               if ((lines[lines.length - 1] ?? '').trim() === lastAddedCard.line.trim()) {
-                const newLine: string = lastAddedCard.line.trimEnd() + ` {${note}}`
+                const lineWithoutId: string = lastAddedCard.line.trimEnd().replace(/\s*&\d+$/, '')
+                const idSuffix: string =
+                  lastAddedCard.cardId !== undefined ? ` &${lastAddedCard.cardId}` : ''
+                const newLine: string = `${lineWithoutId} {${note}}${idSuffix}`
                 lines[lines.length - 1] = newLine
                 await writeFileWithHash(listFile, lines.join('\n') + '\n')
-                lastAddedCard = { name: lastAddedCard.name, line: newLine + '\n', hasNote: true }
+                lastAddedCard = {
+                  name: lastAddedCard.name,
+                  line: newLine + '\n',
+                  hasNote: true,
+                  cardId: lastAddedCard.cardId,
+                }
                 console.log(`Note added: ${newLine}`)
               } else {
                 console.warn("Last line in file doesn't match last added card. Note not added.")
@@ -403,8 +416,21 @@ export function registerWantedListCommand(program: Command) {
         if (!specificityResponse.specificity) continue
 
         if (specificityResponse.specificity === 'name-only') {
-          const line = formatWantedListLine(cardName)
-          const nameOnlyEvent: ChangeEvent = createChangeEvent('add', cardName)
+          // When editing, preserve the existing ID; only allocate fresh for new adds
+          const nameOnlyCardId: number =
+            isEditing && lastAddedCard?.cardId !== undefined
+              ? lastAddedCard.cardId
+              : allocateNextIdFromContent(await fs.readFile(listFile, 'utf-8')).nextId
+          const line = formatWantedListLine(
+            cardName,
+            undefined,
+            undefined,
+            undefined,
+            nameOnlyCardId,
+          )
+          const nameOnlyEvent: ChangeEvent = createChangeEvent('add', cardName, {
+            cardId: nameOnlyCardId,
+          })
 
           if (isEditing && lastAddedCard) {
             const result = await replaceLastLine(listFile, lastAddedCard.line, line)
@@ -426,7 +452,7 @@ export function registerWantedListCommand(program: Command) {
             console.log(`Added: ${line.trim()}`)
             lastChangeIndex = trackAdd(sessionChanges, nameOnlyEvent)
           }
-          lastAddedCard = { name: cardName, line: line, hasNote: false }
+          lastAddedCard = { name: cardName, line: line, hasNote: false, cardId: nameOnlyCardId }
           lastAddedCount = 1
           continue
         }
@@ -437,12 +463,23 @@ export function registerWantedListCommand(program: Command) {
           if (!result) {
             if (isEditing) continue
             console.error('No printings found. Adding name only.')
-            const line = formatWantedListLine(cardName)
+            const fallbackFileContent = await fs.readFile(listFile, 'utf-8')
+            const { nextId: fallbackCardId } = allocateNextIdFromContent(fallbackFileContent)
+            const line = formatWantedListLine(
+              cardName,
+              undefined,
+              undefined,
+              undefined,
+              fallbackCardId,
+            )
             await appendFileWithHash(listFile, line)
             console.log(`Added: ${line.trim()}`)
-            lastAddedCard = { name: cardName, line: line, hasNote: false }
+            lastAddedCard = { name: cardName, line: line, hasNote: false, cardId: fallbackCardId }
             lastAddedCount = 1
-            lastChangeIndex = trackAdd(sessionChanges, createChangeEvent('add', cardName))
+            lastChangeIndex = trackAdd(
+              sessionChanges,
+              createChangeEvent('add', cardName, { cardId: fallbackCardId }),
+            )
             continue
           }
           selectedPrinting = result.printing
@@ -458,6 +495,11 @@ export function registerWantedListCommand(program: Command) {
         if (finishResult === 'cancelled') continue
 
         const finish = finishResult === 'nopreference' ? undefined : finishResult
+        // When editing, preserve the existing ID; only allocate fresh for new adds
+        const printingCardId: number =
+          isEditing && lastAddedCard?.cardId !== undefined
+            ? lastAddedCard.cardId
+            : allocateNextIdFromContent(await fs.readFile(listFile, 'utf-8')).nextId
         const line = formatWantedListLine(
           cardName,
           {
@@ -465,12 +507,15 @@ export function registerWantedListCommand(program: Command) {
             collectorNumber: selectedPrinting.collector_number,
           },
           finish,
+          undefined,
+          printingCardId,
         )
 
         const printingEvent: ChangeEvent = createChangeEvent('add', cardName, {
           set: selectedPrinting.set.toLowerCase(),
           collectorNumber: selectedPrinting.collector_number,
           finish: finish,
+          cardId: printingCardId,
         })
 
         if (isEditing && lastAddedCard) {
@@ -489,7 +534,7 @@ export function registerWantedListCommand(program: Command) {
               printingEvent,
               result.replaced,
             )
-            lastAddedCard = { name: cardName, line: line, hasNote: false }
+            lastAddedCard = { name: cardName, line: line, hasNote: false, cardId: printingCardId }
             lastAddedCount = 1
           } catch (e) {
             console.error(`Failed to edit card: ${e}`)
@@ -498,7 +543,7 @@ export function registerWantedListCommand(program: Command) {
           try {
             await appendFileWithHash(listFile, line)
             console.log(`Added: ${line.trim()}`)
-            lastAddedCard = { name: cardName, line: line, hasNote: false }
+            lastAddedCard = { name: cardName, line: line, hasNote: false, cardId: printingCardId }
             lastAddedCount = 1
             lastChangeIndex = trackAdd(sessionChanges, printingEvent)
           } catch (e) {

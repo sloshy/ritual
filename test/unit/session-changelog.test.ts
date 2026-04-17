@@ -218,4 +218,40 @@ describe('trackAnotherCopy', () => {
     const ids = changes.map((e) => e.id)
     expect(new Set(ids).size).toBe(4)
   })
+
+  test('assigns provided cardId to the copy, overriding the original', () => {
+    const original = makeEvent({ cardId: 3 })
+    const changes = [original]
+
+    const idx = trackAnotherCopy(changes, 0, 7)
+
+    expect(idx).toBe(1)
+    expect(changes[1]!.cardId).toBe(7)
+    // Original is unchanged
+    expect(changes[0]!.cardId).toBe(3)
+  })
+
+  test('preserves original cardId on copy when no cardId argument is given', () => {
+    const original = makeEvent({ cardId: 5 })
+    const changes = [original]
+
+    trackAnotherCopy(changes, 0)
+
+    expect(changes[1]!.cardId).toBe(5)
+  })
+
+  test('consecutive copies each use the assigned cardId when provided', () => {
+    const original = makeEvent({ cardName: 'Sol Ring', cardId: 1 })
+    const changes = [original]
+
+    let idx: number | null = 0
+    idx = trackAnotherCopy(changes, idx, 2)
+    idx = trackAnotherCopy(changes, idx, 3)
+
+    expect(changes[1]!.cardId).toBe(2)
+    expect(changes[2]!.cardId).toBe(3)
+    // All event IDs still unique
+    const ids = changes.map((e) => e.id)
+    expect(new Set(ids).size).toBe(3)
+  })
 })

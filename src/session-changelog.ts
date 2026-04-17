@@ -38,15 +38,22 @@ export function trackEdit(
 /**
  * Track adding another copy of the last added card.
  * Copies the previous event with a fresh ID and timestamp.
+ * If `cardId` is provided it overrides the original event's cardId (each copy gets a unique ID).
  * Returns the new lastChangeIndex, or null if there is no previous event to copy.
  */
 export function trackAnotherCopy(
   sessionChanges: ChangeEvent[],
   lastChangeIndex: number | null,
+  cardId?: number,
 ): number | null {
   if (lastChangeIndex === null) return null
   const prevChange = sessionChanges[lastChangeIndex]
   if (!prevChange) return null
-  sessionChanges.push({ ...prevChange, id: createChangeId(), timestamp: Date.now() })
+  sessionChanges.push({
+    ...prevChange,
+    id: createChangeId(),
+    timestamp: Date.now(),
+    ...(cardId !== undefined ? { cardId } : {}),
+  })
   return sessionChanges.length - 1
 }

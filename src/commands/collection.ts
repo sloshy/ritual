@@ -20,6 +20,7 @@ import {
 import { appendChangelog } from '../changelog-writer'
 import { createChangeEvent } from '../change-event'
 import type { ChangeEvent } from '../change-event'
+import { allocateNextIdFromContent } from '../card-id'
 import { trackAdd, trackEdit, trackAnotherCopy } from '../session-changelog'
 import { appendFileWithHash, writeFileWithHash } from '../content-hash'
 
@@ -120,7 +121,7 @@ export function registerCollectionCommand(program: Command) {
         sessionConfig.activeSetIndex = 0
       }
 
-      type LastAddedCard = { name: string; line: string; hasNote: boolean }
+      type LastAddedCard = { name: string; line: string; hasNote: boolean; cardId?: number }
       let lastAddedCard: LastAddedCard | null = null
       let lastAddedCount = 0
       const sessionChanges: ChangeEvent[] = []
@@ -314,10 +315,14 @@ export function registerCollectionCommand(program: Command) {
         // Handle mode switches
         if (response.cardName === '__ADD_ANOTHER__' && lastAddedCard) {
           try {
-            await appendFileWithHash(collectionFile, lastAddedCard.line)
+            const fileContent = await fs.readFile(collectionFile, 'utf-8')
+            const { nextId: cardId } = allocateNextIdFromContent(fileContent)
+            const lineWithoutId = lastAddedCard.line.trimEnd().replace(/\s*&\d+$/, '')
+            const newLine = `${lineWithoutId} &${cardId}\n`
+            await appendFileWithHash(collectionFile, newLine)
             lastAddedCount++
-            console.log(`Added: ${lastAddedCard.line.trim()} (${lastAddedCount}x total)`)
-            const newIdx = trackAnotherCopy(sessionChanges, lastChangeIndex)
+            console.log(`Added: ${newLine.trim()} (${lastAddedCount}x total)`)
+            const newIdx = trackAnotherCopy(sessionChanges, lastChangeIndex, cardId)
             if (newIdx !== null) lastChangeIndex = newIdx
           } catch (e) {
             console.error(`Failed to write to file: ${e}`)
@@ -337,10 +342,18 @@ export function registerCollectionCommand(program: Command) {
               const fileContent = await fs.readFile(collectionFile, 'utf-8')
               const lines = fileContent.trimEnd().split('\n')
               if ((lines[lines.length - 1] ?? '').trim() === lastAddedCard.line.trim()) {
-                const newLine: string = lastAddedCard.line.trimEnd() + ` {${note}}`
+                const lineWithoutId: string = lastAddedCard.line.trimEnd().replace(/\s*&\d+$/, '')
+                const idSuffix: string =
+                  lastAddedCard.cardId !== undefined ? ` &${lastAddedCard.cardId}` : ''
+                const newLine: string = `${lineWithoutId} {${note}}${idSuffix}`
                 lines[lines.length - 1] = newLine
                 await writeFileWithHash(collectionFile, lines.join('\n') + '\n')
-                lastAddedCard = { name: lastAddedCard.name, line: newLine + '\n', hasNote: true }
+                lastAddedCard = {
+                  name: lastAddedCard.name,
+                  line: newLine + '\n',
+                  hasNote: true,
+                  cardId: lastAddedCard.cardId,
+                }
                 console.log(`Note added: ${newLine}`)
               } else {
                 console.warn("Last line in file doesn't match last added card. Note not added.")
@@ -438,11 +451,17 @@ export function registerCollectionCommand(program: Command) {
             if (isEditing) continue
             console.error('No printings found for validation. Using default name.')
             try {
-              await appendFileWithHash(collectionFile, `- ${cardName}\n`)
+              const fileContent = await fs.readFile(collectionFile, 'utf-8')
+              const { nextId: cardId } = allocateNextIdFromContent(fileContent)
+              const fallbackLine = `- ${cardName} &${cardId}\n`
+              await appendFileWithHash(collectionFile, fallbackLine)
               console.log(`Added: ${cardName}`)
-              lastAddedCard = { name: cardName, line: `- ${cardName}\n`, hasNote: false }
+              lastAddedCard = { name: cardName, line: fallbackLine, hasNote: false, cardId }
               lastAddedCount = 1
-              lastChangeIndex = trackAdd(sessionChanges, createChangeEvent('add', cardName))
+              lastChangeIndex = trackAdd(
+                sessionChanges,
+                createChangeEvent('add', cardName, { cardId }),
+              )
             } catch (e) {
               console.error(`Failed to write to file: ${e}`)
             }
@@ -464,12 +483,20 @@ export function registerCollectionCommand(program: Command) {
         )
         if (!finishAndCondition) continue
 
+        // When editing, preserve the card's existing ID. Only allocate a new one for a fresh add.
+        const cardId: number =
+          isEditing && lastAddedCard?.cardId !== undefined
+            ? lastAddedCard.cardId
+            : allocateNextIdFromContent(await fs.readFile(collectionFile, 'utf-8')).nextId
+
         const line = formatCollectionLine(
           cardName,
           selectedPrinting.set,
           selectedPrinting.collector_number,
           finishAndCondition.finish,
           finishAndCondition.condition,
+          undefined,
+          cardId,
         )
 
         const cardChangeEvent: ChangeEvent = createChangeEvent('add', cardName, {
@@ -477,6 +504,7 @@ export function registerCollectionCommand(program: Command) {
           collectorNumber: selectedPrinting.collector_number,
           finish: finishAndCondition.finish,
           condition: finishAndCondition.condition,
+          cardId,
         })
 
         // Remove old line when editing, then append new line
@@ -496,7 +524,7 @@ export function registerCollectionCommand(program: Command) {
               cardChangeEvent,
               result.replaced,
             )
-            lastAddedCard = { name: cardName, line: line, hasNote: false }
+            lastAddedCard = { name: cardName, line: line, hasNote: false, cardId }
             lastAddedCount = 1
           } catch (e) {
             console.error(`Failed to edit card: ${e}`)
@@ -506,7 +534,7 @@ export function registerCollectionCommand(program: Command) {
           try {
             await appendFileWithHash(collectionFile, line)
             console.log(`Added: ${line.trim()}`)
-            lastAddedCard = { name: cardName, line: line, hasNote: false }
+            lastAddedCard = { name: cardName, line: line, hasNote: false, cardId }
             lastAddedCount = 1
             lastChangeIndex = trackAdd(sessionChanges, cardChangeEvent)
           } catch (e) {
