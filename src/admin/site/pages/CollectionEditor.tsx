@@ -1,27 +1,17 @@
-import { createSignal, createEffect, on, onMount, onCleanup, Show, For } from 'solid-js'
-import type { Finish, ScryfallCard } from '../../../types'
-import type { PriceCurrency } from '../../../price-currency'
-import type { CardPrintingOptions } from '../types/deck-changes'
+import { createSignal, Show } from 'solid-js'
+import type { ScryfallCard } from '../../../types'
 import type { CollectionCardEntry } from '../../../site/data-types'
 import type { CardPriceResponse } from '../../api/card-price'
-import type { ContextMenuState } from '../types/context-menu'
+import type { EditorConfig } from '../hooks/useEditor'
 import { CollectionPage } from '../../../site/CollectionPage'
-import { useEditorStatus } from '../hooks/useEditorStatus'
 import { useEntryCardData } from '../hooks/useEntryCardData'
-import { useDialogState } from '../hooks/useDialogState'
-import { useCollectionChanges } from '../hooks/useCollectionChanges'
-import { useCardIdPool } from '../hooks/useCardIdPool'
+import { useEditor } from '../hooks/useEditor'
 import { applyChangeToCollection } from '../types/collection-changes'
-import { ChangesDialog } from '../components/ChangesDialog'
-import { DiscardConfirmDialog } from '../components/DiscardConfirmDialog'
 import { CardContextMenu } from '../components/CardContextMenu'
-import { CardSearchModal } from '../components/CardSearchModal'
-import { EditorActionBar } from '../components/EditorActionBar'
-import { reconcileIdPoolForUndo, replayChanges } from '../hooks/reconcile-undo'
-import { saveEditorChanges } from '../hooks/saveEditorChanges'
+import { EditorShell } from '../components/EditorShell'
 import { initializeEntriesWithIds } from '../../../card-id'
 
-type CollectionListItem = { slug: string; name: string }
+type CollectionListResponse = { collections?: { slug: string; name: string }[] }
 
 type CollectionDataResponse = {
   success: boolean
@@ -34,120 +24,92 @@ type CollectionDataResponse = {
 }
 
 export function CollectionEditor() {
-  const [collectionSlug, setCollectionSlug] = createSignal<string | null>(null)
-  const [collectionList, setCollectionList] = createSignal<CollectionListItem[]>([])
-  const [entries, setEntries] = createSignal<CollectionCardEntry[]>([])
-  const [modalCardKey, setModalCardKey] = createSignal<string | null>(null)
-  const [contextMenuCard, setContextMenuCard] = createSignal<ContextMenuState | null>(null)
-  const [refreshKey, setRefreshKey] = createSignal(0)
-  const [contentHash, setContentHash] = createSignal<string>('')
-
-  const [status, statusActions] = useEditorStatus()
   const [cardData, cardActions] = useEntryCardData()
+  const [modalCardKey, setModalCardKey] = createSignal<string | null>(null)
 
-  const currency: PriceCurrency = 'usd'
+  const config: EditorConfig<CollectionCardEntry[]> = {
+    listEndpoint: '/api/collections',
+    extractListItems: (r) => (r as CollectionListResponse).collections ?? [],
+    dataEndpoint: (slug) => `/api/collection/${slug}`,
+    saveEndpoint: (slug) => `/api/collection/${slug}/save`,
+    entityLabel: 'collection',
 
-  const {
-    showChanges,
-    showDiscard,
-    showSearchModal,
-    openChanges,
-    closeChanges,
-    openDiscard,
-    closeDiscard,
-    openSearchModal,
-    closeSearchModal,
-  } = useDialogState()
+    processLoadResponse: (response) => {
+      const r = response as CollectionDataResponse
+      if (!r.success) return null
+      const { entries: entriesWithIds, pool } = initializeEntriesWithIds(r.entries)
+      return {
+        data: entriesWithIds,
+        poolIds: [...pool.usedIds],
+        contentHash: r.contentHash,
+        extra: {},
+      }
+    },
 
-  const { changes, changeCount, addCard, removeCard, setFinish, discardAll, canUndo, undo } =
-    useCollectionChanges<CollectionCardEntry>()
+    loadCardData: (response) => {
+      const r = response as CollectionDataResponse
+      cardActions.load({ cards: r.cards, printings: r.printings, symbolMap: r.symbolMap })
+    },
+    addCardData: (cardName, card, printings) => cardActions.addCard(cardName, card, printings),
+    handlePriceResponse: (cardName, data: CardPriceResponse, hadCard) => {
+      cardActions.setPrices(
+        cardName,
+        !hadCard ? (data.representative ?? undefined) : undefined,
+        data.printings.length > 0 ? data.printings : undefined,
+      )
+    },
 
-  const { allocate, release, claim, resetPool } = useCardIdPool()
-  let originalEntries: CollectionCardEntry[] = []
+    applyChange: applyChangeToCollection,
+    hasData: (entries) => entries.length > 0,
 
-  // Fetch collection list on mount
-  onMount(() => {
-    fetch('/api/collections', { credentials: 'same-origin' })
-      .then((r) => r.json() as Promise<{ collections: CollectionListItem[] }>)
-      .then((data) => {
-        if (data.collections) setCollectionList(data.collections)
-      })
-      .catch(() => statusActions.setError('Failed to load collection list'))
-  })
+    findCurrentFinish: (entries, cardName) => {
+      const entry = entries.find((e) => e.name === cardName)
+      return entry?.finish ?? 'nonfoil'
+    },
+    findOriginalFinish: (entries, cardName, cardId) => {
+      const entry = entries.find(
+        (e) => (e.cardId !== undefined && e.cardId === cardId) || e.name === cardName,
+      )
+      return entry?.finish ?? 'nonfoil'
+    },
+    findCardId: (entries, cardName) => entries.find((e) => e.name === cardName)?.cardId,
+    getOriginalIds: (entries) =>
+      entries.map((e) => e.cardId).filter((id): id is number => id !== undefined),
 
-  // Fetch full collection data when slug changes
-  createEffect(
-    on([collectionSlug, refreshKey], ([slug]) => {
-      if (!slug) return
-      const controller = new AbortController()
-      statusActions.loadStart()
-
-      fetch(`/api/collection/${slug}`, {
-        credentials: 'same-origin',
-        signal: controller.signal,
-      })
-        .then((r) => r.json() as Promise<CollectionDataResponse>)
-        .then((data) => {
-          if (controller.signal.aborted) return
-          if (data.success) {
-            const { entries: entriesWithIds, pool } = initializeEntriesWithIds(data.entries)
-            setEntries(entriesWithIds)
-            originalEntries = entriesWithIds
-            resetPool([...pool.usedIds])
-            cardActions.load({
-              cards: data.cards,
-              printings: data.printings,
-              symbolMap: data.symbolMap,
-            })
-            discardAll()
-            setContentHash(data.contentHash)
-            statusActions.loadSuccess()
-          } else {
-            statusActions.loadError('Failed to load collection')
-          }
-        })
-        .catch((err) => {
-          if (err instanceof Error && err.name === 'AbortError') return
-          statusActions.loadError('Failed to load collection')
-        })
-
-      onCleanup(() => controller.abort())
-    }),
-  )
-
-  const handleCollectionSelect = (e: Event) => {
-    const value = (e.currentTarget as HTMLSelectElement).value
-    setCollectionSlug(value || null)
+    buildSaveBody: ({ changes, contentHash }) => ({ changes, contentHash }),
   }
 
+  const editor = useEditor<CollectionCardEntry[], CollectionCardEntry>(config)
+
   const handleIncrement = (entry: CollectionCardEntry) => {
-    const cardId = allocate()
-    addCard(entry.name, {
+    const cardId = editor.pool.allocate()
+    editor.changes.addCard(entry.name, {
       set: entry.set,
       collectorNumber: entry.collectorNumber,
       finish: entry.finish,
       condition: entry.condition,
       cardId,
     })
-    setEntries((prev) =>
-      applyChangeToCollection(prev, {
-        action: 'add',
-        cardName: entry.name,
-        set: entry.set,
-        collectorNumber: entry.collectorNumber,
-        finish: entry.finish,
-        condition: entry.condition,
-        cardId,
-      }),
+    editor.setData((prev) =>
+      prev
+        ? applyChangeToCollection(prev, {
+            action: 'add',
+            cardName: entry.name,
+            set: entry.set,
+            collectorNumber: entry.collectorNumber,
+            finish: entry.finish,
+            condition: entry.condition,
+            cardId,
+          })
+        : prev,
     )
   }
 
   const handleDecrement = (entry: CollectionCardEntry) => {
-    // In collections, each entry is a single card — removal always releases the ID
     if (entry.cardId !== undefined) {
-      release(entry.cardId)
+      editor.pool.release(entry.cardId)
     }
-    removeCard(
+    editor.changes.removeCard(
       entry.name,
       {
         set: entry.set,
@@ -158,232 +120,76 @@ export function CollectionEditor() {
       },
       { ...entry },
     )
-    setEntries((prev) =>
-      applyChangeToCollection(prev, {
-        action: 'remove',
-        cardName: entry.name,
-        set: entry.set,
-        collectorNumber: entry.collectorNumber,
-        cardId: entry.cardId,
-        fileOrder: entry.fileOrder,
-      }),
+    editor.setData((prev) =>
+      prev
+        ? applyChangeToCollection(prev, {
+            action: 'remove',
+            cardName: entry.name,
+            set: entry.set,
+            collectorNumber: entry.collectorNumber,
+            cardId: entry.cardId,
+            fileOrder: entry.fileOrder,
+          })
+        : prev,
     )
   }
 
   const handleContextMenu = (cardName: string, card: ScryfallCard | null, rect: DOMRect) => {
-    setContextMenuCard({ cardName, card, anchorRect: rect })
-  }
-
-  const handleSetFoil = () => {
-    const menu = contextMenuCard()
-    if (!menu) return
-    const entry = entries().find((e) => e.name === menu.cardName)
-    const cardId = entry?.cardId
-    const currentFinish: Finish = entry?.finish ?? 'nonfoil'
-    const originalEntry = originalEntries.find(
-      (e) => (e.cardId !== undefined && e.cardId === cardId) || e.name === menu.cardName,
-    )
-    const originalFinish: Finish = originalEntry?.finish ?? 'nonfoil'
-    const newFinish: Finish =
-      currentFinish === 'foil' || currentFinish === 'etched' ? 'nonfoil' : 'foil'
-    setFinish(menu.cardName, newFinish, originalFinish, cardId)
-    setEntries((prev) =>
-      applyChangeToCollection(prev, {
-        action: 'set-finish',
-        cardName: menu.cardName,
-        finish: newFinish,
-        cardId,
-      }),
-    )
-    setContextMenuCard(null)
-  }
-
-  const handleAddCardFromSearch = async (
-    cardName: string,
-    options?: CardPrintingOptions,
-    scryfallCard?: ScryfallCard,
-    allPrintings?: ScryfallCard[],
-  ) => {
-    const cardId = allocate()
-    addCard(cardName, { ...options, cardId })
-    setEntries((prev) =>
-      applyChangeToCollection(prev, {
-        action: 'add',
-        cardName,
-        set: options?.set,
-        collectorNumber: options?.collectorNumber,
-        finish: options?.finish,
-        condition: options?.condition,
-        cardId,
-      }),
-    )
-    cardActions.addCard(cardName, scryfallCard, allPrintings)
-
-    // Fetch price data from server
-    try {
-      const resp = await fetch(`/api/card-price?name=${encodeURIComponent(cardName)}`, {
-        credentials: 'same-origin',
-      })
-      const data = (await resp.json()) as CardPriceResponse
-      if (data.success) {
-        cardActions.setPrices(
-          cardName,
-          !scryfallCard ? (data.representative ?? undefined) : undefined,
-          data.printings.length > 0 ? data.printings : undefined,
-        )
-      }
-    } catch {
-      // Price fetch failure doesn't block adding the card
-    }
-  }
-
-  const handleUndo = () => {
-    const result = undo()
-    if (!result) return
-
-    const { entry, remainingChanges } = result
-    reconcileIdPoolForUndo(release, claim, entry)
-    setEntries(replayChanges(originalEntries, remainingChanges, applyChangeToCollection))
-  }
-
-  const handleSave = async () => {
-    const slug = collectionSlug()
-    if (!slug || entries().length === 0 || changes().length === 0) return
-    const result = await saveEditorChanges(
-      `/api/collection/${slug}/save`,
-      { changes: changes(), contentHash: contentHash() },
-      statusActions,
-      discardAll,
-    )
-    if (result?.contentHash) {
-      setContentHash(result.contentHash)
-    }
-  }
-
-  const handleDiscard = () => {
-    discardAll()
-    const ids = originalEntries.map((e) => e.cardId).filter((id): id is number => id !== undefined)
-    resetPool(ids)
-    closeDiscard()
-    setRefreshKey((k) => k + 1)
+    editor.setContextMenuCard({ cardName, card, anchorRect: rect })
   }
 
   const closeModal = () => setModalCardKey(null)
-  const closeContextMenu = () => setContextMenuCard(null)
+  const closeContextMenu = () => editor.setContextMenuCard(null)
 
   return (
-    <div>
-      <h2 class="section-heading">Collection Editor</h2>
-
-      {/* Collection selector */}
-      <div class="deck-selector-container">
-        <label class="deck-selector-label" for="collection-select">
-          Select Collection
-        </label>
-        <select
-          id="collection-select"
-          class="deck-selector"
-          value={collectionSlug() ?? ''}
-          onChange={handleCollectionSelect}
-        >
-          <option value="">— Choose a collection —</option>
-          <For each={collectionList()}>
-            {(item) => <option value={item.slug}>{item.name}</option>}
-          </For>
-        </select>
-      </div>
-
-      {/* Status messages */}
-      <Show when={status.error}>
-        <div class="alert alert-error">{status.error}</div>
-      </Show>
-      <Show when={status.saveStatus}>
-        <div class="alert alert-success">{status.saveStatus}</div>
-      </Show>
-      <Show when={status.loading}>
-        <p class="text-muted">Loading collection...</p>
-      </Show>
-
-      {/* Collection content */}
-      <Show when={entries().length > 0 && collectionSlug() && !status.loading}>
-        <CollectionPage
-          name={
-            collectionList().find((c) => c.slug === collectionSlug())?.name ?? collectionSlug()!
-          }
-          entries={entries()}
-          cards={cardData.cards}
-          printings={cardData.printings}
-          symbolMap={cardData.symbolMap}
-          useScryfallImgUrls={true}
-          totalPrice={0}
-          modalCardKey={modalCardKey()}
-          onOpenModal={setModalCardKey}
-          onCloseModal={closeModal}
-          currency={currency}
-          editMode={true}
-          onAddCard={openSearchModal}
-          onCardIncrement={handleIncrement}
-          onCardDecrement={handleDecrement}
-          onCardContextMenu={handleContextMenu}
-          unsavedChangeCount={changeCount()}
-        />
-      </Show>
-
-      {/* Context menu — no commander option for collections */}
-      <Show when={contextMenuCard()}>
-        {(menu) => (
-          <CardContextMenu
-            cardName={menu().cardName}
-            card={menu().card}
-            currentFinish={entries().find((e) => e.name === menu().cardName)?.finish}
-            onSetFoil={handleSetFoil}
-            onUnsetCommander={closeContextMenu}
-            anchorRect={menu().anchorRect}
-            onClose={closeContextMenu}
-            hideCommander={true}
-          />
-        )}
-      </Show>
-
-      {/* Card search modal — requirePrinting forces printing/finish/condition selection */}
-      <CardSearchModal
-        open={showSearchModal()}
-        onClose={closeSearchModal}
-        onAddCard={handleAddCardFromSearch}
-        requirePrinting={true}
-      />
-
-      {/* Changes dialog */}
-      <ChangesDialog
-        open={showChanges()}
-        changes={changes()}
+    <EditorShell
+      heading="Collection Editor"
+      selectorId="collection-select"
+      selectorLabel="Select Collection"
+      selectorPlaceholder="Choose a collection"
+      editor={editor}
+      cardData={cardData}
+      requirePrinting={true}
+      contextMenu={
+        <Show when={editor.contextMenuCard()}>
+          {(menu) => (
+            <CardContextMenu
+              cardName={menu().cardName}
+              card={menu().card}
+              currentFinish={
+                (editor.data() as CollectionCardEntry[] | null)?.find(
+                  (e) => e.name === menu().cardName,
+                )?.finish
+              }
+              onSetFoil={editor.handleSetFoil}
+              onUnsetCommander={closeContextMenu}
+              anchorRect={menu().anchorRect}
+              onClose={closeContextMenu}
+              hideCommander={true}
+            />
+          )}
+        </Show>
+      }
+    >
+      <CollectionPage
+        name={editor.list().find((c) => c.slug === editor.slug())?.name ?? editor.slug()!}
+        entries={editor.data()! as CollectionCardEntry[]}
         cards={cardData.cards}
         printings={cardData.printings}
         symbolMap={cardData.symbolMap}
-        currency={currency}
-        onClose={closeChanges}
+        useScryfallImgUrls={true}
+        totalPrice={0}
+        modalCardKey={modalCardKey()}
+        onOpenModal={setModalCardKey}
+        onCloseModal={closeModal}
+        currency={editor.currency}
+        editMode={true}
+        onAddCard={editor.dialogs.openSearchModal}
+        onCardIncrement={handleIncrement}
+        onCardDecrement={handleDecrement}
+        onCardContextMenu={handleContextMenu}
+        unsavedChangeCount={editor.changes.changeCount()}
       />
-
-      {/* Discard confirm dialog */}
-      <DiscardConfirmDialog
-        open={showDiscard()}
-        changes={changes()}
-        onConfirm={handleDiscard}
-        onCancel={closeDiscard}
-      />
-
-      {/* Sticky action bar */}
-      <Show when={entries().length > 0}>
-        <EditorActionBar
-          changeCount={changeCount()}
-          canUndo={canUndo()}
-          saving={status.saving}
-          onShowChanges={openChanges}
-          onUndo={handleUndo}
-          onSave={handleSave}
-          onDiscard={openDiscard}
-        />
-      </Show>
-    </div>
+    </EditorShell>
   )
 }
