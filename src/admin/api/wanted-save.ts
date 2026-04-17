@@ -1,15 +1,13 @@
 import path from 'node:path'
-import { loadHash, computeHash, writeFileWithHash, hashPath } from '../../content-hash'
-import { loadConfig } from '../config'
-import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
+import { writeFileWithHash, hashPath } from '../../content-hash'
 import { getErrorMessage } from '../../errors'
 import { isPathWithinDir } from '../../path-validation'
-import { MAX_BODY_SIZE } from '../validation'
 import { appendChangelog } from '../../changelog-writer'
 import type { WantedListCardEntry } from '../../site/data-types'
 import type { ChangeEvent } from '../site/types/deck-changes'
 import { formatWantedListLine } from '../../commands/wanted-helpers'
 import { getBaseDir } from '../../base-dir'
+import { validateBodySize, validateContentHash, autoCommitAndPush } from './save-helpers'
 
 interface WantedListSaveRequest {
   changes: ChangeEvent[]
@@ -44,10 +42,8 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
 
     const slug = decodeURIComponent(rawSlug)
 
-    const contentLength = Number(req.headers.get('Content-Length') ?? '0')
-    if (contentLength > MAX_BODY_SIZE) {
-      return Response.json({ success: false, message: 'Request body too large' }, { status: 413 })
-    }
+    const sizeError = validateBodySize(req)
+    if (sizeError) return sizeError
     const body = (await req.json()) as WantedListSaveRequest
     const { changes, entries, contentHash } = body
 
@@ -72,23 +68,13 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
       )
     }
 
+    // Validate content hash for conflict detection
+    const hashCheck = await validateContentHash(filePath, contentHash, 'Wanted list')
+    if (!hashCheck.valid) return hashCheck.response
+
     const filesToCommit: string[] = [filePath, hashPath(filePath)]
 
-    // Read existing file and validate content hash for conflict detection
-    const existingContent = await file.text()
-    const existingHash = (await loadHash(filePath)) ?? computeHash(existingContent)
-    if (existingHash !== contentHash) {
-      return Response.json(
-        {
-          success: false,
-          message: 'Wanted list has been modified since you loaded it. Please reload.',
-          conflict: true,
-        },
-        { status: 409 },
-      )
-    }
-
-    const existingLines = existingContent.split('\n')
+    const existingLines = hashCheck.content.split('\n')
     const headerLines: string[] = []
     for (const line of existingLines) {
       if (line.trimStart().startsWith('- ')) break
@@ -107,13 +93,11 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
     }
 
     // Auto-commit if enabled
-    const config = await loadConfig()
-    if (shouldAutoCommit(config, wantedListsDir)) {
-      commitFiles(filesToCommit, `Edit wanted list: ${slug} (${changes.length} changes)`)
-      if (shouldAutoPush(config, wantedListsDir)) {
-        pushChanges(wantedListsDir)
-      }
-    }
+    await autoCommitAndPush(
+      wantedListsDir,
+      filesToCommit,
+      `Edit wanted list: ${slug} (${changes.length} changes)`,
+    )
 
     return Response.json({
       success: true,

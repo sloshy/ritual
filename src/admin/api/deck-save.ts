@@ -1,14 +1,12 @@
 import path from 'node:path'
-import { loadHash, computeHash, writeFileWithHash, hashPath } from '../../content-hash'
+import { writeFileWithHash, hashPath } from '../../content-hash'
 import { resolveDeckFilePath, serializeDeckToMarkdown } from '../../deck-file'
-import { loadConfig } from '../config'
-import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { getErrorMessage } from '../../errors'
-import { MAX_BODY_SIZE } from '../validation'
 import { appendChangelog } from '../../changelog-writer'
 import type { DeckData } from '../../types'
 import type { ChangeEvent } from '../site/types/deck-changes'
 import { getBaseDir } from '../../base-dir'
+import { validateBodySize, validateContentHash, autoCommitAndPush } from './save-helpers'
 
 interface DeckSaveRequest {
   changes: ChangeEvent[]
@@ -27,10 +25,8 @@ export async function handleDeckSave(req: Request): Promise<Response> {
       return Response.json({ success: false, message: 'Deck slug is required' }, { status: 400 })
     }
 
-    const contentLength = Number(req.headers.get('Content-Length') ?? '0')
-    if (contentLength > MAX_BODY_SIZE) {
-      return Response.json({ success: false, message: 'Request body too large' }, { status: 413 })
-    }
+    const sizeError = validateBodySize(req)
+    if (sizeError) return sizeError
     const body = (await req.json()) as DeckSaveRequest
     const { changes, deck, frontMatter, contentHash } = body
 
@@ -49,18 +45,8 @@ export async function handleDeckSave(req: Request): Promise<Response> {
     }
 
     // Validate content hash for conflict detection
-    const existingContent = await Bun.file(filePath).text()
-    const existingHash = (await loadHash(filePath)) ?? computeHash(existingContent)
-    if (existingHash !== contentHash) {
-      return Response.json(
-        {
-          success: false,
-          message: 'Deck has been modified since you loaded it. Please reload.',
-          conflict: true,
-        },
-        { status: 409 },
-      )
-    }
+    const hashCheck = await validateContentHash(filePath, contentHash, 'Deck')
+    if (!hashCheck.valid) return hashCheck.response
 
     const filesToCommit: string[] = [filePath, hashPath(filePath)]
 
@@ -75,13 +61,11 @@ export async function handleDeckSave(req: Request): Promise<Response> {
     const newContentHash = await writeFileWithHash(filePath, markdown)
 
     // Auto-commit if enabled
-    const config = await loadConfig()
-    if (shouldAutoCommit(config, decksDir)) {
-      commitFiles(filesToCommit, `Edit deck: ${deck.name} (${changes.length} changes)`)
-      if (shouldAutoPush(config, decksDir)) {
-        pushChanges(decksDir)
-      }
-    }
+    await autoCommitAndPush(
+      decksDir,
+      filesToCommit,
+      `Edit deck: ${deck.name} (${changes.length} changes)`,
+    )
 
     return Response.json({
       success: true,

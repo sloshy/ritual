@@ -1,10 +1,7 @@
 import path from 'node:path'
-import { loadHash, computeHash, writeFileWithHash, hashPath } from '../../content-hash'
-import { loadConfig } from '../config'
-import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
+import { writeFileWithHash, hashPath } from '../../content-hash'
 import { getErrorMessage } from '../../errors'
 import { isPathWithinDir } from '../../path-validation'
-import { MAX_BODY_SIZE } from '../validation'
 import { appendChangelog } from '../../changelog-writer'
 import type { CollectionCardEntry } from '../../site/data-types'
 import type { ChangeEvent } from '../site/types/deck-changes'
@@ -14,6 +11,7 @@ import { parseCollectionFile } from '../../commands/price-collection'
 import { applyChangeToCollection } from '../site/types/collection-changes'
 import { initializeEntriesWithIds } from '../../card-id'
 import type { Finish, Condition } from '../../types'
+import { validateBodySize, validateContentHash, autoCommitAndPush } from './save-helpers'
 
 interface CollectionSaveRequest {
   changes: ChangeEvent[]
@@ -47,10 +45,8 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
 
     const slug = decodeURIComponent(rawSlug)
 
-    const contentLength = Number(req.headers.get('Content-Length') ?? '0')
-    if (contentLength > MAX_BODY_SIZE) {
-      return Response.json({ success: false, message: 'Request body too large' }, { status: 413 })
-    }
+    const sizeError = validateBodySize(req)
+    if (sizeError) return sizeError
     const body = (await req.json()) as CollectionSaveRequest
     const { changes, contentHash } = body
 
@@ -75,25 +71,14 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
       )
     }
 
+    // Validate content hash for conflict detection
+    const hashCheck = await validateContentHash(filePath, contentHash, 'Collection')
+    if (!hashCheck.valid) return hashCheck.response
+
     const filesToCommit: string[] = [filePath, hashPath(filePath)]
 
-    // Read existing file and verify content hash for conflict detection
-    const existingContent = await file.text()
-    const existingHash = (await loadHash(filePath)) ?? computeHash(existingContent)
-
-    if (existingHash !== contentHash) {
-      return Response.json(
-        {
-          success: false,
-          message: 'Collection has been modified since you loaded it. Please reload.',
-          conflict: true,
-        },
-        { status: 409 },
-      )
-    }
-
     // Parse the file and build card entries
-    const parsed = parseCollectionFile(existingContent)
+    const parsed = parseCollectionFile(hashCheck.content)
     const cardEntries: CollectionCardEntry[] = parsed.entries.map((e, i) => ({
       name: e.name,
       set: e.set.toLowerCase(),
@@ -114,7 +99,7 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
     }
 
     // Preserve header lines (everything before first `- ` line)
-    const existingLines = existingContent.split('\n')
+    const existingLines = hashCheck.content.split('\n')
     const headerLines: string[] = []
     for (const line of existingLines) {
       if (line.trimStart().startsWith('- ')) break
@@ -133,13 +118,11 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
     }
 
     // Auto-commit if enabled
-    const config = await loadConfig()
-    if (shouldAutoCommit(config, collectionsDir)) {
-      commitFiles(filesToCommit, `Edit collection: ${slug} (${changes.length} changes)`)
-      if (shouldAutoPush(config, collectionsDir)) {
-        pushChanges(collectionsDir)
-      }
-    }
+    await autoCommitAndPush(
+      collectionsDir,
+      filesToCommit,
+      `Edit collection: ${slug} (${changes.length} changes)`,
+    )
 
     return Response.json({
       success: true,

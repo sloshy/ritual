@@ -1,18 +1,10 @@
 import path from 'node:path'
 import { getContentHash } from '../../content-hash'
 import { parseWantedListFile } from '../../commands/wanted-helpers'
-import { cardCache } from '../../cache'
-import { fetchCardData, fetchSymbology, getCardPrintings } from '../../scryfall'
-import { computeRepresentativePrints } from '../../scryfall/client'
 import { getErrorMessage } from '../../errors'
-import { extractChangelogCardNames, parseChangelog } from '../../changelog-parser'
 import { isPathWithinDir } from '../../path-validation'
-import type { ScryfallCard } from '../../types'
-import type { PriceCurrency } from '../../price-currency'
 import { getBaseDir } from '../../base-dir'
-import { ensureCacheForCards } from '../../cache'
-
-const ALL_CURRENCIES: PriceCurrency[] = ['usd', 'eur', 'tix']
+import { addChangelogCardNames, fetchSymbolMap, loadEntryCardData } from './card-data-loader'
 
 export async function handleWantedListLoad(req: Request): Promise<Response> {
   try {
@@ -51,66 +43,10 @@ export async function handleWantedListLoad(req: Request): Promise<Response> {
       cardNames.add(entry.name)
     }
 
-    // Also include card names from the changelog
-    const changelogPath = filePath.replace(/\.md$/, '.changes.md')
-    const changelogFile = Bun.file(changelogPath)
-    if (await changelogFile.exists()) {
-      const changelogContent = await changelogFile.text()
-      const pages = parseChangelog(changelogContent)
-      for (const name of extractChangelogCardNames(pages)) {
-        cardNames.add(name)
-      }
-    }
+    await addChangelogCardNames(filePath, cardNames)
 
-    // If many cards are uncached, do a bulk cache refresh first
-    await ensureCacheForCards(cardNames)
-
-    const cards: Record<string, ScryfallCard | null> = {}
-    const printings: Record<string, ScryfallCard[]> = {}
-
-    for (const name of cardNames) {
-      const cached = await cardCache.get(name)
-      if (cached && cached.length > 0) {
-        printings[name] = cached
-
-        for (const card of cached) {
-          const key = `${card.set}:${card.collector_number}`
-          cards[key] = card
-        }
-
-        const sorted = [...cached].sort((a, b) =>
-          (b.released_at ?? '').localeCompare(a.released_at ?? ''),
-        )
-        const repPrints = computeRepresentativePrints(sorted, sorted, ALL_CURRENCIES)
-        cards[name] = repPrints.usd?.representative ?? cached[0]!
-      } else {
-        const card = await fetchCardData(name, { silent: true })
-        cards[name] = card
-        if (card) {
-          const key = `${card.set}:${card.collector_number}`
-          cards[key] = card
-          try {
-            printings[name] = await getCardPrintings(name)
-            for (const p of printings[name]!) {
-              cards[`${p.set}:${p.collector_number}`] = p
-            }
-          } catch {
-            printings[name] = [card]
-          }
-        } else {
-          printings[name] = []
-        }
-      }
-    }
-
-    // Fetch symbol map
-    const symbols = await fetchSymbology()
-    const symbolMap: Record<string, string> = {}
-    for (const sym of symbols) {
-      if (sym.symbol && sym.svg_uri) {
-        symbolMap[sym.symbol] = sym.svg_uri
-      }
-    }
+    const { cards, printings } = await loadEntryCardData(cardNames)
+    const symbolMap = await fetchSymbolMap()
 
     const contentHash = await getContentHash(filePath, content)
 
