@@ -6,6 +6,7 @@ import {
   type CardPrintingOptions,
   createChangeId,
   areOppositeChanges,
+  consolidateSetFinish,
 } from '../types/deck-changes'
 
 /**
@@ -37,7 +38,7 @@ export type UseCardChangesResult<T = unknown> = {
   decrementCard: (cardName: string, cardId?: number, removedCardData?: T) => void
   addCard: (cardName: string, options?: CardPrintingOptions) => void
   removeCard: (cardName: string, options?: CardPrintingOptions, removedCardData?: T) => void
-  setFinish: (cardName: string, finish: Finish, cardId?: number) => void
+  setFinish: (cardName: string, finish: Finish, originalFinish: Finish, cardId?: number) => void
 }
 
 export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
@@ -120,8 +121,18 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     addChange({ action: 'remove', cardName, ...options }, removedCardData)
   }
 
-  function setFinish(cardName: string, finish: Finish, cardId?: number) {
-    addChange({ action: 'set-finish', cardName, finish, cardId })
+  function setFinish(cardName: string, finish: Finish, originalFinish: Finish, cardId?: number) {
+    const {
+      changes: newChanges,
+      addedChange,
+      cancelledChange,
+    } = consolidateSetFinish(changesRef, cardName, finish, originalFinish, cardId)
+    if (addedChange !== null || cancelledChange !== null) {
+      changesRef = newChanges
+      undoStackRef = [...undoStackRef, { addedChange, cancelledChange }]
+      setChanges([...changesRef])
+      setUndoStack([...undoStackRef])
+    }
   }
 
   const changeCount = createMemo(() => changes().length)

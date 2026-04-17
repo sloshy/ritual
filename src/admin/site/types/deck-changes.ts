@@ -10,6 +10,7 @@ export type {
   ChangeEvent,
   ChangeInput,
   CardPrintingOptions,
+  ConsolidateSetFinishResult,
 } from '../../../change-event'
 export {
   createChangeId,
@@ -17,6 +18,7 @@ export {
   areOppositeChanges,
   isAdditiveChange,
   formatChange,
+  consolidateSetFinish,
 } from '../../../change-event'
 
 import type { DeckData } from '../../../types'

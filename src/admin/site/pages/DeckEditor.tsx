@@ -234,9 +234,19 @@ export function DeckEditor() {
         }
       }
     }
+    let originalFinish: Finish = 'nonfoil'
+    if (originalDeck) {
+      for (const section of originalDeck.sections) {
+        const card = section.cards.find((c) => c.name === menu.cardName)
+        if (card !== undefined) {
+          originalFinish = card.finish ?? 'nonfoil'
+          break
+        }
+      }
+    }
     const newFinish: Finish =
       currentFinish === 'foil' || currentFinish === 'etched' ? 'nonfoil' : 'foil'
-    setFinish(menu.cardName, newFinish, cardId)
+    setFinish(menu.cardName, newFinish, originalFinish, cardId)
     setDeckData((prev) =>
       prev
         ? applyChangeToDeck(prev, {

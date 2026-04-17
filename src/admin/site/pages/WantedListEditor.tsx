@@ -171,9 +171,13 @@ export function WantedListEditor() {
     const entry = entries().find((e) => e.name === menu.cardName)
     const cardId = entry?.cardId
     const currentFinish: Finish = entry?.finish ?? 'nonfoil'
+    const originalEntry = originalEntries.find(
+      (e) => (e.cardId !== undefined && e.cardId === cardId) || e.name === menu.cardName,
+    )
+    const originalFinish: Finish = originalEntry?.finish ?? 'nonfoil'
     const newFinish: Finish =
       currentFinish === 'foil' || currentFinish === 'etched' ? 'nonfoil' : 'foil'
-    setFinish(menu.cardName, newFinish, cardId)
+    setFinish(menu.cardName, newFinish, originalFinish, cardId)
     setEntries((prev) =>
       applyChangeToWantedList(prev, {
         action: 'set-finish',

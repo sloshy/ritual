@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'bun:test'
 import {
   areOppositeChanges,
+  consolidateSetFinish,
   isAdditiveChange,
   createChangeId,
   formatChange,
@@ -168,6 +169,111 @@ describe('areOppositeChanges', () => {
     const a = makeChange({ action: 'set-commander', cardName: 'Kenrith', cardId: 1 })
     const b = makeChange({ action: 'unset-commander', cardName: 'Kenrith', cardId: 2 })
     expect(areOppositeChanges(a, b)).toBe(false)
+  })
+})
+
+describe('consolidateSetFinish', () => {
+  test('adds a set-finish change when finish differs from original', () => {
+    const { changes, addedChange, cancelledChange } = consolidateSetFinish(
+      [],
+      'Sol Ring',
+      'foil',
+      'nonfoil',
+    )
+    expect(changes).toHaveLength(1)
+    expect(changes[0]!.action).toBe('set-finish')
+    expect((changes[0] as { finish: string }).finish).toBe('foil')
+    expect(addedChange).not.toBeNull()
+    expect(cancelledChange).toBeNull()
+  })
+
+  test('does not add a change when finish equals originalFinish', () => {
+    const { changes, addedChange, cancelledChange } = consolidateSetFinish(
+      [],
+      'Sol Ring',
+      'nonfoil',
+      'nonfoil',
+    )
+    expect(changes).toHaveLength(0)
+    expect(addedChange).toBeNull()
+    expect(cancelledChange).toBeNull()
+  })
+
+  test('cancels existing set-finish and adds nothing when restoring to original', () => {
+    const existing = makeChange({ action: 'set-finish', cardName: 'Sol Ring', finish: 'foil' })
+    const { changes, addedChange, cancelledChange } = consolidateSetFinish(
+      [existing],
+      'Sol Ring',
+      'nonfoil',
+      'nonfoil',
+    )
+    expect(changes).toHaveLength(0)
+    expect(addedChange).toBeNull()
+    expect(cancelledChange).toBe(existing)
+  })
+
+  test('replaces existing set-finish with new finish', () => {
+    const existing = makeChange({ action: 'set-finish', cardName: 'Sol Ring', finish: 'foil' })
+    const { changes, addedChange, cancelledChange } = consolidateSetFinish(
+      [existing],
+      'Sol Ring',
+      'etched',
+      'nonfoil',
+    )
+    expect(changes).toHaveLength(1)
+    expect((changes[0] as { finish: string }).finish).toBe('etched')
+    expect(addedChange).not.toBeNull()
+    expect(cancelledChange).toBe(existing)
+  })
+
+  test('only one set-finish per card at a time; replaces foil → etched → nonfoil (original)', () => {
+    const step1 = consolidateSetFinish([], 'Sol Ring', 'foil', 'nonfoil')
+    expect(step1.changes).toHaveLength(1)
+
+    const step2 = consolidateSetFinish(step1.changes, 'Sol Ring', 'etched', 'nonfoil')
+    expect(step2.changes).toHaveLength(1)
+    expect((step2.changes[0] as { finish: string }).finish).toBe('etched')
+
+    const step3 = consolidateSetFinish(step2.changes, 'Sol Ring', 'nonfoil', 'nonfoil')
+    expect(step3.changes).toHaveLength(0)
+    expect(step3.addedChange).toBeNull()
+    expect(step3.cancelledChange).not.toBeNull()
+  })
+
+  test('does not affect set-finish for a different card', () => {
+    const other = makeChange({ action: 'set-finish', cardName: 'Mana Crypt', finish: 'foil' })
+    const { changes, addedChange } = consolidateSetFinish([other], 'Sol Ring', 'foil', 'nonfoil')
+    expect(changes).toHaveLength(2)
+    expect(addedChange).not.toBeNull()
+  })
+
+  test('matches by cardId when provided', () => {
+    const existing = makeChange({
+      action: 'set-finish',
+      cardName: 'Sol Ring',
+      finish: 'foil',
+      cardId: 5,
+    })
+    const { changes, cancelledChange } = consolidateSetFinish(
+      [existing],
+      'Sol Ring',
+      'nonfoil',
+      'nonfoil',
+      5,
+    )
+    expect(changes).toHaveLength(0)
+    expect(cancelledChange).toBe(existing)
+  })
+
+  test('returns no-op (both null) when finish equals original and no existing change', () => {
+    const { addedChange, cancelledChange } = consolidateSetFinish(
+      [],
+      'Sol Ring',
+      'nonfoil',
+      'nonfoil',
+    )
+    expect(addedChange).toBeNull()
+    expect(cancelledChange).toBeNull()
   })
 })
 

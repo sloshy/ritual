@@ -121,7 +121,7 @@ export function areOppositeChanges(a: ChangeEvent, b: ChangeEvent): boolean {
     return a.cardName === b.cardName
   }
 
-  // Only add/remove can cancel each other
+  // Add/remove of the same card cancels out
   if (
     !(
       (a.action === 'add' && b.action === 'remove') ||
@@ -152,6 +152,54 @@ export function areOppositeChanges(a: ChangeEvent, b: ChangeEvent): boolean {
   if (ac.condition !== bc.condition) return false
 
   return true
+}
+
+export type ConsolidateSetFinishResult = {
+  changes: ChangeEvent[]
+  addedChange: ChangeEvent | null
+  cancelledChange: ChangeEvent | null
+}
+
+/**
+ * Apply a set-finish action with "latest wins" semantics:
+ * - Removes any existing set-finish for the same card from the changelog
+ * - Does not add a new change if `finish` equals `originalFinish` (card restored to original state)
+ * - Otherwise adds the new set-finish change
+ *
+ * Returns the updated changes array plus addedChange/cancelledChange for undo tracking.
+ * Returns null addedChange and null cancelledChange when the action is a no-op.
+ */
+export function consolidateSetFinish(
+  changes: ChangeEvent[],
+  cardName: string,
+  finish: Finish,
+  originalFinish: Finish,
+  cardId?: number,
+): ConsolidateSetFinishResult {
+  const existingIdx = changes.findIndex(
+    (c) =>
+      c.action === 'set-finish' &&
+      c.cardName === cardName &&
+      (cardId === undefined || c.cardId === undefined || c.cardId === cardId),
+  )
+  const cancelledChange: ChangeEvent | null =
+    existingIdx !== -1 ? (changes[existingIdx] ?? null) : null
+  let updatedChanges = existingIdx !== -1 ? changes.filter((_, i) => i !== existingIdx) : changes
+
+  let addedChange: ChangeEvent | null = null
+  if (finish !== originalFinish) {
+    addedChange = {
+      action: 'set-finish',
+      cardName,
+      finish,
+      cardId,
+      id: createChangeId(),
+      timestamp: Date.now(),
+    }
+    updatedChanges = [...updatedChanges, addedChange]
+  }
+
+  return { changes: updatedChanges, addedChange, cancelledChange }
 }
 
 /** Check if a change is additive (green) or destructive (red) */
