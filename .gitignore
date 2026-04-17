@@ -61,6 +61,7 @@ install_dev.sh
 test-results/
 playwright-report/
 .playwright-cli/
+.server-pids.json
 
 # Dev files
 *.js.map
