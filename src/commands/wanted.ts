@@ -54,7 +54,9 @@ export function registerWantedListCommand(program: Command) {
 
       // List existing wanted lists
       const files = await fs.readdir(wantedListsDir)
-      const existingLists = files.filter((f) => f.endsWith('.md')).map((f) => f.replace('.md', ''))
+      const existingLists = files
+        .filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))
+        .map((f) => f.replace('.md', ''))
 
       let selectedList: string
 

@@ -124,6 +124,15 @@ export function registerPriceCollectionCommand(program: Command) {
 
     if (collectionName) {
       const fileName = collectionName.endsWith('.md') ? collectionName : `${collectionName}.md`
+      if (fileName.endsWith('.changes.md')) {
+        emitError(
+          'not_found',
+          `'${fileName}' is a changelog file and cannot be priced directly.`,
+          scriptingOptions,
+        )
+        process.exitCode = ExitCode.UsageError
+        return
+      }
       const filePath = path.join(collectionsDir, fileName)
       try {
         await fs.access(filePath)
@@ -139,7 +148,7 @@ export function registerPriceCollectionCommand(program: Command) {
       filesToPrice = [fileName]
     } else {
       const allFiles = await fs.readdir(collectionsDir)
-      filesToPrice = allFiles.filter((f) => f.endsWith('.md'))
+      filesToPrice = allFiles.filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))
       if (filesToPrice.length === 0) {
         emitError(
           'not_found',

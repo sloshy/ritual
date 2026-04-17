@@ -255,6 +255,10 @@ async function handleCollectionAddCard(
   selectedName: string,
   options: AddCardOptions,
 ): Promise<void> {
+  if (collectionName.endsWith('.changes') || collectionName.endsWith('.changes.md')) {
+    console.error(`'${collectionName}' is a changelog file and cannot be used as a collection.`)
+    process.exit(1)
+  }
   const collectionFilePath = await ensureCollectionFile(collectionName)
 
   const normalizedCondition = options.condition?.toUpperCase()
@@ -312,6 +316,10 @@ async function handleWantedAddCard(
   selectedName: string,
   options: AddCardOptions,
 ): Promise<void> {
+  if (wantedListName.endsWith('.changes') || wantedListName.endsWith('.changes.md')) {
+    console.error(`'${wantedListName}' is a changelog file and cannot be used as a wanted list.`)
+    process.exit(1)
+  }
   const listFile = await ensureWantedListFile(wantedListName)
   const userFinish = options.finish && isFinish(options.finish) ? options.finish : undefined
 

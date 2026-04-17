@@ -79,6 +79,15 @@ export function registerPriceWantedListCommand(program: Command) {
 
     if (listName) {
       const fileName = listName.endsWith('.md') ? listName : `${listName}.md`
+      if (fileName.endsWith('.changes.md')) {
+        emitError(
+          'not_found',
+          `'${fileName}' is a changelog file and cannot be priced directly.`,
+          scriptingOptions,
+        )
+        process.exitCode = ExitCode.UsageError
+        return
+      }
       const filePath = path.join(wantedListsDir, fileName)
       try {
         await fs.access(filePath)
@@ -94,7 +103,7 @@ export function registerPriceWantedListCommand(program: Command) {
       filesToPrice = [fileName]
     } else {
       const allFiles = await fs.readdir(wantedListsDir)
-      filesToPrice = allFiles.filter((f) => f.endsWith('.md'))
+      filesToPrice = allFiles.filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))
       if (filesToPrice.length === 0) {
         emitError('not_found', 'No wanted list files found in wanted/ directory.', scriptingOptions)
         process.exitCode = ExitCode.NotFound

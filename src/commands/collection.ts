@@ -59,7 +59,7 @@ export function registerCollectionCommand(program: Command) {
       // List existing collections
       const files = await fs.readdir(collectionsDir)
       const existingCollections = files
-        .filter((f) => f.endsWith('.md'))
+        .filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))
         .map((f) => f.replace('.md', ''))
 
       let selectedCollection: string
