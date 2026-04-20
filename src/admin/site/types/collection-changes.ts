@@ -1,4 +1,4 @@
-import type { ChangeInput } from './deck-changes'
+import type { ChangeInput } from '../../../change-event'
 import type { CollectionCardEntry } from '../../../site/data-types'
 import { findTargetEntryIndex } from './entry-targeting.js'
 

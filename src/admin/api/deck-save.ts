@@ -4,7 +4,7 @@ import { resolveDeckFilePath, serializeDeckToMarkdown } from '../../deck-file'
 import { getErrorMessage } from '../../errors'
 import { appendChangelog } from '../../changelog-writer'
 import type { DeckData } from '../../types'
-import type { ChangeEvent } from '../site/types/deck-changes'
+import type { ChangeEvent } from '../../change-event'
 import { getBaseDir } from '../../base-dir'
 import { validateBodySize, validateContentHash, autoCommitAndPush } from './save-helpers'
 

@@ -9,6 +9,7 @@ import {
 } from 'solid-js'
 import type { Finish, ScryfallCard } from '../../../types'
 import type { PriceCurrency } from '../../../price-currency'
+import { DEFAULT_CURRENCY } from '../../../price-currency'
 import type { ChangeEvent, ChangeInput, CardPrintingOptions } from '../../../change-event'
 import type { CardPriceResponse } from '../../api/card-price'
 import type { ContextMenuState } from '../types/context-menu'
@@ -129,7 +130,7 @@ export function useEditor<TData, TCardEntry = unknown>(
   const pool = useCardIdPool()
   const changes = useCardChanges<TCardEntry>()
 
-  const currency: PriceCurrency = 'usd'
+  const currency: PriceCurrency = DEFAULT_CURRENCY
   let original: TData | null = null
 
   const isDataReady = () => {

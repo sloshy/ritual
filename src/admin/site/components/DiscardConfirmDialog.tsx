@@ -1,6 +1,6 @@
 import type { Component } from 'solid-js'
 import { createEffect, For } from 'solid-js'
-import { type ChangeEvent, isAdditiveChange, formatChange } from '../types/deck-changes'
+import { type ChangeEvent, isAdditiveChange, formatChange } from '../../../change-event'
 
 interface DiscardConfirmDialogProps {
   open: boolean

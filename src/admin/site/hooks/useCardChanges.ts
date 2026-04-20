@@ -7,7 +7,7 @@ import {
   createChangeId,
   areOppositeChanges,
   consolidateSetFinish,
-} from '../types/deck-changes'
+} from '../../../change-event'
 
 /**
  * Stores enough context to fully reverse a single user action.

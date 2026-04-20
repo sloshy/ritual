@@ -1,7 +1,7 @@
 import type { Component } from 'solid-js'
 import { createSignal, createEffect, createMemo, onCleanup, Show, For } from 'solid-js'
 import type { Finish, Condition, ScryfallCard } from '../../../types'
-import type { CardPrintingOptions } from '../types/deck-changes'
+import type { CardPrintingOptions } from '../../../change-event'
 import { getCardImageUrl } from '../card-utils'
 import { isFinish } from '../../../finish-condition'
 

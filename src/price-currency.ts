@@ -1,10 +1,12 @@
-export type PriceCurrency = 'usd' | 'eur' | 'tix'
-
 import type { ScryfallCard, ErrorCode } from './types'
 import { getErrorMessage } from './errors'
 
+export type PriceCurrency = 'usd' | 'eur' | 'tix'
+
+export const DEFAULT_CURRENCY: PriceCurrency = 'usd'
+
 export function parsePriceCurrencyFlag(input: string | undefined): PriceCurrency {
-  if (!input) return 'usd'
+  if (!input) return DEFAULT_CURRENCY
   const lower = input.toLowerCase().trim()
   if (lower === 'eur') return 'eur'
   if (lower === 'tix') return 'tix'

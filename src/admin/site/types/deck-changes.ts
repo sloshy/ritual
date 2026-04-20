@@ -1,26 +1,3 @@
-// Re-export shim — canonical location is src/change-event.ts
-export type {
-  BaseChange,
-  AddChange,
-  RemoveChange,
-  SetCommanderChange,
-  UnsetCommanderChange,
-  SetFinishChange,
-  ChangeAction,
-  ChangeEvent,
-  ChangeInput,
-  CardPrintingOptions,
-  ConsolidateSetFinishResult,
-} from '../../../change-event'
-export {
-  createChangeId,
-  createChangeEvent,
-  areOppositeChanges,
-  isAdditiveChange,
-  formatChange,
-  consolidateSetFinish,
-} from '../../../change-event'
-
 import type { DeckData } from '../../../types'
 import type { ChangeInput } from '../../../change-event'
 import { isCondition } from '../../../finish-condition'
