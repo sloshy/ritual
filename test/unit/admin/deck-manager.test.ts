@@ -41,9 +41,9 @@ describe('deck-create handler', () => {
 
     expect(resp.status).toBe(200)
     expect(data.success).toBe(true)
-    expect(data.slug).toBe('my-test-deck')
+    expect(data.slug).toBe('My Test Deck')
 
-    const fileContent = await fs.readFile(path.join(decksDir, 'my-test-deck.md'), 'utf-8')
+    const fileContent = await fs.readFile(path.join(decksDir, 'My Test Deck.md'), 'utf-8')
     expect(fileContent).toContain('name: "My Test Deck"')
     expect(fileContent).toContain('format: "commander"')
     expect(fileContent).toContain('# My Test Deck')
@@ -55,7 +55,7 @@ describe('deck-create handler', () => {
     const data = (await resp.json()) as { success: boolean; slug: string }
 
     expect(data.success).toBe(true)
-    expect(data.slug).toBe('atraxa-praetors-voice')
+    expect(data.slug).toBe("Atraxa Praetors' Voice!")
   })
 
   test('defaults format to commander', async () => {
@@ -64,7 +64,7 @@ describe('deck-create handler', () => {
     const data = (await resp.json()) as { success: boolean }
 
     expect(data.success).toBe(true)
-    const fileContent = await fs.readFile(path.join(decksDir, 'no-format-deck.md'), 'utf-8')
+    const fileContent = await fs.readFile(path.join(decksDir, 'No Format Deck.md'), 'utf-8')
     expect(fileContent).toContain('format: "commander"')
   })
 
@@ -79,7 +79,7 @@ describe('deck-create handler', () => {
   })
 
   test('returns 409 when deck with same slug already exists', async () => {
-    await Bun.write(path.join(decksDir, 'my-deck.md'), '# My Deck')
+    await Bun.write(path.join(decksDir, 'My Deck.md'), '# My Deck')
     const req = makeRequest('POST', '/api/deck/create', { name: 'My Deck' })
     const resp = await handleDeckCreate(req)
     const data = (await resp.json()) as { success: boolean; message: string }
@@ -116,15 +116,15 @@ describe('deck-rename handler', () => {
 
     expect(resp.status).toBe(200)
     expect(data.success).toBe(true)
-    expect(data.newSlug).toBe('new-deck-name')
+    expect(data.newSlug).toBe('New Deck Name')
 
-    const newFileExists = await Bun.file(path.join(decksDir, 'new-deck-name.md')).exists()
+    const newFileExists = await Bun.file(path.join(decksDir, 'New Deck Name.md')).exists()
     expect(newFileExists).toBe(true)
 
     const oldFileExists = await Bun.file(path.join(decksDir, 'old-deck.md')).exists()
     expect(oldFileExists).toBe(false)
 
-    const content = await fs.readFile(path.join(decksDir, 'new-deck-name.md'), 'utf-8')
+    const content = await fs.readFile(path.join(decksDir, 'New Deck Name.md'), 'utf-8')
     expect(content).toContain('name: "New Deck Name"')
   })
 
@@ -134,7 +134,7 @@ describe('deck-rename handler', () => {
     const req = makeRequest('POST', '/api/deck/old-deck/rename', { newName: 'New Deck Name' })
     await handleDeckRename(req)
 
-    const newChangelog = await Bun.file(path.join(decksDir, 'new-deck-name.changes.md')).exists()
+    const newChangelog = await Bun.file(path.join(decksDir, 'New Deck Name.changes.md')).exists()
     expect(newChangelog).toBe(true)
 
     const oldChangelog = await Bun.file(path.join(decksDir, 'old-deck.changes.md')).exists()
@@ -160,7 +160,7 @@ describe('deck-rename handler', () => {
   })
 
   test('returns 409 when target slug already exists', async () => {
-    await Bun.write(path.join(decksDir, 'existing-deck.md'), '# Existing\n')
+    await Bun.write(path.join(decksDir, 'Existing Deck.md'), '# Existing\n')
 
     const req = makeRequest('POST', '/api/deck/old-deck/rename', { newName: 'Existing Deck' })
     const resp = await handleDeckRename(req)

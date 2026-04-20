@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import path from 'node:path'
 import * as fs from 'node:fs/promises'
-import { promptUser } from '../utils'
+import { promptUser, sanitizeDeckFileName } from '../utils'
 import { ArchidektClient } from '../clients/ArchidektClient'
 import { fetchMtgGoldfishDeck } from '../importers/mtggoldfish'
 import { fetchMoxfieldDeck } from '../importers/moxfield-lib'
@@ -90,10 +90,7 @@ export async function saveDeck(
 ): Promise<void> {
   const resolvedOptions = normalizeSaveDeckOptions(options)
   // Determine Target Filename
-  const safeName = deckData.name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '')
+  const safeName = sanitizeDeckFileName(deckData.name)
   let fileName = `${safeName}.md`
 
   // Scan Existing Decks for ID Conflict

@@ -4,6 +4,7 @@ import { fetchMtgGoldfishDeck } from '../../importers/mtggoldfish'
 import { fetchMoxfieldDeck } from '../../importers/moxfield-lib'
 import { importFromTextFile } from '../../importers/text-file'
 import { saveDeck } from '../../commands/import'
+import { sanitizeDeckFileName } from '../../utils'
 import { loadConfig } from '../config'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { apiHandler } from '../utils'
@@ -68,10 +69,7 @@ export function handleImportDeck(req: Request): Promise<Response> {
     })
 
     const config = await loadConfig()
-    const safeName = deckData.name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '')
+    const safeName = sanitizeDeckFileName(deckData.name)
     const filePath = path.join(decksDir, `${safeName}.md`)
 
     if (shouldAutoCommit(config, decksDir)) {

@@ -7,6 +7,7 @@ import { getErrorMessage } from '../../errors'
 import { MAX_BODY_SIZE } from '../validation'
 import { getBaseDir } from '../../base-dir'
 import { writeFileWithHash, hashPath } from '../../content-hash'
+import { sanitizeDeckFileName } from '../../utils'
 
 interface DeckRenameRequest {
   newName: string
@@ -42,15 +43,12 @@ export async function handleDeckRename(req: Request): Promise<Response> {
     }
 
     const trimmedName = newName.trim()
-    const newSlug = trimmedName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '')
+    const newSlug = sanitizeDeckFileName(trimmedName)
 
     if (!newSlug) {
       const resp: DeckRenameResponse = {
         success: false,
-        message: 'New name must contain at least one alphanumeric character',
+        message: 'New name must contain at least one valid character',
       }
       return Response.json(resp, { status: 400 })
     }

@@ -190,7 +190,7 @@ export function DeckManager() {
               />
               <Show when={newName().trim()}>
                 <p class="form-hint form-hint-top">
-                  Slug: <code>{slugify(newName())}</code>
+                  File name: <code>{slugify(newName())}.md</code>
                 </p>
               </Show>
             </div>
@@ -250,7 +250,7 @@ export function DeckManager() {
                 />
                 <Show when={renameName().trim()}>
                   <p class="form-hint form-hint-top">
-                    New slug: <code>{slugify(renameName())}</code>
+                    New file name: <code>{slugify(renameName())}.md</code>
                   </p>
                 </Show>
               </div>
@@ -319,7 +319,9 @@ export function DeckManager() {
 
 function slugify(name: string): string {
   return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '')
+    .trim()
+    .replace(/[/\\:*?"<>|\x00]/g, '')
+    .replace(/\.{2,}/g, '.')
+    .replace(/^\.+|\.+$/g, '')
+    .trim()
 }

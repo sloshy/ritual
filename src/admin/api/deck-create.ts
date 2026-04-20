@@ -6,6 +6,7 @@ import { isPathWithinDir } from '../../path-validation'
 import { MAX_BODY_SIZE } from '../validation'
 import { getBaseDir } from '../../base-dir'
 import { writeFileWithHash, hashPath } from '../../content-hash'
+import { sanitizeDeckFileName } from '../../utils'
 
 interface DeckCreateRequest {
   name: string
@@ -33,15 +34,12 @@ export async function handleDeckCreate(req: Request): Promise<Response> {
     }
 
     const trimmedName = name.trim()
-    const slug = trimmedName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '')
+    const slug = sanitizeDeckFileName(trimmedName)
 
     if (!slug) {
       const resp: DeckCreateResponse = {
         success: false,
-        message: 'Deck name must contain at least one alphanumeric character',
+        message: 'Deck name must contain at least one valid character',
       }
       return Response.json(resp, { status: 400 })
     }
