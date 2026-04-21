@@ -813,3 +813,143 @@ export async function mockPublicSiteDeckWithMultipleSections(page: Page): Promis
     })
   })
 }
+
+const MOCK_COLLECTION_CARD_PRICED = {
+  id: 'collection-priced-id',
+  name: 'Priced Card',
+  cmc: 2,
+  type_line: 'Creature — Human',
+  oracle_text: '',
+  mana_cost: '{1}{W}',
+  image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
+  prices: { usd: '3.50', usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
+  finishes: ['nonfoil'],
+  games: ['paper'],
+  set: 'tst',
+  set_name: 'Test Set',
+  collector_number: '10',
+  rarity: 'rare',
+  color_identity: ['W'],
+  edhrec_rank: 5000,
+}
+
+const MOCK_COLLECTION_CARD_UNPRICED = {
+  id: 'collection-unpriced-id',
+  name: 'Unpriced Card',
+  cmc: 3,
+  type_line: 'Artifact',
+  oracle_text: '',
+  mana_cost: '{3}',
+  image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
+  prices: { usd: null, usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
+  finishes: ['nonfoil'],
+  games: ['paper'],
+  set: 'tst',
+  set_name: 'Test Set',
+  collector_number: '11',
+  rarity: 'uncommon',
+  color_identity: [],
+  edhrec_rank: 10000,
+}
+
+const MOCK_COLLECTION_DETAIL = {
+  name: 'Test Collection',
+  entries: [
+    {
+      name: 'Priced Card',
+      set: 'tst',
+      collectorNumber: '10',
+      finish: 'nonfoil',
+      condition: 'NM',
+      price: 3.5,
+      fileOrder: 0,
+    },
+    {
+      name: 'Unpriced Card',
+      set: 'tst',
+      collectorNumber: '11',
+      finish: 'nonfoil',
+      condition: 'NM',
+      price: 0,
+      fileOrder: 1,
+    },
+  ],
+  cards: {
+    'tst:10': MOCK_COLLECTION_CARD_PRICED,
+    'tst:11': MOCK_COLLECTION_CARD_UNPRICED,
+  },
+  printings: {
+    'Priced Card': [MOCK_COLLECTION_CARD_PRICED],
+    'Unpriced Card': [MOCK_COLLECTION_CARD_UNPRICED],
+  },
+  symbolMap: {},
+  useScryfallImgUrls: false,
+  totalPrice: 3.5,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+}
+
+const MOCK_SITE_INDEX_WITH_COLLECTION = {
+  decks: [],
+  collections: [
+    {
+      slug: 'test-collection',
+      name: 'Test Collection',
+      featuredCardImage: '',
+      cardCount: 2,
+      totalPrice: 3.5,
+      totalPriceEur: 0,
+      totalPriceTix: 0,
+    },
+  ],
+  useScryfallImgUrls: false,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+}
+
+/**
+ * Mock the public site JSON endpoints with a synthetic collection containing
+ * both priced and unpriced cards, for testing the Hide Unpriced toolbar option.
+ */
+export async function mockPublicSiteCollection(page: Page): Promise<void> {
+  await page.route('**/index.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_SITE_INDEX_WITH_COLLECTION),
+    })
+  })
+
+  await page.route('**/collections/test-collection.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_COLLECTION_DETAIL),
+    })
+  })
+}
+
+/**
+ * Mock the admin API endpoint for loading a single collection with priced and unpriced cards.
+ */
+export async function mockAdminCollectionLoadApi(page: Page): Promise<void> {
+  await page.route('**/api/collection/test-collection', async (route: Route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          entries: MOCK_COLLECTION_DETAIL.entries,
+          cards: MOCK_COLLECTION_DETAIL.cards,
+          printings: MOCK_COLLECTION_DETAIL.printings,
+          symbolMap: {},
+          slug: 'test-collection',
+          contentHash: 'abc123',
+        }),
+      })
+    } else {
+      await route.continue()
+    }
+  })
+}

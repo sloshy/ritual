@@ -66,6 +66,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     setPriceGroupStrategy,
   } = useToolbarState<CollectionGroupBy>({ groupBy: 'none', sortBy: 'file-order' })
   const [groupDuplicates, setGroupDuplicates] = createSignal(false)
+  const [hideUnpriced, setHideUnpriced] = createSignal(false)
   const [showChangelog, setShowChangelog] = createSignal(false)
 
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
@@ -146,6 +147,10 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       working = working.filter(
         (c) => !(c.cmc === 0 && (c.type.includes('Land') || c.type.includes('Basic'))),
       )
+    }
+
+    if (hideUnpriced()) {
+      working = working.filter((c) => c.price > 0)
     }
 
     return groupAndSortCards(
@@ -323,6 +328,11 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
             label: 'Group Duplicates',
             checked: groupDuplicates(),
             onChange: () => setGroupDuplicates((prev) => !prev),
+          },
+          {
+            label: 'Hide Unpriced',
+            checked: hideUnpriced(),
+            onChange: () => setHideUnpriced((prev) => !prev),
           },
         ]}
       />
