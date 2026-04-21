@@ -18,6 +18,8 @@ export type UseToolbarStateResult<G extends string> = {
   setSortBy: Setter<SortBy>
   reverse: Accessor<boolean>
   setReverse: Setter<boolean>
+  reverseGroups: Accessor<boolean>
+  setReverseGroups: Setter<boolean>
   hideLands: Accessor<boolean>
   setHideLands: Setter<boolean>
   priceGroupStrategy: Accessor<PriceGroupStrategy>
@@ -33,6 +35,7 @@ export function useToolbarState<G extends string>(
   const [groupBy, setGroupBy] = createSignal<G>((defaults?.groupBy ?? 'type') as G)
   const [sortBy, setSortBy] = createSignal<SortBy>(defaults?.sortBy ?? 'name')
   const [reverse, setReverse] = createSignal(false)
+  const [reverseGroups, setReverseGroups] = createSignal(false)
   const [hideLands, setHideLands] = createSignal(false)
   const [priceGroupStrategy, setPriceGroupStrategy] = createSignal<PriceGroupStrategy>('archidekt')
 
@@ -47,6 +50,8 @@ export function useToolbarState<G extends string>(
     setSortBy,
     reverse,
     setReverse,
+    reverseGroups,
+    setReverseGroups,
     hideLands,
     setHideLands,
     priceGroupStrategy,

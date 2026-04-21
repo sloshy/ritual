@@ -69,6 +69,8 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     setSortBy,
     reverse,
     setReverse,
+    reverseGroups,
+    setReverseGroups,
     hideLands,
     setHideLands,
     priceGroupStrategy,
@@ -128,6 +130,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
       [],
       priceGroupStrategy(),
       props.currency,
+      reverseGroups(),
     )
   })
 
@@ -298,6 +301,8 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         onPriceGroupStrategyChange={setPriceGroupStrategy}
         reverse={reverse()}
         onReverseChange={() => setReverse((prev) => !prev)}
+        reverseGroups={reverseGroups()}
+        onReverseGroupsChange={() => setReverseGroups((prev) => !prev)}
         hideLands={hideLands()}
         onHideLandsChange={() => setHideLands((prev) => !prev)}
         extraCheckboxes={[]}

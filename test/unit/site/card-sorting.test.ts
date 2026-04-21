@@ -200,6 +200,100 @@ describe('groupAndSortCards', () => {
   })
 })
 
+describe('groupAndSortCards with reverseGroups', () => {
+  test('reverseGroups reverses type group order', () => {
+    const cards = [
+      makeCard({ name: 'A', type: 'Creature — Bear', cmc: 2 }),
+      makeCard({ name: 'B', type: 'Instant', cmc: 1 }),
+      makeCard({ name: 'C', type: 'Artifact', cmc: 1 }),
+    ]
+    const normal = groupAndSortCards(cards, 'type', 'name', false, [], undefined, 'usd', false)
+    const reversed = groupAndSortCards(cards, 'type', 'name', false, [], undefined, 'usd', true)
+    const normalKeys = normal.map((g) => g.key)
+    const reversedKeys = reversed.map((g) => g.key)
+    expect(reversedKeys).toEqual([...normalKeys].reverse())
+  })
+
+  test('reverseGroups reverses cmc group order', () => {
+    const cards = [
+      makeCard({ name: 'A', cmc: 1 }),
+      makeCard({ name: 'B', cmc: 3 }),
+      makeCard({ name: 'C', cmc: 2 }),
+    ]
+    const reversed = groupAndSortCards(cards, 'cmc', 'name', false, [], undefined, 'usd', true)
+    const keys = reversed.map((g) => g.key)
+    expect(keys).toEqual(['3', '2', '1'])
+  })
+
+  test('reverseGroups reverses section group order', () => {
+    const sectionCards = [
+      makeCard({ name: 'A', section: 'Sideboard' }),
+      makeCard({ name: 'B', section: 'Main' }),
+    ]
+    const reversed = groupAndSortCards(
+      sectionCards,
+      'section',
+      'name',
+      false,
+      ['Main', 'Sideboard'],
+      undefined,
+      'usd',
+      true,
+    )
+    expect(reversed[0]!.key).toBe('Sideboard')
+    expect(reversed[1]!.key).toBe('Main')
+  })
+
+  test('reverseGroups does not affect card order within groups', () => {
+    const cards = [
+      makeCard({ name: 'Charlie', type: 'Creature — Bear' }),
+      makeCard({ name: 'Alpha', type: 'Instant' }),
+      makeCard({ name: 'Beta', type: 'Creature — Bear' }),
+    ]
+    const reversed = groupAndSortCards(cards, 'type', 'name', false, [], undefined, 'usd', true)
+    const creatureGroup = reversed.find((g) => g.key === 'Creature')!
+    expect(creatureGroup.cards[0]!.name).toBe('Beta')
+    expect(creatureGroup.cards[1]!.name).toBe('Charlie')
+  })
+
+  test('reverseGroups is independent of reverse (card sort) flag', () => {
+    const cards = [
+      makeCard({ name: 'Charlie', type: 'Creature — Bear' }),
+      makeCard({ name: 'Alpha', type: 'Instant' }),
+      makeCard({ name: 'Beta', type: 'Creature — Bear' }),
+    ]
+    // Both reversed: sections reversed, cards reversed within sections
+    const bothReversed = groupAndSortCards(cards, 'type', 'name', true, [], undefined, 'usd', true)
+    const normalSections = groupAndSortCards(
+      cards,
+      'type',
+      'name',
+      false,
+      [],
+      undefined,
+      'usd',
+      false,
+    )
+
+    const normalKeys = normalSections.map((g) => g.key)
+    const bothKeys = bothReversed.map((g) => g.key)
+    // Section order should be reversed
+    expect(bothKeys).toEqual([...normalKeys].reverse())
+
+    // Cards within creature group should be reverse-alphabetical
+    const creatureGroup = bothReversed.find((g) => g.key === 'Creature')!
+    expect(creatureGroup.cards[0]!.name).toBe('Charlie')
+    expect(creatureGroup.cards[1]!.name).toBe('Beta')
+  })
+
+  test('reverseGroups false leaves group order unchanged', () => {
+    const cards = [makeCard({ name: 'A', cmc: 1 }), makeCard({ name: 'B', cmc: 2 })]
+    const normal = groupAndSortCards(cards, 'cmc', 'name', false, [], undefined, 'usd', false)
+    const keys = normal.map((g) => g.key)
+    expect(keys).toEqual(['1', '2'])
+  })
+})
+
 describe('colorIdentityKey', () => {
   test('returns empty string for colorless', () => {
     expect(colorIdentityKey([])).toBe('')

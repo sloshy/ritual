@@ -26,6 +26,8 @@ interface ToolbarProps {
   onPriceGroupStrategyChange: (value: PriceGroupStrategy) => void
   reverse: boolean
   onReverseChange: () => void
+  reverseGroups: boolean
+  onReverseGroupsChange: () => void
   hideLands: boolean
   onHideLandsChange: () => void
   extraCheckboxes?: ExtraCheckbox[]
@@ -116,6 +118,16 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
         <input type="checkbox" checked={props.reverse} onChange={props.onReverseChange} />
         Reverse
       </label>
+      <Show when={props.groupBy !== 'none'}>
+        <label class="toolbar-checkbox">
+          <input
+            type="checkbox"
+            checked={props.reverseGroups}
+            onChange={props.onReverseGroupsChange}
+          />
+          Reverse Sections
+        </label>
+      </Show>
       <label class="toolbar-checkbox">
         <input type="checkbox" checked={props.hideLands} onChange={props.onHideLandsChange} />
         Hide Lands

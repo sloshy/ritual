@@ -68,6 +68,8 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     setSortBy,
     reverse,
     setReverse,
+    reverseGroups,
+    setReverseGroups,
     hideLands,
     setHideLands,
     priceGroupStrategy,
@@ -168,6 +170,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
       sectionOrder(),
       priceGroupStrategy(),
       props.currency,
+      reverseGroups(),
     )
   })
 
@@ -346,6 +349,8 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         onPriceGroupStrategyChange={setPriceGroupStrategy}
         reverse={reverse()}
         onReverseChange={() => setReverse((prev) => !prev)}
+        reverseGroups={reverseGroups()}
+        onReverseGroupsChange={() => setReverseGroups((prev) => !prev)}
         hideLands={hideLands()}
         onHideLandsChange={() => setHideLands((prev) => !prev)}
         extraCheckboxes={[

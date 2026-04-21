@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { mockPublicSiteDeckWithMultipleSections } from '../helpers/mock-data'
 
 test.describe('Deck Toolbar', () => {
   test.beforeEach(async ({ page }) => {
@@ -32,7 +33,7 @@ test.describe('Deck Toolbar', () => {
       .filter({ hasNotText: /Commander/ })
       .first()
     const namesBefore = await firstSection.locator('.card-list .list-name').allTextContents()
-    const reverseLabel = page.locator('label').filter({ hasText: 'Reverse' })
+    const reverseLabel = page.locator('label').filter({ hasText: /^Reverse$/ })
     const checkbox = reverseLabel.locator('input[type="checkbox"]')
     await expect(checkbox).not.toBeChecked()
     await checkbox.click()
@@ -68,5 +69,73 @@ test.describe('Deck Toolbar', () => {
     await page.waitForTimeout(300)
     const sizeToggles = page.locator('.view-toggle')
     expect(await sizeToggles.count()).toBeLessThanOrEqual(1)
+  })
+})
+
+test.describe('Deck Toolbar – Reverse Sections', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockPublicSiteDeckWithMultipleSections(page)
+    await page.goto('#/deck/test-multi-section-deck')
+    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+  })
+
+  test('Reverse Sections checkbox reverses section order independently of card order', async ({
+    page,
+  }) => {
+    // Switch to list view so section headers are visible
+    await page.locator('[data-view="list"]').click()
+
+    // Capture section labels before toggling (default group-by is 'type')
+    const sectionsBefore = await page.locator('.section-divider').allTextContents()
+    expect(sectionsBefore.length).toBeGreaterThan(1)
+
+    const reverseSectionsLabel = page.locator('label').filter({ hasText: /^Reverse Sections$/ })
+    const checkbox = reverseSectionsLabel.locator('input[type="checkbox"]')
+    await expect(checkbox).not.toBeChecked()
+    await checkbox.click()
+    await expect(checkbox).toBeChecked()
+
+    // Section order should now be reversed
+    const sectionsAfter = await page.locator('.section-divider').allTextContents()
+    expect(sectionsAfter).toEqual([...sectionsBefore].reverse())
+  })
+
+  test('Reverse Sections and Reverse operate independently', async ({ page }) => {
+    await page.locator('[data-view="list"]').click()
+
+    // Capture initial card order within the Creature section (sorted by name: 'Alpha Creature', 'Test Creature')
+    const creatureSection = page.locator('[data-section="Creature"]')
+    const cardsBefore = await creatureSection.locator('.card-list .list-name').allTextContents()
+    expect(cardsBefore).toEqual(['Alpha Creature', 'Test Creature'])
+
+    const sectionsBefore = await page.locator('.section-divider').allTextContents()
+
+    // Toggle Reverse Sections only — section order reverses, intra-section card order unchanged
+    const reverseSectionsCheckbox = page
+      .locator('label')
+      .filter({ hasText: /^Reverse Sections$/ })
+      .locator('input[type="checkbox"]')
+    await reverseSectionsCheckbox.click()
+
+    const sectionsAfterReverseSections = await page.locator('.section-divider').allTextContents()
+    expect(sectionsAfterReverseSections).toEqual([...sectionsBefore].reverse())
+
+    const cardsAfterReverseSections = await creatureSection
+      .locator('.card-list .list-name')
+      .allTextContents()
+    expect(cardsAfterReverseSections).toEqual(cardsBefore)
+
+    // Also toggle Reverse (card sort) — section order stays reversed, card order within section reverses
+    const reverseCheckbox = page
+      .locator('label')
+      .filter({ hasText: /^Reverse$/ })
+      .locator('input[type="checkbox"]')
+    await reverseCheckbox.click()
+
+    const sectionsAfterBoth = await page.locator('.section-divider').allTextContents()
+    expect(sectionsAfterBoth).toEqual([...sectionsBefore].reverse())
+
+    const cardsAfterBoth = await creatureSection.locator('.card-list .list-name').allTextContents()
+    expect(cardsAfterBoth).toEqual([...cardsBefore].reverse())
   })
 })

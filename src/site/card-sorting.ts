@@ -235,6 +235,7 @@ export function groupAndSortCards(
   sectionOrder: string[],
   priceGroupStrategy?: PriceGroupStrategy,
   currency: PriceCurrency = 'usd',
+  reverseGroups: boolean = false,
 ): CardGroup[] {
   const sortFn = (a: CardData, b: CardData) => sortCards(a, b, sortBy, reverse)
 
@@ -298,10 +299,11 @@ export function groupAndSortCards(
     )
   }
 
-  return keys
-    .filter((key) => groups[key] && groups[key]!.length > 0)
-    .map((key) => ({
-      key,
-      cards: groups[key]!.sort(sortFn),
-    }))
+  const orderedKeys = keys.filter((key) => groups[key] && groups[key]!.length > 0)
+  if (reverseGroups) orderedKeys.reverse()
+
+  return orderedKeys.map((key) => ({
+    key,
+    cards: groups[key]!.sort(sortFn),
+  }))
 }

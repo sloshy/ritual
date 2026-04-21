@@ -58,6 +58,8 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     setSortBy,
     reverse,
     setReverse,
+    reverseGroups,
+    setReverseGroups,
     hideLands,
     setHideLands,
     priceGroupStrategy,
@@ -154,6 +156,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       [],
       priceGroupStrategy(),
       props.currency,
+      reverseGroups(),
     )
   })
 
@@ -311,6 +314,8 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         onPriceGroupStrategyChange={setPriceGroupStrategy}
         reverse={reverse()}
         onReverseChange={() => setReverse((prev) => !prev)}
+        reverseGroups={reverseGroups()}
+        onReverseGroupsChange={() => setReverseGroups((prev) => !prev)}
         hideLands={hideLands()}
         onHideLandsChange={() => setHideLands((prev) => !prev)}
         extraCheckboxes={[

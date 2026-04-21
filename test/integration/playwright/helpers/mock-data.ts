@@ -664,3 +664,152 @@ export {
   MOCK_AUDIT_ENTRIES,
   MOCK_CONFIG,
 }
+
+const MOCK_SCRYFALL_CREATURE = {
+  id: 'creature-id',
+  name: 'Test Creature',
+  cmc: 2,
+  type_line: 'Creature — Human',
+  oracle_text: '',
+  mana_cost: '{1}{W}',
+  image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
+  prices: { usd: '1.00', usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
+  finishes: ['nonfoil'],
+  games: ['paper'],
+  set: 'tst',
+  set_name: 'Test Set',
+  collector_number: '1',
+  rarity: 'common',
+  color_identity: ['W'],
+  edhrec_rank: 1000,
+}
+
+const MOCK_SCRYFALL_CREATURE_B = {
+  id: 'creature-b-id',
+  name: 'Alpha Creature',
+  cmc: 3,
+  type_line: 'Creature — Beast',
+  oracle_text: '',
+  mana_cost: '{2}{G}',
+  image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
+  prices: { usd: '0.75', usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
+  finishes: ['nonfoil'],
+  games: ['paper'],
+  set: 'tst',
+  set_name: 'Test Set',
+  collector_number: '4',
+  rarity: 'common',
+  color_identity: ['G'],
+  edhrec_rank: 1500,
+}
+
+const MOCK_SCRYFALL_INSTANT = {
+  id: 'instant-id',
+  name: 'Test Instant',
+  cmc: 1,
+  type_line: 'Instant',
+  oracle_text: '',
+  mana_cost: '{R}',
+  image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
+  prices: { usd: '0.50', usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
+  finishes: ['nonfoil'],
+  games: ['paper'],
+  set: 'tst',
+  set_name: 'Test Set',
+  collector_number: '2',
+  rarity: 'common',
+  color_identity: ['R'],
+  edhrec_rank: 2000,
+}
+
+const MOCK_SCRYFALL_ARTIFACT = {
+  id: 'artifact-id',
+  name: 'Test Artifact',
+  cmc: 3,
+  type_line: 'Artifact',
+  oracle_text: '',
+  mana_cost: '{3}',
+  image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
+  prices: { usd: '2.00', usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
+  finishes: ['nonfoil'],
+  games: ['paper'],
+  set: 'tst',
+  set_name: 'Test Set',
+  collector_number: '3',
+  rarity: 'uncommon',
+  color_identity: [],
+  edhrec_rank: 3000,
+}
+
+const MOCK_MULTI_SECTION_DECK = {
+  deck: {
+    name: 'Test Multi-Section Deck',
+    sections: [
+      {
+        name: 'Main',
+        cards: [
+          { quantity: 1, name: 'Test Creature', set: 'tst', collectorNumber: '1' },
+          { quantity: 1, name: 'Alpha Creature', set: 'tst', collectorNumber: '4' },
+          { quantity: 1, name: 'Test Instant', set: 'tst', collectorNumber: '2' },
+          { quantity: 1, name: 'Test Artifact', set: 'tst', collectorNumber: '3' },
+        ],
+      },
+    ],
+  },
+  cards: {
+    'Test Creature': MOCK_SCRYFALL_CREATURE,
+    'Alpha Creature': MOCK_SCRYFALL_CREATURE_B,
+    'Test Instant': MOCK_SCRYFALL_INSTANT,
+    'Test Artifact': MOCK_SCRYFALL_ARTIFACT,
+  },
+  printings: {
+    'Test Creature': [MOCK_SCRYFALL_CREATURE],
+    'Alpha Creature': [MOCK_SCRYFALL_CREATURE_B],
+    'Test Instant': [MOCK_SCRYFALL_INSTANT],
+    'Test Artifact': [MOCK_SCRYFALL_ARTIFACT],
+  },
+  symbolMap: {},
+  exportPath: 'decks/test-multi-section-deck.txt',
+  useScryfallImgUrls: false,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+  missingCards: { usd: [], eur: [], tix: [] },
+}
+
+const MOCK_SITE_INDEX_WITH_MULTI_SECTION_DECK = {
+  decks: [
+    {
+      slug: 'test-multi-section-deck',
+      name: 'Test Multi-Section Deck',
+      featuredCardImage: '',
+      commander: null,
+      cardCount: 3,
+    },
+  ],
+  collections: [],
+  useScryfallImgUrls: false,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+}
+
+/**
+ * Mock the public site JSON endpoints with a synthetic deck that has cards of multiple
+ * types (Creature, Instant, Artifact), producing multiple type-based sections in the toolbar.
+ */
+export async function mockPublicSiteDeckWithMultipleSections(page: Page): Promise<void> {
+  await page.route('**/index.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_SITE_INDEX_WITH_MULTI_SECTION_DECK),
+    })
+  })
+
+  await page.route('**/decks/test-multi-section-deck.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_MULTI_SECTION_DECK),
+    })
+  })
+}
