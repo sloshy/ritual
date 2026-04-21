@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import prompts from 'prompts'
 import path from 'node:path'
 import * as fs from 'node:fs/promises'
-import { getAllCardNames } from '../scryfall'
+import { getAllCardNames, getCardPrintings } from '../scryfall'
 import { resolveDeckFilePath, addCardToDeckFile } from '../deck-file'
 import {
   resolveCardPrinting,
@@ -21,6 +21,11 @@ import { createChangeEvent } from '../change-event'
 import { allocateNextIdFromContent } from '../card-id'
 import { getBaseDir } from '../base-dir'
 import { appendFileWithHash } from '../content-hash'
+import {
+  findCheapestPrinting,
+  formatSpecificPrintingPrice,
+  formatCheapestPrintingDisplay,
+} from '../price-currency'
 
 /** Parse existing &N IDs from a file and allocate the next available ID. */
 async function allocateNextIdFromFile(filePath: string): Promise<number> {
@@ -300,6 +305,7 @@ async function handleCollectionAddCard(
 
   await appendFileWithHash(collectionFilePath, line)
   console.log(`Added: ${line.trim()}`)
+  console.log(formatSpecificPrintingPrice(printingResult.printing, finishAndCondition.finish))
 
   const change = createChangeEvent('add', selectedName, {
     set: printingResult.printing.set.toLowerCase(),
@@ -343,6 +349,8 @@ async function handleWantedAddCard(
     const line = formatWantedListLine(selectedName, undefined, userFinish, undefined, cardId)
     await appendFileWithHash(listFile, line)
     console.log(`Added: ${line.trim()}`)
+    const allPrintings = await getCardPrintings(selectedName)
+    console.log(formatCheapestPrintingDisplay(findCheapestPrinting(allPrintings)))
     const change = createChangeEvent('add', selectedName, { finish: userFinish, cardId })
     await appendChangelog(listFile, wantedListName, [change])
     return
@@ -356,6 +364,8 @@ async function handleWantedAddCard(
     const line = formatWantedListLine(selectedName, undefined, userFinish, undefined, cardId)
     await appendFileWithHash(listFile, line)
     console.log(`Added: ${line.trim()}`)
+    const allPrintings = await getCardPrintings(selectedName)
+    console.log(formatCheapestPrintingDisplay(findCheapestPrinting(allPrintings)))
     const change = createChangeEvent('add', selectedName, { finish: userFinish, cardId })
     await appendChangelog(listFile, wantedListName, [change])
     return
@@ -382,6 +392,7 @@ async function handleWantedAddCard(
 
   await appendFileWithHash(listFile, line)
   console.log(`Added: ${line.trim()}`)
+  console.log(formatSpecificPrintingPrice(printingResult.printing, finish))
 
   const change = createChangeEvent('add', selectedName, {
     set: printingResult.printing.set.toLowerCase(),

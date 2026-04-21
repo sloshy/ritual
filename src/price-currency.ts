@@ -149,3 +149,51 @@ export function parseCurrenciesFlag(input: string | undefined): PriceCurrency[] 
   }
   return result
 }
+
+export type CheapestPrintingResult = {
+  price: number
+  card: ScryfallCard
+  finish: string
+}
+
+/**
+ * Find the cheapest printing+finish combination from a list of card printings.
+ * Only considers USD prices and physical finishes.
+ */
+export function findCheapestPrinting(printings: ScryfallCard[]): CheapestPrintingResult | null {
+  let best: CheapestPrintingResult | null = null
+  for (const card of printings) {
+    for (const finish of card.finishes) {
+      const price = getCardPriceForFinish(card, finish, 'usd')
+      if (price > 0 && (best === null || price < best.price)) {
+        best = { price, card, finish }
+      }
+    }
+  }
+  return best
+}
+
+/**
+ * Format a price line for display after adding a card with a specific printing.
+ * Shows "Price: $X.XX" or "Price: unavailable".
+ */
+export function formatSpecificPrintingPrice(
+  card: ScryfallCard,
+  finish: string | undefined,
+): string {
+  const resolvedFinish =
+    finish ?? (card.finishes.includes('nonfoil') ? 'nonfoil' : (card.finishes[0] ?? 'nonfoil'))
+  const price = getCardPriceForFinish(card, resolvedFinish, 'usd')
+  if (price <= 0) return 'Price: unavailable'
+  return `Price: ${formatPrice(price, 'usd')}`
+}
+
+/**
+ * Format a price line for display after adding a wanted card with no specific printing.
+ * Shows "Cheapest printing: $X.XX (SET:NUM) [finish]" or "Cheapest printing: unavailable".
+ */
+export function formatCheapestPrintingDisplay(result: CheapestPrintingResult | null): string {
+  if (!result) return 'Cheapest printing: unavailable'
+  const setNum = `${result.card.set.toUpperCase()}:${result.card.collector_number}`
+  return `Cheapest printing: ${formatPrice(result.price, 'usd')} (${setNum}) [${result.finish}]`
+}

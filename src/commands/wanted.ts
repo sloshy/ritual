@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import prompts, { type Choice } from 'prompts'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
-import { getAllCardNames, getCardsBySet } from '../scryfall'
+import { getAllCardNames, getCardsBySet, getCardPrintings } from '../scryfall'
 import type { ScryfallCard } from '../types'
 import { getBaseDir } from '../base-dir'
 import { resolveCardPrinting, manageSetCodes, replaceLastLine } from './collection-helpers'
@@ -20,6 +20,11 @@ import type { ChangeEvent } from '../change-event'
 import { allocateNextIdFromContent } from '../card-id'
 import { trackAdd, trackEdit, trackAnotherCopy } from '../session-changelog'
 import { appendFileWithHash, writeFileWithHash } from '../content-hash'
+import {
+  findCheapestPrinting,
+  formatSpecificPrintingPrice,
+  formatCheapestPrintingDisplay,
+} from '../price-currency'
 
 export function registerWantedListCommand(program: Command) {
   program
@@ -450,6 +455,8 @@ export function registerWantedListCommand(program: Command) {
           } else {
             await appendFileWithHash(listFile, line)
             console.log(`Added: ${line.trim()}`)
+            const nameOnlyPrintings = await getCardPrintings(cardName)
+            console.log(formatCheapestPrintingDisplay(findCheapestPrinting(nameOnlyPrintings)))
             lastChangeIndex = trackAdd(sessionChanges, nameOnlyEvent)
           }
           lastAddedCard = { name: cardName, line: line, hasNote: false, cardId: nameOnlyCardId }
@@ -474,6 +481,8 @@ export function registerWantedListCommand(program: Command) {
             )
             await appendFileWithHash(listFile, line)
             console.log(`Added: ${line.trim()}`)
+            const fallbackPrintings = await getCardPrintings(cardName)
+            console.log(formatCheapestPrintingDisplay(findCheapestPrinting(fallbackPrintings)))
             lastAddedCard = { name: cardName, line: line, hasNote: false, cardId: fallbackCardId }
             lastAddedCount = 1
             lastChangeIndex = trackAdd(
@@ -543,6 +552,7 @@ export function registerWantedListCommand(program: Command) {
           try {
             await appendFileWithHash(listFile, line)
             console.log(`Added: ${line.trim()}`)
+            console.log(formatSpecificPrintingPrice(selectedPrinting, finish))
             lastAddedCard = { name: cardName, line: line, hasNote: false, cardId: printingCardId }
             lastAddedCount = 1
             lastChangeIndex = trackAdd(sessionChanges, printingEvent)

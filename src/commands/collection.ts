@@ -23,6 +23,7 @@ import type { ChangeEvent } from '../change-event'
 import { allocateNextIdFromContent } from '../card-id'
 import { trackAdd, trackEdit, trackAnotherCopy } from '../session-changelog'
 import { appendFileWithHash, writeFileWithHash } from '../content-hash'
+import { formatSpecificPrintingPrice } from '../price-currency'
 
 export function registerCollectionCommand(program: Command) {
   program
@@ -534,6 +535,7 @@ export function registerCollectionCommand(program: Command) {
           try {
             await appendFileWithHash(collectionFile, line)
             console.log(`Added: ${line.trim()}`)
+            console.log(formatSpecificPrintingPrice(selectedPrinting, finishAndCondition.finish))
             lastAddedCard = { name: cardName, line: line, hasNote: false, cardId }
             lastAddedCount = 1
             lastChangeIndex = trackAdd(sessionChanges, cardChangeEvent)
