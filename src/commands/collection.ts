@@ -155,14 +155,16 @@ export function registerCollectionCommand(program: Command) {
                 ]
               : []),
             { title: '⚙️  Configure Session Filters', value: '__CONFIG__' },
-            { title: '🔢 Switch to Collector Number Mode', value: '__COLLECTOR_MODE__' },          {
-            title:
-              sessionChanges.length > 0
-                ? `✅ Done — Save ${sessionChanges.length} addition(s)`
-                : '✅ Done',
-            value: '__DONE__',
-          },
-          { title: '🚪 Exit Without Saving', value: '__EXIT__' },            ...(lastAddedCard
+            { title: '🔢 Switch to Collector Number Mode', value: '__COLLECTOR_MODE__' },
+            {
+              title:
+                sessionChanges.length > 0
+                  ? `✅ Done — Save ${sessionChanges.length} addition(s)`
+                  : '✅ Done',
+              value: '__DONE__',
+            },
+            { title: '🚪 Exit Without Saving', value: '__EXIT__' },
+            ...(lastAddedCard
               ? [
                   {
                     title: `✏️  Edit Previous Card (${lastAddedCard.name})`,

@@ -44,17 +44,17 @@ When adding a card, you are prompted to choose the specificity level:
 
 The following options are always available in the menu when no search text is typed:
 
-| Option                               | Description                                        |
-| ------------------------------------ | -------------------------------------------------- |
-| `✅ Done — Save N addition(s)`       | Save the session changelog and exit                |
-| `🚪 Exit Without Saving`             | Exit without writing the session changelog         |
-| `⚙️ Configure Session Filters`       | Adjust default set codes and finish                |
-| `🔢 Switch to Collector Number Mode` | Switch to collector number entry mode              |
-| `📦 Manage Set Codes`                | Add, remove, or switch active sets (collector mode)|
-| `🔤 Switch to Name Mode`             | Switch back to name entry mode (collector mode)    |
-| `➕ Add Another Copy`                | Append another copy of the last added card         |
-| `📝 Add Note`                        | Attach a note to the last added card               |
-| `✏️ Edit Previous Card`              | Re-enter the last added card with forced prompts   |
+| Option                               | Description                                         |
+| ------------------------------------ | --------------------------------------------------- |
+| `✅ Done — Save N addition(s)`       | Save the session changelog and exit                 |
+| `🚪 Exit Without Saving`             | Exit without writing the session changelog          |
+| `⚙️ Configure Session Filters`       | Adjust default set codes and finish                 |
+| `🔢 Switch to Collector Number Mode` | Switch to collector number entry mode               |
+| `📦 Manage Set Codes`                | Add, remove, or switch active sets (collector mode) |
+| `🔤 Switch to Name Mode`             | Switch back to name entry mode (collector mode)     |
+| `➕ Add Another Copy`                | Append another copy of the last added card          |
+| `📝 Add Note`                        | Attach a note to the last added card                |
+| `✏️ Edit Previous Card`              | Re-enter the last added card with forced prompts    |
 
 ## Entry Modes
 
