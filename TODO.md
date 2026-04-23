@@ -6,11 +6,6 @@
 - Add ability to add new decks or collection files (or wanted lists once those are implemented).
 - Add default settings for adding new cards (like the collection CLI) for edit deck/collection pages.
 
-## Collection
-
-- Display price of card when added
-  - Also add this to the quick add admin site thing, and also for adding to decks once that is improved to be similar to the collection CLI.
-
 ## Public Site
 
 - Add more filtering options (scryfall syntax?)
@@ -34,9 +29,10 @@
 - Multi-language support
 - Trades page
 - Add note to existing card (separate command)
-- Move cards between collections
 - Fix colors of index price text
 - If a card has no price, display "N/A" in the price font style
 - Add "last updated" timestamp to collection and deck files, and display this in the UI
 - Add "created at" timestamp to collection and deck files
 - Replace editor and manager pages in admin site with unified interface
+- Fix foils not displaying correctly in certain views (only seems to work in grid view)
+- Cards with no price should not display as $0.00 in some parts of UI (modals)
