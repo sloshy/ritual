@@ -108,6 +108,16 @@ export function registerMoveCommand(program: Command): void {
         const selection: string = response.selection
 
         if (selection === '__EXIT__') {
+          const pending = getPendingMoves(virtualState)
+          if (pending.length > 0) {
+            const confirmResponse = await prompts({
+              type: 'confirm',
+              name: 'confirm',
+              message: `Are you sure you want to exit and lose ${pending.length} change(s)?`,
+              initial: false,
+            })
+            if (!confirmResponse.confirm) continue
+          }
           break
         }
 

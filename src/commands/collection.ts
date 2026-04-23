@@ -155,8 +155,14 @@ export function registerCollectionCommand(program: Command) {
                 ]
               : []),
             { title: '⚙️  Configure Session Filters', value: '__CONFIG__' },
-            { title: '🔢 Switch to Collector Number Mode', value: '__COLLECTOR_MODE__' },
-            ...(lastAddedCard
+            { title: '🔢 Switch to Collector Number Mode', value: '__COLLECTOR_MODE__' },          {
+            title:
+              sessionChanges.length > 0
+                ? `✅ Done — Save ${sessionChanges.length} addition(s)`
+                : '✅ Done',
+            value: '__DONE__',
+          },
+          { title: '🚪 Exit Without Saving', value: '__EXIT__' },            ...(lastAddedCard
               ? [
                   {
                     title: `✏️  Edit Previous Card (${lastAddedCard.name})`,
@@ -210,6 +216,14 @@ export function registerCollectionCommand(program: Command) {
               value: '__MANAGE_SETS__',
             },
             { title: '🔤 Switch to Name Mode', value: '__NAME_MODE__' },
+            {
+              title:
+                sessionChanges.length > 0
+                  ? `✅ Done — Save ${sessionChanges.length} addition(s)`
+                  : '✅ Done',
+              value: '__DONE__',
+            },
+            { title: '🚪 Exit Without Saving', value: '__EXIT__' },
             ...(lastAddedCard
               ? [
                   {
@@ -226,8 +240,8 @@ export function registerCollectionCommand(program: Command) {
           lastAddedCard && lastAddedCount > 0 ? ` (${lastAddedCount}x ${lastAddedCard.name})` : ''
         const promptMessage: string =
           sessionConfig.entryMode === 'name'
-            ? `Enter card name to add${streakHint} (or press ESC to exit)`
-            : `Enter collector # for ${sessionConfig.collectorSets[sessionConfig.activeSetIndex]?.toUpperCase() || 'SET'}${streakHint} (or ESC to exit)`
+            ? `Enter card name to add${streakHint}`
+            : `Enter collector # for ${sessionConfig.collectorSets[sessionConfig.activeSetIndex]?.toUpperCase() || 'SET'}${streakHint}`
 
         const response = await prompts({
           type: 'autocomplete',
@@ -249,7 +263,9 @@ export function registerCollectionCommand(program: Command) {
                     c.value === '__ADD_NOTE__' ||
                     c.value === '__CONFIG__' ||
                     c.value === '__EDIT_LAST__' ||
-                    c.value === '__COLLECTOR_MODE__',
+                    c.value === '__COLLECTOR_MODE__' ||
+                    c.value === '__DONE__' ||
+                    c.value === '__EXIT__',
                 )
 
               const terms = cleanInput.toLowerCase().split(/\s+/).filter(Boolean)
@@ -277,7 +293,9 @@ export function registerCollectionCommand(program: Command) {
                     c.value === '__ADD_NOTE__' ||
                     c.value === '__MANAGE_SETS__' ||
                     c.value === '__EDIT_LAST__' ||
-                    c.value === '__NAME_MODE__',
+                    c.value === '__NAME_MODE__' ||
+                    c.value === '__DONE__' ||
+                    c.value === '__EXIT__',
                 )
 
               // Filter by collector number prefix
@@ -298,6 +316,29 @@ export function registerCollectionCommand(program: Command) {
           if (sessionChanges.length > 0) {
             await appendChangelog(collectionFile, selectedCollection, sessionChanges)
             console.log('Changelog saved.')
+          }
+          console.log('Exiting collection manager.')
+          break
+        }
+
+        if (response.cardName === '__DONE__') {
+          if (sessionChanges.length > 0) {
+            await appendChangelog(collectionFile, selectedCollection, sessionChanges)
+            console.log('Changelog saved.')
+          }
+          console.log('Exiting collection manager.')
+          break
+        }
+
+        if (response.cardName === '__EXIT__') {
+          if (sessionChanges.length > 0) {
+            const confirmResponse = await prompts({
+              type: 'confirm',
+              name: 'confirm',
+              message: `Are you sure you want to exit and lose ${sessionChanges.length} change(s)?`,
+              initial: false,
+            })
+            if (!confirmResponse.confirm) continue
           }
           console.log('Exiting collection manager.')
           break
