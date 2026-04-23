@@ -18,7 +18,7 @@ import {
   isCondition,
 } from './collection-helpers'
 import { appendChangelog } from '../changelog-writer'
-import { createChangeEvent } from '../change-event'
+import { createAddChange } from '../change-event'
 import type { ChangeEvent } from '../change-event'
 import { allocateNextIdFromContent } from '../card-id'
 import { trackAdd, trackEdit, trackAnotherCopy } from '../session-changelog'
@@ -459,10 +459,7 @@ export function registerCollectionCommand(program: Command) {
               console.log(`Added: ${cardName}`)
               lastAddedCard = { name: cardName, line: fallbackLine, hasNote: false, cardId }
               lastAddedCount = 1
-              lastChangeIndex = trackAdd(
-                sessionChanges,
-                createChangeEvent('add', cardName, { cardId }),
-              )
+              lastChangeIndex = trackAdd(sessionChanges, createAddChange(cardName, { cardId }))
             } catch (e) {
               console.error(`Failed to write to file: ${e}`)
             }
@@ -500,7 +497,7 @@ export function registerCollectionCommand(program: Command) {
           cardId,
         )
 
-        const cardChangeEvent: ChangeEvent = createChangeEvent('add', cardName, {
+        const cardChangeEvent: ChangeEvent = createAddChange(cardName, {
           set: selectedPrinting.set.toLowerCase(),
           collectorNumber: selectedPrinting.collector_number,
           finish: finishAndCondition.finish,

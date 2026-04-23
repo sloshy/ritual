@@ -15,7 +15,7 @@ import {
   isFinish,
 } from './wanted-helpers'
 import { appendChangelog } from '../changelog-writer'
-import { createChangeEvent } from '../change-event'
+import { createAddChange } from '../change-event'
 import type { ChangeEvent } from '../change-event'
 import { allocateNextIdFromContent } from '../card-id'
 import { trackAdd, trackEdit, trackAnotherCopy } from '../session-changelog'
@@ -433,7 +433,7 @@ export function registerWantedListCommand(program: Command) {
             undefined,
             nameOnlyCardId,
           )
-          const nameOnlyEvent: ChangeEvent = createChangeEvent('add', cardName, {
+          const nameOnlyEvent: ChangeEvent = createAddChange(cardName, {
             cardId: nameOnlyCardId,
           })
 
@@ -487,7 +487,7 @@ export function registerWantedListCommand(program: Command) {
             lastAddedCount = 1
             lastChangeIndex = trackAdd(
               sessionChanges,
-              createChangeEvent('add', cardName, { cardId: fallbackCardId }),
+              createAddChange(cardName, { cardId: fallbackCardId }),
             )
             continue
           }
@@ -520,7 +520,7 @@ export function registerWantedListCommand(program: Command) {
           printingCardId,
         )
 
-        const printingEvent: ChangeEvent = createChangeEvent('add', cardName, {
+        const printingEvent: ChangeEvent = createAddChange(cardName, {
           set: selectedPrinting.set.toLowerCase(),
           collectorNumber: selectedPrinting.collector_number,
           finish: finish,

@@ -1,6 +1,7 @@
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import prompts from 'prompts'
+import type { PromptState } from './prompts-types'
 import type { Finish, ScryfallCard } from '../types'
 import { capitalize } from '../utils'
 import { getAllCardNames } from '../scryfall'
@@ -145,7 +146,7 @@ export async function promptWantedFinish(
     name: 'finish',
     message: 'Select Finish:',
     choices,
-    onState: (state: { exited: boolean }) => {
+    onState: (state: PromptState) => {
       if (state.exited) isExited = true
     },
   })

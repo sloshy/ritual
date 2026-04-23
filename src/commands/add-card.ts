@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import prompts from 'prompts'
+import type { PromptState } from './prompts-types'
 import path from 'node:path'
 import * as fs from 'node:fs/promises'
 import { getAllCardNames, getCardPrintings } from '../scryfall'
@@ -17,7 +18,7 @@ import {
 import { ensureWantedListFile, formatWantedListLine, promptWantedFinish } from './wanted-helpers'
 import { ensureFreshCardCache } from '../cache/freshness'
 import { appendChangelog } from '../changelog-writer'
-import { createChangeEvent } from '../change-event'
+import { createAddChange } from '../change-event'
 import { allocateNextIdFromContent } from '../card-id'
 import { getBaseDir } from '../base-dir'
 import { appendFileWithHash } from '../content-hash'
@@ -134,7 +135,7 @@ async function selectCardAutocomplete(
         return terms.every((term) => title.includes(term))
       })
     },
-    onState: (state: { exited: boolean }) => {
+    onState: (state: PromptState) => {
       if (state.exited) isExited = true
     },
   })
@@ -251,7 +252,7 @@ async function handleDeckAddCard(
 
   // Note: addCardToDeckFile allocates the cardId internally.
   // The changelog records the change without the ID since it was assigned during file write.
-  const change = createChangeEvent('add', selectedName)
+  const change = createAddChange(selectedName)
   await appendChangelog(deckFilePath, deckName, [change])
 }
 
@@ -307,7 +308,7 @@ async function handleCollectionAddCard(
   console.log(`Added: ${line.trim()}`)
   console.log(formatSpecificPrintingPrice(printingResult.printing, finishAndCondition.finish))
 
-  const change = createChangeEvent('add', selectedName, {
+  const change = createAddChange(selectedName, {
     set: printingResult.printing.set.toLowerCase(),
     collectorNumber: printingResult.printing.collector_number,
     finish: finishAndCondition.finish,
@@ -351,7 +352,7 @@ async function handleWantedAddCard(
     console.log(`Added: ${line.trim()}`)
     const allPrintings = await getCardPrintings(selectedName)
     console.log(formatCheapestPrintingDisplay(findCheapestPrinting(allPrintings)))
-    const change = createChangeEvent('add', selectedName, { finish: userFinish, cardId })
+    const change = createAddChange(selectedName, { finish: userFinish, cardId })
     await appendChangelog(listFile, wantedListName, [change])
     return
   }
@@ -366,7 +367,7 @@ async function handleWantedAddCard(
     console.log(`Added: ${line.trim()}`)
     const allPrintings = await getCardPrintings(selectedName)
     console.log(formatCheapestPrintingDisplay(findCheapestPrinting(allPrintings)))
-    const change = createChangeEvent('add', selectedName, { finish: userFinish, cardId })
+    const change = createAddChange(selectedName, { finish: userFinish, cardId })
     await appendChangelog(listFile, wantedListName, [change])
     return
   }
@@ -394,7 +395,7 @@ async function handleWantedAddCard(
   console.log(`Added: ${line.trim()}`)
   console.log(formatSpecificPrintingPrice(printingResult.printing, finish))
 
-  const change = createChangeEvent('add', selectedName, {
+  const change = createAddChange(selectedName, {
     set: printingResult.printing.set.toLowerCase(),
     collectorNumber: printingResult.printing.collector_number,
     finish: finish,

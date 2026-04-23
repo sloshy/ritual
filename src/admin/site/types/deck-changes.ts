@@ -119,5 +119,10 @@ export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData
       }
       return { ...deck, sections }
     }
+
+    case 'move-from':
+    case 'move-to':
+      // Move events are managed by the CLI move command and are not applied via the admin UI
+      return { ...deck, sections }
   }
 }

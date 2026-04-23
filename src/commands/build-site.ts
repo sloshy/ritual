@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 import path from 'node:path'
 import fs from 'node:fs/promises'
+import { extractMarkdownTitle } from '../markdown-utils'
 import { importFromTextFile, listDeckFiles } from '../importers/text-file'
 import {
   fetchCardData,
@@ -816,7 +817,7 @@ export function registerBuildSiteCommand(program: Command) {
           continue
         }
 
-        const displayName = content.match(/^#\s+(.+)$/m)?.[1] || colName
+        const displayName = extractMarkdownTitle(content) ?? colName
 
         // Load changelog if it exists
         let collectionChangelog: ChangelogPage[] = []
@@ -1062,7 +1063,7 @@ export function registerBuildSiteCommand(program: Command) {
           continue
         }
 
-        const displayName = content.match(/^#\s+(.+)$/m)?.[1] || wlName
+        const displayName = extractMarkdownTitle(content) ?? wlName
 
         // Load changelog if it exists
         let wlChangelog: ChangelogPage[] = []

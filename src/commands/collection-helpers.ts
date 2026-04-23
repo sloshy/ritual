@@ -1,4 +1,5 @@
 import prompts, { type Choice } from 'prompts'
+import type { PromptState } from './prompts-types'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { getCardsBySet, getAllCardNames, getCardPrintings, isDigitalOnlySet } from '../scryfall'
@@ -122,7 +123,7 @@ export async function resolveCardPrinting(
 
         return [...codeMatches, ...otherMatches]
       },
-      onState: (state: { exited: boolean }) => {
+      onState: (state: PromptState) => {
         if (state.exited) printingExited = true
       },
     })

@@ -1,4 +1,12 @@
-import { createChangeEvent, type ChangeEvent, type CardPrintingOptions } from './change-event'
+import {
+  createAddChange,
+  createRemoveChange,
+  createSetCommanderChange,
+  createUnsetCommanderChange,
+  createSetFinishChange,
+  type ChangeEvent,
+  type CardPrintingOptions,
+} from './change-event'
 import type { Card, DeckSection, Finish, Condition } from './types'
 import type { CollectionEntry } from './commands/price-collection'
 import type { WantedListEntry } from './commands/wanted-helpers'
@@ -108,9 +116,9 @@ export function diffDeckCards(
     if (!oldBucket && newBucket) {
       for (const card of newBucket.cards) {
         for (let i = 0; i < card.quantity; i++) {
-          changes.push(createChangeEvent('add', card.name, printingOptions(card)))
+          changes.push(createAddChange(card.name, printingOptions(card)))
           if (card.isCommander) {
-            changes.push(createChangeEvent('set-commander', card.name, { cardId: card.cardId }))
+            changes.push(createSetCommanderChange(card.name, { cardId: card.cardId }))
           }
         }
       }
@@ -120,7 +128,7 @@ export function diffDeckCards(
     if (oldBucket && !newBucket) {
       for (const card of oldBucket.cards) {
         for (let i = 0; i < card.quantity; i++) {
-          changes.push(createChangeEvent('remove', card.name, printingOptions(card)))
+          changes.push(createRemoveChange(card.name, printingOptions(card)))
         }
       }
       continue
@@ -135,11 +143,11 @@ export function diffDeckCards(
       const qtyDiff = newBucket.totalQty - oldBucket.totalQty
       if (qtyDiff > 0) {
         for (let i = 0; i < qtyDiff; i++) {
-          changes.push(createChangeEvent('add', newCard.name, printingOptions(newCard)))
+          changes.push(createAddChange(newCard.name, printingOptions(newCard)))
         }
       } else if (qtyDiff < 0) {
         for (let i = 0; i < -qtyDiff; i++) {
-          changes.push(createChangeEvent('remove', oldCard.name, printingOptions(oldCard)))
+          changes.push(createRemoveChange(oldCard.name, printingOptions(oldCard)))
         }
       }
 
@@ -149,18 +157,15 @@ export function diffDeckCards(
       const isCommander = newBucket.cards.some((c) => c.isCommander)
 
       if (!wasCommander && isCommander) {
-        changes.push(createChangeEvent('set-commander', newCard.name, { cardId: newCard.cardId }))
+        changes.push(createSetCommanderChange(newCard.name, { cardId: newCard.cardId }))
       } else if (wasCommander && !isCommander) {
-        changes.push(createChangeEvent('unset-commander', oldCard.name, { cardId: oldCard.cardId }))
+        changes.push(createUnsetCommanderChange(oldCard.name, { cardId: oldCard.cardId }))
       }
 
       // Finish change (only when setting TO a finish — no unset-finish action exists)
       if (oldCard.finish !== newCard.finish && newCard.finish) {
         changes.push(
-          createChangeEvent('set-finish', newCard.name, {
-            finish: newCard.finish,
-            cardId: newCard.cardId,
-          }),
+          createSetFinishChange(newCard.name, { finish: newCard.finish, cardId: newCard.cardId }),
         )
       }
     }
@@ -196,13 +201,13 @@ function diffEntries<T extends CardIdentity & { name: string; quantity?: number 
 
   for (const [key, old] of oldMap) {
     if (!newMap.has(key)) {
-      changes.push(createChangeEvent('remove', old.name, printingOptions(old)))
+      changes.push(createRemoveChange(old.name, printingOptions(old)))
     }
   }
 
   for (const [key, entry] of newMap) {
     if (!oldMap.has(key)) {
-      changes.push(createChangeEvent('add', entry.name, printingOptions(entry)))
+      changes.push(createAddChange(entry.name, printingOptions(entry)))
     }
   }
 
@@ -213,7 +218,7 @@ function diffEntries<T extends CardIdentity & { name: string; quantity?: number 
 
       if (options.trackFinish && oldEntry.finish !== newEntry.finish && newEntry.finish) {
         changes.push(
-          createChangeEvent('set-finish', newEntry.name, {
+          createSetFinishChange(newEntry.name, {
             finish: newEntry.finish,
             cardId: newEntry.cardId,
           }),
@@ -226,11 +231,11 @@ function diffEntries<T extends CardIdentity & { name: string; quantity?: number 
         const qtyDiff = newQty - oldQty
         if (qtyDiff > 0) {
           for (let i = 0; i < qtyDiff; i++) {
-            changes.push(createChangeEvent('add', newEntry.name, printingOptions(newEntry)))
+            changes.push(createAddChange(newEntry.name, printingOptions(newEntry)))
           }
         } else if (qtyDiff < 0) {
           for (let i = 0; i < -qtyDiff; i++) {
-            changes.push(createChangeEvent('remove', oldEntry.name, printingOptions(oldEntry)))
+            changes.push(createRemoveChange(oldEntry.name, printingOptions(oldEntry)))
           }
         }
       }

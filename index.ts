@@ -30,6 +30,7 @@ import { registerLicenseCommand } from './src/commands/license'
 import { registerDepLicenseCommand } from './src/commands/dep-license'
 import { registerGitDetectChangesCommand } from './src/commands/git-detect-changes'
 import { registerDeckSyncCommand } from './src/commands/deck-sync'
+import { registerMoveCommand } from './src/commands/move'
 import {
   resolveCacheServerAddress,
   setCacheServerAddressOverride,
@@ -82,6 +83,9 @@ registerPriceCollectionCommand(program)
 program.commandsGroup('Wanted List Management')
 registerWantedListCommand(program)
 registerPriceWantedListCommand(program)
+
+program.commandsGroup('Card Management')
+registerMoveCommand(program)
 
 program.commandsGroup('Card Lookup')
 registerCardCommand(program)

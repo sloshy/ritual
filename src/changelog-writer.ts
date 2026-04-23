@@ -1,38 +1,12 @@
 import fs from 'node:fs/promises'
 import type { ChangeEvent } from './change-event'
+import { formatChangeCore } from './change-event'
 
 /**
  * Format a single change event as a markdown changelog line.
  */
 function formatChangelogLine(change: ChangeEvent): string {
-  const idInfo = change.cardId !== undefined ? ` &${change.cardId}` : ''
-
-  let desc = ''
-  switch (change.action) {
-    case 'add':
-    case 'remove': {
-      const printingInfo =
-        change.set && change.collectorNumber
-          ? ` (${change.set.toUpperCase()}:${change.collectorNumber})`
-          : ''
-      const finishInfo = change.finish && change.finish !== 'nonfoil' ? ` [${change.finish}]` : ''
-      const conditionInfo =
-        change.condition && change.condition !== 'NM' ? ` [${change.condition}]` : ''
-      const verb = change.action === 'add' ? 'Added' : 'Removed'
-      desc = `${verb} ${change.cardName}${printingInfo}${finishInfo}${conditionInfo}${idInfo}`
-      break
-    }
-    case 'set-commander':
-      desc = `Set ${change.cardName} as commander${idInfo}`
-      break
-    case 'unset-commander':
-      desc = `Unset ${change.cardName} as commander${idInfo}`
-      break
-    case 'set-finish':
-      desc = `Set ${change.cardName} finish to ${change.finish}${idInfo}`
-      break
-  }
-  return `- ${desc}`
+  return `- ${formatChangeCore(change, { tense: 'past' })}`
 }
 
 /**

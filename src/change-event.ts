@@ -2,6 +2,12 @@ import type { Finish, Condition } from './types'
 
 // ── Discriminated union types ───────────────────────────────────────
 
+/** Reference to a named list (deck, collection, or wanted list). */
+export type ListRef = {
+  type: 'deck' | 'collection' | 'wanted'
+  name: string
+}
+
 export type BaseChange = {
   id: string
   timestamp: number
@@ -38,12 +44,34 @@ export type SetFinishChange = BaseChange & {
   finish: Finish
 }
 
+export type MoveFromChange = BaseChange & {
+  action: 'move-from'
+  set?: string
+  collectorNumber?: string
+  finish?: Finish
+  condition?: Condition
+  /** The list this card was moved to. */
+  to: ListRef
+}
+
+export type MoveToChange = BaseChange & {
+  action: 'move-to'
+  set?: string
+  collectorNumber?: string
+  finish?: Finish
+  condition?: Condition
+  /** The list this card was moved from. */
+  from: ListRef
+}
+
 export type ChangeEvent =
   | AddChange
   | RemoveChange
   | SetCommanderChange
   | UnsetCommanderChange
   | SetFinishChange
+  | MoveFromChange
+  | MoveToChange
 
 /** Derived from the union — kept as a convenience alias for switch statements. */
 export type ChangeAction = ChangeEvent['action']
@@ -54,7 +82,7 @@ type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K>
 /** The subset of ChangeEvent fields that applyChange* functions need (no id/timestamp). */
 export type ChangeInput = DistributiveOmit<ChangeEvent, 'id' | 'timestamp'>
 
-/** Printing metadata shared by ChangeEvent, Card operations, and API boundaries */
+/** Printing metadata shared by Card operations and API boundaries */
 export type CardPrintingOptions = {
   set?: string
   collectorNumber?: string
@@ -68,45 +96,114 @@ export function createChangeId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-/** Create a ChangeEvent with auto-generated id and timestamp. */
-export function createChangeEvent(
-  action: ChangeAction,
-  cardName: string,
-  options?: CardPrintingOptions,
-): ChangeEvent {
-  const base: BaseChange = {
-    id: createChangeId(),
-    timestamp: Date.now(),
-    cardName,
-    cardId: options?.cardId,
+/** Options for add/remove actions. */
+export type AddRemoveOptions = {
+  set?: string
+  collectorNumber?: string
+  finish?: Finish
+  condition?: Condition
+  cardId?: number
+}
+
+/** Options for set-commander / unset-commander actions. */
+export type CommanderOptions = {
+  cardId?: number
+}
+
+/** Options for set-finish action. */
+export type SetFinishOptions = {
+  finish: Finish
+  cardId?: number
+}
+
+/** Options for move-from action. */
+export type MoveFromOptions = {
+  set?: string
+  collectorNumber?: string
+  finish?: Finish
+  condition?: Condition
+  cardId?: number
+  to: ListRef
+}
+
+/** Options for move-to action. */
+export type MoveToOptions = {
+  set?: string
+  collectorNumber?: string
+  finish?: Finish
+  condition?: Condition
+  cardId?: number
+  from: ListRef
+}
+
+function makeBase(cardName: string, cardId?: number): BaseChange {
+  return { id: createChangeId(), timestamp: Date.now(), cardName, cardId }
+}
+
+export function createAddChange(cardName: string, options?: AddRemoveOptions): AddChange {
+  return {
+    ...makeBase(cardName, options?.cardId),
+    action: 'add',
+    set: options?.set,
+    collectorNumber: options?.collectorNumber,
+    finish: options?.finish,
+    condition: options?.condition,
   }
-  switch (action) {
-    case 'add':
-      return {
-        ...base,
-        action,
-        set: options?.set,
-        collectorNumber: options?.collectorNumber,
-        finish: options?.finish,
-        condition: options?.condition,
-      }
-    case 'remove':
-      return {
-        ...base,
-        action,
-        set: options?.set,
-        collectorNumber: options?.collectorNumber,
-        finish: options?.finish,
-        condition: options?.condition,
-      }
-    case 'set-commander':
-      return { ...base, action }
-    case 'unset-commander':
-      return { ...base, action }
-    case 'set-finish': {
-      if (!options?.finish) throw new Error('set-finish action requires a finish value')
-      return { ...base, action, finish: options.finish }
-    }
+}
+
+export function createRemoveChange(cardName: string, options?: AddRemoveOptions): RemoveChange {
+  return {
+    ...makeBase(cardName, options?.cardId),
+    action: 'remove',
+    set: options?.set,
+    collectorNumber: options?.collectorNumber,
+    finish: options?.finish,
+    condition: options?.condition,
+  }
+}
+
+export function createSetCommanderChange(
+  cardName: string,
+  options?: CommanderOptions,
+): SetCommanderChange {
+  return { ...makeBase(cardName, options?.cardId), action: 'set-commander' }
+}
+
+export function createUnsetCommanderChange(
+  cardName: string,
+  options?: CommanderOptions,
+): UnsetCommanderChange {
+  return { ...makeBase(cardName, options?.cardId), action: 'unset-commander' }
+}
+
+export function createSetFinishChange(
+  cardName: string,
+  options: SetFinishOptions,
+): SetFinishChange {
+  return { ...makeBase(cardName, options.cardId), action: 'set-finish', finish: options.finish }
+}
+
+export function createMoveFromChange(cardName: string, options: MoveFromOptions): MoveFromChange {
+  return {
+    ...makeBase(cardName, options.cardId),
+    action: 'move-from',
+    set: options.set,
+    collectorNumber: options.collectorNumber,
+    finish: options.finish,
+    condition: options.condition,
+    to: options.to,
+  }
+}
+
+export function createMoveToChange(cardName: string, options: MoveToOptions): MoveToChange {
+  return {
+    ...makeBase(cardName, options.cardId),
+    action: 'move-to',
+    set: options.set,
+    collectorNumber: options.collectorNumber,
+    finish: options.finish,
+    condition: options.condition,
+    from: options.from,
   }
 }
 
@@ -132,8 +229,9 @@ export function areOppositeChanges(a: ChangeEvent, b: ChangeEvent): boolean {
   }
 
   // Narrow to AddChange | RemoveChange for field access
-  const ac = a as AddChange | RemoveChange
-  const bc = b as AddChange | RemoveChange
+  type CardChange = Extract<ChangeEvent, { action: 'add' | 'remove' }>
+  const ac = a as CardChange
+  const bc = b as CardChange
 
   // Card name must match
   if (ac.cardName !== bc.cardName) return false
@@ -188,14 +286,7 @@ export function consolidateSetFinish(
 
   let addedChange: ChangeEvent | null = null
   if (finish !== originalFinish) {
-    addedChange = {
-      action: 'set-finish',
-      cardName,
-      finish,
-      cardId,
-      id: createChangeId(),
-      timestamp: Date.now(),
-    }
+    addedChange = createSetFinishChange(cardName, { finish, cardId })
     updatedChanges = [...updatedChanges, addedChange]
   }
 
@@ -208,22 +299,44 @@ export function isAdditiveChange(action: ChangeAction): boolean {
   // unset-commander is treated as destructive (red) like remove
 }
 
-/** Format a change event as a human-readable description */
-export function formatChange(change: ChangeEvent): string {
+type PrintingFields = {
+  set?: string
+  collectorNumber?: string
+  finish?: Finish
+  condition?: Condition
+}
+
+function formatPrintingAnnotation(change: PrintingFields): string {
+  const printingInfo =
+    change.set && change.collectorNumber
+      ? ` (${change.set.toUpperCase()}:${change.collectorNumber})`
+      : ''
+  const finishInfo = change.finish && change.finish !== 'nonfoil' ? ` [${change.finish}]` : ''
+  const conditionInfo =
+    change.condition && change.condition !== 'NM' ? ` [${change.condition}]` : ''
+  return `${printingInfo}${finishInfo}${conditionInfo}`
+}
+
+type FormatChangeOptions = { tense: 'present' | 'past' }
+
+/** Format a change event as a human-readable description, shared by formatChange and changelog writer */
+export function formatChangeCore(change: ChangeEvent, opts: FormatChangeOptions): string {
+  const { tense } = opts
   const idInfo = change.cardId !== undefined ? ` &${change.cardId}` : ''
 
   switch (change.action) {
     case 'add':
     case 'remove': {
-      const printingInfo =
-        change.set && change.collectorNumber
-          ? ` (${change.set.toUpperCase()}:${change.collectorNumber})`
-          : ''
-      const finishInfo = change.finish && change.finish !== 'nonfoil' ? ` [${change.finish}]` : ''
-      const conditionInfo =
-        change.condition && change.condition !== 'NM' ? ` [${change.condition}]` : ''
-      const verb = change.action === 'add' ? 'Add' : 'Remove'
-      return `${verb} ${change.cardName}${printingInfo}${finishInfo}${conditionInfo}${idInfo}`
+      const ann = formatPrintingAnnotation(change)
+      const verb =
+        change.action === 'add'
+          ? tense === 'past'
+            ? 'Added'
+            : 'Add'
+          : tense === 'past'
+            ? 'Removed'
+            : 'Remove'
+      return `${verb} ${change.cardName}${ann}${idInfo}`
     }
     case 'set-commander':
       return `Set ${change.cardName} as commander${idInfo}`
@@ -231,5 +344,30 @@ export function formatChange(change: ChangeEvent): string {
       return `Unset ${change.cardName} as commander${idInfo}`
     case 'set-finish':
       return `Set ${change.cardName} finish to ${change.finish}${idInfo}`
+    case 'move-from': {
+      const ann = formatPrintingAnnotation(change)
+      const verb = tense === 'past' ? 'Moved' : 'Move'
+      return `${verb} ${change.cardName}${ann}${idInfo} to ${listRefLabel(change.to)}`
+    }
+    case 'move-to': {
+      const ann = formatPrintingAnnotation(change)
+      const verb = tense === 'past' ? 'Moved' : 'Move'
+      return `${verb} ${change.cardName}${ann}${idInfo} from ${listRefLabel(change.from)}`
+    }
+    default: {
+      change satisfies never
+      throw new Error(`Unhandled change action (this is a bug)`)
+    }
   }
+}
+
+/** Format a change event as a human-readable description */
+export function formatChange(change: ChangeEvent): string {
+  return formatChangeCore(change, { tense: 'present' })
+}
+
+export function listRefLabel(ref: ListRef): string {
+  if (ref.type === 'deck') return `Deck '${ref.name}'`
+  if (ref.type === 'collection') return `Collection '${ref.name}'`
+  return `Wanted list '${ref.name}'`
 }

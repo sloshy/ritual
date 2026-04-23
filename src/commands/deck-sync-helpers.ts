@@ -1,4 +1,4 @@
-import { createChangeEvent, type ChangeEvent } from '../change-event'
+import { createAddChange, createRemoveChange, type ChangeEvent } from '../change-event'
 import type { DeckSection } from '../types'
 
 export type CardSummary = {
@@ -90,13 +90,13 @@ export function diffToChangeEvents(diff: NameDiff): ChangeEvent[] {
 
   for (const card of diff.added) {
     for (let i = 0; i < card.totalQuantity; i++) {
-      changes.push(createChangeEvent('add', card.name))
+      changes.push(createAddChange(card.name))
     }
   }
 
   for (const card of diff.removed) {
     for (let i = 0; i < card.totalQuantity; i++) {
-      changes.push(createChangeEvent('remove', card.name))
+      changes.push(createRemoveChange(card.name))
     }
   }
 
@@ -104,11 +104,11 @@ export function diffToChangeEvents(diff: NameDiff): ChangeEvent[] {
     const delta = entry.newQty - entry.oldQty
     if (delta > 0) {
       for (let i = 0; i < delta; i++) {
-        changes.push(createChangeEvent('add', entry.name))
+        changes.push(createAddChange(entry.name))
       }
     } else {
       for (let i = 0; i < -delta; i++) {
-        changes.push(createChangeEvent('remove', entry.name))
+        changes.push(createRemoveChange(entry.name))
       }
     }
   }
