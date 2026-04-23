@@ -16,6 +16,8 @@ import {
   ensureCollectionFile,
   isFinish,
   isCondition,
+  buildCopyLine,
+  type LastAddedCard,
 } from './collection-helpers'
 import { appendChangelog } from '../changelog-writer'
 import { createAddChange } from '../change-event'
@@ -122,7 +124,6 @@ export function registerCollectionCommand(program: Command) {
         sessionConfig.activeSetIndex = 0
       }
 
-      type LastAddedCard = { name: string; line: string; hasNote: boolean; cardId?: number }
       let lastAddedCard: LastAddedCard | null = null
       let lastAddedCount = 0
       const sessionChanges: ChangeEvent[] = []
@@ -361,10 +362,15 @@ export function registerCollectionCommand(program: Command) {
           try {
             const fileContent = await fs.readFile(collectionFile, 'utf-8')
             const { nextId: cardId } = allocateNextIdFromContent(fileContent)
-            const lineWithoutId = lastAddedCard.line.trimEnd().replace(/\s*&\d+$/, '')
-            const newLine = `${lineWithoutId} &${cardId}\n`
+            const newLine: string = buildCopyLine(lastAddedCard.line, cardId)
             await appendFileWithHash(collectionFile, newLine)
             lastAddedCount++
+            lastAddedCard = {
+              name: lastAddedCard!.name,
+              line: newLine,
+              hasNote: lastAddedCard!.hasNote,
+              cardId,
+            }
             console.log(`Added: ${newLine.trim()} (${lastAddedCount}x total)`)
             const newIdx = trackAnotherCopy(sessionChanges, lastChangeIndex, cardId)
             if (newIdx !== null) lastChangeIndex = newIdx

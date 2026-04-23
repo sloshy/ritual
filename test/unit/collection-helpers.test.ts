@@ -1,5 +1,10 @@
 import { describe, test, expect } from 'bun:test'
-import { formatCollectionLine, isFinish, isCondition } from '../../src/commands/collection-helpers'
+import {
+  formatCollectionLine,
+  isFinish,
+  isCondition,
+  buildCopyLine,
+} from '../../src/commands/collection-helpers'
 import type { Finish, Condition } from '../../src/types'
 
 // Minimal card data for testing formatCollectionLine
@@ -178,5 +183,39 @@ describe('isCondition', () => {
     expect(isCondition('')).toBe(false)
     expect(isCondition('MINT')).toBe(false)
     expect(isCondition('Near Mint')).toBe(false)
+  })
+})
+
+describe('buildCopyLine', () => {
+  test('strips existing &ID and appends the new one', () => {
+    expect(buildCopyLine('- Sol Ring (MH3:1) [NM] &1\n', 2)).toBe('- Sol Ring (MH3:1) [NM] &2\n')
+  })
+
+  test('works on a line with no existing &ID', () => {
+    expect(buildCopyLine('- Sol Ring (MH3:1) [NM]\n', 5)).toBe('- Sol Ring (MH3:1) [NM] &5\n')
+  })
+
+  test('works with wanted-format lines (no condition)', () => {
+    expect(buildCopyLine('- Lightning Bolt (LEA:161) [foil] &3\n', 4)).toBe(
+      '- Lightning Bolt (LEA:161) [foil] &4\n',
+    )
+  })
+
+  test('works with name-only wanted lines', () => {
+    expect(buildCopyLine('- Black Lotus &7\n', 8)).toBe('- Black Lotus &8\n')
+  })
+
+  // Regression: "Add Another Copy" must update lastAddedCard.line to the new copy's line.
+  // Without the fix, a subsequent edit would call replaceLastLine with the original line, but the
+  // last line in the file is the copy — causing it to fall back to "Adding as new entry."
+  test('each copy produces a unique line differing only in &ID', () => {
+    const originalLine = '- Sol Ring (MH3:1) [NM] &1\n'
+    const copy1 = buildCopyLine(originalLine, 2)
+    const copy2 = buildCopyLine(copy1, 3)
+
+    expect(copy1).toBe('- Sol Ring (MH3:1) [NM] &2\n')
+    expect(copy2).toBe('- Sol Ring (MH3:1) [NM] &3\n')
+    // copy2 is what lastAddedCard.line should hold; searching for originalLine in the file fails
+    expect(copy2).not.toBe(originalLine)
   })
 })

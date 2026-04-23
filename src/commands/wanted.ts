@@ -5,7 +5,13 @@ import path from 'node:path'
 import { getAllCardNames, getCardsBySet, getCardPrintings } from '../scryfall'
 import type { ScryfallCard } from '../types'
 import { getBaseDir } from '../base-dir'
-import { resolveCardPrinting, manageSetCodes, replaceLastLine } from './collection-helpers'
+import {
+  resolveCardPrinting,
+  manageSetCodes,
+  replaceLastLine,
+  buildCopyLine,
+  type LastAddedCard,
+} from './collection-helpers'
 import {
   type WantedListSessionConfig,
   ensureWantedListFile,
@@ -118,7 +124,6 @@ export function registerWantedListCommand(program: Command) {
         sessionConfig.activeSetIndex = 0
       }
 
-      type LastAddedCard = { name: string; line: string; hasNote: boolean; cardId?: number }
       let lastAddedCard: LastAddedCard | null = null
       let lastAddedCount = 0
       const sessionChanges: ChangeEvent[] = []
@@ -330,10 +335,15 @@ export function registerWantedListCommand(program: Command) {
           try {
             const fileContent = await fs.readFile(listFile, 'utf-8')
             const { nextId: cardId } = allocateNextIdFromContent(fileContent)
-            const lineWithoutId = lastAddedCard.line.trimEnd().replace(/\s*&\d+$/, '')
-            const newLine = `${lineWithoutId} &${cardId}\n`
+            const newLine: string = buildCopyLine(lastAddedCard.line, cardId)
             await appendFileWithHash(listFile, newLine)
             lastAddedCount++
+            lastAddedCard = {
+              name: lastAddedCard!.name,
+              line: newLine,
+              hasNote: lastAddedCard!.hasNote,
+              cardId,
+            }
             console.log(`Added: ${newLine.trim()} (${lastAddedCount}x total)`)
             const newIdx = trackAnotherCopy(sessionChanges, lastChangeIndex, cardId)
             if (newIdx !== null) lastChangeIndex = newIdx

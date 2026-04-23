@@ -231,6 +231,23 @@ export function formatCollectionLine(
   return line
 }
 
+/**
+ * Shared shape for the most recently added/edited card, tracked in CLI session loops.
+ */
+export type LastAddedCard = { name: string; line: string; hasNote: boolean; cardId?: number }
+
+/**
+ * Given an existing card line and a new card ID, strip the old &ID suffix (if any) and
+ * return a new line ending with the given cardId. Preserves the trailing newline.
+ *
+ * This is the core of the "Add Another Copy" flow — each copy gets a unique ID while
+ * keeping all other line content identical.
+ */
+export function buildCopyLine(existingLine: string, cardId: number): string {
+  const withoutId = existingLine.trimEnd().replace(/\s*&\d+$/, '')
+  return `${withoutId} &${cardId}\n`
+}
+
 export type ReplaceLastLineResult = { replaced: boolean }
 
 /**
