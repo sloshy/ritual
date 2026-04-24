@@ -108,6 +108,8 @@ export const CardItem: Component<CardItemProps> = (props) => {
         const finishLabel = rawFinish ? capitalize(rawFinish) : null
 
         const binderClass = `card-binder${isFoil ? ' foil-card' : ''}`
+        const listClass = `card-list${isFoil ? ' foil-card' : ''}`
+        const overlapClass = `card-overlap${isFoil ? ' foil-card' : ''}`
         const displayPrice = props.collectionPrice !== undefined ? props.collectionPrice : price
         const showPrice = displayPrice > 0
 
@@ -164,7 +166,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
             {/* List view */}
             <Show when={props.viewMode === 'list'}>
               <div
-                class="card-list"
+                class={listClass}
                 onClick={props.onCardClick}
                 onMouseEnter={() => frontImage && props.onTooltipEnter?.(frontImage, isSideways)}
                 onMouseLeave={() => props.onTooltipLeave?.()}
@@ -218,7 +220,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
 
             {/* Overlap / Stack view */}
             <Show when={props.viewMode === 'overlap' || props.viewMode === 'stack'}>
-              <div class="card-overlap" onClick={props.onCardClick}>
+              <div class={overlapClass} onClick={props.onCardClick}>
                 <Show when={frontImage}>
                   {(src) => <img src={src()} alt={props.name} loading="lazy" />}
                 </Show>
