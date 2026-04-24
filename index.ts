@@ -31,6 +31,7 @@ import { registerDepLicenseCommand } from './src/commands/dep-license'
 import { registerGitDetectChangesCommand } from './src/commands/git-detect-changes'
 import { registerDeckSyncCommand } from './src/commands/deck-sync'
 import { registerMoveCommand } from './src/commands/move'
+import { registerHashCommand } from './src/commands/hash'
 import {
   resolveCacheServerAddress,
   setCacheServerAddressOverride,
@@ -104,6 +105,7 @@ registerCacheServerCommand(program)
 
 program.commandsGroup('Utilities')
 registerGitDetectChangesCommand(program)
+registerHashCommand(program)
 
 program.commandsGroup('Legal')
 registerLicenseCommand(program)
