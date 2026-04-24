@@ -5,7 +5,7 @@ import type { ScryfallCard } from '../types'
 import type { WantedListCardEntry } from './data-types'
 import type { ChangelogPage } from '../changelog-parser'
 import type { PriceCurrency } from '../price-currency'
-import { getCardPriceForFinish, formatPrice } from '../price-currency'
+import { getCardPriceForFinish, formatPrice, formatPriceOrNA } from '../price-currency'
 import {
   type GroupBy,
   type CardData,
@@ -211,7 +211,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     const parts: MetaEntry[] = []
     parts.push({
       label: 'price',
-      value: formatPrice(entry.price, props.currency),
+      value: formatPriceOrNA(entry.price, props.currency),
     })
     if (entry.set && entry.collectorNumber) {
       parts.push({

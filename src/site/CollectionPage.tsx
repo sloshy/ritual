@@ -5,7 +5,7 @@ import type { ScryfallCard } from '../types'
 import type { CollectionCardEntry } from './data-types'
 import type { ChangelogPage } from '../changelog-parser'
 import type { PriceCurrency } from '../price-currency'
-import { getCardPriceForFinish, formatPrice } from '../price-currency'
+import { getCardPriceForFinish, formatPrice, formatPriceOrNA } from '../price-currency'
 import {
   type GroupBy,
   type CardData,
@@ -228,7 +228,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     const entry = modalEntry()!
     const card = modalCard()!
     const parts: MetaEntry[] = []
-    parts.push({ label: 'price', value: formatPrice(entry.price, props.currency) })
+    parts.push({ label: 'price', value: formatPriceOrNA(entry.price, props.currency) })
     parts.push({
       label: 'set',
       value: `${entry.set.toUpperCase()}:${entry.collectorNumber}`,

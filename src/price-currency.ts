@@ -41,6 +41,12 @@ export function formatPrice(amount: number, currency: PriceCurrency): string {
   return `${symbol}${amount.toFixed(2)}${suffix}`
 }
 
+/** Like formatPrice, but returns 'N/A' when amount is 0 (i.e. no price data available). */
+export function formatPriceOrNA(amount: number, currency: PriceCurrency): string {
+  if (amount <= 0) return 'N/A'
+  return formatPrice(amount, currency)
+}
+
 export function formatPriceWithMissing(
   amount: number,
   currency: PriceCurrency,

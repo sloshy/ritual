@@ -4,6 +4,7 @@ import {
   getCurrencySymbol,
   getCurrencySuffix,
   formatPrice,
+  formatPriceOrNA,
   formatPriceWithMissing,
   getCardPrice,
   getCardPriceForFinish,
@@ -126,6 +127,20 @@ describe('formatPriceWithMissing', () => {
 
   test('returns normal format for zero missing with tix', () => {
     expect(formatPriceWithMissing(3.25, 'tix', 0)).toBe('3.25 tix')
+  })
+})
+
+describe('formatPriceOrNA', () => {
+  test('returns formatted price for positive amounts', () => {
+    expect(formatPriceOrNA(12.5, 'usd')).toBe('$12.50')
+    expect(formatPriceOrNA(8, 'eur')).toBe('€8.00')
+    expect(formatPriceOrNA(3.25, 'tix')).toBe('3.25 tix')
+  })
+
+  test('returns N/A for zero', () => {
+    expect(formatPriceOrNA(0, 'usd')).toBe('N/A')
+    expect(formatPriceOrNA(0, 'eur')).toBe('N/A')
+    expect(formatPriceOrNA(0, 'tix')).toBe('N/A')
   })
 })
 
