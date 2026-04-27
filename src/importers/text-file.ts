@@ -20,6 +20,14 @@ function getString(value: unknown): string | undefined {
   return typeof value === 'string' ? value.replace(/\\n/g, '\n') : undefined
 }
 
+/**
+ * Matches a deck card line: `2 Lightning Bolt (LEA:161) [foil] [NM] &12`.
+ * Set codes allow `_` (some art-series / playtest sets use underscores).
+ * Whitespace is `\s+` so multiple spaces between tokens are tolerated.
+ */
+export const DECK_CARD_LINE_RE =
+  /^(\d+)[xX]?\s+(.+?)(?:\s+\(([A-Za-z0-9_]+):([^)]+)\))?(?:\s+\[(nonfoil|foil|etched)\])?(?:\s+\[(NM|LP|MP|HP|DMG)\])?(?:\s+&(\d+))?$/
+
 export async function importFromTextFile(filePath: string): Promise<DeckData> {
   const file = Bun.file(filePath)
   if (!(await file.exists())) {
@@ -68,9 +76,7 @@ export async function importFromTextFile(filePath: string): Promise<DeckData> {
       continue
     }
 
-    const quantityMatch = trimmed.match(
-      /^(\d+)[xX]?\s+(.+?)(?:\s+\(([A-Za-z0-9_]+):([^)]+)\))?(?:\s+\[(nonfoil|foil|etched)\])?(?:\s+\[(NM|LP|MP|HP|DMG)\])?(?:\s+&(\d+))?$/,
-    )
+    const quantityMatch = trimmed.match(DECK_CARD_LINE_RE)
     if (quantityMatch?.[1] && quantityMatch?.[2]) {
       currentSection.cards.push({
         quantity: Number.parseInt(quantityMatch[1], 10),

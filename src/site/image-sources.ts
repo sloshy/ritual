@@ -9,6 +9,13 @@ export function isDoubleFacedCard(card: ScryfallCard): boolean {
   return Boolean(!card.image_uris && card.card_faces && card.card_faces[0] && card.card_faces[1])
 }
 
+/** True when the card's front face is intrinsically rendered sideways (Battles, Rooms). */
+export function isCardSideways(card: ScryfallCard | null | undefined): boolean {
+  if (!card) return false
+  const frontType = card.card_faces?.[0]?.type_line ?? card.type_line ?? ''
+  return frontType.includes('Room') || frontType.includes('Battle')
+}
+
 export function resolveCardImageSources(
   card: ScryfallCard,
   useScryfallImgUrls: boolean,

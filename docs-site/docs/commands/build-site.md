@@ -258,3 +258,44 @@ After building, use the [`serve`](./serve) command to preview locally:
 ```bash
 ./ritual serve
 ```
+
+## Trade Planner
+
+The generated site includes a **Trade Planner** page accessible via the "Trade" link in the site navigation at `#/trade`. This is a fully client-side, ephemeral tool — no data is persisted between page refreshes.
+
+The page provides a two-column layout for planning a trade:
+
+### Left Column — My Cards
+
+The left column is for cards you are offering. It searches cards from the collections included in this site. A "Include Decks in Search" toggle (disabled by default) extends the search to include cards from your decks as well.
+
+- Type a card name in the search box to get autocomplete suggestions showing card name and source list
+- Each result is deduplicated per source — if the same card appears in multiple collections, each collection shows up as a separate autocomplete result
+- Cards show: thumbnail image, name, set code and collector number, finish, condition, and price
+- If a deck card has no specific printing pinned, selecting it opens the printing picker so you can choose one (the deck source is preserved on the resulting trade row)
+- Sort by card name or price (toggle ascending/descending independently)
+- Price total shown at the bottom of the column
+
+**Quantity caps:** Each trade row's quantity stepper caps at the maximum number of that exact variant available in its source — for collections this is the count of identical note-less entries (same name, set, collector number, finish, condition); for decks it is the sum across mainboard/sideboard/etc. for that printing in that deck. When only one copy exists the stepper is hidden and a fixed quantity of 1 is displayed.
+
+**Editing picker-sourced rows:** Trade rows added via the printing picker (Scryfall searches on the right, deck cards without a pinned printing on the left) get a small yellow pencil button to the left of the quantity controls. Clicking it re-opens the printing picker for that card; choosing a printing replaces the row in place while preserving its quantity.
+
+### Right Column — Their Cards
+
+The right column is for cards the other party is offering. By default it searches your site's wanted lists. A "Search Scryfall" toggle switches to a direct Scryfall search.
+
+**Wanted list mode (default):** Search across all wanted lists on this site instance. Results show card name and source wanted list name.
+
+**Scryfall mode:** When enabled, autocomplete calls the Scryfall API directly from the browser. Selecting a card name opens a **printing picker** that shows all available printings, paginated 8 at a time. The picker has a set-code filter input (e.g. typing `mkm` or `lea` narrows the results) and hovering an entry shows the full card art preview. Choose a printing and finish, then click "Add to Trade" to add the card.
+
+### Update Prices
+
+The toolbar's **Update prices** button refetches current prices from Scryfall for the cards currently loaded on the trade page (only — not your full collection). It batches requests through Scryfall's `/cards/collection` endpoint (75 IDs per request) and updates each row's price and finish in place. A toast confirms how many cards were updated.
+
+### Card Hover Previews
+
+Hovering over a card thumbnail (in the trade list, autocomplete suggestions, or printing picker) shows an enlarged preview of the card art that follows the mouse cursor.
+
+### Mobile Layout
+
+On narrow screens (≤768px), the two-column layout collapses to a single-pane view. Tab buttons at the top switch between "My Cards" and "Their Cards". Each pane fills the full screen width, with its own search, sort controls, card list, and price total.

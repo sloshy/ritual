@@ -38,6 +38,7 @@ import {
   toCacheServerBaseUrl,
 } from './src/cache/config'
 import { setBaseDir } from './src/base-dir'
+import { ensureCardIdsForAllLists } from './src/ensure-card-ids'
 
 const program = new Command()
 
@@ -50,7 +51,18 @@ program.option('--base-dir <path>', 'Use this directory instead of the current w
 type GlobalOptions = { cacheServer?: string; baseDir?: string }
 type CommandWithGlobals = Command & { optsWithGlobals: () => GlobalOptions }
 
-program.hook('preAction', (command) => {
+const COMMANDS_WITHOUT_LIST_IDS = new Set([
+  'login',
+  'cache',
+  'card',
+  'scry',
+  'random',
+  'license',
+  'dep-license',
+  'git-detect-changes',
+])
+
+program.hook('preAction', async (command) => {
   const commandWithGlobals = command as CommandWithGlobals
   const options = commandWithGlobals.optsWithGlobals()
   if (options.baseDir) {
@@ -61,6 +73,13 @@ program.hook('preAction', (command) => {
     toCacheServerBaseUrl(resolved)
   }
   setCacheServerAddressOverride(resolved)
+
+  const leaf = command.name()
+  const parent = command.parent?.name()
+  if (COMMANDS_WITHOUT_LIST_IDS.has(leaf) || (parent && COMMANDS_WITHOUT_LIST_IDS.has(parent))) {
+    return
+  }
+  await ensureCardIdsForAllLists()
 })
 
 program.commandsGroup('Account & Auth')

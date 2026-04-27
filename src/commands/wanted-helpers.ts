@@ -26,6 +26,13 @@ export type WantedListParseResult = {
   warnings: string[]
 }
 
+/**
+ * Matches a wanted-list card line: `- Lightning Bolt (LEA:161) [foil] {note} &12`.
+ * Wanted lists do not carry a condition, otherwise mirrors the collection grammar.
+ */
+export const WANTED_CARD_LINE_RE =
+  /^- (.+?)(?:\s\(([A-Za-z0-9]+):([^)]+)\))?(?:\s\[(nonfoil|foil|etched)\])?(?:\s\{(.+)\})?(?:\s&(\d+))?$/
+
 export function parseWantedListFile(content: string): WantedListParseResult {
   const entries: WantedListEntry[] = []
   const warnings: string[] = []
@@ -34,9 +41,7 @@ export function parseWantedListFile(content: string): WantedListParseResult {
     const trimmed = line.trim()
     if (!trimmed.startsWith('- ')) continue
 
-    const match = trimmed.match(
-      /^- (.+?)(?:\s\(([A-Za-z0-9]+):([^)]+)\))?(?:\s\[(nonfoil|foil|etched)\])?(?:\s\{(.+)\})?(?:\s&(\d+))?$/,
-    )
+    const match = trimmed.match(WANTED_CARD_LINE_RE)
     if (!match) {
       warnings.push(`Skipped malformed line: ${trimmed}`)
       continue

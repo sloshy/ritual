@@ -3,13 +3,13 @@ import type { ScryfallCard } from '../../../types'
 import type { CollectionCardEntry } from '../../../site/data-types'
 import type { CardPriceResponse } from '../../api/card-price'
 import type { EditorConfig } from '../hooks/useEditor'
+import { collectExistingIds } from '../../../card-id'
 import { CollectionPage } from '../../../site/CollectionPage'
 import { useEntryCardData } from '../hooks/useEntryCardData'
 import { useEditor } from '../hooks/useEditor'
 import { applyChangeToCollection } from '../types/collection-changes'
 import { CardContextMenu } from '../components/CardContextMenu'
 import { EditorShell } from '../components/EditorShell'
-import { initializeEntriesWithIds } from '../../../card-id'
 
 type CollectionListResponse = { collections?: { slug: string; name: string }[] }
 
@@ -37,10 +37,10 @@ export function CollectionEditor() {
     processLoadResponse: (response) => {
       const r = response as CollectionDataResponse
       if (!r.success) return null
-      const { entries: entriesWithIds, pool } = initializeEntriesWithIds(r.entries)
+      const poolIds = collectExistingIds(r.entries)
       return {
-        data: entriesWithIds,
-        poolIds: [...pool.usedIds],
+        data: r.entries,
+        poolIds,
         contentHash: r.contentHash,
         extra: {},
       }

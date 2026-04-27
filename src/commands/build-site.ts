@@ -667,18 +667,10 @@ export function registerBuildSiteCommand(program: Command) {
           }
         }
 
-        // Strip internal cardId fields before writing public site JSON
-        const publicDeckData: DeckData = {
-          ...deckData,
-          sections: deckData.sections.map((s) => ({
-            ...s,
-            cards: s.cards.map(({ cardId: _, ...card }) => card),
-          })),
-        }
-
-        // Write deck detail JSON
+        // cardId is shipped on each public-site card so the trade page can
+        // encode deck cards into shareable URLs.
         const deckDetail: DeckDetail = {
-          deck: publicDeckData,
+          deck: deckData,
           cards: deckCardMap,
           printings: deckPrintingsMap,
           lowestPriceCards: hasUsd ? deckLowestPriceCardMap : undefined,
@@ -922,6 +914,7 @@ export function registerBuildSiteCommand(program: Command) {
             price,
             fileOrder: i,
             note: entry.note,
+            cardId: entry.cardId,
           })
         }
 
@@ -1232,6 +1225,7 @@ export function registerBuildSiteCommand(program: Command) {
             fileOrder: i,
             note: entry.note,
             state,
+            cardId: entry.cardId,
           })
         }
 

@@ -7,6 +7,13 @@ export type UseFetchJsonResult<T> = {
   error: Accessor<string | null>
 }
 
+/** Fetches JSON and parses it. Throws on non-OK responses or fetch failures (including AbortError). */
+export async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
+  const resp = await fetch(url, signal ? { signal } : undefined)
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+  return (await resp.json()) as T
+}
+
 /** Fetches JSON from a URL with automatic AbortController cleanup. Pass null to skip fetching. */
 export function useFetchJson<T>(url: Accessor<string | null>): UseFetchJsonResult<T> {
   const [data, setData] = createSignal<T | null>(null)
@@ -26,9 +33,7 @@ export function useFetchJson<T>(url: Accessor<string | null>): UseFetchJsonResul
 
     void (async () => {
       try {
-        const response = await fetch(currentUrl, { signal: controller.signal })
-        if (!response.ok) throw new Error(`HTTP ${response.status}`)
-        const json = (await response.json()) as T
+        const json = await fetchJson<T>(currentUrl, controller.signal)
         setData(() => json)
         setLoading(false)
       } catch (e) {

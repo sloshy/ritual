@@ -6,6 +6,7 @@ import { IndexPage } from './IndexPage'
 import { DeckPage } from './DeckPage'
 import { CollectionPage } from './CollectionPage'
 import { WantedListPage } from './WantedListPage'
+import { TradePage } from './TradePage'
 import { useRouting } from './useRouting'
 import { useSiteData } from './useSiteData'
 import { useFetchJson } from './useFetchJson'
@@ -137,6 +138,16 @@ function App() {
           >
             Wanted Lists
           </a>
+          <a
+            href="#/trade"
+            class="site-nav-link"
+            classList={{
+              'site-nav-link-active': route().page === 'trade',
+              'site-nav-link-inactive': route().page !== 'trade',
+            }}
+          >
+            Trade
+          </a>
         </nav>
         <div class="currency-selector">
           <label class="currency-label">Prices:</label>
@@ -267,6 +278,15 @@ function App() {
                   />
                 </Show>
               </Show>
+            </Match>
+            <Match when={route().page === 'trade'}>
+              <TradePage
+                useScryfallImgUrls={useScryfallImgUrls()}
+                currency={currency()}
+                collections={collectionList}
+                decks={deckList}
+                wantedLists={wantedListList}
+              />
             </Match>
           </Switch>
         </div>

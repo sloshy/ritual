@@ -1,7 +1,7 @@
 import type { Component } from 'solid-js'
 import { Show } from 'solid-js'
 import type { ScryfallCard } from '../types'
-import { isDoubleFacedCard, resolveCardImageSources } from './image-sources'
+import { isCardSideways, isDoubleFacedCard, resolveCardImageSources } from './image-sources'
 import { ManaCost } from './symbols'
 import type { PriceCurrency } from '../price-currency'
 import { getCardPrice, formatPrice } from '../price-currency'
@@ -80,8 +80,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
         const isDFC = isDoubleFacedCard(card())
         const { frontImage } = resolveCardImageSources(card(), Boolean(props.useScryfallImgUrls))
 
-        const frontType = card().card_faces?.[0]?.type_line ?? card().type_line ?? ''
-        const isSideways = frontType.includes('Room') || frontType.includes('Battle')
+        const isSideways = isCardSideways(card())
 
         const price = getCardPrice(card(), currency)
 

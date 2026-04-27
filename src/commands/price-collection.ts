@@ -37,6 +37,13 @@ export type CollectionParseResult = {
   warnings: string[]
 }
 
+/**
+ * Matches a collection card line: `- Lightning Bolt (LEA:161) [foil] [NM] {note} &12`.
+ * Whitespace between tokens is a single `\s` (one space); multiple spaces are not tolerated.
+ */
+export const COLLECTION_CARD_LINE_RE =
+  /^- (.+?)(?:\s\(([A-Za-z0-9]+):([^)]+)\))?(?:\s\[(nonfoil|foil|etched)\])?(?:\s\[(NM|LP|MP|HP|DMG)\])?(?:\s\{(.+)\})?(?:\s&(\d+))?$/
+
 export function parseCollectionFile(content: string): CollectionParseResult {
   const entries: CollectionEntry[] = []
   const warnings: string[] = []
@@ -45,9 +52,7 @@ export function parseCollectionFile(content: string): CollectionParseResult {
     const trimmed = line.trim()
     if (!trimmed.startsWith('- ')) continue
 
-    const match = trimmed.match(
-      /^- (.+?)(?:\s\(([A-Za-z0-9]+):([^)]+)\))?(?:\s\[(nonfoil|foil|etched)\])?(?:\s\[(NM|LP|MP|HP|DMG)\])?(?:\s\{(.+)\})?(?:\s&(\d+))?$/,
-    )
+    const match = trimmed.match(COLLECTION_CARD_LINE_RE)
     if (!match) continue
 
     const name = match[1]!

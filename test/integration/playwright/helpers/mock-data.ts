@@ -953,3 +953,342 @@ export async function mockAdminCollectionLoadApi(page: Page): Promise<void> {
     }
   })
 }
+
+// ===== Trade page mock data =====
+
+const MOCK_TRADE_COLLECTION_CARD_BOLT = {
+  id: 'trade-bolt-id',
+  name: 'Lightning Bolt',
+  cmc: 1,
+  type_line: 'Instant',
+  oracle_text: 'Lightning Bolt deals 3 damage to any target.',
+  image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
+  prices: {
+    usd: '2.50',
+    usd_foil: '5.00',
+    usd_etched: null,
+    eur: '2.00',
+    eur_foil: null,
+    tix: '0.50',
+  },
+  finishes: ['nonfoil', 'foil'],
+  games: ['paper'],
+  set: 'lea',
+  set_name: 'Limited Edition Alpha',
+  collector_number: '161',
+  rarity: 'common',
+  color_identity: ['R'],
+  released_at: '1993-08-05',
+}
+
+const MOCK_TRADE_COLLECTION_CARD_RING = {
+  id: 'trade-ring-id',
+  name: 'Sol Ring',
+  cmc: 1,
+  type_line: 'Artifact',
+  oracle_text: '{T}: Add {C}{C}.',
+  image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
+  prices: { usd: '3.00', usd_foil: null, usd_etched: null, eur: '2.50', eur_foil: null, tix: null },
+  finishes: ['nonfoil'],
+  games: ['paper'],
+  set: 'c19',
+  set_name: 'Commander 2019',
+  collector_number: '221',
+  rarity: 'uncommon',
+  color_identity: [],
+  released_at: '2019-08-23',
+}
+
+const MOCK_TRADE_WANTED_CARD_CRYPT = {
+  id: 'trade-crypt-id',
+  name: 'Mana Crypt',
+  cmc: 0,
+  type_line: 'Artifact',
+  oracle_text: 'At the beginning of your upkeep, flip a coin.',
+  image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
+  prices: {
+    usd: '175.00',
+    usd_foil: '300.00',
+    usd_etched: null,
+    eur: '150.00',
+    eur_foil: null,
+    tix: null,
+  },
+  finishes: ['nonfoil', 'foil'],
+  games: ['paper'],
+  set: '2xm',
+  set_name: 'Double Masters',
+  collector_number: '270',
+  rarity: 'mythic',
+  color_identity: [],
+  released_at: '2020-08-07',
+}
+
+const MOCK_TRADE_COLLECTION_DETAIL = {
+  name: 'Trade Collection',
+  entries: [
+    // Three identical Lightning Bolts (no notes) — should aggregate maxQty=3.
+    {
+      name: 'Lightning Bolt',
+      set: 'lea',
+      collectorNumber: '161',
+      finish: 'nonfoil',
+      condition: 'NM',
+      price: 2.5,
+      fileOrder: 0,
+      cardId: 1,
+    },
+    {
+      name: 'Lightning Bolt',
+      set: 'lea',
+      collectorNumber: '161',
+      finish: 'nonfoil',
+      condition: 'NM',
+      price: 2.5,
+      fileOrder: 1,
+      cardId: 2,
+    },
+    {
+      name: 'Lightning Bolt',
+      set: 'lea',
+      collectorNumber: '161',
+      finish: 'nonfoil',
+      condition: 'NM',
+      price: 2.5,
+      fileOrder: 2,
+      cardId: 3,
+    },
+    {
+      name: 'Sol Ring',
+      set: 'c19',
+      collectorNumber: '221',
+      finish: 'nonfoil',
+      condition: 'LP',
+      price: 3.0,
+      fileOrder: 3,
+      cardId: 4,
+    },
+  ],
+  cards: {
+    'lea:161': MOCK_TRADE_COLLECTION_CARD_BOLT,
+    'c19:221': MOCK_TRADE_COLLECTION_CARD_RING,
+  },
+  printings: {
+    'Lightning Bolt': [MOCK_TRADE_COLLECTION_CARD_BOLT],
+    'Sol Ring': [MOCK_TRADE_COLLECTION_CARD_RING],
+  },
+  symbolMap: {},
+  useScryfallImgUrls: false,
+  totalPrice: 5.5,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+}
+
+const MOCK_TRADE_WANTED_DETAIL = {
+  name: 'Trade Wanted List',
+  entries: [
+    {
+      name: 'Mana Crypt',
+      set: '2xm',
+      collectorNumber: '270',
+      finish: 'nonfoil',
+      price: 175.0,
+      fileOrder: 0,
+      state: 'fully-specified',
+      cardId: 1,
+    },
+  ],
+  cards: {
+    'Mana Crypt': MOCK_TRADE_WANTED_CARD_CRYPT,
+    '2xm:270': MOCK_TRADE_WANTED_CARD_CRYPT,
+  },
+  printings: { 'Mana Crypt': [MOCK_TRADE_WANTED_CARD_CRYPT] },
+  symbolMap: {},
+  useScryfallImgUrls: false,
+  totalPrice: 175.0,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+}
+
+const MOCK_TRADE_DECK_CARD_COUNTERSPELL = {
+  id: 'trade-counterspell-id',
+  name: 'Counterspell',
+  cmc: 2,
+  type_line: 'Instant',
+  oracle_text: 'Counter target spell.',
+  image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
+  prices: { usd: '1.50', usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
+  finishes: ['nonfoil'],
+  games: ['paper'],
+  set: 'mh3',
+  set_name: 'Modern Horizons 3',
+  collector_number: '50',
+  rarity: 'common',
+  color_identity: ['U'],
+  released_at: '2024-06-14',
+}
+
+const MOCK_TRADE_DECK_DETAIL = {
+  deck: {
+    name: 'Trade Deck',
+    sections: [
+      {
+        name: 'Mainboard',
+        cards: [
+          // Card without set/collectorNumber — should trigger printing picker
+          { quantity: 1, name: 'Counterspell', cardId: 1 },
+          // Same printing in two sections, summed to maxQty=3
+          {
+            quantity: 2,
+            name: 'Sol Ring',
+            set: 'c19',
+            collectorNumber: '221',
+            finish: 'nonfoil',
+            cardId: 2,
+          },
+        ],
+      },
+      {
+        name: 'Sideboard',
+        cards: [
+          {
+            quantity: 1,
+            name: 'Sol Ring',
+            set: 'c19',
+            collectorNumber: '221',
+            finish: 'nonfoil',
+            cardId: 3,
+          },
+        ],
+      },
+    ],
+  },
+  cards: { 'Sol Ring': MOCK_TRADE_COLLECTION_CARD_RING },
+  printings: {},
+  symbolMap: {},
+  exportPath: '',
+  useScryfallImgUrls: false,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+}
+
+const MOCK_SITE_INDEX_FOR_TRADE = {
+  decks: [
+    {
+      slug: 'trade-deck',
+      name: 'Trade Deck',
+      featuredCardImage: '',
+      commander: null,
+      cardCount: 1,
+    },
+  ],
+  collections: [
+    {
+      slug: 'trade-collection',
+      name: 'Trade Collection',
+      featuredCardImage: '',
+      cardCount: 2,
+      totalPrice: 5.5,
+      totalPriceEur: 0,
+      totalPriceTix: 0,
+    },
+  ],
+  wantedLists: [
+    {
+      slug: 'trade-wanted-list',
+      name: 'Trade Wanted List',
+      featuredCardImage: '',
+      cardCount: 1,
+      totalPrice: 175.0,
+      totalPriceEur: 0,
+      totalPriceTix: 0,
+    },
+  ],
+  useScryfallImgUrls: false,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+}
+
+/**
+ * Mock the public site JSON endpoints for the Trade page.
+ * Provides one collection (with Lightning Bolt + Sol Ring) and one wanted list (with Mana Crypt).
+ * Also mocks the Scryfall autocomplete and search endpoints for right-column Scryfall mode tests.
+ */
+export async function mockPublicSiteForTrade(page: Page): Promise<void> {
+  await page.route('**/index.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_SITE_INDEX_FOR_TRADE),
+    })
+  })
+
+  await page.route('**/collections/trade-collection.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_TRADE_COLLECTION_DETAIL),
+    })
+  })
+
+  await page.route('**/wanted/trade-wanted-list.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_TRADE_WANTED_DETAIL),
+    })
+  })
+
+  await page.route('**/decks/trade-deck.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_TRADE_DECK_DETAIL),
+    })
+  })
+
+  // Mock Scryfall autocomplete endpoint
+  await page.route('**/api.scryfall.com/cards/autocomplete**', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        object: 'catalog',
+        total_values: 1,
+        data: ['Mana Crypt'],
+      }),
+    })
+  })
+
+  // Mock Scryfall search (printings) endpoint
+  await page.route('**/api.scryfall.com/cards/search**', async (route: Route) => {
+    const url = new URL(route.request().url())
+    const q = url.searchParams.get('q') ?? ''
+    const data = q.toLowerCase().includes('counterspell')
+      ? [MOCK_TRADE_DECK_CARD_COUNTERSPELL]
+      : [MOCK_TRADE_WANTED_CARD_CRYPT]
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        object: 'list',
+        total_cards: data.length,
+        has_more: false,
+        data,
+      }),
+    })
+  })
+
+  // Mock Scryfall batch collection endpoint (used when restoring scryfall cards from URL)
+  await page.route('**/api.scryfall.com/cards/collection', async (route: Route) => {
+    const body = (await route.request().postDataJSON()) as { identifiers?: { id: string }[] }
+    const ids = (body.identifiers ?? []).map((i) => i.id)
+    const allCards = [MOCK_TRADE_WANTED_CARD_CRYPT, MOCK_TRADE_DECK_CARD_COUNTERSPELL]
+    const data = allCards.filter((c) => ids.includes(c.id))
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data, not_found: [] }),
+    })
+  })
+}

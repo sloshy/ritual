@@ -3,13 +3,13 @@ import type { DeckData, Card, Finish, ScryfallCard } from '../../../types'
 import type { ContextMenuState } from '../types/context-menu'
 import type { CardPriceResponse } from '../../api/card-price'
 import type { EditorConfig } from '../hooks/useEditor'
+import { collectDeckCardIds } from '../../../card-id'
 import { DeckPage } from '../../../site/DeckPage'
 import { useDeckCardData } from '../hooks/useDeckCardData'
 import { useEditor } from '../hooks/useEditor'
 import { applyChangeToDeck } from '../types/deck-changes'
 import { CardContextMenu } from '../components/CardContextMenu'
 import { EditorShell } from '../components/EditorShell'
-import { initializePoolFromEntries } from '../../../card-id'
 
 type DeckListResponse = { decks?: { slug: string; name: string }[] }
 
@@ -99,28 +99,10 @@ export function DeckEditor() {
     processLoadResponse: (response) => {
       const r = response as DeckDataResponse
       if (!r.success) return null
-      const allCards: Card[] = []
-      for (const section of r.deck.sections) {
-        for (const card of section.cards) {
-          allCards.push(card)
-        }
-      }
-      const existingIds = allCards.map((c) => c.cardId)
-      const { pool, assignedIds } = initializePoolFromEntries(allCards.length, existingIds)
-      let idx = 0
-      const deckWithIds: DeckData = {
-        ...r.deck,
-        sections: r.deck.sections.map((s) => ({
-          ...s,
-          cards: s.cards.map((c) => {
-            const cardId = assignedIds[idx++]!
-            return { ...c, cardId }
-          }),
-        })),
-      }
+      const poolIds = collectDeckCardIds(r.deck)
       return {
-        data: deckWithIds,
-        poolIds: [...pool.usedIds],
+        data: r.deck,
+        poolIds,
         contentHash: r.contentHash,
         extra: { frontMatter: r.frontMatter },
       }

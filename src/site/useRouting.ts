@@ -6,6 +6,7 @@ export type Route =
   | { page: 'deck'; slug: string; primerOpen?: boolean; sectionId?: string }
   | { page: 'collection'; slug: string }
   | { page: 'wanted'; slug: string }
+  | { page: 'trade' }
 
 export type UseRoutingResult = {
   route: Accessor<Route>
@@ -14,7 +15,9 @@ export type UseRoutingResult = {
 }
 
 function parseHash(): Route {
-  const hash = window.location.hash.replace(/^#\/?/, '')
+  const raw = window.location.hash.replace(/^#\/?/, '')
+  const qIdx = raw.indexOf('?')
+  const hash = qIdx < 0 ? raw : raw.slice(0, qIdx)
   if (hash.startsWith('deck/')) {
     const rest = hash.slice('deck/'.length)
     const parts = rest.split('/')
@@ -38,6 +41,9 @@ function parseHash(): Route {
   }
   if (hash === 'wanted') {
     return { page: 'index', tab: 'wanted' }
+  }
+  if (hash === 'trade') {
+    return { page: 'trade' }
   }
   return { page: 'index', tab: 'decks' }
 }

@@ -31,6 +31,8 @@ function getOrigin(): { x: number; y: number } {
 
 When writing code that's meant to parse a data type, that should always imply validation and returning an error. If a data type would ever be parsed, such as from a string, make sure that any appropraite errors are properly represented. It's okay to use TypeScript union types for this, such as returning "ProperType | string", where the string represents an error. Or, you can use a structured error type if having separate data points makes sense.
 
+**Exception — error messages do not have to resolve human-friendly identifiers.** When a parser emits an error/warning about data that no longer exists locally (e.g. a card line referenced by `&N` that has since been removed), it is fine to surface the raw numeric ID, scryfall ID, or token string. Do not query Scryfall or any other external service purely to resolve a friendlier name for an error message — the raw ID is enough information for the user to investigate, and avoids spurious network calls on the error path. Example: `decodeTradeFromParams` in `src/site/trade-url.ts` reports `unknown-card-ids` warnings as `{ ids: number[] }` rather than enriched names.
+
 ### Set Code Normalization
 
 Set codes (e.g. `mkm`, `lea`, `2xm`) must follow these rules throughout the codebase:
@@ -83,7 +85,7 @@ Every card entry in deck, collection, and wanted list markdown files has a persi
 - When a card is removed, its ID is released to a reuse pool
 - New cards take the smallest available ID from the pool, then fall back to the next sequential number
 - Decrementing deck quantity does NOT release the ID — only full line removal does
-- IDs are an internal implementation detail — NOT exposed on the public site
+- IDs are an internal implementation detail — NOT exposed through the UI, but may be used in APIs, query parameters, or other functionality as needed
 - The `src/card-id.ts` module contains all pool allocation logic (`createIdPool`, `allocateId`, `releaseId`, `claimId`, `initializePoolFromEntries`)
 - Files without IDs get auto-assigned IDs on load and persisted on save
 - Changelog entries include card IDs

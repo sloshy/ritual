@@ -141,23 +141,6 @@ export function allocateNextIdFromContent(content: string): AllocateFromContentR
   return { pool, nextId }
 }
 
-/**
- * Initialize entries with sequential card IDs and file order indices.
- * Wraps initializePoolFromEntries for the common Collection/WantedList pattern.
- */
-export function initializeEntriesWithIds<T extends { cardId?: number }>(
-  rawEntries: T[],
-): { entries: (T & { fileOrder: number; cardId: number })[]; pool: CardIdPool } {
-  const withFileOrder = rawEntries.map((e, i) => ({ ...e, fileOrder: i }))
-  const existingIds = withFileOrder.map((e) => e.cardId)
-  const { pool, assignedIds } = initializePoolFromEntries(withFileOrder.length, existingIds)
-  const entries = withFileOrder.map((e, i) => ({
-    ...e,
-    cardId: assignedIds[i]!,
-  }))
-  return { entries, pool }
-}
-
 /** Create a deep copy of a CardIdPool for snapshotting. */
 export function clonePool(pool: CardIdPool): CardIdPool {
   return {
@@ -165,4 +148,26 @@ export function clonePool(pool: CardIdPool): CardIdPool {
     availablePool: [...pool.availablePool],
     nextSequential: pool.nextSequential,
   }
+}
+
+/** Pull `cardId` numbers off a flat list of entries, dropping anything that's missing one. */
+export function collectExistingIds(items: readonly { cardId?: number }[]): number[] {
+  const ids: number[] = []
+  for (const item of items) {
+    if (item.cardId !== undefined) ids.push(item.cardId)
+  }
+  return ids
+}
+
+/** Like {@link collectExistingIds} but walks a deck's nested `sections[].cards[]`. */
+export function collectDeckCardIds(deck: {
+  sections: readonly { cards: readonly { cardId?: number }[] }[]
+}): number[] {
+  const ids: number[] = []
+  for (const section of deck.sections) {
+    for (const card of section.cards) {
+      if (card.cardId !== undefined) ids.push(card.cardId)
+    }
+  }
+  return ids
 }

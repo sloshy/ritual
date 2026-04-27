@@ -126,3 +126,28 @@ export interface SiteIndex {
   availableCurrencies: PriceCurrency[]
   pricesDate?: string
 }
+
+export type TradeCardSource = 'collection' | 'deck' | 'wanted' | 'scryfall'
+
+export interface TradeCardEntry {
+  name: string
+  set?: string
+  collectorNumber?: string
+  finish?: Finish
+  condition?: Condition
+  note?: string
+  price?: number
+  scryfallCard: ScryfallCard | null
+  source: TradeCardSource
+  sourceName: string
+  qty: number
+  /** Maximum quantity available from the source (collection/deck/wanted). Undefined for Scryfall. */
+  maxQty?: number
+  /** True if this row was added through the printing picker and can be re-edited via it. */
+  editable?: boolean
+  /**
+   * Pool of card IDs from the source list. Used for URL encoding: first `qty` elements are active.
+   * Absent for Scryfall-only cards which have no source list.
+   */
+  sourceCardIds?: number[]
+}

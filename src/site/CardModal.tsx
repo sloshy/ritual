@@ -1,7 +1,7 @@
 import type { Component } from 'solid-js'
 import { createSignal, createMemo, onMount, onCleanup, For, Show } from 'solid-js'
 import type { ScryfallCard } from '../types'
-import { isDoubleFacedCard, resolveCardImageSources } from './image-sources'
+import { isCardSideways, isDoubleFacedCard, resolveCardImageSources } from './image-sources'
 import { ManaCost, OracleText } from './symbols'
 import type { PriceCurrency } from '../price-currency'
 import { getCardPrice, getCardPriceForFinish, formatPrice } from '../price-currency'
@@ -49,12 +49,7 @@ export const CardModal: Component<CardModalProps> = (props) => {
     props.card ? resolveCardImageSources(props.card, Boolean(props.useScryfallImgUrls)) : null,
   )
 
-  const frontType = createMemo(
-    () => props.card?.card_faces?.[0]?.type_line ?? props.card?.type_line ?? '',
-  )
-  const isSideways = createMemo(
-    () => frontType().includes('Room') || frontType().includes('Battle'),
-  )
+  const isSideways = createMemo(() => isCardSideways(props.card))
 
   const scryfallUrl = createMemo(() =>
     props.card

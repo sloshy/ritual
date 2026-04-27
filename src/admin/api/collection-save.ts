@@ -9,7 +9,6 @@ import { formatCollectionLine } from '../../commands/collection-helpers'
 import { getBaseDir } from '../../base-dir'
 import { parseCollectionFile } from '../../commands/price-collection'
 import { applyChangeToCollection } from '../site/types/collection-changes'
-import { initializeEntriesWithIds } from '../../card-id'
 import type { Finish, Condition } from '../../types'
 import { validateBodySize, validateContentHash, autoCommitAndPush } from './save-helpers'
 
@@ -91,9 +90,7 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
       cardId: e.cardId,
     }))
 
-    // Initialize IDs and apply changes
-    const { entries: entriesWithIds } = initializeEntriesWithIds(cardEntries)
-    let current = entriesWithIds as CollectionCardEntry[]
+    let current = cardEntries
     for (const change of changes) {
       current = applyChangeToCollection(current, change)
     }
