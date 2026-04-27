@@ -20,8 +20,8 @@ import { ensureFreshCardCache } from '../cache/freshness'
 import { appendChangelog } from '../changelog-writer'
 import { createAddChange } from '../change-event'
 import { allocateNextIdFromContent } from '../card-id'
-import { getBaseDir } from '../base-dir'
 import { appendFileWithHash } from '../content-hash'
+import { getDecksDir } from '../ritual-config'
 import {
   findCheapestPrinting,
   formatSpecificPrintingPrice,
@@ -227,7 +227,7 @@ async function handleDeckAddCard(
   selectedName: string,
   options: AddCardOptions,
 ): Promise<void> {
-  const decksDir = path.join(getBaseDir(), 'decks')
+  const decksDir = getDecksDir()
 
   const quantity = Number.parseInt(options.quantity, 10)
   if (Number.isNaN(quantity) || quantity <= 0) {

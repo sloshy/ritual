@@ -5,18 +5,18 @@ import prompts from 'prompts'
 import type {
   CISystem,
   DeployMode,
-  GitHubActionsInitConfig,
+  GitHubActionsSiteConfig,
   InitSiteConfig,
-  RitualSiteConfig,
-} from '../ritual-site-config'
-import { loadRitualSiteConfig, saveRitualSiteConfig } from '../ritual-site-config'
+  SiteConfig,
+} from '../ritual-config'
+import { loadRitualConfig, reloadRitualConfig, saveRitualConfig } from '../ritual-config'
 import type { ActiveManagedFile, ManagedFile, Migration } from '../managed-files'
 import { computeMigrations, isActiveManagedFile } from '../managed-files'
 import { compareVersions } from '../semver'
 import { getBaseDir } from '../base-dir'
 import { version as ritualVersion } from '../version'
 
-export function generatePublishForMeWorkflow(config?: GitHubActionsInitConfig): string {
+export function generatePublishForMeWorkflow(config?: GitHubActionsSiteConfig): string {
   if (config?.detectChanges) {
     return generatePublishForMeWithDetectChanges()
   }
@@ -75,11 +75,14 @@ jobs:
           curl -L -o ritual "https://github.com/sloshy/ritual/releases/download/\${VERSION}/ritual-linux-x86_64"
           chmod +x ritual
 
+      - name: Generate card manifest
+        run: ./ritual list-all-cards
+
       - name: Restore Scryfall cache
         uses: actions/cache@v5
         with:
           path: cache/
-          key: ritual-cache-\${{ hashFiles('decks/**', 'collections/**', 'wanted/**') }}
+          key: ritual-cache-\${{ hashFiles('all-cards.md') }}
           restore-keys: ritual-cache-
 
       - name: Build site
@@ -171,12 +174,16 @@ jobs:
             echo "has-changes=true" >> "\$GITHUB_OUTPUT"
           fi
 
+      - name: Generate card manifest
+        if: steps.detect-changes.outputs.has-changes != 'true'
+        run: ./ritual list-all-cards
+
       - name: Restore Scryfall cache
         if: steps.detect-changes.outputs.has-changes != 'true'
         uses: actions/cache@v5
         with:
           path: cache/
-          key: ritual-cache-\${{ hashFiles('decks/**', 'collections/**', 'wanted/**') }}
+          key: ritual-cache-\${{ hashFiles('all-cards.md') }}
           restore-keys: ritual-cache-
 
       - name: Build site
@@ -240,7 +247,7 @@ jobs:
 `
 }
 
-export function generateWorkflow(config: GitHubActionsInitConfig): string {
+export function generateWorkflow(config: GitHubActionsSiteConfig): string {
   if (config.deployMode === 'publish-for-me') {
     return generatePublishForMeWorkflow(config)
   }
@@ -333,6 +340,7 @@ cache/
 dist/
 .admin-dist/
 .logins/
+all-cards.md
 `
 }
 
@@ -450,7 +458,7 @@ export function registerInitSiteCommand(program: Command) {
     .description('Initialize the current directory for publishing a Ritual site')
     .option(
       '-f, --force',
-      'Re-initialize and overwrite all generated files, ignoring ritual-site.json',
+      'Re-initialize and overwrite all generated files, ignoring the existing site config',
     )
     .option('-u, --upgrade', 'Upgrade tracked workflows to the current version without prompting')
     .action(async (options: { force?: boolean; upgrade?: boolean }) => {
@@ -459,19 +467,12 @@ export function registerInitSiteCommand(program: Command) {
         const config = await promptForConfig()
         if (!config) return
         await writeInitFiles(config, { force: true })
-        await saveConfigOrExit({ ...config, version: ritualVersion })
+        await persistSiteConfigOrExit({ ...config, version: ritualVersion })
         printNextSteps(config)
         return
       }
 
-      // Check for existing ritual-site.json
-      const loaded = await loadRitualSiteConfig()
-
-      if (typeof loaded === 'string') {
-        console.error(`Error: ${loaded}`)
-        console.error('Fix ritual-site.json manually, or use --force to re-initialize.')
-        process.exit(1)
-      }
+      const loaded = (await loadRitualConfig()).site ?? null
 
       if (loaded !== null) {
         const cmp = compareVersions(ritualVersion, loaded.version)
@@ -487,8 +488,8 @@ export function registerInitSiteCommand(program: Command) {
               `last used to initialize this repository (${loaded.version}).`,
           )
           console.warn(
-            'Use --force to re-initialize with current settings, or delete ritual-site.json ' +
-              'if you want to use this older version.',
+            'Use --force to re-initialize with current settings, or remove the "site" key from ' +
+              'ritual.config.json if you want to use this older version.',
           )
           return
         }
@@ -519,27 +520,30 @@ export function registerInitSiteCommand(program: Command) {
         const { version: _version, ...config } = loaded
         const migrations = computeMigrations(loaded.version, ritualVersion, MANAGED_FILES, config)
         await applyMigrations(migrations)
-        const updatedConfig: RitualSiteConfig = { ...config, version: ritualVersion }
-        await saveConfigOrExit(updatedConfig)
-        console.log(`✓ ritual-site.json updated to ${ritualVersion}`)
+        const updatedSite: SiteConfig = { ...config, version: ritualVersion }
+        await persistSiteConfigOrExit(updatedSite)
+        console.log(`✓ ritual.config.json site section updated to ${ritualVersion}`)
         return
       }
 
-      // Fresh init (no ritual-site.json found)
+      // Fresh init (no site config yet)
       const config = await promptForConfig()
       if (!config) return
       await writeInitFiles(config, { force: false })
-      await saveConfigOrExit({ ...config, version: ritualVersion })
+      await persistSiteConfigOrExit({ ...config, version: ritualVersion })
       printNextSteps(config)
     })
 }
 
-async function saveConfigOrExit(config: RitualSiteConfig): Promise<void> {
+async function persistSiteConfigOrExit(site: SiteConfig): Promise<void> {
   try {
-    await saveRitualSiteConfig(config)
+    const config = await loadRitualConfig()
+    config.site = site
+    await saveRitualConfig(config)
+    await reloadRitualConfig()
   } catch (err) {
     console.error(
-      `Error: Failed to write ritual-site.json: ${err instanceof Error ? err.message : String(err)}`,
+      `Error: Failed to write ritual.config.json: ${err instanceof Error ? err.message : String(err)}`,
     )
     process.exit(1)
   }

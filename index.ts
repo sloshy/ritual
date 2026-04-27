@@ -32,6 +32,7 @@ import { registerGitDetectChangesCommand } from './src/commands/git-detect-chang
 import { registerDeckSyncCommand } from './src/commands/deck-sync'
 import { registerMoveCommand } from './src/commands/move'
 import { registerHashCommand } from './src/commands/hash'
+import { registerListAllCardsCommand } from './src/commands/list-all-cards'
 import {
   resolveCacheServerAddress,
   setCacheServerAddressOverride,
@@ -39,6 +40,7 @@ import {
 } from './src/cache/config'
 import { setBaseDir } from './src/base-dir'
 import { ensureCardIdsForAllLists } from './src/ensure-card-ids'
+import { initRitualConfig } from './src/ritual-config'
 
 const program = new Command()
 
@@ -73,6 +75,8 @@ program.hook('preAction', async (command) => {
     toCacheServerBaseUrl(resolved)
   }
   setCacheServerAddressOverride(resolved)
+
+  await initRitualConfig()
 
   const leaf = command.name()
   const parent = command.parent?.name()
@@ -125,6 +129,7 @@ registerCacheServerCommand(program)
 program.commandsGroup('Utilities')
 registerGitDetectChangesCommand(program)
 registerHashCommand(program)
+registerListAllCardsCommand(program)
 
 program.commandsGroup('Legal')
 registerLicenseCommand(program)

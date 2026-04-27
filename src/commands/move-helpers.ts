@@ -20,6 +20,7 @@ import {
   writeStagedFile,
   type StagedFile,
 } from './move-io'
+import { getCollectionsDir, getDecksDir, getWantedDir } from '../ritual-config'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -70,10 +71,10 @@ export type MoveSessionConfig = {
 
 // ── Loading ───────────────────────────────────────────────────────────────────
 
-export async function loadAllLists(baseDir: string): Promise<ListEntry[]> {
+export async function loadAllLists(): Promise<ListEntry[]> {
   const lists: ListEntry[] = []
 
-  const decksDir = path.join(baseDir, 'decks')
+  const decksDir = getDecksDir()
   try {
     const deckFiles = await listDeckFiles(decksDir)
     for (const fileName of deckFiles) {
@@ -86,7 +87,7 @@ export async function loadAllLists(baseDir: string): Promise<ListEntry[]> {
     // decks directory may not exist
   }
 
-  const collectionsDir = path.join(baseDir, 'collections')
+  const collectionsDir = getCollectionsDir()
   try {
     const files = await fs.readdir(collectionsDir)
     for (const fileName of files.filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))) {
@@ -99,7 +100,7 @@ export async function loadAllLists(baseDir: string): Promise<ListEntry[]> {
     // collections directory may not exist
   }
 
-  const wantedDir = path.join(baseDir, 'wanted')
+  const wantedDir = getWantedDir()
   try {
     const files = await fs.readdir(wantedDir)
     for (const fileName of files.filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))) {

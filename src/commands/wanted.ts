@@ -1,10 +1,9 @@
 import { Command } from 'commander'
 import prompts, { type Choice } from 'prompts'
 import * as fs from 'node:fs/promises'
-import path from 'node:path'
 import { getAllCardNames, getCardsBySet, getCardPrintings } from '../scryfall'
 import type { ScryfallCard } from '../types'
-import { getBaseDir } from '../base-dir'
+import { getWantedDir } from '../ritual-config'
 import {
   resolveCardPrinting,
   manageSetCodes,
@@ -61,7 +60,7 @@ export function registerWantedListCommand(program: Command) {
       console.log(`Loaded ${cardNames.length} cards.`)
 
       // Ensure wanted directory exists
-      const wantedListsDir = path.join(getBaseDir(), 'wanted')
+      const wantedListsDir = getWantedDir()
       await fs.mkdir(wantedListsDir, { recursive: true })
 
       // List existing wanted lists

@@ -1,9 +1,8 @@
-import path from 'node:path'
 import { getContentHash } from '../../content-hash'
 import { importFromTextFile } from '../../importers/text-file'
 import { resolveDeckFilePath, parseDeckFrontMatter } from '../../deck-file'
 import { getErrorMessage } from '../../errors'
-import { getBaseDir } from '../../base-dir'
+import { getDecksDir } from '../../ritual-config'
 import { addChangelogCardNames, fetchSymbolMap, loadDeckCardData } from './card-data-loader'
 
 export async function handleDeckLoad(req: Request): Promise<Response> {
@@ -16,7 +15,7 @@ export async function handleDeckLoad(req: Request): Promise<Response> {
       return Response.json({ success: false, message: 'Deck slug is required' }, { status: 400 })
     }
 
-    const decksDir = path.join(getBaseDir(), 'decks')
+    const decksDir = getDecksDir()
     const filePath = await resolveDeckFilePath(decksDir, slug)
 
     if (!filePath) {

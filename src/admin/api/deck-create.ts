@@ -1,10 +1,10 @@
 import path from 'node:path'
-import { loadConfig } from '../config'
+import { loadRitualConfig } from '../../ritual-config'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { getErrorMessage } from '../../errors'
 import { isPathWithinDir } from '../../path-validation'
 import { MAX_BODY_SIZE } from '../validation'
-import { getBaseDir } from '../../base-dir'
+import { getDecksDir } from '../../ritual-config'
 import { writeFileWithHash, hashPath } from '../../content-hash'
 import { sanitizeDeckFileName } from '../../utils'
 
@@ -44,7 +44,7 @@ export async function handleDeckCreate(req: Request): Promise<Response> {
       return Response.json(resp, { status: 400 })
     }
 
-    const decksDir = path.join(getBaseDir(), 'decks')
+    const decksDir = getDecksDir()
     const filePath = path.join(decksDir, `${slug}.md`)
 
     if (!isPathWithinDir(filePath, decksDir)) {
@@ -74,7 +74,7 @@ tags: []
 
     await writeFileWithHash(filePath, content)
 
-    const config = await loadConfig()
+    const config = await loadRitualConfig()
     if (shouldAutoCommit(config, decksDir)) {
       commitFiles([filePath, hashPath(filePath)], `Create deck: ${trimmedName}`)
       if (shouldAutoPush(config, decksDir)) {

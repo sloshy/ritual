@@ -7,7 +7,7 @@ import {
   buildExpiredSessionCookie,
 } from '../session'
 import { appendAuditLog, createAuditEntry } from '../audit-log'
-import { loadConfig } from '../config'
+import { loadRitualConfig } from '../../ritual-config'
 import { globalRateLimiter } from '../rate-limit'
 import { MAX_BODY_SIZE, MAX_USERNAME_LENGTH, MAX_PASSWORD_LENGTH } from '../validation'
 
@@ -30,7 +30,7 @@ interface RateLimitResponse {
 }
 
 export async function handleLogin(req: Request, clientIp: string): Promise<Response> {
-  const config = await loadConfig()
+  const config = await loadRitualConfig()
   const userAgent = req.headers.get('User-Agent') ?? ''
 
   // Rate limit check
@@ -147,7 +147,7 @@ interface LogoutResponse {
 }
 
 export async function handleLogout(sessionToken: string): Promise<Response> {
-  const config = await loadConfig()
+  const config = await loadRitualConfig()
   destroySession(sessionToken)
   const resp: LogoutResponse = { success: true }
   return Response.json(resp, {

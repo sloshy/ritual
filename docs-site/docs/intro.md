@@ -105,7 +105,7 @@ ritual --base-dir ~/my-collection build-site
 ritual --base-dir /projects/mtg price "My Deck"
 ```
 
-This affects all file paths: decks, collections, wanted lists, cache, config files, and the output `dist/` directory.
+This affects all file paths: decks, collections, wanted lists, cache, config files, and the output `dist/` directory. The directory locations themselves can be customized via [`ritual.config.json`](configuration.md) — paths in that file are interpreted relative to `--base-dir`.
 
 ## Features
 

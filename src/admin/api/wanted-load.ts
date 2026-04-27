@@ -3,7 +3,7 @@ import { getContentHash } from '../../content-hash'
 import { parseWantedListFile } from '../../commands/wanted-helpers'
 import { getErrorMessage } from '../../errors'
 import { isPathWithinDir } from '../../path-validation'
-import { getBaseDir } from '../../base-dir'
+import { getWantedDir } from '../../ritual-config'
 import { addChangelogCardNames, fetchSymbolMap, loadEntryCardData } from './card-data-loader'
 
 export async function handleWantedListLoad(req: Request): Promise<Response> {
@@ -20,7 +20,7 @@ export async function handleWantedListLoad(req: Request): Promise<Response> {
     }
 
     const slug = decodeURIComponent(rawSlug)
-    const wantedListsDir = path.join(getBaseDir(), 'wanted')
+    const wantedListsDir = getWantedDir()
     const filePath = path.join(wantedListsDir, slug + '.md')
     if (!isPathWithinDir(filePath, wantedListsDir)) {
       return Response.json({ success: false, message: 'Invalid wanted list slug' }, { status: 400 })

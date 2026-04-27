@@ -1,5 +1,5 @@
 import { compareVersions } from './semver'
-import type { CISystem, InitSiteConfig } from './ritual-site-config'
+import type { CISystem, InitSiteConfig } from './ritual-config'
 
 /**
  * Describes the path a managed file occupied over a version range.

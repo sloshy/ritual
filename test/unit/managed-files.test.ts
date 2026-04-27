@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { ActiveManagedFile, HistoricalManagedFile } from '../../src/managed-files'
 import { computeMigrations, isActiveManagedFile } from '../../src/managed-files'
-import type { InitSiteConfig } from '../../src/ritual-site-config'
+import type { InitSiteConfig } from '../../src/ritual-config'
 
 const config: InitSiteConfig = {
   ciSystem: 'github-actions',

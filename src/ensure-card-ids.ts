@@ -1,12 +1,12 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { getBaseDir } from './base-dir'
 import { writeFileWithHash } from './content-hash'
 import { allocateId, createIdPool, parseCardIdsFromContent } from './card-id'
 import { DECK_CARD_LINE_RE, isDeckFile } from './importers/text-file'
 import { COLLECTION_CARD_LINE_RE } from './commands/price-collection'
 import { WANTED_CARD_LINE_RE } from './commands/wanted-helpers'
 import { getErrorMessage } from './errors'
+import { getCollectionsDir, getDecksDir, getWantedDir } from './ritual-config'
 
 function isNoEntryError(err: unknown): boolean {
   return typeof err === 'object' && err !== null && 'code' in err && err.code === 'ENOENT'
@@ -120,12 +120,7 @@ async function ensureIdsInDir(
  * card line having a stable ID without per-load backfill.
  */
 export async function ensureCardIdsForAllLists(): Promise<void> {
-  const baseDir = getBaseDir()
-  await ensureIdsInDir(path.join(baseDir, 'decks'), ensureDeckIdsInContent, isDeckFile)
-  await ensureIdsInDir(
-    path.join(baseDir, 'collections'),
-    ensureCollectionIdsInContent,
-    isListMarkdown,
-  )
-  await ensureIdsInDir(path.join(baseDir, 'wanted'), ensureWantedIdsInContent, isListMarkdown)
+  await ensureIdsInDir(getDecksDir(), ensureDeckIdsInContent, isDeckFile)
+  await ensureIdsInDir(getCollectionsDir(), ensureCollectionIdsInContent, isListMarkdown)
+  await ensureIdsInDir(getWantedDir(), ensureWantedIdsInContent, isListMarkdown)
 }

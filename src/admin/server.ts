@@ -1,7 +1,7 @@
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { adminUserExists } from './auth'
-import { loadConfig } from './config'
+import { loadRitualConfig } from '../ritual-config'
 import { parseSessionCookie, validateSession } from './session'
 import { handleStatus, handleListDecks } from './api/status'
 import { handleImportDeck } from './api/import-deck'
@@ -218,7 +218,7 @@ async function handleRequest(
   const method = req.method
 
   // Load config first — needed for trustProxy and filtering
-  const config = await loadConfig()
+  const config = await loadRitualConfig()
   const clientIp = getClientIp(req, server, config.trustProxy)
   const userAgent = req.headers.get('User-Agent') ?? ''
 

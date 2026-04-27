@@ -1,5 +1,5 @@
 import { createSignal, onMount, Show } from 'solid-js'
-import type { AdminConfig } from '../../config'
+import type { RitualConfig } from '../../../ritual-config'
 import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { TotpSettings } from '../components/TotpSettings'
@@ -9,13 +9,13 @@ function listToString(list: string[]): string {
 }
 
 export function Settings() {
-  const [config, setConfig] = createSignal<AdminConfig | null>(null)
+  const [config, setConfig] = createSignal<RitualConfig | null>(null)
   const { status, error, loading, run, setStatus, setError } = useApiAction()
 
   const fetchConfig = async () => {
     try {
       const resp = await fetch('/api/config', { credentials: 'same-origin' })
-      const data = (await resp.json()) as { success: boolean; config: AdminConfig }
+      const data = (await resp.json()) as { success: boolean; config: RitualConfig }
       if (data.success && data.config) {
         setConfig(data.config)
       }
@@ -42,16 +42,16 @@ export function Settings() {
     if (ok) setStatus('Settings saved')
   }
 
-  const updateField = (field: keyof AdminConfig, value: string | boolean | number) => {
-    setConfig((prev) => (prev ? ({ ...prev, [field]: value } as AdminConfig) : null))
+  const updateField = (field: keyof RitualConfig, value: string | boolean | number) => {
+    setConfig((prev) => (prev ? ({ ...prev, [field]: value } as RitualConfig) : null))
   }
 
-  const updateListField = (field: keyof AdminConfig, value: string) => {
+  const updateListField = (field: keyof RitualConfig, value: string) => {
     const list = value
       .split('\n')
       .map((s) => s.trim())
       .filter((s) => s.length > 0)
-    setConfig((prev) => (prev ? ({ ...prev, [field]: list } as AdminConfig) : null))
+    setConfig((prev) => (prev ? ({ ...prev, [field]: list } as RitualConfig) : null))
   }
 
   return (
@@ -88,6 +88,17 @@ export function Settings() {
               placeholder="e.g. ./collections"
               value={config()!.collectionsDir}
               onInput={(e) => updateField('collectionsDir', e.currentTarget.value)}
+            />
+          </div>
+          <div>
+            <label class="form-label">Wanted List Directory</label>
+            <input
+              type="text"
+              class="form-input"
+              name="wantedDir"
+              placeholder="e.g. ./wanted"
+              value={config()!.wantedDir}
+              onInput={(e) => updateField('wantedDir', e.currentTarget.value)}
             />
           </div>
 

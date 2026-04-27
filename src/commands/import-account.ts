@@ -1,6 +1,5 @@
 import { Command } from 'commander'
 import prompts from 'prompts'
-import path from 'node:path'
 import {
   ArchidektClient,
   type ArchidektDeckSimple,
@@ -11,8 +10,8 @@ import { ArchidektAuth } from '../auth/ArchidektAuth'
 import { saveDeck } from './import'
 import { ExitCode } from './scripting'
 import { getErrorMessage } from '../errors'
-import { getBaseDir } from '../base-dir'
 import { promptForLogin } from '../auth/login-helper'
+import { getDecksDir } from '../ritual-config'
 
 export function registerImportAccountCommand(program: Command) {
   program
@@ -155,7 +154,7 @@ export function registerImportAccountCommand(program: Command) {
             console.log(`Processing: ${deck.name} (${deck.id})...`)
             try {
               const deckData = await client.fetchDeck(deck.id.toString(), token)
-              const decksDir = path.join(getBaseDir(), 'decks')
+              const decksDir = getDecksDir()
               await saveDeck(deckData, decksDir, {
                 forceOverwrite: options.overwrite === true,
                 nonInteractive: nonInteractiveMode,

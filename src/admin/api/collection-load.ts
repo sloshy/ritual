@@ -3,7 +3,7 @@ import { getContentHash } from '../../content-hash'
 import { parseCollectionFile } from '../../commands/price-collection'
 import { getErrorMessage } from '../../errors'
 import { isPathWithinDir } from '../../path-validation'
-import { getBaseDir } from '../../base-dir'
+import { getCollectionsDir } from '../../ritual-config'
 import { addChangelogCardNames, fetchSymbolMap, loadEntryCardData } from './card-data-loader'
 
 export async function handleCollectionLoad(req: Request): Promise<Response> {
@@ -20,7 +20,7 @@ export async function handleCollectionLoad(req: Request): Promise<Response> {
     }
 
     const slug = decodeURIComponent(rawSlug)
-    const collectionsDir = path.join(getBaseDir(), 'collections')
+    const collectionsDir = getCollectionsDir()
     const filePath = path.join(collectionsDir, slug + '.md')
     if (!isPathWithinDir(filePath, collectionsDir)) {
       return Response.json({ success: false, message: 'Invalid collection slug' }, { status: 400 })

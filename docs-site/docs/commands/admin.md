@@ -72,14 +72,16 @@ View a chronological log of all login attempts, including timestamp, IP address,
 
 ## Configuration File
 
-Settings are stored in `ritual.config.json` in the project root:
+Settings are stored in `ritual.config.json` in the base directory. The file is shared by the entire app — see [Configuration](../configuration.md) for the full reference and how it interacts with `--base-dir`.
 
 ```json
 {
   "decksDir": "./decks",
   "collectionsDir": "./collections",
+  "wantedDir": "./wanted",
   "gitEnabled": false,
   "gitAutoCommit": false,
+  "gitAutoPush": false,
   "ipAllowList": [],
   "ipDenyList": [],
   "userAgentAllowList": [],
@@ -543,8 +545,10 @@ Returns the current application configuration.
   "config": {
     "decksDir": "./decks",
     "collectionsDir": "./collections",
+    "wantedDir": "./wanted",
     "gitEnabled": false,
     "gitAutoCommit": false,
+    "gitAutoPush": false,
     "ipAllowList": [],
     "ipDenyList": [],
     "userAgentAllowList": [],
@@ -580,8 +584,10 @@ Update the application configuration. Partial updates are supported — only the
   "config": {
     "decksDir": "./decks",
     "collectionsDir": "./collections",
+    "wantedDir": "./wanted",
     "gitEnabled": true,
     "gitAutoCommit": true,
+    "gitAutoPush": false,
     "ipAllowList": [],
     "ipDenyList": [],
     "userAgentAllowList": [],

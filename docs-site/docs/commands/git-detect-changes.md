@@ -101,4 +101,4 @@ When enabled, the generated workflow:
 3. If changelog files were generated, commits and pushes them with a message like `Generated changes from commit abc1234`
 4. Skips the site build for that run — the new commit will trigger a fresh build with the updated changelogs
 
-You can also enable it later by setting `"detectChanges": true` in `ritual-site.json` and re-running `ritual init-site --upgrade`.
+You can also enable it later by setting `"detectChanges": true` under the `site` key in `ritual.config.json` and re-running `ritual init-site --upgrade`.

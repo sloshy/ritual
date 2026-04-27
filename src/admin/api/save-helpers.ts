@@ -1,5 +1,5 @@
 import { loadHash, computeHash } from '../../content-hash'
-import { loadConfig } from '../config'
+import { loadRitualConfig } from '../../ritual-config'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { MAX_BODY_SIZE } from '../validation'
 
@@ -58,7 +58,7 @@ export async function autoCommitAndPush(
   files: string[],
   message: string,
 ): Promise<void> {
-  const config = await loadConfig()
+  const config = await loadRitualConfig()
   if (shouldAutoCommit(config, dir)) {
     commitFiles(files, message)
     if (shouldAutoPush(config, dir)) {

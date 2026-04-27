@@ -1,10 +1,9 @@
 import { Command } from 'commander'
 import prompts, { type Choice } from 'prompts'
 import * as fs from 'node:fs/promises'
-import path from 'node:path'
 import { getAllCardNames, getCardsBySet } from '../scryfall'
 import type { ScryfallCard } from '../types'
-import { getBaseDir } from '../base-dir'
+import { getCollectionsDir } from '../ritual-config'
 import {
   type SessionConfig,
   resolveCardPrinting,
@@ -57,7 +56,7 @@ export function registerCollectionCommand(program: Command) {
       console.log(`Loaded ${cardNames.length} cards.`)
 
       // Ensure collections directory exists
-      const collectionsDir = path.join(getBaseDir(), 'collections')
+      const collectionsDir = getCollectionsDir()
       await fs.mkdir(collectionsDir, { recursive: true })
 
       // List existing collections

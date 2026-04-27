@@ -1,4 +1,7 @@
 import { execFileSync } from 'node:child_process'
+import path from 'node:path'
+import { getBaseDir } from './base-dir'
+import { getCollectionsDir, getDecksDir, getWantedDir } from './ritual-config'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -24,11 +27,24 @@ function isListFile(filePath: string): boolean {
   )
 }
 
+function relativePrefix(absDir: string): string {
+  const rel = path.relative(getBaseDir(), absDir)
+  return rel === '' ? '' : rel + path.sep
+}
+
 export function classifyFile(filePath: string): ListKind | null {
   if (!isListFile(filePath)) return null
-  if (filePath.startsWith('decks/')) return 'deck'
-  if (filePath.startsWith('collections/')) return 'collection'
-  if (filePath.startsWith('wanted/')) return 'wanted'
+  const normalized = filePath.split(path.sep).join('/')
+  const matchPrefix = (absDir: string): string => {
+    const prefix = relativePrefix(absDir).split(path.sep).join('/')
+    return prefix
+  }
+  const decksPrefix = matchPrefix(getDecksDir())
+  const collectionsPrefix = matchPrefix(getCollectionsDir())
+  const wantedPrefix = matchPrefix(getWantedDir())
+  if (decksPrefix && normalized.startsWith(decksPrefix)) return 'deck'
+  if (collectionsPrefix && normalized.startsWith(collectionsPrefix)) return 'collection'
+  if (wantedPrefix && normalized.startsWith(wantedPrefix)) return 'wanted'
   return null
 }
 

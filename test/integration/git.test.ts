@@ -1,7 +1,7 @@
 import { describe, test, expect } from 'bun:test'
 import { isGitRepo, shouldAutoCommit } from '../../src/admin/git'
-import { getDefaultConfig } from '../../src/admin/config'
-import type { AdminConfig } from '../../src/admin/config'
+import { getDefaultRitualConfig } from '../../src/ritual-config'
+import type { RitualConfig } from '../../src/ritual-config'
 import path from 'node:path'
 import os from 'node:os'
 import fs from 'node:fs'
@@ -23,7 +23,7 @@ describe('admin git', () => {
 
   test('shouldAutoCommit requires both gitEnabled and gitAutoCommit in a repo', () => {
     const projectRoot = path.join(import.meta.dir, '../..')
-    const base = { ...getDefaultConfig(), decksDir: './decks', collectionsDir: './collections' }
+    const base = getDefaultRitualConfig()
 
     const cases: Array<{ gitEnabled: boolean; gitAutoCommit: boolean; expected: boolean }> = [
       { gitEnabled: true, gitAutoCommit: true, expected: true },
@@ -33,7 +33,7 @@ describe('admin git', () => {
     ]
 
     for (const { gitEnabled, gitAutoCommit, expected } of cases) {
-      const config: AdminConfig = { ...base, gitEnabled, gitAutoCommit }
+      const config: RitualConfig = { ...base, gitEnabled, gitAutoCommit }
       expect(shouldAutoCommit(config, projectRoot)).toBe(expected)
     }
   })

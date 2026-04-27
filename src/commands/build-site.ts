@@ -20,6 +20,7 @@ import { extractPrimerCardNames } from '../primer-parser'
 import { parseChangelog, extractChangelogCardNames } from '../changelog-parser'
 import type { ChangelogPage } from '../changelog-parser'
 import { getBaseDir } from '../base-dir'
+import { getCollectionsDir, getDecksDir, getWantedDir } from '../ritual-config'
 import type {
   DeckSummary,
   DeckDetail,
@@ -140,7 +141,7 @@ export function registerBuildSiteCommand(program: Command) {
 
       const distDir = path.join(getBaseDir(), 'dist')
       const imagesDir = path.join(distDir, 'images')
-      const decksDir = path.join(getBaseDir(), 'decks')
+      const decksDir = getDecksDir()
       const bundledSiteAssets = getBundledSiteAssets()
       const cacheImages = options.cacheImages === true
       const useScryfallImgUrls = !cacheImages
@@ -305,7 +306,7 @@ export function registerBuildSiteCommand(program: Command) {
 
       // Pre-load wanted list card names so they're fetched along with deck/collection cards
       {
-        const wlDir = path.join(getBaseDir(), 'wanted')
+        const wlDir = getWantedDir()
         try {
           const wlFiles = await fs.readdir(wlDir)
           const wlMdFiles = wlFiles.filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))
@@ -754,7 +755,7 @@ export function registerBuildSiteCommand(program: Command) {
       }
 
       // Phase 4: Load and process collections
-      const collectionsDir = path.join(getBaseDir(), 'collections')
+      const collectionsDir = getCollectionsDir()
       const collectionsSummaries: CollectionSummary[] = []
       const collectionsDataDir = path.join(distDir, 'collections')
       await fs.mkdir(collectionsDataDir, { recursive: true })
@@ -1005,7 +1006,7 @@ export function registerBuildSiteCommand(program: Command) {
       }
 
       // Phase 5: Load and process wanted lists
-      const wantedListsSourceDir = path.join(getBaseDir(), 'wanted')
+      const wantedListsSourceDir = getWantedDir()
       const wantedListsSummaries: WantedListSummary[] = []
       const wantedListsDataDir = path.join(distDir, 'wanted')
       await fs.mkdir(wantedListsDataDir, { recursive: true })

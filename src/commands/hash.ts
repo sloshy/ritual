@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getBaseDir } from '../base-dir'
 import { computeHash, saveHash } from '../content-hash'
+import { getCollectionsDir, getDecksDir, getWantedDir } from '../ritual-config'
 
 type HashOptions = {
   dryRun?: boolean
@@ -39,11 +40,7 @@ async function runHash(options: HashOptions): Promise<void> {
   const baseDir = getBaseDir()
   const dryRun = options.dryRun ?? false
 
-  const dirs = [
-    path.join(baseDir, 'decks'),
-    path.join(baseDir, 'collections'),
-    path.join(baseDir, 'wanted'),
-  ]
+  const dirs = [getDecksDir(), getCollectionsDir(), getWantedDir()]
 
   let total = 0
   for (const dir of dirs) {

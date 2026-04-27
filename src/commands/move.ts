@@ -1,7 +1,6 @@
 import { Command } from 'commander'
 import prompts, { type Choice } from 'prompts'
 import type { PromptState } from './prompts-types'
-import { getBaseDir } from '../base-dir'
 import { resolveCardPrinting } from './collection-helpers'
 import { listRefLabel, type ListRef } from '../change-event'
 import type { ListEntry, MoveSessionConfig, VirtualCard } from './move-helpers'
@@ -23,10 +22,8 @@ export function registerMoveCommand(program: Command): void {
     .command('move')
     .description('Interactively move cards between decks, collections, and wanted lists')
     .action(async () => {
-      const baseDir = getBaseDir()
-
       console.log('Loading all lists...')
-      const allLists = await loadAllLists(baseDir)
+      const allLists = await loadAllLists()
 
       if (allLists.length === 0) {
         console.log('No list files found. Create a deck, collection, or wanted list first.')

@@ -3,6 +3,7 @@ import type { SidebarsConfig } from '@docusaurus/plugin-content-docs'
 const sidebars: SidebarsConfig = {
   docsSidebar: [
     'intro',
+    'configuration',
     'docker',
     {
       type: 'category',
@@ -64,7 +65,7 @@ const sidebars: SidebarsConfig = {
         {
           type: 'category',
           label: 'Utilities',
-          items: ['commands/git-detect-changes'],
+          items: ['commands/git-detect-changes', 'commands/list-all-cards'],
         },
         {
           type: 'category',

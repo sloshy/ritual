@@ -12,14 +12,14 @@ Initialize the current directory for publishing a Ritual site.
 ritual init-site [options]
 ```
 
-| Option          | Description                                                                  |
-| --------------- | ---------------------------------------------------------------------------- |
-| `-u, --upgrade` | Upgrade tracked files to the current version without prompting               |
-| `-f, --force`   | Re-initialize and overwrite all generated files, ignoring `ritual-site.json` |
+| Option          | Description                                                                        |
+| --------------- | ---------------------------------------------------------------------------------- |
+| `-u, --upgrade` | Upgrade tracked files to the current version without prompting                     |
+| `-f, --force`   | Re-initialize and overwrite all generated files, ignoring the existing site config |
 
 This interactive command creates the scaffolding files needed to publish a Ritual-built deck and collection site. It first prompts you to choose a CI system, then a deployment strategy, and generates the appropriate files.
 
-On subsequent runs, `init-site` compares the current Ritual version to the version recorded in `ritual-site.json`. If a newer version is detected, it prompts you to confirm before regenerating any tracked managed files.
+The site settings are stored under the `site` key of [`ritual.config.json`](../configuration.md). On subsequent runs, `init-site` compares the current Ritual version to the version recorded there. If a newer version is detected, it prompts you to confirm before regenerating any tracked managed files.
 
 ## Prompts
 
@@ -79,54 +79,61 @@ This is useful when you edit list files directly (outside the admin UI or CLI) a
 
 ### GitHub Actions
 
-| File                                | Description                                                            |
-| ----------------------------------- | ---------------------------------------------------------------------- |
-| `.github/workflows/deploy-site.yml` | GitHub Actions workflow for deploying to GitHub Pages (tracked)        |
-| `ritual-site.json`                  | Stores your settings and the Ritual version used — commit this file    |
-| `README.md`                         | Basic setup instructions for your site                                 |
-| `.gitignore`                        | Entries for `cache/` and `dist/` (appended if the file already exists) |
+| File                                | Description                                                               |
+| ----------------------------------- | ------------------------------------------------------------------------- |
+| `.github/workflows/deploy-site.yml` | GitHub Actions workflow for deploying to GitHub Pages (tracked)           |
+| `ritual.config.json` (`site` key)   | Stores your settings and the Ritual version used — commit this file       |
+| `README.md`                         | Basic setup instructions for your site                                    |
+| `.gitignore`                        | Entries for `cache/`, `dist/`, etc. (appended if the file already exists) |
 
 ### Manual / None
 
-| File               | Description                                                            |
-| ------------------ | ---------------------------------------------------------------------- |
-| `ritual-site.json` | Stores your settings and the Ritual version used — commit this file    |
-| `README.md`        | Basic setup instructions for your site                                 |
-| `.gitignore`       | Entries for `cache/` and `dist/` (appended if the file already exists) |
+| File                              | Description                                                               |
+| --------------------------------- | ------------------------------------------------------------------------- |
+| `ritual.config.json` (`site` key) | Stores your settings and the Ritual version used — commit this file       |
+| `README.md`                       | Basic setup instructions for your site                                    |
+| `.gitignore`                      | Entries for `cache/`, `dist/`, etc. (appended if the file already exists) |
 
 If any file already exists, you'll be prompted before overwriting.
 
 ## Version Tracking and Upgrade
 
-`init-site` writes a `ritual-site.json` file recording your CI system, settings, and the current Ritual version. Examples:
+`init-site` writes a `site` block into `ritual.config.json` recording your CI system, settings, and the current Ritual version. Examples:
 
 ```json
 {
-  "version": "0.1.0",
-  "ciSystem": "github-actions",
-  "deployMode": "publish-for-me",
-  "distDir": "dist"
+  "site": {
+    "version": "0.1.0",
+    "ciSystem": "github-actions",
+    "deployMode": "publish-for-me",
+    "distDir": "dist",
+    "detectChanges": false
+  }
 }
 ```
 
 ```json
 {
-  "version": "0.1.0",
-  "ciSystem": "github-actions",
-  "deployMode": "publish-for-me",
-  "distDir": "dist",
-  "detectChanges": true
+  "site": {
+    "version": "0.1.0",
+    "ciSystem": "github-actions",
+    "deployMode": "publish-for-me",
+    "distDir": "dist",
+    "detectChanges": true
+  }
 }
 ```
 
 ```json
 {
-  "version": "0.1.0",
-  "ciSystem": "manual"
+  "site": {
+    "version": "0.1.0",
+    "ciSystem": "manual"
+  }
 }
 ```
 
-Commit this file so Ritual knows which version initialized the repository.
+Commit `ritual.config.json` so Ritual knows which version initialized the repository.
 
 ### Upgrading
 
@@ -141,7 +148,7 @@ If you confirm, migrations run using your saved settings:
 ```
 Upgrading from 0.1.0 to 0.2.0...
 ↻ Updated .github/workflows/deploy-site.yml
-✓ ritual-site.json updated to 0.2.0
+✓ ritual.config.json site section updated to 0.2.0
 ```
 
 To skip the prompt and upgrade automatically (e.g. in a script), use `--upgrade`:
@@ -152,13 +159,13 @@ ritual init-site --upgrade
 
 ### Downgrade warning
 
-If the current Ritual build is older than the version recorded in `ritual-site.json`, the command warns you and exits without making changes:
+If the current Ritual build is older than the version recorded in the `site` config, the command warns you and exits without making changes:
 
 ```
 Warning: The current Ritual build (0.1.0) is older than the version last used
 to initialize this repository (0.2.0).
-Use --force to re-initialize with current settings, or delete ritual-site.json
-if you want to use this older version.
+Use --force to re-initialize with current settings, or remove the "site" key
+from ritual.config.json if you want to use this older version.
 ```
 
 ### `--force`

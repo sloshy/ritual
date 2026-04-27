@@ -1,6 +1,6 @@
 import { execSync } from 'node:child_process'
 import path from 'node:path'
-import type { AdminConfig } from './config'
+import type { RitualConfig } from '../ritual-config'
 import { getBaseDir } from '../base-dir'
 
 export function isGitRepo(dir: string): boolean {
@@ -45,10 +45,10 @@ export function pushChanges(cwd?: string): void {
   })
 }
 
-export function shouldAutoCommit(config: AdminConfig, dir: string): boolean {
+export function shouldAutoCommit(config: RitualConfig, dir: string): boolean {
   return config.gitEnabled && config.gitAutoCommit && isGitRepo(dir)
 }
 
-export function shouldAutoPush(config: AdminConfig, dir: string): boolean {
+export function shouldAutoPush(config: RitualConfig, dir: string): boolean {
   return config.gitEnabled && config.gitAutoPush && isGitRepo(dir)
 }

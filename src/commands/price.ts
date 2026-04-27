@@ -12,7 +12,7 @@ import {
   type ScriptingOptions,
 } from './scripting'
 import { getErrorMessage } from '../errors'
-import { getBaseDir } from '../base-dir'
+import { getDecksDir } from '../ritual-config'
 
 type SectionPricingResult = {
   name: string
@@ -50,7 +50,7 @@ export function registerPriceDeckCommand(program: Command) {
     )
     if (!currency) return
 
-    const decksDir = path.join(getBaseDir(), 'decks')
+    const decksDir = getDecksDir()
     const fileName = deckName.endsWith('.md') ? deckName : `${deckName}.md`
     const filePath = path.join(decksDir, fileName)
 

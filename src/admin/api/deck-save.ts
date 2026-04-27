@@ -1,11 +1,10 @@
-import path from 'node:path'
 import { writeFileWithHash, hashPath } from '../../content-hash'
 import { resolveDeckFilePath, serializeDeckToMarkdown } from '../../deck-file'
 import { getErrorMessage } from '../../errors'
 import { appendChangelog } from '../../changelog-writer'
 import type { DeckData } from '../../types'
 import type { ChangeEvent } from '../../change-event'
-import { getBaseDir } from '../../base-dir'
+import { getDecksDir } from '../../ritual-config'
 import { validateBodySize, validateContentHash, autoCommitAndPush } from './save-helpers'
 
 interface DeckSaveRequest {
@@ -37,7 +36,7 @@ export async function handleDeckSave(req: Request): Promise<Response> {
       )
     }
 
-    const decksDir = path.join(getBaseDir(), 'decks')
+    const decksDir = getDecksDir()
     const filePath = await resolveDeckFilePath(decksDir, slug)
 
     if (!filePath) {

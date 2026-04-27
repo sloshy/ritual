@@ -6,8 +6,8 @@ import { getCardsBySet, getAllCardNames, getCardPrintings, isDigitalOnlySet } fr
 import type { ScryfallCard, Finish, Condition } from '../types'
 import { capitalize } from '../utils'
 import { VALID_FINISHES, VALID_CONDITIONS, isFinish, isCondition } from '../finish-condition'
-import { getBaseDir } from '../base-dir'
 import { writeFileWithHash, saveHash, computeHash } from '../content-hash'
+import { getCollectionsDir } from '../ritual-config'
 
 export { VALID_FINISHES, VALID_CONDITIONS, isFinish, isCondition }
 
@@ -17,7 +17,7 @@ export { VALID_FINISHES, VALID_CONDITIONS, isFinish, isCondition }
  * Returns the resolved file path.
  */
 export async function ensureCollectionFile(collectionName: string): Promise<string> {
-  const collectionsDir = path.join(getBaseDir(), 'collections')
+  const collectionsDir = getCollectionsDir()
   await fs.mkdir(collectionsDir, { recursive: true })
   const filePath = path.join(collectionsDir, `${collectionName}.md`)
   try {

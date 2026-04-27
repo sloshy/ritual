@@ -124,7 +124,7 @@ describe('generatePublishForMeWorkflow', () => {
     expect(step!.uses).toBe('actions/cache@v5')
     expect(step!.with?.path).toBe('cache/')
     expect(step!.with?.key).toContain('ritual-cache-')
-    expect(step!.with?.key).toContain("hashFiles('decks/**', 'collections/**', 'wanted/**')")
+    expect(step!.with?.key).toContain("hashFiles('all-cards.md')")
     expect(step!.with?.['restore-keys']).toBe('ritual-cache-')
   })
 
@@ -148,19 +148,26 @@ describe('generatePublishForMeWorkflow', () => {
     expect(step!.id).toBe('deployment')
   })
 
-  test('has exactly 9 steps in the expected order', () => {
+  test('has exactly 10 steps in the expected order', () => {
     const stepNames = job.steps.map((s) => s.name ?? s.uses)
     expect(stepNames).toEqual([
       'actions/checkout@v6',
       'Get Ritual version',
       'Cache Ritual binary',
       'Download Ritual',
+      'Generate card manifest',
       'Restore Scryfall cache',
       'Build site',
       'Setup Pages',
       'Upload artifact',
       'Deploy to GitHub Pages',
     ])
+  })
+
+  test('generates card manifest before cache restore', () => {
+    const step = findStep(job.steps, 'Generate card manifest')
+    expect(step).toBeDefined()
+    expect(step!.run).toBe('./ritual list-all-cards')
   })
 })
 
@@ -211,6 +218,7 @@ describe('generatePublishForMeWorkflow with detectChanges', () => {
 
   test('build and deploy steps are conditional on no changes detected', () => {
     const conditionalSteps = [
+      'Generate card manifest',
       'Restore Scryfall cache',
       'Build site',
       'Setup Pages',
@@ -224,7 +232,7 @@ describe('generatePublishForMeWorkflow with detectChanges', () => {
     }
   })
 
-  test('has exactly 10 steps in the expected order', () => {
+  test('has exactly 11 steps in the expected order', () => {
     const stepNames = job.steps.map((s) => s.name ?? s.uses)
     expect(stepNames).toEqual([
       'actions/checkout@v6',
@@ -232,12 +240,19 @@ describe('generatePublishForMeWorkflow with detectChanges', () => {
       'Cache Ritual binary',
       'Download Ritual',
       'Detect and commit changes',
+      'Generate card manifest',
       'Restore Scryfall cache',
       'Build site',
       'Setup Pages',
       'Upload artifact',
       'Deploy to GitHub Pages',
     ])
+  })
+
+  test('generates card manifest before cache restore', () => {
+    const step = findStep(job.steps, 'Generate card manifest')
+    expect(step).toBeDefined()
+    expect(step!.run).toBe('./ritual list-all-cards')
   })
 })
 
@@ -455,6 +470,6 @@ describe('generateGitignoreEntries', () => {
     const entries = generateGitignoreEntries()
     const lines = entries.split('\n').filter((l) => l.trim().length > 0 && !l.startsWith('#'))
 
-    expect(lines).toEqual(['cache/', 'dist/', '.admin-dist/', '.logins/'])
+    expect(lines).toEqual(['cache/', 'dist/', '.admin-dist/', '.logins/', 'all-cards.md'])
   })
 })

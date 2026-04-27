@@ -6,7 +6,7 @@ import { appendChangelog } from '../../changelog-writer'
 import type { CollectionCardEntry } from '../../site/data-types'
 import type { ChangeEvent } from '../../change-event'
 import { formatCollectionLine } from '../../commands/collection-helpers'
-import { getBaseDir } from '../../base-dir'
+import { getCollectionsDir } from '../../ritual-config'
 import { parseCollectionFile } from '../../commands/price-collection'
 import { applyChangeToCollection } from '../site/types/collection-changes'
 import type { Finish, Condition } from '../../types'
@@ -56,7 +56,7 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
       )
     }
 
-    const collectionsDir = path.join(getBaseDir(), 'collections')
+    const collectionsDir = getCollectionsDir()
     const filePath = path.join(collectionsDir, slug + '.md')
     if (!isPathWithinDir(filePath, collectionsDir)) {
       return Response.json({ success: false, message: 'Invalid collection slug' }, { status: 400 })

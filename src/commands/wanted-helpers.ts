@@ -6,8 +6,8 @@ import type { Finish, ScryfallCard } from '../types'
 import { capitalize } from '../utils'
 import { getAllCardNames } from '../scryfall'
 import { isFinish, VALID_FINISHES, type SessionConfig } from './collection-helpers'
-import { getBaseDir } from '../base-dir'
 import { writeFileWithHash } from '../content-hash'
+import { getWantedDir } from '../ritual-config'
 
 export type WantedListEntry = {
   name: string
@@ -97,7 +97,7 @@ export function formatWantedListLine(
 }
 
 export async function ensureWantedListFile(name: string): Promise<string> {
-  const wantedListsDir = path.join(getBaseDir(), 'wanted')
+  const wantedListsDir = getWantedDir()
   await fs.mkdir(wantedListsDir, { recursive: true })
   const filePath = path.join(wantedListsDir, `${name}.md`)
   if (!(await Bun.file(filePath).exists())) {

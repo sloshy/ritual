@@ -1,11 +1,11 @@
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { resolveDeckFilePath, parseDeckFrontMatter } from '../../deck-file'
-import { loadConfig } from '../config'
+import { loadRitualConfig } from '../../ritual-config'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { getErrorMessage } from '../../errors'
 import { MAX_BODY_SIZE } from '../validation'
-import { getBaseDir } from '../../base-dir'
+import { getDecksDir } from '../../ritual-config'
 import { writeFileWithHash, hashPath } from '../../content-hash'
 import { sanitizeDeckFileName } from '../../utils'
 
@@ -53,7 +53,7 @@ export async function handleDeckRename(req: Request): Promise<Response> {
       return Response.json(resp, { status: 400 })
     }
 
-    const decksDir = path.join(getBaseDir(), 'decks')
+    const decksDir = getDecksDir()
     const filePath = await resolveDeckFilePath(decksDir, slug)
 
     if (!filePath) {
@@ -123,7 +123,7 @@ export async function handleDeckRename(req: Request): Promise<Response> {
       filesToCommit.push(filePath, hashPath(filePath))
     }
 
-    const config = await loadConfig()
+    const config = await loadRitualConfig()
     if (shouldAutoCommit(config, decksDir)) {
       commitFiles(filesToCommit, `Rename deck: ${oldName} → ${trimmedName}`)
       if (shouldAutoPush(config, decksDir)) {

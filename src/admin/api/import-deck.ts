@@ -5,11 +5,11 @@ import { fetchMoxfieldDeck } from '../../importers/moxfield-lib'
 import { importFromTextFile } from '../../importers/text-file'
 import { saveDeck } from '../../commands/import'
 import { sanitizeDeckFileName } from '../../utils'
-import { loadConfig } from '../config'
+import { loadRitualConfig } from '../../ritual-config'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { apiHandler } from '../utils'
 import type { DeckData } from '../../types'
-import { getBaseDir } from '../../base-dir'
+import { getDecksDir } from '../../ritual-config'
 
 interface ImportDeckRequest {
   source: string
@@ -61,14 +61,14 @@ export function handleImportDeck(req: Request): Promise<Response> {
       return Response.json(resp, { status: 500 })
     }
 
-    const decksDir = path.join(getBaseDir(), 'decks')
+    const decksDir = getDecksDir()
     await saveDeck(deckData, decksDir, {
       forceOverwrite: overwrite,
       nonInteractive: true,
       assumeYes: overwrite,
     })
 
-    const config = await loadConfig()
+    const config = await loadRitualConfig()
     const safeName = sanitizeDeckFileName(deckData.name)
     const filePath = path.join(decksDir, `${safeName}.md`)
 
