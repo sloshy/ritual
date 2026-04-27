@@ -254,7 +254,15 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
   let loadStarted = false
   createEffect(() => {
     if (loadStarted) return
+    // All three site-index signals are populated together by useSiteData, but the writes are
+    // separate setSignal calls. Solid runs subscriber effects synchronously between each
+    // write, so gating on a single signal would let this effect fire after `setDeckList`
+    // but before `setCollectionList`/`setWantedListList`. `loadCollectionsAndWanted` reads
+    // those accessors synchronously, so a null signal becomes `[] ?? []` and the matching
+    // load function returns early without ever fetching its detail JSONs.
     if (params.decks() === null) return
+    if (params.collections() === null) return
+    if (params.wantedLists() === null) return
     loadStarted = true
     void loadCollectionsAndWanted()
   })

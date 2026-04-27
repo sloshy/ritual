@@ -442,6 +442,39 @@ test.describe('Trade Page', () => {
     )
   })
 
+  test('cold-load: trade URL fetches collections before decoding (regression)', async ({
+    browser,
+  }) => {
+    // Regression: useSiteData populates `decks`/`collections`/`wantedLists` via three
+    // sequential setSignal calls. If the gating effect in useTradeData triggers off the
+    // first one, it reads the others while still null and silently skips the detail
+    // fetches — the URL decode then sees zero entries and surfaces an "unknown-source"
+    // warning even though the collection exists. The `beforeEach` in the rest of this
+    // suite hides the bug by warming up via `page.goto('/')` first; this test uses a
+    // fresh page that goes *directly* to the trade URL, matching the production scenario
+    // where a user opens a saved trade link in a new tab.
+    const ctx = await browser.newContext()
+    const page = await ctx.newPage()
+    try {
+      await mockPublicSiteForTrade(page)
+
+      const collectionFetched = page.waitForRequest(
+        (req) => req.url().includes('/collections/trade-collection.json'),
+        { timeout: 5_000 },
+      )
+
+      await page.goto('/#/trade?leftSideColIds=Trade%20Collection%3A1')
+
+      await collectionFetched
+      await expect(page.locator('.trade-decode-warnings')).not.toBeVisible()
+      await expect(page.locator('.trade-col[data-side="left"] .trade-row-name-text')).toContainText(
+        'Lightning Bolt',
+      )
+    } finally {
+      await ctx.close()
+    }
+  })
+
   test('a trade URL referencing missing IDs surfaces a dismissable warning banner', async ({
     page,
   }) => {
