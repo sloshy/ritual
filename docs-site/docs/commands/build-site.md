@@ -104,7 +104,7 @@ Generates a single-page application in the `dist/` directory containing:
 - `collections/{slug}.csv` — Collection exported as CSV for importing into other sites
 - `wanted/{slug}.json` — Full wanted list data with pricing loaded on demand
 - `wanted/{slug}.md` — Original wanted list Markdown file for download
-- `styles.css` — Compiled Tailwind CSS
+- `styles.css` — Bundled CSS
 - Responsive design for desktop and mobile
 - Dark mode support
 - Client-side hash routing (`#/` for index, `#/deck/{slug}` for deck pages, `#/collection/{slug}` for collection pages, `#/wanted/{slug}` for wanted list pages)

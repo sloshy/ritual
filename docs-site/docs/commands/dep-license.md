@@ -43,7 +43,7 @@ View a specific package license directly:
 View a scoped package license:
 
 ```bash
-./ritual dep-license @tailwindcss/cli
+./ritual dep-license prompts
 ```
 
 Print a license to stdout:
