@@ -39,6 +39,7 @@ ritual
 /cache/
 /collections/
 /wanted/
+ritual.config.json
 
 .vscode/
 

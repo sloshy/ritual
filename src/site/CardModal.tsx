@@ -26,6 +26,8 @@ interface CardModalProps {
   meta?: CardModalMetaEntry[]
   note?: string
   backdropClass?: string
+  onAddToTrade?: () => void
+  addToTradeDisabled?: boolean
 }
 
 export const CardModal: Component<CardModalProps> = (props) => {
@@ -277,6 +279,17 @@ export const CardModal: Component<CardModalProps> = (props) => {
                   <Show when={props.printings.length > 0}>
                     <button onClick={() => setShowPrintings(true)}>
                       Other Printings ({props.printings.length})
+                    </button>
+                  </Show>
+                  <Show when={props.onAddToTrade !== undefined}>
+                    <button
+                      onClick={props.onAddToTrade}
+                      disabled={props.addToTradeDisabled}
+                      title={
+                        props.addToTradeDisabled ? 'Already at maximum quantity' : 'Add to trade'
+                      }
+                    >
+                      + Add to Trade
                     </button>
                   </Show>
                 </div>

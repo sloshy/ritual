@@ -30,6 +30,8 @@ export interface TradeSearchEntry {
   maxQty: number
   /** All card IDs in this aggregated group, in order. Used for URL encoding. */
   cardIds: number[]
+  /** If true, the resulting TradeCardEntry will be marked editable (printing can be changed via picker). */
+  editable?: boolean
 }
 
 export type UseTradeDataResult = {

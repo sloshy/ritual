@@ -1,7 +1,7 @@
 import type { Component } from 'solid-js'
 import { createSignal, createMemo, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
-import type { ScryfallCard } from '../types'
+import type { ScryfallCard, Finish } from '../types'
 import type { WantedListCardEntry } from './data-types'
 import type { ChangelogPage } from '../changelog-parser'
 import type { PriceCurrency } from '../price-currency'
@@ -20,9 +20,18 @@ import { useTooltip } from './useTooltip'
 import { Toolbar } from './Toolbar'
 import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
+import { TradePrintingPicker } from './TradePrintingPicker'
+import { addEntryToRight, canAddMoreToRight, showTradeToast } from './useTradeState'
+import type { TradeSearchEntry } from './useTradeData'
+import { resolveCardThumbnailUrl } from './image-sources'
 
 type WantedListGroupBy = 'type' | 'cmc' | 'color-identity' | 'price' | 'none'
 type MetaEntry = { label: string; value: string }
+type WantedTradePicker = {
+  cardName: string
+  printings: ScryfallCard[]
+  wantedEntry: WantedListCardEntry
+}
 
 interface WantedListPageProps {
   name: string
@@ -79,6 +88,80 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
   const [showChangelog, setShowChangelog] = createSignal(false)
 
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
+
+  const [wantedTradePicker, setWantedTradePicker] = createSignal<WantedTradePicker | null>(null)
+
+  const buildWantedSearchEntry = (
+    entry: WantedListCardEntry,
+    scryfallCard: ScryfallCard | null,
+  ): TradeSearchEntry => ({
+    name: entry.name,
+    nameLower: entry.name.toLowerCase(),
+    set: entry.set?.toLowerCase(),
+    collectorNumber: entry.collectorNumber,
+    finish: entry.finish,
+    note: entry.note,
+    price: entry.price,
+    scryfallCard,
+    sourceName: props.name,
+    sourceKind: 'wanted',
+    maxQty: 1,
+    cardIds: entry.cardId !== undefined ? [entry.cardId] : [],
+  })
+
+  const handleWantedAddToTrade = (
+    entry: WantedListCardEntry,
+    scryfallCard: ScryfallCard | null,
+  ) => {
+    if (!entry.set || !entry.collectorNumber) {
+      setWantedTradePicker({
+        cardName: entry.name,
+        printings: props.printings[entry.name] ?? [],
+        wantedEntry: entry,
+      })
+      return
+    }
+    const searchEntry = buildWantedSearchEntry(entry, scryfallCard)
+    const added = addEntryToRight(searchEntry, props.currency)
+    if (added)
+      showTradeToast(
+        searchEntry.name,
+        resolveCardThumbnailUrl(scryfallCard, props.useScryfallImgUrls ?? false),
+      )
+  }
+
+  const handleWantedTradePickerSelect = (printing: ScryfallCard, finish: Finish) => {
+    const picker = wantedTradePicker()
+    if (!picker) return
+    const searchEntry: TradeSearchEntry = {
+      name: printing.name,
+      nameLower: printing.name.toLowerCase(),
+      set: printing.set.toLowerCase(),
+      collectorNumber: printing.collector_number,
+      finish,
+      scryfallCard: printing,
+      sourceName: props.name,
+      sourceKind: 'wanted',
+      maxQty: 1,
+      cardIds: picker.wantedEntry.cardId !== undefined ? [picker.wantedEntry.cardId] : [],
+    }
+    const added = addEntryToRight(searchEntry, props.currency)
+    setWantedTradePicker(null)
+    if (added)
+      showTradeToast(
+        searchEntry.name,
+        resolveCardThumbnailUrl(searchEntry.scryfallCard, props.useScryfallImgUrls ?? false),
+      )
+  }
+
+  const isWantedCardAddDisabled = (
+    entry: WantedListCardEntry,
+    scryfallCard: ScryfallCard | null,
+  ): boolean => {
+    if (!entry.set || !entry.collectorNumber) return false
+    const searchEntry = buildWantedSearchEntry(entry, scryfallCard)
+    return !canAddMoreToRight(searchEntry)
+  }
 
   const currencyEntries = createMemo((): WantedListCardEntry[] => {
     return props.entries.map((entry) => {
@@ -146,6 +229,20 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     return resolveCardForEntry(modalEntry()!, props.cards)
   })
 
+  const modalAddToTrade = createMemo(() => {
+    const entry = modalEntry()
+    if (!entry || props.editMode) return undefined
+    const scryfallCard = modalCard()
+    return () => handleWantedAddToTrade(entry, scryfallCard)
+  })
+
+  const modalAddToTradeDisabled = createMemo(() => {
+    const entry = modalEntry()
+    if (!entry || !entry.set || !entry.collectorNumber) return false
+    const scryfallCard = modalCard()
+    return isWantedCardAddDisabled(entry, scryfallCard)
+  })
+
   const entryIndexMap = createMemo(() => {
     const map = new Map<string, number>()
     currencyEntries().forEach((e, i) => {
@@ -174,6 +271,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
   const renderWantedListCard = (c: CardData) => {
     const entryIdx = findEntryIndex(c)
     const entry = currencyEntries()[entryIdx]
+    const showTrade = !props.editMode && entry !== undefined
     return (
       <CardItem
         name={c.name}
@@ -200,6 +298,8 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         onContextMenu={
           props.editMode ? (rect) => props.onCardContextMenu?.(c.name, c.card, rect) : undefined
         }
+        onAddToTrade={showTrade ? () => handleWantedAddToTrade(entry!, c.card) : undefined}
+        addToTradeDisabled={showTrade ? isWantedCardAddDisabled(entry!, c.card) : undefined}
       />
     )
   }
@@ -348,7 +448,26 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         onClose={props.onCloseModal}
         meta={modalMeta()}
         note={modalEntry()?.note}
+        onAddToTrade={modalAddToTrade()}
+        addToTradeDisabled={modalAddToTradeDisabled()}
       />
+
+      {/* Trade printing picker for wanted cards without specific printings */}
+      <Show when={wantedTradePicker()}>
+        {(picker) => (
+          <TradePrintingPicker
+            cardName={picker().cardName}
+            printings={picker().printings}
+            loading={false}
+            useScryfallImgUrls={props.useScryfallImgUrls}
+            currency={props.currency}
+            onSelect={handleWantedTradePickerSelect}
+            onClose={() => setWantedTradePicker(null)}
+            onTooltipEnter={(src, sideways) => setTooltip({ src, sideways })}
+            onTooltipLeave={() => setTooltip(null)}
+          />
+        )}
+      </Show>
 
       {/* Changelog modal */}
       <Show when={props.changelog && props.changelog!.length > 0}>

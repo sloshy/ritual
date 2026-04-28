@@ -16,6 +16,18 @@ export function isCardSideways(card: ScryfallCard | null | undefined): boolean {
   return frontType.includes('Room') || frontType.includes('Battle')
 }
 
+export function resolveCardThumbnailUrl(
+  card: ScryfallCard | null,
+  useScryfallImgUrls: boolean,
+): string | null {
+  if (!card) return null
+  if (useScryfallImgUrls) {
+    return card.image_uris?.small ?? card.card_faces?.[0]?.image_uris?.normal ?? null
+  }
+  const hasFrontImage = card.image_uris?.normal || card.card_faces?.[0]?.image_uris?.normal
+  return hasFrontImage ? `images/${card.id}.jpg` : null
+}
+
 export function resolveCardImageSources(
   card: ScryfallCard,
   useScryfallImgUrls: boolean,

@@ -24,6 +24,16 @@ import { batchFetchScryfall } from './scryfall-collection'
 import type { TradeSortBy, TradeSortState } from './trade-sort'
 import { useTooltip } from './useTooltip'
 import type { UseTooltipResult } from './useTooltip'
+import {
+  leftCards,
+  setLeftCards,
+  rightCards,
+  setRightCards,
+  addEntryToLeft,
+  addEntryToRight,
+  isAlreadyInLeftList,
+  isAlreadyInRightList,
+} from './useTradeState'
 
 function formatDecodeWarning(w: TradeDecodeWarning): string {
   switch (w.kind) {
@@ -65,12 +75,10 @@ export const TradePage: Component<TradePageProps> = (props) => {
   })
   const scryfallSearch = useScryfallBrowserSearch()
 
-  const [leftCards, setLeftCards] = createSignal<TradeCardEntry[]>([])
   const [leftSort, setLeftSort] = createSignal<TradeSortState>({ by: 'name', reverse: false })
   const [leftQuery, setLeftQuery] = createSignal('')
   const [includeDecks, setIncludeDecks] = createSignal(false)
 
-  const [rightCards, setRightCards] = createSignal<TradeCardEntry[]>([])
   const [rightSort, setRightSort] = createSignal<TradeSortState>({ by: 'name', reverse: false })
   const [rightQuery, setRightQuery] = createSignal('')
   const [scryfallMode, setScryfallMode] = createSignal(false)
@@ -144,6 +152,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
     if (q.length < 2) return []
     return tradeData
       .searchLeft(q, includeDecks())
+      .filter((entry) => !isAlreadyInLeftList(entry))
       .map((entry): AutocompleteItem => ({ kind: 'local', entry }))
   })
 
@@ -155,7 +164,10 @@ export const TradePage: Component<TradePageProps> = (props) => {
     }
     const q = rightQuery()
     if (q.length < 2) return []
-    return tradeData.searchWanted(q).map((entry): AutocompleteItem => ({ kind: 'local', entry }))
+    return tradeData
+      .searchWanted(q)
+      .filter((entry) => !isAlreadyInRightList(entry))
+      .map((entry): AutocompleteItem => ({ kind: 'local', entry }))
   })
 
   const handleLeftSearchInput = (q: string) => {
@@ -166,38 +178,6 @@ export const TradePage: Component<TradePageProps> = (props) => {
     setRightQuery(q)
     if (scryfallMode()) {
       scryfallSearch.fetchAutocomplete(q)
-    }
-  }
-
-  const matchesEntry = (c: TradeCardEntry, entry: TradeSearchEntry): boolean =>
-    c.name === entry.name &&
-    c.set === entry.set &&
-    c.collectorNumber === entry.collectorNumber &&
-    c.finish === resolveTradeFinish(entry.scryfallCard, entry.finish) &&
-    c.condition === entry.condition &&
-    c.note === entry.note &&
-    c.source === entry.sourceKind &&
-    c.sourceName === entry.sourceName
-
-  const tradeCardFromEntry = (entry: TradeSearchEntry): TradeCardEntry => {
-    const finish = resolveTradeFinish(entry.scryfallCard, entry.finish)
-    const price = entry.scryfallCard
-      ? getCardPriceForFinish(entry.scryfallCard, finish, props.currency)
-      : (entry.price ?? 0)
-    return {
-      name: entry.name,
-      set: entry.set,
-      collectorNumber: entry.collectorNumber,
-      finish,
-      condition: entry.condition,
-      note: entry.note,
-      price,
-      scryfallCard: entry.scryfallCard,
-      source: entry.sourceKind,
-      sourceName: entry.sourceName,
-      qty: 1,
-      maxQty: entry.sourceKind === 'wanted' ? undefined : entry.maxQty,
-      sourceCardIds: entry.cardIds,
     }
   }
 
@@ -216,27 +196,12 @@ export const TradePage: Component<TradePageProps> = (props) => {
       void scryfallSearch.fetchPrintings(entry.name)
       return
     }
-    setLeftCards((prev) => {
-      const existing = prev.find((c) => matchesEntry(c, entry))
-      if (existing) {
-        const cap = existing.maxQty ?? Infinity
-        return prev.map((c) => (c === existing ? { ...c, qty: Math.min(cap, c.qty + 1) } : c))
-      }
-      return [...prev, tradeCardFromEntry(entry)]
-    })
+    addEntryToLeft(entry, props.currency)
   }
 
   const handleRightSelect = (item: AutocompleteItem) => {
     if (item.kind === 'local') {
-      const entry = item.entry
-      setRightCards((prev) => {
-        const existing = prev.find((c) => matchesEntry(c, entry))
-        if (existing) {
-          const cap = existing.maxQty ?? Infinity
-          return prev.map((c) => (c === existing ? { ...c, qty: Math.min(cap, c.qty + 1) } : c))
-        }
-        return [...prev, tradeCardFromEntry(entry)]
-      })
+      addEntryToRight(item.entry, props.currency)
     } else if (item.kind === 'scryfall') {
       setPicker({
         cardName: item.name,
@@ -252,10 +217,11 @@ export const TradePage: Component<TradePageProps> = (props) => {
     const p = picker()
     if (!p) return
     const price = getCardPriceForFinish(printing, finish, props.currency)
-    const setter = p.side === 'left' ? setLeftCards : setRightCards
-    setter((prev) => {
-      if (p.editIndex !== undefined) {
-        return prev.map((c, i) =>
+
+    if (p.editIndex !== undefined) {
+      const setter = p.side === 'left' ? setLeftCards : setRightCards
+      setter((prev) =>
+        prev.map((c, i) =>
           i === p.editIndex
             ? {
                 ...c,
@@ -267,9 +233,29 @@ export const TradePage: Component<TradePageProps> = (props) => {
                 price,
               }
             : c,
-        )
+        ),
+      )
+    } else if (p.source === 'collection' || p.source === 'deck' || p.source === 'wanted') {
+      // Route through addEntry so the card-ID-based deduplication cap is enforced.
+      const searchEntry: TradeSearchEntry = {
+        name: printing.name,
+        nameLower: printing.name.toLowerCase(),
+        set: printing.set.toLowerCase(),
+        collectorNumber: printing.collector_number,
+        finish,
+        scryfallCard: printing,
+        sourceName: p.sourceName,
+        sourceKind: p.source,
+        maxQty: p.maxQty ?? 1,
+        cardIds: p.sourceCardIds ?? [],
+        editable: true,
       }
-      return [
+      if (p.side === 'left') addEntryToLeft(searchEntry, props.currency)
+      else addEntryToRight(searchEntry, props.currency)
+    } else {
+      // Scryfall source — add directly, no source cap.
+      const setter = p.side === 'left' ? setLeftCards : setRightCards
+      setter((prev) => [
         ...prev,
         {
           name: printing.name,
@@ -285,8 +271,9 @@ export const TradePage: Component<TradePageProps> = (props) => {
           editable: true,
           sourceCardIds: p.sourceCardIds,
         },
-      ]
-    })
+      ])
+    }
+
     if (p.editIndex === undefined) {
       if (p.side === 'left') setLeftQuery('')
       else setRightQuery('')

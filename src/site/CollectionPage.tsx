@@ -20,8 +20,12 @@ import { useTooltip } from './useTooltip'
 import { Toolbar } from './Toolbar'
 import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
+import { addEntryToLeft, canAddMoreToLeft, showTradeToast } from './useTradeState'
+import type { TradeSearchEntry } from './useTradeData'
+import { resolveCardThumbnailUrl } from './image-sources'
 
 type CollectionGroupBy = 'type' | 'cmc' | 'color-identity' | 'price' | 'none'
+type MetaEntry = { label: string; value: string }
 
 interface CollectionPageProps {
   name: string
@@ -70,6 +74,60 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   const [showChangelog, setShowChangelog] = createSignal(false)
 
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
+
+  // Aggregate copy counts per card variant for correct trade maxQty.
+  // Mirrors the groupKey logic in useTradeData to ensure consistent deduplication.
+  const collectionQtyMap = createMemo(() => {
+    const map = new Map<string, number>()
+    for (const entry of props.entries) {
+      if (entry.note) continue
+      const key = `${entry.name}|${entry.set.toLowerCase()}|${entry.collectorNumber}|${entry.finish}|${entry.condition}`
+      map.set(key, (map.get(key) ?? 0) + 1)
+    }
+    return map
+  })
+
+  const buildCollectionSearchEntry = (
+    entry: CollectionCardEntry,
+    scryfallCard: ScryfallCard | null,
+  ): TradeSearchEntry => {
+    const groupKey = `${entry.name}|${entry.set.toLowerCase()}|${entry.collectorNumber}|${entry.finish}|${entry.condition}`
+    const maxQty = entry.note ? 1 : (collectionQtyMap().get(groupKey) ?? 1)
+    return {
+      name: entry.name,
+      nameLower: entry.name.toLowerCase(),
+      set: entry.set.toLowerCase(),
+      collectorNumber: entry.collectorNumber,
+      finish: entry.finish,
+      condition: entry.condition,
+      note: entry.note,
+      price: entry.price,
+      scryfallCard,
+      sourceName: props.name,
+      sourceKind: 'collection',
+      maxQty,
+      cardIds: entry.cardId !== undefined ? [entry.cardId] : [],
+    }
+  }
+
+  const handleCollectionAddToTrade = (entry: CollectionCardEntry) => {
+    const cardKey = `${entry.set.toLowerCase()}:${entry.collectorNumber}`
+    const scryfallCard = props.cards[cardKey] ?? null
+    const searchEntry = buildCollectionSearchEntry(entry, scryfallCard)
+    const added = addEntryToLeft(searchEntry, props.currency)
+    if (added)
+      showTradeToast(
+        searchEntry.name,
+        resolveCardThumbnailUrl(scryfallCard, props.useScryfallImgUrls ?? false),
+      )
+  }
+
+  const isCollectionCardAddDisabled = (entry: CollectionCardEntry): boolean => {
+    const cardKey = `${entry.set.toLowerCase()}:${entry.collectorNumber}`
+    const scryfallCard = props.cards[cardKey] ?? null
+    const searchEntry = buildCollectionSearchEntry(entry, scryfallCard)
+    return !canAddMoreToLeft(searchEntry)
+  }
 
   const currencyEntries = createMemo((): CollectionCardEntry[] => {
     return props.entries.map((entry) => {
@@ -179,6 +237,18 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     return props.cards[cardKey] ?? null
   })
 
+  const modalAddToTrade = createMemo(() => {
+    const entry = modalEntry()
+    if (!entry || props.editMode) return undefined
+    return () => handleCollectionAddToTrade(entry)
+  })
+
+  const modalAddToTradeDisabled = createMemo(() => {
+    const entry = modalEntry()
+    if (!entry) return true
+    return isCollectionCardAddDisabled(entry)
+  })
+
   // Pre-computed index map for O(1) entry lookups (avoids O(n²) on large collections)
   const entryIndexMap = createMemo(() => {
     const map = new Map<string, number>()
@@ -195,6 +265,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   const renderCollectionCard = (c: CardData) => {
     const entryIdx = findEntryIndex(c)
     const entry = currencyEntries()[entryIdx]
+    const showTrade = !props.editMode && entry !== undefined
     return (
       <CardItem
         name={c.name}
@@ -218,13 +289,14 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         onContextMenu={
           props.editMode ? (rect) => props.onCardContextMenu?.(c.name, c.card, rect) : undefined
         }
+        onAddToTrade={showTrade ? () => handleCollectionAddToTrade(entry!) : undefined}
+        addToTradeDisabled={showTrade ? isCollectionCardAddDisabled(entry!) : undefined}
       />
     )
   }
 
   const modalMeta = createMemo(() => {
     if (!modalEntry() || !modalCard()) return undefined
-    type MetaEntry = { label: string; value: string }
     const entry = modalEntry()!
     const card = modalCard()!
     const parts: MetaEntry[] = []
@@ -377,6 +449,8 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         onClose={props.onCloseModal}
         meta={modalMeta()}
         note={modalEntry()?.note}
+        onAddToTrade={modalAddToTrade()}
+        addToTradeDisabled={modalAddToTradeDisabled()}
       />
 
       {/* Changelog modal */}

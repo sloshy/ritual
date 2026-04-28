@@ -46,6 +46,8 @@ export interface CardItemProps {
   onIncrement?: () => void
   onDecrement?: () => void
   onContextMenu?: (rect: DOMRect) => void
+  onAddToTrade?: () => void
+  addToTradeDisabled?: boolean
 }
 
 export const CardItem: Component<CardItemProps> = (props) => {
@@ -148,6 +150,19 @@ export const CardItem: Component<CardItemProps> = (props) => {
                     </button>
                   </div>
                 </Show>
+                <Show when={props.onAddToTrade !== undefined}>
+                  <button
+                    class="card-trade-btn"
+                    onClick={stopPropAnd(props.onAddToTrade)}
+                    disabled={props.addToTradeDisabled}
+                    title={
+                      props.addToTradeDisabled ? 'Already at maximum quantity' : 'Add to trade'
+                    }
+                    aria-label="Add to trade"
+                  >
+                    +
+                  </button>
+                </Show>
                 <div class="card-label">
                   <span class="card-label-name">
                     {props.name}
@@ -211,6 +226,18 @@ export const CardItem: Component<CardItemProps> = (props) => {
                     </button>
                   </span>
                 </Show>
+                <Show when={props.onAddToTrade !== undefined}>
+                  <button
+                    class="list-trade-btn"
+                    onClick={stopPropAnd(props.onAddToTrade)}
+                    disabled={props.addToTradeDisabled}
+                    title={
+                      props.addToTradeDisabled ? 'Already at maximum quantity' : 'Add to trade'
+                    }
+                  >
+                    + Trade
+                  </button>
+                </Show>
                 <Show when={showPrice}>
                   <span class="list-price">{formatPrice(displayPrice, currency)}</span>
                 </Show>
@@ -250,6 +277,19 @@ export const CardItem: Component<CardItemProps> = (props) => {
                       ⋯
                     </button>
                   </div>
+                </Show>
+                <Show when={props.onAddToTrade !== undefined}>
+                  <button
+                    class="card-trade-btn"
+                    onClick={stopPropAnd(props.onAddToTrade)}
+                    disabled={props.addToTradeDisabled}
+                    title={
+                      props.addToTradeDisabled ? 'Already at maximum quantity' : 'Add to trade'
+                    }
+                    aria-label="Add to trade"
+                  >
+                    +
+                  </button>
                 </Show>
                 <div class="card-label">
                   <span class="card-label-name">

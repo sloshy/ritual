@@ -1,7 +1,7 @@
 import type { Component } from 'solid-js'
 import { createSignal, createMemo, createEffect, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
-import type { DeckData, ScryfallCard } from '../types'
+import type { Card, DeckData, ScryfallCard, Finish } from '../types'
 import type { ChangelogPage } from '../changelog-parser'
 import { SymbolText } from './symbols'
 import type { PriceCurrency } from '../price-currency'
@@ -18,9 +18,15 @@ import { CardModal } from './CardModal'
 import { ChangelogModal } from './ChangelogModal'
 import { useTooltip } from './useTooltip'
 import { Toolbar } from './Toolbar'
+import { TradePrintingPicker } from './TradePrintingPicker'
+import { addEntryToLeft, canAddMoreToLeft, showTradeToast } from './useTradeState'
+import type { TradeSearchEntry } from './useTradeData'
+import { resolveCardThumbnailUrl } from './image-sources'
 import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
 import { PrimerRenderer, buildToc } from './PrimerRenderer'
+
+type DeckTradePicker = { cardName: string; printings: ScryfallCard[]; deckEntry: Card }
 
 const isCommanderSection = (s: string): boolean => s.toLowerCase().includes('commander')
 const isSideboardSection = (s: string): boolean => s.toLowerCase().includes('sideboard')
@@ -81,11 +87,101 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
   const [missingCardsExpanded, setMissingCardsExpanded] = createSignal(false)
   const [showChangelog, setShowChangelog] = createSignal(false)
 
-  // Missing cards for current currency
-  const currentMissingCards = createMemo(() => {
-    if (!props.missingCards) return []
-    return props.missingCards[props.currency] ?? []
+  const [deckTradePicker, setDeckTradePicker] = createSignal<DeckTradePicker | null>(null)
+
+  // Build a fileOrder → original Card entry lookup for trade support.
+  // Mirrors the order counter in allCards() so indices align.
+  const deckEntryByOrder = createMemo(() => {
+    const map = new Map<number, Card>()
+    let order = 0
+    for (const section of props.deck.sections) {
+      for (const entry of section.cards) {
+        map.set(order++, entry)
+      }
+    }
+    return map
   })
+
+  // First-occurrence name lookup used for the modal's "Add to Trade" button.
+  const deckEntryByName = createMemo(() => {
+    const map = new Map<string, Card>()
+    for (const section of props.deck.sections) {
+      for (const entry of section.cards) {
+        if (!map.has(entry.name)) map.set(entry.name, entry)
+      }
+    }
+    return map
+  })
+
+  const buildDeckSearchEntry = (
+    cardName: string,
+    entry: Card,
+    scryfallCard: ScryfallCard | null,
+    maxQty: number,
+  ): TradeSearchEntry => ({
+    name: cardName,
+    nameLower: cardName.toLowerCase(),
+    set: entry.set?.toLowerCase(),
+    collectorNumber: entry.collectorNumber,
+    finish: entry.finish,
+    scryfallCard,
+    sourceName: props.deck.name,
+    sourceKind: 'deck',
+    maxQty,
+    cardIds: entry.cardId !== undefined ? [entry.cardId] : [],
+  })
+
+  const handleDeckAddToTrade = (c: CardData, deckEntry: Card) => {
+    if (!deckEntry.set || !deckEntry.collectorNumber) {
+      setDeckTradePicker({
+        cardName: c.name,
+        printings: props.printings[c.name] ?? [],
+        deckEntry,
+      })
+      return
+    }
+    const scryfallCard = c.card
+    const entry = buildDeckSearchEntry(c.name, deckEntry, scryfallCard, c.quantity)
+    const added = addEntryToLeft(entry, props.currency)
+    if (added)
+      showTradeToast(
+        entry.name,
+        resolveCardThumbnailUrl(entry.scryfallCard, props.useScryfallImgUrls ?? false),
+      )
+  }
+
+  const handleDeckTradePickerSelect = (printing: ScryfallCard, finish: Finish) => {
+    const picker = deckTradePicker()
+    if (!picker) return
+    const searchEntry: TradeSearchEntry = {
+      name: printing.name,
+      nameLower: printing.name.toLowerCase(),
+      set: printing.set.toLowerCase(),
+      collectorNumber: printing.collector_number,
+      finish,
+      scryfallCard: printing,
+      sourceName: props.deck.name,
+      sourceKind: 'deck',
+      maxQty: picker.deckEntry.quantity ?? 1,
+      cardIds: picker.deckEntry.cardId !== undefined ? [picker.deckEntry.cardId] : [],
+    }
+    const added = addEntryToLeft(searchEntry, props.currency)
+    setDeckTradePicker(null)
+    if (added)
+      showTradeToast(
+        searchEntry.name,
+        resolveCardThumbnailUrl(searchEntry.scryfallCard, props.useScryfallImgUrls ?? false),
+      )
+  }
+
+  const isDeckCardAddDisabled = (c: CardData, deckEntry: Card): boolean => {
+    const entry = buildDeckSearchEntry(c.name, deckEntry, c.card, c.quantity)
+    return !canAddMoreToLeft(entry)
+  }
+
+  const modalDeckEntry = createMemo(() =>
+    props.modalCardName ? deckEntryByName().get(props.modalCardName) : undefined,
+  )
 
   // Active card map based on lowest price toggle and currency
   const activeCards = createMemo(() => {
@@ -100,6 +196,45 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
   const hasLowestPriceCards = createMemo(() =>
     Boolean(props.lowestPriceCards || props.lowestPriceCardsEur || props.lowestPriceCardsTix),
   )
+
+  const handleModalAddToTrade = () => {
+    const cardName = props.modalCardName
+    const entry = modalDeckEntry()
+    if (!cardName || !entry) return
+    if (!entry.set || !entry.collectorNumber) {
+      props.onCloseModal()
+      setDeckTradePicker({
+        cardName,
+        printings: props.printings[cardName] ?? [],
+        deckEntry: entry,
+      })
+      return
+    }
+    const scryfallCard = activeCards()[cardName] ?? null
+    const searchEntry = buildDeckSearchEntry(cardName, entry, scryfallCard, entry.quantity)
+    const added = addEntryToLeft(searchEntry, props.currency)
+    if (added)
+      showTradeToast(
+        searchEntry.name,
+        resolveCardThumbnailUrl(searchEntry.scryfallCard, props.useScryfallImgUrls ?? false),
+      )
+  }
+
+  const modalAddToTradeDisabled = createMemo(() => {
+    const cardName = props.modalCardName
+    const entry = modalDeckEntry()
+    if (!cardName || !entry) return true
+    if (!entry.set || !entry.collectorNumber) return false // picker will handle
+    const scryfallCard = activeCards()[cardName] ?? null
+    const searchEntry = buildDeckSearchEntry(cardName, entry, scryfallCard, entry.quantity)
+    return !canAddMoreToLeft(searchEntry)
+  })
+
+  // Missing cards for current currency
+  const currentMissingCards = createMemo(() => {
+    if (!props.missingCards) return []
+    return props.missingCards[props.currency] ?? []
+  })
 
   // Tooltip state for list-view hover preview
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
@@ -211,27 +346,33 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     }
   }
 
-  const renderDeckCard = (hideCount: boolean) => (c: CardData) => (
-    <CardItem
-      name={c.name}
-      quantity={c.quantity}
-      card={c.card}
-      symbolMap={props.symbolMap}
-      viewMode={viewMode()}
-      hideCount={hideCount}
-      useScryfallImgUrls={props.useScryfallImgUrls}
-      onCardClick={() => props.onOpenModal(c.name)}
-      onTooltipEnter={(src, sideways) => setTooltip({ src, sideways })}
-      onTooltipLeave={() => setTooltip(null)}
-      currency={props.currency}
-      editMode={props.editMode}
-      onIncrement={props.editMode ? () => props.onCardIncrement?.(c.name) : undefined}
-      onDecrement={props.editMode ? () => props.onCardDecrement?.(c.name) : undefined}
-      onContextMenu={
-        props.editMode ? (rect) => props.onCardContextMenu?.(c.name, c.card, rect) : undefined
-      }
-    />
-  )
+  const renderDeckCard = (hideCount: boolean) => (c: CardData) => {
+    const deckEntry = deckEntryByOrder().get(c.fileOrder)
+    const showTrade = !props.editMode && deckEntry !== undefined
+    return (
+      <CardItem
+        name={c.name}
+        quantity={c.quantity}
+        card={c.card}
+        symbolMap={props.symbolMap}
+        viewMode={viewMode()}
+        hideCount={hideCount}
+        useScryfallImgUrls={props.useScryfallImgUrls}
+        onCardClick={() => props.onOpenModal(c.name)}
+        onTooltipEnter={(src, sideways) => setTooltip({ src, sideways })}
+        onTooltipLeave={() => setTooltip(null)}
+        currency={props.currency}
+        editMode={props.editMode}
+        onIncrement={props.editMode ? () => props.onCardIncrement?.(c.name) : undefined}
+        onDecrement={props.editMode ? () => props.onCardDecrement?.(c.name) : undefined}
+        onContextMenu={
+          props.editMode ? (rect) => props.onCardContextMenu?.(c.name, c.card, rect) : undefined
+        }
+        onAddToTrade={showTrade ? () => handleDeckAddToTrade(c, deckEntry!) : undefined}
+        addToTradeDisabled={showTrade ? isDeckCardAddDisabled(c, deckEntry!) : undefined}
+      />
+    )
+  }
 
   const modalPrintings = createMemo(() => {
     if (!props.modalCardName) return []
@@ -503,7 +644,26 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         currency={props.currency}
         printings={modalPrintings()}
         onClose={props.onCloseModal}
+        onAddToTrade={!props.editMode ? handleModalAddToTrade : undefined}
+        addToTradeDisabled={!props.editMode ? modalAddToTradeDisabled() : undefined}
       />
+
+      {/* Trade printing picker for deck cards without specific printings */}
+      <Show when={deckTradePicker()}>
+        {(picker) => (
+          <TradePrintingPicker
+            cardName={picker().cardName}
+            printings={picker().printings}
+            loading={false}
+            useScryfallImgUrls={props.useScryfallImgUrls}
+            currency={props.currency}
+            onSelect={handleDeckTradePickerSelect}
+            onClose={() => setDeckTradePicker(null)}
+            onTooltipEnter={(src, sideways) => setTooltip({ src, sideways })}
+            onTooltipLeave={() => setTooltip(null)}
+          />
+        )}
+      </Show>
 
       {/* Changelog modal */}
       <Show when={props.changelog && props.changelog!.length > 0}>
