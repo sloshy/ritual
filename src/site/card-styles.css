@@ -327,12 +327,6 @@ h3 {
   padding: 0.5rem 0;
 }
 
-/* Each overlap group wraps cards in a horizontal fan */
-.overlap-group {
-  display: flex;
-  position: relative;
-}
-
 .card-overlap {
   position: relative;
   width: var(--card-width, 190px);

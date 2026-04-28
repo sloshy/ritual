@@ -12,10 +12,6 @@ body {
   padding: 1.5rem 2rem;
 }
 
-.flex-center-40vh {
-  min-height: 40vh;
-}
-
 /* ===== Site Layout ===== */
 .site-app {
   min-height: 100vh;
@@ -241,22 +237,6 @@ body {
   font-style: italic;
   font-size: 0.75rem;
   margin-bottom: 0.25rem;
-}
-
-/* ===== Missing Cards ===== */
-.missing-section {
-  margin-bottom: 1.5rem;
-}
-
-.missing-label {
-  margin-bottom: 1rem;
-  font-size: 0.875rem;
-  color: var(--text-body);
-}
-
-.missing-details {
-  font-size: 0.875rem;
-  color: var(--text-body);
 }
 
 .missing-toggle-label {

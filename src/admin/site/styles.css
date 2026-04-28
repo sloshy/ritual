@@ -606,11 +606,6 @@
   color: var(--text-primary);
 }
 
-.search-result-item--selected {
-  background: var(--bg-active);
-  color: var(--text-primary);
-}
-
 /* Card preview hover in search */
 .search-card-preview {
   position: fixed;
@@ -954,16 +949,6 @@
 }
 
 /* Discard confirmation modal */
-.confirm-dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 120;
-}
-
 .confirm-dialog {
   background: var(--bg-panel);
   border: 1px solid var(--border);
@@ -1051,10 +1036,6 @@ dialog.discard-dialog-native[open] {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-}
-
-.flex-center-40vh {
-  min-height: 40vh;
 }
 
 /* ----- Admin sidebar ----- */
