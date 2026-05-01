@@ -293,6 +293,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
 
   const handleRemove = (side: Side, card: TradeCardEntry) => {
     setterFor(side)((prev) => prev.filter((c) => c !== card))
+    handleTooltipLeave()
   }
 
   const openEditPicker = (side: Side, card: TradeCardEntry) => {
