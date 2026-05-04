@@ -65,7 +65,7 @@ const sidebars: SidebarsConfig = {
         {
           type: 'category',
           label: 'Utilities',
-          items: ['commands/git-detect-changes', 'commands/list-all-cards'],
+          items: ['commands/config-set', 'commands/git-detect-changes', 'commands/list-all-cards'],
         },
         {
           type: 'category',

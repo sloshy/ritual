@@ -31,6 +31,7 @@ import { registerDepLicenseCommand } from './src/commands/dep-license'
 import { registerGitDetectChangesCommand } from './src/commands/git-detect-changes'
 import { registerDeckSyncCommand } from './src/commands/deck-sync'
 import { registerMoveCommand } from './src/commands/move'
+import { registerConfigSetCommand } from './src/commands/config-set'
 import { registerHashCommand } from './src/commands/hash'
 import { registerListAllCardsCommand } from './src/commands/list-all-cards'
 import {
@@ -62,6 +63,7 @@ const COMMANDS_WITHOUT_LIST_IDS = new Set([
   'license',
   'dep-license',
   'git-detect-changes',
+  'config-set',
 ])
 
 program.hook('preAction', async (command) => {
@@ -130,6 +132,7 @@ program.commandsGroup('Utilities')
 registerGitDetectChangesCommand(program)
 registerHashCommand(program)
 registerListAllCardsCommand(program)
+registerConfigSetCommand(program)
 
 program.commandsGroup('Legal')
 registerLicenseCommand(program)
