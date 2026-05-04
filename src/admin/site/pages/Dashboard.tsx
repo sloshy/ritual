@@ -28,6 +28,12 @@ const actions: ActionCard[] = [
     icon: '📦',
   },
   {
+    id: 'wanted-list-editor',
+    title: 'Wanted List Editor',
+    description: 'Edit wanted card lists',
+    icon: '🎯',
+  },
+  {
     id: 'import-deck',
     title: 'Import Deck',
     description: 'Import a deck from a URL or file',
@@ -45,6 +51,12 @@ const actions: ActionCard[] = [
     title: 'Archidekt Login',
     description: 'Sign in to Archidekt',
     icon: '🔑',
+  },
+  {
+    id: 'audit-log',
+    title: 'Audit Log',
+    description: 'View login and activity history',
+    icon: '📋',
   },
   { id: 'settings', title: 'Settings', description: 'Configure admin settings', icon: '⚙️' },
 ]
