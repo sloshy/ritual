@@ -14,10 +14,11 @@ ritual admin [options]
 
 ## Options
 
-| Option                | Description             | Default   |
-| --------------------- | ----------------------- | --------- |
-| `-p, --port <number>` | Port to serve on        | `8080`    |
-| `--host <address>`    | Host address to bind to | `0.0.0.0` |
+| Option                | Description                                   | Default   |
+| --------------------- | --------------------------------------------- | --------- |
+| `-p, --port <number>` | Port to serve on                              | `8080`    |
+| `--host <address>`    | Host address to bind to                       | `0.0.0.0` |
+| `--dev`               | Rebuild admin SPA from source on file changes | —         |
 
 ## First-Time Setup
 
@@ -619,3 +620,11 @@ Bind to localhost only:
 ```bash
 ritual admin --host 127.0.0.1
 ```
+
+Start in dev mode (rebuilds the admin SPA automatically when source files in `src/admin/site/` change):
+
+```bash
+bun run index.ts admin --dev
+```
+
+In dev mode, JS and CSS are built from source rather than from the pre-compiled bundle. After each file save, the server rebuilds the changed assets and logs `[dev] Rebuilt (...)`. Refresh the browser to pick up changes.
