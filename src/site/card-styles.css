@@ -151,7 +151,7 @@ h3 {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 0.5rem;
+  border-radius: 9px;
 }
 
 .card-binder .qty-badge {
@@ -278,7 +278,7 @@ h3 {
   z-index: 200;
   pointer-events: none;
   width: 240px;
-  border-radius: 0.5rem;
+  border-radius: 9px;
   overflow: hidden;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
   border: 1px solid oklch(35% 0.03 260);
@@ -291,7 +291,7 @@ h3 {
   & img {
     width: 100%;
     display: block;
-    border-radius: 0.5rem;
+    border-radius: 9px;
   }
 }
 
@@ -331,7 +331,7 @@ h3 {
   position: relative;
   width: var(--card-width, 190px);
   aspect-ratio: 488 / 680;
-  border-radius: 0.5rem;
+  border-radius: 9px;
   overflow: hidden;
   cursor: pointer;
   transition:
@@ -385,7 +385,7 @@ h3 {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 0.5rem;
+  border-radius: 9px;
 }
 
 .card-overlap:hover {
@@ -714,7 +714,7 @@ h3 {
     background-size: 200% 200%;
     background-position: 0% 0%;
     pointer-events: none;
-    border-radius: 0.5rem;
+    border-radius: 9px;
     opacity: 0.6;
     transition:
       opacity 0.3s ease,
@@ -934,7 +934,7 @@ h3 {
 
 .modal-printing-card {
   position: relative;
-  border-radius: 0.5rem;
+  border-radius: 9px;
   overflow: hidden;
   cursor: pointer;
   transition:
@@ -949,7 +949,7 @@ h3 {
   & img {
     width: 100%;
     display: block;
-    border-radius: 0.5rem;
+    border-radius: 9px;
   }
 
   & .printing-label {
