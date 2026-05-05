@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 import path from 'node:path'
 import fs from 'node:fs/promises'
+import { watch } from 'node:fs'
 import { startAdminServer } from '../admin/server'
 import { getBundledAdminCss, getBundledAdminJs } from '../admin/bundled-assets'
 import { getBaseDir } from '../base-dir'
@@ -99,39 +100,37 @@ export function registerAdminCommand(program: Command) {
       await Bun.write(path.join(adminDistDir, 'index.html'), indexHtml)
 
       if (options.dev) {
-        const watcher = await import('@parcel/watcher')
-
         let building = false
         let pending: RebuildFlags | null = null
 
         const runRebuild = async (flags: RebuildFlags): Promise<void> => {
           building = true
-          const rebuilds: Promise<boolean>[] = []
-          if (flags.css) rebuilds.push(buildAdminCss(adminSrcDir, adminDistDir))
-          if (flags.js) rebuilds.push(buildAdminJs(adminSrcDir, adminDistDir))
-          const results = await Promise.all(rebuilds)
-          if (results.every(Boolean)) {
-            const parts = [flags.js && 'js', flags.css && 'css'].filter(Boolean).join('+')
-            console.log(`[dev] Rebuilt (${parts})`)
-          }
-          if (pending) {
-            const next = pending
-            pending = null
-            await runRebuild(next)
-          } else {
+          try {
+            const rebuilds: Promise<boolean>[] = []
+            if (flags.css) rebuilds.push(buildAdminCss(adminSrcDir, adminDistDir))
+            if (flags.js) rebuilds.push(buildAdminJs(adminSrcDir, adminDistDir))
+            const results = await Promise.all(rebuilds)
+            if (results.every(Boolean)) {
+              const parts = [flags.js && 'js', flags.css && 'css'].filter(Boolean).join('+')
+              console.log(`[dev] Rebuilt (${parts})`)
+            }
+            if (pending) {
+              const next = pending
+              pending = null
+              await runRebuild(next)
+            } else {
+              building = false
+            }
+          } catch (err) {
             building = false
+            console.error('[dev] Rebuild error:', err)
           }
         }
 
-        const watchDir = path.join(adminSrcDir)
-        await watcher.default.subscribe(watchDir, (err, events) => {
-          if (err) {
-            console.error('Watcher error:', err)
-            return
-          }
-
-          const hasCss = events.some((e) => e.path.endsWith('.css'))
-          const hasJs = events.some((e) => e.path.endsWith('.ts') || e.path.endsWith('.tsx'))
+        watch(adminSrcDir, { recursive: true }, (_, filename) => {
+          if (!filename) return
+          const hasCss = filename.endsWith('.css')
+          const hasJs = filename.endsWith('.ts') || filename.endsWith('.tsx')
           if (!hasCss && !hasJs) return
 
           const flags: RebuildFlags = { js: hasJs, css: hasCss }
@@ -145,7 +144,7 @@ export function registerAdminCommand(program: Command) {
           }
         })
 
-        console.log(`[dev] Watching ${watchDir} for changes...`)
+        console.log(`[dev] Watching ${adminSrcDir} for changes...`)
       }
 
       console.log('Admin interface ready.')
