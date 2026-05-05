@@ -33,11 +33,6 @@
 body {
   background-color: var(--bg-body);
   color: var(--text-body);
-  font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    sans-serif;
 }
 
 /* ===== Mana symbol images ===== */
@@ -131,7 +126,7 @@ h3 {
 
 .card-binder {
   position: relative;
-  border-radius: 0.6rem;
+  border-radius: var(--card-radius);
   overflow: hidden;
   cursor: pointer;
   transition:
@@ -151,7 +146,7 @@ h3 {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 9px;
+  border-radius: var(--card-radius);
 }
 
 .card-binder .qty-badge {
@@ -271,14 +266,15 @@ h3 {
   text-align: right;
 }
 
-/* Card image tooltips — shared base for list view and changelog */
+/* Card image tooltips — shared base for list view, changelog, and admin changes */
 .list-tooltip,
-.changelog-card-tooltip {
+.changelog-card-tooltip,
+.changes-card-tooltip {
   position: fixed;
   z-index: 200;
   pointer-events: none;
   width: 240px;
-  border-radius: 9px;
+  border-radius: var(--card-radius);
   overflow: hidden;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
   border: 1px solid oklch(35% 0.03 260);
@@ -291,7 +287,7 @@ h3 {
   & img {
     width: 100%;
     display: block;
-    border-radius: 9px;
+    border-radius: var(--card-radius);
   }
 }
 
@@ -331,7 +327,7 @@ h3 {
   position: relative;
   width: var(--card-width, 190px);
   aspect-ratio: 488 / 680;
-  border-radius: 9px;
+  border-radius: var(--card-radius);
   overflow: hidden;
   cursor: pointer;
   transition:
@@ -385,7 +381,7 @@ h3 {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 9px;
+  border-radius: var(--card-radius);
 }
 
 .card-overlap:hover {
@@ -484,7 +480,7 @@ h3 {
 
   & img {
     max-width: 100%;
-    border-radius: 0.7rem;
+    border-radius: var(--card-radius);
 
     &.sideways {
       max-width: 85%;
@@ -714,7 +710,7 @@ h3 {
     background-size: 200% 200%;
     background-position: 0% 0%;
     pointer-events: none;
-    border-radius: 9px;
+    border-radius: var(--card-radius);
     opacity: 0.6;
     transition:
       opacity 0.3s ease,
@@ -934,7 +930,7 @@ h3 {
 
 .modal-printing-card {
   position: relative;
-  border-radius: 9px;
+  border-radius: var(--card-radius);
   overflow: hidden;
   cursor: pointer;
   transition:
@@ -949,7 +945,7 @@ h3 {
   & img {
     width: 100%;
     display: block;
-    border-radius: 9px;
+    border-radius: var(--card-radius);
   }
 
   & .printing-label {

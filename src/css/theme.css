@@ -42,6 +42,9 @@
   --error-border: oklch(45% 0.17 25);
   --error-text: oklch(80% 0.1 20);
 
+  /* ---- Card corners ---- */
+  --card-radius: 9px;
+
   /* ---- Buttons – base ---- */
   --btn-bg: oklch(30% 0.03 260);
   --btn-hover: oklch(38% 0.03 260);
