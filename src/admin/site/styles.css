@@ -666,21 +666,22 @@
   align-items: center;
   justify-content: center;
   padding: 16px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: 0.875rem;
   cursor: pointer;
-  border: 2px dashed var(--border);
+  border: 2px solid var(--border);
   border-radius: 6px;
+  background: transparent;
+  aspect-ratio: 63 / 88;
   transition:
     border-color 0.15s,
-    color 0.15s;
-  min-height: 100px;
+    background 0.15s;
 }
 
 .printing-no-printing:hover,
 .printing-no-printing--highlighted {
   border-color: var(--accent);
-  color: var(--text-primary);
+  background: var(--bg-hover);
 }
 
 .printing-select-pagination {
