@@ -172,6 +172,46 @@ describe('importFromTextFile - sections', () => {
   })
 })
 
+describe('importFromTextFile - notes', () => {
+  test('parses {note} on a basic card line', async () => {
+    const filePath = await writeDeck('---\nname: Test\n---\n## Main\n1 Sol Ring {fast mana}\n')
+    const deck = await importFromTextFile(filePath)
+    const card = deck.sections[0]!.cards[0]!
+    expect(card.note).toBe('fast mana')
+  })
+
+  test('parses {note} alongside set, finish, condition, and cardId', async () => {
+    const filePath = await writeDeck(
+      '---\nname: Test\n---\n## Main\n1 Mana Crypt (2XM:1) [foil] [LP] {gift from Alex} &7\n',
+    )
+    const deck = await importFromTextFile(filePath)
+    const card = deck.sections[0]!.cards[0]!
+    expect(card.name).toBe('Mana Crypt')
+    expect(card.set).toBe('2xm')
+    expect(card.collectorNumber).toBe('1')
+    expect(card.finish).toBe('foil')
+    expect(card.condition).toBe('LP')
+    expect(card.note).toBe('gift from Alex')
+    expect(card.cardId).toBe(7)
+  })
+
+  test('omits note when not present', async () => {
+    const filePath = await writeDeck('---\nname: Test\n---\n## Main\n2 Sol Ring &1\n')
+    const deck = await importFromTextFile(filePath)
+    expect(deck.sections[0]!.cards[0]!.note).toBeUndefined()
+  })
+
+  test('parses an empty {} note as empty string (does not bleed into name)', async () => {
+    // A hand-edited file with `{}` should not corrupt the parsed card name.
+    const filePath = await writeDeck('---\nname: Test\n---\n## Main\n1 Sol Ring {} &1\n')
+    const deck = await importFromTextFile(filePath)
+    const card = deck.sections[0]!.cards[0]!
+    expect(card.name).toBe('Sol Ring')
+    expect(card.note).toBe('')
+    expect(card.cardId).toBe(1)
+  })
+})
+
 describe('importFromTextFile - mixed extended format', () => {
   test('parses deck with mixed card line formats', async () => {
     const content = [

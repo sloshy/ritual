@@ -31,7 +31,7 @@ export type WantedListParseResult = {
  * Wanted lists do not carry a condition, otherwise mirrors the collection grammar.
  */
 export const WANTED_CARD_LINE_RE =
-  /^- (.+?)(?:\s\(([A-Za-z0-9]+):([^)]+)\))?(?:\s\[(nonfoil|foil|etched)\])?(?:\s\{(.+)\})?(?:\s&(\d+))?$/
+  /^- (.+?)(?:\s\(([A-Za-z0-9]+):([^)]+)\))?(?:\s\[(nonfoil|foil|etched)\])?(?:\s\{(.*)\})?(?:\s&(\d+))?$/
 
 export function parseWantedListFile(content: string): WantedListParseResult {
   const entries: WantedListEntry[] = []

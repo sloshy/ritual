@@ -21,12 +21,12 @@ function getString(value: unknown): string | undefined {
 }
 
 /**
- * Matches a deck card line: `2 Lightning Bolt (LEA:161) [foil] [NM] &12`.
+ * Matches a deck card line: `2 Lightning Bolt (LEA:161) [foil] [NM] {note} &12`.
  * Set codes allow `_` (some art-series / playtest sets use underscores).
  * Whitespace is `\s+` so multiple spaces between tokens are tolerated.
  */
 export const DECK_CARD_LINE_RE =
-  /^(\d+)[xX]?\s+(.+?)(?:\s+\(([A-Za-z0-9_]+):([^)]+)\))?(?:\s+\[(nonfoil|foil|etched)\])?(?:\s+\[(NM|LP|MP|HP|DMG)\])?(?:\s+&(\d+))?$/
+  /^(\d+)[xX]?\s+(.+?)(?:\s+\(([A-Za-z0-9_]+):([^)]+)\))?(?:\s+\[(nonfoil|foil|etched)\])?(?:\s+\[(NM|LP|MP|HP|DMG)\])?(?:\s+\{(.*)\})?(?:\s+&(\d+))?$/
 
 export async function importFromTextFile(filePath: string): Promise<DeckData> {
   const file = Bun.file(filePath)
@@ -85,7 +85,8 @@ export async function importFromTextFile(filePath: string): Promise<DeckData> {
         collectorNumber: quantityMatch[4],
         finish: quantityMatch[5] && isFinish(quantityMatch[5]) ? quantityMatch[5] : undefined,
         condition: quantityMatch[6] && isCondition(quantityMatch[6]) ? quantityMatch[6] : undefined,
-        cardId: quantityMatch[7] ? Number.parseInt(quantityMatch[7], 10) : undefined,
+        note: quantityMatch[7],
+        cardId: quantityMatch[8] ? Number.parseInt(quantityMatch[8], 10) : undefined,
       })
     }
   }

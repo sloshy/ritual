@@ -1,10 +1,11 @@
 import type { Finish, Condition } from './types'
+import type { ListType } from './list-type'
 
 // ── Discriminated union types ───────────────────────────────────────
 
 /** Reference to a named list (deck, collection, or wanted list). */
 export type ListRef = {
-  type: 'deck' | 'collection' | 'wanted'
+  type: ListType
   name: string
 }
 
@@ -44,6 +45,12 @@ export type SetFinishChange = BaseChange & {
   finish: Finish
 }
 
+export type SetNoteChange = BaseChange & {
+  action: 'set-note'
+  /** The new note text. Empty string clears the note. */
+  note: string
+}
+
 export type MoveFromChange = BaseChange & {
   action: 'move-from'
   set?: string
@@ -70,6 +77,7 @@ export type ChangeEvent =
   | SetCommanderChange
   | UnsetCommanderChange
   | SetFinishChange
+  | SetNoteChange
   | MoveFromChange
   | MoveToChange
 
@@ -113,6 +121,12 @@ export type CommanderOptions = {
 /** Options for set-finish action. */
 export type SetFinishOptions = {
   finish: Finish
+  cardId?: number
+}
+
+/** Options for set-note action. */
+export type SetNoteOptions = {
+  note: string
   cardId?: number
 }
 
@@ -181,6 +195,10 @@ export function createSetFinishChange(
   options: SetFinishOptions,
 ): SetFinishChange {
   return { ...makeBase(cardName, options.cardId), action: 'set-finish', finish: options.finish }
+}
+
+export function createSetNoteChange(cardName: string, options: SetNoteOptions): SetNoteChange {
+  return { ...makeBase(cardName, options.cardId), action: 'set-note', note: options.note }
 }
 
 export function createMoveFromChange(cardName: string, options: MoveFromOptions): MoveFromChange {
@@ -293,20 +311,70 @@ export function consolidateSetFinish(
   return { changes: updatedChanges, addedChange, cancelledChange }
 }
 
+export type ConsolidateSetNoteResult = {
+  changes: ChangeEvent[]
+  addedChange: ChangeEvent | null
+  cancelledChange: ChangeEvent | null
+}
+
+/**
+ * Apply a set-note action with "latest wins" semantics:
+ * - Removes any existing set-note for the same card from the changelog
+ * - Does not add a new change if `note` equals `originalNote` (note restored to original)
+ * - Otherwise adds the new set-note change (an empty `note` clears the field)
+ *
+ * Returns the updated changes array plus addedChange/cancelledChange for undo tracking.
+ * Returns null addedChange and null cancelledChange when the action is a no-op.
+ */
+export function consolidateSetNote(
+  changes: ChangeEvent[],
+  cardName: string,
+  note: string,
+  originalNote: string,
+  cardId?: number,
+): ConsolidateSetNoteResult {
+  const existingIdx = changes.findIndex(
+    (c) =>
+      c.action === 'set-note' &&
+      c.cardName === cardName &&
+      (cardId === undefined || c.cardId === undefined || c.cardId === cardId),
+  )
+  const cancelledChange: ChangeEvent | null =
+    existingIdx !== -1 ? (changes[existingIdx] ?? null) : null
+  let updatedChanges = existingIdx !== -1 ? changes.filter((_, i) => i !== existingIdx) : changes
+
+  let addedChange: ChangeEvent | null = null
+  if (note !== originalNote) {
+    addedChange = createSetNoteChange(cardName, { note, cardId })
+    updatedChanges = [...updatedChanges, addedChange]
+  }
+
+  return { changes: updatedChanges, addedChange, cancelledChange }
+}
+
 /** Check if a change is additive (green) or destructive (red) */
 export function isAdditiveChange(action: ChangeAction): boolean {
-  return action === 'add' || action === 'set-commander' || action === 'set-finish'
+  return (
+    action === 'add' ||
+    action === 'set-commander' ||
+    action === 'set-finish' ||
+    action === 'set-note'
+  )
   // unset-commander is treated as destructive (red) like remove
 }
 
-type PrintingFields = {
+export type PrintingFields = {
   set?: string
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
 }
 
-function formatPrintingAnnotation(change: PrintingFields): string {
+/**
+ * Format the ` (SET:CN) [finish] [condition]` annotation tail used in changelog
+ * lines and entry descriptions. Empty when none of the fields are set.
+ */
+export function formatPrintingAnnotation(change: PrintingFields): string {
   const printingInfo =
     change.set && change.collectorNumber
       ? ` (${change.set.toUpperCase()}:${change.collectorNumber})`
@@ -344,6 +412,13 @@ export function formatChangeCore(change: ChangeEvent, opts: FormatChangeOptions)
       return `Unset ${change.cardName} as commander${idInfo}`
     case 'set-finish':
       return `Set ${change.cardName} finish to ${change.finish}${idInfo}`
+    case 'set-note': {
+      if (change.note === '') {
+        const clearVerb = tense === 'past' ? 'Cleared' : 'Clear'
+        return `${clearVerb} note on ${change.cardName}${idInfo}`
+      }
+      return `Set note on ${change.cardName}${idInfo} to "${change.note}"`
+    }
     case 'move-from': {
       const ann = formatPrintingAnnotation(change)
       const verb = tense === 'past' ? 'Moved' : 'Move'

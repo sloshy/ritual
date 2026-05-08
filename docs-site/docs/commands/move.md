@@ -19,7 +19,7 @@ The `move` command launches an interactive session that lets you search across a
 Key behaviors:
 
 - **Deck moves**: Moving a card from a deck decrements its quantity by 1. The line is removed when quantity reaches 0.
-- **Note preservation**: Notes (`{note}`) on collection and wanted list entries are carried over to the destination list.
+- **Note preservation**: Notes (`{note}`) on deck, collection, and wanted list entries are carried over to the destination list.
 - **Name-only wanted entries**: If a card has no set/collector number (i.e., it is a name-only wanted list entry) and the destination requires a printing (e.g., a collection), you will be prompted to resolve a printing before the move is queued.
 - **Single destination**: If only one valid destination is configured, the destination prompt is skipped and the card is queued immediately.
 - **Change tracking**: Source files receive a `Moved … to …` changelog entry. Destination files receive a `Moved … from …` changelog entry.

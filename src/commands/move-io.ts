@@ -159,6 +159,9 @@ function applyAddToDeck(staged: StagedDeckFile, card: PhysicalCard): void {
   )
 
   if (existing) {
+    // Quantity merge into an existing line: the incoming card's note (if any) is
+    // dropped, since multiple copies share a single line and a single note slot.
+    // The destination line's existing note wins.
     existing.quantity += 1
   } else {
     let maxId = 0
@@ -174,6 +177,7 @@ function applyAddToDeck(staged: StagedDeckFile, card: PhysicalCard): void {
       collectorNumber: card.collectorNumber,
       finish: card.finish,
       condition: card.condition,
+      note: card.note,
       cardId: maxId + 1,
     })
   }

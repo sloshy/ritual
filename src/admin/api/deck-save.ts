@@ -5,7 +5,12 @@ import { appendChangelog } from '../../changelog-writer'
 import type { DeckData } from '../../types'
 import type { ChangeEvent } from '../../change-event'
 import { getDecksDir } from '../../ritual-config'
-import { validateBodySize, validateContentHash, autoCommitAndPush } from './save-helpers'
+import {
+  validateBodySize,
+  validateContentHash,
+  autoCommitAndPush,
+  normalizeRequestNotes,
+} from './save-helpers'
 
 interface DeckSaveRequest {
   changes: ChangeEvent[]
@@ -35,6 +40,10 @@ export async function handleDeckSave(req: Request): Promise<Response> {
         { status: 400 },
       )
     }
+
+    const allDeckCards = deck.sections.flatMap((s) => s.cards)
+    const noteError = normalizeRequestNotes(changes, allDeckCards)
+    if (noteError) return noteError
 
     const decksDir = getDecksDir()
     const filePath = await resolveDeckFilePath(decksDir, slug)

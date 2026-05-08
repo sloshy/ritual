@@ -2,6 +2,7 @@ import { describe, test, expect } from 'bun:test'
 import {
   areOppositeChanges,
   consolidateSetFinish,
+  consolidateSetNote,
   isAdditiveChange,
   createChangeId,
   formatChange,
@@ -277,6 +278,97 @@ describe('consolidateSetFinish', () => {
   })
 })
 
+describe('consolidateSetNote', () => {
+  test('adds a set-note change when note differs from original', () => {
+    const { changes, addedChange, cancelledChange } = consolidateSetNote(
+      [],
+      'Sol Ring',
+      'fast mana',
+      '',
+    )
+    expect(changes).toHaveLength(1)
+    expect(changes[0]!.action).toBe('set-note')
+    expect((changes[0] as { note: string }).note).toBe('fast mana')
+    expect(addedChange).not.toBeNull()
+    expect(cancelledChange).toBeNull()
+  })
+
+  test('does not add a change when note equals originalNote', () => {
+    const { changes, addedChange, cancelledChange } = consolidateSetNote(
+      [],
+      'Sol Ring',
+      'unchanged',
+      'unchanged',
+    )
+    expect(changes).toHaveLength(0)
+    expect(addedChange).toBeNull()
+    expect(cancelledChange).toBeNull()
+  })
+
+  test('cancels existing set-note when restoring to original', () => {
+    const existing = makeChange({ action: 'set-note', cardName: 'Sol Ring', note: 'first' })
+    const { changes, addedChange, cancelledChange } = consolidateSetNote(
+      [existing],
+      'Sol Ring',
+      '',
+      '',
+    )
+    expect(changes).toHaveLength(0)
+    expect(addedChange).toBeNull()
+    expect(cancelledChange).toBe(existing)
+  })
+
+  test('replaces an existing set-note with the latest value', () => {
+    const existing = makeChange({ action: 'set-note', cardName: 'Sol Ring', note: 'first' })
+    const { changes, addedChange, cancelledChange } = consolidateSetNote(
+      [existing],
+      'Sol Ring',
+      'second',
+      '',
+    )
+    expect(changes).toHaveLength(1)
+    expect((changes[0] as { note: string }).note).toBe('second')
+    expect(addedChange).not.toBeNull()
+    expect(cancelledChange).toBe(existing)
+  })
+
+  test('matches by cardId when provided', () => {
+    const existing = makeChange({
+      action: 'set-note',
+      cardName: 'Sol Ring',
+      note: 'first',
+      cardId: 5,
+    })
+    const { changes, cancelledChange } = consolidateSetNote([existing], 'Sol Ring', '', '', 5)
+    expect(changes).toHaveLength(0)
+    expect(cancelledChange).toBe(existing)
+  })
+
+  test('does not affect set-note for a different card', () => {
+    const other = makeChange({ action: 'set-note', cardName: 'Mana Crypt', note: 'first' })
+    const { changes, addedChange } = consolidateSetNote([other], 'Sol Ring', 'second', '')
+    expect(changes).toHaveLength(2)
+    expect(addedChange).not.toBeNull()
+  })
+
+  test('does not consolidate set-finish or other actions', () => {
+    const finishChange = makeChange({
+      action: 'set-finish',
+      cardName: 'Sol Ring',
+      finish: 'foil',
+    })
+    const { changes, addedChange, cancelledChange } = consolidateSetNote(
+      [finishChange],
+      'Sol Ring',
+      'note text',
+      '',
+    )
+    expect(changes).toHaveLength(2)
+    expect(addedChange).not.toBeNull()
+    expect(cancelledChange).toBeNull()
+  })
+})
+
 describe('isAdditiveChange', () => {
   test('add is additive', () => {
     expect(isAdditiveChange('add')).toBe(true)
@@ -288,6 +380,10 @@ describe('isAdditiveChange', () => {
 
   test('set-finish is additive', () => {
     expect(isAdditiveChange('set-finish')).toBe(true)
+  })
+
+  test('set-note is additive', () => {
+    expect(isAdditiveChange('set-note')).toBe(true)
   })
 
   test('remove is not additive', () => {
@@ -357,5 +453,20 @@ describe('formatChange', () => {
   test('omits card ID when undefined', () => {
     const change = makeChange({ action: 'add', cardName: 'Sol Ring' })
     expect(formatChange(change)).toBe('Add Sol Ring')
+  })
+
+  test('formats set-note with the note text', () => {
+    const change = makeChange({
+      action: 'set-note',
+      cardName: 'Sol Ring',
+      note: 'starts the engine',
+      cardId: 5,
+    })
+    expect(formatChange(change)).toBe('Set note on Sol Ring &5 to "starts the engine"')
+  })
+
+  test('formats empty set-note as a clear', () => {
+    const change = makeChange({ action: 'set-note', cardName: 'Sol Ring', note: '', cardId: 5 })
+    expect(formatChange(change)).toBe('Clear note on Sol Ring &5')
   })
 })

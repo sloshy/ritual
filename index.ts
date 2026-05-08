@@ -11,6 +11,8 @@ import { registerPriceDeckCommand } from './src/commands/price'
 import { registerBuildSiteCommand } from './src/commands/build-site'
 import { registerServeCommand } from './src/commands/serve'
 import { registerAddCardCommand } from './src/commands/add-card'
+import { registerAddNoteCommand } from './src/commands/add-note'
+import { registerClearNoteCommand } from './src/commands/clear-note'
 import { registerCacheCommand } from './src/commands/cache'
 import { registerCacheServerCommand } from './src/commands/cache-server'
 import { registerLoginCommand } from './src/commands/login'
@@ -93,6 +95,8 @@ registerLoginCommand(program)
 
 program.commandsGroup('Scripting')
 registerAddCardCommand(program)
+registerAddNoteCommand(program)
+registerClearNoteCommand(program)
 
 program.commandsGroup('Deck Management')
 registerNewDeckCommand(program)

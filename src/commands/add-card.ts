@@ -27,6 +27,7 @@ import {
   formatSpecificPrintingPrice,
   formatCheapestPrintingDisplay,
 } from '../price-currency'
+import { isListType } from '../list-type'
 
 /** Parse existing &N IDs from a file and allocate the next available ID. */
 async function allocateNextIdFromFile(filePath: string): Promise<number> {
@@ -38,12 +39,6 @@ async function allocateNextIdFromFile(filePath: string): Promise<number> {
   }
   const { nextId } = allocateNextIdFromContent(content)
   return nextId
-}
-
-type TargetType = 'deck' | 'collection' | 'wanted'
-
-function isTargetType(value: string): value is TargetType {
-  return value === 'deck' || value === 'collection' || value === 'wanted'
 }
 
 type AddCardOptions = {
@@ -165,7 +160,7 @@ export function registerAddCardCommand(program: Command) {
         cardNameParts: string[],
         options: AddCardOptions,
       ) => {
-        if (!isTargetType(type)) {
+        if (!isListType(type)) {
           console.error(`Invalid type '${type}'. Must be 'deck', 'collection', or 'wanted'.`)
           process.exit(1)
         }

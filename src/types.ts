@@ -9,6 +9,7 @@ export interface Card {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  note?: string
   cardId?: number
 }
 

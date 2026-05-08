@@ -19,6 +19,8 @@ export type ChangelogAction =
   | 'Set as commander'
   | 'Unset as commander'
   | 'Set finish'
+  | 'Set note'
+  | 'Cleared note'
 
 export type ChangelogChange = {
   action: ChangelogAction
@@ -27,6 +29,7 @@ export type ChangelogChange = {
   collectorNumber?: string
   finish?: string
   condition?: string
+  note?: string
 }
 
 export type ChangelogPage = {
@@ -37,10 +40,31 @@ export type ChangelogPage = {
 const CHANGE_LINE_REGEX =
   /^-\s+(Added|Removed|Set|Unset)\s+(.+?)(?:\s+\(([^)]+)\))?(?:\s+\[([^\]]+)\])?(?:\s+\[([^\]]+)\])?(?:\s+&\d+)?\s*$/
 
+/**
+ * Matches `Set note on Card Name &5 to "the note text"`. Card-name group is non-greedy
+ * so the optional `&N` is captured separately. The note recovery regex relies on the
+ * line ending exactly with `"` — never append trailing content (timestamps, tags) after
+ * the closing quote in changelog writers, or the greedy `(.*)"` will overshoot.
+ */
+const SET_NOTE_LINE_REGEX = /^-\s+Set\s+note\s+on\s+(.+?)(?:\s+&\d+)?\s+to\s+"(.*)"\s*$/
+/** Matches `Cleared note on Card Name &5`. */
+const CLEARED_NOTE_LINE_REGEX = /^-\s+Cleared\s+note\s+on\s+(.+?)(?:\s+&\d+)?\s*$/
+
 const FINISH_VALUES = new Set(['foil', 'nonfoil', 'etched'])
 const CONDITION_VALUES = new Set(['NM', 'LP', 'MP', 'HP', 'DMG'])
 
 function parseChangeLine(line: string): ChangelogChange | null {
+  // "Set note on X to ..." has free-form quoted content that the generic regex can't safely
+  // strip — match it directly first so the card name is recovered cleanly.
+  const setNote = line.match(SET_NOTE_LINE_REGEX)
+  if (setNote?.[1] !== undefined && setNote[2] !== undefined) {
+    return { action: 'Set note', cardName: setNote[1], note: setNote[2] }
+  }
+  const clearedNote = line.match(CLEARED_NOTE_LINE_REGEX)
+  if (clearedNote?.[1]) {
+    return { action: 'Cleared note', cardName: clearedNote[1] }
+  }
+
   const match = line.match(CHANGE_LINE_REGEX)
   if (!match) return null
 

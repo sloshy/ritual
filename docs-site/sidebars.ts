@@ -60,7 +60,7 @@ const sidebars: SidebarsConfig = {
         {
           type: 'category',
           label: 'Scripting',
-          items: ['commands/add-card'],
+          items: ['commands/add-card', 'commands/add-note', 'commands/clear-note'],
         },
         {
           type: 'category',

@@ -1,5 +1,6 @@
 import type { ChangeInput } from '../../../change-event'
 import type { WantedListCardEntry } from '../../../site/data-types'
+import { noteOrUndefined } from '../../../note-helpers'
 import { findTargetEntryIndex } from './entry-targeting.js'
 
 type WantedListChangeInput = ChangeInput & {
@@ -41,6 +42,13 @@ export function applyChangeToWantedList(
       const finish = change.finish
       const state = !target.set ? 'name-only' : finish ? 'fully-specified' : 'printing'
       return entries.map((e, i) => (i === idx ? { ...e, finish, state } : e))
+    }
+
+    case 'set-note': {
+      const idx = findTargetEntryIndex(entries, change)
+      if (idx === -1) return entries
+      const note = noteOrUndefined(change.note)
+      return entries.map((e, i) => (i === idx ? { ...e, note } : e))
     }
 
     case 'set-commander':

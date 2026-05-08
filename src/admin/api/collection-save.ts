@@ -10,7 +10,12 @@ import { getCollectionsDir } from '../../ritual-config'
 import { parseCollectionFile } from '../../commands/price-collection'
 import { applyChangeToCollection } from '../site/types/collection-changes'
 import type { Finish, Condition } from '../../types'
-import { validateBodySize, validateContentHash, autoCommitAndPush } from './save-helpers'
+import {
+  validateBodySize,
+  validateContentHash,
+  autoCommitAndPush,
+  normalizeRequestNotes,
+} from './save-helpers'
 
 interface CollectionSaveRequest {
   changes: ChangeEvent[]
@@ -55,6 +60,9 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
         { status: 400 },
       )
     }
+
+    const noteError = normalizeRequestNotes(changes, [])
+    if (noteError) return noteError
 
     const collectionsDir = getCollectionsDir()
     const filePath = path.join(collectionsDir, slug + '.md')

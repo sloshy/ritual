@@ -48,6 +48,9 @@ export function serializeCardLine(card: Card): string {
   if (card.condition && card.condition !== 'NM') {
     line += ` [${card.condition}]`
   }
+  if (card.note) {
+    line += ` {${card.note}}`
+  }
   if (card.cardId !== undefined) {
     line += ` &${card.cardId}`
   }

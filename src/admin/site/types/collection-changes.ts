@@ -1,5 +1,6 @@
 import type { ChangeInput } from '../../../change-event'
 import type { CollectionCardEntry } from '../../../site/data-types'
+import { noteOrUndefined } from '../../../note-helpers'
 import { findTargetEntryIndex } from './entry-targeting.js'
 
 type CollectionChangeInput = ChangeInput & {
@@ -40,6 +41,13 @@ export function applyChangeToCollection(
       const idx = findTargetEntryIndex(entries, change)
       if (idx === -1) return entries
       return entries.map((e, i) => (i === idx ? { ...e, finish: change.finish } : e))
+    }
+
+    case 'set-note': {
+      const idx = findTargetEntryIndex(entries, change)
+      if (idx === -1) return entries
+      const note = noteOrUndefined(change.note)
+      return entries.map((e, i) => (i === idx ? { ...e, note } : e))
     }
 
     case 'set-commander':

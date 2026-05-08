@@ -101,6 +101,30 @@ describe('serializeCardLine', () => {
     expect(serializeCardLine(card)).toBe('1 Mana Crypt (2XM:1) [foil] [LP] &42')
   })
 
+  test('card with note', () => {
+    const card: Card = { quantity: 2, name: 'Sol Ring', note: 'starts the engine', cardId: 1 }
+    expect(serializeCardLine(card)).toBe('2 Sol Ring {starts the engine} &1')
+  })
+
+  test('card with note and full metadata', () => {
+    const card: Card = {
+      quantity: 1,
+      name: 'Mana Crypt',
+      set: '2XM',
+      collectorNumber: '1',
+      finish: 'foil',
+      condition: 'LP',
+      note: 'gift from Alex',
+      cardId: 7,
+    }
+    expect(serializeCardLine(card)).toBe('1 Mana Crypt (2XM:1) [foil] [LP] {gift from Alex} &7')
+  })
+
+  test('empty note is omitted', () => {
+    const card: Card = { quantity: 1, name: 'Sol Ring', note: '' }
+    expect(serializeCardLine(card)).toBe('1 Sol Ring')
+  })
+
   test('card without cardId has no &N suffix', () => {
     const card: Card = { quantity: 1, name: 'Sol Ring' }
     expect(serializeCardLine(card)).not.toContain('&')

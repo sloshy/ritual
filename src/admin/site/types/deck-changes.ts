@@ -1,6 +1,7 @@
 import type { DeckData } from '../../../types'
 import type { ChangeInput } from '../../../change-event'
 import { isCondition } from '../../../finish-condition'
+import { noteOrUndefined } from '../../../note-helpers'
 
 export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData {
   const sections = deck.sections.map((s) => ({
@@ -115,6 +116,15 @@ export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData
       const found = findCard(sections)
       if (found) {
         found.card.finish = change.finish
+        return { ...deck, sections }
+      }
+      return { ...deck, sections }
+    }
+
+    case 'set-note': {
+      const found = findCard(sections)
+      if (found) {
+        found.card.note = noteOrUndefined(change.note)
         return { ...deck, sections }
       }
       return { ...deck, sections }

@@ -31,12 +31,12 @@ describe('applyChangeToWantedList', () => {
       const result = applyChangeToWantedList([], {
         action: 'add',
         cardName: 'Sol Ring',
-        set: 'C19',
+        set: 'c19',
         collectorNumber: '221',
       })
       expect(result).toHaveLength(1)
       expect(result[0]!.state).toBe('printing')
-      expect(result[0]!.set).toBe('C19')
+      expect(result[0]!.set).toBe('c19')
       expect(result[0]!.collectorNumber).toBe('221')
     })
 
@@ -44,7 +44,7 @@ describe('applyChangeToWantedList', () => {
       const result = applyChangeToWantedList([], {
         action: 'add',
         cardName: 'Sol Ring',
-        set: 'C19',
+        set: 'c19',
         collectorNumber: '221',
         finish: 'foil',
       })
@@ -98,17 +98,17 @@ describe('applyChangeToWantedList', () => {
 
     test('removes entry by name and set match', () => {
       const entries = [
-        makeEntry({ set: 'LEA', collectorNumber: '161', fileOrder: 0 }),
-        makeEntry({ set: 'M20', collectorNumber: '152', fileOrder: 1 }),
+        makeEntry({ set: 'lea', collectorNumber: '161', fileOrder: 0 }),
+        makeEntry({ set: 'm20', collectorNumber: '152', fileOrder: 1 }),
       ]
       const result = applyChangeToWantedList(entries, {
         action: 'remove',
         cardName: 'Lightning Bolt',
-        set: 'LEA',
+        set: 'lea',
         collectorNumber: '161',
       })
       expect(result).toHaveLength(1)
-      expect(result[0]!.set).toBe('M20')
+      expect(result[0]!.set).toBe('m20')
     })
 
     test('returns unchanged array when entry not found', () => {
@@ -138,7 +138,7 @@ describe('applyChangeToWantedList', () => {
     })
 
     test('updates state to fully-specified when entry has set and finish', () => {
-      const entries = [makeEntry({ set: 'LEA', collectorNumber: '161', state: 'printing' })]
+      const entries = [makeEntry({ set: 'lea', collectorNumber: '161', state: 'printing' })]
       const result = applyChangeToWantedList(entries, {
         action: 'set-finish',
         cardName: 'Lightning Bolt',
@@ -150,7 +150,7 @@ describe('applyChangeToWantedList', () => {
     test('updates state to fully-specified when nonfoil is set on entry with set', () => {
       const entries = [
         makeEntry({
-          set: 'LEA',
+          set: 'lea',
           collectorNumber: '161',
           finish: 'foil',
           state: 'fully-specified',
@@ -163,6 +163,30 @@ describe('applyChangeToWantedList', () => {
       })
       expect(result[0]!.state).toBe('fully-specified')
       expect(result[0]!.finish).toBe('nonfoil')
+    })
+  })
+
+  describe('set-note', () => {
+    test('sets note on matching entry', () => {
+      const entries = [makeEntry({ cardId: 3 })]
+      const result = applyChangeToWantedList(entries, {
+        action: 'set-note',
+        cardName: 'Lightning Bolt',
+        cardId: 3,
+        note: 'looking for a foil',
+      })
+      expect(result[0]!.note).toBe('looking for a foil')
+    })
+
+    test('clears note when given an empty string', () => {
+      const entries = [makeEntry({ cardId: 3, note: 'old' })]
+      const result = applyChangeToWantedList(entries, {
+        action: 'set-note',
+        cardName: 'Lightning Bolt',
+        cardId: 3,
+        note: '',
+      })
+      expect(result[0]!.note).toBeUndefined()
     })
   })
 

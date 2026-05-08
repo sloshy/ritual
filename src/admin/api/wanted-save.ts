@@ -7,7 +7,12 @@ import type { WantedListCardEntry } from '../../site/data-types'
 import type { ChangeEvent } from '../../change-event'
 import { formatWantedListLine } from '../../commands/wanted-helpers'
 import { getWantedDir } from '../../ritual-config'
-import { validateBodySize, validateContentHash, autoCommitAndPush } from './save-helpers'
+import {
+  validateBodySize,
+  validateContentHash,
+  autoCommitAndPush,
+  normalizeRequestNotes,
+} from './save-helpers'
 
 interface WantedListSaveRequest {
   changes: ChangeEvent[]
@@ -53,6 +58,9 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
         { status: 400 },
       )
     }
+
+    const noteError = normalizeRequestNotes(changes, entries)
+    if (noteError) return noteError
 
     const wantedListsDir = getWantedDir()
     const filePath = path.join(wantedListsDir, slug + '.md')

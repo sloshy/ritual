@@ -153,6 +153,35 @@ describe('parseChangelog', () => {
     expect(pages[0]!.timestamp).toBe('2026-02-01T00:00:00Z')
   })
 
+  test('parses "Set note on X to Y" with cardId suffix', () => {
+    const content = `# Changelog
+
+## 2026-05-06T00:00:00Z
+
+- Set note on Sol Ring &5 to "starts the engine"
+`
+    const pages = parseChangelog(content)
+    expect(pages[0]!.changes[0]).toEqual({
+      action: 'Set note',
+      cardName: 'Sol Ring',
+      note: 'starts the engine',
+    })
+  })
+
+  test('parses "Cleared note on X" with cardId suffix', () => {
+    const content = `# Changelog
+
+## 2026-05-06T00:00:00Z
+
+- Cleared note on Sol Ring &5
+`
+    const pages = parseChangelog(content)
+    expect(pages[0]!.changes[0]).toEqual({
+      action: 'Cleared note',
+      cardName: 'Sol Ring',
+    })
+  })
+
   test('parses card with &N card ID suffix', () => {
     const content = `# Changelog
 

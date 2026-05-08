@@ -135,6 +135,7 @@ export async function loadPhysicalCards(lists: ListEntry[]): Promise<PhysicalCar
               collectorNumber: card.collectorNumber,
               finish: card.finish,
               condition: card.condition,
+              note: card.note,
               cardId: card.cardId,
               copyIndex: i,
               listEntry,

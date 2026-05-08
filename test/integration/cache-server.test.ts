@@ -9,10 +9,7 @@ import {
 } from '../../src/cache/config'
 import { PriceService } from '../../src/prices'
 import { type PriceData, type ScryfallCard } from '../../src/types'
-
-const repoRoot = path.resolve(import.meta.dir, '../..')
-const binaryPath = path.join(repoRoot, 'ritual')
-let binaryReady = false
+import { binaryPath, ensureBinary } from './helpers/cli'
 
 interface RunningServer {
   cwd: string
@@ -82,19 +79,7 @@ async function waitForHealth(port: number): Promise<void> {
 
 async function startServer(options: StartServerOptions = {}): Promise<RunningServer> {
   const { denyHttp = true } = options
-  if (!binaryReady) {
-    const build = Bun.spawn(['bun', 'run', 'build'], {
-      cwd: repoRoot,
-      stdout: 'pipe',
-      stderr: 'pipe',
-    })
-    const code = await build.exited
-    if (code !== 0) {
-      const stderr = await new Response(build.stderr).text()
-      throw new Error(`Failed to build ritual binary for cache-server test: ${stderr}`)
-    }
-    binaryReady = true
-  }
+  await ensureBinary()
 
   const cwd = path.join(tmpdir(), `ritual-cache-server-${crypto.randomUUID()}`)
   await fs.mkdir(path.join(cwd, 'cache'), { recursive: true })

@@ -96,6 +96,29 @@ describe('applyChangeToCollection', () => {
     expect(result[0]!.finish).toBe('foil')
   })
 
+  it('set-note — sets the note on the matching entry', () => {
+    const entries = [makeEntry({ cardId: 5 })]
+    const result = applyChangeToCollection(entries, {
+      action: 'set-note',
+      cardName: 'Lightning Bolt',
+      cardId: 5,
+      note: 'first edition',
+    })
+    expect(result).toHaveLength(1)
+    expect(result[0]!.note).toBe('first edition')
+  })
+
+  it('set-note — empty string clears the note', () => {
+    const entries = [makeEntry({ cardId: 5, note: 'old note' })]
+    const result = applyChangeToCollection(entries, {
+      action: 'set-note',
+      cardName: 'Lightning Bolt',
+      cardId: 5,
+      note: '',
+    })
+    expect(result[0]!.note).toBeUndefined()
+  })
+
   it('set-commander — returns unchanged array (no-op for collections)', () => {
     const entries = [makeEntry()]
     const result = applyChangeToCollection(entries, {

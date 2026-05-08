@@ -2,6 +2,8 @@ import { loadHash, computeHash } from '../../content-hash'
 import { loadRitualConfig } from '../../ritual-config'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { MAX_BODY_SIZE } from '../validation'
+import { normalizeNote } from '../../note-helpers'
+import type { ChangeEvent } from '../../change-event'
 
 export type HashValidationSuccess = {
   valid: true
@@ -50,6 +52,34 @@ export async function validateContentHash(
     }
   }
   return { valid: true, content }
+}
+
+/**
+ * Trim and validate every note found in the request payload (set-note changes
+ * and any entry-level `note` fields). Mutates each note in place to the trimmed
+ * value. Returns a 400 Response if any note contains control characters.
+ */
+export function normalizeRequestNotes(
+  changes: ChangeEvent[],
+  entries: { note?: string }[],
+): Response | null {
+  for (const change of changes) {
+    if (change.action !== 'set-note') continue
+    const result = normalizeNote(change.note)
+    if (!result.ok) {
+      return Response.json({ success: false, message: result.error }, { status: 400 })
+    }
+    change.note = result.note
+  }
+  for (const entry of entries) {
+    if (entry.note === undefined) continue
+    const result = normalizeNote(entry.note)
+    if (!result.ok) {
+      return Response.json({ success: false, message: result.error }, { status: 400 })
+    }
+    entry.note = result.note === '' ? undefined : result.note
+  }
+  return null
 }
 
 /** Commit files and push if the config enables auto-commit/auto-push for the given directory. */
