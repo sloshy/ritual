@@ -1,7 +1,7 @@
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { adminUserExists } from './auth'
-import { loadRitualConfig } from '../ritual-config'
+import { loadRitualConfig, getCollectionsDir, getWantedDir } from '../ritual-config'
 import { parseSessionCookie, validateSession } from './session'
 import { handleStatus, handleListDecks } from './api/status'
 import { handleImportDeck } from './api/import-deck'
@@ -34,6 +34,24 @@ import { handleCollectionSave } from './api/collection-save'
 import { handleListWantedLists } from './api/wanted-list'
 import { handleWantedListLoad } from './api/wanted-load'
 import { handleWantedListSave } from './api/wanted-save'
+import {
+  handleSimpleListCreate,
+  handleSimpleListRename,
+  handleSimpleListDelete,
+  type SimpleListConfig,
+} from './api/simple-list-helpers'
+
+const COLLECTION_CFG: SimpleListConfig = {
+  kind: 'collection',
+  getDir: getCollectionsDir,
+  label: 'collection',
+}
+
+const WANTED_CFG: SimpleListConfig = {
+  kind: 'wanted',
+  getDir: getWantedDir,
+  label: 'wanted list',
+}
 
 interface AdminServerOptions {
   port: number
@@ -109,6 +127,12 @@ const routes: Route[] = [
   { method: 'GET', path: '/api/card-price', handler: handleCardPrice, requiresAuth: true },
   { method: 'GET', path: '/api/collections', handler: handleListCollections, requiresAuth: true },
   {
+    method: 'POST',
+    path: '/api/collection/create',
+    handler: (req) => handleSimpleListCreate(req, COLLECTION_CFG),
+    requiresAuth: true,
+  },
+  {
     method: 'GET',
     path: '/api/collection/:slug',
     handler: handleCollectionLoad,
@@ -118,6 +142,18 @@ const routes: Route[] = [
     method: 'POST',
     path: '/api/collection/:slug/save',
     handler: handleCollectionSave,
+    requiresAuth: true,
+  },
+  {
+    method: 'POST',
+    path: '/api/collection/:slug/rename',
+    handler: (req) => handleSimpleListRename(req, COLLECTION_CFG),
+    requiresAuth: true,
+  },
+  {
+    method: 'DELETE',
+    path: '/api/collection/:slug',
+    handler: (req) => handleSimpleListDelete(req, COLLECTION_CFG),
     requiresAuth: true,
   },
   { method: 'GET', path: '/api/deck/:slug', handler: handleDeckLoad, requiresAuth: true },
@@ -132,6 +168,12 @@ const routes: Route[] = [
     requiresAuth: true,
   },
   {
+    method: 'POST',
+    path: '/api/wanted/create',
+    handler: (req) => handleSimpleListCreate(req, WANTED_CFG),
+    requiresAuth: true,
+  },
+  {
     method: 'GET',
     path: '/api/wanted/:slug',
     handler: handleWantedListLoad,
@@ -141,6 +183,18 @@ const routes: Route[] = [
     method: 'POST',
     path: '/api/wanted/:slug/save',
     handler: handleWantedListSave,
+    requiresAuth: true,
+  },
+  {
+    method: 'POST',
+    path: '/api/wanted/:slug/rename',
+    handler: (req) => handleSimpleListRename(req, WANTED_CFG),
+    requiresAuth: true,
+  },
+  {
+    method: 'DELETE',
+    path: '/api/wanted/:slug',
+    handler: (req) => handleSimpleListDelete(req, WANTED_CFG),
     requiresAuth: true,
   },
 ]

@@ -1176,6 +1176,41 @@ dialog.discard-dialog-native[open] {
   text-align: center;
 }
 
+/* ----- List manager tabs ----- */
+.list-manager-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.list-manager-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 0.375rem 0.375rem 0 0;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+
+.list-manager-tab:hover {
+  background: var(--bg-card, var(--bg-panel));
+  color: var(--text-primary);
+}
+
+.list-manager-tab[data-active='true'] {
+  background: var(--bg-card, var(--bg-panel));
+  border-color: var(--border);
+  color: var(--text-primary);
+  border-bottom-color: var(--bg-card, var(--bg-panel));
+}
+
 /* ----- Deck manager ----- */
 .deck-list-item {
   display: flex;

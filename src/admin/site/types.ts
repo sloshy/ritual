@@ -2,7 +2,7 @@ export type Page =
   | 'dashboard'
   | 'import-deck'
   | 'deck-editor'
-  | 'deck-manager'
+  | 'list-manager'
   | 'collection-editor'
   | 'wanted-list-editor'
   | 'build-site'

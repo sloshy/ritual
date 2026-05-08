@@ -1,20 +1,12 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getCollectionsDir } from '../../ritual-config'
+import { parseTitleFromContent } from './simple-list-helpers'
 
 type CollectionListItem = { slug: string; name: string }
 
 interface CollectionsListResponse {
   collections: CollectionListItem[]
-}
-
-function parseTitleFromContent(content: string): string | null {
-  for (const line of content.split('\n')) {
-    if (line.startsWith('# ')) {
-      return line.slice(2).trim()
-    }
-  }
-  return null
 }
 
 export async function handleListCollections(): Promise<Response> {

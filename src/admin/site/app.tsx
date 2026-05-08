@@ -11,7 +11,7 @@ import { ArchidektLogin } from './pages/ArchidektLogin'
 import { Settings } from './pages/Settings'
 import { AuditLog } from './pages/AuditLog'
 import { DeckEditor } from './pages/DeckEditor'
-import { DeckManager } from './pages/DeckManager'
+import { ListManager } from './pages/ListManager'
 import { CollectionEditor } from './pages/CollectionEditor'
 import { WantedListEditor } from './pages/WantedListEditor'
 
@@ -93,8 +93,8 @@ function App() {
             <Match when={page() === 'deck-editor'}>
               <DeckEditor />
             </Match>
-            <Match when={page() === 'deck-manager'}>
-              <DeckManager />
+            <Match when={page() === 'list-manager'}>
+              <ListManager />
             </Match>
             <Match when={page() === 'collection-editor'}>
               <CollectionEditor />

@@ -1,20 +1,12 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getWantedDir } from '../../ritual-config'
+import { parseTitleFromContent } from './simple-list-helpers'
 
 type WantedListItem = { slug: string; name: string }
 
 interface WantedListsListResponse {
   wantedLists: WantedListItem[]
-}
-
-function parseTitleFromContent(content: string): string | null {
-  for (const line of content.split('\n')) {
-    if (line.startsWith('# ')) {
-      return line.slice(2).trim()
-    }
-  }
-  return null
 }
 
 export async function handleListWantedLists(): Promise<Response> {

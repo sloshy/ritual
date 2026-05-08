@@ -3,7 +3,6 @@
 ## Admin Site
 
 - Add "quick add" feature that works like CLI collection prompts UI but for the browser.
-- Add ability to add new decks or collection files (or wanted lists once those are implemented).
 - Add default settings for adding new cards (like the collection CLI) for edit deck/collection pages.
 
 ## Public Site
@@ -21,10 +20,6 @@
 - Allow exporting deck information to be used by other tooling
 - Add scryfall interactive mode
 - Add interactive deck builder
-
-## Dist
-
-- Distribute on NPM (?)
 
 ## Misc
 

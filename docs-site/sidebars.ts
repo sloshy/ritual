@@ -83,7 +83,7 @@ const sidebars: SidebarsConfig = {
         description: 'Documentation for the Ritual admin interface.',
         slug: '/admin',
       },
-      items: ['admin/editors', 'admin/deck-manager', 'admin/api'],
+      items: ['admin/editors', 'admin/manage-lists', 'admin/api'],
     },
     'development',
   ],

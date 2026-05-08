@@ -36,7 +36,7 @@ Create a new deck file. The slug is auto-generated from the name.
 {
   "success": true,
   "message": "Created deck 'My Commander Deck'",
-  "slug": "my-commander-deck"
+  "slug": "My Commander Deck"
 }
 ```
 
@@ -62,7 +62,7 @@ Rename a deck. Updates the frontmatter `name` field and renames the file to matc
 {
   "success": true,
   "message": "Renamed deck to 'New Deck Name'",
-  "newSlug": "new-deck-name"
+  "newSlug": "New Deck Name"
 }
 ```
 
@@ -286,6 +286,83 @@ Save collection changes. Writes the updated collection file and creates a change
 }
 ```
 
+## Create Collection
+
+```
+POST /api/collection/create
+```
+
+Create a new collection file. The slug is derived from the name.
+
+**Request Body:**
+
+```json
+{
+  "name": "My Collection"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Created collection 'My Collection'",
+  "slug": "My Collection"
+}
+```
+
+## Rename Collection
+
+```
+POST /api/collection/:slug/rename
+```
+
+Rename a collection. Replaces the first `# <Title>` line in the file and renames both the `.md` and any `.changes.md` sidecar.
+
+**Request Body:**
+
+```json
+{
+  "newName": "Renamed Collection"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Renamed collection to 'Renamed Collection'",
+  "newSlug": "Renamed Collection"
+}
+```
+
+## Delete Collection
+
+```
+DELETE /api/collection/:slug
+```
+
+Delete a collection file (and its `.changes.md` sidecar if present). Requires `confirmName` to match the parsed `# Title` exactly.
+
+**Request Body:**
+
+```json
+{
+  "confirmName": "My Collection"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Deleted collection 'My Collection'"
+}
+```
+
 ## List Wanted Lists
 
 ```
@@ -346,5 +423,82 @@ Save wanted list changes. Writes the updated wanted list file and appends to the
 {
   "success": true,
   "message": "Saved 3 changes to high-priority"
+}
+```
+
+## Create Wanted List
+
+```
+POST /api/wanted/create
+```
+
+Create a new wanted list file.
+
+**Request Body:**
+
+```json
+{
+  "name": "Holiday Wishlist"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Created wanted list 'Holiday Wishlist'",
+  "slug": "Holiday Wishlist"
+}
+```
+
+## Rename Wanted List
+
+```
+POST /api/wanted/:slug/rename
+```
+
+Rename a wanted list. Replaces the first `# <Title>` line in the file and renames both the `.md` and any `.changes.md` sidecar.
+
+**Request Body:**
+
+```json
+{
+  "newName": "Renamed Wishlist"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Renamed wanted list to 'Renamed Wishlist'",
+  "newSlug": "Renamed Wishlist"
+}
+```
+
+## Delete Wanted List
+
+```
+DELETE /api/wanted/:slug
+```
+
+Delete a wanted list file (and its `.changes.md` sidecar if present). Requires `confirmName` to match the parsed `# Title` exactly.
+
+**Request Body:**
+
+```json
+{
+  "confirmName": "Holiday Wishlist"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Deleted wanted list 'Holiday Wishlist'"
 }
 ```

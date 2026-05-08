@@ -16,12 +16,6 @@ const actions: ActionCard[] = [
     icon: '✏️',
   },
   {
-    id: 'deck-manager',
-    title: 'Deck Manager',
-    description: 'Create, rename, and delete decks',
-    icon: '🗂️',
-  },
-  {
     id: 'collection-editor',
     title: 'Collection Editor',
     description: 'Edit collection contents and cards',
@@ -32,6 +26,12 @@ const actions: ActionCard[] = [
     title: 'Wanted List Editor',
     description: 'Edit wanted card lists',
     icon: '🎯',
+  },
+  {
+    id: 'list-manager',
+    title: 'Manage Lists',
+    description: 'Create, rename, and delete decks, collections, and wanted lists',
+    icon: '🗂️',
   },
   {
     id: 'import-deck',
