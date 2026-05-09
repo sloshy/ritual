@@ -1,9 +1,5 @@
 # TODO
 
-## Admin Site
-
-- Add "quick add" feature that works like CLI collection prompts UI but for the browser.
-
 ## Public Site
 
 - Add more filtering options (scryfall syntax?)
@@ -23,7 +19,6 @@
 ## Misc
 
 - Multi-language support
-- Add note to existing card (separate command)
 - Fix colors of index price text
 - If a card has no price, display "N/A" in the price font style
 - Add "last updated" timestamp to collection and deck files, and display this in the UI
