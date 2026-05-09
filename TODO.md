@@ -3,7 +3,6 @@
 ## Admin Site
 
 - Add "quick add" feature that works like CLI collection prompts UI but for the browser.
-- Add default settings for adding new cards (like the collection CLI) for edit deck/collection pages.
 
 ## Public Site
 
