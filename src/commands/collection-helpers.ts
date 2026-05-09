@@ -8,6 +8,7 @@ import { capitalize } from '../utils'
 import { VALID_FINISHES, VALID_CONDITIONS, isFinish, isCondition } from '../finish-condition'
 import { writeFileWithHash, saveHash, computeHash } from '../content-hash'
 import { getCollectionsDir } from '../ritual-config'
+import { parseSetCodesInput } from '../set-codes'
 
 export { VALID_FINISHES, VALID_CONDITIONS, isFinish, isCondition }
 
@@ -279,11 +280,7 @@ export async function promptConfigUpdate(
       name: 'sets',
       message: 'Filter by Set Codes (comma separated, e.g. "ECL, ECC"):',
       initial: sessionConfig.sets ? sessionConfig.sets.join(', ') : '',
-      format: (val) =>
-        val
-          .split(',')
-          .map((s: string) => s.trim().toLowerCase())
-          .filter((s: string) => s.length > 0),
+      format: (val) => parseSetCodesInput(val),
     },
     {
       type: 'select',

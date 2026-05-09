@@ -3,7 +3,8 @@ import { createSignal, createEffect, createMemo, onCleanup, Show, For } from 'so
 import type { Finish, Condition, ScryfallCard } from '../../../types'
 import type { CardPrintingOptions } from '../../../change-event'
 import { getCardImageUrl } from '../card-utils'
-import { isFinish } from '../../../finish-condition'
+import { isFinish, VALID_CONDITIONS } from '../../../finish-condition'
+import type { EditorDefaults } from '../hooks/useEditorDefaults'
 
 type CardSearchModalProps = {
   open: boolean
@@ -15,6 +16,18 @@ type CardSearchModalProps = {
     allPrintings?: ScryfallCard[],
   ) => void
   requirePrinting?: boolean
+  /**
+   * Defaults applied to printing filtering and finish/condition pre-selection.
+   * The defaults' `kind` also drives whether condition is tracked at all
+   * (wanted lists do not).
+   */
+  defaults?: EditorDefaults
+}
+
+type AddOptionsInput = {
+  printing: ScryfallCard
+  finish: Finish
+  condition: Condition | undefined
 }
 
 type Step = 'search' | 'printing' | 'finish-condition'
@@ -25,8 +38,6 @@ type PreviewCard = {
   name: string
   imageUrl: string
 }
-
-const CONDITIONS = ['NM', 'LP', 'MP', 'HP', 'DMG'] as const
 
 function getCheapestPrinting(printings: ScryfallCard[]): ScryfallCard | undefined {
   const sorted = [...printings].sort((a, b) => {
@@ -60,6 +71,27 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   const [printingsPage, setPrintingsPage] = createSignal(0)
   const [loadingPrintings, setLoadingPrintings] = createSignal(false)
 
+  // Tracks whether the set filter was applied to the current `printings()` value,
+  // and whether it had to fall back because no printings matched.
+  const [setFilterFellBack, setSetFilterFellBack] = createSignal(false)
+
+  // Derived: whether this list type tracks card condition. Wanted lists do not.
+  // Falls back to `requirePrinting` for legacy callers that pass no defaults
+  // (collections require printing AND condition; decks/wanted opt out).
+  const usesCondition = createMemo(() => {
+    const d = props.defaults
+    if (d) return d.kind !== 'wanted'
+    return props.requirePrinting ?? true
+  })
+
+  // Pull the defaulted condition (if any). Encapsulates the kind narrowing so
+  // it doesn't have to be repeated at each read site.
+  const defaultCondition = (): Condition | undefined => {
+    const d = props.defaults
+    if (!d || d.kind === 'wanted') return undefined
+    return d.condition
+  }
+
   const totalPrintingsPages = createMemo(() => Math.ceil(printings().length / PRINTING_PAGE_SIZE))
   const paginatedPrintings = createMemo(() =>
     printings().slice(
@@ -67,6 +99,68 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       (printingsPage() + 1) * PRINTING_PAGE_SIZE,
     ),
   )
+
+  /**
+   * Apply the set-code default to a list of printings. If the filter excludes
+   * everything, fall back to the unfiltered list and surface a hint.
+   */
+  const applySetFilter = (allPrintings: ScryfallCard[]): ScryfallCard[] => {
+    const filterSets = props.defaults?.sets ?? []
+    if (filterSets.length === 0) {
+      setSetFilterFellBack(false)
+      return allPrintings
+    }
+    const filtered = allPrintings.filter((p) => filterSets.includes(p.set.toLowerCase()))
+    if (filtered.length === 0) {
+      setSetFilterFellBack(true)
+      return allPrintings
+    }
+    setSetFilterFellBack(false)
+    return filtered
+  }
+
+  /**
+   * Decide whether the finish/condition step can be skipped given the printing
+   * and the active defaults. Returns the resolved options when skip is safe.
+   *
+   * Skip rules:
+   * - Finish answered when the user's default applies, or the printing has exactly
+   *   one nonfoil-only finish (matching the legacy auto-skip behavior).
+   * - Condition answered when the user's default applies, or this list type
+   *   doesn't track condition (wanted lists), or the legacy "no specific printing
+   *   required" path supplies the NM default for decks.
+   */
+  const resolveAutoOptions = (printing: ScryfallCard): AddOptionsInput | null => {
+    const availableFinishes = printing.finishes.filter(isFinish)
+
+    let finish: Finish | undefined
+    if (props.defaults?.finish && availableFinishes.includes(props.defaults.finish)) {
+      finish = props.defaults.finish
+    } else if (
+      availableFinishes.length === 1 &&
+      !availableFinishes.some((f) => f === 'foil' || f === 'etched')
+    ) {
+      finish = availableFinishes[0]
+    }
+
+    if (finish === undefined) return null
+
+    const conditionDefault = defaultCondition()
+    let condition: Condition | undefined
+    if (conditionDefault !== undefined) {
+      condition = conditionDefault
+    } else if (!usesCondition()) {
+      condition = undefined
+    } else if (!props.requirePrinting) {
+      // Legacy path for decks: condition is optional and defaults to NM.
+      condition = 'NM'
+    } else {
+      // Collections require an explicit condition; without a default we cannot skip.
+      return null
+    }
+
+    return { printing, finish, condition }
+  }
 
   // Step 3: Finish & condition
   const [selectedPrinting, setSelectedPrinting] = createSignal<ScryfallCard | null>(null)
@@ -93,8 +187,9 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       setPrintingsPage(0)
       setLoadingPrintings(false)
       setSelectedPrinting(null)
-      setSelectedFinish('nonfoil')
-      setSelectedCondition('NM')
+      setSelectedFinish(props.defaults?.finish ?? 'nonfoil')
+      setSelectedCondition(defaultCondition() ?? 'NM')
+      setSetFilterFellBack(false)
       typedQuery = ''
     }
   })
@@ -195,7 +290,23 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
         credentials: 'same-origin',
       })
       const data = (await resp.json()) as { success: boolean; printings: ScryfallCard[] }
-      if (data.success) setPrintings(data.printings)
+      if (data.success) {
+        const filtered = applySetFilter(data.printings)
+        setPrintings(filtered)
+        // When the set-code default narrows to a single matching printing AND no
+        // fallback was triggered, auto-advance with that printing — this is the
+        // batch-entry shortcut that mirrors the CLI's session filters.
+        if (
+          filtered.length === 1 &&
+          !setFilterFellBack() &&
+          (props.defaults?.sets.length ?? 0) > 0
+        ) {
+          const only = filtered[0]!
+          // Synchronous — SolidJS batches subsequent state changes (incl. setStep)
+          // before the next render, so the printing step never visibly mounts.
+          selectPrinting(only, data.printings)
+        }
+      }
     } catch {
       // Silently ignore
     } finally {
@@ -203,48 +314,47 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     }
   }
 
-  // Select a printing → add directly or move to finish/condition step
-  const selectPrinting = (printing: ScryfallCard | null) => {
+  // Select a printing → add directly or move to finish/condition step.
+  // `unfilteredPrintings` is the full list to surface to the consumer, used when the
+  // grid was narrowed by the set-code default but the parent still wants the full set.
+  const selectPrinting = (printing: ScryfallCard | null, unfilteredPrintings?: ScryfallCard[]) => {
+    const allPrintings = unfilteredPrintings ?? printings()
     if (!printing) {
-      const currentPrintings = printings()
-      const cheapest =
-        currentPrintings.length > 0 ? getCheapestPrinting(currentPrintings) : undefined
-      props.onAddCard(selectedCardName(), undefined, cheapest, currentPrintings)
+      const cheapest = allPrintings.length > 0 ? getCheapestPrinting(allPrintings) : undefined
+      props.onAddCard(selectedCardName(), undefined, cheapest, allPrintings)
       props.onClose()
       return
     }
 
-    const needsFinishStep =
-      printing.finishes.length > 1 || printing.finishes.some((f) => f === 'foil' || f === 'etched')
-
-    if (!needsFinishStep && !props.requirePrinting) {
+    const auto = resolveAutoOptions(printing)
+    if (auto) {
       props.onAddCard(
         selectedCardName(),
         {
-          set: printing.set,
-          collectorNumber: printing.collector_number,
-          finish:
-            printing.finishes[0] !== undefined && isFinish(printing.finishes[0])
-              ? printing.finishes[0]
-              : 'nonfoil',
-          condition: 'NM',
+          set: auto.printing.set,
+          collectorNumber: auto.printing.collector_number,
+          finish: auto.finish,
+          condition: auto.condition,
         },
-        printing,
-        printings(),
+        auto.printing,
+        allPrintings,
       )
       props.onClose()
       return
     }
 
+    // Fall through to the finish/condition step — pre-fill from defaults where
+    // possible so the user only confirms unspecified fields.
     setSelectedPrinting(printing)
-    setSelectedFinish(
-      printing.finishes.includes('nonfoil')
-        ? 'nonfoil'
-        : printing.finishes[0] !== undefined && isFinish(printing.finishes[0])
-          ? printing.finishes[0]
-          : 'nonfoil',
-    )
-    setSelectedCondition('NM')
+    const availableFinishes = printing.finishes.filter(isFinish)
+    const preferredFinish: Finish | undefined =
+      props.defaults?.finish && availableFinishes.includes(props.defaults.finish)
+        ? props.defaults.finish
+        : availableFinishes.includes('nonfoil')
+          ? 'nonfoil'
+          : availableFinishes[0]
+    setSelectedFinish(preferredFinish ?? 'nonfoil')
+    setSelectedCondition(defaultCondition() ?? 'NM')
     setStep('finish-condition')
   }
 
@@ -356,7 +466,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
         set: printing.set,
         collectorNumber: printing.collector_number,
         finish: selectedFinish(),
-        condition: selectedCondition(),
+        condition: usesCondition() ? selectedCondition() : undefined,
       },
       printing,
       printings(),
@@ -454,6 +564,13 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                   when={!loadingPrintings()}
                   fallback={<div class="empty-state">Loading printings…</div>}
                 >
+                  <Show when={setFilterFellBack()}>
+                    <div class="search-modal-hint">
+                      No printings match the set filter (
+                      {props.defaults?.sets.map((s) => s.toUpperCase()).join(', ')}). Showing all
+                      printings.
+                    </div>
+                  </Show>
                   <div class="printing-select-grid">
                     <Show when={!props.requirePrinting && printingsPage() === 0}>
                       <button
@@ -564,27 +681,29 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                       </div>
                     </Show>
 
-                    <div class="finish-condition-section">
-                      <h4>Condition</h4>
-                      <div class="radio-group">
-                        <For each={CONDITIONS}>
-                          {(condition) => (
-                            <label
-                              class={`radio-option${selectedCondition() === condition ? ' radio-option--selected' : ''}`}
-                            >
-                              <input
-                                type="radio"
-                                name="condition"
-                                value={condition}
-                                checked={selectedCondition() === condition}
-                                onChange={() => setSelectedCondition(condition)}
-                              />
-                              {condition}
-                            </label>
-                          )}
-                        </For>
+                    <Show when={usesCondition()}>
+                      <div class="finish-condition-section">
+                        <h4>Condition</h4>
+                        <div class="radio-group">
+                          <For each={VALID_CONDITIONS}>
+                            {(condition) => (
+                              <label
+                                class={`radio-option${selectedCondition() === condition ? ' radio-option--selected' : ''}`}
+                              >
+                                <input
+                                  type="radio"
+                                  name="condition"
+                                  value={condition}
+                                  checked={selectedCondition() === condition}
+                                  onChange={() => setSelectedCondition(condition)}
+                                />
+                                {condition}
+                              </label>
+                            )}
+                          </For>
+                        </div>
                       </div>
-                    </div>
+                    </Show>
 
                     <button onClick={handleAddWithOptions} class="btn-add-card">
                       Add Card

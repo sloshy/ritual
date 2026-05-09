@@ -8,6 +8,7 @@ import { getAllCardNames } from '../scryfall'
 import { isFinish, VALID_FINISHES, type SessionConfig } from './collection-helpers'
 import { writeFileWithHash } from '../content-hash'
 import { getWantedDir } from '../ritual-config'
+import { parseSetCodesInput } from '../set-codes'
 
 export type WantedListEntry = {
   name: string
@@ -171,11 +172,7 @@ export async function promptWantedListConfigUpdate(
       name: 'sets',
       message: 'Filter by Set Codes (comma separated, e.g. "ECL, ECC"):',
       initial: sessionConfig.sets ? sessionConfig.sets.join(', ') : '',
-      format: (val) =>
-        val
-          .split(',')
-          .map((s: string) => s.trim().toLowerCase())
-          .filter((s: string) => s.length > 0),
+      format: (val) => parseSetCodesInput(val),
     },
     {
       type: 'select',

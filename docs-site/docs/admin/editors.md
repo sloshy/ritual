@@ -18,6 +18,28 @@ Each card displays **+** and **−** buttons to add or remove copies. Reducing a
 
 In binder and overlap views, these appear as transparent overlay buttons on hover. In list view, they appear inline.
 
+### Add Card Defaults
+
+Each editor has a collapsible **Add Card Defaults** panel between the file selector and the editor content. It mirrors the session filters in the CLI's `collection`, `wanted`, and `add-card` commands and is intended for batch entry — set defaults once, then add many cards in a row without confirming the same fields each time.
+
+The available defaults vary per editor:
+
+| Field     | Deck Editor   | Collection Editor | Wanted List Editor |
+| --------- | ------------- | ----------------- | ------------------ |
+| Set codes | ✅ Comma-list | ✅ Comma-list     | ✅ Comma-list      |
+| Finish    | ✅            | ✅                | ✅                 |
+| Condition | ✅            | ✅                | ❌ Not applicable  |
+
+Defaults are scoped per-editor and persist across reloads in `localStorage` under `ritual:admin:defaults:{deck,collection,wanted}`.
+
+#### How defaults change the add-card flow
+
+- **Set codes filter** — When set, the printing picker shows only matching printings. If exactly one printing matches, it is auto-selected and the picker step is skipped. If no printings match, the picker falls back to showing all printings with a hint banner.
+- **Default finish** — Pre-selected on the finish/condition step. If the chosen printing supports the default finish, that step is skipped entirely.
+- **Default condition** — Pre-selected on the finish/condition step. The step is skipped only when both finish and condition can be resolved.
+
+When a default cannot be applied (e.g. the chosen printing doesn't support the default finish, or no condition default is set on the Collection Editor) the finish/condition step still appears but the inputs are pre-filled.
+
 ### Adding Cards
 
 Click the **+ Add Card** button in the header to open the card search modal.
@@ -137,3 +159,4 @@ Wanted lists correspond to `.md` files in the `wanted/` directory.
 | Finish field             | ✅ Optional | ✅ Required       | ✅ Optional        |
 | Sections (Commander etc) | ✅ Yes      | ❌ Flat list      | ❌ Flat list       |
 | Changelog on save        | ✅          | ✅                | ✅                 |
+| Add Card Defaults        | ✅ Set/F/C  | ✅ Set/F/C        | ✅ Set/F           |

@@ -7,6 +7,7 @@ import { collectExistingIds } from '../../../card-id'
 import { WantedListPage } from '../../../site/WantedListPage'
 import { useEntryCardData } from '../hooks/useEntryCardData'
 import { useEditor } from '../hooks/useEditor'
+import { useEditorDefaults } from '../hooks/useEditorDefaults'
 import { applyChangeToWantedList } from '../types/wanted-changes'
 import { CardContextMenu } from '../components/CardContextMenu'
 import { EditorShell } from '../components/EditorShell'
@@ -26,6 +27,7 @@ type WantedListDataResponse = {
 export function WantedListEditor() {
   const [cardData, cardActions] = useEntryCardData()
   const [modalCardKey, setModalCardKey] = createSignal<string | null>(null)
+  const defaults = useEditorDefaults('wanted')
 
   const config: EditorConfig<WantedListCardEntry[]> = {
     listEndpoint: '/api/wanted',
@@ -151,6 +153,7 @@ export function WantedListEditor() {
       editor={editor}
       cardData={cardData}
       requirePrinting={false}
+      defaults={defaults}
       contextMenu={
         <Show when={editor.contextMenuCard()}>
           {(menu) => (
