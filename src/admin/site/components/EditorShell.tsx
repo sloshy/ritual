@@ -1,10 +1,12 @@
 import { type JSX, Show, For } from 'solid-js'
 import type { ScryfallCard } from '../../../types'
 import type { UseEditorResult, ListItem } from '../hooks/useEditor'
+import type { UseEditorDefaultsResult } from '../hooks/useEditorDefaults'
 import { ChangesDialog } from './ChangesDialog'
 import { DiscardConfirmDialog } from './DiscardConfirmDialog'
 import { CardSearchModal } from './CardSearchModal'
 import { EditorActionBar } from './EditorActionBar'
+import { EditorDefaultsBar } from './EditorDefaultsBar'
 
 type BaseCardData = {
   cards: Record<string, ScryfallCard | null>
@@ -20,6 +22,11 @@ type EditorShellProps<TData, TCardEntry> = {
   editor: UseEditorResult<TData, TCardEntry>
   cardData: BaseCardData
   requirePrinting?: boolean
+  /**
+   * Defaults state for batch card entry. The `kind` field also drives whether
+   * condition is tracked (wanted lists do not).
+   */
+  defaults: UseEditorDefaultsResult
   contextMenu?: JSX.Element
   children: JSX.Element
 }
@@ -49,6 +56,12 @@ export function EditorShell<TData, TCardEntry>(props: EditorShellProps<TData, TC
         </select>
       </div>
 
+      {/* Add-card defaults */}
+      <EditorDefaultsBar
+        defaults={props.defaults}
+        showCondition={props.defaults.kind !== 'wanted'}
+      />
+
       {/* Status messages */}
       <Show when={editor.status.error}>
         <div class="alert alert-error">{editor.status.error}</div>
@@ -72,6 +85,7 @@ export function EditorShell<TData, TCardEntry>(props: EditorShellProps<TData, TC
         onClose={editor.dialogs.closeSearchModal}
         onAddCard={editor.handleAddCardFromSearch}
         requirePrinting={props.requirePrinting}
+        defaults={props.defaults.defaults()}
       />
 
       {/* Changes dialog */}

@@ -7,6 +7,7 @@ import { collectDeckCardIds } from '../../../card-id'
 import { DeckPage } from '../../../site/DeckPage'
 import { useDeckCardData } from '../hooks/useDeckCardData'
 import { useEditor } from '../hooks/useEditor'
+import { useEditorDefaults } from '../hooks/useEditorDefaults'
 import { applyChangeToDeck } from '../types/deck-changes'
 import { CardContextMenu } from '../components/CardContextMenu'
 import { EditorShell } from '../components/EditorShell'
@@ -88,6 +89,7 @@ export function DeckEditor() {
   const [cardData, cardActions] = useDeckCardData()
   const [modalCardName, setModalCardName] = createSignal<string | null>(null)
   const [deckContextMenu, setDeckContextMenu] = createSignal<DeckContextMenuState | null>(null)
+  const defaults = useEditorDefaults('deck')
 
   const config: EditorConfig<DeckData> = {
     listEndpoint: '/api/decks',
@@ -239,6 +241,7 @@ export function DeckEditor() {
       selectorPlaceholder="Choose a deck"
       editor={editor}
       cardData={cardData}
+      defaults={defaults}
       contextMenu={
         <Show when={deckContextMenu()}>
           {(menu) => (

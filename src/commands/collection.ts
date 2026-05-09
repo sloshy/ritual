@@ -25,6 +25,7 @@ import { allocateNextIdFromContent } from '../card-id'
 import { trackAdd, trackEdit, trackAnotherCopy } from '../session-changelog'
 import { appendFileWithHash, writeFileWithHash } from '../content-hash'
 import { formatSpecificPrintingPrice } from '../price-currency'
+import { parseSetCodesInput } from '../set-codes'
 
 export function registerCollectionCommand(program: Command) {
   program
@@ -37,12 +38,7 @@ export function registerCollectionCommand(program: Command) {
     .option('--collector', 'Start in collector number mode')
     .option('--allow-digital-only-cards', 'Include digital-only sets (e.g., Alchemy)')
     .action(async (options) => {
-      const parsedSets = options.sets
-        ? options.sets
-            .split(',')
-            .map((s: string) => s.trim().toLowerCase())
-            .filter((s: string) => s.length > 0)
-        : undefined
+      const parsedSets = options.sets ? parseSetCodesInput(options.sets) : undefined
       const excludeDigitalOnly = !options.allowDigitalOnlyCards
 
       console.log('Loading card database for autocomplete...')
@@ -425,10 +421,7 @@ export function registerCollectionCommand(program: Command) {
 
             if (!setsResponse.sets) continue
 
-            const setCodes = setsResponse.sets
-              .split(',')
-              .map((s: string) => s.trim().toLowerCase())
-              .filter((s: string) => s.length > 0)
+            const setCodes = parseSetCodesInput(setsResponse.sets)
 
             console.log('Loading set data...')
             for (const setCode of setCodes) {

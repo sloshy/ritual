@@ -7,6 +7,7 @@ import { collectExistingIds } from '../../../card-id'
 import { CollectionPage } from '../../../site/CollectionPage'
 import { useEntryCardData } from '../hooks/useEntryCardData'
 import { useEditor } from '../hooks/useEditor'
+import { useEditorDefaults } from '../hooks/useEditorDefaults'
 import { applyChangeToCollection } from '../types/collection-changes'
 import { CardContextMenu } from '../components/CardContextMenu'
 import { EditorShell } from '../components/EditorShell'
@@ -26,6 +27,7 @@ type CollectionDataResponse = {
 export function CollectionEditor() {
   const [cardData, cardActions] = useEntryCardData()
   const [modalCardKey, setModalCardKey] = createSignal<string | null>(null)
+  const defaults = useEditorDefaults('collection')
 
   const config: EditorConfig<CollectionCardEntry[]> = {
     listEndpoint: '/api/collections',
@@ -150,6 +152,7 @@ export function CollectionEditor() {
       editor={editor}
       cardData={cardData}
       requirePrinting={true}
+      defaults={defaults}
       contextMenu={
         <Show when={editor.contextMenuCard()}>
           {(menu) => (
