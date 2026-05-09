@@ -7,6 +7,7 @@ import { DeckPage } from './DeckPage'
 import { CollectionPage } from './CollectionPage'
 import { WantedListPage } from './WantedListPage'
 import { TradePage } from './TradePage'
+import { QuickSwitch, useQuickSwitchShortcut } from './QuickSwitch'
 import { useRouting } from './useRouting'
 import { useSiteData } from './useSiteData'
 import { useFetchJson } from './useFetchJson'
@@ -28,8 +29,22 @@ function App() {
   // Card modal state
   const [modalCard, setModalCard] = createSignal<string | null>(null)
 
-  // Reset modal on route changes
-  createEffect(on(route, () => setModalCard(null), { defer: true }))
+  // Quick switch dialog state
+  const [quickSwitchOpen, setQuickSwitchOpen] = createSignal(false)
+
+  useQuickSwitchShortcut(() => setQuickSwitchOpen((v) => !v))
+
+  // Reset modal and quick switch on route changes
+  createEffect(
+    on(
+      route,
+      () => {
+        setModalCard(null)
+        setQuickSwitchOpen(false)
+      },
+      { defer: true },
+    ),
+  )
 
   const activeTab = createMemo(() => {
     const r = route()
@@ -150,6 +165,22 @@ function App() {
             Trade
           </a>
         </nav>
+        <button
+          type="button"
+          class="quick-switch-trigger"
+          aria-label="Open quick switch (Ctrl+K)"
+          title="Quick switch (Ctrl+K)"
+          onClick={() => setQuickSwitchOpen(true)}
+        >
+          <span class="quick-switch-trigger-icon" aria-hidden="true">
+            ⌕
+          </span>
+          <span class="quick-switch-trigger-label">Quick switch</span>
+          <span class="quick-switch-trigger-kbd" aria-hidden="true">
+            <kbd>Ctrl</kbd>
+            <kbd>K</kbd>
+          </span>
+        </button>
         <div class="currency-selector">
           <label class="currency-label">Prices:</label>
           <select
@@ -299,6 +330,16 @@ function App() {
         </p>
       </footer>
 
+      <QuickSwitch
+        open={quickSwitchOpen()}
+        onClose={() => setQuickSwitchOpen(false)}
+        decks={deckList}
+        collections={collectionList}
+        wantedLists={wantedListList}
+        currency={currency}
+        useScryfallImgUrls={useScryfallImgUrls}
+      />
+
       <Show when={tradeToast()}>
         {(t) => (
           <div class="trade-add-toast" aria-live="polite">
@@ -321,7 +362,11 @@ function LoadingSpinner() {
   )
 }
 
-function ErrorMessage(props: { message: string }) {
+interface ErrorMessageProps {
+  message: string
+}
+
+function ErrorMessage(props: ErrorMessageProps) {
   return <div class="error-container">{props.message}</div>
 }
 

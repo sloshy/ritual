@@ -172,6 +172,29 @@ Use `--yes` to skip the prompt and always accept the redownload when the thresho
 ./ritual build-site --yes
 ```
 
+## Quick Switch
+
+A **Quick switch** button (centered in the site header on desktop, right-aligned on mobile) opens a command-palette-style dialog for jumping between any deck, collection, or wanted list on the site. The same dialog also opens with the keyboard shortcut **Ctrl+K** (or **Cmd+K** on macOS).
+
+When the search field is empty, the dialog lists every deck, collection, and wanted list. As soon as you start typing, results are grouped into four priority tiers:
+
+1. **Lists** — matches against deck, collection, and wanted-list names (highest priority).
+2. **Commanders** — matches against the commander of any deck. Selecting one opens the deck containing that commander.
+3. **Cards** — matches against the name of any card in any list. Selecting one opens the list containing that card. The same card can produce multiple entries (one per containing list), and each row identifies the destination list in its subtitle.
+4. **Printings** — matches against the `set:collector` code of any card (e.g. `mkm:42`). The set:collector code is shown as the primary label (uppercased, e.g. `MKM:42`) and the card's name appears alongside in muted italics for context. Selecting one opens the list containing that printing.
+
+Each row shows a thumbnail (the list's featured art for list rows, the card art for commander and card rows), a kind tag (`Deck` / `Collection` / `Wanted` / `Commander` / `Card`), and the destination context. Commander and card matches require per-list detail data; the dialog pre-fetches that data the first time it opens, so card matches start appearing once the data has loaded.
+
+Keyboard controls inside the dialog:
+
+| Key                         | Action                      |
+| --------------------------- | --------------------------- |
+| <kbd>↑</kbd> / <kbd>↓</kbd> | Move the highlighted result |
+| <kbd>Enter</kbd>            | Open the highlighted entry  |
+| <kbd>Esc</kbd>              | Close the dialog            |
+
+Clicking a result also opens it. Clicking the darkened backdrop closes the dialog. The dialog closes automatically after navigation.
+
 ## Card Detail Modal
 
 Both deck and collection pages share a unified card detail modal. Clicking any card opens a modal showing:

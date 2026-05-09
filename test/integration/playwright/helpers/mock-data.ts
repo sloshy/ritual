@@ -1,4 +1,10 @@
 import type { Page, Route } from '@playwright/test'
+import type {
+  CollectionDetail,
+  DeckDetail,
+  SiteIndex,
+  WantedListDetail,
+} from '../../../../src/site/data-types'
 
 type MockDeck = {
   slug: string
@@ -1289,6 +1295,164 @@ export async function mockPublicSiteForTrade(page: Page): Promise<void> {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ data, not_found: [] }),
+    })
+  })
+}
+
+const MOCK_SITE_INDEX_FOR_QUICK_SWITCH: SiteIndex = {
+  decks: [
+    {
+      slug: 'azorius-control',
+      name: 'Azorius Control',
+      featuredCardImage: '',
+      commander: 'Teferi, Hero of Dominaria',
+      cardCount: 60,
+      totalPrice: 250.5,
+      totalPriceEur: 0,
+      totalPriceTix: 0,
+    },
+    {
+      slug: 'mono-red-aggro',
+      name: 'Mono Red Aggro',
+      featuredCardImage: '',
+      commander: null,
+      cardCount: 60,
+      totalPrice: 80,
+      totalPriceEur: 0,
+      totalPriceTix: 0,
+    },
+  ],
+  collections: [
+    {
+      slug: 'main-binder',
+      name: 'Main Binder',
+      featuredCardImage: '',
+      cardCount: 423,
+      totalPrice: 1240.75,
+      totalPriceEur: 0,
+      totalPriceTix: 0,
+    },
+  ],
+  wantedLists: [
+    {
+      slug: 'high-priority',
+      name: 'High Priority',
+      featuredCardImage: '',
+      cardCount: 8,
+      totalPrice: 95,
+      totalPriceEur: 0,
+      totalPriceTix: 0,
+    },
+  ],
+  useScryfallImgUrls: false,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+}
+
+const MOCK_QUICK_SWITCH_DECK_AZORIUS = {
+  deck: {
+    name: 'Azorius Control',
+    sections: [
+      {
+        name: 'Main',
+        cards: [{ quantity: 1, name: 'Counterspell', set: 'mh2', collectorNumber: '267' }],
+      },
+    ],
+  },
+  cards: { Counterspell: null, 'Teferi, Hero of Dominaria': null },
+  printings: {},
+  symbolMap: {},
+  exportPath: '',
+  useScryfallImgUrls: false,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+  missingCards: { usd: [], eur: [], tix: [] },
+} satisfies DeckDetail
+
+const MOCK_QUICK_SWITCH_DECK_MONO_RED = {
+  deck: {
+    name: 'Mono Red Aggro',
+    sections: [
+      {
+        name: 'Main',
+        cards: [{ quantity: 4, name: 'Lightning Bolt', set: 'm10', collectorNumber: '146' }],
+      },
+    ],
+  },
+  cards: { 'Lightning Bolt': null, 'Goblin Guide': null },
+  printings: {},
+  symbolMap: {},
+  exportPath: '',
+  useScryfallImgUrls: false,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+  missingCards: { usd: [], eur: [], tix: [] },
+} satisfies DeckDetail
+
+const MOCK_QUICK_SWITCH_COLLECTION_MAIN_BINDER = {
+  name: 'Main Binder',
+  entries: [],
+  cards: {
+    'Sol Ring': null,
+    'Lightning Bolt': null,
+    'mkm:42': null,
+  },
+  printings: {},
+  symbolMap: {},
+  useScryfallImgUrls: false,
+  totalPrice: 1240.75,
+  defaultCurrency: 'usd',
+} satisfies CollectionDetail
+
+const MOCK_QUICK_SWITCH_WANTED_HIGH_PRIORITY = {
+  name: 'High Priority',
+  entries: [],
+  cards: { 'Mana Crypt': null },
+  printings: {},
+  symbolMap: {},
+  useScryfallImgUrls: false,
+  totalPrice: 95,
+  defaultCurrency: 'usd',
+} satisfies WantedListDetail
+
+/**
+ * Mock the public site index.json with two decks, one collection, and one wanted list,
+ * plus their detail JSONs (used by Quick Switch's commander/card pre-fetch).
+ */
+export async function mockPublicSiteForQuickSwitch(page: Page): Promise<void> {
+  await page.route('**/index.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_SITE_INDEX_FOR_QUICK_SWITCH),
+    })
+  })
+  await page.route('**/decks/azorius-control.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_QUICK_SWITCH_DECK_AZORIUS),
+    })
+  })
+  await page.route('**/decks/mono-red-aggro.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_QUICK_SWITCH_DECK_MONO_RED),
+    })
+  })
+  await page.route('**/collections/main-binder.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_QUICK_SWITCH_COLLECTION_MAIN_BINDER),
+    })
+  })
+  await page.route('**/wanted/high-priority.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_QUICK_SWITCH_WANTED_HIGH_PRIORITY),
     })
   })
 }

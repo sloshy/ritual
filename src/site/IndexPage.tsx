@@ -3,7 +3,7 @@ import { For, Show } from 'solid-js'
 import type { DeckSummary, CollectionSummary, WantedListSummary } from './data-types'
 import type { PriceCurrency } from '../price-currency'
 import { formatPriceWithMissing } from '../price-currency'
-import { getCurrencyValue } from './utils'
+import { getSummaryLowestPrice, getSummaryMissingPriceCount, getSummaryTotalPrice } from './utils'
 import { CoverCard } from './CoverCard'
 
 type IndexTab = 'decks' | 'collections' | 'wanted'
@@ -32,20 +32,8 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
                   <For each={props.wantedLists}>
                     {(wl) => {
                       const link = `#/wanted/${wl.slug}`
-                      const total = () =>
-                        getCurrencyValue(
-                          wl.totalPrice,
-                          wl.totalPriceEur,
-                          wl.totalPriceTix,
-                          props.currency,
-                        )
-                      const missing = () =>
-                        getCurrencyValue(
-                          wl.missingPriceCount,
-                          wl.missingPriceCountEur,
-                          wl.missingPriceCountTix,
-                          props.currency,
-                        )
+                      const total = () => getSummaryTotalPrice(wl, props.currency)
+                      const missing = () => getSummaryMissingPriceCount(wl, props.currency)
                       return (
                         <a href={link} class="card-grid-link">
                           <CoverCard
@@ -68,20 +56,8 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
                 <For each={props.collections}>
                   {(col) => {
                     const link = `#/collection/${col.slug}`
-                    const total = () =>
-                      getCurrencyValue(
-                        col.totalPrice,
-                        col.totalPriceEur,
-                        col.totalPriceTix,
-                        props.currency,
-                      )
-                    const missing = () =>
-                      getCurrencyValue(
-                        col.missingPriceCount,
-                        col.missingPriceCountEur,
-                        col.missingPriceCountTix,
-                        props.currency,
-                      )
+                    const total = () => getSummaryTotalPrice(col, props.currency)
+                    const missing = () => getSummaryMissingPriceCount(col, props.currency)
                     return (
                       <a href={link} class="card-grid-link">
                         <CoverCard
@@ -105,27 +81,9 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
             <For each={props.decks}>
               {(deck) => {
                 const link = `#/deck/${deck.slug}`
-                const total = () =>
-                  getCurrencyValue(
-                    deck.totalPrice,
-                    deck.totalPriceEur,
-                    deck.totalPriceTix,
-                    props.currency,
-                  )
-                const lowest = () =>
-                  getCurrencyValue(
-                    deck.lowestPrice,
-                    deck.lowestPriceEur,
-                    deck.lowestPriceTix,
-                    props.currency,
-                  )
-                const missing = () =>
-                  getCurrencyValue(
-                    deck.missingPriceCount,
-                    deck.missingPriceCountEur,
-                    deck.missingPriceCountTix,
-                    props.currency,
-                  )
+                const total = () => getSummaryTotalPrice(deck, props.currency)
+                const lowest = () => getSummaryLowestPrice(deck, props.currency)
+                const missing = () => getSummaryMissingPriceCount(deck, props.currency)
                 return (
                   <a href={link} class="card-grid-link">
                     <CoverCard
