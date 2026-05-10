@@ -1,5 +1,5 @@
 @import '../css/reset.css';
-@import '../css/theme.css';
+@import '../css/theme-base.css';
 @import '../css/shared.css';
 @import './card-styles.css';
 
@@ -386,7 +386,7 @@ body {
   padding: 0.35rem 0.6rem;
   font-size: 0.75rem;
   white-space: nowrap;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 14px var(--overlay-light);
   pointer-events: none;
   z-index: 200;
   animation: trade-copy-toast-in 0.18s ease-out;
@@ -473,10 +473,10 @@ body {
 }
 
 .trade-summary-balance-value.positive {
-  color: oklch(80% 0.14 155);
+  color: var(--success-text);
 }
 .trade-summary-balance-value.negative {
-  color: oklch(80% 0.1 20);
+  color: var(--error-text);
 }
 .trade-summary-balance-value.neutral {
   color: var(--text-secondary);
@@ -488,7 +488,7 @@ body {
 }
 
 .trade-summary-price {
-  color: oklch(70% 0.15 150);
+  color: var(--success-text);
   font-family: var(--font-mono);
   font-weight: 600;
 }
@@ -521,7 +521,7 @@ body {
 .btn-primary {
   background: var(--btn-primary);
   border-color: var(--btn-primary);
-  color: var(--text-primary);
+  color: var(--btn-on-color-text);
 
   &:hover {
     background: var(--btn-primary-hover);
@@ -532,7 +532,7 @@ body {
 .btn-add {
   background: var(--btn-add);
   border-color: var(--btn-add);
-  color: var(--text-primary);
+  color: var(--btn-on-color-text);
 
   &:hover {
     background: var(--btn-add-hover);
@@ -541,14 +541,14 @@ body {
 }
 
 .btn-danger {
-  background: oklch(40% 0.1 20);
-  border-color: oklch(45% 0.12 20);
+  background: var(--error-bg);
+  border-color: var(--error-border);
   color: var(--text-primary);
 
   &:hover {
-    background: oklch(48% 0.13 20);
-    border-color: oklch(55% 0.14 20);
-    color: var(--text-primary);
+    background: var(--error);
+    border-color: var(--error);
+    color: var(--btn-on-color-text);
   }
 }
 
@@ -595,7 +595,7 @@ body {
   white-space: nowrap;
 
   & strong {
-    color: oklch(70% 0.15 150);
+    color: var(--success-text);
     font-weight: 600;
   }
 }
@@ -664,7 +664,7 @@ body {
 
   &:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 2px oklch(75% 0.12 280 / 0.2);
+    box-shadow: 0 0 0 2px color-mix(in oklch, var(--accent) 25%, transparent);
   }
 
   &::placeholder {
@@ -833,7 +833,7 @@ body {
 }
 
 .search-suggest-price {
-  color: oklch(70% 0.15 150);
+  color: var(--success-text);
   font-family: var(--font-mono);
   font-size: 0.75rem;
   font-weight: 600;
@@ -1003,7 +1003,7 @@ body {
     justify-content: center;
     font-size: 0.55rem;
     color: var(--text-dim);
-    background: linear-gradient(135deg, oklch(35% 0.04 260), oklch(22% 0.04 260));
+    background: linear-gradient(135deg, var(--bg-hover), var(--bg-panel));
   }
 }
 
@@ -1116,9 +1116,11 @@ body {
   height: 22px;
 }
 
+/* Yellow pencil-edit icon — kept distinct from the regular text accent so it
+   reads as "edit" across themes; semantically a "warning"-leaning hue. */
 .trade-row-edit {
   border: 1px solid transparent;
-  color: oklch(82% 0.16 90);
+  color: var(--warning-text, oklch(82% 0.16 90));
   font-size: 0.875rem;
   width: 22px;
   height: 22px;
@@ -1130,14 +1132,14 @@ body {
 
   &:hover {
     background: var(--bg-hover);
-    border-color: oklch(82% 0.16 90 / 0.4);
-    color: oklch(88% 0.18 90);
+    border-color: color-mix(in oklch, var(--warning-text, oklch(82% 0.16 90)) 40%, transparent);
+    color: var(--warning-text, oklch(88% 0.18 90));
   }
 }
 
 .trade-row-price {
   text-align: right;
-  color: oklch(70% 0.15 150);
+  color: var(--success-text);
   font-family: var(--font-mono);
   font-size: 0.8125rem;
   white-space: nowrap;
@@ -1180,7 +1182,7 @@ body {
 }
 
 .trade-col-foot-total {
-  color: oklch(70% 0.15 150);
+  color: var(--success-text);
   font-family: var(--font-mono);
   font-weight: 700;
   font-size: 0.9375rem;
@@ -1191,7 +1193,7 @@ body {
   position: fixed;
   inset: 0;
   z-index: 200;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay-light);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1218,7 +1220,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 12px 32px var(--overlay-light);
 }
 
 .trade-confirm-title {
@@ -1401,7 +1403,7 @@ body {
 
   &.active {
     background: var(--accent);
-    color: #fff;
+    color: var(--btn-on-color-text);
   }
 }
 
@@ -1628,7 +1630,7 @@ body {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 0.625rem;
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 48px var(--overlay-medium);
   overflow: hidden;
 }
 

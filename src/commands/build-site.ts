@@ -43,6 +43,7 @@ import type { PriceCurrency } from '../price-currency'
 import { getErrorMessage } from '../errors'
 import type { CacheManager } from '../interfaces'
 import { PRICE_MAX_AGE_MS, BULK_FETCH_THRESHOLD } from '../cache/constants'
+import { generateThemeCss, resolveThemeName, themeNames } from '../themes'
 import prompts from 'prompts'
 
 interface BuildSiteOptions {
@@ -55,6 +56,7 @@ interface BuildSiteOptions {
   deckSort?: string
   currencies?: string
   yes?: boolean
+  theme?: string
 }
 
 async function checkAndOfferBulkPriceRefresh(
@@ -129,6 +131,7 @@ export function registerBuildSiteCommand(program: Command) {
       'Comma-separated currencies to include: usd, eur, tix (default: all three; first is default)',
     )
     .option('-y, --yes', 'Skip confirmation prompts and auto-accept (e.g. bulk cache redownload)')
+    .option('--theme <name>', `Color theme to use (${themeNames.join(', ')})`, 'default')
     .action(async (options: BuildSiteOptions) => {
       let availableCurrencies: PriceCurrency[]
       try {
@@ -138,6 +141,8 @@ export function registerBuildSiteCommand(program: Command) {
         return
       }
       const defaultCurrency = availableCurrencies[0]!
+
+      const themeName = resolveThemeName(options.theme)
 
       const distDir = path.join(getBaseDir(), 'dist')
       const imagesDir = path.join(distDir, 'images')
@@ -1330,9 +1335,13 @@ export function registerBuildSiteCommand(program: Command) {
 </html>`
       await Bun.write(path.join(distDir, 'index.html'), indexHtml)
 
-      // Write bundled CSS
-      console.log('Writing CSS...')
-      await Bun.write(path.join(distDir, 'styles.css'), bundledSiteAssets.stylesSourceCss)
+      // Write bundled CSS — prepend the chosen theme's :root variable block.
+      console.log(`Writing CSS (theme: ${themeName})...`)
+      const themeCss = generateThemeCss(themeName)
+      await Bun.write(
+        path.join(distDir, 'styles.css'),
+        `${themeCss}\n${bundledSiteAssets.stylesSourceCss}`,
+      )
 
       console.log(`Site generated in ${distDir}`)
     })

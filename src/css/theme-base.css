@@ -1,0 +1,31 @@
+/* ===== Theme Base =====
+   Universal design tokens that do not change with the selected theme.
+   The palette (bg/text/accent/border/button) is provided at site build
+   time by a generated stylesheet emitted from src/themes.ts.
+   All values use OKLch for perceptual uniformity.
+   ===== */
+
+:root {
+  /* ---- Card corners ---- */
+  --card-radius: 9px;
+
+  /* ---- Success ---- */
+  --success-bg: oklch(30% 0.08 155 / 0.5);
+  --success-border: oklch(42% 0.12 155);
+  --success-text: oklch(80% 0.14 155);
+
+  /* ---- Error ---- */
+  --error: oklch(65% 0.2 25);
+  --error-bg: oklch(30% 0.08 25 / 0.5);
+  --error-border: oklch(45% 0.17 25);
+  --error-text: oklch(80% 0.1 20);
+
+  /* ---- Buttons – add / success (green) ---- */
+  --btn-add: oklch(52% 0.16 155);
+  --btn-add-hover: oklch(60% 0.16 155);
+
+  /* ---- Overlays ---- */
+  --overlay-light: rgba(0, 0, 0, 0.5);
+  --overlay-medium: rgba(0, 0, 0, 0.7);
+  --overlay-heavy: rgba(0, 0, 0, 0.85);
+}

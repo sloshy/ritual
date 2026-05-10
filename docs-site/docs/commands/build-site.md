@@ -27,6 +27,7 @@ By default, deck card images use Scryfall URLs from card data. This can be overr
 | `--deck-sort <field>`       | Default sort order for deck pages (`name`, `cmc`, `price`, `type`, `edhrec`, `color-identity`)                       |
 | `--currencies <list>`       | Comma-separated currencies to include on the site: `usd`, `eur`, `tix` (default: all three; first listed is default) |
 | `-y, --yes`                 | Skip confirmation prompts and auto-accept (e.g. bulk cache redownload)                                               |
+| `--theme <name>`            | Color theme baked into the generated CSS (default: `default`). See [Themes](#themes) below.                          |
 
 ## Examples
 
@@ -89,6 +90,33 @@ Build with only USD and EUR (no TIX):
 ```bash
 ./ritual build-site --currencies "usd,eur"
 ```
+
+## Themes
+
+Use `--theme <name>` to bake a color palette into the generated `styles.css`. The default theme matches the original site styling. Ten Magic-flavored "guild" palettes are also available, each with a primary background color and a contrasting highlight color used for buttons, focus rings, and accents:
+
+| Theme      | Background     | Highlight |
+| ---------- | -------------- | --------- |
+| `default`  | dark cool blue | blue      |
+| `orzhov`   | dark gray      | white     |
+| `izzet`    | dark blue      | red       |
+| `gruul`    | dark green     | red       |
+| `rakdos`   | dark gray      | red       |
+| `selesnya` | off-white      | green     |
+| `azorius`  | off-white      | blue      |
+| `boros`    | off-white      | red       |
+| `dimir`    | dark gray      | blue      |
+| `simic`    | dark blue      | green     |
+| `golgari`  | dark gray      | green     |
+
+Each theme also has an inverted variant accessible by appending `-inverted` to its name (e.g. `azorius-inverted`, `boros-inverted`). Inverted themes swap the background and highlight colors so the highlight becomes the dominant background and the original background becomes the accent — shade and intensity are adjusted so the resulting palette stays comfortable to read.
+
+```bash
+./ritual build-site --theme izzet
+./ritual build-site --theme boros-inverted
+```
+
+Theme selection only affects the bundled CSS — no other output changes.
 
 ## Output
 

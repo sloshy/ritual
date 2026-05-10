@@ -6,11 +6,13 @@ import { startAdminServer } from '../admin/server'
 import { getBundledAdminCss, getBundledAdminJs } from '../admin/bundled-assets'
 import { getBaseDir } from '../base-dir'
 import { ensureFreshCardCache } from '../cache/freshness'
+import { generateThemeCss, resolveThemeName, themeNames, type ThemeName } from '../themes'
 
 type AdminCommandOptions = {
   port: string
   host: string
   dev: boolean
+  theme?: string
 }
 
 type RebuildFlags = { js: boolean; css: boolean }
@@ -48,12 +50,14 @@ async function buildAdminJs(srcDir: string, adminDistDir: string): Promise<boole
   return true
 }
 
-async function buildAdminCss(srcDir: string, adminDistDir: string): Promise<boolean> {
+async function buildAdminCss(
+  srcDir: string,
+  adminDistDir: string,
+  themeName: ThemeName,
+): Promise<boolean> {
   const result = await Bun.build({
     entrypoints: [path.join(srcDir, 'admin', 'site', 'styles.css')],
-    outdir: adminDistDir,
     target: 'browser',
-    naming: 'styles.css',
     minify: false,
   })
   if (!result.success) {
@@ -61,6 +65,14 @@ async function buildAdminCss(srcDir: string, adminDistDir: string): Promise<bool
     for (const log of result.logs) console.error(log)
     return false
   }
+  const cssOutput = result.outputs.find((o) => o.path.endsWith('.css'))
+  if (!cssOutput) {
+    console.error('Admin CSS build produced no .css output')
+    return false
+  }
+  const compiled = await cssOutput.text()
+  const themePrefix = generateThemeCss(themeName)
+  await Bun.write(path.join(adminDistDir, 'styles.css'), `${themePrefix}\n${compiled}`)
   return true
 }
 
@@ -71,10 +83,13 @@ export function registerAdminCommand(program: Command) {
     .option('-p, --port <number>', 'Port to serve on', '8080')
     .option('--host <address>', 'Host address to bind to', '0.0.0.0')
     .option('--dev', 'Rebuild admin SPA from source on file changes')
+    .option('--theme <name>', `Color theme to use (${themeNames.join(', ')})`, 'default')
     .action(async (options: AdminCommandOptions) => {
       const port = parseInt(options.port, 10)
       const host = options.host
       const adminDistDir = path.join(getBaseDir(), '.admin-dist')
+
+      const themeName = resolveThemeName(options.theme)
 
       console.log('Preparing admin interface...')
 
@@ -89,12 +104,15 @@ export function registerAdminCommand(program: Command) {
         console.log('Building admin SPA from source...')
         const [jsOk, cssOk] = await Promise.all([
           buildAdminJs(adminSrcDir, adminDistDir),
-          buildAdminCss(adminSrcDir, adminDistDir),
+          buildAdminCss(adminSrcDir, adminDistDir, themeName),
         ])
         if (!jsOk || !cssOk) process.exit(1)
       } else {
         await Bun.write(path.join(adminDistDir, 'app.js'), getBundledAdminJs())
-        await Bun.write(path.join(adminDistDir, 'styles.css'), getBundledAdminCss())
+        await Bun.write(
+          path.join(adminDistDir, 'styles.css'),
+          `${generateThemeCss(themeName)}\n${getBundledAdminCss()}`,
+        )
       }
 
       await Bun.write(path.join(adminDistDir, 'index.html'), indexHtml)
@@ -107,7 +125,7 @@ export function registerAdminCommand(program: Command) {
           building = true
           try {
             const rebuilds: Promise<boolean>[] = []
-            if (flags.css) rebuilds.push(buildAdminCss(adminSrcDir, adminDistDir))
+            if (flags.css) rebuilds.push(buildAdminCss(adminSrcDir, adminDistDir, themeName))
             if (flags.js) rebuilds.push(buildAdminJs(adminSrcDir, adminDistDir))
             const results = await Promise.all(rebuilds)
             if (results.every(Boolean)) {

@@ -24,7 +24,7 @@
 
 .site-btn-add {
   background-color: var(--btn-add);
-  color: var(--text-primary);
+  color: var(--btn-on-color-text);
 
   &:hover {
     background-color: var(--btn-add-hover);
@@ -42,7 +42,7 @@
 
 .site-btn-export {
   background-color: var(--btn-export);
-  color: var(--text-primary);
+  color: var(--btn-on-color-text);
 
   &:hover {
     background-color: var(--accent-hover);
