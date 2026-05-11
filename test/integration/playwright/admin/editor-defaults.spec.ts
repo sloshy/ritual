@@ -38,7 +38,10 @@ test.describe('Admin Editor — Add Card Defaults', () => {
     await loginAsAdmin(page)
 
     // Clear any previously persisted defaults so each test starts fresh.
-    await page.addInitScript(() => {
+    // Note: this runs once on the already-loaded admin page rather than via
+    // addInitScript — addInitScript would re-fire on page.reload() and wipe
+    // the value the persistence test just set.
+    await page.evaluate(() => {
       window.localStorage.removeItem('ritual:admin:defaults:deck')
       window.localStorage.removeItem('ritual:admin:defaults:collection')
       window.localStorage.removeItem('ritual:admin:defaults:wanted')
@@ -141,9 +144,10 @@ test.describe('Admin Editor — Add Card Defaults', () => {
   test('default finish auto-skips finish/condition step on foil-capable printing', async ({
     page,
   }) => {
-    // Expand the defaults panel and pick foil
+    // Expand the defaults panel and pick foil. The regex form keeps the match
+    // case-sensitive so it does not also match "Nonfoil".
     await page.locator('.editor-defaults-toggle').click()
-    const foilOption = page.locator('.editor-defaults-option', { hasText: 'Foil' }).first()
+    const foilOption = page.locator('.editor-defaults-option', { hasText: /Foil/ })
     await foilOption.click()
     await expect(foilOption).toHaveClass(/editor-defaults-option--selected/)
 
@@ -160,9 +164,11 @@ test.describe('Admin Editor — Add Card Defaults', () => {
     await expect(page.locator('.modal-heading-flex')).toContainText('Select a printing')
 
     // Pick the LEA printing — defaults.finish=foil applies, so the finish/condition
-    // step is auto-skipped and the modal closes immediately.
+    // step is auto-skipped and the modal closes immediately. Use the backdrop
+    // selector since `.search-modal` is also used as a styling hook on the
+    // always-mounted ChangesDialog <dialog>.
     await page.locator('.printing-select-card', { hasText: 'LEA #161' }).click()
-    await expect(page.locator('.search-modal')).toHaveCount(0, { timeout: 5_000 })
+    await expect(page.locator('.search-modal-backdrop')).toHaveCount(0, { timeout: 5_000 })
 
     // A new pending change should appear.
     await expect(page.locator('.changes-badge')).toBeVisible()
@@ -191,7 +197,7 @@ test.describe('Admin Editor — Add Card Defaults', () => {
 
   test('defaults persist across reload via localStorage', async ({ page }) => {
     await page.locator('.editor-defaults-toggle').click()
-    const foilOption = page.locator('.editor-defaults-option', { hasText: 'Foil' }).first()
+    const foilOption = page.locator('.editor-defaults-option', { hasText: /Foil/ })
     await foilOption.click()
 
     // Reload and revisit the deck editor — defaults should persist.
@@ -199,7 +205,12 @@ test.describe('Admin Editor — Add Card Defaults', () => {
     await page.locator('.admin-nav-item:has-text("Deck Editor")').click()
     const toggle = page.locator('.editor-defaults-toggle')
     await expect(toggle).toBeVisible()
-    // The summary chip should reflect the persisted finish.
-    await expect(toggle.locator('.editor-defaults-summary')).toContainText('Foil')
+    // When defaults are active the bar mounts expanded (no summary chip is
+    // rendered), so verify persistence by checking the Foil radio's selected
+    // state directly. The regex form keeps the match case-sensitive so it
+    // does not also match "Nonfoil".
+    await expect(page.locator('.editor-defaults-option', { hasText: /Foil/ })).toHaveClass(
+      /editor-defaults-option--selected/,
+    )
   })
 })
