@@ -1,5 +1,14 @@
 import { render } from 'solid-js/web'
-import { createSignal, createEffect, createMemo, on, Show, Switch, Match } from 'solid-js'
+import {
+  createSignal,
+  createEffect,
+  createMemo,
+  on,
+  onCleanup,
+  Show,
+  Switch,
+  Match,
+} from 'solid-js'
 import type { DeckDetail, CollectionDetail, WantedListDetail } from './data-types'
 import type { PriceCurrency } from '../price-currency'
 import { IndexPage } from './IndexPage'
@@ -12,6 +21,9 @@ import { useRouting } from './useRouting'
 import { useSiteData } from './useSiteData'
 import { useFetchJson } from './useFetchJson'
 import { tradeToast } from './useTradeState'
+import { createThemeStore, ThemeProvider, useTheme } from './useTheme'
+import { ThemeEditor } from './ThemeEditor'
+import { ThemePicker } from './ThemePicker'
 
 function App() {
   const { route, visible } = useRouting()
@@ -181,6 +193,7 @@ function App() {
             <kbd>K</kbd>
           </span>
         </button>
+        <ThemeHeaderControls />
         <div class="currency-selector">
           <label class="currency-label">Prices:</label>
           <select
@@ -370,4 +383,59 @@ function ErrorMessage(props: ErrorMessageProps) {
   return <div class="error-container">{props.message}</div>
 }
 
-render(() => <App />, document.getElementById('app')!)
+function ThemeHeaderControls() {
+  const theme = useTheme()
+  const [pickerOpen, setPickerOpen] = createSignal(false)
+  let wrapperRef: HTMLDivElement | undefined
+
+  // Click-outside dismisses the popover. Use mousedown (not click) so a
+  // press on the trigger's toggling its own state doesn't get followed by a
+  // close fired from the bubbled click — Solid's click handler runs after
+  // mousedown.
+  createEffect(() => {
+    if (!pickerOpen()) return
+    const onMouseDown = (e: MouseEvent) => {
+      if (wrapperRef && !wrapperRef.contains(e.target as Node)) {
+        setPickerOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    onCleanup(() => document.removeEventListener('mousedown', onMouseDown))
+  })
+
+  return (
+    <div ref={wrapperRef} class="theme-picker-wrapper">
+      <button
+        type="button"
+        class="theme-customize-btn"
+        classList={{ 'theme-customize-btn-active': pickerOpen() || theme.editorOpen() }}
+        onClick={() => setPickerOpen((v) => !v)}
+        aria-haspopup="dialog"
+        aria-expanded={pickerOpen()}
+        title={theme.editorOpen() ? 'Theme menu (editor open)' : 'Theme menu'}
+      >
+        <span class="theme-customize-btn-icon" aria-hidden="true">
+          🎨
+        </span>
+        <span class="theme-customize-btn-label">
+          {theme.editorOpen() ? 'Editing theme' : 'Theme'}
+        </span>
+      </button>
+      <ThemePicker open={pickerOpen()} onClose={() => setPickerOpen(false)} />
+    </div>
+  )
+}
+
+function Root() {
+  const themeStore = createThemeStore()
+  return (
+    <ThemeProvider store={themeStore}>
+      <Show when={themeStore.editorOpen()}>
+        <ThemeEditor />
+      </Show>
+      <App />
+    </ThemeProvider>
+  )
+}
+
+render(() => <Root />, document.getElementById('app')!)

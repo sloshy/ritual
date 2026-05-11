@@ -1,7 +1,10 @@
 import { describe, test, expect, mock } from 'bun:test'
 import {
+  generateAllThemesCss,
+  generateCustomThemeCss,
   generateThemeCss,
   isThemeName,
+  parseCustomTheme,
   resolveThemeName,
   themeNames,
   themes,
@@ -33,6 +36,7 @@ const REQUIRED_VARS = [
   '--btn-primary-hover',
   '--btn-export',
   '--btn-export-hover',
+  '--btn-on-color-text',
 ] as const
 
 const GUILDS = [
@@ -123,10 +127,19 @@ describe('resolveThemeName', () => {
 })
 
 describe('generateThemeCss', () => {
+  test('the default theme uses the bare :root selector', () => {
+    expect(generateThemeCss('default')).toMatch(/:root \{/)
+    expect(generateThemeCss('default')).not.toContain('data-theme')
+  })
+
+  test('non-default themes use a data-theme attribute selector', () => {
+    expect(generateThemeCss('izzet')).toContain(':root[data-theme="izzet"] {')
+    expect(generateThemeCss('boros-inverted')).toContain(':root[data-theme="boros-inverted"] {')
+  })
+
   for (const name of themeNames) {
     test(`emits all required variables for ${name}`, () => {
       const css = generateThemeCss(name)
-      expect(css).toContain(':root {')
       for (const variable of REQUIRED_VARS) {
         expect(css).toContain(`${variable}:`)
       }
@@ -157,5 +170,121 @@ describe('generateThemeCss', () => {
         expect(parts[2]).toMatch(/^[0-9]+(\.[0-9]+)?$/)
       }
     }
+  })
+})
+
+describe('generateAllThemesCss', () => {
+  test('emits a rule for every registered theme', () => {
+    const css = generateAllThemesCss()
+    for (const name of themeNames) {
+      if (name === 'default') {
+        expect(css).toMatch(/\/\* Theme: default \*\/\n:root \{/)
+      } else {
+        expect(css).toContain(`:root[data-theme="${name}"] {`)
+      }
+    }
+  })
+
+  test('emits the default theme first so it establishes the baseline', () => {
+    const css = generateAllThemesCss()
+    const defaultIdx = css.indexOf('/* Theme: default */')
+    const orzhovIdx = css.indexOf('/* Theme: orzhov */')
+    expect(defaultIdx).toBeGreaterThanOrEqual(0)
+    expect(orzhovIdx).toBeGreaterThan(defaultIdx)
+  })
+})
+
+describe('generateCustomThemeCss', () => {
+  test('renders a custom theme as an attribute selector by default', () => {
+    const css = generateCustomThemeCss({
+      name: 'mine',
+      variables: { '--bg-body': 'oklch(20% 0.02 200)', '--accent': 'oklch(60% 0.15 30)' },
+    })
+    expect(css).toContain(':root[data-theme="mine"] {')
+    expect(css).toContain('--bg-body: oklch(20% 0.02 200)')
+    expect(css).toContain('--accent: oklch(60% 0.15 30)')
+  })
+
+  test('accepts a custom selector for the editor preview slot', () => {
+    const css = generateCustomThemeCss(
+      { name: 'preview', variables: { '--accent': 'oklch(50% 0.1 0)' } },
+      ':root[data-theme="custom"]',
+    )
+    expect(css).toContain(':root[data-theme="custom"] {')
+    expect(css).toContain('--accent: oklch(50% 0.1 0)')
+  })
+})
+
+describe('parseCustomTheme', () => {
+  test('accepts a minimal valid theme', () => {
+    const result = parseCustomTheme({
+      name: 'my-theme',
+      variables: { '--bg-body': 'oklch(20% 0.02 260)' },
+    })
+    expect(typeof result).toBe('object')
+    expect(result).toEqual({
+      name: 'my-theme',
+      description: undefined,
+      variables: { '--bg-body': 'oklch(20% 0.02 260)' },
+    })
+  })
+
+  test('captures a description when provided', () => {
+    const result = parseCustomTheme({
+      name: 'my-theme',
+      description: 'a custom palette',
+      variables: { '--accent': 'oklch(50% 0.15 200)' },
+    })
+    expect(typeof result).toBe('object')
+    if (typeof result === 'string') return
+    expect(result.description).toBe('a custom palette')
+  })
+
+  test('rejects non-object input', () => {
+    expect(parseCustomTheme(null)).toContain('JSON object')
+    expect(parseCustomTheme('hello')).toContain('JSON object')
+    expect(parseCustomTheme(42)).toContain('JSON object')
+  })
+
+  test('rejects an empty name', () => {
+    expect(parseCustomTheme({ name: '', variables: { '--accent': 'oklch(50% 0 0)' } })).toContain(
+      'name',
+    )
+  })
+
+  test('rejects names that collide with built-ins', () => {
+    expect(
+      parseCustomTheme({
+        name: 'boros',
+        variables: { '--accent': 'oklch(50% 0 0)' },
+      }),
+    ).toContain('built-in')
+  })
+
+  test('rejects invalid name characters', () => {
+    expect(
+      parseCustomTheme({
+        name: 'My Theme',
+        variables: { '--accent': 'oklch(50% 0 0)' },
+      }),
+    ).toContain('lowercase')
+  })
+
+  test('rejects variables without the -- prefix', () => {
+    expect(
+      parseCustomTheme({
+        name: 'mine',
+        variables: { 'bg-body': 'oklch(20% 0 0)' },
+      }),
+    ).toContain('--')
+  })
+
+  test('rejects empty variables object', () => {
+    expect(parseCustomTheme({ name: 'mine', variables: {} })).toContain('at least one variable')
+  })
+
+  test('rejects array values for `variables`', () => {
+    expect(parseCustomTheme({ name: 'mine', variables: [] })).toContain('object')
+    expect(parseCustomTheme({ name: 'mine', variables: ['--bg-body: red'] })).toContain('object')
   })
 })

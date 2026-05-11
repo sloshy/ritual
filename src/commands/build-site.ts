@@ -43,7 +43,15 @@ import type { PriceCurrency } from '../price-currency'
 import { getErrorMessage } from '../errors'
 import type { CacheManager } from '../interfaces'
 import { PRICE_MAX_AGE_MS, BULK_FETCH_THRESHOLD } from '../cache/constants'
-import { generateThemeCss, resolveThemeName, themeNames } from '../themes'
+import {
+  generateAllThemesCss,
+  generateCustomThemeCss,
+  parseCustomTheme,
+  resolveThemeName,
+  themeBootstrapScript,
+  themeNames,
+  type CustomTheme,
+} from '../themes'
 import prompts from 'prompts'
 
 interface BuildSiteOptions {
@@ -57,6 +65,34 @@ interface BuildSiteOptions {
   currencies?: string
   yes?: boolean
   theme?: string
+  themeFile?: string[]
+}
+
+async function loadCustomThemes(paths: readonly string[]): Promise<CustomTheme[]> {
+  const themes: CustomTheme[] = []
+  for (const filePath of paths) {
+    let raw: string
+    try {
+      raw = await fs.readFile(filePath, 'utf-8')
+    } catch (err) {
+      console.error(`Failed to read --theme-file '${filePath}': ${getErrorMessage(err)}`)
+      process.exit(1)
+    }
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(raw)
+    } catch (err) {
+      console.error(`--theme-file '${filePath}' is not valid JSON: ${getErrorMessage(err)}`)
+      process.exit(1)
+    }
+    const result = parseCustomTheme(parsed)
+    if (typeof result === 'string') {
+      console.error(`--theme-file '${filePath}': ${result}`)
+      process.exit(1)
+    }
+    themes.push(result)
+  }
+  return themes
 }
 
 async function checkAndOfferBulkPriceRefresh(
@@ -131,7 +167,15 @@ export function registerBuildSiteCommand(program: Command) {
       'Comma-separated currencies to include: usd, eur, tix (default: all three; first is default)',
     )
     .option('-y, --yes', 'Skip confirmation prompts and auto-accept (e.g. bulk cache redownload)')
-    .option('--theme <name>', `Color theme to use (${themeNames.join(', ')})`, 'default')
+    .option(
+      '--theme <name>',
+      `Initial theme baked into the generated HTML (${themeNames.join(', ')}, or a custom theme name loaded via --theme-file)`,
+      'default',
+    )
+    .option(
+      '--theme-file <path...>',
+      'Load one or more custom theme JSON files; their names become selectable alongside the built-ins',
+    )
     .action(async (options: BuildSiteOptions) => {
       let availableCurrencies: PriceCurrency[]
       try {
@@ -142,7 +186,15 @@ export function registerBuildSiteCommand(program: Command) {
       }
       const defaultCurrency = availableCurrencies[0]!
 
-      const themeName = resolveThemeName(options.theme)
+      const customThemes = await loadCustomThemes(options.themeFile ?? [])
+      const customNames = new Set(customThemes.map((t) => t.name))
+      // Open-ended type: either a built-in `ThemeName` or a custom name from
+      // `--theme-file`. Both are validated upstream.
+      const initialThemeName: string = (() => {
+        const raw = (options.theme ?? 'default').toLowerCase()
+        if (customNames.has(raw)) return raw
+        return resolveThemeName(options.theme)
+      })()
 
       const distDir = path.join(getBaseDir(), 'dist')
       const imagesDir = path.join(distDir, 'images')
@@ -1318,14 +1370,25 @@ export function registerBuildSiteCommand(program: Command) {
       console.log('Writing Web App...')
       await Bun.write(path.join(distDir, 'app.js'), bundledSiteAssets.appJs)
 
+      // Defense-in-depth: theme names always pass through `resolveThemeName`
+      // or `parseCustomTheme` which enforce safe identifier patterns, but
+      // re-validate at the HTML interpolation site so a future refactor can't
+      // silently introduce attribute-injection.
+      const safeInitialTheme = /^[a-z0-9][a-z0-9-]*$/.test(initialThemeName)
+        ? initialThemeName
+        : 'default'
+      const initialThemeAttr =
+        safeInitialTheme === 'default' ? '' : ` data-theme="${safeInitialTheme}"`
+
       // Generate index.html shell
       const indexHtml = `<!DOCTYPE html>
-<html lang="en">
+<html lang="en"${initialThemeAttr}>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ritual</title>
   <link rel="icon" type="image/svg+xml" href="app.svg">
+  <script>${themeBootstrapScript}</script>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -1335,12 +1398,19 @@ export function registerBuildSiteCommand(program: Command) {
 </html>`
       await Bun.write(path.join(distDir, 'index.html'), indexHtml)
 
-      // Write bundled CSS — prepend the chosen theme's :root variable block.
-      console.log(`Writing CSS (theme: ${themeName})...`)
-      const themeCss = generateThemeCss(themeName)
+      // Write bundled CSS — emit every built-in theme as a `:root[data-theme=...]`
+      // block so the runtime can switch by toggling the html attribute, plus
+      // any custom themes from --theme-file.
+      console.log(
+        `Writing CSS (initial theme: ${initialThemeName}${
+          customThemes.length > 0 ? `, +${customThemes.length} custom` : ''
+        })...`,
+      )
+      const allThemes = generateAllThemesCss()
+      const customThemesCss = customThemes.map((t) => generateCustomThemeCss(t)).join('\n')
       await Bun.write(
         path.join(distDir, 'styles.css'),
-        `${themeCss}\n${bundledSiteAssets.stylesSourceCss}`,
+        `${allThemes}${customThemesCss ? '\n' + customThemesCss : ''}\n${bundledSiteAssets.stylesSourceCss}`,
       )
 
       console.log(`Site generated in ${distDir}`)

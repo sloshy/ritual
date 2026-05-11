@@ -1,11 +1,17 @@
-// Theme palettes for the public site and admin site.
+// Theme palettes + CSS generation for the public site and admin site.
 //
-// Each theme is one named palette built around a background hue and an
-// accent (highlight) hue. Inverted variants live under their own
-// `<name>-inverted` keys so that selecting a theme is a single string at
-// the CLI. `generateThemeCss` renders the chosen palette as a `:root { ... }`
-// block of CSS custom properties that override the defaults provided by
-// `src/css/theme-base.css`.
+// Each named theme is one palette built around a background hue and an
+// accent hue. Inverted variants live under their own `<name>-inverted`
+// keys. The build emits CSS for *all* registered themes (each guarded by
+// `:root[data-theme="<name>"]` except `default`, which is the bare
+// `:root` rule), so the runtime can switch themes by toggling the
+// `data-theme` attribute on `<html>`.
+//
+// Custom themes are arbitrary `--var: value` dictionaries created by the
+// in-browser editor or loaded from a JSON file at build time.
+//
+// This file is browser-safe except for the Node-only `resolveThemeName`
+// helper at the very bottom; do not call that from SPA code.
 
 export type ThemePalette = {
   bgHue: number
@@ -117,17 +123,56 @@ export function isThemeName(value: string): value is ThemeName {
   return Object.prototype.hasOwnProperty.call(themes, value)
 }
 
-// Resolves a raw CLI `--theme` value to a validated `ThemeName`. Falls back to
-// `default` when omitted; logs an error and exits when the value is unknown.
-// Centralised here so `build-site` and `admin` share identical handling.
-export function resolveThemeName(raw: string | undefined): ThemeName {
-  const normalized = (raw ?? 'default').toLowerCase()
-  if (isThemeName(normalized)) return normalized
-  console.error(`Unknown theme '${raw}'. Choose one of: ${themeNames.join(', ')}.`)
-  process.exit(1)
+export type ThemeCssVars = Record<string, string>
+
+// Every CSS variable that `paletteToVars` is guaranteed to produce. Listed
+// explicitly so consumers can index a resolved palette without
+// undefined-narrowing, and so a future refactor that drops a key here breaks
+// the build at the implementation site instead of leaving a silent gap
+// downstream. The intersection with `ThemeCssVars` keeps a resolved palette
+// structurally assignable wherever a generic theme-var dict is expected
+// (e.g. `renderRule`).
+export type ResolvedPalette = ThemeCssVars & {
+  '--bg-body': string
+  '--bg-panel': string
+  '--bg-hover': string
+  '--bg-active': string
+  '--bg-subtle': string
+  '--border': string
+  '--border-hover': string
+  '--border-focus': string
+  '--border-separator': string
+  '--text-primary': string
+  '--text-body': string
+  '--text-secondary': string
+  '--text-muted': string
+  '--text-dim': string
+  '--text-accent': string
+  '--accent': string
+  '--accent-hover': string
+  '--accent-dim': string
+  '--btn-bg': string
+  '--btn-hover': string
+  '--btn-text': string
+  '--btn-primary': string
+  '--btn-primary-hover': string
+  '--btn-export': string
+  '--btn-export-hover': string
+  '--btn-on-color-text': string
 }
 
-type ThemeCssVars = Record<string, string>
+// A custom theme captured from the in-browser editor or a user JSON file.
+// Variables is a flat map of any subset of theme vars to override; values
+// are raw CSS strings (e.g. `oklch(20% 0.02 260)` or `9px`).
+export type CustomTheme = {
+  name: string
+  description?: string
+  variables: ThemeCssVars
+}
+
+// ---------------------------------------------------------------------------
+// Palette → CSS variables
+// ---------------------------------------------------------------------------
 
 function fmt(n: number): string {
   return n.toFixed(4).replace(/\.?0+$/, '')
@@ -142,18 +187,11 @@ function ok(L: number, C: number, H: number): string {
 // reuse `--text-primary` because that flips dark/light with the page bg —
 // here we want contrast against the *button* color, not the page color.
 function btnOnColorText(p: ThemePalette): string {
-  // Saturated colored accent (every guild theme except Orzhov and the
-  // grayscale inverted variants): near-white reads at both 50% and 68%
-  // chroma-rich button lightnesses.
   if (p.accentChroma > 0.05) return ok(98, 0, 0)
-  // Grayscale accent: the button surface is a tone, not a color. Pick the
-  // text shade that contrasts with the accent's lightness in this mode —
-  // dark accents (light-mode) get near-white; light accents (dark-mode) get
-  // near-black.
   return p.isDark ? ok(15, 0, 0) : ok(98, 0, 0)
 }
 
-function darkVars(p: ThemePalette): ThemeCssVars {
+function darkVars(p: ThemePalette): ResolvedPalette {
   const { bgHue: bH, bgChroma: bC, accentHue: aH, accentChroma: aC } = p
   const textC = Math.min(bC, 0.005)
   const bodyC = Math.min(bC, 0.01)
@@ -188,7 +226,7 @@ function darkVars(p: ThemePalette): ThemeCssVars {
   }
 }
 
-function lightVars(p: ThemePalette): ThemeCssVars {
+function lightVars(p: ThemePalette): ResolvedPalette {
   const { bgHue: bH, bgChroma: bC, accentHue: aH, accentChroma: aC } = p
   const textC = Math.min(bC, 0.01)
   const activeC = Math.max(bC * 2, 0.04)
@@ -222,13 +260,136 @@ function lightVars(p: ThemePalette): ThemeCssVars {
   }
 }
 
-function paletteVars(p: ThemePalette): ThemeCssVars {
-  return p.isDark ? darkVars(p) : lightVars(p)
+export function paletteToVars(palette: ThemePalette): ResolvedPalette {
+  return palette.isDark ? darkVars(palette) : lightVars(palette)
 }
 
-export function generateThemeCss(themeName: ThemeName): string {
-  const palette = themes[themeName]
-  const vars = paletteVars(palette)
+// ---------------------------------------------------------------------------
+// CSS rendering
+// ---------------------------------------------------------------------------
+
+function renderRule(selector: string, vars: ThemeCssVars, comment: string): string {
   const lines = Object.entries(vars).map(([k, v]) => `  ${k}: ${v};`)
-  return `/* Theme: ${themeName} */\n:root {\n${lines.join('\n')}\n}\n`
+  return `/* ${comment} */\n${selector} {\n${lines.join('\n')}\n}\n`
+}
+
+// CSS for one named theme. The 'default' theme uses bare `:root` so it
+// applies as the fallback when no `data-theme` is set; every other theme
+// gates on its attribute selector.
+export function generateThemeCss(name: ThemeName): string {
+  const selector = name === 'default' ? ':root' : `:root[data-theme="${name}"]`
+  return renderRule(selector, paletteToVars(themes[name]), `Theme: ${name}`)
+}
+
+// CSS for every registered theme, with 'default' first (it establishes the
+// base on bare `:root`) and the rest layered on as attribute-scoped rules.
+export function generateAllThemesCss(): string {
+  const ordered: ThemeName[] = [
+    'default',
+    ...themeNames.filter((n): n is ThemeName => n !== 'default'),
+  ]
+  return ordered.map(generateThemeCss).join('\n')
+}
+
+// CSS for an arbitrary custom theme. By default the rule scopes to
+// `:root[data-theme="<theme.name>"]`; pass `selector` to override (e.g.
+// `:root[data-theme="custom"]` for the in-browser editor's preview slot).
+export function generateCustomThemeCss(theme: CustomTheme, selector?: string): string {
+  return renderRule(
+    selector ?? `:root[data-theme="${theme.name}"]`,
+    theme.variables,
+    `Custom theme: ${theme.name}`,
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Custom theme JSON parsing
+// ---------------------------------------------------------------------------
+
+// Valid custom theme name: lowercase letters/digits/hyphens, starting with a
+// letter or digit. Used by the parser to reject malformed names and by the
+// editor's download UI to fall back to a safe filename slug.
+export const CUSTOM_THEME_NAME_PATTERN = /^[a-z0-9][a-z0-9-]*$/
+
+// Parses an unknown JSON value into a `CustomTheme`. Returns the theme on
+// success, or a human-readable error string on failure (matches the project
+// parser convention from AGENTS.md).
+export function parseCustomTheme(value: unknown): CustomTheme | string {
+  if (typeof value !== 'object' || value === null) {
+    return 'Custom theme must be a JSON object'
+  }
+  const obj = value as Record<string, unknown>
+  if (typeof obj.name !== 'string' || obj.name.length === 0) {
+    return 'Custom theme must have a non-empty `name` string'
+  }
+  const name = obj.name
+  if (!CUSTOM_THEME_NAME_PATTERN.test(name)) {
+    return `Custom theme name '${name}' must be lowercase letters, digits, and hyphens (starting with a letter or digit)`
+  }
+  if (isThemeName(name)) {
+    return `Custom theme name '${name}' collides with a built-in theme; pick a different name`
+  }
+  if (typeof obj.variables !== 'object' || obj.variables === null || Array.isArray(obj.variables)) {
+    return 'Custom theme must have a `variables` object'
+  }
+  const rawVars = obj.variables as Record<string, unknown>
+  const variables: ThemeCssVars = {}
+  for (const [key, raw] of Object.entries(rawVars)) {
+    if (!key.startsWith('--')) {
+      return `Variable name '${key}' must start with '--'`
+    }
+    if (typeof raw !== 'string' || raw.length === 0) {
+      return `Variable '${key}' must be a non-empty string value`
+    }
+    variables[key] = raw
+  }
+  if (Object.keys(variables).length === 0) {
+    return 'Custom theme must define at least one variable'
+  }
+  const description =
+    typeof obj.description === 'string' && obj.description.length > 0 ? obj.description : undefined
+  return { name, description, variables }
+}
+
+// ---------------------------------------------------------------------------
+// Anti-FOUC bootstrap script
+// ---------------------------------------------------------------------------
+
+// Inline JavaScript injected into the generated `<head>` so the saved theme
+// and any in-progress custom palette are applied *before* the stylesheet
+// resolves. Without this, users who saved a non-default theme see a flash of
+// the build-time default on every page load.
+//
+// The localStorage keys here MUST stay in sync with `LS_THEME` and
+// `LS_CUSTOM_VARS` in `src/site/useTheme.tsx` — those constants own the
+// names; this script reads them.
+export const themeBootstrapScript = `
+  try {
+    var t = localStorage.getItem('ritual:theme');
+    if (t && t !== 'custom') document.documentElement.dataset.theme = t;
+    var c = localStorage.getItem('ritual:custom-vars');
+    if (c) {
+      var v = JSON.parse(c);
+      var keys = Object.keys(v);
+      for (var i = 0; i < keys.length; i++) {
+        document.documentElement.style.setProperty(keys[i], v[keys[i]]);
+      }
+    }
+  } catch (e) {}
+`
+
+// ---------------------------------------------------------------------------
+// Node-only: CLI helpers
+// ---------------------------------------------------------------------------
+
+// Resolves a raw CLI `--theme` value to a validated `ThemeName`. Falls back to
+// `default` when omitted; logs an error and exits when the value is unknown.
+// Centralised here so `build-site` and `admin` share identical handling.
+//
+// NOTE: uses `process.exit` — CLI-only. Do not call from SPA code.
+export function resolveThemeName(raw: string | undefined): ThemeName {
+  const normalized = (raw ?? 'default').toLowerCase()
+  if (isThemeName(normalized)) return normalized
+  console.error(`Unknown theme '${raw}'. Choose one of: ${themeNames.join(', ')}.`)
+  process.exit(1)
 }

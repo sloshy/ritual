@@ -6,7 +6,13 @@ import { startAdminServer } from '../admin/server'
 import { getBundledAdminCss, getBundledAdminJs } from '../admin/bundled-assets'
 import { getBaseDir } from '../base-dir'
 import { ensureFreshCardCache } from '../cache/freshness'
-import { generateThemeCss, resolveThemeName, themeNames, type ThemeName } from '../themes'
+import {
+  generateAllThemesCss,
+  resolveThemeName,
+  themeBootstrapScript,
+  themeNames,
+  type ThemeName,
+} from '../themes'
 
 type AdminCommandOptions = {
   port: string
@@ -17,12 +23,15 @@ type AdminCommandOptions = {
 
 type RebuildFlags = { js: boolean; css: boolean }
 
-const indexHtml = `<!DOCTYPE html>
-<html lang="en">
+function buildIndexHtml(initialTheme: ThemeName): string {
+  const attr = initialTheme === 'default' ? '' : ` data-theme="${initialTheme}"`
+  return `<!DOCTYPE html>
+<html lang="en"${attr}>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ritual Admin</title>
+  <script>${themeBootstrapScript}</script>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -30,6 +39,7 @@ const indexHtml = `<!DOCTYPE html>
   <script type="module" src="app.js"></script>
 </body>
 </html>`
+}
 
 async function buildAdminJs(srcDir: string, adminDistDir: string): Promise<boolean> {
   const { SolidPlugin } = await import('@dschz/bun-plugin-solid')
@@ -50,11 +60,7 @@ async function buildAdminJs(srcDir: string, adminDistDir: string): Promise<boole
   return true
 }
 
-async function buildAdminCss(
-  srcDir: string,
-  adminDistDir: string,
-  themeName: ThemeName,
-): Promise<boolean> {
+async function buildAdminCss(srcDir: string, adminDistDir: string): Promise<boolean> {
   const result = await Bun.build({
     entrypoints: [path.join(srcDir, 'admin', 'site', 'styles.css')],
     target: 'browser',
@@ -71,8 +77,7 @@ async function buildAdminCss(
     return false
   }
   const compiled = await cssOutput.text()
-  const themePrefix = generateThemeCss(themeName)
-  await Bun.write(path.join(adminDistDir, 'styles.css'), `${themePrefix}\n${compiled}`)
+  await Bun.write(path.join(adminDistDir, 'styles.css'), `${generateAllThemesCss()}\n${compiled}`)
   return true
 }
 
@@ -83,7 +88,11 @@ export function registerAdminCommand(program: Command) {
     .option('-p, --port <number>', 'Port to serve on', '8080')
     .option('--host <address>', 'Host address to bind to', '0.0.0.0')
     .option('--dev', 'Rebuild admin SPA from source on file changes')
-    .option('--theme <name>', `Color theme to use (${themeNames.join(', ')})`, 'default')
+    .option(
+      '--theme <name>',
+      `Initial theme baked into the served HTML (${themeNames.join(', ')})`,
+      'default',
+    )
     .action(async (options: AdminCommandOptions) => {
       const port = parseInt(options.port, 10)
       const host = options.host
@@ -104,18 +113,18 @@ export function registerAdminCommand(program: Command) {
         console.log('Building admin SPA from source...')
         const [jsOk, cssOk] = await Promise.all([
           buildAdminJs(adminSrcDir, adminDistDir),
-          buildAdminCss(adminSrcDir, adminDistDir, themeName),
+          buildAdminCss(adminSrcDir, adminDistDir),
         ])
         if (!jsOk || !cssOk) process.exit(1)
       } else {
         await Bun.write(path.join(adminDistDir, 'app.js'), getBundledAdminJs())
         await Bun.write(
           path.join(adminDistDir, 'styles.css'),
-          `${generateThemeCss(themeName)}\n${getBundledAdminCss()}`,
+          `${generateAllThemesCss()}\n${getBundledAdminCss()}`,
         )
       }
 
-      await Bun.write(path.join(adminDistDir, 'index.html'), indexHtml)
+      await Bun.write(path.join(adminDistDir, 'index.html'), buildIndexHtml(themeName))
 
       if (options.dev) {
         let building = false
@@ -125,7 +134,7 @@ export function registerAdminCommand(program: Command) {
           building = true
           try {
             const rebuilds: Promise<boolean>[] = []
-            if (flags.css) rebuilds.push(buildAdminCss(adminSrcDir, adminDistDir, themeName))
+            if (flags.css) rebuilds.push(buildAdminCss(adminSrcDir, adminDistDir))
             if (flags.js) rebuilds.push(buildAdminJs(adminSrcDir, adminDistDir))
             const results = await Promise.all(rebuilds)
             if (results.every(Boolean)) {

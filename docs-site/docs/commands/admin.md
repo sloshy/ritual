@@ -14,12 +14,12 @@ ritual admin [options]
 
 ## Options
 
-| Option                | Description                                                                                                                                                                                 | Default   |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| `-p, --port <number>` | Port to serve on                                                                                                                                                                            | `8080`    |
-| `--host <address>`    | Host address to bind to                                                                                                                                                                     | `0.0.0.0` |
-| `--dev`               | Rebuild admin SPA from source on file changes                                                                                                                                               | —         |
-| `--theme <name>`      | Color theme to bake into the served CSS. Append `-inverted` (e.g. `boros-inverted`) for the inverted variant. See [`build-site` themes](./build-site#themes) for the full list of palettes. | `default` |
+| Option                | Description                                                                                                                                                                           | Default   |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| `-p, --port <number>` | Port to serve on                                                                                                                                                                      | `8080`    |
+| `--host <address>`    | Host address to bind to                                                                                                                                                               | `0.0.0.0` |
+| `--dev`               | Rebuild admin SPA from source on file changes                                                                                                                                         | —         |
+| `--theme <name>`      | Initial theme served by the admin. Append `-inverted` (e.g. `boros-inverted`) for the inverted variant. See [`build-site` themes](./build-site#themes) for the full list of palettes. | `default` |
 
 ## First-Time Setup
 

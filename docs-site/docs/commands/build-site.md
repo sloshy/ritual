@@ -16,18 +16,19 @@ Generate a website for your decks and collections.
 
 By default, deck card images use Scryfall URLs from card data. This can be overridden with the `--cache-images` option to download and use local images instead.
 
-| Option                      | Description                                                                                                          |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `-v, --verbose`             | Show list of cards being fetched from Scryfall                                                                       |
-| `--cache-images`            | Download and use local deck card images in `dist/images` instead of URLs                                             |
-| `--decks [names...]`        | Deck names or URLs to include in the site (default: all in `decks/`)                                                 |
-| `--collections [names...]`  | Collection names to include in the site (default: all in `collections/`)                                             |
-| `--wanted-lists [names...]` | Wanted list names to include in the site (default: all in `wanted/`)                                                 |
-| `--collection-sort <field>` | Default sort order for collection pages (`file-order`, `name`, `price`, `set-code`, `type`, `cmc`, `color-identity`) |
-| `--deck-sort <field>`       | Default sort order for deck pages (`name`, `cmc`, `price`, `type`, `edhrec`, `color-identity`)                       |
-| `--currencies <list>`       | Comma-separated currencies to include on the site: `usd`, `eur`, `tix` (default: all three; first listed is default) |
-| `-y, --yes`                 | Skip confirmation prompts and auto-accept (e.g. bulk cache redownload)                                               |
-| `--theme <name>`            | Color theme baked into the generated CSS (default: `default`). See [Themes](#themes) below.                          |
+| Option                      | Description                                                                                                              |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `-v, --verbose`             | Show list of cards being fetched from Scryfall                                                                           |
+| `--cache-images`            | Download and use local deck card images in `dist/images` instead of URLs                                                 |
+| `--decks [names...]`        | Deck names or URLs to include in the site (default: all in `decks/`)                                                     |
+| `--collections [names...]`  | Collection names to include in the site (default: all in `collections/`)                                                 |
+| `--wanted-lists [names...]` | Wanted list names to include in the site (default: all in `wanted/`)                                                     |
+| `--collection-sort <field>` | Default sort order for collection pages (`file-order`, `name`, `price`, `set-code`, `type`, `cmc`, `color-identity`)     |
+| `--deck-sort <field>`       | Default sort order for deck pages (`name`, `cmc`, `price`, `type`, `edhrec`, `color-identity`)                           |
+| `--currencies <list>`       | Comma-separated currencies to include on the site: `usd`, `eur`, `tix` (default: all three; first listed is default)     |
+| `-y, --yes`                 | Skip confirmation prompts and auto-accept (e.g. bulk cache redownload)                                                   |
+| `--theme <name>`            | Initial theme served to first-time visitors (built-in name or a custom name from `--theme-file`). Defaults to `default`. |
+| `--theme-file <path...>`    | Load one or more custom theme JSON files; each is added to the runtime theme list under its declared `name`.             |
 
 ## Examples
 
@@ -93,7 +94,7 @@ Build with only USD and EUR (no TIX):
 
 ## Themes
 
-Use `--theme <name>` to bake a color palette into the generated `styles.css`. The default theme matches the original site styling. Ten Magic-flavored "guild" palettes are also available, each with a primary background color and a contrasting highlight color used for buttons, focus rings, and accents:
+The generated site ships with multiple themes selectable at runtime, or setting a default theme at build time. The `--theme` flag controls which theme is the **initial** one served (i.e. what users see on first visit before they pick something). Ten Magic-flavored "guild" palettes are available alongside the default, each with a primary background color and a contrasting highlight color used for buttons, focus rings, and accents:
 
 | Theme      | Background     | Highlight |
 | ---------- | -------------- | --------- |
@@ -116,7 +117,34 @@ Each theme also has an inverted variant accessible by appending `-inverted` to i
 ./ritual build-site --theme boros-inverted
 ```
 
-Theme selection only affects the bundled CSS — no other output changes.
+### Custom themes
+
+The header's **Theme** button opens a picker popover listing every built-in palette with a preview swatch. Clicking a palette switches the base theme; if the visitor has in-progress customizations, the picker first asks for confirmation before discarding them. Only the chosen theme name (and any explicit overrides) is stored in `localStorage` — when a future build ships updated built-in palettes, visitors who haven't customized see those updates automatically.
+
+For per-variable tweaks, the picker has a **Customize theme…** entry that opens the in-browser **theme editor**. The editor exposes every CSS variable as a labeled control (OKLch sliders for colors, number inputs for sizes), lets the user start from any built-in palette, and live-previews changes across all pages. The user's edits persist in `localStorage` so subsequent visits restore their custom palette.
+
+A **Download JSON** button in the editor exports the full set of variables as a `.json` file. To bake one of those palettes back into a build, pass it to `--theme-file`:
+
+```bash
+./ritual build-site --theme-file ./my-palette.json
+./ritual build-site --theme-file ./palette-a.json --theme-file ./palette-b.json
+./ritual build-site --theme-file ./my-palette.json --theme my-palette
+```
+
+Each `--theme-file` adds a custom theme alongside the built-ins under the `name` field declared in the JSON. Combining `--theme-file` with `--theme <custom-name>` makes that custom theme the initial default for new visitors. The JSON shape is:
+
+```json
+{
+  "name": "my-palette",
+  "description": "Optional human-readable description",
+  "variables": {
+    "--bg-body": "oklch(20% 0.02 260)",
+    "--accent": "oklch(60% 0.15 320)"
+  }
+}
+```
+
+Theme names must be lowercase letters, digits, and hyphens, and may not collide with any built-in theme name.
 
 ## Output
 
