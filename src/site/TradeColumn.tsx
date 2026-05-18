@@ -243,16 +243,14 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
 
       <div class="col-toolbar">
         <span class="col-toolbar-label">Sort</span>
-        <div class="toolbar-group">
+        <div class="view-toggle">
           <button
-            class="toolbar-seg"
             classList={{ active: props.sort.by === 'name' }}
             onClick={() => props.onSortChange('name')}
           >
             Name
           </button>
           <button
-            class="toolbar-seg"
             classList={{ active: props.sort.by === 'price' }}
             onClick={() => props.onSortChange('price')}
           >

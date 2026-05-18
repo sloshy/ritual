@@ -113,15 +113,19 @@ test.describe('Trade Page', () => {
     await expect(suggest2).toBeVisible()
     await suggest2.locator('.search-suggest-row').first().click({ force: true })
 
-    await page.locator('.trade-col[data-side="left"] .toolbar-seg', { hasText: 'Price' }).click()
-    await expect(page.locator('.trade-col[data-side="left"] .toolbar-seg.active')).toContainText(
-      'Price',
-    )
+    await page
+      .locator('.trade-col[data-side="left"] .view-toggle button', { hasText: 'Price' })
+      .click()
+    await expect(
+      page.locator('.trade-col[data-side="left"] .view-toggle button.active'),
+    ).toContainText('Price')
 
-    await page.locator('.trade-col[data-side="left"] .toolbar-seg', { hasText: 'Name' }).click()
-    await expect(page.locator('.trade-col[data-side="left"] .toolbar-seg.active')).toContainText(
-      'Name',
-    )
+    await page
+      .locator('.trade-col[data-side="left"] .view-toggle button', { hasText: 'Name' })
+      .click()
+    await expect(
+      page.locator('.trade-col[data-side="left"] .view-toggle button.active'),
+    ).toContainText('Name')
   })
 
   test('right column: searching and adding a card from the wanted list', async ({ page }) => {

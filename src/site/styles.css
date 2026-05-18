@@ -898,46 +898,6 @@ body {
   align-items: center;
 }
 
-.toolbar-seg {
-  font-size: 0.7rem;
-  font-weight: 500;
-  padding: 4px 9px;
-  background: var(--btn-bg);
-  color: var(--btn-text);
-  border: 1px solid var(--border);
-  cursor: pointer;
-  min-width: 28px;
-  text-align: center;
-  transition: all 150ms;
-  border-radius: 0;
-  margin-left: -1px;
-  position: relative;
-
-  &:first-child {
-    margin-left: 0;
-    border-top-left-radius: 0.25rem;
-    border-bottom-left-radius: 0.25rem;
-  }
-
-  &:last-child {
-    border-top-right-radius: 0.25rem;
-    border-bottom-right-radius: 0.25rem;
-  }
-
-  &:hover {
-    background: var(--btn-hover);
-    color: var(--text-primary);
-    z-index: 1;
-  }
-
-  &.active {
-    background: var(--bg-active);
-    color: var(--text-primary);
-    border-color: var(--border-hover);
-    z-index: 2;
-  }
-}
-
 .reverse-btn {
   font-size: 0.7rem;
   font-weight: 500;
