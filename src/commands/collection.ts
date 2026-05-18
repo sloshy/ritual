@@ -17,6 +17,8 @@ import {
   isCondition,
   buildCopyLine,
   type LastAddedCard,
+  type ChoiceWithNum,
+  type SetsPromptResponse,
 } from './collection-helpers'
 import { appendChangelog } from '../changelog-writer'
 import { createAddChange } from '../change-event'
@@ -193,8 +195,8 @@ export function registerCollectionCommand(program: Command): void {
 
           // Sort by collector number (numeric where possible)
           collectorChoices.sort((a, b) => {
-            const aNum = (a.value as { num: string }).num
-            const bNum = (b.value as { num: string }).num
+            const aNum = (a.value as ChoiceWithNum).num
+            const bNum = (b.value as ChoiceWithNum).num
             const numA = parseInt(aNum, 10) || 0
             const numB = parseInt(bNum, 10) || 0
             if (numA !== numB) return numA - numB
@@ -427,7 +429,7 @@ export function registerCollectionCommand(program: Command): void {
               message: 'Enter set codes to use (comma-separated, e.g., "FDN, SPG"):',
               validate: (val: string) =>
                 val.trim().length > 0 ? true : 'At least one set code required',
-            })) as { sets?: string }
+            })) as SetsPromptResponse
 
             if (!setsResponse.sets) continue
 

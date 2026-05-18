@@ -21,7 +21,12 @@ import type { ScryfallCard, ScryfallList } from '../types'
 import { cardCache } from '../cache'
 import { defaultHttpClient } from '../http'
 import { ScryfallClient } from './client'
-import type { ScryfallSymbol, RepresentativePrintsResult } from './client'
+import type {
+  ScryfallSymbol,
+  RepresentativePrintsResult,
+  FetchCardDataOptions,
+  FetchNamedCardOptions,
+} from './client'
 import { comparePrintings, type CardNameFilter } from './card-utils'
 import type { PriceCurrency } from '../price-currency'
 
@@ -46,7 +51,7 @@ export function downloadSymbol(symbol: ScryfallSymbol, destDir: string): Promise
 
 export function fetchCardData(
   name: string,
-  options?: { silent?: boolean },
+  options?: FetchCardDataOptions,
 ): Promise<ScryfallCard | null> {
   return scryfallClient.fetchCardData(name, options)
 }
@@ -82,7 +87,7 @@ export async function getCardPrintings(name: string): Promise<ScryfallCard[]> {
 
 export function fetchNamedCard(
   name: string,
-  options?: { fuzzy?: boolean; set?: string },
+  options?: FetchNamedCardOptions,
 ): Promise<ScryfallCard | null> {
   return scryfallClient.fetchNamedCard(name, options)
 }

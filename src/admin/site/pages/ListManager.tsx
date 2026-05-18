@@ -5,6 +5,7 @@ import { useApiAction } from '../hooks/useApiAction'
 type Category = 'decks' | 'collections' | 'wanted'
 type ViewState = 'list' | 'create' | 'rename' | 'delete'
 type ListItem = { slug: string; name: string }
+type CreateBody = { name: string; format?: string }
 
 type CategoryMeta = {
   label: string
@@ -107,7 +108,7 @@ export function ListManager(): JSX.Element {
     const m = meta()
     const trimmed = newName().trim()
     if (!trimmed) return
-    const body: { name: string; format?: string } = { name: trimmed }
+    const body: CreateBody = { name: trimmed }
     if (m.hasFormat) body.format = newFormat()
     const ok = await run(
       m.createUrl,

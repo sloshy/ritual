@@ -23,18 +23,22 @@ function getCardImageUrl(card: ScryfallCard, useScryfallImgUrls: boolean): strin
   return sources.frontImage || null
 }
 
-function isAdditiveAction(action: string): boolean {
-  return action === 'Added' || action.startsWith('Set')
-}
-
-function formatChangeText(change: {
+type ChangeDisplay = {
   action: string
   cardName: string
   set?: string
   collectorNumber?: string
   finish?: string
   condition?: string
-}): { prefix: string; suffix: string } {
+}
+
+type FormattedChange = { prefix: string; suffix: string }
+
+function isAdditiveAction(action: string): boolean {
+  return action === 'Added' || action.startsWith('Set')
+}
+
+function formatChangeText(change: ChangeDisplay): FormattedChange {
   const parts: string[] = []
   if (change.set && change.collectorNumber) {
     parts.push(`(${change.set.toUpperCase()}:${change.collectorNumber})`)

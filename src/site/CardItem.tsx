@@ -8,9 +8,11 @@ import { getCardPrice, formatPrice } from '../price-currency'
 import type { ViewMode } from './card-sorting'
 import { capitalize } from './utils'
 
+type ButtonMouseEvent = MouseEvent & { currentTarget: HTMLButtonElement }
+
 /** Wraps a callback with stopPropagation so click events don't bubble to the card container. */
 const stopPropAnd =
-  (fn?: () => void): ((e: MouseEvent & { currentTarget: HTMLButtonElement }) => void) =>
+  (fn?: () => void): ((e: ButtonMouseEvent) => void) =>
   (e) => {
     e.stopPropagation()
     fn?.()
@@ -18,9 +20,7 @@ const stopPropAnd =
 
 /** Like stopPropAnd but passes the button's bounding rect to the callback. */
 const stopPropAndRect =
-  (
-    fn?: (rect: DOMRect) => void,
-  ): ((e: MouseEvent & { currentTarget: HTMLButtonElement }) => void) =>
+  (fn?: (rect: DOMRect) => void): ((e: ButtonMouseEvent) => void) =>
   (e) => {
     e.stopPropagation()
     fn?.(e.currentTarget.getBoundingClientRect())

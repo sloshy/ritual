@@ -9,6 +9,11 @@ interface StageInfo {
   icon: string
 }
 
+type CacheActionResponse = { success: boolean; message: string }
+type CacheProgressEventData = { stage: string; percentage?: number; message: string }
+type CacheDoneEventData = { message: string }
+type CacheErrorEventData = { message: string }
+
 const stages: StageInfo[] = [
   { id: 'download', label: 'Downloading card data', icon: '📡' },
   { id: 'parse', label: 'Parsing JSON', icon: '📄' },
@@ -49,7 +54,7 @@ export function CacheRefresh(): JSX.Element {
         method: 'POST',
         credentials: 'same-origin',
       })
-      const data = (await resp.json()) as { success: boolean; message: string }
+      const data = (await resp.json()) as CacheActionResponse
       if (data.success) {
         setStage('done')
         setPercentage(100)
@@ -77,11 +82,7 @@ export function CacheRefresh(): JSX.Element {
 
       es.addEventListener('progress', (e: MessageEvent) => {
         try {
-          const data = JSON.parse(e.data as string) as {
-            stage: string
-            percentage?: number
-            message: string
-          }
+          const data = JSON.parse(e.data as string) as CacheProgressEventData
           const s = data.stage as Stage
           if (s === 'download' || s === 'parse' || s === 'process' || s === 'save') {
             setStage(s)
@@ -97,7 +98,7 @@ export function CacheRefresh(): JSX.Element {
 
       es.addEventListener('done', (e: MessageEvent) => {
         try {
-          const data = JSON.parse(e.data as string) as { message: string }
+          const data = JSON.parse(e.data as string) as CacheDoneEventData
           setStage('done')
           setPercentage(100)
           setStatus(data.message)
@@ -114,7 +115,7 @@ export function CacheRefresh(): JSX.Element {
         const msgEvent = e as MessageEvent
         if (msgEvent.data) {
           try {
-            const data = JSON.parse(msgEvent.data as string) as { message: string }
+            const data = JSON.parse(msgEvent.data as string) as CacheErrorEventData
             setError(data.message)
           } catch {
             setError('Cache refresh failed')

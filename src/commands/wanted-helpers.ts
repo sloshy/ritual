@@ -114,6 +114,9 @@ export type WantedListSessionConfig = Omit<SessionConfig, 'condition'>
 
 export type WantedFinishResult = Finish | 'nopreference' | 'cancelled'
 
+type FinishChoice = { title: string; value: string }
+type FinishPromptResponse = { finish?: string }
+
 /**
  * Prompt the user to select a finish for a wanted list entry.
  * Returns:
@@ -141,7 +144,7 @@ export async function promptWantedFinish(
     return only !== undefined ? only : 'nopreference'
   }
 
-  const choices: Array<{ title: string; value: string }> = [
+  const choices: FinishChoice[] = [
     { title: 'No preference (any finish)', value: '__NONE__' },
     ...availableFinishes.map((f) => ({ title: capitalize(f), value: f })),
   ]
@@ -155,7 +158,7 @@ export async function promptWantedFinish(
     onState: (state: PromptState) => {
       if (state.exited) isExited = true
     },
-  })) as { finish?: string }
+  })) as FinishPromptResponse
 
   if (isExited || response.finish === undefined) return 'cancelled'
   if (response.finish === '__NONE__') return 'nopreference'

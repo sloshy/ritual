@@ -15,6 +15,8 @@ import { ListManager } from './pages/ListManager'
 import { CollectionEditor } from './pages/CollectionEditor'
 import { WantedListEditor } from './pages/WantedListEditor'
 
+type StatusResponse = { setupRequired: boolean; totpEnabled?: boolean }
+
 function App() {
   const [page, setPage] = createSignal<Page>('dashboard')
   const [setupRequired, setSetupRequired] = createSignal<boolean | null>(null)
@@ -24,7 +26,7 @@ function App() {
   const checkStatus = async () => {
     try {
       const resp = await fetch('/api/status')
-      const data = (await resp.json()) as { setupRequired: boolean; totpEnabled?: boolean }
+      const data = (await resp.json()) as StatusResponse
       setSetupRequired(data.setupRequired)
       setTotpEnabled(data.totpEnabled === true)
 

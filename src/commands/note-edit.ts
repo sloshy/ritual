@@ -24,6 +24,8 @@ import { noteOrUndefined } from '../note-helpers'
 import { formatPrintingAnnotation } from '../change-event'
 import type { Card, Condition, DeckData, ErrorCode, Finish } from '../types'
 
+type FilePromptResponse = { file?: string }
+
 /** Unified summary for a card entry across all list types. */
 export type EntryRef = {
   name: string
@@ -175,7 +177,7 @@ export async function resolveListPath(
     onState: (state: PromptState) => {
       if (state.exited) exited = true
     },
-  })) as { file?: string }
+  })) as FilePromptResponse
   if (exited || !resp.file) {
     throw new NoteCommandError('usage_error', 'Cancelled.', ExitCode.UsageError)
   }

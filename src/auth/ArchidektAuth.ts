@@ -2,13 +2,22 @@ import type { AuthService, TokenStore, ArchidektToken, ArchidektCredentials } fr
 import { getLogger } from '../logger'
 import { throwHttpError } from '../errors'
 
+type StoredUser = { username: string; id: number }
+
+type RefreshResponse = {
+  access?: string
+  access_token?: string
+  refresh_token?: string
+  access_token_expiration?: string
+}
+
 export class ArchidektAuth implements AuthService<ArchidektCredentials> {
   private readonly SITE_NAME = 'archidekt'
   private readonly BASE_URL = 'https://archidekt.com/api/rest-auth'
 
   constructor(private tokenStore: TokenStore) {}
 
-  async getStoredUser(): Promise<{ username: string; id: number } | null> {
+  async getStoredUser(): Promise<StoredUser | null> {
     const token = await this.tokenStore.load<ArchidektToken>(this.SITE_NAME)
     return token?.user || null
   }
@@ -73,12 +82,7 @@ export class ArchidektAuth implements AuthService<ArchidektCredentials> {
       throwHttpError(response, 'Token refresh failed')
     }
 
-    const data = (await response.json()) as {
-      access?: string
-      access_token?: string
-      refresh_token?: string
-      access_token_expiration?: string
-    }
+    const data = (await response.json()) as RefreshResponse
     // Preserve fields (e.g. user info) that the refresh endpoint may omit
     const newToken: ArchidektToken = {
       ...oldToken,

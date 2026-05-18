@@ -59,9 +59,11 @@ export async function validateContentHash(
  * and any entry-level `note` fields). Mutates each note in place to the trimmed
  * value. Returns a 400 Response if any note contains control characters.
  */
+type RequestNoteEntry = { note?: string }
+
 export function normalizeRequestNotes(
   changes: ChangeEvent[],
-  entries: { note?: string }[],
+  entries: RequestNoteEntry[],
 ): Response | null {
   for (const change of changes) {
     if (change.action !== 'set-note') continue

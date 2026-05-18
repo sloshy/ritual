@@ -80,6 +80,8 @@ export type SiteSpaAssets = {
   appJs: string
 }
 
+type LoadedDeck = { data: DeckData; changelog: ChangelogPage[] }
+
 async function buildSiteSpaFromSource(): Promise<SiteSpaAssets> {
   const { SolidPlugin } = await import('@dschz/bun-plugin-solid')
   const srcDir = path.join(import.meta.dir, '..', '..', 'src')
@@ -318,7 +320,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     }
   }
 
-  const loadedDecks: { data: DeckData; changelog: ChangelogPage[] }[] = []
+  const loadedDecks: LoadedDeck[] = []
   const globalCardMap: Record<string, ScryfallCard | null> = {}
   const globalPrintingsMap: Record<string, ScryfallCard[]> = {}
   const allCardNames = new Set<string>()

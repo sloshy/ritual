@@ -17,6 +17,10 @@ interface AuthGuardLoginProps {
 
 type AuthGuardProps = AuthGuardSetupProps | AuthGuardLoginProps
 
+type LoginErrorResponse = { totpRequired?: boolean; message?: string }
+type RateLimitResponse = { retryAfterSeconds?: number }
+type SetupResponse = { success: boolean; message: string }
+
 export const AuthGuard: Component<AuthGuardProps> = (props) => {
   const [username, setUsername] = createSignal('')
   const [password, setPassword] = createSignal('')
@@ -59,7 +63,7 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
           props.onLogin()
         } else if (resp.status === 401) {
           try {
-            const data = (await resp.json()) as { totpRequired?: boolean; message?: string }
+            const data = (await resp.json()) as LoginErrorResponse
             if (data.totpRequired && !showTotp()) {
               setShowTotp(true)
               setError('Two-factor authentication code required')
@@ -73,7 +77,7 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
           }
         } else if (resp.status === 429) {
           try {
-            const data = (await resp.json()) as { retryAfterSeconds?: number }
+            const data = (await resp.json()) as RateLimitResponse
             const secs = data.retryAfterSeconds ?? 300
             setError(`Too many failed attempts. Try again in ${Math.ceil(secs / 60)} minute(s).`)
           } catch {
@@ -89,7 +93,7 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
           body: JSON.stringify({ username: username(), password: password() }),
           credentials: 'same-origin',
         })
-        const data = (await resp.json()) as { success: boolean; message: string }
+        const data = (await resp.json()) as SetupResponse
         if (data.success) {
           // After setup, log in to create a session
           const loginResp = await fetch('/api/login', {

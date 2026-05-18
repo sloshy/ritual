@@ -20,6 +20,7 @@ import { resolveCardThumbnailUrl } from './image-sources'
 
 type CollectionGroupBy = 'type' | 'cmc' | 'color-identity' | 'price' | 'none'
 type MetaEntry = { label: string; value: string }
+type GroupedEntry = { entry: CollectionCardEntry; count: number }
 
 interface CollectionPageProps {
   name: string
@@ -141,7 +142,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   const allCards = createMemo((): CardData[] => {
     if (groupDuplicates()) {
       // Group identical entries (same name+set+CN+finish+condition)
-      const grouped = new Map<string, { entry: CollectionCardEntry; count: number }>()
+      const grouped = new Map<string, GroupedEntry>()
       for (const entry of currencyEntries()) {
         const key = `${entry.name}|${entry.set}|${entry.collectorNumber}|${entry.finish}|${entry.condition}`
         const existing = grouped.get(key)

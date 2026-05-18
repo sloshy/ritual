@@ -8,6 +8,8 @@ type DepLicenseOptions = {
   plain: boolean
 }
 
+type PromptStateChange = { aborted: boolean; exited: boolean }
+
 const SEPARATOR = '__SEPARATOR__'
 
 export function formatEntry(entry: DepLicenseEntry): string {
@@ -73,7 +75,7 @@ export function registerDepLicenseCommand(program: Command): void {
               terms.every((t: string) => c.title.toLowerCase().includes(t)),
           )
         },
-        onState(state: { aborted: boolean; exited: boolean }) {
+        onState(state: PromptStateChange) {
           aborted = state.aborted || state.exited
         },
       })

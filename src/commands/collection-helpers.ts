@@ -12,6 +12,16 @@ import { parseSetCodesInput } from '../set-codes'
 
 export { VALID_FINISHES, VALID_CONDITIONS, isFinish, isCondition }
 
+type FinishPromptResponse = { finish?: string }
+type ConditionPromptResponse = { condition?: string }
+type CodePromptResponse = { code?: string }
+
+/** Choice value shape for the interactive collector-mode prompt (used by `collection` and `wanted` commands). */
+export type ChoiceWithNum = { num: string }
+
+/** Shape of a free-form text prompt asking for set codes. */
+export type SetsPromptResponse = { sets?: string }
+
 /**
  * Ensure the collections directory and named collection file exist.
  * Creates the file with a markdown heading if new.
@@ -162,7 +172,7 @@ export async function promptFinishAndCondition(
       name: 'finish',
       message: 'Select Finish:',
       choices: finishChoices,
-    })) as { finish?: string }
+    })) as FinishPromptResponse
     const chosenFinish = finishResponse.finish
     if (!chosenFinish || !isFinish(chosenFinish)) return null
     selectedFinish = chosenFinish
@@ -188,7 +198,7 @@ export async function promptFinishAndCondition(
         { title: 'Heavily Played', value: 'HP' },
         { title: 'Damaged', value: 'DMG' },
       ],
-    })) as { condition?: string }
+    })) as ConditionPromptResponse
     if (conditionResponse.condition === undefined) return null
     selectedCondition =
       conditionResponse.condition === ''
@@ -371,7 +381,7 @@ export async function manageSetCodes(sessionConfig: CollectorSessionConfig): Pro
         name: 'code',
         message: 'Enter set code to add:',
         validate: (val: string) => (val.trim().length > 0 ? true : 'Set code cannot be empty'),
-      })) as { code?: string }
+      })) as CodePromptResponse
 
       if (addResponse.code) {
         const newCode = addResponse.code.trim().toLowerCase()
@@ -401,7 +411,7 @@ export async function manageSetCodes(sessionConfig: CollectorSessionConfig): Pro
           title: code.toUpperCase(),
           value: code,
         })),
-      })) as { code?: string }
+      })) as CodePromptResponse
 
       if (removeResponse.code) {
         const idx = sessionConfig.collectorSets.indexOf(removeResponse.code)

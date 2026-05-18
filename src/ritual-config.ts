@@ -117,7 +117,9 @@ export function parseSiteConfig(value: unknown): SiteConfig | string {
   return { version: obj.version, ciSystem: obj.ciSystem }
 }
 
-function applyDefaults(parsed: Partial<RitualConfig> & { site?: unknown }): RitualConfig {
+type ParsedConfigWithSite = Partial<RitualConfig> & { site?: unknown }
+
+function applyDefaults(parsed: ParsedConfigWithSite): RitualConfig {
   const merged: RitualConfig = { ...DEFAULT_CONFIG, ...parsed, site: undefined }
   if (parsed.site !== undefined) {
     const site = parseSiteConfig(parsed.site)
@@ -133,7 +135,7 @@ function applyDefaults(parsed: Partial<RitualConfig> & { site?: unknown }): Ritu
 async function readConfigFromDisk(): Promise<RitualConfig | null> {
   try {
     const content = await fs.readFile(getRitualConfigPath(), 'utf-8')
-    const parsed = JSON.parse(content) as Partial<RitualConfig> & { site?: unknown }
+    const parsed = JSON.parse(content) as ParsedConfigWithSite
     return applyDefaults(parsed)
   } catch {
     return null

@@ -150,8 +150,13 @@ export function clonePool(pool: CardIdPool): CardIdPool {
   }
 }
 
+type EntryWithCardId = { cardId?: number }
+type DeckWithCardIds = {
+  sections: readonly { cards: readonly EntryWithCardId[] }[]
+}
+
 /** Pull `cardId` numbers off a flat list of entries, dropping anything that's missing one. */
-export function collectExistingIds(items: readonly { cardId?: number }[]): number[] {
+export function collectExistingIds(items: readonly EntryWithCardId[]): number[] {
   const ids: number[] = []
   for (const item of items) {
     if (item.cardId !== undefined) ids.push(item.cardId)
@@ -160,9 +165,7 @@ export function collectExistingIds(items: readonly { cardId?: number }[]): numbe
 }
 
 /** Like {@link collectExistingIds} but walks a deck's nested `sections[].cards[]`. */
-export function collectDeckCardIds(deck: {
-  sections: readonly { cards: readonly { cardId?: number }[] }[]
-}): number[] {
+export function collectDeckCardIds(deck: DeckWithCardIds): number[] {
   const ids: number[] = []
   for (const section of deck.sections) {
     for (const card of section.cards) {

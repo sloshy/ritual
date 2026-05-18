@@ -4,6 +4,8 @@ import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { TotpSettings } from '../components/TotpSettings'
 
+type ConfigResponse = { success: boolean; config: RitualConfig }
+
 function listToString(list: string[]): string {
   return list.join('\n')
 }
@@ -15,7 +17,7 @@ export function Settings(): JSX.Element {
   const fetchConfig = async () => {
     try {
       const resp = await fetch('/api/config', { credentials: 'same-origin' })
-      const data = (await resp.json()) as { success: boolean; config: RitualConfig }
+      const data = (await resp.json()) as ConfigResponse
       if (data.success && data.config) {
         setConfig(data.config)
       }

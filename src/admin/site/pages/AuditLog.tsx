@@ -1,6 +1,8 @@
 import { type JSX, createSignal, onMount, Show, For } from 'solid-js'
 import type { AuditEntry } from '../../audit-log'
 
+type AuditLogResponse = { success: boolean; entries: AuditEntry[] }
+
 function formatDate(ts: string): string {
   try {
     return new Date(ts).toLocaleString()
@@ -18,7 +20,7 @@ export function AuditLog(): JSX.Element {
     setLoading(true)
     try {
       const resp = await fetch('/api/audit-log?limit=200', { credentials: 'same-origin' })
-      const data = (await resp.json()) as { success: boolean; entries: AuditEntry[] }
+      const data = (await resp.json()) as AuditLogResponse
       if (data.success) {
         setEntries(data.entries)
       }

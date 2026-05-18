@@ -187,7 +187,9 @@ type DiffEntriesOptions = {
  * matched by the same identity key (requires card IDs for finish-change
  * detection when finish is part of the composite key).
  */
-function diffEntries<T extends CardIdentity & { name: string; quantity?: number }>(
+type DiffableEntry = CardIdentity & { name: string; quantity?: number }
+
+function diffEntries<T extends DiffableEntry>(
   oldEntries: T[],
   newEntries: T[],
   options: DiffEntriesOptions = {},

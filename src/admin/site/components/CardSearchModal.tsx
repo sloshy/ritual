@@ -24,6 +24,9 @@ type CardSearchModalProps = {
   defaults?: EditorDefaults
 }
 
+type PrintingsResponse = { success: boolean; printings: ScryfallCard[] }
+type AutocompleteResponse = { success: boolean; names: string[] }
+
 type AddOptionsInput = {
   printing: ScryfallCard
   finish: Finish
@@ -227,7 +230,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       const resp = await fetch(`/api/card-printings?name=${encodeURIComponent(cardName)}`, {
         credentials: 'same-origin',
       })
-      const data = (await resp.json()) as { success: boolean; printings: ScryfallCard[] }
+      const data = (await resp.json()) as PrintingsResponse
       if (data.success && data.printings.length > 0) {
         const cheapest = getCheapestPrinting(data.printings)
         if (cheapest) {
@@ -254,7 +257,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       const resp = await fetch(`/api/autocomplete?q=${encodeURIComponent(searchQuery)}`, {
         credentials: 'same-origin',
       })
-      const data = (await resp.json()) as { success: boolean; names: string[] }
+      const data = (await resp.json()) as AutocompleteResponse
       if (data.success) {
         setResults(data.names)
         setHighlightedIndex(data.names.length > 0 ? 0 : -1)
@@ -289,7 +292,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       const resp = await fetch(`/api/card-printings?name=${encodeURIComponent(cardName)}`, {
         credentials: 'same-origin',
       })
-      const data = (await resp.json()) as { success: boolean; printings: ScryfallCard[] }
+      const data = (await resp.json()) as PrintingsResponse
       if (data.success) {
         const filtered = applySetFilter(data.printings)
         setPrintings(filtered)

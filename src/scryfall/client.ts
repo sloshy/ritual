@@ -71,6 +71,11 @@ export type MinMaxPrice = {
   max: number
 }
 
+export type FetchCardDataOptions = { silent?: boolean }
+export type FetchNamedCardOptions = { fuzzy?: boolean; set?: string }
+type ScryfallErrorBody = { details: string }
+type ScryfallBulkMetadataEntry = { type: string; download_uri: string; size: number }
+
 export type SearchPageResult = {
   data: ScryfallList<ScryfallCard> | null
   raw: string
@@ -314,7 +319,7 @@ export class ScryfallClient implements PricingBackend {
     return result
   }
 
-  async fetchCardData(name: string, options?: { silent?: boolean }): Promise<ScryfallCard | null> {
+  async fetchCardData(name: string, options?: FetchCardDataOptions): Promise<ScryfallCard | null> {
     if (!options?.silent) {
       await this.checkAndPromptPreload()
     }
@@ -369,7 +374,7 @@ export class ScryfallClient implements PricingBackend {
 
   async fetchNamedCard(
     name: string,
-    options?: { fuzzy?: boolean; set?: string },
+    options?: FetchNamedCardOptions,
   ): Promise<ScryfallCard | null> {
     const mode = options?.fuzzy ? 'fuzzy' : 'exact'
     const params = new URLSearchParams({ [mode]: name })
@@ -390,7 +395,7 @@ export class ScryfallClient implements PricingBackend {
         const errorBody = await response.json().catch(() => null)
         const details =
           errorBody && typeof errorBody === 'object' && 'details' in errorBody
-            ? (errorBody as { details: string }).details
+            ? (errorBody as ScryfallErrorBody).details
             : `${response.status} ${response.statusText}`
         getLogger().error(`Card not found: ${details}`)
       }
@@ -422,7 +427,7 @@ export class ScryfallClient implements PricingBackend {
         const errorBody = await response.json().catch(() => null)
         const details =
           errorBody && typeof errorBody === 'object' && 'details' in errorBody
-            ? (errorBody as { details: string }).details
+            ? (errorBody as ScryfallErrorBody).details
             : `${response.status} ${response.statusText}`
         getLogger().error(`No cards found: ${details}`)
       }
@@ -704,11 +709,7 @@ export class ScryfallClient implements PricingBackend {
       if (!metaResponse.ok) {
         throwHttpError(metaResponse, 'Failed to fetch bulk metadata')
       }
-      const metaJson = (await metaResponse.json()) as ScryfallList<{
-        type: string
-        download_uri: string
-        size: number
-      }>
+      const metaJson = (await metaResponse.json()) as ScryfallList<ScryfallBulkMetadataEntry>
       const defaultData = metaJson.data?.find((d) => d.type === 'default_cards')
 
       if (!defaultData?.download_uri) {

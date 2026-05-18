@@ -1,6 +1,14 @@
 import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import globals from 'globals'
+import noAnonymousObjectTypes from './eslint-rules/no-anonymous-object-types.js'
+
+// Project-local plugin housing custom rules that enforce AGENTS.md guidelines.
+const ritualPlugin = {
+  rules: {
+    'no-anonymous-object-types': noAnonymousObjectTypes,
+  },
+}
 
 // Focused ruleset: rules picked to catch the same kinds of issues that the
 // most recent code review flagged, plus a small set of clear-bug rules. The
@@ -44,6 +52,7 @@ export default [
     },
     plugins: {
       '@typescript-eslint': tseslint.plugin,
+      ritual: ritualPlugin,
     },
     rules: {
       // TypeScript already resolves type names — `no-undef` only knows about
@@ -58,6 +67,11 @@ export default [
       // module boundary, e.g. exported functions). Narrower than
       // `explicit-function-return-type`, which would flag every inline arrow.
       '@typescript-eslint/explicit-module-boundary-types': 'error',
+
+      // ── Targeted: enforces AGENTS.md #2 (no anonymous object types
+      // outside named declarations). Catches the kind of inline `{ … }`
+      // shape that the recent review surfaced in `watchedDirs`.
+      'ritual/no-anonymous-object-types': 'error',
 
       // ── Targeted: catches review issue #4 (commander `.action(cb)` lands
       // `options` as `any` because of commander's `(...args: any[])` signature).
@@ -98,6 +112,9 @@ export default [
     rules: {
       // Test files don't need full module-boundary typing.
       '@typescript-eslint/explicit-module-boundary-types': 'off',
+      // Tests routinely use ad-hoc inline shapes for mock data and response
+      // assertions; requiring a named type for every one would be high noise.
+      'ritual/no-anonymous-object-types': 'off',
     },
   },
 ]

@@ -2,6 +2,8 @@ import { MoxfieldClient } from './moxfield-client'
 import { type DeckData, type DeckSection } from '../types'
 import { getLogger } from '../logger'
 
+type ImportedCard = { quantity: number; name: string }
+
 export async function fetchMoxfieldDeck(
   deckId: string,
   client: MoxfieldClient = new MoxfieldClient(),
@@ -14,7 +16,7 @@ export async function fetchMoxfieldDeck(
     const processBoard = (boardName: string, targetSectionName: string) => {
       const board = deck.boards[boardName]
       if (board?.cards) {
-        const cards: { quantity: number; name: string }[] = []
+        const cards: ImportedCard[] = []
 
         for (const value of Object.values(board.cards)) {
           const quantity = value.quantity

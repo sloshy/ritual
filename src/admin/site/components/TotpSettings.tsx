@@ -6,6 +6,15 @@ interface TotpSetupData {
   uri: string
 }
 
+type TotpStatusResponse = { enabled: boolean }
+type TotpSetupResponse = {
+  success: boolean
+  secret?: string
+  uri?: string
+  message?: string
+}
+type TotpActionResponse = { success: boolean; message: string }
+
 export const TotpSettings: Component = () => {
   const [totpEnabled, setTotpEnabled] = createSignal(false)
   const [totpSetup, setTotpSetup] = createSignal<TotpSetupData | null>(null)
@@ -17,7 +26,7 @@ export const TotpSettings: Component = () => {
   onMount(() => {
     fetch('/api/totp/status', { credentials: 'same-origin' })
       .then((r) => r.json())
-      .then((data: { enabled: boolean }) => setTotpEnabled(data.enabled))
+      .then((data: TotpStatusResponse) => setTotpEnabled(data.enabled))
       .catch(() => {})
   })
 
@@ -30,12 +39,7 @@ export const TotpSettings: Component = () => {
         method: 'POST',
         credentials: 'same-origin',
       })
-      const data = (await resp.json()) as {
-        success: boolean
-        secret?: string
-        uri?: string
-        message?: string
-      }
+      const data = (await resp.json()) as TotpSetupResponse
       if (data.success && data.secret && data.uri) {
         setTotpSetup({ secret: data.secret, uri: data.uri })
       } else {
@@ -59,7 +63,7 @@ export const TotpSettings: Component = () => {
         body: JSON.stringify({ code: totpCode() }),
         credentials: 'same-origin',
       })
-      const data = (await resp.json()) as { success: boolean; message: string }
+      const data = (await resp.json()) as TotpActionResponse
       if (data.success) {
         setTotpEnabled(true)
         setTotpSetup(null)
@@ -83,7 +87,7 @@ export const TotpSettings: Component = () => {
         method: 'POST',
         credentials: 'same-origin',
       })
-      const data = (await resp.json()) as { success: boolean; message: string }
+      const data = (await resp.json()) as TotpActionResponse
       if (data.success) {
         setTotpEnabled(false)
         setMessage('TOTP disabled')

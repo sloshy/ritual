@@ -373,10 +373,13 @@ async function promptOverwrite(filePath: string): Promise<boolean> {
   return response.overwrite === true
 }
 
+type ForceOption = { force: boolean }
+type InitSiteCommandOptions = { force?: boolean; upgrade?: boolean }
+
 async function writeFileWithOverwritePrompt(
   filePath: string,
   content: string,
-  opts: { force: boolean } = { force: false },
+  opts: ForceOption = { force: false },
 ): Promise<'written' | 'skipped' | 'cancelled'> {
   if (!opts.force && (await fileExists(filePath))) {
     const shouldOverwrite = await promptOverwrite(filePath)
@@ -461,7 +464,7 @@ export function registerInitSiteCommand(program: Command): void {
       'Re-initialize and overwrite all generated files, ignoring the existing site config',
     )
     .option('-u, --upgrade', 'Upgrade tracked workflows to the current version without prompting')
-    .action(async (options: { force?: boolean; upgrade?: boolean }) => {
+    .action(async (options: InitSiteCommandOptions) => {
       // --force: ignore saved state, prompt fresh, overwrite everything
       if (options.force) {
         const config = await promptForConfig()
@@ -660,7 +663,7 @@ async function promptForConfig(): Promise<InitSiteConfig | null> {
   return { ciSystem, deployMode, distDir, detectChanges }
 }
 
-async function writeInitFiles(config: InitSiteConfig, opts: { force: boolean }): Promise<void> {
+async function writeInitFiles(config: InitSiteConfig, opts: ForceOption): Promise<void> {
   // Write managed files filtered to the selected CI system
   for (const file of MANAGED_FILES) {
     if (!isActiveManagedFile(file)) continue

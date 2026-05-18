@@ -87,6 +87,7 @@ function* parseSourceGroups(
 }
 
 type SfPart = { sfId: string | undefined; urlFinish: string | undefined }
+type ParsedSfToken = { basePart: string; sf: SfPart }
 
 /**
  * Parse the optional `@sfId[:finish]` suffix on a deck/wanted token. The base portion
@@ -94,7 +95,7 @@ type SfPart = { sfId: string | undefined; urlFinish: string | undefined }
  * how to interpret it (deck encodes `id` as a quantity-prefixed `idxqty`; wanted encodes
  * a bare numeric id).
  */
-function parseSfPart(token: string): { basePart: string; sf: SfPart } {
+function parseSfPart(token: string): ParsedSfToken {
   const atIdx = token.indexOf('@')
   if (atIdx < 0) {
     return { basePart: token, sf: { sfId: undefined, urlFinish: undefined } }

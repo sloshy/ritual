@@ -241,6 +241,8 @@ async function saveDeckWithSyncTimestamp(target: DeckTarget, deck: DeckData): Pr
 
 // ── Command registration ──────────────────────────────────────────────
 
+type DeckSyncOptions = { uploadChanges?: boolean; downloadChanges?: boolean }
+
 export function registerDeckSyncCommand(program: Command): void {
   program
     .command('deck-sync')
@@ -248,46 +250,44 @@ export function registerDeckSyncCommand(program: Command): void {
     .argument('[decks...]', 'Deck names to sync (defaults to all Archidekt decks)')
     .option('--upload-changes', 'Push local changes to Archidekt')
     .option('--download-changes', 'Pull remote changes from Archidekt')
-    .action(
-      async (decks: string[], options: { uploadChanges?: boolean; downloadChanges?: boolean }) => {
-        const logger = getLogger()
+    .action(async (decks: string[], options: DeckSyncOptions) => {
+      const logger = getLogger()
 
-        if (options.uploadChanges && options.downloadChanges) {
-          logger.error('Cannot use both --upload-changes and --download-changes at the same time')
-          process.exit(1)
-        }
+      if (options.uploadChanges && options.downloadChanges) {
+        logger.error('Cannot use both --upload-changes and --download-changes at the same time')
+        process.exit(1)
+      }
 
-        if (!options.uploadChanges && !options.downloadChanges) {
-          logger.error('Specify either --upload-changes or --download-changes')
-          process.exit(1)
-        }
+      if (!options.uploadChanges && !options.downloadChanges) {
+        logger.error('Specify either --upload-changes or --download-changes')
+        process.exit(1)
+      }
 
-        const tokenStore = new FileTokenStore()
-        const auth = new ArchidektAuth(tokenStore)
-        const client = new ArchidektClient()
+      const tokenStore = new FileTokenStore()
+      const auth = new ArchidektAuth(tokenStore)
+      const client = new ArchidektClient()
 
-        // Check authentication
-        const token = await auth.getToken()
-        if (!token) {
-          logger.error('Not signed into Archidekt. Run "ritual login archidekt" first.')
-          process.exit(1)
-        }
+      // Check authentication
+      const token = await auth.getToken()
+      if (!token) {
+        logger.error('Not signed into Archidekt. Run "ritual login archidekt" first.')
+        process.exit(1)
+      }
 
-        const decksDir = getDecksDir()
-        const targets = await resolveTargetDecks(decks, decksDir)
+      const decksDir = getDecksDir()
+      const targets = await resolveTargetDecks(decks, decksDir)
 
-        if (targets.length === 0) {
-          logger.info('No Archidekt decks found to sync.')
-          return
-        }
+      if (targets.length === 0) {
+        logger.info('No Archidekt decks found to sync.')
+        return
+      }
 
-        if (options.downloadChanges) {
-          await downloadChanges(targets, client, token, logger)
-        } else {
-          await uploadChanges(targets, client, token, logger)
-        }
-      },
-    )
+      if (options.downloadChanges) {
+        await downloadChanges(targets, client, token, logger)
+      } else {
+        await uploadChanges(targets, client, token, logger)
+      }
+    })
 }
 
 // ── Download flow ─────────────────────────────────────────────────────
