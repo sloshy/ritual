@@ -21,7 +21,7 @@ describe('HTTP Integration', () => {
       await fetch(`http://localhost:${server.port}`)
       expect(receivedUserAgent!).toBe(`Ritual/${version}`)
     } finally {
-      server.stop()
+      await server.stop()
     }
   })
 })

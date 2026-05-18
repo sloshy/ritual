@@ -55,7 +55,6 @@ program.option(
 )
 program.option('--base-dir <path>', 'Use this directory instead of the current working directory')
 type GlobalOptions = { cacheServer?: string; baseDir?: string }
-type CommandWithGlobals = Command & { optsWithGlobals: () => GlobalOptions }
 
 const COMMANDS_WITHOUT_LIST_IDS = new Set([
   'login',
@@ -70,8 +69,7 @@ const COMMANDS_WITHOUT_LIST_IDS = new Set([
 ])
 
 program.hook('preAction', async (command) => {
-  const commandWithGlobals = command as CommandWithGlobals
-  const options = commandWithGlobals.optsWithGlobals()
+  const options = command.optsWithGlobals<GlobalOptions>()
   if (options.baseDir) {
     setBaseDir(options.baseDir)
   }

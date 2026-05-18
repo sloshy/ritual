@@ -63,7 +63,7 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
   return (
     <div
       class="card-context-menu"
-      ref={menuRef!}
+      ref={menuRef}
       style={menuStyle()}
       role="menu"
       aria-label={`Options for ${props.cardName}`}

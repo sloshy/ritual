@@ -13,7 +13,7 @@ type GetPrimerOptions = {
   moxfieldUserAgent?: string
 }
 
-export function registerGetPrimerCommand(program: Command) {
+export function registerGetPrimerCommand(program: Command): void {
   program
     .command('get-primer')
     .description('Extract and output the primer for a deck as Markdown')

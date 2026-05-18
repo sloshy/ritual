@@ -147,7 +147,7 @@ export async function promptWantedFinish(
   ]
 
   let isExited = false
-  const response = await prompts({
+  const response = (await prompts({
     type: 'select',
     name: 'finish',
     message: 'Select Finish:',
@@ -155,7 +155,7 @@ export async function promptWantedFinish(
     onState: (state: PromptState) => {
       if (state.exited) isExited = true
     },
-  })
+  })) as { finish?: string }
 
   if (isExited || response.finish === undefined) return 'cancelled'
   if (response.finish === '__NONE__') return 'nopreference'
@@ -172,7 +172,7 @@ export async function promptWantedListConfigUpdate(
       name: 'sets',
       message: 'Filter by Set Codes (comma separated, e.g. "ECL, ECC"):',
       initial: sessionConfig.sets ? sessionConfig.sets.join(', ') : '',
-      format: (val) => parseSetCodesInput(val),
+      format: (val: string) => parseSetCodesInput(val),
     },
     {
       type: 'select',

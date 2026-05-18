@@ -53,11 +53,11 @@ jobs:
         id: ritual-version
         run: |
           VERSION="\${RITUAL_VERSION:-latest}"
-          if [ "\$VERSION" = "latest" ]; then
-            VERSION=\$(curl -s https://api.github.com/repos/sloshy/ritual/releases/latest \\
+          if [ "$VERSION" = "latest" ]; then
+            VERSION=$(curl -s https://api.github.com/repos/sloshy/ritual/releases/latest \\
               | grep '"tag_name"' | head -1 | cut -d'"' -f4)
           fi
-          echo "version=\$VERSION" >> "\$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
         env:
           RITUAL_VERSION: \${{ vars.RITUAL_VERSION }}
 
@@ -134,11 +134,11 @@ jobs:
         id: ritual-version
         run: |
           VERSION="\${RITUAL_VERSION:-latest}"
-          if [ "\$VERSION" = "latest" ]; then
-            VERSION=\$(curl -s https://api.github.com/repos/sloshy/ritual/releases/latest \\
+          if [ "$VERSION" = "latest" ]; then
+            VERSION=$(curl -s https://api.github.com/repos/sloshy/ritual/releases/latest \\
               | grep '"tag_name"' | head -1 | cut -d'"' -f4)
           fi
-          echo "version=\$VERSION" >> "\$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
         env:
           RITUAL_VERSION: \${{ vars.RITUAL_VERSION }}
 
@@ -160,18 +160,18 @@ jobs:
         id: detect-changes
         run: |
           BEFORE="\${{ github.event.before }}"
-          if [ -z "\$BEFORE" ] || [ "\$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
             BEFORE="HEAD~1"
           fi
-          ./ritual git-detect-changes "\$BEFORE"
-          if [ -n "\$(git status --porcelain)" ]; then
+          ./ritual git-detect-changes "$BEFORE"
+          if [ -n "$(git status --porcelain)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            SHORT_SHA=\$(git rev-parse --short HEAD)
+            SHORT_SHA=$(git rev-parse --short HEAD)
             git add -A
-            git commit -m "Generated changes from commit \$SHORT_SHA"
+            git commit -m "Generated changes from commit $SHORT_SHA"
             git push
-            echo "has-changes=true" >> "\$GITHUB_OUTPUT"
+            echo "has-changes=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Generate card manifest
@@ -452,7 +452,7 @@ async function applyMigrations(migrations: Migration[]): Promise<void> {
   }
 }
 
-export function registerInitSiteCommand(program: Command) {
+export function registerInitSiteCommand(program: Command): void {
   program
     .command('init-site')
     .description('Initialize the current directory for publishing a Ritual site')

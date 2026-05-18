@@ -131,7 +131,7 @@ export const ChangelogModal: Component<ChangelogModalProps> = (props) => {
                   const card = props.cards[change.cardName] ?? null
                   const imageUrl =
                     card && props.useScryfallImgUrls !== undefined
-                      ? getCardImageUrl(card, props.useScryfallImgUrls!)
+                      ? getCardImageUrl(card, props.useScryfallImgUrls)
                       : null
                   const { prefix, suffix } = formatChangeText(change)
                   const colorClass = additive

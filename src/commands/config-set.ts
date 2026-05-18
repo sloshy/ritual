@@ -198,7 +198,7 @@ type ConfigSetOptions = {
   remove?: boolean
 }
 
-export function registerConfigSetCommand(program: Command) {
+export function registerConfigSetCommand(program: Command): void {
   program
     .command('config-set')
     .description('Set or update a value in the ritual configuration file')

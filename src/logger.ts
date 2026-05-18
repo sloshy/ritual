@@ -64,6 +64,17 @@ export type CacheProgressEvent = {
   message: string
 }
 
+function stringifyLogMessage(value: unknown): string {
+  if (value == null) return ''
+  if (typeof value === 'string') return value
+  if (value instanceof Error) return value.message
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return Object.prototype.toString.call(value)
+  }
+}
+
 export class StreamingLogger implements Logger {
   constructor(
     private readonly onEvent: (event: CacheProgressEvent) => void,
@@ -71,7 +82,7 @@ export class StreamingLogger implements Logger {
   ) {}
 
   info(message?: unknown, ...optionalParams: unknown[]): void {
-    const msg = String(message ?? '')
+    const msg = stringifyLogMessage(message)
     this.mirrorTo?.info(message, ...optionalParams)
 
     if (msg.includes('Parsing JSON')) {
@@ -89,12 +100,12 @@ export class StreamingLogger implements Logger {
 
   warn(message?: unknown, ...optionalParams: unknown[]): void {
     this.mirrorTo?.warn(message, ...optionalParams)
-    this.onEvent({ stage: 'info', message: `Warning: ${String(message ?? '')}` })
+    this.onEvent({ stage: 'info', message: `Warning: ${stringifyLogMessage(message)}` })
   }
 
   error(message?: unknown, ...optionalParams: unknown[]): void {
     this.mirrorTo?.error(message, ...optionalParams)
-    this.onEvent({ stage: 'info', message: `Error: ${String(message ?? '')}` })
+    this.onEvent({ stage: 'info', message: `Error: ${stringifyLogMessage(message)}` })
   }
 
   progress(message: string): void {

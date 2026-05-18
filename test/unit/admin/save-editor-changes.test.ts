@@ -27,7 +27,6 @@ describe('saveEditorChanges', () => {
   })
 
   it('calls saveStart then saveSuccess on success', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     globalThis.fetch = (async () =>
       ({
         json: async () => ({ success: true }),
@@ -43,7 +42,6 @@ describe('saveEditorChanges', () => {
   })
 
   it('calls saveError when response has success=false', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     globalThis.fetch = (async () =>
       ({
         json: async () => ({ success: false, error: 'Conflict' }),
@@ -59,7 +57,6 @@ describe('saveEditorChanges', () => {
   })
 
   it('calls saveError with fallback message when no error provided', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     globalThis.fetch = (async () =>
       ({
         json: async () => ({ success: false }),
@@ -74,7 +71,6 @@ describe('saveEditorChanges', () => {
   })
 
   it('calls saveError on network failure', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     globalThis.fetch = (async () => {
       throw new Error('Network error')
     }) as any
@@ -91,7 +87,7 @@ describe('saveEditorChanges', () => {
   it('sends correct request configuration', async () => {
     let capturedUrl = ''
     let capturedInit: RequestInit = {}
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
       capturedUrl = input as string
       capturedInit = init ?? {}
@@ -111,7 +107,6 @@ describe('saveEditorChanges', () => {
   })
 
   it('returns data on success', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     globalThis.fetch = (async () =>
       ({
         json: async () => ({ success: true, contentHash: 'abc123' }),
@@ -123,7 +118,6 @@ describe('saveEditorChanges', () => {
   })
 
   it('returns undefined on network failure', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     globalThis.fetch = (async () => {
       throw new Error('Network error')
     }) as any
@@ -134,7 +128,6 @@ describe('saveEditorChanges', () => {
   })
 
   it('handles 409 conflict response', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     globalThis.fetch = (async () =>
       ({
         status: 409,
@@ -163,7 +156,6 @@ describe('saveEditorChanges', () => {
   })
 
   it('handles conflict flag without 409 status', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     globalThis.fetch = (async () =>
       ({
         status: 200,
@@ -183,7 +175,6 @@ describe('saveEditorChanges', () => {
   })
 
   it('uses message field as fallback when error is absent', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     globalThis.fetch = (async () =>
       ({
         status: 400,

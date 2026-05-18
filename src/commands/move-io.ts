@@ -97,7 +97,7 @@ function applyRemoveFromText(staged: StagedTextFile, card: PhysicalCard): boolea
     if (!trimmed.startsWith('- ')) return false
     if (card.cardId !== undefined && trimmed.match(new RegExp(`&${card.cardId}\\s*$`))) return true
     // Fallback: match by name, also using set/collectorNumber when available
-    const nameMatch = trimmed.match(/^- (.+?)(?:\s[\(\[{&]|$)/)
+    const nameMatch = trimmed.match(/^- (.+?)(?:\s[([{&]|$)/)
     if (nameMatch?.[1] !== card.name) return false
     if (card.set !== undefined && card.collectorNumber !== undefined) {
       const setMatch = trimmed.match(/\(([^:]+):([^)]+)\)/)

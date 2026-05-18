@@ -133,7 +133,7 @@ export const CardModal: Component<CardModalProps> = (props) => {
             class="printings-sort-select"
             value={printingsSortField()}
             onChange={(e) => {
-              setPrintingsSortField((e.target as HTMLSelectElement).value as PrintingsSortField)
+              setPrintingsSortField(e.target.value as PrintingsSortField)
               setPrintingsPage(0)
             }}
           >

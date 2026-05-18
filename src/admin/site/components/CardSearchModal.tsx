@@ -259,7 +259,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
         setResults(data.names)
         setHighlightedIndex(data.names.length > 0 ? 0 : -1)
         const firstName = data.names[0]
-        if (firstName) fetchCardImage(firstName)
+        if (firstName) void fetchCardImage(firstName)
       }
     } catch {
       // Silently ignore network errors
@@ -274,7 +274,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
 
     if (searchTimeout) clearTimeout(searchTimeout)
     searchTimeout = setTimeout(() => {
-      performSearch(value)
+      void performSearch(value)
     }, 1000)
   }
 
@@ -369,7 +369,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       const name = currentResults[next]
       if (name) {
         setQuery(name)
-        fetchCardImage(name)
+        void fetchCardImage(name)
       }
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
@@ -383,14 +383,14 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
         const name = currentResults[next]
         if (name) {
           setQuery(name)
-          fetchCardImage(name)
+          void fetchCardImage(name)
         }
       }
     } else if (e.key === 'Enter') {
       e.preventDefault()
       const index = currentIndex >= 0 ? currentIndex : 0
       const name = currentResults[index]
-      if (name) selectCardName(name)
+      if (name) void selectCardName(name)
     } else if (e.key === 'Backspace') {
       if (currentIndex >= 0 && query() !== typedQuery) {
         e.preventDefault()
@@ -409,7 +409,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
         setPreviewCard(null)
         if (searchTimeout) clearTimeout(searchTimeout)
         searchTimeout = setTimeout(() => {
-          performSearch(newQuery)
+          void performSearch(newQuery)
         }, 1000)
       }
     }
@@ -505,12 +505,12 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
           if (e.target === e.currentTarget) props.onClose()
         }}
       >
-        <div class="search-modal" ref={modalRef!}>
+        <div class="search-modal" ref={modalRef}>
           <Show when={step() === 'search'}>
             <>
               <div class="search-modal-header">
                 <input
-                  ref={inputRef!}
+                  ref={inputRef}
                   type="text"
                   placeholder="Search for a card..."
                   value={query()}
@@ -533,11 +533,11 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                   {(name, i) => (
                     <button
                       class={`search-result-item${i() === highlightedIndex() ? ' search-result-item--highlighted' : ''}`}
-                      onClick={() => selectCardName(name)}
+                      onClick={() => void selectCardName(name)}
                       onMouseEnter={() => {
                         setHighlightedIndex(i())
                         setQuery(name)
-                        fetchCardImage(name)
+                        void fetchCardImage(name)
                       }}
                     >
                       {name}

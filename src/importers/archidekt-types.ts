@@ -225,7 +225,7 @@ export function parseArchidektDescription(rawDesc: string | null | undefined): s
     }
 
     return rawDesc
-  } catch (e) {
+  } catch {
     return rawDesc
   }
 }

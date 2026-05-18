@@ -31,7 +31,7 @@ function parseInputNames(raw: string): string[] {
     .filter((line) => line.length > 0)
 }
 
-export function registerCardCommand(program: Command) {
+export function registerCardCommand(program: Command): void {
   addScriptingOptions(
     program
       .command('card')

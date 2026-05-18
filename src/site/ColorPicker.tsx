@@ -57,7 +57,7 @@ export const ColorPicker: Component<ColorPickerProps> = (props) => {
                 type="text"
                 value={props.value}
                 onInput={(e) => {
-                  const v = (e.target as HTMLInputElement).value
+                  const v = e.target.value
                   if (props.onRawInput) props.onRawInput(v)
                   else props.onInput(v)
                 }}
@@ -88,7 +88,7 @@ export const ColorPicker: Component<ColorPickerProps> = (props) => {
                 max="100"
                 step="0.5"
                 value={color().l}
-                onInput={(e) => update({ l: parseFloat((e.target as HTMLInputElement).value) })}
+                onInput={(e) => update({ l: parseFloat(e.target.value) })}
                 style={{ '--track': lightnessGradient(color().c, color().h) }}
               />
               <output>{color().l.toFixed(1)}%</output>
@@ -101,7 +101,7 @@ export const ColorPicker: Component<ColorPickerProps> = (props) => {
                 max="0.4"
                 step="0.001"
                 value={color().c}
-                onInput={(e) => update({ c: parseFloat((e.target as HTMLInputElement).value) })}
+                onInput={(e) => update({ c: parseFloat(e.target.value) })}
                 style={{ '--track': chromaGradient(color().l, color().h) }}
               />
               <output>{color().c.toFixed(3)}</output>
@@ -114,7 +114,7 @@ export const ColorPicker: Component<ColorPickerProps> = (props) => {
                 max="360"
                 step="1"
                 value={color().h}
-                onInput={(e) => update({ h: parseFloat((e.target as HTMLInputElement).value) })}
+                onInput={(e) => update({ h: parseFloat(e.target.value) })}
                 style={{ '--track': hueGradient(color().l, color().c) }}
               />
               <output>{Math.round(color().h)}°</output>
@@ -128,7 +128,7 @@ export const ColorPicker: Component<ColorPickerProps> = (props) => {
                   max="1"
                   step="0.01"
                   value={color().a}
-                  onInput={(e) => update({ a: parseFloat((e.target as HTMLInputElement).value) })}
+                  onInput={(e) => update({ a: parseFloat(e.target.value) })}
                   style={{ '--track': alphaGradient(color().l, color().c, color().h) }}
                 />
                 <output>{color().a.toFixed(2)}</output>
@@ -139,7 +139,7 @@ export const ColorPicker: Component<ColorPickerProps> = (props) => {
               <input
                 type="text"
                 value={props.value}
-                onInput={(e) => props.onInput((e.target as HTMLInputElement).value)}
+                onInput={(e) => props.onInput(e.target.value)}
               />
             </label>
           </>
@@ -171,7 +171,7 @@ export const LengthPicker: Component<LengthPickerProps> = (props) => {
         step="0.5"
         value={numeric()}
         onInput={(e) => {
-          const v = parseFloat((e.target as HTMLInputElement).value)
+          const v = parseFloat(e.target.value)
           if (Number.isFinite(v)) props.onInput(`${v}px`)
         }}
       />

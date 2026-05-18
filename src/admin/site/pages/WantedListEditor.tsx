@@ -1,4 +1,4 @@
-import { createSignal, Show } from 'solid-js'
+import { type JSX, createSignal, Show } from 'solid-js'
 import type { ScryfallCard } from '../../../types'
 import type { WantedListCardEntry } from '../../../site/data-types'
 import type { CardPriceResponse } from '../../api/card-price'
@@ -24,7 +24,7 @@ type WantedListDataResponse = {
   contentHash: string
 }
 
-export function WantedListEditor() {
+export function WantedListEditor(): JSX.Element {
   const [cardData, cardActions] = useEntryCardData()
   const [modalCardKey, setModalCardKey] = createSignal<string | null>(null)
   const defaults = useEditorDefaults('wanted')
@@ -160,11 +160,7 @@ export function WantedListEditor() {
             <CardContextMenu
               cardName={menu().cardName}
               card={menu().card}
-              currentFinish={
-                (editor.data() as WantedListCardEntry[] | null)?.find(
-                  (e) => e.name === menu().cardName,
-                )?.finish
-              }
+              currentFinish={editor.data()?.find((e) => e.name === menu().cardName)?.finish}
               onSetFoil={editor.handleSetFoil}
               onUnsetCommander={closeContextMenu}
               anchorRect={menu().anchorRect}
@@ -177,7 +173,7 @@ export function WantedListEditor() {
     >
       <WantedListPage
         name={editor.list().find((c) => c.slug === editor.slug())?.name ?? editor.slug()!}
-        entries={editor.data()! as WantedListCardEntry[]}
+        entries={editor.data()!}
         cards={cardData.cards}
         printings={cardData.printings}
         symbolMap={cardData.symbolMap}

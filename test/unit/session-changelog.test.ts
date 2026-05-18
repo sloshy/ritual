@@ -159,7 +159,7 @@ describe('trackAnotherCopy', () => {
 
     trackAnotherCopy(changes, 0)
 
-    const copy = changes[1]! as AddChange
+    const copy = changes[1]!
     expect(copy.cardName).toBe('Black Lotus')
     expect(copy.set).toBe('lea')
     expect(copy.collectorNumber).toBe('1')
@@ -207,12 +207,12 @@ describe('trackAnotherCopy', () => {
     let idx: number | null = 0
     idx = trackAnotherCopy(changes, idx)
     idx = trackAnotherCopy(changes, idx)
-    idx = trackAnotherCopy(changes, idx)
+    trackAnotherCopy(changes, idx)
 
     expect(changes).toHaveLength(4)
     for (const event of changes) {
       expect(event.cardName).toBe('Mox Ruby')
-      expect((event as AddChange).set).toBe('lea')
+      expect(event.set).toBe('lea')
     }
     // All IDs should be unique
     const ids = changes.map((e) => e.id)
@@ -246,7 +246,7 @@ describe('trackAnotherCopy', () => {
 
     let idx: number | null = 0
     idx = trackAnotherCopy(changes, idx, 2)
-    idx = trackAnotherCopy(changes, idx, 3)
+    trackAnotherCopy(changes, idx, 3)
 
     expect(changes[1]!.cardId).toBe(2)
     expect(changes[2]!.cardId).toBe(3)

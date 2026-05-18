@@ -4,7 +4,7 @@ import * as fs from 'node:fs/promises'
 import { writeFileWithHash } from '../content-hash'
 import { getDecksDir } from '../ritual-config'
 
-export function registerNewDeckCommand(program: Command) {
+export function registerNewDeckCommand(program: Command): void {
   program
     .command('new-deck')
     .description('Create a new deck file')

@@ -31,7 +31,9 @@ type EditorShellProps<TData, TCardEntry> = {
   children: JSX.Element
 }
 
-export function EditorShell<TData, TCardEntry>(props: EditorShellProps<TData, TCardEntry>) {
+export function EditorShell<TData, TCardEntry>(
+  props: EditorShellProps<TData, TCardEntry>,
+): JSX.Element {
   const editor = props.editor
 
   return (
@@ -83,7 +85,7 @@ export function EditorShell<TData, TCardEntry>(props: EditorShellProps<TData, TC
       <CardSearchModal
         open={editor.dialogs.showSearchModal()}
         onClose={editor.dialogs.closeSearchModal}
-        onAddCard={editor.handleAddCardFromSearch}
+        onAddCard={(card) => void editor.handleAddCardFromSearch(card)}
         requirePrinting={props.requirePrinting}
         defaults={props.defaults.defaults()}
       />
@@ -115,7 +117,7 @@ export function EditorShell<TData, TCardEntry>(props: EditorShellProps<TData, TC
           saving={editor.status.saving}
           onShowChanges={editor.dialogs.openChanges}
           onUndo={editor.handleUndo}
-          onSave={editor.handleSave}
+          onSave={() => void editor.handleSave()}
           onDiscard={editor.dialogs.openDiscard}
         />
       </Show>

@@ -56,7 +56,7 @@ describe('defaultFinishForCard', () => {
   })
 
   test('falls back to nonfoil when no recognized finish is present', () => {
-    expect(defaultFinishForCard(makeCard({ finishes: ['glossy' as never] }))).toBe('nonfoil')
+    expect(defaultFinishForCard(makeCard({ finishes: ['glossy'] }))).toBe('nonfoil')
   })
 
   test('returns nonfoil when no scryfall card or no finishes', () => {

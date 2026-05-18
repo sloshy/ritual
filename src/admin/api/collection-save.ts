@@ -9,7 +9,6 @@ import { formatCollectionLine } from '../../commands/collection-helpers'
 import { getCollectionsDir } from '../../ritual-config'
 import { parseCollectionFile } from '../../commands/price-collection'
 import { applyChangeToCollection } from '../site/types/collection-changes'
-import type { Finish, Condition } from '../../types'
 import {
   validateBodySize,
   validateContentHash,
@@ -90,8 +89,8 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
       name: e.name,
       set: e.set.toLowerCase(),
       collectorNumber: e.collectorNumber,
-      finish: (e.finish ?? 'nonfoil') as Finish,
-      condition: (e.condition ?? 'NM') as Condition,
+      finish: e.finish ?? 'nonfoil',
+      condition: e.condition ?? 'NM',
       price: 0,
       fileOrder: i,
       note: e.note,

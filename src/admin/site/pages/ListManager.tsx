@@ -1,4 +1,4 @@
-import { createSignal, createEffect, createMemo, batch, Show, For } from 'solid-js'
+import { type JSX, createSignal, createEffect, createMemo, batch, Show, For } from 'solid-js'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { useApiAction } from '../hooks/useApiAction'
 
@@ -56,7 +56,7 @@ const CATEGORY_META: Record<Category, CategoryMeta> = {
 
 const CATEGORIES: Category[] = ['decks', 'collections', 'wanted']
 
-export function ListManager() {
+export function ListManager(): JSX.Element {
   const [category, setCategory] = createSignal<Category>('decks')
   const [items, setItems] = createSignal<ListItem[]>([])
   const [loadError, setLoadError] = createSignal<string | null>(null)
@@ -100,7 +100,7 @@ export function ListManager() {
     category()
     setView('list')
     resetForms()
-    fetchItems()
+    void fetchItems()
   })
 
   const handleCreate = async () => {
@@ -268,9 +268,8 @@ export function ListManager() {
                 value={newName()}
                 onInput={(e) => setNewName(e.currentTarget.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleCreate()
+                  if (e.key === 'Enter') void handleCreate()
                 }}
-                // eslint-disable-next-line jsx-a11y/no-autofocus
                 autofocus
               />
               <Show when={newName().trim()}>
@@ -303,7 +302,7 @@ export function ListManager() {
             <div class="form-actions">
               <button
                 class="btn btn-primary"
-                onClick={handleCreate}
+                onClick={() => void handleCreate()}
                 disabled={loading() || !newName().trim()}
               >
                 {loading() ? 'Creating...' : `Create ${capitalize(meta().singular)}`}
@@ -331,9 +330,8 @@ export function ListManager() {
                     value={renameName()}
                     onInput={(e) => setRenameName(e.currentTarget.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleRename()
+                      if (e.key === 'Enter') void handleRename()
                     }}
-                    // eslint-disable-next-line jsx-a11y/no-autofocus
                     autofocus
                   />
                   <Show when={renameName().trim()}>
@@ -345,7 +343,7 @@ export function ListManager() {
                 <div class="form-actions">
                   <button
                     class="btn btn-primary"
-                    onClick={handleRename}
+                    onClick={() => void handleRename()}
                     disabled={loading() || !renameName().trim() || renameName() === item().name}
                   >
                     {loading() ? 'Renaming...' : 'Rename'}
@@ -384,16 +382,15 @@ export function ListManager() {
                     value={deleteConfirm()}
                     onInput={(e) => setDeleteConfirm(e.currentTarget.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && deleteConfirm() === item().name) handleDelete()
+                      if (e.key === 'Enter' && deleteConfirm() === item().name) void handleDelete()
                     }}
-                    // eslint-disable-next-line jsx-a11y/no-autofocus
                     autofocus
                   />
                 </div>
                 <div class="form-actions">
                   <button
                     class="btn btn-delete"
-                    onClick={handleDelete}
+                    onClick={() => void handleDelete()}
                     disabled={loading() || deleteConfirm() !== item().name}
                   >
                     {loading() ? 'Deleting...' : `Delete ${capitalize(meta().singular)}`}
@@ -427,10 +424,13 @@ function capitalize(s: string): string {
 }
 
 function slugify(name: string): string {
-  return name
-    .trim()
-    .replace(/[/\\:*?"<>|\x00]/g, '')
-    .replace(/\.{2,}/g, '.')
-    .replace(/^\.+|\.+$/g, '')
-    .trim()
+  return (
+    name
+      .trim()
+      // eslint-disable-next-line no-control-regex -- null byte is intentional: strips filename-illegal chars.
+      .replace(/[/\\:*?"<>|\x00]/g, '')
+      .replace(/\.{2,}/g, '.')
+      .replace(/^\.+|\.+$/g, '')
+      .trim()
+  )
 }

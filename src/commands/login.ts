@@ -4,7 +4,7 @@ import { ArchidektAuth } from '../auth/ArchidektAuth'
 import { FileTokenStore } from '../auth/FileTokenStore'
 import { promptForLogin } from '../auth/login-helper'
 
-export function registerLoginCommand(program: Command) {
+export function registerLoginCommand(program: Command): void {
   const loginCommand = program.command('login').description('Login to a supported website')
 
   loginCommand
@@ -26,7 +26,7 @@ export function registerLoginCommand(program: Command) {
             }
             console.log(`Session for ${user.username} expired.`)
           }
-        } catch (e) {
+        } catch {
           // Ignore errors during check, proceed to login
         }
       }

@@ -9,10 +9,10 @@ export const VALID_CONDITIONS = [
   'DMG',
 ] as const satisfies readonly Condition[]
 
-export function isFinish(value: string): value is Finish {
-  return (VALID_FINISHES as readonly string[]).includes(value)
+export function isFinish(value: string | undefined): value is Finish {
+  return value !== undefined && (VALID_FINISHES as readonly string[]).includes(value)
 }
 
-export function isCondition(value: string): value is Condition {
-  return (VALID_CONDITIONS as readonly string[]).includes(value)
+export function isCondition(value: string | undefined): value is Condition {
+  return value !== undefined && (VALID_CONDITIONS as readonly string[]).includes(value)
 }

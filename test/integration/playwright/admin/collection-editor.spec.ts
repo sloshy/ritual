@@ -25,7 +25,7 @@ test.describe('Collection Editor Page', () => {
     const options = select.locator('option')
     const value = await options.nth(1).getAttribute('value')
     expect(value).toBeTruthy()
-    await select.selectOption(value!)
+    await select.selectOption(value)
     // Editor should populate with deck content (textarea or editor element)
     const editor = page.locator('textarea, .editor-content, [class*="editor"]').first()
     await expect(editor).toBeVisible({ timeout: 10_000 })

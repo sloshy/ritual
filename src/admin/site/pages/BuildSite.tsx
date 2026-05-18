@@ -1,7 +1,8 @@
+import type { JSX } from 'solid-js'
 import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from '../components/StatusAlerts'
 
-export function BuildSite() {
+export function BuildSite(): JSX.Element {
   const { status, error, loading, run } = useApiAction()
 
   const handleBuild = async () => {
@@ -15,7 +16,11 @@ export function BuildSite() {
         Generate the static website from your deck files. This may take a few minutes.
       </p>
       <StatusAlerts status={status()} error={error()} />
-      <button class="btn btn-primary btn-lg" onClick={handleBuild} disabled={loading()}>
+      <button
+        class="btn btn-primary btn-lg"
+        onClick={() => void handleBuild()}
+        disabled={loading()}
+      >
         {loading() ? 'Building... (this may take a while)' : 'Build Site'}
       </button>
     </div>

@@ -239,7 +239,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     }
   }
 
-  let deckSources: string[] = []
+  let deckSources: string[]
   if (options.decks && Array.isArray(options.decks) && options.decks.length > 0) {
     deckSources = options.decks
   } else {
@@ -580,7 +580,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
         hasTix ? globalLowestPriceCardMapTix[name] : null,
       ]
       const seenIds = new Set<string>()
-      if (globalCardMap[name]?.id) seenIds.add(globalCardMap[name]!.id)
+      if (globalCardMap[name]?.id) seenIds.add(globalCardMap[name].id)
       for (const repCard of repCards) {
         if (repCard && !seenIds.has(repCard.id)) {
           seenIds.add(repCard.id)
@@ -1453,7 +1453,7 @@ export function applyBuildSiteOptions(command: Command): Command {
     )
 }
 
-export function registerBuildSiteCommand(program: Command) {
+export function registerBuildSiteCommand(program: Command): void {
   applyBuildSiteOptions(
     program.command('build-site').description('Generate a static website for decks'),
   ).action(async (options: BuildSiteOptions) => {

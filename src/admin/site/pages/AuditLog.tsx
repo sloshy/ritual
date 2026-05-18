@@ -1,4 +1,4 @@
-import { createSignal, onMount, Show, For } from 'solid-js'
+import { type JSX, createSignal, onMount, Show, For } from 'solid-js'
 import type { AuditEntry } from '../../audit-log'
 
 function formatDate(ts: string): string {
@@ -9,7 +9,7 @@ function formatDate(ts: string): string {
   }
 }
 
-export function AuditLog() {
+export function AuditLog(): JSX.Element {
   const [entries, setEntries] = createSignal<AuditEntry[]>([])
   const [loading, setLoading] = createSignal(true)
   const [error, setError] = createSignal<string | null>(null)
@@ -30,7 +30,7 @@ export function AuditLog() {
   }
 
   onMount(() => {
-    fetchLog()
+    void fetchLog()
   })
 
   return (
@@ -45,7 +45,7 @@ export function AuditLog() {
       <div>
         <div class="audit-header">
           <h2 class="section-heading">📋 Audit Log</h2>
-          <button class="btn btn-secondary" onClick={fetchLog}>
+          <button class="btn btn-secondary" onClick={() => void fetchLog()}>
             Refresh
           </button>
         </div>

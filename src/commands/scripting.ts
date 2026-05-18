@@ -152,14 +152,14 @@ export function projectFields(data: unknown, fields?: string[]): unknown {
   if (Array.isArray(data)) {
     return data.map((entry) => {
       if (isRecord(entry)) {
-        return projectRecordFields(entry as Record<string, unknown>, fields)
+        return projectRecordFields(entry, fields)
       }
       return entry
     })
   }
 
   if (isRecord(data)) {
-    return projectRecordFields(data as Record<string, unknown>, fields)
+    return projectRecordFields(data, fields)
   }
 
   return data

@@ -127,6 +127,7 @@ function applyCustomVarsInline(vars: ThemeCssVars): void {
 
 export type ThemeStore = ReturnType<typeof createThemeStore>
 
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types -- ThemeStore is intentionally derived from this function's inferred shape via ReturnType so the two stay in sync.
 export function createThemeStore() {
   // ---- Initial values from the bootstrap script in index.html ----
   const initialThemeAttr = document.documentElement.dataset.theme ?? 'default'

@@ -246,10 +246,9 @@ export function areOppositeChanges(a: ChangeEvent, b: ChangeEvent): boolean {
     return false
   }
 
-  // Narrow to AddChange | RemoveChange for field access
-  type CardChange = Extract<ChangeEvent, { action: 'add' | 'remove' }>
-  const ac = a as CardChange
-  const bc = b as CardChange
+  // Narrow to add/remove variants for field access
+  const ac = a
+  const bc = b
 
   // Card name must match
   if (ac.cardName !== bc.cardName) return false

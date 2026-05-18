@@ -41,7 +41,7 @@ function App() {
   }
 
   onMount(() => {
-    checkStatus()
+    void checkStatus()
   })
 
   const onSetupComplete = () => {
@@ -79,7 +79,7 @@ function App() {
         <Layout
           currentPage={page()}
           onNavigate={setPage}
-          onLogout={onLogout}
+          onLogout={() => void onLogout()}
           fullWidth={
             page() === 'deck-editor' ||
             page() === 'collection-editor' ||

@@ -25,7 +25,7 @@ test.describe('Wanted List Editor Page', () => {
     const options = select.locator('option')
     const value = await options.nth(1).getAttribute('value')
     expect(value).toBeTruthy()
-    await select.selectOption(value!)
+    await select.selectOption(value)
     // Editor should show card items from the wanted list
     const editor = page.locator('.card-item, textarea, .editor-content, [class*="editor"]').first()
     await expect(editor).toBeVisible({ timeout: 10_000 })

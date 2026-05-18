@@ -1,4 +1,4 @@
-import { createSignal, createMemo, onCleanup, Show, For } from 'solid-js'
+import { type JSX, createSignal, createMemo, onCleanup, Show, For } from 'solid-js'
 import { StatusAlerts } from '../components/StatusAlerts'
 
 type Stage = 'idle' | 'connecting' | 'download' | 'parse' | 'process' | 'save' | 'done' | 'error'
@@ -31,7 +31,7 @@ function stageStatus(info: StageInfo, current: Stage): 'pending' | 'active' | 'd
   return 'pending'
 }
 
-export function CacheRefresh() {
+export function CacheRefresh(): JSX.Element {
   const [stage, setStage] = createSignal<Stage>('idle')
   const [percentage, setPercentage] = createSignal(0)
   const [progressMessage, setProgressMessage] = createSignal('')
@@ -77,7 +77,7 @@ export function CacheRefresh() {
 
       es.addEventListener('progress', (e: MessageEvent) => {
         try {
-          const data = JSON.parse(e.data) as {
+          const data = JSON.parse(e.data as string) as {
             stage: string
             percentage?: number
             message: string
@@ -97,7 +97,7 @@ export function CacheRefresh() {
 
       es.addEventListener('done', (e: MessageEvent) => {
         try {
-          const data = JSON.parse(e.data) as { message: string }
+          const data = JSON.parse(e.data as string) as { message: string }
           setStage('done')
           setPercentage(100)
           setStatus(data.message)
@@ -114,7 +114,7 @@ export function CacheRefresh() {
         const msgEvent = e as MessageEvent
         if (msgEvent.data) {
           try {
-            const data = JSON.parse(msgEvent.data) as { message: string }
+            const data = JSON.parse(msgEvent.data as string) as { message: string }
             setError(data.message)
           } catch {
             setError('Cache refresh failed')
@@ -123,7 +123,7 @@ export function CacheRefresh() {
           // Connection error — fall back to POST
           es.close()
           eventSourceRef = null
-          fallbackRefresh()
+          void fallbackRefresh()
           return
         }
         setStage('error')
@@ -131,7 +131,7 @@ export function CacheRefresh() {
         eventSourceRef = null
       })
     } catch {
-      fallbackRefresh()
+      void fallbackRefresh()
     }
   }
 
@@ -181,7 +181,11 @@ export function CacheRefresh() {
         </div>
       </Show>
 
-      <button class="btn btn-primary btn-lg" onClick={handleRefresh} disabled={isRunning()}>
+      <button
+        class="btn btn-primary btn-lg"
+        onClick={() => void handleRefresh()}
+        disabled={isRunning()}
+      >
         {isRunning() ? 'Refreshing...' : 'Refresh Cache'}
       </button>
     </div>

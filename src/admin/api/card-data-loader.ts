@@ -131,7 +131,7 @@ export async function loadEntryCardData(cardNames: Set<string>): Promise<EntryCa
         cards[key] = card
         try {
           printings[name] = await getCardPrintings(name)
-          for (const p of printings[name]!) {
+          for (const p of printings[name]) {
             cards[`${p.set}:${p.collector_number}`] = p
           }
         } catch {

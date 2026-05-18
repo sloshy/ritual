@@ -173,7 +173,7 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
             class="search-input"
             placeholder={searchPlaceholder()}
             value={props.searchQuery}
-            onInput={(e) => handleInputChange((e.target as HTMLInputElement).value)}
+            onInput={(e) => handleInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
             onFocus={() => {
               if (props.searchQuery.length >= 2) setShowSuggest(true)

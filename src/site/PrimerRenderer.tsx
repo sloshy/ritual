@@ -69,7 +69,7 @@ const InlineContent: Component<InlineProps> = (props) => {
 
   while ((match = tokenRe.exec(props.text)) !== null) {
     pushText(props.text.slice(lastIndex, match.index))
-    const token = match[0]!
+    const token = match[0]
 
     if (token.startsWith('[[youtube:')) {
       const videoId = token.slice('[[youtube:'.length, -2).trim()

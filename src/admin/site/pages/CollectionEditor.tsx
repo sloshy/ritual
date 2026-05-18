@@ -1,4 +1,4 @@
-import { createSignal, Show } from 'solid-js'
+import { type JSX, createSignal, Show } from 'solid-js'
 import type { ScryfallCard } from '../../../types'
 import type { CollectionCardEntry } from '../../../site/data-types'
 import type { CardPriceResponse } from '../../api/card-price'
@@ -24,7 +24,7 @@ type CollectionDataResponse = {
   contentHash: string
 }
 
-export function CollectionEditor() {
+export function CollectionEditor(): JSX.Element {
   const [cardData, cardActions] = useEntryCardData()
   const [modalCardKey, setModalCardKey] = createSignal<string | null>(null)
   const defaults = useEditorDefaults('collection')
@@ -159,11 +159,7 @@ export function CollectionEditor() {
             <CardContextMenu
               cardName={menu().cardName}
               card={menu().card}
-              currentFinish={
-                (editor.data() as CollectionCardEntry[] | null)?.find(
-                  (e) => e.name === menu().cardName,
-                )?.finish
-              }
+              currentFinish={editor.data()?.find((e) => e.name === menu().cardName)?.finish}
               onSetFoil={editor.handleSetFoil}
               onUnsetCommander={closeContextMenu}
               anchorRect={menu().anchorRect}
@@ -176,7 +172,7 @@ export function CollectionEditor() {
     >
       <CollectionPage
         name={editor.list().find((c) => c.slug === editor.slug())?.name ?? editor.slug()!}
-        entries={editor.data()! as CollectionCardEntry[]}
+        entries={editor.data()!}
         cards={cardData.cards}
         printings={cardData.printings}
         symbolMap={cardData.symbolMap}

@@ -1,4 +1,4 @@
-import { For } from 'solid-js'
+import { type JSX, For } from 'solid-js'
 import type { Page } from '../types'
 
 interface ActionCard {
@@ -65,7 +65,7 @@ interface DashboardProps {
   onNavigate: (page: Page) => void
 }
 
-export function Dashboard(props: DashboardProps) {
+export function Dashboard(props: DashboardProps): JSX.Element {
   return (
     <div>
       <h2 class="section-heading">Dashboard</h2>

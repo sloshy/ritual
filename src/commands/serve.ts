@@ -7,7 +7,7 @@ type ServeCliOptions = {
   port: string
 }
 
-export function registerServeCommand(program: Command) {
+export function registerServeCommand(program: Command): void {
   program
     .command('serve')
     .description('Serve the generated static site')

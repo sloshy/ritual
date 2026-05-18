@@ -139,10 +139,10 @@ export class PriceService {
                   resolve()
                 }
               })
-              .catch((error) => {
+              .catch((error: unknown) => {
                 if (failed) return
                 failed = true
-                reject(error)
+                reject(error instanceof Error ? error : new Error(String(error)))
               })
           }
         })
@@ -176,6 +176,9 @@ export class PriceService {
 
 export const priceService = new PriceService(scryfallClient, defaultCache, globalCardCache)
 
-export function getDeckPricing(cards: Card[], currency: PriceCurrency = 'usd') {
+export function getDeckPricing(
+  cards: Card[],
+  currency: PriceCurrency = 'usd',
+): Promise<PriceResult> {
   return priceService.getDeckPricing(cards, currency)
 }

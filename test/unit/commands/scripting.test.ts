@@ -21,12 +21,12 @@ async function captureOutput(
   const originalWrite = target.write
   let output = ''
 
-  target.write = ((chunk: string | Uint8Array, ...args: unknown[]) => {
+  target.write = (chunk: string | Uint8Array, ...args: unknown[]) => {
     output += typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf-8')
     const callback = args.find((arg): arg is () => void => typeof arg === 'function')
     if (callback) callback()
     return true
-  }) as WritableTarget['write']
+  }
 
   try {
     await run()

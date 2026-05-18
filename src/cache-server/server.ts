@@ -468,14 +468,19 @@ export function registerCacheServerCommand(program: Command): void {
         console.log(
           `${CACHE_SERVER_LOG_PREFIX} Scheduled cards cache refresh enabled: ${cardsRefreshCadence}`,
         )
-        setInterval(async () => {
-          try {
-            await localScryfallClient.preloadCache()
-            logCacheUpdate('section=cards action=scheduled-preload')
-            console.log(`${CACHE_SERVER_LOG_PREFIX} Scheduled cards cache refresh complete.`)
-          } catch (error) {
-            console.error(`${CACHE_SERVER_LOG_PREFIX} Scheduled cards cache refresh failed:`, error)
-          }
+        setInterval(() => {
+          void (async () => {
+            try {
+              await localScryfallClient.preloadCache()
+              logCacheUpdate('section=cards action=scheduled-preload')
+              console.log(`${CACHE_SERVER_LOG_PREFIX} Scheduled cards cache refresh complete.`)
+            } catch (error) {
+              console.error(
+                `${CACHE_SERVER_LOG_PREFIX} Scheduled cards cache refresh failed:`,
+                error,
+              )
+            }
+          })()
         }, cardsRefreshMs)
       }
 

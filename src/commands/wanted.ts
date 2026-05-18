@@ -32,7 +32,14 @@ import {
 } from '../price-currency'
 import { parseSetCodesInput } from '../set-codes'
 
-export function registerWantedListCommand(program: Command) {
+type WantedCommandOptions = {
+  sets?: string
+  finish?: string
+  collector?: boolean
+  allowDigitalOnlyCards?: boolean
+}
+
+export function registerWantedListCommand(program: Command): void {
   program
     .command('wanted-list')
     .alias('wanted')
@@ -41,7 +48,7 @@ export function registerWantedListCommand(program: Command) {
     .option('-f, --finish <finish>', 'Default finish (nonfoil, foil, etched)')
     .option('--collector', 'Start in collector number mode')
     .option('--allow-digital-only-cards', 'Include digital-only sets (e.g., Alchemy)')
-    .action(async (options) => {
+    .action(async (options: WantedCommandOptions) => {
       const parsedSets = options.sets ? parseSetCodesInput(options.sets) : undefined
       const excludeDigitalOnly = !options.allowDigitalOnlyCards
 
@@ -67,7 +74,7 @@ export function registerWantedListCommand(program: Command) {
 
       let selectedList: string
 
-      const selectionResponse = await prompts({
+      const selectionResponse = (await prompts({
         type: 'autocomplete',
         name: 'list',
         message: 'Select a wanted list file',
@@ -75,19 +82,19 @@ export function registerWantedListCommand(program: Command) {
           ...existingLists.map((c) => ({ title: c, value: c })),
           { title: '+ Create New Wanted List', value: '__NEW__' },
         ],
-      })
+      })) as { list?: string }
 
       if (!selectionResponse.list) {
         return
       }
 
       if (selectionResponse.list === '__NEW__') {
-        const nameResponse = await prompts({
+        const nameResponse = (await prompts({
           type: 'text',
           name: 'name',
           message: 'Enter name for new wanted list:',
-          validate: (value) => (value.length > 0 ? true : 'Name cannot be empty'),
-        })
+          validate: (value: string) => (value.length > 0 ? true : 'Name cannot be empty'),
+        })) as { name?: string }
 
         if (!nameResponse.name) return
         selectedList = nameResponse.name
@@ -181,10 +188,12 @@ export function registerWantedListCommand(program: Command) {
           }
 
           collectorChoices.sort((a, b) => {
-            const numA = parseInt(a.value.num) || 0
-            const numB = parseInt(b.value.num) || 0
+            const aNum = (a.value as { num: string }).num
+            const bNum = (b.value as { num: string }).num
+            const numA = parseInt(aNum, 10) || 0
+            const numB = parseInt(bNum, 10) || 0
             if (numA !== numB) return numA - numB
-            return a.value.num.localeCompare(b.value.num)
+            return aNum.localeCompare(bNum)
           })
 
           choices = [
@@ -334,9 +343,9 @@ export function registerWantedListCommand(program: Command) {
             await appendFileWithHash(listFile, newLine)
             lastAddedCount++
             lastAddedCard = {
-              name: lastAddedCard!.name,
+              name: lastAddedCard.name,
               line: newLine,
-              hasNote: lastAddedCard!.hasNote,
+              hasNote: lastAddedCard.hasNote,
               cardId,
             }
             console.log(`Added: ${newLine.trim()} (${lastAddedCount}x total)`)
@@ -385,12 +394,13 @@ export function registerWantedListCommand(program: Command) {
 
         if (response.cardName === '__COLLECTOR_MODE__') {
           if (sessionConfig.collectorSets.length === 0) {
-            const setsResponse = await prompts({
+            const setsResponse = (await prompts({
               type: 'text',
               name: 'sets',
               message: 'Enter set codes to use (comma-separated, e.g., "FDN, SPG"):',
-              validate: (val) => (val.trim().length > 0 ? true : 'At least one set code required'),
-            })
+              validate: (val: string) =>
+                val.trim().length > 0 ? true : 'At least one set code required',
+            })) as { sets?: string }
 
             if (!setsResponse.sets) continue
 

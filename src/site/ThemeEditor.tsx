@@ -201,10 +201,7 @@ export const ThemeEditor: Component = () => {
           <span class="theme-editor-title">Theme editor</span>
           <label class="theme-editor-base-select">
             <span class="theme-editor-base-label">Base:</span>
-            <select
-              value={theme.theme()}
-              onChange={(e) => theme.switchBaseTheme((e.target as HTMLSelectElement).value)}
-            >
+            <select value={theme.theme()} onChange={(e) => theme.switchBaseTheme(e.target.value)}>
               <For each={BASE_THEME_OPTIONS}>
                 {(opt) => <option value={opt.value}>{opt.label}</option>}
               </For>
@@ -215,7 +212,7 @@ export const ThemeEditor: Component = () => {
             <input
               type="text"
               value={customName()}
-              onInput={(e) => setCustomName((e.target as HTMLInputElement).value)}
+              onInput={(e) => setCustomName(e.target.value)}
               placeholder="my-theme"
             />
           </label>
@@ -233,9 +230,9 @@ export const ThemeEditor: Component = () => {
             accept="application/json,.json"
             style={{ display: 'none' }}
             onChange={(e) => {
-              const target = e.target as HTMLInputElement
+              const target = e.target
               const file = target.files?.[0]
-              if (file) handleImport(file)
+              if (file) void handleImport(file)
               target.value = ''
             }}
           />

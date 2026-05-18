@@ -72,7 +72,8 @@ describe('ArchidektAuth', () => {
     }
 
     global.fetch = mock(async (url: string | URL | Request) => {
-      if (url.toString().includes('/token/refresh/')) {
+      const urlString = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+      if (urlString.includes('/token/refresh/')) {
         return new Response(JSON.stringify(refreshResponse), { status: 200 })
       }
       return new Response('Not Found', { status: 404 })

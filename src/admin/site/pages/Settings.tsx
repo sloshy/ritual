@@ -1,4 +1,4 @@
-import { createSignal, onMount, Show } from 'solid-js'
+import { type JSX, createSignal, onMount, Show } from 'solid-js'
 import type { RitualConfig } from '../../../ritual-config'
 import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from '../components/StatusAlerts'
@@ -8,7 +8,7 @@ function listToString(list: string[]): string {
   return list.join('\n')
 }
 
-export function Settings() {
+export function Settings(): JSX.Element {
   const [config, setConfig] = createSignal<RitualConfig | null>(null)
   const { status, error, loading, run, setStatus, setError } = useApiAction()
 
@@ -25,7 +25,7 @@ export function Settings() {
   }
 
   onMount(() => {
-    fetchConfig()
+    void fetchConfig()
   })
 
   const handleSave = async () => {
@@ -43,7 +43,7 @@ export function Settings() {
   }
 
   const updateField = (field: keyof RitualConfig, value: string | boolean | number) => {
-    setConfig((prev) => (prev ? ({ ...prev, [field]: value } as RitualConfig) : null))
+    setConfig((prev) => (prev ? { ...prev, [field]: value } : null))
   }
 
   const updateListField = (field: keyof RitualConfig, value: string) => {
@@ -51,7 +51,7 @@ export function Settings() {
       .split('\n')
       .map((s) => s.trim())
       .filter((s) => s.length > 0)
-    setConfig((prev) => (prev ? ({ ...prev, [field]: list } as RitualConfig) : null))
+    setConfig((prev) => (prev ? { ...prev, [field]: list } : null))
   }
 
   return (
@@ -187,7 +187,7 @@ export function Settings() {
                   class="form-input"
                   value={config()!.rateLimitMaxAttempts}
                   onInput={(e) =>
-                    updateField('rateLimitMaxAttempts', parseInt(e.currentTarget.value) || 5)
+                    updateField('rateLimitMaxAttempts', parseInt(e.currentTarget.value, 10) || 5)
                   }
                 />
               </div>
@@ -199,7 +199,7 @@ export function Settings() {
                   class="form-input"
                   value={config()!.rateLimitWindowMinutes}
                   onInput={(e) =>
-                    updateField('rateLimitWindowMinutes', parseInt(e.currentTarget.value) || 5)
+                    updateField('rateLimitWindowMinutes', parseInt(e.currentTarget.value, 10) || 5)
                   }
                 />
               </div>
@@ -215,7 +215,7 @@ export function Settings() {
               class="form-input"
               value={config()!.failedAuthDelayMs}
               onInput={(e) =>
-                updateField('failedAuthDelayMs', parseInt(e.currentTarget.value) || 0)
+                updateField('failedAuthDelayMs', parseInt(e.currentTarget.value, 10) || 0)
               }
             />
             <p class="form-hint form-hint-top">
@@ -275,7 +275,7 @@ export function Settings() {
           </div>
 
           {/* Save */}
-          <button class="btn btn-primary" onClick={handleSave} disabled={loading()}>
+          <button class="btn btn-primary" onClick={() => void handleSave()} disabled={loading()}>
             {loading() ? 'Saving...' : 'Save Settings'}
           </button>
         </div>

@@ -25,7 +25,7 @@ export const DiscardConfirmDialog: Component<DiscardConfirmDialogProps> = (props
 
   return (
     <dialog
-      ref={dialogRef!}
+      ref={dialogRef}
       class="discard-dialog-native"
       onClose={props.onCancel}
       onClick={handleBackdropClick}

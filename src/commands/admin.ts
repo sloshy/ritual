@@ -82,7 +82,7 @@ async function buildAdminCss(srcDir: string, adminDistDir: string): Promise<bool
   return true
 }
 
-export function registerAdminCommand(program: Command) {
+export function registerAdminCommand(program: Command): void {
   program
     .command('admin')
     .description('Start the web admin interface')

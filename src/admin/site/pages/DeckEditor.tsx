@@ -1,4 +1,4 @@
-import { createSignal, Show } from 'solid-js'
+import { type JSX, createSignal, Show } from 'solid-js'
 import type { DeckData, Card, Finish, ScryfallCard } from '../../../types'
 import type { ContextMenuState } from '../types/context-menu'
 import type { CardPriceResponse } from '../../api/card-price'
@@ -85,7 +85,7 @@ function getDeckCardIds(deck: DeckData): number[] {
   return ids
 }
 
-export function DeckEditor() {
+export function DeckEditor(): JSX.Element {
   const [cardData, cardActions] = useDeckCardData()
   const [modalCardName, setModalCardName] = createSignal<string | null>(null)
   const [deckContextMenu, setDeckContextMenu] = createSignal<DeckContextMenuState | null>(null)

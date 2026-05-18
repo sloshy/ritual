@@ -18,6 +18,7 @@ import {
   emitOutput,
   ExitCode,
   normalizeScriptingOptions,
+  type ScriptingOptions,
 } from './scripting'
 import { getErrorMessage } from '../errors'
 import type { WantedListEntryState } from '../site/data-types'
@@ -43,7 +44,13 @@ type WantedListResult = {
   totalMax: number
 }
 
-export function registerPriceWantedListCommand(program: Command) {
+type PriceWantedOptions = Partial<ScriptingOptions> & {
+  sort?: string
+  descending?: boolean
+  prices?: string
+}
+
+export function registerPriceWantedListCommand(program: Command): void {
   addScriptingOptions(
     program
       .command('price-wanted-list')
@@ -54,7 +61,7 @@ export function registerPriceWantedListCommand(program: Command) {
       .option('--descending', 'Reverse the sort direction')
       .option('--prices <currency>', 'Price currency: usd, eur, or tix (default: usd)'),
     'text',
-  ).action(async (listName: string | undefined, options) => {
+  ).action(async (listName: string | undefined, options: PriceWantedOptions) => {
     const scriptingOptions = normalizeScriptingOptions(options, 'text')
 
     const currency = parseCurrencyFlagOrError(

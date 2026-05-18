@@ -171,7 +171,7 @@ export function priceGroupSortValue(
   }
   // Extract lower bound number from label
   const match = key.match(/(\d+)/)
-  return match ? parseInt(match[1]!) : 0
+  return match ? parseInt(match[1]!, 10) : 0
 }
 
 /** Compute the total price for a group of cards */
@@ -197,7 +197,7 @@ export function sortCards(a: CardData, b: CardData, sortBy: SortBy, reverse: boo
         a.name.localeCompare(b.name)
       break
     default: {
-      const key = sortBy as 'cmc' | 'price' | 'edhrec'
+      const key = sortBy
       result = a[key] - b[key]
       break
     }
@@ -239,7 +239,7 @@ export function groupAndSortCards(
 ): CardGroup[] {
   const sortFn = (a: CardData, b: CardData) => sortCards(a, b, sortBy, reverse)
 
-  let groups: Record<string, CardData[]> = {}
+  const groups: Record<string, CardData[]> = {}
 
   if (groupBy === 'none') {
     groups['All Cards'] = [...cards].sort(sortFn)
@@ -247,13 +247,13 @@ export function groupAndSortCards(
     for (const c of cards) {
       const key = c.cmc.toString()
       if (!groups[key]) groups[key] = []
-      groups[key]!.push(c)
+      groups[key].push(c)
     }
   } else if (groupBy === 'type') {
     for (const c of cards) {
       const key = getCardTypeCategory(c.type)
       if (!groups[key]) groups[key] = []
-      groups[key]!.push(c)
+      groups[key].push(c)
     }
   } else if (groupBy === 'section') {
     for (const c of cards) {
@@ -264,20 +264,20 @@ export function groupAndSortCards(
     for (const c of cards) {
       const key = colorIdentityName(c.colorIdentity)
       if (!groups[key]) groups[key] = []
-      groups[key]!.push(c)
+      groups[key].push(c)
     }
   } else if (groupBy === 'price') {
     const strategy = priceGroupStrategy ?? 'archidekt'
     for (const c of cards) {
       const key = getPriceGroupKey(c.price, strategy, currency)
       if (!groups[key]) groups[key] = []
-      groups[key]!.push(c)
+      groups[key].push(c)
     }
   }
 
-  let keys = Object.keys(groups)
+  const keys = Object.keys(groups)
   if (groupBy === 'cmc') {
-    keys.sort((a, b) => parseInt(a) - parseInt(b))
+    keys.sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
   } else if (groupBy === 'type') {
     keys.sort((a, b) => TYPE_ORDER.indexOf(a) - TYPE_ORDER.indexOf(b))
   } else if (groupBy === 'section') {
@@ -299,7 +299,7 @@ export function groupAndSortCards(
     )
   }
 
-  const orderedKeys = keys.filter((key) => groups[key] && groups[key]!.length > 0)
+  const orderedKeys = keys.filter((key) => groups[key] && groups[key].length > 0)
   if (reverseGroups) orderedKeys.reverse()
 
   return orderedKeys.map((key) => ({

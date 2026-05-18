@@ -1,8 +1,8 @@
-import { createSignal } from 'solid-js'
+import { type JSX, createSignal } from 'solid-js'
 import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from '../components/StatusAlerts'
 
-export function ArchidektLogin() {
+export function ArchidektLogin(): JSX.Element {
   const [username, setUsername] = createSignal('')
   const [password, setPassword] = createSignal('')
   const { status, error, loading, run } = useApiAction()
@@ -30,7 +30,7 @@ export function ArchidektLogin() {
         authentication.
       </p>
       <StatusAlerts status={status()} error={error()} />
-      <form onSubmit={handleLogin} class="form-container">
+      <form onSubmit={(e) => void handleLogin(e)} class="form-container">
         <div>
           <label class="form-label">Username or Email</label>
           <input

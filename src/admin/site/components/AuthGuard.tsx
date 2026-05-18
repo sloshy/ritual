@@ -124,7 +124,7 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
         <Show when={error()}>
           <div class="alert alert-error">{error()}</div>
         </Show>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={(e) => void handleSubmit(e)}>
           <div class="form-group">
             <label class="form-label">Username</label>
             <input

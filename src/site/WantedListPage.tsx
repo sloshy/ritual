@@ -6,13 +6,7 @@ import type { WantedListCardEntry } from './data-types'
 import type { ChangelogPage } from '../changelog-parser'
 import type { PriceCurrency } from '../price-currency'
 import { getCardPriceForFinish, formatPrice, formatPriceOrNA } from '../price-currency'
-import {
-  type GroupBy,
-  type CardData,
-  type CardGroup,
-  groupAndSortCards,
-  CARD_SIZE_WIDTHS,
-} from './card-sorting'
+import { type CardData, type CardGroup, groupAndSortCards, CARD_SIZE_WIDTHS } from './card-sorting'
 import { CardModal } from './CardModal'
 import { ChangelogModal } from './ChangelogModal'
 import { capitalize } from './utils'
@@ -207,7 +201,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
 
     return groupAndSortCards(
       working,
-      groupBy() as GroupBy,
+      groupBy(),
       sortBy(),
       reverse(),
       [],
@@ -219,7 +213,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
 
   const modalEntry = createMemo((): WantedListCardEntry | null => {
     if (!props.modalCardKey) return null
-    const idx = parseInt(props.modalCardKey)
+    const idx = parseInt(props.modalCardKey, 10)
     if (!isNaN(idx) && currencyEntries()[idx]) return currencyEntries()[idx] ?? null
     return null
   })
@@ -298,8 +292,8 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         onContextMenu={
           props.editMode ? (rect) => props.onCardContextMenu?.(c.name, c.card, rect) : undefined
         }
-        onAddToTrade={showTrade ? () => handleWantedAddToTrade(entry!, c.card) : undefined}
-        addToTradeDisabled={showTrade ? isWantedCardAddDisabled(entry!, c.card) : undefined}
+        onAddToTrade={showTrade ? () => handleWantedAddToTrade(entry, c.card) : undefined}
+        addToTradeDisabled={showTrade ? isWantedCardAddDisabled(entry, c.card) : undefined}
       />
     )
   }
@@ -357,7 +351,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
               + Add Card
             </button>
           </Show>
-          <Show when={props.changelog && props.changelog!.length > 0}>
+          <Show when={props.changelog && props.changelog.length > 0}>
             <button
               onClick={() => setShowChangelog(true)}
               class="site-btn site-btn-secondary btn-view-changes"
@@ -470,7 +464,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
       </Show>
 
       {/* Changelog modal */}
-      <Show when={props.changelog && props.changelog!.length > 0}>
+      <Show when={props.changelog && props.changelog.length > 0}>
         <ChangelogModal
           open={showChangelog()}
           changelog={props.changelog!}

@@ -54,7 +54,7 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
       ...partial,
       id: createChangeId(),
       timestamp: Date.now(),
-    } as ChangeEvent
+    }
 
     let addedChange: ChangeEvent | null = newEvent
     let cancelledChange: ChangeEvent | null = null

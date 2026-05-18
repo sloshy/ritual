@@ -412,6 +412,7 @@ describe('ScryfallClient', () => {
         )
       })
 
+      // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
       await expect(client.fetchLatestPrices(['Lightning Bolt', 'Counterspell'])).rejects.toThrow(
         'Scryfall could not find prices for: Counterspell, Bogus Card',
       )

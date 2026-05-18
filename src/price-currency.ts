@@ -85,7 +85,7 @@ export function getCardPriceForFinish(
   finish: string,
   currency: PriceCurrency,
 ): number {
-  let raw: string | null = null
+  let raw: string | null
   if (currency === 'usd') {
     if (finish === 'foil') raw = card.prices.usd_foil
     else if (finish === 'etched') raw = card.prices.usd_etched

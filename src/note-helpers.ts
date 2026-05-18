@@ -13,6 +13,7 @@ export type NoteValidationResult = { ok: true; note: string } | { ok: false; err
  * or DEL (0x7F) — that catches newlines, tabs, carriage returns, NULs, escape
  * sequences, etc. Quotes and other printable punctuation are allowed.
  */
+// eslint-disable-next-line no-control-regex -- control chars are exactly what this regex is meant to detect.
 const CONTROL_CHARS_RE = /[\x00-\x1f\x7f]/
 
 /**

@@ -28,7 +28,7 @@ type PriceDeckOptions = {
   prices?: string
 } & Partial<ScriptingOptions>
 
-export function registerPriceDeckCommand(program: Command) {
+export function registerPriceDeckCommand(program: Command): void {
   addScriptingOptions(
     program
       .command('price-deck')

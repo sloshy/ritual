@@ -111,6 +111,7 @@ describe('PriceService', () => {
     }
     priceService = new PriceService(mockBackend, mockCache, mockCardCache)
 
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
     await expect(priceService.getDeckPricing(cards)).rejects.toThrow(
       'Scryfall could not find prices for: Missing Card',
     )
@@ -174,7 +175,7 @@ describe('PriceService', () => {
       },
     }
 
-    const streamCache = new InMemoryCacheManager<PriceData>() as InMemoryCacheManager<PriceData>
+    const streamCache = new InMemoryCacheManager<PriceData>()
     streamCache.streamGetMany = async (keys, onEntry) => {
       const values: Record<string, PriceData> = {
         'Sol Ring:usd': { latest: 1, min: 0.5, max: 2 },

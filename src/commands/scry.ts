@@ -12,7 +12,7 @@ import {
 } from './scripting'
 import { getErrorMessage } from '../errors'
 
-export function registerScryCommand(program: Command) {
+export function registerScryCommand(program: Command): void {
   addScriptingOptions(
     program
       .command('scry')
@@ -71,7 +71,7 @@ export function registerScryCommand(program: Command) {
       }
 
       while (true) {
-        if (page > maxPages!) break
+        if (page > maxPages) break
 
         try {
           const { data, raw, hasMore } = await fetchSearchPage(query, page, format)
@@ -119,7 +119,7 @@ export function registerScryCommand(program: Command) {
             continue
           }
 
-          if (interactivePaging && page < maxPages!) {
+          if (interactivePaging && page < maxPages) {
             const response = await prompts({
               type: 'confirm',
               name: 'continue',

@@ -109,7 +109,7 @@ describe('resolveThemeName', () => {
     const errorMock = mock(() => {})
     const originalExit = process.exit
     const originalError = console.error
-    process.exit = exitMock as unknown as typeof process.exit
+    process.exit = exitMock
     console.error = errorMock
     try {
       expect(() => resolveThemeName('not-a-theme')).toThrow('process.exit called')

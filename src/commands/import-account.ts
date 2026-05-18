@@ -13,7 +13,7 @@ import { getErrorMessage } from '../errors'
 import { promptForLogin } from '../auth/login-helper'
 import { getDecksDir } from '../ritual-config'
 
-export function registerImportAccountCommand(program: Command) {
+export function registerImportAccountCommand(program: Command): void {
   program
     .command('import-account')
     .description('Import decks from an Archidekt user')

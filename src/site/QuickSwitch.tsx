@@ -415,7 +415,7 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
             placeholder="Jump to a list, commander, or card..."
             value={query()}
             onInput={(e) => {
-              setQuery((e.currentTarget as HTMLInputElement).value)
+              setQuery(e.currentTarget.value)
               setActiveIndex(0)
             }}
             autocomplete="off"

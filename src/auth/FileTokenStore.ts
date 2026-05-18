@@ -21,7 +21,7 @@ export class FileTokenStore implements TokenStore {
     try {
       const content = await fs.readFile(filePath, 'utf-8')
       return JSON.parse(content) as T
-    } catch (error) {
+    } catch {
       return null
     }
   }
@@ -30,7 +30,7 @@ export class FileTokenStore implements TokenStore {
     const filePath = this.getFilePath(site)
     try {
       await fs.unlink(filePath)
-    } catch (error) {
+    } catch {
       // Ignore error if file doesn't exist
     }
   }

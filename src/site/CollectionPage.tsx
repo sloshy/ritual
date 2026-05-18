@@ -6,13 +6,7 @@ import type { CollectionCardEntry } from './data-types'
 import type { ChangelogPage } from '../changelog-parser'
 import type { PriceCurrency } from '../price-currency'
 import { getCardPriceForFinish, formatPrice, formatPriceOrNA } from '../price-currency'
-import {
-  type GroupBy,
-  type CardData,
-  type CardGroup,
-  groupAndSortCards,
-  CARD_SIZE_WIDTHS,
-} from './card-sorting'
+import { type CardData, type CardGroup, groupAndSortCards, CARD_SIZE_WIDTHS } from './card-sorting'
 import { CardModal } from './CardModal'
 import { ChangelogModal } from './ChangelogModal'
 import { capitalize } from './utils'
@@ -213,7 +207,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
 
     return groupAndSortCards(
       working,
-      groupBy() as GroupBy,
+      groupBy(),
       sortBy(),
       reverse(),
       [],
@@ -226,7 +220,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   // Find the modal entry and card
   const modalEntry = createMemo((): CollectionCardEntry | null => {
     if (!props.modalCardKey) return null
-    const idx = parseInt(props.modalCardKey)
+    const idx = parseInt(props.modalCardKey, 10)
     if (!isNaN(idx) && currencyEntries()[idx]) return currencyEntries()[idx] ?? null
     return null
   })
@@ -289,8 +283,8 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         onContextMenu={
           props.editMode ? (rect) => props.onCardContextMenu?.(c.name, c.card, rect) : undefined
         }
-        onAddToTrade={showTrade ? () => handleCollectionAddToTrade(entry!) : undefined}
-        addToTradeDisabled={showTrade ? isCollectionCardAddDisabled(entry!) : undefined}
+        onAddToTrade={showTrade ? () => handleCollectionAddToTrade(entry) : undefined}
+        addToTradeDisabled={showTrade ? isCollectionCardAddDisabled(entry) : undefined}
       />
     )
   }
@@ -342,7 +336,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
               + Add Card
             </button>
           </Show>
-          <Show when={props.changelog && props.changelog!.length > 0}>
+          <Show when={props.changelog && props.changelog.length > 0}>
             <button
               onClick={() => setShowChangelog(true)}
               class="site-btn site-btn-secondary btn-view-changes"
@@ -454,7 +448,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       />
 
       {/* Changelog modal */}
-      <Show when={props.changelog && props.changelog!.length > 0}>
+      <Show when={props.changelog && props.changelog.length > 0}>
         <ChangelogModal
           open={showChangelog()}
           changelog={props.changelog!}

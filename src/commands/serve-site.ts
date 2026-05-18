@@ -22,7 +22,7 @@ type WatchedDir = {
 
 const REBUILD_DEBOUNCE_MS = 200
 
-export function registerServeSiteCommand(program: Command) {
+export function registerServeSiteCommand(program: Command): void {
   const command = program
     .command('serve-site')
     .description('Build the static site and serve it (with optional dev rebuild watcher)')

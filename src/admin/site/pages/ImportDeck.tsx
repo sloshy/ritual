@@ -1,8 +1,8 @@
-import { createSignal } from 'solid-js'
+import { type JSX, createSignal } from 'solid-js'
 import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from '../components/StatusAlerts'
 
-export function ImportDeck() {
+export function ImportDeck(): JSX.Element {
   const [source, setSource] = createSignal('')
   const [overwrite, setOverwrite] = createSignal(false)
   const { status, error, loading, run } = useApiAction()
@@ -26,7 +26,7 @@ export function ImportDeck() {
     <div>
       <h2 class="section-heading">📥 Import Deck</h2>
       <StatusAlerts status={status()} error={error()} />
-      <form onSubmit={handleImport} class="form-container">
+      <form onSubmit={(e) => void handleImport(e)} class="form-container">
         <div>
           <label class="form-label">Deck URL or File Path</label>
           <input

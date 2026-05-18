@@ -110,7 +110,11 @@ export const TotpSettings: Component = () => {
         <Match when={totpEnabled()}>
           <div>
             <p class="totp-status text-success">✓ TOTP is enabled</p>
-            <button class="btn btn-danger" onClick={handleDisable} disabled={loading()}>
+            <button
+              class="btn btn-danger"
+              onClick={() => void handleDisable()}
+              disabled={loading()}
+            >
               {loading() ? 'Disabling...' : 'Disable TOTP'}
             </button>
           </div>
@@ -142,7 +146,7 @@ export const TotpSettings: Component = () => {
                   />
                   <button
                     class="btn btn-primary"
-                    onClick={handleVerify}
+                    onClick={() => void handleVerify()}
                     disabled={loading() || totpCode().length < 6}
                   >
                     {loading() ? 'Verifying...' : 'Verify & Enable'}
@@ -153,7 +157,7 @@ export const TotpSettings: Component = () => {
           )}
         </Match>
         <Match when={!totpEnabled()}>
-          <button class="btn btn-primary" onClick={handleSetup} disabled={loading()}>
+          <button class="btn btn-primary" onClick={() => void handleSetup()} disabled={loading()}>
             {loading() ? 'Setting up...' : 'Set Up TOTP'}
           </button>
         </Match>

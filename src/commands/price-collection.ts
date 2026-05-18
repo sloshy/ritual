@@ -18,6 +18,7 @@ import {
   emitOutput,
   ExitCode,
   normalizeScriptingOptions,
+  type ScriptingOptions,
 } from './scripting'
 import { getErrorMessage } from '../errors'
 
@@ -93,7 +94,13 @@ export function resolveFinish(entry: CollectionEntry, card: ScryfallCard): Finis
   return first !== undefined && isFinish(first) ? first : 'nonfoil'
 }
 
-export function registerPriceCollectionCommand(program: Command) {
+type PriceCollectionOptions = Partial<ScriptingOptions> & {
+  sort?: string
+  descending?: boolean
+  prices?: string
+}
+
+export function registerPriceCollectionCommand(program: Command): void {
   addScriptingOptions(
     program
       .command('price-collection')
@@ -104,7 +111,7 @@ export function registerPriceCollectionCommand(program: Command) {
       .option('--descending', 'Reverse the sort direction')
       .option('--prices <currency>', 'Price currency: usd, eur, or tix (default: usd)'),
     'text',
-  ).action(async (collectionName: string | undefined, options) => {
+  ).action(async (collectionName: string | undefined, options: PriceCollectionOptions) => {
     const scriptingOptions = normalizeScriptingOptions(options, 'text')
 
     const currency = parseCurrencyFlagOrError(

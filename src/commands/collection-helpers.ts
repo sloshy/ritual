@@ -157,12 +157,12 @@ export async function promptFinishAndCondition(
       title: capitalize(f),
       value: f,
     }))
-    const finishResponse = await prompts({
+    const finishResponse = (await prompts({
       type: 'select',
       name: 'finish',
       message: 'Select Finish:',
       choices: finishChoices,
-    })
+    })) as { finish?: string }
     const chosenFinish = finishResponse.finish
     if (!chosenFinish || !isFinish(chosenFinish)) return null
     selectedFinish = chosenFinish
@@ -172,11 +172,11 @@ export async function promptFinishAndCondition(
   }
 
   // Prompt for Condition
-  let selectedCondition: Condition | undefined = undefined
+  let selectedCondition: Condition | undefined
   if (!forcePrompts && config.condition !== undefined) {
     selectedCondition = config.condition === 'NONE' ? undefined : config.condition
   } else {
-    const conditionResponse = await prompts({
+    const conditionResponse = (await prompts({
       type: 'select',
       name: 'condition',
       message: 'Condition:',
@@ -188,7 +188,7 @@ export async function promptFinishAndCondition(
         { title: 'Heavily Played', value: 'HP' },
         { title: 'Damaged', value: 'DMG' },
       ],
-    })
+    })) as { condition?: string }
     if (conditionResponse.condition === undefined) return null
     selectedCondition =
       conditionResponse.condition === ''
@@ -280,7 +280,7 @@ export async function promptConfigUpdate(
       name: 'sets',
       message: 'Filter by Set Codes (comma separated, e.g. "ECL, ECC"):',
       initial: sessionConfig.sets ? sessionConfig.sets.join(', ') : '',
-      format: (val) => parseSetCodesInput(val),
+      format: (val: string) => parseSetCodesInput(val),
     },
     {
       type: 'select',
@@ -366,12 +366,12 @@ export async function manageSetCodes(sessionConfig: CollectorSessionConfig): Pro
     }
 
     if (response.action.type === 'add') {
-      const addResponse = await prompts({
+      const addResponse = (await prompts({
         type: 'text',
         name: 'code',
         message: 'Enter set code to add:',
-        validate: (val) => (val.trim().length > 0 ? true : 'Set code cannot be empty'),
-      })
+        validate: (val: string) => (val.trim().length > 0 ? true : 'Set code cannot be empty'),
+      })) as { code?: string }
 
       if (addResponse.code) {
         const newCode = addResponse.code.trim().toLowerCase()
@@ -393,7 +393,7 @@ export async function manageSetCodes(sessionConfig: CollectorSessionConfig): Pro
         continue
       }
 
-      const removeResponse = await prompts({
+      const removeResponse = (await prompts({
         type: 'select',
         name: 'code',
         message: 'Select set to remove:',
@@ -401,7 +401,7 @@ export async function manageSetCodes(sessionConfig: CollectorSessionConfig): Pro
           title: code.toUpperCase(),
           value: code,
         })),
-      })
+      })) as { code?: string }
 
       if (removeResponse.code) {
         const idx = sessionConfig.collectorSets.indexOf(removeResponse.code)

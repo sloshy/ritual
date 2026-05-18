@@ -30,7 +30,7 @@ export async function appendChangelog(
   const changeLines = changes.map(formatChangelogLine)
   const changelogEntry = `\n## ${timestamp}\n\n${changeLines.join('\n')}\n`
 
-  let existingContent = ''
+  let existingContent: string
   try {
     existingContent = await fs.readFile(changelogPath, 'utf-8')
   } catch {

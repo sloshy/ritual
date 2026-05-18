@@ -79,6 +79,7 @@ describe('saveDeck (Integration)', () => {
       const conflictPath = path.join(dir, 'integration-deck.md')
       await Bun.write(conflictPath, '# existing')
 
+      // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
       await expect(saveDeck(sampleDeck, dir, { nonInteractive: true })).rejects.toThrow(
         'Import conflict',
       )

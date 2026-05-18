@@ -1,6 +1,15 @@
-import { createSignal } from 'solid-js'
+import { type Accessor, type Setter, createSignal } from 'solid-js'
 
-export function useApiAction() {
+export type UseApiActionResult = {
+  status: Accessor<string | null>
+  error: Accessor<string | null>
+  loading: Accessor<boolean>
+  run: (url: string, options?: RequestInit, fallbackError?: string) => Promise<boolean>
+  setStatus: Setter<string | null>
+  setError: Setter<string | null>
+}
+
+export function useApiAction(): UseApiActionResult {
   const [status, setStatus] = createSignal<string | null>(null)
   const [error, setError] = createSignal<string | null>(null)
   const [loading, setLoading] = createSignal(false)

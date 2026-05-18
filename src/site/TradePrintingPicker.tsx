@@ -162,7 +162,7 @@ export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) 
             class="trade-picker-filter"
             placeholder="Filter by set code (e.g. mkm, lea)…"
             value={setFilter()}
-            onInput={(e) => setSetFilter((e.target as HTMLInputElement).value)}
+            onInput={(e) => setSetFilter(e.target.value)}
             autocomplete="off"
           />
         </div>

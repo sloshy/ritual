@@ -61,7 +61,7 @@ export const ChangesDialog: Component<ChangesDialogProps> = (props) => {
 
   return (
     <dialog
-      ref={dialogRef!}
+      ref={dialogRef}
       class="changes-dialog-native"
       onClose={props.onClose}
       onClick={handleBackdropClick}

@@ -21,8 +21,8 @@ export async function displayWithPager(text: string, mode: PagerMode): Promise<v
       stdout: 'inherit',
       stderr: 'inherit',
     })
-    proc.stdin.write(text)
-    proc.stdin.end()
+    await proc.stdin.write(text)
+    await proc.stdin.end()
     await proc.exited
   } catch {
     // less not available — fall back to plain output

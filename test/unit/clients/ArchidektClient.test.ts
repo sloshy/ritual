@@ -26,7 +26,7 @@ describe('ArchidektClient', () => {
       )
     })
 
-    const client = new ArchidektClient({ fetch: mockFetch } as any)
+    const client = new ArchidektClient({ fetch: mockFetch })
     const decks = await client.fetchPublicDecks('user1')
 
     expect(mockFetch).toHaveBeenCalled()
@@ -55,7 +55,7 @@ describe('ArchidektClient', () => {
       )
     })
 
-    const client = new ArchidektClient({ fetch: mockFetch } as any)
+    const client = new ArchidektClient({ fetch: mockFetch })
     const decks = await client.fetchOwnDecks('mytoken')
 
     expect(mockFetch).toHaveBeenCalled()
@@ -65,7 +65,7 @@ describe('ArchidektClient', () => {
 
   test('should throw error on failure', async () => {
     const mockFetch = mock(async () => new Response('Error', { status: 500 }))
-    const client = new ArchidektClient({ fetch: mockFetch } as any)
+    const client = new ArchidektClient({ fetch: mockFetch })
 
     expect(client.fetchPublicDecks('bad')).rejects.toThrow('Failed to fetch public decks')
   })
@@ -93,7 +93,7 @@ describe('ArchidektClient', () => {
         }),
       )
     })
-    const client = new ArchidektClient({ fetch: mockFetch } as any)
+    const client = new ArchidektClient({ fetch: mockFetch })
     const deck = await client.fetchDeck('1')
     expect(mockFetch).toHaveBeenCalled()
     expect(deck.name).toBe('Test Deck')
@@ -128,7 +128,7 @@ describe('ArchidektClient', () => {
       )
     })
 
-    const client = new ArchidektClient({ fetch: mockFetch } as any)
+    const client = new ArchidektClient({ fetch: mockFetch })
     const deck = await client.fetchDeck('12345')
 
     expect(deck.name).toBe('Test Deck')
@@ -161,7 +161,7 @@ describe('ArchidektClient', () => {
         }),
       )
     })
-    const client = new ArchidektClient({ fetch: mockFetch } as any)
+    const client = new ArchidektClient({ fetch: mockFetch })
     const deck = await client.fetchDeck('1', 'token')
     expect(deck.name).toBe('Private Deck')
   })
@@ -170,7 +170,7 @@ describe('ArchidektClient', () => {
     const mockFetch = mock(
       async () => new Response('Not Found', { status: 404, statusText: 'Not Found' }),
     )
-    const client = new ArchidektClient({ fetch: mockFetch } as any)
+    const client = new ArchidektClient({ fetch: mockFetch })
     expect(client.fetchDeck('bad-id')).rejects.toThrow(/Failed to fetch deck/)
   })
 })

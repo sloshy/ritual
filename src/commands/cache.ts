@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import { searchCards, preloadCache } from '../scryfall'
 
-export function registerCacheCommand(program: Command) {
+export function registerCacheCommand(program: Command): void {
   const cache = program.command('cache').description('Manage card cache')
 
   cache

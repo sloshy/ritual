@@ -139,7 +139,7 @@ async function selectCardAutocomplete(
   return response.cardName as string
 }
 
-export function registerAddCardCommand(program: Command) {
+export function registerAddCardCommand(program: Command): void {
   program
     .command('add-card')
     .description('Add a card to a deck, collection, or wanted list by name')
@@ -179,7 +179,7 @@ export function registerAddCardCommand(program: Command) {
         const cardNames = await getAllCardNames()
 
         // Resolve the card name (exact match or autocomplete)
-        let selectedName: string | null = null
+        let selectedName: string | null
 
         if (options.exact) {
           selectedName = findExactMatch(cardNameInput, cardNames)

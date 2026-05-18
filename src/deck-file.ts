@@ -76,7 +76,7 @@ export function serializeDeckToMarkdown(
 export async function parseDeckFrontMatter(filePath: string): Promise<Record<string, unknown>> {
   const content = await fs.readFile(filePath, 'utf-8')
   const parsed = matter(content)
-  return parsed.data as Record<string, unknown>
+  return parsed.data
 }
 
 /**

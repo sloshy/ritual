@@ -10,7 +10,7 @@ import {
   projectFields,
 } from './scripting'
 
-export function registerRandomCommand(program: Command) {
+export function registerRandomCommand(program: Command): void {
   addScriptingOptions(
     program
       .command('random')

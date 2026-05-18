@@ -166,7 +166,7 @@ export async function resolveListPath(
   }
 
   let exited = false
-  const resp = await prompts({
+  const resp = (await prompts({
     type: 'autocomplete',
     name: 'file',
     message: `Select a ${type}:`,
@@ -175,7 +175,7 @@ export async function resolveListPath(
     onState: (state: PromptState) => {
       if (state.exited) exited = true
     },
-  })
+  })) as { file?: string }
   if (exited || !resp.file) {
     throw new NoteCommandError('usage_error', 'Cancelled.', ExitCode.UsageError)
   }

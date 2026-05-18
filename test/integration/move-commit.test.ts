@@ -241,6 +241,7 @@ describe('commitAllMoves', () => {
       const state = buildVirtualState([card])
       applyVirtualMove(state, card.key, dstList)
 
+      // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
       await expect(commitAllMoves(state)).rejects.toThrow('Destination file not found')
 
       // Source must be completely untouched — card was never removed

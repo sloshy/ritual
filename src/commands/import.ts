@@ -99,10 +99,10 @@ export async function saveDeck(
 
   await fs.mkdir(decksDir, { recursive: true })
 
-  let existingFiles: string[] = []
+  let existingFiles: string[]
   try {
     existingFiles = await listDeckFiles(decksDir)
-  } catch (e) {
+  } catch {
     existingFiles = []
   }
 
@@ -231,7 +231,7 @@ tags: []
   }
 }
 
-export function registerImportCommand(program: Command) {
+export function registerImportCommand(program: Command): void {
   program
     .command('import')
     .description('Import a deck from a URL (Archidekt, Moxfield, MTGGoldfish) or local text file')

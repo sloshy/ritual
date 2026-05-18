@@ -146,7 +146,7 @@ async function detectChanges(commit: string, cwd: string): Promise<DetectChanges
 
 // ── Command registration ─────────────────────────────────────────────
 
-export function registerGitDetectChangesCommand(program: Command) {
+export function registerGitDetectChangesCommand(program: Command): void {
   program
     .command('git-detect-changes')
     .description('Detect card changes from git history and update changelogs')

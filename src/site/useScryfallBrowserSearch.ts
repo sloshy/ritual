@@ -52,23 +52,25 @@ export function useScryfallBrowserSearch(): UseScryfallBrowserSearchResult {
       return
     }
 
-    debounceTimer = setTimeout(async () => {
-      if (autocompleteController) autocompleteController.abort()
-      autocompleteController = new AbortController()
-      setAutocompleteLoading(true)
+    debounceTimer = setTimeout(() => {
+      void (async () => {
+        if (autocompleteController) autocompleteController.abort()
+        autocompleteController = new AbortController()
+        setAutocompleteLoading(true)
 
-      try {
-        const url = `${SCRYFALL_API}/cards/autocomplete?q=${encodeURIComponent(query)}`
-        const resp = await fetch(url, { signal: autocompleteController.signal })
-        if (!resp.ok) return
-        const data = (await resp.json()) as ScryfallAutocompleteResponse
-        setAutocompleteResults(data.data ?? [])
-      } catch (e) {
-        if ((e as Error).name === 'AbortError') return
-        console.warn('Scryfall autocomplete failed:', e)
-      } finally {
-        setAutocompleteLoading(false)
-      }
+        try {
+          const url = `${SCRYFALL_API}/cards/autocomplete?q=${encodeURIComponent(query)}`
+          const resp = await fetch(url, { signal: autocompleteController.signal })
+          if (!resp.ok) return
+          const data = (await resp.json()) as ScryfallAutocompleteResponse
+          setAutocompleteResults(data.data ?? [])
+        } catch (e) {
+          if ((e as Error).name === 'AbortError') return
+          console.warn('Scryfall autocomplete failed:', e)
+        } finally {
+          setAutocompleteLoading(false)
+        }
+      })()
     }, 300)
   }
 

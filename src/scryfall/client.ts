@@ -192,7 +192,7 @@ export class ScryfallClient implements PricingBackend {
         const cached = await this.fileSystem.readFile(cachePath, 'utf-8')
         const data = JSON.parse(cached)
         if (data && Array.isArray(data)) return data
-      } catch (e) {
+      } catch {
         // Cache miss or corrupt JSON — fall through to fetch from API
       }
     }
@@ -715,7 +715,7 @@ export class ScryfallClient implements PricingBackend {
         throw new Error('Could not find default_cards bulk data URI')
       }
 
-      const BULK_URL = defaultData.download_uri as string
+      const BULK_URL = defaultData.download_uri
       const totalBytes = defaultData.size
       getLogger().info(`Bulk URL: ${BULK_URL}`)
       getLogger().info(`Download size: ${(totalBytes / 1024 / 1024).toFixed(2)} MiB`)
@@ -758,7 +758,7 @@ export class ScryfallClient implements PricingBackend {
       }
 
       const text = new TextDecoder().decode(chunksAll)
-      const json = JSON.parse(text)
+      const json: ScryfallCard[] = JSON.parse(text) as ScryfallCard[]
 
       if (!Array.isArray(json)) {
         throw new Error('Invalid JSON format: expected array')

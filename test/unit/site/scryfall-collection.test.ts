@@ -21,7 +21,7 @@ function makeCard(id: string, usd: string): ScryfallCard {
     rarity: 'common',
     color_identity: [],
     released_at: '2025-01-01',
-  } as unknown as ScryfallCard
+  }
 }
 
 const originalFetch = globalThis.fetch

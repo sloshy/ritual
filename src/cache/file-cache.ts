@@ -80,7 +80,7 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
       const file = Bun.file(this.filePathGetter())
       if (await file.exists()) {
         const text = await file.text()
-        const json = JSON.parse(text)
+        const json = JSON.parse(text) as Partial<CacheSchema>
 
         // Basic validation
         if (typeof json === 'object' && json !== null) {
@@ -91,7 +91,7 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
           // Validate cards schema (migration check)
           const sampleCardKey = Object.keys(json.cards)[0]
           if (sampleCardKey) {
-            const sampleData = json.cards[sampleCardKey].data
+            const sampleData = json.cards[sampleCardKey]?.data
             if (!Array.isArray(sampleData)) {
               getLogger().info('Detected old cache schema (single objects). Resetting cards cache.')
               json.cards = {}
@@ -173,7 +173,7 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
     const cache = await this.load()
     // Ensure section exists
     if (!cache[this.section]) {
-      cache[this.section] = {} as unknown as CacheSchema[K]
+      cache[this.section] = {}
     }
     const sectionData = cache[this.section] as Record<string, CachedItem<DataType<K>>>
 
@@ -193,7 +193,7 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
   async bulkSet(entries: Record<string, DataType<K>>): Promise<void> {
     const cache = await this.load()
     if (!cache[this.section]) {
-      cache[this.section] = {} as unknown as CacheSchema[K]
+      cache[this.section] = {}
     }
     const sectionData = cache[this.section] as Record<string, CachedItem<DataType<K>>>
 
@@ -204,7 +204,7 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
     for (const [key, value] of Object.entries(entries)) {
       const item: CachedItem<DataType<K>> = {
         timestamp: now,
-        data: value as DataType<K>,
+        data: value,
       }
       if (this.section === 'cards') {
         item.lowercaseName = key.toLowerCase()
@@ -234,7 +234,7 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
 
   async clear(): Promise<void> {
     const cache = await this.load()
-    cache[this.section] = {} as unknown as CacheSchema[K]
+    cache[this.section] = {}
     if (cache.metadata) {
       delete cache.metadata[this.section]
     }

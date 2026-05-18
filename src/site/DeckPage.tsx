@@ -368,8 +368,8 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         onContextMenu={
           props.editMode ? (rect) => props.onCardContextMenu?.(c.name, c.card, rect) : undefined
         }
-        onAddToTrade={showTrade ? () => handleDeckAddToTrade(c, deckEntry!) : undefined}
-        addToTradeDisabled={showTrade ? isDeckCardAddDisabled(c, deckEntry!) : undefined}
+        onAddToTrade={showTrade ? () => handleDeckAddToTrade(c, deckEntry) : undefined}
+        addToTradeDisabled={showTrade ? isDeckCardAddDisabled(c, deckEntry) : undefined}
       />
     )
   }
@@ -426,7 +426,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         </div>
         <Show
           when={
-            props.exportPath || props.editMode || (props.changelog && props.changelog!.length > 0)
+            props.exportPath || props.editMode || (props.changelog && props.changelog.length > 0)
           }
         >
           <div class="btn-group">
@@ -435,7 +435,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
                 + Add Card
               </button>
             </Show>
-            <Show when={props.changelog && props.changelog!.length > 0}>
+            <Show when={props.changelog && props.changelog.length > 0}>
               <button
                 onClick={() => setShowChangelog(true)}
                 class="site-btn site-btn-secondary btn-view-changes"
@@ -453,7 +453,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
               </a>
             </Show>
             <Show when={props.exportPath}>
-              <button onClick={handleCopy} class="site-btn site-btn-export">
+              <button onClick={() => void handleCopy()} class="site-btn site-btn-export">
                 {copyStatus() ?? 'Copy'}
               </button>
             </Show>
@@ -666,7 +666,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
       </Show>
 
       {/* Changelog modal */}
-      <Show when={props.changelog && props.changelog!.length > 0}>
+      <Show when={props.changelog && props.changelog.length > 0}>
         <ChangelogModal
           open={showChangelog()}
           changelog={props.changelog!}

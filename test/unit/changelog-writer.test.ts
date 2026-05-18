@@ -14,7 +14,7 @@ function makeChange(overrides: Record<string, unknown> = {}): ChangeEvent {
     action: 'add',
     cardName: 'Sol Ring',
     ...overrides,
-  } as ChangeEvent
+  }
 }
 
 describe('appendChangelog', () => {

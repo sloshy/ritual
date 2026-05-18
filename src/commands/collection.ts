@@ -27,7 +27,15 @@ import { appendFileWithHash, writeFileWithHash } from '../content-hash'
 import { formatSpecificPrintingPrice } from '../price-currency'
 import { parseSetCodesInput } from '../set-codes'
 
-export function registerCollectionCommand(program: Command) {
+type CollectionCommandOptions = {
+  sets?: string
+  finish?: string
+  condition?: string
+  collector?: boolean
+  allowDigitalOnlyCards?: boolean
+}
+
+export function registerCollectionCommand(program: Command): void {
   program
     .command('collection')
     .alias('collect')
@@ -37,7 +45,7 @@ export function registerCollectionCommand(program: Command) {
     .option('-c, --condition <condition>', 'Default condition (NM, LP, MP, HP, DMG)')
     .option('--collector', 'Start in collector number mode')
     .option('--allow-digital-only-cards', 'Include digital-only sets (e.g., Alchemy)')
-    .action(async (options) => {
+    .action(async (options: CollectionCommandOptions) => {
       const parsedSets = options.sets ? parseSetCodesInput(options.sets) : undefined
       const excludeDigitalOnly = !options.allowDigitalOnlyCards
 
@@ -94,12 +102,11 @@ export function registerCollectionCommand(program: Command) {
 
       const collectionFile = await ensureCollectionFile(selectedCollection)
 
+      const upperCondition = options.condition?.toUpperCase()
       const sessionConfig: SessionConfig = {
         sets: parsedSets,
         finish: isFinish(options.finish) ? options.finish : undefined,
-        condition: isCondition(options.condition?.toUpperCase())
-          ? options.condition.toUpperCase()
-          : undefined,
+        condition: isCondition(upperCondition) ? upperCondition : undefined,
         entryMode: options.collector ? 'collector' : 'name',
         collectorSets: [],
         activeSetIndex: 0,
@@ -186,10 +193,12 @@ export function registerCollectionCommand(program: Command) {
 
           // Sort by collector number (numeric where possible)
           collectorChoices.sort((a, b) => {
-            const numA = parseInt(a.value.num) || 0
-            const numB = parseInt(b.value.num) || 0
+            const aNum = (a.value as { num: string }).num
+            const bNum = (b.value as { num: string }).num
+            const numA = parseInt(aNum, 10) || 0
+            const numB = parseInt(bNum, 10) || 0
             if (numA !== numB) return numA - numB
-            return a.value.num.localeCompare(b.value.num)
+            return aNum.localeCompare(bNum)
           })
 
           choices = [
@@ -361,9 +370,9 @@ export function registerCollectionCommand(program: Command) {
             await appendFileWithHash(collectionFile, newLine)
             lastAddedCount++
             lastAddedCard = {
-              name: lastAddedCard!.name,
+              name: lastAddedCard.name,
               line: newLine,
-              hasNote: lastAddedCard!.hasNote,
+              hasNote: lastAddedCard.hasNote,
               cardId,
             }
             console.log(`Added: ${newLine.trim()} (${lastAddedCount}x total)`)
@@ -412,12 +421,13 @@ export function registerCollectionCommand(program: Command) {
 
         if (response.cardName === '__COLLECTOR_MODE__') {
           if (sessionConfig.collectorSets.length === 0) {
-            const setsResponse = await prompts({
+            const setsResponse = (await prompts({
               type: 'text',
               name: 'sets',
               message: 'Enter set codes to use (comma-separated, e.g., "FDN, SPG"):',
-              validate: (val) => (val.trim().length > 0 ? true : 'At least one set code required'),
-            })
+              validate: (val: string) =>
+                val.trim().length > 0 ? true : 'At least one set code required',
+            })) as { sets?: string }
 
             if (!setsResponse.sets) continue
 
