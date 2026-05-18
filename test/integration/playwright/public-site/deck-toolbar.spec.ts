@@ -24,7 +24,7 @@ test.describe('Deck Toolbar', () => {
     await expect(page.locator('.card-binder').first()).toBeVisible()
   })
 
-  test('reverse checkbox toggles sort order', async ({ page }) => {
+  test('reverse toggle reverses sort order', async ({ page }) => {
     // Switch to list view so card names are visible as text
     await page.locator('[data-view="list"]').click()
     // Grab card names within the first non-commander section before toggling
@@ -33,26 +33,26 @@ test.describe('Deck Toolbar', () => {
       .filter({ hasNotText: /Commander/ })
       .first()
     const namesBefore = await firstSection.locator('.card-list .list-name').allTextContents()
-    const reverseLabel = page.locator('label').filter({ hasText: /^Reverse$/ })
-    const checkbox = reverseLabel.locator('input[type="checkbox"]')
-    await expect(checkbox).not.toBeChecked()
-    await checkbox.click()
-    await expect(checkbox).toBeChecked()
+    const reverseToggle = page.locator('.toolbar button.toolbar-toggle', {
+      hasText: /^↑↓ Reverse$/,
+    })
+    await expect(reverseToggle).not.toHaveClass(/active/)
+    await reverseToggle.click()
+    await expect(reverseToggle).toHaveClass(/active/)
     // Cards within the section should appear in reversed order
     const namesAfter = await firstSection.locator('.card-list .list-name').allTextContents()
     expect(namesAfter).toEqual([...namesBefore].reverse())
   })
 
-  test('hide lands checkbox hides land cards', async ({ page }) => {
+  test('hide lands toggle hides land cards', async ({ page }) => {
     // Count section dividers before hiding lands
     const sectionsBefore = await page.locator('.section-divider').allTextContents()
     const hasLands = sectionsBefore.some((text) => /land/i.test(text))
     // Only test if lands section exists
     if (hasLands) {
-      const hideLabel = page.locator('label').filter({ hasText: 'Hide Lands' })
-      const checkbox = hideLabel.locator('input[type="checkbox"]')
-      await checkbox.click()
-      await expect(checkbox).toBeChecked()
+      const hideToggle = page.locator('.toolbar button.toolbar-toggle', { hasText: 'Hide Lands' })
+      await hideToggle.click()
+      await expect(hideToggle).toHaveClass(/active/)
       // Lands section should no longer appear
       const sectionsAfter = await page.locator('.section-divider').allTextContents()
       expect(sectionsAfter.some((text) => /land/i.test(text))).toBe(false)
@@ -79,7 +79,7 @@ test.describe('Deck Toolbar – Reverse Sections', () => {
     await page.waitForSelector('[data-view]', { timeout: 15_000 })
   })
 
-  test('Reverse Sections checkbox reverses section order independently of card order', async ({
+  test('Reverse Sections toggle reverses section order independently of card order', async ({
     page,
   }) => {
     // Switch to list view so section headers are visible
@@ -89,11 +89,12 @@ test.describe('Deck Toolbar – Reverse Sections', () => {
     const sectionsBefore = await page.locator('.section-divider').allTextContents()
     expect(sectionsBefore.length).toBeGreaterThan(1)
 
-    const reverseSectionsLabel = page.locator('label').filter({ hasText: /^Reverse Sections$/ })
-    const checkbox = reverseSectionsLabel.locator('input[type="checkbox"]')
-    await expect(checkbox).not.toBeChecked()
-    await checkbox.click()
-    await expect(checkbox).toBeChecked()
+    const reverseSectionsToggle = page.locator('.toolbar button.toolbar-toggle', {
+      hasText: /^↑↓ Reverse Sections$/,
+    })
+    await expect(reverseSectionsToggle).not.toHaveClass(/active/)
+    await reverseSectionsToggle.click()
+    await expect(reverseSectionsToggle).toHaveClass(/active/)
 
     // Section order should now be reversed
     const sectionsAfter = await page.locator('.section-divider').allTextContents()
@@ -111,11 +112,10 @@ test.describe('Deck Toolbar – Reverse Sections', () => {
     const sectionsBefore = await page.locator('.section-divider').allTextContents()
 
     // Toggle Reverse Sections only — section order reverses, intra-section card order unchanged
-    const reverseSectionsCheckbox = page
-      .locator('label')
-      .filter({ hasText: /^Reverse Sections$/ })
-      .locator('input[type="checkbox"]')
-    await reverseSectionsCheckbox.click()
+    const reverseSectionsToggle = page.locator('.toolbar button.toolbar-toggle', {
+      hasText: /^↑↓ Reverse Sections$/,
+    })
+    await reverseSectionsToggle.click()
 
     const sectionsAfterReverseSections = await page.locator('.section-divider').allTextContents()
     expect(sectionsAfterReverseSections).toEqual([...sectionsBefore].reverse())
@@ -126,11 +126,10 @@ test.describe('Deck Toolbar – Reverse Sections', () => {
     expect(cardsAfterReverseSections).toEqual(cardsBefore)
 
     // Also toggle Reverse (card sort) — section order stays reversed, card order within section reverses
-    const reverseCheckbox = page
-      .locator('label')
-      .filter({ hasText: /^Reverse$/ })
-      .locator('input[type="checkbox"]')
-    await reverseCheckbox.click()
+    const reverseToggle = page.locator('.toolbar button.toolbar-toggle', {
+      hasText: /^↑↓ Reverse$/,
+    })
+    await reverseToggle.click()
 
     const sectionsAfterBoth = await page.locator('.section-divider').allTextContents()
     expect(sectionsAfterBoth).toEqual([...sectionsBefore].reverse())

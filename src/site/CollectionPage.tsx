@@ -395,7 +395,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         onReverseGroupsChange={() => setReverseGroups((prev) => !prev)}
         hideLands={hideLands()}
         onHideLandsChange={() => setHideLands((prev) => !prev)}
-        extraCheckboxes={[
+        extraToggles={[
           {
             label: 'Group Duplicates',
             checked: groupDuplicates(),

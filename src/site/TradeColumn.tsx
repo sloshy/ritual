@@ -258,7 +258,7 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
           </button>
         </div>
         <button
-          class="reverse-btn"
+          class="toolbar-toggle"
           classList={{ active: props.sort.reverse }}
           onClick={props.onReverseToggle}
         >

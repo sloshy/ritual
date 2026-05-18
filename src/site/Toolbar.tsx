@@ -6,7 +6,7 @@ import { useStuck } from './useStuck'
 
 type SelectOption = { value: string; label: string }
 
-type ExtraCheckbox = {
+type ExtraToggle = {
   label: string
   checked: boolean
   onChange: () => void
@@ -31,7 +31,7 @@ interface ToolbarProps {
   onReverseGroupsChange: () => void
   hideLands: boolean
   onHideLandsChange: () => void
-  extraCheckboxes?: ExtraCheckbox[]
+  extraToggles?: ExtraToggle[]
 }
 
 const VIEW_MODE_ICONS: Record<ViewMode, string> = {
@@ -118,32 +118,48 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
             </For>
           </select>
         </div>
-        <label class="toolbar-checkbox">
-          <input type="checkbox" checked={props.reverse} onChange={props.onReverseChange} />
-          Reverse
-        </label>
+        <button
+          type="button"
+          class="toolbar-toggle"
+          classList={{ active: props.reverse }}
+          aria-pressed={props.reverse}
+          onClick={props.onReverseChange}
+        >
+          <span aria-hidden="true">↑↓</span> Reverse
+        </button>
         <Show when={props.groupBy !== 'none'}>
-          <label class="toolbar-checkbox">
-            <input
-              type="checkbox"
-              checked={props.reverseGroups}
-              onChange={props.onReverseGroupsChange}
-            />
-            Reverse Sections
-          </label>
+          <button
+            type="button"
+            class="toolbar-toggle"
+            classList={{ active: props.reverseGroups }}
+            aria-pressed={props.reverseGroups}
+            onClick={props.onReverseGroupsChange}
+          >
+            <span aria-hidden="true">↑↓</span> Reverse Sections
+          </button>
         </Show>
-        <label class="toolbar-checkbox">
-          <input type="checkbox" checked={props.hideLands} onChange={props.onHideLandsChange} />
+        <button
+          type="button"
+          class="toolbar-toggle"
+          classList={{ active: props.hideLands }}
+          aria-pressed={props.hideLands}
+          onClick={props.onHideLandsChange}
+        >
           Hide Lands
-        </label>
-        <Show when={props.extraCheckboxes}>
-          {(checkboxes) => (
-            <For each={checkboxes()}>
-              {(cb) => (
-                <label class="toolbar-checkbox">
-                  <input type="checkbox" checked={cb.checked} onChange={cb.onChange} />
-                  {cb.label}
-                </label>
+        </button>
+        <Show when={props.extraToggles}>
+          {(toggles) => (
+            <For each={toggles()}>
+              {(t) => (
+                <button
+                  type="button"
+                  class="toolbar-toggle"
+                  classList={{ active: t.checked }}
+                  aria-pressed={t.checked}
+                  onClick={t.onChange}
+                >
+                  {t.label}
+                </button>
               )}
             </For>
           )}

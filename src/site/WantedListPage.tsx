@@ -405,7 +405,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         onReverseGroupsChange={() => setReverseGroups((prev) => !prev)}
         hideLands={hideLands()}
         onHideLandsChange={() => setHideLands((prev) => !prev)}
-        extraCheckboxes={[]}
+        extraToggles={[]}
       />
 
       {/* Card sections */}

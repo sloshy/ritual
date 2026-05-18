@@ -494,7 +494,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         onReverseGroupsChange={() => setReverseGroups((prev) => !prev)}
         hideLands={hideLands()}
         onHideLandsChange={() => setHideLands((prev) => !prev)}
-        extraCheckboxes={[
+        extraToggles={[
           {
             label: 'Hide Extras',
             checked: hideExtras(),
