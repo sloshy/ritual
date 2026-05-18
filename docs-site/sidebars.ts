@@ -50,7 +50,13 @@ const sidebars: SidebarsConfig = {
         {
           type: 'category',
           label: 'Site',
-          items: ['commands/build-site', 'commands/serve', 'commands/init-site', 'commands/admin'],
+          items: [
+            'commands/build-site',
+            'commands/serve',
+            'commands/serve-site',
+            'commands/init-site',
+            'commands/admin',
+          ],
         },
         {
           type: 'category',

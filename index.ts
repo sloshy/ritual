@@ -10,6 +10,7 @@ import { registerImportCommand } from './src/commands/import'
 import { registerPriceDeckCommand } from './src/commands/price'
 import { registerBuildSiteCommand } from './src/commands/build-site'
 import { registerServeCommand } from './src/commands/serve'
+import { registerServeSiteCommand } from './src/commands/serve-site'
 import { registerAddCardCommand } from './src/commands/add-card'
 import { registerAddNoteCommand } from './src/commands/add-note'
 import { registerClearNoteCommand } from './src/commands/clear-note'
@@ -125,6 +126,7 @@ registerRandomCommand(program)
 program.commandsGroup('Site')
 registerBuildSiteCommand(program)
 registerServeCommand(program)
+registerServeSiteCommand(program)
 registerInitSiteCommand(program)
 registerAdminCommand(program)
 

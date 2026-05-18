@@ -53,3 +53,4 @@ Serve on a custom port:
 - The serve command serves files from the `dist/` directory
 - Make sure to run `build-site` first to generate the content
 - Press `Ctrl+C` to stop the server
+- To build and serve in one step (with an optional `--dev` rebuild watcher), use [`serve-site`](./serve-site) instead

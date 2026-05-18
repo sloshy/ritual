@@ -6,6 +6,7 @@ import { startAdminServer } from '../admin/server'
 import { getBundledAdminCss, getBundledAdminJs } from '../admin/bundled-assets'
 import { getBaseDir } from '../base-dir'
 import { ensureFreshCardCache } from '../cache/freshness'
+import { createRebuildQueue } from './rebuild-queue'
 import {
   generateAllThemesCss,
   resolveThemeName,
@@ -127,12 +128,8 @@ export function registerAdminCommand(program: Command) {
       await Bun.write(path.join(adminDistDir, 'index.html'), buildIndexHtml(themeName))
 
       if (options.dev) {
-        let building = false
-        let pending: RebuildFlags | null = null
-
-        const runRebuild = async (flags: RebuildFlags): Promise<void> => {
-          building = true
-          try {
+        const queue = createRebuildQueue<RebuildFlags>({
+          rebuild: async (flags) => {
             const rebuilds: Promise<boolean>[] = []
             if (flags.css) rebuilds.push(buildAdminCss(adminSrcDir, adminDistDir))
             if (flags.js) rebuilds.push(buildAdminJs(adminSrcDir, adminDistDir))
@@ -141,34 +138,22 @@ export function registerAdminCommand(program: Command) {
               const parts = [flags.js && 'js', flags.css && 'css'].filter(Boolean).join('+')
               console.log(`[dev] Rebuilt (${parts})`)
             }
-            if (pending) {
-              const next = pending
-              pending = null
-              await runRebuild(next)
-            } else {
-              building = false
-            }
-          } catch (err) {
-            building = false
+          },
+          merge: (pending, incoming) => ({
+            js: pending.js || incoming.js,
+            css: pending.css || incoming.css,
+          }),
+          onError: (err) => {
             console.error('[dev] Rebuild error:', err)
-          }
-        }
+          },
+        })
 
         watch(adminSrcDir, { recursive: true }, (_, filename) => {
           if (!filename) return
           const hasCss = filename.endsWith('.css')
           const hasJs = filename.endsWith('.ts') || filename.endsWith('.tsx')
           if (!hasCss && !hasJs) return
-
-          const flags: RebuildFlags = { js: hasJs, css: hasCss }
-          if (!building) {
-            runRebuild(flags)
-          } else {
-            pending = {
-              js: (pending?.js ?? false) || flags.js,
-              css: (pending?.css ?? false) || flags.css,
-            }
-          }
+          queue.trigger({ js: hasJs, css: hasCss })
         })
 
         console.log(`[dev] Watching ${adminSrcDir} for changes...`)

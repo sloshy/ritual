@@ -63,6 +63,7 @@ test-results/
 playwright-report/
 .playwright-cli/
 .server-pids.json
+test/.test-*/
 
 # Dev files
 *.js.map

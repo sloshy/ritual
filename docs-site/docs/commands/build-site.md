@@ -338,6 +338,13 @@ After building, use the [`serve`](./serve) command to preview locally:
 ./ritual serve
 ```
 
+To build and serve in a single step (with an optional `--dev` watcher that rebuilds on changes), use [`serve-site`](./serve-site):
+
+```bash
+./ritual serve-site
+./ritual serve-site --dev
+```
+
 ## Trade Planner
 
 The generated site includes a **Trade Planner** page accessible via the "Trade" link in the site navigation at `#/trade`. This is a fully client-side, ephemeral tool — no data is persisted between page refreshes.
