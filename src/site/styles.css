@@ -20,11 +20,15 @@ body {
 }
 
 .site-header {
-  margin-bottom: 1.5rem;
+  position: sticky;
+  top: var(--theme-editor-h, 0px);
+  z-index: 50;
+  margin: -1.5rem -2rem 1.5rem;
+  padding: 0.75rem 2rem;
+  background: var(--bg-panel);
   display: flex;
   align-items: center;
   gap: 1rem;
-  position: relative;
 }
 
 .site-logo {
@@ -205,6 +209,8 @@ body {
   .site-header {
     flex-wrap: wrap;
     gap: 0.5rem;
+    margin: -1rem -1rem 1.5rem;
+    padding: 0.625rem 1rem;
   }
 
   .site-nav-sep {
@@ -330,6 +336,9 @@ body {
 
 /* ===== Primary Toolbar ===== */
 .primary-toolbar {
+  position: sticky;
+  top: calc(var(--site-header-h, 0px) + var(--theme-editor-h, 0px) - 2px);
+  z-index: 40;
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -340,6 +349,24 @@ body {
   margin-bottom: 1.25rem;
   flex-wrap: nowrap;
   overflow: hidden;
+  transition:
+    padding 120ms ease,
+    border-radius 120ms ease,
+    margin 120ms ease;
+}
+
+.primary-toolbar.is-stuck {
+  padding: 0.625rem 2rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  margin: 0 calc(50% - 50vw) 1.25rem;
+}
+
+@media (max-width: 480px) {
+  .primary-toolbar.is-stuck {
+    padding: 0.625rem 1rem;
+  }
 }
 
 .primary-toolbar-left {
@@ -2056,14 +2083,16 @@ body {
 }
 
 /* When the editor is open, push the page content down so it isn't hidden
-   beneath the toolbar. The body class is set / cleared by the SPA. */
+   beneath the toolbar. The padding-top tracks the editor's actual measured
+   height (set as `--theme-editor-h` by the SPA); the rem fallback applies
+   briefly before the ResizeObserver reports its first measurement. */
 body.theme-editor-active {
-  padding-top: 9rem;
+  padding-top: var(--theme-editor-h, 9rem);
 }
 
 @media (max-width: 768px) {
   body.theme-editor-active {
-    padding-top: 13rem;
+    padding-top: var(--theme-editor-h, 13rem);
   }
 }
 

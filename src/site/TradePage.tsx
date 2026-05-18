@@ -34,6 +34,7 @@ import {
   isAlreadyInLeftList,
   isAlreadyInRightList,
 } from './useTradeState'
+import { useStuck } from './useStuck'
 
 function formatDecodeWarning(w: TradeDecodeWarning): string {
   switch (w.kind) {
@@ -103,6 +104,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
   let updatePricesButtonRef: HTMLButtonElement | undefined
   const [resetConfirmOpen, setResetConfirmOpen] = createSignal(false)
   const [updatingPrices, setUpdatingPrices] = createSignal(false)
+  const { stuck: primaryToolbarStuck, sentinelRef: primaryToolbarSentinelRef } = useStuck()
 
   const repriceForCurrency = (
     cards: TradeCardEntry[],
@@ -465,7 +467,8 @@ export const TradePage: Component<TradePageProps> = (props) => {
         <h1 class="page-title">Trade Editor</h1>
       </div>
 
-      <div class="primary-toolbar">
+      <div ref={primaryToolbarSentinelRef} aria-hidden="true" class="toolbar-sentinel" />
+      <div class="primary-toolbar" classList={{ 'is-stuck': primaryToolbarStuck() }}>
         <div class="primary-toolbar-left">
           <button
             ref={updatePricesButtonRef}

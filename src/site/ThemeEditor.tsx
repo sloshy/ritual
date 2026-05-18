@@ -20,6 +20,7 @@ import {
   createEffect,
   on,
   onCleanup,
+  onMount,
   type Component,
 } from 'solid-js'
 import {
@@ -177,8 +178,24 @@ export const ThemeEditor: Component = () => {
 
   const groupVars = createMemo(() => themeVarsByGroup[activeGroup()] ?? [])
 
+  let editorRef: HTMLDivElement | undefined
+  onMount(() => {
+    if (!editorRef) return
+    const el = editorRef
+    const update = () => {
+      document.documentElement.style.setProperty('--theme-editor-h', `${el.offsetHeight}px`)
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    onCleanup(() => {
+      ro.disconnect()
+      document.documentElement.style.removeProperty('--theme-editor-h')
+    })
+  })
+
   return (
-    <div class="theme-editor" role="region" aria-label="Theme editor">
+    <div ref={editorRef} class="theme-editor" role="region" aria-label="Theme editor">
       <div class="theme-editor-row theme-editor-row-top">
         <div class="theme-editor-left">
           <span class="theme-editor-title">Theme editor</span>

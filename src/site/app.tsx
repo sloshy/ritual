@@ -5,6 +5,7 @@ import {
   createMemo,
   on,
   onCleanup,
+  onMount,
   Show,
   Switch,
   Match,
@@ -113,9 +114,22 @@ function App() {
     setModalCard(null)
   }
 
+  let headerRef: HTMLElement | undefined
+  onMount(() => {
+    if (!headerRef) return
+    const el = headerRef
+    const update = () => {
+      document.documentElement.style.setProperty('--site-header-h', `${el.offsetHeight}px`)
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    onCleanup(() => ro.disconnect())
+  })
+
   return (
     <div class="site-app app-padding">
-      <header class="site-header">
+      <header ref={headerRef} class="site-header">
         <a href="#/" class="site-logo">
           <img src="app.svg" alt="Ritual logo" class="site-logo-icon" />
           <span class="site-logo-text">Ritual</span>
