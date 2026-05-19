@@ -46,21 +46,22 @@ function relativeFromRoot(p: string): string {
 function spawnChild(): void {
   const argline = [subcommand, ...passthrough].join(' ')
   console.log(`[dev] Starting: bun ${relativeFromRoot(indexPath)} ${argline}`)
-  // `detached: true` puts the child in its own process group so that
-  // terminal Ctrl+C (which signals the foreground group) only reaches the
-  // orchestrator. The orchestrator then owns the child's lifecycle and
-  // signals it explicitly — avoiding races where Bun's runtime catches
-  // SIGINT/SIGTERM in the child but doesn't exit, leaving the server
-  // running after the parent dies.
+  // - `detached: true` puts the child in its own process group so terminal
+  //   signals reach only the orchestrator. The orchestrator owns the child's
+  //   lifecycle and signals it explicitly.
+  // - `stdio[0] = 'ignore'` gives the orchestrator exclusive ownership of the
+  //   TTY for keyboard-shortcut detection. The child's interactive prompts
+  //   (e.g. `prompts` library) auto-default to their initial values since
+  //   they detect non-TTY stdin.
   child = Bun.spawn(['bun', indexPath, subcommand, ...passthrough], {
     cwd: projectRoot,
-    stdio: ['inherit', 'inherit', 'inherit'],
+    stdio: ['ignore', 'inherit', 'inherit'],
     detached: true,
     onExit(_proc, code, signal) {
       if (restartingByDevScript || shuttingDown) return
       if (signal) console.log(`[dev] Child exited (signal=${signal}).`)
       else console.log(`[dev] Child exited (code=${code ?? 0}).`)
-      process.exit(code ?? 0)
+      void shutdown('SIGTERM')
     },
   })
 }
@@ -172,22 +173,68 @@ async function shutdown(signal: ShutdownSignal): Promise<void> {
   if (shuttingDown) {
     // Second signal: user is impatient — force-kill the child group and exit.
     if (child) signalGroup(child.pid, 'SIGKILL')
-    process.exit(130)
+    restoreStdin()
+    process.exit(0)
   }
   shuttingDown = true
   if (restartTimer) {
     clearTimeout(restartTimer)
     restartTimer = null
   }
-  console.log('[dev] Shutting down...')
+  console.log('\n[dev] Shutting down...')
   if (child) {
     await killChildAndWait(child, signal)
   }
+  restoreStdin()
   process.exit(0)
+}
+
+const stdinIsTty = process.stdin.isTTY === true
+
+function restoreStdin(): void {
+  if (!stdinIsTty) return
+  try {
+    process.stdin.setRawMode(false)
+  } catch {
+    /* not a TTY anymore — ignore */
+  }
+  process.stdin.pause()
+}
+
+const CTRL_C = '\u0003'
+const CTRL_D = '\u0004'
+
+function setupKeyboardShortcuts(): void {
+  if (!stdinIsTty) return
+  try {
+    process.stdin.setRawMode(true)
+  } catch {
+    return
+  }
+  process.stdin.resume()
+  process.stdin.setEncoding('utf8')
+  process.stdin.on('data', (chunk: string) => {
+    // Raw-mode bytes — one keystroke per chunk in typical use. Raw mode
+    // disables the TTY's signal generation (ISIG), so Ctrl+C arrives here
+    // as the literal \u0003 byte rather than as a SIGINT to the foreground
+    // group — which is why shutdown can exit cleanly with code 0 without
+    // `bun run` reporting a 130 signal-kill.
+    if (chunk === 'q' || chunk === 'Q' || chunk === CTRL_C || chunk === CTRL_D) {
+      void shutdown('SIGTERM')
+    }
+  })
 }
 
 process.on('SIGINT', () => void shutdown('SIGINT'))
 process.on('SIGTERM', () => void shutdown('SIGTERM'))
 process.on('SIGHUP', () => void shutdown('SIGTERM'))
+// Defensive: if the process exits via any path (uncaught throw, etc.), make
+// sure the user's terminal isn't left in raw mode.
+process.on('exit', restoreStdin)
+
+setupKeyboardShortcuts()
+if (stdinIsTty) {
+  console.log("[dev] Press 'q' or Ctrl+C to stop.")
+}
 
 spawnChild()

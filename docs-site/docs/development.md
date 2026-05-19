@@ -56,7 +56,9 @@ bun run dev serve-site --decks "Atraxa Superfriends" --currencies usd
 
 If `--base-dir <path>` is passed for `serve-site`, the watcher uses that base directory's data folders.
 
-The dev orchestrator is a source-tree-only tool — it is not part of the compiled binary. Press `Ctrl+C` to stop it; the child process is terminated cleanly.
+The dev orchestrator is a source-tree-only tool — it is not part of the compiled binary. Press `q` or `Ctrl+C` to stop it cleanly; the child process and its port are released before the orchestrator exits.
+
+Because the orchestrator owns the terminal exclusively, interactive prompts in the child process (e.g. the "Card cache is N days old, refresh?" prompt) auto-default rather than waiting for input. If you need to refresh the Scryfall cache while developing, run `ritual cache preload-all` separately or restart `bun run dev` after refreshing.
 
 ## Building
 
