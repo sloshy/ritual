@@ -14,6 +14,7 @@ type Subcommand = (typeof SUBCOMMANDS)[number]
 
 const DATA_DIRS: readonly string[] = ['decks', 'collections', 'wanted']
 const RESTART_DEBOUNCE_MS = 200
+const SHUTDOWN_GRACE_MS = 5_000
 
 function isSubcommand(s: string): s is Subcommand {
   return (SUBCOMMANDS as readonly string[]).includes(s)
@@ -49,12 +50,31 @@ function spawnChild(): void {
     cwd: projectRoot,
     stdio: ['inherit', 'inherit', 'inherit'],
     onExit(_proc, code, signal) {
-      if (restartingByDevScript) return
+      if (restartingByDevScript || shuttingDown) return
       if (signal) console.log(`[dev] Child exited (signal=${signal}).`)
       else console.log(`[dev] Child exited (code=${code ?? 0}).`)
       process.exit(code ?? 0)
     },
   })
+}
+
+async function killChildAndWait(proc: ChildProc, signal: ShutdownSignal): Promise<void> {
+  proc.kill(signal)
+  // Most child processes exit immediately on SIGINT/SIGTERM. If something
+  // ignores them (or wedges during teardown), force-kill after a grace period
+  // so the dev script never strands a server holding the port.
+  const sigkill = setTimeout(() => {
+    try {
+      proc.kill('SIGKILL')
+    } catch {
+      /* already dead */
+    }
+  }, SHUTDOWN_GRACE_MS)
+  try {
+    await proc.exited
+  } finally {
+    clearTimeout(sigkill)
+  }
 }
 
 async function restart(): Promise<void> {
@@ -65,8 +85,7 @@ async function restart(): Promise<void> {
   }
   restartingByDevScript = true
   console.log('[dev] Restarting...')
-  child.kill('SIGTERM')
-  await child.exited
+  await killChildAndWait(child, 'SIGTERM')
   restartingByDevScript = false
   if (shuttingDown) return
   spawnChild()
@@ -118,17 +137,30 @@ if (subcommand === 'serve-site') {
 }
 
 type ShutdownSignal = 'SIGINT' | 'SIGTERM'
-function shutdown(signal: ShutdownSignal): void {
+async function shutdown(signal: ShutdownSignal): Promise<void> {
+  if (shuttingDown) {
+    // Second signal: user is impatient — force-kill the child and bail out now.
+    if (child) {
+      try {
+        child.kill('SIGKILL')
+      } catch {
+        /* already dead */
+      }
+    }
+    process.exit(130)
+  }
   shuttingDown = true
   if (restartTimer) {
     clearTimeout(restartTimer)
     restartTimer = null
   }
-  if (child) child.kill(signal)
+  if (child) {
+    await killChildAndWait(child, signal)
+  }
   process.exit(0)
 }
 
-process.on('SIGINT', () => shutdown('SIGINT'))
-process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => void shutdown('SIGINT'))
+process.on('SIGTERM', () => void shutdown('SIGTERM'))
 
 spawnChild()

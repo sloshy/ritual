@@ -8,6 +8,7 @@ import { resolveCardThumbnailUrl } from './image-sources'
 import { scoreMatch } from './quick-switch-search'
 import { fetchJson } from './useFetchJson'
 import { getSummaryMissingPriceCount, getSummaryTotalPrice } from './utils'
+import { getDeckCountLabel, pluralizeCards } from '../deck-format'
 
 type ListKind = 'deck' | 'collection' | 'wanted'
 
@@ -18,7 +19,8 @@ type ListEntry = {
   image: string
   name: string
   subtitle?: string
-  cardCount: number
+  label: string
+  labelSuffix?: string
   total: number
   missing: number
 }
@@ -200,6 +202,7 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
     const cur = props.currency()
     const out: ListEntry[] = []
     for (const d of props.decks() ?? []) {
+      const countLabel = getDeckCountLabel(d.format, d.cardCount)
       out.push({
         kind: 'list',
         listKind: 'deck',
@@ -207,7 +210,8 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
         image: d.featuredCardImage || '',
         name: d.name,
         subtitle: d.commander ? `Commander: ${d.commander}` : undefined,
-        cardCount: d.cardCount,
+        label: countLabel.primary,
+        labelSuffix: countLabel.suffix,
         total: getSummaryTotalPrice(d, cur),
         missing: getSummaryMissingPriceCount(d, cur),
       })
@@ -219,7 +223,7 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
         href: listHref('collection', c.slug),
         image: c.featuredCardImage || '',
         name: c.name,
-        cardCount: c.cardCount,
+        label: pluralizeCards(c.cardCount),
         total: getSummaryTotalPrice(c, cur),
         missing: getSummaryMissingPriceCount(c, cur),
       })
@@ -231,7 +235,7 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
         href: listHref('wanted', w.slug),
         image: w.featuredCardImage || '',
         name: w.name,
-        cardCount: w.cardCount,
+        label: pluralizeCards(w.cardCount),
         total: getSummaryTotalPrice(w, cur),
         missing: getSummaryMissingPriceCount(w, cur),
       })
@@ -461,7 +465,12 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
                       </div>
                       {entry.kind === 'list' ? (
                         <div class="quick-switch-row-meta">
-                          <span class="quick-switch-row-count">{entry.cardCount} cards</span>
+                          <span class="quick-switch-row-count">
+                            <span>{entry.label}</span>
+                            <Show when={entry.labelSuffix}>
+                              <span class="quick-switch-row-count-suffix">{entry.labelSuffix}</span>
+                            </Show>
+                          </span>
                           <span class="quick-switch-row-price">
                             {formatPriceWithMissing(entry.total, props.currency(), entry.missing)}
                           </span>

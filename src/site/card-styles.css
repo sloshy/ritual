@@ -677,6 +677,18 @@ h3 {
   }
 }
 
+.cover-label {
+  display: flex;
+  gap: 0.4rem;
+  align-items: baseline;
+
+  & .cover-label-suffix {
+    color: var(--text-dim);
+    font-weight: 400;
+    font-size: 0.7rem;
+  }
+}
+
 .cover-prices {
   display: flex;
   gap: 0.5rem;

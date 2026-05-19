@@ -19,6 +19,7 @@ import type { DeckData, Finish, ScryfallCard } from '../types'
 import { extractPrimerCardNames } from '../primer-parser'
 import { parseChangelog, extractChangelogCardNames } from '../changelog-parser'
 import type { ChangelogPage } from '../changelog-parser'
+import { detectDeckFormat, getMainDeckSize } from '../deck-format'
 import { getBaseDir } from '../base-dir'
 import { getCollectionsDir, getDecksDir, getWantedDir } from '../ritual-config'
 import type {
@@ -757,8 +758,11 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     }
     await Bun.write(path.join(decksDataDir, `${safeName}.json`), JSON.stringify(deckDetail))
 
-    // Build summary for index
-    const cardCount = deckData.sections.reduce((acc, s) => acc + s.cards.length, 0)
+    // Build summary for index. Card count is the total quantity of cards in
+    // the main deck (commander/oathbreaker + mainboard) so format checks like
+    // "100 for Commander" or "60 for Modern" line up with the expected size.
+    const cardCount = getMainDeckSize(deckData.sections)
+    const format = detectDeckFormat(deckData)
     const featuredImage = featured
       ? resolveCardImageSources(featured, useScryfallImgUrls).frontImage
       : ''
@@ -809,6 +813,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       name: deckData.name,
       featuredCardImage: featuredImage,
       commander: featured && commanderSection ? featured.name : null,
+      format,
       cardCount,
       totalPrice: hasUsd ? deckTotalPrice : undefined,
       lowestPrice: hasUsd ? deckLowestPrice : undefined,

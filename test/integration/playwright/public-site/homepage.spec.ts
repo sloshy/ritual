@@ -13,11 +13,13 @@ test.describe('Homepage', () => {
     expect(await deckCards.count()).toBeGreaterThan(0)
   })
 
-  test('each deck card shows name and card count', async ({ page }) => {
+  test('each deck card shows name and format/count label', async ({ page }) => {
     await page.goto('/')
     const firstCard = page.locator('.deck-cover').first()
     await expect(firstCard.locator('.cover-info h2')).not.toBeEmpty()
-    await expect(firstCard.locator('.cover-cardcount')).toContainText('cards')
+    // Cover footer shows either the format name (e.g. "Commander") or a card
+    // count fallback (e.g. "62 cards") — match either.
+    await expect(firstCard.locator('.cover-cardcount')).toContainText(/Commander|Oathbreaker|cards/)
   })
 
   test('collections tab shows collection cards', async ({ page }) => {

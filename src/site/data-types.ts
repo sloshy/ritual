@@ -1,12 +1,19 @@
 import type { Condition, DeckData, Finish, ScryfallCard } from '../types'
 import type { PriceCurrency } from '../price-currency'
 import type { ChangelogPage } from '../changelog-parser'
+import type { DeckFormatKey } from '../deck-format'
 
 export interface DeckSummary {
   slug: string
   name: string
   featuredCardImage: string
   commander: string | null
+  /** Detected deck format (frontmatter or section heuristic). Null when unknown. */
+  format: DeckFormatKey | null
+  /**
+   * Total quantity of cards in the main deck (commander/oathbreaker +
+   * mainboard, excluding sideboard, maybeboard, and tokens).
+   */
   cardCount: number
   totalPrice?: number
   lowestPrice?: number
@@ -52,6 +59,7 @@ export interface CollectionSummary {
   slug: string
   name: string
   featuredCardImage: string
+  /** Number of card entries in the collection (one entry per physical card line). */
   cardCount: number
   totalPrice: number
   totalPriceEur: number
@@ -94,6 +102,7 @@ export interface WantedListSummary {
   slug: string
   name: string
   featuredCardImage: string
+  /** Number of card entries in the wanted list (one entry per requested card line). */
   cardCount: number
   totalPrice: number
   totalPriceEur: number

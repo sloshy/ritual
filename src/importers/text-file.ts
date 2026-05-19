@@ -46,6 +46,7 @@ export async function importFromTextFile(filePath: string): Promise<DeckData> {
   const description = getString(parsed.data.description)
   const sourceUrl = getString(parsed.data.sourceUrl)
   const sourceId = getString(parsed.data.sourceId)
+  const format = getString(parsed.data.format)
 
   const primerPath = filePath.replace(/\.[^.]+$/, '.primer.md')
   const primerFile = Bun.file(primerPath)
@@ -95,6 +96,7 @@ export async function importFromTextFile(filePath: string): Promise<DeckData> {
 
   return {
     name,
+    format,
     description,
     primer,
     sourceUrl,

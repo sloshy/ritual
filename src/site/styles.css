@@ -1736,6 +1736,14 @@ body {
 
 .quick-switch-row-count {
   color: var(--text-muted);
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: baseline;
+}
+
+.quick-switch-row-count-suffix {
+  color: var(--text-dim);
+  font-size: 0.65rem;
 }
 
 .quick-switch-row-price {

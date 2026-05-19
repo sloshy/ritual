@@ -3,6 +3,7 @@ import { For, Show } from 'solid-js'
 import type { DeckSummary, CollectionSummary, WantedListSummary } from './data-types'
 import type { PriceCurrency } from '../price-currency'
 import { formatPriceWithMissing } from '../price-currency'
+import { getDeckCountLabel, pluralizeCards } from '../deck-format'
 import { getSummaryLowestPrice, getSummaryMissingPriceCount, getSummaryTotalPrice } from './utils'
 import { CoverCard } from './CoverCard'
 
@@ -39,7 +40,7 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
                           <CoverCard
                             name={wl.name}
                             image={wl.featuredCardImage || null}
-                            cardCount={wl.cardCount}
+                            label={pluralizeCards(wl.cardCount)}
                             priceLabel={formatPriceWithMissing(total(), props.currency, missing())}
                           />
                         </a>
@@ -63,7 +64,7 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
                         <CoverCard
                           name={col.name}
                           image={col.featuredCardImage || null}
-                          cardCount={col.cardCount}
+                          label={pluralizeCards(col.cardCount)}
                           priceLabel={formatPriceWithMissing(total(), props.currency, missing())}
                         />
                       </a>
@@ -84,13 +85,15 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
                 const total = () => getSummaryTotalPrice(deck, props.currency)
                 const lowest = () => getSummaryLowestPrice(deck, props.currency)
                 const missing = () => getSummaryMissingPriceCount(deck, props.currency)
+                const countLabel = getDeckCountLabel(deck.format, deck.cardCount)
                 return (
                   <a href={link} class="card-grid-link">
                     <CoverCard
                       name={deck.name}
                       image={deck.featuredCardImage || null}
                       subtitle={deck.commander ? `Commander: ${deck.commander}` : undefined}
-                      cardCount={deck.cardCount}
+                      label={countLabel.primary}
+                      labelSuffix={countLabel.suffix}
                       priceLabel={formatPriceWithMissing(total(), props.currency, missing())}
                       secondaryPriceLabel={
                         lowest() > 0

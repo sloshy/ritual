@@ -121,6 +121,20 @@ describe('importFromTextFile - frontmatter', () => {
     expect(deck.sourceUrl).toBe('https://example.com')
   })
 
+  test('reads format from frontmatter', async () => {
+    const filePath = await writeDeck(
+      '---\nname: Test\nformat: "modern"\n---\n## Main\n1 Sol Ring\n',
+    )
+    const deck = await importFromTextFile(filePath)
+    expect(deck.format).toBe('modern')
+  })
+
+  test('format is undefined when not in frontmatter', async () => {
+    const filePath = await writeDeck('---\nname: Test\n---\n## Main\n1 Sol Ring\n')
+    const deck = await importFromTextFile(filePath)
+    expect(deck.format).toBeUndefined()
+  })
+
   test('falls back to filename when no name in frontmatter', async () => {
     const filePath = await writeDeck('---\n---\n## Main\n1 Sol Ring\n')
     const deck = await importFromTextFile(filePath)

@@ -20,6 +20,7 @@ export interface DeckSection {
 
 export interface DeckData {
   name: string
+  format?: string
   sourceId?: string
   sourceUrl?: string
   description?: string
