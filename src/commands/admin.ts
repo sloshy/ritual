@@ -1,12 +1,10 @@
 import { Command } from 'commander'
 import path from 'node:path'
 import fs from 'node:fs/promises'
-import { watch } from 'node:fs'
 import { startAdminServer } from '../admin/server'
-import { getBundledAdminCss, getBundledAdminJs } from '../admin/bundled-assets'
 import { getBaseDir } from '../base-dir'
 import { ensureFreshCardCache } from '../cache/freshness'
-import { createRebuildQueue } from './rebuild-queue'
+import { isRunningFromSource } from '../runtime'
 import {
   generateAllThemesCss,
   resolveThemeName,
@@ -18,11 +16,8 @@ import {
 type AdminCommandOptions = {
   port: string
   host: string
-  dev: boolean
   theme?: string
 }
-
-type RebuildFlags = { js: boolean; css: boolean }
 
 function buildIndexHtml(initialTheme: ThemeName): string {
   const attr = initialTheme === 'default' ? '' : ` data-theme="${initialTheme}"`
@@ -42,7 +37,7 @@ function buildIndexHtml(initialTheme: ThemeName): string {
 </html>`
 }
 
-async function buildAdminJs(srcDir: string, adminDistDir: string): Promise<boolean> {
+async function buildAdminJs(srcDir: string, adminDistDir: string): Promise<void> {
   const { SolidPlugin } = await import('@dschz/bun-plugin-solid')
   const result = await Bun.build({
     entrypoints: [path.join(srcDir, 'admin', 'site', 'app.tsx')],
@@ -54,32 +49,25 @@ async function buildAdminJs(srcDir: string, adminDistDir: string): Promise<boole
     plugins: [SolidPlugin()],
   })
   if (!result.success) {
-    console.error('Admin JS build failed:')
     for (const log of result.logs) console.error(log)
-    return false
+    throw new Error('Admin SPA JS build failed')
   }
-  return true
 }
 
-async function buildAdminCss(srcDir: string, adminDistDir: string): Promise<boolean> {
+async function buildAdminCss(srcDir: string, adminDistDir: string): Promise<void> {
   const result = await Bun.build({
     entrypoints: [path.join(srcDir, 'admin', 'site', 'styles.css')],
     target: 'browser',
     minify: false,
   })
   if (!result.success) {
-    console.error('Admin CSS build failed:')
     for (const log of result.logs) console.error(log)
-    return false
+    throw new Error('Admin SPA CSS build failed')
   }
   const cssOutput = result.outputs.find((o) => o.path.endsWith('.css'))
-  if (!cssOutput) {
-    console.error('Admin CSS build produced no .css output')
-    return false
-  }
+  if (!cssOutput) throw new Error('Admin SPA CSS build produced no .css output')
   const compiled = await cssOutput.text()
   await Bun.write(path.join(adminDistDir, 'styles.css'), `${generateAllThemesCss()}\n${compiled}`)
-  return true
 }
 
 export function registerAdminCommand(program: Command): void {
@@ -88,7 +76,6 @@ export function registerAdminCommand(program: Command): void {
     .description('Start the web admin interface')
     .option('-p, --port <number>', 'Port to serve on', '8080')
     .option('--host <address>', 'Host address to bind to', '0.0.0.0')
-    .option('--dev', 'Rebuild admin SPA from source on file changes')
     .option(
       '--theme <name>',
       `Initial theme baked into the served HTML (${themeNames.join(', ')})`,
@@ -108,16 +95,17 @@ export function registerAdminCommand(program: Command): void {
       await fs.rm(adminDistDir, { recursive: true, force: true })
       await fs.mkdir(adminDistDir, { recursive: true })
 
-      const adminSrcDir = path.join(import.meta.dir, '..', '..', 'src')
-
-      if (options.dev) {
-        console.log('Building admin SPA from source...')
-        const [jsOk, cssOk] = await Promise.all([
+      if (isRunningFromSource()) {
+        const adminSrcDir = path.join(import.meta.dir, '..', '..', 'src')
+        await Promise.all([
           buildAdminJs(adminSrcDir, adminDistDir),
           buildAdminCss(adminSrcDir, adminDistDir),
         ])
-        if (!jsOk || !cssOk) process.exit(1)
       } else {
+        // Lazy import: keeps `.compiled.{js,css}` text imports out of the
+        // source-mode module graph (those files are gitignored). The path must
+        // stay a literal string so `bun build --compile` can embed the module.
+        const { getBundledAdminCss, getBundledAdminJs } = await import('../admin/bundled-assets')
         await Bun.write(path.join(adminDistDir, 'app.js'), getBundledAdminJs())
         await Bun.write(
           path.join(adminDistDir, 'styles.css'),
@@ -126,38 +114,6 @@ export function registerAdminCommand(program: Command): void {
       }
 
       await Bun.write(path.join(adminDistDir, 'index.html'), buildIndexHtml(themeName))
-
-      if (options.dev) {
-        const queue = createRebuildQueue<RebuildFlags>({
-          rebuild: async (flags) => {
-            const rebuilds: Promise<boolean>[] = []
-            if (flags.css) rebuilds.push(buildAdminCss(adminSrcDir, adminDistDir))
-            if (flags.js) rebuilds.push(buildAdminJs(adminSrcDir, adminDistDir))
-            const results = await Promise.all(rebuilds)
-            if (results.every(Boolean)) {
-              const parts = [flags.js && 'js', flags.css && 'css'].filter(Boolean).join('+')
-              console.log(`[dev] Rebuilt (${parts})`)
-            }
-          },
-          merge: (pending, incoming) => ({
-            js: pending.js || incoming.js,
-            css: pending.css || incoming.css,
-          }),
-          onError: (err) => {
-            console.error('[dev] Rebuild error:', err)
-          },
-        })
-
-        watch(adminSrcDir, { recursive: true }, (_, filename) => {
-          if (!filename) return
-          const hasCss = filename.endsWith('.css')
-          const hasJs = filename.endsWith('.ts') || filename.endsWith('.tsx')
-          if (!hasCss && !hasJs) return
-          queue.trigger({ js: hasJs, css: hasCss })
-        })
-
-        console.log(`[dev] Watching ${adminSrcDir} for changes...`)
-      }
 
       console.log('Admin interface ready.')
 

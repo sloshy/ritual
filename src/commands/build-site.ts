@@ -14,7 +14,7 @@ import {
   preloadCache,
 } from '../scryfall'
 import { cardCache, ensureCacheForCards } from '../cache'
-import { getBundledSiteAssets } from '../site/bundled-assets'
+import { isRunningFromSource } from '../runtime'
 import type { DeckData, Finish, ScryfallCard } from '../types'
 import { extractPrimerCardNames } from '../primer-parser'
 import { parseChangelog, extractChangelogCardNames } from '../changelog-parser'
@@ -66,12 +66,6 @@ export interface BuildSiteOptions {
   yes?: boolean
   theme?: string
   themeFile?: string[]
-  /**
-   * When true, rebuild the SPA JS/CSS from source via Bun.build instead of
-   * using the assets bundled into the binary. Used by `serve-site --dev` so
-   * source edits show up after a rebuild.
-   */
-  devSourceBuild?: boolean
 }
 
 export type SiteSpaAssets = {
@@ -216,9 +210,12 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
   const distDir = path.join(getBaseDir(), 'dist')
   const imagesDir = path.join(distDir, 'images')
   const decksDir = getDecksDir()
-  const siteSpaAssets: SiteSpaAssets = options.devSourceBuild
+  // Lazy import: keeps `.compiled.{js,css}` text imports out of the source-mode
+  // module graph (those files are gitignored). The path must stay a literal
+  // string so `bun build --compile` can embed the module into the binary.
+  const siteSpaAssets: SiteSpaAssets = isRunningFromSource()
     ? await buildSiteSpaFromSource()
-    : getBundledSiteAssets()
+    : (await import('../site/bundled-assets')).getBundledSiteAssets()
   const cacheImages = options.cacheImages === true
   const useScryfallImgUrls = !cacheImages
 
