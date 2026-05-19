@@ -4,10 +4,7 @@
 
 - Add more filtering options (scryfall syntax?)
 - Add filtering printings from appearing as default
-- Add search
 - Allow downloading deck info as JSON, CSV pre-rendered
-- Remove card count from deck list (display format instead)
-- Allow grouping by format for deck list page
 
 ## Other commands
 
