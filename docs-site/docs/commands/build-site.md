@@ -205,6 +205,24 @@ The main-deck count includes the commander/oathbreaker section plus the mainboar
 
 Collections and wanted lists continue to display a plain `N cards` count, since their card count is the primary fact about them.
 
+## Deck Index Toolbar
+
+The decks tab of the home page includes a filter toolbar (matching the look of the deck and collection page toolbars) for re-sorting and grouping the deck list. State is per-session — selections reset on reload.
+
+Sort options (default: **Alphabetical**):
+
+- **Alphabetical** — A–Z by deck name (uses locale-aware case-insensitive comparison).
+- **Recently updated** — newest first, derived from the most recent changelog entry, falling back to the deck file's mtime. Decks with no timestamp sort last.
+- **Current price** — highest current total first, in the active currency.
+- **Lowest price** — highest "lowest possible" total first (the value shown when the deck page's "Lowest Price" toggle is on), in the active currency.
+
+A **Reverse** toggle next to the selects flips the resulting order.
+
+Group options (default: **None**):
+
+- **None** — single flat grid.
+- **Format** — splits decks into one section per format (Commander, Modern, Standard, …) with the format label as the section heading. Decks without a recognized format land in a final **Other** bucket. The active sort is applied within each group.
+
 ## Price Currency Switching
 
 The generated site includes a **Prices** dropdown in the header for switching between USD (TCGPlayer), EUR (Cardmarket), and TIX (MTGO) at runtime. The dropdown only shows currencies selected by the `--currencies` flag. When switching currencies:

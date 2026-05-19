@@ -1,11 +1,20 @@
 import type { Component } from 'solid-js'
-import { For, Show } from 'solid-js'
+import { createMemo, createSignal, For, Show } from 'solid-js'
 import type { DeckSummary, CollectionSummary, WantedListSummary } from './data-types'
 import type { PriceCurrency } from '../price-currency'
 import { formatPriceWithMissing } from '../price-currency'
 import { getDeckCountLabel, pluralizeCards } from '../deck-format'
 import { getSummaryLowestPrice, getSummaryMissingPriceCount, getSummaryTotalPrice } from './utils'
 import { CoverCard } from './CoverCard'
+import { DeckIndexToolbar } from './DeckIndexToolbar'
+import {
+  DEFAULT_DECK_INDEX_GROUP,
+  DEFAULT_DECK_INDEX_SORT,
+  type DeckIndexGroup,
+  type DeckIndexSort,
+  groupDecksByFormat,
+  sortDecks,
+} from './deck-index-filter'
 
 type IndexTab = 'decks' | 'collections' | 'wanted'
 
@@ -18,7 +27,45 @@ interface IndexPageProps {
   currency: PriceCurrency
 }
 
+interface DeckCoverLinkProps {
+  deck: DeckSummary
+  currency: PriceCurrency
+}
+
+const DeckCoverLink: Component<DeckCoverLinkProps> = (props) => {
+  const total = createMemo(() => getSummaryTotalPrice(props.deck, props.currency))
+  const lowest = createMemo(() => getSummaryLowestPrice(props.deck, props.currency))
+  const missing = createMemo(() => getSummaryMissingPriceCount(props.deck, props.currency))
+  const countLabel = createMemo(() => getDeckCountLabel(props.deck.format, props.deck.cardCount))
+  return (
+    <a href={`#/deck/${props.deck.slug}`} class="card-grid-link">
+      <CoverCard
+        name={props.deck.name}
+        image={props.deck.featuredCardImage || null}
+        subtitle={props.deck.commander ? `Commander: ${props.deck.commander}` : undefined}
+        label={countLabel().primary}
+        labelSuffix={countLabel().suffix}
+        priceLabel={formatPriceWithMissing(total(), props.currency, missing())}
+        secondaryPriceLabel={
+          lowest() > 0 ? formatPriceWithMissing(lowest(), props.currency, missing()) : undefined
+        }
+      />
+    </a>
+  )
+}
+
 export const IndexPage: Component<IndexPageProps> = (props) => {
+  const [deckSort, setDeckSort] = createSignal<DeckIndexSort>(DEFAULT_DECK_INDEX_SORT)
+  const [deckGroup, setDeckGroup] = createSignal<DeckIndexGroup>(DEFAULT_DECK_INDEX_GROUP)
+  const [deckReverse, setDeckReverse] = createSignal(false)
+
+  const sortedDecks = createMemo(() =>
+    sortDecks(props.decks, deckSort(), props.currency, deckReverse()),
+  )
+  const deckGroups = createMemo(() =>
+    deckGroup() === 'format' ? groupDecksByFormat(sortedDecks()) : [],
+  )
+
   return (
     <div class="page-container">
       <Show
@@ -33,8 +80,8 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
                   <For each={props.wantedLists}>
                     {(wl) => {
                       const link = `#/wanted/${wl.slug}`
-                      const total = () => getSummaryTotalPrice(wl, props.currency)
-                      const missing = () => getSummaryMissingPriceCount(wl, props.currency)
+                      const total = (): number => getSummaryTotalPrice(wl, props.currency)
+                      const missing = (): number => getSummaryMissingPriceCount(wl, props.currency)
                       return (
                         <a href={link} class="card-grid-link">
                           <CoverCard
@@ -57,8 +104,8 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
                 <For each={props.collections}>
                   {(col) => {
                     const link = `#/collection/${col.slug}`
-                    const total = () => getSummaryTotalPrice(col, props.currency)
-                    const missing = () => getSummaryMissingPriceCount(col, props.currency)
+                    const total = (): number => getSummaryTotalPrice(col, props.currency)
+                    const missing = (): number => getSummaryMissingPriceCount(col, props.currency)
                     return (
                       <a href={link} class="card-grid-link">
                         <CoverCard
@@ -78,34 +125,37 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
       >
         <>
           <h1 class="section-title">My Decks</h1>
-          <div class="card-grid-responsive">
-            <For each={props.decks}>
-              {(deck) => {
-                const link = `#/deck/${deck.slug}`
-                const total = () => getSummaryTotalPrice(deck, props.currency)
-                const lowest = () => getSummaryLowestPrice(deck, props.currency)
-                const missing = () => getSummaryMissingPriceCount(deck, props.currency)
-                const countLabel = getDeckCountLabel(deck.format, deck.cardCount)
-                return (
-                  <a href={link} class="card-grid-link">
-                    <CoverCard
-                      name={deck.name}
-                      image={deck.featuredCardImage || null}
-                      subtitle={deck.commander ? `Commander: ${deck.commander}` : undefined}
-                      label={countLabel.primary}
-                      labelSuffix={countLabel.suffix}
-                      priceLabel={formatPriceWithMissing(total(), props.currency, missing())}
-                      secondaryPriceLabel={
-                        lowest() > 0
-                          ? formatPriceWithMissing(lowest(), props.currency, missing())
-                          : undefined
-                      }
-                    />
-                  </a>
-                )
-              }}
+          <DeckIndexToolbar
+            sort={deckSort()}
+            onSortChange={setDeckSort}
+            group={deckGroup()}
+            onGroupChange={setDeckGroup}
+            reverse={deckReverse()}
+            onReverseToggle={() => setDeckReverse((v) => !v)}
+          />
+          <Show
+            when={deckGroup() === 'format'}
+            fallback={
+              <div class="card-grid-responsive">
+                <For each={sortedDecks()}>
+                  {(deck) => <DeckCoverLink deck={deck} currency={props.currency} />}
+                </For>
+              </div>
+            }
+          >
+            <For each={deckGroups()}>
+              {(group) => (
+                <section class="deck-index-group">
+                  <h2 class="deck-index-group-title">{group.label}</h2>
+                  <div class="card-grid-responsive">
+                    <For each={group.decks}>
+                      {(deck) => <DeckCoverLink deck={deck} currency={props.currency} />}
+                    </For>
+                  </div>
+                </section>
+              )}
             </For>
-          </div>
+          </Show>
         </>
       </Show>
     </div>

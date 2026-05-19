@@ -41,4 +41,28 @@ test.describe('Homepage', () => {
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth)
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1)
   })
+
+  test('deck index toolbar sorts and groups decks', async ({ page }) => {
+    await page.goto('/')
+    const toolbar = page.locator('.toolbar').first()
+    await expect(toolbar).toBeVisible()
+
+    const groupSelect = toolbar.locator('select').first()
+    const sortSelect = toolbar.locator('select').nth(1)
+
+    // Alphabetical sort puts deck names in A-Z order.
+    await sortSelect.selectOption('alpha')
+    const namesAlpha = await page.locator('.deck-cover .cover-info h2').allTextContents()
+    expect(namesAlpha).toEqual([...namesAlpha].sort((a, b) => a.localeCompare(b)))
+
+    // Reverse flips the order.
+    await toolbar.getByRole('button', { name: /Reverse/i }).click()
+    const namesReverse = await page.locator('.deck-cover .cover-info h2').allTextContents()
+    expect(namesReverse).toEqual(namesAlpha.slice().reverse())
+
+    // Grouping by format renders one group section header per detected format.
+    await groupSelect.selectOption('format')
+    const groupHeadings = page.locator('.deck-index-group-title')
+    expect(await groupHeadings.count()).toBeGreaterThan(0)
+  })
 })

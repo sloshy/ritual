@@ -15,6 +15,11 @@ export interface DeckSummary {
    * mainboard, excluding sideboard, maybeboard, and tokens).
    */
   cardCount: number
+  /**
+   * ISO timestamp of the most recent change to the deck. Prefers the latest
+   * changelog page timestamp, falling back to the deck file's mtime.
+   */
+  lastUpdatedAt?: string
   totalPrice?: number
   lowestPrice?: number
   totalPriceEur?: number

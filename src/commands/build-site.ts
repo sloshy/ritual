@@ -75,7 +75,12 @@ export type SiteSpaAssets = {
   appJs: string
 }
 
-type LoadedDeck = { data: DeckData; changelog: ChangelogPage[] }
+type LoadedDeck = {
+  data: DeckData
+  changelog: ChangelogPage[]
+  /** ISO timestamp of the deck file's mtime, or undefined for non-file sources. */
+  fileMtime?: string
+}
 
 async function buildSiteSpaFromSource(): Promise<SiteSpaAssets> {
   const { SolidPlugin } = await import('@dschz/bun-plugin-solid')
@@ -350,6 +355,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     if (deckData) {
       // Load changelog if it exists
       let changelog: ChangelogPage[] = []
+      let fileMtime: string | undefined
       if (!source.startsWith('http')) {
         const baseName = source.endsWith('.md') ? source.slice(0, -3) : source
         const changelogPath = path.join(decksDir, `${baseName}.changes.md`)
@@ -359,9 +365,16 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
         } catch {
           // No changelog file, that's fine
         }
+        const deckFileName = source.endsWith('.md') ? source : `${source}.md`
+        try {
+          const stat = await fs.stat(path.join(decksDir, deckFileName))
+          fileMtime = stat.mtime.toISOString()
+        } catch {
+          // Source listing already verified existence; ignore stat errors.
+        }
       }
 
-      loadedDecks.push({ data: deckData, changelog })
+      loadedDecks.push({ data: deckData, changelog, fileMtime })
       console.log(`  - Loaded ${deckData.name}`)
       // Collect deck card names
       deckData.sections.forEach((s) => s.cards.forEach((c) => allCardNames.add(c.name)))
@@ -608,7 +621,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
   const decksDataDir = path.join(distDir, 'decks')
   await fs.mkdir(decksDataDir, { recursive: true })
 
-  for (const { data: deckData, changelog } of loadedDecks) {
+  for (const { data: deckData, changelog, fileMtime } of loadedDecks) {
     // Find Featured Card
     let featured: ScryfallCard | null = null
     const commanderSection = deckData.sections.find(
@@ -763,6 +776,8 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     // "100 for Commander" or "60 for Modern" line up with the expected size.
     const cardCount = getMainDeckSize(deckData.sections)
     const format = detectDeckFormat(deckData)
+    const latestChangelog = changelog[0]?.timestamp
+    const lastUpdatedAt = latestChangelog ?? fileMtime
     const featuredImage = featured
       ? resolveCardImageSources(featured, useScryfallImgUrls).frontImage
       : ''
@@ -815,6 +830,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       commander: featured && commanderSection ? featured.name : null,
       format,
       cardCount,
+      lastUpdatedAt,
       totalPrice: hasUsd ? deckTotalPrice : undefined,
       lowestPrice: hasUsd ? deckLowestPrice : undefined,
       totalPriceEur: hasEur ? deckTotalPriceEur : undefined,

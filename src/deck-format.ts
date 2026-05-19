@@ -41,6 +41,10 @@ const FORMAT_INFO: Record<DeckFormatKey, FormatInfo> = {
   limited: { label: 'Limited', expectedMainboardSize: 40 },
 }
 
+export function getDeckFormatLabel(format: DeckFormatKey): string {
+  return FORMAT_INFO[format].label
+}
+
 export function isCommanderSection(name: string): boolean {
   return name.toLowerCase().includes('commander')
 }
