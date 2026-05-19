@@ -14,7 +14,7 @@ type Subcommand = (typeof SUBCOMMANDS)[number]
 
 const DATA_DIRS: readonly string[] = ['decks', 'collections', 'wanted']
 const RESTART_DEBOUNCE_MS = 200
-const SHUTDOWN_GRACE_MS = 5_000
+const SHUTDOWN_GRACE_MS = 1_500
 
 function isSubcommand(s: string): s is Subcommand {
   return (SUBCOMMANDS as readonly string[]).includes(s)
@@ -46,9 +46,16 @@ function relativeFromRoot(p: string): string {
 function spawnChild(): void {
   const argline = [subcommand, ...passthrough].join(' ')
   console.log(`[dev] Starting: bun ${relativeFromRoot(indexPath)} ${argline}`)
+  // `detached: true` puts the child in its own process group so that
+  // terminal Ctrl+C (which signals the foreground group) only reaches the
+  // orchestrator. The orchestrator then owns the child's lifecycle and
+  // signals it explicitly — avoiding races where Bun's runtime catches
+  // SIGINT/SIGTERM in the child but doesn't exit, leaving the server
+  // running after the parent dies.
   child = Bun.spawn(['bun', indexPath, subcommand, ...passthrough], {
     cwd: projectRoot,
     stdio: ['inherit', 'inherit', 'inherit'],
+    detached: true,
     onExit(_proc, code, signal) {
       if (restartingByDevScript || shuttingDown) return
       if (signal) console.log(`[dev] Child exited (signal=${signal}).`)
@@ -58,22 +65,46 @@ function spawnChild(): void {
   })
 }
 
-async function killChildAndWait(proc: ChildProc, signal: ShutdownSignal): Promise<void> {
-  proc.kill(signal)
-  // Most child processes exit immediately on SIGINT/SIGTERM. If something
-  // ignores them (or wedges during teardown), force-kill after a grace period
-  // so the dev script never strands a server holding the port.
-  const sigkill = setTimeout(() => {
+function signalGroup(pid: number, signal: NodeJS.Signals): void {
+  try {
+    process.kill(-pid, signal)
+  } catch {
     try {
-      proc.kill('SIGKILL')
+      process.kill(pid, signal)
     } catch {
-      /* already dead */
+      /* already gone */
     }
-  }, SHUTDOWN_GRACE_MS)
+  }
+}
+
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function killChildAndWait(proc: ChildProc, signal: ShutdownSignal): Promise<void> {
+  const pid = proc.pid
+  signalGroup(pid, signal)
+  // Escalate to SIGKILL after a short grace period. SIGKILL is uncatchable,
+  // so this guarantees the child dies even if Bun's runtime in the child is
+  // catching SIGTERM/SIGINT without honoring them.
+  const sigkill = setTimeout(() => signalGroup(pid, 'SIGKILL'), SHUTDOWN_GRACE_MS)
   try {
     await proc.exited
   } finally {
     clearTimeout(sigkill)
+  }
+  // Belt-and-suspenders: if for any reason the process is somehow still
+  // alive after `exited` resolved, force-kill once more before we leave.
+  if (isAlive(pid)) {
+    signalGroup(pid, 'SIGKILL')
+    for (let i = 0; i < 20 && isAlive(pid); i++) {
+      await new Promise<void>((r) => setTimeout(r, 50))
+    }
   }
 }
 
@@ -139,14 +170,8 @@ if (subcommand === 'serve-site') {
 type ShutdownSignal = 'SIGINT' | 'SIGTERM'
 async function shutdown(signal: ShutdownSignal): Promise<void> {
   if (shuttingDown) {
-    // Second signal: user is impatient — force-kill the child and bail out now.
-    if (child) {
-      try {
-        child.kill('SIGKILL')
-      } catch {
-        /* already dead */
-      }
-    }
+    // Second signal: user is impatient — force-kill the child group and exit.
+    if (child) signalGroup(child.pid, 'SIGKILL')
     process.exit(130)
   }
   shuttingDown = true
@@ -154,6 +179,7 @@ async function shutdown(signal: ShutdownSignal): Promise<void> {
     clearTimeout(restartTimer)
     restartTimer = null
   }
+  console.log('[dev] Shutting down...')
   if (child) {
     await killChildAndWait(child, signal)
   }
@@ -162,5 +188,6 @@ async function shutdown(signal: ShutdownSignal): Promise<void> {
 
 process.on('SIGINT', () => void shutdown('SIGINT'))
 process.on('SIGTERM', () => void shutdown('SIGTERM'))
+process.on('SIGHUP', () => void shutdown('SIGTERM'))
 
 spawnChild()
