@@ -3,42 +3,76 @@ import type { PriceCurrency } from '../price-currency'
 import { getSummaryLowestPrice, getSummaryTotalPrice } from './utils'
 import { getDeckFormatLabel } from '../deck-format'
 
-export type DeckIndexSort = 'alpha' | 'recent' | 'price' | 'lowestPrice'
-export type DeckIndexGroup = 'none' | 'format'
+export type IndexSort = 'alpha' | 'recent' | 'price' | 'lowestPrice'
+export type IndexGroup = 'none' | 'format'
 
-export const DEFAULT_DECK_INDEX_SORT: DeckIndexSort = 'alpha'
-export const DEFAULT_DECK_INDEX_GROUP: DeckIndexGroup = 'none'
+export const DEFAULT_INDEX_SORT: IndexSort = 'alpha'
+export const DEFAULT_INDEX_GROUP: IndexGroup = 'none'
 
-export interface DeckIndexSortOption {
-  value: DeckIndexSort
+export interface IndexSortOption {
+  value: IndexSort
   label: string
 }
 
-export interface DeckIndexGroupOption {
-  value: DeckIndexGroup
+export interface IndexGroupOption {
+  value: IndexGroup
   label: string
 }
 
-export const DECK_INDEX_SORT_OPTIONS: DeckIndexSortOption[] = [
+export const INDEX_SORT_OPTIONS: IndexSortOption[] = [
   { value: 'alpha', label: 'Alphabetical' },
   { value: 'recent', label: 'Recently updated' },
   { value: 'price', label: 'Current price' },
   { value: 'lowestPrice', label: 'Lowest price' },
 ]
 
-export const DECK_INDEX_GROUP_OPTIONS: DeckIndexGroupOption[] = [
+/**
+ * Sort options for the collection and wanted-list index tabs. "Lowest price"
+ * (the cheapest-printing-per-card total) only makes sense for decks, so it is
+ * omitted here.
+ */
+export const LIST_SORT_OPTIONS: IndexSortOption[] = INDEX_SORT_OPTIONS.filter(
+  (o) => o.value !== 'lowestPrice',
+)
+
+export const INDEX_GROUP_OPTIONS: IndexGroupOption[] = [
   { value: 'none', label: 'None' },
   { value: 'format', label: 'Format' },
 ]
 
-/** Narrow a raw `<select>` value to the sort union, falling back to the default. */
-export function parseDeckIndexSort(raw: string): DeckIndexSort {
-  return DECK_INDEX_SORT_OPTIONS.find((o) => o.value === raw)?.value ?? DEFAULT_DECK_INDEX_SORT
+/**
+ * Narrow a raw `<select>` value to the sort union, falling back to the default.
+ * Validates against `options` (defaulting to the full set) so a toolbar that
+ * only offers a subset — e.g. the collection/wanted tabs without "Lowest price"
+ * — never yields a value outside what it shows.
+ */
+export function parseIndexSort(
+  raw: string,
+  options: readonly IndexSortOption[] = INDEX_SORT_OPTIONS,
+): IndexSort {
+  return options.find((o) => o.value === raw)?.value ?? DEFAULT_INDEX_SORT
 }
 
 /** Narrow a raw `<select>` value to the group union, falling back to the default. */
-export function parseDeckIndexGroup(raw: string): DeckIndexGroup {
-  return DECK_INDEX_GROUP_OPTIONS.find((o) => o.value === raw)?.value ?? DEFAULT_DECK_INDEX_GROUP
+export function parseIndexGroup(raw: string): IndexGroup {
+  return INDEX_GROUP_OPTIONS.find((o) => o.value === raw)?.value ?? DEFAULT_INDEX_GROUP
+}
+
+/**
+ * The fields any index summary (deck, collection, or wanted list) must expose
+ * to be sortable by the shared toolbar. Decks, collections, and wanted lists
+ * all carry a name, a last-updated timestamp, and per-currency total/lowest
+ * prices, so the same comparison logic serves every index tab.
+ */
+export interface SortableSummary {
+  name: string
+  lastUpdatedAt?: string
+  totalPrice?: number
+  totalPriceEur?: number
+  totalPriceTix?: number
+  lowestPrice?: number
+  lowestPriceEur?: number
+  lowestPriceTix?: number
 }
 
 const ALPHA_COLLATOR = new Intl.Collator(undefined, { sensitivity: 'base' })
@@ -47,17 +81,17 @@ function assertNever(value: never): never {
   throw new Error(`Unhandled sort value: ${String(value)}`)
 }
 
-function compareDecks(
-  a: DeckSummary,
-  b: DeckSummary,
-  sort: DeckIndexSort,
+function compareSummaries(
+  a: SortableSummary,
+  b: SortableSummary,
+  sort: IndexSort,
   currency: PriceCurrency,
 ): number {
   switch (sort) {
     case 'alpha':
       return ALPHA_COLLATOR.compare(a.name, b.name)
     case 'recent': {
-      // Most recent first by default. Decks without a timestamp sort last.
+      // Most recent first by default. Items without a timestamp sort last.
       const aT = a.lastUpdatedAt
       const bT = b.lastUpdatedAt
       if (aT === bT) return 0
@@ -75,17 +109,17 @@ function compareDecks(
 }
 
 /**
- * Sort decks by the chosen criterion using a stable sort, then optionally
- * reverse. Does not mutate the input array.
+ * Sort index summaries by the chosen criterion using a stable sort, then
+ * optionally reverse. Does not mutate the input array.
  */
-export function sortDecks(
-  decks: readonly DeckSummary[],
-  sort: DeckIndexSort,
+export function sortSummaries<T extends SortableSummary>(
+  items: readonly T[],
+  sort: IndexSort,
   currency: PriceCurrency,
   reverse: boolean,
-): DeckSummary[] {
-  const out = decks.slice()
-  out.sort((a, b) => compareDecks(a, b, sort, currency))
+): T[] {
+  const out = items.slice()
+  out.sort((a, b) => compareSummaries(a, b, sort, currency))
   if (reverse) out.reverse()
   return out
 }

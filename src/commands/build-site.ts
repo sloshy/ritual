@@ -921,6 +921,13 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     } catch {
       // No changelog file
     }
+    let fileMtime: string | undefined
+    try {
+      const stat = await fs.stat(filePath)
+      fileMtime = stat.mtime.toISOString()
+    } catch {
+      // File was read above; ignore stat errors.
+    }
 
     // Resolve exact printings for each entry
     const collectionCardMap: Record<string, ScryfallCard | null> = {}
@@ -1091,6 +1098,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       name: displayName,
       featuredCardImage: featuredImage,
       cardCount: entries.length,
+      lastUpdatedAt: collectionChangelog[0]?.timestamp ?? fileMtime,
       totalPrice,
       totalPriceEur,
       totalPriceTix,
@@ -1161,6 +1169,13 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       wlChangelog = parseChangelog(changelogContent)
     } catch {
       // No changelog file
+    }
+    let fileMtime: string | undefined
+    try {
+      const stat = await fs.stat(filePath)
+      fileMtime = stat.mtime.toISOString()
+    } catch {
+      // File was read above; ignore stat errors.
     }
 
     const wlCardMap: Record<string, ScryfallCard | null> = {}
@@ -1374,6 +1389,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       name: displayName,
       featuredCardImage: featuredImage,
       cardCount: entries.length,
+      lastUpdatedAt: wlChangelog[0]?.timestamp ?? fileMtime,
       totalPrice,
       totalPriceEur,
       totalPriceTix,

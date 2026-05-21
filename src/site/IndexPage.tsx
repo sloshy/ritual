@@ -1,20 +1,22 @@
 import type { Component } from 'solid-js'
-import { createMemo, createSignal, For, Show } from 'solid-js'
+import { createMemo, createSignal, For, Match, Show, Switch } from 'solid-js'
 import type { DeckSummary, CollectionSummary, WantedListSummary } from './data-types'
 import type { PriceCurrency } from '../price-currency'
 import { formatPriceWithMissing } from '../price-currency'
 import { getDeckCountLabel, pluralizeCards } from '../deck-format'
 import { getSummaryLowestPrice, getSummaryMissingPriceCount, getSummaryTotalPrice } from './utils'
 import { CoverCard } from './CoverCard'
-import { DeckIndexToolbar } from './DeckIndexToolbar'
+import { IndexToolbar } from './IndexToolbar'
 import {
-  DEFAULT_DECK_INDEX_GROUP,
-  DEFAULT_DECK_INDEX_SORT,
-  type DeckIndexGroup,
-  type DeckIndexSort,
+  DEFAULT_INDEX_GROUP,
+  DEFAULT_INDEX_SORT,
+  INDEX_SORT_OPTIONS,
+  LIST_SORT_OPTIONS,
+  type IndexGroup,
+  type IndexSort,
   groupDecksByFormat,
-  sortDecks,
-} from './deck-index-filter'
+  sortSummaries,
+} from './index-filter'
 
 type IndexTab = 'decks' | 'collections' | 'wanted'
 
@@ -54,110 +56,126 @@ const DeckCoverLink: Component<DeckCoverLinkProps> = (props) => {
   )
 }
 
-export const IndexPage: Component<IndexPageProps> = (props) => {
-  const [deckSort, setDeckSort] = createSignal<DeckIndexSort>(DEFAULT_DECK_INDEX_SORT)
-  const [deckGroup, setDeckGroup] = createSignal<DeckIndexGroup>(DEFAULT_DECK_INDEX_GROUP)
-  const [deckReverse, setDeckReverse] = createSignal(false)
+interface ListCoverLinkProps {
+  item: CollectionSummary | WantedListSummary
+  basePath: 'collection' | 'wanted'
+  currency: PriceCurrency
+}
 
+const ListCoverLink: Component<ListCoverLinkProps> = (props) => {
+  const total = createMemo(() => getSummaryTotalPrice(props.item, props.currency))
+  const missing = createMemo(() => getSummaryMissingPriceCount(props.item, props.currency))
+  return (
+    <a href={`#/${props.basePath}/${props.item.slug}`} class="card-grid-link">
+      <CoverCard
+        name={props.item.name}
+        image={props.item.featuredCardImage || null}
+        label={pluralizeCards(props.item.cardCount)}
+        priceLabel={formatPriceWithMissing(total(), props.currency, missing())}
+      />
+    </a>
+  )
+}
+
+export const IndexPage: Component<IndexPageProps> = (props) => {
+  // Decks support both sorting and grouping by format.
+  const [deckSort, setDeckSort] = createSignal<IndexSort>(DEFAULT_INDEX_SORT)
+  const [deckGroup, setDeckGroup] = createSignal<IndexGroup>(DEFAULT_INDEX_GROUP)
+  const [deckReverse, setDeckReverse] = createSignal(false)
   const sortedDecks = createMemo(() =>
-    sortDecks(props.decks, deckSort(), props.currency, deckReverse()),
+    sortSummaries(props.decks, deckSort(), props.currency, deckReverse()),
   )
   const deckGroups = createMemo(() =>
     deckGroup() === 'format' ? groupDecksByFormat(sortedDecks()) : [],
   )
 
+  // Collections and wanted lists share sorting but have no grouping concept.
+  const [collectionSort, setCollectionSort] = createSignal<IndexSort>(DEFAULT_INDEX_SORT)
+  const [collectionReverse, setCollectionReverse] = createSignal(false)
+  const sortedCollections = createMemo(() =>
+    sortSummaries(props.collections, collectionSort(), props.currency, collectionReverse()),
+  )
+
+  const [wantedSort, setWantedSort] = createSignal<IndexSort>(DEFAULT_INDEX_SORT)
+  const [wantedReverse, setWantedReverse] = createSignal(false)
+  const sortedWanted = createMemo(() =>
+    sortSummaries(props.wantedLists, wantedSort(), props.currency, wantedReverse()),
+  )
+
   return (
     <div class="page-container">
-      <Show
-        when={props.activeTab === 'decks'}
+      <Switch
         fallback={
-          <Show
-            when={props.activeTab === 'collections'}
-            fallback={
-              <>
-                <h1 class="section-title">My Wanted Lists</h1>
+          <>
+            <h1 class="section-title">My Decks</h1>
+            <IndexToolbar
+              sort={deckSort()}
+              onSortChange={setDeckSort}
+              sortOptions={INDEX_SORT_OPTIONS}
+              group={deckGroup()}
+              onGroupChange={setDeckGroup}
+              reverse={deckReverse()}
+              onReverseToggle={() => setDeckReverse((v) => !v)}
+            />
+            <Show
+              when={deckGroup() === 'format'}
+              fallback={
                 <div class="card-grid-responsive">
-                  <For each={props.wantedLists}>
-                    {(wl) => {
-                      const link = `#/wanted/${wl.slug}`
-                      const total = (): number => getSummaryTotalPrice(wl, props.currency)
-                      const missing = (): number => getSummaryMissingPriceCount(wl, props.currency)
-                      return (
-                        <a href={link} class="card-grid-link">
-                          <CoverCard
-                            name={wl.name}
-                            image={wl.featuredCardImage || null}
-                            label={pluralizeCards(wl.cardCount)}
-                            priceLabel={formatPriceWithMissing(total(), props.currency, missing())}
-                          />
-                        </a>
-                      )
-                    }}
+                  <For each={sortedDecks()}>
+                    {(deck) => <DeckCoverLink deck={deck} currency={props.currency} />}
                   </For>
                 </div>
-              </>
-            }
-          >
-            <>
-              <h1 class="section-title">My Collections</h1>
-              <div class="card-grid-responsive">
-                <For each={props.collections}>
-                  {(col) => {
-                    const link = `#/collection/${col.slug}`
-                    const total = (): number => getSummaryTotalPrice(col, props.currency)
-                    const missing = (): number => getSummaryMissingPriceCount(col, props.currency)
-                    return (
-                      <a href={link} class="card-grid-link">
-                        <CoverCard
-                          name={col.name}
-                          image={col.featuredCardImage || null}
-                          label={pluralizeCards(col.cardCount)}
-                          priceLabel={formatPriceWithMissing(total(), props.currency, missing())}
-                        />
-                      </a>
-                    )
-                  }}
-                </For>
-              </div>
-            </>
-          </Show>
+              }
+            >
+              <For each={deckGroups()}>
+                {(group) => (
+                  <section class="deck-index-group">
+                    <h2 class="deck-index-group-title">{group.label}</h2>
+                    <div class="card-grid-responsive">
+                      <For each={group.decks}>
+                        {(deck) => <DeckCoverLink deck={deck} currency={props.currency} />}
+                      </For>
+                    </div>
+                  </section>
+                )}
+              </For>
+            </Show>
+          </>
         }
       >
-        <>
-          <h1 class="section-title">My Decks</h1>
-          <DeckIndexToolbar
-            sort={deckSort()}
-            onSortChange={setDeckSort}
-            group={deckGroup()}
-            onGroupChange={setDeckGroup}
-            reverse={deckReverse()}
-            onReverseToggle={() => setDeckReverse((v) => !v)}
+        <Match when={props.activeTab === 'collections'}>
+          <h1 class="section-title">My Collections</h1>
+          <IndexToolbar
+            sort={collectionSort()}
+            onSortChange={setCollectionSort}
+            sortOptions={LIST_SORT_OPTIONS}
+            reverse={collectionReverse()}
+            onReverseToggle={() => setCollectionReverse((v) => !v)}
           />
-          <Show
-            when={deckGroup() === 'format'}
-            fallback={
-              <div class="card-grid-responsive">
-                <For each={sortedDecks()}>
-                  {(deck) => <DeckCoverLink deck={deck} currency={props.currency} />}
-                </For>
-              </div>
-            }
-          >
-            <For each={deckGroups()}>
-              {(group) => (
-                <section class="deck-index-group">
-                  <h2 class="deck-index-group-title">{group.label}</h2>
-                  <div class="card-grid-responsive">
-                    <For each={group.decks}>
-                      {(deck) => <DeckCoverLink deck={deck} currency={props.currency} />}
-                    </For>
-                  </div>
-                </section>
+          <div class="card-grid-responsive">
+            <For each={sortedCollections()}>
+              {(col) => (
+                <ListCoverLink item={col} basePath="collection" currency={props.currency} />
               )}
             </For>
-          </Show>
-        </>
-      </Show>
+          </div>
+        </Match>
+        <Match when={props.activeTab === 'wanted'}>
+          <h1 class="section-title">My Wanted Lists</h1>
+          <IndexToolbar
+            sort={wantedSort()}
+            onSortChange={setWantedSort}
+            sortOptions={LIST_SORT_OPTIONS}
+            reverse={wantedReverse()}
+            onReverseToggle={() => setWantedReverse((v) => !v)}
+          />
+          <div class="card-grid-responsive">
+            <For each={sortedWanted()}>
+              {(wl) => <ListCoverLink item={wl} basePath="wanted" currency={props.currency} />}
+            </For>
+          </div>
+        </Match>
+      </Switch>
     </div>
   )
 }

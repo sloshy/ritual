@@ -1469,3 +1469,105 @@ export async function mockPublicSiteForQuickSwitch(page: Page): Promise<void> {
     })
   })
 }
+
+// Index with multiple collections and wanted lists, each given distinct names,
+// last-updated timestamps, and prices so the shared index toolbar's sort orders
+// are unambiguous. Alphabetical and price orders are deliberately reverses of
+// each other to make assertions easy to read.
+const MOCK_SITE_INDEX_MULTI_LISTS: SiteIndex = {
+  decks: [
+    {
+      slug: 'sample-deck',
+      name: 'Sample Deck',
+      featuredCardImage: '',
+      commander: null,
+      format: 'modern',
+      cardCount: 60,
+      totalPrice: 100,
+      totalPriceEur: 0,
+      totalPriceTix: 0,
+    },
+  ],
+  collections: [
+    {
+      slug: 'alpha-collection',
+      name: 'Alpha Collection',
+      featuredCardImage: '',
+      cardCount: 50,
+      lastUpdatedAt: '2026-05-01T00:00:00.000Z',
+      totalPrice: 100,
+      totalPriceEur: 0,
+      totalPriceTix: 0,
+    },
+    {
+      slug: 'mid-collection',
+      name: 'Mid Collection',
+      featuredCardImage: '',
+      cardCount: 30,
+      lastUpdatedAt: '2026-03-01T00:00:00.000Z',
+      totalPrice: 250,
+      totalPriceEur: 0,
+      totalPriceTix: 0,
+    },
+    {
+      slug: 'zebra-collection',
+      name: 'Zebra Collection',
+      featuredCardImage: '',
+      cardCount: 10,
+      lastUpdatedAt: '2026-01-01T00:00:00.000Z',
+      totalPrice: 500,
+      totalPriceEur: 0,
+      totalPriceTix: 0,
+    },
+  ],
+  wantedLists: [
+    {
+      slug: 'acquire-a',
+      name: 'Acquire A',
+      featuredCardImage: '',
+      cardCount: 5,
+      lastUpdatedAt: '2026-05-01T00:00:00.000Z',
+      totalPrice: 30,
+      totalPriceEur: 0,
+      totalPriceTix: 0,
+    },
+    {
+      slug: 'need-m',
+      name: 'Need M',
+      featuredCardImage: '',
+      cardCount: 8,
+      lastUpdatedAt: '2026-03-01T00:00:00.000Z',
+      totalPrice: 60,
+      totalPriceEur: 0,
+      totalPriceTix: 0,
+    },
+    {
+      slug: 'wishlist-z',
+      name: 'Wishlist Z',
+      featuredCardImage: '',
+      cardCount: 12,
+      lastUpdatedAt: '2026-01-01T00:00:00.000Z',
+      totalPrice: 90,
+      totalPriceEur: 0,
+      totalPriceTix: 0,
+    },
+  ],
+  useScryfallImgUrls: false,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+}
+
+/**
+ * Mock the public site index.json with several collections and wanted lists so
+ * the collection/wanted index toolbars can be exercised. Only index.json is
+ * intercepted — these tests stay on the index page and never open a list.
+ */
+export async function mockPublicSiteIndexLists(page: Page): Promise<void> {
+  await page.route('**/index.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_SITE_INDEX_MULTI_LISTS),
+    })
+  })
+}

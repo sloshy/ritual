@@ -66,6 +66,11 @@ export interface CollectionSummary {
   featuredCardImage: string
   /** Number of card entries in the collection (one entry per physical card line). */
   cardCount: number
+  /**
+   * ISO timestamp of the most recent change to the collection. Prefers the
+   * latest changelog page timestamp, falling back to the source file's mtime.
+   */
+  lastUpdatedAt?: string
   totalPrice: number
   totalPriceEur: number
   totalPriceTix: number
@@ -109,6 +114,11 @@ export interface WantedListSummary {
   featuredCardImage: string
   /** Number of card entries in the wanted list (one entry per requested card line). */
   cardCount: number
+  /**
+   * ISO timestamp of the most recent change to the wanted list. Prefers the
+   * latest changelog page timestamp, falling back to the source file's mtime.
+   */
+  lastUpdatedAt?: string
   totalPrice: number
   totalPriceEur: number
   totalPriceTix: number

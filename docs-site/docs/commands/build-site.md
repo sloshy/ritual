@@ -207,23 +207,25 @@ The main-deck count includes the commander/oathbreaker section plus the mainboar
 
 Collections and wanted lists continue to display a plain `N cards` count, since their card count is the primary fact about them.
 
-## Deck Index Toolbar
+## Index Toolbar
 
-The decks tab of the home page includes a filter toolbar (matching the look of the deck and collection page toolbars) for re-sorting and grouping the deck list. State is per-session — selections reset on reload.
+Every tab of the home page — **Decks**, **Collections**, and **Wanted Lists** — includes a shared filter toolbar (matching the look of the deck and collection page toolbars) for re-sorting and grouping the list. Each tab keeps its own selections, and state is per-session — selections reset on reload.
 
 Sort options (default: **Alphabetical**):
 
-- **Alphabetical** — A–Z by deck name (uses locale-aware case-insensitive comparison).
-- **Recently updated** — newest first, derived from the most recent changelog entry, falling back to the deck file's mtime. Decks with no timestamp sort last.
+- **Alphabetical** — A–Z by name (uses locale-aware case-insensitive comparison).
+- **Recently updated** — newest first, derived from the most recent changelog entry, falling back to the source file's mtime. Items with no timestamp sort last.
 - **Current price** — highest current total first, in the active currency.
-- **Lowest price** — highest "lowest possible" total first (the value shown when the deck page's "Lowest Price" toggle is on), in the active currency.
+- **Lowest price** — highest "lowest possible" total first (the sum of the cheapest available printing of each card), in the active currency. **Decks only** — this option does not appear on the Collections or Wanted Lists tabs, where a per-card cheapest-printing total isn't meaningful.
 
 A **Reverse** toggle next to the selects flips the resulting order.
 
-Group options (default: **None**):
+Grouping applies only to the **Decks** tab, which adds a **Group** selector (default: **None**):
 
 - **None** — single flat grid.
 - **Format** — splits decks into one section per format (Commander, Modern, Standard, …) with the format label as the section heading. Decks without a recognized format land in a final **Other** bucket. The active sort is applied within each group.
+
+The **Collections** and **Wanted Lists** tabs have no format dimension to group by, so the Group selector is omitted from their toolbars entirely — they show only the Sort selector (Alphabetical, Recently updated, Current price) and the Reverse toggle.
 
 ## Price Currency Switching
 
