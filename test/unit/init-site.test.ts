@@ -470,6 +470,19 @@ describe('generateGitignoreEntries', () => {
     const entries = generateGitignoreEntries()
     const lines = entries.split('\n').filter((l) => l.trim().length > 0 && !l.startsWith('#'))
 
-    expect(lines).toEqual(['cache/', 'dist/', '.admin-dist/', '.logins/', 'all-cards.md'])
+    expect(lines).toEqual([
+      'cache/',
+      'dist/',
+      '.admin-dist/',
+      '.logins/',
+      'all-cards.md',
+      '/ritual',
+    ])
+  })
+
+  test('ignores the downloaded ritual binary', () => {
+    const entries = generateGitignoreEntries()
+
+    expect(entries).toContain('/ritual')
   })
 })

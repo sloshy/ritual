@@ -75,6 +75,8 @@ When enabled, the generated workflow runs [`git-detect-changes`](./git-detect-ch
 
 This is useful when you edit list files directly (outside the admin UI or CLI) and want changelogs to stay up to date without manual intervention.
 
+Detection is **hash-aware**, so it's safe to leave enabled even if you also edit with Ritual locally: files whose contents still match their `.sha256` sidecar (i.e. Ritual itself wrote them and already recorded a changelog) are skipped, and only hand-edited files are processed. See [Hash-aware detection](./git-detect-changes#hash-aware-detection) for details.
+
 ## Generated Files
 
 ### GitHub Actions

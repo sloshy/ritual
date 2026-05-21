@@ -21,6 +21,16 @@ export function computeHash(content: string): string {
 }
 
 /**
+ * Returns true when `storedHash` already reflects `content` — i.e. the sidecar
+ * is up to date and the file hasn't been modified since Ritual last wrote it.
+ *
+ * A `null` storedHash (missing sidecar) is never considered current.
+ */
+export function isHashCurrent(content: string, storedHash: string | null): boolean {
+  return storedHash !== null && storedHash === computeHash(content)
+}
+
+/**
  * Load the precomputed hash from the `.sha256` sidecar file.
  * Returns `null` if the sidecar doesn't exist or can't be read.
  */

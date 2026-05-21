@@ -17,6 +17,7 @@ import { parseWantedListFile } from './wanted-helpers'
 import { appendChangelog } from '../changelog-writer'
 import { formatChange, type ChangeEvent } from '../change-event'
 import { getBaseDir } from '../base-dir'
+import { computeHash, isHashCurrent, loadHash, saveHash } from '../content-hash'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -29,6 +30,12 @@ type DetectResult = {
   kind: ListKind
   status: FileChange['status']
   changes: ChangeEvent[]
+  /**
+   * True when the file content matches its `.sha256` sidecar — Ritual itself
+   * last wrote (and already recorded a changelog for) this exact state, so
+   * detection is skipped to avoid double-recording changes made locally.
+   */
+  ritualClean: boolean
 }
 
 type DetectChangesOutput = {
@@ -74,7 +81,7 @@ function diffWanted(oldContent: string | null, newContent: string): ChangeEvent[
 
 // ── Main logic ───────────────────────────────────────────────────────
 
-async function detectChanges(commit: string, cwd: string): Promise<DetectChangesOutput> {
+export async function detectChanges(commit: string, cwd: string): Promise<DetectChangesOutput> {
   const fileChanges = getChangedFiles(commit, cwd)
   const results: DetectResult[] = []
   const renames = new Map<string, string>()
@@ -111,11 +118,22 @@ async function detectChanges(commit: string, cwd: string): Promise<DetectChanges
       }
 
       if (fc.status === 'D') {
-        results.push({ file: fc.oldPath, kind, status: 'D', changes: [] })
+        results.push({ file: fc.oldPath, kind, status: 'D', changes: [], ritualClean: false })
         continue
       }
 
-      const newContent = await fs.readFile(path.join(cwd, fc.path), 'utf-8')
+      const newPath = path.join(cwd, fc.path)
+      const newContent = await fs.readFile(newPath, 'utf-8')
+
+      // Hash-aware skip: when the file content matches its committed `.sha256`
+      // sidecar, Ritual itself last wrote this exact state and already recorded
+      // the corresponding changelog entries locally. Re-diffing would
+      // double-record those changes, so skip detection for this file.
+      if (isHashCurrent(newContent, await loadHash(newPath))) {
+        results.push({ file: fc.path, kind, status: fc.status, changes: [], ritualClean: true })
+        continue
+      }
+
       const oldContent = fc.status === 'A' ? null : getFileAtCommit(commit, fc.oldPath, cwd)
 
       let changes: ChangeEvent[]
@@ -135,13 +153,106 @@ async function detectChanges(commit: string, cwd: string): Promise<DetectChanges
         }
       }
 
-      results.push({ file: fc.path, kind, status: fc.status, changes })
+      results.push({ file: fc.path, kind, status: fc.status, changes, ritualClean: false })
     }
   } finally {
     await fs.rm(tempDir, { recursive: true, force: true })
   }
 
   return { results, renames }
+}
+
+// ── Applying detected changes ────────────────────────────────────────
+
+/**
+ * Apply the output of {@link detectChanges} to disk: rename/delete `.changes.md`
+ * changelog files to follow their list files, and append changelog entries for
+ * any hand-edited list whose content has drifted from its `.sha256` sidecar.
+ *
+ * Ritual-clean files (content matches the sidecar) are skipped entirely, since
+ * their changelog was already written when Ritual made the edit locally.
+ *
+ * @returns The number of list files whose changelog was (or would be) updated.
+ */
+export async function applyDetectedChanges(
+  output: DetectChangesOutput,
+  cwd: string,
+  dryRun: boolean,
+): Promise<number> {
+  const { results, renames } = output
+
+  // First pass: handle renames of .changes.md files
+  for (const [oldPath, newPath] of renames) {
+    const oldChangesPath = path.join(cwd, changesPath(oldPath))
+    const newChangesPath = path.join(cwd, changesPath(newPath))
+
+    try {
+      await fs.access(oldChangesPath)
+      if (dryRun) {
+        console.log(`  Would rename: ${changesPath(oldPath)} → ${changesPath(newPath)}`)
+      } else {
+        await fs.rename(oldChangesPath, newChangesPath)
+        console.log(`  Renamed: ${changesPath(oldPath)} → ${changesPath(newPath)}`)
+      }
+    } catch {
+      // Old changes file doesn't exist — nothing to rename
+    }
+  }
+
+  // Second pass: handle deletes of .changes.md files
+  for (const result of results) {
+    if (result.status !== 'D') continue
+
+    const deletePath = path.join(cwd, changesPath(result.file))
+    try {
+      await fs.access(deletePath)
+      if (dryRun) {
+        console.log(`  Would delete: ${changesPath(result.file)}`)
+      } else {
+        await fs.rm(deletePath)
+        console.log(`  Deleted: ${changesPath(result.file)}`)
+      }
+    } catch {
+      // Changes file doesn't exist — nothing to delete
+    }
+  }
+
+  // Third pass: append changelog entries for actual card changes
+  let updated = 0
+  for (const result of results) {
+    if (result.status === 'D') continue
+
+    const filePath = path.join(cwd, result.file)
+    const label = `${result.kind}/${path.basename(result.file, '.md')}`
+
+    if (result.ritualClean) {
+      console.log(`  ${label}: up to date with Ritual — skipping`)
+      continue
+    }
+
+    if (result.changes.length === 0) {
+      console.log(`  ${label}: no card changes detected`)
+      continue
+    }
+
+    console.log(`  ${label}: ${result.changes.length} change(s)`)
+    for (const change of result.changes) {
+      console.log(`    ${formatChange(change)}`)
+    }
+    updated++
+
+    if (!dryRun) {
+      const content = await fs.readFile(filePath, 'utf-8')
+      const entityName = entityNameFromContent(content, result.file)
+      await appendChangelog(filePath, entityName, result.changes)
+      // The list file's changes are now recorded, so refresh its sidecar to
+      // match the current content. Subsequent runs will treat it as
+      // Ritual-clean and skip it, keeping detection idempotent.
+      await saveHash(filePath, computeHash(content))
+    }
+  }
+
+  return updated
 }
 
 // ── Command registration ─────────────────────────────────────────────
@@ -170,77 +281,19 @@ export function registerGitDetectChangesCommand(program: Command): void {
         return
       }
 
-      const { results, renames } = output
-
-      if (results.length === 0 && renames.size === 0) {
+      if (output.results.length === 0 && output.renames.size === 0) {
         console.log('No deck, collection, or wanted list changes detected.')
         return
       }
 
-      // First pass: handle renames of .changes.md files
-      for (const [oldPath, newPath] of renames) {
-        const oldChangesPath = path.join(cwd, changesPath(oldPath))
-        const newChangesPath = path.join(cwd, changesPath(newPath))
-
-        try {
-          await fs.access(oldChangesPath)
-          if (dryRun) {
-            console.log(`  Would rename: ${changesPath(oldPath)} → ${changesPath(newPath)}`)
-          } else {
-            await fs.rename(oldChangesPath, newChangesPath)
-            console.log(`  Renamed: ${changesPath(oldPath)} → ${changesPath(newPath)}`)
-          }
-        } catch {
-          // Old changes file doesn't exist — nothing to rename
-        }
-      }
-
-      // Second pass: handle deletes of .changes.md files
-      for (const result of results) {
-        if (result.status !== 'D') continue
-
-        const deletePath = path.join(cwd, changesPath(result.file))
-        try {
-          await fs.access(deletePath)
-          if (dryRun) {
-            console.log(`  Would delete: ${changesPath(result.file)}`)
-          } else {
-            await fs.rm(deletePath)
-            console.log(`  Deleted: ${changesPath(result.file)}`)
-          }
-        } catch {
-          // Changes file doesn't exist — nothing to delete
-        }
-      }
-
-      // Third pass: append changelog entries for actual card changes
-      for (const result of results) {
-        if (result.status === 'D') continue
-
-        const filePath = path.join(cwd, result.file)
-        const label = `${result.kind}/${path.basename(result.file, '.md')}`
-
-        if (result.changes.length === 0) {
-          console.log(`  ${label}: no card changes detected`)
-          continue
-        }
-
-        console.log(`  ${label}: ${result.changes.length} change(s)`)
-        for (const change of result.changes) {
-          console.log(`    ${formatChange(change)}`)
-        }
-
-        if (!dryRun) {
-          const content = await fs.readFile(filePath, 'utf-8')
-          const entityName = entityNameFromContent(content, result.file)
-          await appendChangelog(filePath, entityName, result.changes)
-        }
-      }
+      const updated = await applyDetectedChanges(output, cwd, dryRun)
 
       if (dryRun) {
         console.log('\nDry run complete. No files were modified.')
-      } else {
+      } else if (updated > 0) {
         console.log('\nChangelogs updated.')
+      } else {
+        console.log('\nNo changelog updates needed.')
       }
     })
 }

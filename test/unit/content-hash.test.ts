@@ -4,6 +4,7 @@ import path from 'node:path'
 import {
   computeHash,
   hashPath,
+  isHashCurrent,
   loadHash,
   saveHash,
   getContentHash,
@@ -40,6 +41,21 @@ describe('computeHash', () => {
 describe('hashPath', () => {
   it('appends .sha256 to the file path', () => {
     expect(hashPath('/foo/bar.md')).toBe('/foo/bar.md.sha256')
+  })
+})
+
+describe('isHashCurrent', () => {
+  it('is true when the stored hash matches the content', () => {
+    const content = '# Deck\n- Sol Ring\n'
+    expect(isHashCurrent(content, computeHash(content))).toBe(true)
+  })
+
+  it('is false when the stored hash is stale', () => {
+    expect(isHashCurrent('new content', computeHash('old content'))).toBe(false)
+  })
+
+  it('is false when there is no stored hash', () => {
+    expect(isHashCurrent('anything', null)).toBe(false)
   })
 })
 

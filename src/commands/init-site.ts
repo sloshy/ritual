@@ -341,6 +341,8 @@ dist/
 .admin-dist/
 .logins/
 all-cards.md
+# Ritual binary downloaded by the deploy workflow
+/ritual
 `
 }
 
