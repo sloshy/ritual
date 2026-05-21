@@ -2,6 +2,7 @@ import { Command } from 'commander'
 import {
   loadRitualConfig,
   saveRitualConfig,
+  type AdminConfig,
   type RitualConfig,
   type SiteSelectionConfig,
 } from '../ritual-config'
@@ -21,11 +22,19 @@ type ConfigFieldTypeFor<T> = T extends string
         : never
 
 // A mapped type over RitualConfig that only includes keys with a supported ConfigFieldType.
-// The `site` key is automatically excluded because ConfigFieldTypeFor<SiteConfig | undefined> = never.
+// The `admin` and `site` object keys are automatically excluded because
+// ConfigFieldTypeFor<object> = never.
 type SettableFieldsMap = {
   [K in keyof RitualConfig as ConfigFieldTypeFor<RitualConfig[K]> extends never
     ? never
     : K]: ConfigFieldTypeFor<RitualConfig[K]>
+}
+
+// The admin settings live under `admin`. Like the site selection lists below,
+// they are exposed as dotted nested paths handled through the same machinery.
+// The `satisfies` check keeps the keys in sync with AdminConfig.
+type SettableAdminFieldsMap = {
+  [K in keyof AdminConfig as `admin.${K & string}`]: ConfigFieldTypeFor<AdminConfig[K]>
 }
 
 export type ArrayMode = 'replace' | 'add' | 'remove'
@@ -51,20 +60,26 @@ export const SETTABLE_FIELDS: Record<string, ConfigFieldType> = {
   decksDir: 'string',
   collectionsDir: 'string',
   wantedDir: 'string',
-  gitEnabled: 'boolean',
-  gitAutoCommit: 'boolean',
-  gitAutoPush: 'boolean',
-  trustProxy: 'boolean',
-  secureCookies: 'boolean',
-  ipAllowList: 'string[]',
-  ipDenyList: 'string[]',
-  userAgentAllowList: 'string[]',
-  userAgentDenyList: 'string[]',
-  rateLimitEnabled: 'boolean',
-  rateLimitMaxAttempts: 'number',
-  rateLimitWindowMinutes: 'number',
-  failedAuthDelayMs: 'number',
 } satisfies SettableFieldsMap
+
+// The admin settings, exposed as dotted `admin.<field>` paths handled through the
+// same machinery as SETTABLE_FIELDS. The `satisfies` check keeps the keys in sync
+// with AdminConfig.
+export const SETTABLE_ADMIN_FIELDS: Record<string, ConfigFieldType> = {
+  'admin.gitEnabled': 'boolean',
+  'admin.gitAutoCommit': 'boolean',
+  'admin.gitAutoPush': 'boolean',
+  'admin.trustProxy': 'boolean',
+  'admin.secureCookies': 'boolean',
+  'admin.ipAllowList': 'string[]',
+  'admin.ipDenyList': 'string[]',
+  'admin.userAgentAllowList': 'string[]',
+  'admin.userAgentDenyList': 'string[]',
+  'admin.rateLimitEnabled': 'boolean',
+  'admin.rateLimitMaxAttempts': 'number',
+  'admin.rateLimitWindowMinutes': 'number',
+  'admin.failedAuthDelayMs': 'number',
+} satisfies SettableAdminFieldsMap
 
 // The public-site selection lists live under `site` but, unlike the rest of the
 // init-site-managed `site` object, are user-tunable. They are exposed here as
@@ -124,11 +139,14 @@ export function applyConfigSet(
     }
   }
 
-  const fieldType = SETTABLE_FIELDS[property] ?? SETTABLE_SITE_FIELDS[property]
+  const fieldType =
+    SETTABLE_FIELDS[property] ?? SETTABLE_ADMIN_FIELDS[property] ?? SETTABLE_SITE_FIELDS[property]
   if (!fieldType) {
-    const available = [...Object.keys(SETTABLE_FIELDS), ...Object.keys(SETTABLE_SITE_FIELDS)].join(
-      ', ',
-    )
+    const available = [
+      ...Object.keys(SETTABLE_FIELDS),
+      ...Object.keys(SETTABLE_ADMIN_FIELDS),
+      ...Object.keys(SETTABLE_SITE_FIELDS),
+    ].join(', ')
     return {
       error: `Unknown property: "${property}". Available properties: ${available}`,
     }

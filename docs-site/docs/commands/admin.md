@@ -84,19 +84,23 @@ Settings are stored in `ritual.config.json` in the base directory. The file is s
   "decksDir": "./decks",
   "collectionsDir": "./collections",
   "wantedDir": "./wanted",
-  "gitEnabled": false,
-  "gitAutoCommit": false,
-  "gitAutoPush": false,
-  "ipAllowList": [],
-  "ipDenyList": [],
-  "userAgentAllowList": [],
-  "userAgentDenyList": [],
-  "rateLimitEnabled": true,
-  "rateLimitMaxAttempts": 5,
-  "rateLimitWindowMinutes": 5,
-  "failedAuthDelayMs": 3000
+  "admin": {
+    "gitEnabled": false,
+    "gitAutoCommit": false,
+    "gitAutoPush": false,
+    "ipAllowList": [],
+    "ipDenyList": [],
+    "userAgentAllowList": [],
+    "userAgentDenyList": [],
+    "rateLimitEnabled": true,
+    "rateLimitMaxAttempts": 5,
+    "rateLimitWindowMinutes": 5,
+    "failedAuthDelayMs": 3000
+  }
 }
 ```
+
+All admin-server settings live under the nested `admin` key. Set them from the **Settings** page, with [`config-set admin.<field>`](config-set.md), or by hand.
 
 ## Git Integration
 
@@ -118,12 +122,12 @@ Every failed authentication attempt incurs a configurable delay (default: 3 seco
 
 After a configurable number of consecutive failed login attempts (default: 5) from a single IP address, that IP is locked out for a configurable duration (default: 5 minutes). Rate limiting can be disabled entirely in settings.
 
-| Config Field             | Default | Description                    |
-| ------------------------ | ------- | ------------------------------ |
-| `rateLimitEnabled`       | `true`  | Enable/disable rate limiting   |
-| `rateLimitMaxAttempts`   | `5`     | Failed attempts before lockout |
-| `rateLimitWindowMinutes` | `5`     | Lockout duration in minutes    |
-| `failedAuthDelayMs`      | `3000`  | Delay (ms) on failed auth      |
+| Config Field                   | Default | Description                    |
+| ------------------------------ | ------- | ------------------------------ |
+| `admin.rateLimitEnabled`       | `true`  | Enable/disable rate limiting   |
+| `admin.rateLimitMaxAttempts`   | `5`     | Failed attempts before lockout |
+| `admin.rateLimitWindowMinutes` | `5`     | Lockout duration in minutes    |
+| `admin.failedAuthDelayMs`      | `3000`  | Delay (ms) on failed auth      |
 
 Rate limit state is stored in memory and resets when the server restarts.
 
@@ -551,17 +555,19 @@ Returns the current application configuration.
     "decksDir": "./decks",
     "collectionsDir": "./collections",
     "wantedDir": "./wanted",
-    "gitEnabled": false,
-    "gitAutoCommit": false,
-    "gitAutoPush": false,
-    "ipAllowList": [],
-    "ipDenyList": [],
-    "userAgentAllowList": [],
-    "userAgentDenyList": [],
-    "rateLimitEnabled": true,
-    "rateLimitMaxAttempts": 5,
-    "rateLimitWindowMinutes": 5,
-    "failedAuthDelayMs": 3000
+    "admin": {
+      "gitEnabled": false,
+      "gitAutoCommit": false,
+      "gitAutoPush": false,
+      "ipAllowList": [],
+      "ipDenyList": [],
+      "userAgentAllowList": [],
+      "userAgentDenyList": [],
+      "rateLimitEnabled": true,
+      "rateLimitMaxAttempts": 5,
+      "rateLimitWindowMinutes": 5,
+      "failedAuthDelayMs": 3000
+    }
   }
 }
 ```
@@ -570,14 +576,16 @@ Returns the current application configuration.
 
 **Auth required:** Yes
 
-Update the application configuration. Partial updates are supported — only the fields you include will be changed.
+Update the application configuration. Partial updates are supported — only the fields you include will be changed. The nested `admin` object is merged field-by-field, so you can send just the admin settings you want to change.
 
 **Request body:**
 
 ```json
 {
-  "gitEnabled": true,
-  "gitAutoCommit": true
+  "admin": {
+    "gitEnabled": true,
+    "gitAutoCommit": true
+  }
 }
 ```
 
@@ -590,17 +598,19 @@ Update the application configuration. Partial updates are supported — only the
     "decksDir": "./decks",
     "collectionsDir": "./collections",
     "wantedDir": "./wanted",
-    "gitEnabled": true,
-    "gitAutoCommit": true,
-    "gitAutoPush": false,
-    "ipAllowList": [],
-    "ipDenyList": [],
-    "userAgentAllowList": [],
-    "userAgentDenyList": [],
-    "rateLimitEnabled": true,
-    "rateLimitMaxAttempts": 5,
-    "rateLimitWindowMinutes": 5,
-    "failedAuthDelayMs": 3000
+    "admin": {
+      "gitEnabled": true,
+      "gitAutoCommit": true,
+      "gitAutoPush": false,
+      "ipAllowList": [],
+      "ipDenyList": [],
+      "userAgentAllowList": [],
+      "userAgentDenyList": [],
+      "rateLimitEnabled": true,
+      "rateLimitMaxAttempts": 5,
+      "rateLimitWindowMinutes": 5,
+      "failedAuthDelayMs": 3000
+    }
   }
 }
 ```

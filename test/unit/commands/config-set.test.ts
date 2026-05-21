@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import { applyConfigSet, SETTABLE_FIELDS } from '../../../src/commands/config-set'
+import {
+  applyConfigSet,
+  SETTABLE_FIELDS,
+  SETTABLE_ADMIN_FIELDS,
+} from '../../../src/commands/config-set'
 import { getDefaultRitualConfig } from '../../../src/ritual-config'
 
 const base = getDefaultRitualConfig()
@@ -19,6 +23,7 @@ describe('applyConfigSet — unknown / blocked properties', () => {
     expect('error' in result).toBeTrue()
     if ('error' in result) {
       expect(result.error).toContain('decksDir')
+      expect(result.error).toContain('admin.gitEnabled')
     }
   })
 
@@ -137,26 +142,36 @@ describe('applyConfigSet — string properties', () => {
 
 describe('applyConfigSet — boolean properties', () => {
   test('sets boolean to true', () => {
-    const result = applyConfigSet(base, 'gitEnabled', ['true'], 'replace')
+    const result = applyConfigSet(base, 'admin.gitEnabled', ['true'], 'replace')
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
       expect(result.newValue).toBe(true)
-      expect(result.updatedConfig.gitEnabled).toBe(true)
+      expect(result.updatedConfig.admin.gitEnabled).toBe(true)
     }
   })
 
   test('sets boolean to false', () => {
-    const config = { ...base, gitEnabled: true }
-    const result = applyConfigSet(config, 'gitEnabled', ['false'], 'replace')
+    const config = { ...base, admin: { ...base.admin, gitEnabled: true } }
+    const result = applyConfigSet(config, 'admin.gitEnabled', ['false'], 'replace')
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
       expect(result.newValue).toBe(false)
-      expect(result.updatedConfig.gitEnabled).toBe(false)
+      expect(result.updatedConfig.admin.gitEnabled).toBe(false)
+    }
+  })
+
+  test('preserves sibling admin fields when setting one', () => {
+    const config = { ...base, admin: { ...base.admin, gitAutoCommit: true } }
+    const result = applyConfigSet(config, 'admin.gitEnabled', ['true'], 'replace')
+    expect('error' in result).toBeFalse()
+    if (!('error' in result)) {
+      expect(result.updatedConfig.admin.gitEnabled).toBe(true)
+      expect(result.updatedConfig.admin.gitAutoCommit).toBe(true)
     }
   })
 
   test('accepts TRUE (case-insensitive)', () => {
-    const result = applyConfigSet(base, 'gitEnabled', ['TRUE'], 'replace')
+    const result = applyConfigSet(base, 'admin.gitEnabled', ['TRUE'], 'replace')
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
       expect(result.newValue).toBe(true)
@@ -164,8 +179,8 @@ describe('applyConfigSet — boolean properties', () => {
   })
 
   test('accepts False (mixed case)', () => {
-    const config = { ...base, gitAutoCommit: true }
-    const result = applyConfigSet(config, 'gitAutoCommit', ['False'], 'replace')
+    const config = { ...base, admin: { ...base.admin, gitAutoCommit: true } }
+    const result = applyConfigSet(config, 'admin.gitAutoCommit', ['False'], 'replace')
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
       expect(result.newValue).toBe(false)
@@ -173,7 +188,7 @@ describe('applyConfigSet — boolean properties', () => {
   })
 
   test('returns error for non-boolean value', () => {
-    const result = applyConfigSet(base, 'gitEnabled', ['yes'], 'replace')
+    const result = applyConfigSet(base, 'admin.gitEnabled', ['yes'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
       expect(result.error).toContain('boolean')
@@ -183,12 +198,12 @@ describe('applyConfigSet — boolean properties', () => {
   })
 
   test('returns error when multiple values given for boolean property', () => {
-    const result = applyConfigSet(base, 'gitEnabled', ['true', 'false'], 'replace')
+    const result = applyConfigSet(base, 'admin.gitEnabled', ['true', 'false'], 'replace')
     expect('error' in result).toBeTrue()
   })
 
   test('returns error when --add used with boolean property', () => {
-    const result = applyConfigSet(base, 'gitEnabled', ['true'], 'add')
+    const result = applyConfigSet(base, 'admin.gitEnabled', ['true'], 'add')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
       expect(result.error).toContain('--add')
@@ -198,16 +213,16 @@ describe('applyConfigSet — boolean properties', () => {
 
 describe('applyConfigSet — number properties', () => {
   test('sets a number property', () => {
-    const result = applyConfigSet(base, 'rateLimitMaxAttempts', ['10'], 'replace')
+    const result = applyConfigSet(base, 'admin.rateLimitMaxAttempts', ['10'], 'replace')
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
       expect(result.newValue).toBe(10)
-      expect(result.updatedConfig.rateLimitMaxAttempts).toBe(10)
+      expect(result.updatedConfig.admin.rateLimitMaxAttempts).toBe(10)
     }
   })
 
-  test('accepts zero for failedAuthDelayMs', () => {
-    const result = applyConfigSet(base, 'failedAuthDelayMs', ['0'], 'replace')
+  test('accepts zero for admin.failedAuthDelayMs', () => {
+    const result = applyConfigSet(base, 'admin.failedAuthDelayMs', ['0'], 'replace')
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
       expect(result.newValue).toBe(0)
@@ -215,7 +230,7 @@ describe('applyConfigSet — number properties', () => {
   })
 
   test('returns error for non-numeric string', () => {
-    const result = applyConfigSet(base, 'rateLimitMaxAttempts', ['abc'], 'replace')
+    const result = applyConfigSet(base, 'admin.rateLimitMaxAttempts', ['abc'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
       expect(result.error).toContain('number')
@@ -224,7 +239,7 @@ describe('applyConfigSet — number properties', () => {
   })
 
   test('returns error for empty string (Number("") would be 0 without guard)', () => {
-    const result = applyConfigSet(base, 'rateLimitMaxAttempts', [''], 'replace')
+    const result = applyConfigSet(base, 'admin.rateLimitMaxAttempts', [''], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
       expect(result.error).toContain('empty string')
@@ -232,7 +247,7 @@ describe('applyConfigSet — number properties', () => {
   })
 
   test('returns error for float value', () => {
-    const result = applyConfigSet(base, 'rateLimitMaxAttempts', ['1.5'], 'replace')
+    const result = applyConfigSet(base, 'admin.rateLimitMaxAttempts', ['1.5'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
       expect(result.error).toContain('integer')
@@ -240,7 +255,7 @@ describe('applyConfigSet — number properties', () => {
   })
 
   test('returns error for negative value', () => {
-    const result = applyConfigSet(base, 'rateLimitMaxAttempts', ['-1'], 'replace')
+    const result = applyConfigSet(base, 'admin.rateLimitMaxAttempts', ['-1'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
       expect(result.error).toContain('non-negative')
@@ -248,12 +263,12 @@ describe('applyConfigSet — number properties', () => {
   })
 
   test('returns error when multiple values given for number property', () => {
-    const result = applyConfigSet(base, 'rateLimitMaxAttempts', ['5', '10'], 'replace')
+    const result = applyConfigSet(base, 'admin.rateLimitMaxAttempts', ['5', '10'], 'replace')
     expect('error' in result).toBeTrue()
   })
 
   test('returns error when --remove used with number property', () => {
-    const result = applyConfigSet(base, 'rateLimitWindowMinutes', ['5'], 'remove')
+    const result = applyConfigSet(base, 'admin.rateLimitWindowMinutes', ['5'], 'remove')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
       expect(result.error).toContain('--remove')
@@ -263,17 +278,27 @@ describe('applyConfigSet — number properties', () => {
 
 describe('applyConfigSet — array properties (replace)', () => {
   test('replaces array with new values', () => {
-    const config = { ...base, ipAllowList: ['10.0.0.1'] }
-    const result = applyConfigSet(config, 'ipAllowList', ['192.168.1.1', '192.168.1.2'], 'replace')
+    const config = { ...base, admin: { ...base.admin, ipAllowList: ['10.0.0.1'] } }
+    const result = applyConfigSet(
+      config,
+      'admin.ipAllowList',
+      ['192.168.1.1', '192.168.1.2'],
+      'replace',
+    )
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
       expect(result.newValue).toEqual(['192.168.1.1', '192.168.1.2'])
-      expect(result.updatedConfig.ipAllowList).toEqual(['192.168.1.1', '192.168.1.2'])
+      expect(result.updatedConfig.admin.ipAllowList).toEqual(['192.168.1.1', '192.168.1.2'])
     }
   })
 
   test('deduplicates values on replace', () => {
-    const result = applyConfigSet(base, 'ipAllowList', ['1.2.3.4', '1.2.3.4', '5.6.7.8'], 'replace')
+    const result = applyConfigSet(
+      base,
+      'admin.ipAllowList',
+      ['1.2.3.4', '1.2.3.4', '5.6.7.8'],
+      'replace',
+    )
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
       expect(result.newValue).toEqual(['1.2.3.4', '5.6.7.8'])
@@ -281,8 +306,8 @@ describe('applyConfigSet — array properties (replace)', () => {
   })
 
   test('can set a single value replacing previous array', () => {
-    const config = { ...base, ipAllowList: ['10.0.0.1', '10.0.0.2'] }
-    const result = applyConfigSet(config, 'ipAllowList', ['192.168.0.1'], 'replace')
+    const config = { ...base, admin: { ...base.admin, ipAllowList: ['10.0.0.1', '10.0.0.2'] } }
+    const result = applyConfigSet(config, 'admin.ipAllowList', ['192.168.0.1'], 'replace')
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
       expect(result.newValue).toEqual(['192.168.0.1'])
@@ -292,8 +317,8 @@ describe('applyConfigSet — array properties (replace)', () => {
 
 describe('applyConfigSet — array properties (add)', () => {
   test('appends new values to existing array', () => {
-    const config = { ...base, ipAllowList: ['10.0.0.1'] }
-    const result = applyConfigSet(config, 'ipAllowList', ['10.0.0.2'], 'add')
+    const config = { ...base, admin: { ...base.admin, ipAllowList: ['10.0.0.1'] } }
+    const result = applyConfigSet(config, 'admin.ipAllowList', ['10.0.0.2'], 'add')
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
       expect(result.newValue).toEqual(['10.0.0.1', '10.0.0.2'])
@@ -301,8 +326,8 @@ describe('applyConfigSet — array properties (add)', () => {
   })
 
   test('skips values already in the array', () => {
-    const config = { ...base, ipAllowList: ['10.0.0.1'] }
-    const result = applyConfigSet(config, 'ipAllowList', ['10.0.0.1', '10.0.0.2'], 'add')
+    const config = { ...base, admin: { ...base.admin, ipAllowList: ['10.0.0.1'] } }
+    const result = applyConfigSet(config, 'admin.ipAllowList', ['10.0.0.1', '10.0.0.2'], 'add')
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
       expect(result.newValue).toEqual(['10.0.0.1', '10.0.0.2'])
@@ -310,7 +335,7 @@ describe('applyConfigSet — array properties (add)', () => {
   })
 
   test('adds to an empty array', () => {
-    const result = applyConfigSet(base, 'ipAllowList', ['10.0.0.1'], 'add')
+    const result = applyConfigSet(base, 'admin.ipAllowList', ['10.0.0.1'], 'add')
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
       expect(result.newValue).toEqual(['10.0.0.1'])
@@ -318,7 +343,7 @@ describe('applyConfigSet — array properties (add)', () => {
   })
 
   test('adds multiple new values at once', () => {
-    const result = applyConfigSet(base, 'userAgentDenyList', ['bot1', 'bot2', 'bot3'], 'add')
+    const result = applyConfigSet(base, 'admin.userAgentDenyList', ['bot1', 'bot2', 'bot3'], 'add')
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
       expect(result.newValue).toEqual(['bot1', 'bot2', 'bot3'])
@@ -328,8 +353,11 @@ describe('applyConfigSet — array properties (add)', () => {
 
 describe('applyConfigSet — array properties (remove)', () => {
   test('removes a value from the array', () => {
-    const config = { ...base, ipAllowList: ['10.0.0.1', '10.0.0.2', '10.0.0.3'] }
-    const result = applyConfigSet(config, 'ipAllowList', ['10.0.0.2'], 'remove')
+    const config = {
+      ...base,
+      admin: { ...base.admin, ipAllowList: ['10.0.0.1', '10.0.0.2', '10.0.0.3'] },
+    }
+    const result = applyConfigSet(config, 'admin.ipAllowList', ['10.0.0.2'], 'remove')
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
       expect(result.newValue).toEqual(['10.0.0.1', '10.0.0.3'])
@@ -337,8 +365,8 @@ describe('applyConfigSet — array properties (remove)', () => {
   })
 
   test('removes multiple values at once', () => {
-    const config = { ...base, ipDenyList: ['a', 'b', 'c', 'd'] }
-    const result = applyConfigSet(config, 'ipDenyList', ['a', 'c'], 'remove')
+    const config = { ...base, admin: { ...base.admin, ipDenyList: ['a', 'b', 'c', 'd'] } }
+    const result = applyConfigSet(config, 'admin.ipDenyList', ['a', 'c'], 'remove')
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
       expect(result.newValue).toEqual(['b', 'd'])
@@ -346,8 +374,8 @@ describe('applyConfigSet — array properties (remove)', () => {
   })
 
   test('silently no-ops when removing a value not present', () => {
-    const config = { ...base, ipAllowList: ['10.0.0.1'] }
-    const result = applyConfigSet(config, 'ipAllowList', ['10.0.0.99'], 'remove')
+    const config = { ...base, admin: { ...base.admin, ipAllowList: ['10.0.0.1'] } }
+    const result = applyConfigSet(config, 'admin.ipAllowList', ['10.0.0.99'], 'remove')
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
       expect(result.newValue).toEqual(['10.0.0.1'])
@@ -355,8 +383,8 @@ describe('applyConfigSet — array properties (remove)', () => {
   })
 
   test('can empty an array by removing all values', () => {
-    const config = { ...base, ipAllowList: ['10.0.0.1', '10.0.0.2'] }
-    const result = applyConfigSet(config, 'ipAllowList', ['10.0.0.1', '10.0.0.2'], 'remove')
+    const config = { ...base, admin: { ...base.admin, ipAllowList: ['10.0.0.1', '10.0.0.2'] } }
+    const result = applyConfigSet(config, 'admin.ipAllowList', ['10.0.0.1', '10.0.0.2'], 'remove')
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
       expect(result.newValue).toEqual([])
@@ -366,48 +394,55 @@ describe('applyConfigSet — array properties (remove)', () => {
 
 describe('applyConfigSet — immutability', () => {
   test('does not mutate the input config', () => {
-    const config = { ...base, gitEnabled: false }
-    const result = applyConfigSet(config, 'gitEnabled', ['true'], 'replace')
+    const config = { ...base, admin: { ...base.admin, gitEnabled: false } }
+    const result = applyConfigSet(config, 'admin.gitEnabled', ['true'], 'replace')
     expect('error' in result).toBeFalse()
-    expect(config.gitEnabled).toBe(false)
+    expect(config.admin.gitEnabled).toBe(false)
   })
 
   test('does not mutate input array properties', () => {
     const original = ['10.0.0.1']
-    const config = { ...base, ipAllowList: original }
-    applyConfigSet(config, 'ipAllowList', ['10.0.0.2'], 'add')
+    const config = { ...base, admin: { ...base.admin, ipAllowList: original } }
+    applyConfigSet(config, 'admin.ipAllowList', ['10.0.0.2'], 'add')
     expect(original).toEqual(['10.0.0.1'])
   })
 })
 
 describe('SETTABLE_FIELDS', () => {
-  test('contains all expected top-level config keys', () => {
+  test('contains the top-level directory keys', () => {
     const keys = Object.keys(SETTABLE_FIELDS)
     expect(keys).toContain('decksDir')
     expect(keys).toContain('collectionsDir')
     expect(keys).toContain('wantedDir')
-    expect(keys).toContain('gitEnabled')
-    expect(keys).toContain('gitAutoCommit')
-    expect(keys).toContain('gitAutoPush')
-    expect(keys).toContain('ipAllowList')
-    expect(keys).toContain('rateLimitMaxAttempts')
-    expect(keys).toContain('failedAuthDelayMs')
   })
 
-  test('does not expose the site key', () => {
+  test('does not expose the admin or site keys', () => {
+    expect(Object.keys(SETTABLE_FIELDS)).not.toContain('admin')
     expect(Object.keys(SETTABLE_FIELDS)).not.toContain('site')
+  })
+})
+
+describe('SETTABLE_ADMIN_FIELDS', () => {
+  test('exposes admin settings under dotted admin.* paths', () => {
+    const keys = Object.keys(SETTABLE_ADMIN_FIELDS)
+    expect(keys).toContain('admin.gitEnabled')
+    expect(keys).toContain('admin.gitAutoCommit')
+    expect(keys).toContain('admin.gitAutoPush')
+    expect(keys).toContain('admin.ipAllowList')
+    expect(keys).toContain('admin.rateLimitMaxAttempts')
+    expect(keys).toContain('admin.failedAuthDelayMs')
   })
 
   test('maps array fields to string[] type', () => {
-    expect(SETTABLE_FIELDS['ipAllowList']).toBe('string[]')
-    expect(SETTABLE_FIELDS['ipDenyList']).toBe('string[]')
-    expect(SETTABLE_FIELDS['userAgentAllowList']).toBe('string[]')
-    expect(SETTABLE_FIELDS['userAgentDenyList']).toBe('string[]')
+    expect(SETTABLE_ADMIN_FIELDS['admin.ipAllowList']).toBe('string[]')
+    expect(SETTABLE_ADMIN_FIELDS['admin.ipDenyList']).toBe('string[]')
+    expect(SETTABLE_ADMIN_FIELDS['admin.userAgentAllowList']).toBe('string[]')
+    expect(SETTABLE_ADMIN_FIELDS['admin.userAgentDenyList']).toBe('string[]')
   })
 
   test('maps numeric fields to number type', () => {
-    expect(SETTABLE_FIELDS['rateLimitMaxAttempts']).toBe('number')
-    expect(SETTABLE_FIELDS['rateLimitWindowMinutes']).toBe('number')
-    expect(SETTABLE_FIELDS['failedAuthDelayMs']).toBe('number')
+    expect(SETTABLE_ADMIN_FIELDS['admin.rateLimitMaxAttempts']).toBe('number')
+    expect(SETTABLE_ADMIN_FIELDS['admin.rateLimitWindowMinutes']).toBe('number')
+    expect(SETTABLE_ADMIN_FIELDS['admin.failedAuthDelayMs']).toBe('number')
   })
 })

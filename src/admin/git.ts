@@ -46,9 +46,9 @@ export function pushChanges(cwd?: string): void {
 }
 
 export function shouldAutoCommit(config: RitualConfig, dir: string): boolean {
-  return config.gitEnabled && config.gitAutoCommit && isGitRepo(dir)
+  return config.admin.gitEnabled && config.admin.gitAutoCommit && isGitRepo(dir)
 }
 
 export function shouldAutoPush(config: RitualConfig, dir: string): boolean {
-  return config.gitEnabled && config.gitAutoPush && isGitRepo(dir)
+  return config.admin.gitEnabled && config.admin.gitAutoPush && isGitRepo(dir)
 }

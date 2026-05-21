@@ -273,20 +273,26 @@ async function handleRequest(
 
   // Load config first — needed for trustProxy and filtering
   const config = await loadRitualConfig()
-  const clientIp = getClientIp(req, server, config.trustProxy)
+  const clientIp = getClientIp(req, server, config.admin.trustProxy)
   const userAgent = req.headers.get('User-Agent') ?? ''
 
   // IP and User-Agent filtering
-  if (config.ipDenyList.length > 0 && matchesList(clientIp, config.ipDenyList)) {
+  if (config.admin.ipDenyList.length > 0 && matchesList(clientIp, config.admin.ipDenyList)) {
     return new Response('Forbidden', { status: 403 })
   }
-  if (config.ipAllowList.length > 0 && !matchesList(clientIp, config.ipAllowList)) {
+  if (config.admin.ipAllowList.length > 0 && !matchesList(clientIp, config.admin.ipAllowList)) {
     return new Response('Forbidden', { status: 403 })
   }
-  if (config.userAgentDenyList.length > 0 && matchesList(userAgent, config.userAgentDenyList)) {
+  if (
+    config.admin.userAgentDenyList.length > 0 &&
+    matchesList(userAgent, config.admin.userAgentDenyList)
+  ) {
     return new Response('Forbidden', { status: 403 })
   }
-  if (config.userAgentAllowList.length > 0 && !matchesList(userAgent, config.userAgentAllowList)) {
+  if (
+    config.admin.userAgentAllowList.length > 0 &&
+    !matchesList(userAgent, config.admin.userAgentAllowList)
+  ) {
     return new Response('Forbidden', { status: 403 })
   }
 

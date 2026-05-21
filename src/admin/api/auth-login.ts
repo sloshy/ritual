@@ -34,7 +34,7 @@ export async function handleLogin(req: Request, clientIp: string): Promise<Respo
   const userAgent = req.headers.get('User-Agent') ?? ''
 
   // Rate limit check
-  if (config.rateLimitEnabled && globalRateLimiter.isLocked(clientIp)) {
+  if (config.admin.rateLimitEnabled && globalRateLimiter.isLocked(clientIp)) {
     const remaining = globalRateLimiter.getRemainingLockSeconds(clientIp)
     const resp: RateLimitResponse = {
       success: false,
@@ -77,17 +77,17 @@ export async function handleLogin(req: Request, clientIp: string): Promise<Respo
 
   const valid = await verifyAdminUser(username, password)
   if (!valid) {
-    if (config.rateLimitEnabled) {
+    if (config.admin.rateLimitEnabled) {
       globalRateLimiter.recordFailure(
         clientIp,
-        config.rateLimitMaxAttempts,
-        config.rateLimitWindowMinutes,
+        config.admin.rateLimitMaxAttempts,
+        config.admin.rateLimitWindowMinutes,
       )
     }
     await appendAuditLog(
       createAuditEntry(clientIp, username, false, 'Invalid credentials', userAgent),
     )
-    await Bun.sleep(config.failedAuthDelayMs)
+    await Bun.sleep(config.admin.failedAuthDelayMs)
     return Response.json(
       { success: false, message: 'Invalid username or password' },
       { status: 401 },
@@ -113,17 +113,17 @@ export async function handleLogin(req: Request, clientIp: string): Promise<Respo
 
     const totpValid = await verifyTotp(secret, totpCode)
     if (!totpValid) {
-      if (config.rateLimitEnabled) {
+      if (config.admin.rateLimitEnabled) {
         globalRateLimiter.recordFailure(
           clientIp,
-          config.rateLimitMaxAttempts,
-          config.rateLimitWindowMinutes,
+          config.admin.rateLimitMaxAttempts,
+          config.admin.rateLimitWindowMinutes,
         )
       }
       await appendAuditLog(
         createAuditEntry(clientIp, username, false, 'Invalid TOTP code', userAgent),
       )
-      await Bun.sleep(config.failedAuthDelayMs)
+      await Bun.sleep(config.admin.failedAuthDelayMs)
       return Response.json(
         { success: false, message: 'Invalid TOTP code', totpRequired: true },
         { status: 401, headers: { 'X-TOTP-Required': 'true' } },
@@ -138,7 +138,7 @@ export async function handleLogin(req: Request, clientIp: string): Promise<Respo
 
   const resp: LoginResponse = { success: true }
   return Response.json(resp, {
-    headers: { 'Set-Cookie': buildSessionCookie(session.token, config.secureCookies) },
+    headers: { 'Set-Cookie': buildSessionCookie(session.token, config.admin.secureCookies) },
   })
 }
 
@@ -151,6 +151,6 @@ export async function handleLogout(sessionToken: string): Promise<Response> {
   destroySession(sessionToken)
   const resp: LogoutResponse = { success: true }
   return Response.json(resp, {
-    headers: { 'Set-Cookie': buildExpiredSessionCookie(config.secureCookies) },
+    headers: { 'Set-Cookie': buildExpiredSessionCookie(config.admin.secureCookies) },
   })
 }

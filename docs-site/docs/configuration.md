@@ -20,19 +20,21 @@ When you pass `--base-dir`, Ritual loads the config from that directory and reso
   "decksDir": "./decks",
   "collectionsDir": "./collections",
   "wantedDir": "./wanted",
-  "gitEnabled": false,
-  "gitAutoCommit": false,
-  "gitAutoPush": false,
-  "trustProxy": false,
-  "secureCookies": false,
-  "ipAllowList": [],
-  "ipDenyList": [],
-  "userAgentAllowList": [],
-  "userAgentDenyList": [],
-  "rateLimitEnabled": true,
-  "rateLimitMaxAttempts": 5,
-  "rateLimitWindowMinutes": 5,
-  "failedAuthDelayMs": 3000
+  "admin": {
+    "gitEnabled": false,
+    "gitAutoCommit": false,
+    "gitAutoPush": false,
+    "trustProxy": false,
+    "secureCookies": false,
+    "ipAllowList": [],
+    "ipDenyList": [],
+    "userAgentAllowList": [],
+    "userAgentDenyList": [],
+    "rateLimitEnabled": true,
+    "rateLimitMaxAttempts": 5,
+    "rateLimitWindowMinutes": 5,
+    "failedAuthDelayMs": 3000
+  }
 }
 ```
 
@@ -48,23 +50,27 @@ Directory paths are resolved relative to the base directory. For example, with `
 
 You can use absolute paths (`"/srv/mtg/decks"`) or paths that step outside the base dir (`"../shared-decks"`) when that fits your workflow.
 
-## Git options
+## Admin options (`admin` key)
 
-| Field           | Default | Description                                                         |
-| --------------- | ------- | ------------------------------------------------------------------- |
-| `gitEnabled`    | `false` | Enable git integration for admin file changes.                      |
-| `gitAutoCommit` | `false` | When set with `gitEnabled`, admin saves auto-commit affected files. |
-| `gitAutoPush`   | `false` | When set with `gitAutoCommit`, push the commit after creating it.   |
+The `admin` key holds settings that are configured through, and for, the [admin server](commands/admin): git integration for admin file changes, network access control, and login rate limiting. Set them from the admin **Settings** page, with [`config-set admin.<field>`](commands/config-set), or by hand. The key is always present and each field falls back to its default when omitted.
+
+### Git integration
+
+| Field                 | Default | Description                                                         |
+| --------------------- | ------- | ------------------------------------------------------------------- |
+| `admin.gitEnabled`    | `false` | Enable git integration for admin file changes.                      |
+| `admin.gitAutoCommit` | `false` | When set with `gitEnabled`, admin saves auto-commit affected files. |
+| `admin.gitAutoPush`   | `false` | When set with `gitAutoCommit`, push the commit after creating it.   |
 
 These only affect changes made through the admin server.
 
-## Admin security options
+### Network and authentication security
 
-The remaining options affect the admin server. See [Admin → Configuration File](commands/admin#configuration-file) for the full reference, including:
+See [Admin → Configuration File](commands/admin#configuration-file) for the full reference, including:
 
-- Network options (`trustProxy`, `secureCookies`)
-- IP and User-Agent allow/deny lists
-- Rate limiting (`rateLimitEnabled`, `rateLimitMaxAttempts`, `rateLimitWindowMinutes`, `failedAuthDelayMs`)
+- Network options (`admin.trustProxy`, `admin.secureCookies`)
+- IP and User-Agent allow/deny lists (`admin.ipAllowList`, `admin.ipDenyList`, `admin.userAgentAllowList`, `admin.userAgentDenyList`)
+- Rate limiting (`admin.rateLimitEnabled`, `admin.rateLimitMaxAttempts`, `admin.rateLimitWindowMinutes`, `admin.failedAuthDelayMs`)
 
 ## Site config (`site` key)
 
@@ -113,7 +119,7 @@ The corresponding `build-site` flags (`--decks`, `--collections`, `--wanted-list
 
 ## Editing the file
 
-You can edit the top-level keys in `ritual.config.json` by hand, or — when running the admin server — use the **Settings** page in the web UI. Saving via the UI also refreshes the in-memory config so any later admin or CLI command picks up the change immediately.
+You can edit the directory keys and the nested `admin` settings in `ritual.config.json` by hand, or — when running the admin server — use the **Settings** page in the web UI. Saving via the UI also refreshes the in-memory config so any later admin or CLI command picks up the change immediately.
 
 The deployment portion of the `site` key is owned by `ritual init-site`; let that command manage it. The `site.includeDecks`, `site.includeCollections`, and `site.includeWantedLists` lists are the exception — they are user settings you can edit from the admin **Settings** page or with `config-set`.
 

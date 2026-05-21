@@ -41,10 +41,12 @@ export type SiteConfig = SiteSelectionConfig & {
   detectChanges?: boolean
 }
 
-export interface RitualConfig {
-  decksDir: string
-  collectionsDir: string
-  wantedDir: string
+/**
+ * Settings primarily configured through, and for, the admin server: git
+ * integration for admin file changes, network access control, and login rate
+ * limiting. Configured via the admin Settings page or `config-set admin.<field>`.
+ */
+export interface AdminConfig {
   gitEnabled: boolean
   gitAutoCommit: boolean
   gitAutoPush: boolean
@@ -58,14 +60,19 @@ export interface RitualConfig {
   rateLimitMaxAttempts: number
   rateLimitWindowMinutes: number
   failedAuthDelayMs: number
+}
+
+export interface RitualConfig {
+  decksDir: string
+  collectionsDir: string
+  wantedDir: string
+  /** Admin-server settings; always present, defaulting to {@link DEFAULT_ADMIN_CONFIG}. */
+  admin: AdminConfig
   /** Present only when `ritual init-site` has been run; managed exclusively by that command. */
   site?: SiteConfig
 }
 
-const DEFAULT_CONFIG = {
-  decksDir: './decks',
-  collectionsDir: './collections',
-  wantedDir: './wanted',
+const DEFAULT_ADMIN_CONFIG = {
   gitEnabled: false,
   gitAutoCommit: false,
   gitAutoPush: false,
@@ -79,7 +86,13 @@ const DEFAULT_CONFIG = {
   rateLimitMaxAttempts: 5,
   rateLimitWindowMinutes: 5,
   failedAuthDelayMs: 3000,
-} satisfies RitualConfig
+} satisfies AdminConfig
+
+const DEFAULT_CONFIG = {
+  decksDir: './decks',
+  collectionsDir: './collections',
+  wantedDir: './wanted',
+} satisfies Omit<RitualConfig, 'admin' | 'site'>
 
 const CONFIG_FILENAME = 'ritual.config.json'
 
@@ -90,7 +103,7 @@ export function getRitualConfigPath(): string {
 }
 
 export function getDefaultRitualConfig(): RitualConfig {
-  return { ...DEFAULT_CONFIG }
+  return { ...DEFAULT_CONFIG, admin: { ...DEFAULT_ADMIN_CONFIG } }
 }
 
 function isStringArray(value: unknown): value is string[] {
@@ -221,14 +234,136 @@ export function getSiteDeployConfig(site: SiteConfig | undefined): SiteDeployCon
 }
 
 /**
- * The raw, unvalidated config as read from disk. `site` is widened to `unknown`
- * because JSON.parse returns untrusted data; {@link parseSiteConfig} validates
- * and narrows it in {@link applyDefaults}.
+ * The raw, unvalidated config as read from disk. `admin` and `site` are widened
+ * to `unknown` because JSON.parse returns untrusted data; {@link parseAdminConfig}
+ * and {@link parseSiteConfig} validate and narrow them in {@link applyDefaults}.
  */
-type ParsedConfigWithSite = Partial<RitualConfig> & { site?: unknown }
+type ParsedConfig = Omit<Partial<RitualConfig>, 'admin' | 'site'> & {
+  admin?: unknown
+  site?: unknown
+}
 
-function applyDefaults(parsed: ParsedConfigWithSite): RitualConfig {
-  const merged: RitualConfig = { ...DEFAULT_CONFIG, ...parsed, site: undefined }
+/** Validate a boolean admin field, defaulting when absent or erroring when malformed. */
+function parseAdminBoolean(value: unknown, field: string, fallback: boolean): boolean | string {
+  if (value === undefined) return fallback
+  if (typeof value !== 'boolean') return `admin config: "${field}" must be a boolean`
+  return value
+}
+
+/** Validate a numeric admin field, defaulting when absent or erroring when malformed. */
+function parseAdminNumber(value: unknown, field: string, fallback: number): number | string {
+  if (value === undefined) return fallback
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return `admin config: "${field}" must be a number`
+  }
+  return value
+}
+
+/** Validate a string-list admin field, defaulting when absent or erroring when malformed. */
+function parseAdminStringList(
+  value: unknown,
+  field: string,
+  fallback: string[],
+): string[] | string {
+  if (value === undefined) return fallback
+  if (!isStringArray(value)) return `admin config: "${field}" must be an array of strings`
+  return value
+}
+
+/**
+ * Parse the `admin` sub-object of a ritual.config.json. Returns the parsed admin
+ * config — each absent field defaulted from {@link DEFAULT_ADMIN_CONFIG} — or an
+ * error string describing the first malformed field. Mirrors {@link parseSiteConfig}:
+ * a single bad field invalidates the whole admin object (the caller falls back to
+ * defaults), so settings cannot be silently coerced to the wrong type.
+ */
+export function parseAdminConfig(value: unknown): AdminConfig | string {
+  if (value === undefined) return { ...DEFAULT_ADMIN_CONFIG }
+  if (typeof value !== 'object' || value === null) {
+    return 'admin config must be a JSON object'
+  }
+  const obj = value as Record<string, unknown>
+  const d = DEFAULT_ADMIN_CONFIG
+
+  const gitEnabled = parseAdminBoolean(obj.gitEnabled, 'gitEnabled', d.gitEnabled)
+  if (typeof gitEnabled === 'string') return gitEnabled
+  const gitAutoCommit = parseAdminBoolean(obj.gitAutoCommit, 'gitAutoCommit', d.gitAutoCommit)
+  if (typeof gitAutoCommit === 'string') return gitAutoCommit
+  const gitAutoPush = parseAdminBoolean(obj.gitAutoPush, 'gitAutoPush', d.gitAutoPush)
+  if (typeof gitAutoPush === 'string') return gitAutoPush
+  const trustProxy = parseAdminBoolean(obj.trustProxy, 'trustProxy', d.trustProxy)
+  if (typeof trustProxy === 'string') return trustProxy
+  const secureCookies = parseAdminBoolean(obj.secureCookies, 'secureCookies', d.secureCookies)
+  if (typeof secureCookies === 'string') return secureCookies
+  const ipAllowList = parseAdminStringList(obj.ipAllowList, 'ipAllowList', d.ipAllowList)
+  if (typeof ipAllowList === 'string') return ipAllowList
+  const ipDenyList = parseAdminStringList(obj.ipDenyList, 'ipDenyList', d.ipDenyList)
+  if (typeof ipDenyList === 'string') return ipDenyList
+  const userAgentAllowList = parseAdminStringList(
+    obj.userAgentAllowList,
+    'userAgentAllowList',
+    d.userAgentAllowList,
+  )
+  if (typeof userAgentAllowList === 'string') return userAgentAllowList
+  const userAgentDenyList = parseAdminStringList(
+    obj.userAgentDenyList,
+    'userAgentDenyList',
+    d.userAgentDenyList,
+  )
+  if (typeof userAgentDenyList === 'string') return userAgentDenyList
+  const rateLimitEnabled = parseAdminBoolean(
+    obj.rateLimitEnabled,
+    'rateLimitEnabled',
+    d.rateLimitEnabled,
+  )
+  if (typeof rateLimitEnabled === 'string') return rateLimitEnabled
+  const rateLimitMaxAttempts = parseAdminNumber(
+    obj.rateLimitMaxAttempts,
+    'rateLimitMaxAttempts',
+    d.rateLimitMaxAttempts,
+  )
+  if (typeof rateLimitMaxAttempts === 'string') return rateLimitMaxAttempts
+  const rateLimitWindowMinutes = parseAdminNumber(
+    obj.rateLimitWindowMinutes,
+    'rateLimitWindowMinutes',
+    d.rateLimitWindowMinutes,
+  )
+  if (typeof rateLimitWindowMinutes === 'string') return rateLimitWindowMinutes
+  const failedAuthDelayMs = parseAdminNumber(
+    obj.failedAuthDelayMs,
+    'failedAuthDelayMs',
+    d.failedAuthDelayMs,
+  )
+  if (typeof failedAuthDelayMs === 'string') return failedAuthDelayMs
+
+  return {
+    gitEnabled,
+    gitAutoCommit,
+    gitAutoPush,
+    trustProxy,
+    secureCookies,
+    ipAllowList,
+    ipDenyList,
+    userAgentAllowList,
+    userAgentDenyList,
+    rateLimitEnabled,
+    rateLimitMaxAttempts,
+    rateLimitWindowMinutes,
+    failedAuthDelayMs,
+  }
+}
+
+function applyDefaults(parsed: ParsedConfig): RitualConfig {
+  const admin = parseAdminConfig(parsed.admin)
+  if (typeof admin === 'string') {
+    console.warn(`ritual.config.json: ignoring invalid admin config — ${admin}`)
+  }
+  const merged: RitualConfig = {
+    decksDir: parsed.decksDir ?? DEFAULT_CONFIG.decksDir,
+    collectionsDir: parsed.collectionsDir ?? DEFAULT_CONFIG.collectionsDir,
+    wantedDir: parsed.wantedDir ?? DEFAULT_CONFIG.wantedDir,
+    admin: typeof admin === 'string' ? { ...DEFAULT_ADMIN_CONFIG } : admin,
+  }
   if (parsed.site !== undefined) {
     const site = parseSiteConfig(parsed.site)
     if (typeof site !== 'string') {
@@ -243,7 +378,7 @@ function applyDefaults(parsed: ParsedConfigWithSite): RitualConfig {
 async function readConfigFromDisk(): Promise<RitualConfig | null> {
   try {
     const content = await fs.readFile(getRitualConfigPath(), 'utf-8')
-    const parsed = JSON.parse(content) as ParsedConfigWithSite
+    const parsed = JSON.parse(content) as ParsedConfig
     return applyDefaults(parsed)
   } catch {
     return null
@@ -256,7 +391,7 @@ async function readConfigFromDisk(): Promise<RitualConfig | null> {
  */
 export async function loadRitualConfig(): Promise<RitualConfig> {
   const fromDisk = await readConfigFromDisk()
-  return fromDisk ?? { ...DEFAULT_CONFIG }
+  return fromDisk ?? getDefaultRitualConfig()
 }
 
 export async function saveRitualConfig(config: RitualConfig): Promise<void> {
@@ -275,7 +410,7 @@ export async function initRitualConfig(): Promise<RitualConfig> {
     cachedConfig = fromDisk
     return fromDisk
   }
-  const defaults = { ...DEFAULT_CONFIG }
+  const defaults = getDefaultRitualConfig()
   try {
     await saveRitualConfig(defaults)
   } catch {
@@ -292,7 +427,7 @@ export async function initRitualConfig(): Promise<RitualConfig> {
  */
 export async function reloadRitualConfig(): Promise<RitualConfig> {
   const fromDisk = await readConfigFromDisk()
-  cachedConfig = fromDisk ?? { ...DEFAULT_CONFIG }
+  cachedConfig = fromDisk ?? getDefaultRitualConfig()
   return cachedConfig
 }
 
@@ -301,7 +436,7 @@ export async function reloadRitualConfig(): Promise<RitualConfig> {
  * initRitualConfig() was never called (e.g. in tests that bypass index.ts).
  */
 export function getRitualConfig(): RitualConfig {
-  return cachedConfig ?? { ...DEFAULT_CONFIG }
+  return cachedConfig ?? getDefaultRitualConfig()
 }
 
 function resolveDir(dir: string): string {

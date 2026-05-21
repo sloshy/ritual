@@ -30,7 +30,14 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
     }
     const updates = (await req.json()) as Partial<RitualConfig>
     const current = await loadRitualConfig()
-    const merged: RitualConfig = { ...current, ...updates }
+    // `admin` is nested, so a partial update must merge into it rather than
+    // replace it wholesale (the top-level spread would otherwise drop omitted
+    // admin fields).
+    const merged: RitualConfig = {
+      ...current,
+      ...updates,
+      admin: updates.admin ? { ...current.admin, ...updates.admin } : current.admin,
+    }
     await saveRitualConfig(merged)
     await reloadRitualConfig()
 

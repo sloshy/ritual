@@ -1,5 +1,5 @@
 import { type JSX, createSignal, onMount, Show } from 'solid-js'
-import type { RitualConfig } from '../../../ritual-config'
+import type { AdminConfig, RitualConfig } from '../../../ritual-config'
 import {
   INCLUDE_ALL,
   defaultSiteSelection,
@@ -60,8 +60,16 @@ export function Settings(): JSX.Element {
     setConfig((prev) => (prev ? { ...prev, [field]: value } : null))
   }
 
-  const updateListField = (field: keyof RitualConfig, value: string) => {
-    setConfig((prev) => (prev ? { ...prev, [field]: parseList(value) } : null))
+  // Admin settings live under the nested `admin` object; merge into it so the
+  // other admin fields are preserved.
+  const updateAdminField = (field: keyof AdminConfig, value: string | boolean | number) => {
+    setConfig((prev) => (prev ? { ...prev, admin: { ...prev.admin, [field]: value } } : null))
+  }
+
+  const updateAdminListField = (field: keyof AdminConfig, value: string) => {
+    setConfig((prev) =>
+      prev ? { ...prev, admin: { ...prev.admin, [field]: parseList(value) } } : null,
+    )
   }
 
   // The include lists live under `site`; default each to ['*'] (all) for display.
@@ -133,26 +141,26 @@ export function Settings(): JSX.Element {
           <label class="checkbox-label">
             <input
               type="checkbox"
-              checked={config()!.gitEnabled}
-              onChange={(e) => updateField('gitEnabled', e.currentTarget.checked)}
+              checked={config()!.admin.gitEnabled}
+              onChange={(e) => updateAdminField('gitEnabled', e.currentTarget.checked)}
             />
             Enable Git integration
           </label>
           <label class="checkbox-label">
             <input
               type="checkbox"
-              checked={config()!.gitAutoCommit}
-              onChange={(e) => updateField('gitAutoCommit', e.currentTarget.checked)}
-              disabled={!config()!.gitEnabled}
+              checked={config()!.admin.gitAutoCommit}
+              onChange={(e) => updateAdminField('gitAutoCommit', e.currentTarget.checked)}
+              disabled={!config()!.admin.gitEnabled}
             />
             Auto-commit changes
           </label>
           <label class="checkbox-label">
             <input
               type="checkbox"
-              checked={config()!.gitAutoPush}
-              onChange={(e) => updateField('gitAutoPush', e.currentTarget.checked)}
-              disabled={!config()!.gitEnabled || !config()!.gitAutoCommit}
+              checked={config()!.admin.gitAutoPush}
+              onChange={(e) => updateAdminField('gitAutoPush', e.currentTarget.checked)}
+              disabled={!config()!.admin.gitEnabled || !config()!.admin.gitAutoCommit}
             />
             Auto-push after commit
           </label>
@@ -166,8 +174,8 @@ export function Settings(): JSX.Element {
           <label class="checkbox-label">
             <input
               type="checkbox"
-              checked={config()!.trustProxy}
-              onChange={(e) => updateField('trustProxy', e.currentTarget.checked)}
+              checked={config()!.admin.trustProxy}
+              onChange={(e) => updateAdminField('trustProxy', e.currentTarget.checked)}
             />
             Trust reverse proxy headers
           </label>
@@ -178,8 +186,8 @@ export function Settings(): JSX.Element {
           <label class="checkbox-label">
             <input
               type="checkbox"
-              checked={config()!.secureCookies}
-              onChange={(e) => updateField('secureCookies', e.currentTarget.checked)}
+              checked={config()!.admin.secureCookies}
+              onChange={(e) => updateAdminField('secureCookies', e.currentTarget.checked)}
             />
             Secure cookies (HTTPS only)
           </label>
@@ -197,13 +205,13 @@ export function Settings(): JSX.Element {
           <label class="checkbox-label">
             <input
               type="checkbox"
-              checked={config()!.rateLimitEnabled}
-              onChange={(e) => updateField('rateLimitEnabled', e.currentTarget.checked)}
+              checked={config()!.admin.rateLimitEnabled}
+              onChange={(e) => updateAdminField('rateLimitEnabled', e.currentTarget.checked)}
             />
             Enable rate limiting
           </label>
 
-          <Show when={config()!.rateLimitEnabled}>
+          <Show when={config()!.admin.rateLimitEnabled}>
             <div class="form-grid-2col">
               <div>
                 <label class="form-label">Max failed attempts</label>
@@ -211,9 +219,12 @@ export function Settings(): JSX.Element {
                   type="number"
                   min={1}
                   class="form-input"
-                  value={config()!.rateLimitMaxAttempts}
+                  value={config()!.admin.rateLimitMaxAttempts}
                   onInput={(e) =>
-                    updateField('rateLimitMaxAttempts', parseInt(e.currentTarget.value, 10) || 5)
+                    updateAdminField(
+                      'rateLimitMaxAttempts',
+                      parseInt(e.currentTarget.value, 10) || 5,
+                    )
                   }
                 />
               </div>
@@ -223,9 +234,12 @@ export function Settings(): JSX.Element {
                   type="number"
                   min={1}
                   class="form-input"
-                  value={config()!.rateLimitWindowMinutes}
+                  value={config()!.admin.rateLimitWindowMinutes}
                   onInput={(e) =>
-                    updateField('rateLimitWindowMinutes', parseInt(e.currentTarget.value, 10) || 5)
+                    updateAdminField(
+                      'rateLimitWindowMinutes',
+                      parseInt(e.currentTarget.value, 10) || 5,
+                    )
                   }
                 />
               </div>
@@ -239,9 +253,9 @@ export function Settings(): JSX.Element {
               min={0}
               step={500}
               class="form-input"
-              value={config()!.failedAuthDelayMs}
+              value={config()!.admin.failedAuthDelayMs}
               onInput={(e) =>
-                updateField('failedAuthDelayMs', parseInt(e.currentTarget.value, 10) || 0)
+                updateAdminField('failedAuthDelayMs', parseInt(e.currentTarget.value, 10) || 0)
               }
             />
             <p class="form-hint form-hint-top">
@@ -260,8 +274,8 @@ export function Settings(): JSX.Element {
             <label class="form-label">IP Allow List</label>
             <textarea
               class="form-input form-input-monospace"
-              value={listToString(config()!.ipAllowList)}
-              onInput={(e) => updateListField('ipAllowList', e.currentTarget.value)}
+              value={listToString(config()!.admin.ipAllowList)}
+              onInput={(e) => updateAdminListField('ipAllowList', e.currentTarget.value)}
               placeholder="e.g. 192.168.1.*"
             />
           </div>
@@ -269,8 +283,8 @@ export function Settings(): JSX.Element {
             <label class="form-label">IP Deny List</label>
             <textarea
               class="form-input form-input-monospace"
-              value={listToString(config()!.ipDenyList)}
-              onInput={(e) => updateListField('ipDenyList', e.currentTarget.value)}
+              value={listToString(config()!.admin.ipDenyList)}
+              onInput={(e) => updateAdminListField('ipDenyList', e.currentTarget.value)}
               placeholder="e.g. 10.0.0.5"
             />
           </div>
@@ -285,8 +299,8 @@ export function Settings(): JSX.Element {
             <label class="form-label">User-Agent Allow List</label>
             <textarea
               class="form-input form-input-monospace"
-              value={listToString(config()!.userAgentAllowList)}
-              onInput={(e) => updateListField('userAgentAllowList', e.currentTarget.value)}
+              value={listToString(config()!.admin.userAgentAllowList)}
+              onInput={(e) => updateAdminListField('userAgentAllowList', e.currentTarget.value)}
               placeholder="e.g. Mozilla*"
             />
           </div>
@@ -294,8 +308,8 @@ export function Settings(): JSX.Element {
             <label class="form-label">User-Agent Deny List</label>
             <textarea
               class="form-input form-input-monospace"
-              value={listToString(config()!.userAgentDenyList)}
-              onInput={(e) => updateListField('userAgentDenyList', e.currentTarget.value)}
+              value={listToString(config()!.admin.userAgentDenyList)}
+              onInput={(e) => updateAdminListField('userAgentDenyList', e.currentTarget.value)}
               placeholder="e.g. *bot*"
             />
           </div>

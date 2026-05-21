@@ -67,16 +67,22 @@ const MOCK_AUDIT_ENTRIES: AuditEntry[] = [
 const MOCK_CONFIG = {
   decksDir: './decks',
   collectionsDir: './collections',
-  gitEnabled: false,
-  gitAutoCommit: false,
-  rateLimitEnabled: true,
-  rateLimitMaxAttempts: 5,
-  rateLimitWindowMinutes: 15,
-  failedAuthDelayMs: 1000,
-  ipAllowList: [],
-  ipDenyList: [],
-  userAgentAllowList: [],
-  userAgentDenyList: [],
+  wantedDir: './wanted',
+  admin: {
+    gitEnabled: false,
+    gitAutoCommit: false,
+    gitAutoPush: false,
+    trustProxy: false,
+    secureCookies: false,
+    rateLimitEnabled: true,
+    rateLimitMaxAttempts: 5,
+    rateLimitWindowMinutes: 15,
+    failedAuthDelayMs: 1000,
+    ipAllowList: [],
+    ipDenyList: [],
+    userAgentAllowList: [],
+    userAgentDenyList: [],
+  },
 }
 
 /**

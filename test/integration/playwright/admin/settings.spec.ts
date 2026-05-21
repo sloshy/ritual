@@ -3,6 +3,10 @@ import { loginAsAdmin } from '../helpers/auth-helper'
 import { mockConfigApi, mockTotpApi, MOCK_CONFIG } from '../helpers/mock-data'
 
 type ConfigPutBody = {
+  admin?: {
+    gitEnabled?: boolean
+    gitAutoCommit?: boolean
+  }
   site?: {
     includeDecks?: string[]
     includeCollections?: string[]
@@ -44,6 +48,19 @@ test.describe('Settings Page', () => {
     await expect(main.locator('textarea[name="includeDecks"]')).toHaveValue('*')
     await expect(main.locator('textarea[name="includeCollections"]')).toHaveValue('*')
     await expect(main.locator('textarea[name="includeWantedLists"]')).toHaveValue('*')
+  })
+
+  test('toggling an admin setting persists under the nested admin key', async ({ page }) => {
+    const main = page.locator('main')
+    await main.locator('label:has-text("Enable Git integration") input[type="checkbox"]').check()
+
+    const requestPromise = page.waitForRequest(
+      (req) => req.url().includes('/api/config') && req.method() === 'PUT',
+    )
+    await main.locator('button:has-text("Save")').click()
+    const request = await requestPromise
+    const body = JSON.parse(request.postData() ?? '{}') as ConfigPutBody
+    expect(body.admin?.gitEnabled).toBe(true)
   })
 
   test('editing a public-site include list persists to the config', async ({ page }) => {

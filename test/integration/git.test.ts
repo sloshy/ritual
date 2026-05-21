@@ -33,7 +33,7 @@ describe('admin git', () => {
     ]
 
     for (const { gitEnabled, gitAutoCommit, expected } of cases) {
-      const config: RitualConfig = { ...base, gitEnabled, gitAutoCommit }
+      const config: RitualConfig = { ...base, admin: { ...base.admin, gitEnabled, gitAutoCommit } }
       expect(shouldAutoCommit(config, projectRoot)).toBe(expected)
     }
   })

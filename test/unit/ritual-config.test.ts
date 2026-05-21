@@ -11,6 +11,7 @@ import {
   getSiteSelectionConfig,
   initRitualConfig,
   loadRitualConfig,
+  parseAdminConfig,
   parseSiteConfig,
   resetRitualConfigCache,
   saveRitualConfig,
@@ -42,16 +43,16 @@ describe('ritual config', () => {
     expect(config.decksDir).toBe('./decks')
     expect(config.collectionsDir).toBe('./collections')
     expect(config.wantedDir).toBe('./wanted')
-    expect(config.gitEnabled).toBe(false)
-    expect(config.gitAutoCommit).toBe(false)
-    expect(config.gitAutoPush).toBe(false)
+    expect(config.admin.gitEnabled).toBe(false)
+    expect(config.admin.gitAutoCommit).toBe(false)
+    expect(config.admin.gitAutoPush).toBe(false)
   })
 
   test('loadRitualConfig returns defaults when file does not exist', async () => {
     const config = await loadRitualConfig()
     expect(config.decksDir).toBe('./decks')
     expect(config.wantedDir).toBe('./wanted')
-    expect(config.gitEnabled).toBe(false)
+    expect(config.admin.gitEnabled).toBe(false)
   })
 
   test('saveRitualConfig and loadRitualConfig round-trip', async () => {
@@ -59,19 +60,21 @@ describe('ritual config', () => {
       decksDir: './my-decks',
       collectionsDir: './my-collections',
       wantedDir: './my-wanted',
-      gitEnabled: true,
-      gitAutoCommit: true,
-      gitAutoPush: false,
-      trustProxy: false,
-      secureCookies: false,
-      ipAllowList: ['192.168.1.*'],
-      ipDenyList: [],
-      userAgentAllowList: [],
-      userAgentDenyList: ['*bot*'],
-      rateLimitEnabled: true,
-      rateLimitMaxAttempts: 10,
-      rateLimitWindowMinutes: 10,
-      failedAuthDelayMs: 5000,
+      admin: {
+        gitEnabled: true,
+        gitAutoCommit: true,
+        gitAutoPush: false,
+        trustProxy: false,
+        secureCookies: false,
+        ipAllowList: ['192.168.1.*'],
+        ipDenyList: [],
+        userAgentAllowList: [],
+        userAgentDenyList: ['*bot*'],
+        rateLimitEnabled: true,
+        rateLimitMaxAttempts: 10,
+        rateLimitWindowMinutes: 10,
+        failedAuthDelayMs: 5000,
+      },
     }
     await saveRitualConfig(config)
 
@@ -80,12 +83,36 @@ describe('ritual config', () => {
   })
 
   test('loadRitualConfig merges partial config with defaults', async () => {
-    await fs.writeFile(configPath, JSON.stringify({ gitEnabled: true }))
+    await fs.writeFile(configPath, JSON.stringify({ admin: { gitEnabled: true } }))
     const config = await loadRitualConfig()
-    expect(config.gitEnabled).toBe(true)
+    expect(config.admin.gitEnabled).toBe(true)
     expect(config.decksDir).toBe('./decks')
     expect(config.wantedDir).toBe('./wanted')
-    expect(config.gitAutoCommit).toBe(false)
+    // Omitted admin fields fall back to their defaults.
+    expect(config.admin.gitAutoCommit).toBe(false)
+    expect(config.admin.rateLimitEnabled).toBe(true)
+    expect(config.admin.rateLimitMaxAttempts).toBe(5)
+  })
+
+  test('loadRitualConfig falls back to admin defaults when admin is absent', async () => {
+    await fs.writeFile(configPath, JSON.stringify({ decksDir: './d' }))
+    const config = await loadRitualConfig()
+    expect(config.admin).toEqual(getDefaultRitualConfig().admin)
+  })
+
+  test('loadRitualConfig falls back to admin defaults when admin is not an object', async () => {
+    await fs.writeFile(configPath, JSON.stringify({ admin: 'nope' }))
+    const config = await loadRitualConfig()
+    expect(config.admin).toEqual(getDefaultRitualConfig().admin)
+  })
+
+  test('loadRitualConfig drops the whole admin object when a field has the wrong type', async () => {
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({ admin: { ipAllowList: ['1.2.3.4'], rateLimitMaxAttempts: 'lots' } }),
+    )
+    const config = await loadRitualConfig()
+    expect(config.admin).toEqual(getDefaultRitualConfig().admin)
   })
 
   test('initRitualConfig creates ritual.config.json with defaults when missing', async () => {
@@ -126,7 +153,7 @@ describe('ritual config', () => {
   })
 
   test('config without site key loads with site undefined', async () => {
-    await fs.writeFile(configPath, JSON.stringify({ gitEnabled: true }))
+    await fs.writeFile(configPath, JSON.stringify({ admin: { gitEnabled: true } }))
     const loaded = await loadRitualConfig()
     expect(loaded.site).toBeUndefined()
   })
@@ -191,13 +218,54 @@ describe('ritual config', () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({
-        gitEnabled: true,
+        admin: { gitEnabled: true },
         site: { ciSystem: 'github-actions' }, // missing version, deployMode, etc
       }),
     )
     const loaded = await loadRitualConfig()
     expect(loaded.site).toBeUndefined()
-    expect(loaded.gitEnabled).toBe(true)
+    expect(loaded.admin.gitEnabled).toBe(true)
+  })
+})
+
+describe('parseAdminConfig', () => {
+  const defaults = getDefaultRitualConfig().admin
+
+  test('returns admin defaults when value is undefined', () => {
+    expect(parseAdminConfig(undefined)).toEqual(defaults)
+  })
+
+  test('defaults absent fields and keeps provided ones', () => {
+    const result = parseAdminConfig({ gitEnabled: true, ipAllowList: ['10.0.0.1'] })
+    expect(result).toEqual({ ...defaults, gitEnabled: true, ipAllowList: ['10.0.0.1'] })
+  })
+
+  test('returns error string when not an object', () => {
+    expect(typeof parseAdminConfig('nope')).toBe('string')
+    expect(typeof parseAdminConfig(42)).toBe('string')
+    expect(typeof parseAdminConfig(null)).toBe('string')
+  })
+
+  test('returns error naming the field when a boolean field is malformed', () => {
+    const result = parseAdminConfig({ gitEnabled: 'yes' })
+    expect(typeof result).toBe('string')
+    expect(result as string).toContain('gitEnabled')
+  })
+
+  test('returns error naming the field when a number field is malformed', () => {
+    const result = parseAdminConfig({ rateLimitMaxAttempts: 'lots' })
+    expect(typeof result).toBe('string')
+    expect(result as string).toContain('rateLimitMaxAttempts')
+  })
+
+  test('returns error when a list field is not an array of strings', () => {
+    expect(typeof parseAdminConfig({ ipAllowList: '10.0.0.1' })).toBe('string')
+    expect(typeof parseAdminConfig({ userAgentDenyList: [1, 2] })).toBe('string')
+  })
+
+  test('ignores unknown extra fields', () => {
+    const result = parseAdminConfig({ gitEnabled: true, somethingElse: 'ignored' })
+    expect(result).toEqual({ ...defaults, gitEnabled: true })
   })
 })
 

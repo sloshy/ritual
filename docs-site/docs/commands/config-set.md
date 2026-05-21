@@ -24,24 +24,29 @@ Set or update a value in `ritual.config.json`.
 
 ## Settable properties
 
-| Property                 | Type       | Default         |
-| ------------------------ | ---------- | --------------- |
-| `decksDir`               | `string`   | `./decks`       |
-| `collectionsDir`         | `string`   | `./collections` |
-| `wantedDir`              | `string`   | `./wanted`      |
-| `gitEnabled`             | `boolean`  | `false`         |
-| `gitAutoCommit`          | `boolean`  | `false`         |
-| `gitAutoPush`            | `boolean`  | `false`         |
-| `trustProxy`             | `boolean`  | `false`         |
-| `secureCookies`          | `boolean`  | `false`         |
-| `ipAllowList`            | `string[]` | `[]`            |
-| `ipDenyList`             | `string[]` | `[]`            |
-| `userAgentAllowList`     | `string[]` | `[]`            |
-| `userAgentDenyList`      | `string[]` | `[]`            |
-| `rateLimitEnabled`       | `boolean`  | `true`          |
-| `rateLimitMaxAttempts`   | `number`   | `5`             |
-| `rateLimitWindowMinutes` | `number`   | `5`             |
-| `failedAuthDelayMs`      | `number`   | `3000`          |
+| Property         | Type     | Default         |
+| ---------------- | -------- | --------------- |
+| `decksDir`       | `string` | `./decks`       |
+| `collectionsDir` | `string` | `./collections` |
+| `wantedDir`      | `string` | `./wanted`      |
+
+The nested `admin` keys — settings for the [admin server](./admin) — are set with dot notation:
+
+| Property                       | Type       | Default |
+| ------------------------------ | ---------- | ------- |
+| `admin.gitEnabled`             | `boolean`  | `false` |
+| `admin.gitAutoCommit`          | `boolean`  | `false` |
+| `admin.gitAutoPush`            | `boolean`  | `false` |
+| `admin.trustProxy`             | `boolean`  | `false` |
+| `admin.secureCookies`          | `boolean`  | `false` |
+| `admin.ipAllowList`            | `string[]` | `[]`    |
+| `admin.ipDenyList`             | `string[]` | `[]`    |
+| `admin.userAgentAllowList`     | `string[]` | `[]`    |
+| `admin.userAgentDenyList`      | `string[]` | `[]`    |
+| `admin.rateLimitEnabled`       | `boolean`  | `true`  |
+| `admin.rateLimitMaxAttempts`   | `number`   | `5`     |
+| `admin.rateLimitWindowMinutes` | `number`   | `5`     |
+| `admin.failedAuthDelayMs`      | `number`   | `3000`  |
 
 The following nested `site` keys — the [public-site publish lists](./build-site#choosing-which-lists-to-build) — are also settable:
 
@@ -65,7 +70,7 @@ The rest of the `site` key (the deployment settings) is managed exclusively by `
 Enable git integration:
 
 ```bash
-./ritual config-set gitEnabled true
+./ritual config-set admin.gitEnabled true
 ```
 
 Change the decks directory:
@@ -77,25 +82,25 @@ Change the decks directory:
 Set an IP allowlist (replaces the whole list):
 
 ```bash
-./ritual config-set ipAllowList "192.168.1.0/24" "10.0.0.1"
+./ritual config-set admin.ipAllowList "192.168.1.0/24" "10.0.0.1"
 ```
 
 Add an IP to an existing allowlist:
 
 ```bash
-./ritual config-set --add ipAllowList "10.0.0.2"
+./ritual config-set --add admin.ipAllowList "10.0.0.2"
 ```
 
 Remove an IP from the allowlist:
 
 ```bash
-./ritual config-set --remove ipAllowList "10.0.0.1"
+./ritual config-set --remove admin.ipAllowList "10.0.0.1"
 ```
 
 Increase the rate-limit window:
 
 ```bash
-./ritual config-set rateLimitWindowMinutes 10
+./ritual config-set admin.rateLimitWindowMinutes 10
 ```
 
 Publish only specific decks on the built site (replaces the whole list):
