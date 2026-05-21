@@ -48,7 +48,9 @@ Decks must have been imported from Archidekt (i.e., they have `sourceUrl` and `s
 3. Applies any differences to the local file, respecting each card's board:
    - New cards are added to the section matching their remote board (e.g. a card in
      the Archidekt maybeboard is added to the local `## Maybeboard` section, creating
-     that section if it does not exist)
+     that section if it does not exist). A newly created section is inserted in
+     canonical board order (Commander, Main, Sideboard, Maybeboard) without
+     reordering your existing sections
    - Removed cards are deleted from the board they were removed from
    - Quantity changes are applied in-place within the matching board
    - A card that moved between boards on Archidekt is removed from its old board and

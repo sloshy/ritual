@@ -1,5 +1,5 @@
 import { createAddChange, createRemoveChange, type ChangeEvent } from '../change-event'
-import type { Board, DeckSection } from '../types'
+import { BOARDS, type Board, type DeckSection } from '../types'
 import { isCommanderSection, isSideboardSection, isExtraSection } from '../deck-format'
 
 export type { Board }
@@ -200,14 +200,38 @@ export function isDiffEmpty(diff: NameDiff): boolean {
 }
 
 /**
+ * Canonical ordering rank for a board, matching the `BOARDS` order used everywhere
+ * else (and the `sortOrder` in `parseArchidektDeckResponse`). Unknown boards sort
+ * last; `normalizeBoard` only ever yields a known board, so that is a safety net.
+ */
+function boardOrder(board: Board): number {
+  const i = BOARDS.indexOf(board)
+  return i === -1 ? BOARDS.length : i
+}
+
+/**
+ * Insert a freshly created section into `result` (in place) at its canonical board
+ * position rather than appending it. Existing sections keep their relative order —
+ * including any custom ordering the user chose within a board — so only the new
+ * section is placed. The new section lands after every section of an equal-or-lower
+ * board rank and before the first section of a higher rank.
+ */
+function insertSection(result: DeckSection[], section: DeckSection): void {
+  const order = boardOrder(normalizeBoard(section.name))
+  const idx = result.findIndex((s) => boardOrder(normalizeBoard(s.name)) > order)
+  if (idx === -1) result.push(section)
+  else result.splice(idx, 0, section)
+}
+
+/**
  * Apply a board-aware NameDiff (remote = new, local = old) to local deck sections.
  * Each change is applied to the section matching its board, so a card that lives in
  * the Maybeboard remotely is added to the local Maybeboard rather than the Main board.
- * Missing target sections are created. Adjusts quantities in-place and removes cards
- * when they're gone from the remote board.
+ * Missing target sections are created at their canonical board position. Adjusts
+ * quantities in-place and removes cards when they're gone from the remote board.
  */
 export function applyDownloadDiff(sections: DeckSection[], diff: NameDiff): DeckSection[] {
-  const result = sections.map((s) => ({
+  const result: DeckSection[] = sections.map((s) => ({
     name: s.name,
     cards: s.cards.map((c) => ({ ...c })),
   }))
@@ -239,12 +263,14 @@ export function applyDownloadDiff(sections: DeckSection[], diff: NameDiff): Deck
     }
   }
 
-  // Add new cards to their board's section, creating it if necessary
+  // Add new cards to their board's section, creating it at its canonical position
+  // if necessary so a newly created board (e.g. Commander) is not appended after
+  // lower-ranked boards.
   for (const card of diff.added) {
     let section = result.find((s) => normalizeBoard(s.name) === card.board)
     if (!section) {
       section = { name: card.board, cards: [] }
-      result.push(section)
+      insertSection(result, section)
     }
     section.cards.push({ name: card.name, quantity: card.totalQuantity })
   }

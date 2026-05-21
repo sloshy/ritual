@@ -576,6 +576,80 @@ describe('applyDownloadDiff', () => {
     expect(commanderSection!.cards[0]!.name).toBe('Atraxa')
   })
 
+  test('inserts a created Commander section before lower-ranked boards', () => {
+    const sections: DeckSection[] = [
+      { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
+      { name: 'Maybeboard', cards: [{ quantity: 1, name: 'Forgotten Ancient' }] },
+    ]
+    const diff: NameDiff = {
+      added: [{ name: 'Atraxa', totalQuantity: 1, board: 'Commander' }],
+      removed: [],
+      quantityChanged: [],
+    }
+    const result = applyDownloadDiff(sections, diff)
+    expect(result.map((s) => s.name)).toEqual(['Commander', 'Main', 'Maybeboard'])
+  })
+
+  test('inserts a created Sideboard section between Main and Maybeboard', () => {
+    const sections: DeckSection[] = [
+      { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
+      { name: 'Maybeboard', cards: [{ quantity: 1, name: 'Forgotten Ancient' }] },
+    ]
+    const diff: NameDiff = {
+      added: [{ name: 'Pyroblast', totalQuantity: 1, board: 'Sideboard' }],
+      removed: [],
+      quantityChanged: [],
+    }
+    const result = applyDownloadDiff(sections, diff)
+    expect(result.map((s) => s.name)).toEqual(['Main', 'Sideboard', 'Maybeboard'])
+  })
+
+  test('appends a created Maybeboard section after existing boards', () => {
+    const sections: DeckSection[] = [
+      { name: 'Commander', cards: [{ quantity: 1, name: 'Atraxa' }] },
+      { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
+    ]
+    const diff: NameDiff = {
+      added: [{ name: 'Cavern-Hoard Dragon', totalQuantity: 1, board: 'Maybeboard' }],
+      removed: [],
+      quantityChanged: [],
+    }
+    const result = applyDownloadDiff(sections, diff)
+    expect(result.map((s) => s.name)).toEqual(['Commander', 'Main', 'Maybeboard'])
+  })
+
+  test('places multiple created boards in canonical order regardless of diff order', () => {
+    const sections: DeckSection[] = [{ name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] }]
+    // Listed Maybeboard-first, Commander-last: the result must still be canonical.
+    const diff: NameDiff = {
+      added: [
+        { name: 'Cavern-Hoard Dragon', totalQuantity: 1, board: 'Maybeboard' },
+        { name: 'Pyroblast', totalQuantity: 1, board: 'Sideboard' },
+        { name: 'Atraxa', totalQuantity: 1, board: 'Commander' },
+      ],
+      removed: [],
+      quantityChanged: [],
+    }
+    const result = applyDownloadDiff(sections, diff)
+    expect(result.map((s) => s.name)).toEqual(['Commander', 'Main', 'Sideboard', 'Maybeboard'])
+  })
+
+  test('preserves the existing order of custom same-board sections', () => {
+    // Both custom headers normalize to Main; a newly created Commander section must
+    // land first without reordering the user's custom Main sections.
+    const sections: DeckSection[] = [
+      { name: 'Lands', cards: [{ quantity: 1, name: 'Island' }] },
+      { name: 'Ramp', cards: [{ quantity: 1, name: 'Sol Ring' }] },
+    ]
+    const diff: NameDiff = {
+      added: [{ name: 'Atraxa', totalQuantity: 1, board: 'Commander' }],
+      removed: [],
+      quantityChanged: [],
+    }
+    const result = applyDownloadDiff(sections, diff)
+    expect(result.map((s) => s.name)).toEqual(['Commander', 'Lands', 'Ramp'])
+  })
+
   test('does not mutate original sections', () => {
     const sections: DeckSection[] = [{ name: 'Main', cards: [{ quantity: 2, name: 'Island' }] }]
     const diff: NameDiff = {

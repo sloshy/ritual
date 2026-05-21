@@ -1,4 +1,4 @@
-import type { DeckData, DeckSection } from '../types'
+import { BOARDS, type DeckData, type DeckSection } from '../types'
 
 export interface ArchidektCategory {
   id: number
@@ -173,7 +173,9 @@ export function parseArchidektDeckResponse(json: ArchidektDeckResponse, deckId: 
   }
 
   const sections: DeckSection[] = []
-  const sortOrder = ['Commander', 'Main', 'Sideboard', 'Maybeboard']
+  // Canonical board order lives in `BOARDS`; widened to string[] so `indexOf` can
+  // take raw (possibly custom, non-board) section names.
+  const sortOrder: readonly string[] = BOARDS
 
   for (const [name, cardMap] of sectionsMap.entries()) {
     const cards = Array.from(cardMap.entries()).map(([cName, qty]) => ({
