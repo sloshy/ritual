@@ -9,6 +9,7 @@
 import path from 'node:path'
 import { existsSync, watch } from 'node:fs'
 import { answerFlagRequiredMessage, hasAnswerFlag } from './dev-args'
+import { shouldRestartForSource } from './dev-watch'
 
 const SUBCOMMANDS = ['admin', 'serve-site'] as const
 type Subcommand = (typeof SUBCOMMANDS)[number]
@@ -49,8 +50,19 @@ const srcDir = path.join(projectRoot, 'src')
 type ChildProc = ReturnType<typeof Bun.spawn>
 let child: ChildProc | null = null
 let restartTimer: ReturnType<typeof setTimeout> | null = null
-let restartingByDevScript = false
 let shuttingDown = false
+
+// Restarts are serialized: at most one restart cycle runs at a time. A change
+// that arrives mid-cycle sets `restartQueued` so the cycle loops once more to
+// pick up the latest edits, rather than spawning a second, competing restart
+// that could orphan a child still holding the dev port.
+let restarting = false
+let restartQueued = false
+
+// Procs we've deliberately signalled (for a restart or a shutdown). Their exit
+// is expected, so `onExit` must not mistake it for a crash and tear the whole
+// orchestrator down.
+const expectedExits = new WeakSet<ChildProc>()
 
 function relativeFromRoot(p: string): string {
   return path.relative(projectRoot, p) || p
@@ -71,8 +83,10 @@ function spawnChild(): void {
     cwd: projectRoot,
     stdio: ['ignore', 'inherit', 'inherit'],
     detached: true,
-    onExit(_proc, code, signal) {
-      if (restartingByDevScript || shuttingDown) return
+    onExit(proc, code, signal) {
+      // An exit we asked for (restart or shutdown) is expected; ignore it.
+      // Only a crash we didn't initiate should bring the orchestrator down.
+      if (shuttingDown || expectedExits.has(proc)) return
       if (signal) console.log(`[dev] Child exited (signal=${signal}).`)
       else console.log(`[dev] Child exited (code=${code ?? 0}).`)
       void shutdown('SIGTERM')
@@ -102,6 +116,7 @@ function isAlive(pid: number): boolean {
 }
 
 async function killChildAndWait(proc: ChildProc, signal: ShutdownSignal): Promise<void> {
+  expectedExits.add(proc)
   const pid = proc.pid
   signalGroup(pid, signal)
   // Escalate to SIGKILL after a short grace period. SIGKILL is uncatchable,
@@ -125,16 +140,29 @@ async function killChildAndWait(proc: ChildProc, signal: ShutdownSignal): Promis
 
 async function restart(): Promise<void> {
   if (shuttingDown) return
-  if (!child) {
-    spawnChild()
+  // A restart is already running: coalesce this request into it and return.
+  // The in-flight cycle loops once more (below) to pick up the latest change,
+  // so overlapping file events never spawn competing restarts.
+  if (restarting) {
+    restartQueued = true
     return
   }
-  restartingByDevScript = true
-  console.log('[dev] Restarting...')
-  await killChildAndWait(child, 'SIGTERM')
-  restartingByDevScript = false
-  if (shuttingDown) return
-  spawnChild()
+  restarting = true
+  try {
+    do {
+      restartQueued = false
+      if (shuttingDown) return
+      if (child) {
+        console.log('[dev] Restarting...')
+        await killChildAndWait(child, 'SIGTERM')
+        child = null
+      }
+      if (shuttingDown) return
+      spawnChild()
+    } while (restartQueued && !shuttingDown)
+  } finally {
+    restarting = false
+  }
 }
 
 function scheduleRestart(reason: string): void {
@@ -146,15 +174,6 @@ function scheduleRestart(reason: string): void {
   }, RESTART_DEBOUNCE_MS)
 }
 
-function isWatchedSource(filename: string): boolean {
-  return (
-    filename.endsWith('.ts') ||
-    filename.endsWith('.tsx') ||
-    filename.endsWith('.css') ||
-    filename.endsWith('.svg')
-  )
-}
-
 function resolveBaseDir(): string {
   const idx = passthrough.indexOf('--base-dir')
   if (idx >= 0 && idx + 1 < passthrough.length) {
@@ -164,7 +183,7 @@ function resolveBaseDir(): string {
 }
 
 watch(srcDir, { recursive: true }, (_event, filename) => {
-  if (!filename || !isWatchedSource(filename)) return
+  if (!filename || !shouldRestartForSource(filename)) return
   scheduleRestart(`src/${filename}`)
 })
 console.log(`[dev] Watching ${relativeFromRoot(srcDir)}`)
