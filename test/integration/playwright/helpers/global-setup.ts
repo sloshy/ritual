@@ -54,7 +54,7 @@ async function globalSetup() {
 
   // Always rebuild the site to ensure latest code is served
   console.log('[global-setup] Building site...')
-  execSync('bun run index.ts build-site --yes', { cwd, stdio: 'pipe', timeout: 300_000 })
+  execSync('bun run index.ts build-site --allow-refresh', { cwd, stdio: 'pipe', timeout: 300_000 })
   console.log('[global-setup] Site built.')
 
   // Clean up any previous admin auth state so setup flow works
@@ -82,7 +82,7 @@ async function globalSetup() {
 
   // Start the admin command
   console.log('[global-setup] Starting admin server on :8456...')
-  const adminProc = spawn('bun', ['run', 'index.ts', 'admin', '--port', '8456'], {
+  const adminProc = spawn('bun', ['run', 'index.ts', 'admin', '--port', '8456', '--no-refresh'], {
     cwd,
     stdio: ['pipe', 'pipe', 'inherit'],
     detached: true,

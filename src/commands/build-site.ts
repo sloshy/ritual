@@ -53,7 +53,13 @@ import {
   themeNames,
   type CustomTheme,
 } from '../themes'
-import prompts from 'prompts'
+import {
+  bulkAllowed,
+  refreshMode,
+  refreshStaleAllowed,
+  shouldBulkRefresh,
+  type RefreshMode,
+} from '../refresh'
 
 export interface BuildSiteOptions {
   verbose?: boolean
@@ -64,7 +70,9 @@ export interface BuildSiteOptions {
   collectionSort?: string
   deckSort?: string
   currencies?: string
-  yes?: boolean
+  allowRefresh?: boolean
+  allowRefreshNoBulk?: boolean
+  refresh?: boolean
   theme?: string
   themeFile?: string[]
 }
@@ -154,8 +162,10 @@ async function checkAndOfferBulkPriceRefresh(
   cardCache: CacheManager<ScryfallCard[]>,
   lastBulkRefresh: number | null | undefined,
   cacheJustRefreshed: boolean,
-  assumeYes: boolean,
+  mode: RefreshMode,
 ): Promise<void> {
+  if (!bulkAllowed(mode)) return
+
   const bulkCacheIsRecent =
     cacheJustRefreshed ||
     (lastBulkRefresh != null && Date.now() - lastBulkRefresh < PRICE_MAX_AGE_MS)
@@ -177,16 +187,10 @@ async function checkAndOfferBulkPriceRefresh(
     `Redownloading the Scryfall bulk card cache (includes fresh prices) would be faster than refreshing each card individually.`,
   )
 
-  const shouldPreload =
-    assumeYes ||
-    (
-      await prompts({
-        type: 'confirm',
-        name: 'value',
-        message: 'Redownload the latest Scryfall card cache now?',
-        initial: false,
-      })
-    ).value === true
+  const shouldPreload = await shouldBulkRefresh(mode, {
+    message: 'Redownload the latest Scryfall card cache now?',
+    initial: false,
+  })
 
   if (shouldPreload) {
     await preloadCache()
@@ -434,9 +438,16 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
   const totalCards = uniqueCards.length
   console.log(`\nFound ${totalCards} unique cards.`)
 
+  // How the cache refresh question is answered for this run (--allow-refresh /
+  // --allow-refresh-no-bulk / --no-refresh, or interactive when unset).
+  const mode = refreshMode(options)
+
   // Ensure the full card cache has been bulk-downloaded at least once per week,
-  // and trigger a bulk refresh if many cards are missing.
-  const { refreshed: cacheJustRefreshed } = await ensureCacheForCards(allCardNames)
+  // and trigger a bulk refresh if many cards are missing. Suppressed when bulk
+  // downloads aren't permitted, leaving the per-card loop below to fill gaps.
+  const { refreshed: cacheJustRefreshed } = await ensureCacheForCards(allCardNames, undefined, {
+    allowBulk: bulkAllowed(mode),
+  })
 
   // Collect missing card names (for verbose output and individual fetching)
   const missingCards: string[] = []
@@ -463,7 +474,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     cardCache,
     lastBulkRefresh,
     cacheJustRefreshed,
-    options.yes === true,
+    mode,
   )
 
   console.log('Fetching data...')
@@ -526,7 +537,9 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
         latestPriceTimestamp = priceTimestamp
       }
       let repPrints
-      if (pricesFresh) {
+      if (pricesFresh || !refreshStaleAllowed(mode)) {
+        // Use cached prices when they're fresh, or when --no-refresh forbids
+        // refetching merely-stale prices.
         const sortedPrintings = [...printings].sort((a, b) =>
           (b.released_at ?? '').localeCompare(a.released_at ?? ''),
         )
@@ -1461,7 +1474,15 @@ export function applyBuildSiteOptions(command: Command): Command {
       '--currencies <list>',
       'Comma-separated currencies to include: usd, eur, tix (default: all three; first is default)',
     )
-    .option('-y, --yes', 'Skip confirmation prompts and auto-accept (e.g. bulk cache redownload)')
+    .option(
+      '--allow-refresh',
+      'Refresh the card cache when stale, including the fast Scryfall bulk download',
+    )
+    .option(
+      '--allow-refresh-no-bulk',
+      'Refresh stale prices per-card but never trigger a bulk download',
+    )
+    .option('--no-refresh', 'Never refresh the card cache; build from cached data as-is')
     .option(
       '--theme <name>',
       `Initial theme baked into the generated HTML (${themeNames.join(', ')}, or a custom theme name loaded via --theme-file)`,

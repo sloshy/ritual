@@ -73,6 +73,26 @@ describe('ensureCacheForCards', () => {
     expect(hasLogMessage(logger, 'never been bulk-downloaded')).toBe(true)
   })
 
+  test('suppresses preload when allowBulk is false, even with an empty cache', async () => {
+    const cache = createCardCache()
+    cache._lastRefreshedAt = null
+    let preloadCalled = false
+
+    const result = await ensureCacheForCards(
+      new Set(['Sol Ring']),
+      {
+        cache,
+        preload: async () => {
+          preloadCalled = true
+        },
+      },
+      { allowBulk: false },
+    )
+
+    expect(preloadCalled).toBe(false)
+    expect(result.refreshed).toBe(false)
+  })
+
   test('triggers preload when cache is older than a week', async () => {
     const cache = createCardCache()
     cache._lastRefreshedAt = Date.now() - BULK_CACHE_MAX_AGE_MS - 1

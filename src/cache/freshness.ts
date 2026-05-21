@@ -1,7 +1,7 @@
-import prompts from 'prompts'
 import { cardCache } from './index'
 import { preloadCache } from '../scryfall'
 import { BULK_CACHE_MAX_AGE_MS } from './constants'
+import { shouldBulkRefresh, type RefreshMode } from '../refresh'
 
 type CacheFreshnessResult = {
   ready: boolean
@@ -15,21 +15,26 @@ type CacheFreshnessResult = {
  * - If the cache exists but is older than 7 days, prompts the user to update.
  * - If the cache is fresh, proceeds silently.
  *
+ * @param mode How to answer the refresh confirmation. Defaults to `ask`
+ *   (interactive); pass an explicit {@link RefreshMode} to answer it in
+ *   non-interactive contexts (e.g. `bun run dev`, where the child can't read
+ *   stdin). The cache here is populated only by bulk download, so `no-bulk`
+ *   behaves like `none` (no preload).
  * @returns Whether the cache is ready for use (has cards) and how many cards are available.
  */
-export async function ensureFreshCardCache(): Promise<CacheFreshnessResult> {
+export async function ensureFreshCardCache(
+  mode: RefreshMode = 'ask',
+): Promise<CacheFreshnessResult> {
   const empty = await cardCache.isEmpty()
 
   if (empty) {
     console.log('Card cache is empty. A preloaded cache is required for card autocomplete.')
-    const response = await prompts({
-      type: 'confirm',
-      name: 'value',
+    const shouldPreload = await shouldBulkRefresh(mode, {
       message: 'Would you like to download the card database now?',
       initial: true,
     })
 
-    if (response.value) {
+    if (shouldPreload) {
       await preloadCache()
     } else {
       return { ready: false, cardCount: 0 }
@@ -41,14 +46,12 @@ export async function ensureFreshCardCache(): Promise<CacheFreshnessResult> {
       const age = Date.now() - lastRefreshed
       if (age > BULK_CACHE_MAX_AGE_MS) {
         const days = Math.floor(age / (24 * 60 * 60 * 1000))
-        const response = await prompts({
-          type: 'confirm',
-          name: 'value',
+        const shouldPreload = await shouldBulkRefresh(mode, {
           message: `Card cache is ${days} day${days !== 1 ? 's' : ''} old. Would you like to update it?`,
           initial: false,
         })
 
-        if (response.value) {
+        if (shouldPreload) {
           await preloadCache()
         }
       }

@@ -26,7 +26,9 @@ By default, deck card images use Scryfall URLs from card data. This can be overr
 | `--collection-sort <field>` | Default sort order for collection pages (`file-order`, `name`, `price`, `set-code`, `type`, `cmc`, `color-identity`)     |
 | `--deck-sort <field>`       | Default sort order for deck pages (`name`, `cmc`, `price`, `type`, `edhrec`, `color-identity`)                           |
 | `--currencies <list>`       | Comma-separated currencies to include on the site: `usd`, `eur`, `tix` (default: all three; first listed is default)     |
-| `-y, --yes`                 | Skip confirmation prompts and auto-accept (e.g. bulk cache redownload)                                                   |
+| `--allow-refresh`           | Refresh the card cache when stale, including the fast Scryfall bulk download (answers the prompt for you)                |
+| `--allow-refresh-no-bulk`   | Refresh stale prices per-card but never trigger a bulk download                                                          |
+| `--no-refresh`              | Never refresh the card cache; build from cached data as-is                                                               |
 | `--theme <name>`            | Initial theme served to first-time visitors (built-in name or a custom name from `--theme-file`). Defaults to `default`. |
 | `--theme-file <path...>`    | Load one or more custom theme JSON files; each is added to the runtime theme list under its declared `name`.             |
 
@@ -239,25 +241,42 @@ The `--currencies` flag controls which currencies are available on the site. The
 
 The generated site displays a disclaimer below the header showing the date prices were retrieved. Prices are fetched from Scryfall at build time and reflect values as of the build date. The disclaimer reads: "Prices accurate as of &lt;date&gt;".
 
-## Bulk Cache Redownload Prompt
+## Card Cache Refresh
 
-Before fetching card data, `build-site` checks how many cards have prices older than 24 hours. If more than 100 cards need refreshing, it will prompt:
+A build pulls card data and prices from three places, in order:
 
-```
-287 of 320 card(s) have prices older than 24 hours.
-Redownloading the Scryfall bulk card cache (includes fresh prices) would be faster than refreshing each card individually.
-Redownload the latest Scryfall card cache now? [y/N]
-```
+1. **Automatic bulk download** — if the cache is empty, more than a week old, or missing more than 100 of the requested cards, the full Scryfall bulk dataset is downloaded first (equivalent to `./ritual cache preload-all`).
+2. **Bulk price-refresh prompt** — otherwise, if more than 100 cards have prices older than 24 hours, `build-site` offers a bulk redownload (fresh prices for everything in one request) instead of refreshing each card individually:
 
-Accepting redownloads the full Scryfall bulk card dataset, which includes current prices for all cards, and updates timestamps so the subsequent build uses the fresh data without making additional per-card price requests. This is equivalent to running `./ritual cache preload-all` manually.
+   ```
+   287 of 320 card(s) have prices older than 24 hours.
+   Redownloading the Scryfall bulk card cache (includes fresh prices) would be faster than refreshing each card individually.
+   Redownload the latest Scryfall card cache now? [y/N]
+   ```
 
-If stdin is not a TTY (e.g. a CI pipeline), the prompt defaults to **No** and per-card price refreshing proceeds as normal.
+3. **Per-card fetch** — every card whose cached price is stale (>24h) is then refetched individually; cards with fresh prices are reused from cache.
 
-Use `--yes` to skip the prompt and always accept the redownload when the threshold is exceeded:
+When stdin is not a TTY (e.g. a CI pipeline) the prompt can't be answered, so it resolves to its default of **No** and per-card refreshing proceeds as normal.
+
+### Refresh flags
+
+The three `--*-refresh` flags answer the prompt non-interactively and control the bulk download:
+
+| Flag                      | Bulk download (steps 1 & 2) | Per-card refresh of stale prices (step 3) |
+| ------------------------- | --------------------------- | ----------------------------------------- |
+| `--allow-refresh`         | Allowed                     | Yes                                       |
+| `--allow-refresh-no-bulk` | **Suppressed**              | Yes                                       |
+| `--no-refresh`            | **Suppressed**              | **No** (uses cached prices as-is)         |
 
 ```bash
-./ritual build-site --yes
+./ritual build-site --allow-refresh          # fastest full refresh
+./ritual build-site --allow-refresh-no-bulk  # refresh prices without the big download
+./ritual build-site --no-refresh             # build entirely from the existing cache
 ```
+
+> **Note:** `--allow-refresh-no-bulk` and `--no-refresh` also suppress the _automatic_ bulk download (step 1). On an empty or very stale cache this forces every card to be fetched individually, which is slow and can hit Scryfall rate limits — use them when you already have a populated cache.
+
+These flags are also what `bun run dev serve-site` requires — see [Development → Dev Workflow](../development.md#dev-workflow).
 
 ## Quick Switch
 

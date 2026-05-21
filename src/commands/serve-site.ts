@@ -30,7 +30,9 @@ export function registerServeSiteCommand(program: Command): void {
       collectionSort: options.collectionSort,
       deckSort: options.deckSort,
       currencies: options.currencies,
-      yes: options.yes,
+      allowRefresh: options.allowRefresh,
+      allowRefreshNoBulk: options.allowRefreshNoBulk,
+      refresh: options.refresh,
       theme: options.theme,
       themeFile: options.themeFile,
     }

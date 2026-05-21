@@ -1,10 +1,25 @@
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test, mock, beforeAll, afterAll } from 'bun:test'
 import { defaultFinishForCard, resolveTradeFinish } from '../../../src/site/trade-finish'
 import { encodeTradeToParams, hasTradeParams } from '../../../src/site/trade-url-encode'
 import { decodeTradeFromParams } from '../../../src/site/trade-url-decode'
 import type { TradeCardEntry } from '../../../src/site/data-types'
 import type { TradeSearchEntry } from '../../../src/site/useTradeData'
 import type { ScryfallCard } from '../../../src/types'
+
+// decodeTradeFromParams prefetches scryfall cards for any `@sfId` in the URL
+// that isn't already present in the supplied entries. Unit tests must never hit
+// the network, so stub fetch to return an empty collection — none of these
+// tests depend on the prefetched card (the rows under test either resolve from
+// the provided entries or are intentionally empty because entries are stale).
+const originalFetch = globalThis.fetch
+beforeAll(() => {
+  globalThis.fetch = mock(() =>
+    Promise.resolve(new Response(JSON.stringify({ data: [], not_found: [] }), { status: 200 })),
+  ) as unknown as typeof fetch
+})
+afterAll(() => {
+  globalThis.fetch = originalFetch
+})
 
 function makeCard(overrides: Partial<ScryfallCard> = {}): ScryfallCard {
   return {

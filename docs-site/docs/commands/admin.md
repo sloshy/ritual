@@ -19,6 +19,10 @@ ritual admin [options]
 | `-p, --port <number>` | Port to serve on                                                                                                                                                                      | `8080`    |
 | `--host <address>`    | Host address to bind to                                                                                                                                                               | `0.0.0.0` |
 | `--theme <name>`      | Initial theme served by the admin. Append `-inverted` (e.g. `boros-inverted`) for the inverted variant. See [`build-site` themes](./build-site#themes) for the full list of palettes. | `default` |
+| `--allow-refresh`     | Refresh the card cache on startup without asking (bulk download)                                                                                                                      |           |
+| `--no-refresh`        | Skip the card cache refresh on startup; use cached data as-is                                                                                                                         |           |
+
+On startup, `admin` checks whether the Scryfall card cache is missing or stale and prompts to refresh it. Pass `--allow-refresh` or `--no-refresh` to answer that prompt non-interactively — this is required when running under `bun run dev admin` (see [Development → Dev Workflow](../development.md#dev-workflow)). (`--allow-refresh-no-bulk` is also accepted for parity with `serve-site`; since the admin cache is only populated by bulk download, it behaves the same as `--no-refresh` here.)
 
 ## First-Time Setup
 

@@ -17,19 +17,30 @@ export type EnsureCacheDeps = {
   preload: () => Promise<void>
 }
 
+export type EnsureCacheOptions = {
+  /** When false, never trigger a bulk download (e.g. `--allow-refresh-no-bulk`/`--no-refresh`). */
+  allowBulk?: boolean
+}
+
 /**
  * Ensure the card cache is populated before loading a large number of cards.
  *
  * If the bulk cache is older than a week, or if more than {@link BULK_FETCH_THRESHOLD}
  * requested cards are missing from the cache, triggers a full Scryfall bulk data
  * download before returning. Concurrent calls share the same preload promise.
+ *
+ * When `options.allowBulk` is false the bulk download is suppressed entirely;
+ * callers fall back to fetching whatever they need per-card.
  */
 export async function ensureCacheForCards(
   cardNames: Set<string>,
   deps?: EnsureCacheDeps,
+  options?: EnsureCacheOptions,
 ): Promise<EnsureCacheResult> {
   const cache = deps?.cache ?? cardCache
   const preload = deps?.preload ?? preloadCache
+
+  if (options?.allowBulk === false) return { refreshed: false }
 
   // Check bulk cache age first — if stale, always refresh
   const lastBulkRefresh = await cache.getLastRefreshedAt?.()

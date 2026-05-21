@@ -101,9 +101,15 @@ test.describe('Theme editor', () => {
 
     await page.getByRole('button', { name: 'Reset all' }).click()
 
-    // No inline overrides remain.
-    const inlineLength = await page.evaluate(() => document.documentElement.style.length)
-    expect(inlineLength).toBe(0)
+    // No theme-override vars remain. The layout-measurement vars
+    // (--theme-editor-h, --site-header-h) are set inline by the editor/header
+    // and are not theme overrides, so Reset all intentionally leaves them.
+    const overrideVars = await page.evaluate(
+      (layoutVars) =>
+        Array.from(document.documentElement.style).filter((prop) => !layoutVars.includes(prop)),
+      ['--theme-editor-h', '--site-header-h'],
+    )
+    expect(overrideVars).toEqual([])
 
     // Base theme stays at rakdos.
     const dataTheme = await page.evaluate(() => document.documentElement.dataset.theme)

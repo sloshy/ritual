@@ -37,8 +37,8 @@ When invoked this way (i.e. via `bun` rather than the compiled `ritual` binary),
 For iterative development of the `admin` interface or the static site, use:
 
 ```bash
-bun run dev admin        # auto-restart `admin`
-bun run dev serve-site   # auto-restart `serve-site`
+bun run dev admin --no-refresh        # auto-restart `admin`
+bun run dev serve-site --no-refresh   # auto-restart `serve-site`
 ```
 
 This launches `scripts/dev.ts`, which:
@@ -58,7 +58,17 @@ If `--base-dir <path>` is passed for `serve-site`, the watcher uses that base di
 
 The dev orchestrator is a source-tree-only tool — it is not part of the compiled binary. Press `q` or `Ctrl+C` to stop it cleanly; the child process and its port are released before the orchestrator exits.
 
-Because the orchestrator owns the terminal exclusively, interactive prompts in the child process (e.g. the "Card cache is N days old, refresh?" prompt) auto-default rather than waiting for input. If you need to refresh the Scryfall cache while developing, run `ritual cache preload-all` separately or restart `bun run dev` after refreshing.
+### Answering cache prompts
+
+Because the orchestrator owns the terminal exclusively, the child process can't read interactive prompts (e.g. the "Card cache is N days old, refresh?" prompt). Rather than leave the child hanging on an unanswerable prompt, `bun run dev` **requires** you to pre-answer it with one of the refresh flags and fails fast before launching otherwise:
+
+```bash
+bun run dev serve-site --allow-refresh          # refresh stale cache (bulk download allowed)
+bun run dev serve-site --allow-refresh-no-bulk  # refresh prices per-card, no bulk download
+bun run dev serve-site --no-refresh             # use the existing cache as-is
+```
+
+The same applies to `bun run dev admin`. The flags are forwarded straight to the underlying [`serve-site`](./commands/serve-site.md) / [`admin`](./commands/admin.md) command, so they behave exactly as documented there — including suppressing the automatic bulk download for the two non-`--allow-refresh` options. For day-to-day dev `--no-refresh` is usually what you want; if you need to refresh the Scryfall cache, use `--allow-refresh` on the next restart or run `ritual cache preload-all` separately.
 
 ## Building
 

@@ -8,9 +8,15 @@
  */
 import path from 'node:path'
 import { existsSync, watch } from 'node:fs'
+import { answerFlagRequiredMessage, hasAnswerFlag } from './dev-args'
 
 const SUBCOMMANDS = ['admin', 'serve-site'] as const
 type Subcommand = (typeof SUBCOMMANDS)[number]
+
+// Subcommands whose underlying command can issue interactive prompts (the
+// Scryfall cache refresh). The child can't read stdin under the orchestrator,
+// so these require an explicit `--*-refresh` answer up front.
+const PROMPTING_SUBCOMMANDS: readonly Subcommand[] = ['admin', 'serve-site']
 
 const DATA_DIRS: readonly string[] = ['decks', 'collections', 'wanted']
 const RESTART_DEBOUNCE_MS = 200
@@ -28,6 +34,13 @@ if (!target || !isSubcommand(target)) {
 }
 const subcommand: Subcommand = target
 const passthrough = rawArgs.slice(1)
+
+// The orchestrator owns the TTY, so the child can't answer interactive
+// prompts. Require the prompt answers up front and bail before spawning.
+if (PROMPTING_SUBCOMMANDS.includes(subcommand) && !hasAnswerFlag(passthrough)) {
+  console.error(answerFlagRequiredMessage(subcommand))
+  process.exit(1)
+}
 
 const projectRoot = path.join(import.meta.dir, '..')
 const indexPath = path.join(projectRoot, 'index.ts')
@@ -50,9 +63,10 @@ function spawnChild(): void {
   //   signals reach only the orchestrator. The orchestrator owns the child's
   //   lifecycle and signals it explicitly.
   // - `stdio[0] = 'ignore'` gives the orchestrator exclusive ownership of the
-  //   TTY for keyboard-shortcut detection. The child's interactive prompts
-  //   (e.g. `prompts` library) auto-default to their initial values since
-  //   they detect non-TTY stdin.
+  //   TTY for keyboard-shortcut detection. The child therefore can't read
+  //   interactive prompts, which is why the prompting subcommands require an
+  //   explicit `--*-refresh` answer flag (enforced above) that the child
+  //   resolves non-interactively.
   child = Bun.spawn(['bun', indexPath, subcommand, ...passthrough], {
     cwd: projectRoot,
     stdio: ['ignore', 'inherit', 'inherit'],

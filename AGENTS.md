@@ -1,5 +1,9 @@
 # Agent Instructions
 
+## Project Status
+
+This project is **pre-release**. There are no published versions and no external users to support, so **backward compatibility is not a concern**. Freely rename or remove CLI flags, commands, options, config keys, file formats, and APIs when a cleaner design presents itself — do not add deprecated aliases, compatibility shims, or migration paths to preserve old behavior. Just update all in-repo call sites, tests, generated output, and docs to match the new design.
+
 ## LSP
 
 Whenever possible, prefer using Language Server Protocol (LSP) features for code analysis, refactoring, and navigation. This allows you to leverage the full power of the editor's understanding of the codebase, including type information, symbol references, and so on. For example, use "Go to Definition", "Find All References", and "Rename Symbol" features instead of manually searching for code patterns.

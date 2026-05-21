@@ -133,10 +133,10 @@ describe('generatePublishForMeWorkflow', () => {
     expect(step!.with?.['restore-keys']).toBe('ritual-cache-')
   })
 
-  test('builds the site with -y to skip prompts', () => {
+  test('builds the site with --allow-refresh to skip prompts', () => {
     const step = findStep(job.steps, 'Build site')
     expect(step).toBeDefined()
-    expect(step!.run).toBe('./ritual build-site -y')
+    expect(step!.run).toBe('./ritual build-site --allow-refresh')
   })
 
   test('uploads dist directory as pages artifact', () => {

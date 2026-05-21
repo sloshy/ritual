@@ -48,7 +48,7 @@ The site settings are stored under the `site` key of [`ritual.config.json`](../c
 1. Resolves the Ritual version (or uses the pinned `RITUAL_VERSION` variable) and restores the Ritual binary from cache if the version hasn't changed
 2. Downloads the Ritual binary only when the resolved version is not already cached
 3. Restores the Scryfall card cache from a previous run (using GitHub Actions caching)
-4. Runs `ritual build-site -y` to build your site
+4. Runs `ritual build-site --allow-refresh` to build your site
 5. Deploys the `dist/` directory to GitHub Pages
 
 **Deploy my local build** generates a simpler action that deploys a pre-built directory you commit to the repository.

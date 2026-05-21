@@ -4,6 +4,7 @@ import fs from 'node:fs/promises'
 import { startAdminServer } from '../admin/server'
 import { getBaseDir } from '../base-dir'
 import { ensureFreshCardCache } from '../cache/freshness'
+import { refreshMode } from '../refresh'
 import { isRunningFromSource } from '../runtime'
 import {
   generateAllThemesCss,
@@ -17,6 +18,9 @@ type AdminCommandOptions = {
   port: string
   host: string
   theme?: string
+  allowRefresh?: boolean
+  allowRefreshNoBulk?: boolean
+  refresh?: boolean
 }
 
 function buildIndexHtml(initialTheme: ThemeName): string {
@@ -81,6 +85,12 @@ export function registerAdminCommand(program: Command): void {
       `Initial theme baked into the served HTML (${themeNames.join(', ')})`,
       'default',
     )
+    .option('--allow-refresh', 'Refresh the card cache on startup without asking (bulk download)')
+    .option(
+      '--allow-refresh-no-bulk',
+      'Accepted for parity with serve-site; admin only refreshes via bulk, so this skips it',
+    )
+    .option('--no-refresh', 'Skip the card cache refresh on startup; use cached data as-is')
     .action(async (options: AdminCommandOptions) => {
       const port = parseInt(options.port, 10)
       const host = options.host
@@ -90,7 +100,7 @@ export function registerAdminCommand(program: Command): void {
 
       console.log('Preparing admin interface...')
 
-      await ensureFreshCardCache()
+      await ensureFreshCardCache(refreshMode(options))
 
       await fs.rm(adminDistDir, { recursive: true, force: true })
       await fs.mkdir(adminDistDir, { recursive: true })

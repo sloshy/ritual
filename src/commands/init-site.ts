@@ -86,7 +86,7 @@ jobs:
           restore-keys: ritual-cache-
 
       - name: Build site
-        run: ./ritual build-site -y
+        run: ./ritual build-site --allow-refresh
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -188,7 +188,7 @@ jobs:
 
       - name: Build site
         if: steps.detect-changes.outputs.has-changes != 'true'
-        run: ./ritual build-site -y
+        run: ./ritual build-site --allow-refresh
 
       - name: Setup Pages
         if: steps.detect-changes.outputs.has-changes != 'true'

@@ -34,19 +34,17 @@ test.describe('Collection Editor – Hide Unpriced', () => {
     expect(cardNames).toContain('Unpriced Card')
   })
 
-  test('Hide Unpriced checkbox is present in the toolbar', async ({ page }) => {
-    const hideUnpricedLabel = page.locator('label').filter({ hasText: 'Hide Unpriced' })
-    await expect(hideUnpricedLabel).toBeVisible()
-    const checkbox = hideUnpricedLabel.locator('input[type="checkbox"]')
-    await expect(checkbox).not.toBeChecked()
+  test('Hide Unpriced toggle is present in the toolbar', async ({ page }) => {
+    const toggle = page.getByRole('button', { name: 'Hide Unpriced' })
+    await expect(toggle).toBeVisible()
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false')
   })
 
   test('enabling Hide Unpriced removes unpriced cards and keeps priced cards', async ({ page }) => {
-    const hideUnpricedLabel = page.locator('label').filter({ hasText: 'Hide Unpriced' })
-    const checkbox = hideUnpricedLabel.locator('input[type="checkbox"]')
+    const toggle = page.getByRole('button', { name: 'Hide Unpriced' })
 
-    await checkbox.click()
-    await expect(checkbox).toBeChecked()
+    await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true')
 
     const cardNames = await page.locator('.list-name').allTextContents()
     expect(cardNames).toContain('Priced Card')
@@ -54,16 +52,15 @@ test.describe('Collection Editor – Hide Unpriced', () => {
   })
 
   test('disabling Hide Unpriced restores unpriced cards', async ({ page }) => {
-    const hideUnpricedLabel = page.locator('label').filter({ hasText: 'Hide Unpriced' })
-    const checkbox = hideUnpricedLabel.locator('input[type="checkbox"]')
+    const toggle = page.getByRole('button', { name: 'Hide Unpriced' })
 
-    await checkbox.click()
-    await expect(checkbox).toBeChecked()
+    await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true')
     let cardNames = await page.locator('.list-name').allTextContents()
     expect(cardNames).not.toContain('Unpriced Card')
 
-    await checkbox.click()
-    await expect(checkbox).not.toBeChecked()
+    await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false')
     cardNames = await page.locator('.list-name').allTextContents()
     expect(cardNames).toContain('Unpriced Card')
   })
