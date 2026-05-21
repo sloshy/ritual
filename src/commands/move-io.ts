@@ -4,7 +4,7 @@ import { importFromTextFile } from '../importers/text-file'
 import { formatCollectionLine } from './collection-helpers'
 import { formatWantedListLine } from './wanted-helpers'
 import { serializeDeckToMarkdown, parseDeckFrontMatter } from '../deck-file'
-import { allocateNextIdFromContent } from '../card-id'
+import { allocateId, collectDeckCardIds, createIdPool, allocateNextIdFromContent } from '../card-id'
 import type { DeckSection, DeckData } from '../types'
 import type { ListRef } from '../change-event'
 import type { PhysicalCard } from './move-helpers'
@@ -164,12 +164,10 @@ function applyAddToDeck(staged: StagedDeckFile, card: PhysicalCard): void {
     // The destination line's existing note wins.
     existing.quantity += 1
   } else {
-    let maxId = 0
-    for (const section of deck.sections) {
-      for (const c of section.cards) {
-        if (c.cardId !== undefined && c.cardId > maxId) maxId = c.cardId
-      }
-    }
+    // Allocate from a pool seeded by the deck's existing IDs so released IDs (gaps)
+    // are reused, matching the collection/wanted add paths instead of always taking
+    // the next-highest number.
+    const pool = createIdPool(collectDeckCardIds(deck))
     mainSection.cards.push({
       quantity: 1,
       name: card.name,
@@ -178,7 +176,7 @@ function applyAddToDeck(staged: StagedDeckFile, card: PhysicalCard): void {
       finish: card.finish,
       condition: card.condition,
       note: card.note,
-      cardId: maxId + 1,
+      cardId: allocateId(pool),
     })
   }
 }

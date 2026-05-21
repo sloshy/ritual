@@ -608,4 +608,39 @@ describe('applyDownloadDiff', () => {
     const result = applyDownloadDiff(sections, diff)
     expect(result[0]!.cards[0]!.quantity).toBe(2)
   })
+
+  test('sets the board total to the remote quantity when a card spans multiple sections', () => {
+    // Both custom headers normalize to Main, so the diff sees a single board total
+    // of 3. The remote wants 1, a decrease that exceeds the first line's quantity.
+    const sections: DeckSection[] = [
+      { name: 'Lands', cards: [{ quantity: 2, name: 'Island' }] },
+      { name: 'Ramp', cards: [{ quantity: 1, name: 'Island' }] },
+    ]
+    const diff: NameDiff = {
+      added: [],
+      removed: [],
+      quantityChanged: [{ name: 'Island', oldQty: 3, newQty: 1, board: 'Main' }],
+    }
+    const result = applyDownloadDiff(sections, diff)
+    // First matching line is set to the remote total; the duplicate line is dropped.
+    const total = result.flatMap((s) => s.cards).reduce((sum, c) => sum + c.quantity, 0)
+    expect(total).toBe(1)
+    expect(result.find((s) => s.name === 'Lands')!.cards[0]!.quantity).toBe(1)
+    expect(result.find((s) => s.name === 'Ramp')!.cards).toHaveLength(0)
+  })
+
+  test('keeps the board total correct for a multi-section increase', () => {
+    const sections: DeckSection[] = [
+      { name: 'Lands', cards: [{ quantity: 2, name: 'Island' }] },
+      { name: 'Ramp', cards: [{ quantity: 1, name: 'Island' }] },
+    ]
+    const diff: NameDiff = {
+      added: [],
+      removed: [],
+      quantityChanged: [{ name: 'Island', oldQty: 3, newQty: 5, board: 'Main' }],
+    }
+    const result = applyDownloadDiff(sections, diff)
+    const total = result.flatMap((s) => s.cards).reduce((sum, c) => sum + c.quantity, 0)
+    expect(total).toBe(5)
+  })
 })

@@ -220,16 +220,22 @@ export function applyDownloadDiff(sections: DeckSection[], diff: NameDiff): Deck
     }
   }
 
-  // Adjust quantities within the matching board
+  // Set quantities to match the remote board total. The diff measures quantity per
+  // board (a board can span several sections, e.g. custom Main headers), so write
+  // the remote total to the first matching line and drop any other lines for the
+  // same card in that board. Applying a delta to a single line would leave the
+  // board total wrong whenever a card is split across multiple lines.
   for (const entry of diff.quantityChanged) {
-    const delta = entry.newQty - entry.oldQty
+    let applied = false
     for (const section of result) {
       if (normalizeBoard(section.name) !== entry.board) continue
-      const card = section.cards.find((c) => c.name.toLowerCase() === entry.name.toLowerCase())
-      if (card) {
-        card.quantity = Math.max(1, card.quantity + delta)
-        break
-      }
+      section.cards = section.cards.filter((c) => {
+        if (c.name.toLowerCase() !== entry.name.toLowerCase()) return true
+        if (applied) return false // collapse duplicate lines for this card in the board
+        c.quantity = Math.max(1, entry.newQty)
+        applied = true
+        return true
+      })
     }
   }
 
