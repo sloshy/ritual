@@ -124,15 +124,29 @@ bun run check-format  # Check formatting
 
 ## Pre-commit Hook
 
-A [Husky](https://typicode.github.io/husky/) `pre-commit` hook runs the full
+A [Husky](https://typicode.github.io/husky/) `pre-commit` hook runs the
 verification suite before each commit via `bun run precommit`:
 
 ```bash
-bun run precommit     # Build, then typecheck + lint + unit tests + format check
+bun run precommit     # Hook: lint/format STAGED files; build + typecheck + unit tests over the project
+bun run verify        # Full: lint/format the ENTIRE repo (use before pushing / in CI)
 ```
 
-When code files are staged, the build runs first (it generates the
-`*.compiled.*` assets that the type checker and formatter read), then the
-type check, lint, unit tests, and format check run **in parallel** so the hook
-finishes in roughly the time of its slowest single check. When no `.js`/`.ts`
-files are staged, only the format check runs.
+Both commands run the checks concurrently. The build runs alongside the
+build-independent checks (lint, unit tests, and staged-scoped format), and only
+the checks that read build-generated assets — the type check, and the whole-repo
+format check in `verify` — wait for the build to finish.
+
+`bun run precommit` scopes **lint** and **format** to the staged files: it
+verifies exactly what you're committing, which keeps the hook fast. The build,
+type check, and unit tests still run over the whole project, since those can't
+be meaningfully scoped to a subset of files. When no `.js`/`.ts` files are
+staged, only the staged files' format check runs.
+
+`bun run verify` lints and formats the entire repository for full coverage —
+run it before pushing or rely on it in CI to catch drift in files an individual
+commit didn't touch.
+
+> **Note:** the hook checks the working-tree version of staged files. If you
+> stage only part of a file (`git add -p`), the unstaged remainder is included
+> in lint/format. Run `bun run verify` for an airtight whole-repo check.
