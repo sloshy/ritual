@@ -2,7 +2,8 @@ import { Command } from 'commander'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { extractMarkdownTitle } from '../markdown-utils'
-import { importFromTextFile, listDeckFiles } from '../importers/text-file'
+import { importFromTextFile } from '../importers/text-file'
+import { resolveDeckSources, resolveListSources } from '../site/list-sources'
 import {
   fetchCardData,
   downloadImage,
@@ -21,7 +22,13 @@ import { parseChangelog, extractChangelogCardNames } from '../changelog-parser'
 import type { ChangelogPage } from '../changelog-parser'
 import { detectDeckFormat, getMainDeckSize } from '../deck-format'
 import { getBaseDir } from '../base-dir'
-import { getCollectionsDir, getDecksDir, getWantedDir } from '../ritual-config'
+import {
+  getCollectionsDir,
+  getDecksDir,
+  getRitualConfig,
+  getSiteSelectionConfig,
+  getWantedDir,
+} from '../ritual-config'
 import type {
   DeckSummary,
   DeckDetail,
@@ -220,6 +227,9 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
   const distDir = path.join(getBaseDir(), 'dist')
   const imagesDir = path.join(distDir, 'images')
   const decksDir = getDecksDir()
+  // Which decks/collections/wanted lists are published. CLI flags override this
+  // per category; otherwise the `site` config selection applies (default: all).
+  const selection = getSiteSelectionConfig(getRitualConfig().site)
   // Lazy import: keeps `.compiled.{js,css}` text imports out of the source-mode
   // module graph (those files are gitignored). The path must stay a literal
   // string so `bun build --compile` can embed the module into the binary.
@@ -252,10 +262,9 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
   if (options.decks && Array.isArray(options.decks) && options.decks.length > 0) {
     deckSources = options.decks
   } else {
-    // No --decks flag or flag without names: build all decks found
+    // No --decks flag: build the decks allowed by `site.includeDecks` (default: all)
     try {
-      const files = await listDeckFiles(decksDir)
-      deckSources = files.map((f) => f.slice(0, -3))
+      deckSources = await resolveDeckSources(decksDir, selection.includeDecks)
       if (deckSources.length > 0) {
         console.log(`Found ${deckSources.length} decks: ${deckSources.join(', ')}`)
       }
@@ -395,25 +404,34 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     }
   }
 
-  // Pre-load wanted list card names so they're fetched along with deck/collection cards
-  {
-    const wlDir = getWantedDir()
+  // Resolve which wanted lists are published (CLI flag overrides `site` config,
+  // default: all). Computed here so the pre-load below and Phase 5 stay in sync.
+  const wantedListsSourceDir = getWantedDir()
+  let wantedListSources: string[]
+  if (options.wantedLists && options.wantedLists.length > 0) {
+    wantedListSources = options.wantedLists
+  } else {
     try {
-      const wlFiles = await fs.readdir(wlDir)
-      const wlMdFiles = wlFiles.filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))
-      for (const f of wlMdFiles) {
-        try {
-          const wlContent = await fs.readFile(path.join(wlDir, f), 'utf-8')
-          const { entries: wlEntries } = parseWantedListFile(wlContent)
-          for (const entry of wlEntries) {
-            allCardNames.add(entry.name)
-          }
-        } catch {
-          // Skip unreadable files
-        }
+      wantedListSources = await resolveListSources(
+        wantedListsSourceDir,
+        selection.includeWantedLists,
+      )
+    } catch {
+      wantedListSources = [] // No wanted/ directory
+    }
+  }
+
+  // Pre-load wanted list card names so they're fetched along with deck/collection cards
+  for (const wlName of wantedListSources) {
+    const fileName = wlName.endsWith('.md') ? wlName : `${wlName}.md`
+    try {
+      const wlContent = await fs.readFile(path.join(wantedListsSourceDir, fileName), 'utf-8')
+      const { entries: wlEntries } = parseWantedListFile(wlContent)
+      for (const entry of wlEntries) {
+        allCardNames.add(entry.name)
       }
     } catch {
-      // No wanted/ directory
+      // Skip unreadable files
     }
   }
 
@@ -867,12 +885,9 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
   if (options.collections && Array.isArray(options.collections) && options.collections.length > 0) {
     collectionSources = options.collections
   } else {
-    // No --collections flag or flag without names: build all collections found
+    // No --collections flag: build the collections allowed by `site.includeCollections`
     try {
-      const files = await fs.readdir(collectionsDir)
-      collectionSources = files
-        .filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))
-        .map((f) => f.slice(0, -3))
+      collectionSources = await resolveListSources(collectionsDir, selection.includeCollections)
       if (collectionSources.length > 0) {
         console.log(
           `Found ${collectionSources.length} collections: ${collectionSources.join(', ')}`,
@@ -1110,32 +1125,14 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     console.log(`  - Loaded ${displayName} (${entries.length} cards, $${totalPrice.toFixed(2)})`)
   }
 
-  // Phase 5: Load and process wanted lists
-  const wantedListsSourceDir = getWantedDir()
+  // Phase 5: Load and process wanted lists. The source list was resolved earlier
+  // (alongside the card pre-load) so both stay in sync.
   const wantedListsSummaries: WantedListSummary[] = []
   const wantedListsDataDir = path.join(distDir, 'wanted')
   await fs.mkdir(wantedListsDataDir, { recursive: true })
 
-  let wantedListSources: string[] = []
-  if (options.wantedLists && Array.isArray(options.wantedLists) && options.wantedLists.length > 0) {
-    wantedListSources = options.wantedLists
-  } else {
-    try {
-      const files = await fs.readdir(wantedListsSourceDir)
-      wantedListSources = files
-        .filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))
-        .map((f) => f.slice(0, -3))
-      if (wantedListSources.length > 0) {
-        console.log(
-          `Found ${wantedListSources.length} wanted lists: ${wantedListSources.join(', ')}`,
-        )
-      }
-    } catch {
-      // No wanted/ directory, skip silently
-    }
-  }
-
   if (wantedListSources.length > 0) {
+    console.log(`Found ${wantedListSources.length} wanted lists: ${wantedListSources.join(', ')}`)
     console.log('Loading wanted lists...')
   }
 
@@ -1473,9 +1470,18 @@ export function applyBuildSiteOptions(command: Command): Command {
       '--cache-images',
       'Download and use local deck card images instead of Scryfall image URLs',
     )
-    .option('--decks [names...]', 'Deck names or URLs to build (default: all in decks/)')
-    .option('--collections [names...]', 'Collection names to build (default: all in collections/)')
-    .option('--wanted-lists [names...]', 'Wanted list names to build (default: all in wanted/)')
+    .option(
+      '--decks [names...]',
+      'Deck names or URLs to build (default: the site.includeDecks config selection)',
+    )
+    .option(
+      '--collections [names...]',
+      'Collection names to build (default: the site.includeCollections config selection)',
+    )
+    .option(
+      '--wanted-lists [names...]',
+      'Wanted list names to build (default: the site.includeWantedLists config selection)',
+    )
     .option(
       '--collection-sort <field>',
       'Default sort order for collections (file-order, name, price, set-code, type, cmc, color-identity)',

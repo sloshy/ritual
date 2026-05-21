@@ -7,6 +7,8 @@ import {
   getWantedDir,
   getDefaultRitualConfig,
   getRitualConfig,
+  getSiteDeployConfig,
+  getSiteSelectionConfig,
   initRitualConfig,
   loadRitualConfig,
   parseSiteConfig,
@@ -136,11 +138,53 @@ describe('ritual config', () => {
       deployMode: 'publish-for-me',
       distDir: 'dist',
       detectChanges: true,
+      includeDecks: ['*'],
+      includeCollections: ['*'],
+      includeWantedLists: ['*'],
     }
     const config = { ...getDefaultRitualConfig(), site }
     await saveRitualConfig(config)
     const loaded = await loadRitualConfig()
     expect(loaded.site).toEqual(site)
+  })
+
+  test('site key without selection lists loads with defaults applied', async () => {
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        site: {
+          version: '1.0.0',
+          ciSystem: 'manual',
+        },
+      }),
+    )
+    const loaded = await loadRitualConfig()
+    expect(loaded.site).toEqual({
+      version: '1.0.0',
+      ciSystem: 'manual',
+      includeDecks: ['*'],
+      includeCollections: ['*'],
+      includeWantedLists: ['*'],
+    })
+  })
+
+  test('site key with only selection lists (no deployment) is valid', async () => {
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        site: {
+          includeDecks: ['Izzet Storm', 'Black Panther'],
+          includeWantedLists: [],
+        },
+      }),
+    )
+    const loaded = await loadRitualConfig()
+    expect(loaded.site).toEqual({
+      includeDecks: ['Izzet Storm', 'Black Panther'],
+      includeCollections: ['*'],
+      includeWantedLists: [],
+    })
+    expect(loaded.site?.version).toBeUndefined()
   })
 
   test('config with invalid site key drops the site value', async () => {
@@ -158,6 +202,13 @@ describe('ritual config', () => {
 })
 
 describe('parseSiteConfig', () => {
+  // Selection lists default to ['*'] (include all) when absent from the input.
+  const defaultSelection = {
+    includeDecks: ['*'],
+    includeCollections: ['*'],
+    includeWantedLists: ['*'],
+  }
+
   test('parses valid github-actions publish-for-me config', () => {
     const result = parseSiteConfig({
       version: '0.1.0',
@@ -167,6 +218,7 @@ describe('parseSiteConfig', () => {
       detectChanges: false,
     })
     expect(result).toEqual({
+      ...defaultSelection,
       version: '0.1.0',
       ciSystem: 'github-actions',
       deployMode: 'publish-for-me',
@@ -184,6 +236,7 @@ describe('parseSiteConfig', () => {
       detectChanges: false,
     })
     expect(result).toEqual({
+      ...defaultSelection,
       version: '0.2.0-beta1',
       ciSystem: 'github-actions',
       deployMode: 'local-build',
@@ -194,7 +247,42 @@ describe('parseSiteConfig', () => {
 
   test('parses valid manual config', () => {
     const result = parseSiteConfig({ version: '1.0.0', ciSystem: 'manual' })
-    expect(result).toEqual({ version: '1.0.0', ciSystem: 'manual' })
+    expect(result).toEqual({ ...defaultSelection, version: '1.0.0', ciSystem: 'manual' })
+  })
+
+  test('parses selection-only config with no deployment settings', () => {
+    const result = parseSiteConfig({
+      includeDecks: ['Izzet Storm'],
+      includeCollections: ['*'],
+      includeWantedLists: ['High Priority', 'Trade Targets'],
+    })
+    expect(result).toEqual({
+      includeDecks: ['Izzet Storm'],
+      includeCollections: ['*'],
+      includeWantedLists: ['High Priority', 'Trade Targets'],
+    })
+  })
+
+  test('preserves explicit selection lists alongside deployment settings', () => {
+    const result = parseSiteConfig({
+      version: '1.0.0',
+      ciSystem: 'manual',
+      includeDecks: ['Atraxa'],
+      includeCollections: [],
+    })
+    expect(result).toEqual({
+      version: '1.0.0',
+      ciSystem: 'manual',
+      includeDecks: ['Atraxa'],
+      includeCollections: [],
+      includeWantedLists: ['*'],
+    })
+  })
+
+  test('returns error when a selection list is not an array of strings', () => {
+    expect(typeof parseSiteConfig({ includeDecks: 'Izzet Storm' })).toBe('string')
+    expect(parseSiteConfig({ includeDecks: 'Izzet Storm' }) as string).toContain('includeDecks')
+    expect(typeof parseSiteConfig({ includeCollections: [1, 2] })).toBe('string')
   })
 
   test('returns error string when not an object', () => {
@@ -276,6 +364,7 @@ describe('parseSiteConfig', () => {
       unknown: 'field',
     })
     expect(result).toEqual({
+      ...defaultSelection,
       version: '1.0.0',
       ciSystem: 'github-actions',
       deployMode: 'publish-for-me',
@@ -286,6 +375,78 @@ describe('parseSiteConfig', () => {
 
   test('ignores extra unknown fields for manual config', () => {
     const result = parseSiteConfig({ version: '1.0.0', ciSystem: 'manual', unknown: 'field' })
-    expect(result).toEqual({ version: '1.0.0', ciSystem: 'manual' })
+    expect(result).toEqual({ ...defaultSelection, version: '1.0.0', ciSystem: 'manual' })
+  })
+})
+
+describe('getSiteSelectionConfig', () => {
+  test('defaults every list to ["*"] when site is undefined', () => {
+    expect(getSiteSelectionConfig(undefined)).toEqual({
+      includeDecks: ['*'],
+      includeCollections: ['*'],
+      includeWantedLists: ['*'],
+    })
+  })
+
+  test('returns the configured selection lists', () => {
+    const selection = getSiteSelectionConfig({
+      includeDecks: ['Izzet Storm'],
+      includeCollections: [],
+      includeWantedLists: ['*'],
+    })
+    expect(selection).toEqual({
+      includeDecks: ['Izzet Storm'],
+      includeCollections: [],
+      includeWantedLists: ['*'],
+    })
+  })
+})
+
+describe('getSiteDeployConfig', () => {
+  test('returns null when site is undefined', () => {
+    expect(getSiteDeployConfig(undefined)).toBeNull()
+  })
+
+  test('returns null for a selection-only site (no deployment settings)', () => {
+    expect(
+      getSiteDeployConfig({
+        includeDecks: ['*'],
+        includeCollections: ['*'],
+        includeWantedLists: ['*'],
+      }),
+    ).toBeNull()
+  })
+
+  test('reconstructs the github-actions deployment config', () => {
+    expect(
+      getSiteDeployConfig({
+        includeDecks: ['*'],
+        includeCollections: ['*'],
+        includeWantedLists: ['*'],
+        version: '1.0.0',
+        ciSystem: 'github-actions',
+        deployMode: 'publish-for-me',
+        distDir: 'dist',
+        detectChanges: false,
+      }),
+    ).toEqual({
+      version: '1.0.0',
+      ciSystem: 'github-actions',
+      deployMode: 'publish-for-me',
+      distDir: 'dist',
+      detectChanges: false,
+    })
+  })
+
+  test('reconstructs the manual deployment config', () => {
+    expect(
+      getSiteDeployConfig({
+        includeDecks: ['*'],
+        includeCollections: ['*'],
+        includeWantedLists: ['*'],
+        version: '2.1.0',
+        ciSystem: 'manual',
+      }),
+    ).toEqual({ version: '2.1.0', ciSystem: 'manual' })
   })
 })

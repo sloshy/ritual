@@ -31,11 +31,61 @@ describe('applyConfigSet — unknown / blocked properties', () => {
     }
   })
 
-  test('blocks "site.*" nested paths', () => {
+  test('blocks "site.*" deployment paths', () => {
     const result = applyConfigSet(base, 'site.ciSystem', ['github-actions'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
       expect(result.error).toContain('"site"')
+    }
+  })
+})
+
+describe('applyConfigSet — site selection lists', () => {
+  test('replaces site.includeDecks', () => {
+    const result = applyConfigSet(base, 'site.includeDecks', ['Izzet Storm'], 'replace')
+    expect('error' in result).toBeFalse()
+    if (!('error' in result)) {
+      expect(result.newValue).toEqual(['Izzet Storm'])
+      expect(result.updatedConfig.site?.includeDecks).toEqual(['Izzet Storm'])
+    }
+  })
+
+  test('sets the reserved wildcard value', () => {
+    const result = applyConfigSet(base, 'site.includeCollections', ['*'], 'replace')
+    expect('error' in result).toBeFalse()
+    if (!('error' in result)) {
+      expect(result.updatedConfig.site?.includeCollections).toEqual(['*'])
+    }
+  })
+
+  test('adds to an existing site.includeWantedLists', () => {
+    const seeded = applyConfigSet(base, 'site.includeWantedLists', ['A'], 'replace')
+    expect('error' in seeded).toBeFalse()
+    if ('error' in seeded) return
+    const result = applyConfigSet(seeded.updatedConfig, 'site.includeWantedLists', ['B'], 'add')
+    expect('error' in result).toBeFalse()
+    if (!('error' in result)) {
+      expect(result.updatedConfig.site?.includeWantedLists).toEqual(['A', 'B'])
+    }
+  })
+
+  test('preserves existing deployment settings when setting a selection list', () => {
+    const withSite: typeof base = {
+      ...base,
+      site: {
+        version: '1.0.0',
+        ciSystem: 'manual',
+        includeDecks: ['*'],
+        includeCollections: ['*'],
+        includeWantedLists: ['*'],
+      },
+    }
+    const result = applyConfigSet(withSite, 'site.includeDecks', ['Atraxa'], 'replace')
+    expect('error' in result).toBeFalse()
+    if (!('error' in result)) {
+      expect(result.updatedConfig.site?.includeDecks).toEqual(['Atraxa'])
+      expect(result.updatedConfig.site?.version).toBe('1.0.0')
+      expect(result.updatedConfig.site?.ciSystem).toBe('manual')
     }
   })
 })

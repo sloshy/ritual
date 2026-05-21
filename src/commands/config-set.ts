@@ -1,5 +1,10 @@
 import { Command } from 'commander'
-import { loadRitualConfig, saveRitualConfig, type RitualConfig } from '../ritual-config'
+import {
+  loadRitualConfig,
+  saveRitualConfig,
+  type RitualConfig,
+  type SiteSelectionConfig,
+} from '../ritual-config'
 
 type ConfigFieldType = 'string' | 'boolean' | 'number' | 'string[]'
 
@@ -61,6 +66,17 @@ export const SETTABLE_FIELDS: Record<string, ConfigFieldType> = {
   failedAuthDelayMs: 'number',
 } satisfies SettableFieldsMap
 
+// The public-site selection lists live under `site` but, unlike the rest of the
+// init-site-managed `site` object, are user-tunable. They are exposed here as
+// dotted nested paths handled through the same string[] machinery. The
+// `satisfies` check keeps the keys in sync with SiteSelectionConfig.
+type SiteSelectionFieldsMap = Record<`site.${keyof SiteSelectionConfig}`, 'string[]'>
+const SETTABLE_SITE_FIELDS: Record<string, ConfigFieldType> = {
+  'site.includeDecks': 'string[]',
+  'site.includeCollections': 'string[]',
+  'site.includeWantedLists': 'string[]',
+} satisfies SiteSelectionFieldsMap
+
 function getAtPath(obj: unknown, path: string[]): unknown {
   let current = obj
   for (const key of path) {
@@ -94,16 +110,25 @@ export function applyConfigSet(
   values: string[],
   mode: ArrayMode,
 ): ConfigSetOutcome {
-  if (property === 'site' || property.startsWith('site.')) {
+  // The deployment portion of `site` is managed by init-site; only the
+  // public-site selection lists may be set here.
+  if (
+    (property === 'site' || property.startsWith('site.')) &&
+    !(property in SETTABLE_SITE_FIELDS)
+  ) {
     return {
       error:
-        'The "site" property is managed by "ritual init-site" and cannot be set with config-set.',
+        'The "site" property is managed by "ritual init-site" and cannot be set with config-set, ' +
+        'except for the public-site selection lists: ' +
+        `${Object.keys(SETTABLE_SITE_FIELDS).join(', ')}.`,
     }
   }
 
-  const fieldType = SETTABLE_FIELDS[property]
+  const fieldType = SETTABLE_FIELDS[property] ?? SETTABLE_SITE_FIELDS[property]
   if (!fieldType) {
-    const available = Object.keys(SETTABLE_FIELDS).join(', ')
+    const available = [...Object.keys(SETTABLE_FIELDS), ...Object.keys(SETTABLE_SITE_FIELDS)].join(
+      ', ',
+    )
     return {
       error: `Unknown property: "${property}". Available properties: ${available}`,
     }

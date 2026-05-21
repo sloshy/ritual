@@ -7,9 +7,15 @@ import type {
   DeployMode,
   GitHubActionsSiteConfig,
   InitSiteConfig,
-  SiteConfig,
+  SiteDeployConfig,
 } from '../ritual-config'
-import { loadRitualConfig, reloadRitualConfig, saveRitualConfig } from '../ritual-config'
+import {
+  getSiteDeployConfig,
+  getSiteSelectionConfig,
+  loadRitualConfig,
+  reloadRitualConfig,
+  saveRitualConfig,
+} from '../ritual-config'
 import type { ActiveManagedFile, ManagedFile, Migration } from '../managed-files'
 import { computeMigrations, isActiveManagedFile } from '../managed-files'
 import { compareVersions } from '../semver'
@@ -479,7 +485,7 @@ export function registerInitSiteCommand(program: Command): void {
         return
       }
 
-      const loaded = (await loadRitualConfig()).site ?? null
+      const loaded = getSiteDeployConfig((await loadRitualConfig()).site)
 
       if (loaded !== null) {
         const cmp = compareVersions(ritualVersion, loaded.version)
@@ -538,7 +544,7 @@ export function registerInitSiteCommand(program: Command): void {
           console.log('✓ Updated .gitignore')
         }
 
-        const updatedSite: SiteConfig = { ...config, version: ritualVersion }
+        const updatedSite: SiteDeployConfig = { ...config, version: ritualVersion }
         await persistSiteConfigOrExit(updatedSite)
         console.log(`✓ ritual.config.json site section updated to ${ritualVersion}`)
         return
@@ -553,10 +559,13 @@ export function registerInitSiteCommand(program: Command): void {
     })
 }
 
-async function persistSiteConfigOrExit(site: SiteConfig): Promise<void> {
+async function persistSiteConfigOrExit(deploy: SiteDeployConfig): Promise<void> {
   try {
     const config = await loadRitualConfig()
-    config.site = site
+    // Preserve any existing public-site selection settings (or seed the `['*']`
+    // defaults) so writing the init-site-managed deployment config never clobbers
+    // them.
+    config.site = { ...getSiteSelectionConfig(config.site), ...deploy }
     await saveRitualConfig(config)
     await reloadRitualConfig()
   } catch (err) {

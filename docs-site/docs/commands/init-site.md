@@ -100,7 +100,7 @@ If any file already exists, you'll be prompted before overwriting.
 
 ## Version Tracking and Upgrade
 
-`init-site` writes a `site` block into `ritual.config.json` recording your CI system, settings, and the current Ritual version. Examples:
+`init-site` writes a `site` block into `ritual.config.json` recording your CI system, settings, and the current Ritual version. It also seeds the [publish lists](../configuration#choosing-which-lists-to-publish) (`includeDecks`, `includeCollections`, `includeWantedLists`) with the `["*"]` default — "publish everything" — which you can later narrow from the admin **Settings** page or with `config-set`. Examples:
 
 ```json
 {
@@ -109,7 +109,10 @@ If any file already exists, you'll be prompted before overwriting.
     "ciSystem": "github-actions",
     "deployMode": "publish-for-me",
     "distDir": "dist",
-    "detectChanges": false
+    "detectChanges": false,
+    "includeDecks": ["*"],
+    "includeCollections": ["*"],
+    "includeWantedLists": ["*"]
   }
 }
 ```

@@ -21,6 +21,27 @@ function getString(value: unknown): string | undefined {
 }
 
 /**
+ * Resolve a deck's display name: the `name:` frontmatter field if present,
+ * otherwise the file's base name (without extension).
+ */
+function resolveDeckName(rawName: unknown, filePath: string): string {
+  const parsedName = getString(rawName)
+  if (parsedName) {
+    return parsedName.replace(/\n/g, ' ')
+  }
+  return path.basename(filePath, path.extname(filePath))
+}
+
+/**
+ * Read just a deck file's display name without parsing its full card list.
+ * Used to filter discovered decks by the site `includeDecks` selection.
+ */
+export async function readDeckName(filePath: string): Promise<string> {
+  const rawText = await Bun.file(filePath).text()
+  return resolveDeckName(matter(rawText).data.name, filePath)
+}
+
+/**
  * Matches a deck card line: `2 Lightning Bolt (LEA:161) [foil] [NM] {note} &12`.
  * Set codes allow `_` (some art-series / playtest sets use underscores).
  * Whitespace is `\s+` so multiple spaces between tokens are tolerated.
@@ -37,11 +58,7 @@ export async function importFromTextFile(filePath: string): Promise<DeckData> {
   const rawText = await file.text()
   const parsed = matter(rawText)
 
-  let name = path.basename(filePath, path.extname(filePath))
-  const parsedName = getString(parsed.data.name)
-  if (parsedName) {
-    name = parsedName.replace(/\n/g, ' ')
-  }
+  const name = resolveDeckName(parsed.data.name, filePath)
 
   const description = getString(parsed.data.description)
   const sourceUrl = getString(parsed.data.sourceUrl)

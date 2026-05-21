@@ -20,9 +20,9 @@ By default, deck card images use Scryfall URLs from card data. This can be overr
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | `-v, --verbose`             | Show list of cards being fetched from Scryfall                                                                           |
 | `--cache-images`            | Download and use local deck card images in `dist/images` instead of URLs                                                 |
-| `--decks [names...]`        | Deck names or URLs to include in the site (default: all in `decks/`)                                                     |
-| `--collections [names...]`  | Collection names to include in the site (default: all in `collections/`)                                                 |
-| `--wanted-lists [names...]` | Wanted list names to include in the site (default: all in `wanted/`)                                                     |
+| `--decks [names...]`        | Deck names or URLs to include in the site (default: the `site.includeDecks` config selection)                            |
+| `--collections [names...]`  | Collection names to include in the site (default: the `site.includeCollections` config selection)                        |
+| `--wanted-lists [names...]` | Wanted list names to include in the site (default: the `site.includeWantedLists` config selection)                       |
 | `--collection-sort <field>` | Default sort order for collection pages (`file-order`, `name`, `price`, `set-code`, `type`, `cmc`, `color-identity`)     |
 | `--deck-sort <field>`       | Default sort order for deck pages (`name`, `cmc`, `price`, `type`, `edhrec`, `color-identity`)                           |
 | `--currencies <list>`       | Comma-separated currencies to include on the site: `usd`, `eur`, `tix` (default: all three; first listed is default)     |
@@ -93,6 +93,24 @@ Build with only USD and EUR (no TIX):
 ```bash
 ./ritual build-site --currencies "usd,eur"
 ```
+
+## Choosing which lists to build
+
+When the `--decks`, `--collections`, and `--wanted-lists` flags are omitted, `build-site` falls back to the publish lists in your [site configuration](../configuration#choosing-which-lists-to-publish) — `site.includeDecks`, `site.includeCollections`, and `site.includeWantedLists`. Each defaults to the wildcard `["*"]` (build everything), so a fresh project builds all lists with no extra configuration.
+
+Setting a list to specific **display names** publishes only those lists and filters out the rest. For example, with:
+
+```json
+"site": {
+  "includeDecks": ["Izzet Storm", "Atraxa Superfriends"],
+  "includeCollections": ["*"],
+  "includeWantedLists": []
+}
+```
+
+`build-site` publishes only those two decks, every collection, and no wanted lists. The matching flag always overrides the config for that category in a single run — `--decks "Mono Red Aggro"` builds just that deck regardless of `includeDecks`.
+
+You can edit these lists from the admin **Settings** page, with [`config-set`](./config-set), or by hand.
 
 ## Themes
 

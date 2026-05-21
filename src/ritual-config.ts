@@ -2,6 +2,10 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getBaseDir } from './base-dir'
 import { isValidSemver } from './semver'
+import { INCLUDE_ALL, defaultSiteSelection, type SiteSelectionConfig } from './site/list-selection'
+
+export { INCLUDE_ALL } from './site/list-selection'
+export type { SiteSelectionConfig } from './site/list-selection'
 
 export type CISystem = 'github-actions' | 'manual'
 export type DeployMode = 'publish-for-me' | 'local-build'
@@ -17,11 +21,25 @@ export type ManualSiteConfig = {
   ciSystem: 'manual'
 }
 
-/** Site config without a Ritual version — used during interactive `init-site` prompts. */
+/** Deployment config without a Ritual version — used during interactive `init-site` prompts. */
 export type InitSiteConfig = GitHubActionsSiteConfig | ManualSiteConfig
 
-/** Site config persisted on disk, including the Ritual version that initialized it. */
-export type SiteConfig = InitSiteConfig & { version: string }
+/** Deployment config persisted on disk, including the Ritual version that initialized it. */
+export type SiteDeployConfig = InitSiteConfig & { version: string }
+
+/**
+ * The persisted `site` object. The selection settings ({@link SiteSelectionConfig})
+ * are always present, defaulting to `['*']` when absent. The init-site-managed
+ * deployment settings are present only after `ritual init-site` has run;
+ * reconstruct the discriminated deployment config with {@link getSiteDeployConfig}.
+ */
+export type SiteConfig = SiteSelectionConfig & {
+  version?: string
+  ciSystem?: CISystem
+  deployMode?: DeployMode
+  distDir?: string
+  detectChanges?: boolean
+}
 
 export interface RitualConfig {
   decksDir: string
@@ -75,15 +93,59 @@ export function getDefaultRitualConfig(): RitualConfig {
   return { ...DEFAULT_CONFIG }
 }
 
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((v) => typeof v === 'string')
+}
+
+/**
+ * Parse one of the `include*` selection lists. Returns the default `['*']` when
+ * absent, the array when valid, or an error string when malformed.
+ */
+function parseIncludeList(value: unknown, field: string): string[] | string {
+  if (value === undefined) {
+    return [INCLUDE_ALL]
+  }
+  if (!isStringArray(value)) {
+    return `site config: "${field}" must be an array of strings`
+  }
+  return value
+}
+
 /**
  * Parse the `site` sub-object of a ritual.config.json. Returns the parsed
  * site config or an error string describing what is wrong.
+ *
+ * The selection settings (`includeDecks`, `includeCollections`,
+ * `includeWantedLists`) always resolve, defaulting to `['*']`. The deployment
+ * settings are validated only when present (i.e. once `init-site` has run).
  */
 export function parseSiteConfig(value: unknown): SiteConfig | string {
   if (typeof value !== 'object' || value === null) {
     return 'site config must be a JSON object'
   }
   const obj = value as Record<string, unknown>
+
+  const includeDecks = parseIncludeList(obj.includeDecks, 'includeDecks')
+  if (typeof includeDecks === 'string') return includeDecks
+  const includeCollections = parseIncludeList(obj.includeCollections, 'includeCollections')
+  if (typeof includeCollections === 'string') return includeCollections
+  const includeWantedLists = parseIncludeList(obj.includeWantedLists, 'includeWantedLists')
+  if (typeof includeWantedLists === 'string') return includeWantedLists
+  const selection: SiteSelectionConfig = { includeDecks, includeCollections, includeWantedLists }
+
+  // Deployment settings are written only by `init-site`. Detect their presence
+  // so a site object carrying just selection settings (set via config-set or the
+  // admin UI before init-site has run) is still valid.
+  const hasDeploy =
+    obj.version !== undefined ||
+    obj.ciSystem !== undefined ||
+    obj.deployMode !== undefined ||
+    obj.distDir !== undefined ||
+    obj.detectChanges !== undefined
+
+  if (!hasDeploy) {
+    return selection
+  }
 
   if (typeof obj.version !== 'string') {
     return 'site config: "version" must be a string'
@@ -106,6 +168,7 @@ export function parseSiteConfig(value: unknown): SiteConfig | string {
       return 'site config: "detectChanges" must be a boolean'
     }
     return {
+      ...selection,
       version: obj.version,
       ciSystem: obj.ciSystem,
       deployMode: obj.deployMode,
@@ -114,9 +177,54 @@ export function parseSiteConfig(value: unknown): SiteConfig | string {
     }
   }
 
-  return { version: obj.version, ciSystem: obj.ciSystem }
+  return { ...selection, version: obj.version, ciSystem: obj.ciSystem }
 }
 
+/**
+ * Resolve the public-site selection settings, defaulting each list to `['*']`
+ * (include everything) when the `site` object or an individual list is absent.
+ */
+export function getSiteSelectionConfig(site: SiteConfig | undefined): SiteSelectionConfig {
+  const defaults = defaultSiteSelection()
+  return {
+    includeDecks: site?.includeDecks ?? defaults.includeDecks,
+    includeCollections: site?.includeCollections ?? defaults.includeCollections,
+    includeWantedLists: site?.includeWantedLists ?? defaults.includeWantedLists,
+  }
+}
+
+/**
+ * Reconstruct the discriminated deployment config from a persisted `site`
+ * object, or `null` when `init-site` has not run (no deployment settings).
+ */
+export function getSiteDeployConfig(site: SiteConfig | undefined): SiteDeployConfig | null {
+  if (!site || site.version === undefined || site.ciSystem === undefined) {
+    return null
+  }
+  if (site.ciSystem === 'github-actions') {
+    if (
+      site.deployMode === undefined ||
+      site.distDir === undefined ||
+      site.detectChanges === undefined
+    ) {
+      return null
+    }
+    return {
+      version: site.version,
+      ciSystem: 'github-actions',
+      deployMode: site.deployMode,
+      distDir: site.distDir,
+      detectChanges: site.detectChanges,
+    }
+  }
+  return { version: site.version, ciSystem: 'manual' }
+}
+
+/**
+ * The raw, unvalidated config as read from disk. `site` is widened to `unknown`
+ * because JSON.parse returns untrusted data; {@link parseSiteConfig} validates
+ * and narrows it in {@link applyDefaults}.
+ */
 type ParsedConfigWithSite = Partial<RitualConfig> & { site?: unknown }
 
 function applyDefaults(parsed: ParsedConfigWithSite): RitualConfig {

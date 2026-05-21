@@ -1,5 +1,10 @@
 import { type JSX, createSignal, onMount, Show } from 'solid-js'
 import type { RitualConfig } from '../../../ritual-config'
+import {
+  INCLUDE_ALL,
+  defaultSiteSelection,
+  type SiteSelectionConfig,
+} from '../../../site/list-selection'
 import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { TotpSettings } from '../components/TotpSettings'
@@ -8,6 +13,13 @@ type ConfigResponse = { success: boolean; config: RitualConfig }
 
 function listToString(list: string[]): string {
   return list.join('\n')
+}
+
+function parseList(value: string): string[] {
+  return value
+    .split('\n')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
 }
 
 export function Settings(): JSX.Element {
@@ -49,11 +61,23 @@ export function Settings(): JSX.Element {
   }
 
   const updateListField = (field: keyof RitualConfig, value: string) => {
-    const list = value
-      .split('\n')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0)
-    setConfig((prev) => (prev ? { ...prev, [field]: list } : null))
+    setConfig((prev) => (prev ? { ...prev, [field]: parseList(value) } : null))
+  }
+
+  // The include lists live under `site`; default each to ['*'] (all) for display.
+  const siteList = (field: keyof SiteSelectionConfig): string[] =>
+    config()?.site?.[field] ?? [INCLUDE_ALL]
+
+  const updateSiteListField = (field: keyof SiteSelectionConfig, value: string) => {
+    setConfig((prev) => {
+      if (!prev) return null
+      // When the `site` object doesn't exist yet (init-site not run), seed all
+      // three lists with the default so the untouched textareas keep showing '*'
+      // and aren't dropped on save. An existing site keeps its other fields
+      // (deployment settings and the other selection lists) via the spread.
+      const site = prev.site ?? defaultSiteSelection()
+      return { ...prev, site: { ...site, [field]: parseList(value) } }
+    })
   }
 
   return (
@@ -273,6 +297,45 @@ export function Settings(): JSX.Element {
               value={listToString(config()!.userAgentDenyList)}
               onInput={(e) => updateListField('userAgentDenyList', e.currentTarget.value)}
               placeholder="e.g. *bot*"
+            />
+          </div>
+
+          {/* Public Site lists */}
+          <h3 class="section-subheading">Public Site</h3>
+          <p class="form-hint form-hint-gap">
+            Controls which lists are published when building the public site. Enter{' '}
+            <code>{INCLUDE_ALL}</code> to include every list in that category (the default), or list
+            display names (one per line) to publish only those. Leave empty to publish none.
+          </p>
+
+          <div>
+            <label class="form-label">Decks to publish</label>
+            <textarea
+              class="form-input form-input-monospace"
+              name="includeDecks"
+              value={listToString(siteList('includeDecks'))}
+              onInput={(e) => updateSiteListField('includeDecks', e.currentTarget.value)}
+              placeholder={INCLUDE_ALL}
+            />
+          </div>
+          <div>
+            <label class="form-label">Collections to publish</label>
+            <textarea
+              class="form-input form-input-monospace"
+              name="includeCollections"
+              value={listToString(siteList('includeCollections'))}
+              onInput={(e) => updateSiteListField('includeCollections', e.currentTarget.value)}
+              placeholder={INCLUDE_ALL}
+            />
+          </div>
+          <div>
+            <label class="form-label">Wanted lists to publish</label>
+            <textarea
+              class="form-input form-input-monospace"
+              name="includeWantedLists"
+              value={listToString(siteList('includeWantedLists'))}
+              onInput={(e) => updateSiteListField('includeWantedLists', e.currentTarget.value)}
+              placeholder={INCLUDE_ALL}
             />
           </div>
 

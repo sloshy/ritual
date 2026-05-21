@@ -43,7 +43,15 @@ Set or update a value in `ritual.config.json`.
 | `rateLimitWindowMinutes` | `number`   | `5`             |
 | `failedAuthDelayMs`      | `number`   | `3000`          |
 
-The `site` key is managed exclusively by `ritual init-site` and cannot be set with this command.
+The following nested `site` keys — the [public-site publish lists](./build-site#choosing-which-lists-to-build) — are also settable:
+
+| Property                  | Type       | Default |
+| ------------------------- | ---------- | ------- |
+| `site.includeDecks`       | `string[]` | `["*"]` |
+| `site.includeCollections` | `string[]` | `["*"]` |
+| `site.includeWantedLists` | `string[]` | `["*"]` |
+
+The rest of the `site` key (the deployment settings) is managed exclusively by `ritual init-site` and cannot be set with this command.
 
 ## Value types
 
@@ -88,6 +96,18 @@ Increase the rate-limit window:
 
 ```bash
 ./ritual config-set rateLimitWindowMinutes 10
+```
+
+Publish only specific decks on the built site (replaces the whole list):
+
+```bash
+./ritual config-set site.includeDecks "Izzet Storm" "Atraxa Superfriends"
+```
+
+Reset a publish list back to "everything":
+
+```bash
+./ritual config-set site.includeCollections "*"
 ```
 
 ## Notes
