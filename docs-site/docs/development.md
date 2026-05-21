@@ -121,3 +121,18 @@ This project uses Prettier for code formatting:
 bun run format        # Format all files
 bun run check-format  # Check formatting
 ```
+
+## Pre-commit Hook
+
+A [Husky](https://typicode.github.io/husky/) `pre-commit` hook runs the full
+verification suite before each commit via `bun run precommit`:
+
+```bash
+bun run precommit     # Build, then typecheck + lint + unit tests + format check
+```
+
+When code files are staged, the build runs first (it generates the
+`*.compiled.*` assets that the type checker and formatter read), then the
+type check, lint, unit tests, and format check run **in parallel** so the hook
+finishes in roughly the time of its slowest single check. When no `.js`/`.ts`
+files are staged, only the format check runs.
