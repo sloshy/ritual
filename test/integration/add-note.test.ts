@@ -59,7 +59,7 @@ describe('add-note CLI (Integration)', () => {
       expect(deckContent).toContain('2 Sol Ring {starts the engine} &1')
 
       const changelog = await fs.readFile(path.join(dir, 'decks', 'test.changes.md'), 'utf-8')
-      expect(changelog).toContain('Set note on Sol Ring &1 to "starts the engine"')
+      expect(changelog).toContain('Set note on "Sol Ring" &1 to "starts the engine"')
     } finally {
       await teardown(dir)
     }

@@ -6,7 +6,7 @@ import { formatChangeCore } from './change-event'
  * Format a single change event as a markdown changelog line.
  */
 function formatChangelogLine(change: ChangeEvent): string {
-  return `- ${formatChangeCore(change, { tense: 'past' })}`
+  return `- ${formatChangeCore(change, { tense: 'past', quoteCardName: true })}`
 }
 
 /**

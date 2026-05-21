@@ -1,6 +1,6 @@
 import type { Component } from 'solid-js'
 import { createSignal, createEffect, createMemo, onCleanup, Show, For } from 'solid-js'
-import type { ChangelogPage } from '../changelog-parser'
+import type { ChangelogPage, ChangelogChange, ChangelogAction } from '../changelog-parser'
 import type { ScryfallCard } from '../types'
 import type { PriceCurrency } from '../price-currency'
 import { useTooltip } from './useTooltip'
@@ -23,22 +23,13 @@ function getCardImageUrl(card: ScryfallCard, useScryfallImgUrls: boolean): strin
   return sources.frontImage || null
 }
 
-type ChangeDisplay = {
-  action: string
-  cardName: string
-  set?: string
-  collectorNumber?: string
-  finish?: string
-  condition?: string
-}
-
 type FormattedChange = { prefix: string; suffix: string }
 
-function isAdditiveAction(action: string): boolean {
+function isAdditiveAction(action: ChangelogAction): boolean {
   return action === 'Added' || action.startsWith('Set')
 }
 
-function formatChangeText(change: ChangeDisplay): FormattedChange {
+function formatChangeText(change: ChangelogChange): FormattedChange {
   const parts: string[] = []
   if (change.set && change.collectorNumber) {
     parts.push(`(${change.set.toUpperCase()}:${change.collectorNumber})`)
@@ -61,7 +52,13 @@ function formatChangeText(change: ChangeDisplay): FormattedChange {
   }
 
   prefix = `${change.action} `
-  return { prefix, suffix: parts.length > 0 ? ' ' + parts.join(' ') : '' }
+  const annotation = parts.length > 0 ? ' ' + parts.join(' ') : ''
+  // The parser only sets `board` for non-main boards, so this stays empty for
+  // ordinary mainboard changes.
+  const boardText = change.board
+    ? ` ${change.action === 'Removed' ? 'from' : 'to'} ${change.board}`
+    : ''
+  return { prefix, suffix: `${annotation}${boardText}` }
 }
 
 export const ChangelogModal: Component<ChangelogModalProps> = (props) => {

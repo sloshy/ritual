@@ -1,4 +1,4 @@
-import type { Finish, Condition } from './types'
+import type { Finish, Condition, Board } from './types'
 import type { ListType } from './list-type'
 
 // ── Discriminated union types ───────────────────────────────────────
@@ -22,6 +22,8 @@ export type AddChange = BaseChange & {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** Deck board the card was added to. Omitted/`Main` renders without annotation. */
+  board?: Board
 }
 
 export type RemoveChange = BaseChange & {
@@ -30,6 +32,8 @@ export type RemoveChange = BaseChange & {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** Deck board the card was removed from. Omitted/`Main` renders without annotation. */
+  board?: Board
 }
 
 export type SetCommanderChange = BaseChange & {
@@ -111,6 +115,8 @@ export type AddRemoveOptions = {
   finish?: Finish
   condition?: Condition
   cardId?: number
+  /** Deck board the card was added to / removed from (e.g. `Sideboard`, `Maybeboard`). */
+  board?: Board
 }
 
 /** Options for set-commander / unset-commander actions. */
@@ -162,6 +168,7 @@ export function createAddChange(cardName: string, options?: AddRemoveOptions): A
     collectorNumber: options?.collectorNumber,
     finish: options?.finish,
     condition: options?.condition,
+    board: options?.board,
   }
 }
 
@@ -173,6 +180,7 @@ export function createRemoveChange(cardName: string, options?: AddRemoveOptions)
     collectorNumber: options?.collectorNumber,
     finish: options?.finish,
     condition: options?.condition,
+    board: options?.board,
   }
 }
 
@@ -265,6 +273,10 @@ export function areOppositeChanges(a: ChangeEvent, b: ChangeEvent): boolean {
 
   // Condition must match
   if (ac.condition !== bc.condition) return false
+
+  // Board must match — an absent board means the default Main board, so a
+  // Sideboard add and a Main remove of the same card are not opposites.
+  if ((ac.board ?? 'Main') !== (bc.board ?? 'Main')) return false
 
   return true
 }
@@ -384,17 +396,43 @@ export function formatPrintingAnnotation(change: PrintingFields): string {
   return `${printingInfo}${finishInfo}${conditionInfo}`
 }
 
-type FormatChangeOptions = { tense: 'present' | 'past' }
+/**
+ * Format the ` {preposition} {Board}` suffix used in add/remove changelog lines
+ * and entry descriptions. Empty for the default main board (or when unspecified),
+ * so an ordinary deck change still reads `Added Lightning Bolt`, while a sideboard
+ * or maybeboard change reads `Added Lightning Bolt to Sideboard` (adds) or
+ * `Removed Lightning Bolt from Sideboard` (removes).
+ */
+export function formatBoardAnnotation(
+  board: Board | undefined,
+  preposition: 'to' | 'from',
+): string {
+  if (!board || board === 'Main') return ''
+  return ` ${preposition} ${board}`
+}
+
+type FormatChangeOptions = {
+  tense: 'present' | 'past'
+  /**
+   * Wrap the card name in double quotes (e.g. `Added "Lightning Bolt" to Sideboard`).
+   * Used by the changelog writer so persisted lines have an unambiguous boundary
+   * between the card name and trailing annotations like ` to Sideboard`. Display
+   * formatters leave this off.
+   */
+  quoteCardName?: boolean
+}
 
 /** Format a change event as a human-readable description, shared by formatChange and changelog writer */
 export function formatChangeCore(change: ChangeEvent, opts: FormatChangeOptions): string {
   const { tense } = opts
   const idInfo = change.cardId !== undefined ? ` &${change.cardId}` : ''
+  const name = opts.quoteCardName ? `"${change.cardName}"` : change.cardName
 
   switch (change.action) {
     case 'add':
     case 'remove': {
       const ann = formatPrintingAnnotation(change)
+      const boardInfo = formatBoardAnnotation(change.board, change.action === 'add' ? 'to' : 'from')
       const verb =
         change.action === 'add'
           ? tense === 'past'
@@ -403,30 +441,30 @@ export function formatChangeCore(change: ChangeEvent, opts: FormatChangeOptions)
           : tense === 'past'
             ? 'Removed'
             : 'Remove'
-      return `${verb} ${change.cardName}${ann}${idInfo}`
+      return `${verb} ${name}${ann}${boardInfo}${idInfo}`
     }
     case 'set-commander':
-      return `Set ${change.cardName} as commander${idInfo}`
+      return `Set ${name} as commander${idInfo}`
     case 'unset-commander':
-      return `Unset ${change.cardName} as commander${idInfo}`
+      return `Unset ${name} as commander${idInfo}`
     case 'set-finish':
-      return `Set ${change.cardName} finish to ${change.finish}${idInfo}`
+      return `Set ${name} finish to ${change.finish}${idInfo}`
     case 'set-note': {
       if (change.note === '') {
         const clearVerb = tense === 'past' ? 'Cleared' : 'Clear'
-        return `${clearVerb} note on ${change.cardName}${idInfo}`
+        return `${clearVerb} note on ${name}${idInfo}`
       }
-      return `Set note on ${change.cardName}${idInfo} to "${change.note}"`
+      return `Set note on ${name}${idInfo} to "${change.note}"`
     }
     case 'move-from': {
       const ann = formatPrintingAnnotation(change)
       const verb = tense === 'past' ? 'Moved' : 'Move'
-      return `${verb} ${change.cardName}${ann}${idInfo} to ${listRefLabel(change.to)}`
+      return `${verb} ${name}${ann}${idInfo} to ${listRefLabel(change.to)}`
     }
     case 'move-to': {
       const ann = formatPrintingAnnotation(change)
       const verb = tense === 'past' ? 'Moved' : 'Move'
-      return `${verb} ${change.cardName}${ann}${idInfo} from ${listRefLabel(change.from)}`
+      return `${verb} ${name}${ann}${idInfo} from ${listRefLabel(change.from)}`
     }
     default: {
       change satisfies never

@@ -78,14 +78,17 @@ The committed result is: Sol Ring removed from Deck A and added to Wanted C. Col
 
 ## Changelog Format
 
+Card names are written quoted so the name is unambiguously separated from trailing
+annotations.
+
 Source list changelog (`.changes.md`):
 
 ```
-- Moved Lightning Bolt (LEA:161) [foil] &5 to Collection 'Red Binder'
+- Moved "Lightning Bolt" (LEA:161) [foil] &5 to Collection 'Red Binder'
 ```
 
 Destination list changelog:
 
 ```
-- Moved Lightning Bolt (LEA:161) [foil] &5 from Deck 'Ghyrson Starn Spellslinger'
+- Moved "Lightning Bolt" (LEA:161) [foil] &5 from Deck 'Ghyrson Starn Spellslinger'
 ```

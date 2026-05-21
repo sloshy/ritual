@@ -89,7 +89,7 @@ If the target card already has a note, the command refuses to overwrite it unles
 
 ### Change Tracking
 
-Each note change is recorded in the list's `.changes.md` changelog as `Set note on <Card> &N to "<text>"`.
+Each note change is recorded in the list's `.changes.md` changelog as `Set note on "<Card>" &N to "<text>"`.
 
 ## Exit Codes
 

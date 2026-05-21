@@ -96,6 +96,154 @@ describe('parseChangelog', () => {
     })
   })
 
+  test('parses a non-main board suffix without polluting the card name', () => {
+    const content = `# Changelog
+
+## 2026-05-08T00:00:00Z
+
+- Added Cavern-Hoard Dragon to Maybeboard
+- Removed Lightning Bolt from Sideboard
+`
+    const pages = parseChangelog(content)
+    expect(pages[0]!.changes[0]).toEqual({
+      action: 'Added',
+      cardName: 'Cavern-Hoard Dragon',
+      board: 'Maybeboard',
+    })
+    expect(pages[0]!.changes[1]).toEqual({
+      action: 'Removed',
+      cardName: 'Lightning Bolt',
+      board: 'Sideboard',
+    })
+  })
+
+  test('parses a board suffix alongside printing info and a card ID', () => {
+    const content = `# Changelog
+
+## 2026-05-08T00:00:00Z
+
+- Added Sol Ring (MH3:301) [foil] to Sideboard &12
+`
+    const pages = parseChangelog(content)
+    expect(pages[0]!.changes[0]).toEqual({
+      action: 'Added',
+      cardName: 'Sol Ring',
+      set: 'mh3',
+      collectorNumber: '301',
+      finish: 'foil',
+      board: 'Sideboard',
+    })
+  })
+
+  test('does not treat a "to Main" suffix as a board', () => {
+    const content = `# Changelog
+
+## 2026-05-08T00:00:00Z
+
+- Added Sol Ring to Main
+`
+    const pages = parseChangelog(content)
+    // "Main" is the default board and carries no annotation.
+    expect(pages[0]!.changes[0]!.cardName).toBe('Sol Ring')
+    expect(pages[0]!.changes[0]!.board).toBeUndefined()
+  })
+
+  test('parses quoted card names, stripping the quotes', () => {
+    const content = `# Changelog
+
+## 2026-05-08T00:00:00Z
+
+- Added "Demonic Tutor" (UMA:93) [foil]
+- Removed "Misty Rainforest"
+- Set "Avacyn, Angel of Hope" as commander
+- Set "Sol Ring" finish to foil
+`
+    const pages = parseChangelog(content)
+    expect(pages[0]!.changes[0]).toEqual({
+      action: 'Added',
+      cardName: 'Demonic Tutor',
+      set: 'uma',
+      collectorNumber: '93',
+      finish: 'foil',
+    })
+    expect(pages[0]!.changes[1]).toEqual({ action: 'Removed', cardName: 'Misty Rainforest' })
+    expect(pages[0]!.changes[2]).toEqual({
+      action: 'Set as commander',
+      cardName: 'Avacyn, Angel of Hope',
+    })
+    expect(pages[0]!.changes[3]).toEqual({
+      action: 'Set finish',
+      cardName: 'Sol Ring',
+      finish: 'foil',
+    })
+  })
+
+  test('parses a quoted card name with a board suffix', () => {
+    const content = `# Changelog
+
+## 2026-05-08T00:00:00Z
+
+- Added "Cavern-Hoard Dragon" to Maybeboard
+- Removed "Lightning Bolt" from Sideboard
+`
+    const pages = parseChangelog(content)
+    expect(pages[0]!.changes[0]).toEqual({
+      action: 'Added',
+      cardName: 'Cavern-Hoard Dragon',
+      board: 'Maybeboard',
+    })
+    expect(pages[0]!.changes[1]).toEqual({
+      action: 'Removed',
+      cardName: 'Lightning Bolt',
+      board: 'Sideboard',
+    })
+  })
+
+  test('quotes disambiguate a card name that itself contains a board phrase', () => {
+    const content = `# Changelog
+
+## 2026-05-08T00:00:00Z
+
+- Added "Welcome to Sideboard" to Maybeboard
+`
+    const pages = parseChangelog(content)
+    // The closing quote bounds the name, so "to Sideboard" stays part of it and only
+    // the trailing "to Maybeboard" is read as the board.
+    expect(pages[0]!.changes[0]).toEqual({
+      action: 'Added',
+      cardName: 'Welcome to Sideboard',
+      board: 'Maybeboard',
+    })
+  })
+
+  test('quotes keep parentheses inside the card name out of the printing field', () => {
+    const content = `# Changelog
+
+## 2026-05-08T00:00:00Z
+
+- Added "Hazmat Suit (Used)" &5
+`
+    const pages = parseChangelog(content)
+    expect(pages[0]!.changes[0]).toEqual({ action: 'Added', cardName: 'Hazmat Suit (Used)' })
+  })
+
+  test('parses quoted "Set note on" and "Cleared note on" lines', () => {
+    const content = `# Changelog
+
+## 2026-05-08T00:00:00Z
+
+- Set note on "Sol Ring" &5 to "starts the engine"
+- Cleared note on "Lightning Bolt" &2
+`
+    const pages = parseChangelog(content)
+    expect(pages[0]!.changes[0]).toEqual({
+      action: 'Set note',
+      cardName: 'Sol Ring',
+      note: 'starts the engine',
+    })
+    expect(pages[0]!.changes[1]).toEqual({ action: 'Cleared note', cardName: 'Lightning Bolt' })
+  })
+
   test('returns pages in most-recent-first order', () => {
     const content = `# Changelog
 

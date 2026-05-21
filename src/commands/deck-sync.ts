@@ -373,9 +373,12 @@ async function uploadChanges(
       continue
     }
 
-    // Parse raw response into DeckData for diffing (reuse existing parser)
+    // Parse raw response into DeckData for diffing (reuse existing parser).
+    // Uploads diff by name only: the modifyCards API path cannot yet target a
+    // specific remote board/category, so board placement must be ignored here to
+    // avoid spuriously moving cards on Archidekt.
     const remoteDeck = await client.fetchDeck(target.sourceId, token)
-    const diff = diffByCardName(remoteDeck.sections, target.deck.sections)
+    const diff = diffByCardName(remoteDeck.sections, target.deck.sections, { byBoard: false })
 
     if (isDiffEmpty(diff)) {
       logger.info(`  No changes to upload.`)

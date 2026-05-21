@@ -55,7 +55,7 @@ describe('clear-note CLI (Integration)', () => {
       expect(content).not.toContain('{fast mana}')
 
       const changelog = await fs.readFile(path.join(dir, 'decks', 'test.changes.md'), 'utf-8')
-      expect(changelog).toContain('Cleared note on Sol Ring &1')
+      expect(changelog).toContain('Cleared note on "Sol Ring" &1')
     } finally {
       await teardown(dir)
     }
@@ -82,7 +82,7 @@ describe('clear-note CLI (Integration)', () => {
       const changelogExists = await Bun.file(changelogPath).exists()
       if (changelogExists) {
         const changelog = await fs.readFile(changelogPath, 'utf-8')
-        expect(changelog).not.toContain('Cleared note on Lightning Bolt')
+        expect(changelog).not.toContain('Cleared note on "Lightning Bolt"')
       }
     } finally {
       await teardown(dir)

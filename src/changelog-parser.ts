@@ -1,15 +1,17 @@
 /**
  * Parser for `.changes.md` changelog files.
  *
- * Changelog format:
+ * Changelog format (card names are written quoted; legacy unquoted lines are still
+ * accepted on read):
  * ```
  * # Changelog for Deck Name
  *
  * ## 2026-03-07T22:01:21.452Z
  *
- * - Added Demonic Tutor (UMA:75) [foil]
- * - Removed Misty Rainforest
- * - Set Avacyn as commander
+ * - Added "Demonic Tutor" (UMA:75) [foil]
+ * - Removed "Misty Rainforest"
+ * - Added "Cavern-Hoard Dragon" to Maybeboard
+ * - Set "Avacyn" as commander
  * ```
  */
 
@@ -30,6 +32,8 @@ export type ChangelogChange = {
   finish?: string
   condition?: string
   note?: string
+  /** Deck board for add/remove lines that target a non-main board (e.g. `Sideboard`). */
+  board?: string
 }
 
 export type ChangelogPage = {
@@ -37,8 +41,9 @@ export type ChangelogPage = {
   changes: ChangelogChange[]
 }
 
+// The board alternation must stay in sync with `BOARDS` in `types.ts`.
 const CHANGE_LINE_REGEX =
-  /^-\s+(Added|Removed|Set|Unset)\s+(.+?)(?:\s+\(([^)]+)\))?(?:\s+\[([^\]]+)\])?(?:\s+\[([^\]]+)\])?(?:\s+&\d+)?\s*$/
+  /^-\s+(Added|Removed|Set|Unset)\s+(.+?)(?:\s+\(([^)]+)\))?(?:\s+\[([^\]]+)\])?(?:\s+\[([^\]]+)\])?(?:\s+(?:to|from)\s+(Commander|Main|Sideboard|Maybeboard))?(?:\s+&\d+)?\s*$/
 
 /**
  * Matches `Set note on Card Name &5 to "the note text"`. Card-name group is non-greedy
@@ -53,25 +58,35 @@ const CLEARED_NOTE_LINE_REGEX = /^-\s+Cleared\s+note\s+on\s+(.+?)(?:\s+&\d+)?\s*
 const FINISH_VALUES = new Set(['foil', 'nonfoil', 'etched'])
 const CONDITION_VALUES = new Set(['NM', 'LP', 'MP', 'HP', 'DMG'])
 
+/**
+ * Strip the surrounding double quotes the writer wraps card names in. Legacy lines
+ * predate quoting, so an unquoted name is returned unchanged — every card name is
+ * normalized through here regardless of whether the source file used quotes.
+ */
+function stripQuotes(name: string): string {
+  const match = name.match(/^"(.*)"$/s)
+  return match?.[1] ?? name
+}
+
 function parseChangeLine(line: string): ChangelogChange | null {
   // "Set note on X to ..." has free-form quoted content that the generic regex can't safely
   // strip — match it directly first so the card name is recovered cleanly.
   const setNote = line.match(SET_NOTE_LINE_REGEX)
   if (setNote?.[1] !== undefined && setNote[2] !== undefined) {
-    return { action: 'Set note', cardName: setNote[1], note: setNote[2] }
+    return { action: 'Set note', cardName: stripQuotes(setNote[1]), note: setNote[2] }
   }
   const clearedNote = line.match(CLEARED_NOTE_LINE_REGEX)
   if (clearedNote?.[1]) {
-    return { action: 'Cleared note', cardName: clearedNote[1] }
+    return { action: 'Cleared note', cardName: stripQuotes(clearedNote[1]) }
   }
 
   const match = line.match(CHANGE_LINE_REGEX)
   if (!match) return null
 
-  const [, action, rawCardName, setCn, bracket1, bracket2] = match
+  const [, action, rawCardName, setCn, bracket1, bracket2, board] = match
   if (!action || !rawCardName) return null
 
-  let cardName = rawCardName
+  let cardName = stripQuotes(rawCardName)
   let resolvedAction: ChangelogAction | undefined
 
   // Handle "Set X as commander" / "Unset X as commander" / "Set X finish to foil"
@@ -79,16 +94,20 @@ function parseChangeLine(line: string): ChangelogChange | null {
     const asCommander = rawCardName.match(/^(.+?)\s+as\s+commander$/i)
     if (asCommander?.[1]) {
       const changeAction = action === 'Unset' ? 'Unset as commander' : 'Set as commander'
-      return { action: changeAction, cardName: asCommander[1] }
+      return { action: changeAction, cardName: stripQuotes(asCommander[1]) }
     }
     if (action === 'Set') {
       const finishMatch = rawCardName.match(/^(.+?)\s+finish\s+to\s+(\w+)$/i)
       if (finishMatch?.[1] && finishMatch[2]) {
-        return { action: 'Set finish', cardName: finishMatch[1], finish: finishMatch[2] }
+        return {
+          action: 'Set finish',
+          cardName: stripQuotes(finishMatch[1]),
+          finish: finishMatch[2],
+        }
       }
     }
     // Fallback: just use the raw name
-    cardName = rawCardName
+    cardName = stripQuotes(rawCardName)
   }
 
   if (action === 'Added') resolvedAction = 'Added'
@@ -117,7 +136,17 @@ function parseChangeLine(line: string): ChangelogChange | null {
     }
   }
 
-  return { action: resolvedAction, cardName, set, collectorNumber, finish, condition }
+  const normalizedBoard = board && board.toLowerCase() !== 'main' ? board : undefined
+
+  return {
+    action: resolvedAction,
+    cardName,
+    set,
+    collectorNumber,
+    finish,
+    condition,
+    board: normalizedBoard,
+  }
 }
 
 /**

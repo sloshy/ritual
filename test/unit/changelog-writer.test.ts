@@ -29,7 +29,7 @@ describe('appendChangelog', () => {
     expect(changelogPath).toBe(path.join(tmpDir, 'Test.changes.md'))
     const content = await fs.readFile(changelogPath, 'utf-8')
     expect(content).toContain('# Changelog for Test')
-    expect(content).toContain('- Added Sol Ring')
+    expect(content).toContain('- Added "Sol Ring"')
 
     await fs.rm(tmpDir, { recursive: true })
   })
@@ -41,15 +41,15 @@ describe('appendChangelog', () => {
     await fs.writeFile(filePath, '# Test\n')
     await fs.writeFile(
       changelogPath,
-      '# Changelog for Test\n\n## 2026-01-01T00:00:00Z\n\n- Added Lightning Bolt\n',
+      '# Changelog for Test\n\n## 2026-01-01T00:00:00Z\n\n- Added "Lightning Bolt"\n',
     )
 
     const change = makeChange({ cardName: 'Counterspell' })
     await appendChangelog(filePath, 'Test', [change])
 
     const content = await fs.readFile(changelogPath, 'utf-8')
-    expect(content).toContain('- Added Lightning Bolt')
-    expect(content).toContain('- Added Counterspell')
+    expect(content).toContain('- Added "Lightning Bolt"')
+    expect(content).toContain('- Added "Counterspell"')
 
     await fs.rm(tmpDir, { recursive: true })
   })
@@ -68,7 +68,50 @@ describe('appendChangelog', () => {
     await appendChangelog(filePath, 'Test', [change])
 
     const content = await fs.readFile(path.join(tmpDir, 'Test.changes.md'), 'utf-8')
-    expect(content).toContain('- Added Demonic Tutor (UMA:93) [foil]')
+    expect(content).toContain('- Added "Demonic Tutor" (UMA:93) [foil]')
+
+    await fs.rm(tmpDir, { recursive: true })
+  })
+
+  test('annotates a non-main board on add', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'changelog-test-'))
+    const filePath = path.join(tmpDir, 'Test.md')
+    await fs.writeFile(filePath, '# Test\n')
+
+    const change = makeChange({ cardName: 'Cavern-Hoard Dragon', board: 'Maybeboard' })
+    await appendChangelog(filePath, 'Test', [change])
+
+    const content = await fs.readFile(path.join(tmpDir, 'Test.changes.md'), 'utf-8')
+    expect(content).toContain('- Added "Cavern-Hoard Dragon" to Maybeboard')
+
+    await fs.rm(tmpDir, { recursive: true })
+  })
+
+  test('annotates a non-main board on remove with "from"', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'changelog-test-'))
+    const filePath = path.join(tmpDir, 'Test.md')
+    await fs.writeFile(filePath, '# Test\n')
+
+    const change = makeChange({ action: 'remove', cardName: 'Lightning Bolt', board: 'Sideboard' })
+    await appendChangelog(filePath, 'Test', [change])
+
+    const content = await fs.readFile(path.join(tmpDir, 'Test.changes.md'), 'utf-8')
+    expect(content).toContain('- Removed "Lightning Bolt" from Sideboard')
+
+    await fs.rm(tmpDir, { recursive: true })
+  })
+
+  test('omits the board annotation for the main board', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'changelog-test-'))
+    const filePath = path.join(tmpDir, 'Test.md')
+    await fs.writeFile(filePath, '# Test\n')
+
+    const change = makeChange({ cardName: 'Sol Ring', board: 'Main' })
+    await appendChangelog(filePath, 'Test', [change])
+
+    const content = await fs.readFile(path.join(tmpDir, 'Test.changes.md'), 'utf-8')
+    expect(content).toContain('- Added "Sol Ring"\n')
+    expect(content).not.toContain('to Main')
 
     await fs.rm(tmpDir, { recursive: true })
   })
@@ -82,7 +125,7 @@ describe('appendChangelog', () => {
     await appendChangelog(filePath, 'Test', [change])
 
     const content = await fs.readFile(path.join(tmpDir, 'Test.changes.md'), 'utf-8')
-    expect(content).toContain('- Removed Misty Rainforest')
+    expect(content).toContain('- Removed "Misty Rainforest"')
 
     await fs.rm(tmpDir, { recursive: true })
   })
@@ -96,7 +139,7 @@ describe('appendChangelog', () => {
     await appendChangelog(filePath, 'Test', [change])
 
     const content = await fs.readFile(path.join(tmpDir, 'Test.changes.md'), 'utf-8')
-    expect(content).toContain('- Set Atraxa as commander')
+    expect(content).toContain('- Set "Atraxa" as commander')
 
     await fs.rm(tmpDir, { recursive: true })
   })
@@ -110,7 +153,7 @@ describe('appendChangelog', () => {
     await appendChangelog(filePath, 'Test', [change])
 
     const content = await fs.readFile(path.join(tmpDir, 'Test.changes.md'), 'utf-8')
-    expect(content).toContain('- Unset Atraxa as commander')
+    expect(content).toContain('- Unset "Atraxa" as commander')
 
     await fs.rm(tmpDir, { recursive: true })
   })
@@ -124,7 +167,7 @@ describe('appendChangelog', () => {
     await appendChangelog(filePath, 'Test', [change])
 
     const content = await fs.readFile(path.join(tmpDir, 'Test.changes.md'), 'utf-8')
-    expect(content).toContain('- Set Sol Ring finish to foil')
+    expect(content).toContain('- Set "Sol Ring" finish to foil')
 
     await fs.rm(tmpDir, { recursive: true })
   })
@@ -144,7 +187,7 @@ describe('appendChangelog', () => {
     await appendChangelog(filePath, 'Test', [change])
 
     const content = await fs.readFile(path.join(tmpDir, 'Test.changes.md'), 'utf-8')
-    expect(content).toContain('- Added Black Lotus (LEA:1) [LP]')
+    expect(content).toContain('- Added "Black Lotus" (LEA:1) [LP]')
 
     await fs.rm(tmpDir, { recursive: true })
   })

@@ -2,6 +2,15 @@ export type Finish = 'nonfoil' | 'foil' | 'etched'
 export type Condition = 'NM' | 'LP' | 'MP' | 'HP' | 'DMG'
 export type ErrorCode = 'not_found' | 'usage_error' | 'runtime_error'
 
+/**
+ * The canonical deck boards a section header normalizes to. Archidekt buckets every
+ * card into one of these, and downloaded decks are written with these exact headers.
+ * Section-name classification lives in `deck-format.ts` (`isCommanderSection`, etc.);
+ * `normalizeBoard` in `deck-sync-helpers.ts` maps a header to one of these values.
+ */
+export const BOARDS = ['Commander', 'Main', 'Sideboard', 'Maybeboard'] as const
+export type Board = (typeof BOARDS)[number]
+
 export interface Card {
   quantity: number
   name: string

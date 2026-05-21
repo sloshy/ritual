@@ -77,7 +77,7 @@ Identical to [`add-note`](./add-note#card-resolution).
 
 ### Change Tracking
 
-A successful clear is recorded in the list's `.changes.md` changelog as `Cleared note on <Card> &N`.
+A successful clear is recorded in the list's `.changes.md` changelog as `Cleared note on "<Card>" &N`.
 
 ## Exit Codes
 

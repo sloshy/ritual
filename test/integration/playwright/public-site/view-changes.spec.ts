@@ -25,6 +25,19 @@ test.describe('View Changes', () => {
     await expect(modal.locator('.changelog-change-item').first()).toBeVisible()
   })
 
+  test('changelog modal annotates non-main board changes', async ({ page }) => {
+    await page.getByRole('button', { name: 'View Changes' }).click()
+    const modal = page.locator('.changelog-modal')
+    await expect(modal).toBeVisible()
+    // Adds to a non-main board read "... to Maybeboard"; removes read "... from Sideboard".
+    await expect(
+      modal.locator('.changelog-change-item', { hasText: 'Added Maybe Card to Maybeboard' }),
+    ).toBeVisible()
+    await expect(
+      modal.locator('.changelog-change-item', { hasText: 'Removed Side Card from Sideboard' }),
+    ).toBeVisible()
+  })
+
   test('changelog modal can be closed with the close button', async ({ page }) => {
     await page.getByRole('button', { name: 'View Changes' }).click()
     await expect(page.locator('.changelog-modal')).toBeVisible()

@@ -330,6 +330,8 @@ const MOCK_DECK_WITH_CHANGELOG = {
       changes: [
         { action: 'Added', cardName: 'Test Creature', set: 'tst', collectorNumber: '1' },
         { action: 'Removed', cardName: 'Old Card' },
+        { action: 'Added', cardName: 'Maybe Card', board: 'Maybeboard' },
+        { action: 'Removed', cardName: 'Side Card', board: 'Sideboard' },
       ],
     },
     {

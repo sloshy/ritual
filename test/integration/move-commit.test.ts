@@ -69,11 +69,11 @@ describe('commitAllMoves', () => {
 
       // Changelogs should be created
       const srcChanges = await fs.readFile(srcPath.replace('.md', '.changes.md'), 'utf-8')
-      expect(srcChanges).toContain('Moved Lightning Bolt')
+      expect(srcChanges).toContain('Moved "Lightning Bolt"')
       expect(srcChanges).toContain("to Collection 'Dest'")
 
       const dstChanges = await fs.readFile(dstPath.replace('.md', '.changes.md'), 'utf-8')
-      expect(dstChanges).toContain('Moved Lightning Bolt')
+      expect(dstChanges).toContain('Moved "Lightning Bolt"')
       expect(dstChanges).toContain("from Collection 'Source'")
     } finally {
       await fs.rm(tmpDir, { recursive: true })

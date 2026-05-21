@@ -43,19 +43,28 @@ Decks must have been imported from Archidekt (i.e., they have `sourceUrl` and `s
 ### Download Changes (`--download-changes`)
 
 1. Fetches the current deck state from Archidekt
-2. Compares cards and quantities against the local deck file (by card name only)
-3. Applies any differences to the local file:
-   - New cards are added to the Main section (or Commander section for commanders)
-   - Removed cards are deleted from all sections
-   - Quantity changes are applied in-place
-4. Records all changes in the deck's `.changes.md` changelog
+2. Compares cards and quantities against the local deck file, **per board** (Main,
+   Commander, Sideboard, Maybeboard) and by card name
+3. Applies any differences to the local file, respecting each card's board:
+   - New cards are added to the section matching their remote board (e.g. a card in
+     the Archidekt maybeboard is added to the local `## Maybeboard` section, creating
+     that section if it does not exist)
+   - Removed cards are deleted from the board they were removed from
+   - Quantity changes are applied in-place within the matching board
+   - A card that moved between boards on Archidekt is removed from its old board and
+     added to the new one
+4. Records all changes in the deck's `.changes.md` changelog. Card names are written
+   quoted, and changes that target a non-main board are annotated with the
+   destination, e.g. `Added "Cavern-Hoard Dragon" to Maybeboard` or
+   `Removed "Lightning Bolt" from Sideboard`
 5. Sets `lastSynced` timestamp in front matter
 
 ### Upload Changes (`--upload-changes`)
 
 1. Verifies you own the Archidekt deck (skips non-owned decks with a warning)
 2. Fetches the current Archidekt deck state
-3. Compares local cards and quantities against the remote state (by card name only)
+3. Compares local cards and quantities against the remote state (by card name only,
+   across all boards — see note below)
 4. Pushes differences to Archidekt via their batch API:
    - New cards are resolved by name and added
    - Removed cards are set to quantity 0
@@ -64,12 +73,22 @@ Decks must have been imported from Archidekt (i.e., they have `sourceUrl` and `s
 
 ### What Is Compared
 
-Currently, sync only compares **card names** and **quantities**. The following are intentionally ignored at this time:
+Sync compares **card names** and **quantities**. Downloads additionally respect the
+**board** a card lives in (Main, Commander, Sideboard, Maybeboard), so cards land in
+the right section locally.
+
+The following are intentionally ignored at this time:
 
 - Specific printings (set code, collector number)
 - Card finish (foil, etched)
-- Labels and categories
+- Labels and categories (beyond mapping to a board)
 - Card condition
+
+> **Note on uploads:** uploads ignore board placement. The Archidekt batch API path
+> used here cannot yet target a specific remote board/category, so moving a card
+> between boards locally is not pushed (it would otherwise re-add the card to the
+> default mainboard on Archidekt). Board-aware behavior currently applies to
+> `--download-changes` only.
 
 ### Front Matter
 
