@@ -7,6 +7,8 @@ import { fetchMtgGoldfishDeck } from '../importers/mtggoldfish'
 import { fetchMoxfieldDeck } from '../importers/moxfield-lib'
 import { importFromTextFile, listDeckFiles } from '../importers/text-file'
 import { type DeckData } from '../types'
+import { serializeCardLine } from '../deck-file'
+import { assignMissingDeckCardIds } from '../card-id'
 import { parseMoxfieldPrimer } from '../primer-parser'
 import { ExitCode } from './scripting'
 import { getLogger } from '../logger'
@@ -199,11 +201,16 @@ tags: []
 
 `
 
+  // Assign IDs up front so every imported card line is written with a stable
+  // `&N` rather than relying on a later command to backfill it. serializeCardLine
+  // also preserves any printing metadata the importer captured.
+  const idedDeck = assignMissingDeckCardIds(deckData)
+
   let cardList = ''
-  for (const section of deckData.sections) {
+  for (const section of idedDeck.sections) {
     if (section.cards.length > 0) {
       cardList += `## ${section.name}\n`
-      cardList += section.cards.map((c) => `${c.quantity} ${c.name}`).join('\n')
+      cardList += section.cards.map(serializeCardLine).join('\n')
       cardList += '\n\n'
     }
   }

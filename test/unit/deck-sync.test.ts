@@ -3,11 +3,15 @@ import {
   summarizeCards,
   diffByCardName,
   diffToChangeEvents,
+  buildCardIdResolver,
   applyDownloadDiff,
   normalizeBoard,
   type NameDiff,
+  type CardIdResolver,
 } from '../../src/commands/deck-sync-helpers'
-import type { DeckSection } from '../../src/types'
+import { assignMissingDeckCardIds } from '../../src/card-id'
+import { serializeDeckToMarkdown } from '../../src/deck-file'
+import type { DeckData, DeckSection } from '../../src/types'
 
 // ── normalizeBoard ────────────────────────────────────────────────────
 
@@ -318,6 +322,136 @@ describe('diffToChangeEvents', () => {
     const events = diffToChangeEvents({ added: [], removed: [], quantityChanged: [] })
     expect(events).toHaveLength(0)
   })
+
+  test('leaves cardId undefined when no resolver is supplied', () => {
+    const diff: NameDiff = {
+      added: [{ name: 'Sol Ring', totalQuantity: 1, board: 'Main' }],
+      removed: [],
+      quantityChanged: [],
+    }
+    expect(diffToChangeEvents(diff)[0]!.cardId).toBeUndefined()
+  })
+
+  test('stamps each event with the resolved card ID', () => {
+    const diff: NameDiff = {
+      added: [{ name: 'Sol Ring', totalQuantity: 1, board: 'Main' }],
+      removed: [{ name: 'Lightning Bolt', totalQuantity: 1, board: 'Sideboard' }],
+      quantityChanged: [{ name: 'Island', oldQty: 1, newQty: 2, board: 'Main' }],
+    }
+    const ids: Record<string, number> = {
+      'Main sol ring': 5,
+      'Sideboard lightning bolt': 6,
+      'Main island': 7,
+    }
+    const resolve: CardIdResolver = (board, name) => ids[`${board} ${name.toLowerCase()}`]
+    const events = diffToChangeEvents(diff, resolve)
+    expect(events.find((e) => e.cardName === 'Sol Ring')!.cardId).toBe(5)
+    expect(events.find((e) => e.cardName === 'Lightning Bolt')!.cardId).toBe(6)
+    expect(events.find((e) => e.cardName === 'Island')!.cardId).toBe(7)
+  })
+})
+
+// ── buildCardIdResolver ──────────────────────────────────────────────
+
+describe('buildCardIdResolver', () => {
+  test('resolves by board + name, case-insensitively', () => {
+    const sections: DeckSection[] = [
+      { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 7 }] },
+    ]
+    const resolve = buildCardIdResolver(sections)
+    expect(resolve('Main', 'sol ring')).toBe(7)
+    expect(resolve('Main', 'Sol Ring')).toBe(7)
+  })
+
+  test('earlier section sets take precedence over later ones', () => {
+    const post: DeckSection[] = [
+      { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 2 }] },
+    ]
+    const pre: DeckSection[] = [
+      { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 9 }] },
+    ]
+    expect(buildCardIdResolver(post, pre)('Main', 'Sol Ring')).toBe(2)
+  })
+
+  test('skips cards without an id and returns undefined for unknown cards', () => {
+    const sections: DeckSection[] = [{ name: 'Main', cards: [{ quantity: 1, name: 'No Id' }] }]
+    const resolve = buildCardIdResolver(sections)
+    expect(resolve('Main', 'No Id')).toBeUndefined()
+    expect(resolve('Main', 'Missing')).toBeUndefined()
+  })
+
+  test('distinguishes the same card name across boards', () => {
+    const sections: DeckSection[] = [
+      { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }] },
+      { name: 'Maybeboard', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 2 }] },
+    ]
+    const resolve = buildCardIdResolver(sections)
+    expect(resolve('Main', 'Sol Ring')).toBe(1)
+    expect(resolve('Maybeboard', 'Sol Ring')).toBe(2)
+  })
+})
+
+// ── download sync ID assignment (regression) ─────────────────────────
+
+describe('download sync assigns IDs to new cards', () => {
+  test('new cards get an &N in the serialized deck and a cardId in the changelog', () => {
+    // Mirrors the composition in downloadChanges without hitting the network.
+    const local: DeckData = {
+      name: 'Sync Deck',
+      sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }] }],
+    }
+    const remote: DeckSection[] = [
+      {
+        name: 'Main',
+        cards: [
+          { quantity: 1, name: 'Sol Ring' },
+          { quantity: 1, name: 'Lightning Bolt' },
+        ],
+      },
+    ]
+
+    const diff = diffByCardName(local.sections, remote)
+    const updatedSections = applyDownloadDiff(local.sections, diff)
+    const updatedDeck = assignMissingDeckCardIds({ ...local, sections: updatedSections })
+
+    // Every card line in the written deck carries an &N.
+    const markdown = serializeDeckToMarkdown(updatedDeck, { name: local.name })
+    expect(markdown).toContain('1 Sol Ring &1')
+    expect(markdown).toContain('1 Lightning Bolt &2')
+
+    // The changelog records the newly added card's ID.
+    const resolve = buildCardIdResolver(updatedDeck.sections, local.sections)
+    const added = diffToChangeEvents(diff, resolve).find((c) => c.cardName === 'Lightning Bolt')!
+    expect(added.action).toBe('add')
+    expect(added.cardId).toBe(2)
+  })
+
+  test('a board move stamps the remove with the old ID and the add with the new ID', () => {
+    // Card lives in Main locally (id 5) and moves to the Maybeboard remotely.
+    const local: DeckData = {
+      name: 'Move Deck',
+      sections: [
+        { name: 'Main', cards: [{ quantity: 1, name: 'Cavern-Hoard Dragon', cardId: 5 }] },
+      ],
+    }
+    const remote: DeckSection[] = [
+      { name: 'Maybeboard', cards: [{ quantity: 1, name: 'Cavern-Hoard Dragon' }] },
+    ]
+
+    const diff = diffByCardName(local.sections, remote)
+    const updatedSections = applyDownloadDiff(local.sections, diff)
+    const updatedDeck = assignMissingDeckCardIds({ ...local, sections: updatedSections })
+    const resolve = buildCardIdResolver(updatedDeck.sections, local.sections)
+    const events = diffToChangeEvents(diff, resolve)
+
+    const remove = events.find((e) => e.action === 'remove')!
+    const add = events.find((e) => e.action === 'add')!
+    // Removal resolves against the pre-sync deck (still on Main with its old ID).
+    expect(remove.cardId).toBe(5)
+    // Addition resolves against the post-sync deck. The moved card got a fresh ID:
+    // after removal the deck has no IDs left, so the pool restarts at 1.
+    expect(add.cardId).toBe(1)
+  })
 })
 
 // ── applyDownloadDiff ────────────────────────────────────────────────
@@ -462,5 +596,16 @@ describe('applyDownloadDiff', () => {
     }
     const result = applyDownloadDiff(sections, diff)
     expect(result[0]!.cards[0]!.quantity).toBe(1)
+  })
+
+  test('decreases quantity for a card that is not fully removed', () => {
+    const sections: DeckSection[] = [{ name: 'Main', cards: [{ quantity: 4, name: 'Island' }] }]
+    const diff: NameDiff = {
+      added: [],
+      removed: [],
+      quantityChanged: [{ name: 'Island', oldQty: 4, newQty: 2, board: 'Main' }],
+    }
+    const result = applyDownloadDiff(sections, diff)
+    expect(result[0]!.cards[0]!.quantity).toBe(2)
   })
 })

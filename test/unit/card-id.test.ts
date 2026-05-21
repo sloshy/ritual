@@ -8,7 +8,9 @@ import {
   initializePoolFromEntries,
   parseCardIdsFromContent,
   allocateNextIdFromContent,
+  assignMissingDeckCardIds,
 } from '../../src/card-id'
+import type { DeckData } from '../../src/types'
 
 describe('createIdPool', () => {
   test('empty input creates pool starting at 1', () => {
@@ -327,5 +329,91 @@ describe('allocateNextIdFromContent', () => {
     // Pool should still have gap at 4 (nextSequential)
     const nextFromPool = allocateId(result.pool)
     expect(nextFromPool).toBe(4)
+  })
+})
+
+describe('assignMissingDeckCardIds', () => {
+  test('assigns IDs only to cards that lack one, preserving existing IDs', () => {
+    const deck: DeckData = {
+      name: 'Test',
+      sections: [
+        {
+          name: 'Main',
+          cards: [
+            { quantity: 1, name: 'Sol Ring', cardId: 1 },
+            { quantity: 1, name: 'Lightning Bolt' }, // no ID
+            { quantity: 1, name: 'Mana Crypt', cardId: 3 },
+          ],
+        },
+      ],
+    }
+    const result = assignMissingDeckCardIds(deck)
+    const cards = result.sections[0]!.cards
+    expect(cards[0]!.cardId).toBe(1)
+    // Gap at 2 (1 and 3 used) — smallest available is reused
+    expect(cards[1]!.cardId).toBe(2)
+    expect(cards[2]!.cardId).toBe(3)
+  })
+
+  test('allocates sequential IDs across multiple sections', () => {
+    const deck: DeckData = {
+      name: 'Test',
+      sections: [
+        { name: 'Commander', cards: [{ quantity: 1, name: 'Atraxa', cardId: 1 }] },
+        {
+          name: 'Main',
+          cards: [
+            { quantity: 1, name: 'Sol Ring' }, // no ID
+            { quantity: 1, name: 'Counterspell' }, // no ID
+          ],
+        },
+      ],
+    }
+    const result = assignMissingDeckCardIds(deck)
+    expect(result.sections[1]!.cards[0]!.cardId).toBe(2)
+    expect(result.sections[1]!.cards[1]!.cardId).toBe(3)
+  })
+
+  test('every card has an ID after assignment when the deck started with none', () => {
+    const deck: DeckData = {
+      name: 'Fresh',
+      sections: [
+        {
+          name: 'Main',
+          cards: [
+            { quantity: 1, name: 'Island' },
+            { quantity: 1, name: 'Forest' },
+          ],
+        },
+      ],
+    }
+    const result = assignMissingDeckCardIds(deck)
+    const ids = result.sections[0]!.cards.map((c) => c.cardId)
+    expect(ids).toEqual([1, 2])
+  })
+
+  test('does not mutate the input deck', () => {
+    const deck: DeckData = {
+      name: 'Test',
+      sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] }],
+    }
+    assignMissingDeckCardIds(deck)
+    expect(deck.sections[0]!.cards[0]!.cardId).toBeUndefined()
+  })
+
+  test('reuses existing card objects that already have an ID', () => {
+    const ided = { quantity: 1, name: 'Sol Ring', cardId: 1 }
+    const deck: DeckData = {
+      name: 'Test',
+      sections: [{ name: 'Main', cards: [ided, { quantity: 1, name: 'Bolt' }] }],
+    }
+    const result = assignMissingDeckCardIds(deck)
+    expect(result.sections[0]!.cards[0]).toBe(ided)
+  })
+
+  test('handles a deck with no sections', () => {
+    const deck: DeckData = { name: 'Empty', sections: [] }
+    const result = assignMissingDeckCardIds(deck)
+    expect(result.sections).toEqual([])
   })
 })

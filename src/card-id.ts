@@ -7,6 +7,8 @@
  * then fall back to the next sequential number.
  */
 
+import type { DeckData } from './types'
+
 export type CardIdPool = {
   /** IDs currently in use */
   usedIds: Set<number>
@@ -173,4 +175,29 @@ export function collectDeckCardIds(deck: DeckWithCardIds): number[] {
     }
   }
   return ids
+}
+
+/**
+ * Return a copy of `deck` in which every card has a `cardId`. Existing IDs are
+ * preserved untouched; cards that lack one (e.g. cards freshly pulled from a
+ * remote sync) are assigned the smallest available ID from a pool seeded by the
+ * deck's existing IDs.
+ *
+ * This is the in-memory complement to the file-content backfill in
+ * `ensure-card-ids.ts`. Callers that build a deck in memory and serialize it
+ * (notably `serializeDeckToMarkdown`) use this to guarantee no card line is ever
+ * written to disk without a stable ID. The result reuses card objects that
+ * already have an ID and only allocates new objects for the ones that don't.
+ */
+export function assignMissingDeckCardIds(deck: DeckData): DeckData {
+  const pool = createIdPool(collectDeckCardIds(deck))
+  return {
+    ...deck,
+    sections: deck.sections.map((section) => ({
+      ...section,
+      cards: section.cards.map((card) =>
+        card.cardId === undefined ? { ...card, cardId: allocateId(pool) } : card,
+      ),
+    })),
+  }
 }

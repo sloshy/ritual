@@ -17,10 +17,12 @@ import type {
 import {
   diffByCardName,
   diffToChangeEvents,
+  buildCardIdResolver,
   isDiffEmpty,
   applyDownloadDiff,
   type NameDiff,
 } from './deck-sync-helpers'
+import { assignMissingDeckCardIds } from '../card-id'
 import { writeFileWithHash } from '../content-hash'
 import { getDecksDir } from '../ritual-config'
 
@@ -321,12 +323,19 @@ async function downloadChanges(
       `  Changes: +${diff.added.length} added, -${diff.removed.length} removed, ~${diff.quantityChanged.length} quantity changed`,
     )
 
-    // Apply changes to local sections
+    // Apply changes to local sections, assigning IDs to any newly added cards so
+    // they are persisted with a stable `&N` rather than being backfilled later.
     const updatedSections = applyDownloadDiff(target.deck.sections, diff)
-    const updatedDeck: DeckData = { ...target.deck, sections: updatedSections }
+    const updatedDeck: DeckData = assignMissingDeckCardIds({
+      ...target.deck,
+      sections: updatedSections,
+    })
 
-    // Record changes in changelog
-    const changes = diffToChangeEvents(diff)
+    // Record changes in changelog, stamping each with its card ID. Added and
+    // quantity-changed cards resolve against the post-sync deck; removed cards
+    // (no longer present) resolve against the pre-sync deck.
+    const resolveCardId = buildCardIdResolver(updatedDeck.sections, target.deck.sections)
+    const changes = diffToChangeEvents(diff, resolveCardId)
     if (changes.length > 0) {
       await appendChangelog(target.filePath, target.deck.name, changes)
     }

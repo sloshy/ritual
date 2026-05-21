@@ -4,7 +4,7 @@ import matter from 'gray-matter'
 import { type Card, type DeckData } from './types'
 import { listDeckFiles } from './importers/text-file'
 import { isPathWithinDir } from './path-validation'
-import { allocateNextIdFromContent } from './card-id'
+import { allocateNextIdFromContent, assignMissingDeckCardIds } from './card-id'
 import { writeFileWithHash } from './content-hash'
 
 /**
@@ -62,7 +62,11 @@ export function serializeDeckToMarkdown(
   deck: DeckData,
   frontMatter: Record<string, unknown>,
 ): string {
-  const sectionBlocks = deck.sections.map((section) => {
+  // Invariant: a deck is never written to disk with an ID-less card line. Cards
+  // that arrive without an ID (e.g. freshly synced from Archidekt) are assigned
+  // one here, seeded from the deck's existing IDs, before serialization.
+  const idedDeck = assignMissingDeckCardIds(deck)
+  const sectionBlocks = idedDeck.sections.map((section) => {
     const header = `## ${section.name}`
     const cardLines = section.cards.map(serializeCardLine)
     return [header, ...cardLines].join('\n')

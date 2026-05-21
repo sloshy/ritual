@@ -120,35 +120,73 @@ export function diffByCardName(
   return { added, removed, quantityChanged }
 }
 
+/** Resolve the stable `&N` ID of a card by its board + name, if one is known. */
+export type CardIdResolver = (board: Board, name: string) => number | undefined
+
+/**
+ * Build a board + name → cardId lookup from one or more sets of deck sections,
+ * with earlier sets taking precedence. Cards without an ID are skipped. Used to
+ * stamp sync changelog events with the IDs that were written to the deck file:
+ * pass the post-sync sections first (for adds and quantity changes) and the
+ * pre-sync sections second (for removed cards no longer in the deck).
+ */
+export function buildCardIdResolver(...sectionSets: DeckSection[][]): CardIdResolver {
+  const map = new Map<string, number>()
+  for (const sections of sectionSets) {
+    for (const section of sections) {
+      const board = normalizeBoard(section.name)
+      for (const card of section.cards) {
+        if (card.cardId === undefined) continue
+        const key = cardKey(board, card.name, true)
+        if (!map.has(key)) map.set(key, card.cardId)
+      }
+    }
+  }
+  return (board, name) => map.get(cardKey(board, name, true))
+}
+
 /**
  * Convert a NameDiff into ChangeEvent[] for changelog recording.
  * Each copy added/removed is a separate event (matching existing convention).
  * The card's board is recorded so non-main changes annotate their destination.
+ * When a `resolveCardId` is supplied, each event is stamped with the card's
+ * stable `&N` ID so the changelog matches the IDs written to the deck file.
  */
-export function diffToChangeEvents(diff: NameDiff): ChangeEvent[] {
+export function diffToChangeEvents(diff: NameDiff, resolveCardId?: CardIdResolver): ChangeEvent[] {
   const changes: ChangeEvent[] = []
 
   for (const card of diff.added) {
     for (let i = 0; i < card.totalQuantity; i++) {
-      changes.push(createAddChange(card.name, { board: card.board }))
+      changes.push(
+        createAddChange(card.name, {
+          board: card.board,
+          cardId: resolveCardId?.(card.board, card.name),
+        }),
+      )
     }
   }
 
   for (const card of diff.removed) {
     for (let i = 0; i < card.totalQuantity; i++) {
-      changes.push(createRemoveChange(card.name, { board: card.board }))
+      changes.push(
+        createRemoveChange(card.name, {
+          board: card.board,
+          cardId: resolveCardId?.(card.board, card.name),
+        }),
+      )
     }
   }
 
   for (const entry of diff.quantityChanged) {
     const delta = entry.newQty - entry.oldQty
+    const cardId = resolveCardId?.(entry.board, entry.name)
     if (delta > 0) {
       for (let i = 0; i < delta; i++) {
-        changes.push(createAddChange(entry.name, { board: entry.board }))
+        changes.push(createAddChange(entry.name, { board: entry.board, cardId }))
       }
     } else {
       for (let i = 0; i < -delta; i++) {
-        changes.push(createRemoveChange(entry.name, { board: entry.board }))
+        changes.push(createRemoveChange(entry.name, { board: entry.board, cardId }))
       }
     }
   }

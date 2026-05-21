@@ -271,3 +271,65 @@ describe('round-trip: parse → serialize → parse', () => {
     }
   })
 })
+
+describe('serializeDeckToMarkdown assigns missing card IDs', () => {
+  test('assigns IDs to cards that lack them', () => {
+    const deck: DeckData = {
+      name: 'Test',
+      sections: [
+        {
+          name: 'Main',
+          cards: [
+            { quantity: 1, name: 'Sol Ring' },
+            { quantity: 1, name: 'Mana Crypt' },
+          ],
+        },
+      ],
+    }
+    const result = serializeDeckToMarkdown(deck, { name: 'Test' })
+    expect(result).toContain('1 Sol Ring &1')
+    expect(result).toContain('1 Mana Crypt &2')
+  })
+
+  test('preserves existing IDs and reuses gaps for new cards', () => {
+    const deck: DeckData = {
+      name: 'Test',
+      sections: [
+        {
+          name: 'Main',
+          cards: [
+            { quantity: 1, name: 'Sol Ring', cardId: 1 },
+            { quantity: 1, name: 'Lightning Bolt' }, // no ID → reuses gap 2
+            { quantity: 1, name: 'Mana Crypt', cardId: 3 },
+          ],
+        },
+      ],
+    }
+    const result = serializeDeckToMarkdown(deck, { name: 'Test' })
+    expect(result).toContain('1 Sol Ring &1')
+    expect(result).toContain('1 Lightning Bolt &2')
+    expect(result).toContain('1 Mana Crypt &3')
+  })
+
+  test('no card line is ever written without an &N id', () => {
+    const deck: DeckData = {
+      name: 'Test',
+      sections: [
+        { name: 'Commander', cards: [{ quantity: 1, name: 'Atraxa' }] },
+        {
+          name: 'Main',
+          cards: [
+            { quantity: 1, name: 'Sol Ring' },
+            { quantity: 2, name: 'Island', set: 'sld', collectorNumber: '63' },
+          ],
+        },
+      ],
+    }
+    const result = serializeDeckToMarkdown(deck, { name: 'Test' })
+    const cardLines = result.split('\n').filter((l) => /^\d+ /.test(l.trim()))
+    expect(cardLines.length).toBe(3)
+    for (const line of cardLines) {
+      expect(line.trim()).toMatch(/ &\d+$/)
+    }
+  })
+})
