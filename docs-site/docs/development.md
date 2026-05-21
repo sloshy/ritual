@@ -46,6 +46,7 @@ This launches `scripts/dev.ts`, which:
 - Spawns `bun index.ts <subcommand>` as a child process.
 - Watches `src/` (TypeScript, TSX, CSS, SVG) and — for `serve-site` — `decks/`, `collections/`, and `wanted/` (Markdown).
 - On any change, fully restarts the child process so updates to **any** part of the codebase (core logic, server handlers, parsers, SPA, themes, etc.) take effect on the next request.
+- Catches changes even when the OS file watcher drops events. `fs.watch` can silently miss events under bursts (a formatter touching many files, an editor "save all", or atomic-rename saves), which would otherwise leave the rebuild stale. A snapshot of the watched tree is taken each time a build is launched, and a ~1s background scan re-checks it; if any file drifts from what the running build was launched against, the child restarts so the build always converges on the latest sources.
 
 Any extra arguments are forwarded to the underlying command:
 

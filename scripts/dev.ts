@@ -10,6 +10,7 @@ import path from 'node:path'
 import { existsSync, watch } from 'node:fs'
 import { answerFlagRequiredMessage, hasAnswerFlag } from './dev-args'
 import { shouldRestartForSource } from './dev-watch'
+import { diffSnapshots, snapshotTree, type TreeSnapshot, type WatchRoot } from './dev-snapshot'
 
 const SUBCOMMANDS = ['admin', 'serve-site'] as const
 type Subcommand = (typeof SUBCOMMANDS)[number]
@@ -22,6 +23,9 @@ const PROMPTING_SUBCOMMANDS: readonly Subcommand[] = ['admin', 'serve-site']
 const DATA_DIRS: readonly string[] = ['decks', 'collections', 'wanted']
 const RESTART_DEBOUNCE_MS = 200
 const SHUTDOWN_GRACE_MS = 1_500
+// How often the snapshot backstop re-scans the watched tree for changes that
+// `fs.watch` dropped. ~260 files to stat per tick is sub-millisecond.
+const RECONCILE_INTERVAL_MS = 1_000
 
 function isSubcommand(s: string): s is Subcommand {
   return (SUBCOMMANDS as readonly string[]).includes(s)
@@ -47,6 +51,24 @@ const projectRoot = path.join(import.meta.dir, '..')
 const indexPath = path.join(projectRoot, 'index.ts')
 const srcDir = path.join(projectRoot, 'src')
 
+// Directories whose changes restart the child, each paired with the predicate
+// that decides which files count. The same set drives both the `fs.watch` fast
+// path and the snapshot-reconciliation backstop, so the two can never disagree
+// about what counts as "watched".
+const watchRoots: WatchRoot[] = buildWatchRoots()
+
+function buildWatchRoots(): WatchRoot[] {
+  const roots: WatchRoot[] = [{ dir: srcDir, include: shouldRestartForSource }]
+  if (subcommand === 'serve-site') {
+    const baseDir = resolveBaseDir()
+    for (const dataDir of DATA_DIRS) {
+      const abs = path.join(baseDir, dataDir)
+      if (existsSync(abs)) roots.push({ dir: abs, include: (f) => f.endsWith('.md') })
+    }
+  }
+  return roots
+}
+
 type ChildProc = ReturnType<typeof Bun.spawn>
 let child: ChildProc | null = null
 let restartTimer: ReturnType<typeof setTimeout> | null = null
@@ -59,6 +81,11 @@ let shuttingDown = false
 let restarting = false
 let restartQueued = false
 
+// The watched-tree state the currently-running build was launched against. The
+// reconciliation backstop diffs against this to catch any change `fs.watch`
+// missed since the build began.
+let builtSnapshot: TreeSnapshot = new Map()
+
 // Procs we've deliberately signalled (for a restart or a shutdown). Their exit
 // is expected, so `onExit` must not mistake it for a crash and tear the whole
 // orchestrator down.
@@ -69,6 +96,9 @@ function relativeFromRoot(p: string): string {
 }
 
 function spawnChild(): void {
+  // Snapshot the watched tree the instant we (re)launch the build. Anything that
+  // changes after this is drift the reconciliation backstop will rebuild for.
+  builtSnapshot = snapshotTree(watchRoots)
   const argline = [subcommand, ...passthrough].join(' ')
   console.log(`[dev] Starting: bun ${relativeFromRoot(indexPath)} ${argline}`)
   // - `detached: true` puts the child in its own process group so terminal
@@ -182,24 +212,38 @@ function resolveBaseDir(): string {
   return projectRoot
 }
 
-watch(srcDir, { recursive: true }, (_event, filename) => {
-  if (!filename || !shouldRestartForSource(filename)) return
-  scheduleRestart(`src/${filename}`)
-})
-console.log(`[dev] Watching ${relativeFromRoot(srcDir)}`)
-
-if (subcommand === 'serve-site') {
-  const baseDir = resolveBaseDir()
-  for (const dataDir of DATA_DIRS) {
-    const abs = path.join(baseDir, dataDir)
-    if (!existsSync(abs)) continue
-    watch(abs, { recursive: true }, (_event, filename) => {
-      if (!filename || !filename.endsWith('.md')) return
-      scheduleRestart(`${dataDir}/${filename}`)
-    })
-    console.log(`[dev] Watching ${relativeFromRoot(abs)}`)
-  }
+// Fast path: react to filesystem events immediately.
+for (const root of watchRoots) {
+  watch(root.dir, { recursive: true }, (_event, filename) => {
+    if (!filename) return
+    const relative = filename.split(path.sep).join('/')
+    if (!root.include(relative)) return
+    scheduleRestart(relativeFromRoot(path.join(root.dir, filename)))
+  })
+  console.log(`[dev] Watching ${relativeFromRoot(root.dir)}`)
 }
+
+// Backstop: `fs.watch` silently drops events under bursts (formatters, save-all,
+// atomic-rename saves), which would leave the build stale. Periodically diff the
+// watched tree against the snapshot the running build was launched from and
+// restart on any drift, so the build always converges on the latest sources.
+function reconcile(): void {
+  if (shuttingDown) return
+  // A restart is already pending or in flight; it will refresh `builtSnapshot`.
+  // Skip so we don't queue redundant work — the next tick re-checks once settled.
+  if (restarting || restartTimer) return
+  const changed = diffSnapshots(builtSnapshot, snapshotTree(watchRoots))
+  if (changed.length === 0) return
+  const names = changed.map(relativeFromRoot)
+  const shown = names.slice(0, 3).join(', ')
+  const summary = names.length > 3 ? `${shown} +${names.length - 3} more` : shown
+  scheduleRestart(`reconcile (${summary})`)
+}
+
+let reconcileTimer: ReturnType<typeof setInterval> | null = setInterval(
+  reconcile,
+  RECONCILE_INTERVAL_MS,
+)
 
 type ShutdownSignal = 'SIGINT' | 'SIGTERM'
 async function shutdown(signal: ShutdownSignal): Promise<void> {
@@ -213,6 +257,10 @@ async function shutdown(signal: ShutdownSignal): Promise<void> {
   if (restartTimer) {
     clearTimeout(restartTimer)
     restartTimer = null
+  }
+  if (reconcileTimer) {
+    clearInterval(reconcileTimer)
+    reconcileTimer = null
   }
   console.log('\n[dev] Shutting down...')
   if (child) {
