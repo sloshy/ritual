@@ -98,6 +98,18 @@ Every card entry in deck, collection, and wanted list markdown files has a persi
 
 **Undo system**: The admin site editors support linear undo of individual changes. Undo of a removal reclaims the original card ID. Implemented via `useCardChanges` hook with `UndoEntry` stack.
 
+## Post-Implementation Review
+
+After completing any new feature or bug fix, run the following subagent reviews before considering the task done:
+
+- **`ts-code-reviewer`** — reviews TypeScript code for type safety, idiomatic patterns, and proper use of language features.
+- **`solidjs-code-reviewer`** — reviews any new or modified SolidJS components, signals, stores, or effects for reactivity correctness and modern patterns. Only invoke when SolidJS code was written or changed.
+- **`code-deduplicator`** — scans changed files for meaningful duplication opportunities: repeated logic, redundant constants, similar parsing patterns. Only invoke when multiple files were added or significantly modified.
+- **`docs-sync-reviewer`** — verifies that `docs-site/docs/` reflects the current CLI source. Invoke whenever a command in `src/commands/` is added, changed, or removed, or when flags/options change.
+- **`card-format-reviewer`** — audits code that touches card entries (parsers, serializers, importers) for violations of domain invariants: set code normalization, `&N` ID handling, canonical line format, and parser error representation. Invoke when adding or modifying any code that reads or writes deck, collection, or wanted list files.
+
+Run all applicable agents for the change. If a reviewer flags issues, fix them before finishing.
+
 ## Tests
 
 When adding a new feature, include tests.
