@@ -392,7 +392,9 @@ async function writeFileWithOverwritePrompt(
   return 'written'
 }
 
-async function updateGitignore(entries: string): Promise<'created' | 'updated' | 'unchanged'> {
+export async function updateGitignore(
+  entries: string,
+): Promise<'created' | 'updated' | 'unchanged'> {
   const gitignorePath = path.join(getBaseDir(), '.gitignore')
   const linesToAdd = entries
     .split('\n')
@@ -525,6 +527,17 @@ export function registerInitSiteCommand(program: Command): void {
         const { version: _version, ...config } = loaded
         const migrations = computeMigrations(loaded.version, ritualVersion, MANAGED_FILES, config)
         await applyMigrations(migrations)
+
+        // Keep .gitignore in sync with the current template. This is idempotent
+        // (only missing entries are added), so upgrades pick up new exclusions
+        // such as the downloaded /ritual binary.
+        const gitignoreResult = await updateGitignore(generateGitignoreEntries())
+        if (gitignoreResult === 'created') {
+          console.log('✓ Created .gitignore')
+        } else if (gitignoreResult === 'updated') {
+          console.log('✓ Updated .gitignore')
+        }
+
         const updatedSite: SiteConfig = { ...config, version: ritualVersion }
         await persistSiteConfigOrExit(updatedSite)
         console.log(`✓ ritual.config.json site section updated to ${ritualVersion}`)

@@ -1,12 +1,17 @@
-import { describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, test } from 'bun:test'
 import yaml from 'js-yaml'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import {
   generatePublishForMeWorkflow,
   generateLocalBuildWorkflow,
   generateWorkflow,
   generateReadme,
   generateGitignoreEntries,
+  updateGitignore,
 } from '../../src/commands/init-site'
+import { setBaseDir } from '../../src/base-dir'
 
 type WorkflowStep = {
   name?: string
@@ -484,5 +489,63 @@ describe('generateGitignoreEntries', () => {
     const entries = generateGitignoreEntries()
 
     expect(entries).toContain('/ritual')
+  })
+})
+
+describe('updateGitignore', () => {
+  const originalCwd = process.cwd()
+  let tmpDir: string | null = null
+
+  afterEach(async () => {
+    setBaseDir(originalCwd)
+    if (tmpDir) {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+      tmpDir = null
+    }
+  })
+
+  async function useTempDir(): Promise<string> {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-gitignore-test-'))
+    setBaseDir(tmpDir)
+    return tmpDir
+  }
+
+  test('creates a .gitignore containing the ritual binary when none exists', async () => {
+    const dir = await useTempDir()
+
+    const result = await updateGitignore(generateGitignoreEntries())
+
+    expect(result).toBe('created')
+    const written = await fs.readFile(path.join(dir, '.gitignore'), 'utf-8')
+    expect(written).toContain('/ritual')
+  })
+
+  test('adds missing entries to an existing .gitignore without disturbing custom lines', async () => {
+    const dir = await useTempDir()
+    const gitignorePath = path.join(dir, '.gitignore')
+    await fs.writeFile(gitignorePath, 'cache/\nnode_modules/\n')
+
+    const result = await updateGitignore(generateGitignoreEntries())
+
+    expect(result).toBe('updated')
+    const written = await fs.readFile(gitignorePath, 'utf-8')
+    // The user's own entry is preserved.
+    expect(written).toContain('node_modules/')
+    // The new binary exclusion is added.
+    expect(written).toContain('/ritual')
+    // An entry that already existed is not duplicated.
+    expect(written.split('\n').filter((l) => l === 'cache/')).toHaveLength(1)
+  })
+
+  test('is idempotent on a second run', async () => {
+    const dir = await useTempDir()
+    const gitignorePath = path.join(dir, '.gitignore')
+
+    await updateGitignore(generateGitignoreEntries())
+    const result = await updateGitignore(generateGitignoreEntries())
+
+    expect(result).toBe('unchanged')
+    const written = await fs.readFile(gitignorePath, 'utf-8')
+    expect(written.split('\n').filter((l) => l === '/ritual')).toHaveLength(1)
   })
 })
