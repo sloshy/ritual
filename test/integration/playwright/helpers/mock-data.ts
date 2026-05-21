@@ -332,6 +332,11 @@ const MOCK_DECK_WITH_CHANGELOG = {
         { action: 'Removed', cardName: 'Old Card' },
         { action: 'Added', cardName: 'Maybe Card', board: 'Maybeboard' },
         { action: 'Removed', cardName: 'Side Card', board: 'Sideboard' },
+        { action: 'Set as commander', cardName: 'New Commander' },
+        { action: 'Unset as commander', cardName: 'Old Commander' },
+        { action: 'Set finish', cardName: 'Shiny Card', finish: 'foil' },
+        { action: 'Set note', cardName: 'Noted Card', note: 'great vs aggro' },
+        { action: 'Cleared note', cardName: 'Plain Card' },
       ],
     },
     {

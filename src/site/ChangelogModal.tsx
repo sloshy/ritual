@@ -1,11 +1,12 @@
 import type { Component } from 'solid-js'
 import { createSignal, createEffect, createMemo, onCleanup, Show, For } from 'solid-js'
-import type { ChangelogPage, ChangelogChange, ChangelogAction } from '../changelog-parser'
+import type { ChangelogPage } from '../changelog-parser'
 import type { ScryfallCard } from '../types'
 import type { PriceCurrency } from '../price-currency'
 import { useTooltip } from './useTooltip'
 import { resolveCardImageSources } from './image-sources'
 import { CardModal } from './CardModal'
+import { formatChangeText, isAdditiveAction } from './changelog-format'
 
 interface ChangelogModalProps {
   open: boolean
@@ -21,44 +22,6 @@ interface ChangelogModalProps {
 function getCardImageUrl(card: ScryfallCard, useScryfallImgUrls: boolean): string | null {
   const sources = resolveCardImageSources(card, useScryfallImgUrls)
   return sources.frontImage || null
-}
-
-type FormattedChange = { prefix: string; suffix: string }
-
-function isAdditiveAction(action: ChangelogAction): boolean {
-  return action === 'Added' || action.startsWith('Set')
-}
-
-function formatChangeText(change: ChangelogChange): FormattedChange {
-  const parts: string[] = []
-  if (change.set && change.collectorNumber) {
-    parts.push(`(${change.set.toUpperCase()}:${change.collectorNumber})`)
-  }
-  if (change.finish && change.finish !== 'nonfoil') {
-    parts.push(`[${change.finish}]`)
-  }
-  if (change.condition && change.condition !== 'NM') {
-    parts.push(`[${change.condition}]`)
-  }
-
-  let prefix: string
-  if (change.action === 'Set as commander') {
-    prefix = 'Set '
-    return { prefix, suffix: ' as commander' }
-  }
-  if (change.action === 'Set finish') {
-    prefix = 'Set '
-    return { prefix, suffix: ` finish to ${change.finish ?? 'nonfoil'}` }
-  }
-
-  prefix = `${change.action} `
-  const annotation = parts.length > 0 ? ' ' + parts.join(' ') : ''
-  // The parser only sets `board` for non-main boards, so this stays empty for
-  // ordinary mainboard changes.
-  const boardText = change.board
-    ? ` ${change.action === 'Removed' ? 'from' : 'to'} ${change.board}`
-    : ''
-  return { prefix, suffix: `${annotation}${boardText}` }
 }
 
 export const ChangelogModal: Component<ChangelogModalProps> = (props) => {
@@ -135,11 +98,11 @@ export const ChangelogModal: Component<ChangelogModalProps> = (props) => {
                       ? getCardImageUrl(card, props.useScryfallImgUrls)
                       : null
                   const { prefix, suffix } = formatChangeText(change)
+                  // Every action is categorized as additive or destructive (see
+                  // isAdditiveAction), so there is no neutral middle state.
                   const colorClass = additive
                     ? 'changelog-change-item--add'
-                    : change.action === 'Removed'
-                      ? 'changelog-change-item--remove'
-                      : 'changelog-change-item--other'
+                    : 'changelog-change-item--remove'
 
                   return (
                     <div class={`changelog-change-item ${colorClass}`}>

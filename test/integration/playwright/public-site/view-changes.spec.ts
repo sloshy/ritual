@@ -38,6 +38,47 @@ test.describe('View Changes', () => {
     ).toBeVisible()
   })
 
+  test('changelog modal renders commander, finish, and note actions correctly', async ({
+    page,
+  }) => {
+    await page.getByRole('button', { name: 'View Changes' }).click()
+    const modal = page.locator('.changelog-modal')
+    await expect(modal).toBeVisible()
+
+    // Commander set/unset wrap the card name: "Set X as commander" / "Unset X as commander".
+    const setCommander = modal.locator('.changelog-change-item', {
+      hasText: 'Set New Commander as commander',
+    })
+    await expect(setCommander).toBeVisible()
+    await expect(setCommander).toHaveClass(/changelog-change-item--add/)
+
+    const unsetCommander = modal.locator('.changelog-change-item', {
+      hasText: 'Unset Old Commander as commander',
+    })
+    await expect(unsetCommander).toBeVisible()
+    // Unset is destructive, so it is styled like a removal rather than left neutral.
+    await expect(unsetCommander).toHaveClass(/changelog-change-item--remove/)
+
+    // Set finish reads "Set X finish to foil".
+    await expect(
+      modal.locator('.changelog-change-item', { hasText: 'Set Shiny Card finish to foil' }),
+    ).toBeVisible()
+
+    // Set note keeps the note text: "Set note on X to "the note"".
+    await expect(
+      modal.locator('.changelog-change-item', {
+        hasText: 'Set note on Noted Card to "great vs aggro"',
+      }),
+    ).toBeVisible()
+
+    // Cleared note reads "Cleared note on X" and is destructive.
+    const clearedNote = modal.locator('.changelog-change-item', {
+      hasText: 'Cleared note on Plain Card',
+    })
+    await expect(clearedNote).toBeVisible()
+    await expect(clearedNote).toHaveClass(/changelog-change-item--remove/)
+  })
+
   test('changelog modal can be closed with the close button', async ({ page }) => {
     await page.getByRole('button', { name: 'View Changes' }).click()
     await expect(page.locator('.changelog-modal')).toBeVisible()

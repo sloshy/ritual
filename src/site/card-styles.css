@@ -1243,10 +1243,6 @@ h3 {
   color: var(--error-text);
 }
 
-.changelog-change-item--other {
-  color: var(--text-accent);
-}
-
 .changelog-change-icon {
   font-size: 1rem;
   flex-shrink: 0;
