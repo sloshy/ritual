@@ -1,32 +1,8 @@
 ---
 name: code-deduplicator
-description: "Use this agent when you want to identify meaningful code deduplication opportunities in recently written or existing code. This agent analyzes code for redundant logic, duplicate constants, repeated parsing patterns, and similar constructs that could be meaningfully consolidated — without suggesting superficial refactors.
-
-Examples:
-<example>
-Context: The user has just written several new files implementing different parts of a feature.
-user: \"I just finished implementing the authentication flow across multiple files. Can you check for any duplication?\"
-assistant: \"I'll use the code-deduplicator agent to analyze the recently written authentication code for meaningful consolidation opportunities.\"
-<commentary>
-Since the user has written new code across multiple files and wants to check for duplication, launch the code-deduplicator agent to analyze the code and produce a list of suggestions.
-</commentary>
-</example>
-<example>
-Context: The user is doing a code review pass before a PR.
-user: \"Before I submit this PR, can you look for any duplicated logic I should clean up?\"
-assistant: \"I'll launch the code-deduplicator agent to review the changed files and identify any meaningful deduplication opportunities.\"
-<commentary>
-The user wants a deduplication review before submitting a PR. Use the code-deduplicator agent to analyze the diff/changed files.
-</commentary>
-</example>
-<example>
-Context: The user notices repetitive patterns while working.
-user: \"I feel like I've written this URL parsing logic before somewhere else in the codebase.\"
-assistant: \"Let me use the code-deduplicator agent to search for similar parsing logic across the codebase.\"
-<commentary>
-The user suspects duplication exists. Launch the code-deduplicator agent to find and confirm matching or near-matching patterns.
-</commentary>
-</example>"
+description: |-
+  Use this agent when you want to identify meaningful code deduplication opportunities in recently written or existing code. This agent analyzes code for redundant logic, duplicate constants, repeated parsing patterns, and similar constructs that could be meaningfully consolidated — without suggesting superficial refactors.
+  Examples: <example> Context: The user has just written several new files implementing different parts of a feature. user: "I just finished implementing the authentication flow across multiple files. Can you check for any duplication?" assistant: "I'll use the code-deduplicator agent to analyze the recently written authentication code for meaningful consolidation opportunities." <commentary> Since the user has written new code across multiple files and wants to check for duplication, launch the code-deduplicator agent to analyze the code and produce a list of suggestions. </commentary> </example> <example> Context: The user is doing a code review pass before a PR. user: "Before I submit this PR, can you look for any duplicated logic I should clean up?" assistant: "I'll launch the code-deduplicator agent to review the changed files and identify any meaningful deduplication opportunities." <commentary> The user wants a deduplication review before submitting a PR. Use the code-deduplicator agent to analyze the diff/changed files. </commentary> </example> <example> Context: The user notices repetitive patterns while working. user: "I feel like I've written this URL parsing logic before somewhere else in the codebase." assistant: "Let me use the code-deduplicator agent to search for similar parsing logic across the codebase." <commentary> The user suspects duplication exists. Launch the code-deduplicator agent to find and confirm matching or near-matching patterns. </commentary> </example>
 tools: Glob, Grep, Read, WebFetch, WebSearch
 model: sonnet
 memory: user

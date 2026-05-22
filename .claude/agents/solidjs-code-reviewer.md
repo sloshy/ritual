@@ -1,28 +1,10 @@
 ---
 name: solidjs-code-reviewer
-description: "Use this agent when SolidJS code has been written or modified and needs expert review for modernization, cleanliness, efficiency, and pattern correctness. This agent should be invoked proactively after writing or editing SolidJS components, signals, stores, effects, or related reactive primitives.
-
-<example>
-Context: The user has just written a new SolidJS component for a card display.
-user: 'I just added a new CardDisplay component in src/components/CardDisplay.tsx that shows card details with reactive updates'
-assistant: 'Let me use the Agent tool to launch the solidjs-code-reviewer agent to review the new SolidJS component for modern patterns, efficiency, and code quality.'
-<commentary>Since new SolidJS code was written, proactively use the solidjs-code-reviewer agent to ensure it follows best practices.</commentary>
-</example>
-
-<example>
-Context: The user has refactored a SolidJS store.
-user: 'Please refactor the deck editor to use a centralized store for card state'
-assistant: 'Here's the refactored store implementation:' <function call omitted for brevity>
-assistant: 'Now let me use the Agent tool to launch the solidjs-code-reviewer agent to verify the store implementation follows SolidJS best practices and avoids reactivity pitfalls.'
-<commentary>After making significant SolidJS changes, use the solidjs-code-reviewer agent to catch any anti-patterns or inefficiencies.</commentary>
-</example>
-
-<example>
-Context: User asks for a review of their reactive code.
-user: 'Can you check this createEffect block for any issues?'
-assistant: 'I'll use the Agent tool to launch the solidjs-code-reviewer agent to perform a thorough review of the reactive code.'
-<commentary>The user is explicitly asking for a review of SolidJS reactive code, which is the agent's specialty.</commentary>
-</example>"
+description: |-
+  Use this agent when SolidJS code has been written or modified and needs expert review for modernization, cleanliness, efficiency, and pattern correctness. This agent should be invoked proactively after writing or editing SolidJS components, signals, stores, effects, or related reactive primitives.
+  <example> Context: The user has just written a new SolidJS component for a card display. user: 'I just added a new CardDisplay component in src/components/CardDisplay.tsx that shows card details with reactive updates' assistant: 'Let me use the Agent tool to launch the solidjs-code-reviewer agent to review the new SolidJS component for modern patterns, efficiency, and code quality.' <commentary>Since new SolidJS code was written, proactively use the solidjs-code-reviewer agent to ensure it follows best practices.</commentary> </example>
+  <example> Context: The user has refactored a SolidJS store. user: 'Please refactor the deck editor to use a centralized store for card state' assistant: 'Here's the refactored store implementation:' <function call omitted for brevity> assistant: 'Now let me use the Agent tool to launch the solidjs-code-reviewer agent to verify the store implementation follows SolidJS best practices and avoids reactivity pitfalls.' <commentary>After making significant SolidJS changes, use the solidjs-code-reviewer agent to catch any anti-patterns or inefficiencies.</commentary> </example>
+  <example> Context: User asks for a review of their reactive code. user: 'Can you check this createEffect block for any issues?' assistant: 'I'll use the Agent tool to launch the solidjs-code-reviewer agent to perform a thorough review of the reactive code.' <commentary>The user is explicitly asking for a review of SolidJS reactive code, which is the agent's specialty.</commentary> </example>
 tools: Glob, Grep, Read, TaskStop, WebFetch, WebSearch
 model: sonnet
 memory: user

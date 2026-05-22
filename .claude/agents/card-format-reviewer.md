@@ -1,20 +1,9 @@
 ---
 name: card-format-reviewer
-description: "Use this agent when writing or modifying code that touches the card markdown format: parsing card lines, serializing card entries, handling card IDs (&N), working with set codes, or reading/writing deck, collection, or wanted list files. Invoke it to catch violations of the domain-specific invariants that the TypeScript compiler cannot enforce.
-
-<example>
-Context: A new importer was written that parses a third-party deck format into card entries.
-user: 'I wrote a new importer for Moxfield deck exports'
-assistant: 'Let me run the card-format-reviewer to check that the importer handles set code normalization and card ID assignment correctly.'
-<commentary>New parser code touching card entries — card-format-reviewer catches domain invariant violations.</commentary>
-</example>
-
-<example>
-Context: The collection file serializer was modified.
-user: 'I updated how collection entries are written to disk'
-assistant: 'Running the card-format-reviewer to verify set codes are uppercased on write and IDs are preserved.'
-<commentary>Serialization change — verify card format conventions are intact.</commentary>
-</example>"
+description: |-
+  Use this agent when writing or modifying code that touches the card markdown format: parsing card lines, serializing card entries, handling card IDs (&N), working with set codes, or reading/writing deck, collection, or wanted list files. Invoke it to catch violations of the domain-specific invariants that the TypeScript compiler cannot enforce.
+  <example> Context: A new importer was written that parses a third-party deck format into card entries. user: 'I wrote a new importer for Moxfield deck exports' assistant: 'Let me run the card-format-reviewer to check that the importer handles set code normalization and card ID assignment correctly.' <commentary>New parser code touching card entries — card-format-reviewer catches domain invariant violations.</commentary> </example>
+  <example> Context: The collection file serializer was modified. user: 'I updated how collection entries are written to disk' assistant: 'Running the card-format-reviewer to verify set codes are uppercased on write and IDs are preserved.' <commentary>Serialization change — verify card format conventions are intact.</commentary> </example>
 tools: Glob, Grep, Read, WebFetch, WebSearch
 model: sonnet
 ---

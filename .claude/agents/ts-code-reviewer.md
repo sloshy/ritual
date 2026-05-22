@@ -1,33 +1,10 @@
 ---
 name: ts-code-reviewer
-description: "Use this agent when TypeScript code has been written or modified and needs expert review for language feature usage, type safety, and idiomatic TypeScript patterns. This agent should be used proactively after significant TypeScript code changes are made.
-
-<example>
-Context: The user has just written a new TypeScript utility function and wants it reviewed.
-user: \"I just wrote this helper function to parse user config from a JSON string\"
-assistant: \"Thanks! Let me use the TypeScript code reviewer agent to analyze it for type safety and modern TypeScript patterns.\"
-<commentary>
-Since new TypeScript code was written, launch the ts-code-reviewer agent to analyze the code for type safety, proper typing, and modern TypeScript feature usage before moving on.
-</commentary>
-</example>
-
-<example>
-Context: The user is working on a large refactor and has finished a logical chunk of work.
-user: \"I've finished refactoring the authentication module to use the new token system\"
-assistant: \"Great work! I'll now use the TypeScript code reviewer agent to check the refactored code for any type safety concerns or opportunities to leverage modern TypeScript features.\"
-<commentary>
-A significant refactor was completed, so the ts-code-reviewer agent should be used to audit the changes for TypeScript best practices.
-</commentary>
-</example>
-
-<example>
-Context: User writes code that contains 'any' types or type assertions.
-user: \"Here's my data transformation pipeline\"
-assistant: \"Let me launch the TypeScript code reviewer to examine this for any type safety issues, particularly around the use of 'any' and type assertions.\"
-<commentary>
-Data transformation pipelines often involve complex types; use the ts-code-reviewer agent to ensure proper typing throughout.
-</commentary>
-</example>"
+description: |-
+  Use this agent when TypeScript code has been written or modified and needs expert review for language feature usage, type safety, and idiomatic TypeScript patterns. This agent should be used proactively after significant TypeScript code changes are made.
+  <example> Context: The user has just written a new TypeScript utility function and wants it reviewed. user: "I just wrote this helper function to parse user config from a JSON string" assistant: "Thanks! Let me use the TypeScript code reviewer agent to analyze it for type safety and modern TypeScript patterns." <commentary> Since new TypeScript code was written, launch the ts-code-reviewer agent to analyze the code for type safety, proper typing, and modern TypeScript feature usage before moving on. </commentary> </example>
+  <example> Context: The user is working on a large refactor and has finished a logical chunk of work. user: "I've finished refactoring the authentication module to use the new token system" assistant: "Great work! I'll now use the TypeScript code reviewer agent to check the refactored code for any type safety concerns or opportunities to leverage modern TypeScript features." <commentary> A significant refactor was completed, so the ts-code-reviewer agent should be used to audit the changes for TypeScript best practices. </commentary> </example>
+  <example> Context: User writes code that contains 'any' types or type assertions. user: "Here's my data transformation pipeline" assistant: "Let me launch the TypeScript code reviewer to examine this for any type safety issues, particularly around the use of 'any' and type assertions." <commentary> Data transformation pipelines often involve complex types; use the ts-code-reviewer agent to ensure proper typing throughout. </commentary> </example>
 tools: Glob, Grep, Read, WebFetch, WebSearch
 model: sonnet
 memory: user

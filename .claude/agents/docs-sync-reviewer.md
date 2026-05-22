@@ -1,20 +1,9 @@
 ---
 name: docs-sync-reviewer
-description: "Use this agent after adding, removing, or modifying CLI commands, flags, options, or features to verify that docs-site/ has been updated to match. Invoke it whenever src/commands/ files change or when new configuration keys, flags, or behaviors are introduced. The agent cross-references source code changes against docs-site/docs/ and flags any gaps or stale content.
-
-<example>
-Context: A new --filter flag was added to the collection command.
-user: 'I just added a --filter flag to the collection command'
-assistant: 'Let me use the docs-sync-reviewer to check whether the docs reflect the new flag.'
-<commentary>Source changed, docs may not have caught up — use docs-sync-reviewer to audit.</commentary>
-</example>
-
-<example>
-Context: A new CLI command was added in src/commands/.
-user: 'I added a new merge-collections command'
-assistant: 'Running the docs-sync-reviewer to verify a docs page exists and is accurate for the new command.'
-<commentary>New command requires a new docs page — use docs-sync-reviewer to verify.</commentary>
-</example>"
+description: |-
+  Use this agent after adding, removing, or modifying CLI commands, flags, options, or features to verify that docs-site/ has been updated to match. Invoke it whenever src/commands/ files change or when new configuration keys, flags, or behaviors are introduced. The agent cross-references source code changes against docs-site/docs/ and flags any gaps or stale content.
+  <example> Context: A new --filter flag was added to the collection command. user: 'I just added a --filter flag to the collection command' assistant: 'Let me use the docs-sync-reviewer to check whether the docs reflect the new flag.' <commentary>Source changed, docs may not have caught up — use docs-sync-reviewer to audit.</commentary> </example>
+  <example> Context: A new CLI command was added in src/commands/. user: 'I added a new merge-collections command' assistant: 'Running the docs-sync-reviewer to verify a docs page exists and is accurate for the new command.' <commentary>New command requires a new docs page — use docs-sync-reviewer to verify.</commentary> </example>
 tools: Glob, Grep, Read, WebFetch, WebSearch
 model: sonnet
 ---
