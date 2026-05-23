@@ -41,7 +41,6 @@ interface WantedListPageProps {
   onCloseModal: () => void
   currency: PriceCurrency
   editMode?: boolean
-  onAddCard?: () => void
   onCardIncrement?: (entry: WantedListCardEntry) => void
   onCardDecrement?: (entry: WantedListCardEntry) => void
   onCardContextMenu?: (cardKey: string, card: ScryfallCard | null, rect: DOMRect) => void
@@ -346,11 +345,6 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
           </p>
         </div>
         <div class="btn-group">
-          <Show when={props.editMode}>
-            <button class="site-btn site-btn-add" onClick={props.onAddCard}>
-              + Add Card
-            </button>
-          </Show>
           <Show when={props.changelog && props.changelog.length > 0}>
             <button
               onClick={() => setShowChangelog(true)}

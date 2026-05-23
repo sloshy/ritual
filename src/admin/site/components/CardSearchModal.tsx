@@ -35,6 +35,9 @@ type AddOptionsInput = {
 
 type Step = 'search' | 'printing' | 'finish-condition'
 
+/** A keyboard shortcut hint shown in the modal footer (e.g. ↑↓ "navigate"). */
+type KeyHint = { keys: string[]; label: string }
+
 const PRINTING_PAGE_SIZE = 8
 
 /**
@@ -516,6 +519,20 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     }
   }
 
+  // Keyboard hints shown in the footer, mirroring the public site's quick-switch
+  // dialog. The search and printing steps support arrow/Enter navigation; the
+  // finish-condition step is a short terminal form, so it only advertises Esc.
+  const keyHints = createMemo<KeyHint[]>(() => {
+    if (step() === 'finish-condition') {
+      return [{ keys: ['Esc'], label: 'close' }]
+    }
+    return [
+      { keys: ['↑', '↓'], label: 'navigate' },
+      { keys: ['Enter'], label: 'select' },
+      { keys: ['Esc'], label: 'close' },
+    ]
+  })
+
   // Compute card preview position relative to modal
   const previewPositionStyle = createMemo(() => {
     if (!modalRef || !previewCard() || step() !== 'search') return 'display: none;'
@@ -533,7 +550,13 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
           if (e.target === e.currentTarget) props.onClose()
         }}
       >
-        <div class="search-modal" ref={modalRef}>
+        <div
+          class="search-modal"
+          ref={modalRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Add card"
+        >
           <Show when={step() === 'search'}>
             <>
               <div class="search-modal-header">
@@ -545,9 +568,6 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                   onInput={(e) => handleInputChange(e.currentTarget.value)}
                   onKeyDown={handleSearchKeyDown}
                 />
-                <button class="modal-close modal-close-btn-abs" onClick={props.onClose}>
-                  &times;
-                </button>
               </div>
               <div
                 class="search-modal-body"
@@ -583,9 +603,6 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                   ← Back
                 </button>
                 <h3 class="modal-heading-flex">Select a printing for {selectedCardName()}</h3>
-                <button class="modal-close modal-close-btn" onClick={props.onClose}>
-                  &times;
-                </button>
               </div>
               <div class="search-modal-body">
                 <Show
@@ -672,9 +689,6 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                     Set finish & condition for {selectedCardName()} ({printing().set.toUpperCase()}:
                     {printing().collector_number})
                   </h3>
-                  <button class="modal-close modal-close-btn" onClick={props.onClose}>
-                    &times;
-                  </button>
                 </div>
                 <div class="search-modal-body">
                   <div class="finish-condition-grid">
@@ -741,6 +755,17 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
               </>
             )}
           </Show>
+
+          <div class="search-modal-footer">
+            <For each={keyHints()}>
+              {(hint) => (
+                <span>
+                  <For each={hint.keys}>{(key) => <kbd>{key}</kbd>}</For>
+                  {hint.label}
+                </span>
+              )}
+            </For>
+          </div>
         </div>
 
         <Show when={previewCard() && step() === 'search'}>

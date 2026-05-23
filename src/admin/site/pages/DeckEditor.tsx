@@ -282,7 +282,6 @@ export function DeckEditor(props: DeckEditorProps): JSX.Element {
         currency={editor.currency}
         slug={editor.slug()!}
         editMode={true}
-        onAddCard={editor.dialogs.openSearchModal}
         onCardIncrement={handleIncrement}
         onCardDecrement={handleDecrement}
         onCardContextMenu={handleContextMenu}

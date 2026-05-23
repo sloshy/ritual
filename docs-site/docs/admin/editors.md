@@ -20,7 +20,7 @@ In binder and overlap views, these appear as transparent overlay buttons on hove
 
 ### Add Card Defaults
 
-Each editor has a collapsible **Add Card Defaults** panel between the file selector and the editor content. It mirrors the session filters in the CLI's `collection`, `wanted`, and `add-card` commands and is intended for batch entry — set defaults once, then add many cards in a row without confirming the same fields each time.
+Each editor has an **Add Card Defaults** toggle in the bottom [action bar](#editor-action-bar), between the **+ Add Card** and **Changes** buttons. Clicking it expands a panel upward revealing the default fields; a dot on the toggle indicates when any default is currently active. It mirrors the session filters in the CLI's `collection`, `wanted`, and `add-card` commands and is intended for batch entry — set defaults once, then add many cards in a row without confirming the same fields each time.
 
 The available defaults vary per editor:
 
@@ -42,7 +42,7 @@ When a default cannot be applied (e.g. the chosen printing doesn't support the d
 
 ### Adding Cards
 
-Click the **+ Add Card** button in the header to open the card search modal.
+Click the **+ Add Card** button in the bottom [action bar](#editor-action-bar) to open the card search modal. The modal shows keyboard-shortcut hints along its bottom edge; dismiss it with **Esc** or by clicking outside it.
 
 #### Step 1: Search
 
@@ -75,6 +75,16 @@ All edits are tracked as in-memory change events until explicitly saved.
 - Opposite changes cancel out automatically (e.g., adding then removing the same card)
 - Card names in the changes dialog are clickable links that open the card detail modal
 - Hovering a card name shows a preview image of the card
+
+### Editor Action Bar
+
+A bar pinned to the bottom of the editor holds all editing controls, from left to right:
+
+- **+ Add Card** — opens the card search modal (see [Adding Cards](#adding-cards))
+- **Add Card Defaults** — expands the [defaults panel](#add-card-defaults) upward
+- **Changes** — shows the pending-change count and opens the changes dialog
+- **Undo** — reverts the most recent change
+- **Save Changes** / **Discard Changes**
 
 ### Saving and Discarding
 

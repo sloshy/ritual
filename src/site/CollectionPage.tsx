@@ -37,7 +37,6 @@ interface CollectionPageProps {
   onCloseModal: () => void
   currency: PriceCurrency
   editMode?: boolean
-  onAddCard?: () => void
   onCardIncrement?: (entry: CollectionCardEntry) => void
   onCardDecrement?: (entry: CollectionCardEntry) => void
   onCardContextMenu?: (cardKey: string, card: ScryfallCard | null, rect: DOMRect) => void
@@ -332,11 +331,6 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
           </p>
         </div>
         <div class="btn-group">
-          <Show when={props.editMode}>
-            <button class="site-btn site-btn-add" onClick={props.onAddCard}>
-              + Add Card
-            </button>
-          </Show>
           <Show when={props.changelog && props.changelog.length > 0}>
             <button
               onClick={() => setShowChangelog(true)}

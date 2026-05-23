@@ -401,64 +401,9 @@
   color: var(--text-body);
 }
 
-/* ===== Add-card defaults bar ===== */
-.editor-defaults {
-  margin-bottom: 1rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg-panel);
-}
-
-.editor-defaults-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  font: inherit;
-  cursor: pointer;
-  text-align: left;
-}
-
-.editor-defaults-toggle:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.editor-defaults-toggle-icon {
-  font-size: 0.75rem;
-  width: 0.875rem;
-  flex-shrink: 0;
-}
-
-.editor-defaults-toggle-label {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-.editor-defaults-summary {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 0.375rem;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.editor-defaults-chip {
-  background: var(--bg-hover);
-  color: var(--text-secondary);
-  padding: 0.0625rem 0.5rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-}
-
+/* ===== Add-card defaults form (in the bottom action dock) ===== */
 .editor-defaults-body {
   padding: 0.5rem 0.75rem 0.75rem;
-  border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: 0.625rem;
@@ -714,6 +659,33 @@
   padding: 0;
 }
 
+/* Keyboard hint footer, mirroring the public site's quick-switch dialog. */
+.search-modal-footer {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+}
+
+.search-modal-footer span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.search-modal-footer kbd {
+  background: var(--bg-body);
+  border: 1px solid var(--border);
+  border-radius: 0.1875rem;
+  padding: 0.0625rem 0.3125rem;
+  font-family: inherit;
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+}
+
 .search-result-item {
   display: flex;
   align-items: center;
@@ -944,19 +916,82 @@
   border-bottom-color: rgba(191, 219, 254, 0.6);
 }
 
-/* Save/discard bar */
-.editor-action-bar {
+/* Bottom editor dock: a sticky container holding the action bar plus the
+   optional add-card defaults panel that expands upward above it. */
+.editor-action-dock {
   position: sticky;
   bottom: 0;
   left: 0;
   right: 0;
+  z-index: 30;
+}
+
+/* Add-card defaults panel, revealed above the action bar by the toggle button. */
+.editor-action-defaults {
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* Save/discard bar */
+.editor-action-bar {
   background: var(--bg-panel);
   border-top: 1px solid var(--border);
   padding: 12px 16px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
-  z-index: 30;
+}
+
+.btn-add {
+  background: var(--btn-add);
+  color: var(--btn-on-color-text);
+  border: 1px solid var(--btn-add);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.btn-add:hover {
+  background: var(--btn-add-hover);
+  border-color: var(--btn-add-hover);
+}
+
+.btn-defaults {
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  border: 1px solid var(--border);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.15s;
+}
+
+.btn-defaults:hover {
+  background: var(--btn-hover);
+}
+
+.btn-defaults-caret {
+  font-size: 0.75rem;
+}
+
+.btn-defaults-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--accent);
 }
 
 .changes-badge {
@@ -1130,6 +1165,17 @@ dialog.discard-dialog-native[open] {
 .main-content {
   flex: 1;
   padding: 1.5rem;
+}
+
+/* The shared toolbar full-bleeds to the viewport when stuck (margin: 0
+   calc(50% - 50vw)), which assumes a viewport-centered container. The admin
+   editor content is offset by the fixed sidebar, so that full-bleed would
+   spill across the sidebar. Bound the stuck toolbar to the editor content
+   area instead: extend only across the .main-content padding so it reaches the
+   editor edges without ever covering the sidebar. */
+.main-content .toolbar.is-stuck {
+  margin-left: -1.5rem;
+  margin-right: -1.5rem;
 }
 
 .main-content-constrained {
@@ -1432,17 +1478,6 @@ dialog.discard-dialog-native[open] {
 }
 
 .modal-close-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: 1.5rem;
-  cursor: pointer;
-}
-
-.modal-close-btn-abs {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.75rem;
   background: none;
   border: none;
   color: var(--text-muted);

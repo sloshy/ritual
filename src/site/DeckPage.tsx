@@ -54,7 +54,6 @@ export interface DeckPageProps {
   primerOpen?: boolean
   sectionId?: string
   editMode?: boolean
-  onAddCard?: () => void
   onCardIncrement?: (cardName: string) => void
   onCardDecrement?: (cardName: string) => void
   onCardContextMenu?: (cardName: string, card: ScryfallCard | null, rect: DOMRect) => void
@@ -424,17 +423,8 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
             </a>
           </Show>
         </div>
-        <Show
-          when={
-            props.exportPath || props.editMode || (props.changelog && props.changelog.length > 0)
-          }
-        >
+        <Show when={props.exportPath || (props.changelog && props.changelog.length > 0)}>
           <div class="btn-group">
-            <Show when={props.editMode}>
-              <button class="site-btn site-btn-add" onClick={props.onAddCard}>
-                + Add Card
-              </button>
-            </Show>
             <Show when={props.changelog && props.changelog.length > 0}>
               <button
                 onClick={() => setShowChangelog(true)}

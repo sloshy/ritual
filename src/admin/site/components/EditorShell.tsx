@@ -6,7 +6,6 @@ import { ChangesDialog } from './ChangesDialog'
 import { DiscardConfirmDialog } from './DiscardConfirmDialog'
 import { CardSearchModal } from './CardSearchModal'
 import { EditorActionBar } from './EditorActionBar'
-import { EditorDefaultsBar } from './EditorDefaultsBar'
 
 type BaseCardData = {
   cards: Record<string, ScryfallCard | null>
@@ -57,12 +56,6 @@ export function EditorShell<TData, TCardEntry>(
           </For>
         </select>
       </div>
-
-      {/* Add-card defaults */}
-      <EditorDefaultsBar
-        defaults={props.defaults}
-        showCondition={props.defaults.kind !== 'wanted'}
-      />
 
       {/* Status messages */}
       <Show when={editor.status.error}>
@@ -115,6 +108,8 @@ export function EditorShell<TData, TCardEntry>(
           changeCount={editor.changes.changeCount()}
           canUndo={editor.changes.canUndo()}
           saving={editor.status.saving}
+          defaults={props.defaults}
+          onAddCard={editor.dialogs.openSearchModal}
           onShowChanges={editor.dialogs.openChanges}
           onUndo={editor.handleUndo}
           onSave={() => void editor.handleSave()}

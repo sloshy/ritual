@@ -186,7 +186,6 @@ export function WantedListEditor(props: WantedListEditorProps): JSX.Element {
         onCloseModal={closeModal}
         currency={editor.currency}
         editMode={true}
-        onAddCard={editor.dialogs.openSearchModal}
         onCardIncrement={handleIncrement}
         onCardDecrement={handleDecrement}
         onCardContextMenu={handleContextMenu}

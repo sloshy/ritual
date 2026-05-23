@@ -263,9 +263,16 @@ test.describe('Deck Editor Page', () => {
       page,
     }) => {
       // Open the add card modal
-      await page.locator('.site-btn-add').click()
+      await page.locator('.btn-add').click()
       const searchInput = page.locator('.search-modal input[type="text"]')
       await expect(searchInput).toBeVisible({ timeout: 5_000 })
+
+      // The dialog shows quick-switch-style keyboard hints and no overlapping
+      // close button (dismissal is via Esc / backdrop).
+      const footer = page.locator('.search-modal-footer')
+      await expect(footer).toContainText('navigate')
+      await expect(footer).toContainText('close')
+      await expect(page.locator('.search-modal .modal-close-btn-abs')).toHaveCount(0)
 
       // Type to trigger autocomplete (debounced 1s)
       await searchInput.fill('Lightning')
@@ -284,7 +291,7 @@ test.describe('Deck Editor Page', () => {
       await expect(page.locator('.modal-heading-flex')).toHaveCount(0, { timeout: 3_000 })
 
       // Reopen the modal — must start back on the search step, not the printing step
-      await page.locator('.site-btn-add').click()
+      await page.locator('.btn-add').click()
       await expect(searchInput).toBeVisible({ timeout: 5_000 })
       await expect(page.locator('.modal-heading-flex')).toHaveCount(0)
     })
