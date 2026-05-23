@@ -3,11 +3,15 @@ import {
   areOppositeChanges,
   consolidateSetFinish,
   consolidateSetNote,
+  consolidateSetPrinting,
   isAdditiveChange,
+  isSamePrinting,
   createChangeId,
   formatChange,
 } from '../../src/change-event'
 import type { ChangeEvent, AddChange, RemoveChange } from '../../src/change-event'
+import { applyChangeToDeck } from '../../src/admin/site/types/deck-changes'
+import type { DeckData } from '../../src/types'
 
 /** Test helper — builds a ChangeEvent with add-change defaults.
  *  Uses assertion since overrides may switch to a different union branch. */
@@ -386,6 +390,10 @@ describe('isAdditiveChange', () => {
     expect(isAdditiveChange('set-note')).toBe(true)
   })
 
+  test('set-printing is additive', () => {
+    expect(isAdditiveChange('set-printing')).toBe(true)
+  })
+
   test('remove is not additive', () => {
     expect(isAdditiveChange('remove')).toBe(false)
   })
@@ -468,5 +476,254 @@ describe('formatChange', () => {
   test('formats empty set-note as a clear', () => {
     const change = makeChange({ action: 'set-note', cardName: 'Sol Ring', note: '', cardId: 5 })
     expect(formatChange(change)).toBe('Clear note on Sol Ring &5')
+  })
+
+  test('formats set-printing with set, collector number and finish', () => {
+    const change = makeChange({
+      action: 'set-printing',
+      cardName: 'Lightning Bolt',
+      set: 'm10',
+      collectorNumber: '146',
+      finish: 'foil',
+      cardId: 5,
+    })
+    expect(formatChange(change)).toBe('Set Lightning Bolt printing to M10:146 [foil] &5')
+  })
+
+  test('formats set-printing with no specific printing', () => {
+    const change = makeChange({ action: 'set-printing', cardName: 'Lightning Bolt', cardId: 5 })
+    expect(formatChange(change)).toBe('Set Lightning Bolt printing to no specific printing &5')
+  })
+})
+
+describe('isSamePrinting', () => {
+  test('normalizes absent finish/condition to defaults', () => {
+    expect(
+      isSamePrinting(
+        { set: 'lea', collectorNumber: '161' },
+        {
+          set: 'lea',
+          collectorNumber: '161',
+          finish: 'nonfoil',
+          condition: 'NM',
+        },
+      ),
+    ).toBe(true)
+  })
+
+  test('compares set codes case-insensitively', () => {
+    expect(
+      isSamePrinting(
+        { set: 'LEA', collectorNumber: '161' },
+        { set: 'lea', collectorNumber: '161' },
+      ),
+    ).toBe(true)
+  })
+
+  test('differs when set differs', () => {
+    expect(
+      isSamePrinting(
+        { set: 'lea', collectorNumber: '161' },
+        { set: 'm10', collectorNumber: '146' },
+      ),
+    ).toBe(false)
+  })
+
+  test('differs when finish differs', () => {
+    expect(
+      isSamePrinting(
+        { set: 'lea', collectorNumber: '161', finish: 'foil' },
+        { set: 'lea', collectorNumber: '161', finish: 'nonfoil' },
+      ),
+    ).toBe(false)
+  })
+})
+
+describe('consolidateSetPrinting', () => {
+  test('adds a set-printing change when the printing differs from the original', () => {
+    const { changes, addedChange, cancelledChange } = consolidateSetPrinting(
+      [],
+      'Lightning Bolt',
+      { set: 'm10', collectorNumber: '146', finish: 'nonfoil' },
+      { set: 'lea', collectorNumber: '161', finish: 'nonfoil' },
+      5,
+    )
+    expect(changes).toHaveLength(1)
+    expect(changes[0]!.action).toBe('set-printing')
+    expect(addedChange).not.toBeNull()
+    expect(cancelledChange).toBeNull()
+  })
+
+  test('adds nothing when the printing equals the original (no-op)', () => {
+    const { changes, addedChange, cancelledChange } = consolidateSetPrinting(
+      [],
+      'Lightning Bolt',
+      { set: 'lea', collectorNumber: '161' },
+      { set: 'lea', collectorNumber: '161', finish: 'nonfoil', condition: 'NM' },
+      5,
+    )
+    expect(changes).toHaveLength(0)
+    expect(addedChange).toBeNull()
+    expect(cancelledChange).toBeNull()
+  })
+
+  test('replaces an existing set-printing for the same card (latest wins)', () => {
+    const first = consolidateSetPrinting(
+      [],
+      'Lightning Bolt',
+      { set: 'm10', collectorNumber: '146' },
+      { set: 'lea', collectorNumber: '161' },
+      5,
+    )
+    const second = consolidateSetPrinting(
+      first.changes,
+      'Lightning Bolt',
+      { set: '2x2', collectorNumber: '117' },
+      { set: 'lea', collectorNumber: '161' },
+      5,
+    )
+    expect(second.changes).toHaveLength(1)
+    expect((second.changes[0] as { set?: string }).set).toBe('2x2')
+    expect(second.cancelledChange).not.toBeNull()
+  })
+
+  test('cancels an existing set-printing when restored to the original', () => {
+    const first = consolidateSetPrinting(
+      [],
+      'Lightning Bolt',
+      { set: 'm10', collectorNumber: '146' },
+      { set: 'lea', collectorNumber: '161' },
+      5,
+    )
+    const revert = consolidateSetPrinting(
+      first.changes,
+      'Lightning Bolt',
+      { set: 'lea', collectorNumber: '161' },
+      { set: 'lea', collectorNumber: '161' },
+      5,
+    )
+    expect(revert.changes).toHaveLength(0)
+    expect(revert.addedChange).toBeNull()
+    expect(revert.cancelledChange).not.toBeNull()
+  })
+
+  test('keeps set-printing changes for different cardIds independent', () => {
+    const first = consolidateSetPrinting(
+      [],
+      'Lightning Bolt',
+      { set: 'm10', collectorNumber: '146' },
+      { set: 'lea', collectorNumber: '161' },
+      1,
+    )
+    const second = consolidateSetPrinting(
+      first.changes,
+      'Lightning Bolt',
+      { set: 'm10', collectorNumber: '146' },
+      { set: 'lea', collectorNumber: '161' },
+      2,
+    )
+    expect(second.changes).toHaveLength(2)
+  })
+})
+
+function makeDeck(): DeckData {
+  return {
+    name: 'Test Deck',
+    sections: [
+      {
+        name: 'Main',
+        cards: [
+          {
+            quantity: 4,
+            name: 'Lightning Bolt',
+            set: 'lea',
+            collectorNumber: '161',
+            finish: 'nonfoil',
+            cardId: 5,
+          },
+        ],
+      },
+    ],
+  }
+}
+
+describe('applyChangeToDeck — change-printing support', () => {
+  test('add with a different printing creates a separate entry (does not merge by name)', () => {
+    const deck = makeDeck()
+    const result = applyChangeToDeck(deck, {
+      action: 'add',
+      cardName: 'Lightning Bolt',
+      set: 'm10',
+      collectorNumber: '146',
+      finish: 'nonfoil',
+      cardId: 99,
+    })
+    const cards = result.sections[0]!.cards
+    expect(cards).toHaveLength(2)
+    expect(cards[0]!.set).toBe('lea')
+    expect(cards[0]!.quantity).toBe(4)
+    expect(cards[1]!.set).toBe('m10')
+    expect(cards[1]!.cardId).toBe(99)
+    expect(cards[1]!.quantity).toBe(1)
+  })
+
+  test('add with the same printing merges into the existing entry', () => {
+    const deck = makeDeck()
+    const result = applyChangeToDeck(deck, {
+      action: 'add',
+      cardName: 'Lightning Bolt',
+      set: 'lea',
+      collectorNumber: '161',
+      finish: 'nonfoil',
+      cardId: 99,
+    })
+    const cards = result.sections[0]!.cards
+    expect(cards).toHaveLength(1)
+    expect(cards[0]!.quantity).toBe(5)
+  })
+
+  test('set-printing retargets the entry by cardId in place', () => {
+    const deck = makeDeck()
+    const result = applyChangeToDeck(deck, {
+      action: 'set-printing',
+      cardName: 'Lightning Bolt',
+      set: 'm10',
+      collectorNumber: '146',
+      finish: 'foil',
+      cardId: 5,
+    })
+    const cards = result.sections[0]!.cards
+    expect(cards).toHaveLength(1)
+    expect(cards[0]!.set).toBe('m10')
+    expect(cards[0]!.collectorNumber).toBe('146')
+    expect(cards[0]!.finish).toBe('foil')
+    expect(cards[0]!.quantity).toBe(4)
+  })
+
+  test('partial split: decrement original by 2, then add 2 of new printing under a new id', () => {
+    let deck = makeDeck()
+    // Decrement the original entry by 2.
+    for (let i = 0; i < 2; i++) {
+      deck = applyChangeToDeck(deck, { action: 'remove', cardName: 'Lightning Bolt', cardId: 5 })
+    }
+    // Add 2 copies of the new printing under a fresh id.
+    for (let i = 0; i < 2; i++) {
+      deck = applyChangeToDeck(deck, {
+        action: 'add',
+        cardName: 'Lightning Bolt',
+        set: 'm10',
+        collectorNumber: '146',
+        finish: 'nonfoil',
+        cardId: 99,
+      })
+    }
+    const cards = deck.sections[0]!.cards
+    expect(cards).toHaveLength(2)
+    const original = cards.find((c) => c.cardId === 5)!
+    const split = cards.find((c) => c.cardId === 99)!
+    expect(original.set).toBe('lea')
+    expect(original.quantity).toBe(2)
+    expect(split.set).toBe('m10')
+    expect(split.quantity).toBe(2)
   })
 })

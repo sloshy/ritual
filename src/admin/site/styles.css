@@ -1115,6 +1115,33 @@
   margin-top: 16px;
 }
 
+.change-printing-qty-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.change-printing-qty-field label {
+  color: var(--text-body);
+  font-size: 0.9375rem;
+}
+
+.change-printing-qty-field input {
+  width: 5rem;
+  background: var(--bg-body);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 12px;
+  color: var(--text-body);
+  font-size: 0.9375rem;
+  outline: none;
+}
+
+.change-printing-qty-field input:focus {
+  border-color: var(--accent);
+}
+
 /* Native dialog variants — full-viewport transparent shell with ::backdrop for dimming */
 dialog.changes-dialog-native,
 dialog.discard-dialog-native {

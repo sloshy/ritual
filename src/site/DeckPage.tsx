@@ -2,7 +2,9 @@ import type { Component } from 'solid-js'
 import { createSignal, createMemo, createEffect, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import type { Card, DeckData, ScryfallCard, Finish } from '../types'
+import type { CardContextInfo } from './card-context'
 import type { ChangelogPage } from '../changelog-parser'
+import { findPrinting } from '../card-printing'
 import { SymbolText } from './symbols'
 import type { PriceCurrency } from '../price-currency'
 import { getCardPrice, formatPrice } from '../price-currency'
@@ -56,7 +58,7 @@ export interface DeckPageProps {
   editMode?: boolean
   onCardIncrement?: (cardName: string) => void
   onCardDecrement?: (cardName: string) => void
-  onCardContextMenu?: (cardName: string, card: ScryfallCard | null, rect: DOMRect) => void
+  onCardContextMenu?: (info: CardContextInfo, rect: DOMRect) => void
   unsavedChangeCount?: number
   changelog?: ChangelogPage[]
 }
@@ -196,6 +198,20 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     Boolean(props.lowestPriceCards || props.lowestPriceCardsEur || props.lowestPriceCardsTix),
   )
 
+  // Resolve the ScryfallCard to display for a deck entry. Each entry resolves its
+  // own printing from the card's full printing list, so two entries of the same
+  // card with different set/collector numbers render distinct art and price. The
+  // "Lowest Price" toggle intentionally ignores the entry's printing (it shows
+  // the cheapest printing per card name); name-only entries fall back to the
+  // representative card.
+  const resolveEntryCard = (entry: Card): ScryfallCard | null => {
+    if (!lowestPrice() && entry.set && entry.collectorNumber) {
+      const match = findPrinting(props.printings[entry.name], entry.set, entry.collectorNumber)
+      if (match) return match
+    }
+    return activeCards()[entry.name] ?? null
+  }
+
   const handleModalAddToTrade = () => {
     const cardName = props.modalCardName
     const entry = modalDeckEntry()
@@ -244,7 +260,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     let order = 0
     for (const section of props.deck.sections) {
       for (const entry of section.cards) {
-        const card = activeCards()[entry.name] ?? null
+        const card = resolveEntryCard(entry)
         result.push({
           name: entry.name,
           quantity: entry.quantity,
@@ -365,7 +381,22 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         onIncrement={props.editMode ? () => props.onCardIncrement?.(c.name) : undefined}
         onDecrement={props.editMode ? () => props.onCardDecrement?.(c.name) : undefined}
         onContextMenu={
-          props.editMode ? (rect) => props.onCardContextMenu?.(c.name, c.card, rect) : undefined
+          props.editMode
+            ? (rect) =>
+                props.onCardContextMenu?.(
+                  {
+                    cardName: c.name,
+                    card: c.card,
+                    cardIds: deckEntry?.cardId !== undefined ? [deckEntry.cardId] : [],
+                    quantity: c.quantity,
+                    set: deckEntry?.set,
+                    collectorNumber: deckEntry?.collectorNumber,
+                    finish: deckEntry?.finish,
+                    condition: deckEntry?.condition,
+                  },
+                  rect,
+                )
+            : undefined
         }
         onAddToTrade={showTrade ? () => handleDeckAddToTrade(c, deckEntry) : undefined}
         addToTradeDisabled={showTrade ? isDeckCardAddDisabled(c, deckEntry) : undefined}

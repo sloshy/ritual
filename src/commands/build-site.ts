@@ -17,6 +17,7 @@ import {
 import { cardCache, ensureCacheForCards } from '../cache'
 import { isRunningFromSource } from '../runtime'
 import type { DeckData, Finish, ScryfallCard } from '../types'
+import { findPrinting } from '../card-printing'
 import { extractPrimerCardNames } from '../primer-parser'
 import { parseChangelog, extractChangelogCardNames } from '../changelog-parser'
 import type { ChangelogPage } from '../changelog-parser'
@@ -976,11 +977,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
         if (!collectionPrintingsMap[entry.name]) {
           collectionPrintingsMap[entry.name] = printings
         }
-        const exactPrinting = printings.find(
-          (p) =>
-            p.set.toLowerCase() === entry.set.toLowerCase() &&
-            p.collector_number === entry.collectorNumber,
-        )
+        const exactPrinting = findPrinting(printings, entry.set, entry.collectorNumber)
 
         if (exactPrinting) {
           collectionCardMap[cardKey] = exactPrinting
@@ -1254,11 +1251,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
         }
       } else {
         // State 2 or 3: find exact printing
-        const exactPrinting = printings.find(
-          (p) =>
-            p.set.toLowerCase() === entry.set!.toLowerCase() &&
-            p.collector_number === entry.collectorNumber,
-        )
+        const exactPrinting = findPrinting(printings, entry.set, entry.collectorNumber)
         const cardKey = `${entry.set!.toLowerCase()}:${entry.collectorNumber}`
 
         if (exactPrinting) {

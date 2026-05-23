@@ -43,6 +43,22 @@ export function applyChangeToCollection(
       return entries.map((e, i) => (i === idx ? { ...e, finish: change.finish } : e))
     }
 
+    case 'set-printing': {
+      const idx = findTargetEntryIndex(entries, change)
+      if (idx === -1) return entries
+      return entries.map((e, i) =>
+        i === idx
+          ? {
+              ...e,
+              set: change.set ?? '',
+              collectorNumber: change.collectorNumber ?? '',
+              finish: change.finish ?? e.finish,
+              condition: change.condition ?? e.condition,
+            }
+          : e,
+      )
+    }
+
     case 'set-note': {
       const idx = findTargetEntryIndex(entries, change)
       if (idx === -1) return entries

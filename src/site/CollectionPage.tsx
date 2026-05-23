@@ -2,6 +2,7 @@ import type { Component } from 'solid-js'
 import { createSignal, createMemo, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import type { ScryfallCard } from '../types'
+import type { CardContextInfo } from './card-context'
 import type { CollectionCardEntry } from './data-types'
 import type { ChangelogPage } from '../changelog-parser'
 import type { PriceCurrency } from '../price-currency'
@@ -39,7 +40,7 @@ interface CollectionPageProps {
   editMode?: boolean
   onCardIncrement?: (entry: CollectionCardEntry) => void
   onCardDecrement?: (entry: CollectionCardEntry) => void
-  onCardContextMenu?: (cardKey: string, card: ScryfallCard | null, rect: DOMRect) => void
+  onCardContextMenu?: (info: CardContextInfo, rect: DOMRect) => void
   unsavedChangeCount?: number
   changelog?: ChangelogPage[]
 }
@@ -256,6 +257,25 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     return entryIndexMap().get(`${cardData.name}|${cardData.setCode}|${cardData.fileOrder}`) ?? -1
   }
 
+  // All card IDs a tile represents: every entry sharing the grouped tile's
+  // name+set+CN+finish+condition (or just the single entry when not grouping).
+  const groupCardIds = (entry: CollectionCardEntry): number[] => {
+    if (!groupDuplicates()) {
+      return entry.cardId !== undefined ? [entry.cardId] : []
+    }
+    return currencyEntries()
+      .filter(
+        (e) =>
+          e.name === entry.name &&
+          e.set === entry.set &&
+          e.collectorNumber === entry.collectorNumber &&
+          e.finish === entry.finish &&
+          e.condition === entry.condition,
+      )
+      .map((e) => e.cardId)
+      .filter((id): id is number => id !== undefined)
+  }
+
   const renderCollectionCard = (c: CardData) => {
     const entryIdx = findEntryIndex(c)
     const entry = currencyEntries()[entryIdx]
@@ -281,7 +301,22 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         onIncrement={props.editMode && entry ? () => props.onCardIncrement?.(entry) : undefined}
         onDecrement={props.editMode && entry ? () => props.onCardDecrement?.(entry) : undefined}
         onContextMenu={
-          props.editMode ? (rect) => props.onCardContextMenu?.(c.name, c.card, rect) : undefined
+          props.editMode
+            ? (rect) =>
+                props.onCardContextMenu?.(
+                  {
+                    cardName: c.name,
+                    card: c.card,
+                    cardIds: entry ? groupCardIds(entry) : [],
+                    quantity: c.quantity,
+                    set: entry?.set,
+                    collectorNumber: entry?.collectorNumber,
+                    finish: entry?.finish,
+                    condition: entry?.condition,
+                  },
+                  rect,
+                )
+            : undefined
         }
         onAddToTrade={showTrade ? () => handleCollectionAddToTrade(entry) : undefined}
         addToTradeDisabled={showTrade ? isCollectionCardAddDisabled(entry) : undefined}

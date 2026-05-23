@@ -44,6 +44,25 @@ export function applyChangeToWantedList(
       return entries.map((e, i) => (i === idx ? { ...e, finish, state } : e))
     }
 
+    case 'set-printing': {
+      const idx = findTargetEntryIndex(entries, change)
+      if (idx === -1) return entries
+      const hasSet = Boolean(change.set && change.collectorNumber)
+      const hasFinish = Boolean(change.finish)
+      const state = !hasSet ? 'name-only' : hasFinish ? 'fully-specified' : 'printing'
+      return entries.map((e, i) =>
+        i === idx
+          ? {
+              ...e,
+              set: change.set,
+              collectorNumber: change.collectorNumber,
+              finish: change.finish,
+              state,
+            }
+          : e,
+      )
+    }
+
     case 'set-note': {
       const idx = findTargetEntryIndex(entries, change)
       if (idx === -1) return entries

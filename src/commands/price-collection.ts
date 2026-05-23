@@ -3,6 +3,7 @@ import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { getCardPrintings, getCardGames } from '../scryfall'
 import type { Condition, Finish, ScryfallCard } from '../types'
+import { findPrinting } from '../card-printing'
 import { isCondition, isFinish } from './collection-helpers'
 import { getCollectionsDir } from '../ritual-config'
 import {
@@ -246,11 +247,7 @@ export function registerPriceCollectionCommand(program: Command): void {
             continue
           }
 
-          const exactPrinting = printings.find(
-            (p) =>
-              p.set.toLowerCase() === entry.set.toLowerCase() &&
-              p.collector_number === entry.collectorNumber,
-          )
+          const exactPrinting = findPrinting(printings, entry.set, entry.collectorNumber)
 
           if (!exactPrinting) {
             if (!scriptingOptions.quiet && scriptingOptions.output === 'text') {

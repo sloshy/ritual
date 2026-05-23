@@ -99,6 +99,12 @@ export function allocateId(pool: CardIdPool): number {
 export function releaseId(pool: CardIdPool, id: number): void {
   pool.usedIds.delete(id)
 
+  // Guard against double-release: an ID is either in use or available, never
+  // both and never listed twice. Releasing the same ID more than once (e.g.
+  // undoing several copies that shared one entry's ID) must not duplicate it in
+  // the pool, which would later let allocateId hand the same ID to two cards.
+  if (pool.availablePool.includes(id)) return
+
   // Insert into sorted position in the available pool
   const insertIdx = pool.availablePool.findIndex((v) => v > id)
   if (insertIdx === -1) {

@@ -12,6 +12,7 @@ interface CardContextMenuProps {
   anchorRect: DOMRect
   currentFinish?: Finish
   onSetFoil: () => void
+  onChangePrinting?: () => void
   onSetCommander?: () => void
   onUnsetCommander: () => void
   onClose: () => void
@@ -77,6 +78,13 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
       >
         {foilButtonLabel()}
       </button>
+      <Show when={props.onChangePrinting}>
+        {(changePrinting) => (
+          <button class="card-context-menu-item" onClick={() => changePrinting()()}>
+            Change Printing…
+          </button>
+        )}
+      </Show>
       <Show when={!props.hideCommander}>
         <Show
           when={props.isCommander}

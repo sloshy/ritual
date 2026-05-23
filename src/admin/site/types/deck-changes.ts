@@ -1,5 +1,6 @@
 import type { DeckData } from '../../../types'
-import type { ChangeInput } from '../../../change-event'
+import type { ChangeInput, PrintingTuple } from '../../../change-event'
+import { isSamePrinting } from '../../../change-event'
 import { isCondition } from '../../../finish-condition'
 import { noteOrUndefined } from '../../../note-helpers'
 
@@ -27,10 +28,30 @@ export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData
     return null
   }
 
+  // For adds, an existing entry is matched by cardId first, then by name AND
+  // identical printing. This keeps a card whose printing differs (e.g. after a
+  // partial "change printing" split) as its own entry instead of merging it into
+  // a same-named entry with a different set/finish/condition.
+  const findCardForAdd = (sectionList: typeof sections, printing: PrintingTuple) => {
+    if (change.cardId !== undefined) {
+      for (const section of sectionList) {
+        const idx = section.cards.findIndex((c) => c.cardId === change.cardId)
+        if (idx !== -1) return { section, idx, card: section.cards[idx]! }
+      }
+    }
+    for (const section of sectionList) {
+      const idx = section.cards.findIndex(
+        (c) => c.name === change.cardName && isSamePrinting(c, printing),
+      )
+      if (idx !== -1) return { section, idx, card: section.cards[idx]! }
+    }
+    return null
+  }
+
   switch (change.action) {
     case 'add': {
       // Find existing card to increment quantity
-      const found = findCard(sections)
+      const found = findCardForAdd(sections, change)
       if (found) {
         found.card.quantity += 1
         return { ...deck, sections }
@@ -116,6 +137,20 @@ export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData
       const found = findCard(sections)
       if (found) {
         found.card.finish = change.finish
+        return { ...deck, sections }
+      }
+      return { ...deck, sections }
+    }
+
+    case 'set-printing': {
+      const found = findCard(sections)
+      if (found) {
+        found.card.set = change.set
+        found.card.collectorNumber = change.collectorNumber
+        found.card.finish = change.finish
+        if (change.condition !== undefined) {
+          found.card.condition = isCondition(change.condition) ? change.condition : undefined
+        }
         return { ...deck, sections }
       }
       return { ...deck, sections }

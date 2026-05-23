@@ -1,5 +1,5 @@
 import type { Component } from 'solid-js'
-import { createSignal, createEffect, createMemo, onCleanup, Show, For } from 'solid-js'
+import { createSignal, createEffect, createMemo, on, onCleanup, Show, For } from 'solid-js'
 import type { Finish, Condition, ScryfallCard } from '../../../types'
 import type { CardPrintingOptions } from '../../../change-event'
 import { getCardImageUrl } from '../card-utils'
@@ -22,6 +22,14 @@ type CardSearchModalProps = {
    * (wanted lists do not).
    */
   defaults?: EditorDefaults
+  /**
+   * When set, the modal skips the card-search step and opens straight on the
+   * printing selection for this card. Used by the "change printing" flow, which
+   * reuses this dialog but already knows which card is being edited. In this mode
+   * "← Back" from the printing step closes the modal (there is no search to
+   * return to).
+   */
+  initialCardName?: string
 }
 
 type PrintingsResponse = { success: boolean; printings: ScryfallCard[] }
@@ -205,25 +213,38 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   const cardImageCache = new Map<string, string>()
 
   // Reset all state when modal opens
-  createEffect(() => {
-    if (props.open) {
-      setStep('search')
-      setQuery('')
-      setResults([])
-      setHighlightedIndex(-1)
-      setPreviewCard(null)
-      setSelectedCardName('')
-      setPrintings([])
-      setPrintingHighlightIndex(0)
-      setPrintingsPage(0)
-      setLoadingPrintings(false)
-      setSelectedPrinting(null)
-      setSelectedFinish(props.defaults?.finish ?? 'nonfoil')
-      setSelectedCondition(defaultCondition() ?? 'NM')
-      setSetFilterFellBack(false)
-      typedQuery = ''
-    }
-  })
+  // Keyed on `props.open` so reopening always resets, but a defaults change while
+  // the modal is open never re-runs this (which would wipe the user's in-progress
+  // search). Reads of props.defaults / props.initialCardName inside use their
+  // current values at open time.
+  createEffect(
+    on(
+      () => props.open,
+      (open) => {
+        if (!open) return
+        setStep('search')
+        setQuery('')
+        setResults([])
+        setHighlightedIndex(-1)
+        setPreviewCard(null)
+        setSelectedCardName('')
+        setPrintings([])
+        setPrintingHighlightIndex(0)
+        setPrintingsPage(0)
+        setLoadingPrintings(false)
+        setSelectedPrinting(null)
+        setSelectedFinish(props.defaults?.finish ?? 'nonfoil')
+        setSelectedCondition(defaultCondition() ?? 'NM')
+        setSetFilterFellBack(false)
+        typedQuery = ''
+        // "Change printing" mode: jump straight to the printing step for the
+        // already-known card instead of showing the search step.
+        if (props.initialCardName) {
+          void selectCardName(props.initialCardName)
+        }
+      },
+    ),
+  )
 
   // Auto-focus search input when modal opens or returns to search step
   createEffect(() => {
@@ -510,6 +531,11 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       setStep('printing')
       setSelectedPrinting(null)
     } else if (step() === 'printing') {
+      // In change-printing mode there is no search step to return to.
+      if (props.initialCardName) {
+        props.onClose()
+        return
+      }
       setStep('search')
       setQuery(typedQuery)
       setHighlightedIndex(-1)

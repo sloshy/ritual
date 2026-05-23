@@ -96,6 +96,70 @@ describe('applyChangeToCollection', () => {
     expect(result[0]!.finish).toBe('foil')
   })
 
+  it('set-printing — retargets the entry by cardId to the new printing', () => {
+    const entries = [
+      makeEntry({
+        cardId: 5,
+        set: 'lea',
+        collectorNumber: '161',
+        finish: 'nonfoil',
+        condition: 'NM',
+      }),
+    ]
+    const result = applyChangeToCollection(entries, {
+      action: 'set-printing',
+      cardName: 'Lightning Bolt',
+      cardId: 5,
+      set: 'm10',
+      collectorNumber: '146',
+      finish: 'foil',
+      condition: 'LP',
+    })
+
+    expect(result).toHaveLength(1)
+    const entry = result[0]!
+    expect(entry.set).toBe('m10')
+    expect(entry.collectorNumber).toBe('146')
+    expect(entry.finish).toBe('foil')
+    expect(entry.condition).toBe('LP')
+  })
+
+  it('set-printing — preserves existing finish/condition when the change omits them', () => {
+    const entries = [makeEntry({ cardId: 5, finish: 'foil', condition: 'LP' })]
+    const result = applyChangeToCollection(entries, {
+      action: 'set-printing',
+      cardName: 'Lightning Bolt',
+      cardId: 5,
+      set: 'm10',
+      collectorNumber: '146',
+    })
+
+    expect(result[0]!.set).toBe('m10')
+    expect(result[0]!.finish).toBe('foil')
+    expect(result[0]!.condition).toBe('LP')
+  })
+
+  it('set-printing — only the cardId-matched entry of a duplicate group changes', () => {
+    const entries = [
+      makeEntry({ cardId: 1, fileOrder: 0 }),
+      makeEntry({ cardId: 2, fileOrder: 1 }),
+      makeEntry({ cardId: 3, fileOrder: 2 }),
+    ]
+    const result = applyChangeToCollection(entries, {
+      action: 'set-printing',
+      cardName: 'Lightning Bolt',
+      cardId: 2,
+      set: 'm10',
+      collectorNumber: '146',
+      finish: 'nonfoil',
+      condition: 'NM',
+    })
+
+    expect(result[0]!.set).toBe('lea')
+    expect(result[1]!.set).toBe('m10')
+    expect(result[2]!.set).toBe('lea')
+  })
+
   it('set-note — sets the note on the matching entry', () => {
     const entries = [makeEntry({ cardId: 5 })]
     const result = applyChangeToCollection(entries, {

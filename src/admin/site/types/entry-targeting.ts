@@ -1,9 +1,33 @@
+import type { PrintingTuple } from '../../../change-event'
+
 export type TargetableEntry = {
   cardId?: number
   fileOrder?: number
   name: string
   set?: string
   collectorNumber?: string
+}
+
+/** A flat entry that carries a printing, looked up by its card ID. */
+export type PrintableEntry = PrintingTuple & { cardId?: number }
+
+/**
+ * Resolve a flat entry's current printing by card ID, for change-printing revert
+ * detection. Returns undefined when no entry has that ID. (Decks are nested by
+ * section and have their own lookup.)
+ */
+export function findEntryPrintingById(
+  entries: PrintableEntry[] | null,
+  cardId: number,
+): PrintingTuple | undefined {
+  const entry = entries?.find((e) => e.cardId === cardId)
+  if (!entry) return undefined
+  return {
+    set: entry.set,
+    collectorNumber: entry.collectorNumber,
+    finish: entry.finish,
+    condition: entry.condition,
+  }
 }
 
 export type TargetingChange = {

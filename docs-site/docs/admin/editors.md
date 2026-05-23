@@ -63,14 +63,26 @@ This step appears when the selected printing has multiple finish options.
 
 ### Context Menu
 
-Right-clicking a card (or clicking the **⋯** button in binder/overlap views) opens a context menu. **Set as Foil** is available in all editors. The Deck Editor additionally offers **Set as Commander**.
+Right-clicking a card (or clicking the **⋯** button in binder/overlap views) opens a context menu. **Set as Foil** and **Change Printing…** are available in all editors. The Deck Editor additionally offers **Set as Commander**.
+
+#### Change Printing
+
+**Change Printing…** reopens the same printing picker used when adding a card — starting directly on the printing-selection step for the card you clicked. Pick a printing (and finish/condition, where applicable) to retarget the card.
+
+When the card represents more than one copy (a Deck Editor entry with quantity > 1, or a Collection Editor tile that groups identical copies), a prompt first asks **how many of the N copies** should get the new printing:
+
+- **Decks** — Changing all copies retargets the entry in place (logged as a single set-printing change). Changing only some copies decreases the entry's quantity by that amount and adds the same number of copies of the new printing under a new card ID — logged as a quantity decrease plus a new add, so it is unambiguous which copies moved.
+- **Collections** — Each copy is its own single-card entry, so the chosen number of entries are retargeted individually (one set-printing change each). Untouched copies keep the old printing and re-group into a separate tile.
+- **Wanted lists** — Each row is a single entry and is retargeted directly.
+
+Every printing change is recorded as a change event tagged with the card ID and the target printing, and appears in the changelog (e.g. `Set "Lightning Bolt" printing to M10:146 [foil] &5`).
 
 ### Change Tracking
 
 All edits are tracked as in-memory change events until explicitly saved.
 
 - **Changes** button shows the count of pending changes and opens a dialog listing them
-- Additive changes (add card, set commander, set finish) are shown in green
+- Additive changes (add card, set commander, set finish, set printing) are shown in green
 - Destructive changes (remove card) are shown in red
 - Opposite changes cancel out automatically (e.g., adding then removing the same card)
 - Card names in the changes dialog are clickable links that open the card detail modal
@@ -102,6 +114,7 @@ Access via the admin sidebar or the **Deck Editor** card on the Dashboard.
 The **⋯** button opens a context menu with:
 
 - **Set as Foil** — Mark the card as foil (greyed out if the printing doesn't support foil)
+- **Change Printing…** — Pick a new printing for the card; for an entry with quantity > 1 you are first asked how many copies to retarget (see [Change Printing](#change-printing))
 - **Set as Commander** — Move the card to the Commander section (supports multiple commanders)
 
 ### Adding Cards
@@ -161,12 +174,14 @@ Wanted lists correspond to `.md` files in the `wanted/` directory.
 
 ## Feature Comparison
 
-| Feature                  | Deck Editor | Collection Editor | Wanted List Editor |
-| ------------------------ | ----------- | ----------------- | ------------------ |
-| Set as Commander         | ✅          | ❌                | ❌                 |
-| No specific printing     | ✅ Allowed  | ❌ Must select    | ✅ Allowed         |
-| Condition field          | ✅ Optional | ✅ Required       | ❌ Not applicable  |
-| Finish field             | ✅ Optional | ✅ Required       | ✅ Optional        |
-| Sections (Commander etc) | ✅ Yes      | ❌ Flat list      | ❌ Flat list       |
-| Changelog on save        | ✅          | ✅                | ✅                 |
-| Add Card Defaults        | ✅ Set/F/C  | ✅ Set/F/C        | ✅ Set/F           |
+| Feature                   | Deck Editor | Collection Editor | Wanted List Editor |
+| ------------------------- | ----------- | ----------------- | ------------------ |
+| Set as Commander          | ✅          | ❌                | ❌                 |
+| Change printing           | ✅          | ✅                | ✅                 |
+| Multi-copy printing split | ✅ Entry    | ✅ Per-entry      | ❌ Single rows     |
+| No specific printing      | ✅ Allowed  | ❌ Must select    | ✅ Allowed         |
+| Condition field           | ✅ Optional | ✅ Required       | ❌ Not applicable  |
+| Finish field              | ✅ Optional | ✅ Required       | ✅ Optional        |
+| Sections (Commander etc)  | ✅ Yes      | ❌ Flat list      | ❌ Flat list       |
+| Changelog on save         | ✅          | ✅                | ✅                 |
+| Add Card Defaults         | ✅ Set/F/C  | ✅ Set/F/C        | ✅ Set/F           |

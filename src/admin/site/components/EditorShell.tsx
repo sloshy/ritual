@@ -5,6 +5,7 @@ import type { UseEditorDefaultsResult } from '../hooks/useEditorDefaults'
 import { ChangesDialog } from './ChangesDialog'
 import { DiscardConfirmDialog } from './DiscardConfirmDialog'
 import { CardSearchModal } from './CardSearchModal'
+import { ChangePrintingQuantityDialog } from './ChangePrintingQuantityDialog'
 import { EditorActionBar } from './EditorActionBar'
 
 type BaseCardData = {
@@ -79,6 +80,26 @@ export function EditorShell<TData, TCardEntry>(
         open={editor.dialogs.showSearchModal()}
         onClose={editor.dialogs.closeSearchModal}
         onAddCard={(card) => void editor.handleAddCardFromSearch(card)}
+        requirePrinting={props.requirePrinting}
+        defaults={props.defaults.defaults()}
+      />
+
+      {/* Change-printing flow: optional quantity prompt, then the printing picker
+          (the add-card dialog reused at its printing step). */}
+      <ChangePrintingQuantityDialog
+        open={editor.changePrinting()?.step === 'quantity'}
+        cardName={editor.changePrinting()?.target.cardName ?? ''}
+        total={editor.changePrinting()?.target.quantity ?? 1}
+        onConfirm={editor.confirmChangePrintingCount}
+        onCancel={editor.cancelChangePrinting}
+      />
+      <CardSearchModal
+        open={editor.changePrinting()?.step === 'printing'}
+        initialCardName={editor.changePrinting()?.target.cardName}
+        onClose={editor.cancelChangePrinting}
+        onAddCard={(_cardName, options, scryfallCard, allPrintings) =>
+          editor.handleChangePrintingSelect(options, scryfallCard, allPrintings)
+        }
         requirePrinting={props.requirePrinting}
         defaults={props.defaults.defaults()}
       />

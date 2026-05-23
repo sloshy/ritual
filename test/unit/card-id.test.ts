@@ -120,6 +120,16 @@ describe('releaseId', () => {
     // Now pool is empty, should go sequential
     expect(allocateId(pool)).toBe(6)
   })
+
+  test('releasing the same ID twice does not duplicate it in the pool', () => {
+    const pool = createIdPool([1, 2, 3])
+    releaseId(pool, 2)
+    releaseId(pool, 2)
+    expect(pool.availablePool).toEqual([2])
+    // The guard prevents the same ID from being handed out to two cards.
+    expect(allocateId(pool)).toBe(2)
+    expect(allocateId(pool)).toBe(4)
+  })
 })
 
 describe('claimId', () => {

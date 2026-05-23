@@ -1,8 +1,9 @@
-import { type JSX, createSignal, Show } from 'solid-js'
+import { type JSX, batch, createSignal, Show } from 'solid-js'
 import type { DeckData, Card, Finish, ScryfallCard } from '../../../types'
-import type { ContextMenuState } from '../types/context-menu'
+import type { ContextMenuState, CardContextInfo } from '../types/context-menu'
 import type { CardPriceResponse } from '../../api/card-price'
-import type { EditorConfig } from '../hooks/useEditor'
+import type { EditorConfig, ChangePrintingContext } from '../hooks/useEditor'
+import { type PrintingTuple, isSamePrinting } from '../../../change-event'
 import { collectDeckCardIds } from '../../../card-id'
 import { DeckPage } from '../../../site/DeckPage'
 import { useDeckCardData } from '../hooks/useDeckCardData'
@@ -48,6 +49,105 @@ function findOriginalDeckFinish(deck: DeckData, cardName: string): Finish {
     if (card !== undefined) return card.finish ?? 'nonfoil'
   }
   return 'nonfoil'
+}
+
+/** Find a card's on-disk printing by card ID, for change-printing revert detection. */
+function findOriginalDeckPrinting(
+  deck: DeckData | null,
+  cardId: number,
+): PrintingTuple | undefined {
+  if (!deck) return undefined
+  for (const section of deck.sections) {
+    const card = section.cards.find((c) => c.cardId === cardId)
+    if (card) {
+      return {
+        set: card.set,
+        collectorNumber: card.collectorNumber,
+        finish: card.finish,
+        condition: card.condition,
+      }
+    }
+  }
+  return undefined
+}
+
+/**
+ * Apply a "change printing" action to a deck. When every copy changes, the entry
+ * is retargeted in place (a single set-printing change). When only some copies
+ * change, the entry's quantity is decreased and that many copies of the new
+ * printing are added under a fresh card ID — logged as a quantity decrease plus
+ * a new add, per the deck's quantity semantics.
+ */
+function applyDeckChangePrinting(ctx: ChangePrintingContext<DeckData>): void {
+  const { target, count, options, tools, setData, original } = ctx
+  const cardId = target.cardIds[0]
+  if (cardId === undefined) return
+
+  const newPrinting: PrintingTuple = {
+    set: options.set,
+    collectorNumber: options.collectorNumber,
+    finish: options.finish,
+    condition: options.condition,
+  }
+  const currentPrinting: PrintingTuple = {
+    set: target.set,
+    collectorNumber: target.collectorNumber,
+    finish: target.finish,
+    condition: target.condition,
+  }
+  if (isSamePrinting(newPrinting, currentPrinting)) return
+
+  const total = target.quantity
+  const n = Math.min(Math.max(count, 1), total)
+
+  if (n >= total) {
+    const origPrinting = findOriginalDeckPrinting(original, cardId) ?? currentPrinting
+    tools.setPrinting(target.cardName, newPrinting, origPrinting, cardId)
+    setData((prev) =>
+      prev
+        ? applyChangeToDeck(prev, {
+            action: 'set-printing',
+            cardName: target.cardName,
+            set: newPrinting.set,
+            collectorNumber: newPrinting.collectorNumber,
+            finish: newPrinting.finish,
+            condition: newPrinting.condition,
+            cardId,
+          })
+        : prev,
+    )
+    return
+  }
+
+  // Decrement the original entry by n, then add n copies of the new printing
+  // under a fresh card ID. Batched so the deck view repaints once, not 2n times.
+  batch(() => {
+    for (let i = 0; i < n; i++) {
+      tools.decrementCard(target.cardName, cardId)
+      setData((prev) =>
+        prev
+          ? applyChangeToDeck(prev, { action: 'remove', cardName: target.cardName, cardId })
+          : prev,
+      )
+    }
+    const newId = tools.allocateId()
+    for (let i = 0; i < n; i++) {
+      tools.addCard(target.cardName, { ...options, cardId: newId })
+      setData((prev) =>
+        prev
+          ? applyChangeToDeck(prev, {
+              action: 'add',
+              cardName: target.cardName,
+              set: options.set,
+              collectorNumber: options.collectorNumber,
+              finish: options.finish,
+              condition: options.condition,
+              cardId: newId,
+            })
+          : prev,
+      )
+    }
+  })
 }
 
 /** Find a card's ID from deck sections by name. */
@@ -136,6 +236,7 @@ export function DeckEditor(props: DeckEditorProps): JSX.Element {
     },
 
     applyChange: applyChangeToDeck,
+    applyChangePrinting: applyDeckChangePrinting,
     hasData: () => true,
     findCurrentFinish: findDeckFinish,
     findOriginalFinish: findOriginalDeckFinish,
@@ -183,16 +284,23 @@ export function DeckEditor(props: DeckEditorProps): JSX.Element {
     )
   }
 
-  const handleContextMenu = (cardName: string, card: ScryfallCard | null, rect: DOMRect) => {
+  const handleContextMenu = (info: CardContextInfo, rect: DOMRect) => {
     const isInCommanderSection =
       editor
         .data()
         ?.sections.some(
           (s) =>
-            s.name.toLowerCase().includes('commander') && s.cards.some((c) => c.name === cardName),
+            s.name.toLowerCase().includes('commander') &&
+            s.cards.some((c) => c.name === info.cardName),
         ) ?? false
-    setDeckContextMenu({ cardName, card, isInCommanderSection, anchorRect: rect })
-    editor.setContextMenuCard({ cardName, card, anchorRect: rect })
+    setDeckContextMenu({ ...info, isInCommanderSection, anchorRect: rect })
+    editor.setContextMenuCard({ ...info, anchorRect: rect })
+  }
+
+  const handleChangePrinting = () => {
+    const menu = deckContextMenu()
+    closeContextMenu()
+    if (menu) editor.startChangePrinting(menu)
   }
 
   const handleSetCommander = () => {
@@ -257,6 +365,7 @@ export function DeckEditor(props: DeckEditorProps): JSX.Element {
                   .find((c) => c.name === menu().cardName)?.finish
               }
               onSetFoil={editor.handleSetFoil}
+              onChangePrinting={handleChangePrinting}
               onSetCommander={handleSetCommander}
               onUnsetCommander={handleUnsetCommander}
               isCommander={menu().isInCommanderSection}

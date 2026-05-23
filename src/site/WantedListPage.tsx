@@ -2,6 +2,7 @@ import type { Component } from 'solid-js'
 import { createSignal, createMemo, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import type { ScryfallCard, Finish } from '../types'
+import type { CardContextInfo } from './card-context'
 import type { WantedListCardEntry } from './data-types'
 import type { ChangelogPage } from '../changelog-parser'
 import type { PriceCurrency } from '../price-currency'
@@ -43,7 +44,7 @@ interface WantedListPageProps {
   editMode?: boolean
   onCardIncrement?: (entry: WantedListCardEntry) => void
   onCardDecrement?: (entry: WantedListCardEntry) => void
-  onCardContextMenu?: (cardKey: string, card: ScryfallCard | null, rect: DOMRect) => void
+  onCardContextMenu?: (info: CardContextInfo, rect: DOMRect) => void
   unsavedChangeCount?: number
   changelog?: ChangelogPage[]
 }
@@ -289,7 +290,21 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         onIncrement={props.editMode && entry ? () => props.onCardIncrement?.(entry) : undefined}
         onDecrement={props.editMode && entry ? () => props.onCardDecrement?.(entry) : undefined}
         onContextMenu={
-          props.editMode ? (rect) => props.onCardContextMenu?.(c.name, c.card, rect) : undefined
+          props.editMode
+            ? (rect) =>
+                props.onCardContextMenu?.(
+                  {
+                    cardName: c.name,
+                    card: c.card,
+                    cardIds: entry?.cardId !== undefined ? [entry.cardId] : [],
+                    quantity: 1,
+                    set: entry?.set,
+                    collectorNumber: entry?.collectorNumber,
+                    finish: entry?.finish,
+                  },
+                  rect,
+                )
+            : undefined
         }
         onAddToTrade={showTrade ? () => handleWantedAddToTrade(entry, c.card) : undefined}
         addToTradeDisabled={showTrade ? isWantedCardAddDisabled(entry, c.card) : undefined}

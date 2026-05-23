@@ -96,6 +96,56 @@ describe('parseChangelog', () => {
     })
   })
 
+  test('parses "Set X printing to SET:CN [finish]"', () => {
+    const content = `# Changelog
+
+## 2026-01-01T00:00:00Z
+
+- Set "Lightning Bolt" printing to M10:146 [foil] &5
+`
+    const pages = parseChangelog(content)
+    expect(pages[0]!.changes[0]).toEqual({
+      action: 'Set printing',
+      cardName: 'Lightning Bolt',
+      set: 'm10',
+      collectorNumber: '146',
+      finish: 'foil',
+      condition: undefined,
+    })
+  })
+
+  test('parses "Set X printing to SET:CN [finish] [condition]"', () => {
+    const content = `# Changelog
+
+## 2026-01-01T00:00:00Z
+
+- Set "Lightning Bolt" printing to M10:146 [foil] [LP] &5
+`
+    const pages = parseChangelog(content)
+    expect(pages[0]!.changes[0]).toEqual({
+      action: 'Set printing',
+      cardName: 'Lightning Bolt',
+      set: 'm10',
+      collectorNumber: '146',
+      finish: 'foil',
+      condition: 'LP',
+    })
+  })
+
+  test('parses "Set X printing to no specific printing" as name-only', () => {
+    const content = `# Changelog
+
+## 2026-01-01T00:00:00Z
+
+- Set "Lightning Bolt" printing to no specific printing &5
+`
+    const pages = parseChangelog(content)
+    expect(pages[0]!.changes[0]).toEqual({
+      action: 'Set printing',
+      cardName: 'Lightning Bolt',
+    })
+  })
+
   test('parses a non-main board suffix without polluting the card name', () => {
     const content = `# Changelog
 

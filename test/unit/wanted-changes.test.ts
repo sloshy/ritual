@@ -166,6 +166,57 @@ describe('applyChangeToWantedList', () => {
     })
   })
 
+  describe('set-printing', () => {
+    test('retargets the entry by cardId and recomputes state to fully-specified', () => {
+      const entries = [makeEntry({ cardId: 7, state: 'name-only' })]
+      const result = applyChangeToWantedList(entries, {
+        action: 'set-printing',
+        cardName: 'Lightning Bolt',
+        cardId: 7,
+        set: 'm10',
+        collectorNumber: '146',
+        finish: 'foil',
+      })
+      expect(result[0]!.set).toBe('m10')
+      expect(result[0]!.collectorNumber).toBe('146')
+      expect(result[0]!.finish).toBe('foil')
+      expect(result[0]!.state).toBe('fully-specified')
+    })
+
+    test('printing without finish yields the "printing" state', () => {
+      const entries = [makeEntry({ cardId: 7, state: 'name-only' })]
+      const result = applyChangeToWantedList(entries, {
+        action: 'set-printing',
+        cardName: 'Lightning Bolt',
+        cardId: 7,
+        set: 'm10',
+        collectorNumber: '146',
+      })
+      expect(result[0]!.state).toBe('printing')
+    })
+
+    test('clearing the printing reverts to name-only state', () => {
+      const entries = [
+        makeEntry({
+          cardId: 7,
+          set: 'm10',
+          collectorNumber: '146',
+          finish: 'foil',
+          state: 'fully-specified',
+        }),
+      ]
+      const result = applyChangeToWantedList(entries, {
+        action: 'set-printing',
+        cardName: 'Lightning Bolt',
+        cardId: 7,
+      })
+      expect(result[0]!.set).toBeUndefined()
+      expect(result[0]!.collectorNumber).toBeUndefined()
+      expect(result[0]!.finish).toBeUndefined()
+      expect(result[0]!.state).toBe('name-only')
+    })
+  })
+
   describe('set-note', () => {
     test('sets note on matching entry', () => {
       const entries = [makeEntry({ cardId: 3 })]

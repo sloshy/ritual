@@ -66,6 +66,24 @@ describe('formatChangeText', () => {
     })
   })
 
+  test('Set printing — includes set, collector number and finish', () => {
+    expect(
+      formatChangeText(
+        change({ action: 'Set printing', set: 'm10', collectorNumber: '146', finish: 'foil' }),
+      ),
+    ).toEqual({
+      prefix: 'Set ',
+      suffix: ' printing to M10:146 [foil]',
+    })
+  })
+
+  test('Set printing — renders "no specific printing" when set is absent', () => {
+    expect(formatChangeText(change({ action: 'Set printing' }))).toEqual({
+      prefix: 'Set ',
+      suffix: ' printing to no specific printing',
+    })
+  })
+
   test('Set note — includes the note text', () => {
     expect(formatChangeText(change({ action: 'Set note', note: 'great vs aggro' }))).toEqual({
       prefix: 'Set note on ',
@@ -96,7 +114,13 @@ describe('formatChangeText', () => {
 })
 
 describe('isAdditiveAction', () => {
-  const additive: ChangelogAction[] = ['Added', 'Set as commander', 'Set finish', 'Set note']
+  const additive: ChangelogAction[] = [
+    'Added',
+    'Set as commander',
+    'Set finish',
+    'Set printing',
+    'Set note',
+  ]
   const destructive: ChangelogAction[] = ['Removed', 'Unset as commander', 'Cleared note']
 
   for (const action of additive) {

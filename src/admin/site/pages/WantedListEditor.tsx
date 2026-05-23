@@ -1,16 +1,57 @@
 import { type JSX, createSignal, Show } from 'solid-js'
 import type { ScryfallCard } from '../../../types'
 import type { WantedListCardEntry } from '../../../site/data-types'
+import type { CardContextInfo } from '../types/context-menu'
 import type { CardPriceResponse } from '../../api/card-price'
-import type { EditorConfig } from '../hooks/useEditor'
+import type { EditorConfig, ChangePrintingContext } from '../hooks/useEditor'
+import { type PrintingTuple, isSamePrinting } from '../../../change-event'
 import { collectExistingIds } from '../../../card-id'
 import { WantedListPage } from '../../../site/WantedListPage'
 import { useEntryCardData } from '../hooks/useEntryCardData'
 import { useEditor } from '../hooks/useEditor'
 import { useEditorDefaults } from '../hooks/useEditorDefaults'
 import { applyChangeToWantedList } from '../types/wanted-changes'
+import { findEntryPrintingById } from '../types/entry-targeting'
 import { CardContextMenu } from '../components/CardContextMenu'
 import { EditorShell } from '../components/EditorShell'
+
+/**
+ * Apply a "change printing" action to a wanted list. Each row is a single entry,
+ * so this simply retargets that entry with one set-printing change. Wanted-list
+ * entries carry no condition, so none is set here.
+ */
+function applyWantedChangePrinting(ctx: ChangePrintingContext<WantedListCardEntry[]>): void {
+  const { target, options, tools, setData, original } = ctx
+  const cardId = target.cardIds[0]
+  if (cardId === undefined) return
+
+  const newPrinting: PrintingTuple = {
+    set: options.set,
+    collectorNumber: options.collectorNumber,
+    finish: options.finish,
+  }
+  const currentPrinting: PrintingTuple = {
+    set: target.set,
+    collectorNumber: target.collectorNumber,
+    finish: target.finish,
+  }
+  if (isSamePrinting(newPrinting, currentPrinting)) return
+
+  const origPrinting = findEntryPrintingById(original, cardId) ?? currentPrinting
+  tools.setPrinting(target.cardName, newPrinting, origPrinting, cardId)
+  setData((prev) =>
+    prev
+      ? applyChangeToWantedList(prev, {
+          action: 'set-printing',
+          cardName: target.cardName,
+          set: options.set,
+          collectorNumber: options.collectorNumber,
+          finish: options.finish,
+          cardId,
+        })
+      : prev,
+  )
+}
 
 type WantedListListResponse = { wantedLists?: { slug: string; name: string }[] }
 
@@ -64,6 +105,7 @@ export function WantedListEditor(props: WantedListEditorProps): JSX.Element {
     },
 
     applyChange: applyChangeToWantedList,
+    applyChangePrinting: applyWantedChangePrinting,
     hasData: (entries) => entries.length > 0,
 
     findCurrentFinish: (entries, cardName) => {
@@ -139,8 +181,14 @@ export function WantedListEditor(props: WantedListEditorProps): JSX.Element {
     )
   }
 
-  const handleContextMenu = (cardName: string, card: ScryfallCard | null, rect: DOMRect) => {
-    editor.setContextMenuCard({ cardName, card, anchorRect: rect })
+  const handleContextMenu = (info: CardContextInfo, rect: DOMRect) => {
+    editor.setContextMenuCard({ ...info, anchorRect: rect })
+  }
+
+  const handleChangePrinting = () => {
+    const menu = editor.contextMenuCard()
+    editor.setContextMenuCard(null)
+    if (menu) editor.startChangePrinting(menu)
   }
 
   const closeModal = () => setModalCardKey(null)
@@ -164,6 +212,7 @@ export function WantedListEditor(props: WantedListEditorProps): JSX.Element {
               card={menu().card}
               currentFinish={editor.data()?.find((e) => e.name === menu().cardName)?.finish}
               onSetFoil={editor.handleSetFoil}
+              onChangePrinting={handleChangePrinting}
               onUnsetCommander={closeContextMenu}
               anchorRect={menu().anchorRect}
               onClose={closeContextMenu}

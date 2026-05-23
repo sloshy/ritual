@@ -49,6 +49,14 @@ export type SetFinishChange = BaseChange & {
   finish: Finish
 }
 
+export type SetPrintingChange = BaseChange & {
+  action: 'set-printing'
+  set?: string
+  collectorNumber?: string
+  finish?: Finish
+  condition?: Condition
+}
+
 export type SetNoteChange = BaseChange & {
   action: 'set-note'
   /** The new note text. Empty string clears the note. */
@@ -81,6 +89,7 @@ export type ChangeEvent =
   | SetCommanderChange
   | UnsetCommanderChange
   | SetFinishChange
+  | SetPrintingChange
   | SetNoteChange
   | MoveFromChange
   | MoveToChange
@@ -128,6 +137,37 @@ export type CommanderOptions = {
 export type SetFinishOptions = {
   finish: Finish
   cardId?: number
+}
+
+/** Options for set-printing action. An undefined set/collectorNumber means "no specific printing". */
+export type SetPrintingOptions = {
+  set?: string
+  collectorNumber?: string
+  finish?: Finish
+  condition?: Condition
+  cardId?: number
+}
+
+/** The set/collector-number/finish/condition tuple that identifies a printing. */
+export type PrintingTuple = {
+  set?: string
+  collectorNumber?: string
+  finish?: Finish
+  condition?: Condition
+}
+
+/**
+ * Whether two printings are equivalent, normalizing absent values to their
+ * defaults (no set/CN, `nonfoil` finish, `NM` condition). Set codes compare
+ * case-insensitively.
+ */
+export function isSamePrinting(a: PrintingTuple, b: PrintingTuple): boolean {
+  return (
+    (a.set?.toLowerCase() ?? '') === (b.set?.toLowerCase() ?? '') &&
+    (a.collectorNumber ?? '') === (b.collectorNumber ?? '') &&
+    (a.finish ?? 'nonfoil') === (b.finish ?? 'nonfoil') &&
+    (a.condition ?? 'NM') === (b.condition ?? 'NM')
+  )
 }
 
 /** Options for set-note action. */
@@ -203,6 +243,20 @@ export function createSetFinishChange(
   options: SetFinishOptions,
 ): SetFinishChange {
   return { ...makeBase(cardName, options.cardId), action: 'set-finish', finish: options.finish }
+}
+
+export function createSetPrintingChange(
+  cardName: string,
+  options: SetPrintingOptions,
+): SetPrintingChange {
+  return {
+    ...makeBase(cardName, options.cardId),
+    action: 'set-printing',
+    set: options.set,
+    collectorNumber: options.collectorNumber,
+    finish: options.finish,
+    condition: options.condition,
+  }
 }
 
 export function createSetNoteChange(cardName: string, options: SetNoteOptions): SetNoteChange {
@@ -281,7 +335,8 @@ export function areOppositeChanges(a: ChangeEvent, b: ChangeEvent): boolean {
   return true
 }
 
-export type ConsolidateSetFinishResult = {
+/** Result of a "latest wins" consolidation (set-finish / set-printing / set-note). */
+export type ConsolidateResult = {
   changes: ChangeEvent[]
   addedChange: ChangeEvent | null
   cancelledChange: ChangeEvent | null
@@ -302,7 +357,7 @@ export function consolidateSetFinish(
   finish: Finish,
   originalFinish: Finish,
   cardId?: number,
-): ConsolidateSetFinishResult {
+): ConsolidateResult {
   const existingIdx = changes.findIndex(
     (c) =>
       c.action === 'set-finish' &&
@@ -322,10 +377,41 @@ export function consolidateSetFinish(
   return { changes: updatedChanges, addedChange, cancelledChange }
 }
 
-export type ConsolidateSetNoteResult = {
-  changes: ChangeEvent[]
-  addedChange: ChangeEvent | null
-  cancelledChange: ChangeEvent | null
+/**
+ * Apply a set-printing action with "latest wins" semantics, mirroring
+ * {@link consolidateSetFinish}:
+ * - Removes any existing set-printing for the same card from the changelog
+ * - Does not add a new change if `target` equals `original` (printing restored)
+ * - Otherwise adds the new set-printing change
+ *
+ * Returns the updated changes array plus addedChange/cancelledChange for undo
+ * tracking. Returns null addedChange and null cancelledChange when the action is
+ * a no-op.
+ */
+export function consolidateSetPrinting(
+  changes: ChangeEvent[],
+  cardName: string,
+  target: PrintingTuple,
+  original: PrintingTuple,
+  cardId?: number,
+): ConsolidateResult {
+  const existingIdx = changes.findIndex(
+    (c) =>
+      c.action === 'set-printing' &&
+      c.cardName === cardName &&
+      (cardId === undefined || c.cardId === undefined || c.cardId === cardId),
+  )
+  const cancelledChange: ChangeEvent | null =
+    existingIdx !== -1 ? (changes[existingIdx] ?? null) : null
+  let updatedChanges = existingIdx !== -1 ? changes.filter((_, i) => i !== existingIdx) : changes
+
+  let addedChange: ChangeEvent | null = null
+  if (!isSamePrinting(target, original)) {
+    addedChange = createSetPrintingChange(cardName, { ...target, cardId })
+    updatedChanges = [...updatedChanges, addedChange]
+  }
+
+  return { changes: updatedChanges, addedChange, cancelledChange }
 }
 
 /**
@@ -343,7 +429,7 @@ export function consolidateSetNote(
   note: string,
   originalNote: string,
   cardId?: number,
-): ConsolidateSetNoteResult {
+): ConsolidateResult {
   const existingIdx = changes.findIndex(
     (c) =>
       c.action === 'set-note' &&
@@ -369,31 +455,33 @@ export function isAdditiveChange(action: ChangeAction): boolean {
     action === 'add' ||
     action === 'set-commander' ||
     action === 'set-finish' ||
+    action === 'set-printing' ||
     action === 'set-note'
   )
   // unset-commander is treated as destructive (red) like remove
 }
 
-export type PrintingFields = {
-  set?: string
-  collectorNumber?: string
-  finish?: Finish
-  condition?: Condition
+/**
+ * Format the ` [finish] [condition]` suffix shared by printing annotations and
+ * the set-printing description. Empty when both are at their defaults
+ * (`nonfoil` / `NM`).
+ */
+export function formatFinishConditionTail(finish?: Finish, condition?: Condition): string {
+  const finishInfo = finish && finish !== 'nonfoil' ? ` [${finish}]` : ''
+  const conditionInfo = condition && condition !== 'NM' ? ` [${condition}]` : ''
+  return `${finishInfo}${conditionInfo}`
 }
 
 /**
  * Format the ` (SET:CN) [finish] [condition]` annotation tail used in changelog
  * lines and entry descriptions. Empty when none of the fields are set.
  */
-export function formatPrintingAnnotation(change: PrintingFields): string {
+export function formatPrintingAnnotation(change: PrintingTuple): string {
   const printingInfo =
     change.set && change.collectorNumber
       ? ` (${change.set.toUpperCase()}:${change.collectorNumber})`
       : ''
-  const finishInfo = change.finish && change.finish !== 'nonfoil' ? ` [${change.finish}]` : ''
-  const conditionInfo =
-    change.condition && change.condition !== 'NM' ? ` [${change.condition}]` : ''
-  return `${printingInfo}${finishInfo}${conditionInfo}`
+  return `${printingInfo}${formatFinishConditionTail(change.finish, change.condition)}`
 }
 
 /**
@@ -449,6 +537,13 @@ export function formatChangeCore(change: ChangeEvent, opts: FormatChangeOptions)
       return `Unset ${name} as commander${idInfo}`
     case 'set-finish':
       return `Set ${name} finish to ${change.finish}${idInfo}`
+    case 'set-printing': {
+      const printingDesc =
+        change.set && change.collectorNumber
+          ? `${change.set.toUpperCase()}:${change.collectorNumber}${formatFinishConditionTail(change.finish, change.condition)}`
+          : 'no specific printing'
+      return `Set ${name} printing to ${printingDesc}${idInfo}`
+    }
     case 'set-note': {
       if (change.note === '') {
         const clearVerb = tense === 'past' ? 'Cleared' : 'Clear'

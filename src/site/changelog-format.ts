@@ -14,6 +14,7 @@ export function isAdditiveAction(action: ChangelogAction): boolean {
     case 'Added':
     case 'Set as commander':
     case 'Set finish':
+    case 'Set printing':
     case 'Set note':
       return true
     case 'Removed':
@@ -66,6 +67,17 @@ export function formatChangeText(change: ChangelogChange): FormattedChange {
       return { prefix: 'Unset ', suffix: ' as commander' }
     case 'Set finish':
       return { prefix: 'Set ', suffix: ` finish to ${change.finish ?? 'nonfoil'}` }
+    case 'Set printing': {
+      // Mirror formatChangeCore's set-printing wording.
+      const parts: string[] = []
+      if (change.set && change.collectorNumber) {
+        parts.push(`${change.set.toUpperCase()}:${change.collectorNumber}`)
+      }
+      if (change.finish && change.finish !== 'nonfoil') parts.push(`[${change.finish}]`)
+      if (change.condition && change.condition !== 'NM') parts.push(`[${change.condition}]`)
+      const desc = parts.length > 0 ? parts.join(' ') : 'no specific printing'
+      return { prefix: 'Set ', suffix: ` printing to ${desc}` }
+    }
     case 'Set note':
       // Mirror formatChangeCore: an empty (or absent) note is a clear, not a set.
       if (!change.note) return { prefix: 'Cleared note on ', suffix: '' }

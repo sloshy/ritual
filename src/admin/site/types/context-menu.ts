@@ -1,7 +1,7 @@
-import type { ScryfallCard } from '../../../types'
+import type { CardContextInfo } from '../../../site/card-context'
 
-export type ContextMenuState = {
-  cardName: string
-  card: ScryfallCard | null
+export type { CardContextInfo }
+
+export type ContextMenuState = CardContextInfo & {
   anchorRect: DOMRect
 }

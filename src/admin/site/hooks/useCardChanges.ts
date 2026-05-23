@@ -4,9 +4,11 @@ import type { ChangeInput } from '../../../change-event'
 import {
   type ChangeEvent,
   type CardPrintingOptions,
+  type PrintingTuple,
   createChangeId,
   areOppositeChanges,
   consolidateSetFinish,
+  consolidateSetPrinting,
 } from '../../../change-event'
 
 /**
@@ -39,6 +41,12 @@ export type UseCardChangesResult<T = unknown> = {
   addCard: (cardName: string, options?: CardPrintingOptions) => void
   removeCard: (cardName: string, options?: CardPrintingOptions, removedCardData?: T) => void
   setFinish: (cardName: string, finish: Finish, originalFinish: Finish, cardId?: number) => void
+  setPrinting: (
+    cardName: string,
+    target: PrintingTuple,
+    original: PrintingTuple,
+    cardId?: number,
+  ) => void
 }
 
 export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
@@ -135,6 +143,25 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     }
   }
 
+  function setPrinting(
+    cardName: string,
+    target: PrintingTuple,
+    original: PrintingTuple,
+    cardId?: number,
+  ) {
+    const {
+      changes: newChanges,
+      addedChange,
+      cancelledChange,
+    } = consolidateSetPrinting(changesRef, cardName, target, original, cardId)
+    if (addedChange !== null || cancelledChange !== null) {
+      changesRef = newChanges
+      undoStackRef = [...undoStackRef, { addedChange, cancelledChange }]
+      setChanges([...changesRef])
+      setUndoStack([...undoStackRef])
+    }
+  }
+
   const changeCount = createMemo(() => changes().length)
   const canUndo = createMemo(() => undoStack().length > 0)
 
@@ -151,5 +178,6 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     addCard,
     removeCard,
     setFinish,
+    setPrinting,
   }
 }

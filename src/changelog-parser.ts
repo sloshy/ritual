@@ -21,6 +21,7 @@ export type ChangelogAction =
   | 'Set as commander'
   | 'Unset as commander'
   | 'Set finish'
+  | 'Set printing'
   | 'Set note'
   | 'Cleared note'
 
@@ -54,6 +55,14 @@ const CHANGE_LINE_REGEX =
 const SET_NOTE_LINE_REGEX = /^-\s+Set\s+note\s+on\s+(.+?)(?:\s+&\d+)?\s+to\s+"(.*)"\s*$/
 /** Matches `Cleared note on Card Name &5`. */
 const CLEARED_NOTE_LINE_REGEX = /^-\s+Cleared\s+note\s+on\s+(.+?)(?:\s+&\d+)?\s*$/
+/**
+ * Matches `Set "Card Name" printing to M10:146 [foil] [LP] &5` and
+ * `Set "Card Name" printing to no specific printing &5`. Card-name group is
+ * non-greedy so the trailing `&N` and the printing descriptor are captured separately.
+ */
+const SET_PRINTING_LINE_REGEX = /^-\s+Set\s+(.+?)\s+printing\s+to\s+(.+?)(?:\s+&\d+)?\s*$/
+/** Matches the `SET:CN [finish] [condition]` descriptor inside a set-printing line. */
+const PRINTING_DESCRIPTOR_REGEX = /^([^\s:]+):([^\s[]+)((?:\s*\[[^\]]+\])*)\s*$/
 
 const FINISH_VALUES = new Set(['foil', 'nonfoil', 'etched'])
 const CONDITION_VALUES = new Set(['NM', 'LP', 'MP', 'HP', 'DMG'])
@@ -78,6 +87,39 @@ function parseChangeLine(line: string): ChangelogChange | null {
   const clearedNote = line.match(CLEARED_NOTE_LINE_REGEX)
   if (clearedNote?.[1]) {
     return { action: 'Cleared note', cardName: stripQuotes(clearedNote[1]) }
+  }
+
+  // "Set X printing to ..." carries an unparenthesized `SET:CN` descriptor that the
+  // generic regex (which expects `(SET:CN)`) can't read — match it directly first.
+  const setPrinting = line.match(SET_PRINTING_LINE_REGEX)
+  if (setPrinting?.[1] && setPrinting[2]) {
+    const cardName = stripQuotes(setPrinting[1])
+    const descriptor = setPrinting[2].trim()
+    const printing = descriptor.match(PRINTING_DESCRIPTOR_REGEX)
+    if (printing?.[1] && printing[2]) {
+      let finish: string | undefined
+      let condition: string | undefined
+      for (const bracketMatch of (printing[3] ?? '').matchAll(/\[([^\]]+)\]/g)) {
+        const value = bracketMatch[1]!
+        if (FINISH_VALUES.has(value.toLowerCase())) finish = value.toLowerCase()
+        else if (CONDITION_VALUES.has(value.toUpperCase())) condition = value.toUpperCase()
+      }
+      return {
+        action: 'Set printing',
+        cardName,
+        set: printing[1].toLowerCase(),
+        collectorNumber: printing[2],
+        finish,
+        condition,
+      }
+    }
+    // The only valid descriptor without a SET:CN is the explicit name-only marker.
+    if (descriptor === 'no specific printing') {
+      return { action: 'Set printing', cardName }
+    }
+    // Any other descriptor is a malformed line — fail rather than silently
+    // discarding the printing data it was meant to carry.
+    return null
   }
 
   const match = line.match(CHANGE_LINE_REGEX)

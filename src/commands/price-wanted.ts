@@ -2,6 +2,7 @@ import { Command } from 'commander'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { getCardPrintings, getCardGames, computeRepresentativePrints } from '../scryfall'
+import { findPrinting } from '../card-printing'
 import { parseWantedListFile } from './wanted-helpers'
 import { getPriceForFinish, resolveFinish } from './price-collection'
 import type { CollectionEntry } from './price-collection'
@@ -206,11 +207,7 @@ export function registerPriceWantedListCommand(program: Command): void {
             }
           } else {
             // 'printing' or 'fully-specified': find exact printing
-            const exactPrinting = printings.find(
-              (p) =>
-                p.set.toLowerCase() === entry.set!.toLowerCase() &&
-                p.collector_number === entry.collectorNumber,
-            )
+            const exactPrinting = findPrinting(printings, entry.set, entry.collectorNumber)
 
             if (!exactPrinting) {
               if (!scriptingOptions.quiet && scriptingOptions.output === 'text') {

@@ -1,16 +1,63 @@
-import { type JSX, createSignal, Show } from 'solid-js'
+import { type JSX, batch, createSignal, Show } from 'solid-js'
 import type { ScryfallCard } from '../../../types'
 import type { CollectionCardEntry } from '../../../site/data-types'
+import type { CardContextInfo } from '../types/context-menu'
 import type { CardPriceResponse } from '../../api/card-price'
-import type { EditorConfig } from '../hooks/useEditor'
+import type { EditorConfig, ChangePrintingContext } from '../hooks/useEditor'
+import { type PrintingTuple, isSamePrinting } from '../../../change-event'
 import { collectExistingIds } from '../../../card-id'
 import { CollectionPage } from '../../../site/CollectionPage'
 import { useEntryCardData } from '../hooks/useEntryCardData'
 import { useEditor } from '../hooks/useEditor'
 import { useEditorDefaults } from '../hooks/useEditorDefaults'
 import { applyChangeToCollection } from '../types/collection-changes'
+import { findEntryPrintingById } from '../types/entry-targeting'
 import { CardContextMenu } from '../components/CardContextMenu'
 import { EditorShell } from '../components/EditorShell'
+
+/**
+ * Apply a "change printing" action to a collection. Each grouped copy is its own
+ * single-card entry, so this retargets the first `count` entries of the tile's
+ * group, emitting one set-printing change per entry. Untouched copies keep the
+ * old printing and re-group into a separate tile.
+ */
+function applyCollectionChangePrinting(ctx: ChangePrintingContext<CollectionCardEntry[]>): void {
+  const { target, count, options, tools, setData, original } = ctx
+  const newPrinting: PrintingTuple = {
+    set: options.set,
+    collectorNumber: options.collectorNumber,
+    finish: options.finish,
+    condition: options.condition,
+  }
+  const currentPrinting: PrintingTuple = {
+    set: target.set,
+    collectorNumber: target.collectorNumber,
+    finish: target.finish,
+    condition: target.condition,
+  }
+  if (isSamePrinting(newPrinting, currentPrinting)) return
+
+  const n = Math.min(Math.max(count, 1), target.cardIds.length)
+  batch(() => {
+    for (const cardId of target.cardIds.slice(0, n)) {
+      const origPrinting = findEntryPrintingById(original, cardId) ?? currentPrinting
+      tools.setPrinting(target.cardName, newPrinting, origPrinting, cardId)
+      setData((prev) =>
+        prev
+          ? applyChangeToCollection(prev, {
+              action: 'set-printing',
+              cardName: target.cardName,
+              set: options.set,
+              collectorNumber: options.collectorNumber,
+              finish: options.finish,
+              condition: options.condition,
+              cardId,
+            })
+          : prev,
+      )
+    }
+  })
+}
 
 type CollectionListResponse = { collections?: { slug: string; name: string }[] }
 
@@ -64,6 +111,7 @@ export function CollectionEditor(props: CollectionEditorProps): JSX.Element {
     },
 
     applyChange: applyChangeToCollection,
+    applyChangePrinting: applyCollectionChangePrinting,
     hasData: (entries) => entries.length > 0,
 
     findCurrentFinish: (entries, cardName) => {
@@ -138,8 +186,14 @@ export function CollectionEditor(props: CollectionEditorProps): JSX.Element {
     )
   }
 
-  const handleContextMenu = (cardName: string, card: ScryfallCard | null, rect: DOMRect) => {
-    editor.setContextMenuCard({ cardName, card, anchorRect: rect })
+  const handleContextMenu = (info: CardContextInfo, rect: DOMRect) => {
+    editor.setContextMenuCard({ ...info, anchorRect: rect })
+  }
+
+  const handleChangePrinting = () => {
+    const menu = editor.contextMenuCard()
+    editor.setContextMenuCard(null)
+    if (menu) editor.startChangePrinting(menu)
   }
 
   const closeModal = () => setModalCardKey(null)
@@ -163,6 +217,7 @@ export function CollectionEditor(props: CollectionEditorProps): JSX.Element {
               card={menu().card}
               currentFinish={editor.data()?.find((e) => e.name === menu().cardName)?.finish}
               onSetFoil={editor.handleSetFoil}
+              onChangePrinting={handleChangePrinting}
               onUnsetCommander={closeContextMenu}
               anchorRect={menu().anchorRect}
               onClose={closeContextMenu}
