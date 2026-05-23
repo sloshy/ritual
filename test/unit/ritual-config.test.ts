@@ -168,6 +168,9 @@ describe('ritual config', () => {
       includeDecks: ['*'],
       includeCollections: ['*'],
       includeWantedLists: ['*'],
+      excludeDecks: ['Old Brew'],
+      excludeCollections: [],
+      excludeWantedLists: [],
     }
     const config = { ...getDefaultRitualConfig(), site }
     await saveRitualConfig(config)
@@ -192,6 +195,9 @@ describe('ritual config', () => {
       includeDecks: ['*'],
       includeCollections: ['*'],
       includeWantedLists: ['*'],
+      excludeDecks: [],
+      excludeCollections: [],
+      excludeWantedLists: [],
     })
   })
 
@@ -202,6 +208,7 @@ describe('ritual config', () => {
         site: {
           includeDecks: ['Izzet Storm', 'Black Panther'],
           includeWantedLists: [],
+          excludeCollections: ['Secret Stash'],
         },
       }),
     )
@@ -210,6 +217,9 @@ describe('ritual config', () => {
       includeDecks: ['Izzet Storm', 'Black Panther'],
       includeCollections: ['*'],
       includeWantedLists: [],
+      excludeDecks: [],
+      excludeCollections: ['Secret Stash'],
+      excludeWantedLists: [],
     })
     expect(loaded.site?.version).toBeUndefined()
   })
@@ -270,11 +280,15 @@ describe('parseAdminConfig', () => {
 })
 
 describe('parseSiteConfig', () => {
-  // Selection lists default to ['*'] (include all) when absent from the input.
+  // Include lists default to ['*'] (include all) and exclude lists to [] when
+  // absent from the input.
   const defaultSelection = {
     includeDecks: ['*'],
     includeCollections: ['*'],
     includeWantedLists: ['*'],
+    excludeDecks: [],
+    excludeCollections: [],
+    excludeWantedLists: [],
   }
 
   test('parses valid github-actions publish-for-me config', () => {
@@ -328,6 +342,9 @@ describe('parseSiteConfig', () => {
       includeDecks: ['Izzet Storm'],
       includeCollections: ['*'],
       includeWantedLists: ['High Priority', 'Trade Targets'],
+      excludeDecks: [],
+      excludeCollections: [],
+      excludeWantedLists: [],
     })
   })
 
@@ -344,6 +361,24 @@ describe('parseSiteConfig', () => {
       includeDecks: ['Atraxa'],
       includeCollections: [],
       includeWantedLists: ['*'],
+      excludeDecks: [],
+      excludeCollections: [],
+      excludeWantedLists: [],
+    })
+  })
+
+  test('parses explicit exclude lists', () => {
+    const result = parseSiteConfig({
+      excludeDecks: ['Old Brew'],
+      excludeWantedLists: ['Done'],
+    })
+    expect(result).toEqual({
+      includeDecks: ['*'],
+      includeCollections: ['*'],
+      includeWantedLists: ['*'],
+      excludeDecks: ['Old Brew'],
+      excludeCollections: [],
+      excludeWantedLists: ['Done'],
     })
   })
 
@@ -351,6 +386,8 @@ describe('parseSiteConfig', () => {
     expect(typeof parseSiteConfig({ includeDecks: 'Izzet Storm' })).toBe('string')
     expect(parseSiteConfig({ includeDecks: 'Izzet Storm' }) as string).toContain('includeDecks')
     expect(typeof parseSiteConfig({ includeCollections: [1, 2] })).toBe('string')
+    expect(typeof parseSiteConfig({ excludeDecks: 'Old Brew' })).toBe('string')
+    expect(parseSiteConfig({ excludeDecks: 'Old Brew' }) as string).toContain('excludeDecks')
   })
 
   test('returns error string when not an object', () => {
@@ -448,11 +485,14 @@ describe('parseSiteConfig', () => {
 })
 
 describe('getSiteSelectionConfig', () => {
-  test('defaults every list to ["*"] when site is undefined', () => {
+  test('defaults include lists to ["*"] and exclude lists to [] when site is undefined', () => {
     expect(getSiteSelectionConfig(undefined)).toEqual({
       includeDecks: ['*'],
       includeCollections: ['*'],
       includeWantedLists: ['*'],
+      excludeDecks: [],
+      excludeCollections: [],
+      excludeWantedLists: [],
     })
   })
 
@@ -461,12 +501,29 @@ describe('getSiteSelectionConfig', () => {
       includeDecks: ['Izzet Storm'],
       includeCollections: [],
       includeWantedLists: ['*'],
+      excludeDecks: [],
+      excludeCollections: [],
+      excludeWantedLists: ['Done'],
     })
     expect(selection).toEqual({
       includeDecks: ['Izzet Storm'],
       includeCollections: [],
       includeWantedLists: ['*'],
+      excludeDecks: [],
+      excludeCollections: [],
+      excludeWantedLists: ['Done'],
     })
+  })
+
+  test('defaults missing exclude lists to [] alongside configured include lists', () => {
+    const selection = getSiteSelectionConfig({
+      includeDecks: ['Izzet Storm'],
+      includeCollections: ['*'],
+      includeWantedLists: ['*'],
+    } as SiteConfig)
+    expect(selection.excludeDecks).toEqual([])
+    expect(selection.excludeCollections).toEqual([])
+    expect(selection.excludeWantedLists).toEqual([])
   })
 })
 
@@ -481,6 +538,9 @@ describe('getSiteDeployConfig', () => {
         includeDecks: ['*'],
         includeCollections: ['*'],
         includeWantedLists: ['*'],
+        excludeDecks: [],
+        excludeCollections: [],
+        excludeWantedLists: [],
       }),
     ).toBeNull()
   })
@@ -491,6 +551,9 @@ describe('getSiteDeployConfig', () => {
         includeDecks: ['*'],
         includeCollections: ['*'],
         includeWantedLists: ['*'],
+        excludeDecks: [],
+        excludeCollections: [],
+        excludeWantedLists: [],
         version: '1.0.0',
         ciSystem: 'github-actions',
         deployMode: 'publish-for-me',
@@ -512,6 +575,9 @@ describe('getSiteDeployConfig', () => {
         includeDecks: ['*'],
         includeCollections: ['*'],
         includeWantedLists: ['*'],
+        excludeDecks: [],
+        excludeCollections: [],
+        excludeWantedLists: [],
         version: '2.1.0',
         ciSystem: 'manual',
       }),

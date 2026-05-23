@@ -80,6 +80,17 @@ A wanted list is a Markdown file in the configured `wantedDir` (defaults to `wan
 
 The Create / Rename / Delete flow is identical to **Collections**, including the changelog sidecar handling.
 
+## Publishing visibility
+
+Each list in every tab has a **Public / Hidden** toggle next to its Rename and Delete buttons. It controls whether [`build-site`](../commands/build-site) publishes that list to the public site:
+
+- **Public** (toggle on) — the list is published, subject to the category's publish list.
+- **Hidden** (toggle off) — the list is excluded from the public site.
+
+The toggle edits only the category's exclude list in your [site configuration](../configuration#choosing-which-lists-to-publish) (`site.excludeDecks`, `site.excludeCollections`, or `site.excludeWantedLists`): hiding a list adds its display name there and showing it removes the name. It never touches the `include*` publish lists, so the two settings compose — exclusion always wins. With the default `include*` of `["*"]` (publish everything), the toggle is simply "published or not".
+
+Changes save immediately. If git **Auto-commit** is enabled in Settings, the configuration change is committed like any other settings edit.
+
 ## Git Integration
 
 When git integration is enabled and **Auto-commit changes** is turned on in Settings, each operation creates a commit:

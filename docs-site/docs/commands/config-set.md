@@ -55,6 +55,11 @@ The following nested `site` keys — the [public-site publish lists](./build-sit
 | `site.includeDecks`       | `string[]` | `["*"]` |
 | `site.includeCollections` | `string[]` | `["*"]` |
 | `site.includeWantedLists` | `string[]` | `["*"]` |
+| `site.excludeDecks`       | `string[]` | `[]`    |
+| `site.excludeCollections` | `string[]` | `[]`    |
+| `site.excludeWantedLists` | `string[]` | `[]`    |
+
+Each `exclude*` list drops lists by display name even when the matching `include*` list selects them; exclusion always wins. The exclude lists have no wildcard and default to empty. The admin **Manage Lists** page edits them through per-list [visibility toggles](../admin/manage-lists#publishing-visibility).
 
 The rest of the `site` key (the deployment settings) is managed exclusively by `ritual init-site` and cannot be set with this command.
 
@@ -113,6 +118,12 @@ Reset a publish list back to "everything":
 
 ```bash
 ./ritual config-set site.includeCollections "*"
+```
+
+Hide a single deck from the built site (leaving the rest published):
+
+```bash
+./ritual config-set --add site.excludeDecks "Untuned Brew"
 ```
 
 ## Notes

@@ -1652,5 +1652,73 @@ dialog.discard-dialog-native[open] {
 
 .deck-list-actions {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
+}
+
+/* ----- List Visibility Toggle ----- */
+.visibility-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* The native checkbox is visually hidden; the track/knob below render the state. */
+.visibility-toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.visibility-toggle-track {
+  position: relative;
+  width: 2rem;
+  height: 1.1rem;
+  border-radius: 999px;
+  background: var(--bg-active);
+  transition: background 0.15s ease;
+  flex-shrink: 0;
+}
+
+.visibility-toggle-track::after {
+  content: '';
+  position: absolute;
+  top: 0.15rem;
+  left: 0.15rem;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease;
+}
+
+.visibility-toggle input:checked + .visibility-toggle-track {
+  background: var(--accent);
+}
+
+.visibility-toggle input:checked + .visibility-toggle-track::after {
+  transform: translateX(0.9rem);
+  background: var(--btn-on-color-text);
+}
+
+.visibility-toggle input:focus-visible + .visibility-toggle-track {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.visibility-toggle input:disabled + .visibility-toggle-track {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.visibility-toggle-label {
+  min-width: 2.75rem;
 }

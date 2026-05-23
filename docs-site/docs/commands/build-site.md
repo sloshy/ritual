@@ -108,7 +108,9 @@ Setting a list to specific **display names** publishes only those lists and filt
 }
 ```
 
-`build-site` publishes only those two decks, every collection, and no wanted lists. The matching flag always overrides the config for that category in a single run — `--decks "Mono Red Aggro"` builds just that deck regardless of `includeDecks`.
+`build-site` publishes only those two decks, every collection, and no wanted lists. The matching flag always overrides the config for that category in a single run, bypassing both the `include*` and `exclude*` lists — `--decks "Mono Red Aggro"` builds just that deck regardless of `includeDecks` or `excludeDecks`.
+
+Each category also has an `exclude*` list (`site.excludeDecks`, `site.excludeCollections`, `site.excludeWantedLists`) that drops lists by display name even when the `include*` list selects them — exclusion always wins. The exclude lists default to empty and have no wildcard. For example, `"includeDecks": ["*"]` with `"excludeDecks": ["Untuned Brew"]` publishes every deck except "Untuned Brew". The admin **Manage Lists** page toggles these per list; see [publishing visibility](../admin/manage-lists#publishing-visibility).
 
 You can edit these lists from the admin **Settings** page, with [`config-set`](./config-set), or by hand.
 

@@ -24,4 +24,3 @@
 - When removing a card from a deck, if it's not from the mainboard, then the change log should state what section it was removed from
 - When moving a card between sections, change events should say which sections it was moved between
 - `--dev` mode for cache server
-- Improve test / precommit hook speed

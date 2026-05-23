@@ -3,6 +3,7 @@ import {
   applyConfigSet,
   SETTABLE_FIELDS,
   SETTABLE_ADMIN_FIELDS,
+  SETTABLE_SITE_FIELDS,
 } from '../../../src/commands/config-set'
 import { getDefaultRitualConfig } from '../../../src/ritual-config'
 
@@ -83,6 +84,9 @@ describe('applyConfigSet — site selection lists', () => {
         includeDecks: ['*'],
         includeCollections: ['*'],
         includeWantedLists: ['*'],
+        excludeDecks: [],
+        excludeCollections: [],
+        excludeWantedLists: [],
       },
     }
     const result = applyConfigSet(withSite, 'site.includeDecks', ['Atraxa'], 'replace')
@@ -91,6 +95,26 @@ describe('applyConfigSet — site selection lists', () => {
       expect(result.updatedConfig.site?.includeDecks).toEqual(['Atraxa'])
       expect(result.updatedConfig.site?.version).toBe('1.0.0')
       expect(result.updatedConfig.site?.ciSystem).toBe('manual')
+    }
+  })
+
+  test('replaces site.excludeDecks', () => {
+    const result = applyConfigSet(base, 'site.excludeDecks', ['Old Brew'], 'replace')
+    expect('error' in result).toBeFalse()
+    if (!('error' in result)) {
+      expect(result.newValue).toEqual(['Old Brew'])
+      expect(result.updatedConfig.site?.excludeDecks).toEqual(['Old Brew'])
+    }
+  })
+
+  test('adds to and removes from site.excludeCollections', () => {
+    const seeded = applyConfigSet(base, 'site.excludeCollections', ['A', 'B'], 'replace')
+    expect('error' in seeded).toBeFalse()
+    if ('error' in seeded) return
+    const removed = applyConfigSet(seeded.updatedConfig, 'site.excludeCollections', ['A'], 'remove')
+    expect('error' in removed).toBeFalse()
+    if (!('error' in removed)) {
+      expect(removed.updatedConfig.site?.excludeCollections).toEqual(['B'])
     }
   })
 })
@@ -444,5 +468,16 @@ describe('SETTABLE_ADMIN_FIELDS', () => {
     expect(SETTABLE_ADMIN_FIELDS['admin.rateLimitMaxAttempts']).toBe('number')
     expect(SETTABLE_ADMIN_FIELDS['admin.rateLimitWindowMinutes']).toBe('number')
     expect(SETTABLE_ADMIN_FIELDS['admin.failedAuthDelayMs']).toBe('number')
+  })
+})
+
+describe('SETTABLE_SITE_FIELDS', () => {
+  test('exposes both include and exclude selection lists as string[] paths', () => {
+    expect(SETTABLE_SITE_FIELDS['site.includeDecks']).toBe('string[]')
+    expect(SETTABLE_SITE_FIELDS['site.includeCollections']).toBe('string[]')
+    expect(SETTABLE_SITE_FIELDS['site.includeWantedLists']).toBe('string[]')
+    expect(SETTABLE_SITE_FIELDS['site.excludeDecks']).toBe('string[]')
+    expect(SETTABLE_SITE_FIELDS['site.excludeCollections']).toBe('string[]')
+    expect(SETTABLE_SITE_FIELDS['site.excludeWantedLists']).toBe('string[]')
   })
 })

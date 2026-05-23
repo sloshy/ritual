@@ -5,11 +5,10 @@ import {
   defaultSiteSelection,
   type SiteSelectionConfig,
 } from '../../../site/list-selection'
+import { fetchRitualConfig } from '../config-api'
 import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { TotpSettings } from '../components/TotpSettings'
-
-type ConfigResponse = { success: boolean; config: RitualConfig }
 
 function listToString(list: string[]): string {
   return list.join('\n')
@@ -27,15 +26,9 @@ export function Settings(): JSX.Element {
   const { status, error, loading, run, setStatus, setError } = useApiAction()
 
   const fetchConfig = async () => {
-    try {
-      const resp = await fetch('/api/config', { credentials: 'same-origin' })
-      const data = (await resp.json()) as ConfigResponse
-      if (data.success && data.config) {
-        setConfig(data.config)
-      }
-    } catch {
-      setError('Failed to load config')
-    }
+    const cfg = await fetchRitualConfig()
+    if (cfg) setConfig(cfg)
+    else setError('Failed to load config')
   }
 
   onMount(() => {
@@ -72,9 +65,10 @@ export function Settings(): JSX.Element {
     )
   }
 
-  // The include lists live under `site`; default each to ['*'] (all) for display.
-  const siteList = (field: keyof SiteSelectionConfig): string[] =>
-    config()?.site?.[field] ?? [INCLUDE_ALL]
+  // The selection lists live under `site`; show the field's value or its default
+  // (['*'] for include lists, [] for exclude lists) when absent.
+  const siteList = (field: keyof SiteSelectionConfig, fallback: string[]): string[] =>
+    config()?.site?.[field] ?? fallback
 
   const updateSiteListField = (field: keyof SiteSelectionConfig, value: string) => {
     setConfig((prev) => {
@@ -327,7 +321,7 @@ export function Settings(): JSX.Element {
             <textarea
               class="form-input form-input-monospace"
               name="includeDecks"
-              value={listToString(siteList('includeDecks'))}
+              value={listToString(siteList('includeDecks', [INCLUDE_ALL]))}
               onInput={(e) => updateSiteListField('includeDecks', e.currentTarget.value)}
               placeholder={INCLUDE_ALL}
             />
@@ -337,7 +331,7 @@ export function Settings(): JSX.Element {
             <textarea
               class="form-input form-input-monospace"
               name="includeCollections"
-              value={listToString(siteList('includeCollections'))}
+              value={listToString(siteList('includeCollections', [INCLUDE_ALL]))}
               onInput={(e) => updateSiteListField('includeCollections', e.currentTarget.value)}
               placeholder={INCLUDE_ALL}
             />
@@ -347,9 +341,43 @@ export function Settings(): JSX.Element {
             <textarea
               class="form-input form-input-monospace"
               name="includeWantedLists"
-              value={listToString(siteList('includeWantedLists'))}
+              value={listToString(siteList('includeWantedLists', [INCLUDE_ALL]))}
               onInput={(e) => updateSiteListField('includeWantedLists', e.currentTarget.value)}
               placeholder={INCLUDE_ALL}
+            />
+          </div>
+
+          <p class="form-hint form-hint-gap">
+            Exclude specific lists by display name (one per line), even when the publish list above
+            includes them. The visibility toggles on the Manage Lists page edit these. Leave empty
+            to exclude nothing.
+          </p>
+
+          <div>
+            <label class="form-label">Decks to exclude</label>
+            <textarea
+              class="form-input form-input-monospace"
+              name="excludeDecks"
+              value={listToString(siteList('excludeDecks', []))}
+              onInput={(e) => updateSiteListField('excludeDecks', e.currentTarget.value)}
+            />
+          </div>
+          <div>
+            <label class="form-label">Collections to exclude</label>
+            <textarea
+              class="form-input form-input-monospace"
+              name="excludeCollections"
+              value={listToString(siteList('excludeCollections', []))}
+              onInput={(e) => updateSiteListField('excludeCollections', e.currentTarget.value)}
+            />
+          </div>
+          <div>
+            <label class="form-label">Wanted lists to exclude</label>
+            <textarea
+              class="form-input form-input-monospace"
+              name="excludeWantedLists"
+              value={listToString(siteList('excludeWantedLists', []))}
+              onInput={(e) => updateSiteListField('excludeWantedLists', e.currentTarget.value)}
             />
           </div>
 

@@ -77,7 +77,7 @@ See [Admin → Configuration File](commands/admin#configuration-file) for the fu
 The `site` key holds public-site settings. It has two parts:
 
 - **Deployment settings** (`version`, `ciSystem`, `deployMode`, `distDir`, `detectChanges`) are managed by `ritual init-site` and present only after you run it. Don't edit them by hand.
-- **Publish lists** (`includeDecks`, `includeCollections`, `includeWantedLists`) are user-editable and decide which lists `build-site` publishes. You can set them from the admin **Settings** page, with [`config-set`](commands/config-set), or by hand.
+- **Publish lists** (`includeDecks`, `includeCollections`, `includeWantedLists` and their `exclude*` counterparts) are user-editable and decide which lists `build-site` publishes. You can set them from the admin **Settings** page, the per-list visibility toggles on the admin **Manage Lists** page, with [`config-set`](commands/config-set), or by hand.
 
 ```json
 {
@@ -91,7 +91,10 @@ The `site` key holds public-site settings. It has two parts:
     "detectChanges": false,
     "includeDecks": ["*"],
     "includeCollections": ["Red Binder", "ECL"],
-    "includeWantedLists": ["*"]
+    "includeWantedLists": ["*"],
+    "excludeDecks": ["Untuned Brew"],
+    "excludeCollections": [],
+    "excludeWantedLists": []
   }
 }
 ```
@@ -106,6 +109,9 @@ The `site` key holds public-site settings. It has two parts:
 | `includeDecks`       | `["*"]` | Which decks `build-site` publishes (see below).                                |
 | `includeCollections` | `["*"]` | Which collections `build-site` publishes.                                      |
 | `includeWantedLists` | `["*"]` | Which wanted lists `build-site` publishes.                                     |
+| `excludeDecks`       | `[]`    | Decks to drop even when `includeDecks` selects them.                           |
+| `excludeCollections` | `[]`    | Collections to drop even when `includeCollections` selects them.               |
+| `excludeWantedLists` | `[]`    | Wanted lists to drop even when `includeWantedLists` selects them.              |
 
 ### Choosing which lists to publish
 
@@ -115,12 +121,14 @@ Each `include*` list controls which lists in that category are published when yo
 - An explicit list of **display names** (a deck's `name:` frontmatter or a collection/wanted-list `# Title`, each falling back to the file name) — publishes only the matching lists and filters out the rest. Names must match exactly.
 - `[]` — an empty list publishes **none** of that category.
 
+Each category also has a sister `exclude*` list. Any display name in it is dropped even when the `include*` list selects it (including under the wildcard) — **exclusion always wins**. The exclude lists default to `[]` and have no wildcard. This makes "publish everything except a few" easy: keep `includeDecks` at `["*"]` and add the odd one out to `excludeDecks`. The admin **Manage Lists** page's per-list visibility toggles edit only these exclude lists.
+
 The corresponding `build-site` flags (`--decks`, `--collections`, `--wanted-lists`) override these settings for a single run.
 
 ## Editing the file
 
 You can edit the directory keys and the nested `admin` settings in `ritual.config.json` by hand, or — when running the admin server — use the **Settings** page in the web UI. Saving via the UI also refreshes the in-memory config so any later admin or CLI command picks up the change immediately.
 
-The deployment portion of the `site` key is owned by `ritual init-site`; let that command manage it. The `site.includeDecks`, `site.includeCollections`, and `site.includeWantedLists` lists are the exception — they are user settings you can edit from the admin **Settings** page or with `config-set`.
+The deployment portion of the `site` key is owned by `ritual init-site`; let that command manage it. The publish lists (`site.includeDecks`, `site.includeCollections`, `site.includeWantedLists` and their `site.exclude*` counterparts) are the exception — they are user settings you can edit from the admin **Settings** page, the **Manage Lists** visibility toggles, or with `config-set`.
 
 If a field is missing from the file, Ritual falls back to the default for that field.

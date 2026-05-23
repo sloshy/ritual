@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { extractMarkdownTitle } from '../markdown-utils'
 import { listDeckFiles, readDeckName } from '../importers/text-file'
-import { filterByIncludeList, includesAllLists } from './list-selection'
+import { filterBySelection, includesAllLists } from './list-selection'
 
 type ResolvedSource = { basename: string; displayName: string }
 
@@ -15,17 +15,20 @@ async function discoverMarkdownBasenames(dir: string): Promise<string[]> {
 }
 
 /**
- * Reduce discovered base names to those allowed by an `include*` selection,
- * matching each on its resolved display name. A wildcard selection returns every
- * base name unchanged; files that can't be read are skipped.
+ * Reduce discovered base names to those allowed by an include/exclude selection,
+ * matching each on its resolved display name. The all-publishing fast path (a
+ * wildcard include with no exclusions) returns every base name unchanged without
+ * reading any files; otherwise display names are resolved and {@link filterBySelection}
+ * applied. Files that can't be read are skipped.
  */
 async function keepIncluded(
   dir: string,
   basenames: string[],
   include: string[],
+  exclude: string[],
   displayNameOf: (filePath: string, basename: string) => Promise<string>,
 ): Promise<string[]> {
-  if (includesAllLists(include)) {
+  if (includesAllLists(include) && exclude.length === 0) {
     return basenames
   }
   const resolved: ResolvedSource[] = []
@@ -37,28 +40,36 @@ async function keepIncluded(
       // Skip unreadable files — they can't be matched by display name.
     }
   }
-  return filterByIncludeList(resolved, include, (e) => e.displayName).map((e) => e.basename)
+  return filterBySelection(resolved, include, exclude, (e) => e.displayName).map((e) => e.basename)
 }
 
 /**
- * Deck base names to build, filtered by `includeDecks`. Decks are matched on
- * their display name (the `name:` frontmatter field, falling back to the file
- * base name).
+ * Deck base names to build, filtered by `includeDecks`/`excludeDecks`. Decks are
+ * matched on their display name (the `name:` frontmatter field, falling back to
+ * the file base name).
  */
-export async function resolveDeckSources(decksDir: string, include: string[]): Promise<string[]> {
+export async function resolveDeckSources(
+  decksDir: string,
+  include: string[],
+  exclude: string[],
+): Promise<string[]> {
   const files = await listDeckFiles(decksDir)
   const basenames = files.map((f) => f.slice(0, -3))
-  return keepIncluded(decksDir, basenames, include, (filePath) => readDeckName(filePath))
+  return keepIncluded(decksDir, basenames, include, exclude, (filePath) => readDeckName(filePath))
 }
 
 /**
- * Collection/wanted-list base names to build, filtered by the given include
- * selection. Lists are matched on their display name (the `# Title` heading,
- * falling back to the file base name).
+ * Collection/wanted-list base names to build, filtered by the given
+ * include/exclude selection. Lists are matched on their display name (the
+ * `# Title` heading, falling back to the file base name).
  */
-export async function resolveListSources(dir: string, include: string[]): Promise<string[]> {
+export async function resolveListSources(
+  dir: string,
+  include: string[],
+  exclude: string[],
+): Promise<string[]> {
   const basenames = await discoverMarkdownBasenames(dir)
-  return keepIncluded(dir, basenames, include, async (filePath, basename) => {
+  return keepIncluded(dir, basenames, include, exclude, async (filePath, basename) => {
     const content = await fs.readFile(filePath, 'utf-8')
     return extractMarkdownTitle(content) ?? basename
   })

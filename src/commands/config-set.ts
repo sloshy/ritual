@@ -85,11 +85,18 @@ export const SETTABLE_ADMIN_FIELDS: Record<string, ConfigFieldType> = {
 // init-site-managed `site` object, are user-tunable. They are exposed here as
 // dotted nested paths handled through the same string[] machinery. The
 // `satisfies` check keeps the keys in sync with SiteSelectionConfig.
-type SiteSelectionFieldsMap = Record<`site.${keyof SiteSelectionConfig}`, 'string[]'>
-const SETTABLE_SITE_FIELDS: Record<string, ConfigFieldType> = {
+type SiteSelectionFieldsMap = {
+  [K in keyof SiteSelectionConfig as `site.${K & string}`]: ConfigFieldTypeFor<
+    SiteSelectionConfig[K]
+  >
+}
+export const SETTABLE_SITE_FIELDS: Record<string, ConfigFieldType> = {
   'site.includeDecks': 'string[]',
   'site.includeCollections': 'string[]',
   'site.includeWantedLists': 'string[]',
+  'site.excludeDecks': 'string[]',
+  'site.excludeCollections': 'string[]',
+  'site.excludeWantedLists': 'string[]',
 } satisfies SiteSelectionFieldsMap
 
 function getAtPath(obj: unknown, path: string[]): unknown {

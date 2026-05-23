@@ -9,11 +9,62 @@ type ManagerState = {
   wantedLists: ListItem[]
 }
 
+type SiteState = {
+  includeDecks: string[]
+  includeCollections: string[]
+  includeWantedLists: string[]
+  excludeDecks: string[]
+  excludeCollections: string[]
+  excludeWantedLists: string[]
+}
+
+type ConfigPutBody = { site?: Partial<SiteState> }
+
 function jsonResponse(route: Route, body: unknown, status = 200): Promise<void> {
   return route.fulfill({
     status,
     contentType: 'application/json',
     body: JSON.stringify(body),
+  })
+}
+
+function freshSite(): SiteState {
+  return {
+    includeDecks: ['*'],
+    includeCollections: ['*'],
+    includeWantedLists: ['*'],
+    excludeDecks: [],
+    excludeCollections: [],
+    excludeWantedLists: [],
+  }
+}
+
+/**
+ * Mock the config API the visibility toggles read and write. The PUT replaces the
+ * whole `site` object (matching the real merge), so the toggle round-trips through
+ * synthetic state rather than touching the real ritual.config.json.
+ */
+async function installConfigMock(page: Page, site: SiteState): Promise<void> {
+  const config = () => ({
+    decksDir: './decks',
+    collectionsDir: './collections',
+    wantedDir: './wanted',
+    admin: {},
+    site,
+  })
+  await page.route('**/api/config', async (route) => {
+    const method = route.request().method()
+    if (method === 'GET') {
+      await jsonResponse(route, { success: true, config: config() })
+      return
+    }
+    if (method === 'PUT') {
+      const body = JSON.parse(route.request().postData() ?? '{}') as ConfigPutBody
+      if (body.site) Object.assign(site, body.site)
+      await jsonResponse(route, { success: true, config: config() })
+      return
+    }
+    await route.fallback()
   })
 }
 
@@ -119,10 +170,13 @@ function freshState(): ManagerState {
 
 test.describe('List Manager', () => {
   let state: ManagerState
+  let site: SiteState
 
   test.beforeEach(async ({ page }) => {
     state = freshState()
+    site = freshSite()
     await installManagerMocks(page, state)
+    await installConfigMock(page, site)
     await loginAsAdmin(page)
     await page.locator('.admin-nav-item:has-text("Manage Lists")').click()
     await expect(page.locator('.section-heading')).toContainText('Manage Lists')
@@ -201,5 +255,53 @@ test.describe('List Manager', () => {
 
     await deleteBtn.click()
     await expect(page.locator('.deck-list-item:has-text("Existing Wanted")')).toHaveCount(0)
+  })
+
+  test('hiding a deck adds it to the exclude list and flips the toggle', async ({ page }) => {
+    const item = page.locator('.deck-list-item:has-text("Existing Deck")')
+    const toggle = item.locator('.visibility-toggle input[type="checkbox"]')
+    await expect(toggle).toBeChecked()
+    await expect(item.locator('.visibility-toggle-label')).toHaveText('Public')
+
+    const putPromise = page.waitForRequest(
+      (req) => req.url().includes('/api/config') && req.method() === 'PUT',
+    )
+    await item.locator('.visibility-toggle').click()
+    const body = JSON.parse((await putPromise).postData() ?? '{}') as ConfigPutBody
+    // Visibility flips exclusively through the exclude list, never the include list.
+    expect(body.site?.excludeDecks).toContain('Existing Deck')
+    expect(body.site?.includeDecks).toEqual(['*'])
+
+    await expect(toggle).not.toBeChecked()
+    await expect(item.locator('.visibility-toggle-label')).toHaveText('Hidden')
+  })
+
+  test('showing a hidden deck removes it from the exclude list', async ({ page }) => {
+    const item = page.locator('.deck-list-item:has-text("Existing Deck")')
+    await item.locator('.visibility-toggle').click()
+    await expect(item.locator('.visibility-toggle-label')).toHaveText('Hidden')
+
+    const putPromise = page.waitForRequest(
+      (req) => req.url().includes('/api/config') && req.method() === 'PUT',
+    )
+    await item.locator('.visibility-toggle').click()
+    const body = JSON.parse((await putPromise).postData() ?? '{}') as ConfigPutBody
+    expect(body.site?.excludeDecks ?? []).not.toContain('Existing Deck')
+    await expect(item.locator('.visibility-toggle-label')).toHaveText('Public')
+  })
+
+  test('hiding a collection writes the collection exclude list, not the deck one', async ({
+    page,
+  }) => {
+    await page.locator('.list-manager-tab:has-text("Collections")').click()
+    const item = page.locator('.deck-list-item:has-text("Existing Collection")')
+    const putPromise = page.waitForRequest(
+      (req) => req.url().includes('/api/config') && req.method() === 'PUT',
+    )
+    await item.locator('.visibility-toggle').click()
+    const body = JSON.parse((await putPromise).postData() ?? '{}') as ConfigPutBody
+    expect(body.site?.excludeCollections).toContain('Existing Collection')
+    expect(body.site?.excludeDecks).toEqual([])
+    await expect(item.locator('.visibility-toggle-label')).toHaveText('Hidden')
   })
 })

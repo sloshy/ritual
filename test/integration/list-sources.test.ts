@@ -27,26 +27,40 @@ describe('resolveDeckSources', () => {
   })
 
   test('wildcard includes every deck', async () => {
-    const sources = await resolveDeckSources(dir, ['*'])
+    const sources = await resolveDeckSources(dir, ['*'], [])
     expect(sources.sort()).toEqual(['atraxa', 'izzet-storm', 'panther'])
   })
 
   test('filters by frontmatter display name', async () => {
-    const sources = await resolveDeckSources(dir, ['Izzet Storm', 'Black Panther'])
+    const sources = await resolveDeckSources(dir, ['Izzet Storm', 'Black Panther'], [])
     expect(sources.sort()).toEqual(['izzet-storm', 'panther'])
   })
 
   test('falls back to file base name when no frontmatter name', async () => {
-    const sources = await resolveDeckSources(dir, ['atraxa'])
+    const sources = await resolveDeckSources(dir, ['atraxa'], [])
     expect(sources).toEqual(['atraxa'])
   })
 
   test('an empty selection includes no decks', async () => {
-    expect(await resolveDeckSources(dir, [])).toEqual([])
+    expect(await resolveDeckSources(dir, [], [])).toEqual([])
   })
 
   test('include names that match nothing are ignored', async () => {
-    expect(await resolveDeckSources(dir, ['Mono Red Aggro'])).toEqual([])
+    expect(await resolveDeckSources(dir, ['Mono Red Aggro'], [])).toEqual([])
+  })
+
+  test('exclude drops a deck from a wildcard include', async () => {
+    const sources = await resolveDeckSources(dir, ['*'], ['Black Panther'])
+    expect(sources.sort()).toEqual(['atraxa', 'izzet-storm'])
+  })
+
+  test('exclude wins over an explicit include of the same deck', async () => {
+    const sources = await resolveDeckSources(
+      dir,
+      ['Izzet Storm', 'Black Panther'],
+      ['Black Panther'],
+    )
+    expect(sources).toEqual(['izzet-storm'])
   })
 })
 
@@ -60,19 +74,24 @@ describe('resolveListSources', () => {
   })
 
   test('wildcard includes every list', async () => {
-    const sources = await resolveListSources(dir, ['*'])
+    const sources = await resolveListSources(dir, ['*'], [])
     expect(sources.sort()).toEqual(['ecl', 'red', 'untitled'])
   })
 
   test('filters by H1 title', async () => {
-    expect(await resolveListSources(dir, ['Red Binder'])).toEqual(['red'])
+    expect(await resolveListSources(dir, ['Red Binder'], [])).toEqual(['red'])
   })
 
   test('falls back to file base name when no H1 title', async () => {
-    expect(await resolveListSources(dir, ['untitled'])).toEqual(['untitled'])
+    expect(await resolveListSources(dir, ['untitled'], [])).toEqual(['untitled'])
   })
 
   test('an empty selection includes no lists', async () => {
-    expect(await resolveListSources(dir, [])).toEqual([])
+    expect(await resolveListSources(dir, [], [])).toEqual([])
+  })
+
+  test('exclude drops a list from a wildcard include by H1 title', async () => {
+    const sources = await resolveListSources(dir, ['*'], ['Red Binder'])
+    expect(sources.sort()).toEqual(['ecl', 'untitled'])
   })
 })

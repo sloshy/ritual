@@ -111,12 +111,13 @@ function isStringArray(value: unknown): value is string[] {
 }
 
 /**
- * Parse one of the `include*` selection lists. Returns the default `['*']` when
- * absent, the array when valid, or an error string when malformed.
+ * Parse one of the `include*`/`exclude*` selection lists. Returns the supplied
+ * `fallback` when absent (`['*']` for include lists, `[]` for exclude lists), the
+ * array when valid, or an error string when malformed.
  */
-function parseIncludeList(value: unknown, field: string): string[] | string {
+function parseSelectionList(value: unknown, field: string, fallback: string[]): string[] | string {
   if (value === undefined) {
-    return [INCLUDE_ALL]
+    return fallback
   }
   if (!isStringArray(value)) {
     return `site config: "${field}" must be an array of strings`
@@ -129,8 +130,9 @@ function parseIncludeList(value: unknown, field: string): string[] | string {
  * site config or an error string describing what is wrong.
  *
  * The selection settings (`includeDecks`, `includeCollections`,
- * `includeWantedLists`) always resolve, defaulting to `['*']`. The deployment
- * settings are validated only when present (i.e. once `init-site` has run).
+ * `includeWantedLists` and their `exclude*` counterparts) always resolve, the
+ * include lists defaulting to `['*']` and the exclude lists to `[]`. The
+ * deployment settings are validated only when present (i.e. once `init-site` has run).
  */
 export function parseSiteConfig(value: unknown): SiteConfig | string {
   if (typeof value !== 'object' || value === null) {
@@ -138,13 +140,30 @@ export function parseSiteConfig(value: unknown): SiteConfig | string {
   }
   const obj = value as Record<string, unknown>
 
-  const includeDecks = parseIncludeList(obj.includeDecks, 'includeDecks')
+  const includeDecks = parseSelectionList(obj.includeDecks, 'includeDecks', [INCLUDE_ALL])
   if (typeof includeDecks === 'string') return includeDecks
-  const includeCollections = parseIncludeList(obj.includeCollections, 'includeCollections')
+  const includeCollections = parseSelectionList(obj.includeCollections, 'includeCollections', [
+    INCLUDE_ALL,
+  ])
   if (typeof includeCollections === 'string') return includeCollections
-  const includeWantedLists = parseIncludeList(obj.includeWantedLists, 'includeWantedLists')
+  const includeWantedLists = parseSelectionList(obj.includeWantedLists, 'includeWantedLists', [
+    INCLUDE_ALL,
+  ])
   if (typeof includeWantedLists === 'string') return includeWantedLists
-  const selection: SiteSelectionConfig = { includeDecks, includeCollections, includeWantedLists }
+  const excludeDecks = parseSelectionList(obj.excludeDecks, 'excludeDecks', [])
+  if (typeof excludeDecks === 'string') return excludeDecks
+  const excludeCollections = parseSelectionList(obj.excludeCollections, 'excludeCollections', [])
+  if (typeof excludeCollections === 'string') return excludeCollections
+  const excludeWantedLists = parseSelectionList(obj.excludeWantedLists, 'excludeWantedLists', [])
+  if (typeof excludeWantedLists === 'string') return excludeWantedLists
+  const selection: SiteSelectionConfig = {
+    includeDecks,
+    includeCollections,
+    includeWantedLists,
+    excludeDecks,
+    excludeCollections,
+    excludeWantedLists,
+  }
 
   // Deployment settings are written only by `init-site`. Detect their presence
   // so a site object carrying just selection settings (set via config-set or the
@@ -194,8 +213,9 @@ export function parseSiteConfig(value: unknown): SiteConfig | string {
 }
 
 /**
- * Resolve the public-site selection settings, defaulting each list to `['*']`
- * (include everything) when the `site` object or an individual list is absent.
+ * Resolve the public-site selection settings, defaulting each include list to
+ * `['*']` (include everything) and each exclude list to `[]` (exclude nothing)
+ * when the `site` object or an individual list is absent.
  */
 export function getSiteSelectionConfig(site: SiteConfig | undefined): SiteSelectionConfig {
   const defaults = defaultSiteSelection()
@@ -203,6 +223,9 @@ export function getSiteSelectionConfig(site: SiteConfig | undefined): SiteSelect
     includeDecks: site?.includeDecks ?? defaults.includeDecks,
     includeCollections: site?.includeCollections ?? defaults.includeCollections,
     includeWantedLists: site?.includeWantedLists ?? defaults.includeWantedLists,
+    excludeDecks: site?.excludeDecks ?? defaults.excludeDecks,
+    excludeCollections: site?.excludeCollections ?? defaults.excludeCollections,
+    excludeWantedLists: site?.excludeWantedLists ?? defaults.excludeWantedLists,
   }
 }
 

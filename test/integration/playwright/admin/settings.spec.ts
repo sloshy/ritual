@@ -11,6 +11,9 @@ type ConfigPutBody = {
     includeDecks?: string[]
     includeCollections?: string[]
     includeWantedLists?: string[]
+    excludeDecks?: string[]
+    excludeCollections?: string[]
+    excludeWantedLists?: string[]
   }
 }
 
@@ -43,11 +46,16 @@ test.describe('Settings Page', () => {
     await expect(main.locator('.alert-success')).toBeVisible({ timeout: 5000 })
   })
 
-  test('public-site include lists default to the wildcard', async ({ page }) => {
+  test('public-site include lists default to the wildcard and exclude lists are empty', async ({
+    page,
+  }) => {
     const main = page.locator('main')
     await expect(main.locator('textarea[name="includeDecks"]')).toHaveValue('*')
     await expect(main.locator('textarea[name="includeCollections"]')).toHaveValue('*')
     await expect(main.locator('textarea[name="includeWantedLists"]')).toHaveValue('*')
+    await expect(main.locator('textarea[name="excludeDecks"]')).toHaveValue('')
+    await expect(main.locator('textarea[name="excludeCollections"]')).toHaveValue('')
+    await expect(main.locator('textarea[name="excludeWantedLists"]')).toHaveValue('')
   })
 
   test('toggling an admin setting persists under the nested admin key', async ({ page }) => {
@@ -77,5 +85,22 @@ test.describe('Settings Page', () => {
     // Untouched lists keep the wildcard default.
     expect(body.site?.includeCollections).toEqual(['*'])
     expect(body.site?.includeWantedLists).toEqual(['*'])
+    // Untouched exclude lists stay empty.
+    expect(body.site?.excludeDecks).toEqual([])
+  })
+
+  test('editing a public-site exclude list persists to the config', async ({ page }) => {
+    const main = page.locator('main')
+    await main.locator('textarea[name="excludeDecks"]').fill('Old Brew')
+
+    const requestPromise = page.waitForRequest(
+      (req) => req.url().includes('/api/config') && req.method() === 'PUT',
+    )
+    await main.locator('button:has-text("Save")').click()
+    const request = await requestPromise
+    const body = JSON.parse(request.postData() ?? '{}') as ConfigPutBody
+    expect(body.site?.excludeDecks).toEqual(['Old Brew'])
+    // Include lists keep the wildcard default.
+    expect(body.site?.includeDecks).toEqual(['*'])
   })
 })

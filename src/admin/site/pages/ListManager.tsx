@@ -1,4 +1,16 @@
-import { type JSX, createSignal, createEffect, createMemo, batch, Show, For } from 'solid-js'
+import {
+  type JSX,
+  createSignal,
+  createEffect,
+  createMemo,
+  batch,
+  onMount,
+  Show,
+  For,
+} from 'solid-js'
+import type { RitualConfig, SiteConfig } from '../../../ritual-config'
+import { type SiteSelectionConfig, defaultSiteSelection } from '../../../site/list-selection'
+import { fetchRitualConfig } from '../config-api'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { useApiAction } from '../hooks/useApiAction'
 
@@ -6,6 +18,8 @@ type Category = 'decks' | 'collections' | 'wanted'
 type ViewState = 'list' | 'create' | 'rename' | 'delete'
 type ListItem = { slug: string; name: string }
 type CreateBody = { name: string; format?: string }
+/** The `site` selection keys that hold an exclude list — never the include lists. */
+type ExcludeKey = Extract<keyof SiteSelectionConfig, `exclude${string}`>
 
 type CategoryMeta = {
   label: string
@@ -13,6 +27,8 @@ type CategoryMeta = {
   icon: string
   listUrl: string
   listKey: 'decks' | 'collections' | 'wantedLists'
+  /** The `site` selection key whose exclude list gates this category's visibility. */
+  excludeKey: ExcludeKey
   hasFormat: boolean
   createUrl: string
   itemUrl: (slug: string) => string
@@ -26,6 +42,7 @@ const CATEGORY_META: Record<Category, CategoryMeta> = {
     icon: '🃏',
     listUrl: '/api/decks',
     listKey: 'decks',
+    excludeKey: 'excludeDecks',
     hasFormat: true,
     createUrl: '/api/deck/create',
     itemUrl: (slug) => `/api/deck/${slug}`,
@@ -37,6 +54,7 @@ const CATEGORY_META: Record<Category, CategoryMeta> = {
     icon: '📦',
     listUrl: '/api/collections',
     listKey: 'collections',
+    excludeKey: 'excludeCollections',
     hasFormat: false,
     createUrl: '/api/collection/create',
     itemUrl: (slug) => `/api/collection/${slug}`,
@@ -48,6 +66,7 @@ const CATEGORY_META: Record<Category, CategoryMeta> = {
     icon: '🎯',
     listUrl: '/api/wanted',
     listKey: 'wantedLists',
+    excludeKey: 'excludeWantedLists',
     hasFormat: false,
     createUrl: '/api/wanted/create',
     itemUrl: (slug) => `/api/wanted/${slug}`,
@@ -68,10 +87,17 @@ export function ListManager(): JSX.Element {
   const [newFormat, setNewFormat] = createSignal('commander')
   const [renameName, setRenameName] = createSignal('')
   const [deleteConfirm, setDeleteConfirm] = createSignal('')
+  const [config, setConfig] = createSignal<RitualConfig | null>(null)
 
   const { status, error, loading, run, setStatus, setError } = useApiAction()
 
   const meta = createMemo((): CategoryMeta => CATEGORY_META[category()])
+
+  // The exclude list gating the current category's public visibility. A list is
+  // public unless its display name appears here; toggling visibility edits only
+  // this list (never the include list).
+  const excludeList = createMemo((): string[] => config()?.site?.[meta().excludeKey] ?? [])
+  const isPublic = (item: ListItem): boolean => !excludeList().includes(item.name)
 
   const fetchItems = async () => {
     const m = meta()
@@ -83,6 +109,46 @@ export function ListManager(): JSX.Element {
     } catch {
       setLoadError(`Failed to load ${m.label.toLowerCase()}`)
       setItems([])
+    }
+  }
+
+  const fetchConfig = async () => {
+    const cfg = await fetchRitualConfig()
+    // On failure the visibility toggles stay disabled until the config loads.
+    if (cfg) setConfig(cfg)
+  }
+
+  // Flip a list's public visibility by editing only the category's exclude list:
+  // hiding adds the display name, showing removes it. The full `site` object is
+  // sent so the PUT (a top-level replace) preserves deployment + include settings.
+  const toggleVisibility = async (item: ListItem) => {
+    const cfg = config()
+    if (!cfg) return
+    const m = meta()
+    const site: SiteConfig = cfg.site ?? defaultSiteSelection()
+    const currentExclude = site[m.excludeKey]
+    const makeHidden = isPublic(item)
+    const nextExclude = makeHidden
+      ? [...currentExclude, item.name]
+      : currentExclude.filter((name) => name !== item.name)
+    const nextSite: SiteConfig = { ...site, [m.excludeKey]: nextExclude }
+    // Optimistically reflect the new state, reverting if the save fails.
+    setConfig({ ...cfg, site: nextSite })
+    const ok = await run(
+      '/api/config',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ site: nextSite }),
+      },
+      `Failed to update ${m.singular} visibility`,
+    )
+    if (ok) {
+      setStatus(
+        `'${item.name}' is now ${makeHidden ? 'hidden from' : 'visible on'} the public site`,
+      )
+    } else {
+      setConfig(cfg)
     }
   }
 
@@ -102,6 +168,10 @@ export function ListManager(): JSX.Element {
     setView('list')
     resetForms()
     void fetchItems()
+  })
+
+  onMount(() => {
+    void fetchConfig()
   })
 
   const handleCreate = async () => {
@@ -235,22 +305,41 @@ export function ListManager(): JSX.Element {
             >
               <div class="deck-list">
                 <For each={items()}>
-                  {(item) => (
-                    <div class="deck-list-item">
-                      <div>
-                        <span class="deck-name">{item.name}</span>
-                        <span class="deck-slug">{item.slug}</span>
+                  {(item) => {
+                    const pub = () => isPublic(item)
+                    return (
+                      <div class="deck-list-item">
+                        <div>
+                          <span class="deck-name">{item.name}</span>
+                          <span class="deck-slug">{item.slug}</span>
+                        </div>
+                        <div class="deck-list-actions">
+                          <label
+                            class="visibility-toggle"
+                            title={`Show or hide this ${meta().singular} on the public site`}
+                          >
+                            <input
+                              type="checkbox"
+                              name="visibility"
+                              checked={pub()}
+                              disabled={loading() || !config()}
+                              onChange={() => void toggleVisibility(item)}
+                            />
+                            <span class="visibility-toggle-track" aria-hidden="true" />
+                            <span class="visibility-toggle-label">
+                              {pub() ? 'Public' : 'Hidden'}
+                            </span>
+                          </label>
+                          <button class="btn btn-secondary btn-sm" onClick={() => openRename(item)}>
+                            Rename
+                          </button>
+                          <button class="btn btn-danger btn-sm" onClick={() => openDelete(item)}>
+                            Delete
+                          </button>
+                        </div>
                       </div>
-                      <div class="deck-list-actions">
-                        <button class="btn btn-secondary btn-sm" onClick={() => openRename(item)}>
-                          Rename
-                        </button>
-                        <button class="btn btn-danger btn-sm" onClick={() => openDelete(item)}>
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                    )
+                  }}
                 </For>
               </div>
             </Show>

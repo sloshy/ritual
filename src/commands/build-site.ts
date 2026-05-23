@@ -264,7 +264,11 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
   } else {
     // No --decks flag: build the decks allowed by `site.includeDecks` (default: all)
     try {
-      deckSources = await resolveDeckSources(decksDir, selection.includeDecks)
+      deckSources = await resolveDeckSources(
+        decksDir,
+        selection.includeDecks,
+        selection.excludeDecks,
+      )
       if (deckSources.length > 0) {
         console.log(`Found ${deckSources.length} decks: ${deckSources.join(', ')}`)
       }
@@ -415,6 +419,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       wantedListSources = await resolveListSources(
         wantedListsSourceDir,
         selection.includeWantedLists,
+        selection.excludeWantedLists,
       )
     } catch {
       wantedListSources = [] // No wanted/ directory
@@ -887,7 +892,11 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
   } else {
     // No --collections flag: build the collections allowed by `site.includeCollections`
     try {
-      collectionSources = await resolveListSources(collectionsDir, selection.includeCollections)
+      collectionSources = await resolveListSources(
+        collectionsDir,
+        selection.includeCollections,
+        selection.excludeCollections,
+      )
       if (collectionSources.length > 0) {
         console.log(
           `Found ${collectionSources.length} collections: ${collectionSources.join(', ')}`,
