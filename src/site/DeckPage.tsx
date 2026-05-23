@@ -376,6 +376,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         onCardClick={() => props.onOpenModal(c.name)}
         onTooltipEnter={(src, sideways) => setTooltip({ src, sideways })}
         onTooltipLeave={() => setTooltip(null)}
+        collectionFinish={deckEntry?.finish}
         currency={props.currency}
         editMode={props.editMode}
         onIncrement={props.editMode ? () => props.onCardIncrement?.(c.name) : undefined}
