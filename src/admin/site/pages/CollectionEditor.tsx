@@ -24,7 +24,9 @@ type CollectionDataResponse = {
   contentHash: string
 }
 
-export function CollectionEditor(): JSX.Element {
+type CollectionEditorProps = { initialSlug?: string | null }
+
+export function CollectionEditor(props: CollectionEditorProps): JSX.Element {
   const [cardData, cardActions] = useEntryCardData()
   const [modalCardKey, setModalCardKey] = createSignal<string | null>(null)
   const defaults = useEditorDefaults('collection')
@@ -81,7 +83,7 @@ export function CollectionEditor(): JSX.Element {
     buildSaveBody: ({ changes, contentHash }) => ({ changes, contentHash }),
   }
 
-  const editor = useEditor<CollectionCardEntry[], CollectionCardEntry>(config)
+  const editor = useEditor<CollectionCardEntry[], CollectionCardEntry>(config, props.initialSlug)
 
   const handleIncrement = (entry: CollectionCardEntry) => {
     const cardId = editor.pool.allocate()

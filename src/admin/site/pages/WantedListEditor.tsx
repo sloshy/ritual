@@ -24,7 +24,9 @@ type WantedListDataResponse = {
   contentHash: string
 }
 
-export function WantedListEditor(): JSX.Element {
+type WantedListEditorProps = { initialSlug?: string | null }
+
+export function WantedListEditor(props: WantedListEditorProps): JSX.Element {
   const [cardData, cardActions] = useEntryCardData()
   const [modalCardKey, setModalCardKey] = createSignal<string | null>(null)
   const defaults = useEditorDefaults('wanted')
@@ -85,7 +87,7 @@ export function WantedListEditor(): JSX.Element {
     }),
   }
 
-  const editor = useEditor<WantedListCardEntry[], WantedListCardEntry>(config)
+  const editor = useEditor<WantedListCardEntry[], WantedListCardEntry>(config, props.initialSlug)
 
   const handleIncrement = (entry: WantedListCardEntry) => {
     const cardId = editor.pool.allocate()

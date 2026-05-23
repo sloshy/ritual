@@ -10,7 +10,11 @@ The **Manage Lists** page provides a single place to create, rename, and delete 
 
 Navigate to the **Manage Lists** page from the admin sidebar, or click the "Manage Lists" card on the Dashboard.
 
-The page is organised by category — switch between **Decks**, **Collections**, and **Wanted Lists** using the tabs at the top. Each tab shows the items in that category and offers the same Create / Rename / Delete actions.
+The page is organised by category — switch between **Decks**, **Collections**, and **Wanted Lists** using the tabs at the top. Each tab shows the items in that category and offers the same Create / Edit / Rename / Delete actions.
+
+## Editing a list
+
+Each list has an **Edit** button (between its visibility toggle and **Rename**) that jumps straight to the matching editor — the **Deck Editor**, **Collection Editor**, or **Wanted List Editor** — with that list already selected, so you can start changing cards without picking it from the editor's dropdown.
 
 ## File names
 

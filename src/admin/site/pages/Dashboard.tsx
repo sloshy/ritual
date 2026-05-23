@@ -1,5 +1,5 @@
 import { type JSX, For } from 'solid-js'
-import type { Page } from '../types'
+import type { Page, NavigateFn } from '../types'
 
 interface ActionCard {
   id: Page
@@ -62,7 +62,7 @@ const actions: ActionCard[] = [
 ]
 
 interface DashboardProps {
-  onNavigate: (page: Page) => void
+  onNavigate: NavigateFn
 }
 
 export function Dashboard(props: DashboardProps): JSX.Element {

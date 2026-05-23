@@ -8,6 +8,7 @@ import {
   Show,
   For,
 } from 'solid-js'
+import type { Page, NavigateFn } from '../types'
 import type { RitualConfig, SiteConfig } from '../../../ritual-config'
 import { type SiteSelectionConfig, defaultSiteSelection } from '../../../site/list-selection'
 import { fetchRitualConfig } from '../config-api'
@@ -29,6 +30,8 @@ type CategoryMeta = {
   listKey: 'decks' | 'collections' | 'wantedLists'
   /** The `site` selection key whose exclude list gates this category's visibility. */
   excludeKey: ExcludeKey
+  /** The admin editor page that edits this category's lists. */
+  editorPage: Page
   hasFormat: boolean
   createUrl: string
   itemUrl: (slug: string) => string
@@ -43,6 +46,7 @@ const CATEGORY_META: Record<Category, CategoryMeta> = {
     listUrl: '/api/decks',
     listKey: 'decks',
     excludeKey: 'excludeDecks',
+    editorPage: 'deck-editor',
     hasFormat: true,
     createUrl: '/api/deck/create',
     itemUrl: (slug) => `/api/deck/${slug}`,
@@ -55,6 +59,7 @@ const CATEGORY_META: Record<Category, CategoryMeta> = {
     listUrl: '/api/collections',
     listKey: 'collections',
     excludeKey: 'excludeCollections',
+    editorPage: 'collection-editor',
     hasFormat: false,
     createUrl: '/api/collection/create',
     itemUrl: (slug) => `/api/collection/${slug}`,
@@ -67,6 +72,7 @@ const CATEGORY_META: Record<Category, CategoryMeta> = {
     listUrl: '/api/wanted',
     listKey: 'wantedLists',
     excludeKey: 'excludeWantedLists',
+    editorPage: 'wanted-list-editor',
     hasFormat: false,
     createUrl: '/api/wanted/create',
     itemUrl: (slug) => `/api/wanted/${slug}`,
@@ -76,7 +82,9 @@ const CATEGORY_META: Record<Category, CategoryMeta> = {
 
 const CATEGORIES: Category[] = ['decks', 'collections', 'wanted']
 
-export function ListManager(): JSX.Element {
+type ListManagerProps = { onNavigate: NavigateFn }
+
+export function ListManager(props: ListManagerProps): JSX.Element {
   const [category, setCategory] = createSignal<Category>('decks')
   const [items, setItems] = createSignal<ListItem[]>([])
   const [loadError, setLoadError] = createSignal<string | null>(null)
@@ -260,6 +268,10 @@ export function ListManager(): JSX.Element {
     setView('delete')
   }
 
+  const openEditor = (item: ListItem) => {
+    props.onNavigate(meta().editorPage, item.slug)
+  }
+
   const cancel = () => {
     resetForms()
     setView('list')
@@ -330,6 +342,9 @@ export function ListManager(): JSX.Element {
                               {pub() ? 'Public' : 'Hidden'}
                             </span>
                           </label>
+                          <button class="btn btn-secondary btn-sm" onClick={() => openEditor(item)}>
+                            Edit
+                          </button>
                           <button class="btn btn-secondary btn-sm" onClick={() => openRename(item)}>
                             Rename
                           </button>

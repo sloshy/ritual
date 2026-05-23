@@ -1,6 +1,6 @@
 import { render } from 'solid-js/web'
 import { createSignal, onMount, Switch, Match } from 'solid-js'
-import type { Page } from './types'
+import type { Page, NavigateFn } from './types'
 import { Layout } from './components/Layout'
 import { AuthGuard } from './components/AuthGuard'
 import { Dashboard } from './pages/Dashboard'
@@ -19,9 +19,17 @@ type StatusResponse = { setupRequired: boolean; totpEnabled?: boolean }
 
 function App() {
   const [page, setPage] = createSignal<Page>('dashboard')
+  // Slug to pre-select when navigating into an editor page; cleared on any
+  // navigation that doesn't supply one (e.g. sidebar / dashboard clicks).
+  const [editorSlug, setEditorSlug] = createSignal<string | null>(null)
   const [setupRequired, setSetupRequired] = createSignal<boolean | null>(null)
   const [totpEnabled, setTotpEnabled] = createSignal(false)
   const [loggedIn, setLoggedIn] = createSignal(false)
+
+  const navigate: NavigateFn = (next, slug) => {
+    setEditorSlug(slug ?? null)
+    setPage(next)
+  }
 
   const checkStatus = async () => {
     try {
@@ -80,7 +88,7 @@ function App() {
       <Match when={loggedIn()}>
         <Layout
           currentPage={page()}
-          onNavigate={setPage}
+          onNavigate={navigate}
           onLogout={() => void onLogout()}
           fullWidth={
             page() === 'deck-editor' ||
@@ -90,19 +98,19 @@ function App() {
         >
           <Switch>
             <Match when={page() === 'dashboard'}>
-              <Dashboard onNavigate={setPage} />
+              <Dashboard onNavigate={navigate} />
             </Match>
             <Match when={page() === 'deck-editor'}>
-              <DeckEditor />
+              <DeckEditor initialSlug={editorSlug()} />
             </Match>
             <Match when={page() === 'list-manager'}>
-              <ListManager />
+              <ListManager onNavigate={navigate} />
             </Match>
             <Match when={page() === 'collection-editor'}>
-              <CollectionEditor />
+              <CollectionEditor initialSlug={editorSlug()} />
             </Match>
             <Match when={page() === 'wanted-list-editor'}>
-              <WantedListEditor />
+              <WantedListEditor initialSlug={editorSlug()} />
             </Match>
             <Match when={page() === 'import-deck'}>
               <ImportDeck />

@@ -85,7 +85,9 @@ function getDeckCardIds(deck: DeckData): number[] {
   return ids
 }
 
-export function DeckEditor(): JSX.Element {
+type DeckEditorProps = { initialSlug?: string | null }
+
+export function DeckEditor(props: DeckEditorProps): JSX.Element {
   const [cardData, cardActions] = useDeckCardData()
   const [modalCardName, setModalCardName] = createSignal<string | null>(null)
   const [deckContextMenu, setDeckContextMenu] = createSignal<DeckContextMenuState | null>(null)
@@ -148,7 +150,7 @@ export function DeckEditor(): JSX.Element {
     }),
   }
 
-  const editor = useEditor<DeckData, Card>(config)
+  const editor = useEditor<DeckData, Card>(config, props.initialSlug)
 
   const handleIncrement = (cardName: string) => {
     const d = editor.data()

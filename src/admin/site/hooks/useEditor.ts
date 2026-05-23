@@ -113,6 +113,7 @@ export type UseEditorResult<TData, TCardEntry> = {
 
 export function useEditor<TData, TCardEntry = unknown>(
   config: EditorConfig<TData>,
+  initialSlug?: string | null,
 ): UseEditorResult<TData, TCardEntry> {
   const [slug, setSlug] = createSignal<string | null>(null)
   const [list, setList] = createSignal<ListItem[]>([])
@@ -145,6 +146,14 @@ export function useEditor<TData, TCardEntry = unknown>(
       .then((response: unknown) => {
         const items = config.extractListItems(response)
         if (items) setList(items)
+        // Apply a deep-linked selection only after its <option> exists, so the
+        // <select> reflects it; the data-fetch effect below then loads it.
+        // These two writes must stay separate (do NOT wrap in `batch`): the
+        // un-batched sequence flushes the <For> options first, then the slug,
+        // so the value binding re-applies with the matching <option> present.
+        // Batching would run the value binding before the options render and
+        // the selection would silently fail to stick.
+        if (initialSlug) setSlug(initialSlug)
       })
       .catch(() => statusActions.setError(`Failed to load ${config.entityLabel} list`))
   })

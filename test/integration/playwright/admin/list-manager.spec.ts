@@ -290,6 +290,55 @@ test.describe('List Manager', () => {
     await expect(item.locator('.visibility-toggle-label')).toHaveText('Public')
   })
 
+  test('Edit opens the Deck Editor with the deck pre-selected', async ({ page }) => {
+    // The editor loads the picked deck via a GET; return a minimal valid deck so
+    // the editor mounts and its selector reflects the deep-linked slug.
+    await page.route('**/api/deck/*', async (route) => {
+      if (route.request().method() !== 'GET') return route.fallback()
+      await jsonResponse(route, {
+        success: true,
+        deck: { name: 'Existing Deck', format: 'commander', sections: [] },
+        cards: {},
+        printings: {},
+        lowestPriceCards: {},
+        lowestPriceCardsEur: {},
+        lowestPriceCardsTix: {},
+        symbolMap: {},
+        frontMatter: {},
+        slug: 'Existing Deck',
+        contentHash: 'hash',
+      })
+    })
+
+    await page.locator('.deck-list-item:has-text("Existing Deck") .btn:has-text("Edit")').click()
+
+    await expect(page.locator('.section-heading')).toContainText('Deck Editor')
+    await expect(page.locator('#deck-select')).toHaveValue('Existing Deck')
+  })
+
+  test('Edit opens the Collection Editor with the collection pre-selected', async ({ page }) => {
+    await page.route('**/api/collection/*', async (route) => {
+      if (route.request().method() !== 'GET') return route.fallback()
+      await jsonResponse(route, {
+        success: true,
+        entries: [],
+        cards: {},
+        printings: {},
+        symbolMap: {},
+        slug: 'Existing Collection',
+        contentHash: 'hash',
+      })
+    })
+
+    await page.locator('.list-manager-tab:has-text("Collections")').click()
+    await page
+      .locator('.deck-list-item:has-text("Existing Collection") .btn:has-text("Edit")')
+      .click()
+
+    await expect(page.locator('.section-heading')).toContainText('Collection Editor')
+    await expect(page.locator('#collection-select')).toHaveValue('Existing Collection')
+  })
+
   test('hiding a collection writes the collection exclude list, not the deck one', async ({
     page,
   }) => {

@@ -1,6 +1,6 @@
 import type { ParentComponent } from 'solid-js'
 import { createSignal, For, Show } from 'solid-js'
-import type { Page } from '../types'
+import type { Page, NavigateFn } from '../types'
 
 interface NavItem {
   id: Page
@@ -24,7 +24,7 @@ const navItems: NavItem[] = [
 
 interface LayoutProps {
   currentPage: Page
-  onNavigate: (page: Page) => void
+  onNavigate: NavigateFn
   onLogout?: () => void
   fullWidth?: boolean
 }

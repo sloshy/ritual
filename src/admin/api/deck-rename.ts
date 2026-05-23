@@ -23,13 +23,14 @@ export async function handleDeckRename(req: Request): Promise<Response> {
   try {
     const url = new URL(req.url)
     const pathParts = url.pathname.split('/')
-    const slug = pathParts[3]
+    const rawSlug = pathParts[3]
 
-    if (!slug) {
+    if (!rawSlug) {
       const resp: DeckRenameResponse = { success: false, message: 'Deck slug is required' }
       return Response.json(resp, { status: 400 })
     }
 
+    const slug = decodeURIComponent(rawSlug)
     const contentLength = Number(req.headers.get('Content-Length') ?? '0')
     if (contentLength > MAX_BODY_SIZE) {
       return Response.json({ success: false, message: 'Request body too large' }, { status: 413 })

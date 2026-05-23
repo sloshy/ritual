@@ -23,12 +23,13 @@ export async function handleDeckSave(req: Request): Promise<Response> {
   try {
     const url = new URL(req.url)
     const pathParts = url.pathname.split('/')
-    const slug = pathParts[3]
+    const rawSlug = pathParts[3]
 
-    if (!slug) {
+    if (!rawSlug) {
       return Response.json({ success: false, message: 'Deck slug is required' }, { status: 400 })
     }
 
+    const slug = decodeURIComponent(rawSlug)
     const sizeError = validateBodySize(req)
     if (sizeError) return sizeError
     const body = (await req.json()) as DeckSaveRequest
