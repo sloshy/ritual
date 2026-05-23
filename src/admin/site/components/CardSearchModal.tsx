@@ -37,6 +37,31 @@ type Step = 'search' | 'printing' | 'finish-condition'
 
 const PRINTING_PAGE_SIZE = 8
 
+/**
+ * Default debounce (ms) before an autocomplete request fires while typing.
+ * Kept high enough to avoid hammering the autocomplete API on each keystroke.
+ */
+const DEFAULT_SEARCH_DEBOUNCE_MS = 1000
+
+/**
+ * Runtime override seam for {@link DEFAULT_SEARCH_DEBOUNCE_MS}, set on the global
+ * object. Shared with the e2e helper that injects it (`disableSearchDebounce`).
+ */
+export type SearchDebounceOverride = { __ritualSearchDebounceMs__?: number }
+
+/**
+ * Resolve the autocomplete debounce, honoring an optional runtime override.
+ * End-to-end tests set the override to `0` so search assertions don't depend on
+ * a wall-clock timer (which makes them flaky under parallel load); production
+ * leaves it unset and gets {@link DEFAULT_SEARCH_DEBOUNCE_MS}.
+ */
+function searchDebounceMs(): number {
+  const override = (globalThis as unknown as SearchDebounceOverride).__ritualSearchDebounceMs__
+  return typeof override === 'number' && Number.isFinite(override)
+    ? override
+    : DEFAULT_SEARCH_DEBOUNCE_MS
+}
+
 type PreviewCard = {
   name: string
   imageUrl: string
@@ -278,7 +303,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     if (searchTimeout) clearTimeout(searchTimeout)
     searchTimeout = setTimeout(() => {
       void performSearch(value)
-    }, 1000)
+    }, searchDebounceMs())
   }
 
   // Select card name → move to printing selection
@@ -413,7 +438,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
         if (searchTimeout) clearTimeout(searchTimeout)
         searchTimeout = setTimeout(() => {
           void performSearch(newQuery)
-        }, 1000)
+        }, searchDebounceMs())
       }
     }
   }

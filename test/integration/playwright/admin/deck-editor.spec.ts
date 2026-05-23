@@ -1,8 +1,11 @@
 import { test, expect } from '@playwright/test'
 import { loginAsAdmin } from '../helpers/auth-helper'
+import { disableSearchDebounce } from '../helpers/search-modal'
 
 test.describe('Deck Editor Page', () => {
   test.beforeEach(async ({ page }) => {
+    // Register before any navigation so the override applies to the first load.
+    await disableSearchDebounce(page)
     await loginAsAdmin(page)
     await page.locator('.admin-nav-item:has-text("Deck Editor")').click()
     await expect(page.locator('.section-heading')).toContainText('Deck Editor')

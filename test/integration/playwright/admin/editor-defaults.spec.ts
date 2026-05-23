@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { loginAsAdmin } from '../helpers/auth-helper'
+import { disableSearchDebounce } from '../helpers/search-modal'
 
 const FOIL_BOLT = {
   id: 'bolt-foil',
@@ -35,6 +36,7 @@ const FOIL_BOLT_FDN = {
 
 test.describe('Admin Editor — Add Card Defaults', () => {
   test.beforeEach(async ({ page }) => {
+    await disableSearchDebounce(page)
     await loginAsAdmin(page)
 
     // Clear any previously persisted defaults so each test starts fresh.
