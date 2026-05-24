@@ -20,6 +20,11 @@ export const ChangePrintingQuantityDialog: Component<ChangePrintingQuantityDialo
   props,
 ) => {
   let dialogRef: HTMLDialogElement | undefined
+  // Set while confirming so the dialog's `close` event — which fires for *every*
+  // close, including the programmatic one triggered when `props.open` flips false
+  // on advance — is not mistaken for a user cancellation. Without this, advancing
+  // to the printing step would immediately abort the whole change-printing flow.
+  let advancing = false
   // Defaulted to the tile's total on each open by the effect below; the static
   // initial value is never shown.
   const [count, setCount] = createSignal(1)
@@ -29,6 +34,7 @@ export const ChangePrintingQuantityDialog: Component<ChangePrintingQuantityDialo
     if (!dialog) return
     if (props.open && !dialog.open) {
       // Default to changing all copies each time the dialog opens.
+      advancing = false
       setCount(props.total)
       dialog.showModal()
     } else if (!props.open && dialog.open) {
@@ -42,6 +48,21 @@ export const ChangePrintingQuantityDialog: Component<ChangePrintingQuantityDialo
     return Math.min(Math.max(n, 1), props.total)
   }
 
+  const confirm = () => {
+    advancing = true
+    props.onConfirm(clampedCount())
+  }
+
+  // Only a genuine dismissal (Cancel button, backdrop, or Escape) cancels the
+  // flow; the programmatic close on advance is swallowed here.
+  const handleClose = () => {
+    if (advancing) {
+      advancing = false
+      return
+    }
+    props.onCancel()
+  }
+
   const handleBackdropClick = (e: MouseEvent) => {
     if ((e.target as Element) === dialogRef) dialogRef?.close()
   }
@@ -50,7 +71,7 @@ export const ChangePrintingQuantityDialog: Component<ChangePrintingQuantityDialo
     <dialog
       ref={dialogRef}
       class="discard-dialog-native"
-      onClose={props.onCancel}
+      onClose={handleClose}
       onClick={handleBackdropClick}
     >
       <div class="confirm-dialog">
@@ -74,7 +95,7 @@ export const ChangePrintingQuantityDialog: Component<ChangePrintingQuantityDialo
           <button type="button" class="btn btn-secondary" onClick={() => dialogRef?.close()}>
             Cancel
           </button>
-          <button type="button" class="btn" onClick={() => props.onConfirm(clampedCount())}>
+          <button type="button" class="btn" onClick={confirm}>
             Continue
           </button>
         </div>

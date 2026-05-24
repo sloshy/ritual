@@ -145,7 +145,7 @@ test.describe('Deck Editor — change printing', () => {
 
     // The change is logged unambiguously by ID and target printing.
     await page.locator('.btn-changes').click()
-    await expect(page.locator('.changes-dialog')).toContainText(
+    await expect(page.locator('.changes-dialog-native .changes-dialog')).toContainText(
       'Set Lightning Bolt printing to M10:146',
     )
   })
@@ -173,8 +173,27 @@ test.describe('Deck Editor — change printing', () => {
 
     // The changelog shows the quantity decrease (removes) plus the new-printing adds.
     await page.locator('.btn-changes').click()
-    const changes = page.locator('.changes-dialog')
+    const changes = page.locator('.changes-dialog-native .changes-dialog')
     await expect(changes).toContainText('Remove Lightning Bolt')
     await expect(changes).toContainText('Add Lightning Bolt (M10:146)')
+  })
+
+  test('cancelling the quantity prompt aborts without opening the printing picker', async ({
+    page,
+  }) => {
+    await openChangePrinting(page)
+
+    const qtyInput = page.locator('#change-printing-qty')
+    await expect(qtyInput).toBeVisible()
+
+    // Scope to the quantity dialog — the discard dialog (always in the DOM) also
+    // has a "Cancel" button under a `.confirm-dialog`.
+    await page.locator('dialog:has(#change-printing-qty) button', { hasText: 'Cancel' }).click()
+
+    // Dismissing the quantity prompt must end the flow: the printing picker never
+    // opens and no change is recorded.
+    await expect(qtyInput).toBeHidden()
+    await expect(page.locator('.modal-heading-flex')).toHaveCount(0)
+    await expect(page.locator('.changes-badge')).toHaveCount(0)
   })
 })
