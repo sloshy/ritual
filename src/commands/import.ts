@@ -2,10 +2,8 @@ import { Command } from 'commander'
 import path from 'node:path'
 import * as fs from 'node:fs/promises'
 import { promptUser, sanitizeDeckFileName } from '../utils'
-import { ArchidektClient } from '../clients/ArchidektClient'
-import { fetchMtgGoldfishDeck } from '../importers/mtggoldfish'
-import { fetchMoxfieldDeck } from '../importers/moxfield-lib'
 import { importFromTextFile, listDeckFiles } from '../importers/text-file'
+import { fetchDeckFromUrl } from '../importers/url-dispatch'
 import { type DeckData } from '../types'
 import { serializeCardLine } from '../deck-file'
 import { assignMissingDeckCardIds } from '../card-id'
@@ -32,38 +30,6 @@ type ImportCommandOptions = {
   yes?: boolean
   dryRun?: boolean
   moxfieldUserAgent?: string
-}
-
-export function resolveMoxfieldUserAgent(
-  cliOptionValue?: string,
-  envValue: string | undefined = process.env.MOXFIELD_USER_AGENT,
-): string | undefined {
-  const trimmedCliOption = cliOptionValue?.trim()
-  if (trimmedCliOption) {
-    return trimmedCliOption
-  }
-
-  const trimmedEnvValue = envValue?.trim()
-  if (trimmedEnvValue) {
-    return trimmedEnvValue
-  }
-
-  return undefined
-}
-
-async function withMoxfieldUserAgent<T>(userAgent: string, run: () => Promise<T>): Promise<T> {
-  const previousUserAgent = process.env.MOXFIELD_USER_AGENT
-  process.env.MOXFIELD_USER_AGENT = userAgent
-
-  try {
-    return await run()
-  } finally {
-    if (previousUserAgent === undefined) {
-      delete process.env.MOXFIELD_USER_AGENT
-    } else {
-      process.env.MOXFIELD_USER_AGENT = previousUserAgent
-    }
-  }
 }
 
 function normalizeSaveDeckOptions(options?: SaveDeckOptions | boolean): Required<SaveDeckOptions> {
@@ -253,52 +219,23 @@ export function registerImportCommand(program: Command): void {
     )
     .action(async (source: string, options: ImportCommandOptions) => {
       try {
-        let deckData: DeckData | undefined
+        let deckData: DeckData
 
         if (source.startsWith('https://')) {
-          // Check for Archidekt
-          const archidektMatch = source.match(/archidekt\.com\/decks\/(\d+)/)
-
-          if (archidektMatch?.[1]) {
-            const deckId = archidektMatch[1]
-            getLogger().info(`Fetching deck ID ${deckId} from Archidekt...`)
-            deckData = await new ArchidektClient().fetchDeck(deckId)
-          } else {
-            // Check for Moxfield
-            const moxfieldMatch = source.match(/moxfield\.com\/decks\/([a-zA-Z0-9_-]+)/)
-            if (moxfieldMatch?.[1]) {
-              const deckId = moxfieldMatch[1]
-              const moxfieldUserAgent = resolveMoxfieldUserAgent(options.moxfieldUserAgent)
-              if (!moxfieldUserAgent) {
-                getLogger().error(
-                  'Error: Moxfield imports require a unique Moxfield-approved user agent string. Set MOXFIELD_USER_AGENT or pass --moxfield-user-agent <agent>. Contact Moxfield support if you need one.',
-                )
-                process.exitCode = ExitCode.UsageError
-                return
-              }
-              getLogger().info(`Fetching deck ID ${deckId} from Moxfield...`)
-              deckData = await withMoxfieldUserAgent(moxfieldUserAgent, async () =>
-                fetchMoxfieldDeck(deckId),
-              )
-            } else if (source.includes('mtggoldfish.com')) {
-              getLogger().info('Fetching deck from MTGGoldfish...')
-              deckData = await fetchMtgGoldfishDeck(source)
-            } else {
-              getLogger().error(
-                'Error: URL not supported. Use Archidekt, Moxfield or MTGGoldfish URLs.',
-              )
-              process.exitCode = ExitCode.UsageError
-              return
-            }
+          const result = await fetchDeckFromUrl(source, {
+            moxfieldUserAgent: options.moxfieldUserAgent,
+            onProgress: (message) => getLogger().info(message),
+          })
+          if (typeof result === 'string') {
+            getLogger().error(`Error: ${result}`)
+            process.exitCode = ExitCode.UsageError
+            return
           }
+          deckData = result
         } else {
           // Assume file path
           getLogger().info(`Reading deck from file: ${source}...`)
           deckData = await importFromTextFile(source)
-        }
-
-        if (!deckData) {
-          throw new Error('Failed to parse deck data')
         }
 
         const decksDir = getDecksDir()

@@ -1,8 +1,6 @@
 import path from 'node:path'
-import { ArchidektClient } from '../../clients/ArchidektClient'
-import { fetchMtgGoldfishDeck } from '../../importers/mtggoldfish'
-import { fetchMoxfieldDeck } from '../../importers/moxfield-lib'
-import { importFromTextFile } from '../../importers/text-file'
+import { parseDeckText } from '../../importers/text-file'
+import { fetchDeckFromUrl } from '../../importers/url-dispatch'
 import { saveDeck } from '../../commands/import'
 import { sanitizeDeckFileName } from '../../utils'
 import { loadRitualConfig } from '../../ritual-config'
@@ -11,10 +9,14 @@ import { apiHandler } from '../utils'
 import type { DeckData } from '../../types'
 import { getDecksDir } from '../../ritual-config'
 
-interface ImportDeckRequest {
-  source: string
-  overwrite?: boolean
-}
+/**
+ * Import request from the admin site. Either fetch a deck from a supported URL,
+ * or parse decklist text supplied directly (pasted into the UI or read from a
+ * file the browser uploaded).
+ */
+type ImportDeckRequest =
+  | { mode: 'url'; url: string; overwrite?: boolean }
+  | { mode: 'text'; content: string; name?: string; overwrite?: boolean }
 
 interface ImportDeckResponse {
   success: boolean
@@ -22,43 +24,43 @@ interface ImportDeckResponse {
   deckName?: string
 }
 
+function isImportDeckRequest(value: unknown): value is ImportDeckRequest {
+  if (typeof value !== 'object' || value === null) return false
+  const record = value as Record<string, unknown>
+  if (record.mode === 'url') return typeof record.url === 'string'
+  if (record.mode === 'text') return typeof record.content === 'string'
+  return false
+}
+
+function badRequest(message: string): Response {
+  const resp: ImportDeckResponse = { success: false, message }
+  return Response.json(resp, { status: 400 })
+}
+
 export function handleImportDeck(req: Request): Promise<Response> {
   return apiHandler(async () => {
-    const body = (await req.json()) as ImportDeckRequest
-    const { source, overwrite = false } = body
-
-    if (!source) {
-      const resp: ImportDeckResponse = { success: false, message: 'source is required' }
-      return Response.json(resp, { status: 400 })
+    const body: unknown = await req.json()
+    if (!isImportDeckRequest(body)) {
+      return badRequest('Invalid request: expected mode "url" (with url) or "text" (with content)')
     }
+    const overwrite = body.overwrite ?? false
 
-    let deckData: DeckData | undefined
+    let deckData: DeckData
 
-    if (source.startsWith('https://')) {
-      const archidektMatch = source.match(/archidekt\.com\/decks\/(\d+)/)
-      if (archidektMatch?.[1]) {
-        deckData = await new ArchidektClient().fetchDeck(archidektMatch[1])
-      } else {
-        const moxfieldMatch = source.match(/moxfield\.com\/decks\/([a-zA-Z0-9_-]+)/)
-        if (moxfieldMatch?.[1]) {
-          deckData = await fetchMoxfieldDeck(moxfieldMatch[1])
-        } else if (source.includes('mtggoldfish.com')) {
-          deckData = await fetchMtgGoldfishDeck(source)
-        } else {
-          const resp: ImportDeckResponse = {
-            success: false,
-            message: 'URL not supported. Use Archidekt, Moxfield, or MTGGoldfish URLs.',
-          }
-          return Response.json(resp, { status: 400 })
-        }
-      }
+    if (body.mode === 'url') {
+      const url = body.url.trim()
+      if (!url) return badRequest('url is required')
+      const result = await fetchDeckFromUrl(url)
+      if (typeof result === 'string') return badRequest(result)
+      deckData = result
     } else {
-      deckData = await importFromTextFile(source)
-    }
-
-    if (!deckData) {
-      const resp: ImportDeckResponse = { success: false, message: 'Failed to parse deck data' }
-      return Response.json(resp, { status: 500 })
+      const content = body.content.trim()
+      if (!content) return badRequest('content is required')
+      const fallbackName = body.name?.trim() || 'Imported Deck'
+      deckData = parseDeckText(content, fallbackName)
+      if (deckData.sections.length === 0) {
+        return badRequest('No valid card lines found in the provided text.')
+      }
     }
 
     const decksDir = getDecksDir()

@@ -39,7 +39,13 @@ The admin dashboard provides a web interface for the following operations:
 
 ### Import Deck
 
-Import a deck from a URL (Archidekt, Moxfield, MTGGoldfish). Optionally overwrite an existing deck with the same name or source ID.
+Import a deck three ways, selected with a segmented control:
+
+- **URL** — fetch from Archidekt, Moxfield, or MTGGoldfish.
+- **Upload File** — choose a decklist or exported deck file (markdown or plain text); it is read in the browser and parsed server-side.
+- **Paste Text** — paste a decklist directly (`QTY Name` per line, `## Heading` lines start new sections).
+
+For upload and paste, an optional **Deck Name** is used unless the text defines its own `name:` in frontmatter. Optionally overwrite an existing deck on conflict.
 
 ### Build Site
 
@@ -361,21 +367,36 @@ Search for cards by name using the Scryfall API. Returns up to 20 results.
 
 **Auth required:** Yes
 
-Import a deck from a URL or file path.
+Import a deck from a supported URL, or from decklist text supplied directly (pasted in the UI or read from an uploaded file). The request is one of two shapes, distinguished by `mode`.
 
-**Request body:**
+**Request body (URL):**
 
 ```json
 {
-  "source": "https://archidekt.com/decks/123456",
+  "mode": "url",
+  "url": "https://archidekt.com/decks/123456",
   "overwrite": false
 }
 ```
 
-| Field       | Type    | Required | Default | Description                             |
-| ----------- | ------- | -------- | ------- | --------------------------------------- |
-| `source`    | string  | Yes      | —       | Archidekt, Moxfield, or MTGGoldfish URL |
-| `overwrite` | boolean | No       | `false` | Overwrite existing deck on conflict     |
+**Request body (text):**
+
+```json
+{
+  "mode": "text",
+  "content": "4 Lightning Bolt\n1 Sol Ring\n\n## Sideboard\n2 Pyroblast",
+  "name": "My Burn Deck",
+  "overwrite": false
+}
+```
+
+| Field       | Type    | Required         | Default | Description                                                            |
+| ----------- | ------- | ---------------- | ------- | ---------------------------------------------------------------------- |
+| `mode`      | string  | Yes              | —       | `"url"` or `"text"`                                                    |
+| `url`       | string  | When `url` mode  | —       | Archidekt, Moxfield, or MTGGoldfish URL                                |
+| `content`   | string  | When `text` mode | —       | Decklist text (`QTY Name` per line; `## Heading` lines start sections) |
+| `name`      | string  | No               | —       | Deck name for `text` mode; ignored if the text defines its own `name:` |
+| `overwrite` | boolean | No               | `false` | Overwrite existing deck on conflict                                    |
 
 **Response:**
 

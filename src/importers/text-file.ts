@@ -22,14 +22,14 @@ function getString(value: unknown): string | undefined {
 
 /**
  * Resolve a deck's display name: the `name:` frontmatter field if present,
- * otherwise the file's base name (without extension).
+ * otherwise the supplied fallback (typically a file base name or user-entered name).
  */
-function resolveDeckName(rawName: unknown, filePath: string): string {
+function resolveDeckName(rawName: unknown, fallbackName: string): string {
   const parsedName = getString(rawName)
   if (parsedName) {
     return parsedName.replace(/\n/g, ' ')
   }
-  return path.basename(filePath, path.extname(filePath))
+  return fallbackName
 }
 
 /**
@@ -38,7 +38,7 @@ function resolveDeckName(rawName: unknown, filePath: string): string {
  */
 export async function readDeckName(filePath: string): Promise<string> {
   const rawText = await Bun.file(filePath).text()
-  return resolveDeckName(matter(rawText).data.name, filePath)
+  return resolveDeckName(matter(rawText).data.name, path.basename(filePath, path.extname(filePath)))
 }
 
 /**
@@ -49,27 +49,26 @@ export async function readDeckName(filePath: string): Promise<string> {
 export const DECK_CARD_LINE_RE =
   /^(\d+)[xX]?\s+(.+?)(?:\s+\(([A-Za-z0-9_]+):([^)]+)\))?(?:\s+\[(nonfoil|foil|etched)\])?(?:\s+\[(NM|LP|MP|HP|DMG)\])?(?:\s+\{(.*)\})?(?:\s+&(\d+))?$/
 
-export async function importFromTextFile(filePath: string): Promise<DeckData> {
-  const file = Bun.file(filePath)
-  if (!(await file.exists())) {
-    throw new Error(`File not found: ${filePath}`)
-  }
-
-  const rawText = await file.text()
+/**
+ * Parse a deck's markdown/decklist text into structured {@link DeckData}.
+ *
+ * The text may carry optional YAML frontmatter (`name`, `description`,
+ * `sourceUrl`, `sourceId`, `format`); `fallbackName` is used as the deck name
+ * only when no frontmatter `name:` is present (e.g. an uploaded file's base name
+ * or a name entered in the admin UI). `primer` is an optional markdown sidecar.
+ *
+ * This is the shared core used both by {@link importFromTextFile} (reading from
+ * disk) and by the admin import API (pasted text / uploaded file content).
+ */
+export function parseDeckText(rawText: string, fallbackName: string, primer?: string): DeckData {
   const parsed = matter(rawText)
 
-  const name = resolveDeckName(parsed.data.name, filePath)
+  const name = resolveDeckName(parsed.data.name, fallbackName)
 
   const description = getString(parsed.data.description)
   const sourceUrl = getString(parsed.data.sourceUrl)
   const sourceId = getString(parsed.data.sourceId)
   const format = getString(parsed.data.format)
-
-  const primerPath = filePath.replace(/\.[^.]+$/, '.primer.md')
-  const primerFile = Bun.file(primerPath)
-  const primer = (await primerFile.exists())
-    ? (await primerFile.text()).trim() || undefined
-    : undefined
 
   const sections: DeckSection[] = []
   let currentSection: DeckSection = { name: 'Main', cards: [] }
@@ -120,4 +119,21 @@ export async function importFromTextFile(filePath: string): Promise<DeckData> {
     sourceId,
     sections: validSections,
   }
+}
+
+export async function importFromTextFile(filePath: string): Promise<DeckData> {
+  const file = Bun.file(filePath)
+  if (!(await file.exists())) {
+    throw new Error(`File not found: ${filePath}`)
+  }
+
+  const rawText = await file.text()
+
+  const primerPath = filePath.replace(/\.[^.]+$/, '.primer.md')
+  const primerFile = Bun.file(primerPath)
+  const primer = (await primerFile.exists())
+    ? (await primerFile.text()).trim() || undefined
+    : undefined
+
+  return parseDeckText(rawText, path.basename(filePath, path.extname(filePath)), primer)
 }

@@ -5,7 +5,7 @@ import { MoxfieldClient } from '../importers/moxfield-client'
 import { parseMoxfieldPrimer } from '../primer-parser'
 import { ExitCode } from './scripting'
 import { getLogger } from '../logger'
-import { resolveMoxfieldUserAgent } from './import'
+import { resolveMoxfieldUserAgent } from '../importers/url-dispatch'
 import type { DeckData } from '../types'
 import { getDecksDir } from '../ritual-config'
 

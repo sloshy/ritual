@@ -228,10 +228,15 @@ export async function mockBuildSiteApi(page: Page): Promise<void> {
 }
 
 /**
- * Mock the import-deck API endpoint
+ * Mock the import-deck API endpoint. Pass `onRequest` to capture the parsed
+ * request body for assertions on what the page sent.
  */
-export async function mockImportDeckApi(page: Page): Promise<void> {
+export async function mockImportDeckApi(
+  page: Page,
+  onRequest?: (body: unknown) => void,
+): Promise<void> {
   await page.route('**/api/import-deck', async (route: Route) => {
+    onRequest?.(route.request().postDataJSON())
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
