@@ -16,6 +16,13 @@ class MockTokenStore implements TokenStore {
   }
 }
 
+function makeJwt(expSecondsFromNow: number): string {
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
+  const exp = Math.floor(Date.now() / 1000) + expSecondsFromNow
+  const body = Buffer.from(JSON.stringify({ exp })).toString('base64url')
+  return `${header}.${body}.signature`
+}
+
 describe('ArchidektAuth', () => {
   let tokenStore: MockTokenStore
   let auth: ArchidektAuth
@@ -43,8 +50,6 @@ describe('ArchidektAuth', () => {
     const validToken: ArchidektToken = {
       access_token: 'accessRepo',
       refresh_token: 'refreshRepo',
-      token_type: 'Bearer',
-      scope: 'read',
       user: { id: 1, username: 'user' },
       access_token_expiration: new Date(Date.now() + 3600000).toISOString(),
     }
@@ -58,8 +63,6 @@ describe('ArchidektAuth', () => {
     const expiredToken: ArchidektToken = {
       access_token: 'expiredAccess',
       refresh_token: 'validRefresh',
-      token_type: 'Bearer',
-      scope: 'read',
       user: { id: 1, username: 'user' },
       access_token_expiration: new Date(Date.now() - 1000).toISOString(), // Expired
     }
@@ -91,8 +94,6 @@ describe('ArchidektAuth', () => {
     const validToken: ArchidektToken = {
       access_token: 'accessRepo',
       refresh_token: 'refreshRepo',
-      token_type: 'Bearer',
-      scope: 'read',
       user: { id: 123, username: 'testuser' },
       access_token_expiration: new Date(Date.now() + 3600000).toISOString(),
     }
@@ -107,5 +108,81 @@ describe('ArchidektAuth', () => {
   test('should return null user if no token', async () => {
     const user = await auth.getStoredUser()
     expect(user).toBeNull()
+  })
+
+  describe('getStatus', () => {
+    test('reports a login is required when no token exists', async () => {
+      const status = await auth.getStatus()
+      expect(status).toEqual({
+        loggedIn: false,
+        username: null,
+        accessTokenExpiration: null,
+        accessTokenValid: false,
+        refreshTokenExpiration: null,
+        refreshTokenValid: false,
+        loginRequired: true,
+      })
+    })
+
+    test('derives token validity from the JWT exp claims', async () => {
+      await tokenStore.save('archidekt', {
+        access_token: makeJwt(3600),
+        refresh_token: makeJwt(3600 * 24 * 30),
+        user: { id: 1, username: 'user' },
+      })
+
+      const status = await auth.getStatus()
+      expect(status.loggedIn).toBe(true)
+      expect(status.username).toBe('user')
+      expect(status.accessTokenValid).toBe(true)
+      expect(status.refreshTokenValid).toBe(true)
+      expect(status.loginRequired).toBe(false)
+      expect(status.accessTokenExpiration).not.toBeNull()
+      expect(status.refreshTokenExpiration).not.toBeNull()
+    })
+
+    test('does not require login when only the access token has expired', async () => {
+      await tokenStore.save('archidekt', {
+        access_token: makeJwt(-60),
+        refresh_token: makeJwt(3600 * 24 * 30),
+        user: { id: 1, username: 'user' },
+      })
+
+      const status = await auth.getStatus()
+      expect(status.accessTokenValid).toBe(false)
+      expect(status.refreshTokenValid).toBe(true)
+      expect(status.loginRequired).toBe(false)
+    })
+
+    test('requires login when both tokens have expired', async () => {
+      await tokenStore.save('archidekt', {
+        access_token: makeJwt(-3600),
+        refresh_token: makeJwt(-60),
+        user: { id: 1, username: 'user' },
+      })
+
+      const status = await auth.getStatus()
+      expect(status.loggedIn).toBe(true)
+      expect(status.accessTokenValid).toBe(false)
+      expect(status.refreshTokenValid).toBe(false)
+      expect(status.loginRequired).toBe(true)
+    })
+
+    test('prefers explicit expiration fields over the JWT claim', async () => {
+      const futureIso = new Date(Date.now() + 3600_000).toISOString()
+      await tokenStore.save('archidekt', {
+        access_token: makeJwt(-3600), // JWT says expired...
+        access_token_expiration: futureIso, // ...but explicit field says valid
+        refresh_token: makeJwt(-3600),
+        refresh_token_expiration: futureIso,
+        user: { id: 1, username: 'user' },
+      })
+
+      const status = await auth.getStatus()
+      expect(status.accessTokenExpiration).toBe(futureIso)
+      expect(status.accessTokenValid).toBe(true)
+      expect(status.refreshTokenValid).toBe(true)
+      expect(status.loginRequired).toBe(false)
+    })
   })
 })

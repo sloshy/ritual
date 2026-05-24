@@ -7,7 +7,7 @@ import { handleStatus, handleListDecks } from './api/status'
 import { handleImportDeck } from './api/import-deck'
 import { handleBuildSite } from './api/build-site'
 import { handleCacheRefresh, handleCacheRefreshStream } from './api/cache'
-import { handleArchidektLogin } from './api/login'
+import { handleArchidektLogin, handleArchidektStatus } from './api/login'
 import { handleGetConfig, handleUpdateConfig } from './api/config'
 import { handleSetup } from './api/setup'
 import { handleSearchCards } from './api/search-cards'
@@ -107,6 +107,12 @@ const routes: Route[] = [
     method: 'POST',
     path: '/api/login/archidekt',
     handler: handleArchidektLogin,
+    requiresAuth: true,
+  },
+  {
+    method: 'GET',
+    path: '/api/login/archidekt',
+    handler: handleArchidektStatus,
     requiresAuth: true,
   },
   { method: 'GET', path: '/api/config', handler: handleGetConfig, requiresAuth: true },

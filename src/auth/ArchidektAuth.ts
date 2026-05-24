@@ -1,6 +1,16 @@
-import type { AuthService, TokenStore, ArchidektToken, ArchidektCredentials } from './interfaces'
+import type {
+  AuthService,
+  TokenStore,
+  ArchidektToken,
+  ArchidektCredentials,
+  ArchidektLoginStatus,
+} from './interfaces'
+import { getJwtExpiration } from './jwt'
 import { getLogger } from '../logger'
 import { throwHttpError } from '../errors'
+
+// Refresh slightly before actual expiry so a token isn't used mid-request.
+const EXPIRY_BUFFER_MS = 30_000
 
 type StoredUser = { username: string; id: number }
 
@@ -20,6 +30,47 @@ export class ArchidektAuth implements AuthService<ArchidektCredentials> {
   async getStoredUser(): Promise<StoredUser | null> {
     const token = await this.tokenStore.load<ArchidektToken>(this.SITE_NAME)
     return token?.user || null
+  }
+
+  async getStatus(): Promise<ArchidektLoginStatus> {
+    const token = await this.tokenStore.load<ArchidektToken>(this.SITE_NAME)
+    if (!token) {
+      return {
+        loggedIn: false,
+        username: null,
+        accessTokenExpiration: null,
+        accessTokenValid: false,
+        refreshTokenExpiration: null,
+        refreshTokenValid: false,
+        loginRequired: true,
+      }
+    }
+
+    const now = Date.now()
+    const accessExpiration = this.getTokenExpiration(
+      token.access_token_expiration,
+      token.access_token,
+    )
+    const refreshExpiration = this.getTokenExpiration(
+      token.refresh_token_expiration,
+      token.refresh_token,
+    )
+    const accessTokenValid = accessExpiration !== null && accessExpiration.getTime() > now
+    const refreshTokenValid = refreshExpiration !== null && refreshExpiration.getTime() > now
+
+    return {
+      loggedIn: true,
+      username: token.user?.username ?? null,
+      accessTokenExpiration: accessExpiration?.toISOString() ?? null,
+      accessTokenValid,
+      refreshTokenExpiration: refreshExpiration?.toISOString() ?? null,
+      refreshTokenValid,
+      // An expired access token is fine on its own — it auto-refreshes. Only when
+      // the refresh token is also dead does the user have to log in again. A token
+      // whose expiry can't be determined counts as invalid here (safe-fail:
+      // better to prompt a login than to rely on a possibly-dead token).
+      loginRequired: !accessTokenValid && !refreshTokenValid,
+    }
   }
 
   async login(credentials: ArchidektCredentials): Promise<void> {
@@ -60,13 +111,18 @@ export class ArchidektAuth implements AuthService<ArchidektCredentials> {
     return token.access_token
   }
 
+  // Prefer an explicit expiration field if Archidekt ever returns one, otherwise
+  // fall back to the token's own JWT `exp` claim.
+  private getTokenExpiration(explicitIso: string | undefined, jwt: string): Date | null {
+    return explicitIso ? new Date(explicitIso) : getJwtExpiration(jwt)
+  }
+
   private isExpired(token: ArchidektToken): boolean {
-    if (!token.access_token_expiration) {
+    const expiration = this.getTokenExpiration(token.access_token_expiration, token.access_token)
+    if (!expiration) {
       return true
     }
-    // Include a 30-second buffer so we refresh before actual expiry
-    const expirationDate = new Date(token.access_token_expiration)
-    return Date.now() >= expirationDate.getTime() - 30000
+    return Date.now() >= expiration.getTime() - EXPIRY_BUFFER_MS
   }
 
   private async refreshToken(oldToken: ArchidektToken): Promise<string> {

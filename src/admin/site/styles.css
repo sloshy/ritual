@@ -351,6 +351,35 @@
   font-size: 0.875rem;
 }
 
+/* ===== Archidekt login status ===== */
+.archidekt-status {
+  margin-bottom: 1.5rem;
+}
+
+.archidekt-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0;
+}
+
+.archidekt-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.archidekt-status-row dt {
+  min-width: 13rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.archidekt-status-row dd {
+  margin: 0;
+}
+
 /* ===== Deck Editor Styles ===== */
 
 /* Deck selector */

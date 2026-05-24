@@ -59,6 +59,13 @@ The Refresh Cache page shows real-time progress during the operation:
 
 Sign in to your Archidekt account through the web interface. Credentials are sent to the Ritual server, which handles authentication server-side.
 
+The page also shows the status of the stored login:
+
+- **Current login (access token)**: how long the active session token remains valid. When it expires it is refreshed automatically.
+- **Refresh token**: how long the longer-lived refresh token remains valid. Once it expires too, a fresh login is required.
+
+When both the access token and refresh token have expired, the page reports that a login is required to use Archidekt account features.
+
 ### Settings
 
 Configure admin settings including:
@@ -465,6 +472,26 @@ Login to Archidekt. Credentials are sent to the server which authenticates with 
   "success": true,
   "message": "Logged in as myuser",
   "username": "myuser"
+}
+```
+
+### `GET /api/login/archidekt`
+
+**Auth required:** Yes
+
+Report the status of the stored Archidekt login, including how long the access and refresh tokens remain valid. Expirations are derived from the tokens' JWT `exp` claims. When neither token is valid, `loginRequired` is `true` and the user must sign in again.
+
+**Response:**
+
+```json
+{
+  "loggedIn": true,
+  "username": "myuser",
+  "accessTokenExpiration": "2026-05-24T19:53:49.000Z",
+  "accessTokenValid": true,
+  "refreshTokenExpiration": "2026-07-02T18:53:49.000Z",
+  "refreshTokenValid": true,
+  "loginRequired": false
 }
 ```
 

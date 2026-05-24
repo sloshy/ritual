@@ -44,3 +44,10 @@ export async function handleArchidektLogin(req: Request): Promise<Response> {
     return Response.json(resp, { status: 401 })
   }
 }
+
+export async function handleArchidektStatus(): Promise<Response> {
+  const tokenStore = new FileTokenStore()
+  const auth = new ArchidektAuth(tokenStore)
+  const status = await auth.getStatus()
+  return Response.json(status)
+}
