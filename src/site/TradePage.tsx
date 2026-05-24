@@ -20,6 +20,7 @@ import { encodeTradeToParams, hasTradeParams } from './trade-url-encode'
 import { decodeTradeFromParams } from './trade-url-decode'
 import type { TradeDecodeWarning } from './trade-url-decode'
 import { resolveTradeFinish } from './trade-finish'
+import { hasSpecificPrinting } from '../card-printing'
 import { batchFetchScryfall } from './scryfall-collection'
 import type { TradeSortBy, TradeSortState } from './trade-sort'
 import { useTooltip } from './useTooltip'
@@ -186,7 +187,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
   const handleLeftSelect = (item: AutocompleteItem) => {
     if (item.kind !== 'local') return
     const entry = item.entry
-    if (entry.sourceKind === 'deck' && (!entry.set || !entry.collectorNumber)) {
+    if (entry.sourceKind === 'deck' && !hasSpecificPrinting(entry)) {
       setPicker({
         cardName: entry.name,
         side: 'left',

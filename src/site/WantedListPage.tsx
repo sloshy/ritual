@@ -7,7 +7,13 @@ import type { WantedListCardEntry } from './data-types'
 import type { ChangelogPage } from '../changelog-parser'
 import type { PriceCurrency } from '../price-currency'
 import { getCardPriceForFinish, formatPrice, formatPriceOrNA } from '../price-currency'
-import { type CardData, type CardGroup, groupAndSortCards, CARD_SIZE_WIDTHS } from './card-sorting'
+import {
+  type CardData,
+  type CardGroup,
+  type GroupBy,
+  groupAndSortCards,
+  CARD_SIZE_WIDTHS,
+} from './card-sorting'
 import { CardModal } from './CardModal'
 import { ChangelogModal } from './ChangelogModal'
 import { capitalize } from './utils'
@@ -19,8 +25,9 @@ import { TradePrintingPicker } from './TradePrintingPicker'
 import { addEntryToRight, canAddMoreToRight, showTradeToast } from './useTradeState'
 import type { TradeSearchEntry } from './useTradeData'
 import { resolveCardThumbnailUrl } from './image-sources'
+import { hasSpecificPrinting } from '../card-printing'
 
-type WantedListGroupBy = 'type' | 'cmc' | 'color-identity' | 'price' | 'none'
+type WantedListGroupBy = Exclude<GroupBy, 'section'>
 type MetaEntry = { label: string; value: string }
 type WantedTradePicker = {
   cardName: string
@@ -53,7 +60,7 @@ function resolveCardForEntry(
   entry: WantedListCardEntry,
   cards: Record<string, ScryfallCard | null>,
 ): ScryfallCard | null {
-  if (entry.set && entry.collectorNumber) {
+  if (hasSpecificPrinting(entry)) {
     const key = `${entry.set.toLowerCase()}:${entry.collectorNumber}`
     return cards[key] ?? cards[entry.name] ?? null
   }
@@ -107,7 +114,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     entry: WantedListCardEntry,
     scryfallCard: ScryfallCard | null,
   ) => {
-    if (!entry.set || !entry.collectorNumber) {
+    if (!hasSpecificPrinting(entry)) {
       setWantedTradePicker({
         cardName: entry.name,
         printings: props.printings[entry.name] ?? [],
@@ -152,7 +159,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     entry: WantedListCardEntry,
     scryfallCard: ScryfallCard | null,
   ): boolean => {
-    if (!entry.set || !entry.collectorNumber) return false
+    if (!hasSpecificPrinting(entry)) return false
     const searchEntry = buildWantedSearchEntry(entry, scryfallCard)
     return !canAddMoreToRight(searchEntry)
   }
@@ -185,6 +192,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         fileOrder: entry.fileOrder,
         setCode: entry.set ?? '',
         colorIdentity: card?.color_identity ?? [],
+        hasPrinting: hasSpecificPrinting(entry),
         card,
       }
     })
@@ -232,7 +240,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
 
   const modalAddToTradeDisabled = createMemo(() => {
     const entry = modalEntry()
-    if (!entry || !entry.set || !entry.collectorNumber) return false
+    if (!entry || !hasSpecificPrinting(entry)) return false
     const scryfallCard = modalCard()
     return isWantedCardAddDisabled(entry, scryfallCard)
   })
@@ -280,7 +288,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         onTooltipLeave={() => setTooltip(null)}
         collectionFinish={entry?.finish}
         collectionSetCN={
-          entry?.set && entry?.collectorNumber
+          entry && hasSpecificPrinting(entry)
             ? `${entry.set.toUpperCase()}:${entry.collectorNumber}`
             : undefined
         }
@@ -321,7 +329,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
       label: 'price',
       value: formatPriceOrNA(entry.price, props.currency),
     })
-    if (entry.set && entry.collectorNumber) {
+    if (hasSpecificPrinting(entry)) {
       parts.push({
         label: 'set',
         value: `${entry.set.toUpperCase()}:${entry.collectorNumber}`,
@@ -386,6 +394,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
           { value: 'cmc', label: 'Mana Value' },
           { value: 'color-identity', label: 'Color Identity' },
           { value: 'price', label: 'Price' },
+          { value: 'printing', label: 'Printing' },
           { value: 'none', label: 'None' },
         ]}
         onGroupByChange={(v) => setGroupBy(v as WantedListGroupBy)}

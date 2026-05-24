@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test'
-import { findPrinting } from '../../src/card-printing'
+import { findPrinting, hasSpecificPrinting } from '../../src/card-printing'
 import type { ScryfallCard } from '../../src/types'
 
 function printing(set: string, collectorNumber: string): ScryfallCard {
@@ -41,5 +41,30 @@ describe('findPrinting', () => {
   test('returns undefined when set or collector number is absent', () => {
     expect(findPrinting(PRINTINGS, undefined, '161')).toBeUndefined()
     expect(findPrinting(PRINTINGS, 'lea', undefined)).toBeUndefined()
+  })
+})
+
+describe('hasSpecificPrinting', () => {
+  test('true only when both set and collector number are present', () => {
+    expect(hasSpecificPrinting({ set: 'lea', collectorNumber: '161' })).toBe(true)
+    expect(hasSpecificPrinting({ set: 'lea' })).toBe(false)
+    expect(hasSpecificPrinting({ collectorNumber: '161' })).toBe(false)
+    expect(hasSpecificPrinting({})).toBe(false)
+  })
+
+  test('treats empty strings as not a specific printing', () => {
+    expect(hasSpecificPrinting({ set: '', collectorNumber: '161' })).toBe(false)
+    expect(hasSpecificPrinting({ set: 'lea', collectorNumber: '' })).toBe(false)
+  })
+
+  test('narrows set and collector number to defined when used as a type guard', () => {
+    const entry: { set?: string; collectorNumber?: string } = { set: 'lea', collectorNumber: '161' }
+    if (hasSpecificPrinting(entry)) {
+      // Type guard narrows both fields to `string`; this must compile without `!`.
+      const key: string = `${entry.set.toUpperCase()}:${entry.collectorNumber}`
+      expect(key).toBe('LEA:161')
+    } else {
+      throw new Error('expected hasSpecificPrinting to be true')
+    }
   })
 })

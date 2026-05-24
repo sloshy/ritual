@@ -4,7 +4,7 @@ import { CardItem } from './CardItem'
 import type { Card, DeckData, ScryfallCard, Finish } from '../types'
 import type { CardContextInfo } from './card-context'
 import type { ChangelogPage } from '../changelog-parser'
-import { findPrinting } from '../card-printing'
+import { findPrinting, hasSpecificPrinting } from '../card-printing'
 import { SymbolText } from './symbols'
 import type { PriceCurrency } from '../price-currency'
 import { getCardPrice, formatPrice } from '../price-currency'
@@ -133,7 +133,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
   })
 
   const handleDeckAddToTrade = (c: CardData, deckEntry: Card) => {
-    if (!deckEntry.set || !deckEntry.collectorNumber) {
+    if (!hasSpecificPrinting(deckEntry)) {
       setDeckTradePicker({
         cardName: c.name,
         printings: props.printings[c.name] ?? [],
@@ -205,7 +205,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
   // the cheapest printing per card name); name-only entries fall back to the
   // representative card.
   const resolveEntryCard = (entry: Card): ScryfallCard | null => {
-    if (!lowestPrice() && entry.set && entry.collectorNumber) {
+    if (!lowestPrice() && hasSpecificPrinting(entry)) {
       const match = findPrinting(props.printings[entry.name], entry.set, entry.collectorNumber)
       if (match) return match
     }
@@ -216,7 +216,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     const cardName = props.modalCardName
     const entry = modalDeckEntry()
     if (!cardName || !entry) return
-    if (!entry.set || !entry.collectorNumber) {
+    if (!hasSpecificPrinting(entry)) {
       props.onCloseModal()
       setDeckTradePicker({
         cardName,
@@ -239,7 +239,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     const cardName = props.modalCardName
     const entry = modalDeckEntry()
     if (!cardName || !entry) return true
-    if (!entry.set || !entry.collectorNumber) return false // picker will handle
+    if (!hasSpecificPrinting(entry)) return false // picker will handle
     const scryfallCard = activeCards()[cardName] ?? null
     const searchEntry = buildDeckSearchEntry(cardName, entry, scryfallCard, entry.quantity)
     return !canAddMoreToLeft(searchEntry)
@@ -272,6 +272,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
           fileOrder: order++,
           setCode: card?.set ?? '',
           colorIdentity: card?.color_identity ?? [],
+          hasPrinting: hasSpecificPrinting(entry),
           card,
         })
       }
@@ -496,6 +497,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
           { value: 'cmc', label: 'Mana Value' },
           { value: 'color-identity', label: 'Color Identity' },
           { value: 'price', label: 'Price' },
+          { value: 'printing', label: 'Printing' },
           { value: 'none', label: 'None' },
         ]}
         onGroupByChange={(v) => setGroupBy(v as GroupBy)}

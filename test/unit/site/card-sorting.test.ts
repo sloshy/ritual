@@ -23,6 +23,7 @@ function makeCard(overrides: Partial<CardData> = {}): CardData {
     fileOrder: 0,
     setCode: 'FDN',
     colorIdentity: [],
+    hasPrinting: true,
     card: null,
     ...overrides,
   }
@@ -198,6 +199,27 @@ describe('groupAndSortCards', () => {
     expect(keys[2]).toBe('Green')
     expect(keys[3]).toBe('Azorius (WU)')
   })
+
+  test('groups by printing into specific and any, specific first', () => {
+    const printingCards = [
+      makeCard({ name: 'Any A', hasPrinting: false }),
+      makeCard({ name: 'Specific A', hasPrinting: true }),
+      makeCard({ name: 'Any B', hasPrinting: false }),
+    ]
+    const groups = groupAndSortCards(printingCards, 'printing', 'name', false, [])
+    expect(groups.map((g) => g.key)).toEqual(['Specific Printing', 'Any Printing'])
+    expect(groups[0]!.cards.map((c) => c.name)).toEqual(['Specific A'])
+    expect(groups[1]!.cards.map((c) => c.name)).toEqual(['Any A', 'Any B'])
+  })
+
+  test('omits a printing group when no cards fall into it', () => {
+    const allSpecific = [
+      makeCard({ name: 'A', hasPrinting: true }),
+      makeCard({ name: 'B', hasPrinting: true }),
+    ]
+    const groups = groupAndSortCards(allSpecific, 'printing', 'name', false, [])
+    expect(groups.map((g) => g.key)).toEqual(['Specific Printing'])
+  })
 })
 
 describe('groupAndSortCards with reverseGroups', () => {
@@ -212,6 +234,15 @@ describe('groupAndSortCards with reverseGroups', () => {
     const normalKeys = normal.map((g) => g.key)
     const reversedKeys = reversed.map((g) => g.key)
     expect(reversedKeys).toEqual([...normalKeys].reverse())
+  })
+
+  test('reverseGroups reverses printing group order', () => {
+    const cards = [
+      makeCard({ name: 'A', hasPrinting: true }),
+      makeCard({ name: 'B', hasPrinting: false }),
+    ]
+    const reversed = groupAndSortCards(cards, 'printing', 'name', false, [], undefined, 'usd', true)
+    expect(reversed.map((g) => g.key)).toEqual(['Any Printing', 'Specific Printing'])
   })
 
   test('reverseGroups reverses cmc group order', () => {

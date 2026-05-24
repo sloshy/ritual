@@ -5,7 +5,7 @@ export const CARD_SIZE_WIDTHS = {
   medium: 140,
   small: 100,
 } as const satisfies Record<CardSize, number>
-export type GroupBy = 'type' | 'section' | 'cmc' | 'color-identity' | 'price' | 'none'
+export type GroupBy = 'type' | 'section' | 'cmc' | 'color-identity' | 'price' | 'printing' | 'none'
 export type SortBy =
   | 'name'
   | 'cmc'
@@ -27,6 +27,8 @@ export interface CardData {
   fileOrder: number
   setCode: string
   colorIdentity: string[]
+  /** Whether this entry is pinned to a specific printing (has both set and collector number). */
+  hasPrinting: boolean
   card: ScryfallCard | null
 }
 
@@ -227,6 +229,13 @@ const TYPE_ORDER = [
   'Other',
 ]
 
+// Group keys for the 'printing' grouping. A card is "specific" when it is pinned
+// to a single printing (has both set and collector number); otherwise it accepts
+// any printing.
+const PRINTING_SPECIFIC_KEY = 'Specific Printing'
+const PRINTING_ANY_KEY = 'Any Printing'
+const PRINTING_ORDER = [PRINTING_SPECIFIC_KEY, PRINTING_ANY_KEY]
+
 export function groupAndSortCards(
   cards: CardData[],
   groupBy: GroupBy,
@@ -273,6 +282,12 @@ export function groupAndSortCards(
       if (!groups[key]) groups[key] = []
       groups[key].push(c)
     }
+  } else if (groupBy === 'printing') {
+    for (const c of cards) {
+      const key = c.hasPrinting ? PRINTING_SPECIFIC_KEY : PRINTING_ANY_KEY
+      if (!groups[key]) groups[key] = []
+      groups[key].push(c)
+    }
   }
 
   const keys = Object.keys(groups)
@@ -297,6 +312,8 @@ export function groupAndSortCards(
       (a, b) =>
         priceGroupSortValue(a, strategy, currency) - priceGroupSortValue(b, strategy, currency),
     )
+  } else if (groupBy === 'printing') {
+    keys.sort((a, b) => PRINTING_ORDER.indexOf(a) - PRINTING_ORDER.indexOf(b))
   }
 
   const orderedKeys = keys.filter((key) => groups[key] && groups[key].length > 0)

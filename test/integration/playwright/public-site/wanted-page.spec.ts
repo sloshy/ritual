@@ -25,4 +25,23 @@ test.describe('Wanted List Page', () => {
       timeout: 5_000,
     })
   })
+
+  test('grouping by printing splits specific and any-printing entries', async ({ page }) => {
+    // Switch to list view so card names render as text within each section.
+    await page.locator('[data-view="list"]').click()
+
+    // The first toolbar select is the "Group:" dropdown.
+    await page.locator('.toolbar select').first().selectOption('printing')
+
+    const specific = page.locator('[data-section="Specific Printing"]')
+    const any = page.locator('[data-section="Any Printing"]')
+    await expect(specific).toBeVisible()
+    await expect(any).toBeVisible()
+
+    // Lightning Bolt is name-only → Any Printing.
+    await expect(any).toContainText('Lightning Bolt')
+    // Sol Ring and Mana Crypt are pinned to a printing → Specific Printing.
+    await expect(specific).toContainText('Sol Ring')
+    await expect(specific).toContainText('Mana Crypt')
+  })
 })

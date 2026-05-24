@@ -7,7 +7,13 @@ import type { CollectionCardEntry } from './data-types'
 import type { ChangelogPage } from '../changelog-parser'
 import type { PriceCurrency } from '../price-currency'
 import { getCardPriceForFinish, formatPrice, formatPriceOrNA } from '../price-currency'
-import { type CardData, type CardGroup, groupAndSortCards, CARD_SIZE_WIDTHS } from './card-sorting'
+import {
+  type CardData,
+  type CardGroup,
+  type GroupBy,
+  groupAndSortCards,
+  CARD_SIZE_WIDTHS,
+} from './card-sorting'
 import { CardModal } from './CardModal'
 import { ChangelogModal } from './ChangelogModal'
 import { capitalize } from './utils'
@@ -19,7 +25,9 @@ import { addEntryToLeft, canAddMoreToLeft, showTradeToast } from './useTradeStat
 import type { TradeSearchEntry } from './useTradeData'
 import { resolveCardThumbnailUrl } from './image-sources'
 
-type CollectionGroupBy = 'type' | 'cmc' | 'color-identity' | 'price' | 'none'
+// Collections always have a specific printing, so 'printing' grouping does not
+// apply; 'section' is deck-only.
+type CollectionGroupBy = Exclude<GroupBy, 'section' | 'printing'>
 type MetaEntry = { label: string; value: string }
 type GroupedEntry = { entry: CollectionCardEntry; count: number }
 
@@ -168,6 +176,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
           fileOrder: entry.fileOrder,
           setCode: entry.set,
           colorIdentity: card?.color_identity ?? [],
+          hasPrinting: true,
           card,
         })
       }
@@ -188,6 +197,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         fileOrder: entry.fileOrder,
         setCode: entry.set,
         colorIdentity: card?.color_identity ?? [],
+        hasPrinting: true,
         card,
       }
     })

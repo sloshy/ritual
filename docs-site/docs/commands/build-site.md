@@ -370,6 +370,7 @@ Wanted list pages show:
   - **Fully specified** entries use the exact printing and finish specified
 - Individual card prices in the card detail modal
 - State indicator showing whether each card is name-only, printing-specific, or fully specified
+- Grouping by type, mana value, color identity, price brackets, printing (whether a card is pinned to a specific printing), or ungrouped
 - Download as original Markdown
 - No condition display (wanted lists track desired cards, not owned cards)
 
@@ -382,7 +383,7 @@ Deck pages include:
 - "Lowest Price" toggle that swaps all cards to their cheapest available printing (images and prices update)
 - Card detail modal with Scryfall link, other printings (paginated, sortable by release date, set name, or price), and full card details
 - Section/group price totals shown next to card counts
-- Grouping by type, section, mana value, color identity, price brackets, or ungrouped — applies to mainboard only
+- Grouping by type, section, mana value, color identity, price brackets, printing (whether a card is pinned to a specific printing), or ungrouped — applies to mainboard only
 - Price bracket grouping with three strategies: Archidekt-style brackets, every $5, or every $10
 - Sideboard always displayed in its own section at the bottom, ungrouped
 - Extras (maybeboard, tokens) displayed below sideboard, toggled via "Hide Extras" checkbox
