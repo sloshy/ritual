@@ -107,6 +107,7 @@ After completing any new feature or bug fix, run the following subagent reviews 
 - **`code-deduplicator`** — scans changed files for meaningful duplication opportunities: repeated logic, redundant constants, similar parsing patterns. Only invoke when multiple files were added or significantly modified.
 - **`docs-sync-reviewer`** — verifies that `docs-site/docs/` reflects the current CLI source. Invoke whenever a command in `src/commands/` is added, changed, or removed, or when flags/options change.
 - **`card-format-reviewer`** — audits code that touches card entries (parsers, serializers, importers) for violations of domain invariants: set code normalization, `&N` ID handling, canonical line format, and parser error representation. Invoke when adding or modifying any code that reads or writes deck, collection, or wanted list files.
+- **`test-quality-reviewer`** — reviews new or modified test code for correctness, meaningful assertions, and boilerplate duplication. Invoke after writing or significantly changing unit, integration, or Playwright tests.
 
 Run all applicable agents for the change. If a reviewer flags issues, fix them before finishing.
 
