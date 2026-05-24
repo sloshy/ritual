@@ -1414,15 +1414,15 @@ dialog.discard-dialog-native[open] {
   text-align: center;
 }
 
-/* ----- List manager tabs ----- */
-.list-manager-tabs {
+/* ----- List type tabs (Edit Lists / Manage Lists) ----- */
+.list-type-tabs {
   display: flex;
   gap: 0.25rem;
   margin-bottom: 1rem;
   border-bottom: 1px solid var(--border);
 }
 
-.list-manager-tab {
+.list-type-tab {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -1437,12 +1437,12 @@ dialog.discard-dialog-native[open] {
   margin-bottom: -1px;
 }
 
-.list-manager-tab:hover {
+.list-type-tab:hover {
   background: var(--bg-card, var(--bg-panel));
   color: var(--text-primary);
 }
 
-.list-manager-tab[data-active='true'] {
+.list-type-tab[data-active='true'] {
   background: var(--bg-card, var(--bg-panel));
   border-color: var(--border);
   color: var(--text-primary);

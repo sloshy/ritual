@@ -1,6 +1,7 @@
 import { render } from 'solid-js/web'
-import { createSignal, onMount, Switch, Match } from 'solid-js'
+import { createSignal, onMount, batch, Switch, Match } from 'solid-js'
 import type { Page, NavigateFn } from './types'
+import type { ListType } from '../../list-type'
 import { Layout } from './components/Layout'
 import { AuthGuard } from './components/AuthGuard'
 import { Dashboard } from './pages/Dashboard'
@@ -10,25 +11,30 @@ import { CacheRefresh } from './pages/CacheRefresh'
 import { ArchidektLogin } from './pages/ArchidektLogin'
 import { Settings } from './pages/Settings'
 import { AuditLog } from './pages/AuditLog'
-import { DeckEditor } from './pages/DeckEditor'
+import { ListEditor } from './pages/ListEditor'
 import { ListManager } from './pages/ListManager'
-import { CollectionEditor } from './pages/CollectionEditor'
-import { WantedListEditor } from './pages/WantedListEditor'
 
 type StatusResponse = { setupRequired: boolean; totpEnabled?: boolean }
 
 function App() {
   const [page, setPage] = createSignal<Page>('dashboard')
-  // Slug to pre-select when navigating into an editor page; cleared on any
-  // navigation that doesn't supply one (e.g. sidebar / dashboard clicks).
+  // List type + slug to pre-select when navigating into the editor page; both
+  // cleared on any navigation that doesn't supply them (e.g. sidebar / dashboard
+  // clicks).
   const [editorSlug, setEditorSlug] = createSignal<string | null>(null)
+  const [editorListType, setEditorListType] = createSignal<ListType | null>(null)
   const [setupRequired, setSetupRequired] = createSignal<boolean | null>(null)
   const [totpEnabled, setTotpEnabled] = createSignal(false)
   const [loggedIn, setLoggedIn] = createSignal(false)
 
-  const navigate: NavigateFn = (next, slug) => {
-    setEditorSlug(slug ?? null)
-    setPage(next)
+  const navigate: NavigateFn = (next, options) => {
+    // One logical navigation event — batch so the editor page mounts once with
+    // both the target list type and slug already in place.
+    batch(() => {
+      setEditorSlug(options?.slug ?? null)
+      setEditorListType(options?.listType ?? null)
+      setPage(next)
+    })
   }
 
   const checkStatus = async () => {
@@ -90,27 +96,17 @@ function App() {
           currentPage={page()}
           onNavigate={navigate}
           onLogout={() => void onLogout()}
-          fullWidth={
-            page() === 'deck-editor' ||
-            page() === 'collection-editor' ||
-            page() === 'wanted-list-editor'
-          }
+          fullWidth={page() === 'list-editor'}
         >
           <Switch>
             <Match when={page() === 'dashboard'}>
               <Dashboard onNavigate={navigate} />
             </Match>
-            <Match when={page() === 'deck-editor'}>
-              <DeckEditor initialSlug={editorSlug()} />
+            <Match when={page() === 'list-editor'}>
+              <ListEditor initialType={editorListType()} initialSlug={editorSlug()} />
             </Match>
             <Match when={page() === 'list-manager'}>
               <ListManager onNavigate={navigate} />
-            </Match>
-            <Match when={page() === 'collection-editor'}>
-              <CollectionEditor initialSlug={editorSlug()} />
-            </Match>
-            <Match when={page() === 'wanted-list-editor'}>
-              <WantedListEditor initialSlug={editorSlug()} />
             </Match>
             <Match when={page() === 'import-deck'}>
               <ImportDeck />

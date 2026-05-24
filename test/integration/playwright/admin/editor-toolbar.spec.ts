@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { loginAsAdmin } from '../helpers/auth-helper'
+import { openListEditor } from '../helpers/editor-nav'
 
 type MockCard = {
   id: string
@@ -109,7 +110,7 @@ test.describe('Admin Editor — pinned toolbar layout', () => {
     // Wide enough for the desktop sidebar (>=768px), short enough to force scroll.
     await page.setViewportSize({ width: 1280, height: 700 })
 
-    await page.locator('.admin-nav-item:has-text("Deck Editor")').click()
+    await openListEditor(page, 'deck')
     const select = page.locator('.deck-selector')
     await select.waitFor({ state: 'visible' })
     await page.waitForFunction(

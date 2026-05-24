@@ -4,13 +4,13 @@ sidebar_position: 1
 
 # Editors
 
-The admin site provides three visual editors for managing decks, collections, and wanted lists. All editors share the same core interaction model with minor differences per list type.
+The admin site provides a single **Edit Lists** page for managing decks, collections, and wanted lists. A tab at the top selects the list type — **Decks**, **Collections**, or **Wanted Lists** — and each shares the same core interaction model with minor differences per list type.
 
 ## Common Features
 
 ### Selecting a File
 
-Each editor has a dropdown at the top of the page to select the file to edit. Loading a file fetches full card data, printings, and pricing from the cache.
+Pick a list type with the tabs at the top of the page, then choose the file to edit from the dropdown below them. Loading a file fetches full card data, printings, and pricing from the cache.
 
 ### Quantity Controls
 
@@ -107,7 +107,7 @@ A bar pinned to the bottom of the editor holds all editing controls, from left t
 
 ## Deck Editor
 
-Access via the admin sidebar or the **Deck Editor** card on the Dashboard.
+Open **Edit Lists** (admin sidebar or Dashboard card) and select the **Decks** tab.
 
 ### Context Menu
 
@@ -146,7 +146,7 @@ All fields are optional and backwards-compatible with the basic format.
 
 ## Collection Editor
 
-Access via the admin sidebar or the **Collection Editor** card on the Dashboard.
+Open **Edit Lists** and select the **Collections** tab.
 
 Collections correspond to `.md` files in the `collections/` directory.
 
@@ -160,7 +160,7 @@ Collections correspond to `.md` files in the `collections/` directory.
 
 ## Wanted List Editor
 
-Access via the admin sidebar or the **Wanted List Editor** card on the Dashboard.
+Open **Edit Lists** and select the **Wanted Lists** tab.
 
 Wanted lists correspond to `.md` files in the `wanted/` directory.
 

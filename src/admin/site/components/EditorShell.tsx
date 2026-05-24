@@ -15,7 +15,8 @@ type BaseCardData = {
 }
 
 type EditorShellProps<TData, TCardEntry> = {
-  heading: string
+  /** Lowercase entity noun for status text (e.g. "deck", "wanted list"). */
+  entityLabel: string
   selectorId: string
   selectorLabel: string
   selectorPlaceholder: string
@@ -38,8 +39,6 @@ export function EditorShell<TData, TCardEntry>(
 
   return (
     <div>
-      <h2 class="section-heading">{props.heading}</h2>
-
       {/* Selector dropdown */}
       <div class="deck-selector-container">
         <label class="deck-selector-label" for={props.selectorId}>
@@ -66,7 +65,7 @@ export function EditorShell<TData, TCardEntry>(
         <div class="alert alert-success">{editor.status.saveStatus}</div>
       </Show>
       <Show when={editor.status.loading}>
-        <p class="text-muted">Loading {props.heading.toLowerCase().replace(' editor', '')}...</p>
+        <p class="text-muted">Loading {props.entityLabel}...</p>
       </Show>
 
       {/* Content slot */}

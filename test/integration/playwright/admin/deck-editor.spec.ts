@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { loginAsAdmin } from '../helpers/auth-helper'
+import { openListEditor } from '../helpers/editor-nav'
 import { disableSearchDebounce } from '../helpers/search-modal'
 
 test.describe('Deck Editor Page', () => {
@@ -7,8 +8,7 @@ test.describe('Deck Editor Page', () => {
     // Register before any navigation so the override applies to the first load.
     await disableSearchDebounce(page)
     await loginAsAdmin(page)
-    await page.locator('.admin-nav-item:has-text("Deck Editor")').click()
-    await expect(page.locator('.section-heading')).toContainText('Deck Editor')
+    await openListEditor(page, 'deck')
   })
 
   test('deck selector is populated with decks', async ({ page }) => {
@@ -245,8 +245,7 @@ test.describe('Deck Editor Page', () => {
         })
       })
 
-      await page.locator('.admin-nav-item:has-text("Deck Editor")').click()
-      await expect(page.locator('.section-heading')).toContainText('Deck Editor')
+      await openListEditor(page, 'deck')
 
       const select = page.locator('select').first()
       await page.waitForFunction(

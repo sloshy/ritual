@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { loginAsAdmin } from '../helpers/auth-helper'
+import { openListEditor } from '../helpers/editor-nav'
 import { mockAdminCollectionLoadApi, mockCollectionsApi } from '../helpers/mock-data'
 
 test.describe('Collection Editor – Hide Unpriced', () => {
@@ -8,8 +9,7 @@ test.describe('Collection Editor – Hide Unpriced', () => {
     await mockAdminCollectionLoadApi(page)
 
     await loginAsAdmin(page)
-    await page.locator('.admin-nav-item:has-text("Collection Editor")').click()
-    await expect(page.locator('.section-heading')).toContainText('Collection Editor')
+    await openListEditor(page, 'collection')
 
     // Wait for the collection selector to be populated
     await page.waitForFunction(() => (document.querySelector('select')?.options.length ?? 0) > 1, {

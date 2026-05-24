@@ -67,3 +67,5 @@ test/.test-*/
 
 # Dev files
 *.js.map
+
+.claude/agent-memory/

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { loginAsAdmin } from '../helpers/auth-helper'
+import { openListEditor } from '../helpers/editor-nav'
 import { disableSearchDebounce } from '../helpers/search-modal'
 
 const FOIL_BOLT = {
@@ -121,8 +122,7 @@ test.describe('Admin Editor — Add Card Defaults', () => {
       })
     })
 
-    await page.locator('.admin-nav-item:has-text("Deck Editor")').click()
-    await expect(page.locator('.section-heading')).toContainText('Deck Editor')
+    await openListEditor(page, 'deck')
 
     const select = page.locator('.deck-selector')
     await select.waitFor({ state: 'visible' })
@@ -208,7 +208,7 @@ test.describe('Admin Editor — Add Card Defaults', () => {
     // bar (which now hosts the defaults toggle) only renders once a list is
     // loaded, so re-select the deck after the in-memory page state resets.
     await page.reload()
-    await page.locator('.admin-nav-item:has-text("Deck Editor")').click()
+    await openListEditor(page, 'deck')
     const select = page.locator('.deck-selector')
     await select.waitFor({ state: 'visible' })
     await page.waitForFunction(

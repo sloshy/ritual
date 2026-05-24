@@ -1,19 +1,26 @@
+import type { ListType } from '../../list-type'
+
 export type Page =
   | 'dashboard'
   | 'import-deck'
-  | 'deck-editor'
+  | 'list-editor'
   | 'list-manager'
-  | 'collection-editor'
-  | 'wanted-list-editor'
   | 'build-site'
   | 'cache-refresh'
   | 'archidekt-login'
   | 'settings'
   | 'audit-log'
 
-/**
- * Navigate to a page. When targeting an editor page, an optional `slug`
- * pre-selects that list so callers (e.g. Manage Lists) can deep-link straight
- * into editing a specific deck/collection/wanted list.
- */
-export type NavigateFn = (page: Page, slug?: string) => void
+/** Options for deep-linking into a page. */
+export type NavigateOptions = {
+  /**
+   * Pre-select a list when targeting the editor page, so callers (e.g. Manage
+   * Lists) can deep-link straight into editing a specific list.
+   */
+  slug?: string
+  /** Which editor tab to open on the consolidated Edit Lists page. */
+  listType?: ListType
+}
+
+/** Navigate to a page, optionally deep-linking to a specific list/editor tab. */
+export type NavigateFn = (page: Page, options?: NavigateOptions) => void

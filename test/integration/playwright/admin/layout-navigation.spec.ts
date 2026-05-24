@@ -9,8 +9,8 @@ test.describe('Layout & Navigation', () => {
   test('sidebar nav items have expected labels', async ({ page }) => {
     const labels = [
       'Dashboard',
-      'Deck Editor',
-      'Collection Editor',
+      'Edit Lists',
+      'Manage Lists',
       'Import Deck',
       'Build Site',
       'Refresh Cache',

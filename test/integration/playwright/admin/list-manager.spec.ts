@@ -183,25 +183,23 @@ test.describe('List Manager', () => {
   })
 
   test('shows the Decks tab by default and lists existing decks', async ({ page }) => {
-    await expect(
-      page.locator('.list-manager-tab[data-active="true"]:has-text("Decks")'),
-    ).toBeVisible()
+    await expect(page.locator('.list-type-tab[data-active="true"]:has-text("Decks")')).toBeVisible()
     await expect(page.locator('.deck-list-item:has-text("Existing Deck")')).toBeVisible()
   })
 
   test('switching tabs loads each category', async ({ page }) => {
-    await page.locator('.list-manager-tab:has-text("Collections")').click()
+    await page.locator('.list-type-tab:has-text("Collections")').click()
     await expect(
-      page.locator('.list-manager-tab[data-active="true"]:has-text("Collections")'),
+      page.locator('.list-type-tab[data-active="true"]:has-text("Collections")'),
     ).toBeVisible()
     await expect(page.locator('.deck-list-item:has-text("Existing Collection")')).toBeVisible()
 
-    await page.locator('.list-manager-tab:has-text("Wanted Lists")').click()
+    await page.locator('.list-type-tab:has-text("Wanted Lists")').click()
     await expect(page.locator('.deck-list-item:has-text("Existing Wanted")')).toBeVisible()
   })
 
   test('creates a new collection and shows it in the list', async ({ page }) => {
-    await page.locator('.list-manager-tab:has-text("Collections")').click()
+    await page.locator('.list-type-tab:has-text("Collections")').click()
     await page.locator('.btn-primary:has-text("New Collection")').click()
     await page.locator('.form-input').first().fill('Brand New Collection')
     await page.locator('.btn-primary:has-text("Create Collection")').click()
@@ -209,7 +207,7 @@ test.describe('List Manager', () => {
   })
 
   test('creates a new wanted list and shows it in the list', async ({ page }) => {
-    await page.locator('.list-manager-tab:has-text("Wanted Lists")').click()
+    await page.locator('.list-type-tab:has-text("Wanted Lists")').click()
     await page.locator('.btn-primary:has-text("New Wanted List")').click()
     await page.locator('.form-input').first().fill('Holiday Wishlist')
     await page.locator('.btn-primary:has-text("Create Wanted List")').click()
@@ -221,13 +219,13 @@ test.describe('List Manager', () => {
     await expect(page.locator('select.form-input')).toBeVisible()
     await page.locator('.btn-secondary:has-text("Cancel")').click()
 
-    await page.locator('.list-manager-tab:has-text("Collections")').click()
+    await page.locator('.list-type-tab:has-text("Collections")').click()
     await page.locator('.btn-primary:has-text("New Collection")').click()
     await expect(page.locator('select.form-input')).toHaveCount(0)
   })
 
   test('renames a collection', async ({ page }) => {
-    await page.locator('.list-manager-tab:has-text("Collections")').click()
+    await page.locator('.list-type-tab:has-text("Collections")').click()
     await page
       .locator('.deck-list-item:has-text("Existing Collection") .btn:has-text("Rename")')
       .click()
@@ -239,7 +237,7 @@ test.describe('List Manager', () => {
   })
 
   test('delete confirmation gates the Delete button', async ({ page }) => {
-    await page.locator('.list-manager-tab:has-text("Wanted Lists")').click()
+    await page.locator('.list-type-tab:has-text("Wanted Lists")').click()
     await page
       .locator('.deck-list-item:has-text("Existing Wanted") .btn:has-text("Delete")')
       .click()
@@ -290,7 +288,9 @@ test.describe('List Manager', () => {
     await expect(item.locator('.visibility-toggle-label')).toHaveText('Public')
   })
 
-  test('Edit opens the Deck Editor with the deck pre-selected', async ({ page }) => {
+  test('Edit opens the Edit Lists page on the Decks tab with the deck pre-selected', async ({
+    page,
+  }) => {
     // The editor loads the picked deck via a GET; return a minimal valid deck so
     // the editor mounts and its selector reflects the deep-linked slug.
     await page.route('**/api/deck/*', async (route) => {
@@ -312,11 +312,17 @@ test.describe('List Manager', () => {
 
     await page.locator('.deck-list-item:has-text("Existing Deck") .btn:has-text("Edit")').click()
 
-    await expect(page.locator('.section-heading')).toContainText('Deck Editor')
+    await expect(page.locator('.section-heading')).toContainText('Edit Lists')
+    await expect(page.locator('.list-type-tab:has-text("Decks")')).toHaveAttribute(
+      'data-active',
+      'true',
+    )
     await expect(page.locator('#deck-select')).toHaveValue('Existing Deck')
   })
 
-  test('Edit opens the Collection Editor with the collection pre-selected', async ({ page }) => {
+  test('Edit opens the Edit Lists page on the Collections tab with the collection pre-selected', async ({
+    page,
+  }) => {
     await page.route('**/api/collection/*', async (route) => {
       if (route.request().method() !== 'GET') return route.fallback()
       await jsonResponse(route, {
@@ -330,19 +336,23 @@ test.describe('List Manager', () => {
       })
     })
 
-    await page.locator('.list-manager-tab:has-text("Collections")').click()
+    await page.locator('.list-type-tab:has-text("Collections")').click()
     await page
       .locator('.deck-list-item:has-text("Existing Collection") .btn:has-text("Edit")')
       .click()
 
-    await expect(page.locator('.section-heading')).toContainText('Collection Editor')
+    await expect(page.locator('.section-heading')).toContainText('Edit Lists')
+    await expect(page.locator('.list-type-tab:has-text("Collections")')).toHaveAttribute(
+      'data-active',
+      'true',
+    )
     await expect(page.locator('#collection-select')).toHaveValue('Existing Collection')
   })
 
   test('hiding a collection writes the collection exclude list, not the deck one', async ({
     page,
   }) => {
-    await page.locator('.list-manager-tab:has-text("Collections")').click()
+    await page.locator('.list-type-tab:has-text("Collections")').click()
     const item = page.locator('.deck-list-item:has-text("Existing Collection")')
     const putPromise = page.waitForRequest(
       (req) => req.url().includes('/api/config') && req.method() === 'PUT',

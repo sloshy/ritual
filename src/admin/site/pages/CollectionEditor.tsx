@@ -201,7 +201,7 @@ export function CollectionEditor(props: CollectionEditorProps): JSX.Element {
 
   return (
     <EditorShell
-      heading="Collection Editor"
+      entityLabel="collection"
       selectorId="collection-select"
       selectorLabel="Select Collection"
       selectorPlaceholder="Choose a collection"

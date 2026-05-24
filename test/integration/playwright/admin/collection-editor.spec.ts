@@ -1,11 +1,11 @@
 import { test, expect } from '@playwright/test'
 import { loginAsAdmin } from '../helpers/auth-helper'
+import { openListEditor } from '../helpers/editor-nav'
 
 test.describe('Collection Editor Page', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page)
-    await page.locator('.admin-nav-item:has-text("Collection Editor")').click()
-    await expect(page.locator('.section-heading')).toContainText('Collection Editor')
+    await openListEditor(page, 'collection')
   })
 
   test('collection selector is populated with collections', async ({ page }) => {

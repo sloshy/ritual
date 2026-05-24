@@ -14,7 +14,7 @@ The page is organised by category — switch between **Decks**, **Collections**,
 
 ## Editing a list
 
-Each list has an **Edit** button (between its visibility toggle and **Rename**) that jumps straight to the matching editor — the **Deck Editor**, **Collection Editor**, or **Wanted List Editor** — with that list already selected, so you can start changing cards without picking it from the editor's dropdown.
+Each list has an **Edit** button (between its visibility toggle and **Rename**) that jumps straight to the **Edit Lists** page, opening the matching tab with that list already selected, so you can start changing cards without picking it from the editor's dropdown.
 
 ## File names
 
@@ -64,7 +64,7 @@ A collection is a Markdown file in the configured `collectionsDir` (defaults to 
 1. Switch to the **Collections** tab and click **+ New Collection**.
 2. Enter a **Collection Name** and click **Create Collection**.
 
-The new file is scaffolded with a single `# <Name>` heading and is ready to be edited from the **Collection Editor**.
+The new file is scaffolded with a single `# <Name>` heading and is ready to be edited from the **Collections** tab on the **Edit Lists** page.
 
 ### Renaming a collection
 

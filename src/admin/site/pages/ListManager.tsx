@@ -8,7 +8,8 @@ import {
   Show,
   For,
 } from 'solid-js'
-import type { Page, NavigateFn } from '../types'
+import type { NavigateFn } from '../types'
+import { type ListType, LIST_TYPE_DISPLAY } from '../../../list-type'
 import type { RitualConfig, SiteConfig } from '../../../ritual-config'
 import { type SiteSelectionConfig, defaultSiteSelection } from '../../../site/list-selection'
 import { fetchRitualConfig } from '../config-api'
@@ -30,8 +31,8 @@ type CategoryMeta = {
   listKey: 'decks' | 'collections' | 'wantedLists'
   /** The `site` selection key whose exclude list gates this category's visibility. */
   excludeKey: ExcludeKey
-  /** The admin editor page that edits this category's lists. */
-  editorPage: Page
+  /** Which Edit Lists tab edits this category's lists. */
+  listType: ListType
   hasFormat: boolean
   createUrl: string
   itemUrl: (slug: string) => string
@@ -40,39 +41,39 @@ type CategoryMeta = {
 
 const CATEGORY_META: Record<Category, CategoryMeta> = {
   decks: {
-    label: 'Decks',
+    label: LIST_TYPE_DISPLAY.deck.label,
     singular: 'deck',
-    icon: '🃏',
+    icon: LIST_TYPE_DISPLAY.deck.icon,
     listUrl: '/api/decks',
     listKey: 'decks',
     excludeKey: 'excludeDecks',
-    editorPage: 'deck-editor',
+    listType: 'deck',
     hasFormat: true,
     createUrl: '/api/deck/create',
     itemUrl: (slug) => `/api/deck/${slug}`,
     renameUrl: (slug) => `/api/deck/${slug}/rename`,
   },
   collections: {
-    label: 'Collections',
+    label: LIST_TYPE_DISPLAY.collection.label,
     singular: 'collection',
-    icon: '📦',
+    icon: LIST_TYPE_DISPLAY.collection.icon,
     listUrl: '/api/collections',
     listKey: 'collections',
     excludeKey: 'excludeCollections',
-    editorPage: 'collection-editor',
+    listType: 'collection',
     hasFormat: false,
     createUrl: '/api/collection/create',
     itemUrl: (slug) => `/api/collection/${slug}`,
     renameUrl: (slug) => `/api/collection/${slug}/rename`,
   },
   wanted: {
-    label: 'Wanted Lists',
+    label: LIST_TYPE_DISPLAY.wanted.label,
     singular: 'wanted list',
-    icon: '🎯',
+    icon: LIST_TYPE_DISPLAY.wanted.icon,
     listUrl: '/api/wanted',
     listKey: 'wantedLists',
     excludeKey: 'excludeWantedLists',
-    editorPage: 'wanted-list-editor',
+    listType: 'wanted',
     hasFormat: false,
     createUrl: '/api/wanted/create',
     itemUrl: (slug) => `/api/wanted/${slug}`,
@@ -269,7 +270,7 @@ export function ListManager(props: ListManagerProps): JSX.Element {
   }
 
   const openEditor = (item: ListItem) => {
-    props.onNavigate(meta().editorPage, item.slug)
+    props.onNavigate('list-editor', { slug: item.slug, listType: meta().listType })
   }
 
   const cancel = () => {
@@ -281,11 +282,11 @@ export function ListManager(props: ListManagerProps): JSX.Element {
     <div>
       <h2 class="section-heading">🗂️ Manage Lists</h2>
 
-      <div class="list-manager-tabs">
+      <div class="list-type-tabs">
         <For each={CATEGORIES}>
           {(c) => (
             <button
-              class="list-manager-tab"
+              class="list-type-tab"
               data-active={category() === c ? 'true' : undefined}
               onClick={() => setCategory(c)}
             >

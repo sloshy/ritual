@@ -10,22 +10,10 @@ interface ActionCard {
 
 const actions: ActionCard[] = [
   {
-    id: 'deck-editor',
-    title: 'Deck Editor',
-    description: 'Edit deck contents and cards',
+    id: 'list-editor',
+    title: 'Edit Lists',
+    description: 'Edit decks, collections, and wanted lists',
     icon: '✏️',
-  },
-  {
-    id: 'collection-editor',
-    title: 'Collection Editor',
-    description: 'Edit collection contents and cards',
-    icon: '📦',
-  },
-  {
-    id: 'wanted-list-editor',
-    title: 'Wanted List Editor',
-    description: 'Edit wanted card lists',
-    icon: '🎯',
   },
   {
     id: 'list-manager',

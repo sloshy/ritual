@@ -1,11 +1,11 @@
 import { test, expect } from '@playwright/test'
 import { loginAsAdmin } from '../helpers/auth-helper'
+import { openListEditor } from '../helpers/editor-nav'
 
 test.describe('Wanted List Editor Page', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page)
-    await page.locator('.admin-nav-item:has-text("Wanted List Editor")').click()
-    await expect(page.locator('.section-heading')).toContainText('Wanted List Editor')
+    await openListEditor(page, 'wanted')
   })
 
   test('wanted list selector is populated with wanted lists', async ({ page }) => {

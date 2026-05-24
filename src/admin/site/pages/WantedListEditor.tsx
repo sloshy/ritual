@@ -196,7 +196,7 @@ export function WantedListEditor(props: WantedListEditorProps): JSX.Element {
 
   return (
     <EditorShell
-      heading="Wanted List Editor"
+      entityLabel="wanted list"
       selectorId="wanted-list-select"
       selectorLabel="Select Wanted List"
       selectorPlaceholder="Choose a wanted list"

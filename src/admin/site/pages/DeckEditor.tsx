@@ -345,7 +345,7 @@ export function DeckEditor(props: DeckEditorProps): JSX.Element {
 
   return (
     <EditorShell
-      heading="Deck Editor"
+      entityLabel="deck"
       selectorId="deck-select"
       selectorLabel="Select Deck"
       selectorPlaceholder="Choose a deck"
