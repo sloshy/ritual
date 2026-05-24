@@ -115,11 +115,16 @@ function spawnChild(): void {
     detached: true,
     onExit(proc, code, signal) {
       // An exit we asked for (restart or shutdown) is expected; ignore it.
-      // Only a crash we didn't initiate should bring the orchestrator down.
       if (shuttingDown || expectedExits.has(proc)) return
+      // An unexpected exit is almost always a compile error crashing the build.
+      // Keep the orchestrator and its file watchers alive and just drop the dead
+      // child, so the next source change respawns it. Tearing the whole dev
+      // session down on a typo would force a manual restart after every error.
       if (signal) console.log(`[dev] Child exited (signal=${signal}).`)
       else console.log(`[dev] Child exited (code=${code ?? 0}).`)
-      void shutdown('SIGTERM')
+      // Guard against a restart having already replaced the reference.
+      if (child === proc) child = null
+      console.log('[dev] Waiting for changes before retrying...')
     },
   })
 }
