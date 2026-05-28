@@ -178,14 +178,53 @@ test.describe('Collection Editor sections', () => {
     await page.locator('.section-manager-input').fill('main')
     const addBtn = page.locator('.section-manager-add-btn')
     await expect(addBtn).toBeDisabled()
-    await expect(page.locator('.section-manager-input--invalid')).toBeVisible()
-    await expect(page.locator('.section-manager-error')).toContainText('already exists')
+    await expect(page.locator('.section-manager-input.form-input--invalid')).toBeVisible()
+    await expect(page.locator('.section-manager .form-error')).toContainText('already exists')
     await expect(page.locator('.section-manager-row--clash', { hasText: 'Main' })).toBeVisible()
 
     // A free name clears the invalid state and enables Add.
     await page.locator('.section-manager-input').fill('Sideboard')
     await expect(addBtn).toBeEnabled()
-    await expect(page.locator('.section-manager-input--invalid')).toHaveCount(0)
-    await expect(page.locator('.section-manager-error')).toHaveCount(0)
+    await expect(page.locator('.section-manager-input.form-input--invalid')).toHaveCount(0)
+    await expect(page.locator('.section-manager .form-error')).toHaveCount(0)
+  })
+
+  test('the "New section…" context action opens a styled prompt (not a native one) and moves the card', async ({
+    page,
+  }) => {
+    const card = page.locator('.card-item').filter({ hasText: 'Sol Ring' }).first()
+    await card.locator('.edit-btn-context').click()
+    await page.locator('.card-context-menu-item', { hasText: 'New section' }).click()
+
+    // A styled in-app dialog (site dialog chrome), not the browser's native window.prompt.
+    const prompt = page.locator('dialog.discard-dialog-native .confirm-dialog.text-prompt')
+    await expect(prompt).toBeVisible()
+    await expect(prompt.locator('h3')).toHaveText('Move to new section')
+
+    // A duplicate (case-insensitive) of the existing Main section is rejected.
+    await page.locator('#text-prompt-input').fill('main')
+    await expect(prompt.locator('.form-error')).toContainText('already exists')
+    await expect(prompt.locator('button', { hasText: 'Move' })).toBeDisabled()
+
+    // A fresh name moves the card: one add-section + one set-section change.
+    await page.locator('#text-prompt-input').fill('Foils')
+    await prompt.locator('button', { hasText: 'Move' }).click()
+    await expect(prompt).toBeHidden()
+    await expect(page.locator('.changes-badge')).toHaveText('2')
+  })
+
+  test('the section "Rename" action opens a styled prompt seeded with the current name', async ({
+    page,
+  }) => {
+    await page.locator('.btn-sections').click()
+    await page
+      .locator('.section-manager-row', { hasText: 'Main' })
+      .locator('.section-manager-rename')
+      .click()
+
+    const prompt = page.locator('dialog.discard-dialog-native .confirm-dialog.text-prompt')
+    await expect(prompt).toBeVisible()
+    await expect(prompt.locator('h3')).toHaveText('Rename section')
+    await expect(page.locator('#text-prompt-input')).toHaveValue('Main')
   })
 })

@@ -23,8 +23,10 @@ interface CardContextMenuProps {
   sections?: string[]
   /** The section the targeted card currently belongs to. */
   currentSection?: string
-  /** Move the targeted card to an existing or brand-new section. */
+  /** Move the targeted card to an existing section. */
   onMoveToSection?: (section: string) => void
+  /** Open a styled prompt to name a new section and move the targeted card into it. */
+  onCreateSection?: () => void
 }
 
 export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
@@ -162,15 +164,16 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
                 </button>
               )}
             </For>
-            <button
-              class="card-context-menu-item card-context-menu-item--indented"
-              onClick={() => {
-                const name = window.prompt('New section name:')
-                if (name && name.trim()) moveToSection()(name.trim())
-              }}
-            >
-              New section…
-            </button>
+            <Show when={props.onCreateSection}>
+              {(createSection) => (
+                <button
+                  class="card-context-menu-item card-context-menu-item--indented"
+                  onClick={() => createSection()()}
+                >
+                  New section…
+                </button>
+              )}
+            </Show>
           </>
         )}
       </Show>

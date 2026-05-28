@@ -1145,15 +1145,17 @@
   flex: 1;
 }
 
-.section-manager-input--invalid {
+/* Generic invalid-input + error-message styling, shared by the section manager and the
+   text-prompt dialog. */
+.form-input--invalid {
   border-color: var(--error-border);
 }
 
-.section-manager-input--invalid:focus {
+.form-input--invalid:focus {
   outline-color: var(--error);
 }
 
-.section-manager-error {
+.form-error {
   color: var(--error-text);
   margin-top: 6px;
 }
@@ -1190,6 +1192,19 @@
   flex: 1;
   font-size: 0.8125rem;
   color: var(--text-primary);
+}
+
+/* Text-prompt dialog (new section / rename) */
+.text-prompt-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.text-prompt-label {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
 }
 
 .section-manager-count {

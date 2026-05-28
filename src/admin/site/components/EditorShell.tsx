@@ -7,6 +7,7 @@ import { DiscardConfirmDialog } from './DiscardConfirmDialog'
 import { CardSearchModal } from './CardSearchModal'
 import { ChangePrintingQuantityDialog } from './ChangePrintingQuantityDialog'
 import { EditorActionBar } from './EditorActionBar'
+import { TextPromptDialog } from './TextPromptDialog'
 
 type BaseCardData = {
   cards: Record<string, ScryfallCard | null>
@@ -122,6 +123,18 @@ export function EditorShell<TData, TCardEntry>(
         onCancel={editor.handleCancelDiscard}
       />
 
+      {/* Section-naming prompt (new section / rename), replacing native window.prompt */}
+      <TextPromptDialog
+        open={editor.textPrompt() !== null}
+        title={editor.textPrompt()?.title ?? ''}
+        label={editor.textPrompt()?.label ?? ''}
+        initialValue={editor.textPrompt()?.initialValue ?? ''}
+        confirmLabel={editor.textPrompt()?.confirmLabel ?? ''}
+        validate={editor.textPrompt()?.validate}
+        onConfirm={(v) => editor.textPrompt()?.onConfirm(v)}
+        onCancel={editor.closeTextPrompt}
+      />
+
       {/* Action bar */}
       <Show when={editor.isDataReady()}>
         <EditorActionBar
@@ -136,7 +149,7 @@ export function EditorShell<TData, TCardEntry>(
           onSave={() => void editor.handleSave()}
           onDiscard={editor.dialogs.openDiscard}
           onAddSection={editor.handleAddSection}
-          onRenameSection={editor.handleRenameSection}
+          onRequestRename={editor.promptRenameSection}
           onRemoveSection={editor.handleRemoveSection}
         />
       </Show>

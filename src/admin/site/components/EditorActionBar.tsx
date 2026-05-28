@@ -15,7 +15,7 @@ type EditorActionBarProps = {
   onSave: () => void
   onDiscard: () => void
   onAddSection: (name: string) => void
-  onRenameSection: (oldName: string, newName: string) => void
+  onRequestRename: (name: string) => void
   onRemoveSection: (name: string) => void
 }
 
@@ -129,7 +129,7 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
           <div class="section-manager-add">
             <input
               type="text"
-              class={`form-input section-manager-input${duplicateOf() ? ' section-manager-input--invalid' : ''}`}
+              class={`form-input section-manager-input${duplicateOf() ? ' form-input--invalid' : ''}`}
               placeholder="New section name"
               aria-invalid={duplicateOf() ? 'true' : undefined}
               value={newSectionName()}
@@ -151,11 +151,7 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
             </button>
           </div>
           <Show when={duplicateOf()}>
-            {(name) => (
-              <p class="form-hint section-manager-error">
-                A section named “{name()}” already exists.
-              </p>
-            )}
+            {(name) => <p class="form-error">A section named “{name()}” already exists.</p>}
           </Show>
 
           <ul class="section-manager-list">
@@ -169,13 +165,7 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
                   <button
                     type="button"
                     class="btn btn-secondary btn-sm section-manager-rename"
-                    onClick={() => {
-                      const next = window.prompt(
-                        `Rename section “${section.name}” to:`,
-                        section.name,
-                      )
-                      if (next !== null) props.onRenameSection(section.name, next)
-                    }}
+                    onClick={() => props.onRequestRename(section.name)}
                   >
                     Rename
                   </button>

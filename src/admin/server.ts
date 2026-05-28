@@ -273,9 +273,10 @@ function withSecurityHeaders(response: Response): Response {
 /**
  * Identifies this server process. Sent to the live-reload client on every SSE (re)connect; the
  * client reloads only when it sees a *different* id — i.e. an actual server restart. Reconnects
- * to the same process (e.g. after an idle-timeout drop) carry the same id and do nothing.
+ * to the same process (e.g. after an idle-timeout drop) carry the same id and do nothing. Also
+ * reused as the dev asset cache-bust token so a reload can never serve a stale `styles.css`/`app.js`.
  */
-const BOOT_ID = crypto.randomUUID()
+export const BOOT_ID = crypto.randomUUID()
 
 /**
  * Dev-only live-reload client (served at `/__dev_reload.js`). An external script rather than

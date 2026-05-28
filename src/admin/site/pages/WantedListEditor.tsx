@@ -226,6 +226,7 @@ export function WantedListEditor(props: WantedListEditorProps): JSX.Element {
               sections={editor.sectionOrder()}
               currentSection={editor.data() ? sectionOfTarget(editor.data()!, menu()) : undefined}
               onMoveToSection={(section) => editor.handleMoveCardToSection(menu(), section)}
+              onCreateSection={() => editor.promptNewSectionForCard(menu())}
             />
           )}
         </Show>

@@ -152,6 +152,17 @@ export type EditorConfig<TData> = {
 /** A section plus how many cards it currently holds. */
 export type SectionInfo = { name: string; count: number }
 
+/** An in-app text-input prompt (replaces native `window.prompt` for section naming). */
+export type TextPromptState = {
+  title: string
+  label: string
+  initialValue: string
+  confirmLabel: string
+  /** Returns an error message for an invalid value, or null when acceptable. */
+  validate?: (value: string) => string | null
+  onConfirm: (value: string) => void
+}
+
 export type UseEditorResult<TData, TCardEntry> = {
   slug: Accessor<string | null>
   list: Accessor<ListItem[]>
@@ -212,6 +223,15 @@ export type UseEditorResult<TData, TCardEntry> = {
   handleRemoveSection: (name: string) => void
   /** Move a card (identified by the context menu target) into a section, creating it if needed. */
   handleMoveCardToSection: (target: CardContextInfo, section: string) => void
+
+  /** The active in-app text prompt (section naming), or null when none is open. */
+  textPrompt: Accessor<TextPromptState | null>
+  /** Dismiss the active text prompt without confirming. */
+  closeTextPrompt: () => void
+  /** Open a styled prompt to name a new section and move the targeted card into it. */
+  promptNewSectionForCard: (target: CardContextInfo) => void
+  /** Open a styled prompt to rename an existing section. */
+  promptRenameSection: (oldName: string) => void
 }
 
 export function useEditor<TData, TCardEntry = unknown>(
@@ -552,6 +572,49 @@ export function useEditor<TData, TCardEntry = unknown>(
     setContextMenuCard(null)
   }
 
+  const [textPrompt, setTextPrompt] = createSignal<TextPromptState | null>(null)
+  const closeTextPrompt = () => setTextPrompt(null)
+
+  // Validation shared by the new-section and rename prompts: non-empty and unique
+  // case-insensitively (a rename may keep its own name via `allowExisting`).
+  const sectionNameError = (value: string, allowExisting?: string): string | null => {
+    const trimmed = value.trim()
+    if (!trimmed) return 'Enter a section name.'
+    const clash = sectionOrder().find((s) => s.toLowerCase() === trimmed.toLowerCase())
+    if (clash && clash !== allowExisting) return `A section named “${clash}” already exists.`
+    return null
+  }
+
+  const promptNewSectionForCard = (target: CardContextInfo) => {
+    // Close the editor-level menu; the deck editor's parallel menu state is cleared by its wrapper.
+    setContextMenuCard(null)
+    setTextPrompt({
+      title: 'Move to new section',
+      label: 'New section name',
+      initialValue: '',
+      confirmLabel: 'Move',
+      validate: (v) => sectionNameError(v),
+      onConfirm: (v) => {
+        handleMoveCardToSection(target, v.trim())
+        closeTextPrompt()
+      },
+    })
+  }
+
+  const promptRenameSection = (oldName: string) => {
+    setTextPrompt({
+      title: 'Rename section',
+      label: 'Section name',
+      initialValue: oldName,
+      confirmLabel: 'Rename',
+      validate: (v) => sectionNameError(v, oldName),
+      onConfirm: (v) => {
+        handleRenameSection(oldName, v.trim())
+        closeTextPrompt()
+      },
+    })
+  }
+
   const handleUndo = () => {
     const result = changes.undo()
     if (!result || !original) return
@@ -640,5 +703,10 @@ export function useEditor<TData, TCardEntry = unknown>(
     handleRenameSection,
     handleRemoveSection,
     handleMoveCardToSection,
+
+    textPrompt,
+    closeTextPrompt,
+    promptNewSectionForCard,
+    promptRenameSection,
   }
 }

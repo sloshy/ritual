@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import path from 'node:path'
 import fs from 'node:fs/promises'
-import { startAdminServer } from '../admin/server'
+import { startAdminServer, BOOT_ID } from '../admin/server'
 import { getBaseDir } from '../base-dir'
 import { ensureFreshCardCache } from '../cache/freshness'
 import { refreshMode } from '../refresh'
@@ -28,6 +28,10 @@ function buildIndexHtml(initialTheme: ThemeName): string {
   // In source/dev mode, pull in the live-reload client so the browser refreshes when the dev
   // orchestrator restarts the server after a source edit. External (not inline) to satisfy CSP.
   const devReload = isRunningFromSource() ? '\n  <script src="__dev_reload.js"></script>' : ''
+  // Cache-bust the assets per server start in dev so a reload after a restart can never serve a
+  // stale copy the browser cached before `no-store` applied. The static handler keys off the
+  // path, so the query string is ignored server-side. Stable URLs in the compiled binary.
+  const v = isRunningFromSource() ? `?v=${BOOT_ID}` : ''
   return `<!DOCTYPE html>
 <html lang="en"${attr}>
 <head>
@@ -35,11 +39,11 @@ function buildIndexHtml(initialTheme: ThemeName): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ritual Admin</title>
   <script>${themeBootstrapScript}</script>
-  <link rel="stylesheet" href="styles.css">${devReload}
+  <link rel="stylesheet" href="styles.css${v}">${devReload}
 </head>
 <body>
   <div id="app"></div>
-  <script type="module" src="app.js"></script>
+  <script type="module" src="app.js${v}"></script>
 </body>
 </html>`
 }

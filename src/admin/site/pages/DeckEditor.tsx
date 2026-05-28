@@ -405,6 +405,10 @@ export function DeckEditor(props: DeckEditorProps): JSX.Element {
                 editor.handleMoveCardToSection(menu(), section)
                 setDeckContextMenu(null)
               }}
+              onCreateSection={() => {
+                editor.promptNewSectionForCard(menu())
+                setDeckContextMenu(null)
+              }}
             />
           )}
         </Show>
