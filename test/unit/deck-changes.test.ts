@@ -821,6 +821,22 @@ describe('applyChangeToDeck — additional action coverage', () => {
     expect(result.sections[0]!.cards[0]!.note).toBe('burn spell')
   })
 
+  test("set-note with empty string clears the existing note via noteOrUndefined('')", () => {
+    // The application path runs `change.note` through `noteOrUndefined`, which
+    // collapses '' to undefined so the field is removed from the card rather
+    // than left as an empty string. Cleared notes are how the editor undoes
+    // a previously-set note without a separate "clear-note" action.
+    const deck = makeDeck()
+    deck.sections[0]!.cards[0]!.note = 'burn spell'
+    const result = applyChangeToDeck(deck, {
+      action: 'set-note',
+      cardName: 'Lightning Bolt',
+      cardId: 5,
+      note: '',
+    })
+    expect(result.sections[0]!.cards[0]!.note).toBeUndefined()
+  })
+
   test('remove that drops quantity to zero deletes the entry entirely', () => {
     let deck = makeDeck()
     for (let i = 0; i < 4; i++) {

@@ -724,6 +724,34 @@ describe('decodeTradeFromParams — URL-decode race / stale-entry coverage', () 
     })
   })
 
+  test("wanted token referencing a scryfall id the fetch stub can't resolve surfaces unknown-scryfall-id", async () => {
+    // `decodeWantedParam` shares the `@sfId` lookup with the deck/scryfall paths
+    // through `parseSfPart`, but is decoded by a different branch — pin the
+    // warning here independently so a regression in the wanted branch isn't
+    // hidden by the deck/scryfall coverage above.
+    const entry = makeSearchEntry({
+      sourceName: 'Wishlist',
+      sourceKind: 'wanted',
+      maxQty: 1,
+      cardIds: [22],
+      scryfallCard: null,
+    })
+    const params = new URLSearchParams()
+    // Wanted is decoded only from the right-side param, and the wanted-token base
+    // is a bare `<id>` (not `<id>x<qty>` like deck tokens).
+    params.set('rightSideWantedIds', 'Wishlist:22@nonexistent-id')
+
+    const decoded = await decodeTradeFromParams(
+      params,
+      { ...noEntries, wantedEntries: [entry] },
+      'usd',
+    )
+    expect(decoded.warnings).toContainEqual({
+      kind: 'unknown-scryfall-id',
+      sfId: 'nonexistent-id',
+    })
+  })
+
   test('deck grouped param with a malformed token surfaces malformed-token warning', async () => {
     const entry = makeSearchEntry({
       sourceName: 'Mono-W',

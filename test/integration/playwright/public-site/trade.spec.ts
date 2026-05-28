@@ -526,12 +526,7 @@ test.describe('Trade Page', () => {
   test('Copy Link then reload preserves the full trade state', async ({ page }) => {
     await page.goto('#/trade')
 
-    // Add Sol Ring from left collection
-    const leftSearch = page.locator('.trade-col[data-side="left"] .search-input')
-    await leftSearch.fill('Sol')
-    const leftSuggest = page.locator('.trade-col[data-side="left"] .search-suggest')
-    await expect(leftSuggest).toBeVisible()
-    await leftSuggest.locator('.search-suggest-row').first().click({ force: true })
+    await addToLeft(page, 'Sol')
 
     await page.locator('.primary-toolbar button', { hasText: 'Copy Link' }).click()
 

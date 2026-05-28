@@ -241,11 +241,13 @@ describe('ScryfallClient', () => {
       expect(result[0]?.name).toBe('Card 1')
       expect(result[1]?.name).toBe('Card 2')
 
-      // Verify caching
+      // Verify caching: assert the cached payloads actually round-trip the card,
+      // not just that *something* sits at that key. A `toBeDefined()` check would
+      // pass even if the cache stored an empty array or the wrong page's data.
       const cached1 = await mockCache.get('Card 1')
       const cached2 = await mockCache.get('Card 2')
-      expect(cached1).toBeDefined()
-      expect(cached2).toBeDefined()
+      expect(cached1?.[0]?.name).toBe('Card 1')
+      expect(cached2?.[0]?.name).toBe('Card 2')
     })
 
     test('should return empty array on 404', async () => {
@@ -738,8 +740,9 @@ describe('comparePrintings', () => {
     expect(comparePrintings(a, b)).toBeLessThan(0)
   })
 
-  test('missing released_at on both treats dates as equal', () => {
-    // Falls through to set code; 'CMM' < 'FDN' alphabetically
+  test('missing released_at on both falls through to set-code alphabetical tiebreaker', () => {
+    // Both printings lack a date, so the date comparator returns no preference and
+    // the decision passes to the set-code key, where 'CMM' sorts before 'FDN'.
     const a = makePrinting('CMM', '1')
     const b = makePrinting('FDN', '1')
     expect(comparePrintings(a, b)).toBeLessThan(0)

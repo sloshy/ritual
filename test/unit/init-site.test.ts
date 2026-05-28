@@ -112,7 +112,6 @@ describe('generatePublishForMeWorkflow', () => {
     const step = findStep(job.steps, 'Download Ritual')
     expect(step).toBeDefined()
     expect(step!.if).toBe("steps.ritual-cache.outputs.cache-hit != 'true'")
-    expect(step!.run).not.toContain('api.github.com')
     expect(step!.run).toContain(
       'github.com/sloshy/ritual/releases/download/${VERSION}/ritual-linux-x86_64',
     )

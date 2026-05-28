@@ -502,6 +502,9 @@ describe('getSiteSelectionConfig', () => {
       includeCollections: ['*'],
       includeWantedLists: ['*'],
     } as SiteConfig)
+    expect(selection.includeDecks).toEqual(['Izzet Storm'])
+    expect(selection.includeCollections).toEqual(['*'])
+    expect(selection.includeWantedLists).toEqual(['*'])
     expect(selection.excludeDecks).toEqual([])
     expect(selection.excludeCollections).toEqual([])
     expect(selection.excludeWantedLists).toEqual([])
