@@ -273,10 +273,9 @@ function withSecurityHeaders(response: Response): Response {
 /**
  * Identifies this server process. Sent to the live-reload client on every SSE (re)connect; the
  * client reloads only when it sees a *different* id — i.e. an actual server restart. Reconnects
- * to the same process (e.g. after an idle-timeout drop) carry the same id and do nothing. Also
- * reused as the dev asset cache-bust token so a reload can never serve a stale `styles.css`/`app.js`.
+ * to the same process (e.g. after an idle-timeout drop) carry the same id and do nothing.
  */
-export const BOOT_ID = crypto.randomUUID()
+const BOOT_ID = crypto.randomUUID()
 
 /**
  * Dev-only live-reload client (served at `/__dev_reload.js`). An external script rather than
@@ -329,16 +328,6 @@ function handleDevReload(pathname: string): Response {
       Connection: 'keep-alive',
     },
   })
-}
-
-/**
- * Wrap a static SPA file in a Response. In source/dev mode the assets are rebuilt on each
- * restart, so `no-store` keeps the browser from serving a stale cached copy on reload.
- */
-function staticResponse(file: ReturnType<typeof Bun.file>): Response {
-  const response = new Response(file)
-  if (isRunningFromSource()) response.headers.set('Cache-Control', 'no-store')
-  return response
 }
 
 async function handleRequest(
@@ -408,13 +397,13 @@ async function handleRequest(
   const filePath = path.join(distDir, url.pathname)
   const file = Bun.file(filePath)
   if (await file.exists()) {
-    return staticResponse(file)
+    return new Response(file)
   }
 
   // SPA fallback
   const indexFile = Bun.file(path.join(distDir, 'index.html'))
   if (await indexFile.exists()) {
-    return staticResponse(indexFile)
+    return new Response(indexFile)
   }
 
   return new Response('Not Found', { status: 404 })
