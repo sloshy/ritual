@@ -119,7 +119,7 @@ export function EditorShell<TData, TCardEntry>(
         open={editor.dialogs.showDiscard()}
         changes={editor.changes.changes()}
         onConfirm={editor.handleDiscard}
-        onCancel={editor.dialogs.closeDiscard}
+        onCancel={editor.handleCancelDiscard}
       />
 
       {/* Action bar */}

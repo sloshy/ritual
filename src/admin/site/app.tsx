@@ -1,9 +1,10 @@
 import { render } from 'solid-js/web'
-import { createSignal, onMount, batch, Switch, Match } from 'solid-js'
+import { createSignal, onMount, onCleanup, batch, Switch, Match } from 'solid-js'
 import type { Page, NavigateFn } from './types'
 import type { ListType } from '../../list-type'
 import { Layout } from './components/Layout'
 import { AuthGuard } from './components/AuthGuard'
+import { NavigationGuardProvider, createNavigationGuard } from './navigation-guard'
 import { Dashboard } from './pages/Dashboard'
 import { ImportDeck } from './pages/ImportDeck'
 import { BuildSite } from './pages/BuildSite'
@@ -27,13 +28,19 @@ function App() {
   const [totpEnabled, setTotpEnabled] = createSignal(false)
   const [loggedIn, setLoggedIn] = createSignal(false)
 
+  const navigationGuard = createNavigationGuard()
+
   const navigate: NavigateFn = (next, options) => {
-    // One logical navigation event — batch so the editor page mounts once with
-    // both the target list type and slug already in place.
-    batch(() => {
-      setEditorSlug(options?.slug ?? null)
-      setEditorListType(options?.listType ?? null)
-      setPage(next)
+    // Leaving the editor page (or any nav) confirms discarding unsaved changes
+    // first; the guard runs this immediately when there is nothing to discard.
+    navigationGuard.attempt(() => {
+      // One logical navigation event — batch so the editor page mounts once with
+      // both the target list type and slug already in place.
+      batch(() => {
+        setEditorSlug(options?.slug ?? null)
+        setEditorListType(options?.listType ?? null)
+        setPage(next)
+      })
     })
   }
 
@@ -58,6 +65,17 @@ function App() {
 
   onMount(() => {
     void checkStatus()
+
+    // Warn before a full-page reload or tab close while an editor has unsaved
+    // changes; in-app navigation is handled by the guard's confirm dialog.
+    const warnOnUnload = (e: BeforeUnloadEvent) => {
+      if (!navigationGuard.isDirty()) return
+      e.preventDefault()
+      // Legacy browsers require a returnValue to trigger the native prompt.
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warnOnUnload)
+    onCleanup(() => window.removeEventListener('beforeunload', warnOnUnload))
   })
 
   const onSetupComplete = () => {
@@ -92,42 +110,44 @@ function App() {
         <AuthGuard onLogin={onLogin} isLogin totpEnabled={totpEnabled()} />
       </Match>
       <Match when={loggedIn()}>
-        <Layout
-          currentPage={page()}
-          onNavigate={navigate}
-          onLogout={() => void onLogout()}
-          fullWidth={page() === 'list-editor'}
-        >
-          <Switch>
-            <Match when={page() === 'dashboard'}>
-              <Dashboard onNavigate={navigate} />
-            </Match>
-            <Match when={page() === 'list-editor'}>
-              <ListEditor initialType={editorListType()} initialSlug={editorSlug()} />
-            </Match>
-            <Match when={page() === 'list-manager'}>
-              <ListManager onNavigate={navigate} />
-            </Match>
-            <Match when={page() === 'import-deck'}>
-              <ImportDeck />
-            </Match>
-            <Match when={page() === 'build-site'}>
-              <BuildSite />
-            </Match>
-            <Match when={page() === 'cache-refresh'}>
-              <CacheRefresh />
-            </Match>
-            <Match when={page() === 'archidekt-login'}>
-              <ArchidektLogin />
-            </Match>
-            <Match when={page() === 'settings'}>
-              <Settings />
-            </Match>
-            <Match when={page() === 'audit-log'}>
-              <AuditLog />
-            </Match>
-          </Switch>
-        </Layout>
+        <NavigationGuardProvider value={navigationGuard}>
+          <Layout
+            currentPage={page()}
+            onNavigate={navigate}
+            onLogout={() => navigationGuard.attempt(() => void onLogout())}
+            fullWidth={page() === 'list-editor'}
+          >
+            <Switch>
+              <Match when={page() === 'dashboard'}>
+                <Dashboard onNavigate={navigate} />
+              </Match>
+              <Match when={page() === 'list-editor'}>
+                <ListEditor initialType={editorListType()} initialSlug={editorSlug()} />
+              </Match>
+              <Match when={page() === 'list-manager'}>
+                <ListManager onNavigate={navigate} />
+              </Match>
+              <Match when={page() === 'import-deck'}>
+                <ImportDeck />
+              </Match>
+              <Match when={page() === 'build-site'}>
+                <BuildSite />
+              </Match>
+              <Match when={page() === 'cache-refresh'}>
+                <CacheRefresh />
+              </Match>
+              <Match when={page() === 'archidekt-login'}>
+                <ArchidektLogin />
+              </Match>
+              <Match when={page() === 'settings'}>
+                <Settings />
+              </Match>
+              <Match when={page() === 'audit-log'}>
+                <AuditLog />
+              </Match>
+            </Switch>
+          </Layout>
+        </NavigationGuardProvider>
       </Match>
     </Switch>
   )

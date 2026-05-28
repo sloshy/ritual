@@ -28,8 +28,12 @@ import { useCardIdPool } from './useCardIdPool'
 import { useCardChanges } from './useCardChanges'
 import { reconcileIdPoolForUndo, replayChanges } from './reconcile-undo'
 import { saveEditorChanges } from './saveEditorChanges'
+import { useNavigationGuard } from '../navigation-guard'
 
 export type ListItem = { slug: string; name: string }
+
+/** A navigation deferred until the user confirms discarding unsaved changes. */
+type PendingNavigation = { run: () => void }
 
 /**
  * Narrow set of change/pool operations the "change printing" flow needs, built
@@ -166,6 +170,7 @@ export type UseEditorResult<TData, TCardEntry> = {
   pool: UseCardIdPoolResult
 
   handleSelect: (e: Event) => void
+  handleCancelDiscard: () => void
   handleSetFoil: () => void
   handleAddCardFromSearch: (
     cardName: string,
@@ -193,11 +198,13 @@ export function useEditor<TData, TCardEntry = unknown>(
   const [contextMenuCard, setContextMenuCard] = createSignal<ContextMenuState | null>(null)
   const [changePrinting, setChangePrinting] = createSignal<ChangePrintingFlow | null>(null)
   const [refreshKey, setRefreshKey] = createSignal(0)
+  const [pendingNav, setPendingNav] = createSignal<PendingNavigation | null>(null)
 
   const [status, statusActions] = useEditorStatus()
   const dialogs = useDialogState()
   const pool = useCardIdPool()
   const changes = useCardChanges<TCardEntry>()
+  const navigationGuard = useNavigationGuard()
 
   const currency: PriceCurrency = DEFAULT_CURRENCY
   let original: TData | null = null
@@ -260,9 +267,45 @@ export function useEditor<TData, TCardEntry = unknown>(
     }),
   )
 
+  /**
+   * Route a navigation through the discard guard. With unsaved changes the
+   * action is stashed and the discard dialog opened (it runs on confirm via
+   * {@link handleDiscard}); otherwise it runs immediately. Returns true when it
+   * ran synchronously.
+   */
+  const guardedNavigate = (proceed: () => void): boolean => {
+    if (changes.changeCount() > 0) {
+      setPendingNav({ run: proceed })
+      dialogs.openDiscard()
+      return false
+    }
+    proceed()
+    return true
+  }
+
+  // Expose this editor's guard so list/tab/page navigation (and the unsaved-
+  // changes unload prompt) routes through it while it is the mounted editor.
+  onCleanup(
+    navigationGuard.register({
+      attempt: (proceed) => void guardedNavigate(proceed),
+      isDirty: () => changes.changeCount() > 0,
+    }),
+  )
+
   const handleSelect = (e: Event) => {
-    const value = (e.currentTarget as HTMLSelectElement).value
-    setSlug(value || null)
+    const target = e.currentTarget as HTMLSelectElement
+    const value = target.value || null
+    if (value === slug()) return
+    // The bound `value` only re-asserts when `slug` actually changes, so revert
+    // the visible selection by hand when the switch is deferred for confirmation.
+    if (!guardedNavigate(() => setSlug(value))) {
+      target.value = slug() ?? ''
+    }
+  }
+
+  const handleCancelDiscard = () => {
+    setPendingNav(null)
+    dialogs.closeDiscard()
   }
 
   const handleSetFoil = () => {
@@ -418,7 +461,16 @@ export function useEditor<TData, TCardEntry = unknown>(
       pool.resetPool(config.getOriginalIds(original))
     }
     dialogs.closeDiscard()
-    setRefreshKey((k) => k + 1)
+    const pending = pendingNav()
+    if (pending) {
+      // Discarding to leave: drop changes and run the deferred navigation. The
+      // target load resets pool/data, so no local refresh is needed.
+      setPendingNav(null)
+      pending.run()
+    } else {
+      // Discarding in place: reload the current selection from disk.
+      setRefreshKey((k) => k + 1)
+    }
   }
 
   return {
@@ -448,6 +500,7 @@ export function useEditor<TData, TCardEntry = unknown>(
     pool,
 
     handleSelect,
+    handleCancelDiscard,
     handleSetFoil,
     handleAddCardFromSearch,
     handleUndo,

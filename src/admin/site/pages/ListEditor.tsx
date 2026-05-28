@@ -1,5 +1,6 @@
 import { type JSX, createSignal, Switch, Match, For } from 'solid-js'
 import { type ListType, LIST_TYPES, LIST_TYPE_DISPLAY } from '../../../list-type'
+import { useNavigationGuard } from '../navigation-guard'
 import { DeckEditor } from './DeckEditor'
 import { CollectionEditor } from './CollectionEditor'
 import { WantedListEditor } from './WantedListEditor'
@@ -21,11 +22,16 @@ export function ListEditor(props: ListEditorProps): JSX.Element {
   // A deep-linked slug only applies to the editor open on mount; switching tabs
   // clears it so the newly opened editor starts from its empty selector.
   const [deepLinkSlug, setDeepLinkSlug] = createSignal<string | null>(props.initialSlug ?? null)
+  const navigationGuard = useNavigationGuard()
 
   const selectType = (type: ListType) => {
     if (type === activeType()) return
-    setDeepLinkSlug(null)
-    setActiveType(type)
+    // Switching tabs unmounts the active editor; route through the guard so any
+    // unsaved changes prompt for confirmation before they are dropped.
+    navigationGuard.attempt(() => {
+      setDeepLinkSlug(null)
+      setActiveType(type)
+    })
   }
 
   return (

@@ -103,6 +103,10 @@ A bar pinned to the bottom of the editor holds all editing controls, from left t
 - **Save Changes** — Writes the updated file and appends to the changelog. Disabled when there are no pending changes.
 - **Discard Changes** — Shows a confirmation dialog listing all changes that would be lost.
 
+The same confirmation also appears automatically whenever you navigate away with pending changes — selecting a different file in the dropdown, switching the **Decks** / **Collections** / **Wanted Lists** type tab, moving to another page via the admin sidebar, or logging out. Confirming discards the pending changes and proceeds; cancelling keeps you on the current file with your changes intact. Changes you want to keep must be saved explicitly first.
+
+Reloading or closing the browser tab with pending changes triggers the browser's own "leave site?" prompt as a final safeguard.
+
 ---
 
 ## Deck Editor
