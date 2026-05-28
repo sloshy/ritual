@@ -25,6 +25,9 @@ type AdminCommandOptions = {
 
 function buildIndexHtml(initialTheme: ThemeName): string {
   const attr = initialTheme === 'default' ? '' : ` data-theme="${initialTheme}"`
+  // In source/dev mode, pull in the live-reload client so the browser refreshes when the dev
+  // orchestrator restarts the server after a source edit. External (not inline) to satisfy CSP.
+  const devReload = isRunningFromSource() ? '\n  <script src="__dev_reload.js"></script>' : ''
   return `<!DOCTYPE html>
 <html lang="en"${attr}>
 <head>
@@ -32,7 +35,7 @@ function buildIndexHtml(initialTheme: ThemeName): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ritual Admin</title>
   <script>${themeBootstrapScript}</script>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css">${devReload}
 </head>
 <body>
   <div id="app"></div>

@@ -1,5 +1,6 @@
 import path from 'node:path'
 import fs from 'node:fs/promises'
+import { isRunningFromSource } from '../runtime'
 import { adminUserExists } from './auth'
 import { loadRitualConfig, getCollectionsDir, getWantedDir } from '../ritual-config'
 import { parseSessionCookie, validateSession } from './session'
@@ -269,6 +270,58 @@ function withSecurityHeaders(response: Response): Response {
   })
 }
 
+/**
+ * Dev-only live-reload client (served at `/__dev_reload.js`). An external script rather than
+ * inline so it satisfies the `script-src 'self'` CSP. It holds an SSE connection open; the
+ * connection drops when the dev orchestrator restarts the server, and the browser reloads as
+ * soon as it reconnects against the freshly-built server — so source edits (CSS or TSX) appear
+ * without a manual refresh.
+ */
+const DEV_RELOAD_CLIENT = `(() => {
+  let opened = false;
+  const connect = () => {
+    const es = new EventSource('/__dev_reload');
+    es.onopen = () => {
+      if (opened) { location.reload(); return; }
+      opened = true;
+    };
+  };
+  connect();
+})();`
+
+/** Serve the live-reload client script or its SSE stream. Only mounted when running from source. */
+function handleDevReload(pathname: string): Response {
+  if (pathname === '/__dev_reload.js') {
+    return new Response(DEV_RELOAD_CLIENT, {
+      headers: { 'Content-Type': 'text/javascript;charset=utf-8', 'Cache-Control': 'no-store' },
+    })
+  }
+  // An open-ended SSE stream. `retry: 500` makes the browser reconnect quickly after the server
+  // restarts. The stream is never closed server-side; the socket drops when the process exits.
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('retry: 500\n\n'))
+    },
+  })
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-store',
+      Connection: 'keep-alive',
+    },
+  })
+}
+
+/**
+ * Wrap a static SPA file in a Response. In source/dev mode the assets are rebuilt on each
+ * restart, so `no-store` keeps the browser from serving a stale cached copy on reload.
+ */
+function staticResponse(file: ReturnType<typeof Bun.file>): Response {
+  const response = new Response(file)
+  if (isRunningFromSource()) response.headers.set('Cache-Control', 'no-store')
+  return response
+}
+
 async function handleRequest(
   req: Request,
   server: RequestIPServer,
@@ -276,6 +329,12 @@ async function handleRequest(
 ): Promise<Response> {
   const url = new URL(req.url)
   const method = req.method
+
+  // Dev-only live-reload endpoints, handled before config/auth so they stay cheap on the
+  // frequent SSE reconnects and work on any page (including login).
+  if (isRunningFromSource() && url.pathname.startsWith('/__dev_reload')) {
+    return handleDevReload(url.pathname)
+  }
 
   // Load config first — needed for trustProxy and filtering
   const config = await loadRitualConfig()
@@ -330,13 +389,13 @@ async function handleRequest(
   const filePath = path.join(distDir, url.pathname)
   const file = Bun.file(filePath)
   if (await file.exists()) {
-    return new Response(file)
+    return staticResponse(file)
   }
 
   // SPA fallback
   const indexFile = Bun.file(path.join(distDir, 'index.html'))
   if (await indexFile.exists()) {
-    return new Response(indexFile)
+    return staticResponse(indexFile)
   }
 
   return new Response('Not Found', { status: 404 })
