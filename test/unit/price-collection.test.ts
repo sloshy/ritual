@@ -177,6 +177,7 @@ function makeEntry(overrides: Partial<CollectionEntry> = {}): CollectionEntry {
     quantity: 1,
     set: 'FDN',
     collectorNumber: '1',
+    section: 'Main',
     ...overrides,
   }
 }

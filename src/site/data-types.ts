@@ -56,6 +56,8 @@ export interface CollectionCardEntry {
   condition: Condition
   price: number
   fileOrder: number
+  /** Section this entry belongs to. Defaults to `DEFAULT_SECTION` ("Main") when unsectioned. */
+  section: string
   note?: string
   cardId?: number
 }
@@ -82,6 +84,8 @@ export interface CollectionSummary {
 export interface CollectionDetail {
   name: string
   entries: CollectionCardEntry[]
+  /** Section names in file order, including empty sections. Used to order/render section groups. */
+  sectionOrder?: string[]
   cards: Record<string, ScryfallCard | null>
   printings: Record<string, ScryfallCard[]>
   symbolMap: Record<string, string>
@@ -103,6 +107,8 @@ export interface WantedListCardEntry {
   finish?: Finish
   price: number
   fileOrder: number
+  /** Section this entry belongs to. Defaults to `DEFAULT_SECTION` ("Main") when unsectioned. */
+  section: string
   note?: string
   state: WantedListEntryState
   cardId?: number
@@ -130,6 +136,8 @@ export interface WantedListSummary {
 export interface WantedListDetail {
   name: string
   entries: WantedListCardEntry[]
+  /** Section names in file order, including empty sections. Used to order/render section groups. */
+  sectionOrder?: string[]
   cards: Record<string, ScryfallCard | null>
   printings: Record<string, ScryfallCard[]>
   symbolMap: Record<string, string>

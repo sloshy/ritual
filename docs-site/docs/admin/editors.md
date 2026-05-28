@@ -63,7 +63,25 @@ This step appears when the selected printing has multiple finish options.
 
 ### Context Menu
 
-Right-clicking a card (or clicking the **⋯** button in binder/overlap views) opens a context menu. **Set as Foil** and **Change Printing…** are available in all editors. The Deck Editor additionally offers **Set as Commander**.
+Right-clicking a card (or clicking the **⋯** button in binder/overlap views) opens a context menu. **Set as Foil**, **Change Printing…**, and **Move to section** are available in all editors. The Deck Editor additionally offers **Set as Commander**.
+
+#### Move to Section
+
+The **Move to section** group lists every section except the card's current one, plus a **New section…** entry that prompts for a name and moves the card into a freshly created section. Moving a card emits a `set-section` change (latest-wins: moving a card back to its original section cancels the pending move).
+
+### Sections
+
+Every list type supports named **sections** that render as headed groups on the public site. Decks use sections for Commander/Main/Sideboard/Maybeboard; collections and wanted lists can be split into any sections you like (e.g. _Trade Binder_, _Foils_, _High Priority_).
+
+Click the **Sections** button in the bottom [action bar](#editor-action-bar) to open the **Manage Sections** dialog:
+
+- **Add a section** — type a name and click **Add Section** (or press Enter). New sections start empty. Section names must be unique **case-insensitively**: typing a name that already exists (in any casing) marks the input invalid, highlights the clashing row, and disables **Add Section**.
+- **Rename a section** — click **Rename** on a row; all cards in that section move with it. A rename that would collide with another section (case-insensitive) is rejected.
+- **Delete a section** — click **Delete** on a row. Only **empty** sections can be deleted; the button is disabled while a section still holds cards.
+
+Cards with no explicit section belong to an implicit **Main** section, which is written out explicitly the next time the list is saved. On the public site, a list with two or more sections defaults to grouping by section, and **Section** becomes a selectable grouping option in the toolbar.
+
+On disk, sections are `## Section Name` (H2) headers beneath the list's `# Title`, with card lines grouped under each header. See the [collection](../commands/collection.md) and [wanted](../commands/wanted.md) command docs for the file format.
 
 #### Change Printing
 
@@ -94,6 +112,7 @@ A bar pinned to the bottom of the editor holds all editing controls, from left t
 
 - **+ Add Card** — opens the card search modal (see [Adding Cards](#adding-cards))
 - **Add Card Defaults** — expands the [defaults panel](#add-card-defaults) upward
+- **Sections** — opens the [Manage Sections](#sections) dialog
 - **Changes** — shows the pending-change count and opens the changes dialog
 - **Undo** — reverts the most recent change
 - **Save Changes** / **Discard Changes**
@@ -156,7 +175,7 @@ Collections correspond to `.md` files in the `collections/` directory.
 
 ### Differences from Deck Editor
 
-- **No Set as Commander** — collections don't have sections
+- **No Set as Commander** — collections have no reserved Commander section (but support arbitrary user-named [sections](#sections))
 - **Printing required** — the **No specific printing** shortcut is not available; a specific printing must be selected
 - **Finish & condition required** — both must be set for collection entries
 
@@ -170,7 +189,7 @@ Wanted lists correspond to `.md` files in the `wanted/` directory.
 
 ### Differences from Deck Editor
 
-- **No Set as Commander** — wanted lists are flat
+- **No Set as Commander** — wanted lists have no reserved Commander section (but support arbitrary user-named [sections](#sections))
 - **No condition** — wanted lists track desired cards, not owned cards
 - **Printing optional** — cards can be added as name-only (cheapest printing), with a specific printing, or fully specified with a finish
 
@@ -178,14 +197,16 @@ Wanted lists correspond to `.md` files in the `wanted/` directory.
 
 ## Feature Comparison
 
-| Feature                   | Deck Editor | Collection Editor | Wanted List Editor |
-| ------------------------- | ----------- | ----------------- | ------------------ |
-| Set as Commander          | ✅          | ❌                | ❌                 |
-| Change printing           | ✅          | ✅                | ✅                 |
-| Multi-copy printing split | ✅ Entry    | ✅ Per-entry      | ❌ Single rows     |
-| No specific printing      | ✅ Allowed  | ❌ Must select    | ✅ Allowed         |
-| Condition field           | ✅ Optional | ✅ Required       | ❌ Not applicable  |
-| Finish field              | ✅ Optional | ✅ Required       | ✅ Optional        |
-| Sections (Commander etc)  | ✅ Yes      | ❌ Flat list      | ❌ Flat list       |
-| Changelog on save         | ✅          | ✅                | ✅                 |
-| Add Card Defaults         | ✅ Set/F/C  | ✅ Set/F/C        | ✅ Set/F           |
+| Feature                   | Deck Editor             | Collection Editor | Wanted List Editor |
+| ------------------------- | ----------------------- | ----------------- | ------------------ |
+| Set as Commander          | ✅                      | ❌                | ❌                 |
+| Change printing           | ✅                      | ✅                | ✅                 |
+| Multi-copy printing split | ✅ Entry                | ✅ Per-entry      | ❌ Single rows     |
+| No specific printing      | ✅ Allowed              | ❌ Must select    | ✅ Allowed         |
+| Condition field           | ✅ Optional             | ✅ Required       | ❌ Not applicable  |
+| Finish field              | ✅ Optional             | ✅ Required       | ✅ Optional        |
+| Sections                  | ✅ + reserved Commander | ✅ User-named     | ✅ User-named      |
+| Add/rename/delete section | ✅                      | ✅                | ✅                 |
+| Move card to section      | ✅                      | ✅                | ✅                 |
+| Changelog on save         | ✅                      | ✅                | ✅                 |
+| Add Card Defaults         | ✅ Set/F/C              | ✅ Set/F/C        | ✅ Set/F           |

@@ -14,6 +14,7 @@ import { applyChangeToWantedList } from '../types/wanted-changes'
 import { findEntryPrintingById } from '../types/entry-targeting'
 import { CardContextMenu } from '../components/CardContextMenu'
 import { EditorShell } from '../components/EditorShell'
+import { countsBySection, sectionOfTarget } from '../types/section-helpers'
 
 /**
  * Apply a "change printing" action to a wanted list. Each row is a single entry,
@@ -58,6 +59,7 @@ type WantedListListResponse = { wantedLists?: { slug: string; name: string }[] }
 type WantedListDataResponse = {
   success: boolean
   entries: WantedListCardEntry[]
+  sectionOrder?: string[]
   cards: Record<string, ScryfallCard | null>
   printings: Record<string, ScryfallCard[]>
   symbolMap: Record<string, string>
@@ -87,7 +89,7 @@ export function WantedListEditor(props: WantedListEditorProps): JSX.Element {
         data: r.entries,
         poolIds,
         contentHash: r.contentHash,
-        extra: {},
+        extra: { sectionOrder: r.sectionOrder ?? [] },
       }
     },
 
@@ -122,11 +124,15 @@ export function WantedListEditor(props: WantedListEditorProps): JSX.Element {
     getOriginalIds: (entries) =>
       entries.map((e) => e.cardId).filter((id): id is number => id !== undefined),
 
-    buildSaveBody: ({ data, changes, contentHash }) => ({
+    buildSaveBody: ({ data, changes, contentHash, sectionOrder }) => ({
       changes,
       entries: data,
       contentHash,
+      sectionOrder,
     }),
+
+    cardCountsBySection: countsBySection,
+    cardSectionOf: sectionOfTarget,
   }
 
   const editor = useEditor<WantedListCardEntry[], WantedListCardEntry>(config, props.initialSlug)
@@ -217,6 +223,9 @@ export function WantedListEditor(props: WantedListEditorProps): JSX.Element {
               anchorRect={menu().anchorRect}
               onClose={closeContextMenu}
               hideCommander={true}
+              sections={editor.sectionOrder()}
+              currentSection={editor.data() ? sectionOfTarget(editor.data()!, menu()) : undefined}
+              onMoveToSection={(section) => editor.handleMoveCardToSection(menu(), section)}
             />
           )}
         </Show>
@@ -225,6 +234,7 @@ export function WantedListEditor(props: WantedListEditorProps): JSX.Element {
       <WantedListPage
         name={editor.list().find((c) => c.slug === editor.slug())?.name ?? editor.slug()!}
         entries={editor.data()!}
+        sectionOrder={editor.sectionOrder()}
         cards={cardData.cards}
         printings={cardData.printings}
         symbolMap={cardData.symbolMap}

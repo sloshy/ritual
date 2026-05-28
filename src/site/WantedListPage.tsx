@@ -21,13 +21,14 @@ import { useTooltip } from './useTooltip'
 import { Toolbar } from './Toolbar'
 import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
+import { deriveSectionOrder, sectionDefaultGroupBy } from '../section-format'
 import { TradePrintingPicker } from './TradePrintingPicker'
 import { addEntryToRight, canAddMoreToRight, showTradeToast } from './useTradeState'
 import type { TradeSearchEntry } from './useTradeData'
 import { resolveCardThumbnailUrl } from './image-sources'
 import { hasSpecificPrinting } from '../card-printing'
 
-type WantedListGroupBy = Exclude<GroupBy, 'section'>
+type WantedListGroupBy = GroupBy
 type MetaEntry = { label: string; value: string }
 type WantedTradePicker = {
   cardName: string
@@ -38,6 +39,8 @@ type WantedTradePicker = {
 interface WantedListPageProps {
   name: string
   entries: WantedListCardEntry[]
+  /** Section names in display order, including empty sections. Falls back to entry order. */
+  sectionOrder?: string[]
   cards: Record<string, ScryfallCard | null>
   printings: Record<string, ScryfallCard[]>
   symbolMap: Record<string, string>
@@ -68,6 +71,25 @@ function resolveCardForEntry(
 }
 
 export const WantedListPage: Component<WantedListPageProps> = (props) => {
+  // Section order, including any empty sections from the build/save payload; falls back to the
+  // sections discovered in the entries (in file order) when not provided.
+  const sectionOrder = createMemo(() => deriveSectionOrder(props.sectionOrder, props.entries))
+  const hasSections = createMemo(() => sectionOrder().length >= 2)
+  const groupByOptions = createMemo(() => [
+    ...(hasSections() ? [{ value: 'section', label: 'Section' }] : []),
+    { value: 'type', label: 'Type' },
+    { value: 'cmc', label: 'Mana Value' },
+    { value: 'color-identity', label: 'Color Identity' },
+    { value: 'price', label: 'Price' },
+    { value: 'printing', label: 'Printing' },
+    { value: 'none', label: 'None' },
+  ])
+
+  // Intentional one-time seed for the toolbar's group-by signal (read once at construction;
+  // it must not fight the user's later toolbar changes). The editor remounts these pages on
+  // each load, so a stale seed is not reachable.
+  const initialGroupBy: WantedListGroupBy = sectionDefaultGroupBy(props.entries)
+
   const {
     viewMode,
     setViewMode,
@@ -85,7 +107,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     setHideLands,
     priceGroupStrategy,
     setPriceGroupStrategy,
-  } = useToolbarState<WantedListGroupBy>({ groupBy: 'none', sortBy: 'file-order' })
+  } = useToolbarState<WantedListGroupBy>({ groupBy: initialGroupBy, sortBy: 'file-order' })
   const [showChangelog, setShowChangelog] = createSignal(false)
 
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
@@ -188,7 +210,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         edhrec: card?.edhrec_rank ?? 999999,
         price: entry.price,
         type: card?.type_line ?? '',
-        section: 'Wanted List',
+        section: entry.section,
         fileOrder: entry.fileOrder,
         setCode: entry.set ?? '',
         colorIdentity: card?.color_identity ?? [],
@@ -212,7 +234,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
       groupBy(),
       sortBy(),
       reverse(),
-      [],
+      sectionOrder(),
       priceGroupStrategy(),
       props.currency,
       reverseGroups(),
@@ -389,14 +411,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         cardSize={cardSize()}
         onCardSizeChange={setCardSize}
         groupBy={groupBy()}
-        groupByOptions={[
-          { value: 'type', label: 'Type' },
-          { value: 'cmc', label: 'Mana Value' },
-          { value: 'color-identity', label: 'Color Identity' },
-          { value: 'price', label: 'Price' },
-          { value: 'printing', label: 'Printing' },
-          { value: 'none', label: 'None' },
-        ]}
+        groupByOptions={groupByOptions()}
         onGroupByChange={(v) => setGroupBy(v as WantedListGroupBy)}
         sortBy={sortBy()}
         sortByOptions={[

@@ -12,17 +12,20 @@ export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData
 
   const isCommander = (name: string) => name.toLowerCase().includes('commander')
   const isSideboard = (name: string) => name.toLowerCase().includes('sideboard')
+  // Section-meta changes carry no card; guard the reads so the closures type-check.
+  const changeCardId = 'cardId' in change ? change.cardId : undefined
+  const changeCardName = 'cardName' in change ? change.cardName : ''
 
   // Find a card by cardId first (precise), then fall back to name match
   const findCard = (sectionList: typeof sections) => {
-    if (change.cardId !== undefined) {
+    if (changeCardId !== undefined) {
       for (const section of sectionList) {
-        const idx = section.cards.findIndex((c) => c.cardId === change.cardId)
+        const idx = section.cards.findIndex((c) => c.cardId === changeCardId)
         if (idx !== -1) return { section, idx, card: section.cards[idx]! }
       }
     }
     for (const section of sectionList) {
-      const idx = section.cards.findIndex((c) => c.name === change.cardName)
+      const idx = section.cards.findIndex((c) => c.name === changeCardName)
       if (idx !== -1) return { section, idx, card: section.cards[idx]! }
     }
     return null
@@ -33,15 +36,15 @@ export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData
   // partial "change printing" split) as its own entry instead of merging it into
   // a same-named entry with a different set/finish/condition.
   const findCardForAdd = (sectionList: typeof sections, printing: PrintingTuple) => {
-    if (change.cardId !== undefined) {
+    if (changeCardId !== undefined) {
       for (const section of sectionList) {
-        const idx = section.cards.findIndex((c) => c.cardId === change.cardId)
+        const idx = section.cards.findIndex((c) => c.cardId === changeCardId)
         if (idx !== -1) return { section, idx, card: section.cards[idx]! }
       }
     }
     for (const section of sectionList) {
       const idx = section.cards.findIndex(
-        (c) => c.name === change.cardName && isSamePrinting(c, printing),
+        (c) => c.name === changeCardName && isSamePrinting(c, printing),
       )
       if (idx !== -1) return { section, idx, card: section.cards[idx]! }
     }
@@ -57,10 +60,13 @@ export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData
         return { ...deck, sections }
       }
 
-      // No existing entry — add to first non-commander, non-sideboard section
-      let targetSection = sections.find((s) => !isCommander(s.name) && !isSideboard(s.name))
+      // No existing entry — add to the explicitly requested section if given, otherwise the
+      // first non-commander, non-sideboard section.
+      let targetSection = change.section
+        ? sections.find((s) => s.name === change.section)
+        : sections.find((s) => !isCommander(s.name) && !isSideboard(s.name))
       if (!targetSection) {
-        targetSection = { name: 'Main', cards: [] }
+        targetSection = { name: change.section ?? 'Main', cards: [] }
         sections.push(targetSection)
       }
       targetSection.cards.push({
@@ -162,6 +168,41 @@ export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData
         found.card.note = noteOrUndefined(change.note)
         return { ...deck, sections }
       }
+      return { ...deck, sections }
+    }
+
+    case 'add-section': {
+      if (!sections.some((s) => s.name === change.section)) {
+        sections.push({ name: change.section, cards: [] })
+      }
+      return { ...deck, sections }
+    }
+
+    case 'remove-section': {
+      // Only remove an empty section; a non-empty one is left intact as a safety guard.
+      const idx = sections.findIndex((s) => s.name === change.section && s.cards.length === 0)
+      if (idx !== -1) sections.splice(idx, 1)
+      return { ...deck, sections }
+    }
+
+    case 'rename-section': {
+      const target = sections.find((s) => s.name === change.section)
+      if (target) target.name = change.newSection
+      return { ...deck, sections }
+    }
+
+    case 'set-section': {
+      const found = findCard(sections)
+      if (!found) return { ...deck, sections }
+      if (found.section.name === change.section) return { ...deck, sections }
+      const [moved] = found.section.cards.splice(found.idx, 1)
+      if (!moved) return { ...deck, sections }
+      let destination = sections.find((s) => s.name === change.section)
+      if (!destination) {
+        destination = { name: change.section, cards: [] }
+        sections.push(destination)
+      }
+      destination.cards.push(moved)
       return { ...deck, sections }
     }
 

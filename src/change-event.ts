@@ -24,6 +24,8 @@ export type AddChange = BaseChange & {
   condition?: Condition
   /** Deck board the card was added to. Omitted/`Main` renders without annotation. */
   board?: Board
+  /** Section the card was added to. Defaults to `DEFAULT_SECTION` ("Main") when omitted. */
+  section?: string
 }
 
 export type RemoveChange = BaseChange & {
@@ -83,6 +85,39 @@ export type MoveToChange = BaseChange & {
   from: ListRef
 }
 
+/**
+ * Base for section-structural changes. These target a section rather than a specific card,
+ * so they intentionally carry no `cardName`/`cardId`.
+ */
+export type SectionMetaBase = {
+  id: string
+  timestamp: number
+}
+
+export type AddSectionChange = SectionMetaBase & {
+  action: 'add-section'
+  section: string
+}
+
+export type RemoveSectionChange = SectionMetaBase & {
+  action: 'remove-section'
+  section: string
+}
+
+export type RenameSectionChange = SectionMetaBase & {
+  action: 'rename-section'
+  /** The existing section name being renamed. */
+  section: string
+  /** The new name for the section. */
+  newSection: string
+}
+
+/** Moves an existing card into a section. Keyed by card like the other per-card changes. */
+export type SetSectionChange = BaseChange & {
+  action: 'set-section'
+  section: string
+}
+
 export type ChangeEvent =
   | AddChange
   | RemoveChange
@@ -93,9 +128,20 @@ export type ChangeEvent =
   | SetNoteChange
   | MoveFromChange
   | MoveToChange
+  | AddSectionChange
+  | RemoveSectionChange
+  | RenameSectionChange
+  | SetSectionChange
 
 /** Derived from the union — kept as a convenience alias for switch statements. */
 export type ChangeAction = ChangeEvent['action']
+
+/**
+ * The card-bearing subset of {@link ChangeEvent} — every variant except the section-structural
+ * ones (add/remove/rename-section), which target a section rather than a card. Producers that
+ * never emit section-meta changes (e.g. the file diff) use this so `.cardName` is always present.
+ */
+export type CardChange = Extract<ChangeEvent, { cardName: string }>
 
 /** Distributes Omit over each member of a union, preserving discriminated-union structure. */
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
@@ -126,6 +172,8 @@ export type AddRemoveOptions = {
   cardId?: number
   /** Deck board the card was added to / removed from (e.g. `Sideboard`, `Maybeboard`). */
   board?: Board
+  /** Section the card was added to (flat lists and decks). Only consumed by `add`. */
+  section?: string
 }
 
 /** Options for set-commander / unset-commander actions. */
@@ -209,6 +257,7 @@ export function createAddChange(cardName: string, options?: AddRemoveOptions): A
     finish: options?.finish,
     condition: options?.condition,
     board: options?.board,
+    section: options?.section,
   }
 }
 
@@ -287,8 +336,43 @@ export function createMoveToChange(cardName: string, options: MoveToOptions): Mo
   }
 }
 
+function makeSectionMetaBase(): SectionMetaBase {
+  return { id: createChangeId(), timestamp: Date.now() }
+}
+
+export function createAddSectionChange(section: string): AddSectionChange {
+  return { ...makeSectionMetaBase(), action: 'add-section', section }
+}
+
+export function createRemoveSectionChange(section: string): RemoveSectionChange {
+  return { ...makeSectionMetaBase(), action: 'remove-section', section }
+}
+
+export function createRenameSectionChange(
+  section: string,
+  newSection: string,
+): RenameSectionChange {
+  return { ...makeSectionMetaBase(), action: 'rename-section', section, newSection }
+}
+
+export function createSetSectionChange(
+  cardName: string,
+  section: string,
+  cardId?: number,
+): SetSectionChange {
+  return { ...makeBase(cardName, cardId), action: 'set-section', section }
+}
+
 /** Check if two change events are exact opposites that should cancel out */
 export function areOppositeChanges(a: ChangeEvent, b: ChangeEvent): boolean {
+  // add-section and remove-section cancel each other for the same section name
+  if (
+    (a.action === 'add-section' && b.action === 'remove-section') ||
+    (a.action === 'remove-section' && b.action === 'add-section')
+  ) {
+    return a.section === b.section
+  }
+
   // set-commander and unset-commander cancel each other for the same card
   if (
     (a.action === 'set-commander' && b.action === 'unset-commander') ||
@@ -449,6 +533,59 @@ export function consolidateSetNote(
   return { changes: updatedChanges, addedChange, cancelledChange }
 }
 
+/**
+ * Apply a set-section action (move a card to a section) with "latest wins" semantics,
+ * mirroring {@link consolidateSetFinish}:
+ * - Removes any existing set-section for the same card from the changelog
+ * - Does not add a new change if `section` equals `originalSection` (card restored to its section)
+ * - Otherwise adds the new set-section change
+ */
+export function consolidateSetSection(
+  changes: ChangeEvent[],
+  cardName: string,
+  section: string,
+  originalSection: string,
+  cardId?: number,
+): ConsolidateResult {
+  const existingIdx = changes.findIndex(
+    (c) =>
+      c.action === 'set-section' &&
+      c.cardName === cardName &&
+      (cardId === undefined || c.cardId === undefined || c.cardId === cardId),
+  )
+  const cancelledChange: ChangeEvent | null =
+    existingIdx !== -1 ? (changes[existingIdx] ?? null) : null
+  let updatedChanges = existingIdx !== -1 ? changes.filter((_, i) => i !== existingIdx) : changes
+
+  let addedChange: ChangeEvent | null = null
+  if (section !== originalSection) {
+    addedChange = createSetSectionChange(cardName, section, cardId)
+    updatedChanges = [...updatedChanges, addedChange]
+  }
+
+  return { changes: updatedChanges, addedChange, cancelledChange }
+}
+
+/**
+ * Replay the section-structural changes (add/remove/rename-section) over an original section
+ * order to derive the current order. Card-level changes are ignored. Because this is a pure
+ * function of the original order plus the live change list, the result stays correct across
+ * undo without any separate reconciliation — the same way card data is replayed from `original`.
+ */
+export function replaySectionOrder(originalOrder: string[], changes: ChangeEvent[]): string[] {
+  let order = [...originalOrder]
+  for (const c of changes) {
+    if (c.action === 'add-section') {
+      if (!order.includes(c.section)) order.push(c.section)
+    } else if (c.action === 'remove-section') {
+      order = order.filter((s) => s !== c.section)
+    } else if (c.action === 'rename-section') {
+      order = order.map((s) => (s === c.section ? c.newSection : s))
+    }
+  }
+  return order
+}
+
 /** Check if a change is additive (green) or destructive (red) */
 export function isAdditiveChange(action: ChangeAction): boolean {
   return (
@@ -456,9 +593,12 @@ export function isAdditiveChange(action: ChangeAction): boolean {
     action === 'set-commander' ||
     action === 'set-finish' ||
     action === 'set-printing' ||
-    action === 'set-note'
+    action === 'set-note' ||
+    action === 'add-section' ||
+    action === 'rename-section' ||
+    action === 'set-section'
   )
-  // unset-commander is treated as destructive (red) like remove
+  // unset-commander and remove-section are treated as destructive (red) like remove
 }
 
 /**
@@ -513,8 +653,11 @@ type FormatChangeOptions = {
 /** Format a change event as a human-readable description, shared by formatChange and changelog writer */
 export function formatChangeCore(change: ChangeEvent, opts: FormatChangeOptions): string {
   const { tense } = opts
-  const idInfo = change.cardId !== undefined ? ` &${change.cardId}` : ''
-  const name = opts.quoteCardName ? `"${change.cardName}"` : change.cardName
+  // Section-meta changes (add/remove/rename-section) carry no card, so guard the reads.
+  const cardId = 'cardId' in change ? change.cardId : undefined
+  const cardName = 'cardName' in change ? change.cardName : ''
+  const idInfo = cardId !== undefined ? ` &${cardId}` : ''
+  const name = opts.quoteCardName ? `"${cardName}"` : cardName
 
   switch (change.action) {
     case 'add':
@@ -561,6 +704,14 @@ export function formatChangeCore(change: ChangeEvent, opts: FormatChangeOptions)
       const verb = tense === 'past' ? 'Moved' : 'Move'
       return `${verb} ${name}${ann}${idInfo} from ${listRefLabel(change.from)}`
     }
+    case 'add-section':
+      return `${tense === 'past' ? 'Added' : 'Add'} section "${change.section}"`
+    case 'remove-section':
+      return `${tense === 'past' ? 'Removed' : 'Remove'} section "${change.section}"`
+    case 'rename-section':
+      return `${tense === 'past' ? 'Renamed' : 'Rename'} section "${change.section}" to "${change.newSection}"`
+    case 'set-section':
+      return `${tense === 'past' ? 'Moved' : 'Move'} ${name} to section "${change.section}"${idInfo}`
     default: {
       change satisfies never
       throw new Error(`Unhandled change action (this is a bug)`)

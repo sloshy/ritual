@@ -7,6 +7,8 @@ import type { WantedListCardEntry } from '../../site/data-types'
 import type { ChangeEvent } from '../../change-event'
 import { formatWantedListLine } from '../../commands/wanted-helpers'
 import { getWantedDir } from '../../ritual-config'
+import { serializeSectionedList } from '../../section-format'
+import { parseTitleFromContent } from './simple-list-helpers'
 import {
   validateBodySize,
   validateContentHash,
@@ -18,6 +20,8 @@ interface WantedListSaveRequest {
   changes: ChangeEvent[]
   entries: WantedListCardEntry[]
   contentHash: string
+  /** Section names in display order, including empty sections. Optional for back-compat. */
+  sectionOrder?: string[]
 }
 
 function serializeWantedListEntry(entry: WantedListCardEntry): string {
@@ -29,7 +33,7 @@ function serializeWantedListEntry(entry: WantedListCardEntry): string {
     entry.finish,
     entry.note,
     entry.cardId,
-  ).trimEnd()
+  )
 }
 
 export async function handleWantedListSave(req: Request): Promise<Response> {
@@ -50,7 +54,7 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
     const sizeError = validateBodySize(req)
     if (sizeError) return sizeError
     const body = (await req.json()) as WantedListSaveRequest
-    const { changes, entries, contentHash } = body
+    const { changes, entries, contentHash, sectionOrder } = body
 
     if (!entries || !changes || typeof contentHash !== 'string') {
       return Response.json(
@@ -82,16 +86,12 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
 
     const filesToCommit: string[] = [filePath, hashPath(filePath)]
 
-    const existingLines = hashCheck.content.split('\n')
-    const headerLines: string[] = []
-    for (const line of existingLines) {
-      if (line.trimStart().startsWith('- ')) break
-      headerLines.push(line)
-    }
-
-    // Serialize entries
-    const entryLines = entries.map(serializeWantedListEntry)
-    const newContent = headerLines.join('\n') + entryLines.join('\n') + '\n'
+    // Re-serialize as a sectioned list, preserving the `# Title` H1. Entries carry their
+    // section from the client; the client-sent section order drives ordering (including any
+    // now-empty sections), falling back to the order discovered in the entries themselves.
+    const title = parseTitleFromContent(hashCheck.content) ?? slug
+    const order = sectionOrder ?? []
+    const newContent = serializeSectionedList(title, entries, order, serializeWantedListEntry)
     const newContentHash = await writeFileWithHash(filePath, newContent)
 
     // Write changelog

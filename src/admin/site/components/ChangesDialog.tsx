@@ -81,7 +81,9 @@ export const ChangesDialog: Component<ChangesDialogProps> = (props) => {
             <For each={props.changes}>
               {(change) => {
                 const additive = isAdditiveChange(change.action)
-                const card = props.cards[change.cardName] ?? null
+                // Section-meta changes carry no card, so there is nothing to link or preview.
+                const cardName = 'cardName' in change ? change.cardName : null
+                const card = cardName ? (props.cards[cardName] ?? null) : null
                 const imageUrl = card ? getCardImageUrl(card) : null
                 return (
                   <div
@@ -90,7 +92,7 @@ export const ChangesDialog: Component<ChangesDialogProps> = (props) => {
                     <span class="change-item-icon">{additive ? '+' : '−'}</span>
                     <ChangeText
                       change={change}
-                      onCardClick={() => setSelectedCard(change.cardName)}
+                      onCardClick={() => cardName && setSelectedCard(cardName)}
                       onHoverEnter={() =>
                         imageUrl ? setTooltip({ src: imageUrl, sideways: false }) : undefined
                       }
@@ -139,8 +141,9 @@ type ChangeTextProps = {
 const ChangeText: Component<ChangeTextProps> = (props) => {
   const parts = createMemo(() => {
     const formatted = formatChange(props.change)
-    const cardName = props.change.cardName
-    const idx = formatted.indexOf(cardName)
+    // Section-meta changes have no card name to isolate — render the line as plain text.
+    const cardName = 'cardName' in props.change ? props.change.cardName : ''
+    const idx = cardName ? formatted.indexOf(cardName) : -1
     if (idx === -1) return { formatted, before: null, cardName, after: null }
     return {
       formatted,

@@ -1,6 +1,6 @@
-import type { Component } from 'solid-js'
-import { Show, createSignal } from 'solid-js'
+import { type Component, For, Show, createSignal, createEffect, createMemo } from 'solid-js'
 import type { UseEditorDefaultsResult } from '../hooks/useEditorDefaults'
+import type { SectionInfo } from '../hooks/useEditor'
 import { EditorDefaultsForm } from './EditorDefaultsForm'
 
 type EditorActionBarProps = {
@@ -8,18 +8,58 @@ type EditorActionBarProps = {
   canUndo: boolean
   saving: boolean
   defaults: UseEditorDefaultsResult
+  sections: SectionInfo[]
   onAddCard: () => void
   onShowChanges: () => void
   onUndo: () => void
   onSave: () => void
   onDiscard: () => void
+  onAddSection: (name: string) => void
+  onRenameSection: (oldName: string, newName: string) => void
+  onRemoveSection: (name: string) => void
 }
 
 export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
   const [defaultsOpen, setDefaultsOpen] = createSignal(false)
+  const [sectionsOpen, setSectionsOpen] = createSignal(false)
+  const [newSectionName, setNewSectionName] = createSignal('')
+  let sectionsDialogRef: HTMLDialogElement | undefined
   // Condition is tracked for every list kind except wanted lists; derive it
   // from the defaults discriminant rather than threading a separate prop.
   const showCondition = () => props.defaults.kind !== 'wanted'
+
+  const trimmedName = () => newSectionName().trim()
+  // The existing section whose name matches the draft case-insensitively (its canonical casing),
+  // or undefined when the draft is free. Drives the duplicate highlight and the disabled state.
+  const duplicateOf = createMemo(() => {
+    const lower = trimmedName().toLowerCase()
+    if (!lower) return undefined
+    return props.sections.find((s) => s.name.toLowerCase() === lower)?.name
+  })
+  const canAddSection = () => trimmedName() !== '' && !duplicateOf()
+
+  const submitNewSection = () => {
+    if (!canAddSection()) return
+    props.onAddSection(trimmedName())
+    setNewSectionName('')
+  }
+
+  // Drive the native <dialog> from the open signal, matching the other editor dialogs.
+  createEffect(() => {
+    const dialog = sectionsDialogRef
+    if (!dialog) return
+    if (sectionsOpen() && !dialog.open) dialog.showModal()
+    else if (!sectionsOpen() && dialog.open) dialog.close()
+  })
+
+  const closeSections = () => {
+    setNewSectionName('')
+    setSectionsOpen(false)
+  }
+
+  const handleSectionsBackdropClick = (e: MouseEvent) => {
+    if ((e.target as Element) === sectionsDialogRef) sectionsDialogRef?.close()
+  }
 
   return (
     <div class="editor-action-dock">
@@ -43,6 +83,9 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
           <Show when={props.defaults.hasActive()}>
             <span class="btn-defaults-dot" aria-label="defaults active" />
           </Show>
+        </button>
+        <button type="button" class="btn-sections" onClick={() => setSectionsOpen(true)}>
+          Sections
         </button>
         <button type="button" class="btn-changes" onClick={props.onShowChanges}>
           Changes
@@ -70,6 +113,97 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
           Discard Changes
         </button>
       </div>
+
+      <dialog
+        ref={sectionsDialogRef}
+        class="discard-dialog-native"
+        onClose={closeSections}
+        onClick={handleSectionsBackdropClick}
+      >
+        <div class="confirm-dialog section-manager">
+          <h3>Manage Sections</h3>
+          <p class="dialog-message">
+            Sections group cards on the list page. Names must be unique (case-insensitive).
+          </p>
+
+          <div class="section-manager-add">
+            <input
+              type="text"
+              class={`form-input section-manager-input${duplicateOf() ? ' section-manager-input--invalid' : ''}`}
+              placeholder="New section name"
+              aria-invalid={duplicateOf() ? 'true' : undefined}
+              value={newSectionName()}
+              onInput={(e) => setNewSectionName(e.currentTarget.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  submitNewSection()
+                }
+              }}
+            />
+            <button
+              type="button"
+              class="btn section-manager-add-btn"
+              disabled={!canAddSection()}
+              onClick={submitNewSection}
+            >
+              Add Section
+            </button>
+          </div>
+          <Show when={duplicateOf()}>
+            {(name) => (
+              <p class="form-hint section-manager-error">
+                A section named “{name()}” already exists.
+              </p>
+            )}
+          </Show>
+
+          <ul class="section-manager-list">
+            <For each={props.sections}>
+              {(section) => (
+                <li
+                  class={`section-manager-row${duplicateOf() === section.name ? ' section-manager-row--clash' : ''}`}
+                >
+                  <span class="section-manager-name">{section.name}</span>
+                  <span class="section-manager-count">{section.count}</span>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm section-manager-rename"
+                    onClick={() => {
+                      const next = window.prompt(
+                        `Rename section “${section.name}” to:`,
+                        section.name,
+                      )
+                      if (next !== null) props.onRenameSection(section.name, next)
+                    }}
+                  >
+                    Rename
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm section-manager-delete"
+                    disabled={section.count > 0}
+                    title={section.count > 0 ? 'Only empty sections can be deleted' : undefined}
+                    onClick={() => props.onRemoveSection(section.name)}
+                  >
+                    Delete
+                  </button>
+                </li>
+              )}
+            </For>
+          </ul>
+
+          <div class="confirm-dialog-actions">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onClick={() => sectionsDialogRef?.close()}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </dialog>
     </div>
   )
 }

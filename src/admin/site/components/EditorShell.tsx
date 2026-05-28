@@ -129,11 +129,15 @@ export function EditorShell<TData, TCardEntry>(
           canUndo={editor.changes.canUndo()}
           saving={editor.status.saving}
           defaults={props.defaults}
+          sections={editor.sectionInfo()}
           onAddCard={editor.dialogs.openSearchModal}
           onShowChanges={editor.dialogs.openChanges}
           onUndo={editor.handleUndo}
           onSave={() => void editor.handleSave()}
           onDiscard={editor.dialogs.openDiscard}
+          onAddSection={editor.handleAddSection}
+          onRenameSection={editor.handleRenameSection}
+          onRemoveSection={editor.handleRemoveSection}
         />
       </Show>
     </div>

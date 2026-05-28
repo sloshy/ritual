@@ -706,6 +706,20 @@
   color: var(--text-secondary);
 }
 
+.card-context-menu-label {
+  padding: 6px 14px 2px;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+
+.card-context-menu-item--indented {
+  padding-left: 24px;
+}
+
 /* Card search modal */
 .search-modal-backdrop {
   position: fixed;
@@ -1093,6 +1107,96 @@
   height: 8px;
   border-radius: 9999px;
   background: var(--accent);
+}
+
+/* Sections share the defaults button styling. */
+.btn-sections {
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  border: 1px solid var(--border);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.15s;
+}
+
+.btn-sections:hover {
+  background: var(--btn-hover);
+}
+
+/* Manage-sections dialog. Chrome (backdrop, .confirm-dialog, .dialog-message,
+   .confirm-dialog-actions, .form-input, .btn) is shared with the other editor dialogs. */
+.section-manager {
+  min-width: min(440px, 90vw);
+}
+
+.section-manager-add {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.section-manager-input {
+  flex: 1;
+}
+
+.section-manager-input--invalid {
+  border-color: var(--error-border);
+}
+
+.section-manager-input--invalid:focus {
+  outline-color: var(--error);
+}
+
+.section-manager-error {
+  color: var(--error-text);
+  margin-top: 6px;
+}
+
+.section-manager-add-btn {
+  white-space: nowrap;
+}
+
+.section-manager-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 14px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.section-manager-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+/* The existing section that the in-progress name would collide with. */
+.section-manager-row--clash {
+  border-color: var(--error-border);
+  background: var(--error-bg);
+}
+
+.section-manager-name {
+  flex: 1;
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+}
+
+.section-manager-count {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  min-width: 1.5rem;
+  text-align: right;
 }
 
 .changes-badge {

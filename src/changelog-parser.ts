@@ -24,6 +24,10 @@ export type ChangelogAction =
   | 'Set printing'
   | 'Set note'
   | 'Cleared note'
+  | 'Added section'
+  | 'Removed section'
+  | 'Renamed section'
+  | 'Moved to section'
 
 export type ChangelogChange = {
   action: ChangelogAction
@@ -35,6 +39,10 @@ export type ChangelogChange = {
   note?: string
   /** Deck board for add/remove lines that target a non-main board (e.g. `Sideboard`). */
   board?: string
+  /** Section name for section-structural lines (add/remove/rename section, move to section). */
+  section?: string
+  /** New section name for `Renamed section "X" to "Y"` lines. */
+  newSection?: string
 }
 
 export type ChangelogPage = {
@@ -64,6 +72,13 @@ const SET_PRINTING_LINE_REGEX = /^-\s+Set\s+(.+?)\s+printing\s+to\s+(.+?)(?:\s+&
 /** Matches the `SET:CN [finish] [condition]` descriptor inside a set-printing line. */
 const PRINTING_DESCRIPTOR_REGEX = /^([^\s:]+):([^\s[]+)((?:\s*\[[^\]]+\])*)\s*$/
 
+/** Matches `Added section "X"` / `Removed section "X"`. */
+const SECTION_ADD_REMOVE_LINE_REGEX = /^-\s+(Added|Removed)\s+section\s+"(.*)"\s*$/
+/** Matches `Renamed section "X" to "Y"`. Both names are quoted; groups are non-greedy. */
+const SECTION_RENAME_LINE_REGEX = /^-\s+Renamed\s+section\s+"(.*?)"\s+to\s+"(.*)"\s*$/
+/** Matches `Moved "Card Name" to section "X" &5`. Card name is non-greedy so `&N` is separate. */
+const MOVE_TO_SECTION_LINE_REGEX = /^-\s+Moved\s+(.+?)\s+to\s+section\s+"(.*)"(?:\s+&\d+)?\s*$/
+
 const FINISH_VALUES = new Set(['foil', 'nonfoil', 'etched'])
 const CONDITION_VALUES = new Set(['NM', 'LP', 'MP', 'HP', 'DMG'])
 
@@ -78,6 +93,31 @@ function stripQuotes(name: string): string {
 }
 
 function parseChangeLine(line: string): ChangelogChange | null {
+  // Section-structural lines carry the literal word `section` and quoted section names that the
+  // generic add/remove/move regexes would misread as a card name — match them directly first.
+  const sectionAddRemove = line.match(SECTION_ADD_REMOVE_LINE_REGEX)
+  if (sectionAddRemove?.[1] && sectionAddRemove[2] !== undefined) {
+    const action = sectionAddRemove[1] === 'Added' ? 'Added section' : 'Removed section'
+    return { action, cardName: '', section: sectionAddRemove[2] }
+  }
+  const sectionRename = line.match(SECTION_RENAME_LINE_REGEX)
+  if (sectionRename?.[1] !== undefined && sectionRename[2] !== undefined) {
+    return {
+      action: 'Renamed section',
+      cardName: '',
+      section: sectionRename[1],
+      newSection: sectionRename[2],
+    }
+  }
+  const moveToSection = line.match(MOVE_TO_SECTION_LINE_REGEX)
+  if (moveToSection?.[1] && moveToSection[2] !== undefined) {
+    return {
+      action: 'Moved to section',
+      cardName: stripQuotes(moveToSection[1]),
+      section: moveToSection[2],
+    }
+  }
+
   // "Set note on X to ..." has free-form quoted content that the generic regex can't safely
   // strip — match it directly first so the card name is recovered cleanly.
   const setNote = line.match(SET_NOTE_LINE_REGEX)

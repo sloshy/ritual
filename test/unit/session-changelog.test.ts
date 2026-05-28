@@ -38,7 +38,7 @@ describe('trackAdd', () => {
     const event = makeEvent({ cardName: 'Lightning Bolt', set: 'lea', collectorNumber: '161' })
     trackAdd(changes, event)
 
-    expect(changes[0]!.cardName).toBe('Lightning Bolt')
+    expect((changes[0] as AddChange).cardName).toBe('Lightning Bolt')
     expect((changes[0] as AddChange).set).toBe('lea')
     expect((changes[0] as AddChange).collectorNumber).toBe('161')
   })

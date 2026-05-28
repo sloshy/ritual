@@ -16,10 +16,14 @@ export function isAdditiveAction(action: ChangelogAction): boolean {
     case 'Set finish':
     case 'Set printing':
     case 'Set note':
+    case 'Added section':
+    case 'Renamed section':
+    case 'Moved to section':
       return true
     case 'Removed':
     case 'Unset as commander':
     case 'Cleared note':
+    case 'Removed section':
       return false
     default:
       action satisfies never
@@ -84,6 +88,19 @@ export function formatChangeText(change: ChangelogChange): FormattedChange {
       return { prefix: 'Set note on ', suffix: ` to "${change.note}"` }
     case 'Cleared note':
       return { prefix: 'Cleared note on ', suffix: '' }
+    // Section-structural changes carry no card; the section name lives entirely in the prefix
+    // (cardName is empty, so the modal's clickable card-name node renders nothing).
+    case 'Added section':
+      return { prefix: `Added section "${change.section ?? ''}"`, suffix: '' }
+    case 'Removed section':
+      return { prefix: `Removed section "${change.section ?? ''}"`, suffix: '' }
+    case 'Renamed section':
+      return {
+        prefix: `Renamed section "${change.section ?? ''}" to "${change.newSection ?? ''}"`,
+        suffix: '',
+      }
+    case 'Moved to section':
+      return { prefix: 'Moved ', suffix: ` to section "${change.section ?? ''}"` }
     default:
       change.action satisfies never
       throw new Error(`Unhandled changelog action (this is a bug)`)

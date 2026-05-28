@@ -35,7 +35,7 @@ export async function handleCollectionLoad(req: Request): Promise<Response> {
     }
 
     const content = await file.text()
-    const { entries: rawEntries } = parseCollectionFile(content)
+    const { entries: rawEntries, sectionOrder } = parseCollectionFile(content)
 
     // Normalize set codes to lowercase so they match Scryfall card keys
     const entries = rawEntries.map((e) => ({ ...e, set: e.set.toLowerCase() }))
@@ -56,6 +56,7 @@ export async function handleCollectionLoad(req: Request): Promise<Response> {
     return Response.json({
       success: true,
       entries,
+      sectionOrder,
       cards,
       printings,
       symbolMap,

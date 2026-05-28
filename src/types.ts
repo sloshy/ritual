@@ -11,6 +11,14 @@ export type ErrorCode = 'not_found' | 'usage_error' | 'runtime_error'
 export const BOARDS = ['Commander', 'Main', 'Sideboard', 'Maybeboard'] as const
 export type Board = (typeof BOARDS)[number]
 
+/**
+ * The implicit section name applied to card entries that have no explicit `## Section`
+ * header. Cards parsed before the first header (or from a flat, section-less file) belong
+ * to this section, and it is written out explicitly on the next save. Matches the deck
+ * convention where ungrouped cards live in `Main`.
+ */
+export const DEFAULT_SECTION = 'Main'
+
 export interface Card {
   quantity: number
   name: string

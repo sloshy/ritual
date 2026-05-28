@@ -9,6 +9,8 @@ import { formatCollectionLine } from '../../commands/collection-helpers'
 import { getCollectionsDir } from '../../ritual-config'
 import { parseCollectionFile } from '../../commands/price-collection'
 import { applyChangeToCollection } from '../site/types/collection-changes'
+import { serializeSectionedList } from '../../section-format'
+import { parseTitleFromContent } from './simple-list-helpers'
 import {
   validateBodySize,
   validateContentHash,
@@ -19,6 +21,8 @@ import {
 interface CollectionSaveRequest {
   changes: ChangeEvent[]
   contentHash: string
+  /** Section names in display order, including empty sections. Optional for back-compat. */
+  sectionOrder?: string[]
 }
 
 function serializeCollectionEntry(entry: CollectionCardEntry): string {
@@ -30,7 +34,7 @@ function serializeCollectionEntry(entry: CollectionCardEntry): string {
     entry.condition,
     entry.note,
     entry.cardId,
-  ).trimEnd()
+  )
 }
 
 export async function handleCollectionSave(req: Request): Promise<Response> {
@@ -51,7 +55,7 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
     const sizeError = validateBodySize(req)
     if (sizeError) return sizeError
     const body = (await req.json()) as CollectionSaveRequest
-    const { changes, contentHash } = body
+    const { changes, contentHash, sectionOrder } = body
 
     if (!changes || typeof contentHash !== 'string') {
       return Response.json(
@@ -93,6 +97,7 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
       condition: e.condition ?? 'NM',
       price: 0,
       fileOrder: i,
+      section: e.section,
       note: e.note,
       cardId: e.cardId,
     }))
@@ -102,17 +107,12 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
       current = applyChangeToCollection(current, change)
     }
 
-    // Preserve header lines (everything before first `- ` line)
-    const existingLines = hashCheck.content.split('\n')
-    const headerLines: string[] = []
-    for (const line of existingLines) {
-      if (line.trimStart().startsWith('- ')) break
-      headerLines.push(line)
-    }
-
-    // Serialize entries
-    const entryLines = current.map(serializeCollectionEntry)
-    const newContent = headerLines.join('\n') + entryLines.join('\n') + '\n'
+    // Re-serialize as a sectioned list, preserving the `# Title` H1. The client-sent section
+    // order (which reflects any add/rename/remove-section edits, including now-empty sections)
+    // drives ordering; fall back to the file's parsed order when the client omits it.
+    const title = parseTitleFromContent(hashCheck.content) ?? slug
+    const order = sectionOrder ?? parsed.sectionOrder
+    const newContent = serializeSectionedList(title, current, order, serializeCollectionEntry)
     const newContentHash = await writeFileWithHash(filePath, newContent)
 
     // Write changelog

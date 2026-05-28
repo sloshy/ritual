@@ -186,6 +186,7 @@ export function registerPriceWantedListCommand(program: Command): void {
                   quantity: 1,
                   set: rep.cheapest.set,
                   collectorNumber: rep.cheapest.collector_number,
+                  section: entry.section,
                 }
                 const cheapFinish = resolveFinish(collectionEntry, rep.cheapest)
                 finish = cheapFinish
@@ -231,6 +232,7 @@ export function registerPriceWantedListCommand(program: Command): void {
                 quantity: 1,
                 set: entry.set!,
                 collectorNumber: entry.collectorNumber!,
+                section: entry.section,
               }
               const defaultFinish = resolveFinish(collectionEntry, exactPrinting)
               latest = getPriceForFinish(exactPrinting, defaultFinish, currency)

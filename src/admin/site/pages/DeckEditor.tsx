@@ -185,6 +185,28 @@ function getDeckCardIds(deck: DeckData): number[] {
   return ids
 }
 
+/** Number of distinct card lines per section, for the section manager. */
+function deckCountsBySection(deck: DeckData): Record<string, number> {
+  const counts: Record<string, number> = {}
+  for (const section of deck.sections) counts[section.name] = section.cards.length
+  return counts
+}
+
+/** Find the section a targeted card currently lives in (by card ID, then name). */
+function findDeckCardSection(deck: DeckData, target: CardContextInfo): string | undefined {
+  const cardId = target.cardIds[0]
+  for (const section of deck.sections) {
+    if (
+      section.cards.some(
+        (c) => (cardId !== undefined && c.cardId === cardId) || c.name === target.cardName,
+      )
+    ) {
+      return section.name
+    }
+  }
+  return undefined
+}
+
 type DeckEditorProps = { initialSlug?: string | null }
 
 export function DeckEditor(props: DeckEditorProps): JSX.Element {
@@ -249,6 +271,10 @@ export function DeckEditor(props: DeckEditorProps): JSX.Element {
       frontMatter: extra.frontMatter,
       contentHash,
     }),
+
+    sectionsOf: (deck) => deck.sections.map((s) => s.name),
+    cardCountsBySection: deckCountsBySection,
+    cardSectionOf: findDeckCardSection,
   }
 
   const editor = useEditor<DeckData, Card>(config, props.initialSlug)
@@ -371,6 +397,14 @@ export function DeckEditor(props: DeckEditorProps): JSX.Element {
               isCommander={menu().isInCommanderSection}
               anchorRect={menu().anchorRect}
               onClose={closeContextMenu}
+              sections={editor.sectionOrder()}
+              currentSection={
+                editor.data() ? findDeckCardSection(editor.data()!, menu()) : undefined
+              }
+              onMoveToSection={(section) => {
+                editor.handleMoveCardToSection(menu(), section)
+                setDeckContextMenu(null)
+              }}
             />
           )}
         </Show>

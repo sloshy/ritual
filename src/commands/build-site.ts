@@ -924,7 +924,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       continue
     }
 
-    const { entries, warnings } = parseCollectionFile(content)
+    const { entries, sectionOrder: collectionSectionOrder, warnings } = parseCollectionFile(content)
     for (const w of warnings) {
       console.warn(`  ⚠️  ${w}`)
     }
@@ -1041,6 +1041,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
         condition: entry.condition ?? 'NM',
         price,
         fileOrder: i,
+        section: entry.section,
         note: entry.note,
         cardId: entry.cardId,
       })
@@ -1093,6 +1094,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     const collectionDetailData: CollectionDetail = {
       name: displayName,
       entries: cardEntries,
+      sectionOrder: collectionSectionOrder,
       cards: collectionCardMap,
       printings: collectionPrintingsMap,
       symbolMap,
@@ -1154,7 +1156,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       continue
     }
 
-    const { entries } = parseWantedListFile(content)
+    const { entries, sectionOrder: wlSectionOrder } = parseWantedListFile(content)
 
     if (entries.length === 0) {
       console.log(`  ${wlName}: no valid entries, skipping`)
@@ -1287,6 +1289,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
                 quantity: 1,
                 set: entry.set!,
                 collectorNumber: entry.collectorNumber!,
+                section: entry.section,
               },
               exactPrinting,
             )
@@ -1331,6 +1334,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
         finish: entry.finish,
         price,
         fileOrder: i,
+        section: entry.section,
         note: entry.note,
         state,
         cardId: entry.cardId,
@@ -1367,6 +1371,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     const wlDetailData: WantedListDetail = {
       name: displayName,
       entries: cardEntries,
+      sectionOrder: wlSectionOrder,
       cards: wlCardMap,
       printings: wlPrintingsMap,
       symbolMap,

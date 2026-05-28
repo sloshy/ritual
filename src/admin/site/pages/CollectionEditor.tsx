@@ -14,6 +14,7 @@ import { applyChangeToCollection } from '../types/collection-changes'
 import { findEntryPrintingById } from '../types/entry-targeting'
 import { CardContextMenu } from '../components/CardContextMenu'
 import { EditorShell } from '../components/EditorShell'
+import { countsBySection, sectionOfTarget } from '../types/section-helpers'
 
 /**
  * Apply a "change printing" action to a collection. Each grouped copy is its own
@@ -64,6 +65,7 @@ type CollectionListResponse = { collections?: { slug: string; name: string }[] }
 type CollectionDataResponse = {
   success: boolean
   entries: CollectionCardEntry[]
+  sectionOrder?: string[]
   cards: Record<string, ScryfallCard | null>
   printings: Record<string, ScryfallCard[]>
   symbolMap: Record<string, string>
@@ -93,7 +95,7 @@ export function CollectionEditor(props: CollectionEditorProps): JSX.Element {
         data: r.entries,
         poolIds,
         contentHash: r.contentHash,
-        extra: {},
+        extra: { sectionOrder: r.sectionOrder ?? [] },
       }
     },
 
@@ -128,7 +130,14 @@ export function CollectionEditor(props: CollectionEditorProps): JSX.Element {
     getOriginalIds: (entries) =>
       entries.map((e) => e.cardId).filter((id): id is number => id !== undefined),
 
-    buildSaveBody: ({ changes, contentHash }) => ({ changes, contentHash }),
+    buildSaveBody: ({ changes, contentHash, sectionOrder }) => ({
+      changes,
+      contentHash,
+      sectionOrder,
+    }),
+
+    cardCountsBySection: countsBySection,
+    cardSectionOf: sectionOfTarget,
   }
 
   const editor = useEditor<CollectionCardEntry[], CollectionCardEntry>(config, props.initialSlug)
@@ -222,6 +231,9 @@ export function CollectionEditor(props: CollectionEditorProps): JSX.Element {
               anchorRect={menu().anchorRect}
               onClose={closeContextMenu}
               hideCommander={true}
+              sections={editor.sectionOrder()}
+              currentSection={editor.data() ? sectionOfTarget(editor.data()!, menu()) : undefined}
+              onMoveToSection={(section) => editor.handleMoveCardToSection(menu(), section)}
             />
           )}
         </Show>
@@ -230,6 +242,7 @@ export function CollectionEditor(props: CollectionEditorProps): JSX.Element {
       <CollectionPage
         name={editor.list().find((c) => c.slug === editor.slug())?.name ?? editor.slug()!}
         entries={editor.data()!}
+        sectionOrder={editor.sectionOrder()}
         cards={cardData.cards}
         printings={cardData.printings}
         symbolMap={cardData.symbolMap}

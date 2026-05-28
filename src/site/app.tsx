@@ -269,6 +269,7 @@ function App() {
                   <WantedListPage
                     name={wantedListDetail()!.name}
                     entries={wantedListDetail()!.entries}
+                    sectionOrder={wantedListDetail()!.sectionOrder}
                     cards={wantedListDetail()!.cards}
                     printings={wantedListDetail()!.printings ?? {}}
                     symbolMap={wantedListDetail()!.symbolMap}
@@ -296,6 +297,7 @@ function App() {
                   <CollectionPage
                     name={collectionDetail()!.name}
                     entries={collectionDetail()!.entries}
+                    sectionOrder={collectionDetail()!.sectionOrder}
                     cards={collectionDetail()!.cards}
                     printings={collectionDetail()!.printings ?? {}}
                     symbolMap={collectionDetail()!.symbolMap}

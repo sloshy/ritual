@@ -1,5 +1,6 @@
 import type { ChangeInput } from '../../../change-event'
 import type { CollectionCardEntry } from '../../../site/data-types'
+import { DEFAULT_SECTION } from '../../../types'
 import { noteOrUndefined } from '../../../note-helpers'
 import { findTargetEntryIndex } from './entry-targeting.js'
 
@@ -26,6 +27,7 @@ export function applyChangeToCollection(
         condition: change.condition ?? 'NM',
         price: 0,
         fileOrder: entries.length,
+        section: change.section ?? DEFAULT_SECTION,
         cardId: change.cardId,
       }
       return [...entries, newEntry]
@@ -64,6 +66,26 @@ export function applyChangeToCollection(
       if (idx === -1) return entries
       const note = noteOrUndefined(change.note)
       return entries.map((e, i) => (i === idx ? { ...e, note } : e))
+    }
+
+    case 'set-section': {
+      const idx = findTargetEntryIndex(entries, change)
+      if (idx === -1) return entries
+      return entries.map((e, i) => (i === idx ? { ...e, section: change.section } : e))
+    }
+
+    case 'rename-section': {
+      // Membership lives on each entry; the section-order list is maintained by the caller.
+      return entries.map((e) =>
+        e.section === change.section ? { ...e, section: change.newSection } : e,
+      )
+    }
+
+    case 'add-section':
+    case 'remove-section': {
+      // Section existence/order is tracked separately from entries; a remove only ever
+      // targets an empty section, so neither op changes the entry array.
+      return entries
     }
 
     case 'set-commander':

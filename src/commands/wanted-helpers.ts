@@ -2,7 +2,8 @@ import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import prompts from 'prompts'
 import type { PromptState } from './prompts-types'
-import type { Finish, ScryfallCard } from '../types'
+import { DEFAULT_SECTION, type Finish, type ScryfallCard } from '../types'
+import { matchSectionHeader } from '../section-format'
 import { capitalize } from '../utils'
 import { getAllCardNames } from '../scryfall'
 import { isFinish, VALID_FINISHES, type SessionConfig } from './collection-helpers'
@@ -18,12 +19,16 @@ export type WantedListEntry = {
   finish?: Finish
   note?: string
   cardId?: number
+  /** Section this entry belongs to. Defaults to `DEFAULT_SECTION` ("Main") when unsectioned. */
+  section: string
 }
 
 export type CardPrinting = { set: string; collectorNumber: string }
 
 export type WantedListParseResult = {
   entries: WantedListEntry[]
+  /** Section names in first-seen order, including empty sections that have no entries. */
+  sectionOrder: string[]
   warnings: string[]
 }
 
@@ -36,10 +41,24 @@ export const WANTED_CARD_LINE_RE =
 
 export function parseWantedListFile(content: string): WantedListParseResult {
   const entries: WantedListEntry[] = []
+  const sectionOrder: string[] = []
   const warnings: string[] = []
+  let currentSection = DEFAULT_SECTION
+
+  const registerSection = (name: string): void => {
+    if (!sectionOrder.includes(name)) sectionOrder.push(name)
+  }
 
   for (const line of content.split('\n')) {
     const trimmed = line.trim()
+
+    const header = matchSectionHeader(trimmed)
+    if (header) {
+      currentSection = header
+      registerSection(header)
+      continue
+    }
+
     if (!trimmed.startsWith('- ')) continue
 
     const match = trimmed.match(WANTED_CARD_LINE_RE)
@@ -55,6 +74,8 @@ export function parseWantedListFile(content: string): WantedListParseResult {
     const finish = rawFinish !== undefined && isFinish(rawFinish) ? rawFinish : undefined
     const note = match[5]
 
+    // A card before any explicit header pins the implicit Main section into the order list.
+    registerSection(currentSection)
     entries.push({
       name,
       quantity: 1,
@@ -63,9 +84,10 @@ export function parseWantedListFile(content: string): WantedListParseResult {
       finish,
       note,
       cardId: match[6] ? Number.parseInt(match[6], 10) : undefined,
+      section: currentSection,
     })
   }
-  return { entries, warnings }
+  return { entries, sectionOrder, warnings }
 }
 
 export function formatWantedListLine(

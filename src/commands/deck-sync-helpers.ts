@@ -1,4 +1,4 @@
-import { createAddChange, createRemoveChange, type ChangeEvent } from '../change-event'
+import { createAddChange, createRemoveChange, type CardChange } from '../change-event'
 import { BOARDS, type Board, type DeckSection } from '../types'
 import { isCommanderSection, isSideboardSection, isExtraSection } from '../deck-format'
 
@@ -152,8 +152,8 @@ export function buildCardIdResolver(...sectionSets: DeckSection[][]): CardIdReso
  * When a `resolveCardId` is supplied, each event is stamped with the card's
  * stable `&N` ID so the changelog matches the IDs written to the deck file.
  */
-export function diffToChangeEvents(diff: NameDiff, resolveCardId?: CardIdResolver): ChangeEvent[] {
-  const changes: ChangeEvent[] = []
+export function diffToChangeEvents(diff: NameDiff, resolveCardId?: CardIdResolver): CardChange[] {
+  const changes: CardChange[] = []
 
   for (const card of diff.added) {
     for (let i = 0; i < card.totalQuantity; i++) {

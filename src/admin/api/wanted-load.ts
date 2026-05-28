@@ -35,7 +35,7 @@ export async function handleWantedListLoad(req: Request): Promise<Response> {
     }
 
     const content = await file.text()
-    const { entries } = parseWantedListFile(content)
+    const { entries, sectionOrder } = parseWantedListFile(content)
 
     // Collect unique card names
     const cardNames = new Set<string>()
@@ -53,6 +53,7 @@ export async function handleWantedListLoad(req: Request): Promise<Response> {
     return Response.json({
       success: true,
       entries,
+      sectionOrder,
       cards,
       printings,
       symbolMap,

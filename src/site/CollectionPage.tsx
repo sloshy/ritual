@@ -21,19 +21,21 @@ import { useTooltip } from './useTooltip'
 import { Toolbar } from './Toolbar'
 import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
+import { deriveSectionOrder, sectionDefaultGroupBy } from '../section-format'
 import { addEntryToLeft, canAddMoreToLeft, showTradeToast } from './useTradeState'
 import type { TradeSearchEntry } from './useTradeData'
 import { resolveCardThumbnailUrl } from './image-sources'
 
-// Collections always have a specific printing, so 'printing' grouping does not
-// apply; 'section' is deck-only.
-type CollectionGroupBy = Exclude<GroupBy, 'section' | 'printing'>
+// Collections always have a specific printing, so 'printing' grouping does not apply.
+type CollectionGroupBy = Exclude<GroupBy, 'printing'>
 type MetaEntry = { label: string; value: string }
 type GroupedEntry = { entry: CollectionCardEntry; count: number }
 
 interface CollectionPageProps {
   name: string
   entries: CollectionCardEntry[]
+  /** Section names in display order, including empty sections. Falls back to entry order. */
+  sectionOrder?: string[]
   cards: Record<string, ScryfallCard | null>
   printings: Record<string, ScryfallCard[]>
   symbolMap: Record<string, string>
@@ -54,6 +56,24 @@ interface CollectionPageProps {
 }
 
 export const CollectionPage: Component<CollectionPageProps> = (props) => {
+  // Section order, including any empty sections from the build/save payload; falls back to the
+  // sections discovered in the entries (in file order) when not provided.
+  const sectionOrder = createMemo(() => deriveSectionOrder(props.sectionOrder, props.entries))
+  const hasSections = createMemo(() => sectionOrder().length >= 2)
+  const groupByOptions = createMemo(() => [
+    ...(hasSections() ? [{ value: 'section', label: 'Section' }] : []),
+    { value: 'type', label: 'Type' },
+    { value: 'cmc', label: 'Mana Value' },
+    { value: 'color-identity', label: 'Color Identity' },
+    { value: 'price', label: 'Price' },
+    { value: 'none', label: 'None' },
+  ])
+
+  // Intentional one-time seed for the toolbar's group-by signal (read once at construction;
+  // it must not fight the user's later toolbar changes). The editor remounts these pages on
+  // each load, so a stale seed is not reachable.
+  const initialGroupBy: CollectionGroupBy = sectionDefaultGroupBy(props.entries)
+
   const {
     viewMode,
     setViewMode,
@@ -71,7 +91,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     setHideLands,
     priceGroupStrategy,
     setPriceGroupStrategy,
-  } = useToolbarState<CollectionGroupBy>({ groupBy: 'none', sortBy: 'file-order' })
+  } = useToolbarState<CollectionGroupBy>({ groupBy: initialGroupBy, sortBy: 'file-order' })
   const [groupDuplicates, setGroupDuplicates] = createSignal(false)
   const [hideUnpriced, setHideUnpriced] = createSignal(false)
   const [showChangelog, setShowChangelog] = createSignal(false)
@@ -172,7 +192,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
           edhrec: card?.edhrec_rank ?? 999999,
           price: entry.price,
           type: card?.type_line ?? '',
-          section: 'Collection',
+          section: entry.section,
           fileOrder: entry.fileOrder,
           setCode: entry.set,
           colorIdentity: card?.color_identity ?? [],
@@ -221,7 +241,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       groupBy(),
       sortBy(),
       reverse(),
-      [],
+      sectionOrder(),
       priceGroupStrategy(),
       props.currency,
       reverseGroups(),
@@ -402,13 +422,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         cardSize={cardSize()}
         onCardSizeChange={setCardSize}
         groupBy={groupBy()}
-        groupByOptions={[
-          { value: 'type', label: 'Type' },
-          { value: 'cmc', label: 'Mana Value' },
-          { value: 'color-identity', label: 'Color Identity' },
-          { value: 'price', label: 'Price' },
-          { value: 'none', label: 'None' },
-        ]}
+        groupByOptions={groupByOptions()}
         onGroupByChange={(v) => setGroupBy(v as CollectionGroupBy)}
         sortBy={sortBy()}
         sortByOptions={[

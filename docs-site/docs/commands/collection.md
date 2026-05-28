@@ -79,6 +79,22 @@ For example:
 
 Non-foil finish and no-preference condition are omitted for brevity. The note is optional and can be added after entry via the `📝 Add Note` menu option. Notes are displayed in the card detail modal on the generated site. The `&N` suffix is a persistent card ID used internally for change tracking and is auto-assigned.
 
+### Sections
+
+A collection can be split into named **sections** using `## Section Name` (H2) headers beneath the `# Title`. Cards are grouped under the header that precedes them; cards before the first header (or in a section-less file) belong to an implicit **Main** section that is written out explicitly the next time the file is saved.
+
+```
+# My Binder
+
+## Trade Binder
+- Sol Ring (C19:221) [foil] [NM] &1
+
+## Keep
+- Lightning Bolt (LEA:161) &2
+```
+
+Section order is preserved as written. On the generated site, a collection with two or more sections defaults to grouping by section, and **Section** appears as a grouping option in the toolbar. Sections are managed from the [admin Collection Editor](../admin/editors.md#sections); pricing commands ignore section headers.
+
 ## Examples
 
 Start the collection manager:

@@ -8,6 +8,7 @@ function makeEntry(overrides: Partial<WantedListCardEntry> = {}): WantedListCard
     price: 1.0,
     fileOrder: 0,
     state: 'name-only',
+    section: 'Main',
     ...overrides,
   }
 }

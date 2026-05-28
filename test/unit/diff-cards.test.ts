@@ -172,7 +172,14 @@ describe('diffCollectionEntries', () => {
   test('detects added entries', () => {
     const oldEntries: CollectionEntry[] = []
     const newEntries: CollectionEntry[] = [
-      { name: 'Black Lotus', quantity: 1, set: 'lea', collectorNumber: '233', cardId: 1 },
+      {
+        name: 'Black Lotus',
+        quantity: 1,
+        set: 'lea',
+        collectorNumber: '233',
+        cardId: 1,
+        section: 'Main',
+      },
     ]
 
     const changes = diffCollectionEntries(oldEntries, newEntries)
@@ -183,7 +190,14 @@ describe('diffCollectionEntries', () => {
 
   test('detects removed entries', () => {
     const oldEntries: CollectionEntry[] = [
-      { name: 'Mox Pearl', quantity: 1, set: 'lea', collectorNumber: '263', cardId: 2 },
+      {
+        name: 'Mox Pearl',
+        quantity: 1,
+        set: 'lea',
+        collectorNumber: '263',
+        cardId: 2,
+        section: 'Main',
+      },
     ]
     const newEntries: CollectionEntry[] = []
 
@@ -195,10 +209,24 @@ describe('diffCollectionEntries', () => {
 
   test('matches by cardId', () => {
     const oldEntries: CollectionEntry[] = [
-      { name: 'Sol Ring', quantity: 1, set: 'c21', collectorNumber: '167', cardId: 5 },
+      {
+        name: 'Sol Ring',
+        quantity: 1,
+        set: 'c21',
+        collectorNumber: '167',
+        cardId: 5,
+        section: 'Main',
+      },
     ]
     const newEntries: CollectionEntry[] = [
-      { name: 'Sol Ring', quantity: 1, set: 'cmr', collectorNumber: '472', cardId: 5 },
+      {
+        name: 'Sol Ring',
+        quantity: 1,
+        set: 'cmr',
+        collectorNumber: '472',
+        cardId: 5,
+        section: 'Main',
+      },
     ]
 
     const changes = diffCollectionEntries(oldEntries, newEntries)
@@ -207,10 +235,10 @@ describe('diffCollectionEntries', () => {
 
   test('falls back to composite key without cardId', () => {
     const oldEntries: CollectionEntry[] = [
-      { name: 'Sol Ring', quantity: 1, set: 'c21', collectorNumber: '167' },
+      { name: 'Sol Ring', quantity: 1, set: 'c21', collectorNumber: '167', section: 'Main' },
     ]
     const newEntries: CollectionEntry[] = [
-      { name: 'Sol Ring', quantity: 1, set: 'c21', collectorNumber: '167' },
+      { name: 'Sol Ring', quantity: 1, set: 'c21', collectorNumber: '167', section: 'Main' },
     ]
 
     const changes = diffCollectionEntries(oldEntries, newEntries)
@@ -220,6 +248,7 @@ describe('diffCollectionEntries', () => {
   test('treats different finishes as different entries', () => {
     const oldEntries: CollectionEntry[] = [
       {
+        section: 'Main',
         name: 'Sol Ring',
         quantity: 1,
         set: 'c21',
@@ -228,7 +257,14 @@ describe('diffCollectionEntries', () => {
       },
     ]
     const newEntries: CollectionEntry[] = [
-      { name: 'Sol Ring', quantity: 1, set: 'c21', collectorNumber: '167', finish: 'foil' },
+      {
+        name: 'Sol Ring',
+        quantity: 1,
+        set: 'c21',
+        collectorNumber: '167',
+        finish: 'foil',
+        section: 'Main',
+      },
     ]
 
     const changes = diffCollectionEntries(oldEntries, newEntries)
@@ -242,6 +278,7 @@ describe('diffCollectionEntries', () => {
   test('detects finish changes by cardId', () => {
     const oldEntries: CollectionEntry[] = [
       {
+        section: 'Main',
         name: 'Sol Ring',
         quantity: 1,
         set: 'c21',
@@ -252,6 +289,7 @@ describe('diffCollectionEntries', () => {
     ]
     const newEntries: CollectionEntry[] = [
       {
+        section: 'Main',
         name: 'Sol Ring',
         quantity: 1,
         set: 'c21',
@@ -269,10 +307,24 @@ describe('diffCollectionEntries', () => {
 
   test('does not track quantity changes', () => {
     const oldEntries: CollectionEntry[] = [
-      { name: 'Island', quantity: 2, set: 'lea', collectorNumber: '288', cardId: 6 },
+      {
+        name: 'Island',
+        quantity: 2,
+        set: 'lea',
+        collectorNumber: '288',
+        cardId: 6,
+        section: 'Main',
+      },
     ]
     const newEntries: CollectionEntry[] = [
-      { name: 'Island', quantity: 5, set: 'lea', collectorNumber: '288', cardId: 6 },
+      {
+        name: 'Island',
+        quantity: 5,
+        set: 'lea',
+        collectorNumber: '288',
+        cardId: 6,
+        section: 'Main',
+      },
     ]
 
     const changes = diffCollectionEntries(oldEntries, newEntries)
@@ -281,8 +333,22 @@ describe('diffCollectionEntries', () => {
 
   test('returns empty for identical collections', () => {
     const entries: CollectionEntry[] = [
-      { name: 'Black Lotus', quantity: 1, set: 'lea', collectorNumber: '233', cardId: 1 },
-      { name: 'Mox Pearl', quantity: 1, set: 'lea', collectorNumber: '263', cardId: 2 },
+      {
+        name: 'Black Lotus',
+        quantity: 1,
+        set: 'lea',
+        collectorNumber: '233',
+        cardId: 1,
+        section: 'Main',
+      },
+      {
+        name: 'Mox Pearl',
+        quantity: 1,
+        set: 'lea',
+        collectorNumber: '263',
+        cardId: 2,
+        section: 'Main',
+      },
     ]
 
     const changes = diffCollectionEntries(entries, entries)
@@ -295,7 +361,9 @@ describe('diffCollectionEntries', () => {
 describe('diffWantedEntries', () => {
   test('detects added entries', () => {
     const oldEntries: WantedListEntry[] = []
-    const newEntries: WantedListEntry[] = [{ name: 'Queen Marchesa', quantity: 1, cardId: 1 }]
+    const newEntries: WantedListEntry[] = [
+      { name: 'Queen Marchesa', quantity: 1, cardId: 1, section: 'Main' },
+    ]
 
     const changes = diffWantedEntries(oldEntries, newEntries)
     expect(changes).toHaveLength(1)
@@ -305,7 +373,14 @@ describe('diffWantedEntries', () => {
 
   test('detects removed entries', () => {
     const oldEntries: WantedListEntry[] = [
-      { name: 'Demonic Tutor', quantity: 1, set: 'uma', collectorNumber: '93', cardId: 3 },
+      {
+        name: 'Demonic Tutor',
+        quantity: 1,
+        set: 'uma',
+        collectorNumber: '93',
+        cardId: 3,
+        section: 'Main',
+      },
     ]
     const newEntries: WantedListEntry[] = []
 
@@ -316,9 +391,18 @@ describe('diffWantedEntries', () => {
   })
 
   test('matches by cardId', () => {
-    const oldEntries: WantedListEntry[] = [{ name: 'Force of Will', quantity: 1, cardId: 10 }]
+    const oldEntries: WantedListEntry[] = [
+      { name: 'Force of Will', quantity: 1, cardId: 10, section: 'Main' },
+    ]
     const newEntries: WantedListEntry[] = [
-      { name: 'Force of Will', quantity: 1, set: 'all', collectorNumber: '28', cardId: 10 },
+      {
+        name: 'Force of Will',
+        quantity: 1,
+        set: 'all',
+        collectorNumber: '28',
+        cardId: 10,
+        section: 'Main',
+      },
     ]
 
     const changes = diffWantedEntries(oldEntries, newEntries)
@@ -327,8 +411,15 @@ describe('diffWantedEntries', () => {
 
   test('returns empty for identical lists', () => {
     const entries: WantedListEntry[] = [
-      { name: 'Queen Marchesa', quantity: 1, cardId: 1 },
-      { name: 'Demonic Tutor', quantity: 1, set: 'uma', collectorNumber: '93', cardId: 2 },
+      { name: 'Queen Marchesa', quantity: 1, cardId: 1, section: 'Main' },
+      {
+        name: 'Demonic Tutor',
+        quantity: 1,
+        set: 'uma',
+        collectorNumber: '93',
+        cardId: 2,
+        section: 'Main',
+      },
     ]
 
     const changes = diffWantedEntries(entries, entries)
@@ -337,12 +428,12 @@ describe('diffWantedEntries', () => {
 
   test('detects multiple adds and removes together', () => {
     const oldEntries: WantedListEntry[] = [
-      { name: 'Force of Will', quantity: 1, cardId: 1 },
-      { name: 'Mana Drain', quantity: 1, cardId: 2 },
+      { name: 'Force of Will', quantity: 1, cardId: 1, section: 'Main' },
+      { name: 'Mana Drain', quantity: 1, cardId: 2, section: 'Main' },
     ]
     const newEntries: WantedListEntry[] = [
-      { name: 'Force of Will', quantity: 1, cardId: 1 },
-      { name: 'Cyclonic Rift', quantity: 1, cardId: 3 },
+      { name: 'Force of Will', quantity: 1, cardId: 1, section: 'Main' },
+      { name: 'Cyclonic Rift', quantity: 1, cardId: 3, section: 'Main' },
     ]
 
     const changes = diffWantedEntries(oldEntries, newEntries)
@@ -355,10 +446,24 @@ describe('diffWantedEntries', () => {
 
   test('detects quantity increases', () => {
     const oldEntries: WantedListEntry[] = [
-      { name: 'Lightning Bolt', quantity: 1, set: 'lea', collectorNumber: '161', cardId: 5 },
+      {
+        name: 'Lightning Bolt',
+        quantity: 1,
+        set: 'lea',
+        collectorNumber: '161',
+        cardId: 5,
+        section: 'Main',
+      },
     ]
     const newEntries: WantedListEntry[] = [
-      { name: 'Lightning Bolt', quantity: 3, set: 'lea', collectorNumber: '161', cardId: 5 },
+      {
+        name: 'Lightning Bolt',
+        quantity: 3,
+        set: 'lea',
+        collectorNumber: '161',
+        cardId: 5,
+        section: 'Main',
+      },
     ]
 
     const changes = diffWantedEntries(oldEntries, newEntries)
@@ -368,8 +473,12 @@ describe('diffWantedEntries', () => {
   })
 
   test('detects quantity decreases', () => {
-    const oldEntries: WantedListEntry[] = [{ name: 'Island', quantity: 4, cardId: 6 }]
-    const newEntries: WantedListEntry[] = [{ name: 'Island', quantity: 2, cardId: 6 }]
+    const oldEntries: WantedListEntry[] = [
+      { name: 'Island', quantity: 4, cardId: 6, section: 'Main' },
+    ]
+    const newEntries: WantedListEntry[] = [
+      { name: 'Island', quantity: 2, cardId: 6, section: 'Main' },
+    ]
 
     const changes = diffWantedEntries(oldEntries, newEntries)
     const removes = changes.filter((c) => c.action === 'remove')
@@ -380,6 +489,7 @@ describe('diffWantedEntries', () => {
   test('detects finish changes by cardId', () => {
     const oldEntries: WantedListEntry[] = [
       {
+        section: 'Main',
         name: 'Mox Ruby',
         quantity: 1,
         set: 'lea',
@@ -390,6 +500,7 @@ describe('diffWantedEntries', () => {
     ]
     const newEntries: WantedListEntry[] = [
       {
+        section: 'Main',
         name: 'Mox Ruby',
         quantity: 1,
         set: 'lea',

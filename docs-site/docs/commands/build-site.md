@@ -351,7 +351,7 @@ Collection pages show:
 - An "Other Printings" button that shows a paginated binder-style grid (8 per page) of all known printings of the card, sorted by release date (newest first) by default, each linking to Scryfall. Sorting can be changed via a dropdown to release date, set name, or price, with a toggle to reverse the sort direction.
 - Cards displayed individually by default (not grouped), with a "Group Duplicates" toggle
 - File order as the default sort, with options for name, price, set code, type, mana value, and color identity
-- Grouping by type, mana value, color identity, price brackets, or ungrouped
+- Grouping by section (the default when the collection has two or more sections), type, mana value, color identity, price brackets, or ungrouped
 - Price bracket grouping with three strategies: Archidekt-style brackets, every $5, or every $10
 - A "No Price Data" group that appears at the bottom when grouping by price, collecting cards without price data for their finish
 - Download as original Markdown or CSV for importing into other sites
@@ -370,7 +370,7 @@ Wanted list pages show:
   - **Fully specified** entries use the exact printing and finish specified
 - Individual card prices in the card detail modal
 - State indicator showing whether each card is name-only, printing-specific, or fully specified
-- Grouping by type, mana value, color identity, price brackets, printing (whether a card is pinned to a specific printing), or ungrouped
+- Grouping by section (the default when the wanted list has two or more sections), type, mana value, color identity, price brackets, printing (whether a card is pinned to a specific printing), or ungrouped
 - Download as original Markdown
 - No condition display (wanted lists track desired cards, not owned cards)
 

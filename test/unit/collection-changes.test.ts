@@ -11,6 +11,7 @@ function makeEntry(overrides: Partial<CollectionCardEntry> = {}): CollectionCard
     condition: 'NM',
     price: 0,
     fileOrder: 0,
+    section: 'Main',
     ...overrides,
   }
 }

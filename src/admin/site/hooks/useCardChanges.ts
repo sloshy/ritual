@@ -9,6 +9,7 @@ import {
   areOppositeChanges,
   consolidateSetFinish,
   consolidateSetPrinting,
+  consolidateSetSection,
 } from '../../../change-event'
 
 /**
@@ -47,6 +48,7 @@ export type UseCardChangesResult<T = unknown> = {
     original: PrintingTuple,
     cardId?: number,
   ) => void
+  setSection: (cardName: string, section: string, originalSection: string, cardId?: number) => void
 }
 
 export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
@@ -162,6 +164,20 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     }
   }
 
+  function setSection(cardName: string, section: string, originalSection: string, cardId?: number) {
+    const {
+      changes: newChanges,
+      addedChange,
+      cancelledChange,
+    } = consolidateSetSection(changesRef, cardName, section, originalSection, cardId)
+    if (addedChange !== null || cancelledChange !== null) {
+      changesRef = newChanges
+      undoStackRef = [...undoStackRef, { addedChange, cancelledChange }]
+      setChanges([...changesRef])
+      setUndoStack([...undoStackRef])
+    }
+  }
+
   const changeCount = createMemo(() => changes().length)
   const canUndo = createMemo(() => undoStack().length > 0)
 
@@ -179,5 +195,6 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     removeCard,
     setFinish,
     setPrinting,
+    setSection,
   }
 }

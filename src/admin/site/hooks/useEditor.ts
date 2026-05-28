@@ -3,11 +3,13 @@ import {
   type Setter,
   createSignal,
   createEffect,
+  createMemo,
   on,
   onMount,
   onCleanup,
 } from 'solid-js'
-import type { Finish, ScryfallCard } from '../../../types'
+import { replaySectionOrder } from '../../../change-event'
+import { DEFAULT_SECTION, type Finish, type ScryfallCard } from '../../../types'
 import type { PriceCurrency } from '../../../price-currency'
 import { DEFAULT_CURRENCY } from '../../../price-currency'
 import type {
@@ -131,8 +133,24 @@ export type EditorConfig<TData> = {
     changes: ChangeEvent[]
     contentHash: string
     extra: Record<string, unknown>
+    sectionOrder: string[]
   }) => unknown
+
+  /**
+   * Derive the section order directly from the data, when sections live in the data itself
+   * (decks: `deck.sections`). Flat lists (collections/wanted) omit this and instead seed the
+   * order from `extra.sectionOrder` on load, after which it is derived by replaying the
+   * section-structural changes.
+   */
+  sectionsOf?: (data: TData) => string[]
+  /** Count cards per section, used to disable deletion of non-empty sections. */
+  cardCountsBySection?: (data: TData) => Record<string, number>
+  /** Resolve the section a targeted card currently belongs to (for move consolidation). */
+  cardSectionOf?: (data: TData, target: CardContextInfo) => string | undefined
 }
+
+/** A section plus how many cards it currently holds. */
+export type SectionInfo = { name: string; count: number }
 
 export type UseEditorResult<TData, TCardEntry> = {
   slug: Accessor<string | null>
@@ -181,6 +199,19 @@ export type UseEditorResult<TData, TCardEntry> = {
   handleUndo: () => void
   handleSave: () => Promise<void>
   handleDiscard: () => void
+
+  /** Current section names in display order, including empty sections. */
+  sectionOrder: Accessor<string[]>
+  /** Sections with their current card counts, in display order. */
+  sectionInfo: Accessor<SectionInfo[]>
+  /** Create a new, empty section. No-op if a section with that name already exists. */
+  handleAddSection: (name: string) => void
+  /** Rename an existing section, moving all its cards along with it. */
+  handleRenameSection: (oldName: string, newName: string) => void
+  /** Delete a section. Only takes effect when the section is empty. */
+  handleRemoveSection: (name: string) => void
+  /** Move a card (identified by the context menu target) into a section, creating it if needed. */
+  handleMoveCardToSection: (target: CardContextInfo, section: string) => void
 }
 
 export function useEditor<TData, TCardEntry = unknown>(
@@ -208,6 +239,11 @@ export function useEditor<TData, TCardEntry = unknown>(
 
   const currency: PriceCurrency = DEFAULT_CURRENCY
   let original: TData | null = null
+  // Section order as loaded from disk. The live order is this replayed against the
+  // section-structural changes (see `sectionOrder`), so it stays correct across undo.
+  // A signal (not a plain variable) so the `sectionOrder` memo recomputes when a new
+  // list loads, independent of the `changes` signal write that happens alongside it.
+  const [originalSectionOrder, setOriginalSectionOrder] = createSignal<string[]>([])
 
   const isDataReady = () => {
     const d = data()
@@ -248,6 +284,8 @@ export function useEditor<TData, TCardEntry = unknown>(
           if (result) {
             setData(() => result.data)
             original = result.data
+            const loadedOrder = result.extra.sectionOrder
+            setOriginalSectionOrder(Array.isArray(loadedOrder) ? (loadedOrder as string[]) : [])
             pool.resetPool(result.poolIds)
             config.loadCardData(response)
             setContentHash(result.contentHash)
@@ -426,6 +464,94 @@ export function useEditor<TData, TCardEntry = unknown>(
     setChangePrinting(null)
   }
 
+  // Sections live in the data for decks (`sectionsOf`) and in a separate order list for flat
+  // lists, where the live order is the loaded order replayed against the section changes.
+  const sectionOrder = createMemo<string[]>(() => {
+    const d = data()
+    if (config.sectionsOf && d) return config.sectionsOf(d)
+    return replaySectionOrder(originalSectionOrder(), changes.changes())
+  })
+
+  const sectionInfo = createMemo<SectionInfo[]>(() => {
+    const d = data()
+    const counts = d && config.cardCountsBySection ? config.cardCountsBySection(d) : {}
+    return sectionOrder().map((name) => ({ name, count: counts[name] ?? 0 }))
+  })
+
+  // Section names are unique case-insensitively. Returns the existing section whose name
+  // matches `name` ignoring case, if any, so callers can reject duplicates and resolve a typed
+  // name back to its canonical casing.
+  const canonicalSection = (name: string): string | undefined =>
+    sectionOrder().find((s) => s.toLowerCase() === name.toLowerCase())
+
+  const handleAddSection = (name: string) => {
+    const trimmed = name.trim()
+    if (!trimmed || canonicalSection(trimmed)) return
+    changes.addChange({ action: 'add-section', section: trimmed })
+    setData((prev) =>
+      prev !== null ? config.applyChange(prev, { action: 'add-section', section: trimmed }) : prev,
+    )
+  }
+
+  const handleRenameSection = (oldName: string, newName: string) => {
+    const trimmed = newName.trim()
+    if (!trimmed || trimmed === oldName) return
+    // A pure case change of the same section is allowed; clashing with a *different* existing
+    // section (case-insensitively) is not.
+    const clash = canonicalSection(trimmed)
+    if (clash && clash !== oldName) return
+    changes.addChange({ action: 'rename-section', section: oldName, newSection: trimmed })
+    setData((prev) =>
+      prev !== null
+        ? config.applyChange(prev, {
+            action: 'rename-section',
+            section: oldName,
+            newSection: trimmed,
+          })
+        : prev,
+    )
+  }
+
+  const handleRemoveSection = (name: string) => {
+    const info = sectionInfo().find((s) => s.name === name)
+    if (!info || info.count > 0) return
+    changes.addChange({ action: 'remove-section', section: name })
+    setData((prev) =>
+      prev !== null ? config.applyChange(prev, { action: 'remove-section', section: name }) : prev,
+    )
+  }
+
+  const handleMoveCardToSection = (target: CardContextInfo, section: string) => {
+    const d = data()
+    if (!d) return
+    const raw = section.trim()
+    if (!raw) return
+    // Resolve to an existing section's canonical casing when one matches case-insensitively;
+    // otherwise create the new section first so it persists even if no other card lands there.
+    const existing = canonicalSection(raw)
+    const trimmed = existing ?? raw
+    if (!existing) handleAddSection(trimmed)
+    const cardId = target.cardIds[0]
+    // The original section drives "latest wins" consolidation: moving a card back to where it
+    // started cancels the pending move outright. A card not present in the on-disk original
+    // (e.g. added this session) baselines to DEFAULT_SECTION — never the destination, which
+    // would make the very first move look like a no-op revert and silently drop it.
+    const originalSection =
+      (original ? config.cardSectionOf?.(original, target) : undefined) ?? DEFAULT_SECTION
+    changes.setSection(target.cardName, trimmed, originalSection, cardId)
+    setData((prev) =>
+      prev !== null
+        ? config.applyChange(prev, {
+            action: 'set-section',
+            cardName: target.cardName,
+            section: trimmed,
+            cardId,
+          })
+        : prev,
+    )
+    setContextMenuCard(null)
+  }
+
   const handleUndo = () => {
     const result = changes.undo()
     if (!result || !original) return
@@ -446,6 +572,7 @@ export function useEditor<TData, TCardEntry = unknown>(
         changes: changes.changes(),
         contentHash: contentHash(),
         extra: extra(),
+        sectionOrder: sectionOrder(),
       }),
       statusActions,
       changes.discardAll,
@@ -506,5 +633,12 @@ export function useEditor<TData, TCardEntry = unknown>(
     handleUndo,
     handleSave,
     handleDiscard,
+
+    sectionOrder,
+    sectionInfo,
+    handleAddSection,
+    handleRenameSection,
+    handleRemoveSection,
+    handleMoveCardToSection,
   }
 }

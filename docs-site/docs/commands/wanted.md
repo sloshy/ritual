@@ -94,6 +94,22 @@ For example:
 
 Any combination of set/collector number and finish can be omitted depending on the desired specificity level. The note is optional. The `&N` suffix is a persistent card ID used internally for change tracking and is auto-assigned.
 
+### Sections
+
+A wanted list can be split into named **sections** using `## Section Name` (H2) headers beneath the `# Title`. Cards are grouped under the header that precedes them; cards before the first header (or in a section-less file) belong to an implicit **Main** section that is written out explicitly the next time the file is saved.
+
+```
+# Wanted
+
+## High Priority
+- Queen Marchesa &1
+
+## Someday
+- Mana Crypt (2XM:270) [foil] &2
+```
+
+Section order is preserved as written. On the generated site, a wanted list with two or more sections defaults to grouping by section, and **Section** appears as a grouping option in the toolbar. Sections are managed from the [admin Wanted List Editor](../admin/editors.md#sections); pricing commands ignore section headers.
+
 ## Examples
 
 Start the wanted list manager:

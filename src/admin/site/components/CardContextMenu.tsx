@@ -1,4 +1,4 @@
-import type { Component } from 'solid-js'
+import { type Component, For } from 'solid-js'
 import { createMemo, onMount, onCleanup, Show } from 'solid-js'
 import type { Finish, ScryfallCard } from '../../../types'
 
@@ -18,6 +18,12 @@ interface CardContextMenuProps {
   onClose: () => void
   isCommander?: boolean
   hideCommander?: boolean
+  /** All section names; the card's current section is omitted from the move targets. */
+  sections?: string[]
+  /** The section the targeted card currently belongs to. */
+  currentSection?: string
+  /** Move the targeted card to an existing or brand-new section. */
+  onMoveToSection?: (section: string) => void
 }
 
 export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
@@ -31,6 +37,11 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
   const foilButtonLabel = createMemo(() => (isFoilOrEtched() ? 'Set as Nonfoil' : 'Set as Foil'))
   const foilButtonDisabled = createMemo(() =>
     isFoilOrEtched() ? !supportsNonfoil() : !supportsFoil(),
+  )
+
+  // Move targets are every section except the one the card already lives in.
+  const moveTargets = createMemo(() =>
+    (props.sections ?? []).filter((s) => s !== props.currentSection),
   )
 
   const menuStyle = createMemo(() => {
@@ -102,6 +113,32 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
             Unset as Commander
           </button>
         </Show>
+      </Show>
+      <Show when={props.onMoveToSection}>
+        {(moveToSection) => (
+          <>
+            <div class="card-context-menu-label">Move to section</div>
+            <For each={moveTargets()}>
+              {(section) => (
+                <button
+                  class="card-context-menu-item card-context-menu-item--indented"
+                  onClick={() => moveToSection()(section)}
+                >
+                  {section}
+                </button>
+              )}
+            </For>
+            <button
+              class="card-context-menu-item card-context-menu-item--indented"
+              onClick={() => {
+                const name = window.prompt('New section name:')
+                if (name && name.trim()) moveToSection()(name.trim())
+              }}
+            >
+              New section…
+            </button>
+          </>
+        )}
       </Show>
     </div>
   )

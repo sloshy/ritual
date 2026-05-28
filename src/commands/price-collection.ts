@@ -2,7 +2,8 @@ import { Command } from 'commander'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { getCardPrintings, getCardGames } from '../scryfall'
-import type { Condition, Finish, ScryfallCard } from '../types'
+import { DEFAULT_SECTION, type Condition, type Finish, type ScryfallCard } from '../types'
+import { matchSectionHeader } from '../section-format'
 import { findPrinting } from '../card-printing'
 import { isCondition, isFinish } from './collection-helpers'
 import { getCollectionsDir } from '../ritual-config'
@@ -32,10 +33,14 @@ export type CollectionEntry = {
   condition?: Condition
   note?: string
   cardId?: number
+  /** Section this entry belongs to. Defaults to `DEFAULT_SECTION` ("Main") when unsectioned. */
+  section: string
 }
 
 export type CollectionParseResult = {
   entries: CollectionEntry[]
+  /** Section names in first-seen order, including empty sections that have no entries. */
+  sectionOrder: string[]
   warnings: string[]
 }
 
@@ -48,10 +53,24 @@ export const COLLECTION_CARD_LINE_RE =
 
 export function parseCollectionFile(content: string): CollectionParseResult {
   const entries: CollectionEntry[] = []
+  const sectionOrder: string[] = []
   const warnings: string[] = []
+  let currentSection = DEFAULT_SECTION
+
+  const registerSection = (name: string): void => {
+    if (!sectionOrder.includes(name)) sectionOrder.push(name)
+  }
 
   for (const line of content.split('\n')) {
     const trimmed = line.trim()
+
+    const header = matchSectionHeader(trimmed)
+    if (header) {
+      currentSection = header
+      registerSection(header)
+      continue
+    }
+
     if (!trimmed.startsWith('- ')) continue
 
     const match = trimmed.match(COLLECTION_CARD_LINE_RE)
@@ -66,6 +85,8 @@ export function parseCollectionFile(content: string): CollectionParseResult {
       continue
     }
 
+    // A card before any explicit header pins the implicit Main section into the order list.
+    registerSection(currentSection)
     entries.push({
       name,
       quantity: 1,
@@ -75,9 +96,10 @@ export function parseCollectionFile(content: string): CollectionParseResult {
       condition: match[5] && isCondition(match[5]) ? match[5] : undefined,
       note: match[6],
       cardId: match[7] ? Number.parseInt(match[7], 10) : undefined,
+      section: currentSection,
     })
   }
-  return { entries, warnings }
+  return { entries, sectionOrder, warnings }
 }
 
 export function getPriceForFinish(

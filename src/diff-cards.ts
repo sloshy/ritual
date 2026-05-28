@@ -4,12 +4,10 @@ import {
   createSetCommanderChange,
   createUnsetCommanderChange,
   createSetFinishChange,
-  type ChangeEvent,
+  type CardChange,
   type CardPrintingOptions,
 } from './change-event'
 import type { Card, DeckSection, Finish, Condition } from './types'
-import type { CollectionEntry } from './commands/price-collection'
-import type { WantedListEntry } from './commands/wanted-helpers'
 
 // ── Shared helpers ───────────────────────────────────────────────────
 
@@ -100,8 +98,8 @@ function bucketByIdentity(cards: FlatCard[]): Map<string, CardBucket> {
 export function diffDeckCards(
   oldSections: DeckSection[],
   newSections: DeckSection[],
-): ChangeEvent[] {
-  const changes: ChangeEvent[] = []
+): CardChange[] {
+  const changes: CardChange[] = []
   const oldFlat = flattenSections(oldSections)
   const newFlat = flattenSections(newSections)
   const oldBuckets = bucketByIdentity(oldFlat)
@@ -193,8 +191,8 @@ function diffEntries<T extends DiffableEntry>(
   oldEntries: T[],
   newEntries: T[],
   options: DiffEntriesOptions = {},
-): ChangeEvent[] {
-  const changes: ChangeEvent[] = []
+): CardChange[] {
+  const changes: CardChange[] = []
   const oldMap = new Map<string, T>()
   const newMap = new Map<string, T>()
 
@@ -257,9 +255,9 @@ function diffEntries<T extends DiffableEntry>(
  * Quantity changes within the same printing are NOT tracked.
  */
 export function diffCollectionEntries(
-  oldEntries: CollectionEntry[],
-  newEntries: CollectionEntry[],
-): ChangeEvent[] {
+  oldEntries: DiffableEntry[],
+  newEntries: DiffableEntry[],
+): CardChange[] {
   return diffEntries(oldEntries, newEntries, { trackFinish: true })
 }
 
@@ -271,8 +269,8 @@ export function diffCollectionEntries(
  * - Finish changes (only when setting TO a finish — matched by card ID when available)
  */
 export function diffWantedEntries(
-  oldEntries: WantedListEntry[],
-  newEntries: WantedListEntry[],
-): ChangeEvent[] {
+  oldEntries: DiffableEntry[],
+  newEntries: DiffableEntry[],
+): CardChange[] {
   return diffEntries(oldEntries, newEntries, { trackFinish: true, trackQuantity: true })
 }
