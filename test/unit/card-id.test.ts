@@ -136,18 +136,14 @@ describe('releaseId', () => {
     expect(allocateId(pool)).toBe(4)
   })
 
-  test('documents current behavior when releasing an ID that was never allocated', () => {
-    // POTENTIAL BUG: releaseId does not verify that `id` was ever in usedIds
-    // before pushing into availablePool. For a fresh pool with usedIds={1,2,3}
-    // and nextSequential=4, releasing 99 still inserts 99 into availablePool,
-    // causing the next allocateId to hand out 99 — an ID no card ever had.
-    // This test pins the current behavior; if releaseId is hardened to ignore
-    // unknown IDs (the more defensible contract), update this test accordingly.
+  test('releasing an ID that was never allocated is a no-op', () => {
+    // Releasing an unknown ID must not put it into availablePool — otherwise
+    // allocateId would later hand out an ID no card ever had.
     const pool = createIdPool([1, 2, 3])
     releaseId(pool, 99)
-    expect(pool.availablePool).toEqual([99])
+    expect(pool.availablePool).toEqual([])
     expect(pool.usedIds.has(99)).toBe(false)
-    expect(allocateId(pool)).toBe(99)
+    expect(allocateId(pool)).toBe(4)
   })
 })
 

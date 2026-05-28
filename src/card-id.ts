@@ -95,15 +95,13 @@ export function allocateId(pool: CardIdPool): number {
   return id
 }
 
-/** Release an ID back to the pool (card removed). */
+/** Release an ID back to the pool (card removed). No-op if the ID was never allocated. */
 export function releaseId(pool: CardIdPool, id: number): void {
+  // Releasing an unknown ID must not pollute the pool — otherwise allocateId
+  // would hand out an ID no card ever had. This also makes double-release safe
+  // since the second call sees the ID is no longer in usedIds.
+  if (!pool.usedIds.has(id)) return
   pool.usedIds.delete(id)
-
-  // Guard against double-release: an ID is either in use or available, never
-  // both and never listed twice. Releasing the same ID more than once (e.g.
-  // undoing several copies that shared one entry's ID) must not duplicate it in
-  // the pool, which would later let allocateId hand the same ID to two cards.
-  if (pool.availablePool.includes(id)) return
 
   // Insert into sorted position in the available pool
   const insertIdx = pool.availablePool.findIndex((v) => v > id)
