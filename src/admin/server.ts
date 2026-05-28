@@ -271,22 +271,26 @@ function withSecurityHeaders(response: Response): Response {
 }
 
 /**
+ * Identifies this server process. Sent to the live-reload client on every SSE (re)connect; the
+ * client reloads only when it sees a *different* id — i.e. an actual server restart. Reconnects
+ * to the same process (e.g. after an idle-timeout drop) carry the same id and do nothing.
+ */
+const BOOT_ID = crypto.randomUUID()
+
+/**
  * Dev-only live-reload client (served at `/__dev_reload.js`). An external script rather than
- * inline so it satisfies the `script-src 'self'` CSP. It holds an SSE connection open; the
- * connection drops when the dev orchestrator restarts the server, and the browser reloads as
- * soon as it reconnects against the freshly-built server — so source edits (CSS or TSX) appear
- * without a manual refresh.
+ * inline so it satisfies the `script-src 'self'` CSP. It holds an SSE connection open and reloads
+ * the page when the server's boot id changes, so source edits (CSS or TSX) appear after the dev
+ * orchestrator restarts the server — without a manual refresh, and without spurious reloads when
+ * the connection merely reconnects.
  */
 const DEV_RELOAD_CLIENT = `(() => {
-  let opened = false;
-  const connect = () => {
-    const es = new EventSource('/__dev_reload');
-    es.onopen = () => {
-      if (opened) { location.reload(); return; }
-      opened = true;
-    };
-  };
-  connect();
+  let bootId = null;
+  const es = new EventSource('/__dev_reload');
+  es.addEventListener('boot', (e) => {
+    if (bootId === null) { bootId = e.data; return; }
+    if (e.data !== bootId) location.reload();
+  });
 })();`
 
 /** Serve the live-reload client script or its SSE stream. Only mounted when running from source. */
@@ -296,11 +300,25 @@ function handleDevReload(pathname: string): Response {
       headers: { 'Content-Type': 'text/javascript;charset=utf-8', 'Cache-Control': 'no-store' },
     })
   }
-  // An open-ended SSE stream. `retry: 500` makes the browser reconnect quickly after the server
-  // restarts. The stream is never closed server-side; the socket drops when the process exits.
-  const stream = new ReadableStream({
+  // SSE stream: announce the boot id, then emit keep-alive comments so the connection isn't
+  // closed by Bun's idle timeout (which would otherwise churn reconnects). `retry: 1000` makes
+  // the browser reconnect promptly after the process exits on restart.
+  const encoder = new TextEncoder()
+  let keepAlive: ReturnType<typeof setInterval> | undefined
+  const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      controller.enqueue(new TextEncoder().encode('retry: 500\n\n'))
+      controller.enqueue(encoder.encode(`retry: 1000\nevent: boot\ndata: ${BOOT_ID}\n\n`))
+      keepAlive = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(': keep-alive\n\n'))
+        } catch {
+          // Consumer gone — stop pinging a closed stream.
+          if (keepAlive) clearInterval(keepAlive)
+        }
+      }, 5_000)
+    },
+    cancel() {
+      if (keepAlive) clearInterval(keepAlive)
     },
   })
   return new Response(stream, {
