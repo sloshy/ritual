@@ -50,7 +50,8 @@ function killPort(port: number): void {
 }
 
 async function globalSetup() {
-  const cwd = path.resolve(__dirname, '../../../..')
+  // From test/e2e/helpers/ → repo root is three levels up.
+  const cwd = path.resolve(__dirname, '../../..')
 
   // Always rebuild the site to ensure latest code is served
   console.log('[global-setup] Building site...')

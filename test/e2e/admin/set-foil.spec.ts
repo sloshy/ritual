@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import type { ScryfallCard } from '../../../../src/types'
+import type { ScryfallCard } from '../../../src/types'
 import { loginAsAdmin } from '../helpers/auth-helper'
 import { openListEditor } from '../helpers/editor-nav'
 import { disableSearchDebounce } from '../helpers/search-modal'

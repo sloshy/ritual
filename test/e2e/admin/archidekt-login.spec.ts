@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { loginAsAdmin } from '../helpers/auth-helper'
-import type { ArchidektLoginStatus } from '../../../../src/auth/interfaces'
+import type { ArchidektLoginStatus } from '../../../src/auth/interfaces'
 
 const NOT_LOGGED_IN: ArchidektLoginStatus = {
   loggedIn: false,

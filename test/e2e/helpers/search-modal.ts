@@ -1,5 +1,5 @@
 import { type Page } from '@playwright/test'
-import type { SearchDebounceOverride } from '../../../../src/admin/site/components/CardSearchModal'
+import type { SearchDebounceOverride } from '../../../src/admin/site/components/CardSearchModal'
 
 /**
  * Disable the card search autocomplete debounce for the page under test.

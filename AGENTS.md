@@ -141,4 +141,4 @@ Most playwright testing should be focused on state transitions, such as adding a
 
 All tests — especially integration and Playwright tests — **must use fake or synthetic data**, never real data files. Directories listed in `.gitignore` (e.g., `decks/`, `collections/`, `wanted/`, `cache/`, `dist/`) are not available from a fresh clone. Tests that depend on those files will fail in CI or on a new machine.
 
-For Playwright tests, use route interception with mock data defined in `test/integration/playwright/helpers/mock-data.ts`. See `mockPublicSiteDeckWithChangelog` or `mockPublicSiteDeckWithDescription` as examples.
+For Playwright tests, use route interception with mock data defined in `test/e2e/helpers/mock-data.ts`. See `mockPublicSiteDeckWithChangelog` or `mockPublicSiteDeckWithDescription` as examples.

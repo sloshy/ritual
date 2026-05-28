@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
-  testDir: './test/integration/playwright',
+  testDir: './test/e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -15,7 +15,7 @@ export default defineConfig({
   projects: [
     {
       name: 'public-site',
-      testDir: './test/integration/playwright/public-site',
+      testDir: './test/e2e/public-site',
       use: {
         baseURL: 'http://localhost:3456',
         browserName: 'chromium',
@@ -23,7 +23,7 @@ export default defineConfig({
     },
     {
       name: 'admin-auth',
-      testDir: './test/integration/playwright/admin',
+      testDir: './test/e2e/admin',
       testMatch: 'auth-setup.spec.ts',
       fullyParallel: false,
       use: {
@@ -33,7 +33,7 @@ export default defineConfig({
     },
     {
       name: 'admin',
-      testDir: './test/integration/playwright/admin',
+      testDir: './test/e2e/admin',
       testIgnore: 'auth-setup.spec.ts',
       dependencies: ['admin-auth'],
       use: {
@@ -42,6 +42,6 @@ export default defineConfig({
       },
     },
   ],
-  globalSetup: './test/integration/playwright/helpers/global-setup.ts',
-  globalTeardown: './test/integration/playwright/helpers/global-teardown.ts',
+  globalSetup: './test/e2e/helpers/global-setup.ts',
+  globalTeardown: './test/e2e/helpers/global-teardown.ts',
 })

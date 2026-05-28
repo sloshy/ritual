@@ -1,5 +1,5 @@
 import { type Page, expect } from '@playwright/test'
-import { type ListType, LIST_TYPE_DISPLAY } from '../../../../src/list-type'
+import { type ListType, LIST_TYPE_DISPLAY } from '../../../src/list-type'
 
 /** The list selector each editor renders, keyed by list type. */
 export const SELECTOR_ID: Record<ListType, string> = {

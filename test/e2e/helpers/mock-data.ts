@@ -4,7 +4,7 @@ import type {
   DeckDetail,
   SiteIndex,
   WantedListDetail,
-} from '../../../../src/site/data-types'
+} from '../../../src/site/data-types'
 
 type MockDeck = {
   slug: string
