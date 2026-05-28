@@ -4,9 +4,9 @@ import path from 'node:path'
 import { runCli, withTempDir } from './helpers/cli'
 
 describe('CLI scripting behavior (Integration)', () => {
-  test('price returns structured json error with not-found exit code', async () => {
+  test('price-deck returns structured json error with not-found exit code', async () => {
     await withTempDir(async (dir) => {
-      const result = await runCli(['price', 'missing-deck', '--output', 'json'], dir)
+      const result = await runCli(['price-deck', 'missing-deck', '--output', 'json'], dir)
 
       expect(result.exitCode).toBe(3)
       expect(result.stdout).toBe('')
@@ -49,7 +49,10 @@ describe('CLI scripting behavior (Integration)', () => {
     await withTempDir(async (dir) => {
       const decksDir = path.join(dir, 'decks')
       await fs.mkdir(decksDir, { recursive: true })
-      await Bun.write(path.join(decksDir, 'conflict-deck.md'), '# Existing deck\n')
+      // sanitizeDeckFileName preserves case and spaces, so the pre-existing file
+      // must match the source's `name:` frontmatter verbatim (plus `.md`) for the
+      // conflict check to fire.
+      await Bun.write(path.join(decksDir, 'Conflict Deck.md'), '# Existing deck\n')
 
       const sourcePath = path.join(dir, 'source.txt')
       await Bun.write(
