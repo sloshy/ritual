@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import { parseCollectionFile } from '../../src/commands/price-collection'
+import {
+  getPriceForFinish,
+  parseCollectionFile,
+  resolveFinish,
+  type CollectionEntry,
+} from '../../src/commands/price-collection'
+import type { ScryfallCard } from '../../src/types'
 
 describe('parseCollectionFile', () => {
   test('parses card with set and collector number', () => {
@@ -136,5 +142,76 @@ describe('parseCollectionFile', () => {
     const content = `- Arcane Signet (ECC:55)\n`
     const { entries } = parseCollectionFile(content)
     expect(entries[0]!.cardId).toBeUndefined()
+  })
+})
+
+function makeCard(overrides: Partial<ScryfallCard> = {}): ScryfallCard {
+  return {
+    id: 'test-id',
+    name: 'Test Card',
+    cmc: 3,
+    mana_cost: '{2}{W}',
+    type_line: 'Creature — Human',
+    prices: {
+      usd: '2.50',
+      usd_foil: '5.00',
+      usd_etched: '8.00',
+      eur: null,
+      eur_foil: null,
+      tix: null,
+    },
+    finishes: ['nonfoil', 'foil'],
+    games: ['paper'],
+    set: 'FDN',
+    set_name: 'Foundation',
+    collector_number: '1',
+    rarity: 'rare',
+    color_identity: [],
+    ...overrides,
+  }
+}
+
+function makeEntry(overrides: Partial<CollectionEntry> = {}): CollectionEntry {
+  return {
+    name: 'Test Card',
+    quantity: 1,
+    set: 'FDN',
+    collectorNumber: '1',
+    ...overrides,
+  }
+}
+
+describe('getPriceForFinish', () => {
+  test('returns usd price for nonfoil', () => {
+    expect(getPriceForFinish(makeCard(), 'nonfoil')).toBe(2.5)
+  })
+
+  test('returns usd_foil price for foil', () => {
+    expect(getPriceForFinish(makeCard(), 'foil')).toBe(5.0)
+  })
+
+  test('returns usd_etched price for etched', () => {
+    expect(getPriceForFinish(makeCard(), 'etched')).toBe(8.0)
+  })
+
+  test('returns 0 when price is null', () => {
+    const card = makeCard({
+      prices: { usd: null, usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
+    })
+    expect(getPriceForFinish(card, 'nonfoil')).toBe(0)
+  })
+})
+
+describe('resolveFinish', () => {
+  test('uses entry finish if specified', () => {
+    expect(resolveFinish(makeEntry({ finish: 'foil' }), makeCard())).toBe('foil')
+  })
+
+  test('defaults to nonfoil if card supports it', () => {
+    expect(resolveFinish(makeEntry(), makeCard({ finishes: ['nonfoil', 'foil'] }))).toBe('nonfoil')
+  })
+
+  test('defaults to first finish if nonfoil not available', () => {
+    expect(resolveFinish(makeEntry(), makeCard({ finishes: ['foil'] }))).toBe('foil')
   })
 })

@@ -1,5 +1,13 @@
-import { describe, expect, test, beforeEach, afterEach, mock } from 'bun:test'
-import { ScryfallClient, type ScryfallSymbol, comparePrintings } from '../../src/scryfall'
+import { describe, expect, test, beforeEach, afterEach, mock, spyOn } from 'bun:test'
+import {
+  ScryfallClient,
+  type ScryfallSymbol,
+  comparePrintings,
+  getCardGames,
+  isArenaOnly,
+  isToken,
+} from '../../src/scryfall'
+import { cardCache } from '../../src/cache'
 import type { FileSystemClient } from '../../src/interfaces'
 import {
   MockHttpClient,
@@ -22,6 +30,24 @@ const mockFileSystem: FileSystemClient = {
   access: accessMock,
   copyFile: copyFileMock,
   mkdir: mkdirMock,
+}
+
+function makeStubScryfallCard(overrides: Partial<ScryfallCard> = {}): ScryfallCard {
+  return {
+    id: 'test-id',
+    name: 'Test Card',
+    cmc: 0,
+    type_line: 'Artifact',
+    prices: { usd: null, usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
+    finishes: ['nonfoil'],
+    games: ['paper'],
+    set: 'tst',
+    set_name: 'Test Set',
+    collector_number: '1',
+    rarity: 'common',
+    color_identity: [],
+    ...overrides,
+  }
 }
 
 describe('ScryfallClient', () => {
@@ -185,29 +211,8 @@ describe('ScryfallClient', () => {
     })
 
     test('should handle pagination', async () => {
-      const makeStubCard = (id: string, name: string): ScryfallCard => ({
-        id,
-        name,
-        cmc: 0,
-        type_line: '',
-        prices: {
-          usd: null,
-          usd_foil: null,
-          usd_etched: null,
-          eur: null,
-          eur_foil: null,
-          tix: null,
-        },
-        finishes: ['nonfoil'],
-        games: ['paper'],
-        set: 'tst',
-        set_name: 'Test Set',
-        collector_number: '1',
-        rarity: 'common',
-        color_identity: [],
-      })
-      const card1 = makeStubCard('1', 'Card 1')
-      const card2 = makeStubCard('2', 'Card 2')
+      const card1 = makeStubScryfallCard({ id: '1', name: 'Card 1' })
+      const card2 = makeStubScryfallCard({ id: '2', name: 'Card 2' })
 
       // Page 1
       mockHttp.mock('https://api.scryfall.com/cards/search?q=set%3Akhm&order=edhrec', () => {
@@ -438,6 +443,50 @@ describe('ScryfallClient', () => {
 
       expect(result).toEqual({ min: 1, max: 5 })
     })
+
+    test('fetchMinMaxPrice returns zero fallback when the search returns 404', async () => {
+      const encodedName = encodeURIComponent('!"Unknown Card"')
+      const searchUrl = `https://api.scryfall.com/cards/search?q=${encodedName}+unique%3Aprints&order=usd&dir=asc`
+
+      mockHttp.mock(
+        searchUrl,
+        () => new Response(JSON.stringify({ object: 'error' }), { status: 404 }),
+      )
+
+      const result = await client.fetchMinMaxPrice('Unknown Card')
+      expect(result).toEqual({ min: 0, max: 0 })
+    })
+
+    test('fetchMinMaxPrice returns zero fallback when no printing has a price', async () => {
+      const encodedName = encodeURIComponent('!"Priceless Card"')
+      const searchUrl = `https://api.scryfall.com/cards/search?q=${encodedName}+unique%3Aprints&order=usd&dir=asc`
+
+      mockHttp.mock(searchUrl, () => {
+        return new Response(
+          JSON.stringify({
+            data: [{ prices: { usd: null } }, { prices: { usd: null } }],
+          }),
+        )
+      })
+
+      const result = await client.fetchMinMaxPrice('Priceless Card')
+      expect(result).toEqual({ min: 0, max: 0 })
+    })
+
+    test('fetchLatestPrices reads the eur price field when currency=eur', async () => {
+      mockHttp.mock('https://api.scryfall.com/cards/collection', () => {
+        return new Response(
+          JSON.stringify({
+            // usd is set but should be ignored when currency=eur
+            data: [{ name: 'Sol Ring', prices: { usd: '99.00', eur: '3.50' } }],
+          }),
+        )
+      })
+
+      const result = await client.fetchLatestPrices(['Sol Ring'], 'eur')
+
+      expect(result.get('Sol Ring')).toBe(3.5)
+    })
   })
 
   describe('fetchRepresentativePrints', () => {
@@ -445,11 +494,8 @@ describe('ScryfallClient', () => {
       id: string,
       prices: Partial<{ usd: string; eur: string; tix: string }>,
     ): ScryfallCard {
-      return {
+      return makeStubScryfallCard({
         id,
-        name: 'Test Card',
-        cmc: 0,
-        type_line: 'Artifact',
         prices: {
           usd: prices.usd ?? null,
           usd_foil: null,
@@ -458,14 +504,7 @@ describe('ScryfallClient', () => {
           eur_foil: null,
           tix: prices.tix ?? null,
         },
-        finishes: ['nonfoil'],
-        games: ['paper'],
-        set: 'tst',
-        set_name: 'Test Set',
-        collector_number: '1',
-        rarity: 'common',
-        color_identity: [],
-      }
+      })
     }
 
     function searchUrl(name: string) {
@@ -667,58 +706,243 @@ describe('ScryfallClient', () => {
 })
 
 describe('comparePrintings', () => {
-  function makePrinting(set: string, collectorNumber: string): ScryfallCard {
-    return {
-      id: `${set}-${collectorNumber}`,
-      name: 'Test',
-      cmc: 0,
+  function makePrinting(set: string, collectorNumber: string, releasedAt?: string): ScryfallCard {
+    return makeStubScryfallCard({
+      id: `${set}-${collectorNumber}-${releasedAt ?? ''}`,
       type_line: 'Creature',
-      prices: { usd: null, usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
       edhrec_rank: 0,
-      finishes: ['nonfoil'],
-      games: ['paper'],
       set,
       set_name: set,
       collector_number: collectorNumber,
-      rarity: 'common',
-      color_identity: [],
-    }
+      released_at: releasedAt,
+    })
   }
 
-  test('3-letter set codes sort before 4-letter', () => {
-    const a = makePrinting('CMM', '1')
-    const b = makePrinting('PLST', '1')
+  test('newer release date sorts before older (primary key)', () => {
+    const newer = makePrinting('AAA', '1', '2024-06-01')
+    const older = makePrinting('AAA', '1', '2020-01-01')
+    expect(comparePrintings(newer, older)).toBeLessThan(0)
+    expect(comparePrintings(older, newer)).toBeGreaterThan(0)
+  })
+
+  test('newer release date wins even when set code would otherwise sort first', () => {
+    // 'AAA' < 'ZZZ' alphabetically, but ZZZ is newer
+    const newer = makePrinting('ZZZ', '1', '2024-06-01')
+    const older = makePrinting('AAA', '1', '2020-01-01')
+    expect(comparePrintings(newer, older)).toBeLessThan(0)
+  })
+
+  test('same release date falls through to set code alphabetical tiebreaker', () => {
+    const a = makePrinting('CMM', '1', '2024-01-01')
+    const b = makePrinting('FDN', '1', '2024-01-01')
     expect(comparePrintings(a, b)).toBeLessThan(0)
   })
 
-  test('sorts alphabetically within same set code length', () => {
+  test('missing released_at on both treats dates as equal', () => {
+    // Falls through to set code; 'CMM' < 'FDN' alphabetically
     const a = makePrinting('CMM', '1')
     const b = makePrinting('FDN', '1')
     expect(comparePrintings(a, b)).toBeLessThan(0)
   })
 
-  test('sorts by collector number within same set', () => {
-    const a = makePrinting('FDN', '2')
-    const b = makePrinting('FDN', '294')
+  test('same date and set falls through to collector number tiebreaker', () => {
+    const a = makePrinting('FDN', '2', '2024-01-01')
+    const b = makePrinting('FDN', '294', '2024-01-01')
     expect(comparePrintings(a, b)).toBeLessThan(0)
   })
 
-  test('numeric collector number without suffix sorts before one with suffix', () => {
-    const a = makePrinting('FDN', '630')
-    const b = makePrinting('FDN', '630p')
+  test('numeric collector number sorts before one with suffix when set and date match', () => {
+    const a = makePrinting('FDN', '630', '2024-01-01')
+    const b = makePrinting('FDN', '630p', '2024-01-01')
     expect(comparePrintings(a, b)).toBeLessThan(0)
   })
 
-  test('sorts multiple printings correctly', () => {
+  test('sorts a mixed set of printings by date first, then set, then number', () => {
     const cards = [
-      makePrinting('PLST', '10E-30'),
-      makePrinting('FDN', '294'),
-      makePrinting('CMM', '1'),
-      makePrinting('FDN', '2'),
-      makePrinting('MOM', '12'),
+      makePrinting('FDN', '294', '2020-01-01'), // older
+      makePrinting('PLST', '10E-30', '2024-06-01'), // newest, alpha last
+      makePrinting('CMM', '1', '2024-06-01'), // newest, alpha first
+      makePrinting('FDN', '2', '2020-01-01'), // older, lower CN
+      makePrinting('MOM', '12', '2023-03-01'), // middle date
     ]
     cards.sort(comparePrintings)
     const result = cards.map((c) => `${c.set}:${c.collector_number}`)
-    expect(result).toEqual(['CMM:1', 'FDN:2', 'FDN:294', 'MOM:12', 'PLST:10E-30'])
+    // Newest first; same-date pairs broken by set code; same-date+set broken by CN
+    expect(result).toEqual(['CMM:1', 'PLST:10E-30', 'MOM:12', 'FDN:2', 'FDN:294'])
+  })
+})
+
+describe('preloadCache', () => {
+  let logger: MemoryLogger
+  let bulkSetSpy: ReturnType<typeof spyOn> | undefined
+
+  beforeEach(() => {
+    logger = new MemoryLogger()
+    setLogger(logger)
+  })
+
+  afterEach(() => {
+    bulkSetSpy?.mockRestore()
+    bulkSetSpy = undefined
+    resetLogger()
+  })
+
+  test('fetches bulk data and writes the result through cardCache.bulkSet', async () => {
+    const mockData = [
+      {
+        id: '1',
+        name: 'Card A',
+        set: 'set1',
+        prices: {
+          usd: null,
+          usd_foil: null,
+          usd_etched: null,
+          eur: null,
+          eur_foil: null,
+          tix: null,
+        },
+      },
+      {
+        id: '2',
+        name: 'Card B',
+        set: 'set1',
+        prices: {
+          usd: null,
+          usd_foil: null,
+          usd_etched: null,
+          eur: null,
+          eur_foil: null,
+          tix: null,
+        },
+      },
+    ]
+    const jsonString = JSON.stringify(mockData)
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(jsonString))
+        controller.close()
+      },
+    })
+
+    const mockMeta = {
+      data: [
+        {
+          type: 'default_cards',
+          download_uri: 'https://example.com/bulk.json',
+          size: jsonString.length,
+        },
+      ],
+    }
+
+    const mockFetch = mock(async (url: unknown) => {
+      if (url === 'https://api.scryfall.com/bulk-data') {
+        return new Response(JSON.stringify(mockMeta))
+      }
+      return new Response(stream, {
+        headers: { 'content-length': jsonString.length.toString() },
+      })
+    })
+    const client = new ScryfallClient({ fetch: mockFetch }, cardCache)
+
+    bulkSetSpy = spyOn(cardCache, 'bulkSet').mockResolvedValue(undefined)
+
+    await client.preloadCache()
+
+    expect(mockFetch).toHaveBeenCalled()
+    expect(bulkSetSpy).toHaveBeenCalled()
+    const args = bulkSetSpy.mock.calls[0]![0] as Record<string, ScryfallCard[]>
+    expect(args['Card A']).toEqual([expect.objectContaining({ name: 'Card A', id: '1' })])
+    expect(args['Card B']).toEqual([expect.objectContaining({ name: 'Card B', id: '2' })])
+    expect(
+      logger.entries.some(
+        (entry) =>
+          entry.level === 'info' &&
+          typeof entry.args[0] === 'string' &&
+          entry.args[0].includes('Fetching bulk data metadata'),
+      ),
+    ).toBeTrue()
+  })
+})
+
+const makeGamesCard = (games: string[]): ScryfallCard => makeStubScryfallCard({ games })
+
+describe('isToken', () => {
+  test('returns true for token layout', () => {
+    expect(isToken({ ...makeGamesCard([]), layout: 'token' })).toBe(true)
+  })
+
+  test('returns true for double_faced_token layout', () => {
+    expect(isToken({ ...makeGamesCard([]), layout: 'double_faced_token' })).toBe(true)
+  })
+
+  test('returns true for cached card with Token in type_line (no layout field)', () => {
+    expect(isToken({ ...makeGamesCard([]), type_line: 'Token Creature — Cat Soldier' })).toBe(true)
+  })
+
+  test('returns true for legendary token type_line', () => {
+    expect(isToken({ ...makeGamesCard([]), type_line: 'Legendary Token Creature — Angel' })).toBe(
+      true,
+    )
+  })
+
+  test('returns false for normal card layout', () => {
+    expect(isToken({ ...makeGamesCard([]), layout: 'normal' })).toBe(false)
+  })
+
+  test('returns false when layout is absent and type_line has no Token', () => {
+    expect(isToken(makeGamesCard([]))).toBe(false)
+  })
+
+  test('returns false for card whose type_line contains Token only as substring', () => {
+    // e.g. a hypothetical card named "Tokenmaker" would not match \bToken\b in type_line
+    expect(isToken({ ...makeGamesCard([]), type_line: 'Artifact — Tokenmaker' })).toBe(false)
+  })
+})
+
+describe('isArenaOnly', () => {
+  test('returns true for arena-only card', () => {
+    expect(isArenaOnly(makeGamesCard(['arena']))).toBe(true)
+  })
+
+  test('returns false for paper card', () => {
+    expect(isArenaOnly(makeGamesCard(['paper']))).toBe(false)
+  })
+
+  test('returns false for paper+arena card', () => {
+    expect(isArenaOnly(makeGamesCard(['paper', 'arena']))).toBe(false)
+  })
+
+  test('returns false for mtgo card', () => {
+    expect(isArenaOnly(makeGamesCard(['mtgo']))).toBe(false)
+  })
+
+  test('returns false for empty games array', () => {
+    expect(isArenaOnly(makeGamesCard([]))).toBe(false)
+  })
+
+  test('returns false for paper+mtgo+arena card', () => {
+    expect(isArenaOnly(makeGamesCard(['paper', 'mtgo', 'arena']))).toBe(false)
+  })
+})
+
+describe('getCardGames', () => {
+  test('returns union of games across printings', () => {
+    const paper = makeGamesCard(['paper'])
+    const mtgo = makeGamesCard(['mtgo'])
+    expect(getCardGames([paper, mtgo]).sort()).toEqual(['mtgo', 'paper'])
+  })
+
+  test('deduplicates games', () => {
+    const a = makeGamesCard(['paper', 'arena'])
+    const b = makeGamesCard(['paper', 'mtgo'])
+    expect(getCardGames([a, b]).sort()).toEqual(['arena', 'mtgo', 'paper'])
+  })
+
+  test('returns empty for no printings', () => {
+    expect(getCardGames([])).toEqual([])
+  })
+
+  test('returns empty for cards with empty games', () => {
+    expect(getCardGames([makeGamesCard([])])).toEqual([])
   })
 })

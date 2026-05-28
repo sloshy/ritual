@@ -983,7 +983,37 @@ export async function mockAdminCollectionLoadApi(page: Page): Promise<void> {
 
 // ===== Trade page mock data =====
 
-const MOCK_TRADE_COLLECTION_CARD_BOLT = {
+/**
+ * Base shape for a printing returned by the Scryfall search endpoint, used by
+ * trade printing-picker tests that fabricate several printings off a single
+ * card name. Spread and override `id`, `set`, `collector_number`, etc. per row.
+ */
+export const PICKER_BASE_PRINTING = {
+  id: 'crypt-base',
+  name: 'Mana Crypt',
+  cmc: 0,
+  type_line: 'Artifact',
+  oracle_text: '',
+  image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
+  prices: {
+    usd: '175.00',
+    usd_foil: null,
+    usd_etched: null,
+    eur: null,
+    eur_foil: null,
+    tix: null,
+  },
+  finishes: ['nonfoil'],
+  games: ['paper'],
+  set: '2xm',
+  set_name: 'Double Masters',
+  collector_number: '270',
+  rarity: 'mythic',
+  color_identity: [],
+  released_at: '2020-08-07',
+}
+
+export const MOCK_TRADE_COLLECTION_CARD_BOLT = {
   id: 'trade-bolt-id',
   name: 'Lightning Bolt',
   cmc: 1,

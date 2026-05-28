@@ -55,6 +55,12 @@ describe('ritual config', () => {
     expect(config.admin.gitEnabled).toBe(false)
   })
 
+  test('loadRitualConfig falls back to defaults when file is malformed JSON', async () => {
+    await fs.writeFile(configPath, '{ not valid json }')
+    const config = await loadRitualConfig()
+    expect(config).toEqual(getDefaultRitualConfig())
+  })
+
   test('saveRitualConfig and loadRitualConfig round-trip', async () => {
     const config: RitualConfig = {
       decksDir: './my-decks',
@@ -251,7 +257,7 @@ describe('parseAdminConfig', () => {
   })
 
   test('returns error string when not an object', () => {
-    expect(typeof parseAdminConfig('nope')).toBe('string')
+    expect(parseAdminConfig('nope') as string).toContain('admin config')
     expect(typeof parseAdminConfig(42)).toBe('string')
     expect(typeof parseAdminConfig(null)).toBe('string')
   })
@@ -262,10 +268,14 @@ describe('parseAdminConfig', () => {
     expect(result as string).toContain('gitEnabled')
   })
 
-  test('returns error naming the field when a number field is malformed', () => {
-    const result = parseAdminConfig({ rateLimitMaxAttempts: 'lots' })
+  test.each([
+    ['rateLimitMaxAttempts', { rateLimitMaxAttempts: 'lots' }],
+    ['rateLimitWindowMinutes', { rateLimitWindowMinutes: 'a while' }],
+    ['failedAuthDelayMs', { failedAuthDelayMs: 'slow' }],
+  ])('returns error naming the field when number field %s is malformed', (field, input) => {
+    const result = parseAdminConfig(input)
     expect(typeof result).toBe('string')
-    expect(result as string).toContain('rateLimitMaxAttempts')
+    expect(result as string).toContain(field)
   })
 
   test('returns error when a list field is not an array of strings', () => {
@@ -291,45 +301,30 @@ describe('parseSiteConfig', () => {
     excludeWantedLists: [],
   }
 
-  test('parses valid github-actions publish-for-me config', () => {
-    const result = parseSiteConfig({
-      version: '0.1.0',
-      ciSystem: 'github-actions',
-      deployMode: 'publish-for-me',
-      distDir: 'dist',
-      detectChanges: false,
-    })
-    expect(result).toEqual({
-      ...defaultSelection,
-      version: '0.1.0',
-      ciSystem: 'github-actions',
-      deployMode: 'publish-for-me',
-      distDir: 'dist',
-      detectChanges: false,
-    })
-  })
-
-  test('parses valid github-actions local-build config', () => {
-    const result = parseSiteConfig({
-      version: '0.2.0-beta1',
-      ciSystem: 'github-actions',
-      deployMode: 'local-build',
-      distDir: 'public',
-      detectChanges: false,
-    })
-    expect(result).toEqual({
-      ...defaultSelection,
-      version: '0.2.0-beta1',
-      ciSystem: 'github-actions',
-      deployMode: 'local-build',
-      distDir: 'public',
-      detectChanges: false,
-    })
-  })
-
-  test('parses valid manual config', () => {
-    const result = parseSiteConfig({ version: '1.0.0', ciSystem: 'manual' })
-    expect(result).toEqual({ ...defaultSelection, version: '1.0.0', ciSystem: 'manual' })
+  test.each([
+    [
+      'github-actions/publish-for-me',
+      {
+        version: '0.1.0',
+        ciSystem: 'github-actions',
+        deployMode: 'publish-for-me',
+        distDir: 'dist',
+        detectChanges: false,
+      },
+    ],
+    [
+      'github-actions/local-build',
+      {
+        version: '0.2.0-beta1',
+        ciSystem: 'github-actions',
+        deployMode: 'local-build',
+        distDir: 'public',
+        detectChanges: false,
+      },
+    ],
+    ['manual', { version: '1.0.0', ciSystem: 'manual' }],
+  ] as const)('parses valid %s config', (_label, input) => {
+    expect(parseSiteConfig(input)).toEqual({ ...defaultSelection, ...input } as SiteConfig)
   })
 
   test('parses selection-only config with no deployment settings', () => {
@@ -391,7 +386,7 @@ describe('parseSiteConfig', () => {
   })
 
   test('returns error string when not an object', () => {
-    expect(typeof parseSiteConfig('just a string')).toBe('string')
+    expect(parseSiteConfig('just a string') as string).toContain('site config')
     expect(typeof parseSiteConfig(null)).toBe('string')
     expect(typeof parseSiteConfig(42)).toBe('string')
   })
@@ -459,28 +454,33 @@ describe('parseSiteConfig', () => {
     expect(result as string).toContain('"detectChanges"')
   })
 
-  test('ignores extra unknown fields for github-actions config', () => {
+  test('returns error when detectChanges is the wrong type for github-actions', () => {
     const result = parseSiteConfig({
       version: '1.0.0',
       ciSystem: 'github-actions',
       deployMode: 'publish-for-me',
       distDir: 'dist',
-      detectChanges: false,
-      unknown: 'field',
+      detectChanges: 'yes',
     })
-    expect(result).toEqual({
-      ...defaultSelection,
-      version: '1.0.0',
-      ciSystem: 'github-actions',
-      deployMode: 'publish-for-me',
-      distDir: 'dist',
-      detectChanges: false,
-    })
+    expect(typeof result).toBe('string')
+    expect(result as string).toContain('"detectChanges"')
   })
 
-  test('ignores extra unknown fields for manual config', () => {
-    const result = parseSiteConfig({ version: '1.0.0', ciSystem: 'manual', unknown: 'field' })
-    expect(result).toEqual({ ...defaultSelection, version: '1.0.0', ciSystem: 'manual' })
+  test.each([
+    [
+      'github-actions',
+      {
+        version: '1.0.0',
+        ciSystem: 'github-actions',
+        deployMode: 'publish-for-me',
+        distDir: 'dist',
+        detectChanges: false,
+      },
+    ],
+    ['manual', { version: '1.0.0', ciSystem: 'manual' }],
+  ] as const)('ignores extra unknown fields for %s config', (_label, input) => {
+    const result = parseSiteConfig({ ...input, unknown: 'field' })
+    expect(result).toEqual({ ...defaultSelection, ...input } as SiteConfig)
   })
 })
 
@@ -493,25 +493,6 @@ describe('getSiteSelectionConfig', () => {
       excludeDecks: [],
       excludeCollections: [],
       excludeWantedLists: [],
-    })
-  })
-
-  test('returns the configured selection lists', () => {
-    const selection = getSiteSelectionConfig({
-      includeDecks: ['Izzet Storm'],
-      includeCollections: [],
-      includeWantedLists: ['*'],
-      excludeDecks: [],
-      excludeCollections: [],
-      excludeWantedLists: ['Done'],
-    })
-    expect(selection).toEqual({
-      includeDecks: ['Izzet Storm'],
-      includeCollections: [],
-      includeWantedLists: ['*'],
-      excludeDecks: [],
-      excludeCollections: [],
-      excludeWantedLists: ['Done'],
     })
   })
 
@@ -528,32 +509,27 @@ describe('getSiteSelectionConfig', () => {
 })
 
 describe('getSiteDeployConfig', () => {
+  const selectionBase: SiteConfig = {
+    includeDecks: ['*'],
+    includeCollections: ['*'],
+    includeWantedLists: ['*'],
+    excludeDecks: [],
+    excludeCollections: [],
+    excludeWantedLists: [],
+  }
+
   test('returns null when site is undefined', () => {
     expect(getSiteDeployConfig(undefined)).toBeNull()
   })
 
   test('returns null for a selection-only site (no deployment settings)', () => {
-    expect(
-      getSiteDeployConfig({
-        includeDecks: ['*'],
-        includeCollections: ['*'],
-        includeWantedLists: ['*'],
-        excludeDecks: [],
-        excludeCollections: [],
-        excludeWantedLists: [],
-      }),
-    ).toBeNull()
+    expect(getSiteDeployConfig(selectionBase)).toBeNull()
   })
 
   test('reconstructs the github-actions deployment config', () => {
     expect(
       getSiteDeployConfig({
-        includeDecks: ['*'],
-        includeCollections: ['*'],
-        includeWantedLists: ['*'],
-        excludeDecks: [],
-        excludeCollections: [],
-        excludeWantedLists: [],
+        ...selectionBase,
         version: '1.0.0',
         ciSystem: 'github-actions',
         deployMode: 'publish-for-me',
@@ -572,12 +548,7 @@ describe('getSiteDeployConfig', () => {
   test('reconstructs the manual deployment config', () => {
     expect(
       getSiteDeployConfig({
-        includeDecks: ['*'],
-        includeCollections: ['*'],
-        includeWantedLists: ['*'],
-        excludeDecks: [],
-        excludeCollections: [],
-        excludeWantedLists: [],
+        ...selectionBase,
         version: '2.1.0',
         ciSystem: 'manual',
       }),

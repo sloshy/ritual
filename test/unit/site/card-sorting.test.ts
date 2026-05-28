@@ -109,27 +109,27 @@ describe('sortCards', () => {
     const multi = makeCard({ name: 'Multi', colorIdentity: ['W', 'U'] })
     expect(sortCards(mono, multi, 'color-identity', false)).toBeLessThan(0)
   })
+
+  test('falls through to name tiebreaker when color identity is identical', () => {
+    const a = makeCard({ name: 'Alpha', colorIdentity: ['W'] })
+    const b = makeCard({ name: 'Beta', colorIdentity: ['W'] })
+    expect(sortCards(a, b, 'color-identity', false)).toBeLessThan(0)
+    expect(sortCards(b, a, 'color-identity', false)).toBeGreaterThan(0)
+  })
 })
 
 describe('getCardTypeCategory', () => {
-  test('identifies creature', () => {
-    expect(getCardTypeCategory('Creature — Human Wizard')).toBe('Creature')
-  })
-
-  test('identifies instant', () => {
-    expect(getCardTypeCategory('Instant')).toBe('Instant')
-  })
-
-  test('identifies land', () => {
-    expect(getCardTypeCategory('Basic Land — Mountain')).toBe('Land')
-  })
-
-  test('identifies artifact', () => {
-    expect(getCardTypeCategory('Artifact')).toBe('Artifact')
-  })
-
-  test('returns Other for unknown types', () => {
-    expect(getCardTypeCategory('Conspiracy')).toBe('Other')
+  test.each([
+    ['Creature — Human Wizard', 'Creature'],
+    ['Legendary Planeswalker — Teferi', 'Planeswalker'],
+    ['Instant', 'Instant'],
+    ['Sorcery', 'Sorcery'],
+    ['Artifact', 'Artifact'],
+    ['Enchantment — Aura', 'Enchantment'],
+    ['Basic Land — Mountain', 'Land'],
+    ['Conspiracy', 'Other'],
+  ])('identifies %s as %s', (typeLine, expected) => {
+    expect(getCardTypeCategory(typeLine)).toBe(expected)
   })
 })
 
@@ -229,11 +229,11 @@ describe('groupAndSortCards with reverseGroups', () => {
       makeCard({ name: 'B', type: 'Instant', cmc: 1 }),
       makeCard({ name: 'C', type: 'Artifact', cmc: 1 }),
     ]
+    // TYPE_ORDER canonical: Creature, Instant, Artifact (subset of the full WUBRG-style order).
     const normal = groupAndSortCards(cards, 'type', 'name', false, [], undefined, 'usd', false)
     const reversed = groupAndSortCards(cards, 'type', 'name', false, [], undefined, 'usd', true)
-    const normalKeys = normal.map((g) => g.key)
-    const reversedKeys = reversed.map((g) => g.key)
-    expect(reversedKeys).toEqual([...normalKeys].reverse())
+    expect(normal.map((g) => g.key)).toEqual(['Creature', 'Instant', 'Artifact'])
+    expect(reversed.map((g) => g.key)).toEqual(['Artifact', 'Instant', 'Creature'])
   })
 
   test('reverseGroups reverses printing group order', () => {
@@ -293,8 +293,6 @@ describe('groupAndSortCards with reverseGroups', () => {
       makeCard({ name: 'Alpha', type: 'Instant' }),
       makeCard({ name: 'Beta', type: 'Creature — Bear' }),
     ]
-    // Both reversed: sections reversed, cards reversed within sections
-    const bothReversed = groupAndSortCards(cards, 'type', 'name', true, [], undefined, 'usd', true)
     const normalSections = groupAndSortCards(
       cards,
       'type',
@@ -305,11 +303,12 @@ describe('groupAndSortCards with reverseGroups', () => {
       'usd',
       false,
     )
+    // Both reversed: sections reversed, cards reversed within sections
+    const bothReversed = groupAndSortCards(cards, 'type', 'name', true, [], undefined, 'usd', true)
 
-    const normalKeys = normalSections.map((g) => g.key)
-    const bothKeys = bothReversed.map((g) => g.key)
-    // Section order should be reversed
-    expect(bothKeys).toEqual([...normalKeys].reverse())
+    // Canonical type order is Creature, Instant; reversed is Instant, Creature.
+    expect(normalSections.map((g) => g.key)).toEqual(['Creature', 'Instant'])
+    expect(bothReversed.map((g) => g.key)).toEqual(['Instant', 'Creature'])
 
     // Cards within creature group should be reverse-alphabetical
     const creatureGroup = bothReversed.find((g) => g.key === 'Creature')!
@@ -345,12 +344,14 @@ describe('colorIdentityName', () => {
     expect(colorIdentityName([])).toBe('Colorless')
   })
 
-  test('returns mono color names', () => {
-    expect(colorIdentityName(['W'])).toBe('White')
-    expect(colorIdentityName(['U'])).toBe('Blue')
-    expect(colorIdentityName(['B'])).toBe('Black')
-    expect(colorIdentityName(['R'])).toBe('Red')
-    expect(colorIdentityName(['G'])).toBe('Green')
+  test.each([
+    [['W'], 'White'],
+    [['U'], 'Blue'],
+    [['B'], 'Black'],
+    [['R'], 'Red'],
+    [['G'], 'Green'],
+  ] as const)('returns mono color name %p → %s', (input, expected) => {
+    expect(colorIdentityName([...input])).toBe(expected)
   })
 
   test('returns guild names for two-color combos', () => {
@@ -364,6 +365,12 @@ describe('colorIdentityName', () => {
     expect(colorIdentityName(['B', 'R', 'G'])).toBe('Jund (BRG)')
   })
 
+  test('returns four-color name with WUBRG-ordered key', () => {
+    // Input is given in non-canonical order to verify both lookup and key normalization.
+    expect(colorIdentityName(['R', 'W', 'U', 'B'])).toBe('WUBR (Four Color)')
+    expect(colorIdentityName(['G', 'U', 'B', 'R'])).toBe('UBRG (Four Color)')
+  })
+
   test('returns WUBRG (Five Color) for all five', () => {
     expect(colorIdentityName(['W', 'U', 'B', 'R', 'G'])).toBe('WUBRG (Five Color)')
   })
@@ -374,16 +381,12 @@ describe('colorIdentitySortValue', () => {
     expect(colorIdentitySortValue([])).toBe(0)
   })
 
-  test('mono colors sort in WUBRG order', () => {
-    const w = colorIdentitySortValue(['W'])
-    const u = colorIdentitySortValue(['U'])
-    const b = colorIdentitySortValue(['B'])
-    const r = colorIdentitySortValue(['R'])
-    const g = colorIdentitySortValue(['G'])
-    expect(w).toBeLessThan(u)
-    expect(u).toBeLessThan(b)
-    expect(b).toBeLessThan(r)
-    expect(r).toBeLessThan(g)
+  test('mono colors sort strictly in WUBRG order', () => {
+    const values = (['W', 'U', 'B', 'R', 'G'] as const).map((c) => colorIdentitySortValue([c]))
+    // Each consecutive pair must be strictly increasing.
+    for (let i = 1; i < values.length; i++) {
+      expect(values[i - 1]).toBeLessThan(values[i]!)
+    }
   })
 
   test('mono sorts before two-color', () => {
@@ -429,6 +432,13 @@ describe('getPriceGroupKey', () => {
     expect(getPriceGroupKey(0, 'archidekt')).toBe('No Price Data')
     expect(getPriceGroupKey(0, 'five')).toBe('No Price Data')
     expect(getPriceGroupKey(0, 'ten')).toBe('No Price Data')
+  })
+
+  test('renders bracket labels using the requested currency symbol', () => {
+    // The default formatter uses '$' for usd, '€' for eur, and a ' tix' suffix.
+    expect(getPriceGroupKey(3.0, 'archidekt', 'eur')).toBe('€1 – €5')
+    expect(getPriceGroupKey(150, 'archidekt', 'eur')).toBe('€100+')
+    expect(getPriceGroupKey(2.5, 'ten', 'tix')).toBe('0 tix – 10 tix')
   })
 })
 

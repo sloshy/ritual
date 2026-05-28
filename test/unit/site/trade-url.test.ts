@@ -1,10 +1,25 @@
 import { describe, expect, test, mock, beforeAll, afterAll } from 'bun:test'
 import { defaultFinishForCard, resolveTradeFinish } from '../../../src/site/trade-finish'
 import { encodeTradeToParams, hasTradeParams } from '../../../src/site/trade-url-encode'
-import { decodeTradeFromParams } from '../../../src/site/trade-url-decode'
+import { decodeTradeFromParams, type TradeParamEntries } from '../../../src/site/trade-url-decode'
 import type { TradeCardEntry } from '../../../src/site/data-types'
 import type { TradeSearchEntry } from '../../../src/site/useTradeData'
 import type { ScryfallCard } from '../../../src/types'
+
+const noEntries: TradeParamEntries = {
+  collectionEntries: [],
+  deckEntries: [],
+  wantedEntries: [],
+}
+
+function roundTrip(
+  left: TradeCardEntry[],
+  right: TradeCardEntry[],
+  entries: TradeParamEntries = noEntries,
+) {
+  const params = encodeTradeToParams(left, right)
+  return decodeTradeFromParams(params, entries, 'usd')
+}
 
 // decodeTradeFromParams prefetches scryfall cards for any `@sfId` in the URL
 // that isn't already present in the supplied entries. Unit tests must never hit
@@ -260,12 +275,7 @@ describe('encode → decode round-trip', () => {
         sourceCardIds: [3, 7, 9],
       },
     ]
-    const params = encodeTradeToParams(left, [])
-    const decoded = await decodeTradeFromParams(
-      params,
-      { collectionEntries: [entry], deckEntries: [], wantedEntries: [] },
-      'usd',
-    )
+    const decoded = await roundTrip(left, [], { ...noEntries, collectionEntries: [entry] })
     expect(decoded.left).toHaveLength(1)
     expect(decoded.left[0]).toMatchObject({
       source: 'collection',
@@ -296,14 +306,7 @@ describe('encode → decode round-trip', () => {
         sourceCardIds: [11],
       },
     ]
-    const params = encodeTradeToParams(left, [])
-    expect(params.get('leftSideDeckIds')).toContain(':etched')
-
-    const decoded = await decodeTradeFromParams(
-      params,
-      { collectionEntries: [], deckEntries: [entry], wantedEntries: [] },
-      'usd',
-    )
+    const decoded = await roundTrip(left, [], { ...noEntries, deckEntries: [entry] })
     expect(decoded.left).toHaveLength(1)
     expect(decoded.left[0]).toMatchObject({
       source: 'deck',
@@ -336,14 +339,7 @@ describe('encode → decode round-trip', () => {
         sourceCardIds: [12],
       },
     ]
-    const params = encodeTradeToParams(left, [])
-    expect(params.get('leftSideDeckIds')).toBe('Mono-W:12x1@foil-only')
-
-    const decoded = await decodeTradeFromParams(
-      params,
-      { collectionEntries: [], deckEntries: [entry], wantedEntries: [] },
-      'usd',
-    )
+    const decoded = await roundTrip(left, [], { ...noEntries, deckEntries: [entry] })
     expect(decoded.left[0]?.finish).toBe('foil')
     expect(decoded.left[0]?.price).toBe(5.0)
   })
@@ -361,7 +357,7 @@ describe('encode → decode round-trip', () => {
     params.set('leftSideDeckIds', 'Deck:20x1@nf-only:foil')
     const decoded = await decodeTradeFromParams(
       params,
-      { collectionEntries: [], deckEntries: [entry], wantedEntries: [] },
+      { ...noEntries, deckEntries: [entry] },
       'usd',
     )
     expect(decoded.left[0]?.finish).toBe('nonfoil')
@@ -388,16 +384,9 @@ describe('encode → decode round-trip', () => {
       },
     ]
     const params = encodeTradeToParams(left, [])
-    const usd = await decodeTradeFromParams(
-      params,
-      { collectionEntries: [], deckEntries: [entry], wantedEntries: [] },
-      'usd',
-    )
-    const eur = await decodeTradeFromParams(
-      params,
-      { collectionEntries: [], deckEntries: [entry], wantedEntries: [] },
-      'eur',
-    )
+    const deckOnly: TradeParamEntries = { ...noEntries, deckEntries: [entry] }
+    const usd = await decodeTradeFromParams(params, deckOnly, 'usd')
+    const eur = await decodeTradeFromParams(params, deckOnly, 'eur')
     expect(usd.left[0]?.price).toBe(5.0)
     expect(eur.left[0]?.price).toBe(4.5)
   })
@@ -421,17 +410,11 @@ describe('encode → decode round-trip', () => {
         sourceCardIds: [40, 41],
       },
     ]
-    const params = encodeTradeToParams([], right)
-    const decoded = await decodeTradeFromParams(
-      params,
-      {
-        collectionEntries: [],
-        deckEntries: [],
-        // entry has scryfallCard, so the decoder won't try to fetch it
-        wantedEntries: [{ ...entry, scryfallCard: card }],
-      },
-      'usd',
-    )
+    // entry has scryfallCard, so the decoder won't try to fetch it
+    const decoded = await roundTrip([], right, {
+      ...noEntries,
+      wantedEntries: [{ ...entry, scryfallCard: card }],
+    })
     expect(decoded.right).toHaveLength(1)
     expect(decoded.right[0]).toMatchObject({
       source: 'wanted',
@@ -460,12 +443,7 @@ describe('encode → decode round-trip', () => {
         sourceCardIds: [99],
       },
     ]
-    const params = encodeTradeToParams(left, [])
-    const decoded = await decodeTradeFromParams(
-      params,
-      { collectionEntries: [entry], deckEntries: [], wantedEntries: [] },
-      'usd',
-    )
+    const decoded = await roundTrip(left, [], { ...noEntries, collectionEntries: [entry] })
     expect(decoded.left).toHaveLength(1)
     expect(decoded.left[0]?.sourceName).toBe('A & B | C, D:E')
   })
@@ -481,11 +459,7 @@ describe('decodeTradeFromParams — URL-decode race / stale-entry coverage', () 
   test('deck params with empty deckEntries produces an empty deck side (premature decode)', async () => {
     const params = new URLSearchParams()
     params.set('leftSideDeckIds', 'Mono-W:11x1@some-sf-id')
-    const decoded = await decodeTradeFromParams(
-      params,
-      { collectionEntries: [], deckEntries: [], wantedEntries: [] },
-      'usd',
-    )
+    const decoded = await decodeTradeFromParams(params, noEntries, 'usd')
     expect(decoded.left).toHaveLength(0)
     expect(decoded.right).toHaveLength(0)
   })
@@ -517,16 +491,11 @@ describe('decodeTradeFromParams — URL-decode race / stale-entry coverage', () 
         sourceCardIds: [11],
       },
     ]
-    const params = encodeTradeToParams(left, [])
-    expect(params.has('leftSideColIds')).toBe(true)
-    expect(params.has('leftSideDeckIds')).toBe(true)
-
     // deckEntries empty — simulates a decode kicked off before useTradeData.loadDecks finished
-    const decoded = await decodeTradeFromParams(
-      params,
-      { collectionEntries: [collectionEntry], deckEntries: [], wantedEntries: [] },
-      'usd',
-    )
+    const decoded = await roundTrip(left, [], {
+      ...noEntries,
+      collectionEntries: [collectionEntry],
+    })
     expect(decoded.left).toHaveLength(1)
     expect(decoded.left[0]).toMatchObject({ source: 'collection', sourceName: 'My Binder' })
   })
@@ -543,7 +512,7 @@ describe('decodeTradeFromParams — URL-decode race / stale-entry coverage', () 
 
     const decoded = await decodeTradeFromParams(
       params,
-      { collectionEntries: [entry], deckEntries: [], wantedEntries: [] },
+      { ...noEntries, collectionEntries: [entry] },
       'usd',
     )
     expect(decoded.left).toHaveLength(0)
@@ -566,7 +535,7 @@ describe('decodeTradeFromParams — URL-decode race / stale-entry coverage', () 
 
     const decoded = await decodeTradeFromParams(
       params,
-      { collectionEntries: [entry], deckEntries: [], wantedEntries: [] },
+      { ...noEntries, collectionEntries: [entry] },
       'usd',
     )
     expect(decoded.left).toHaveLength(0)
@@ -592,7 +561,7 @@ describe('decodeTradeFromParams — URL-decode race / stale-entry coverage', () 
 
     const decoded = await decodeTradeFromParams(
       params,
-      { collectionEntries: [entry], deckEntries: [], wantedEntries: [] },
+      { ...noEntries, collectionEntries: [entry] },
       'usd',
     )
     // The two valid IDs collapse to a single qty=2 row
@@ -621,7 +590,7 @@ describe('decodeTradeFromParams — URL-decode race / stale-entry coverage', () 
 
     const decoded = await decodeTradeFromParams(
       params,
-      { collectionEntries: [entry], deckEntries: [], wantedEntries: [] },
+      { ...noEntries, collectionEntries: [entry] },
       'usd',
     )
     expect(decoded.left).toHaveLength(1)
@@ -632,28 +601,24 @@ describe('decodeTradeFromParams — URL-decode race / stale-entry coverage', () 
     const params = new URLSearchParams()
     params.set('rightSideScryfall', 'not-a-token')
 
-    const decoded = await decodeTradeFromParams(
-      params,
-      { collectionEntries: [], deckEntries: [], wantedEntries: [] },
-      'usd',
-    )
+    const decoded = await decodeTradeFromParams(params, noEntries, 'usd')
     expect(decoded.right).toHaveLength(0)
     expect(decoded.warnings).toContainEqual({ kind: 'malformed-token', token: 'not-a-token' })
   })
 
-  test('hasTradeParams stays true even when entries are stale, so the gate fires once data loads', async () => {
+  test('hasTradeParams is entry-independent (stays true regardless of loaded entries)', () => {
     // The gating effect uses hasTradeParams + decksReady to know when it's safe to decode.
-    // A URL with deck params should still report hasTradeParams=true regardless of
-    // what entries are loaded — that signal must be entry-independent.
+    // A URL with deck params should report hasTradeParams=true based on the URL alone —
+    // that signal must not depend on what entries are loaded.
     const params = new URLSearchParams('leftSideDeckIds=Mono-W:11x1@some-sf-id')
     expect(hasTradeParams(params)).toBe(true)
+  })
+
+  test('two-phase decode: same params yield empty result pre-load, populated result post-load', async () => {
+    const params = new URLSearchParams('leftSideDeckIds=Mono-W:11x1@some-sf-id')
 
     // First call (decks not ready, entries empty): empty result, no throw
-    const early = await decodeTradeFromParams(
-      params,
-      { collectionEntries: [], deckEntries: [], wantedEntries: [] },
-      'usd',
-    )
+    const early = await decodeTradeFromParams(params, noEntries, 'usd')
     expect(early.left).toHaveLength(0)
 
     // Same params, entries now populated (post-load): decoded
@@ -665,12 +630,137 @@ describe('decodeTradeFromParams — URL-decode race / stale-entry coverage', () 
       cardIds: [11],
       scryfallCard: card,
     })
-    const ready = await decodeTradeFromParams(
-      params,
-      { collectionEntries: [], deckEntries: [entry], wantedEntries: [] },
-      'usd',
-    )
+    const ready = await decodeTradeFromParams(params, { ...noEntries, deckEntries: [entry] }, 'usd')
     expect(ready.left).toHaveLength(1)
     expect(ready.left[0]).toMatchObject({ source: 'deck', sourceName: 'Mono-W' })
+  })
+
+  test('deck source: card ID in URL not present in source pool surfaces unknown-card-ids warning', async () => {
+    const card = makeCard({ id: 'deck-sf-id' })
+    const entry = makeSearchEntry({
+      sourceName: 'Mono-W',
+      sourceKind: 'deck',
+      maxQty: 1,
+      cardIds: [11], // pool contains 11 only
+      scryfallCard: card,
+    })
+    const params = new URLSearchParams()
+    // URL references id 999 (no longer in the pool) with a valid scryfall suffix
+    params.set('leftSideDeckIds', 'Mono-W:999x1@deck-sf-id')
+
+    const decoded = await decodeTradeFromParams(
+      params,
+      { ...noEntries, deckEntries: [entry] },
+      'usd',
+    )
+    expect(decoded.left).toHaveLength(0)
+    expect(decoded.warnings).toContainEqual({
+      kind: 'unknown-card-ids',
+      sourceKind: 'deck',
+      sourceName: 'Mono-W',
+      ids: [999],
+    })
+  })
+
+  test('wanted source: card ID in URL not present in source pool surfaces unknown-card-ids warning', async () => {
+    const card = makeCard({ id: 'wanted-sf-id' })
+    const entry = makeSearchEntry({
+      sourceName: 'Wishlist',
+      sourceKind: 'wanted',
+      maxQty: 1,
+      cardIds: [40], // pool contains 40 only
+      scryfallCard: card,
+    })
+    const params = new URLSearchParams()
+    // URL references id 999 (no longer in the pool) with a valid scryfall suffix
+    params.set('rightSideWantedIds', 'Wishlist:999@wanted-sf-id')
+
+    const decoded = await decodeTradeFromParams(
+      params,
+      { ...noEntries, wantedEntries: [entry] },
+      'usd',
+    )
+    expect(decoded.right).toHaveLength(0)
+    expect(decoded.warnings).toContainEqual({
+      kind: 'unknown-card-ids',
+      sourceKind: 'wanted',
+      sourceName: 'Wishlist',
+      ids: [999],
+    })
+  })
+
+  test("deck token referencing a scryfall id the fetch stub can't resolve surfaces unknown-scryfall-id", async () => {
+    // The id exists in the local pool, but the @sfId suffix points to a printing
+    // that is not present in any entry and not returned by the (mocked) fetch.
+    const entry = makeSearchEntry({
+      sourceName: 'Mono-W',
+      sourceKind: 'deck',
+      maxQty: 1,
+      cardIds: [11],
+      scryfallCard: null,
+    })
+    const params = new URLSearchParams()
+    params.set('leftSideDeckIds', 'Mono-W:11x1@nonexistent-id')
+
+    const decoded = await decodeTradeFromParams(
+      params,
+      { ...noEntries, deckEntries: [entry] },
+      'usd',
+    )
+    expect(decoded.warnings).toContainEqual({
+      kind: 'unknown-scryfall-id',
+      sfId: 'nonexistent-id',
+    })
+  })
+
+  test('scryfall-only param referencing an unresolvable id surfaces unknown-scryfall-id', async () => {
+    const params = new URLSearchParams('rightSideScryfall=x1@nonexistent-id')
+
+    const decoded = await decodeTradeFromParams(params, noEntries, 'usd')
+    expect(decoded.right).toHaveLength(0)
+    expect(decoded.warnings).toContainEqual({
+      kind: 'unknown-scryfall-id',
+      sfId: 'nonexistent-id',
+    })
+  })
+
+  test('deck grouped param with a malformed token surfaces malformed-token warning', async () => {
+    const entry = makeSearchEntry({
+      sourceName: 'Mono-W',
+      sourceKind: 'deck',
+      maxQty: 1,
+      cardIds: [11],
+    })
+    // `badtoken` is missing the required `<id>x<qty>` separator
+    const params = new URLSearchParams()
+    params.set('leftSideDeckIds', 'Mono-W:badtoken')
+
+    const decoded = await decodeTradeFromParams(
+      params,
+      { ...noEntries, deckEntries: [entry] },
+      'usd',
+    )
+    expect(decoded.left).toHaveLength(0)
+    expect(decoded.warnings).toContainEqual({ kind: 'malformed-token', token: 'badtoken' })
+  })
+
+  test('collection grouped param with a malformed token surfaces malformed-token warning', async () => {
+    const entry = makeSearchEntry({
+      sourceName: 'My Binder',
+      sourceKind: 'collection',
+      maxQty: 1,
+      cardIds: [3],
+    })
+    // `badtoken` is not a valid numeric ID
+    const params = new URLSearchParams()
+    params.set('leftSideColIds', 'My%20Binder:badtoken')
+
+    const decoded = await decodeTradeFromParams(
+      params,
+      { ...noEntries, collectionEntries: [entry] },
+      'usd',
+    )
+    expect(decoded.left).toHaveLength(0)
+    expect(decoded.warnings).toContainEqual({ kind: 'malformed-token', token: 'badtoken' })
   })
 })

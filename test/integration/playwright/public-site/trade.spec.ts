@@ -1,29 +1,35 @@
-import { test, expect } from '@playwright/test'
-import { mockPublicSiteForTrade } from '../helpers/mock-data'
+import { test, expect, type Page } from '@playwright/test'
+import {
+  MOCK_TRADE_COLLECTION_CARD_BOLT,
+  PICKER_BASE_PRINTING,
+  mockPublicSiteForTrade,
+} from '../helpers/mock-data'
 
-const PICKER_BASE_PRINTING = {
-  id: 'crypt-base',
-  name: 'Mana Crypt',
-  cmc: 0,
-  type_line: 'Artifact',
-  oracle_text: '',
-  image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
-  prices: {
-    usd: '175.00',
-    usd_foil: null,
-    usd_etched: null,
-    eur: null,
-    eur_foil: null,
-    tix: null,
-  },
-  finishes: ['nonfoil'],
-  games: ['paper'],
-  set: '2xm',
-  set_name: 'Double Masters',
-  collector_number: '270',
-  rarity: 'mythic',
-  color_identity: [],
-  released_at: '2020-08-07',
+/**
+ * Type a query into the left column's search input, wait for the suggestion
+ * dropdown, and click the first row. Used by the many left-column tests that
+ * just need a card on the board to exercise downstream state.
+ */
+async function addToLeft(page: Page, query: string): Promise<void> {
+  const leftSearch = page.locator('.trade-col[data-side="left"] .search-input')
+  await leftSearch.fill(query)
+  const suggest = page.locator('.trade-col[data-side="left"] .search-suggest')
+  await expect(suggest).toBeVisible()
+  await suggest.locator('.search-suggest-row').first().click({ force: true })
+}
+
+/**
+ * Right-column equivalent of {@link addToLeft} for Scryfall mode: toggles the
+ * search-mode switch, types the query, and clicks the first suggestion. Caller
+ * is responsible for handling the printing-picker modal that opens afterward.
+ */
+async function scryfallAddToRight(page: Page, query: string): Promise<void> {
+  const rightColumn = page.locator('.trade-col[data-side="right"]')
+  await rightColumn.locator('.search-mode-toggle').click()
+  await rightColumn.locator('.search-input').fill(query)
+  const suggest = rightColumn.locator('.search-suggest')
+  await expect(suggest).toBeVisible({ timeout: 2000 })
+  await suggest.locator('.search-suggest-row').first().click({ force: true })
 }
 
 test.describe('Trade Page', () => {
@@ -66,11 +72,7 @@ test.describe('Trade Page', () => {
   test('left column: removing a card removes it from the list', async ({ page }) => {
     await page.goto('#/trade')
 
-    const leftSearch = page.locator('.trade-col[data-side="left"] .search-input')
-    await leftSearch.fill('Lightning')
-    const suggest = page.locator('.trade-col[data-side="left"] .search-suggest')
-    await expect(suggest).toBeVisible()
-    await suggest.locator('.search-suggest-row').first().click({ force: true })
+    await addToLeft(page, 'Lightning')
 
     await expect(page.locator('.trade-col[data-side="left"] .trade-row-name-text')).toContainText(
       'Lightning Bolt',
@@ -84,48 +86,61 @@ test.describe('Trade Page', () => {
   test('left column: price total updates after adding a card', async ({ page }) => {
     await page.goto('#/trade')
 
-    await expect(page.locator('.trade-col[data-side="left"] .trade-col-foot-total')).toContainText(
-      '—',
-    )
+    const leftTotal = page.locator('.trade-col[data-side="left"] .trade-col-foot-total')
+    await expect(leftTotal).toContainText('—')
 
-    const leftSearch = page.locator('.trade-col[data-side="left"] .search-input')
-    await leftSearch.fill('Lightning')
-    const suggest = page.locator('.trade-col[data-side="left"] .search-suggest')
-    await expect(suggest).toBeVisible()
-    await suggest.locator('.search-suggest-row').first().click({ force: true })
+    await addToLeft(page, 'Lightning')
 
-    await expect(
-      page.locator('.trade-col[data-side="left"] .trade-col-foot-total'),
-    ).not.toContainText('—')
+    // Mocked Lightning Bolt price is $2.50 (see MOCK_TRADE_COLLECTION_CARD_BOLT).
+    await expect(leftTotal).toContainText('$2.50')
   })
 
-  test('left column: sort controls toggle between name and price', async ({ page }) => {
+  test('right column: price total updates after adding a wanted card', async ({ page }) => {
     await page.goto('#/trade')
 
-    const leftSearch = page.locator('.trade-col[data-side="left"] .search-input')
-    await leftSearch.fill('Lightning')
-    const suggest = page.locator('.trade-col[data-side="left"] .search-suggest')
+    const rightTotal = page.locator('.trade-col[data-side="right"] .trade-col-foot-total')
+    await expect(rightTotal).toContainText('—')
+
+    const rightSearch = page.locator('.trade-col[data-side="right"] .search-input')
+    await rightSearch.fill('Mana')
+    const suggest = page.locator('.trade-col[data-side="right"] .search-suggest')
     await expect(suggest).toBeVisible()
     await suggest.locator('.search-suggest-row').first().click({ force: true })
 
-    await leftSearch.fill('Sol')
-    const suggest2 = page.locator('.trade-col[data-side="left"] .search-suggest')
-    await expect(suggest2).toBeVisible()
-    await suggest2.locator('.search-suggest-row').first().click({ force: true })
+    // Mocked Mana Crypt price is $175.00 (see MOCK_TRADE_WANTED_CARD_CRYPT).
+    await expect(rightTotal).toContainText('$175.00')
+  })
 
-    await page
-      .locator('.trade-col[data-side="left"] .view-toggle button', { hasText: 'Price' })
-      .click()
-    await expect(
-      page.locator('.trade-col[data-side="left"] .view-toggle button.active'),
-    ).toContainText('Price')
+  test('left column: sort controls toggle and reverse the list order', async ({ page }) => {
+    await page.goto('#/trade')
 
-    await page
-      .locator('.trade-col[data-side="left"] .view-toggle button', { hasText: 'Name' })
-      .click()
-    await expect(
-      page.locator('.trade-col[data-side="left"] .view-toggle button.active'),
-    ).toContainText('Name')
+    // Add Lightning Bolt ($2.50) and Sol Ring ($3.00). Both name-ascending and
+    // price-ascending order produce [Lightning Bolt, Sol Ring], so verifying
+    // that Price activates *and* that the reverse toggle flips the order
+    // exercises actual list reordering — not just the active-class swap.
+    await addToLeft(page, 'Lightning')
+    await addToLeft(page, 'Sol')
+
+    const leftCol = page.locator('.trade-col[data-side="left"]')
+    const rows = leftCol.locator('.trade-row-name-text')
+    await expect(rows).toHaveCount(2)
+    await expect(rows.nth(0)).toContainText('Lightning Bolt')
+    await expect(rows.nth(1)).toContainText('Sol Ring')
+
+    await leftCol.locator('.view-toggle button', { hasText: 'Price' }).click()
+    await expect(leftCol.locator('.view-toggle button.active')).toContainText('Price')
+
+    // Reverse flips the price-ascending order. $3.00 Sol Ring should now lead.
+    await leftCol.locator('.toolbar-toggle', { hasText: 'Reverse' }).click()
+    await expect(rows.nth(0)).toContainText('Sol Ring')
+    await expect(rows.nth(1)).toContainText('Lightning Bolt')
+
+    await leftCol.locator('.view-toggle button', { hasText: 'Name' }).click()
+    await expect(leftCol.locator('.view-toggle button.active')).toContainText('Name')
+    // Switching sort axis resets `reverse` to false (see handleSort in
+    // TradePage.tsx) — the list returns to alphabetical order.
+    await expect(rows.nth(0)).toContainText('Lightning Bolt')
+    await expect(rows.nth(1)).toContainText('Sol Ring')
   })
 
   test('right column: searching and adding a card from the wanted list', async ({ page }) => {
@@ -179,15 +194,7 @@ test.describe('Trade Page', () => {
   }) => {
     await page.goto('#/trade')
 
-    const rightColumn = page.locator('.trade-col[data-side="right"]')
-    await rightColumn.locator('.search-mode-toggle').click()
-
-    const searchInput = rightColumn.locator('.search-input')
-    await searchInput.fill('Mana')
-
-    const suggest = rightColumn.locator('.search-suggest')
-    await expect(suggest).toBeVisible({ timeout: 2000 })
-    await suggest.locator('.search-suggest-row').first().click({ force: true })
+    await scryfallAddToRight(page, 'Mana')
 
     await expect(page.locator('.trade-picker-modal')).toBeVisible()
     await expect(page.locator('.trade-picker-title')).toContainText('Mana Crypt')
@@ -198,14 +205,7 @@ test.describe('Trade Page', () => {
   }) => {
     await page.goto('#/trade')
 
-    const rightColumn = page.locator('.trade-col[data-side="right"]')
-    await rightColumn.locator('.search-mode-toggle').click()
-
-    const searchInput = rightColumn.locator('.search-input')
-    await searchInput.fill('Mana')
-    const suggest = rightColumn.locator('.search-suggest')
-    await expect(suggest).toBeVisible({ timeout: 2000 })
-    await suggest.locator('.search-suggest-row').first().click({ force: true })
+    await scryfallAddToRight(page, 'Mana')
 
     const modal = page.locator('.trade-picker-modal')
     await expect(modal).toBeVisible()
@@ -222,13 +222,7 @@ test.describe('Trade Page', () => {
   test('printing picker: pressing Escape closes the picker', async ({ page }) => {
     await page.goto('#/trade')
 
-    const rightColumn = page.locator('.trade-col[data-side="right"]')
-    await rightColumn.locator('.search-mode-toggle').click()
-
-    await rightColumn.locator('.search-input').fill('Mana')
-    const suggest = rightColumn.locator('.search-suggest')
-    await expect(suggest).toBeVisible({ timeout: 2000 })
-    await suggest.locator('.search-suggest-row').first().click({ force: true })
+    await scryfallAddToRight(page, 'Mana')
 
     await expect(page.locator('.trade-picker-modal')).toBeVisible()
     await page.keyboard.press('Escape')
@@ -238,11 +232,7 @@ test.describe('Trade Page', () => {
   test('left column: stepper hidden for single-copy cards', async ({ page }) => {
     await page.goto('#/trade')
 
-    const leftSearch = page.locator('.trade-col[data-side="left"] .search-input')
-    await leftSearch.fill('Sol')
-    const suggest = page.locator('.trade-col[data-side="left"] .search-suggest')
-    await expect(suggest).toBeVisible()
-    await suggest.locator('.search-suggest-row').first().click({ force: true })
+    await addToLeft(page, 'Sol')
 
     const row = page.locator('.trade-col[data-side="left"] .trade-row').first()
     await expect(row.locator('.qty-stepper')).toHaveCount(0)
@@ -273,6 +263,27 @@ test.describe('Trade Page', () => {
     await expect(inc).toBeDisabled()
     await inc.click({ force: true }).catch(() => {})
     await expect(qty).toContainText('3')
+  })
+
+  test('left column: stepper decrements quantity back down', async ({ page }) => {
+    await page.goto('#/trade')
+
+    // Bolt has maxQty=3 in the mocked collection. Bump to 2, then decrement.
+    await addToLeft(page, 'Lightning')
+
+    const row = page.locator('.trade-col[data-side="left"] .trade-row').first()
+    const inc = row.locator('.qty-stepper button', { hasText: '+' })
+    const dec = row.locator('.qty-stepper button', { hasText: '-' })
+    const qty = row.locator('.qty-val')
+
+    await inc.click()
+    await expect(qty).toContainText('2')
+
+    await dec.click()
+    await expect(qty).toContainText('1')
+    // At qty 1 the decrement button is disabled — further decrease must use
+    // the explicit remove control.
+    await expect(dec).toBeDisabled()
   })
 
   test('left column: deck quantity sums across mainboard and sideboard', async ({ page }) => {
@@ -326,14 +337,8 @@ test.describe('Trade Page', () => {
   }) => {
     await page.goto('#/trade')
 
+    await scryfallAddToRight(page, 'Mana')
     const rightColumn = page.locator('.trade-col[data-side="right"]')
-    await rightColumn.locator('.search-mode-toggle').click()
-
-    const searchInput = rightColumn.locator('.search-input')
-    await searchInput.fill('Mana')
-    const suggest = rightColumn.locator('.search-suggest')
-    await expect(suggest).toBeVisible({ timeout: 2000 })
-    await suggest.locator('.search-suggest-row').first().click({ force: true })
 
     const modal = page.locator('.trade-picker-modal')
     await expect(modal).toBeVisible()
@@ -379,12 +384,7 @@ test.describe('Trade Page', () => {
     })
 
     await page.goto('#/trade')
-    const rightColumn = page.locator('.trade-col[data-side="right"]')
-    await rightColumn.locator('.search-mode-toggle').click()
-    await rightColumn.locator('.search-input').fill('Mana')
-    const suggest = rightColumn.locator('.search-suggest')
-    await expect(suggest).toBeVisible({ timeout: 2000 })
-    await suggest.locator('.search-suggest-row').first().click({ force: true })
+    await scryfallAddToRight(page, 'Mana')
 
     const modal = page.locator('.trade-picker-modal')
     await expect(modal).toBeVisible()
@@ -403,11 +403,7 @@ test.describe('Trade Page', () => {
     await page.goto('#/trade')
 
     // Add Lightning Bolt (qty 2 out of 3) from left collection
-    const leftSearch = page.locator('.trade-col[data-side="left"] .search-input')
-    await leftSearch.fill('Lightning')
-    const leftSuggest = page.locator('.trade-col[data-side="left"] .search-suggest')
-    await expect(leftSuggest).toBeVisible()
-    await leftSuggest.locator('.search-suggest-row').first().click({ force: true })
+    await addToLeft(page, 'Lightning')
     // Increment qty to 2
     const leftRow = page.locator('.trade-col[data-side="left"] .trade-row').first()
     await leftRow.locator('.qty-stepper button', { hasText: '+' }).click()
@@ -495,6 +491,10 @@ test.describe('Trade Page', () => {
 
     await banner.locator('.trade-decode-warnings-dismiss').click()
     await expect(banner).not.toBeVisible()
+    // Note: dismissal only clears `decodeWarnings` state — see the onClick
+    // handler in TradePage.tsx. The invalid params remain in the URL hash, so
+    // a refresh would re-surface the banner. If we ever change that, add a
+    // follow-up assertion here that the URL is cleaned.
   })
 
   test('navigating to a deck URL restores the deck card by numeric ID', async ({ page }) => {
@@ -583,16 +583,14 @@ test.describe('Trade Page', () => {
   test('Update prices refetches Scryfall data and reprices loaded cards only', async ({ page }) => {
     await page.goto('#/trade')
 
-    const leftSearch = page.locator('.trade-col[data-side="left"] .search-input')
-    await leftSearch.fill('Lightning')
-    const leftSuggest = page.locator('.trade-col[data-side="left"] .search-suggest')
-    await expect(leftSuggest).toBeVisible()
-    await leftSuggest.locator('.search-suggest-row').first().click({ force: true })
+    await addToLeft(page, 'Lightning')
 
     const leftTotal = page.locator('.trade-col[data-side="left"] .trade-col-foot-total')
     await expect(leftTotal).toContainText('$2.50')
 
     // Override the collection endpoint to return an updated price for the bolt.
+    // Reuses the canonical Lightning Bolt mock and overrides only the usd price
+    // so the rest of the card shape stays in sync with what the page expects.
     let collectionRequests = 0
     let requestedIds: string[] = []
     await page.route('**/api.scryfall.com/cards/collection', async (route) => {
@@ -605,35 +603,8 @@ test.describe('Trade Page', () => {
         body: JSON.stringify({
           data: [
             {
-              id: 'trade-bolt-id',
-              name: 'Lightning Bolt',
-              cmc: 1,
-              type_line: 'Instant',
-              oracle_text: '',
-              image_uris: {
-                small: '',
-                normal: '',
-                large: '',
-                png: '',
-                art_crop: '',
-                border_crop: '',
-              },
-              prices: {
-                usd: '99.99',
-                usd_foil: null,
-                usd_etched: null,
-                eur: null,
-                eur_foil: null,
-                tix: null,
-              },
-              finishes: ['nonfoil', 'foil'],
-              games: ['paper'],
-              set: 'lea',
-              set_name: 'Limited Edition Alpha',
-              collector_number: '161',
-              rarity: 'common',
-              color_identity: ['R'],
-              released_at: '1993-08-05',
+              ...MOCK_TRADE_COLLECTION_CARD_BOLT,
+              prices: { ...MOCK_TRADE_COLLECTION_CARD_BOLT.prices, usd: '99.99' },
             },
           ],
           not_found: [],
@@ -689,12 +660,7 @@ test.describe('Trade Page', () => {
     })
 
     await page.goto('#/trade')
-    const rightColumn = page.locator('.trade-col[data-side="right"]')
-    await rightColumn.locator('.search-mode-toggle').click()
-    await rightColumn.locator('.search-input').fill('Mana')
-    const suggest = rightColumn.locator('.search-suggest')
-    await expect(suggest).toBeVisible({ timeout: 2000 })
-    await suggest.locator('.search-suggest-row').first().click({ force: true })
+    await scryfallAddToRight(page, 'Mana')
 
     const modal = page.locator('.trade-picker-modal')
     await expect(modal).toBeVisible()

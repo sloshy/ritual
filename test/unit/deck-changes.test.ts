@@ -9,15 +9,27 @@ import {
   createChangeId,
   formatChange,
 } from '../../src/change-event'
-import type { ChangeEvent, AddChange, RemoveChange } from '../../src/change-event'
+import type { ChangeEvent, ChangeAction } from '../../src/change-event'
 import { applyChangeToDeck } from '../../src/admin/site/types/deck-changes'
 import type { DeckData } from '../../src/types'
 
+type MakeChangeOverrides = {
+  action: ChangeAction
+  cardName: string
+  cardId?: number
+  set?: string
+  collectorNumber?: string
+  finish?: string
+  condition?: string
+  board?: string
+  note?: string
+  to?: unknown
+  from?: unknown
+}
+
 /** Test helper — builds a ChangeEvent with add-change defaults.
  *  Uses assertion since overrides may switch to a different union branch. */
-function makeChange(
-  overrides: Record<string, unknown> & { action: string; cardName: string },
-): ChangeEvent {
+function makeChange(overrides: MakeChangeOverrides): ChangeEvent {
   return {
     id: createChangeId(),
     timestamp: Date.now(),
@@ -125,10 +137,8 @@ describe('areOppositeChanges', () => {
   })
 
   test('both with undefined set/CN match (both undefined)', () => {
-    const a = makeChange({ action: 'add', cardName: 'Sol Ring' }) as AddChange
-    const b = makeChange({ action: 'remove', cardName: 'Sol Ring' }) as RemoveChange
-    expect(a.set).toBeUndefined()
-    expect(b.set).toBeUndefined()
+    const a = makeChange({ action: 'add', cardName: 'Sol Ring' })
+    const b = makeChange({ action: 'remove', cardName: 'Sol Ring' })
     expect(areOppositeChanges(a, b)).toBe(true)
   })
 
@@ -153,8 +163,6 @@ describe('areOppositeChanges', () => {
   test('both undefined cardIds still cancel', () => {
     const a = makeChange({ action: 'add', cardName: 'Sol Ring' })
     const b = makeChange({ action: 'remove', cardName: 'Sol Ring' })
-    expect(a.cardId).toBeUndefined()
-    expect(b.cardId).toBeUndefined()
     expect(areOppositeChanges(a, b)).toBe(true)
   })
 
@@ -173,6 +181,12 @@ describe('areOppositeChanges', () => {
   test('commander changes with different cardIds do not cancel', () => {
     const a = makeChange({ action: 'set-commander', cardName: 'Kenrith', cardId: 1 })
     const b = makeChange({ action: 'unset-commander', cardName: 'Kenrith', cardId: 2 })
+    expect(areOppositeChanges(a, b)).toBe(false)
+  })
+
+  test('add to Sideboard + remove from Main (default) does not cancel', () => {
+    const a = makeChange({ action: 'add', cardName: 'Sol Ring', board: 'Sideboard' })
+    const b = makeChange({ action: 'remove', cardName: 'Sol Ring' })
     expect(areOppositeChanges(a, b)).toBe(false)
   })
 })
@@ -374,41 +388,22 @@ describe('consolidateSetNote', () => {
 })
 
 describe('isAdditiveChange', () => {
-  test('add is additive', () => {
-    expect(isAdditiveChange('add')).toBe(true)
-  })
-
-  test('set-commander is additive', () => {
-    expect(isAdditiveChange('set-commander')).toBe(true)
-  })
-
-  test('set-finish is additive', () => {
-    expect(isAdditiveChange('set-finish')).toBe(true)
-  })
-
-  test('set-note is additive', () => {
-    expect(isAdditiveChange('set-note')).toBe(true)
-  })
-
-  test('set-printing is additive', () => {
-    expect(isAdditiveChange('set-printing')).toBe(true)
-  })
-
-  test('remove is not additive', () => {
-    expect(isAdditiveChange('remove')).toBe(false)
-  })
-
-  test('unset-commander is not additive', () => {
-    expect(isAdditiveChange('unset-commander')).toBe(false)
+  test.each([
+    ['add', true],
+    ['set-commander', true],
+    ['set-finish', true],
+    ['set-note', true],
+    ['set-printing', true],
+    ['remove', false],
+    ['unset-commander', false],
+    ['move-from', false],
+    ['move-to', false],
+  ] as const)('isAdditiveChange(%s) === %s', (action, expected) => {
+    expect(isAdditiveChange(action)).toBe(expected)
   })
 })
 
 describe('createChangeId', () => {
-  test('returns a string', () => {
-    const id = createChangeId()
-    expect(typeof id).toBe('string')
-  })
-
   test('returns unique ids', () => {
     const ids = new Set(Array.from({ length: 100 }, () => createChangeId()))
     expect(ids.size).toBe(100)
@@ -493,6 +488,31 @@ describe('formatChange', () => {
   test('formats set-printing with no specific printing', () => {
     const change = makeChange({ action: 'set-printing', cardName: 'Lightning Bolt', cardId: 5 })
     expect(formatChange(change)).toBe('Set Lightning Bolt printing to no specific printing &5')
+  })
+
+  test('formats move-from with destination list label', () => {
+    const change = makeChange({
+      action: 'move-from',
+      cardName: 'Sol Ring',
+      cardId: 5,
+      to: { type: 'collection', name: 'Main' },
+    })
+    expect(formatChange(change)).toBe("Move Sol Ring &5 to Collection 'Main'")
+  })
+
+  test('formats move-to with origin list label and printing annotation', () => {
+    const change = makeChange({
+      action: 'move-to',
+      cardName: 'Lightning Bolt',
+      set: 'm10',
+      collectorNumber: '146',
+      finish: 'foil',
+      cardId: 7,
+      from: { type: 'wanted', name: 'Burn' },
+    })
+    expect(formatChange(change)).toBe(
+      "Move Lightning Bolt (M10:146) [foil] &7 from Wanted list 'Burn'",
+    )
   })
 })
 
@@ -725,5 +745,110 @@ describe('applyChangeToDeck — change-printing support', () => {
     expect(original.quantity).toBe(2)
     expect(split.set).toBe('m10')
     expect(split.quantity).toBe(2)
+  })
+})
+
+describe('applyChangeToDeck — additional action coverage', () => {
+  test('set-commander moves the card into a new Commander section (created if absent)', () => {
+    const deck = makeDeck()
+    const result = applyChangeToDeck(deck, {
+      action: 'set-commander',
+      cardName: 'Lightning Bolt',
+      cardId: 5,
+    })
+    const commander = result.sections.find((s) => s.name === 'Commander')
+    const main = result.sections.find((s) => s.name === 'Main')
+    expect(commander).toBeDefined()
+    expect(commander!.cards).toHaveLength(1)
+    expect(commander!.cards[0]!.name).toBe('Lightning Bolt')
+    expect(commander!.cards[0]!.cardId).toBe(5)
+    expect(main!.cards).toHaveLength(0)
+  })
+
+  test('unset-commander moves the card from Commander back to Main', () => {
+    const deck: DeckData = {
+      name: 'Test Deck',
+      sections: [
+        {
+          name: 'Commander',
+          cards: [
+            {
+              quantity: 1,
+              name: 'Kenrith',
+              set: 'eld',
+              collectorNumber: '303',
+              cardId: 1,
+            },
+          ],
+        },
+        { name: 'Main', cards: [] },
+      ],
+    }
+    const result = applyChangeToDeck(deck, {
+      action: 'unset-commander',
+      cardName: 'Kenrith',
+      cardId: 1,
+    })
+    const commander = result.sections.find((s) => s.name === 'Commander')!
+    const main = result.sections.find((s) => s.name === 'Main')!
+    expect(commander.cards).toHaveLength(0)
+    expect(main.cards).toHaveLength(1)
+    expect(main.cards[0]!.name).toBe('Kenrith')
+    expect(main.cards[0]!.cardId).toBe(1)
+  })
+
+  test('set-finish mutates the matching card finish in place', () => {
+    const deck = makeDeck()
+    const result = applyChangeToDeck(deck, {
+      action: 'set-finish',
+      cardName: 'Lightning Bolt',
+      cardId: 5,
+      finish: 'foil',
+    })
+    const card = result.sections[0]!.cards[0]!
+    expect(card.finish).toBe('foil')
+    expect(card.quantity).toBe(4)
+  })
+
+  test('set-note mutates the matching card note in place', () => {
+    const deck = makeDeck()
+    const result = applyChangeToDeck(deck, {
+      action: 'set-note',
+      cardName: 'Lightning Bolt',
+      cardId: 5,
+      note: 'burn spell',
+    })
+    expect(result.sections[0]!.cards[0]!.note).toBe('burn spell')
+  })
+
+  test('remove that drops quantity to zero deletes the entry entirely', () => {
+    let deck = makeDeck()
+    for (let i = 0; i < 4; i++) {
+      deck = applyChangeToDeck(deck, { action: 'remove', cardName: 'Lightning Bolt', cardId: 5 })
+    }
+    expect(deck.sections[0]!.cards).toHaveLength(0)
+  })
+
+  test('remove of a card not in the deck is a no-op (no error, deck unchanged)', () => {
+    const deck = makeDeck()
+    const result = applyChangeToDeck(deck, {
+      action: 'remove',
+      cardName: 'Mana Crypt',
+      cardId: 999,
+    })
+    expect(result.sections[0]!.cards).toHaveLength(1)
+    expect(result.sections[0]!.cards[0]!.quantity).toBe(4)
+  })
+
+  test('set-finish on a card not in the deck is a no-op', () => {
+    const deck = makeDeck()
+    const result = applyChangeToDeck(deck, {
+      action: 'set-finish',
+      cardName: 'Mana Crypt',
+      cardId: 999,
+      finish: 'foil',
+    })
+    expect(result.sections[0]!.cards).toHaveLength(1)
+    expect(result.sections[0]!.cards[0]!.finish).toBe('nonfoil')
   })
 })

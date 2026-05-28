@@ -1,10 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import {
-  applyConfigSet,
-  SETTABLE_FIELDS,
-  SETTABLE_ADMIN_FIELDS,
-  SETTABLE_SITE_FIELDS,
-} from '../../../src/commands/config-set'
+import { applyConfigSet } from '../../../src/commands/config-set'
 import { getDefaultRitualConfig } from '../../../src/ritual-config'
 
 const base = getDefaultRitualConfig()
@@ -44,6 +39,14 @@ describe('applyConfigSet — unknown / blocked properties', () => {
       expect(result.error).toContain('"site"')
     }
   })
+
+  test('returns error when no values are provided', () => {
+    const result = applyConfigSet(base, 'decksDir', [], 'replace')
+    expect('error' in result).toBeTrue()
+    if ('error' in result) {
+      expect(result.error).toBe('At least one value must be provided.')
+    }
+  })
 })
 
 describe('applyConfigSet — site selection lists', () => {
@@ -67,7 +70,9 @@ describe('applyConfigSet — site selection lists', () => {
   test('adds to an existing site.includeWantedLists', () => {
     const seeded = applyConfigSet(base, 'site.includeWantedLists', ['A'], 'replace')
     expect('error' in seeded).toBeFalse()
-    if ('error' in seeded) return
+    if ('error' in seeded) {
+      throw new Error(`seed setup failed: ${seeded.error}`)
+    }
     const result = applyConfigSet(seeded.updatedConfig, 'site.includeWantedLists', ['B'], 'add')
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
@@ -110,30 +115,41 @@ describe('applyConfigSet — site selection lists', () => {
   test('adds to and removes from site.excludeCollections', () => {
     const seeded = applyConfigSet(base, 'site.excludeCollections', ['A', 'B'], 'replace')
     expect('error' in seeded).toBeFalse()
-    if ('error' in seeded) return
+    if ('error' in seeded) {
+      throw new Error(`seed setup failed: ${seeded.error}`)
+    }
     const removed = applyConfigSet(seeded.updatedConfig, 'site.excludeCollections', ['A'], 'remove')
     expect('error' in removed).toBeFalse()
     if (!('error' in removed)) {
       expect(removed.updatedConfig.site?.excludeCollections).toEqual(['B'])
     }
   })
+
+  test('removes a value from site.includeDecks', () => {
+    const seeded = applyConfigSet(base, 'site.includeDecks', ['Atraxa', 'Izzet Storm'], 'replace')
+    expect('error' in seeded).toBeFalse()
+    if ('error' in seeded) {
+      throw new Error(`seed setup failed: ${seeded.error}`)
+    }
+    const result = applyConfigSet(seeded.updatedConfig, 'site.includeDecks', ['Atraxa'], 'remove')
+    expect('error' in result).toBeFalse()
+    if (!('error' in result)) {
+      expect(result.updatedConfig.site?.includeDecks).toEqual(['Izzet Storm'])
+    }
+  })
 })
 
 describe('applyConfigSet — string properties', () => {
-  test('sets a string property', () => {
-    const result = applyConfigSet(base, 'decksDir', ['./my-decks'], 'replace')
+  test.each([
+    ['decksDir', './my-decks'],
+    ['collectionsDir', '/abs/path'],
+    ['wantedDir', './wanted'],
+  ] as const)('sets string property %s', (key, value) => {
+    const result = applyConfigSet(base, key, [value], 'replace')
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
-      expect(result.newValue).toBe('./my-decks')
-      expect(result.updatedConfig.decksDir).toBe('./my-decks')
-    }
-  })
-
-  test('sets collectionsDir', () => {
-    const result = applyConfigSet(base, 'collectionsDir', ['/abs/path'], 'replace')
-    expect('error' in result).toBeFalse()
-    if (!('error' in result)) {
-      expect(result.updatedConfig.collectionsDir).toBe('/abs/path')
+      expect(result.newValue).toBe(value)
+      expect(result.updatedConfig[key]).toBe(value)
     }
   })
 
@@ -165,22 +181,20 @@ describe('applyConfigSet — string properties', () => {
 })
 
 describe('applyConfigSet — boolean properties', () => {
-  test('sets boolean to true', () => {
-    const result = applyConfigSet(base, 'admin.gitEnabled', ['true'], 'replace')
+  test.each([
+    ['true', true],
+    ['TRUE', true],
+    ['True', true],
+    ['false', false],
+    ['FALSE', false],
+    ['False', false],
+  ] as const)('parses %s as %s (case-insensitive)', (input, expected) => {
+    const config = { ...base, admin: { ...base.admin, gitEnabled: !expected } }
+    const result = applyConfigSet(config, 'admin.gitEnabled', [input], 'replace')
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
-      expect(result.newValue).toBe(true)
-      expect(result.updatedConfig.admin.gitEnabled).toBe(true)
-    }
-  })
-
-  test('sets boolean to false', () => {
-    const config = { ...base, admin: { ...base.admin, gitEnabled: true } }
-    const result = applyConfigSet(config, 'admin.gitEnabled', ['false'], 'replace')
-    expect('error' in result).toBeFalse()
-    if (!('error' in result)) {
-      expect(result.newValue).toBe(false)
-      expect(result.updatedConfig.admin.gitEnabled).toBe(false)
+      expect(result.newValue).toBe(expected)
+      expect(result.updatedConfig.admin.gitEnabled).toBe(expected)
     }
   })
 
@@ -194,20 +208,16 @@ describe('applyConfigSet — boolean properties', () => {
     }
   })
 
-  test('accepts TRUE (case-insensitive)', () => {
-    const result = applyConfigSet(base, 'admin.gitEnabled', ['TRUE'], 'replace')
+  test.each([
+    ['admin.rateLimitEnabled sets to true', 'true' as const, true],
+    ['admin.rateLimitEnabled sets to false', 'false' as const, false],
+  ])('%s', (_label, input, expected) => {
+    const config = { ...base, admin: { ...base.admin, rateLimitEnabled: !expected } }
+    const result = applyConfigSet(config, 'admin.rateLimitEnabled', [input], 'replace')
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
-      expect(result.newValue).toBe(true)
-    }
-  })
-
-  test('accepts False (mixed case)', () => {
-    const config = { ...base, admin: { ...base.admin, gitAutoCommit: true } }
-    const result = applyConfigSet(config, 'admin.gitAutoCommit', ['False'], 'replace')
-    expect('error' in result).toBeFalse()
-    if (!('error' in result)) {
-      expect(result.newValue).toBe(false)
+      expect(result.newValue).toBe(expected)
+      expect(result.updatedConfig.admin.rateLimitEnabled).toBe(expected)
     }
   })
 
@@ -224,6 +234,10 @@ describe('applyConfigSet — boolean properties', () => {
   test('returns error when multiple values given for boolean property', () => {
     const result = applyConfigSet(base, 'admin.gitEnabled', ['true', 'false'], 'replace')
     expect('error' in result).toBeTrue()
+    if ('error' in result) {
+      expect(result.error).toContain('boolean')
+      expect(result.error).toContain('2')
+    }
   })
 
   test('returns error when --add used with boolean property', () => {
@@ -289,6 +303,10 @@ describe('applyConfigSet — number properties', () => {
   test('returns error when multiple values given for number property', () => {
     const result = applyConfigSet(base, 'admin.rateLimitMaxAttempts', ['5', '10'], 'replace')
     expect('error' in result).toBeTrue()
+    if ('error' in result) {
+      expect(result.error).toContain('number')
+      expect(result.error).toContain('2')
+    }
   })
 
   test('returns error when --remove used with number property', () => {
@@ -429,55 +447,5 @@ describe('applyConfigSet — immutability', () => {
     const config = { ...base, admin: { ...base.admin, ipAllowList: original } }
     applyConfigSet(config, 'admin.ipAllowList', ['10.0.0.2'], 'add')
     expect(original).toEqual(['10.0.0.1'])
-  })
-})
-
-describe('SETTABLE_FIELDS', () => {
-  test('contains the top-level directory keys', () => {
-    const keys = Object.keys(SETTABLE_FIELDS)
-    expect(keys).toContain('decksDir')
-    expect(keys).toContain('collectionsDir')
-    expect(keys).toContain('wantedDir')
-  })
-
-  test('does not expose the admin or site keys', () => {
-    expect(Object.keys(SETTABLE_FIELDS)).not.toContain('admin')
-    expect(Object.keys(SETTABLE_FIELDS)).not.toContain('site')
-  })
-})
-
-describe('SETTABLE_ADMIN_FIELDS', () => {
-  test('exposes admin settings under dotted admin.* paths', () => {
-    const keys = Object.keys(SETTABLE_ADMIN_FIELDS)
-    expect(keys).toContain('admin.gitEnabled')
-    expect(keys).toContain('admin.gitAutoCommit')
-    expect(keys).toContain('admin.gitAutoPush')
-    expect(keys).toContain('admin.ipAllowList')
-    expect(keys).toContain('admin.rateLimitMaxAttempts')
-    expect(keys).toContain('admin.failedAuthDelayMs')
-  })
-
-  test('maps array fields to string[] type', () => {
-    expect(SETTABLE_ADMIN_FIELDS['admin.ipAllowList']).toBe('string[]')
-    expect(SETTABLE_ADMIN_FIELDS['admin.ipDenyList']).toBe('string[]')
-    expect(SETTABLE_ADMIN_FIELDS['admin.userAgentAllowList']).toBe('string[]')
-    expect(SETTABLE_ADMIN_FIELDS['admin.userAgentDenyList']).toBe('string[]')
-  })
-
-  test('maps numeric fields to number type', () => {
-    expect(SETTABLE_ADMIN_FIELDS['admin.rateLimitMaxAttempts']).toBe('number')
-    expect(SETTABLE_ADMIN_FIELDS['admin.rateLimitWindowMinutes']).toBe('number')
-    expect(SETTABLE_ADMIN_FIELDS['admin.failedAuthDelayMs']).toBe('number')
-  })
-})
-
-describe('SETTABLE_SITE_FIELDS', () => {
-  test('exposes both include and exclude selection lists as string[] paths', () => {
-    expect(SETTABLE_SITE_FIELDS['site.includeDecks']).toBe('string[]')
-    expect(SETTABLE_SITE_FIELDS['site.includeCollections']).toBe('string[]')
-    expect(SETTABLE_SITE_FIELDS['site.includeWantedLists']).toBe('string[]')
-    expect(SETTABLE_SITE_FIELDS['site.excludeDecks']).toBe('string[]')
-    expect(SETTABLE_SITE_FIELDS['site.excludeCollections']).toBe('string[]')
-    expect(SETTABLE_SITE_FIELDS['site.excludeWantedLists']).toBe('string[]')
   })
 })

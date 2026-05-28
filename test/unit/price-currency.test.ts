@@ -8,6 +8,8 @@ import {
   formatPriceWithMissing,
   getCardPrice,
   getCardPriceForFinish,
+  isCurrencyAvailableForCard,
+  parseCurrenciesFlag,
   VALID_CURRENCIES,
 } from '../../src/price-currency'
 import type { ScryfallCard } from '../../src/types'
@@ -203,5 +205,69 @@ describe('getCardPriceForFinish', () => {
 describe('VALID_CURRENCIES', () => {
   test('contains all three currencies', () => {
     expect(VALID_CURRENCIES).toEqual(['usd', 'eur', 'tix'])
+  })
+})
+
+describe('isCurrencyAvailableForCard', () => {
+  test('usd requires paper', () => {
+    expect(isCurrencyAvailableForCard(['paper'], 'usd')).toBe(true)
+    expect(isCurrencyAvailableForCard(['mtgo'], 'usd')).toBe(false)
+    expect(isCurrencyAvailableForCard(['arena'], 'usd')).toBe(false)
+  })
+
+  test('eur requires paper', () => {
+    expect(isCurrencyAvailableForCard(['paper'], 'eur')).toBe(true)
+    expect(isCurrencyAvailableForCard(['mtgo'], 'eur')).toBe(false)
+  })
+
+  test('tix requires mtgo', () => {
+    expect(isCurrencyAvailableForCard(['mtgo'], 'tix')).toBe(true)
+    expect(isCurrencyAvailableForCard(['paper'], 'tix')).toBe(false)
+  })
+
+  test('empty games array returns true (backward compat)', () => {
+    expect(isCurrencyAvailableForCard([], 'usd')).toBe(true)
+    expect(isCurrencyAvailableForCard([], 'eur')).toBe(true)
+    expect(isCurrencyAvailableForCard([], 'tix')).toBe(true)
+  })
+
+  test('paper+mtgo supports all currencies', () => {
+    expect(isCurrencyAvailableForCard(['paper', 'mtgo'], 'usd')).toBe(true)
+    expect(isCurrencyAvailableForCard(['paper', 'mtgo'], 'eur')).toBe(true)
+    expect(isCurrencyAvailableForCard(['paper', 'mtgo'], 'tix')).toBe(true)
+  })
+})
+
+describe('parseCurrenciesFlag', () => {
+  test('returns all currencies when undefined', () => {
+    expect(parseCurrenciesFlag(undefined)).toEqual(['usd', 'eur', 'tix'])
+  })
+
+  test('parses single currency', () => {
+    expect(parseCurrenciesFlag('eur')).toEqual(['eur'])
+  })
+
+  test('parses comma-separated currencies', () => {
+    expect(parseCurrenciesFlag('usd,eur')).toEqual(['usd', 'eur'])
+  })
+
+  test('deduplicates currencies', () => {
+    expect(parseCurrenciesFlag('usd,usd,eur')).toEqual(['usd', 'eur'])
+  })
+
+  test('is case insensitive', () => {
+    expect(parseCurrenciesFlag('USD,EUR')).toEqual(['usd', 'eur'])
+  })
+
+  test('trims whitespace', () => {
+    expect(parseCurrenciesFlag(' usd , tix ')).toEqual(['usd', 'tix'])
+  })
+
+  test('throws for invalid currency', () => {
+    expect(() => parseCurrenciesFlag('usd,gbp')).toThrow()
+  })
+
+  test('returns all currencies for empty string (treated as no input)', () => {
+    expect(parseCurrenciesFlag('')).toEqual(['usd', 'eur', 'tix'])
   })
 })

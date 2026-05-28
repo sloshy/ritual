@@ -58,14 +58,23 @@ describe('allocateId', () => {
   })
 
   test('falls back to sequential when pool is empty', () => {
-    const pool = createIdPool([1, 2, 3])
-    expect(allocateId(pool)).toBe(4)
-    expect(allocateId(pool)).toBe(5)
+    // Covers both the empty-from-construction case (createIdPool([])) and the
+    // empty-after-construction case (createIdPool([1,2,3]) leaves availablePool
+    // empty with nextSequential=4) via the same code path.
+    const fromEmpty = createIdPool([])
+    expect(allocateId(fromEmpty)).toBe(1)
+    expect(allocateId(fromEmpty)).toBe(2)
+    expect(allocateId(fromEmpty)).toBe(3)
+
+    const fromUsed = createIdPool([1, 2, 3])
+    expect(allocateId(fromUsed)).toBe(4)
+    expect(allocateId(fromUsed)).toBe(5)
   })
 
   test('tracks allocated IDs in usedIds', () => {
     const pool = createIdPool([])
     const id = allocateId(pool)
+    expect(id).toBe(1)
     expect(pool.usedIds.has(id)).toBe(true)
   })
 
@@ -75,13 +84,6 @@ describe('allocateId', () => {
     expect(allocateId(pool)).toBe(2) // from pool
     expect(allocateId(pool)).toBe(4) // sequential
     expect(allocateId(pool)).toBe(5) // sequential
-  })
-
-  test('allocates sequentially from empty pool', () => {
-    const pool = createIdPool([])
-    expect(allocateId(pool)).toBe(1)
-    expect(allocateId(pool)).toBe(2)
-    expect(allocateId(pool)).toBe(3)
   })
 })
 
@@ -98,6 +100,9 @@ describe('releaseId', () => {
     releaseId(pool, 4)
     releaseId(pool, 2)
     releaseId(pool, 5)
+    // Insertion order was 4, 2, 5 but availablePool is kept sorted ascending so
+    // allocateId can always pop the smallest reusable ID first. The expected
+    // [2, 4, 5] is the sorted result, not the insertion sequence.
     expect(pool.availablePool).toEqual([2, 4, 5])
   })
 
@@ -129,6 +134,20 @@ describe('releaseId', () => {
     // The guard prevents the same ID from being handed out to two cards.
     expect(allocateId(pool)).toBe(2)
     expect(allocateId(pool)).toBe(4)
+  })
+
+  test('documents current behavior when releasing an ID that was never allocated', () => {
+    // POTENTIAL BUG: releaseId does not verify that `id` was ever in usedIds
+    // before pushing into availablePool. For a fresh pool with usedIds={1,2,3}
+    // and nextSequential=4, releasing 99 still inserts 99 into availablePool,
+    // causing the next allocateId to hand out 99 — an ID no card ever had.
+    // This test pins the current behavior; if releaseId is hardened to ignore
+    // unknown IDs (the more defensible contract), update this test accordingly.
+    const pool = createIdPool([1, 2, 3])
+    releaseId(pool, 99)
+    expect(pool.availablePool).toEqual([99])
+    expect(pool.usedIds.has(99)).toBe(false)
+    expect(allocateId(pool)).toBe(99)
   })
 })
 
@@ -170,6 +189,20 @@ describe('claimId', () => {
     expect(pool.availablePool).toEqual([2, 4])
     expect(pool.usedIds.has(3)).toBe(true)
   })
+
+  test('claiming an already-used ID is idempotent', () => {
+    // The undo workflow can reach a state where the ID being reclaimed is
+    // already present in usedIds (e.g. a redundant claim after a no-op edit).
+    // claimId must leave the pool in the same state in that case so undo never
+    // corrupts the allocator.
+    const pool = createIdPool([1, 2, 3])
+    // Pre-state: usedIds={1,2,3}, availablePool=[], nextSequential=4
+    claimId(pool, 2)
+    expect(pool.usedIds.has(2)).toBe(true)
+    expect(pool.usedIds.size).toBe(3)
+    expect(pool.availablePool).toEqual([])
+    expect(pool.nextSequential).toBe(4)
+  })
 })
 
 describe('clonePool', () => {
@@ -180,10 +213,15 @@ describe('clonePool', () => {
     // Modify original
     allocateId(pool)
 
-    // Clone should be unchanged
+    // Clone should be unchanged. Asserting specific membership (not just .size)
+    // would catch a shallow-copy bug where the clone reuses the original Set
+    // reference: pool.usedIds.add(2) would silently appear in clone.usedIds.
     expect(clone.availablePool).toEqual([2, 4])
     expect(clone.nextSequential).toBe(6)
-    expect(clone.usedIds.size).toBe(3)
+    expect(clone.usedIds.has(1)).toBe(true)
+    expect(clone.usedIds.has(3)).toBe(true)
+    expect(clone.usedIds.has(5)).toBe(true)
+    expect(clone.usedIds.has(2)).toBe(false)
   })
 
   test('clone usedIds is independent', () => {
@@ -229,6 +267,20 @@ describe('initializePoolFromEntries', () => {
     const { pool, assignedIds } = initializePoolFromEntries(0, [])
     expect(assignedIds).toEqual([])
     expect(pool.nextSequential).toBe(1)
+  })
+
+  test('idempotent on fully-IDed entries (load-save-load roundtrip)', () => {
+    // When every entry already has an ID, initializePoolFromEntries should be
+    // a pure function of its inputs: calling it again on the same inputs must
+    // produce the same assignedIds and pool shape. This is the invariant the
+    // serialize→parse→re-initialize roundtrip depends on.
+    const ids = [1, 3, 7]
+    const first = initializePoolFromEntries(3, ids)
+    const second = initializePoolFromEntries(3, ids)
+    expect(second.assignedIds).toEqual(first.assignedIds)
+    expect(second.pool.nextSequential).toBe(first.pool.nextSequential)
+    expect(second.pool.availablePool).toEqual(first.pool.availablePool)
+    expect([...second.pool.usedIds].sort()).toEqual([...first.pool.usedIds].sort())
   })
 })
 
@@ -336,27 +388,32 @@ describe('allocateNextIdFromContent', () => {
     const content = '1 Card A &1\n1 Card B &3\n'
     const result = allocateNextIdFromContent(content)
     expect(result.nextId).toBe(2)
-    // Pool should still have gap at 4 (nextSequential)
+    // After the first allocation consumed the 2 from availablePool, the pool
+    // is empty, so the next allocation falls through to nextSequential (=4).
+    // 4 was never a previously-used ID — it's just the next sequential value.
     const nextFromPool = allocateId(result.pool)
     expect(nextFromPool).toBe(4)
   })
 })
 
 describe('assignMissingDeckCardIds', () => {
+  type SectionSpec = [name: string, cards: DeckData['sections'][number]['cards']]
+  const makeDeck = (name: string, sections: SectionSpec[]): DeckData => ({
+    name,
+    sections: sections.map(([sectionName, cards]) => ({ name: sectionName, cards })),
+  })
+
   test('assigns IDs only to cards that lack one, preserving existing IDs', () => {
-    const deck: DeckData = {
-      name: 'Test',
-      sections: [
-        {
-          name: 'Main',
-          cards: [
-            { quantity: 1, name: 'Sol Ring', cardId: 1 },
-            { quantity: 1, name: 'Lightning Bolt' }, // no ID
-            { quantity: 1, name: 'Mana Crypt', cardId: 3 },
-          ],
-        },
+    const deck = makeDeck('Test', [
+      [
+        'Main',
+        [
+          { quantity: 1, name: 'Sol Ring', cardId: 1 },
+          { quantity: 1, name: 'Lightning Bolt' }, // no ID
+          { quantity: 1, name: 'Mana Crypt', cardId: 3 },
+        ],
       ],
-    }
+    ])
     const result = assignMissingDeckCardIds(deck)
     const cards = result.sections[0]!.cards
     expect(cards[0]!.cardId).toBe(1)
@@ -366,63 +423,51 @@ describe('assignMissingDeckCardIds', () => {
   })
 
   test('allocates sequential IDs across multiple sections', () => {
-    const deck: DeckData = {
-      name: 'Test',
-      sections: [
-        { name: 'Commander', cards: [{ quantity: 1, name: 'Atraxa', cardId: 1 }] },
-        {
-          name: 'Main',
-          cards: [
-            { quantity: 1, name: 'Sol Ring' }, // no ID
-            { quantity: 1, name: 'Counterspell' }, // no ID
-          ],
-        },
+    const deck = makeDeck('Test', [
+      ['Commander', [{ quantity: 1, name: 'Atraxa', cardId: 1 }]],
+      [
+        'Main',
+        [
+          { quantity: 1, name: 'Sol Ring' }, // no ID
+          { quantity: 1, name: 'Counterspell' }, // no ID
+        ],
       ],
-    }
+    ])
     const result = assignMissingDeckCardIds(deck)
     expect(result.sections[1]!.cards[0]!.cardId).toBe(2)
     expect(result.sections[1]!.cards[1]!.cardId).toBe(3)
   })
 
   test('every card has an ID after assignment when the deck started with none', () => {
-    const deck: DeckData = {
-      name: 'Fresh',
-      sections: [
-        {
-          name: 'Main',
-          cards: [
-            { quantity: 1, name: 'Island' },
-            { quantity: 1, name: 'Forest' },
-          ],
-        },
+    const deck = makeDeck('Fresh', [
+      [
+        'Main',
+        [
+          { quantity: 1, name: 'Island' },
+          { quantity: 1, name: 'Forest' },
+        ],
       ],
-    }
+    ])
     const result = assignMissingDeckCardIds(deck)
     const ids = result.sections[0]!.cards.map((c) => c.cardId)
     expect(ids).toEqual([1, 2])
   })
 
   test('does not mutate the input deck', () => {
-    const deck: DeckData = {
-      name: 'Test',
-      sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] }],
-    }
+    const deck = makeDeck('Test', [['Main', [{ quantity: 1, name: 'Sol Ring' }]]])
     assignMissingDeckCardIds(deck)
     expect(deck.sections[0]!.cards[0]!.cardId).toBeUndefined()
   })
 
   test('reuses existing card objects that already have an ID', () => {
     const ided = { quantity: 1, name: 'Sol Ring', cardId: 1 }
-    const deck: DeckData = {
-      name: 'Test',
-      sections: [{ name: 'Main', cards: [ided, { quantity: 1, name: 'Bolt' }] }],
-    }
+    const deck = makeDeck('Test', [['Main', [ided, { quantity: 1, name: 'Bolt' }]]])
     const result = assignMissingDeckCardIds(deck)
     expect(result.sections[0]!.cards[0]).toBe(ided)
   })
 
   test('handles a deck with no sections', () => {
-    const deck: DeckData = { name: 'Empty', sections: [] }
+    const deck = makeDeck('Empty', [])
     const result = assignMissingDeckCardIds(deck)
     expect(result.sections).toEqual([])
   })

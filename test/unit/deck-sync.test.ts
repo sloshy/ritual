@@ -8,10 +8,13 @@ import {
   normalizeBoard,
   type NameDiff,
   type CardIdResolver,
+  type CardSummary,
+  type QuantityChange,
 } from '../../src/commands/deck-sync-helpers'
 import { assignMissingDeckCardIds } from '../../src/card-id'
 import { serializeDeckToMarkdown } from '../../src/deck-file'
-import type { DeckData, DeckSection } from '../../src/types'
+import type { AddChange, RemoveChange } from '../../src/change-event'
+import type { Card, DeckData, DeckSection } from '../../src/types'
 
 // ── normalizeBoard ────────────────────────────────────────────────────
 
@@ -71,16 +74,6 @@ describe('summarizeCards', () => {
     ]
     const summary = summarizeCards(sections, { byBoard: false })
     expect(summary.get('sol ring')?.totalQuantity).toBe(3)
-  })
-
-  test('records the board for each card', () => {
-    const sections: DeckSection[] = [
-      { name: 'Commander', cards: [{ quantity: 1, name: 'Atraxa' }] },
-      { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
-    ]
-    const summary = summarizeCards(sections)
-    expect(summary.get('Commander atraxa')?.board).toBe('Commander')
-    expect(summary.get('Main sol ring')?.board).toBe('Main')
   })
 })
 
@@ -312,10 +305,28 @@ describe('diffToChangeEvents', () => {
       quantityChanged: [],
     }
     const events = diffToChangeEvents(diff)
-    const add = events.find((e) => e.action === 'add')!
-    const remove = events.find((e) => e.action === 'remove')!
-    expect(add.action === 'add' && add.board).toBe('Maybeboard')
-    expect(remove.action === 'remove' && remove.board).toBe('Sideboard')
+    const add = events.find((e): e is AddChange => e.action === 'add')!
+    const remove = events.find((e): e is RemoveChange => e.action === 'remove')!
+    expect(add.board).toBe('Maybeboard')
+    expect(remove.board).toBe('Sideboard')
+  })
+
+  test('propagates the board onto quantity-change events', () => {
+    const diff: NameDiff = {
+      added: [],
+      removed: [],
+      quantityChanged: [
+        { name: 'Island', oldQty: 1, newQty: 2, board: 'Sideboard' },
+        { name: 'Forest', oldQty: 3, newQty: 1, board: 'Maybeboard' },
+      ],
+    }
+    // quantityChanged entries always emit add or remove events, both of which carry `board`.
+    const events = diffToChangeEvents(diff) as Array<AddChange | RemoveChange>
+    const islandEvent = events.find((e) => e.cardName === 'Island')!
+    const forestEvents = events.filter((e) => e.cardName === 'Forest')
+    expect(islandEvent.board).toBe('Sideboard')
+    expect(forestEvents).toHaveLength(2)
+    expect(forestEvents.every((e) => e.board === 'Maybeboard')).toBe(true)
   })
 
   test('returns empty for no changes', () => {
@@ -389,6 +400,18 @@ describe('buildCardIdResolver', () => {
     expect(resolve('Main', 'Sol Ring')).toBe(1)
     expect(resolve('Maybeboard', 'Sol Ring')).toBe(2)
   })
+
+  test('resolves cards under custom section names by their normalized board', () => {
+    // 'Ramp' is a custom header that normalizes to Main; the resolver should index
+    // its cards under 'Main' so changelog stamping finds them by canonical board.
+    const sections: DeckSection[] = [
+      { name: 'Ramp', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 4 }] },
+      { name: 'Tokens', cards: [{ quantity: 1, name: 'Treasure', cardId: 7 }] },
+    ]
+    const resolve = buildCardIdResolver(sections)
+    expect(resolve('Main', 'Sol Ring')).toBe(4)
+    expect(resolve('Maybeboard', 'Treasure')).toBe(7)
+  })
 })
 
 // ── download sync ID assignment (regression) ─────────────────────────
@@ -457,21 +480,31 @@ describe('download sync assigns IDs to new cards', () => {
 // ── applyDownloadDiff ────────────────────────────────────────────────
 
 describe('applyDownloadDiff', () => {
+  // Most applyDownloadDiff tests build a NameDiff with a single populated field;
+  // these factories isolate that field so each test reads as just its inputs.
+  const addDiff = (items: CardSummary[]): NameDiff => ({
+    added: items,
+    removed: [],
+    quantityChanged: [],
+  })
+  const removeDiff = (items: CardSummary[]): NameDiff => ({
+    added: [],
+    removed: items,
+    quantityChanged: [],
+  })
+  const qtyDiff = (items: QuantityChange[]): NameDiff => ({
+    added: [],
+    removed: [],
+    quantityChanged: items,
+  })
+  const mainSections = (cards: Card[]): DeckSection[] => [{ name: 'Main', cards }]
+
   test('removes cards from their board', () => {
-    const sections: DeckSection[] = [
-      {
-        name: 'Main',
-        cards: [
-          { quantity: 1, name: 'Sol Ring' },
-          { quantity: 1, name: 'Lightning Bolt' },
-        ],
-      },
-    ]
-    const diff: NameDiff = {
-      added: [],
-      removed: [{ name: 'Lightning Bolt', totalQuantity: 1, board: 'Main' }],
-      quantityChanged: [],
-    }
+    const sections = mainSections([
+      { quantity: 1, name: 'Sol Ring' },
+      { quantity: 1, name: 'Lightning Bolt' },
+    ])
+    const diff = removeDiff([{ name: 'Lightning Bolt', totalQuantity: 1, board: 'Main' }])
     const result = applyDownloadDiff(sections, diff)
     expect(result[0]!.cards).toHaveLength(1)
     expect(result[0]!.cards[0]!.name).toBe('Sol Ring')
@@ -482,34 +515,35 @@ describe('applyDownloadDiff', () => {
       { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
       { name: 'Maybeboard', cards: [{ quantity: 1, name: 'Sol Ring' }] },
     ]
-    const diff: NameDiff = {
-      added: [],
-      removed: [{ name: 'Sol Ring', totalQuantity: 1, board: 'Maybeboard' }],
-      quantityChanged: [],
-    }
+    const diff = removeDiff([{ name: 'Sol Ring', totalQuantity: 1, board: 'Maybeboard' }])
     const result = applyDownloadDiff(sections, diff)
     expect(result.find((s) => s.name === 'Main')!.cards).toHaveLength(1)
     expect(result.find((s) => s.name === 'Maybeboard')!.cards).toHaveLength(0)
   })
 
+  test('removes a card from every section in its board when it spans multiple', () => {
+    // Both custom headers normalize to Main; a full removal should clear all of
+    // them, not just the first matching line.
+    const sections: DeckSection[] = [
+      { name: 'Lands', cards: [{ quantity: 1, name: 'Island' }] },
+      { name: 'Ramp', cards: [{ quantity: 1, name: 'Island' }] },
+    ]
+    const diff = removeDiff([{ name: 'Island', totalQuantity: 2, board: 'Main' }])
+    const result = applyDownloadDiff(sections, diff)
+    expect(result.find((s) => s.name === 'Lands')!.cards).toHaveLength(0)
+    expect(result.find((s) => s.name === 'Ramp')!.cards).toHaveLength(0)
+  })
+
   test('adjusts quantities', () => {
-    const sections: DeckSection[] = [{ name: 'Main', cards: [{ quantity: 2, name: 'Island' }] }]
-    const diff: NameDiff = {
-      added: [],
-      removed: [],
-      quantityChanged: [{ name: 'Island', oldQty: 2, newQty: 4, board: 'Main' }],
-    }
+    const sections = mainSections([{ quantity: 2, name: 'Island' }])
+    const diff = qtyDiff([{ name: 'Island', oldQty: 2, newQty: 4, board: 'Main' }])
     const result = applyDownloadDiff(sections, diff)
     expect(result[0]!.cards[0]!.quantity).toBe(4)
   })
 
   test('adds new cards to Main section', () => {
-    const sections: DeckSection[] = [{ name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] }]
-    const diff: NameDiff = {
-      added: [{ name: 'Lightning Bolt', totalQuantity: 1, board: 'Main' }],
-      removed: [],
-      quantityChanged: [],
-    }
+    const sections = mainSections([{ quantity: 1, name: 'Sol Ring' }])
+    const diff = addDiff([{ name: 'Lightning Bolt', totalQuantity: 1, board: 'Main' }])
     const result = applyDownloadDiff(sections, diff)
     const mainCards = result.find((s) => s.name === 'Main')!.cards
     expect(mainCards).toHaveLength(2)
@@ -521,11 +555,7 @@ describe('applyDownloadDiff', () => {
       { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
       { name: 'Maybeboard', cards: [{ quantity: 1, name: 'Forgotten Ancient' }] },
     ]
-    const diff: NameDiff = {
-      added: [{ name: 'Cavern-Hoard Dragon', totalQuantity: 1, board: 'Maybeboard' }],
-      removed: [],
-      quantityChanged: [],
-    }
+    const diff = addDiff([{ name: 'Cavern-Hoard Dragon', totalQuantity: 1, board: 'Maybeboard' }])
     const result = applyDownloadDiff(sections, diff)
     expect(result.find((s) => s.name === 'Main')!.cards).toHaveLength(1)
     const maybe = result.find((s) => s.name === 'Maybeboard')!.cards
@@ -534,12 +564,8 @@ describe('applyDownloadDiff', () => {
   })
 
   test('creates a Maybeboard section when adding to a board that does not exist', () => {
-    const sections: DeckSection[] = [{ name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] }]
-    const diff: NameDiff = {
-      added: [{ name: 'Cavern-Hoard Dragon', totalQuantity: 1, board: 'Maybeboard' }],
-      removed: [],
-      quantityChanged: [],
-    }
+    const sections = mainSections([{ quantity: 1, name: 'Sol Ring' }])
+    const diff = addDiff([{ name: 'Cavern-Hoard Dragon', totalQuantity: 1, board: 'Maybeboard' }])
     const result = applyDownloadDiff(sections, diff)
     expect(result.find((s) => s.name === 'Main')!.cards).toHaveLength(1)
     const maybe = result.find((s) => s.name === 'Maybeboard')
@@ -552,11 +578,7 @@ describe('applyDownloadDiff', () => {
       { name: 'Commander', cards: [] },
       { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
     ]
-    const diff: NameDiff = {
-      added: [{ name: 'Atraxa', totalQuantity: 1, board: 'Commander' }],
-      removed: [],
-      quantityChanged: [],
-    }
+    const diff = addDiff([{ name: 'Atraxa', totalQuantity: 1, board: 'Commander' }])
     const result = applyDownloadDiff(sections, diff)
     const commanderCards = result.find((s) => s.name === 'Commander')!.cards
     expect(commanderCards).toHaveLength(1)
@@ -564,121 +586,96 @@ describe('applyDownloadDiff', () => {
   })
 
   test('creates Commander section if it does not exist', () => {
-    const sections: DeckSection[] = [{ name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] }]
-    const diff: NameDiff = {
-      added: [{ name: 'Atraxa', totalQuantity: 1, board: 'Commander' }],
-      removed: [],
-      quantityChanged: [],
-    }
+    const sections = mainSections([{ quantity: 1, name: 'Sol Ring' }])
+    const diff = addDiff([{ name: 'Atraxa', totalQuantity: 1, board: 'Commander' }])
     const result = applyDownloadDiff(sections, diff)
     const commanderSection = result.find((s) => s.name === 'Commander')
     expect(commanderSection).toBeDefined()
     expect(commanderSection!.cards[0]!.name).toBe('Atraxa')
   })
 
-  test('inserts a created Commander section before lower-ranked boards', () => {
-    const sections: DeckSection[] = [
-      { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
-      { name: 'Maybeboard', cards: [{ quantity: 1, name: 'Forgotten Ancient' }] },
-    ]
-    const diff: NameDiff = {
+  // Section-ordering cases share the same shape: take some starting sections,
+  // add cards to one or more boards, and assert the resulting section order.
+  const mainAndMaybe: DeckSection[] = [
+    { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
+    { name: 'Maybeboard', cards: [{ quantity: 1, name: 'Forgotten Ancient' }] },
+  ]
+  const commanderAndMain: DeckSection[] = [
+    { name: 'Commander', cards: [{ quantity: 1, name: 'Atraxa' }] },
+    { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
+  ]
+  const customMainSections: DeckSection[] = [
+    { name: 'Lands', cards: [{ quantity: 1, name: 'Island' }] },
+    { name: 'Ramp', cards: [{ quantity: 1, name: 'Sol Ring' }] },
+  ]
+
+  type OrderingCase = {
+    label: string
+    starting: DeckSection[]
+    added: CardSummary[]
+    expected: string[]
+  }
+  const orderingCases: OrderingCase[] = [
+    {
+      label: 'inserts a created Commander section before lower-ranked boards',
+      starting: mainAndMaybe,
       added: [{ name: 'Atraxa', totalQuantity: 1, board: 'Commander' }],
-      removed: [],
-      quantityChanged: [],
-    }
-    const result = applyDownloadDiff(sections, diff)
-    expect(result.map((s) => s.name)).toEqual(['Commander', 'Main', 'Maybeboard'])
-  })
-
-  test('inserts a created Sideboard section between Main and Maybeboard', () => {
-    const sections: DeckSection[] = [
-      { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
-      { name: 'Maybeboard', cards: [{ quantity: 1, name: 'Forgotten Ancient' }] },
-    ]
-    const diff: NameDiff = {
+      expected: ['Commander', 'Main', 'Maybeboard'],
+    },
+    {
+      label: 'inserts a created Sideboard section between Main and Maybeboard',
+      starting: mainAndMaybe,
       added: [{ name: 'Pyroblast', totalQuantity: 1, board: 'Sideboard' }],
-      removed: [],
-      quantityChanged: [],
-    }
-    const result = applyDownloadDiff(sections, diff)
-    expect(result.map((s) => s.name)).toEqual(['Main', 'Sideboard', 'Maybeboard'])
-  })
-
-  test('appends a created Maybeboard section after existing boards', () => {
-    const sections: DeckSection[] = [
-      { name: 'Commander', cards: [{ quantity: 1, name: 'Atraxa' }] },
-      { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
-    ]
-    const diff: NameDiff = {
+      expected: ['Main', 'Sideboard', 'Maybeboard'],
+    },
+    {
+      label: 'appends a created Maybeboard section after existing boards',
+      starting: commanderAndMain,
       added: [{ name: 'Cavern-Hoard Dragon', totalQuantity: 1, board: 'Maybeboard' }],
-      removed: [],
-      quantityChanged: [],
-    }
-    const result = applyDownloadDiff(sections, diff)
-    expect(result.map((s) => s.name)).toEqual(['Commander', 'Main', 'Maybeboard'])
-  })
-
-  test('places multiple created boards in canonical order regardless of diff order', () => {
-    const sections: DeckSection[] = [{ name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] }]
-    // Listed Maybeboard-first, Commander-last: the result must still be canonical.
-    const diff: NameDiff = {
+      expected: ['Commander', 'Main', 'Maybeboard'],
+    },
+    {
+      label: 'places multiple created boards in canonical order regardless of diff order',
+      starting: mainSections([{ quantity: 1, name: 'Sol Ring' }]),
+      // Listed Maybeboard-first, Commander-last: the result must still be canonical.
       added: [
         { name: 'Cavern-Hoard Dragon', totalQuantity: 1, board: 'Maybeboard' },
         { name: 'Pyroblast', totalQuantity: 1, board: 'Sideboard' },
         { name: 'Atraxa', totalQuantity: 1, board: 'Commander' },
       ],
-      removed: [],
-      quantityChanged: [],
-    }
-    const result = applyDownloadDiff(sections, diff)
-    expect(result.map((s) => s.name)).toEqual(['Commander', 'Main', 'Sideboard', 'Maybeboard'])
-  })
-
-  test('preserves the existing order of custom same-board sections', () => {
-    // Both custom headers normalize to Main; a newly created Commander section must
-    // land first without reordering the user's custom Main sections.
-    const sections: DeckSection[] = [
-      { name: 'Lands', cards: [{ quantity: 1, name: 'Island' }] },
-      { name: 'Ramp', cards: [{ quantity: 1, name: 'Sol Ring' }] },
-    ]
-    const diff: NameDiff = {
+      expected: ['Commander', 'Main', 'Sideboard', 'Maybeboard'],
+    },
+    {
+      // Both custom headers normalize to Main; a newly created Commander section must
+      // land first without reordering the user's custom Main sections.
+      label: 'preserves the existing order of custom same-board sections',
+      starting: customMainSections,
       added: [{ name: 'Atraxa', totalQuantity: 1, board: 'Commander' }],
-      removed: [],
-      quantityChanged: [],
-    }
-    const result = applyDownloadDiff(sections, diff)
-    expect(result.map((s) => s.name)).toEqual(['Commander', 'Lands', 'Ramp'])
+      expected: ['Commander', 'Lands', 'Ramp'],
+    },
+  ]
+  test.each(orderingCases)('$label', ({ starting, added, expected }) => {
+    const result = applyDownloadDiff(starting, addDiff(added))
+    expect(result.map((s) => s.name)).toEqual(expected)
   })
 
   test('does not mutate original sections', () => {
-    const sections: DeckSection[] = [{ name: 'Main', cards: [{ quantity: 2, name: 'Island' }] }]
-    const diff: NameDiff = {
-      added: [],
-      removed: [],
-      quantityChanged: [{ name: 'Island', oldQty: 2, newQty: 4, board: 'Main' }],
-    }
+    const sections = mainSections([{ quantity: 2, name: 'Island' }])
+    const diff = qtyDiff([{ name: 'Island', oldQty: 2, newQty: 4, board: 'Main' }])
     applyDownloadDiff(sections, diff)
     expect(sections[0]!.cards[0]!.quantity).toBe(2)
   })
 
   test('decreases quantity without going below 1', () => {
-    const sections: DeckSection[] = [{ name: 'Main', cards: [{ quantity: 1, name: 'Island' }] }]
-    const diff: NameDiff = {
-      added: [],
-      removed: [],
-      quantityChanged: [{ name: 'Island', oldQty: 1, newQty: 1, board: 'Main' }],
-    }
+    const sections = mainSections([{ quantity: 3, name: 'Island' }])
+    const diff = qtyDiff([{ name: 'Island', oldQty: 3, newQty: 0, board: 'Main' }])
     const result = applyDownloadDiff(sections, diff)
     expect(result[0]!.cards[0]!.quantity).toBe(1)
   })
 
   test('decreases quantity for a card that is not fully removed', () => {
-    const sections: DeckSection[] = [{ name: 'Main', cards: [{ quantity: 4, name: 'Island' }] }]
-    const diff: NameDiff = {
-      added: [],
-      removed: [],
-      quantityChanged: [{ name: 'Island', oldQty: 4, newQty: 2, board: 'Main' }],
-    }
+    const sections = mainSections([{ quantity: 4, name: 'Island' }])
+    const diff = qtyDiff([{ name: 'Island', oldQty: 4, newQty: 2, board: 'Main' }])
     const result = applyDownloadDiff(sections, diff)
     expect(result[0]!.cards[0]!.quantity).toBe(2)
   })
@@ -690,11 +687,7 @@ describe('applyDownloadDiff', () => {
       { name: 'Lands', cards: [{ quantity: 2, name: 'Island' }] },
       { name: 'Ramp', cards: [{ quantity: 1, name: 'Island' }] },
     ]
-    const diff: NameDiff = {
-      added: [],
-      removed: [],
-      quantityChanged: [{ name: 'Island', oldQty: 3, newQty: 1, board: 'Main' }],
-    }
+    const diff = qtyDiff([{ name: 'Island', oldQty: 3, newQty: 1, board: 'Main' }])
     const result = applyDownloadDiff(sections, diff)
     // First matching line is set to the remote total; the duplicate line is dropped.
     const total = result.flatMap((s) => s.cards).reduce((sum, c) => sum + c.quantity, 0)
@@ -708,11 +701,7 @@ describe('applyDownloadDiff', () => {
       { name: 'Lands', cards: [{ quantity: 2, name: 'Island' }] },
       { name: 'Ramp', cards: [{ quantity: 1, name: 'Island' }] },
     ]
-    const diff: NameDiff = {
-      added: [],
-      removed: [],
-      quantityChanged: [{ name: 'Island', oldQty: 3, newQty: 5, board: 'Main' }],
-    }
+    const diff = qtyDiff([{ name: 'Island', oldQty: 3, newQty: 5, board: 'Main' }])
     const result = applyDownloadDiff(sections, diff)
     const total = result.flatMap((s) => s.cards).reduce((sum, c) => sum + c.quantity, 0)
     expect(total).toBe(5)

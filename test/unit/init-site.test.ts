@@ -55,10 +55,6 @@ describe('generatePublishForMeWorkflow', () => {
   const workflow = parseWorkflow(generatePublishForMeWorkflow())
   const job = getJob(workflow, 'build-and-deploy')
 
-  test('produces valid YAML that parses without error', () => {
-    expect(workflow).toBeDefined()
-  })
-
   test('has the correct workflow name', () => {
     expect(workflow.name).toBe('Build and Deploy Ritual Site')
   })
@@ -186,10 +182,6 @@ describe('generatePublishForMeWorkflow with detectChanges', () => {
   const workflow = parseWorkflow(generatePublishForMeWorkflow(config))
   const job = getJob(workflow, 'build-and-deploy')
 
-  test('produces valid YAML that parses without error', () => {
-    expect(workflow).toBeDefined()
-  })
-
   test('has the correct workflow name', () => {
     expect(workflow.name).toBe('Build and Deploy Ritual Site')
   })
@@ -262,19 +254,19 @@ describe('generatePublishForMeWorkflow with detectChanges', () => {
 })
 
 describe('generateLocalBuildWorkflow', () => {
+  const workflow = parseWorkflow(generateLocalBuildWorkflow('dist'))
+  const job = getJob(workflow, 'deploy')
+
   test('has the correct workflow name', () => {
-    const workflow = parseWorkflow(generateLocalBuildWorkflow('dist'))
     expect(workflow.name).toBe('Deploy Ritual Site')
   })
 
   test('triggers on push to main and workflow_dispatch', () => {
-    const workflow = parseWorkflow(generateLocalBuildWorkflow('dist'))
     expect(workflow.on.push.branches).toEqual(['main'])
     expect(workflow.on).toHaveProperty('workflow_dispatch')
   })
 
   test('sets correct permissions', () => {
-    const workflow = parseWorkflow(generateLocalBuildWorkflow('dist'))
     expect(workflow.permissions).toEqual({
       contents: 'read',
       pages: 'write',
@@ -283,22 +275,18 @@ describe('generateLocalBuildWorkflow', () => {
   })
 
   test('deploys the user-specified directory', () => {
-    const workflow = parseWorkflow(generateLocalBuildWorkflow('build/output'))
-    const job = getJob(workflow, 'deploy')
-    const step = findStep(job.steps, 'Upload artifact')
+    const customWorkflow = parseWorkflow(generateLocalBuildWorkflow('build/output'))
+    const customJob = getJob(customWorkflow, 'deploy')
+    const step = findStep(customJob.steps, 'Upload artifact')
     expect(step!.with?.path).toBe('build/output')
   })
 
   test('deploys dist by default', () => {
-    const workflow = parseWorkflow(generateLocalBuildWorkflow('dist'))
-    const job = getJob(workflow, 'deploy')
     const step = findStep(job.steps, 'Upload artifact')
     expect(step!.with?.path).toBe('dist')
   })
 
   test('does not include build, cache, or download steps', () => {
-    const workflow = parseWorkflow(generateLocalBuildWorkflow('dist'))
-    const job = getJob(workflow, 'deploy')
     const stepNames = job.steps.map((s) => s.name ?? s.uses)
     expect(stepNames).not.toContain('Download Ritual')
     expect(stepNames).not.toContain('Build site')
@@ -306,8 +294,6 @@ describe('generateLocalBuildWorkflow', () => {
   })
 
   test('has exactly 4 steps in the expected order', () => {
-    const workflow = parseWorkflow(generateLocalBuildWorkflow('dist'))
-    const job = getJob(workflow, 'deploy')
     const stepNames = job.steps.map((s) => s.name ?? s.uses)
     expect(stepNames).toEqual([
       'actions/checkout@v6',
@@ -319,7 +305,7 @@ describe('generateLocalBuildWorkflow', () => {
 })
 
 describe('generateWorkflow', () => {
-  test('publish-for-me produces the full build workflow', () => {
+  test('publish-for-me routes to the build-and-deploy job', () => {
     const workflow = parseWorkflow(
       generateWorkflow({
         ciSystem: 'github-actions',
@@ -328,11 +314,10 @@ describe('generateWorkflow', () => {
         detectChanges: false,
       }),
     )
-    expect(workflow.name).toBe('Build and Deploy Ritual Site')
-    expect(getJob(workflow, 'build-and-deploy')).toBeDefined()
+    expect(Object.keys(workflow.jobs)).toEqual(['build-and-deploy'])
   })
 
-  test('local-build produces the simple deploy workflow', () => {
+  test('local-build routes to the deploy job', () => {
     const workflow = parseWorkflow(
       generateWorkflow({
         ciSystem: 'github-actions',
@@ -341,108 +326,60 @@ describe('generateWorkflow', () => {
         detectChanges: false,
       }),
     )
-    expect(workflow.name).toBe('Deploy Ritual Site')
-    const job = getJob(workflow, 'deploy')
-    const step = findStep(job.steps, 'Upload artifact')
-    expect(step!.with?.path).toBe('public')
-  })
-
-  test('publish-for-me with detectChanges includes detect step', () => {
-    const workflow = parseWorkflow(
-      generateWorkflow({
-        ciSystem: 'github-actions',
-        deployMode: 'publish-for-me',
-        distDir: 'dist',
-        detectChanges: true,
-      }),
-    )
-    const job = getJob(workflow, 'build-and-deploy')
-    expect(findStep(job.steps, 'Detect and commit changes')).toBeDefined()
-    expect(workflow.permissions.contents).toBe('write')
-  })
-
-  test('publish-for-me without detectChanges omits detect step', () => {
-    const workflow = parseWorkflow(
-      generateWorkflow({
-        ciSystem: 'github-actions',
-        deployMode: 'publish-for-me',
-        distDir: 'dist',
-        detectChanges: false,
-      }),
-    )
-    const job = getJob(workflow, 'build-and-deploy')
-    expect(findStep(job.steps, 'Detect and commit changes')).toBeUndefined()
-    expect(workflow.permissions.contents).toBe('read')
+    expect(Object.keys(workflow.jobs)).toEqual(['deploy'])
   })
 })
 
 describe('generateReadme', () => {
+  const baseConfig = {
+    ciSystem: 'github-actions',
+    deployMode: 'publish-for-me',
+    distDir: 'dist',
+    detectChanges: false,
+  } as const
+
   test('includes project title and Ritual link', () => {
-    const readme = generateReadme({
-      ciSystem: 'github-actions',
-      deployMode: 'publish-for-me',
-      distDir: 'dist',
-      detectChanges: false,
-    })
+    const readme = generateReadme({ ...baseConfig })
 
     expect(readme).toContain('# My Ritual Site')
     expect(readme).toContain('github.com/sloshy/ritual')
   })
 
   test('publish-for-me mode includes RITUAL_VERSION docs', () => {
-    const readme = generateReadme({
-      ciSystem: 'github-actions',
-      deployMode: 'publish-for-me',
-      distDir: 'dist',
-      detectChanges: false,
-    })
+    const readme = generateReadme({ ...baseConfig })
 
     expect(readme).toContain('RITUAL_VERSION')
     expect(readme).toContain('automatically builds and')
   })
 
   test('publish-for-me mode does not include manual build instructions', () => {
-    const readme = generateReadme({
-      ciSystem: 'github-actions',
-      deployMode: 'publish-for-me',
-      distDir: 'dist',
-      detectChanges: false,
-    })
+    const readme = generateReadme({ ...baseConfig })
 
     expect(readme).not.toContain('ritual build-site')
   })
 
+  test('publish-for-me mode does not interpolate distDir into the README', () => {
+    const readme = generateReadme({ ...baseConfig, distDir: 'should-not-appear' })
+
+    expect(readme).not.toContain('should-not-appear')
+  })
+
   test('local-build mode includes build instructions', () => {
-    const readme = generateReadme({
-      ciSystem: 'github-actions',
-      deployMode: 'local-build',
-      distDir: 'dist',
-      detectChanges: false,
-    })
+    const readme = generateReadme({ ...baseConfig, deployMode: 'local-build' })
 
     expect(readme).toContain('ritual build-site')
     expect(readme).toContain('Commit the built')
   })
 
   test('local-build mode uses specified dist directory', () => {
-    const readme = generateReadme({
-      ciSystem: 'github-actions',
-      deployMode: 'local-build',
-      distDir: 'public',
-      detectChanges: false,
-    })
+    const readme = generateReadme({ ...baseConfig, deployMode: 'local-build', distDir: 'public' })
 
     expect(readme).toContain('written to `public`')
     expect(readme).toContain('`public` directory')
   })
 
   test('includes GitHub Pages setup instructions for github-actions mode', () => {
-    const readme = generateReadme({
-      ciSystem: 'github-actions',
-      deployMode: 'publish-for-me',
-      distDir: 'dist',
-      detectChanges: false,
-    })
+    const readme = generateReadme({ ...baseConfig })
 
     expect(readme).toContain('Settings → Pages')
     expect(readme).toContain('GitHub Actions')
@@ -483,12 +420,6 @@ describe('generateGitignoreEntries', () => {
       'all-cards.md',
       '/ritual',
     ])
-  })
-
-  test('ignores the downloaded ritual binary', () => {
-    const entries = generateGitignoreEntries()
-
-    expect(entries).toContain('/ritual')
   })
 })
 
@@ -547,5 +478,20 @@ describe('updateGitignore', () => {
     expect(result).toBe('unchanged')
     const written = await fs.readFile(gitignorePath, 'utf-8')
     expect(written.split('\n').filter((l) => l === '/ritual')).toHaveLength(1)
+  })
+
+  test('preserves descriptive comments from the template after the first write', async () => {
+    const dir = await useTempDir()
+    const gitignorePath = path.join(dir, '.gitignore')
+
+    await updateGitignore(generateGitignoreEntries())
+    const result = await updateGitignore(generateGitignoreEntries())
+
+    expect(result).toBe('unchanged')
+    const written = await fs.readFile(gitignorePath, 'utf-8')
+    expect(written.split('\n').filter((l) => l === '# Ritual files')).toHaveLength(1)
+    expect(
+      written.split('\n').filter((l) => l === '# Ritual binary downloaded by the deploy workflow'),
+    ).toHaveLength(1)
   })
 })
