@@ -28,13 +28,14 @@ import { getDecksDir } from '../ritual-config'
 
 // ── Archidekt raw response helpers ────────────────────────────────────
 
-type RawCardIndex = Map<string, { entry: ArchidektRawCardEntry; totalQty: number }>
+export type RawCardIndexEntry = { entry: ArchidektRawCardEntry; totalQty: number }
+export type RawCardIndex = Map<string, RawCardIndexEntry>
 
 /**
  * Build an index from an Archidekt raw deck response, keyed by card name (lowercase).
  * When multiple entries share a name, the first entry is kept and quantities are summed.
  */
-function buildRawCardIndex(rawDeck: ArchidektRawDeckResponse): RawCardIndex {
+export function buildRawCardIndex(rawDeck: ArchidektRawDeckResponse): RawCardIndex {
   const index: RawCardIndex = new Map()
   for (const entry of rawDeck.cards) {
     const name = entry.card.oracleCard.name.toLowerCase()
