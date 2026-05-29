@@ -1,5 +1,5 @@
 ---
-sidebar_position: 3
+sidebar_position: 5
 ---
 
 # Admin API Endpoints
@@ -568,5 +568,77 @@ Apply a batch of queued moves atomically. The move state is rebuilt from disk an
   "moved": 1,
   "skipped": 0,
   "message": "Moved 1 card."
+}
+```
+
+## List Histories
+
+```
+GET /api/history
+```
+
+Returns every list (deck, collection, wanted) as a slug-keyed summary, used to populate the [Change History](./history.md) page's list picker.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "lists": [{ "type": "deck", "slug": "my-deck", "name": "My Deck" }]
+}
+```
+
+## Load Change History
+
+```
+GET /api/history/:type/:slug
+```
+
+Returns the parsed change sets of a list's change log (newest first) plus the raw change lines a "rewrite with defaults" would produce. `:type` is `deck`, `collection`, or `wanted`. The list file is read only to derive `defaultLines`; a list with no change log yet returns an empty `sets` array.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "header": "# Changelog for My Deck",
+  "sets": [
+    {
+      "timestamp": "2026-05-29T12:00:00.000Z",
+      "lines": ["- Added \"Sol Ring\" (LEA:1) &1"]
+    }
+  ],
+  "defaultLines": ["- Added \"Sol Ring\" (LEA:1) &1"]
+}
+```
+
+## Save Change History
+
+```
+POST /api/history/:type/:slug/save
+```
+
+Overwrite the list's change log with the supplied change sets. Each set needs a valid ISO-8601 `timestamp` and a `lines` array of strings, each starting with `- `. Only the `.changes.md` file is written; the list's own `.md` is never touched, and the existing header is preserved. When git auto-commit is enabled, the change log is committed (`Rewrite change history for <slug>`).
+
+**Request Body:**
+
+```json
+{
+  "sets": [
+    {
+      "timestamp": "2026-05-29T12:00:00.000Z",
+      "lines": ["- Added \"Sol Ring\" (LEA:1) &1"]
+    }
+  ]
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Saved 1 change set.",
+  "setCount": 1
 }
 ```

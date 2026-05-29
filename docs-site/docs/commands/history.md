@@ -8,6 +8,8 @@ Interactively compact and rewrite the change history (`.changes.md`) for a deck,
 
 Sometimes a list's change log gets noisy — many small sessions before a commit, mistimed entries, or sets you'd rather merge. `history` is a menu-driven editor for the change log **only**. It never touches the list's own `.md` file: every action operates on the change sets, and nothing is written until you explicitly choose to save.
 
+The admin site offers the same editor in the browser — see the [Change History](../admin/history.md) page.
+
 ## Usage
 
 ```bash

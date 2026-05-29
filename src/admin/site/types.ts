@@ -6,6 +6,7 @@ export type Page =
   | 'list-editor'
   | 'list-manager'
   | 'move-cards'
+  | 'history'
   | 'build-site'
   | 'cache-refresh'
   | 'archidekt-login'

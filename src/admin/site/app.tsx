@@ -15,6 +15,7 @@ import { AuditLog } from './pages/AuditLog'
 import { ListEditor } from './pages/ListEditor'
 import { ListManager } from './pages/ListManager'
 import { MoveCards } from './pages/MoveCards'
+import { History } from './pages/History'
 
 type StatusResponse = { setupRequired: boolean; totpEnabled?: boolean }
 
@@ -130,6 +131,9 @@ function App() {
               </Match>
               <Match when={page() === 'move-cards'}>
                 <MoveCards />
+              </Match>
+              <Match when={page() === 'history'}>
+                <History />
               </Match>
               <Match when={page() === 'import-deck'}>
                 <ImportDeck />

@@ -45,6 +45,11 @@ function isCommanderSection(name: string): boolean {
   return name.toLowerCase() === 'commander'
 }
 
+/** Derive the `.changes.md` changelog path that sits alongside a list's `.md`/`.txt` file. */
+export function changesPathFor(filePath: string): string {
+  return filePath.replace(/\.(md|txt)$/i, '') + '.changes.md'
+}
+
 /** Load a list of any type into a uniform {@link ListSnapshot}. */
 export async function loadListSnapshot(type: ListType, filePath: string): Promise<ListSnapshot> {
   if (type === 'deck') {

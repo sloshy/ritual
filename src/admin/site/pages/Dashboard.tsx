@@ -28,6 +28,12 @@ const actions: ActionCard[] = [
     icon: '🗂️',
   },
   {
+    id: 'history',
+    title: 'Change History',
+    description: 'Compact and rewrite a list’s change log',
+    icon: '🕘',
+  },
+  {
     id: 'import-deck',
     title: 'Import Deck',
     description: 'Import a deck from a URL or file',

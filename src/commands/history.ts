@@ -23,14 +23,9 @@ import {
   sortNewestFirst,
   type ChangeSet,
 } from '../changelog-blocks'
-import { buildDefaultChangeLines, loadListSnapshot } from './history-helpers'
+import { buildDefaultChangeLines, changesPathFor, loadListSnapshot } from './history-helpers'
 
 type HistoryOptions = ListTypeFlags
-
-/** Derive the `.changes.md` path that sits alongside a list's `.md` file. */
-function changesPathFor(filePath: string): string {
-  return filePath.replace(/\.md$/, '.changes.md')
-}
 
 function listTypeLabel(type: ListType): string {
   return LIST_TYPE_DISPLAY[type].label.replace(/s$/, '')

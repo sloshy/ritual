@@ -36,6 +36,7 @@ import { handleListWantedLists } from './api/wanted-list'
 import { handleWantedListLoad } from './api/wanted-load'
 import { handleWantedListSave } from './api/wanted-save'
 import { handleMoveData, handleMoveCommit } from './api/move'
+import { handleHistoryLists, handleHistoryLoad, handleHistorySave } from './api/history'
 import {
   handleSimpleListCreate,
   handleSimpleListRename,
@@ -207,6 +208,19 @@ const routes: Route[] = [
   },
   { method: 'GET', path: '/api/move', handler: handleMoveData, requiresAuth: true },
   { method: 'POST', path: '/api/move/commit', handler: handleMoveCommit, requiresAuth: true },
+  { method: 'GET', path: '/api/history', handler: handleHistoryLists, requiresAuth: true },
+  {
+    method: 'GET',
+    path: '/api/history/:type/:slug',
+    handler: handleHistoryLoad,
+    requiresAuth: true,
+  },
+  {
+    method: 'POST',
+    path: '/api/history/:type/:slug/save',
+    handler: handleHistorySave,
+    requiresAuth: true,
+  },
 ]
 
 export function getClientIp(req: Request, server: RequestIPServer, trustProxy: boolean): string {

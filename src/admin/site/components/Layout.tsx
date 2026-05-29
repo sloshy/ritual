@@ -13,6 +13,7 @@ const navItems: NavItem[] = [
   { id: 'list-editor', label: 'Edit Lists', icon: '✏️' },
   { id: 'move-cards', label: 'Move Cards', icon: '➡️' },
   { id: 'list-manager', label: 'Manage Lists', icon: '🗂️' },
+  { id: 'history', label: 'Change History', icon: '🕘' },
   { id: 'import-deck', label: 'Import Deck', icon: '📥' },
   { id: 'build-site', label: 'Build Site', icon: '🔨' },
   { id: 'cache-refresh', label: 'Refresh Cache', icon: '🔄' },

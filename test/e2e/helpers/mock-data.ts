@@ -1756,3 +1756,53 @@ export async function mockMoveCardsApi(
     })
   })
 }
+
+const HISTORY_LISTS = {
+  success: true,
+  lists: [{ type: 'deck', slug: 'history-deck', name: 'History Deck' }],
+}
+
+const HISTORY_DETAIL = {
+  success: true,
+  header: '# Changelog for History Deck',
+  // Returned newest-first by the real endpoint.
+  sets: [
+    { timestamp: '2026-02-01T00:00:00.000Z', lines: ['- Added "Mana Crypt" &2'] },
+    { timestamp: '2026-01-01T00:00:00.000Z', lines: ['- Added "Sol Ring" (LEA:1) &1'] },
+  ],
+  defaultLines: ['- Added "Sol Ring" (LEA:1) &1', '- Added "Mana Crypt" &2'],
+}
+
+/**
+ * Mock the change-history endpoints with a single deck holding two change sets.
+ * `onSave` receives the POSTed `{ sets }` body so tests can assert what was saved.
+ */
+export async function mockChangeHistoryApi(
+  page: Page,
+  onSave?: (body: unknown) => void,
+): Promise<void> {
+  await page.route('**/api/history', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(HISTORY_LISTS),
+    })
+  })
+
+  await page.route('**/api/history/deck/history-deck', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(HISTORY_DETAIL),
+    })
+  })
+
+  await page.route('**/api/history/deck/history-deck/save', async (route: Route) => {
+    onSave?.(route.request().postDataJSON())
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, message: 'Saved.', setCount: 1 }),
+    })
+  })
+}

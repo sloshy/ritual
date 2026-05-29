@@ -1,4 +1,3 @@
-import path from 'node:path'
 import { getErrorMessage } from '../../errors'
 import { getBaseDir } from '../../base-dir'
 import type { Finish, Condition } from '../../types'
@@ -12,14 +11,11 @@ import {
   commitAllMoves,
   type ListEntry,
 } from '../../commands/move-helpers'
+import { listSlug, type ListInfo } from './list-info'
 import { validateBodySize, autoCommitAndPush } from './save-helpers'
 
-/** Lightweight summary of a movable list, identified by slug like the other admin endpoints. */
-export type MoveListInfo = {
-  type: ListType
-  slug: string
-  name: string
-}
+/** A movable list summary; identical to the shared {@link ListInfo} the move UI keys on. */
+export type MoveListInfo = ListInfo
 
 /**
  * One movable physical card. Mirrors the CLI's `PhysicalCard` but uses a
@@ -47,11 +43,6 @@ export type MoveDataResponse = {
   cards: MovePhysicalCard[]
 }
 
-/** The file basename (without extension) used as the slug for a list, matching the load endpoints. */
-function slugOf(listEntry: ListEntry): string {
-  return path.basename(listEntry.filePath).replace(/\.(md|txt)$/i, '')
-}
-
 /**
  * Stable, path-free key for a physical card within a move session. Reconstructed
  * identically on the server at commit time (from the unchanged files) so the
@@ -73,7 +64,7 @@ export async function handleMoveData(): Promise<Response> {
   try {
     const lists = await loadAllLists()
     const physical = await loadPhysicalCards(lists)
-    const slugByPath = new Map(lists.map((l) => [l.filePath, slugOf(l)]))
+    const slugByPath = new Map(lists.map((l) => [l.filePath, listSlug(l.filePath)]))
 
     const listInfos: MoveListInfo[] = lists.map((l) => ({
       type: l.ref.type,
@@ -160,7 +151,7 @@ export async function handleMoveCommit(req: Request): Promise<Response> {
     const lists = await loadAllLists()
     const physical = await loadPhysicalCards(lists)
     const state = buildVirtualState(physical)
-    const slugByPath = new Map(lists.map((l) => [l.filePath, slugOf(l)]))
+    const slugByPath = new Map(lists.map((l) => [l.filePath, listSlug(l.filePath)]))
 
     // Reconstruct the same client-facing keys the load endpoint produced, mapping each
     // back to the internal `PhysicalCard.key` that the virtual state is keyed on.
