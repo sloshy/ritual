@@ -34,6 +34,7 @@ import { registerDepLicenseCommand } from './src/commands/dep-license'
 import { registerGitDetectChangesCommand } from './src/commands/git-detect-changes'
 import { registerDeckSyncCommand } from './src/commands/deck-sync'
 import { registerMoveCommand } from './src/commands/move'
+import { registerHistoryCommand } from './src/commands/history'
 import { registerConfigSetCommand } from './src/commands/config-set'
 import { registerHashCommand } from './src/commands/hash'
 import { registerListAllCardsCommand } from './src/commands/list-all-cards'
@@ -115,6 +116,7 @@ registerPriceWantedListCommand(program)
 
 program.commandsGroup('Card Management')
 registerMoveCommand(program)
+registerHistoryCommand(program)
 
 program.commandsGroup('Card Lookup')
 registerCardCommand(program)

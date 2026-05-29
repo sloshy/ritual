@@ -18,7 +18,7 @@ Matching is performed against the **file name** (without the `.md` extension), n
 
 ## Type flags and disambiguation
 
-Type-agnostic commands (`add-card`, `add-note`, `clear-note`) search **all three** list types at once. A name that exists in more than one type — say a deck _and_ a collection both called `staples` — is ambiguous. Resolve it with a type flag:
+Type-agnostic commands (`add-card`, `add-note`, `clear-note`, `history`) search **all three** list types at once. A name that exists in more than one type — say a deck _and_ a collection both called `staples` — is ambiguous. Resolve it with a type flag:
 
 | Flag           | Restricts the search to |
 | -------------- | ----------------------- |
