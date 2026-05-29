@@ -1,5 +1,4 @@
 import { Command } from 'commander'
-import path from 'node:path'
 import { importFromTextFile } from '../importers/text-file'
 import { MoxfieldClient } from '../importers/moxfield-client'
 import { parseMoxfieldPrimer } from '../primer-parser'
@@ -7,7 +6,7 @@ import { ExitCode } from './scripting'
 import { getLogger } from '../logger'
 import { resolveMoxfieldUserAgent } from '../importers/url-dispatch'
 import type { DeckData } from '../types'
-import { getDecksDir } from '../ritual-config'
+import { formatResolveListError, isResolveListError, resolveList } from '../resolve-list'
 
 type GetPrimerOptions = {
   moxfieldUserAgent?: string
@@ -66,15 +65,18 @@ export function registerGetPrimerCommand(program: Command): void {
       }
 
       // Local deck file path
-      const decksDir = getDecksDir()
-      const fileName = source.endsWith('.md') ? source : `${source}.md`
-      const filePath = path.join(decksDir, fileName)
+      const resolved = await resolveList(source, 'deck')
+      if (isResolveListError(resolved)) {
+        logger.error(formatResolveListError(resolved))
+        process.exitCode = resolved.kind === 'ambiguous' ? ExitCode.UsageError : ExitCode.NotFound
+        return
+      }
 
       let deckData: DeckData
       try {
-        deckData = await importFromTextFile(filePath)
+        deckData = await importFromTextFile(resolved.filePath)
       } catch (e) {
-        logger.error(`Failed to read deck file '${fileName}':`, e)
+        logger.error(`Failed to read deck file '${resolved.name}.md':`, e)
         process.exitCode = ExitCode.RuntimeError
         return
       }

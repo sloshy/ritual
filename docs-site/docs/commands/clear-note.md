@@ -11,45 +11,47 @@ This is the dedicated counterpart to [`add-note`](./add-note). Card resolution (
 ## Usage
 
 ```bash
-./ritual clear-note [type] [targetName] [cardName...] [options]
+./ritual clear-note [listName] [cardName...] [options]
 ```
 
-If invoked with no arguments, the command runs interactively, prompting for the list type, the list name, and the card. Any argument or option you supply skips the corresponding prompt.
+`[listName]` is resolved across all three list types (see [List Resolution](./list-resolution)); pass a `--deck`, `--collection`, or `--wanted` flag to pin the type or disambiguate. If invoked with no list name, the command runs interactively, prompting you to pick a list (filtered by the type flag if given) and the card. Any argument or option you supply skips the corresponding prompt.
 
 ## Arguments
 
-| Argument        | Description                                                         | Required |
-| --------------- | ------------------------------------------------------------------- | -------- |
-| `[type]`        | Target type: `deck`, `collection`, or `wanted`                      | No       |
-| `[targetName]`  | Name of the deck, collection, or wanted list (filename without ext) | No       |
-| `[cardName...]` | Card name whose note should be cleared (fuzzy match)                | No       |
+| Argument        | Description                                                                   | Required |
+| --------------- | ----------------------------------------------------------------------------- | -------- |
+| `[listName]`    | Name of the deck, collection, or wanted list (case-insensitive, no extension) | No       |
+| `[cardName...]` | Card name whose note should be cleared (fuzzy match)                          | No       |
 
 ## Options
 
 | Option              | Description                                                                                                 | Default |
 | ------------------- | ----------------------------------------------------------------------------------------------------------- | ------- |
+| `--deck`            | Resolve the name as a deck                                                                                  |         |
+| `--collection`      | Resolve the name as a collection                                                                            |         |
+| `--wanted`          | Resolve the name as a wanted list                                                                           |         |
 | `--card-id <id>`    | Disambiguate by card ID (the `&N` suffix in list files). Required when name search hits multiple printings. |         |
 | `--output <format>` | Output format: `text`, `json`, or `ndjson`                                                                  | `text`  |
 | `--quiet`           | Suppress non-essential output                                                                               | `false` |
 
 ## Examples
 
-Clear a note on a deck card:
+Clear a note on a deck card (name resolved across all list types):
 
 ```bash
-./ritual clear-note deck "My Deck" "Sol Ring"
+./ritual clear-note "My Deck" "Sol Ring"
 ```
 
-Disambiguate by card ID:
+Disambiguate by card ID (and pin the list type):
 
 ```bash
-./ritual clear-note deck "My Deck" --card-id 17
+./ritual clear-note --deck "My Deck" --card-id 17
 ```
 
 Pipe a JSON record for scripting:
 
 ```bash
-./ritual clear-note collection main "Sol Ring" --output json
+./ritual clear-note --collection main "Sol Ring" --output json
 ```
 
 ## Behavior
@@ -71,6 +73,10 @@ When a note is removed, the response includes the removed text:
 }
 ```
 
+### List Resolution
+
+`[listName]` is matched case-insensitively across all list types (exact name first, then a unique substring), with ambiguous names rejected unless pinned by `--deck`, `--collection`, or `--wanted`. See [List Resolution](./list-resolution).
+
 ### Card Resolution
 
 Identical to [`add-note`](./add-note#card-resolution).
@@ -81,9 +87,9 @@ A successful clear is recorded in the list's `.changes.md` changelog as `Cleared
 
 ## Exit Codes
 
-| Code | Meaning                                                            |
-| ---- | ------------------------------------------------------------------ |
-| `0`  | Success (note cleared, or no-op when no note existed)              |
-| `2`  | Usage error (invalid type, ambiguous match, malformed `--card-id`) |
-| `3`  | Not found (missing list file, missing card, missing card ID)       |
-| `1`  | Runtime error (file changed concurrently, etc.)                    |
+| Code | Meaning                                                                                                |
+| ---- | ------------------------------------------------------------------------------------------------------ |
+| `0`  | Success (note cleared, or no-op when no note existed)                                                  |
+| `2`  | Usage error (conflicting type flags, ambiguous list name, ambiguous card match, malformed `--card-id`) |
+| `3`  | Not found (missing list file, missing card, missing card ID)                                           |
+| `1`  | Runtime error (file changed concurrently, etc.)                                                        |

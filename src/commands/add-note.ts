@@ -17,45 +17,54 @@ import {
   applyNoteUpdate,
   NoteCommandError,
   parseCardIdFlag,
-  resolveListPath,
+  resolveListSelection,
   resolveTarget,
-  resolveType,
 } from './note-edit'
+import { listTypeFromFlags, type ListTypeFlags } from '../resolve-list'
+import type { ListType } from '../list-type'
 
 type AddNoteOptions = {
   note?: string
   cardId?: string
   overwrite?: boolean
-} & Partial<ScriptingOptions>
+} & ListTypeFlags &
+  Partial<ScriptingOptions>
 
 export function registerAddNoteCommand(program: Command): void {
   addScriptingOptions(
     program
       .command('add-note')
       .description('Add or replace a note on a card in a deck, collection, or wanted list')
-      .argument('[type]', 'Target type: "deck", "collection", or "wanted"')
       .argument(
-        '[targetName]',
-        'Name of the deck, collection, or wanted list (file name without extension)',
+        '[listName]',
+        'Name of the deck, collection, or wanted list (resolved across all types unless a type flag is given)',
       )
       .argument('[cardName...]', 'Name of the card to attach a note to (fuzzy match)')
+      .option('--deck', 'Resolve the name as a deck')
+      .option('--collection', 'Resolve the name as a collection')
+      .option('--wanted', 'Resolve the name as a wanted list')
       .option('-n, --note <text>', 'Note text. If omitted, you will be prompted.')
       .option('--card-id <id>', 'Disambiguate by card ID (the &N suffix in list files)')
       .option('--overwrite', 'Replace an existing note instead of failing', false),
     'text',
   ).action(
-    async (
-      typeArg: string | undefined,
-      targetNameArg: string | undefined,
-      cardNameParts: string[],
-      options: AddNoteOptions,
-    ) => {
+    async (listNameArg: string | undefined, cardNameParts: string[], options: AddNoteOptions) => {
       const scripting = normalizeScriptingOptions(options, 'text')
+      const type = listTypeFromFlags(options)
+      if (type === 'conflict') {
+        emitError(
+          'usage_error',
+          'Specify only one of --deck, --collection, or --wanted.',
+          scripting,
+        )
+        process.exitCode = ExitCode.UsageError
+        return
+      }
       try {
         await runAddNote(
           {
-            type: typeArg,
-            listName: targetNameArg,
+            type,
+            listName: listNameArg,
             cardName: cardNameParts.join(' ').trim() || undefined,
             note: options.note,
             cardId: options.cardId,
@@ -76,7 +85,7 @@ export function registerAddNoteCommand(program: Command): void {
 }
 
 type RunInput = {
-  type: string | undefined
+  type: ListType | undefined
   listName: string | undefined
   cardName: string | undefined
   note: string | undefined
@@ -87,8 +96,7 @@ type RunInput = {
 async function runAddNote(input: RunInput, scripting: ScriptingOptions): Promise<void> {
   const cardId = input.cardId !== undefined ? parseCardIdFlag(input.cardId) : undefined
 
-  const type = await resolveType(input.type)
-  const filePath = await resolveListPath(type, input.listName)
+  const { type, filePath } = await resolveListSelection(input.listName, input.type)
   const listSlug = path.basename(filePath, '.md')
 
   const target = await resolveTarget(type, filePath, { cardId, cardName: input.cardName })

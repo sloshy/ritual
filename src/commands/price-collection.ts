@@ -18,10 +18,12 @@ import {
   addScriptingOptions,
   emitError,
   emitOutput,
+  emitResolveListError,
   ExitCode,
   normalizeScriptingOptions,
   type ScriptingOptions,
 } from './scripting'
+import { isResolveListError, listLocations, resolveList } from '../resolve-list'
 import { getErrorMessage } from '../errors'
 
 export type CollectionEntry = {
@@ -158,32 +160,14 @@ export function registerPriceCollectionCommand(program: Command): void {
     let filesToPrice: string[]
 
     if (collectionName) {
-      const fileName = collectionName.endsWith('.md') ? collectionName : `${collectionName}.md`
-      if (fileName.endsWith('.changes.md')) {
-        emitError(
-          'not_found',
-          `'${fileName}' is a changelog file and cannot be priced directly.`,
-          scriptingOptions,
-        )
-        process.exitCode = ExitCode.UsageError
+      const resolved = await resolveList(collectionName, 'collection')
+      if (isResolveListError(resolved)) {
+        emitResolveListError(resolved, scriptingOptions)
         return
       }
-      const filePath = path.join(collectionsDir, fileName)
-      try {
-        await fs.access(filePath)
-      } catch {
-        emitError(
-          'not_found',
-          `Collection file '${fileName}' not found in collections/ directory.`,
-          scriptingOptions,
-        )
-        process.exitCode = ExitCode.NotFound
-        return
-      }
-      filesToPrice = [fileName]
+      filesToPrice = [path.basename(resolved.filePath)]
     } else {
-      const allFiles = await fs.readdir(collectionsDir)
-      filesToPrice = allFiles.filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))
+      filesToPrice = (await listLocations('collection')).map((l) => path.basename(l.filePath))
       if (filesToPrice.length === 0) {
         emitError(
           'not_found',

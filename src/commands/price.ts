@@ -1,5 +1,4 @@
 import { Command } from 'commander'
-import path from 'node:path'
 import { importFromTextFile } from '../importers/text-file'
 import { getDeckPricing } from '../prices'
 import { parseCurrencyFlagOrError, formatPrice } from '../price-currency'
@@ -7,12 +6,13 @@ import {
   addScriptingOptions,
   emitError,
   emitOutput,
+  emitResolveListError,
   ExitCode,
   normalizeScriptingOptions,
   type ScriptingOptions,
 } from './scripting'
 import { getErrorMessage } from '../errors'
-import { getDecksDir } from '../ritual-config'
+import { isResolveListError, resolveList } from '../resolve-list'
 
 type SectionPricingResult = {
   name: string
@@ -50,22 +50,14 @@ export function registerPriceDeckCommand(program: Command): void {
     )
     if (!currency) return
 
-    const decksDir = getDecksDir()
-    const fileName = deckName.endsWith('.md') ? deckName : `${deckName}.md`
-    const filePath = path.join(decksDir, fileName)
-
-    if (!(await Bun.file(filePath).exists())) {
-      emitError(
-        'not_found',
-        `Deck file '${fileName}' not found in decks/ directory.`,
-        scriptingOptions,
-      )
-      process.exitCode = ExitCode.NotFound
+    const resolved = await resolveList(deckName, 'deck')
+    if (isResolveListError(resolved)) {
+      emitResolveListError(resolved, scriptingOptions)
       return
     }
 
     try {
-      const deck = await importFromTextFile(filePath)
+      const deck = await importFromTextFile(resolved.filePath)
 
       // Determine active sections
       // Default: "Main" and "Commander"

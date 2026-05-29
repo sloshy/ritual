@@ -4,7 +4,8 @@ import { ArchidektClient } from '../clients/ArchidektClient'
 import { FileTokenStore } from '../auth/FileTokenStore'
 import { ArchidektAuth } from '../auth/ArchidektAuth'
 import { importFromTextFile, listDeckFiles } from '../importers/text-file'
-import { parseDeckFrontMatter, serializeDeckToMarkdown, resolveDeckFilePath } from '../deck-file'
+import { parseDeckFrontMatter, serializeDeckToMarkdown } from '../deck-file'
+import { formatResolveListError, isResolveListError, resolveList } from '../resolve-list'
 import { appendChangelog } from '../changelog-writer'
 import { getLogger } from '../logger'
 import type { Card, DeckData, DeckSection } from '../types'
@@ -208,11 +209,12 @@ async function resolveTargetDecks(deckNames: string[], decksDir: string): Promis
     }
   } else {
     for (const name of deckNames) {
-      const filePath = await resolveDeckFilePath(decksDir, name)
-      if (!filePath) {
-        logger.error(`Deck not found: ${name}`)
+      const resolved = await resolveList(name, 'deck')
+      if (isResolveListError(resolved)) {
+        logger.error(formatResolveListError(resolved))
         continue
       }
+      const filePath = resolved.filePath
 
       const frontMatter = await parseDeckFrontMatter(filePath)
       if (!isArchidektDeck(frontMatter)) {

@@ -18,7 +18,7 @@ Get pricing for your wanted list. Alias: `pwl`.
 | ------------ | ----------------------------------------------------- | -------- |
 | `[listName]` | Name of a single wanted list file (without extension) | No       |
 
-When no list name is given, all `.md` files in the `wanted/` directory are priced and a grand total is shown.
+When no list name is given, all `.md` files in the `wanted/` directory are priced and a grand total is shown. A given name is matched case-insensitively, with a unique-substring fallback; an ambiguous name is rejected. See [List Resolution](./list-resolution).
 
 ## Options
 

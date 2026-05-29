@@ -37,7 +37,7 @@ describe('clear-note CLI (Integration)', () => {
     const dir = await setupFixture()
     try {
       const result = await runCli(
-        ['clear-note', 'deck', 'test', 'Sol', 'Ring', '--output', 'json'],
+        ['clear-note', '--deck', 'test', 'Sol', 'Ring', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(0)
@@ -65,7 +65,7 @@ describe('clear-note CLI (Integration)', () => {
     const dir = await setupFixture()
     try {
       const result = await runCli(
-        ['clear-note', 'deck', 'test', '--card-id', '2', '--output', 'json'],
+        ['clear-note', '--deck', 'test', '--card-id', '2', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(0)
@@ -93,7 +93,7 @@ describe('clear-note CLI (Integration)', () => {
     const dir = await setupFixture()
     try {
       const result = await runCli(
-        ['clear-note', 'deck', 'test', 'Lightning', 'Bolt', '--output', 'json'],
+        ['clear-note', '--deck', 'test', 'Lightning', 'Bolt', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(2)
@@ -109,7 +109,7 @@ describe('clear-note CLI (Integration)', () => {
     const dir = await setupFixture()
     try {
       const result = await runCli(
-        ['clear-note', 'deck', 'test', '--card-id', '3', '--output', 'json'],
+        ['clear-note', '--deck', 'test', '--card-id', '3', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(0)
@@ -128,7 +128,7 @@ describe('clear-note CLI (Integration)', () => {
     const dir = await setupFixture()
     try {
       const result = await runCli(
-        ['clear-note', 'collection', 'main', 'Sol', 'Ring', '--output', 'json'],
+        ['clear-note', '--collection', 'main', 'Sol', 'Ring', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(0)
@@ -144,7 +144,7 @@ describe('clear-note CLI (Integration)', () => {
     const dir = await setupFixture()
     try {
       const result = await runCli(
-        ['clear-note', 'wanted', 'needs', 'Demonic', '--output', 'json'],
+        ['clear-note', '--wanted', 'needs', 'Demonic', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(0)
@@ -160,7 +160,7 @@ describe('clear-note CLI (Integration)', () => {
     const dir = await setupFixture()
     try {
       const result = await runCli(
-        ['clear-note', 'deck', 'test', '--card-id', '-5', '--output', 'json'],
+        ['clear-note', '--deck', 'test', '--card-id', '-5', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(2)
@@ -173,7 +173,7 @@ describe('clear-note CLI (Integration)', () => {
     const dir = await setupFixture()
     try {
       const result = await runCli(
-        ['clear-note', 'deck', 'nonexistent', 'Sol', 'Ring', '--output', 'json'],
+        ['clear-note', '--deck', 'nonexistent', 'Sol', 'Ring', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(3)

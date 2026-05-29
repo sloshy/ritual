@@ -15,7 +15,7 @@ describe('CLI scripting behavior (Integration)', () => {
         error: { code: string; message: string }
       }
       expect(errorJson.error.code).toBe('not_found')
-      expect(errorJson.error.message).toContain('missing-deck.md')
+      expect(errorJson.error.message).toContain('No deck')
     })
   })
 

@@ -39,7 +39,7 @@ describe('add-note CLI (Integration)', () => {
       const result = await runCli(
         [
           'add-note',
-          'deck',
+          '--deck',
           'test',
           'Sol',
           'Ring',
@@ -69,7 +69,7 @@ describe('add-note CLI (Integration)', () => {
     const dir = await setupFixture()
     try {
       const result = await runCli(
-        ['add-note', 'deck', 'test', 'Lightning', 'Bolt', '--note', 'burn', '--output', 'json'],
+        ['add-note', '--deck', 'test', 'Lightning', 'Bolt', '--note', 'burn', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(2)
@@ -88,7 +88,7 @@ describe('add-note CLI (Integration)', () => {
     const dir = await setupFixture()
     try {
       const result = await runCli(
-        ['add-note', 'deck', 'test', '--card-id', '3', '--note', 'reprint', '--output', 'json'],
+        ['add-note', '--deck', 'test', '--card-id', '3', '--note', 'reprint', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(0)
@@ -104,9 +104,9 @@ describe('add-note CLI (Integration)', () => {
   test('refuses to overwrite an existing note without --overwrite', async () => {
     const dir = await setupFixture()
     try {
-      await runCli(['add-note', 'deck', 'test', 'Sol', 'Ring', '--note', 'first'], dir)
+      await runCli(['add-note', '--deck', 'test', 'Sol', 'Ring', '--note', 'first'], dir)
       const result = await runCli(
-        ['add-note', 'deck', 'test', 'Sol', 'Ring', '--note', 'second', '--output', 'json'],
+        ['add-note', '--deck', 'test', 'Sol', 'Ring', '--note', 'second', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(2)
@@ -121,11 +121,11 @@ describe('add-note CLI (Integration)', () => {
   test('--overwrite replaces an existing note', async () => {
     const dir = await setupFixture()
     try {
-      await runCli(['add-note', 'deck', 'test', 'Sol', 'Ring', '--note', 'first'], dir)
+      await runCli(['add-note', '--deck', 'test', 'Sol', 'Ring', '--note', 'first'], dir)
       const result = await runCli(
         [
           'add-note',
-          'deck',
+          '--deck',
           'test',
           'Sol',
           'Ring',
@@ -154,7 +154,7 @@ describe('add-note CLI (Integration)', () => {
       const result = await runCli(
         [
           'add-note',
-          'collection',
+          '--collection',
           'main',
           'Mana',
           'Crypt',
@@ -177,7 +177,7 @@ describe('add-note CLI (Integration)', () => {
     const dir = await setupFixture()
     try {
       const result = await runCli(
-        ['add-note', 'wanted', 'needs', 'Demonic', '--note', 'old shtick', '--output', 'json'],
+        ['add-note', '--wanted', 'needs', 'Demonic', '--note', 'old shtick', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(0)
@@ -192,7 +192,7 @@ describe('add-note CLI (Integration)', () => {
     const dir = await setupFixture()
     try {
       const result = await runCli(
-        ['add-note', 'deck', 'test', 'Sol', 'Ring', '--note', '', '--output', 'json'],
+        ['add-note', '--deck', 'test', 'Sol', 'Ring', '--note', '', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(2)
@@ -209,11 +209,11 @@ describe('add-note CLI (Integration)', () => {
   test('empty --note on a card with an existing note suggests clear-note', async () => {
     const dir = await setupFixture()
     try {
-      await runCli(['add-note', 'deck', 'test', 'Sol', 'Ring', '--note', 'first'], dir)
+      await runCli(['add-note', '--deck', 'test', 'Sol', 'Ring', '--note', 'first'], dir)
       const result = await runCli(
         [
           'add-note',
-          'deck',
+          '--deck',
           'test',
           'Sol',
           'Ring',
@@ -238,7 +238,7 @@ describe('add-note CLI (Integration)', () => {
     const dir = await setupFixture()
     try {
       const result = await runCli(
-        ['add-note', 'deck', 'test', 'Sol', 'Ring', '--note', '   ', '--output', 'json'],
+        ['add-note', '--deck', 'test', 'Sol', 'Ring', '--note', '   ', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(2)
@@ -253,7 +253,7 @@ describe('add-note CLI (Integration)', () => {
     const dir = await setupFixture()
     try {
       const result = await runCli(
-        ['add-note', 'deck', 'nonexistent', 'Sol', 'Ring', '--note', 'x', '--output', 'json'],
+        ['add-note', '--deck', 'nonexistent', 'Sol', 'Ring', '--note', 'x', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(3)
@@ -268,7 +268,7 @@ describe('add-note CLI (Integration)', () => {
     const dir = await setupFixture()
     try {
       const result = await runCli(
-        ['add-note', 'deck', 'test', '--card-id', '0', '--note', 'x', '--output', 'json'],
+        ['add-note', '--deck', 'test', '--card-id', '0', '--note', 'x', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(2)
@@ -284,7 +284,7 @@ describe('add-note CLI (Integration)', () => {
     const dir = await setupFixture()
     try {
       const result = await runCli(
-        ['add-note', 'deck', 'test', '--card-id', '-5', '--note', 'x', '--output', 'json'],
+        ['add-note', '--deck', 'test', '--card-id', '-5', '--note', 'x', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(2)
@@ -297,7 +297,7 @@ describe('add-note CLI (Integration)', () => {
     const dir = await setupFixture()
     try {
       const result = await runCli(
-        ['add-note', 'deck', 'test', '--card-id', '1.5', '--note', 'x', '--output', 'json'],
+        ['add-note', '--deck', 'test', '--card-id', '1.5', '--note', 'x', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(2)
@@ -310,7 +310,7 @@ describe('add-note CLI (Integration)', () => {
     const dir = await setupFixture()
     try {
       const result = await runCli(
-        ['add-note', 'deck', 'test', 'Sol', 'Ring', '--note', '  spaced  ', '--output', 'json'],
+        ['add-note', '--deck', 'test', 'Sol', 'Ring', '--note', '  spaced  ', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(0)
@@ -329,7 +329,7 @@ describe('add-note CLI (Integration)', () => {
       const result = await runCli(
         [
           'add-note',
-          'deck',
+          '--deck',
           'test',
           'Sol',
           'Ring',
@@ -353,7 +353,7 @@ describe('add-note CLI (Integration)', () => {
     const dir = await setupFixture()
     try {
       const result = await runCli(
-        ['add-note', 'deck', 'test', 'Sol', 'Ring', '--note', 'a\tb', '--output', 'json'],
+        ['add-note', '--deck', 'test', 'Sol', 'Ring', '--note', 'a\tb', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(2)
@@ -378,7 +378,7 @@ describe('add-note CLI (Integration)', () => {
       const result = await runCli(
         [
           'add-note',
-          'collection',
+          '--collection',
           'main',
           '--card-id',
           '2',

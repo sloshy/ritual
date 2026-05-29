@@ -15,9 +15,11 @@ Sync deck card lists between local files and Archidekt.
 
 ## Arguments
 
-| Argument     | Description                                                                                            | Required |
-| ------------ | ------------------------------------------------------------------------------------------------------ | -------- |
-| `[decks...]` | Deck names to sync (slugified filenames without `.md`). If omitted, syncs all Archidekt-sourced decks. | No       |
+| Argument     | Description                                                                                               | Required |
+| ------------ | --------------------------------------------------------------------------------------------------------- | -------- |
+| `[decks...]` | Deck names to sync (matched case-insensitively, no `.md`). If omitted, syncs all Archidekt-sourced decks. | No       |
+
+Each name is matched case-insensitively with a unique-substring fallback; an ambiguous name is reported and skipped. See [List Resolution](./list-resolution).
 
 ## Options
 

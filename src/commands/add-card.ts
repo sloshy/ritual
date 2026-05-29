@@ -4,7 +4,7 @@ import type { PromptState } from './prompts-types'
 import path from 'node:path'
 import * as fs from 'node:fs/promises'
 import { getAllCardNames, getCardPrintings } from '../scryfall'
-import { resolveDeckFilePath, addCardToDeckFile } from '../deck-file'
+import { addCardToDeckFile } from '../deck-file'
 import {
   resolveCardPrinting,
   promptFinishAndCondition,
@@ -21,13 +21,19 @@ import { appendChangelog } from '../changelog-writer'
 import { createAddChange } from '../change-event'
 import { allocateNextIdFromContent } from '../card-id'
 import { appendFileWithHash } from '../content-hash'
-import { getDecksDir } from '../ritual-config'
 import {
   findCheapestPrinting,
   formatSpecificPrintingPrice,
   formatCheapestPrintingDisplay,
 } from '../price-currency'
-import { isListType } from '../list-type'
+import type { ListType } from '../list-type'
+import {
+  formatResolveListError,
+  isResolveListError,
+  listTypeFromFlags,
+  resolveList,
+  type ListTypeFlags,
+} from '../resolve-list'
 
 /** Parse existing &N IDs from a file and allocate the next available ID. */
 async function allocateNextIdFromFile(filePath: string): Promise<number> {
@@ -46,6 +52,42 @@ type AddCardOptions = {
   finish?: string
   condition?: string
   exact?: boolean
+} & ListTypeFlags
+
+/** A resolved (or freshly created) target list for `add-card`. */
+type AddCardTarget = { type: ListType; filePath: string; name: string }
+/** A resolution failure carrying a user-facing message and process exit code. */
+type AddCardTargetError = { error: string; code: number }
+
+/**
+ * Resolve `name` to an existing deck / collection / wanted list (via the shared
+ * resolver), or — when a type flag pins the type — create a missing collection or
+ * wanted list on the fly. Decks are never auto-created; a missing deck is an error.
+ */
+async function resolveAddCardTarget(
+  name: string,
+  type: ListType | undefined,
+): Promise<AddCardTarget | AddCardTargetError> {
+  if (name.endsWith('.changes') || name.endsWith('.changes.md')) {
+    return { error: `'${name}' is a changelog file and cannot be used as a list.`, code: 1 }
+  }
+
+  const resolved = await resolveList(name, type)
+  if (!isResolveListError(resolved)) {
+    return { type: resolved.type, filePath: resolved.filePath, name: resolved.name }
+  }
+
+  // Auto-create only when the type is known and the list simply doesn't exist yet.
+  if (resolved.kind === 'not-found' && type) {
+    if (type === 'deck') {
+      return { error: `No deck named '${name}' found. Create it first with 'new-deck'.`, code: 3 }
+    }
+    const filePath =
+      type === 'collection' ? await ensureCollectionFile(name) : await ensureWantedListFile(name)
+    return { type, filePath, name: path.basename(filePath, '.md') }
+  }
+
+  return { error: formatResolveListError(resolved), code: resolved.kind === 'ambiguous' ? 2 : 3 }
 }
 
 /**
@@ -143,98 +185,94 @@ export function registerAddCardCommand(program: Command): void {
   program
     .command('add-card')
     .description('Add a card to a deck, collection, or wanted list by name')
-    .argument('<type>', 'Target type: "deck", "collection", or "wanted"')
     .argument(
       '<targetName>',
-      'Name of the deck, collection, or wanted list (file name without extension)',
+      'Name of the deck, collection, or wanted list (resolved across all types unless a type flag is given)',
     )
     .argument('<cardName...>', 'Name of the card to search for')
+    .option('--deck', 'Resolve the name as a deck')
+    .option('--collection', 'Resolve the name as a collection (created if missing)')
+    .option('--wanted', 'Resolve the name as a wanted list (created if missing)')
     .option('-q, --quantity <number>', 'Number of copies to add (deck only)', '1')
     .option('-f, --finish <finish>', 'Card finish: nonfoil, foil, etched (collection/wanted only)')
     .option('-c, --condition <condition>', 'Card condition: NM, LP, MP, HP, DMG (collection only)')
     .option('-e, --exact', 'Use exact matching (skip interactive selection if name matches)', false)
-    .action(
-      async (
-        type: string,
-        targetName: string,
-        cardNameParts: string[],
-        options: AddCardOptions,
-      ) => {
-        if (!isListType(type)) {
-          console.error(`Invalid type '${type}'. Must be 'deck', 'collection', or 'wanted'.`)
-          process.exit(1)
-        }
+    .action(async (targetName: string, cardNameParts: string[], options: AddCardOptions) => {
+      const type = listTypeFromFlags(options)
+      if (type === 'conflict') {
+        console.error('Specify only one of --deck, --collection, or --wanted.')
+        process.exit(2)
+      }
 
-        const cardNameInput = cardNameParts.join(' ')
+      const target = await resolveAddCardTarget(targetName, type)
+      if ('error' in target) {
+        console.error(target.error)
+        process.exit(target.code)
+      }
 
-        // Ensure card cache is available and fresh
-        const cacheResult = await ensureFreshCardCache()
-        if (!cacheResult.ready) {
-          console.error('Card cache is not available. Cannot proceed without cached card data.')
-          process.exit(1)
-        }
+      const cardNameInput = cardNameParts.join(' ')
 
-        console.log(`Loaded ${cacheResult.cardCount} cards from cache.`)
+      // Ensure card cache is available and fresh
+      const cacheResult = await ensureFreshCardCache()
+      if (!cacheResult.ready) {
+        console.error('Card cache is not available. Cannot proceed without cached card data.')
+        process.exit(1)
+      }
 
-        const cardNames = await getAllCardNames()
+      console.log(`Loaded ${cacheResult.cardCount} cards from cache.`)
 
-        // Resolve the card name (exact match or autocomplete)
-        let selectedName: string | null
+      const cardNames = await getAllCardNames()
 
-        if (options.exact) {
-          selectedName = findExactMatch(cardNameInput, cardNames)
-          if (selectedName) {
-            console.log(`Exact match found: ${selectedName}`)
-          } else {
-            const matchCount = countSubstringMatches(cardNameInput, cardNames, 100)
-            const countLabel = matchCount >= 100 ? '100+' : String(matchCount)
-            console.error(
-              `No exact match for '${cardNameInput}'. ${countLabel} card${matchCount !== 1 ? 's' : ''} contain that name.`,
-            )
-            process.exit(1)
-          }
+      // Resolve the card name (exact match or autocomplete)
+      let selectedName: string | null
+
+      if (options.exact) {
+        selectedName = findExactMatch(cardNameInput, cardNames)
+        if (selectedName) {
+          console.log(`Exact match found: ${selectedName}`)
         } else {
-          selectedName = await selectCardAutocomplete(cardNames, cardNameInput)
+          const matchCount = countSubstringMatches(cardNameInput, cardNames, 100)
+          const countLabel = matchCount >= 100 ? '100+' : String(matchCount)
+          console.error(
+            `No exact match for '${cardNameInput}'. ${countLabel} card${matchCount !== 1 ? 's' : ''} contain that name.`,
+          )
+          process.exit(1)
         }
+      } else {
+        selectedName = await selectCardAutocomplete(cardNames, cardNameInput)
+      }
 
-        if (!selectedName) {
-          console.log('Cancelled.')
-          process.exit(0)
-        }
+      if (!selectedName) {
+        console.log('Cancelled.')
+        process.exit(0)
+      }
 
-        switch (type) {
-          case 'deck':
-            await handleDeckAddCard(targetName, selectedName, options)
-            break
-          case 'collection':
-            await handleCollectionAddCard(targetName, selectedName, options)
-            break
-          case 'wanted':
-            await handleWantedAddCard(targetName, selectedName, options)
-            break
-        }
-      },
-    )
+      switch (target.type) {
+        case 'deck':
+          await handleDeckAddCard(target.filePath, target.name, selectedName, options)
+          break
+        case 'collection':
+          await handleCollectionAddCard(target.filePath, target.name, selectedName, options)
+          break
+        case 'wanted':
+          await handleWantedAddCard(target.filePath, target.name, selectedName, options)
+          break
+      }
+    })
 }
 
 async function handleDeckAddCard(
+  deckFilePath: string,
   deckName: string,
   selectedName: string,
   options: AddCardOptions,
 ): Promise<void> {
-  const decksDir = getDecksDir()
-
   const quantity = Number.parseInt(options.quantity, 10)
   if (Number.isNaN(quantity) || quantity <= 0) {
     console.error('Quantity must be a positive integer')
     process.exit(1)
   }
 
-  const deckFilePath = await resolveDeckFilePath(decksDir, deckName)
-  if (!deckFilePath) {
-    console.error(`Deck file not found for '${deckName}'`)
-    process.exit(1)
-  }
   const deckFileName = path.basename(deckFilePath)
 
   try {
@@ -252,16 +290,11 @@ async function handleDeckAddCard(
 }
 
 async function handleCollectionAddCard(
+  collectionFilePath: string,
   collectionName: string,
   selectedName: string,
   options: AddCardOptions,
 ): Promise<void> {
-  if (collectionName.endsWith('.changes') || collectionName.endsWith('.changes.md')) {
-    console.error(`'${collectionName}' is a changelog file and cannot be used as a collection.`)
-    process.exit(1)
-  }
-  const collectionFilePath = await ensureCollectionFile(collectionName)
-
   const normalizedCondition = options.condition?.toUpperCase()
   const printingConfig: PrintingFilterConfig = {}
   const finishConditionConfig: FinishConditionConfig = {
@@ -314,15 +347,11 @@ async function handleCollectionAddCard(
 }
 
 async function handleWantedAddCard(
+  listFile: string,
   wantedListName: string,
   selectedName: string,
   options: AddCardOptions,
 ): Promise<void> {
-  if (wantedListName.endsWith('.changes') || wantedListName.endsWith('.changes.md')) {
-    console.error(`'${wantedListName}' is a changelog file and cannot be used as a wanted list.`)
-    process.exit(1)
-  }
-  const listFile = await ensureWantedListFile(wantedListName)
   const userFinish = options.finish && isFinish(options.finish) ? options.finish : undefined
 
   const specificityResponse = await prompts({

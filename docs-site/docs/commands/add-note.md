@@ -11,23 +11,25 @@ Notes are stored in list files as `{note text}` between the bracketed metadata a
 ## Usage
 
 ```bash
-./ritual add-note [type] [targetName] [cardName...] [options]
+./ritual add-note [listName] [cardName...] [options]
 ```
 
-If invoked with no arguments, the command runs interactively, prompting for the list type, the list name, the card, and the note text. Any argument or option you supply skips the corresponding prompt — fully scripting-friendly.
+`[listName]` is resolved across all three list types (see [List Resolution](./list-resolution)); pass a `--deck`, `--collection`, or `--wanted` flag to pin the type or disambiguate. If invoked with no list name, the command runs interactively, prompting you to pick a list (filtered by the type flag if given), then the card and note text. Any argument or option you supply skips the corresponding prompt — fully scripting-friendly.
 
 ## Arguments
 
-| Argument        | Description                                                         | Required |
-| --------------- | ------------------------------------------------------------------- | -------- |
-| `[type]`        | Target type: `deck`, `collection`, or `wanted`                      | No       |
-| `[targetName]`  | Name of the deck, collection, or wanted list (filename without ext) | No       |
-| `[cardName...]` | Card name to attach the note to (fuzzy match)                       | No       |
+| Argument        | Description                                                                   | Required |
+| --------------- | ----------------------------------------------------------------------------- | -------- |
+| `[listName]`    | Name of the deck, collection, or wanted list (case-insensitive, no extension) | No       |
+| `[cardName...]` | Card name to attach the note to (fuzzy match)                                 | No       |
 
 ## Options
 
 | Option              | Description                                                                                                   | Default |
 | ------------------- | ------------------------------------------------------------------------------------------------------------- | ------- |
+| `--deck`            | Resolve the name as a deck                                                                                    |         |
+| `--collection`      | Resolve the name as a collection                                                                              |         |
+| `--wanted`          | Resolve the name as a wanted list                                                                             |         |
 | `-n, --note <text>` | Note text. If omitted, you will be prompted. Cannot be empty — use `clear-note` to remove a note.             |         |
 | `--card-id <id>`    | Disambiguate by card ID (the `&N` suffix in list files). Required when name search hits multiple printings.   |         |
 | `--overwrite`       | Replace an existing note. Without this flag, the command refuses to overwrite a card that already has a note. | `false` |
@@ -42,22 +44,22 @@ Fully interactive (prompts for everything):
 ./ritual add-note
 ```
 
-Set a note on a deck card:
+Set a note on a deck card (name resolved across all list types):
 
 ```bash
-./ritual add-note deck "My Deck" Sol Ring --note "starts the engine"
+./ritual add-note "My Deck" Sol Ring --note "starts the engine"
 ```
 
-Disambiguate two printings of the same card:
+Pin the list type when a name is ambiguous, or to be explicit:
 
 ```bash
-./ritual add-note deck "My Deck" --card-id 17 --note "alpha printing"
+./ritual add-note --deck "My Deck" --card-id 17 --note "alpha printing"
 ```
 
 Replace an existing note (without `--overwrite`, this fails):
 
 ```bash
-./ritual add-note collection "Main" "Mana Crypt" --note "tutor target" --overwrite
+./ritual add-note --collection "Main" "Mana Crypt" --note "tutor target" --overwrite
 ```
 
 To remove a note, use the dedicated [`clear-note`](./clear-note) command instead.
@@ -65,10 +67,14 @@ To remove a note, use the dedicated [`clear-note`](./clear-note) command instead
 Pipe a JSON record for scripting:
 
 ```bash
-./ritual add-note collection main "Sol Ring" --note "first edition" --output json
+./ritual add-note --collection main "Sol Ring" --note "first edition" --output json
 ```
 
 ## Behavior
+
+### List Resolution
+
+`[listName]` is matched case-insensitively across all list types (exact name first, then a unique substring), and a name that exists in more than one type is rejected unless you pin it with `--deck`, `--collection`, or `--wanted`. See [List Resolution](./list-resolution) for the full rules.
 
 ### Card Resolution
 
@@ -93,9 +99,9 @@ Each note change is recorded in the list's `.changes.md` changelog as `Set note 
 
 ## Exit Codes
 
-| Code | Meaning                                                                           |
-| ---- | --------------------------------------------------------------------------------- |
-| `0`  | Success                                                                           |
-| `2`  | Usage error (invalid type, ambiguous match, attempted overwrite without the flag) |
-| `3`  | Not found (missing list file, missing card, missing card ID)                      |
-| `1`  | Runtime error (file changed concurrently, etc.)                                   |
+| Code | Meaning                                                                                                               |
+| ---- | --------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Success                                                                                                               |
+| `2`  | Usage error (conflicting type flags, ambiguous list name, ambiguous card match, attempted overwrite without the flag) |
+| `3`  | Not found (missing list file, missing card, missing card ID)                                                          |
+| `1`  | Runtime error (file changed concurrently, etc.)                                                                       |

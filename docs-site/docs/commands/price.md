@@ -18,6 +18,8 @@ Get pricing information for a deck.
 | ------------ | ----------------------------------------- | -------- |
 | `<deckName>` | Name of the deck file (without extension) | Yes      |
 
+The name is matched case-insensitively, with a unique-substring fallback; an ambiguous name is rejected. See [List Resolution](./list-resolution).
+
 ## Options
 
 | Option                | Description                                             |

@@ -1,5 +1,6 @@
 import { InvalidArgumentError, type Command } from 'commander'
 import type { ErrorCode } from '../types'
+import { formatResolveListError, type ResolveListError } from '../resolve-list'
 
 export type OutputFormat = 'text' | 'json' | 'ndjson'
 
@@ -85,6 +86,26 @@ export function emitError(
   }
 
   process.stderr.write(`${message}\n`)
+}
+
+/**
+ * Emit a list-resolution error through the scripting error channel and set the
+ * matching process exit code. Ambiguity is a usage error (the user must pick a
+ * type); a missing list or empty directory is a not-found.
+ */
+export function emitResolveListError(error: ResolveListError, options: ScriptingOptions): void {
+  const message = formatResolveListError(error)
+  switch (error.kind) {
+    case 'ambiguous':
+      emitError('usage_error', message, options)
+      process.exitCode = ExitCode.UsageError
+      return
+    case 'no-lists':
+    case 'not-found':
+      emitError('not_found', message, options)
+      process.exitCode = ExitCode.NotFound
+      return
+  }
 }
 
 export function parseFields(value: string): string[] {

@@ -9,22 +9,25 @@ import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import prompts from 'prompts'
 import type { PromptState } from './prompts-types'
-import { listDeckFiles, importFromTextFile } from '../importers/text-file'
-import { resolveDeckFilePath, serializeDeckToMarkdown, parseDeckFrontMatter } from '../deck-file'
+import { importFromTextFile } from '../importers/text-file'
+import { serializeDeckToMarkdown, parseDeckFrontMatter } from '../deck-file'
 import { parseCollectionFile, COLLECTION_CARD_LINE_RE } from './price-collection'
 import { parseWantedListFile, formatWantedListLine, WANTED_CARD_LINE_RE } from './wanted-helpers'
 import { formatCollectionLine } from './collection-helpers'
 import { writeFileWithHash } from '../content-hash'
-import { getCollectionsDir, getDecksDir, getWantedDir } from '../ritual-config'
-import { isPathWithinDir } from '../path-validation'
 import { ExitCode } from './scripting'
 import { normalizeCardName } from './add-card'
-import { isListType, type ListType } from '../list-type'
+import { type ListType } from '../list-type'
+import {
+  formatResolveListError,
+  isResolveListError,
+  listLocations,
+  resolveList,
+  type ResolveListError,
+} from '../resolve-list'
 import { noteOrUndefined } from '../note-helpers'
 import { formatPrintingAnnotation } from '../change-event'
 import type { Card, Condition, DeckData, ErrorCode, Finish } from '../types'
-
-type FilePromptResponse = { file?: string }
 
 /** Unified summary for a card entry across all list types. */
 export type EntryRef = {
@@ -71,117 +74,68 @@ export function parseCardIdFlag(raw: string): number {
   return Number.parseInt(raw, 10)
 }
 
-// ── Type / list resolution ────────────────────────────────────────────────────
+// ── List resolution ─────────────────────────────────────────────────────────
 
-export async function resolveType(rawType: string | undefined): Promise<ListType> {
-  if (rawType !== undefined) {
-    if (!isListType(rawType)) {
-      throw new NoteCommandError(
-        'usage_error',
-        `Invalid type '${rawType}'. Must be 'deck', 'collection', or 'wanted'.`,
-        ExitCode.UsageError,
-      )
-    }
-    return rawType
-  }
+/** A located list and the type it was resolved to. */
+export type ResolvedList = { type: ListType; filePath: string }
 
-  let exited = false
-  const resp = await prompts({
-    type: 'select',
-    name: 'type',
-    message: 'List type:',
-    choices: [
-      { title: 'Deck', value: 'deck' },
-      { title: 'Collection', value: 'collection' },
-      { title: 'Wanted list', value: 'wanted' },
-    ],
-    onState: (state: PromptState) => {
-      if (state.exited) exited = true
-    },
-  })
-  if (exited || typeof resp.type !== 'string' || !isListType(resp.type)) {
-    throw new NoteCommandError('usage_error', 'Cancelled.', ExitCode.UsageError)
+function resolveErrorToNoteError(error: ResolveListError): NoteCommandError {
+  if (error.kind === 'ambiguous') {
+    return new NoteCommandError('usage_error', formatResolveListError(error), ExitCode.UsageError)
   }
-  return resp.type
+  return new NoteCommandError('not_found', formatResolveListError(error), ExitCode.NotFound)
 }
 
-function getListDir(type: ListType): string {
-  if (type === 'deck') return getDecksDir()
-  if (type === 'collection') return getCollectionsDir()
-  return getWantedDir()
-}
-
-async function listFilesInDir(type: ListType): Promise<string[]> {
-  const dir = getListDir(type)
-  if (type === 'deck') return listDeckFiles(dir)
-  try {
-    const all = await fs.readdir(dir)
-    return all.filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))
-  } catch {
-    return []
-  }
-}
-
-export async function resolveListPath(
-  type: ListType,
+/**
+ * Resolve the target list for a note command. When `listName` is given it is matched
+ * via the shared resolver — case-insensitively, across all types unless `type` (from a
+ * `--deck` / `--collection` / `--wanted` flag) narrows the search — and ambiguity is a
+ * usage error. When `listName` is omitted, the user picks interactively from the lists
+ * in scope.
+ */
+export async function resolveListSelection(
   listName: string | undefined,
-): Promise<string> {
-  const dir = getListDir(type)
+  type: ListType | undefined,
+): Promise<ResolvedList> {
   if (listName !== undefined) {
-    if (type === 'deck') {
-      const resolved = await resolveDeckFilePath(dir, listName)
-      if (!resolved) {
-        throw new NoteCommandError(
-          'not_found',
-          `${listTypeLabel(type)} '${listName}' not found in ${dir}.`,
-          ExitCode.NotFound,
-        )
-      }
-      return resolved
-    }
-    const fileName = listName.endsWith('.md') ? listName : `${listName}.md`
-    const filePath = path.join(dir, fileName)
-    if (!isPathWithinDir(filePath, dir)) {
-      throw new NoteCommandError(
-        'usage_error',
-        `Invalid ${type} name '${listName}'.`,
-        ExitCode.UsageError,
-      )
-    }
-    if (!(await Bun.file(filePath).exists())) {
-      throw new NoteCommandError(
-        'not_found',
-        `${listTypeLabel(type)} '${listName}' not found in ${dir}.`,
-        ExitCode.NotFound,
-      )
-    }
-    return filePath
+    const resolved = await resolveList(listName, type)
+    if (isResolveListError(resolved)) throw resolveErrorToNoteError(resolved)
+    return { type: resolved.type, filePath: resolved.filePath }
   }
 
-  const files = await listFilesInDir(type)
-  if (files.length === 0) {
+  const locations = await listLocations(type)
+  if (locations.length === 0) {
     throw new NoteCommandError(
       'not_found',
-      `No ${type} files found in ${dir}. Create one first.`,
+      type
+        ? `No ${listTypeLabel(type).toLowerCase()} files found. Create one first.`
+        : 'No decks, collections, or wanted lists found. Create one first.',
       ExitCode.NotFound,
     )
   }
 
   let exited = false
-  const resp = (await prompts({
+  const resp = await prompts({
     type: 'autocomplete',
-    name: 'file',
-    message: `Select a ${type}:`,
-    choices: files.map((f) => ({ title: f.replace(/\.md$/, ''), value: f })),
+    name: 'index',
+    message: 'Select a list:',
+    choices: locations.map((loc, i) => ({
+      title: `${loc.name} — ${listTypeLabel(loc.type)}`,
+      value: i,
+    })),
     limit: 15,
     onState: (state: PromptState) => {
       if (state.exited) exited = true
     },
-  })) as FilePromptResponse
-  if (exited || !resp.file) {
+  })
+  if (exited || typeof resp.index !== 'number') {
     throw new NoteCommandError('usage_error', 'Cancelled.', ExitCode.UsageError)
   }
-  return path.join(dir, resp.file)
+  const chosen = locations[resp.index]
+  if (!chosen) {
+    throw new NoteCommandError('runtime_error', 'Selection out of range.', ExitCode.RuntimeError)
+  }
+  return { type: chosen.type, filePath: chosen.filePath }
 }
 
 // ── Entry loading + target resolution ─────────────────────────────────────────

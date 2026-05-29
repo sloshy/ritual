@@ -18,7 +18,7 @@ Get pricing for your card collection. Alias: `pc`.
 | ------------------ | ---------------------------------------------------- | -------- |
 | `[collectionName]` | Name of a single collection file (without extension) | No       |
 
-When no collection name is given, all `.md` files in the `collections/` directory are priced and a grand total is shown.
+When no collection name is given, all `.md` files in the `collections/` directory are priced and a grand total is shown. A given name is matched case-insensitively, with a unique-substring fallback; an ambiguous name is rejected. See [List Resolution](./list-resolution).
 
 ## Options
 
