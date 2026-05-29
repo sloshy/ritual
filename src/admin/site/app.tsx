@@ -14,6 +14,7 @@ import { Settings } from './pages/Settings'
 import { AuditLog } from './pages/AuditLog'
 import { ListEditor } from './pages/ListEditor'
 import { ListManager } from './pages/ListManager'
+import { MoveCards } from './pages/MoveCards'
 
 type StatusResponse = { setupRequired: boolean; totpEnabled?: boolean }
 
@@ -115,7 +116,7 @@ function App() {
             currentPage={page()}
             onNavigate={navigate}
             onLogout={() => navigationGuard.attempt(() => void onLogout())}
-            fullWidth={page() === 'list-editor'}
+            fullWidth={page() === 'list-editor' || page() === 'move-cards'}
           >
             <Switch>
               <Match when={page() === 'dashboard'}>
@@ -126,6 +127,9 @@ function App() {
               </Match>
               <Match when={page() === 'list-manager'}>
                 <ListManager onNavigate={navigate} />
+              </Match>
+              <Match when={page() === 'move-cards'}>
+                <MoveCards />
               </Match>
               <Match when={page() === 'import-deck'}>
                 <ImportDeck />

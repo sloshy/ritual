@@ -35,6 +35,7 @@ import { handleCollectionSave } from './api/collection-save'
 import { handleListWantedLists } from './api/wanted-list'
 import { handleWantedListLoad } from './api/wanted-load'
 import { handleWantedListSave } from './api/wanted-save'
+import { handleMoveData, handleMoveCommit } from './api/move'
 import {
   handleSimpleListCreate,
   handleSimpleListRename,
@@ -204,6 +205,8 @@ const routes: Route[] = [
     handler: (req) => handleSimpleListDelete(req, WANTED_CFG),
     requiresAuth: true,
   },
+  { method: 'GET', path: '/api/move', handler: handleMoveData, requiresAuth: true },
+  { method: 'POST', path: '/api/move/commit', handler: handleMoveCommit, requiresAuth: true },
 ]
 
 export function getClientIp(req: Request, server: RequestIPServer, trustProxy: boolean): string {

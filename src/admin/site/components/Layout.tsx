@@ -11,6 +11,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: '📊' },
   { id: 'list-editor', label: 'Edit Lists', icon: '✏️' },
+  { id: 'move-cards', label: 'Move Cards', icon: '➡️' },
   { id: 'list-manager', label: 'Manage Lists', icon: '🗂️' },
   { id: 'import-deck', label: 'Import Deck', icon: '📥' },
   { id: 'build-site', label: 'Build Site', icon: '🔨' },

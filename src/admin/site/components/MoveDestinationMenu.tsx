@@ -1,0 +1,63 @@
+import { type Component, For, Show, createMemo } from 'solid-js'
+import type { MoveListInfo } from '../../api/move'
+import { groupListsByType } from '../move-overlay'
+import { useAnchoredMenu } from './useAnchoredMenu'
+
+const MENU_WIDTH = 220
+
+interface MoveDestinationMenuProps {
+  cardName: string
+  anchorRect: DOMRect
+  /** Eligible destinations, already filtered (destination filter applied, current list excluded). */
+  destinations: MoveListInfo[]
+  onSelect: (dest: MoveListInfo) => void
+  onClose: () => void
+}
+
+/**
+ * The "Move To…" popup opened from a card's move button. Lists every eligible
+ * destination grouped by list type, reusing the card context menu's chrome and
+ * the shared anchored-menu positioning.
+ */
+export const MoveDestinationMenu: Component<MoveDestinationMenuProps> = (props) => {
+  const { setMenuRef, style } = useAnchoredMenu({
+    anchorRect: () => props.anchorRect,
+    width: MENU_WIDTH,
+    onClose: () => props.onClose(),
+  })
+
+  const grouped = createMemo(() => groupListsByType(props.destinations))
+
+  return (
+    <div
+      class="card-context-menu move-destination-menu"
+      ref={setMenuRef}
+      style={style()}
+      role="menu"
+      aria-label={`Move ${props.cardName} to`}
+    >
+      <Show
+        when={props.destinations.length > 0}
+        fallback={<div class="card-context-menu-empty">No eligible destinations</div>}
+      >
+        <For each={grouped()}>
+          {(group) => (
+            <>
+              <div class="card-context-menu-label">{group.label}</div>
+              <For each={group.lists}>
+                {(dest) => (
+                  <button
+                    class="card-context-menu-item card-context-menu-item--indented"
+                    onClick={() => props.onSelect(dest)}
+                  >
+                    {dest.name}
+                  </button>
+                )}
+              </For>
+            </>
+          )}
+        </For>
+      </Show>
+    </div>
+  )
+}

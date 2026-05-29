@@ -27,7 +27,7 @@ describe('commitAllMoves', () => {
     }
     const state = buildVirtualState([card])
 
-    const moved = await commitAllMoves(state)
+    const { moved } = await commitAllMoves(state)
     expect(moved).toBe(0)
   })
 
@@ -56,8 +56,14 @@ describe('commitAllMoves', () => {
       const state = buildVirtualState([card])
       applyVirtualMove(state, card.key, dstList)
 
-      const moved = await commitAllMoves(state)
+      const { moved, writtenFiles } = await commitAllMoves(state)
       expect(moved).toBe(1)
+
+      // The written-files set covers both list files and both changelogs (for git staging).
+      expect(writtenFiles).toContain(srcPath)
+      expect(writtenFiles).toContain(dstPath)
+      expect(writtenFiles).toContain(srcPath.replace('.md', '.changes.md'))
+      expect(writtenFiles).toContain(dstPath.replace('.md', '.changes.md'))
 
       // Source file should no longer contain the card
       const srcContent = await fs.readFile(srcPath, 'utf-8')
@@ -109,7 +115,7 @@ describe('commitAllMoves', () => {
       const state = buildVirtualState([card])
       applyVirtualMove(state, card.key, collList)
 
-      const moved = await commitAllMoves(state)
+      const { moved } = await commitAllMoves(state)
       expect(moved).toBe(1)
 
       const wantedContent = await fs.readFile(wantedPath, 'utf-8')
@@ -200,7 +206,7 @@ describe('commitAllMoves', () => {
       const state = buildVirtualState([card])
       applyVirtualMove(state, card.key, dstList)
 
-      const moved = await commitAllMoves(state)
+      const { moved } = await commitAllMoves(state)
       expect(moved).toBe(0)
 
       // Destination must not have the card added

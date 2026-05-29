@@ -46,6 +46,12 @@ export interface CardItemProps {
   onIncrement?: () => void
   onDecrement?: () => void
   onContextMenu?: (rect: DOMRect) => void
+  /**
+   * When provided, renders a single rightward "Move To…" button in place of the
+   * edit/trade controls (used by the admin Move Cards page). Receives the button's
+   * bounding rect so the caller can anchor the destination menu.
+   */
+  onMove?: (rect: DOMRect) => void
   onAddToTrade?: () => void
   addToTradeDisabled?: boolean
 }
@@ -150,6 +156,18 @@ export const CardItem: Component<CardItemProps> = (props) => {
                     </button>
                   </div>
                 </Show>
+                <Show when={props.onMove}>
+                  <div class="edit-overlay">
+                    <button
+                      class="edit-btn edit-btn-move"
+                      onClick={stopPropAndRect(props.onMove)}
+                      title="Move To…"
+                      aria-label="Move To…"
+                    >
+                      →
+                    </button>
+                  </div>
+                </Show>
                 <Show when={props.onAddToTrade !== undefined}>
                   <button
                     class="card-trade-btn"
@@ -226,6 +244,18 @@ export const CardItem: Component<CardItemProps> = (props) => {
                     </button>
                   </span>
                 </Show>
+                <Show when={props.onMove}>
+                  <span class="edit-controls-list">
+                    <button
+                      class="edit-btn-list edit-btn-move"
+                      onClick={stopPropAndRect(props.onMove)}
+                      title="Move To…"
+                      aria-label="Move To…"
+                    >
+                      →
+                    </button>
+                  </span>
+                </Show>
                 <Show when={props.onAddToTrade !== undefined}>
                   <button
                     class="list-trade-btn"
@@ -275,6 +305,18 @@ export const CardItem: Component<CardItemProps> = (props) => {
                       title="More options"
                     >
                       ⋯
+                    </button>
+                  </div>
+                </Show>
+                <Show when={props.onMove}>
+                  <div class="edit-overlay">
+                    <button
+                      class="edit-btn edit-btn-move"
+                      onClick={stopPropAndRect(props.onMove)}
+                      title="Move To…"
+                      aria-label="Move To…"
+                    >
+                      →
                     </button>
                   </div>
                 </Show>

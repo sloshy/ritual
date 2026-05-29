@@ -1612,3 +1612,147 @@ export async function mockPublicSiteIndexLists(page: Page): Promise<void> {
     })
   })
 }
+
+// ===== Move Cards page mock data =====
+
+const MOVE_BOLT_CARD = {
+  id: 'move-bolt',
+  name: 'Lightning Bolt',
+  cmc: 1,
+  type_line: 'Instant',
+  oracle_text: 'Lightning Bolt deals 3 damage to any target.',
+  mana_cost: '{R}',
+  image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
+  prices: { usd: '2.00', usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
+  finishes: ['nonfoil', 'foil'],
+  games: ['paper'],
+  set: 'lea',
+  set_name: 'Limited Edition Alpha',
+  collector_number: '161',
+  rarity: 'common',
+  color_identity: ['R'],
+  released_at: '1993-08-05',
+}
+
+const MOVE_LISTS = [
+  { type: 'deck', slug: 'move-deck', name: 'Move Deck' },
+  { type: 'collection', slug: 'move-binder', name: 'Move Binder' },
+  { type: 'wanted', slug: 'move-wishlist', name: 'Move Wishlist' },
+]
+
+const MOVE_DATA = {
+  success: true,
+  lists: MOVE_LISTS,
+  cards: [
+    {
+      key: 'collection:move-binder:1:0',
+      listType: 'collection',
+      listSlug: 'move-binder',
+      name: 'Lightning Bolt',
+      set: 'lea',
+      collectorNumber: '161',
+      finish: 'nonfoil',
+      condition: 'NM',
+      cardId: 1,
+      copyIndex: 0,
+    },
+  ],
+}
+
+/**
+ * Mock the admin Move Cards endpoints: the bulk `/api/move` index, the per-list
+ * load endpoints for the three synthetic lists, card printings (for moved-in
+ * rendering), and the commit endpoint. `onCommit` receives the parsed POST body.
+ */
+export async function mockMoveCardsApi(
+  page: Page,
+  onCommit?: (body: unknown) => void,
+): Promise<void> {
+  await page.route('**/api/move', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOVE_DATA),
+    })
+  })
+
+  await page.route('**/api/move/commit', async (route: Route) => {
+    onCommit?.(route.request().postDataJSON())
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, moved: 1, skipped: 0, message: 'Moved 1 card.' }),
+    })
+  })
+
+  await page.route('**/api/collection/move-binder', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        entries: [
+          {
+            name: 'Lightning Bolt',
+            set: 'lea',
+            collectorNumber: '161',
+            finish: 'nonfoil',
+            condition: 'NM',
+            price: 2,
+            fileOrder: 0,
+            section: 'Main',
+            cardId: 1,
+          },
+        ],
+        sectionOrder: ['Main'],
+        cards: { 'lea:161': MOVE_BOLT_CARD, 'Lightning Bolt': MOVE_BOLT_CARD },
+        printings: { 'Lightning Bolt': [MOVE_BOLT_CARD] },
+        symbolMap: {},
+        slug: 'move-binder',
+        contentHash: 'move-binder-hash',
+      }),
+    })
+  })
+
+  await page.route('**/api/deck/move-deck', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        deck: { name: 'Move Deck', sections: [{ name: 'Main', cards: [] }] },
+        cards: {},
+        printings: {},
+        symbolMap: {},
+        frontMatter: { name: 'Move Deck' },
+        slug: 'move-deck',
+        contentHash: 'move-deck-hash',
+      }),
+    })
+  })
+
+  await page.route('**/api/wanted/move-wishlist', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        entries: [],
+        sectionOrder: ['Main'],
+        cards: {},
+        printings: {},
+        symbolMap: {},
+        slug: 'move-wishlist',
+        contentHash: 'move-wishlist-hash',
+      }),
+    })
+  })
+
+  await page.route('**/api/card-printings*', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, printings: [MOVE_BOLT_CARD] }),
+    })
+  })
+}

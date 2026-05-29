@@ -1,5 +1,6 @@
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
+import { hashPath } from '../content-hash'
 import { appendChangelog } from '../changelog-writer'
 import {
   createMoveFromChange,
@@ -321,6 +322,16 @@ type PerFileChanges = {
   adds: VirtualCard[]
 }
 
+export type CommitMovesResult = {
+  /** Number of cards actually moved. */
+  moved: number
+  /**
+   * Every file written this commit (list markdown + hash sidecars + changelogs),
+   * deduplicated, so callers can stage exactly these paths for an auto-commit.
+   */
+  writtenFiles: string[]
+}
+
 /**
  * Commit all pending moves to disk atomically and write changelog entries.
  *
@@ -329,11 +340,11 @@ type PerFileChanges = {
  * All modified files are written to disk in a single pass at the end, ensuring
  * no card can be permanently lost if a later step fails.
  *
- * Returns the number of cards actually moved.
+ * Returns the number of cards moved plus the set of files written (for git staging).
  */
-export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<number> {
+export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<CommitMovesResult> {
   const pending = getPendingMoves(state)
-  if (pending.length === 0) return 0
+  if (pending.length === 0) return { moved: 0, writtenFiles: [] }
 
   // Group by source file (for removals) and destination file (for additions)
   const bySource = new Map<string, PerFileChanges>()
@@ -393,8 +404,10 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<n
   }
 
   // --- WRITE: All modified files to disk in a single pass ---
+  const writtenFiles: string[] = []
   for (const [filePath, stagedFile] of staged.entries()) {
     await writeStagedFile(filePath, stagedFile)
+    writtenFiles.push(filePath, hashPath(filePath))
   }
 
   // --- CHANGELOG: Write entries only for successfully moved cards ---
@@ -411,7 +424,9 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<n
           to: vc.currentList.ref,
         }),
       )
-    if (changes.length > 0) await appendChangelog(listEntry.filePath, listEntry.ref.name, changes)
+    if (changes.length > 0) {
+      writtenFiles.push(await appendChangelog(listEntry.filePath, listEntry.ref.name, changes))
+    }
   }
 
   for (const { listEntry, adds } of byDest.values()) {
@@ -427,8 +442,10 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<n
           from: vc.card.listEntry.ref,
         }),
       )
-    if (changes.length > 0) await appendChangelog(listEntry.filePath, listEntry.ref.name, changes)
+    if (changes.length > 0) {
+      writtenFiles.push(await appendChangelog(listEntry.filePath, listEntry.ref.name, changes))
+    }
   }
 
-  return removedKeys.size
+  return { moved: removedKeys.size, writtenFiles: [...new Set(writtenFiles)] }
 }

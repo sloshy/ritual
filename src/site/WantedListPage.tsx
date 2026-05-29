@@ -55,6 +55,12 @@ interface WantedListPageProps {
   onCardIncrement?: (entry: WantedListCardEntry) => void
   onCardDecrement?: (entry: WantedListCardEntry) => void
   onCardContextMenu?: (info: CardContextInfo, rect: DOMRect) => void
+  /**
+   * When provided, each card shows a single "Move To…" button (instead of the edit
+   * or trade controls) reporting the card and the button's rect. Used by the admin
+   * Move Cards page.
+   */
+  onCardMove?: (info: CardContextInfo, rect: DOMRect) => void
   unsavedChangeCount?: number
   changelog?: ChangelogPage[]
 }
@@ -255,7 +261,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
 
   const modalAddToTrade = createMemo(() => {
     const entry = modalEntry()
-    if (!entry || props.editMode) return undefined
+    if (!entry || props.editMode || props.onCardMove) return undefined
     const scryfallCard = modalCard()
     return () => handleWantedAddToTrade(entry, scryfallCard)
   })
@@ -295,7 +301,16 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
   const renderWantedListCard = (c: CardData) => {
     const entryIdx = findEntryIndex(c)
     const entry = currencyEntries()[entryIdx]
-    const showTrade = !props.editMode && entry !== undefined
+    const showTrade = !props.editMode && !props.onCardMove && entry !== undefined
+    const contextInfo = (): CardContextInfo => ({
+      cardName: c.name,
+      card: c.card,
+      cardIds: entry?.cardId !== undefined ? [entry.cardId] : [],
+      quantity: 1,
+      set: entry?.set,
+      collectorNumber: entry?.collectorNumber,
+      finish: entry?.finish,
+    })
     return (
       <CardItem
         name={c.name}
@@ -320,22 +335,9 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         onIncrement={props.editMode && entry ? () => props.onCardIncrement?.(entry) : undefined}
         onDecrement={props.editMode && entry ? () => props.onCardDecrement?.(entry) : undefined}
         onContextMenu={
-          props.editMode
-            ? (rect) =>
-                props.onCardContextMenu?.(
-                  {
-                    cardName: c.name,
-                    card: c.card,
-                    cardIds: entry?.cardId !== undefined ? [entry.cardId] : [],
-                    quantity: 1,
-                    set: entry?.set,
-                    collectorNumber: entry?.collectorNumber,
-                    finish: entry?.finish,
-                  },
-                  rect,
-                )
-            : undefined
+          props.editMode ? (rect) => props.onCardContextMenu?.(contextInfo(), rect) : undefined
         }
+        onMove={props.onCardMove ? (rect) => props.onCardMove!(contextInfo(), rect) : undefined}
         onAddToTrade={showTrade ? () => handleWantedAddToTrade(entry, c.card) : undefined}
         addToTradeDisabled={showTrade ? isWantedCardAddDisabled(entry, c.card) : undefined}
       />
@@ -379,7 +381,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
   )
 
   return (
-    <div class={props.editMode ? 'page-full-width' : 'page-container'}>
+    <div class={props.editMode || props.onCardMove ? 'page-full-width' : 'page-container'}>
       {/* Header */}
       <div class="page-header">
         <div>

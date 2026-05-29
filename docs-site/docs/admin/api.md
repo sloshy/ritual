@@ -502,3 +502,71 @@ Delete a wanted list file (and its `.changes.md` sidecar if present). Requires `
   "message": "Deleted wanted list 'Holiday Wishlist'"
 }
 ```
+
+## Move Data
+
+```
+GET /api/move
+```
+
+Returns every list (deck, collection, wanted) and every movable card across them, used by the [Move Cards](./move-cards.md) page. The lightweight `cards` payload carries no Scryfall data; each card's `key` is a path-free session identifier echoed back on commit. Deck entries with quantity > 1 expand to one card per copy (`copyIndex`).
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "lists": [{ "type": "collection", "slug": "binder", "name": "Binder" }],
+  "cards": [
+    {
+      "key": "collection:binder:1:0",
+      "listType": "collection",
+      "listSlug": "binder",
+      "name": "Lightning Bolt",
+      "set": "lea",
+      "collectorNumber": "161",
+      "finish": "nonfoil",
+      "condition": "NM",
+      "cardId": 1,
+      "copyIndex": 0
+    }
+  ]
+}
+```
+
+## Commit Moves
+
+```
+POST /api/move/commit
+```
+
+Apply a batch of queued moves atomically. The move state is rebuilt from disk and each move is applied via the shared move engine, writing the source/destination files and their changelogs. The optional printing fields override the destination printing (used when a printing-less card is moved into a collection). Moves whose `cardKey` or destination can no longer be resolved are skipped and reported. When git auto-commit is enabled, the written files are committed in a single commit, the same as the editor save endpoints.
+
+**Request Body:**
+
+```json
+{
+  "moves": [
+    {
+      "cardKey": "collection:binder:1:0",
+      "toType": "deck",
+      "toSlug": "my-deck",
+      "set": "2xm",
+      "collectorNumber": "270",
+      "finish": "nonfoil",
+      "condition": "NM"
+    }
+  ]
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "moved": 1,
+  "skipped": 0,
+  "message": "Moved 1 card."
+}
+```

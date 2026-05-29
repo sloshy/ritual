@@ -51,6 +51,12 @@ interface CollectionPageProps {
   onCardIncrement?: (entry: CollectionCardEntry) => void
   onCardDecrement?: (entry: CollectionCardEntry) => void
   onCardContextMenu?: (info: CardContextInfo, rect: DOMRect) => void
+  /**
+   * When provided, each card shows a single "Move To…" button (instead of the edit
+   * or trade controls) reporting the card and the button's rect. Used by the admin
+   * Move Cards page.
+   */
+  onCardMove?: (info: CardContextInfo, rect: DOMRect) => void
   unsavedChangeCount?: number
   changelog?: ChangelogPage[]
 }
@@ -264,7 +270,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
 
   const modalAddToTrade = createMemo(() => {
     const entry = modalEntry()
-    if (!entry || props.editMode) return undefined
+    if (!entry || props.editMode || props.onCardMove) return undefined
     return () => handleCollectionAddToTrade(entry)
   })
 
@@ -309,7 +315,17 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   const renderCollectionCard = (c: CardData) => {
     const entryIdx = findEntryIndex(c)
     const entry = currencyEntries()[entryIdx]
-    const showTrade = !props.editMode && entry !== undefined
+    const showTrade = !props.editMode && !props.onCardMove && entry !== undefined
+    const contextInfo = (): CardContextInfo => ({
+      cardName: c.name,
+      card: c.card,
+      cardIds: entry ? groupCardIds(entry) : [],
+      quantity: c.quantity,
+      set: entry?.set,
+      collectorNumber: entry?.collectorNumber,
+      finish: entry?.finish,
+      condition: entry?.condition,
+    })
     return (
       <CardItem
         name={c.name}
@@ -331,23 +347,9 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         onIncrement={props.editMode && entry ? () => props.onCardIncrement?.(entry) : undefined}
         onDecrement={props.editMode && entry ? () => props.onCardDecrement?.(entry) : undefined}
         onContextMenu={
-          props.editMode
-            ? (rect) =>
-                props.onCardContextMenu?.(
-                  {
-                    cardName: c.name,
-                    card: c.card,
-                    cardIds: entry ? groupCardIds(entry) : [],
-                    quantity: c.quantity,
-                    set: entry?.set,
-                    collectorNumber: entry?.collectorNumber,
-                    finish: entry?.finish,
-                    condition: entry?.condition,
-                  },
-                  rect,
-                )
-            : undefined
+          props.editMode ? (rect) => props.onCardContextMenu?.(contextInfo(), rect) : undefined
         }
+        onMove={props.onCardMove ? (rect) => props.onCardMove!(contextInfo(), rect) : undefined}
         onAddToTrade={showTrade ? () => handleCollectionAddToTrade(entry) : undefined}
         addToTradeDisabled={showTrade ? isCollectionCardAddDisabled(entry) : undefined}
       />
@@ -385,7 +387,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   )
 
   return (
-    <div class={props.editMode ? 'page-full-width' : 'page-container'}>
+    <div class={props.editMode || props.onCardMove ? 'page-full-width' : 'page-container'}>
       {/* Header */}
       <div class="page-header">
         <div>

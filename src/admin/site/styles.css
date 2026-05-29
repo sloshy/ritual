@@ -2004,3 +2004,269 @@ dialog.discard-dialog-native[open] {
 .visibility-toggle-label {
   min-width: 2.75rem;
 }
+
+/* ── Move Cards page ─────────────────────────────────────────────────────────── */
+
+.move-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* "Move To…" button — the rightward-arrow variant of the card action buttons. */
+.edit-btn-move:hover {
+  background: var(--accent);
+  color: var(--btn-on-color-text);
+  border-color: var(--accent);
+}
+
+.move-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.move-toolbar-select {
+  margin-bottom: 0;
+  flex: 1 1 16rem;
+  min-width: 14rem;
+}
+
+.move-search-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 2 1 20rem;
+  min-width: 16rem;
+}
+
+.move-search-input {
+  width: 100%;
+}
+
+.move-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.move-filters-dock {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: none;
+}
+
+.move-empty {
+  padding: 2rem 0;
+}
+
+/* Empty state inside the destination menu */
+.card-context-menu-empty {
+  padding: 8px 14px;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+/* ── Filters panel ──────────────────────────────────────────────────────────── */
+
+.move-filters-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.move-filters-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.move-filters-bulk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.move-filters-bulk-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-left: 6px;
+}
+
+.move-filters-grid {
+  display: flex;
+  flex-direction: column;
+}
+
+.move-filters-row {
+  display: grid;
+  grid-template-columns: 1fr 4rem 4rem;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-separator);
+}
+
+.move-filters-row--head {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.move-filters-name {
+  color: var(--text-body);
+  font-size: 0.8125rem;
+}
+
+.move-filters-col {
+  text-align: center;
+}
+
+.move-filters-group-label {
+  padding: 8px 8px 2px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-accent);
+}
+
+/* ── Pending-moves dialog ───────────────────────────────────────────────────── */
+
+.move-pending-dialog {
+  min-width: min(34rem, 90vw);
+}
+
+.move-pending-list {
+  list-style: none;
+  margin: 0.5rem 0 1rem;
+  padding: 0;
+  max-height: 50vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.move-pending-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-separator);
+  border-radius: 6px;
+  background: var(--bg-subtle);
+}
+
+.move-pending-card {
+  font-size: 0.8125rem;
+  color: var(--text-body);
+}
+
+.move-pending-route {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.move-pending-arrow {
+  color: var(--text-accent);
+}
+
+.move-pending-to {
+  color: var(--text-body);
+}
+
+/* ── Search results ─────────────────────────────────────────────────────────── */
+
+.move-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.move-search-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* The whole row is the move button, so it resets button chrome and lays out as a grid. */
+.move-search-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 2rem 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.move-search-row:hover,
+.move-search-row:focus-visible {
+  background: var(--bg-hover);
+  border-color: var(--border-separator);
+  outline: none;
+}
+
+/* Arrow affordance on the right; brightens to the accent as the row is hovered/focused. */
+.move-search-move {
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  transition: color 0.12s ease;
+}
+
+.move-search-row:hover .move-search-move,
+.move-search-row:focus-visible .move-search-move {
+  color: var(--accent);
+}
+
+.move-search-qty {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  text-align: right;
+}
+
+.move-search-name {
+  grid-column: 2;
+  color: var(--text-body);
+  font-size: 0.875rem;
+}
+
+.move-search-annotation {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  margin-left: 0.4rem;
+}
+
+.move-search-source {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.move-search-empty {
+  padding: 1.5rem 0;
+}

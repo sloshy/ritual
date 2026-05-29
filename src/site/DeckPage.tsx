@@ -59,6 +59,12 @@ export interface DeckPageProps {
   onCardIncrement?: (cardName: string) => void
   onCardDecrement?: (cardName: string) => void
   onCardContextMenu?: (info: CardContextInfo, rect: DOMRect) => void
+  /**
+   * When provided, each card shows a single "Move To…" button (instead of the edit
+   * or trade controls) that reports the card and the button's rect. Used by the
+   * admin Move Cards page.
+   */
+  onCardMove?: (info: CardContextInfo, rect: DOMRect) => void
   unsavedChangeCount?: number
   changelog?: ChangelogPage[]
 }
@@ -364,7 +370,17 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
 
   const renderDeckCard = (hideCount: boolean) => (c: CardData) => {
     const deckEntry = deckEntryByOrder().get(c.fileOrder)
-    const showTrade = !props.editMode && deckEntry !== undefined
+    const showTrade = !props.editMode && !props.onCardMove && deckEntry !== undefined
+    const contextInfo = (): CardContextInfo => ({
+      cardName: c.name,
+      card: c.card,
+      cardIds: deckEntry?.cardId !== undefined ? [deckEntry.cardId] : [],
+      quantity: c.quantity,
+      set: deckEntry?.set,
+      collectorNumber: deckEntry?.collectorNumber,
+      finish: deckEntry?.finish,
+      condition: deckEntry?.condition,
+    })
     return (
       <CardItem
         name={c.name}
@@ -383,23 +399,9 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         onIncrement={props.editMode ? () => props.onCardIncrement?.(c.name) : undefined}
         onDecrement={props.editMode ? () => props.onCardDecrement?.(c.name) : undefined}
         onContextMenu={
-          props.editMode
-            ? (rect) =>
-                props.onCardContextMenu?.(
-                  {
-                    cardName: c.name,
-                    card: c.card,
-                    cardIds: deckEntry?.cardId !== undefined ? [deckEntry.cardId] : [],
-                    quantity: c.quantity,
-                    set: deckEntry?.set,
-                    collectorNumber: deckEntry?.collectorNumber,
-                    finish: deckEntry?.finish,
-                    condition: deckEntry?.condition,
-                  },
-                  rect,
-                )
-            : undefined
+          props.editMode ? (rect) => props.onCardContextMenu?.(contextInfo(), rect) : undefined
         }
+        onMove={props.onCardMove ? (rect) => props.onCardMove!(contextInfo(), rect) : undefined}
         onAddToTrade={showTrade ? () => handleDeckAddToTrade(c, deckEntry) : undefined}
         addToTradeDisabled={showTrade ? isDeckCardAddDisabled(c, deckEntry) : undefined}
       />
@@ -429,7 +431,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
   })
 
   return (
-    <div class={props.editMode ? 'page-full-width' : 'page-container'}>
+    <div class={props.editMode || props.onCardMove ? 'page-full-width' : 'page-container'}>
       {/* Header */}
       <div class="page-header">
         <div>
@@ -668,8 +670,10 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         currency={props.currency}
         printings={modalPrintings()}
         onClose={props.onCloseModal}
-        onAddToTrade={!props.editMode ? handleModalAddToTrade : undefined}
-        addToTradeDisabled={!props.editMode ? modalAddToTradeDisabled() : undefined}
+        onAddToTrade={!props.editMode && !props.onCardMove ? handleModalAddToTrade : undefined}
+        addToTradeDisabled={
+          !props.editMode && !props.onCardMove ? modalAddToTradeDisabled() : undefined
+        }
       />
 
       {/* Trade printing picker for deck cards without specific printings */}

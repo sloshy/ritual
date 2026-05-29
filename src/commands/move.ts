@@ -167,7 +167,7 @@ async function handleDone(virtualState: Map<string, VirtualCard>): Promise<void>
   }
 
   console.log(`Saving ${pending.length} move(s)...`)
-  const moved = await commitAllMoves(virtualState)
+  const { moved } = await commitAllMoves(virtualState)
   console.log(`Done. Moved ${moved} card(s).`)
 }
 

@@ -5,6 +5,7 @@ export type Page =
   | 'import-deck'
   | 'list-editor'
   | 'list-manager'
+  | 'move-cards'
   | 'build-site'
   | 'cache-refresh'
   | 'archidekt-login'

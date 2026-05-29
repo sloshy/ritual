@@ -16,6 +16,12 @@ const actions: ActionCard[] = [
     icon: '✏️',
   },
   {
+    id: 'move-cards',
+    title: 'Move Cards',
+    description: 'Move cards between decks, collections, and wanted lists',
+    icon: '➡️',
+  },
+  {
     id: 'list-manager',
     title: 'Manage Lists',
     description: 'Create, rename, and delete decks, collections, and wanted lists',
