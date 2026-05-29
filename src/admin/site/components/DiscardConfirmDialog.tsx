@@ -1,6 +1,7 @@
 import type { Component } from 'solid-js'
-import { createEffect, For } from 'solid-js'
+import { For } from 'solid-js'
 import { type ChangeEvent, isAdditiveChange, formatChange } from '../../../change-event'
+import { useDialogModal } from '../hooks/useDialogModal'
 
 interface DiscardConfirmDialogProps {
   open: boolean
@@ -10,25 +11,14 @@ interface DiscardConfirmDialogProps {
 }
 
 export const DiscardConfirmDialog: Component<DiscardConfirmDialogProps> = (props) => {
-  let dialogRef: HTMLDialogElement | undefined
-
-  createEffect(() => {
-    const dialog = dialogRef
-    if (!dialog) return
-    if (props.open && !dialog.open) dialog.showModal()
-    else if (!props.open && dialog.open) dialog.close()
-  })
-
-  const handleBackdropClick = (e: MouseEvent) => {
-    if ((e.target as Element) === dialogRef) dialogRef?.close()
-  }
+  const dialog = useDialogModal(() => props.open)
 
   return (
     <dialog
-      ref={dialogRef}
+      ref={dialog.setDialog}
       class="discard-dialog-native"
       onClose={props.onCancel}
-      onClick={handleBackdropClick}
+      onClick={dialog.onBackdropClick}
     >
       <div class="confirm-dialog">
         <h3>
@@ -49,7 +39,7 @@ export const DiscardConfirmDialog: Component<DiscardConfirmDialogProps> = (props
           </For>
         </div>
         <div class="confirm-dialog-actions">
-          <button type="button" class="btn btn-secondary" onClick={() => dialogRef?.close()}>
+          <button type="button" class="btn btn-secondary" onClick={dialog.close}>
             Cancel
           </button>
           <button type="button" class="btn-discard" onClick={props.onConfirm}>

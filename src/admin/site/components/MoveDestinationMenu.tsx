@@ -1,6 +1,6 @@
 import { type Component, For, Show, createMemo } from 'solid-js'
-import type { MoveListInfo } from '../../api/move'
-import { groupListsByType } from '../move-overlay'
+import type { ListInfo } from '../../api/list-info'
+import { groupListsByType } from '../list-grouping'
 import { useAnchoredMenu } from './useAnchoredMenu'
 
 const MENU_WIDTH = 220
@@ -9,8 +9,8 @@ interface MoveDestinationMenuProps {
   cardName: string
   anchorRect: DOMRect
   /** Eligible destinations, already filtered (destination filter applied, current list excluded). */
-  destinations: MoveListInfo[]
-  onSelect: (dest: MoveListInfo) => void
+  destinations: ListInfo[]
+  onSelect: (dest: ListInfo) => void
   onClose: () => void
 }
 

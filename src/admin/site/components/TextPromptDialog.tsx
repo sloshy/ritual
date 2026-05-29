@@ -1,4 +1,5 @@
-import { type Component, createEffect, createMemo, createSignal, Show } from 'solid-js'
+import { type Component, createMemo, createSignal, Show } from 'solid-js'
+import { useDialogModal } from '../hooks/useDialogModal'
 
 type TextPromptDialogProps = {
   open: boolean
@@ -18,24 +19,18 @@ type TextPromptDialogProps = {
  * new section or renaming one, with live validation and a disabled confirm while invalid/empty.
  */
 export const TextPromptDialog: Component<TextPromptDialogProps> = (props) => {
-  let dialogRef: HTMLDialogElement | undefined
   let inputRef: HTMLInputElement | undefined
   const [value, setValue] = createSignal('')
 
-  // Seed the draft and open/close the native dialog from `props.open`, matching the other dialogs.
-  createEffect(() => {
-    const dialog = dialogRef
-    if (!dialog) return
-    if (props.open && !dialog.open) {
+  // Seed the draft and focus the input when the dialog opens.
+  const dialog = useDialogModal(() => props.open, {
+    onOpen: () => {
       setValue(props.initialValue)
-      dialog.showModal()
       queueMicrotask(() => {
         inputRef?.focus()
         inputRef?.select()
       })
-    } else if (!props.open && dialog.open) {
-      dialog.close()
-    }
+    },
   })
 
   const error = createMemo(() => props.validate?.(value()) ?? null)
@@ -47,16 +42,12 @@ export const TextPromptDialog: Component<TextPromptDialogProps> = (props) => {
     if (canConfirm()) props.onConfirm(value())
   }
 
-  const handleBackdropClick = (e: MouseEvent) => {
-    if ((e.target as Element) === dialogRef) dialogRef?.close()
-  }
-
   return (
     <dialog
-      ref={dialogRef}
+      ref={dialog.setDialog}
       class="discard-dialog-native"
       onClose={props.onCancel}
-      onClick={handleBackdropClick}
+      onClick={dialog.onBackdropClick}
     >
       <div class="confirm-dialog text-prompt">
         <h3>{props.title}</h3>
@@ -84,7 +75,7 @@ export const TextPromptDialog: Component<TextPromptDialogProps> = (props) => {
           </Show>
         </div>
         <div class="confirm-dialog-actions">
-          <button type="button" class="btn btn-secondary" onClick={() => dialogRef?.close()}>
+          <button type="button" class="btn btn-secondary" onClick={dialog.close}>
             Cancel
           </button>
           <button type="button" class="btn" disabled={!canConfirm()} onClick={confirm}>

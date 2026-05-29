@@ -1,10 +1,10 @@
 import { type Component, For, Show, createMemo } from 'solid-js'
 import { LIST_TYPE_DISPLAY } from '../../../list-type'
-import type { MoveListInfo } from '../../api/move'
-import { type ListId, listInfoId, groupListsByType } from '../move-overlay'
+import type { ListInfo } from '../../api/list-info'
+import { type ListId, listInfoId, groupListsByType } from '../list-grouping'
 
 interface MoveFiltersPanelProps {
-  lists: MoveListInfo[]
+  lists: ListInfo[]
   sourceEnabled: (id: ListId) => boolean
   destEnabled: (id: ListId) => boolean
   toggleSource: (id: ListId) => void

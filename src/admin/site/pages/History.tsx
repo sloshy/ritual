@@ -1,6 +1,6 @@
 import { type JSX, Show, For, createSignal, createMemo, onCleanup } from 'solid-js'
 import { isValidIso8601 } from '../../../changelog-blocks'
-import { groupListsByType, listInfoId, type ListId } from '../move-overlay'
+import { groupListsByType, listInfoId, type ListId } from '../list-grouping'
 import { useHistorySession } from '../hooks/useHistorySession'
 import { useNavigationGuard } from '../navigation-guard'
 import { StatusAlerts } from '../components/StatusAlerts'

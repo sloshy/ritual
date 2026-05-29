@@ -1,4 +1,5 @@
-import { type Component, createEffect, Show } from 'solid-js'
+import { type Component, Show } from 'solid-js'
+import { useDialogModal } from '../hooks/useDialogModal'
 
 type ConfirmDialogProps = {
   open: boolean
@@ -17,25 +18,14 @@ type ConfirmDialogProps = {
  * box). Used wherever an action needs a plain confirmation without a typed value.
  */
 export const ConfirmDialog: Component<ConfirmDialogProps> = (props) => {
-  let dialogRef: HTMLDialogElement | undefined
-
-  createEffect(() => {
-    const dialog = dialogRef
-    if (!dialog) return
-    if (props.open && !dialog.open) dialog.showModal()
-    else if (!props.open && dialog.open) dialog.close()
-  })
-
-  const handleBackdropClick = (e: MouseEvent) => {
-    if ((e.target as Element) === dialogRef) dialogRef?.close()
-  }
+  const dialog = useDialogModal(() => props.open)
 
   return (
     <dialog
-      ref={dialogRef}
+      ref={dialog.setDialog}
       class="discard-dialog-native"
       onClose={props.onCancel}
-      onClick={handleBackdropClick}
+      onClick={dialog.onBackdropClick}
     >
       <div class="confirm-dialog">
         <h3>{props.title}</h3>
@@ -43,7 +33,7 @@ export const ConfirmDialog: Component<ConfirmDialogProps> = (props) => {
           <p class="dialog-message">{props.message}</p>
         </Show>
         <div class="confirm-dialog-actions">
-          <button type="button" class="btn btn-secondary" onClick={() => dialogRef?.close()}>
+          <button type="button" class="btn btn-secondary" onClick={dialog.close}>
             Cancel
           </button>
           <button

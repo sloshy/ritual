@@ -1,4 +1,5 @@
-import { type Component, createEffect, For } from 'solid-js'
+import { type Component, For } from 'solid-js'
+import { useDialogModal } from '../hooks/useDialogModal'
 
 /** A candidate change set to combine into, paired with its index in the full set list. */
 export type CombineCandidate = {
@@ -22,25 +23,14 @@ type CombineSetDialogProps = {
  * set is then deleted. Mirrors the CLI `history` command's combine prompt.
  */
 export const CombineSetDialog: Component<CombineSetDialogProps> = (props) => {
-  let dialogRef: HTMLDialogElement | undefined
-
-  createEffect(() => {
-    const dialog = dialogRef
-    if (!dialog) return
-    if (props.open && !dialog.open) dialog.showModal()
-    else if (!props.open && dialog.open) dialog.close()
-  })
-
-  const handleBackdropClick = (e: MouseEvent) => {
-    if ((e.target as Element) === dialogRef) dialogRef?.close()
-  }
+  const dialog = useDialogModal(() => props.open)
 
   return (
     <dialog
-      ref={dialogRef}
+      ref={dialog.setDialog}
       class="discard-dialog-native"
       onClose={props.onCancel}
-      onClick={handleBackdropClick}
+      onClick={dialog.onBackdropClick}
     >
       <div class="confirm-dialog">
         <h3>Combine change sets</h3>
@@ -65,7 +55,7 @@ export const CombineSetDialog: Component<CombineSetDialogProps> = (props) => {
           </For>
         </div>
         <div class="confirm-dialog-actions">
-          <button type="button" class="btn btn-secondary" onClick={() => dialogRef?.close()}>
+          <button type="button" class="btn btn-secondary" onClick={dialog.close}>
             Cancel
           </button>
         </div>

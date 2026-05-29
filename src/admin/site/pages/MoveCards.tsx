@@ -5,15 +5,14 @@ import type { CardContextInfo } from '../../../site/card-context'
 import { DeckPage } from '../../../site/DeckPage'
 import { CollectionPage } from '../../../site/CollectionPage'
 import { WantedListPage } from '../../../site/WantedListPage'
-import type { MoveListInfo } from '../../api/move'
+import type { ListInfo } from '../../api/list-info'
 import {
   type TileTarget,
   type MoveDestPrinting,
   type CardGroup,
-  listInfoId,
   needsPrintingFor,
-  groupListsByType,
 } from '../move-overlay'
+import { listInfoId, groupListsByType } from '../list-grouping'
 import { useMoveSession } from '../hooks/useMoveSession'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { MoveDestinationMenu } from '../components/MoveDestinationMenu'
@@ -25,12 +24,12 @@ import { CardSearchModal } from '../components/CardSearchModal'
 
 /** Multi-step state for moving one tile: pick destination → (printing) → (quantity) → queue. */
 type MoveFlow = {
-  sourceList: MoveListInfo
+  sourceList: ListInfo
   target: TileTarget
   available: number
   anchorRect: DOMRect
   step: 'menu' | 'printing' | 'quantity'
-  dest?: MoveListInfo
+  dest?: ListInfo
   override?: MoveDestPrinting
 }
 
@@ -41,11 +40,11 @@ export function MoveCards(): JSX.Element {
   const [modalKey, setModalKey] = createSignal<string | null>(null)
   const [flow, setFlow] = createSignal<MoveFlow | null>(null)
 
-  const listNameOf = (type: MoveListInfo['type'], slug: string): string =>
+  const listNameOf = (type: ListInfo['type'], slug: string): string =>
     session.lists().find((l) => l.type === type && l.slug === slug)?.name ?? slug
 
   // ── Move flow ────────────────────────────────────────────────────────────────
-  const openMoveMenu = (sourceList: MoveListInfo, target: TileTarget, anchorRect: DOMRect) => {
+  const openMoveMenu = (sourceList: ListInfo, target: TileTarget, anchorRect: DOMRect) => {
     const available = session.availableToMove(sourceList, target)
     if (available <= 0) return
     setFlow({ sourceList, target, available, anchorRect, step: 'menu' })
@@ -53,7 +52,7 @@ export function MoveCards(): JSX.Element {
 
   const cancelFlow = () => setFlow(null)
 
-  const chooseDest = (dest: MoveListInfo) => {
+  const chooseDest = (dest: ListInfo) => {
     const f = flow()
     if (!f) return
     const printing: MoveDestPrinting = {
@@ -81,7 +80,7 @@ export function MoveCards(): JSX.Element {
     })
   }
 
-  const afterDest = (dest: MoveListInfo, override: MoveDestPrinting | undefined) => {
+  const afterDest = (dest: ListInfo, override: MoveDestPrinting | undefined) => {
     const f = flow()
     if (!f) return
     if (f.available > 1) {
@@ -97,7 +96,7 @@ export function MoveCards(): JSX.Element {
     doMove(f.dest, count, f.override)
   }
 
-  const doMove = (dest: MoveListInfo, count: number, override: MoveDestPrinting | undefined) => {
+  const doMove = (dest: ListInfo, count: number, override: MoveDestPrinting | undefined) => {
     const f = flow()
     if (!f) return
     session.requestMove(f.sourceList, f.target, count, dest, override)
@@ -112,7 +111,7 @@ export function MoveCards(): JSX.Element {
   }
 
   const handleSearchMove = (group: CardGroup, rect: DOMRect) => {
-    const source: MoveListInfo = {
+    const source: ListInfo = {
       type: group.listType,
       slug: group.listSlug,
       name: listNameOf(group.listType, group.listSlug),

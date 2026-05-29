@@ -1,4 +1,4 @@
-import { type ListType, LIST_TYPES, LIST_TYPE_DISPLAY } from '../../list-type'
+import type { ListType } from '../../list-type'
 import type { Finish, Condition, DeckData } from '../../types'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../site/data-types'
 import type { ChangeInput } from '../../change-event'
@@ -6,37 +6,9 @@ import { isSamePrinting } from '../../change-event'
 import { applyChangeToDeck } from './types/deck-changes'
 import { applyChangeToCollection } from './types/collection-changes'
 import { applyChangeToWantedList } from './types/wanted-changes'
-import type { MoveListInfo, MovePhysicalCard } from '../api/move'
-
-/** Opaque `${type}:${slug}` identifier for a list within a move session. */
-export type ListId = string
-
-export function listId(type: ListType, slug: string): ListId {
-  return `${type}:${slug}`
-}
-
-export function listInfoId(list: MoveListInfo): ListId {
-  return listId(list.type, list.slug)
-}
-
-/** Lists grouped under a single list type, with non-empty groups only. */
-export type ListTypeGroup = {
-  type: ListType
-  label: string
-  lists: MoveListInfo[]
-}
-
-/**
- * Group lists by type in canonical order, dropping empty groups. Shared by the
- * move page's selector, the destination menu, and the filters panel.
- */
-export function groupListsByType(lists: MoveListInfo[]): ListTypeGroup[] {
-  return LIST_TYPES.map((type) => ({
-    type,
-    label: LIST_TYPE_DISPLAY[type].label,
-    lists: lists.filter((l) => l.type === type),
-  })).filter((g) => g.lists.length > 0)
-}
+import type { ListInfo } from '../api/list-info'
+import type { MovePhysicalCard } from '../api/move'
+import { type ListId, listId, listInfoId } from './list-grouping'
 
 /** Identity of the card a pending move acts on (its printing at the source). */
 export type MoveCard = {
@@ -60,8 +32,8 @@ export type MoveDestPrinting = Pick<MoveCard, 'set' | 'collectorNumber' | 'finis
 export type PendingMove = {
   id: string
   cardKey: string
-  from: MoveListInfo
-  to: MoveListInfo
+  from: ListInfo
+  to: ListInfo
   source: MoveCard
   dest: MoveDestPrinting
 }
@@ -180,11 +152,11 @@ export type ReconcileMoveParams = {
   /** The full physical-card index (used to resolve a tile to its source copies). */
   allCards: MovePhysicalCard[]
   /** The list the moved tile currently lives in (the viewed list, or a search row's list). */
-  sourceList: MoveListInfo
+  sourceList: ListInfo
   target: TileTarget
   /** How many copies to move (1..available). */
   count: number
-  dest: MoveListInfo
+  dest: ListInfo
   /** Resolved destination printing (e.g. a printing chosen for a collection); defaults to the tile's. */
   override?: MoveDestPrinting
   /** Generates a unique id for a newly-queued move. */

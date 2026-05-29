@@ -1,7 +1,5 @@
 import { describe, test, expect } from 'bun:test'
 import {
-  listId,
-  listInfoId,
   removeChangeFor,
   addChangeFor,
   movesFrom,
@@ -16,13 +14,15 @@ import {
   reconcilePendingMoves,
   type PendingMove,
 } from '../../src/admin/site/move-overlay'
-import type { MovePhysicalCard, MoveListInfo } from '../../src/admin/api/move'
+import { listId, listInfoId } from '../../src/admin/site/list-grouping'
+import type { MovePhysicalCard } from '../../src/admin/api/move'
+import type { ListInfo } from '../../src/admin/api/list-info'
 import type { DeckData } from '../../src/types'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../src/site/data-types'
 
-const deckList: MoveListInfo = { type: 'deck', slug: 'my-deck', name: 'My Deck' }
-const collList: MoveListInfo = { type: 'collection', slug: 'binder', name: 'Binder' }
-const wantedList: MoveListInfo = { type: 'wanted', slug: 'wishlist', name: 'Wishlist' }
+const deckList: ListInfo = { type: 'deck', slug: 'my-deck', name: 'My Deck' }
+const collList: ListInfo = { type: 'collection', slug: 'binder', name: 'Binder' }
+const wantedList: ListInfo = { type: 'wanted', slug: 'wishlist', name: 'Wishlist' }
 
 function physical(
   over: Partial<MovePhysicalCard> & Pick<MovePhysicalCard, 'name'>,

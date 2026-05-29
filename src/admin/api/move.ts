@@ -14,9 +14,6 @@ import {
 import { listSlug, type ListInfo } from './list-info'
 import { validateBodySize, autoCommitAndPush } from './save-helpers'
 
-/** A movable list summary; identical to the shared {@link ListInfo} the move UI keys on. */
-export type MoveListInfo = ListInfo
-
 /**
  * One movable physical card. Mirrors the CLI's `PhysicalCard` but uses a
  * slug-based, path-free `key` so the browser can echo it back on commit without
@@ -39,7 +36,7 @@ export type MovePhysicalCard = {
 
 export type MoveDataResponse = {
   success: true
-  lists: MoveListInfo[]
+  lists: ListInfo[]
   cards: MovePhysicalCard[]
 }
 
@@ -66,7 +63,7 @@ export async function handleMoveData(): Promise<Response> {
     const physical = await loadPhysicalCards(lists)
     const slugByPath = new Map(lists.map((l) => [l.filePath, listSlug(l.filePath)]))
 
-    const listInfos: MoveListInfo[] = lists.map((l) => ({
+    const listInfos: ListInfo[] = lists.map((l) => ({
       type: l.ref.type,
       slug: slugByPath.get(l.filePath)!,
       name: l.ref.name,

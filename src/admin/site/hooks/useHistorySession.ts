@@ -16,7 +16,7 @@ import type {
   HistorySaveResponse,
   HistoryErrorResponse,
 } from '../../api/history'
-import { type ListId, listInfoId } from '../move-overlay'
+import { type ListId, listInfoId } from '../list-grouping'
 
 export type UseHistorySessionResult = {
   loaded: Accessor<boolean>

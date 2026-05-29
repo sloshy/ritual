@@ -3,15 +3,13 @@ import { createStore, type SetStoreFunction, type Store } from 'solid-js/store'
 import type { DeckData, ScryfallCard } from '../../../types'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../../site/data-types'
 import { createChangeId } from '../../../change-event'
-import type { MoveListInfo, MovePhysicalCard, MoveDataResponse } from '../../api/move'
+import type { MovePhysicalCard, MoveDataResponse } from '../../api/move'
+import type { ListInfo } from '../../api/list-info'
 import {
-  type ListId,
   type PendingMove,
   type MoveDestPrinting,
   type TileTarget,
   type CardGroup,
-  listId,
-  listInfoId,
   overlayDeck,
   overlayCollection,
   overlayWanted,
@@ -20,6 +18,7 @@ import {
   reconcilePendingMoves,
   groupCards,
 } from '../move-overlay'
+import { type ListId, listId, listInfoId } from '../list-grouping'
 
 /** Merged Scryfall display data, accumulated across every list fetched this session. */
 export type MoveCardData = {
@@ -58,11 +57,11 @@ export type UseMoveSessionResult = {
   status: Accessor<string | null>
   saving: Accessor<boolean>
 
-  lists: Accessor<MoveListInfo[]>
+  lists: Accessor<ListInfo[]>
   /** Currently selected list id (null when none / searching). */
   viewedListId: Accessor<ListId | null>
   selectList: (id: ListId | null) => void
-  viewedList: Accessor<MoveListInfo | null>
+  viewedList: Accessor<ListInfo | null>
   viewedData: Accessor<ViewedListData | null>
   viewedLoading: Accessor<boolean>
 
@@ -76,7 +75,7 @@ export type UseMoveSessionResult = {
   pendingCount: Accessor<number>
 
   /** Lists eligible as destinations for a card currently in `fromId` (dest filter + not self). */
-  destinationsFor: (fromId: ListId) => MoveListInfo[]
+  destinationsFor: (fromId: ListId) => ListInfo[]
   sourceEnabled: (id: ListId) => boolean
   destEnabled: (id: ListId) => boolean
   toggleSource: (id: ListId) => void
@@ -85,12 +84,12 @@ export type UseMoveSessionResult = {
   setAllDests: (on: boolean) => void
 
   /** How many copies of `target` in `sourceList` can still be moved (excludes already-queued). */
-  availableToMove: (sourceList: MoveListInfo, target: TileTarget) => number
+  availableToMove: (sourceList: ListInfo, target: TileTarget) => number
   requestMove: (
-    sourceList: MoveListInfo,
+    sourceList: ListInfo,
     target: TileTarget,
     count: number,
-    dest: MoveListInfo,
+    dest: ListInfo,
     override?: MoveDestPrinting,
   ) => void
   removePending: (id: string) => void
@@ -156,7 +155,7 @@ export function useMoveSession(): UseMoveSessionResult {
   const [status, setStatus] = createSignal<string | null>(null)
   const [saving, setSaving] = createSignal(false)
 
-  const [lists, setLists] = createSignal<MoveListInfo[]>([])
+  const [lists, setLists] = createSignal<ListInfo[]>([])
   const [allCards, setAllCards] = createSignal<MovePhysicalCard[]>([])
   const [pending, setPending] = createSignal<PendingMove[]>([])
 
@@ -208,8 +207,7 @@ export function useMoveSession(): UseMoveSessionResult {
 
   onMount(() => void reloadBulk())
 
-  const findList = (id: ListId): MoveListInfo | undefined =>
-    lists().find((l) => listInfoId(l) === id)
+  const findList = (id: ListId): ListInfo | undefined => lists().find((l) => listInfoId(l) === id)
 
   const viewedList = createMemo(() => {
     const id = viewedListId()
@@ -217,7 +215,7 @@ export function useMoveSession(): UseMoveSessionResult {
   })
 
   // Fetch the selected list's rich data lazily (once), plus any moved-in cards' data.
-  const loadList = async (list: MoveListInfo): Promise<void> => {
+  const loadList = async (list: ListInfo): Promise<void> => {
     const id = listInfoId(list)
     if (richCache()[id]) return
     setViewedLoading(true)
@@ -370,11 +368,11 @@ export function useMoveSession(): UseMoveSessionResult {
     persistDisabled(DESTS_KEY, next)
   }
 
-  const destinationsFor = (fromId: ListId): MoveListInfo[] =>
+  const destinationsFor = (fromId: ListId): ListInfo[] =>
     lists().filter((l) => listInfoId(l) !== fromId && destEnabled(listInfoId(l)))
 
   // ── Moving ───────────────────────────────────────────────────────────────────
-  const availableToMove = (sourceList: MoveListInfo, target: TileTarget): number => {
+  const availableToMove = (sourceList: ListInfo, target: TileTarget): number => {
     const sourceId = listInfoId(sourceList)
     const keys = pendingKeys()
     const native = allCards().filter(
@@ -388,10 +386,10 @@ export function useMoveSession(): UseMoveSessionResult {
   }
 
   const requestMove = (
-    sourceList: MoveListInfo,
+    sourceList: ListInfo,
     target: TileTarget,
     count: number,
-    dest: MoveListInfo,
+    dest: ListInfo,
     override?: MoveDestPrinting,
   ) => {
     setPending(
