@@ -4,6 +4,7 @@ import {
   buildVirtualState,
   getPendingMoves,
   buildCardSearchChoices,
+  finishLabel,
   getToggleState,
   toggleStateChar,
   toggleSetAll,
@@ -187,6 +188,21 @@ describe('buildCardSearchChoices', () => {
     expect(choices[0]!.title).toContain('&7')
   })
 
+  test('title shows foil/etched status but hides normal nonfoil', () => {
+    const listA = makeListEntry('collection', 'Binder', '/collections/binder.md')
+    const foil = makePhysicalCard('Mox Jet', listA, { key: 'foil', finish: 'foil' })
+    const etched = makePhysicalCard('Mox Pearl', listA, { key: 'etched', finish: 'etched' })
+    const nonfoil = makePhysicalCard('Mox Ruby', listA, { key: 'nonfoil', finish: 'nonfoil' })
+    const state = buildVirtualState([foil, etched, nonfoil])
+    const enabled = new Set([listA.filePath])
+
+    const byKey = new Map(buildCardSearchChoices(state, enabled).map((c) => [c.value, c.title]))
+
+    expect(byKey.get('foil')!).toContain('[Foil]')
+    expect(byKey.get('etched')!).toContain('[Etched]')
+    expect(byKey.get('nonfoil')!).not.toContain('[')
+  })
+
   test('title includes truncated note', () => {
     const listA = makeListEntry('collection', 'Binder', '/collections/binder.md')
     const card = makePhysicalCard('Demonic Tutor', listA, {
@@ -198,6 +214,20 @@ describe('buildCardSearchChoices', () => {
     const choices = buildCardSearchChoices(state, enabled)
 
     expect(choices[0]!.title).toContain('|')
+  })
+})
+
+// ── finishLabel ────────────────────────────────────────────────────────────────
+
+describe('finishLabel', () => {
+  test('returns empty for nonfoil and undefined', () => {
+    expect(finishLabel('nonfoil')).toBe('')
+    expect(finishLabel(undefined)).toBe('')
+  })
+
+  test('labels foil and etched', () => {
+    expect(finishLabel('foil')).toBe(' [Foil]')
+    expect(finishLabel('etched')).toBe(' [Etched]')
   })
 })
 

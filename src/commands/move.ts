@@ -15,6 +15,7 @@ import {
   getToggleState,
   toggleStateChar,
   toggleSetAll,
+  finishLabel,
 } from './move-helpers'
 
 export function registerMoveCommand(program: Command): void {
@@ -184,8 +185,9 @@ function handleViewPending(virtualState: Map<string, VirtualCard>): void {
     const to = listRefLabel(vc.currentList.ref)
     const printingPart =
       card.set && card.collectorNumber ? ` (${card.set.toUpperCase()}:${card.collectorNumber})` : ''
+    const finishPart = finishLabel(card.finish)
     const idPart = card.cardId !== undefined ? ` &${card.cardId}` : ''
-    console.log(`  ${card.name}${printingPart}${idPart}: ${from} → ${to}`)
+    console.log(`  ${card.name}${printingPart}${finishPart}${idPart}: ${from} → ${to}`)
   }
   console.log('')
 }
@@ -223,10 +225,20 @@ async function handleCardMove(
 
     let destExited = false
     const destResponse = await prompts({
-      type: 'select',
+      type: 'autocomplete',
       name: 'dest',
       message: `Move "${card.name}" to:`,
       choices: destChoices,
+      limit: 15,
+      suggest: async (rawInput, choices) => {
+        const input = String(rawInput).toLowerCase().trim()
+        if (!input) return choices
+        const terms = input.split(/\s+/).filter(Boolean)
+        return choices.filter((choice) => {
+          const title = choice.title.toLowerCase()
+          return terms.every((term) => title.includes(term))
+        })
+      },
       onState: (state: PromptState) => {
         if (state.exited) destExited = true
       },
@@ -268,7 +280,10 @@ async function handleCardMove(
     resolvedCard.set && resolvedCard.collectorNumber
       ? ` (${resolvedCard.set.toUpperCase()}:${resolvedCard.collectorNumber})`
       : ''
-  console.log(`  ✓ Queued: ${resolvedCard.name}${printingPart} → ${listRefLabel(destList.ref)}`)
+  const finishPart = finishLabel(resolvedCard.finish)
+  console.log(
+    `  ✓ Queued: ${resolvedCard.name}${printingPart}${finishPart} → ${listRefLabel(destList.ref)}`,
+  )
 }
 
 async function handleConfig(config: MoveSessionConfig): Promise<void> {

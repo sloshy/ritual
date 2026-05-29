@@ -228,6 +228,20 @@ function truncate(str: string, maxLen: number): string {
   return str.slice(0, maxLen - 1) + '…'
 }
 
+const FINISH_LABEL: Record<Finish, string> = {
+  nonfoil: '',
+  foil: ' [Foil]',
+  etched: ' [Etched]',
+}
+
+/**
+ * Human-readable label for a card's finish, shown only when the printing is not a
+ * normal non-foil one. Returns e.g. ` [Foil]` / ` [Etched]`, or '' for nonfoil/unknown.
+ */
+export function finishLabel(finish: Finish | undefined): string {
+  return finish ? FINISH_LABEL[finish] : ''
+}
+
 export type CardSearchChoice = {
   title: string
   value: string
@@ -250,16 +264,20 @@ export function buildCardSearchChoices(
     if (card.set && card.collectorNumber) {
       printingPart = ` (${card.set.toUpperCase()}:${card.collectorNumber})`
     }
+    const finishPart = finishLabel(card.finish)
     const idPart = card.cardId !== undefined ? ` &${card.cardId}` : ''
 
     let notePart = ''
     if (card.note) {
       // Truncate note to keep lines short (~80 chars)
-      const noteMax = Math.max(20, 80 - card.name.length - printingPart.length - 20)
+      const noteMax = Math.max(
+        20,
+        80 - card.name.length - printingPart.length - finishPart.length - 20,
+      )
       notePart = ` | ${truncate(card.note, noteMax)}`
     }
 
-    const title = `${card.name}${printingPart}${idPart} — ${listLabel}${notePart}`
+    const title = `${card.name}${printingPart}${finishPart}${idPart} — ${listLabel}${notePart}`
     choices.push({ title, value: vc.physicalKey })
   }
 

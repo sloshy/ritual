@@ -35,7 +35,9 @@ When launched, the tool shows an autocomplete search field. You can type a card 
 | `✅ Done — Save N move(s)`     | Commit all pending moves and exit                            |
 | `🚪 Exit Without Saving`       | Exit without writing any changes                             |
 
-After searching, select a card and choose a destination (or confirm the single available one). The move is queued as a pending change. You can queue multiple moves before committing.
+After searching, select a card and choose a destination (or confirm the single available one). The destination prompt is also an autocomplete field — type to filter the list of destinations instead of scrolling with the arrow keys. The move is queued as a pending change. You can queue multiple moves before committing.
+
+Foil and etched cards are flagged in the search results, the pending-changes view, and the queued-move confirmation (e.g. `Lightning Bolt (LEA:161) [Foil]`). Normal non-foil printings are shown without a finish tag.
 
 Pressing Escape shows a confirmation prompt if there are pending moves.
 
