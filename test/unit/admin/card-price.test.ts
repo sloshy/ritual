@@ -7,28 +7,33 @@ describe('isPriceStale', () => {
   })
 
   test('returns false for a very recent timestamp', () => {
-    expect(isPriceStale(Date.now())).toBe(false)
+    const now = Date.now()
+    expect(isPriceStale(now, now)).toBe(false)
   })
 
   test('returns false for a timestamp just under 24 hours ago', () => {
-    const almostOneDay = Date.now() - PRICE_STALENESS_THRESHOLD_MS + 60_000
-    expect(isPriceStale(almostOneDay)).toBe(false)
+    const now = Date.now()
+    const almostOneDay = now - PRICE_STALENESS_THRESHOLD_MS + 60_000
+    expect(isPriceStale(almostOneDay, now)).toBe(false)
   })
 
   test('returns false for a timestamp exactly at threshold', () => {
     // "more than a day old" uses strict >, so exactly at the threshold is not yet stale
-    const exactThreshold = Date.now() - PRICE_STALENESS_THRESHOLD_MS
-    expect(isPriceStale(exactThreshold)).toBe(false)
+    const now = Date.now()
+    const exactThreshold = now - PRICE_STALENESS_THRESHOLD_MS
+    expect(isPriceStale(exactThreshold, now)).toBe(false)
   })
 
   test('returns true for a timestamp one millisecond past the threshold', () => {
-    const justOver = Date.now() - PRICE_STALENESS_THRESHOLD_MS - 1
-    expect(isPriceStale(justOver)).toBe(true)
+    const now = Date.now()
+    const justOver = now - PRICE_STALENESS_THRESHOLD_MS - 1
+    expect(isPriceStale(justOver, now)).toBe(true)
   })
 
   test('returns true for a timestamp more than 24 hours ago', () => {
-    const twoDaysAgo = Date.now() - PRICE_STALENESS_THRESHOLD_MS * 2
-    expect(isPriceStale(twoDaysAgo)).toBe(true)
+    const now = Date.now()
+    const twoDaysAgo = now - PRICE_STALENESS_THRESHOLD_MS * 2
+    expect(isPriceStale(twoDaysAgo, now)).toBe(true)
   })
 })
 

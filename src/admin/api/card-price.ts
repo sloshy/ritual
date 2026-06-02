@@ -12,8 +12,8 @@ const ALL_CURRENCIES: PriceCurrency[] = ['usd', 'eur', 'tix']
 
 export const PRICE_STALENESS_THRESHOLD_MS = 86_400_000 // 24 hours
 
-export function isPriceStale(timestamp: number | null): boolean {
-  return timestamp === null || Date.now() - timestamp > PRICE_STALENESS_THRESHOLD_MS
+export function isPriceStale(timestamp: number | null, now: number = Date.now()): boolean {
+  return timestamp === null || now - timestamp > PRICE_STALENESS_THRESHOLD_MS
 }
 
 export type CardPriceResponse = {
