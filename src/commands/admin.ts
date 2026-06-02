@@ -2,6 +2,8 @@ import { Command } from 'commander'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { startAdminServer } from '../admin/server'
+import { runHttpServer } from '../mcp/run'
+import { resolveMcpToken } from '../mcp/token'
 import { getBaseDir } from '../base-dir'
 import { ensureFreshCardCache } from '../cache/freshness'
 import { refreshMode } from '../refresh'
@@ -21,6 +23,9 @@ type AdminCommandOptions = {
   allowRefresh?: boolean
   allowRefreshNoBulk?: boolean
   refresh?: boolean
+  mcp?: boolean
+  mcpPort: string
+  mcpToken?: string
 }
 
 function buildIndexHtml(initialTheme: ThemeName): string {
@@ -94,6 +99,15 @@ export function registerAdminCommand(program: Command): void {
       'Accepted for parity with serve-site; admin only refreshes via bulk, so this skips it',
     )
     .option('--no-refresh', 'Skip the card cache refresh on startup; use cached data as-is')
+    .option(
+      '--mcp',
+      'Also serve an MCP (Model Context Protocol) endpoint in this process (requires --mcp-token)',
+    )
+    .option('--mcp-port <number>', 'Port for the embedded MCP server (with --mcp)', '8765')
+    .option(
+      '--mcp-token <secret>',
+      'Bearer token required on the embedded MCP endpoint (with --mcp; or set RITUAL_MCP_TOKEN)',
+    )
     .action(async (options: AdminCommandOptions) => {
       const port = parseInt(options.port, 10)
       const host = options.host
@@ -131,5 +145,24 @@ export function registerAdminCommand(program: Command): void {
       console.log('Admin interface ready.')
 
       await startAdminServer({ port, host, distDir: adminDistDir })
+
+      if (options.mcp) {
+        const mcpToken = resolveMcpToken(options.mcpToken)
+        if (!mcpToken) {
+          console.error(
+            '--mcp requires a bearer token: pass --mcp-token <secret> or set RITUAL_MCP_TOKEN.',
+          )
+          process.exitCode = 1
+          return
+        }
+        const mcpPort = parseInt(options.mcpPort, 10)
+        if (mcpPort === port) {
+          console.error('--mcp-port must differ from the admin --port.')
+          process.exitCode = 1
+          return
+        }
+        // Same process, separate port; bearer-token auth like standalone `ritual mcp`.
+        await runHttpServer({ port: mcpPort, host, auth: { kind: 'bearer', token: mcpToken } })
+      }
     })
 }

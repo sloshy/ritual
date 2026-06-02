@@ -29,8 +29,10 @@ ritual mcp [options]
 | `--host <address>`    | Host to bind for the HTTP transport             | `127.0.0.1` |
 | `--token <secret>`    | Require this bearer token on the HTTP transport |             |
 
-The global `--base-dir <path>` option selects which Ritual workspace (decks/collections/wanted dirs)
-the server operates on; `--cache-server <host:port>` is also honoured.
+`--token` may also be supplied via the `RITUAL_MCP_TOKEN` environment variable (the flag takes
+precedence); this keeps the secret out of the process list. The global `--base-dir <path>` option
+selects which Ritual workspace (decks/collections/wanted dirs) the server operates on;
+`--cache-server <host:port>` is also honoured.
 
 ## Transports
 
@@ -53,9 +55,17 @@ ritual mcp --transport http --port 8765 --token "$MCP_TOKEN"
 
 Serves the MCP [Streamable HTTP](https://modelcontextprotocol.io) transport at `http://<host>:<port>/mcp`
 for remote/networked clients. It binds to `127.0.0.1` by default. **If you expose it beyond localhost,
-set `--token` and require `Authorization: Bearer <token>` on every request** — there is no other
-authentication layer. Each client session is tracked by the `Mcp-Session-Id` header negotiated during
-initialization.
+set a token (`--token` or `RITUAL_MCP_TOKEN`) so every request must send `Authorization: Bearer <token>`**
+— there is no other authentication layer. Each client session is tracked by the `Mcp-Session-Id` header
+negotiated during initialization.
+
+### Embedding in a running admin server
+
+Instead of a standalone process, you can serve the same MCP endpoint **inside a running web admin** with
+[`ritual admin --mcp`](./admin.md#embedded-mcp-server). That runs one process exposing both the web admin
+and an MCP endpoint (on `--mcp-port`, default `8765`), sharing the same config, cache, and data. It uses
+the **same bearer-token auth** as this command: a token (`--mcp-token` or `RITUAL_MCP_TOKEN`) is required
+there (since the admin binds `0.0.0.0` by default) and is independent of the browser admin login.
 
 ## Tools
 

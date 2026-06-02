@@ -14,15 +14,32 @@ ritual admin [options]
 
 ## Options
 
-| Option                | Description                                                                                                                                                                           | Default   |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| `-p, --port <number>` | Port to serve on                                                                                                                                                                      | `8080`    |
-| `--host <address>`    | Host address to bind to                                                                                                                                                               | `0.0.0.0` |
-| `--theme <name>`      | Initial theme served by the admin. Append `-inverted` (e.g. `boros-inverted`) for the inverted variant. See [`build-site` themes](./build-site#themes) for the full list of palettes. | `default` |
-| `--allow-refresh`     | Refresh the card cache on startup without asking (bulk download)                                                                                                                      |           |
-| `--no-refresh`        | Skip the card cache refresh on startup; use cached data as-is                                                                                                                         |           |
+| Option                 | Description                                                                                                                                                                           | Default   |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| `-p, --port <number>`  | Port to serve on                                                                                                                                                                      | `8080`    |
+| `--host <address>`     | Host address to bind to                                                                                                                                                               | `0.0.0.0` |
+| `--theme <name>`       | Initial theme served by the admin. Append `-inverted` (e.g. `boros-inverted`) for the inverted variant. See [`build-site` themes](./build-site#themes) for the full list of palettes. | `default` |
+| `--allow-refresh`      | Refresh the card cache on startup without asking (bulk download)                                                                                                                      |           |
+| `--no-refresh`         | Skip the card cache refresh on startup; use cached data as-is                                                                                                                         |           |
+| `--mcp`                | Also serve an [MCP](./mcp.md) endpoint in this same process (requires `--mcp-token`)                                                                                                  |           |
+| `--mcp-port <number>`  | Port for the embedded MCP server (only with `--mcp`)                                                                                                                                  | `8765`    |
+| `--mcp-token <secret>` | Bearer token required on the embedded MCP endpoint (with `--mcp`)                                                                                                                     |           |
 
 On startup, `admin` checks whether the Scryfall card cache is missing or stale and prompts to refresh it. Pass `--allow-refresh` or `--no-refresh` to answer that prompt non-interactively — this is required when running under `bun run dev admin` (see [Development → Dev Workflow](../development.md#dev-workflow)). (`--allow-refresh-no-bulk` is also accepted for parity with `serve-site`; since the admin cache is only populated by bulk download, it behaves the same as `--no-refresh` here.)
+
+## Embedded MCP Server
+
+Passing `--mcp` starts an [MCP](./mcp.md) (Model Context Protocol) endpoint in the **same process** as the web admin, on a separate port (`--mcp-port`, default `8765`):
+
+```bash
+ritual admin --mcp --mcp-token "$MCP_TOKEN"
+#   http://<host>:8080/        web admin
+#   http://<host>:8765/mcp     MCP (Streamable HTTP)
+```
+
+This is one process — not a second `ritual mcp` instance — so it shares the same config, card cache, and data directory. Authentication uses the **same bearer-token model as the standalone server**: a token is **required** — pass `--mcp-token <secret>` or set the `RITUAL_MCP_TOKEN` environment variable (the admin binds `0.0.0.0` by default, so an unauthenticated MCP endpoint would be exposed). Every MCP request must then send `Authorization: Bearer <token>`; requests without it get `401`. The token is independent of the browser admin login.
+
+The standalone [`ritual mcp`](./mcp.md) command is still the way to run MCP without the web admin (over stdio, or HTTP with a bearer token).
 
 ## First-Time Setup
 

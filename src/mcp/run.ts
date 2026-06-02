@@ -14,11 +14,18 @@ export async function runStdioServer(): Promise<void> {
   await server.connect(transport)
 }
 
+/**
+ * How an HTTP MCP request is authenticated before reaching the transport.
+ * - `none`: no auth (intended for a localhost-only bind).
+ * - `bearer`: requires `Authorization: Bearer <token>`. Used by both the standalone
+ *   `ritual mcp --transport http` and the embedded `ritual admin --mcp` endpoints.
+ */
+export type McpHttpAuth = { kind: 'none' } | { kind: 'bearer'; token: string }
+
 export interface HttpServerOptions {
   port: number
   host: string
-  /** When set, requests must carry `Authorization: Bearer <token>`. */
-  token?: string
+  auth: McpHttpAuth
 }
 
 function writeJson(res: ServerResponse, status: number, body: unknown): void {
@@ -26,8 +33,11 @@ function writeJson(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body))
 }
 
-function rpcError(id: null, code: number, message: string): unknown {
-  return { jsonrpc: '2.0', error: { code, message }, id }
+type JsonRpcErrorBody = { code: number; message: string }
+type JsonRpcError = { jsonrpc: '2.0'; error: JsonRpcErrorBody; id: null }
+
+function rpcError(code: number, message: string): JsonRpcError {
+  return { jsonrpc: '2.0', error: { code, message }, id: null }
 }
 
 function readBody(req: IncomingMessage): Promise<string> {
@@ -43,6 +53,16 @@ function headerValue(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value
 }
 
+/** Authorize a request against the configured strategy. */
+function isAuthorized(req: IncomingMessage, auth: McpHttpAuth): boolean {
+  switch (auth.kind) {
+    case 'bearer':
+      return headerValue(req.headers.authorization) === `Bearer ${auth.token}`
+    case 'none':
+      return true
+  }
+}
+
 /**
  * Handle one Streamable-HTTP request. A POST carrying an `initialize` message
  * spins up a fresh transport + server and registers it under the generated
@@ -53,15 +73,15 @@ async function handleHttp(
   req: IncomingMessage,
   res: ServerResponse,
   transports: Map<string, StreamableHTTPServerTransport>,
-  token: string | undefined,
+  auth: McpHttpAuth,
 ): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://localhost')
   if (url.pathname !== '/mcp') {
     writeJson(res, 404, { error: 'Not found. Use the /mcp endpoint.' })
     return
   }
-  if (token && headerValue(req.headers.authorization) !== `Bearer ${token}`) {
-    writeJson(res, 401, rpcError(null, -32001, 'Unauthorized'))
+  if (!isAuthorized(req, auth)) {
+    writeJson(res, 401, rpcError(-32001, 'Unauthorized'))
     return
   }
 
@@ -79,7 +99,7 @@ async function handleHttp(
       writeJson(
         res,
         400,
-        rpcError(null, -32000, 'No valid session ID; send an initialize request first.'),
+        rpcError(-32000, 'No valid session ID; send an initialize request first.'),
       )
       return
     }
@@ -122,14 +142,14 @@ async function handleHttp(
  * the open server regardless.
  */
 export async function runHttpServer(options: HttpServerOptions): Promise<Server> {
-  const { port, host, token } = options
+  const { port, host, auth } = options
   const transports = new Map<string, StreamableHTTPServerTransport>()
 
   const httpServer = createServer((req, res) => {
-    void handleHttp(req, res, transports, token).catch((error: unknown) => {
+    void handleHttp(req, res, transports, auth).catch((error: unknown) => {
       console.error('MCP HTTP request failed:', error)
       if (!res.headersSent) {
-        writeJson(res, 500, rpcError(null, -32603, 'Internal server error'))
+        writeJson(res, 500, rpcError(-32603, 'Internal server error'))
       }
     })
   })

@@ -12,46 +12,60 @@ import { runHttpServer } from '../../src/mcp/run'
 const TOKEN = 'integration-secret'
 
 type ToolText = { content: { type: string; text?: string }[] }
+type Workspace = { dir: string; originalBase: string }
 
 function text(result: unknown): string {
   return (result as ToolText).content[0]?.text ?? ''
 }
 
-function endpoint(server: Server): URL {
+function serverBase(server: Server): string {
   const address = server.address()
   const port = typeof address === 'object' && address ? address.port : 0
-  return new URL(`http://127.0.0.1:${port}/mcp`)
+  return `http://127.0.0.1:${port}`
 }
 
-describe('ritual mcp (streamable HTTP)', () => {
-  let originalBase: string
-  let dir: string
+function endpoint(server: Server): URL {
+  return new URL(`${serverBase(server)}/mcp`)
+}
+
+// No Scryfall fetch stub on purpose: these tests exercise the HTTP transport (the
+// real client uses global fetch to reach the loopback server) and only call tools
+// that don't load card data, so no network is hit.
+async function makeWorkspace(): Promise<Workspace> {
+  const originalBase = getBaseDir()
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-mcp-http-'))
+  await fs.mkdir(path.join(dir, 'decks'), { recursive: true })
+  await fs.writeFile(
+    path.join(dir, 'decks', 'starter.md'),
+    '---\nname: "Starter"\n---\n\n# Starter\n\n1 Sol Ring &1\n',
+  )
+  setBaseDir(dir)
+  resetRitualConfigCache()
+  await initRitualConfig()
+  return { dir, originalBase }
+}
+
+async function teardown(ws: Workspace, server: Server): Promise<void> {
+  server.closeAllConnections?.()
+  await new Promise<void>((resolve) => server.close(() => resolve()))
+  setBaseDir(ws.originalBase)
+  resetRitualConfigCache()
+  await fs.rm(ws.dir, { recursive: true, force: true })
+}
+
+describe('ritual mcp HTTP — bearer auth', () => {
+  let ws: Workspace
   let server: Server
 
-  // No Scryfall fetch stub here on purpose: these tests exercise the HTTP transport
-  // (the real client uses global fetch to reach the loopback server) and only call
-  // tools that don't load card data, so no network is hit.
   beforeEach(async () => {
-    originalBase = getBaseDir()
-    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-mcp-http-'))
-    await fs.mkdir(path.join(dir, 'decks'), { recursive: true })
-    await fs.writeFile(
-      path.join(dir, 'decks', 'starter.md'),
-      '---\nname: "Starter"\n---\n\n# Starter\n\n1 Sol Ring &1\n',
-    )
-    setBaseDir(dir)
-    resetRitualConfigCache()
-    await initRitualConfig()
-    server = await runHttpServer({ port: 0, host: '127.0.0.1', token: TOKEN })
+    ws = await makeWorkspace()
+    server = await runHttpServer({
+      port: 0,
+      host: '127.0.0.1',
+      auth: { kind: 'bearer', token: TOKEN },
+    })
   })
-
-  afterEach(async () => {
-    server.closeAllConnections?.()
-    await new Promise<void>((resolve) => server.close(() => resolve()))
-    setBaseDir(originalBase)
-    resetRitualConfigCache()
-    await fs.rm(dir, { recursive: true, force: true })
-  })
+  afterEach(async () => teardown(ws, server))
 
   test('drives the protocol over HTTP with a valid bearer token', async () => {
     const transport = new StreamableHTTPClientTransport(endpoint(server), {
@@ -82,6 +96,19 @@ describe('ritual mcp (streamable HTTP)', () => {
     expect(res.status).toBe(401)
   })
 
+  test('returns 401 for a request with the wrong bearer token', async () => {
+    const res = await fetch(endpoint(server), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+        Authorization: 'Bearer wrong-token',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }),
+    })
+    expect(res.status).toBe(401)
+  })
+
   test('returns 400 for a POST without a session before initialize', async () => {
     const res = await fetch(endpoint(server), {
       method: 'POST',
@@ -96,11 +123,32 @@ describe('ritual mcp (streamable HTTP)', () => {
   })
 
   test('returns 404 for a non-/mcp path', async () => {
-    const address = server.address()
-    const port = typeof address === 'object' && address ? address.port : 0
-    const res = await fetch(`http://127.0.0.1:${port}/nope`, {
+    const res = await fetch(`${serverBase(server)}/nope`, {
       headers: { Authorization: `Bearer ${TOKEN}` },
     })
     expect(res.status).toBe(404)
+  })
+})
+
+describe('ritual mcp HTTP — no auth', () => {
+  let ws: Workspace
+  let server: Server
+
+  beforeEach(async () => {
+    ws = await makeWorkspace()
+    server = await runHttpServer({ port: 0, host: '127.0.0.1', auth: { kind: 'none' } })
+  })
+  afterEach(async () => teardown(ws, server))
+
+  test('serves requests without any auth header', async () => {
+    const transport = new StreamableHTTPClientTransport(endpoint(server))
+    const client = new Client({ name: 'it-http-noauth', version: '0.0.0' })
+    await client.connect(transport)
+    try {
+      const { tools } = await client.listTools()
+      expect(tools.map((t) => t.name)).toContain('list_decks')
+    } finally {
+      await client.close()
+    }
   })
 })

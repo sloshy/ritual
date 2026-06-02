@@ -1,5 +1,6 @@
 import { Command, Option } from 'commander'
 import { runHttpServer, runStdioServer } from '../mcp/run'
+import { resolveMcpToken } from '../mcp/token'
 
 type McpTransport = 'stdio' | 'http'
 
@@ -24,13 +25,17 @@ export function registerMcpCommand(program: Command): void {
     )
     .option('-p, --port <number>', 'Port for the HTTP transport', '8765')
     .option('--host <address>', 'Host to bind for the HTTP transport', '127.0.0.1')
-    .option('--token <secret>', 'Require this bearer token on the HTTP transport')
+    .option(
+      '--token <secret>',
+      'Require this bearer token on the HTTP transport (or set RITUAL_MCP_TOKEN)',
+    )
     .action(async (options: McpCommandOptions) => {
       if (options.transport === 'http') {
+        const token = resolveMcpToken(options.token)
         await runHttpServer({
           port: parseInt(options.port, 10),
           host: options.host,
-          token: options.token,
+          auth: token ? { kind: 'bearer', token } : { kind: 'none' },
         })
         return
       }
