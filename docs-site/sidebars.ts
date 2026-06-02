@@ -60,6 +60,11 @@ const sidebars: SidebarsConfig = {
         },
         {
           type: 'category',
+          label: 'Integrations',
+          items: ['commands/mcp'],
+        },
+        {
+          type: 'category',
           label: 'Cache',
           items: ['commands/cache', 'commands/cache-server'],
         },

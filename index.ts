@@ -38,6 +38,8 @@ import { registerHistoryCommand } from './src/commands/history'
 import { registerConfigSetCommand } from './src/commands/config-set'
 import { registerHashCommand } from './src/commands/hash'
 import { registerListAllCardsCommand } from './src/commands/list-all-cards'
+import { registerMcpCommand } from './src/commands/mcp'
+import { divertConsoleLogToStderr } from './src/mcp/stdout-guard'
 import {
   resolveCacheServerAddress,
   setCacheServerAddressOverride,
@@ -70,6 +72,12 @@ const COMMANDS_WITHOUT_LIST_IDS = new Set([
 ])
 
 program.hook('preAction', async (command) => {
+  // The MCP stdio transport uses stdout as its JSON-RPC channel; divert any stray
+  // logging (config init, card-ID backfill, etc.) to stderr before it can run.
+  if (command.name() === 'mcp') {
+    divertConsoleLogToStderr()
+  }
+
   const options = command.optsWithGlobals<GlobalOptions>()
   if (options.baseDir) {
     setBaseDir(options.baseDir)
@@ -129,6 +137,9 @@ registerServeCommand(program)
 registerServeSiteCommand(program)
 registerInitSiteCommand(program)
 registerAdminCommand(program)
+
+program.commandsGroup('Integrations')
+registerMcpCommand(program)
 
 program.commandsGroup('Cache')
 registerCacheCommand(program)

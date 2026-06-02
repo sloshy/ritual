@@ -62,9 +62,9 @@ interface AdminServerOptions {
   distDir: string
 }
 
-type RouteHandler = (req: Request, context: RequestContext) => Promise<Response>
+export type RouteHandler = (req: Request, context: RequestContext) => Promise<Response>
 
-interface RequestContext {
+export interface RequestContext {
   clientIp: string
   sessionToken: string | null
 }
@@ -72,16 +72,16 @@ interface RequestContext {
 type SocketAddress = { address: string }
 type RequestIPServer = { requestIP?: (req: Request) => SocketAddress | null }
 
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
 
-interface Route {
+export interface Route {
   method: HttpMethod
   path: string
   handler: RouteHandler
   requiresAuth: boolean
 }
 
-const routes: Route[] = [
+export const routes: Route[] = [
   { method: 'GET', path: '/api/status', handler: handleStatus, requiresAuth: false },
   { method: 'POST', path: '/api/setup', handler: handleSetup, requiresAuth: false },
   {
@@ -267,6 +267,25 @@ function matchRoute(routePath: string, requestPath: string): boolean {
   return routeParts.every((part, i) => part.startsWith(':') || part === requestParts[i])
 }
 
+/** Outcome of dispatching a request against the in-process route table. */
+export type DispatchResult = { matched: true; response: Response } | { matched: false }
+
+/**
+ * Match `req` against the API route table and invoke the matching handler with `context`,
+ * performing NO authentication, IP/User-Agent filtering, or static-file fallback — those
+ * remain in {@link handleRequest}. Shared by the HTTP admin server and the in-process MCP
+ * adapter (`src/mcp/dispatch.ts`), which synthesizes requests and trusts the local caller.
+ */
+export async function dispatchRoute(
+  req: Request,
+  context: RequestContext,
+): Promise<DispatchResult> {
+  const url = new URL(req.url)
+  const route = routes.find((r) => r.method === req.method && matchRoute(r.path, url.pathname))
+  if (!route) return { matched: false }
+  return { matched: true, response: await route.handler(req, context) }
+}
+
 const SECURITY_HEADERS: Record<string, string> = {
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
@@ -406,8 +425,10 @@ async function handleRequest(
       }
     }
 
-    const context: RequestContext = { clientIp, sessionToken }
-    return route.handler(req, context)
+    // `route` matched above, so dispatchRoute necessarily matches too; the auth-free
+    // dispatcher is shared with the MCP adapter so both go through one code path.
+    const result = await dispatchRoute(req, { clientIp, sessionToken })
+    return result.matched ? result.response : new Response('Not Found', { status: 404 })
   }
 
   // Serve static SPA files

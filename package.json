@@ -50,5 +50,8 @@
     "typescript-eslint": "^8.59.3"
   },
   "peerDependencies": {},
-  "dependencies": {}
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.4.3"
+  }
 }
