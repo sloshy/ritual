@@ -112,7 +112,7 @@ Ritual exposes its capabilities to AI agents through two surfaces in addition to
 3. The corresponding skill content in `src/skills/content/` (and the skill descriptions used for discovery), plus `skills.md`. The Skills are meant to mirror the **full CLI surface**, so a new or changed command almost always means a skill edit.
 4. The tests for each surface (`test/unit/mcp/*`, `test/integration/mcp-*.test.ts`, `test/unit/skills.test.ts`, `test/integration/skills-install.test.ts`).
 
-When reviewing changes that touch commands, explicitly confirm the MCP tools and Skills were updated — a CLI change with no matching MCP/Skills update is a defect, not an omission.
+When reviewing changes that touch commands, explicitly confirm the MCP tools and Skills were updated — a CLI change with no matching MCP/Skills update is a defect, not an omission. Run the **`feature-surface-sync`** agent (see [Post-Implementation Review](#post-implementation-review)) to audit this matrix automatically whenever you touch an admin route handler, a `src/commands/` command, or a flag/option.
 
 ## Post-Implementation Review
 
@@ -122,6 +122,7 @@ After completing any new feature or bug fix, run the following subagent reviews 
 - **`solidjs-code-reviewer`** — reviews any new or modified SolidJS components, signals, stores, or effects for reactivity correctness and modern patterns. Only invoke when SolidJS code was written or changed.
 - **`code-deduplicator`** — scans changed files for meaningful duplication opportunities: repeated logic, redundant constants, similar parsing patterns. Only invoke when multiple files were added or significantly modified.
 - **`docs-sync-reviewer`** — verifies that `docs-site/docs/` reflects the current CLI source. Invoke whenever a command in `src/commands/` is added, changed, or removed, or when flags/options change.
+- **`feature-surface-sync`** — audits that a feature added or changed on one surface stays consistent across all of them: the MCP server (`src/mcp/`), the CLI skills (`src/skills/`), `docs-site/docs/`, and test coverage. Invoke whenever you add, change, or remove an admin route handler, a `src/commands/` command, or a flag/option/config key — see [Agent-Facing Surfaces](#agent-facing-surfaces-mcp-server--skills).
 - **`card-format-reviewer`** — audits code that touches card entries (parsers, serializers, importers) for violations of domain invariants: set code normalization, `&N` ID handling, canonical line format, and parser error representation. Invoke when adding or modifying any code that reads or writes deck, collection, or wanted list files.
 - **`test-quality-reviewer`** — reviews new or modified test code for correctness, meaningful assertions, and boilerplate duplication. Invoke after writing or significantly changing unit, integration, or Playwright tests.
 
