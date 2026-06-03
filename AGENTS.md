@@ -62,7 +62,7 @@ entry.set.toLowerCase() === change.set.toLowerCase()
 
 New CLI commands should be added to `src/commands/` rather than directly in `index.ts`.
 
-Any new command, flag, option, or feature adjusted or added must also be reflected in the Docusaurus docs under `docs-site/`.
+Any new command, flag, option, or feature adjusted or added must also be reflected in the Docusaurus docs under `docs-site/`, **and in the agent-facing surfaces** — see [Agent-Facing Surfaces](#agent-facing-surfaces-mcp-server--skills) below.
 
 ### Research Tasks
 
@@ -97,6 +97,22 @@ Every card entry in deck, collection, and wanted list markdown files has a persi
 - Changelog entries include card IDs
 
 **Undo system**: The admin site editors support linear undo of individual changes. Undo of a removal reclaims the original card ID. Implemented via `useCardChanges` hook with `UndoEntry` stack.
+
+## Agent-Facing Surfaces (MCP Server & Skills)
+
+Ritual exposes its capabilities to AI agents through two surfaces in addition to the CLI itself, and **both must be kept in sync with the CLI and with each other on every relevant change**:
+
+- **MCP server** — `src/mcp/` (command: `src/commands/mcp.ts`, run with `ritual mcp`). Exposes deck/collection/wanted operations as Model Context Protocol tools by reusing the admin route handlers. Tools live in `src/mcp/tools/{read,write,destructive}-tools.ts`; the server description is in `src/mcp/server.ts`; docs are in `docs-site/docs/commands/mcp.md`.
+- **Skills** — `src/skills/` (command: `src/commands/skills.ts`, run with `ritual skills install`). Installable Claude Code agent skills that teach an agent to drive the `ritual` CLI directly. The catalog is `src/skills/catalog.ts`; each skill's content is one module under `src/skills/content/`; docs are in `docs-site/docs/commands/skills.md`.
+
+**The rule:** whenever you add, change, or remove a command, flag, option, config key, file format, or user-visible behavior, update **all** of the following in tandem so the CLI, the MCP server, and the Skills never drift apart:
+
+1. The command in `src/commands/` and its page in `docs-site/docs/`.
+2. The corresponding MCP tool(s) in `src/mcp/tools/` **if the operation is exposed there**, plus the server instructions and `mcp.md`. (Not every CLI command is mirrored by an MCP tool — the MCP server reuses admin handlers and intentionally omits the auth/login surface — but anything it does expose must match.)
+3. The corresponding skill content in `src/skills/content/` (and the skill descriptions used for discovery), plus `skills.md`. The Skills are meant to mirror the **full CLI surface**, so a new or changed command almost always means a skill edit.
+4. The tests for each surface (`test/unit/mcp/*`, `test/integration/mcp-*.test.ts`, `test/unit/skills.test.ts`, `test/integration/skills-install.test.ts`).
+
+When reviewing changes that touch commands, explicitly confirm the MCP tools and Skills were updated — a CLI change with no matching MCP/Skills update is a defect, not an omission.
 
 ## Post-Implementation Review
 

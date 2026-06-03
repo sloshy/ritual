@@ -39,6 +39,7 @@ import { registerConfigSetCommand } from './src/commands/config-set'
 import { registerHashCommand } from './src/commands/hash'
 import { registerListAllCardsCommand } from './src/commands/list-all-cards'
 import { registerMcpCommand } from './src/commands/mcp'
+import { registerSkillsCommand } from './src/commands/skills'
 import { divertConsoleLogToStderr } from './src/mcp/stdout-guard'
 import {
   resolveCacheServerAddress,
@@ -69,6 +70,7 @@ const COMMANDS_WITHOUT_LIST_IDS = new Set([
   'dep-license',
   'git-detect-changes',
   'config-set',
+  'skills',
 ])
 
 program.hook('preAction', async (command) => {
@@ -140,6 +142,7 @@ registerAdminCommand(program)
 
 program.commandsGroup('Integrations')
 registerMcpCommand(program)
+registerSkillsCommand(program)
 
 program.commandsGroup('Cache')
 registerCacheCommand(program)

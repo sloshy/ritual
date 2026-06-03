@@ -1,4 +1,15 @@
+import { access } from 'node:fs/promises'
 import { createInterface } from 'node:readline/promises'
+
+/** Returns true if the path exists and is accessible. */
+export async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath)
+    return true
+  } catch {
+    return false
+  }
+}
 
 // Sanitize a deck name for use as a filename by removing characters that are
 // problematic on common file systems, while preserving case and spacing.

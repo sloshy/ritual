@@ -14,8 +14,10 @@ ritual init-site [options]
 
 | Option          | Description                                                                        |
 | --------------- | ---------------------------------------------------------------------------------- |
-| `-u, --upgrade` | Upgrade tracked files to the current version without prompting                     |
+| `-u, --upgrade` | Upgrade tracked workflows to the current version without prompting                 |
 | `-f, --force`   | Re-initialize and overwrite all generated files, ignoring the existing site config |
+| `--skills`      | Install Ritual agent skills into `.claude/skills` without prompting                |
+| `--no-skills`   | Skip installing Ritual agent skills (no prompt)                                    |
 
 This interactive command creates the scaffolding files needed to publish a Ritual-built deck and collection site. It first prompts you to choose a CI system, then a deployment strategy, and generates the appropriate files.
 
@@ -76,6 +78,16 @@ When enabled, the generated workflow runs [`git-detect-changes`](./git-detect-ch
 This is useful when you edit list files directly (outside the admin UI or CLI) and want changelogs to stay up to date without manual intervention.
 
 Detection is **hash-aware**, so it's safe to leave enabled even if you also edit with Ritual locally: files whose contents still match their `.sha256` sidecar (i.e. Ritual itself wrote them and already recorded a changelog) are skipped, and only hand-edited files are processed. See [Hash-aware detection](./git-detect-changes#hash-aware-detection) for details.
+
+### Agent skills
+
+After the site files are written, `init-site` offers to install the [Ritual agent skills](./skills):
+
+```
+? Install Ritual agent skills into .claude/skills so coding agents can work with this repository? (Y/n)
+```
+
+If you keep your decks, collections, and wanted lists in a git repository and work in it with a coding agent (e.g. Claude Code), answering yes writes the skill files into `.claude/skills/` so the agent can drive Ritual in this repository's context. Pass `--skills` or `--no-skills` to make the choice without prompting (handy for scripted setups). With `--force`, existing skill files are overwritten; otherwise customized skill files are preserved. (During [upgrades](#upgrading), already-installed skills are refreshed automatically — no `--force` needed.) You can also install or refresh them at any time with [`ritual skills install`](./skills).
 
 ## Generated Files
 
@@ -145,7 +157,7 @@ Commit `ritual.config.json` so Ritual knows which version initialized the reposi
 When you run `ritual init-site` after upgrading to a newer Ritual build, it detects the version change and prompts for confirmation before regenerating tracked managed files:
 
 ```
-Ritual has been upgraded (0.1.0 → 0.2.0). Regenerate tracked GitHub Actions workflows? (Y/n)
+Ritual has been upgraded (0.1.0 → 0.2.0). Regenerate tracked managed files? (Y/n)
 ```
 
 If you confirm, migrations run using your saved settings:
@@ -154,7 +166,13 @@ If you confirm, migrations run using your saved settings:
 Upgrading from 0.1.0 to 0.2.0...
 ↻ Updated .github/workflows/deploy-site.yml
 ✓ ritual.config.json site section updated to 0.2.0
+✓ Updated 7 Ritual agent skills in .claude/skills
 ```
+
+Upgrades also **refresh any [agent skills](./skills) already installed** in `.claude/skills` so they
+track the new version. Only skills that are already present are rewritten — an upgrade never introduces
+skills you didn't install. Pass `--no-skills` to leave them untouched, or `--skills` to (re)install the
+full set.
 
 To skip the prompt and upgrade automatically (e.g. in a script), use `--upgrade`:
 

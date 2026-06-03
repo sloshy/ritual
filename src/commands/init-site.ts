@@ -20,7 +20,10 @@ import type { ActiveManagedFile, ManagedFile, Migration } from '../managed-files
 import { computeMigrations, isActiveManagedFile } from '../managed-files'
 import { compareVersions } from '../semver'
 import { getBaseDir } from '../base-dir'
+import { fileExists } from '../utils'
 import { version as ritualVersion } from '../version'
+import { SKILLS } from '../skills/catalog'
+import { installSkills, refreshInstalledSkills, resolveSkillsDir } from '../skills/install'
 
 export function generatePublishForMeWorkflow(config?: GitHubActionsSiteConfig): string {
   if (config?.detectChanges) {
@@ -352,15 +355,6 @@ all-cards.md
 `
 }
 
-async function fileExists(filePath: string): Promise<boolean> {
-  try {
-    await fs.access(filePath)
-    return true
-  } catch {
-    return false
-  }
-}
-
 async function promptOverwrite(filePath: string): Promise<boolean> {
   const relativePath = path.relative(getBaseDir(), filePath)
   let cancelled = false
@@ -382,7 +376,86 @@ async function promptOverwrite(filePath: string): Promise<boolean> {
 }
 
 type ForceOption = { force: boolean }
-type InitSiteCommandOptions = { force?: boolean; upgrade?: boolean }
+export type InitSiteCommandOptions = { force?: boolean; upgrade?: boolean; skills?: boolean }
+
+/**
+ * Install Ritual agent skills into the repository's `.claude/skills` so coding
+ * agents working in the repo can drive Ritual. The decision is taken from the
+ * `--skills`/`--no-skills` flags, falling back to an interactive prompt; in a
+ * non-interactive context the prompt cancels and skills are skipped. `force`
+ * mirrors the init `--force` flag so existing skill files are overwritten only
+ * when the rest of the generated files are.
+ */
+export async function maybeInstallSkills(
+  options: InitSiteCommandOptions,
+  force: boolean,
+): Promise<void> {
+  let install: boolean
+  if (options.skills !== undefined) {
+    install = options.skills
+  } else {
+    let cancelled = false
+    const response = await prompts(
+      {
+        type: 'confirm',
+        name: 'install',
+        message:
+          'Install Ritual agent skills into .claude/skills so coding agents can work with this repository?',
+        initial: true,
+      },
+      {
+        onCancel: () => {
+          cancelled = true
+        },
+      },
+    )
+    install = !cancelled && response.install === true
+  }
+
+  if (!install) return
+
+  const skillsDir = resolveSkillsDir({})
+  const relativeDir = path.relative(getBaseDir(), skillsDir)
+  const results = await installSkills(SKILLS, skillsDir, { force })
+  const written = results.filter((result) => result.status === 'written').length
+  const skipped = results.filter((result) => result.status === 'skipped').length
+
+  if (written > 0) {
+    console.log(
+      `✓ Installed ${written} Ritual agent skill${written === 1 ? '' : 's'} in ${relativeDir}`,
+    )
+  }
+  if (skipped > 0) {
+    console.log(
+      `⊘ ${skipped} Ritual agent skill${skipped === 1 ? '' : 's'} already present in ${relativeDir} (use --force to refresh)`,
+    )
+  }
+}
+
+/**
+ * Keep already-installed skills current during an upgrade. By default only the
+ * skills already present in `.claude/skills` are overwritten with the current
+ * version (no prompting, and skills the user never installed stay absent).
+ * `--no-skills` opts out entirely; `--skills` forces a full (re)install of every
+ * skill, matching the flag's meaning on a fresh init.
+ */
+export async function refreshSkillsOnUpgrade(options: InitSiteCommandOptions): Promise<void> {
+  if (options.skills === false) return
+
+  const skillsDir = resolveSkillsDir({})
+  const relativeDir = path.relative(getBaseDir(), skillsDir)
+  const results =
+    options.skills === true
+      ? await installSkills(SKILLS, skillsDir, { force: true })
+      : await refreshInstalledSkills(SKILLS, skillsDir)
+
+  const updated = results.filter((result) => result.status === 'written').length
+  if (updated > 0) {
+    console.log(
+      `✓ Updated ${updated} Ritual agent skill${updated === 1 ? '' : 's'} in ${relativeDir}`,
+    )
+  }
+}
 
 async function writeFileWithOverwritePrompt(
   filePath: string,
@@ -474,6 +547,8 @@ export function registerInitSiteCommand(program: Command): void {
       'Re-initialize and overwrite all generated files, ignoring the existing site config',
     )
     .option('-u, --upgrade', 'Upgrade tracked workflows to the current version without prompting')
+    .option('--skills', 'Install Ritual agent skills into .claude/skills without prompting')
+    .option('--no-skills', 'Skip installing Ritual agent skills (no prompt)')
     .action(async (options: InitSiteCommandOptions) => {
       // --force: ignore saved state, prompt fresh, overwrite everything
       if (options.force) {
@@ -481,6 +556,7 @@ export function registerInitSiteCommand(program: Command): void {
         if (!config) return
         await writeInitFiles(config, { force: true })
         await persistSiteConfigOrExit({ ...config, version: ritualVersion })
+        await maybeInstallSkills(options, true)
         printNextSteps(config)
         return
       }
@@ -547,6 +623,9 @@ export function registerInitSiteCommand(program: Command): void {
         const updatedSite: SiteDeployConfig = { ...config, version: ritualVersion }
         await persistSiteConfigOrExit(updatedSite)
         console.log(`✓ ritual.config.json site section updated to ${ritualVersion}`)
+
+        // Refresh any already-installed agent skills so they track the new version.
+        await refreshSkillsOnUpgrade(options)
         return
       }
 
@@ -555,6 +634,7 @@ export function registerInitSiteCommand(program: Command): void {
       if (!config) return
       await writeInitFiles(config, { force: false })
       await persistSiteConfigOrExit({ ...config, version: ritualVersion })
+      await maybeInstallSkills(options, false)
       printNextSteps(config)
     })
 }

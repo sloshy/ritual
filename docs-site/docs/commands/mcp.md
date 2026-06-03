@@ -146,5 +146,6 @@ claude mcp add ritual -- ritual mcp --base-dir /path/to/your/ritual/workspace
 
 ## See also
 
+- [`skills`](./skills.md) — teach a coding agent to drive Ritual via the CLI instead of MCP tool calls.
 - [`admin`](./admin.md) — the browser-based equivalent, and the HTTP API the MCP tools mirror.
 - [Admin API Endpoints](/admin/api) — the underlying request/response shapes.

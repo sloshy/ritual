@@ -61,7 +61,7 @@ const sidebars: SidebarsConfig = {
         {
           type: 'category',
           label: 'Integrations',
-          items: ['commands/mcp'],
+          items: ['commands/mcp', 'commands/skills'],
         },
         {
           type: 'category',
