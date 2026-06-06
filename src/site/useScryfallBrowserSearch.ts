@@ -1,16 +1,17 @@
 import { createSignal, onCleanup } from 'solid-js'
 import type { Accessor } from 'solid-js'
 import type { ScryfallCard } from '../types'
+import { getPrintingsByName, putFetchedPrintings } from './session-cache'
 
 const SCRYFALL_API = 'https://api.scryfall.com'
 
-type ScryfallAutocompleteResponse = {
+export type ScryfallAutocompleteResponse = {
   object: string
   total_values: number
   data: string[]
 }
 
-type ScryfallListResponse = {
+export type ScryfallListResponse = {
   object: string
   total_cards: number
   has_more: boolean
@@ -78,6 +79,15 @@ export function useScryfallBrowserSearch(): UseScryfallBrowserSearchResult {
     if (printingsController) printingsController.abort()
     printingsController = new AbortController()
     const { signal } = printingsController
+
+    // Reuse printings already shipped with the site or fetched earlier this session.
+    const cached = getPrintingsByName(cardName)
+    if (cached) {
+      setPrintings(cached)
+      setPrintingsLoading(false)
+      return
+    }
+
     setPrintings([])
     setPrintingsLoading(true)
     try {
@@ -90,7 +100,9 @@ export function useScryfallBrowserSearch(): UseScryfallBrowserSearchResult {
           searchFailed = true
         } else {
           const data = (await resp.json()) as ScryfallListResponse
-          setPrintings(data.data ?? [])
+          const results = data.data ?? []
+          setPrintings(results)
+          putFetchedPrintings(cardName, results, Date.now())
         }
       } catch (e) {
         if ((e as Error).name === 'AbortError') return
@@ -102,6 +114,7 @@ export function useScryfallBrowserSearch(): UseScryfallBrowserSearchResult {
         if (namedResp.ok) {
           const card = (await namedResp.json()) as ScryfallCard
           setPrintings([card])
+          putFetchedPrintings(cardName, [card], Date.now())
         }
       }
     } catch (e) {

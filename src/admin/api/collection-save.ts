@@ -5,11 +5,10 @@ import { isPathWithinDir } from '../../path-validation'
 import { appendChangelog } from '../../changelog-writer'
 import type { CollectionCardEntry } from '../../site/data-types'
 import type { ChangeEvent } from '../../change-event'
-import { formatCollectionLine } from '../../commands/collection-helpers'
 import { getCollectionsDir } from '../../ritual-config'
 import { parseCollectionFile } from '../../commands/price-collection'
-import { applyChangeToCollection } from '../site/types/collection-changes'
-import { serializeSectionedList } from '../../section-format'
+import { applyChangeToCollection } from '../../editor/collection-changes'
+import { collectionToMarkdown } from '../../editor/list-export'
 import { parseTitleFromContent } from './simple-list-helpers'
 import {
   validateBodySize,
@@ -23,18 +22,6 @@ interface CollectionSaveRequest {
   contentHash: string
   /** Section names in display order, including empty sections. Optional for back-compat. */
   sectionOrder?: string[]
-}
-
-function serializeCollectionEntry(entry: CollectionCardEntry): string {
-  return formatCollectionLine(
-    entry.name,
-    entry.set,
-    entry.collectorNumber,
-    entry.finish,
-    entry.condition,
-    entry.note,
-    entry.cardId,
-  )
 }
 
 export async function handleCollectionSave(req: Request): Promise<Response> {
@@ -112,7 +99,7 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
     // drives ordering; fall back to the file's parsed order when the client omits it.
     const title = parseTitleFromContent(hashCheck.content) ?? slug
     const order = sectionOrder ?? parsed.sectionOrder
-    const newContent = serializeSectionedList(title, current, order, serializeCollectionEntry)
+    const newContent = collectionToMarkdown(title, current, order)
     const newContentHash = await writeFileWithHash(filePath, newContent)
 
     // Write changelog

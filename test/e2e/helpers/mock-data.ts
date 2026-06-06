@@ -774,10 +774,10 @@ const MOCK_MULTI_SECTION_DECK = {
       {
         name: 'Main',
         cards: [
-          { quantity: 1, name: 'Test Creature', set: 'tst', collectorNumber: '1' },
-          { quantity: 1, name: 'Alpha Creature', set: 'tst', collectorNumber: '4' },
-          { quantity: 1, name: 'Test Instant', set: 'tst', collectorNumber: '2' },
-          { quantity: 1, name: 'Test Artifact', set: 'tst', collectorNumber: '3' },
+          { quantity: 1, name: 'Test Creature', set: 'tst', collectorNumber: '1', cardId: 1 },
+          { quantity: 1, name: 'Alpha Creature', set: 'tst', collectorNumber: '4', cardId: 2 },
+          { quantity: 1, name: 'Test Instant', set: 'tst', collectorNumber: '2', cardId: 3 },
+          { quantity: 1, name: 'Test Artifact', set: 'tst', collectorNumber: '3', cardId: 4 },
         ],
       },
     ],

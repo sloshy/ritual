@@ -65,7 +65,8 @@ export const themeVarGroups: ThemeVarGroup[] = [
   {
     id: 'status',
     label: 'Status',
-    description: 'Success and error semantic colors. Universal across themes.',
+    description:
+      'Success and error semantic colors. Bright on dark themes, deep on light themes for legibility.',
   },
   {
     id: 'overlays',
@@ -209,6 +210,21 @@ export const themeVarMetadata: ThemeVarMeta[] = [
     name: '--accent-dim',
     label: 'Accent dim',
     description: 'Dimmed accent color for borders and subtle emphasis.',
+    group: 'accent',
+    type: 'color',
+  },
+  {
+    name: '--card-link',
+    label: 'Card link',
+    description:
+      'Blue hyperlink color for card names (e.g. in the changes dialog). Deep on light themes, soft on dark themes.',
+    group: 'accent',
+    type: 'color',
+  },
+  {
+    name: '--card-link-hover',
+    label: 'Card link hover',
+    description: 'Hover color for card-name hyperlinks.',
     group: 'accent',
     type: 'color',
   },

@@ -3,7 +3,7 @@ import {
   parseStored,
   parseSetCodesInput,
   formatSetCodesForDisplay,
-} from '../../../src/admin/site/hooks/useEditorDefaults'
+} from '../../../src/editor/useEditorDefaults'
 
 describe('parseSetCodesInput', () => {
   test('normalizes to lowercase and trims whitespace', () => {

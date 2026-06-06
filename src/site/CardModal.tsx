@@ -1,5 +1,5 @@
 import type { Component } from 'solid-js'
-import { createSignal, createMemo, onMount, onCleanup, For, Show } from 'solid-js'
+import { createSignal, createMemo, createEffect, on, onMount, onCleanup, For, Show } from 'solid-js'
 import type { ScryfallCard } from '../types'
 import { isCardSideways, isDoubleFacedCard, resolveCardImageSources } from './image-sources'
 import { ManaCost, OracleText } from './symbols'
@@ -37,6 +37,21 @@ export const CardModal: Component<CardModalProps> = (props) => {
   const [printingsSortField, setPrintingsSortField] =
     createSignal<PrintingsSortField>('released_at')
   const [printingsSortReversed, setPrintingsSortReversed] = createSignal(false)
+
+  // The modal stays mounted and is toggled via the `open` class, so its sub-view
+  // signals would otherwise persist between cards. Reset to the front/details view
+  // whenever the modal (re)opens or the displayed card changes, so opening a new
+  // card never lands straight in the "other printings" or card-back view.
+  createEffect(
+    on(
+      () => [props.open, props.cardName, props.card?.id],
+      () => {
+        setShowingBack(false)
+        setShowPrintings(false)
+        setPrintingsPage(0)
+      },
+    ),
+  )
 
   onMount(() => {
     const handler = (e: KeyboardEvent) => {

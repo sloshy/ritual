@@ -19,8 +19,9 @@ import { MoveDestinationMenu } from '../components/MoveDestinationMenu'
 import { MoveFiltersPanel } from '../components/MoveFiltersPanel'
 import { MovePendingDialog } from '../components/MovePendingDialog'
 import { MoveSearchResults } from '../components/MoveSearchResults'
-import { QuantityDialog } from '../components/QuantityDialog'
-import { CardSearchModal } from '../components/CardSearchModal'
+import { QuantityDialog } from '../../../ui/QuantityDialog'
+import { CardSearchModal } from '../../../editor/components/CardSearchModal'
+import { adminSearch } from '../editor-backend'
 
 /** Multi-step state for moving one tile: pick destination → (printing) → (quantity) → queue. */
 type MoveFlow = {
@@ -356,6 +357,7 @@ export function MoveCards(): JSX.Element {
         initialCardName={flow()?.target.cardName}
         onClose={cancelFlow}
         onAddCard={(_name, options) => onPrintingPicked(options)}
+        search={adminSearch}
         requirePrinting={true}
         defaults={{ kind: 'collection', sets: [] }}
       />

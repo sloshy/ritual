@@ -10,7 +10,7 @@ import {
   formatChange,
 } from '../../src/change-event'
 import type { ChangeEvent, ChangeAction } from '../../src/change-event'
-import { applyChangeToDeck } from '../../src/admin/site/types/deck-changes'
+import { applyChangeToDeck } from '../../src/editor/deck-changes'
 import type { DeckData } from '../../src/types'
 
 type MakeChangeOverrides = {

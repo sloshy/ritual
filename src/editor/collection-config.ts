@@ -1,0 +1,63 @@
+import { batch } from 'solid-js'
+import type { CollectionCardEntry } from '../site/data-types'
+import { type PrintingTuple, isSamePrinting } from '../change-event'
+import type { ChangePrintingContext } from './useEditor'
+import { applyChangeToCollection } from './collection-changes'
+import { findEntryPrintingById } from './entry-targeting'
+import type { FlatPrinting } from './flat-list-controller'
+
+/** Printing fields logged when a collection entry is added/removed (includes condition). */
+export function collectionPrintingOf(entry: CollectionCardEntry): FlatPrinting {
+  return {
+    set: entry.set,
+    collectorNumber: entry.collectorNumber,
+    finish: entry.finish,
+    condition: entry.condition,
+  }
+}
+
+/**
+ * Apply a "change printing" action to a collection. Each grouped copy is its own
+ * single-card entry, so this retargets the first `count` entries of the tile's
+ * group, emitting one set-printing change per entry. Untouched copies keep the
+ * old printing and re-group into a separate tile.
+ */
+export function applyCollectionChangePrinting(
+  ctx: ChangePrintingContext<CollectionCardEntry[]>,
+): void {
+  const { target, count, options, tools, setData, original } = ctx
+  const newPrinting: PrintingTuple = {
+    set: options.set,
+    collectorNumber: options.collectorNumber,
+    finish: options.finish,
+    condition: options.condition,
+  }
+  const currentPrinting: PrintingTuple = {
+    set: target.set,
+    collectorNumber: target.collectorNumber,
+    finish: target.finish,
+    condition: target.condition,
+  }
+  if (isSamePrinting(newPrinting, currentPrinting)) return
+
+  const n = Math.min(Math.max(count, 1), target.cardIds.length)
+  batch(() => {
+    for (const cardId of target.cardIds.slice(0, n)) {
+      const origPrinting = findEntryPrintingById(original, cardId) ?? currentPrinting
+      tools.setPrinting(target.cardName, newPrinting, origPrinting, cardId)
+      setData((prev) =>
+        prev
+          ? applyChangeToCollection(prev, {
+              action: 'set-printing',
+              cardName: target.cardName,
+              set: options.set,
+              collectorNumber: options.collectorNumber,
+              finish: options.finish,
+              condition: options.condition,
+              cardId,
+            })
+          : prev,
+      )
+    }
+  })
+}

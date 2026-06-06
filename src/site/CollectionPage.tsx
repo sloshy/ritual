@@ -1,6 +1,9 @@
 import type { Component } from 'solid-js'
-import { createSignal, createMemo, For, Show } from 'solid-js'
+import { createSignal, createMemo, onMount, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
+import { seedCards, seedPrintings, overlayCard, sessionCacheVersion } from './session-cache'
+import { usePublicPriceControls } from './PriceControls'
+import { PriceStalenessNotice } from './PriceStalenessNotice'
 import type { ScryfallCard } from '../types'
 import type { CardContextInfo } from './card-context'
 import type { CollectionCardEntry } from './data-types'
@@ -59,6 +62,12 @@ interface CollectionPageProps {
   onCardMove?: (info: CardContextInfo, rect: DOMRect) => void
   unsavedChangeCount?: number
   changelog?: ChangelogPage[]
+  /** Force page width; defaults to full width in edit/move mode. The public editor sets `false`. */
+  fullWidth?: boolean
+  /** Build-time price date (ISO), shipped with the collection JSON; drives staleness after a refresh. */
+  pricesDate?: string
+  /** Show the public "Update Prices" toolbar button + staleness notice (public site only). */
+  enablePriceRefresh?: boolean
 }
 
 export const CollectionPage: Component<CollectionPageProps> = (props) => {
@@ -159,9 +168,10 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   }
 
   const currencyEntries = createMemo((): CollectionCardEntry[] => {
+    sessionCacheVersion() // re-price after an in-session "Update Prices"
     return props.entries.map((entry) => {
-      const cardKey = `${entry.set}:${entry.collectorNumber}`
-      const card = props.cards[cardKey] ?? null
+      const cardKey = `${entry.set.toLowerCase()}:${entry.collectorNumber}`
+      const card = overlayCard(props.cards[cardKey] ?? null)
       if (!card) return entry
       const price = getCardPriceForFinish(card, entry.finish, props.currency)
       return { ...entry, price }
@@ -189,8 +199,8 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
 
       const result: CardData[] = []
       for (const { entry, count } of grouped.values()) {
-        const cardKey = `${entry.set}:${entry.collectorNumber}`
-        const card = props.cards[cardKey] ?? null
+        const cardKey = `${entry.set.toLowerCase()}:${entry.collectorNumber}`
+        const card = overlayCard(props.cards[cardKey] ?? null)
         result.push({
           name: entry.name,
           quantity: count,
@@ -210,8 +220,8 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     }
 
     return currencyEntries().map((entry) => {
-      const cardKey = `${entry.set}:${entry.collectorNumber}`
-      const card = props.cards[cardKey] ?? null
+      const cardKey = `${entry.set.toLowerCase()}:${entry.collectorNumber}`
+      const card = overlayCard(props.cards[cardKey] ?? null)
       return {
         name: entry.name,
         quantity: 1,
@@ -228,6 +238,16 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       }
     })
   })
+
+  // Seed the session cache from this collection's baked card data so the editor's
+  // card search and the trade page reuse it instead of re-fetching from Scryfall.
+  onMount(() => {
+    seedCards(props.cards)
+    seedPrintings(props.printings)
+  })
+
+  // Price refresh is wired for every render but only shown when `enablePriceRefresh`.
+  const prices = usePublicPriceControls({ cards: allCards, pricesDate: props.pricesDate })
 
   const cardGroups = createMemo((): CardGroup[] => {
     let working = [...allCards()]
@@ -387,7 +407,13 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   )
 
   return (
-    <div class={props.editMode || props.onCardMove ? 'page-full-width' : 'page-container'}>
+    <div
+      class={
+        (props.fullWidth ?? (props.editMode || props.onCardMove))
+          ? 'page-full-width'
+          : 'page-container'
+      }
+    >
       {/* Header */}
       <div class="page-header">
         <div>
@@ -457,7 +483,12 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
             onChange: () => setHideUnpriced((prev) => !prev),
           },
         ]}
+        priceRefresh={props.enablePriceRefresh ? prices : undefined}
       />
+
+      <Show when={props.enablePriceRefresh}>
+        <PriceStalenessNotice outdatedNames={prices.outdatedNames()} />
+      </Show>
 
       {/* Card sections */}
       <div

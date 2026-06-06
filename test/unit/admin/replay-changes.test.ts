@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test'
-import { replayChanges } from '../../../src/admin/site/hooks/reconcile-undo'
+import { replayChanges } from '../../../src/editor/reconcile-undo'
 
 describe('replayChanges', () => {
   type SimpleEntry = { name: string; quantity: number }

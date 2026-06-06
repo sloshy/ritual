@@ -3,6 +3,8 @@ import { Show, For } from 'solid-js'
 import type { ViewMode, CardSize, SortBy, PriceGroupStrategy } from './card-sorting'
 import { capitalize } from './utils'
 import { useStuck } from './useStuck'
+import { UpdatePricesButton } from './PriceControls'
+import type { PriceRefresh } from './usePriceRefresh'
 
 type SelectOption = { value: string; label: string }
 
@@ -32,6 +34,8 @@ interface ToolbarProps {
   hideLands: boolean
   onHideLandsChange: () => void
   extraToggles?: ExtraToggle[]
+  /** When set, a right-aligned "Update Prices" button is shown (public list pages). */
+  priceRefresh?: PriceRefresh
 }
 
 const VIEW_MODE_ICONS: Record<ViewMode, string> = {
@@ -162,6 +166,13 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
                 </button>
               )}
             </For>
+          )}
+        </Show>
+        <Show when={props.priceRefresh}>
+          {(refresh) => (
+            <div class="toolbar-price-refresh">
+              <UpdatePricesButton prices={refresh()} />
+            </div>
           )}
         </Show>
       </div>

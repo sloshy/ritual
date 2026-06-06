@@ -1,6 +1,9 @@
 import type { Component } from 'solid-js'
-import { createSignal, createMemo, createEffect, For, Show } from 'solid-js'
+import { createSignal, createMemo, createEffect, onMount, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
+import { seedCards, seedPrintings, overlayCard, sessionCacheVersion } from './session-cache'
+import { usePublicPriceControls } from './PriceControls'
+import { PriceStalenessNotice } from './PriceStalenessNotice'
 import type { Card, DeckData, ScryfallCard, Finish } from '../types'
 import type { CardContextInfo } from './card-context'
 import type { ChangelogPage } from '../changelog-parser'
@@ -67,6 +70,16 @@ export interface DeckPageProps {
   onCardMove?: (info: CardContextInfo, rect: DOMRect) => void
   unsavedChangeCount?: number
   changelog?: ChangelogPage[]
+  /**
+   * Force the page width. Defaults to full width in edit/move mode and the centered
+   * container otherwise; the public in-browser editor sets `false` to keep the
+   * normal margins even while editing.
+   */
+  fullWidth?: boolean
+  /** Build-time price date (ISO), shipped with the deck JSON; drives staleness after a refresh. */
+  pricesDate?: string
+  /** Show the public "Update Prices" toolbar button + staleness notice (public site only). */
+  enablePriceRefresh?: boolean
 }
 
 export const DeckPage: Component<DeckPageProps> = (props) => {
@@ -213,9 +226,9 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
   const resolveEntryCard = (entry: Card): ScryfallCard | null => {
     if (!lowestPrice() && hasSpecificPrinting(entry)) {
       const match = findPrinting(props.printings[entry.name], entry.set, entry.collectorNumber)
-      if (match) return match
+      if (match) return overlayCard(match)
     }
-    return activeCards()[entry.name] ?? null
+    return overlayCard(activeCards()[entry.name] ?? null)
   }
 
   const handleModalAddToTrade = () => {
@@ -262,6 +275,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
 
   // Build flat card list with metadata
   const allCards = createMemo((): CardData[] => {
+    sessionCacheVersion() // re-resolve card prices after an in-session "Update Prices"
     const result: CardData[] = []
     let order = 0
     for (const section of props.deck.sections) {
@@ -285,6 +299,20 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     }
     return result
   })
+
+  // Seed the session cache from this deck's baked card data so the editor's card
+  // search and the trade page reuse it instead of re-fetching from Scryfall.
+  onMount(() => {
+    seedCards(props.cards)
+    seedPrintings(props.printings)
+    if (props.lowestPriceCards) seedCards(props.lowestPriceCards)
+    if (props.lowestPriceCardsEur) seedCards(props.lowestPriceCardsEur)
+    if (props.lowestPriceCardsTix) seedCards(props.lowestPriceCardsTix)
+  })
+
+  // Price refresh is wired for every render but only shown when the page opts in
+  // via `enablePriceRefresh` (the public site, read-only or editing).
+  const prices = usePublicPriceControls({ cards: allCards, pricesDate: props.pricesDate })
 
   const sectionOrder = createMemo(() => {
     return props.deck.sections.map((s) => s.name)
@@ -431,7 +459,13 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
   })
 
   return (
-    <div class={props.editMode || props.onCardMove ? 'page-full-width' : 'page-container'}>
+    <div
+      class={
+        (props.fullWidth ?? (props.editMode || props.onCardMove))
+          ? 'page-full-width'
+          : 'page-container'
+      }
+    >
       {/* Header */}
       <div class="page-header">
         <div>
@@ -536,7 +570,12 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
               ]
             : []),
         ]}
+        priceRefresh={props.enablePriceRefresh ? prices : undefined}
       />
+
+      <Show when={props.enablePriceRefresh}>
+        <PriceStalenessNotice outdatedNames={prices.outdatedNames()} />
+      </Show>
 
       {/* Description / Primer */}
       <Show when={props.deck.description || props.deck.primer}>

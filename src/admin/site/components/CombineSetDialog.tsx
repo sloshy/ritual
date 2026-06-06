@@ -1,5 +1,5 @@
 import { type Component, For } from 'solid-js'
-import { useDialogModal } from '../hooks/useDialogModal'
+import { useDialogModal } from '../../../ui/useDialogModal'
 
 /** A candidate change set to combine into, paired with its index in the full set list. */
 export type CombineCandidate = {

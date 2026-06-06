@@ -42,11 +42,10 @@ test.describe('Collection Editor Page', () => {
     const value = await options.nth(1).getAttribute('value')
     expect(value).toBeTruthy()
     await select.selectOption(value)
-    // Editor should populate with deck content (textarea or editor element)
-    const editor = page.locator('textarea, .editor-content, [class*="editor"]').first()
-    await expect(editor).toBeVisible({ timeout: 10_000 })
-    const content = await editor.inputValue().catch(() => editor.textContent())
-    expect((content ?? '').trim().length).toBeGreaterThan(0)
+    // Editor should populate with the collection's cards.
+    const firstCard = page.locator('.card-item').first()
+    await expect(firstCard).toBeVisible({ timeout: 10_000 })
+    expect((await firstCard.textContent())?.trim().length ?? 0).toBeGreaterThan(0)
   })
 })
 

@@ -2,11 +2,11 @@ import { type JSX, Show, For, createSignal, createMemo, onCleanup } from 'solid-
 import { isValidIso8601 } from '../../../changelog-blocks'
 import { groupListsByType, listInfoId, type ListId } from '../list-grouping'
 import { useHistorySession } from '../hooks/useHistorySession'
-import { useNavigationGuard } from '../navigation-guard'
+import { useNavigationGuard } from '../../../editor/navigation-guard'
 import { StatusAlerts } from '../components/StatusAlerts'
-import { ConfirmDialog } from '../components/ConfirmDialog'
+import { ConfirmDialog } from '../../../ui/ConfirmDialog'
 import { CombineSetDialog, type CombineCandidate } from '../components/CombineSetDialog'
-import { TextPromptDialog } from '../components/TextPromptDialog'
+import { TextPromptDialog } from '../../../editor/components/TextPromptDialog'
 
 /** A queued confirmation prompt routed through the shared {@link ConfirmDialog}. */
 type PendingConfirm = {

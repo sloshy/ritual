@@ -5,9 +5,8 @@ import { isPathWithinDir } from '../../path-validation'
 import { appendChangelog } from '../../changelog-writer'
 import type { WantedListCardEntry } from '../../site/data-types'
 import type { ChangeEvent } from '../../change-event'
-import { formatWantedListLine } from '../../commands/wanted-helpers'
 import { getWantedDir } from '../../ritual-config'
-import { serializeSectionedList } from '../../section-format'
+import { wantedToMarkdown } from '../../editor/list-export'
 import { parseTitleFromContent } from './simple-list-helpers'
 import {
   validateBodySize,
@@ -22,18 +21,6 @@ interface WantedListSaveRequest {
   contentHash: string
   /** Section names in display order, including empty sections. Optional for back-compat. */
   sectionOrder?: string[]
-}
-
-function serializeWantedListEntry(entry: WantedListCardEntry): string {
-  return formatWantedListLine(
-    entry.name,
-    entry.set && entry.collectorNumber
-      ? { set: entry.set, collectorNumber: entry.collectorNumber }
-      : undefined,
-    entry.finish,
-    entry.note,
-    entry.cardId,
-  )
 }
 
 export async function handleWantedListSave(req: Request): Promise<Response> {
@@ -91,7 +78,7 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
     // now-empty sections), falling back to the order discovered in the entries themselves.
     const title = parseTitleFromContent(hashCheck.content) ?? slug
     const order = sectionOrder ?? []
-    const newContent = serializeSectionedList(title, entries, order, serializeWantedListEntry)
+    const newContent = wantedToMarkdown(title, entries, order)
     const newContentHash = await writeFileWithHash(filePath, newContent)
 
     // Write changelog

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'bun:test'
-import { saveEditorChanges } from '../../../src/admin/site/hooks/saveEditorChanges'
-import type { EditorStatusActions } from '../../../src/admin/site/hooks/useEditorStatus'
+import { saveEditorChanges } from '../../../src/editor/saveEditorChanges'
+import type { EditorStatusActions } from '../../../src/editor/useEditorStatus'
 
 describe('saveEditorChanges', () => {
   type Call = { method: string; args: unknown[] }

@@ -1,6 +1,9 @@
 import type { Component } from 'solid-js'
-import { createSignal, createMemo, For, Show } from 'solid-js'
+import { createSignal, createMemo, onMount, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
+import { seedCards, seedPrintings, overlayCard, sessionCacheVersion } from './session-cache'
+import { usePublicPriceControls } from './PriceControls'
+import { PriceStalenessNotice } from './PriceStalenessNotice'
 import type { ScryfallCard, Finish } from '../types'
 import type { CardContextInfo } from './card-context'
 import type { WantedListCardEntry } from './data-types'
@@ -63,6 +66,12 @@ interface WantedListPageProps {
   onCardMove?: (info: CardContextInfo, rect: DOMRect) => void
   unsavedChangeCount?: number
   changelog?: ChangelogPage[]
+  /** Force page width; defaults to full width in edit/move mode. The public editor sets `false`. */
+  fullWidth?: boolean
+  /** Build-time price date (ISO), shipped with the wanted-list JSON; drives staleness after a refresh. */
+  pricesDate?: string
+  /** Show the public "Update Prices" toolbar button + staleness notice (public site only). */
+  enablePriceRefresh?: boolean
 }
 
 function resolveCardForEntry(
@@ -71,9 +80,9 @@ function resolveCardForEntry(
 ): ScryfallCard | null {
   if (hasSpecificPrinting(entry)) {
     const key = `${entry.set.toLowerCase()}:${entry.collectorNumber}`
-    return cards[key] ?? cards[entry.name] ?? null
+    return overlayCard(cards[key] ?? cards[entry.name] ?? null)
   }
-  return cards[entry.name] ?? null
+  return overlayCard(cards[entry.name] ?? null)
 }
 
 export const WantedListPage: Component<WantedListPageProps> = (props) => {
@@ -193,6 +202,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
   }
 
   const currencyEntries = createMemo((): WantedListCardEntry[] => {
+    sessionCacheVersion() // re-price after an in-session "Update Prices"
     return props.entries.map((entry) => {
       const card = resolveCardForEntry(entry, props.cards)
       if (!card) return entry
@@ -225,6 +235,16 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
       }
     })
   })
+
+  // Seed the session cache from this list's baked card data so the editor's card
+  // search and the trade page reuse it instead of re-fetching from Scryfall.
+  onMount(() => {
+    seedCards(props.cards)
+    seedPrintings(props.printings)
+  })
+
+  // Price refresh is wired for every render but only shown when `enablePriceRefresh`.
+  const prices = usePublicPriceControls({ cards: allCards, pricesDate: props.pricesDate })
 
   const cardGroups = createMemo((): CardGroup[] => {
     let working = [...allCards()]
@@ -381,7 +401,13 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
   )
 
   return (
-    <div class={props.editMode || props.onCardMove ? 'page-full-width' : 'page-container'}>
+    <div
+      class={
+        (props.fullWidth ?? (props.editMode || props.onCardMove))
+          ? 'page-full-width'
+          : 'page-container'
+      }
+    >
       {/* Header */}
       <div class="page-header">
         <div>
@@ -435,7 +461,12 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         hideLands={hideLands()}
         onHideLandsChange={() => setHideLands((prev) => !prev)}
         extraToggles={[]}
+        priceRefresh={props.enablePriceRefresh ? prices : undefined}
       />
+
+      <Show when={props.enablePriceRefresh}>
+        <PriceStalenessNotice outdatedNames={prices.outdatedNames()} />
+      </Show>
 
       {/* Card sections */}
       <div

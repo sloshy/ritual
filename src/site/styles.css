@@ -2,6 +2,8 @@
 @import '../css/theme-base.css';
 @import '../css/shared.css';
 @import './card-styles.css';
+@import '../css/controls.css';
+@import '../css/editor.css';
 
 /* ===== Site-specific body extension ===== */
 body {
@@ -27,8 +29,33 @@ body {
   padding: 0.75rem 2rem;
   background: var(--bg-panel);
   display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.site-header-main {
+  position: relative;
+  display: flex;
   align-items: center;
   gap: 1rem;
+}
+
+/* Second navbar row holding the editor controls while editing a list. */
+.site-header-edit-row {
+  display: flex;
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border-separator, var(--border));
+}
+
+.btn-edit--active {
+  background: var(--accent);
+  color: var(--btn-on-color-text);
+}
+
+.btn-edit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .site-logo {
@@ -219,10 +246,14 @@ body {
   }
 
   .site-header {
-    flex-wrap: wrap;
     gap: 0.5rem;
     margin: -1rem -1rem 1.5rem;
     padding: 0.625rem 1rem;
+  }
+
+  .site-header-main {
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
 
   .site-nav-sep {

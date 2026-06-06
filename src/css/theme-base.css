@@ -9,16 +9,10 @@
   /* ---- Card corners ---- */
   --card-radius: 9px;
 
-  /* ---- Success ---- */
-  --success-bg: oklch(30% 0.08 155 / 0.5);
-  --success-border: oklch(42% 0.12 155);
-  --success-text: oklch(80% 0.14 155);
-
-  /* ---- Error ---- */
-  --error: oklch(65% 0.2 25);
-  --error-bg: oklch(30% 0.08 25 / 0.5);
-  --error-border: oklch(45% 0.17 25);
-  --error-text: oklch(80% 0.1 20);
+  /* ---- Success / Error ---- */
+  /* The success/error palette (--success-*, --error-*) is theme-generated in
+     src/themes.ts so light themes get deep, legible shades and dark themes get
+     bright ones. See darkStatusVars / lightStatusVars there. */
 
   /* ---- Buttons – add / success (green) ---- */
   --btn-add: oklch(52% 0.16 155);

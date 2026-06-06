@@ -1,7 +1,7 @@
 import { type Component, For, Show, createMemo } from 'solid-js'
 import type { ListInfo } from '../../api/list-info'
 import { groupListsByType } from '../list-grouping'
-import { useAnchoredMenu } from './useAnchoredMenu'
+import { useAnchoredMenu } from '../../../ui/useAnchoredMenu'
 
 const MENU_WIDTH = 220
 

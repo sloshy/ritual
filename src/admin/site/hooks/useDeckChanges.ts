@@ -1,4 +1,4 @@
-import { useCardChanges, type UseCardChangesResult } from './useCardChanges'
+import { useCardChanges, type UseCardChangesResult } from '../../../editor/useCardChanges'
 
 export type UseDeckChangesResult<T = unknown> = UseCardChangesResult<T> & {
   setCommander: (cardName: string, cardId?: number) => void

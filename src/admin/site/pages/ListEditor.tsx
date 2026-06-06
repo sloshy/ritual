@@ -1,6 +1,6 @@
 import { type JSX, createSignal, Switch, Match, For } from 'solid-js'
 import { type ListType, LIST_TYPES, LIST_TYPE_DISPLAY } from '../../../list-type'
-import { useNavigationGuard } from '../navigation-guard'
+import { useNavigationGuard } from '../../../editor/navigation-guard'
 import { DeckEditor } from './DeckEditor'
 import { CollectionEditor } from './CollectionEditor'
 import { WantedListEditor } from './WantedListEditor'

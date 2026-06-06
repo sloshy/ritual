@@ -211,37 +211,6 @@ export async function promptFinishAndCondition(
   return { finish: selectedFinish, condition: selectedCondition }
 }
 
-export function formatCollectionLine(
-  cardName: string,
-  set: string,
-  collectorNumber: string,
-  finish: Finish,
-  condition: Condition | undefined,
-  note?: string,
-  cardId?: number,
-): string {
-  let line = `- ${cardName} (${set.toUpperCase()}:${collectorNumber})`
-
-  if (finish !== 'nonfoil') {
-    line += ` [${finish}]`
-  }
-
-  if (condition) {
-    line += ` [${condition}]`
-  }
-
-  if (note) {
-    line += ` {${note}}`
-  }
-
-  if (cardId !== undefined) {
-    line += ` &${cardId}`
-  }
-
-  line += '\n'
-  return line
-}
-
 /**
  * Shared shape for the most recently added/edited card, tracked in CLI session loops.
  */
@@ -427,3 +396,5 @@ export async function manageSetCodes(sessionConfig: CollectorSessionConfig): Pro
     }
   }
 }
+
+export { formatCollectionLine } from '../card-line'

@@ -4,7 +4,7 @@ import {
   initialStatus,
   type EditorStatus,
   type StatusAction,
-} from '../../../src/admin/site/hooks/useEditorStatus'
+} from '../../../src/editor/useEditorStatus'
 
 describe('statusReducer', () => {
   test('LOAD_START sets loading true and clears error/saveStatus', () => {

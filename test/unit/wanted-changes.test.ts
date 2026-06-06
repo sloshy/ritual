@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { applyChangeToWantedList } from '../../src/admin/site/types/wanted-changes'
+import { applyChangeToWantedList } from '../../src/editor/wanted-changes'
 import type { WantedListCardEntry } from '../../src/site/data-types'
 
 function makeEntry(overrides: Partial<WantedListCardEntry> = {}): WantedListCardEntry {

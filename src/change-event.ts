@@ -137,6 +137,27 @@ export type ChangeEvent =
 export type ChangeAction = ChangeEvent['action']
 
 /**
+ * Every valid {@link ChangeAction}, as a runtime array for validation (e.g. when
+ * parsing an imported change file). The `satisfies` check makes the compiler flag
+ * this list if a new action variant is added to {@link ChangeEvent} but not here.
+ */
+export const CHANGE_ACTIONS = [
+  'add',
+  'remove',
+  'set-commander',
+  'unset-commander',
+  'set-finish',
+  'set-printing',
+  'set-note',
+  'move-from',
+  'move-to',
+  'add-section',
+  'remove-section',
+  'rename-section',
+  'set-section',
+] as const satisfies readonly ChangeAction[]
+
+/**
  * The card-bearing subset of {@link ChangeEvent} — every variant except the section-structural
  * ones (add/remove/rename-section), which target a section rather than a card. Producers that
  * never emit section-meta changes (e.g. the file diff) use this so `.cardName` is always present.

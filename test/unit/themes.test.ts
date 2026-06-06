@@ -164,10 +164,15 @@ describe('generateThemeCss', () => {
       const matches = css.matchAll(/oklch\(([^)]+)\)/g)
       for (const m of matches) {
         const parts = m[1]!.trim().split(/\s+/)
-        expect(parts.length).toBe(3)
+        // Either `L C H` or `L C H / A` (the status fills carry an alpha).
+        expect([3, 5]).toContain(parts.length)
         expect(parts[0]).toMatch(/^[0-9]+(\.[0-9]+)?%$/)
         expect(parts[1]).toMatch(/^[0-9]+(\.[0-9]+)?$/)
         expect(parts[2]).toMatch(/^[0-9]+(\.[0-9]+)?$/)
+        if (parts.length === 5) {
+          expect(parts[3]).toBe('/')
+          expect(parts[4]).toMatch(/^[0-9]+(\.[0-9]+)?$/)
+        }
       }
     }
   })

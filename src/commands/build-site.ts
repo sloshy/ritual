@@ -2,6 +2,7 @@ import { Command } from 'commander'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { extractMarkdownTitle } from '../markdown-utils'
+import { deckToExportText } from '../deck-text'
 import { importFromTextFile } from '../importers/text-file'
 import { resolveDeckSources, resolveListSources } from '../site/list-sources'
 import {
@@ -694,38 +695,8 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '')
 
-    // Generate Deck List Text (Commander + Main)
-    const textLines: string[] = []
-    const cmdrSection = deckData.sections.find((s) => s.name.toLowerCase().includes('commander'))
-    const mainSection = deckData.sections.find(
-      (s) => s.name.toLowerCase() === 'main' || s.name.toLowerCase() === 'mainboard',
-    )
-
-    if (cmdrSection) {
-      textLines.push(`## ${cmdrSection.name}`)
-      cmdrSection.cards.forEach((c) => textLines.push(`${c.quantity} ${c.name}`))
-      textLines.push('')
-    }
-
-    if (mainSection) {
-      textLines.push(`## ${mainSection.name}`)
-      mainSection.cards.forEach((c) => textLines.push(`${c.quantity} ${c.name}`))
-    } else {
-      // Include all other sections (except Sideboard/Maybeboard/Token)
-      deckData.sections.forEach((s) => {
-        const name = s.name.toLowerCase()
-        if (name.includes('commander')) return // Already handled
-        if (name.includes('maybeboard')) return
-        if (name.includes('sideboard')) return
-        if (name.includes('token')) return
-
-        textLines.push('')
-        textLines.push(`## ${s.name}`)
-        s.cards.forEach((c) => textLines.push(`${c.quantity} ${c.name}`))
-      })
-    }
-
-    const deckText = textLines.join('\n').trim()
+    // Generate Deck List Text (Commander + Main) via the shared serializer.
+    const deckText = deckToExportText(deckData)
     const deckTextPath = path.join(decksDataDir, `${safeName}.txt`)
     await Bun.write(deckTextPath, deckText)
 

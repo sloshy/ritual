@@ -64,6 +64,14 @@ Import a deck three ways, selected with a segmented control:
 
 For upload and paste, an optional **Deck Name** is used unless the text defines its own `name:` in frontmatter. Optionally overwrite an existing deck on conflict.
 
+### Import Changes
+
+The deck, collection, and wanted-list editors each have an **Import…** button that accepts a change-list JSON exported from the public site's [in-browser editor](./build-site#editing-on-the-public-site). Upload the file or paste its contents; the editor validates it (rejecting a file whose list kind doesn't match), then loads its changes as **pending edits** rather than applying them immediately:
+
+- Each change is **re-targeted** to the current list's card IDs — added cards get fresh IDs, and other changes match by ID when it still exists, otherwise by card name.
+- Changes whose target can no longer be found are reported as conflicts and skipped, with a count shown after import.
+- The loaded changes appear in the editor for you to review and then **Save Changes** as a normal edit (recorded in the changelog).
+
 ### Build Site
 
 Trigger a full static site build from the browser. This runs the same process as `ritual build-site`.

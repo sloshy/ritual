@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { applyChangeToCollection } from '../../src/admin/site/types/collection-changes'
+import { applyChangeToCollection } from '../../src/editor/collection-changes'
 import type { CollectionCardEntry } from '../../src/site/data-types'
 
 function makeEntry(overrides: Partial<CollectionCardEntry> = {}): CollectionCardEntry {

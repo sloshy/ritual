@@ -2,8 +2,8 @@ import type { ChangeEvent } from '../change-event'
 import type { ListType } from '../list-type'
 import type { WantedListCardEntry, WantedListEntryState } from '../site/data-types'
 import { DEFAULT_SECTION } from '../types'
-import { applyChangeToDeck } from '../admin/site/types/deck-changes'
-import { applyChangeToWantedList } from '../admin/site/types/wanted-changes'
+import { applyChangeToDeck } from '../editor/deck-changes'
+import { applyChangeToWantedList } from '../editor/wanted-changes'
 import { callApi } from './dispatch'
 import type {
   CollectionLoadResult,

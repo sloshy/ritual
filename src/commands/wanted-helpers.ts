@@ -23,8 +23,6 @@ export type WantedListEntry = {
   section: string
 }
 
-export type CardPrinting = { set: string; collectorNumber: string }
-
 export type WantedListParseResult = {
   entries: WantedListEntry[]
   /** Section names in first-seen order, including empty sections that have no entries. */
@@ -88,35 +86,6 @@ export function parseWantedListFile(content: string): WantedListParseResult {
     })
   }
   return { entries, sectionOrder, warnings }
-}
-
-export function formatWantedListLine(
-  name: string,
-  printing?: CardPrinting,
-  finish?: Finish,
-  note?: string,
-  cardId?: number,
-): string {
-  let line = `- ${name}`
-
-  if (printing) {
-    line += ` (${printing.set.toUpperCase()}:${printing.collectorNumber})`
-  }
-
-  if (finish && finish !== 'nonfoil') {
-    line += ` [${finish}]`
-  }
-
-  if (note) {
-    line += ` {${note}}`
-  }
-
-  if (cardId !== undefined) {
-    line += ` &${cardId}`
-  }
-
-  line += '\n'
-  return line
 }
 
 export async function ensureWantedListFile(name: string): Promise<string> {
@@ -231,3 +200,5 @@ export async function promptWantedListConfigUpdate(
 }
 
 export { isFinish }
+
+export { formatWantedListLine, type CardPrinting } from '../card-line'

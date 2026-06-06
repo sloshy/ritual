@@ -263,6 +263,12 @@ The `--currencies` flag controls which currencies are available on the site. The
 
 The generated site displays a disclaimer below the header showing the date prices were retrieved. Prices are fetched from Scryfall at build time and reflect values as of the build date. The disclaimer reads: "Prices accurate as of &lt;date&gt;".
 
+### Update Prices (per page)
+
+Every deck, collection, and wanted-list page has an **Update Prices** button on the right of its filter toolbar (also shown while editing). It is a no-op until pressed; clicking it batch-fetches current prices for that page's cards directly from Scryfall (into an in-memory, per-tab session cache) and the displayed per-card prices and totals update in place. Nothing is written to disk — the refresh lives only in the current browser tab.
+
+If a refresh only updates some cards (for example, a card Scryfall no longer returns by id), the remaining cards keep their older build-time price. When prices on a page end up with mixed dates, a small expandable warning appears listing the cards whose prices are now older than the rest. Refreshing again so every card is covered clears the warning. The same session cache is shared with the card search in the public editor and the Trade Planner, so a card fetched once is reused without another request.
+
 ## Card Cache Refresh
 
 A build pulls card data and prices from three places, in order:
@@ -402,6 +408,18 @@ When a deck or collection has a `.changes.md` changelog file (created by the adm
 - Hovering a card name shows a preview image of the card
 
 Cards referenced in changelogs that are no longer in the deck or collection are automatically resolved during the build so their card data is available for previews and modals.
+
+## Editing on the Public Site
+
+Although the generated site is static (no server), the navbar has an **Edit** toggle (top-right) that opens the same editor used in the admin site, running entirely in the browser, for whichever deck, collection, or wanted list you're viewing. (The toggle is present site-wide but disabled on pages with nothing to edit, such as the index.) Edits are **ephemeral** — nothing is saved to a server and nothing is persisted unless you explicitly choose to.
+
+- **Edited vs. published** — while editing, the navbar grows a second row that makes it clear you are viewing a local copy, with an **Original / Edited** toggle to switch between your changes and the published version, and a **Discard** button to drop them. Press **Done** (the same navbar toggle) to leave edit mode.
+- **Card search** — adding cards searches Scryfall directly (preferring the shared session cache), the same as the Trade Planner.
+- **Export your edits** — the **Export…** panel offers two ways to keep your changes:
+  - **Download change list (JSON)** or **Copy JSON** — a portable change file that the admin editor can later import (see [Import changes](./admin#import-changes)) to apply your edits to the real list. Imported changes are re-targeted to the current card IDs and surfaced for review before saving.
+  - **Download updated file** — a full deck `.txt` (or collection/wanted `.md`/`.csv`) with the edits already applied.
+- **Load changes** — the **Load Changes…** button (next to Export…) opens a dialog where you can upload or paste a change-list JSON (one exported from this site or from the admin editor) and apply it to the list you're editing. The changes load as pending edits, re-targeted to the current card IDs; any that can't be matched to a card in the list are reported and skipped. This is the same machinery the admin editor uses to [import changes](./admin#import-changes).
+- **Save to this browser (opt-in)** — the Export panel can also save the current edit session to `localStorage`. This never happens automatically. When you return to a list with a saved session, the editor offers to **Restore** it (applied through the same safe re-target path as import); **Clear saved edits** removes it.
 
 ## Serving the Site
 

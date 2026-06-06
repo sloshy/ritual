@@ -20,9 +20,9 @@ import {
   createAddSectionChange,
   type ChangeEvent,
 } from '../../src/change-event'
-import { applyChangeToCollection } from '../../src/admin/site/types/collection-changes'
-import { applyChangeToWantedList } from '../../src/admin/site/types/wanted-changes'
-import { applyChangeToDeck } from '../../src/admin/site/types/deck-changes'
+import { applyChangeToCollection } from '../../src/editor/collection-changes'
+import { applyChangeToWantedList } from '../../src/editor/wanted-changes'
+import { applyChangeToDeck } from '../../src/editor/deck-changes'
 import { ensureCollectionIdsInContent, ensureWantedIdsInContent } from '../../src/ensure-card-ids'
 import { parseChangelog } from '../../src/changelog-parser'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../src/site/data-types'

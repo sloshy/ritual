@@ -14,9 +14,14 @@ import type { DeckDetail, CollectionDetail, WantedListDetail } from './data-type
 import type { PriceCurrency } from '../price-currency'
 import { IndexPage } from './IndexPage'
 import { DeckPage } from './DeckPage'
+import { DeckEditView } from './editor/DeckEditView'
+import { CollectionEditView } from './editor/CollectionEditView'
+import { WantedEditView } from './editor/WantedEditView'
 import { CollectionPage } from './CollectionPage'
 import { WantedListPage } from './WantedListPage'
 import { TradePage } from './TradePage'
+import { EditChromeProvider, useEditChrome } from './editor/edit-chrome'
+import { EditControlsRow } from './editor/EditControlsRow'
 import { QuickSwitch, useQuickSwitchShortcut } from './QuickSwitch'
 import { useRouting } from './useRouting'
 import { useSiteData } from './useSiteData'
@@ -45,15 +50,26 @@ function App() {
   // Quick switch dialog state
   const [quickSwitchOpen, setQuickSwitchOpen] = createSignal(false)
 
+  // Public list editors: ephemeral, opt-in. Reset whenever the route changes.
+  const [editingDeck, setEditingDeck] = createSignal(false)
+  const [editingCollection, setEditingCollection] = createSignal(false)
+  const [editingWanted, setEditingWanted] = createSignal(false)
+
+  // The editor publishes its controls here while editing; the navbar renders them.
+  const editChrome = useEditChrome()
+
   useQuickSwitchShortcut(() => setQuickSwitchOpen((v) => !v))
 
-  // Reset modal and quick switch on route changes
+  // Reset modal, quick switch, and edit mode on route changes
   createEffect(
     on(
       route,
       () => {
         setModalCard(null)
         setQuickSwitchOpen(false)
+        setEditingDeck(false)
+        setEditingCollection(false)
+        setEditingWanted(false)
       },
       { defer: true },
     ),
@@ -106,6 +122,45 @@ function App() {
     wantedListSlug() ? `wanted/${wantedListSlug()}.json` : null,
   )
 
+  // The currently-editable list for the navbar Edit toggle: which page is in view,
+  // whether its data is loaded (so editing is possible), and how to enter edit mode.
+  type EditTarget = {
+    editing: () => boolean
+    canEdit: () => boolean
+    enter: () => void
+  }
+  const editTarget = createMemo<EditTarget | null>(() => {
+    switch (route().page) {
+      case 'deck':
+        return {
+          editing: editingDeck,
+          canEdit: () => !deckLoading() && deckDetail() !== undefined,
+          enter: () => setEditingDeck(true),
+        }
+      case 'collection':
+        return {
+          editing: editingCollection,
+          canEdit: () => !collectionLoading() && collectionDetail() !== undefined,
+          enter: () => setEditingCollection(true),
+        }
+      case 'wanted':
+        return {
+          editing: editingWanted,
+          canEdit: () => !wantedListLoading() && wantedListDetail() !== undefined,
+          enter: () => setEditingWanted(true),
+        }
+      default:
+        return null
+    }
+  })
+
+  const toggleEdit = () => {
+    const target = editTarget()
+    if (!target) return
+    if (target.editing()) editChrome.current()?.onExit()
+    else target.enter()
+  }
+
   const openModal = (cardName: string) => {
     setModalCard(cardName)
   }
@@ -130,102 +185,129 @@ function App() {
   return (
     <div class="site-app app-padding">
       <header ref={headerRef} class="site-header">
-        <a href="#/" class="site-logo">
-          <img src="app.svg" alt="Ritual logo" class="site-logo-icon" />
-          <span class="site-logo-text">Ritual</span>
-        </a>
-        <span class="site-nav-sep">|</span>
-        <nav class="site-nav">
-          <a
-            href="#/"
-            class="site-nav-link"
-            classList={{
-              'site-nav-link-active':
-                (route().page === 'index' && (!activeTab() || activeTab() === 'decks')) ||
-                route().page === 'deck',
-              'site-nav-link-inactive': !(
-                (route().page === 'index' && (!activeTab() || activeTab() === 'decks')) ||
-                route().page === 'deck'
-              ),
-            }}
-          >
-            Decks
+        <div class="site-header-main">
+          <a href="#/" class="site-logo">
+            <img src="app.svg" alt="Ritual logo" class="site-logo-icon" />
+            <span class="site-logo-text">Ritual</span>
           </a>
-          <a
-            href="#/collections"
-            class="site-nav-link"
-            classList={{
-              'site-nav-link-active':
-                (route().page === 'index' && activeTab() === 'collections') ||
-                route().page === 'collection',
-              'site-nav-link-inactive': !(
-                (route().page === 'index' && activeTab() === 'collections') ||
-                route().page === 'collection'
-              ),
-            }}
+          <span class="site-nav-sep">|</span>
+          <nav class="site-nav">
+            <a
+              href="#/"
+              class="site-nav-link"
+              classList={{
+                'site-nav-link-active':
+                  (route().page === 'index' && (!activeTab() || activeTab() === 'decks')) ||
+                  route().page === 'deck',
+                'site-nav-link-inactive': !(
+                  (route().page === 'index' && (!activeTab() || activeTab() === 'decks')) ||
+                  route().page === 'deck'
+                ),
+              }}
+            >
+              Decks
+            </a>
+            <a
+              href="#/collections"
+              class="site-nav-link"
+              classList={{
+                'site-nav-link-active':
+                  (route().page === 'index' && activeTab() === 'collections') ||
+                  route().page === 'collection',
+                'site-nav-link-inactive': !(
+                  (route().page === 'index' && activeTab() === 'collections') ||
+                  route().page === 'collection'
+                ),
+              }}
+            >
+              Collections
+            </a>
+            <a
+              href="#/wanted"
+              class="site-nav-link"
+              classList={{
+                'site-nav-link-active':
+                  (route().page === 'index' && activeTab() === 'wanted') ||
+                  route().page === 'wanted',
+                'site-nav-link-inactive': !(
+                  (route().page === 'index' && activeTab() === 'wanted') ||
+                  route().page === 'wanted'
+                ),
+              }}
+            >
+              Wanted Lists
+            </a>
+            <a
+              href="#/trade"
+              class="site-nav-link"
+              classList={{
+                'site-nav-link-active': route().page === 'trade',
+                'site-nav-link-inactive': route().page !== 'trade',
+              }}
+            >
+              Trade
+            </a>
+          </nav>
+          <button
+            type="button"
+            class="quick-switch-trigger"
+            aria-label="Open quick switch (Ctrl+K)"
+            title="Quick switch (Ctrl+K)"
+            onClick={() => setQuickSwitchOpen(true)}
           >
-            Collections
-          </a>
-          <a
-            href="#/wanted"
-            class="site-nav-link"
-            classList={{
-              'site-nav-link-active':
-                (route().page === 'index' && activeTab() === 'wanted') || route().page === 'wanted',
-              'site-nav-link-inactive': !(
-                (route().page === 'index' && activeTab() === 'wanted') ||
-                route().page === 'wanted'
-              ),
-            }}
+            <span class="quick-switch-trigger-icon" aria-hidden="true">
+              ⌕
+            </span>
+            <span class="quick-switch-trigger-label">Quick switch</span>
+            <span class="quick-switch-trigger-kbd" aria-hidden="true">
+              <kbd>Ctrl</kbd>
+              <kbd>K</kbd>
+            </span>
+          </button>
+          <ThemeHeaderControls />
+          <div class="currency-selector">
+            <label class="currency-label">Prices:</label>
+            <select
+              class="currency-select"
+              value={currency()}
+              onChange={(e) => setCurrency(e.target.value as PriceCurrency)}
+            >
+              <Show when={availableCurrencies().includes('usd')}>
+                <option value="usd">USD ($)</option>
+              </Show>
+              <Show when={availableCurrencies().includes('eur')}>
+                <option value="eur">EUR (€)</option>
+              </Show>
+              <Show when={availableCurrencies().includes('tix')}>
+                <option value="tix">TIX</option>
+              </Show>
+            </select>
+          </div>
+          <button
+            type="button"
+            class="site-btn site-btn-secondary btn-edit"
+            classList={{ 'btn-edit--active': editTarget()?.editing() ?? false }}
+            disabled={!editTarget() || !editTarget()!.canEdit()}
+            title={
+              editTarget()
+                ? editTarget()!.editing()
+                  ? 'Leave edit mode'
+                  : 'Edit this list locally'
+                : 'Open a deck, collection, or wanted list to edit'
+            }
+            onClick={toggleEdit}
           >
-            Wanted Lists
-          </a>
-          <a
-            href="#/trade"
-            class="site-nav-link"
-            classList={{
-              'site-nav-link-active': route().page === 'trade',
-              'site-nav-link-inactive': route().page !== 'trade',
-            }}
-          >
-            Trade
-          </a>
-        </nav>
-        <button
-          type="button"
-          class="quick-switch-trigger"
-          aria-label="Open quick switch (Ctrl+K)"
-          title="Quick switch (Ctrl+K)"
-          onClick={() => setQuickSwitchOpen(true)}
-        >
-          <span class="quick-switch-trigger-icon" aria-hidden="true">
-            ⌕
-          </span>
-          <span class="quick-switch-trigger-label">Quick switch</span>
-          <span class="quick-switch-trigger-kbd" aria-hidden="true">
-            <kbd>Ctrl</kbd>
-            <kbd>K</kbd>
-          </span>
-        </button>
-        <ThemeHeaderControls />
-        <div class="currency-selector">
-          <label class="currency-label">Prices:</label>
-          <select
-            class="currency-select"
-            value={currency()}
-            onChange={(e) => setCurrency(e.target.value as PriceCurrency)}
-          >
-            <Show when={availableCurrencies().includes('usd')}>
-              <option value="usd">USD ($)</option>
-            </Show>
-            <Show when={availableCurrencies().includes('eur')}>
-              <option value="eur">EUR (€)</option>
-            </Show>
-            <Show when={availableCurrencies().includes('tix')}>
-              <option value="tix">TIX</option>
-            </Show>
-          </select>
+            {editTarget()?.editing() ? 'Done' : 'Edit'}
+          </button>
         </div>
+
+        <Show when={editChrome.current()}>
+          {(chrome) => (
+            <div class="site-header-edit-row">
+              <EditControlsRow chrome={chrome()} />
+            </div>
+          )}
+        </Show>
       </header>
 
       <Show when={pricesDate()}>
@@ -266,22 +348,36 @@ function App() {
                   when={!wantedListLoading() && wantedListDetail()}
                   fallback={<LoadingSpinner />}
                 >
-                  <WantedListPage
-                    name={wantedListDetail()!.name}
-                    entries={wantedListDetail()!.entries}
-                    sectionOrder={wantedListDetail()!.sectionOrder}
-                    cards={wantedListDetail()!.cards}
-                    printings={wantedListDetail()!.printings ?? {}}
-                    symbolMap={wantedListDetail()!.symbolMap}
-                    useScryfallImgUrls={wantedListDetail()!.useScryfallImgUrls}
-                    totalPrice={wantedListDetail()!.totalPrice}
-                    exportMdPath={wantedListDetail()!.exportMdPath}
-                    modalCardKey={modalCard()}
-                    onOpenModal={openModal}
-                    onCloseModal={closeModal}
-                    currency={currency()}
-                    changelog={wantedListDetail()!.changelog}
-                  />
+                  <Show
+                    when={editingWanted()}
+                    fallback={
+                      <WantedListPage
+                        name={wantedListDetail()!.name}
+                        entries={wantedListDetail()!.entries}
+                        sectionOrder={wantedListDetail()!.sectionOrder}
+                        cards={wantedListDetail()!.cards}
+                        printings={wantedListDetail()!.printings ?? {}}
+                        symbolMap={wantedListDetail()!.symbolMap}
+                        useScryfallImgUrls={wantedListDetail()!.useScryfallImgUrls}
+                        totalPrice={wantedListDetail()!.totalPrice}
+                        exportMdPath={wantedListDetail()!.exportMdPath}
+                        pricesDate={wantedListDetail()!.pricesDate}
+                        modalCardKey={modalCard()}
+                        onOpenModal={openModal}
+                        onCloseModal={closeModal}
+                        currency={currency()}
+                        changelog={wantedListDetail()!.changelog}
+                        enablePriceRefresh={true}
+                      />
+                    }
+                  >
+                    <WantedEditView
+                      detail={wantedListDetail()!}
+                      slug={wantedListSlug() ?? ''}
+                      currency={currency()}
+                      onExit={() => setEditingWanted(false)}
+                    />
+                  </Show>
                 </Show>
               </Show>
             </Match>
@@ -294,49 +390,77 @@ function App() {
                   when={!collectionLoading() && collectionDetail()}
                   fallback={<LoadingSpinner />}
                 >
-                  <CollectionPage
-                    name={collectionDetail()!.name}
-                    entries={collectionDetail()!.entries}
-                    sectionOrder={collectionDetail()!.sectionOrder}
-                    cards={collectionDetail()!.cards}
-                    printings={collectionDetail()!.printings ?? {}}
-                    symbolMap={collectionDetail()!.symbolMap}
-                    useScryfallImgUrls={collectionDetail()!.useScryfallImgUrls}
-                    totalPrice={collectionDetail()!.totalPrice}
-                    exportMdPath={collectionDetail()!.exportMdPath}
-                    exportCsvPath={collectionDetail()!.exportCsvPath}
-                    modalCardKey={modalCard()}
-                    onOpenModal={openModal}
-                    onCloseModal={closeModal}
-                    currency={currency()}
-                    changelog={collectionDetail()!.changelog}
-                  />
+                  <Show
+                    when={editingCollection()}
+                    fallback={
+                      <CollectionPage
+                        name={collectionDetail()!.name}
+                        entries={collectionDetail()!.entries}
+                        sectionOrder={collectionDetail()!.sectionOrder}
+                        cards={collectionDetail()!.cards}
+                        printings={collectionDetail()!.printings ?? {}}
+                        symbolMap={collectionDetail()!.symbolMap}
+                        useScryfallImgUrls={collectionDetail()!.useScryfallImgUrls}
+                        totalPrice={collectionDetail()!.totalPrice}
+                        exportMdPath={collectionDetail()!.exportMdPath}
+                        exportCsvPath={collectionDetail()!.exportCsvPath}
+                        pricesDate={collectionDetail()!.pricesDate}
+                        modalCardKey={modalCard()}
+                        onOpenModal={openModal}
+                        onCloseModal={closeModal}
+                        currency={currency()}
+                        changelog={collectionDetail()!.changelog}
+                        enablePriceRefresh={true}
+                      />
+                    }
+                  >
+                    <CollectionEditView
+                      detail={collectionDetail()!}
+                      slug={collectionSlug() ?? ''}
+                      currency={currency()}
+                      onExit={() => setEditingCollection(false)}
+                    />
+                  </Show>
                 </Show>
               </Show>
             </Match>
             <Match when={route().page === 'deck'}>
               <Show when={!deckError()} fallback={<ErrorMessage message={deckError()!} />}>
                 <Show when={!deckLoading() && deckDetail()} fallback={<LoadingSpinner />}>
-                  <DeckPage
-                    deck={deckDetail()!.deck}
-                    cards={deckDetail()!.cards}
-                    printings={deckDetail()!.printings ?? {}}
-                    lowestPriceCards={deckDetail()!.lowestPriceCards}
-                    lowestPriceCardsEur={deckDetail()!.lowestPriceCardsEur}
-                    lowestPriceCardsTix={deckDetail()!.lowestPriceCardsTix}
-                    symbolMap={deckDetail()!.symbolMap}
-                    exportPath={deckDetail()!.exportPath}
-                    useScryfallImgUrls={deckDetail()!.useScryfallImgUrls}
-                    modalCardName={modalCard()}
-                    onOpenModal={openModal}
-                    onCloseModal={closeModal}
-                    currency={currency()}
-                    missingCards={deckDetail()!.missingCards}
-                    slug={deckSlug() ?? ''}
-                    primerOpen={deckPrimerOpen()}
-                    sectionId={deckSectionId()}
-                    changelog={deckDetail()!.changelog}
-                  />
+                  <Show
+                    when={editingDeck()}
+                    fallback={
+                      <DeckPage
+                        deck={deckDetail()!.deck}
+                        cards={deckDetail()!.cards}
+                        printings={deckDetail()!.printings ?? {}}
+                        lowestPriceCards={deckDetail()!.lowestPriceCards}
+                        lowestPriceCardsEur={deckDetail()!.lowestPriceCardsEur}
+                        lowestPriceCardsTix={deckDetail()!.lowestPriceCardsTix}
+                        symbolMap={deckDetail()!.symbolMap}
+                        exportPath={deckDetail()!.exportPath}
+                        useScryfallImgUrls={deckDetail()!.useScryfallImgUrls}
+                        modalCardName={modalCard()}
+                        onOpenModal={openModal}
+                        onCloseModal={closeModal}
+                        currency={currency()}
+                        missingCards={deckDetail()!.missingCards}
+                        pricesDate={deckDetail()!.pricesDate}
+                        slug={deckSlug() ?? ''}
+                        primerOpen={deckPrimerOpen()}
+                        sectionId={deckSectionId()}
+                        changelog={deckDetail()!.changelog}
+                        enablePriceRefresh={true}
+                      />
+                    }
+                  >
+                    <DeckEditView
+                      detail={deckDetail()!}
+                      slug={deckSlug() ?? ''}
+                      currency={currency()}
+                      onExit={() => setEditingDeck(false)}
+                    />
+                  </Show>
                 </Show>
               </Show>
             </Match>
@@ -446,10 +570,12 @@ function Root() {
   const themeStore = createThemeStore()
   return (
     <ThemeProvider store={themeStore}>
-      <Show when={themeStore.editorOpen()}>
-        <ThemeEditor />
-      </Show>
-      <App />
+      <EditChromeProvider>
+        <Show when={themeStore.editorOpen()}>
+          <ThemeEditor />
+        </Show>
+        <App />
+      </EditChromeProvider>
     </ThemeProvider>
   )
 }

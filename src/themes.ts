@@ -159,6 +159,15 @@ export type ResolvedPalette = ThemeCssVars & {
   '--btn-export': string
   '--btn-export-hover': string
   '--btn-on-color-text': string
+  '--success-bg': string
+  '--success-border': string
+  '--success-text': string
+  '--error': string
+  '--error-bg': string
+  '--error-border': string
+  '--error-text': string
+  '--card-link': string
+  '--card-link-hover': string
 }
 
 // A custom theme captured from the in-browser editor or a user JSON file.
@@ -189,6 +198,47 @@ function ok(L: number, C: number, H: number): string {
 function btnOnColorText(p: ThemePalette): string {
   if (p.accentChroma > 0.05) return ok(98, 0, 0)
   return p.isDark ? ok(15, 0, 0) : ok(98, 0, 0)
+}
+
+// Success (green) and error (red) semantic colors. The hue is fixed —
+// green ~155, red ~22 — independent of the theme's background/accent hue,
+// but the lightness flips between dark and light themes so text and badges
+// stay legible against the page: bright fills read on dark backgrounds,
+// deep shades read on light ones. (On light themes the previous fixed
+// 80%-lightness text washed out against the near-white panel.)
+const darkStatusVars = {
+  '--success-bg': 'oklch(30% 0.08 155 / 0.5)',
+  '--success-border': 'oklch(42% 0.12 155)',
+  '--success-text': 'oklch(80% 0.14 155)',
+  '--error': 'oklch(65% 0.2 25)',
+  '--error-bg': 'oklch(30% 0.08 25 / 0.5)',
+  '--error-border': 'oklch(45% 0.17 25)',
+  '--error-text': 'oklch(80% 0.1 20)',
+}
+
+const lightStatusVars = {
+  '--success-bg': 'oklch(92% 0.06 155 / 0.6)',
+  '--success-border': 'oklch(72% 0.13 155)',
+  '--success-text': 'oklch(46% 0.15 155)',
+  '--error': 'oklch(55% 0.22 25)',
+  '--error-bg': 'oklch(92% 0.06 25 / 0.6)',
+  '--error-border': 'oklch(72% 0.16 25)',
+  '--error-text': 'oklch(48% 0.2 22)',
+}
+
+// Card-name hyperlinks (e.g. in the changes dialog). A fixed blue hue —
+// independent of the theme accent, matching the codebase convention of
+// per-link-type semantic colors — with the lightness flipped per mode so the
+// link reads against the page: a soft blue on dark themes, a deep blue on
+// light ones (the previous fixed light blue washed out on light backgrounds).
+const darkLinkVars = {
+  '--card-link': 'oklch(80% 0.09 250)',
+  '--card-link-hover': 'oklch(88% 0.05 250)',
+}
+
+const lightLinkVars = {
+  '--card-link': 'oklch(50% 0.17 250)',
+  '--card-link-hover': 'oklch(42% 0.19 250)',
 }
 
 function darkVars(p: ThemePalette): ResolvedPalette {
@@ -223,6 +273,8 @@ function darkVars(p: ThemePalette): ResolvedPalette {
     '--btn-export': ok(50, aC * 1.2, aH),
     '--btn-export-hover': ok(58, aC, aH),
     '--btn-on-color-text': btnOnColorText(p),
+    ...darkStatusVars,
+    ...darkLinkVars,
   }
 }
 
@@ -257,6 +309,8 @@ function lightVars(p: ThemePalette): ResolvedPalette {
     '--btn-export': ok(48, aC * 1.1, aH),
     '--btn-export-hover': ok(42, aC * 1.1, aH),
     '--btn-on-color-text': btnOnColorText(p),
+    ...lightStatusVars,
+    ...lightLinkVars,
   }
 }
 
