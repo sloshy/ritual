@@ -264,7 +264,6 @@ function App() {
               <kbd>K</kbd>
             </span>
           </button>
-          <ThemeHeaderControls />
           <div class="currency-selector">
             <label class="currency-label">Prices:</label>
             <select
@@ -297,8 +296,12 @@ function App() {
             }
             onClick={toggleEdit}
           >
-            {editTarget()?.editing() ? 'Done' : 'Edit'}
+            <span class="btn-edit-icon" aria-hidden="true">
+              {editTarget()?.editing() ? '✓' : '✏️'}
+            </span>
+            <span class="btn-edit-label">{editTarget()?.editing() ? 'Done' : 'Edit'}</span>
           </button>
+          <ThemeHeaderControls />
         </div>
 
         <Show when={editChrome.current()}>

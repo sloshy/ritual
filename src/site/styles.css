@@ -48,6 +48,17 @@ body {
   border-top: 1px solid var(--border-separator, var(--border));
 }
 
+.btn-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.btn-edit-icon {
+  font-size: 0.85em;
+  line-height: 1;
+}
+
 .btn-edit--active {
   background: var(--accent);
   color: var(--btn-on-color-text);
