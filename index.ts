@@ -6,6 +6,7 @@ setupGlobalFetch()
 
 import { Command } from 'commander'
 import { registerNewDeckCommand } from './src/commands/new-deck'
+import { registerDeckCommand } from './src/commands/deck'
 import { registerImportCommand } from './src/commands/import'
 import { registerPriceDeckCommand } from './src/commands/price'
 import { registerBuildSiteCommand } from './src/commands/build-site'
@@ -109,6 +110,7 @@ registerAddNoteCommand(program)
 registerClearNoteCommand(program)
 
 program.commandsGroup('Deck Management')
+registerDeckCommand(program)
 registerNewDeckCommand(program)
 registerImportCommand(program)
 registerImportAccountCommand(program)

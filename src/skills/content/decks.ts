@@ -3,7 +3,7 @@ import type { RitualSkill } from '../types'
 export const decksSkill: RitualSkill = {
   name: 'ritual-decks',
   description:
-    'Create, import, sync, and price Magic: The Gathering decks with Ritual. Use when the user wants to make a new deck, import a decklist from Archidekt, Moxfield, or MTGGoldfish, pull or push changes to Archidekt, extract a deck primer, or price a deck.',
+    'Create, build, import, sync, and price Magic: The Gathering decks with Ritual. Use when the user wants to make a new deck, interactively build a deck by adding cards to sections, import a decklist from Archidekt, Moxfield, or MTGGoldfish, pull or push changes to Archidekt, extract a deck primer, or price a deck.',
   body: `# Managing decks with Ritual
 
 Decks live in \`decks/<name>.md\`. See the **ritual** skill for the file format and
@@ -15,6 +15,34 @@ the **ritual-edit** skill for adding/removing individual cards.
 ritual new-deck "Winota Stax"                 # defaults to commander
 ritual new-deck "Mono-Red Aggro" -f standard  # -f / --format
 \`\`\`
+
+## Add cards (non-interactive — best for agents)
+
+Use \`add-card\` (covered by the **ritual-edit** skill) to add a single card to an
+existing deck without a TUI:
+
+\`\`\`bash
+ritual add-card winota-stax "Sol Ring" --deck
+ritual add-card winota-stax "Lightning Bolt" --deck -q 4   # -q quantity
+\`\`\`
+
+## Build interactively
+
+\`ritual deck\` opens an interactive builder (the deck counterpart to \`ritual collection\`
+and \`ritual wanted\`). You select or create a deck, then add cards to named \`## Section\`
+headers. It shares the same name/collector entry modes and session filters
+(\`-s/--sets\`, \`-f/--finish\`, \`-c/--condition\`) and adds section targeting. It **requires
+a terminal**, so it is not suitable for non-interactive agents — use \`add-card\` instead.
+
+\`\`\`bash
+ritual deck                                   # pick a deck, prompt for a section per card
+ritual deck --section Sideboard               # add every card to one section
+ritual deck --collector --sets "FDN, SPG"     # collector-number entry, sets preloaded
+\`\`\`
+
+Set the **target section** to a fixed section or "prompt every time" via \`--section\`,
+the \`🗂️ Set Target Section\` menu, or the session filters. Adding a card whose printing
+already exists in the deck increments its quantity instead of duplicating the line.
 
 ## Import from a URL or text file
 

@@ -24,6 +24,7 @@ const sidebars: SidebarsConfig = {
           type: 'category',
           label: 'Deck Management',
           items: [
+            'commands/deck',
             'commands/new-deck',
             'commands/import',
             'commands/import-account',
