@@ -40,21 +40,23 @@ When adding a card, you are prompted to choose the specificity level:
 1. **Name only (cheapest printing)** — skips printing and finish selection entirely
 2. **Choose specific printing** — enters the printing selection flow, then optionally choose a finish
 
+If no printings can be found for a chosen card, it is added name-only rather than dropped.
+
 ## Menu Options
 
 The following options are always available in the menu when no search text is typed:
 
-| Option                               | Description                                         |
-| ------------------------------------ | --------------------------------------------------- |
-| `✅ Done — Save N addition(s)`       | Save the session changelog and exit                 |
-| `🚪 Exit Without Saving`             | Exit without writing the session changelog          |
-| `⚙️ Configure Session Filters`       | Adjust default set codes and finish                 |
-| `🔢 Switch to Collector Number Mode` | Switch to collector number entry mode               |
-| `📦 Manage Set Codes`                | Add, remove, or switch active sets (collector mode) |
-| `🔤 Switch to Name Mode`             | Switch back to name entry mode (collector mode)     |
-| `➕ Add Another Copy`                | Append another copy of the last added card          |
-| `📝 Add Note`                        | Attach a note to the last added card                |
-| `✏️ Edit Previous Card`              | Re-enter the last added card with forced prompts    |
+| Option                               | Description                                                                 |
+| ------------------------------------ | --------------------------------------------------------------------------- |
+| `✅ Done — Save N change(s)`         | Save the session changelog and exit                                         |
+| `🚪 Exit Without Saving Changelog`   | Exit without writing the session changelog (card changes are already saved) |
+| `⚙️ Configure Session Filters`       | Adjust default set codes and finish                                         |
+| `🔢 Switch to Collector Number Mode` | Switch to collector number entry mode                                       |
+| `📦 Manage Set Codes`                | Add, remove, or switch active sets (collector mode)                         |
+| `🔤 Switch to Name Mode`             | Switch back to name entry mode (collector mode)                             |
+| `➕ Add Another Copy`                | Append another copy of the last added card                                  |
+| `📝 Add Note`                        | Attach a note to the last added card                                        |
+| `✏️ Edit Previous Card`              | Re-enter the last added card with forced prompts                            |
 
 ## Entry Modes
 
@@ -108,7 +110,7 @@ A wanted list can be split into named **sections** using `## Section Name` (H2) 
 - Mana Crypt (2XM:270) [foil] &2
 ```
 
-Section order is preserved as written. On the generated site, a wanted list with two or more sections defaults to grouping by section, and **Section** appears as a grouping option in the toolbar. Sections are managed from the [admin Wanted List Editor](../admin/editors.md#sections); pricing commands ignore section headers.
+Section order is preserved as written. Cards added by this command go to the file's **last** section. On the generated site, a wanted list with two or more sections defaults to grouping by section, and **Section** appears as a grouping option in the toolbar. Sections are managed from the [admin Wanted List Editor](../admin/editors.md#sections); pricing commands ignore section headers.
 
 ## Examples
 

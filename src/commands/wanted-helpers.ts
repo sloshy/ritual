@@ -1,15 +1,11 @@
-import * as fs from 'node:fs/promises'
-import path from 'node:path'
 import prompts from 'prompts'
 import type { PromptState } from './prompts-types'
 import { DEFAULT_SECTION, type Finish, type ScryfallCard } from '../types'
 import { matchSectionHeader } from '../section-format'
 import { capitalize } from '../utils'
-import { getAllCardNames } from '../scryfall'
-import { isFinish, VALID_FINISHES, type SessionConfig } from './collection-helpers'
-import { writeFileWithHash } from '../content-hash'
+import { isFinish } from './collection-helpers'
 import { getWantedDir } from '../ritual-config'
-import { parseSetCodesInput } from '../set-codes'
+import { ensureListFile, type SessionConfig } from './card-session'
 
 export type WantedListEntry = {
   name: string
@@ -89,16 +85,7 @@ export function parseWantedListFile(content: string): WantedListParseResult {
 }
 
 export async function ensureWantedListFile(name: string): Promise<string> {
-  const wantedListsDir = getWantedDir()
-  await fs.mkdir(wantedListsDir, { recursive: true })
-  const filePath = path.join(wantedListsDir, `${name}.md`)
-  if (!(await Bun.file(filePath).exists())) {
-    await writeFileWithHash(filePath, `# ${name}\n\n`)
-    console.log(`Created new wanted list file: ${name}.md`)
-  } else {
-    console.log(`Using wanted list file: ${name}.md`)
-  }
-  return filePath
+  return ensureListFile(getWantedDir(), `${name}.md`, `# ${name}\n\n`, 'wanted list')
 }
 
 export type WantedListSessionConfig = Omit<SessionConfig, 'condition'>
@@ -154,49 +141,6 @@ export async function promptWantedFinish(
   if (isExited || response.finish === undefined) return 'cancelled'
   if (response.finish === '__NONE__') return 'nopreference'
   return isFinish(response.finish) ? response.finish : 'cancelled'
-}
-
-export async function promptWantedListConfigUpdate(
-  sessionConfig: WantedListSessionConfig,
-  excludeDigitalOnly: boolean,
-): Promise<string[]> {
-  const configResponse = await prompts([
-    {
-      type: 'text',
-      name: 'sets',
-      message: 'Filter by Set Codes (comma separated, e.g. "ECL, ECC"):',
-      initial: sessionConfig.sets ? sessionConfig.sets.join(', ') : '',
-      format: (val: string) => parseSetCodesInput(val),
-    },
-    {
-      type: 'select',
-      name: 'finish',
-      message: 'Default Finish:',
-      choices: [
-        { title: 'None (Always Prompt)', value: '' },
-        { title: 'Nonfoil', value: 'nonfoil' },
-        { title: 'Foil', value: 'foil' },
-        { title: 'Etched', value: 'etched' },
-      ],
-      initial: sessionConfig.finish
-        ? (['', ...VALID_FINISHES] as readonly string[]).indexOf(sessionConfig.finish)
-        : 0,
-    },
-  ])
-
-  if (configResponse.sets !== undefined) {
-    sessionConfig.sets = configResponse.sets.length > 0 ? configResponse.sets : undefined
-  }
-
-  if (configResponse.finish !== undefined) {
-    sessionConfig.finish = configResponse.finish === '' ? undefined : configResponse.finish
-  }
-
-  console.log('Reloading card database with new filters...')
-  const cardNames = await getAllCardNames({ sets: sessionConfig.sets, excludeDigitalOnly })
-  console.log(`Loaded ${cardNames.length} cards.`)
-  console.log('Session filters updated.')
-  return cardNames
 }
 
 export { isFinish }

@@ -30,17 +30,17 @@ Options can be combined. When `--collector` is used with `--sets`, the set card 
 
 The following options are always available in the menu when no search text is typed:
 
-| Option                               | Description                                         |
-| ------------------------------------ | --------------------------------------------------- |
-| `✅ Done — Save N addition(s)`       | Save the session changelog and exit                 |
-| `🚪 Exit Without Saving`             | Exit without writing the session changelog          |
-| `⚙️ Configure Session Filters`       | Adjust default set codes, finish, and condition     |
-| `🔢 Switch to Collector Number Mode` | Switch to collector number entry mode               |
-| `📦 Manage Set Codes`                | Add, remove, or switch active sets (collector mode) |
-| `🔤 Switch to Name Mode`             | Switch back to name entry mode (collector mode)     |
-| `➕ Add Another Copy`                | Append another copy of the last added card          |
-| `📝 Add Note`                        | Attach a note to the last added card                |
-| `✏️ Edit Previous Card`              | Re-enter the last added card with forced prompts    |
+| Option                               | Description                                                                 |
+| ------------------------------------ | --------------------------------------------------------------------------- |
+| `✅ Done — Save N change(s)`         | Save the session changelog and exit                                         |
+| `🚪 Exit Without Saving Changelog`   | Exit without writing the session changelog (card changes are already saved) |
+| `⚙️ Configure Session Filters`       | Adjust default set codes, finish, and condition                             |
+| `🔢 Switch to Collector Number Mode` | Switch to collector number entry mode                                       |
+| `📦 Manage Set Codes`                | Add, remove, or switch active sets (collector mode)                         |
+| `🔤 Switch to Name Mode`             | Switch back to name entry mode (collector mode)                             |
+| `➕ Add Another Copy`                | Append another copy of the last added card                                  |
+| `📝 Add Note`                        | Attach a note to the last added card                                        |
+| `✏️ Edit Previous Card`              | Re-enter the last added card with forced prompts                            |
 
 ## Entry Modes
 
@@ -73,11 +73,11 @@ For example:
 
 ```
 - Sol Ring (C19:221) [foil] [NM] &1
-- Lightning Bolt (LEA:161) &2
+- Lightning Bolt (LEA:161) [NM] &2
 - Mana Crypt (2XM:270) [foil] [NM] {Japanese language, ignore pricing} &3
 ```
 
-Non-foil finish and no-preference condition are omitted for brevity. The note is optional and can be added after entry via the `📝 Add Note` menu option. Notes are displayed in the card detail modal on the generated site. The `&N` suffix is a persistent card ID used internally for change tracking and is auto-assigned.
+Non-foil finish is omitted for brevity; the condition is always written (a "Don't Care" choice is stored as `[NM]`, matching the admin Collection Editor). The note is optional and can be added after entry via the `📝 Add Note` menu option. Notes are displayed in the card detail modal on the generated site. The `&N` suffix is a persistent card ID used internally for change tracking and is auto-assigned.
 
 ### Sections
 
@@ -93,7 +93,7 @@ A collection can be split into named **sections** using `## Section Name` (H2) h
 - Lightning Bolt (LEA:161) &2
 ```
 
-Section order is preserved as written. On the generated site, a collection with two or more sections defaults to grouping by section, and **Section** appears as a grouping option in the toolbar. Sections are managed from the [admin Collection Editor](../admin/editors.md#sections); pricing commands ignore section headers.
+Section order is preserved as written. Cards added by this command go to the file's **last** section. On the generated site, a collection with two or more sections defaults to grouping by section, and **Section** appears as a grouping option in the toolbar. Sections are managed from the [admin Collection Editor](../admin/editors.md#sections); pricing commands ignore section headers.
 
 ## Examples
 

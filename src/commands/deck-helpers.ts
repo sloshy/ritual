@@ -2,16 +2,21 @@ import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import prompts from 'prompts'
 import type { PromptState } from './prompts-types'
-import { getAllCardNames } from '../scryfall'
 import type { DeckData } from '../types'
 import { isSamePrinting, type PrintingTuple } from '../change-event'
 import { getDecksDir } from '../ritual-config'
-import { parseSetCodesInput, formatSetCodesForDisplay } from '../set-codes'
 import { writeFileWithHash } from '../content-hash'
 import { serializeDeckToMarkdown, parseDeckFrontMatter } from '../deck-file'
 import { importFromTextFile, listDeckFiles, readDeckName } from '../importers/text-file'
 import { assignMissingDeckCardIds } from '../card-id'
-import { type SessionConfig, VALID_FINISHES } from './collection-helpers'
+import {
+  applySessionConfigAnswers,
+  buildSessionConfigQuestions,
+  ensureListFile,
+  reloadCardNames,
+  type SessionConfig,
+  type SessionConfigAnswers,
+} from './card-session'
 
 /**
  * Session state for the interactive `deck` command. Extends the shared
@@ -31,6 +36,8 @@ export type LoadedDeck = {
 
 /** Response of a section `select` prompt (an existing name, or a sentinel value). */
 type SectionPromptResponse = { section?: string }
+/** The deck config prompt's answers: the shared filters plus the target-section pick. */
+type DeckConfigAnswers = SessionConfigAnswers & { section?: string }
 /** Response of a free-form section-name `text` prompt. */
 type SectionNameResponse = { name?: string }
 
@@ -40,21 +47,12 @@ type SectionNameResponse = { name?: string }
  * file name is a slug of `name`; the display name is preserved in front matter.
  */
 export async function ensureDeckFile(name: string): Promise<string> {
-  const decksDir = getDecksDir()
-  await fs.mkdir(decksDir, { recursive: true })
   const safeName = name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '')
-  const filePath = path.join(decksDir, `${safeName}.md`)
-  if (!(await Bun.file(filePath).exists())) {
-    const content = `---\nname: "${name}"\nformat: "commander"\ntags: []\n---\n\n## Main\n`
-    await writeFileWithHash(filePath, content)
-    console.log(`Created new deck file: ${safeName}.md`)
-  } else {
-    console.log(`Using deck file: ${safeName}.md`)
-  }
-  return filePath
+  const content = `---\nname: "${name}"\nformat: "commander"\ntags: []\n---\n\n## Main\n`
+  return ensureListFile(getDecksDir(), `${safeName}.md`, content, 'deck')
 }
 
 /** Load a deck file into structured data plus its front matter for later re-serialization. */
@@ -197,7 +195,6 @@ export async function promptDeckConfigUpdate(
   sessionConfig: DeckSessionConfig,
   excludeDigitalOnly: boolean,
 ): Promise<string[]> {
-  const finishOptions = ['', ...VALID_FINISHES] as const
   const sectionChoices = [
     { title: 'Prompt every time', value: PROMPT_EVERY_TIME },
     ...deckSectionNames(deck).map((n) => ({ title: n, value: n })),
@@ -210,41 +207,8 @@ export async function promptDeckConfigUpdate(
       )
     : 0
 
-  const configResponse = await prompts([
-    {
-      type: 'text',
-      name: 'sets',
-      message: 'Filter by Set Codes (comma separated, e.g. "ECL, ECC"):',
-      initial: sessionConfig.sets ? formatSetCodesForDisplay(sessionConfig.sets) : '',
-      format: (val: string) => parseSetCodesInput(val),
-    },
-    {
-      type: 'select',
-      name: 'finish',
-      message: 'Default Finish:',
-      choices: [
-        { title: 'None (Always Prompt)', value: '' },
-        { title: 'Nonfoil', value: 'nonfoil' },
-        { title: 'Foil', value: 'foil' },
-        { title: 'Etched', value: 'etched' },
-      ],
-      initial: sessionConfig.finish ? finishOptions.indexOf(sessionConfig.finish) : 0,
-    },
-    {
-      type: 'select',
-      name: 'condition',
-      message: 'Default Condition:',
-      choices: [
-        { title: 'None (Always Prompt)', value: '' },
-        { title: "Don't Care", value: 'NONE' },
-        { title: 'Near Mint', value: 'NM' },
-        { title: 'Lightly Played', value: 'LP' },
-        { title: 'Moderately Played', value: 'MP' },
-        { title: 'Heavily Played', value: 'HP' },
-        { title: 'Damaged', value: 'DMG' },
-      ],
-      initial: 0,
-    },
+  const configResponse = (await prompts([
+    ...buildSessionConfigQuestions(sessionConfig, true),
     {
       type: 'select',
       name: 'section',
@@ -252,17 +216,9 @@ export async function promptDeckConfigUpdate(
       choices: sectionChoices,
       initial: currentSectionIndex,
     },
-  ])
+  ])) as DeckConfigAnswers
 
-  if (configResponse.sets !== undefined) {
-    sessionConfig.sets = configResponse.sets.length > 0 ? configResponse.sets : undefined
-  }
-  if (configResponse.finish !== undefined) {
-    sessionConfig.finish = configResponse.finish === '' ? undefined : configResponse.finish
-  }
-  if (configResponse.condition !== undefined) {
-    sessionConfig.condition = configResponse.condition === '' ? undefined : configResponse.condition
-  }
+  applySessionConfigAnswers(sessionConfig, configResponse)
   if (configResponse.section !== undefined) {
     if (configResponse.section === PROMPT_EVERY_TIME) {
       sessionConfig.targetSection = null
@@ -273,9 +229,7 @@ export async function promptDeckConfigUpdate(
     }
   }
 
-  console.log('Reloading card database with new filters...')
-  const cardNames = await getAllCardNames({ sets: sessionConfig.sets, excludeDigitalOnly })
-  console.log(`Loaded ${cardNames.length} cards.`)
+  const cardNames = await reloadCardNames(sessionConfig, excludeDigitalOnly)
   console.log(
     `Session filters updated. Target section: ${sessionConfig.targetSection ?? 'prompt every time'}.`,
   )

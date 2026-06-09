@@ -5,9 +5,9 @@ import {
   handleSimpleListCreate,
   handleSimpleListRename,
   handleSimpleListDelete,
-  parseTitleFromContent,
   type SimpleListConfig,
 } from '../../../src/admin/api/simple-list-helpers'
+import { parseTitleFromContent } from '../../../src/section-format'
 import { setBaseDir } from '../../../src/base-dir'
 
 const testDir = path.join(import.meta.dir, '../../.test-simple-list')

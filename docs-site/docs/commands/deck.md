@@ -40,18 +40,18 @@ format).
 
 The following options are available in the menu when no search text is typed:
 
-| Option                               | Description                                                |
-| ------------------------------------ | ---------------------------------------------------------- |
-| `✅ Done — Save N change(s)`         | Save the session changelog and exit                        |
-| `🚪 Exit Without Saving`             | Exit without writing the session changelog                 |
-| `🗂️ Set Target Section`              | Pin a section, create a new one, or prompt for each card   |
-| `⚙️ Configure Session Filters`       | Adjust default sets, finish, condition, and target section |
-| `🔢 Switch to Collector Number Mode` | Switch to collector number entry mode                      |
-| `📦 Manage Set Codes`                | Add, remove, or switch active sets (collector mode)        |
-| `🔤 Switch to Name Mode`             | Switch back to name entry mode (collector mode)            |
-| `➕ Add Another Copy`                | Increment the quantity of the last added card              |
-| `📝 Add Note`                        | Attach a note to the last added card                       |
-| `✏️ Edit Previous Card`              | Re-pick the printing/finish/condition for the last card    |
+| Option                               | Description                                                                 |
+| ------------------------------------ | --------------------------------------------------------------------------- |
+| `✅ Done — Save N change(s)`         | Save the session changelog and exit                                         |
+| `🚪 Exit Without Saving Changelog`   | Exit without writing the session changelog (card changes are already saved) |
+| `🗂️ Set Target Section`              | Pin a section, create a new one, or prompt for each card                    |
+| `⚙️ Configure Session Filters`       | Adjust default sets, finish, condition, and target section                  |
+| `🔢 Switch to Collector Number Mode` | Switch to collector number entry mode                                       |
+| `📦 Manage Set Codes`                | Add, remove, or switch active sets (collector mode)                         |
+| `🔤 Switch to Name Mode`             | Switch back to name entry mode (collector mode)                             |
+| `➕ Add Another Copy`                | Increment the quantity of the last added card                               |
+| `📝 Add Note`                        | Attach a note to the last added card                                        |
+| `✏️ Edit Previous Card`              | Re-pick the printing/finish/condition for the last card                     |
 
 ## Sections
 
@@ -76,6 +76,7 @@ session:
 
 Autocomplete-driven card name entry. Session filters (sets, finish, condition) are applied
 automatically; append `!` to a card name to force the finish/condition prompts for that entry.
+If no printings can be found for a chosen card, it is added name-only rather than dropped.
 
 ### Collector Number Mode
 

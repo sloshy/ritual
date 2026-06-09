@@ -4,6 +4,7 @@ import { writeFileWithHash, hashPath } from '../../content-hash'
 import { getErrorMessage } from '../../errors'
 import { isPathWithinDir } from '../../path-validation'
 import { sanitizeDeckFileName, capitalize } from '../../utils'
+import { parseTitleFromContent } from '../../section-format'
 import { autoCommitAndPush, validateBodySize } from './save-helpers'
 
 export type SimpleListKind = 'collection' | 'wanted'
@@ -25,16 +26,6 @@ type SimpleListResponse = {
 type CreateRequest = { name: string }
 type RenameRequest = { newName: string }
 type DeleteRequest = { confirmName: string }
-
-/** Read the first H1 (`# Title`) line from list-file content, or null if none. */
-export function parseTitleFromContent(content: string): string | null {
-  for (const line of content.split('\n')) {
-    if (line.startsWith('# ')) {
-      return line.slice(2).trim()
-    }
-  }
-  return null
-}
 
 /** Replace the first H1 line in content with `# <newTitle>`. If no H1 exists, prepend one. */
 function replaceFirstH1(content: string, newTitle: string): string {

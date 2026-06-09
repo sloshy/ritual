@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getCollectionsDir } from '../../ritual-config'
-import { parseTitleFromContent } from './simple-list-helpers'
+import { parseTitleFromContent } from '../../section-format'
 
 type CollectionListItem = { slug: string; name: string }
 

@@ -120,6 +120,7 @@ Collection entries always record the specific printing (set code and collector n
 ### Wanted List Mode
 
 1. Card is selected via autocomplete from the cache.
-2. The card name is appended to the wanted list file in `wanted/`.
+2. You are prompted for specificity: **Name only (any copy)** appends just the card name, while **Choose specific printing** enters the printing selection flow followed by a finish prompt.
+3. The entry is appended to the wanted list file in `wanted/`.
 
-Wanted list entries require only the card name. An optional finish can be specified with `-f`.
+Wanted list entries require only the card name; the printing and finish are optional (see the [card states](./wanted.md#card-states)). A default finish can be specified with `-f`.

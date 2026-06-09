@@ -9,7 +9,7 @@ import { getCollectionsDir } from '../../ritual-config'
 import { parseCollectionFile } from '../../commands/price-collection'
 import { applyChangeToCollection } from '../../editor/collection-changes'
 import { collectionToMarkdown } from '../../editor/list-export'
-import { parseTitleFromContent } from './simple-list-helpers'
+import { parseTitleFromContent } from '../../section-format'
 import {
   validateBodySize,
   validateContentHash,

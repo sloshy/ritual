@@ -7,7 +7,7 @@ import type { WantedListCardEntry } from '../../site/data-types'
 import type { ChangeEvent } from '../../change-event'
 import { getWantedDir } from '../../ritual-config'
 import { wantedToMarkdown } from '../../editor/list-export'
-import { parseTitleFromContent } from './simple-list-helpers'
+import { parseTitleFromContent } from '../../section-format'
 import {
   validateBodySize,
   validateContentHash,

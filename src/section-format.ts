@@ -19,6 +19,16 @@ export function matchSectionHeader(trimmedLine: string): string | null {
   return match ? match[1]!.trim() : null
 }
 
+/** Read the first H1 (`# Title`) line from list-file content, or null if none. */
+export function parseTitleFromContent(content: string): string | null {
+  for (const line of content.split('\n')) {
+    if (line.startsWith('# ')) {
+      return line.slice(2).trim()
+    }
+  }
+  return null
+}
+
 /**
  * Computes the canonical render/serialize order of sections: every name in `sectionOrder`
  * (which may include empty sections) first, then any section that has entries but was missing
