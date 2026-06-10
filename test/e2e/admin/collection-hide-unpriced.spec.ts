@@ -34,6 +34,27 @@ test.describe('Collection Editor – Hide Unpriced', () => {
     expect(cardNames).toContain('Unpriced Card')
   })
 
+  test('unpriced cards render "N/A" in the price column, priced cards render a price', async ({
+    page,
+  }) => {
+    const unpricedRow = page
+      .locator('.card-list')
+      .filter({ has: page.getByText('Unpriced Card', { exact: true }) })
+    await expect(unpricedRow.locator('.list-price')).toHaveText('N/A')
+
+    const pricedRow = page
+      .locator('.card-list')
+      .filter({ has: page.getByText('Priced Card', { exact: true }) })
+    await expect(pricedRow.locator('.list-price')).toHaveText('$3.50')
+  })
+
+  test('printing info renders next to the card name in parentheses', async ({ page }) => {
+    const pricedRow = page
+      .locator('.card-list')
+      .filter({ has: page.getByText('Priced Card', { exact: true }) })
+    await expect(pricedRow.locator('.list-printing')).toHaveText('(TST:10 · NM)')
+  })
+
   test('Hide Unpriced toggle is present in the toolbar', async ({ page }) => {
     const toggle = page.getByRole('button', { name: 'Hide Unpriced' })
     await expect(toggle).toBeVisible()

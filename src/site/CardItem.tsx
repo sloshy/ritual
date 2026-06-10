@@ -4,7 +4,7 @@ import type { ScryfallCard } from '../types'
 import { isCardSideways, isDoubleFacedCard, resolveCardImageSources } from './image-sources'
 import { ManaCost } from './symbols'
 import type { PriceCurrency } from '../price-currency'
-import { getCardPrice, formatPrice } from '../price-currency'
+import { getCardPrice, formatPrice, formatPriceOrNA } from '../price-currency'
 import type { ViewMode } from './card-sorting'
 import { capitalize } from './utils'
 
@@ -120,6 +120,16 @@ export const CardItem: Component<CardItemProps> = (props) => {
         const displayPrice = props.collectionPrice !== undefined ? props.collectionPrice : price
         const showPrice = displayPrice > 0
 
+        // List view groups the printing identity (set:number, finish, condition) into a
+        // single parenthesised label rendered next to the card name. Reuses finishLabel so
+        // the capitalised finish stays consistent with the binder/overlap views.
+        const printingParts = [
+          props.collectionSetCN,
+          finishLabel,
+          props.collectionCondition,
+        ].filter((part): part is string => Boolean(part))
+        const printingLabel = printingParts.length > 0 ? `(${printingParts.join(' · ')})` : null
+
         return (
           <div class="card-item" {...dataAttrs}>
             {/* Binder view */}
@@ -206,16 +216,12 @@ export const CardItem: Component<CardItemProps> = (props) => {
                 <Show when={!props.hideCount}>
                   <span class="list-qty">{props.quantity}</span>
                 </Show>
-                <span class="list-name">{props.name}</span>
-                <Show when={props.collectionSetCN}>
-                  <span class="list-set-cn">{props.collectionSetCN}</span>
-                </Show>
-                <Show when={props.collectionFinish && props.collectionFinish !== 'nonfoil'}>
-                  <span class="list-finish">{props.collectionFinish}</span>
-                </Show>
-                <Show when={props.collectionCondition}>
-                  <span class="list-condition">{props.collectionCondition}</span>
-                </Show>
+                <span class="list-name-group">
+                  <span class="list-name">{props.name}</span>
+                  <Show when={printingLabel}>
+                    <span class="list-printing">{printingLabel}</span>
+                  </Show>
+                </span>
                 <span class="list-mana">
                   <ManaCost card={card()} isDFC={isDFC} symbolMap={props.symbolMap} />
                 </span>
@@ -268,9 +274,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
                     + Trade
                   </button>
                 </Show>
-                <Show when={showPrice}>
-                  <span class="list-price">{formatPrice(displayPrice, currency)}</span>
-                </Show>
+                <span class="list-price">{formatPriceOrNA(displayPrice, currency)}</span>
               </div>
             </Show>
 

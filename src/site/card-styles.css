@@ -239,12 +239,27 @@ h3 {
   text-align: right;
 }
 
-.card-list .list-name {
+.card-list .list-name-group {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  overflow: hidden;
+}
+
+.card-list .list-name {
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.card-list .list-printing {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-style: italic;
+  white-space: nowrap;
 }
 
 .card-list .list-mana {
