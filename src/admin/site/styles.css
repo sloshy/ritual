@@ -36,7 +36,7 @@
 }
 
 .admin-nav-item[data-active='true'] {
-  background: oklch(30% 0.04 280);
+  background: var(--bg-active);
   color: var(--text-accent);
   border-left-color: var(--accent);
   font-weight: 500;
@@ -81,7 +81,7 @@
 
 .admin-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 8px 24px var(--overlay-light);
   border-color: var(--border-hover);
 }
 
@@ -173,7 +173,7 @@
   margin-top: 1.5rem;
   margin-bottom: 0.5rem;
   padding-bottom: 0.375rem;
-  border-bottom: 2px solid oklch(35% 0.04 280);
+  border-bottom: 2px solid var(--border);
   color: var(--text-accent);
 }
 
@@ -190,7 +190,7 @@
 .progress-fill {
   height: 100%;
   border-radius: 9999px;
-  background: linear-gradient(90deg, var(--accent), oklch(70% 0.15 200));
+  background: linear-gradient(90deg, var(--accent), var(--progress-end));
   transition: width 0.3s ease;
 }
 
@@ -241,12 +241,12 @@
 
 .audit-table td {
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid oklch(28% 0.02 260);
+  border-bottom: 1px solid var(--border-separator);
   color: var(--text-secondary);
 }
 
 .audit-table tr:hover td {
-  background: oklch(28% 0.025 260);
+  background: var(--bg-hover);
 }
 
 .badge {
@@ -259,19 +259,19 @@
 
 .badge-success {
   background: var(--success-bg);
-  color: #4ade80;
+  color: var(--success-text);
 }
 
 .badge-error {
   background: var(--error-bg);
-  color: #f87171;
+  color: var(--error-text);
 }
 
 /* ===== Mobile menu overlay ===== */
 .mobile-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay-light);
   z-index: 40;
 }
 
@@ -568,7 +568,7 @@
 
 .code-display {
   font-size: 0.8125rem;
-  color: oklch(75% 0.15 85);
+  color: var(--text-accent);
   font-family: monospace;
   word-break: break-all;
   user-select: all;
@@ -584,7 +584,7 @@
 
 /* ----- Audit table helpers ----- */
 .audit-row-failed {
-  background: rgba(127, 29, 29, 0.1);
+  background: var(--error-bg);
 }
 
 .text-ellipsis-sm {

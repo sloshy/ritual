@@ -228,6 +228,14 @@ export const themeVarMetadata: ThemeVarMeta[] = [
     group: 'accent',
     type: 'color',
   },
+  {
+    name: '--progress-end',
+    label: 'Progress bar end',
+    description:
+      'Far end of the progress-bar gradient (the near end is the accent). A fixed teal across themes.',
+    group: 'accent',
+    type: 'color',
+  },
 
   // ----- Buttons -----
   {

@@ -18,6 +18,11 @@
   --btn-add: oklch(52% 0.16 155);
   --btn-add-hover: oklch(60% 0.16 155);
 
+  /* ---- Progress ---- */
+  /* The far end of the progress-bar gradient (the near end is --accent). A
+     fixed teal so the bar reads as a gradient regardless of the accent hue. */
+  --progress-end: oklch(70% 0.15 200);
+
   /* ---- Overlays ---- */
   --overlay-light: rgba(0, 0, 0, 0.5);
   --overlay-medium: rgba(0, 0, 0, 0.7);
