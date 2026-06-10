@@ -1,38 +1,39 @@
 /*
- * Ritual docs palette, derived from the public site's `default` theme
- * (src/themes.ts): background hue 260 at low chroma, accent hue 265.
- * Dark mode mirrors the `default` palette; light mode mirrors
- * `default-inverted`. Values follow the same oklch formulas the site's
- * palette generator uses.
+ * Ritual docs palette, tuned to the app's dark-violet flame icon
+ * (app.svg): accent hue 290 (a vivid violet matching the flame's core
+ * `#7c3aed`/`#c084fc`), with neutrals carrying a faint violet cast at
+ * hue 285. Dark mode mirrors the public site's `default` theme; light
+ * mode mirrors `default-inverted`. Values follow the same oklch formulas
+ * the site's palette generator uses.
  */
 
 /* Dark mode colors (public site `default` theme). */
 :root {
-  --sl-color-accent-low: oklch(32% 0.07 265);
-  --sl-color-accent: oklch(55% 0.15 265);
-  --sl-color-accent-high: oklch(78% 0.12 265);
-  --sl-color-white: oklch(95% 0.005 260);
-  --sl-color-gray-1: oklch(85% 0.01 260);
-  --sl-color-gray-2: oklch(75% 0.015 260);
-  --sl-color-gray-3: oklch(60% 0.02 260);
-  --sl-color-gray-4: oklch(45% 0.02 260);
-  --sl-color-gray-5: oklch(31% 0.02 260);
-  --sl-color-gray-6: oklch(24% 0.02 260);
-  --sl-color-black: oklch(20% 0.02 260);
+  --sl-color-accent-low: oklch(32% 0.08 290);
+  --sl-color-accent: oklch(55% 0.17 290);
+  --sl-color-accent-high: oklch(80% 0.13 290);
+  --sl-color-white: oklch(95% 0.006 285);
+  --sl-color-gray-1: oklch(85% 0.012 285);
+  --sl-color-gray-2: oklch(75% 0.018 285);
+  --sl-color-gray-3: oklch(60% 0.024 285);
+  --sl-color-gray-4: oklch(45% 0.024 285);
+  --sl-color-gray-5: oklch(31% 0.024 285);
+  --sl-color-gray-6: oklch(24% 0.024 285);
+  --sl-color-black: oklch(20% 0.024 285);
 }
 
 /* Light mode colors (public site `default-inverted` theme). */
 :root[data-theme='light'] {
-  --sl-color-accent-low: oklch(90% 0.05 265);
-  --sl-color-accent: oklch(50% 0.16 265);
-  --sl-color-accent-high: oklch(35% 0.14 265);
-  --sl-color-white: oklch(20% 0.01 260);
-  --sl-color-gray-1: oklch(26% 0.01 260);
-  --sl-color-gray-2: oklch(30% 0.01 260);
-  --sl-color-gray-3: oklch(45% 0.01 260);
-  --sl-color-gray-4: oklch(55% 0.01 260);
-  --sl-color-gray-5: oklch(82% 0.01 260);
-  --sl-color-gray-6: oklch(91% 0.005 260);
-  --sl-color-gray-7: oklch(94% 0.005 260);
-  --sl-color-black: oklch(97.5% 0.003 260);
+  --sl-color-accent-low: oklch(91% 0.05 290);
+  --sl-color-accent: oklch(50% 0.2 290);
+  --sl-color-accent-high: oklch(38% 0.16 290);
+  --sl-color-white: oklch(20% 0.012 285);
+  --sl-color-gray-1: oklch(26% 0.012 285);
+  --sl-color-gray-2: oklch(30% 0.012 285);
+  --sl-color-gray-3: oklch(45% 0.012 285);
+  --sl-color-gray-4: oklch(55% 0.012 285);
+  --sl-color-gray-5: oklch(82% 0.012 285);
+  --sl-color-gray-6: oklch(91% 0.006 285);
+  --sl-color-gray-7: oklch(94% 0.006 285);
+  --sl-color-black: oklch(97.5% 0.004 285);
 }

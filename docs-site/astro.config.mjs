@@ -10,6 +10,7 @@ export default defineConfig({
       title: 'Ritual',
       description: 'An All-In-One "Magic: The Gathering" Toolkit',
       favicon: '/app.svg',
+      logo: { src: './src/assets/app.svg', alt: 'Ritual flame logo' },
       customCss: ['./src/styles/custom.css'],
       social: [
         {
