@@ -3,7 +3,7 @@ import type { RitualSkill } from '../types'
 export const collectionsSkill: RitualSkill = {
   name: 'ritual-collections',
   description:
-    'Manage and price a Magic: The Gathering card collection with Ritual. Use when the user wants to add owned cards to a collection, browse or bulk-add cards interactively, import a collection from a CSV export, or get the total value of a collection.',
+    'Manage and price a Magic: The Gathering card collection with Ritual. Use when the user wants to add owned cards to a collection, browse or bulk-add cards interactively, import a collection from a CSV export or text file, or get the total value of a collection.',
   body: `# Managing collections with Ritual
 
 Collections of owned cards live in \`collections/<name>.md\`. See the **ritual**
@@ -33,6 +33,21 @@ ritual collection --finish foil --condition NM
 ritual collection --collector              # enter cards by collector number
 ritual collection --allow-digital-only-cards
 \`\`\`
+
+## Import from a text file
+
+\`import\` turns a decklist-style text file into a new collection (quantities expand
+to one bullet line per copy):
+
+\`\`\`bash
+ritual import binder.txt --type collection
+ritual import binder.txt --type collection --overwrite --non-interactive
+\`\`\`
+
+Without \`--type\` an interactive run prompts for the list type; non-interactive runs
+default to a deck, so agents should always pass \`--type collection\`. Every line
+must carry a printing (e.g. \`2 Sol Ring (C19:221)\`) — collections track specific
+physical printings, so name-only lines are rejected.
 
 ## Import from a CSV file
 

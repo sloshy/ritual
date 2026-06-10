@@ -1,8 +1,8 @@
 import { Command } from 'commander'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
-import { ask } from './prompts-helpers'
-import { isListType, LIST_TYPES, type ListType } from '../list-type'
+import { ask, promptListType } from './prompts-helpers'
+import { isListType, listTypeLabel, LIST_TYPES, type ListType } from '../list-type'
 import {
   DECK_FORMAT_KEYS,
   getDeckFormatLabel,
@@ -261,11 +261,7 @@ export function registerImportCsvCommand(program: Command): void {
       }
 
       if (listType === undefined) {
-        const picked = await ask<ListType>({
-          type: 'select',
-          message: 'What kind of list is this?',
-          choices: LIST_TYPES.map((type) => ({ title: type, value: type })),
-        })
+        const picked = await promptListType()
         if (picked === undefined) return cancelled()
         listType = picked
       }
@@ -284,7 +280,7 @@ export function registerImportCsvCommand(program: Command): void {
       if (name === undefined) {
         const picked = await ask<string>({
           type: 'text',
-          message: `Name of the ${listType === 'wanted' ? 'wanted list' : listType} to create or append to:`,
+          message: `Name of the ${listTypeLabel(listType)} to create or append to:`,
           validate: (value: string) => (value.trim().length > 0 ? true : 'Name cannot be empty'),
         })
         if (picked === undefined) return cancelled()

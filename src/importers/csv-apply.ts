@@ -1,7 +1,15 @@
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import matter from 'gray-matter'
-import { BOARDS, type Board, type Card, type DeckData, type DeckSection } from '../types'
+import {
+  BOARDS,
+  type Board,
+  type Card,
+  type Condition,
+  type DeckData,
+  type DeckSection,
+  type Finish,
+} from '../types'
 import type { ListType } from '../list-type'
 import type { DeckFormatKey } from '../deck-format'
 import type { CsvCardEntry } from './csv'
@@ -30,13 +38,20 @@ import {
 import { sanitizeDeckFileName } from '../utils'
 
 /**
- * Applies converted CSV entries to a list on disk: creating a new list file,
+ * Applies converted card entries to a list on disk: creating a new list file,
  * overwriting one, or appending to an existing one. Shared by the `import-csv`
- * CLI command and the admin `/api/import-csv` route (and through it the MCP
- * server), so every surface imports CSVs identically.
+ * CLI command, the admin `/api/import-csv` route (and through it the MCP
+ * server), and the `import` command's text-file imports into collections and
+ * wanted lists, so every surface applies imports identically.
  */
 
 export type CsvImportMode = 'create' | 'overwrite' | 'append'
+
+/**
+ * A normalized card entry ready to apply to a list. CSV rows never produce a
+ * `note`; text-file imports can carry one through to the written list line.
+ */
+export type ImportCardEntry = CsvCardEntry & { note?: string }
 
 export type CsvImportTarget = {
   listType: ListType
@@ -60,13 +75,17 @@ export type CsvImportError = { error: string }
 
 export type CsvImportOutcome = CsvImportSuccess | CsvImportError
 
-function totalCards(entries: CsvCardEntry[]): number {
+function totalCards(entries: ImportCardEntry[]): number {
   return entries.reduce((sum, entry) => sum + entry.quantity, 0)
 }
 
 // ── Create / overwrite ──────────────────────────────────────────────
 
-function buildDeckMarkdown(name: string, format: DeckFormatKey, entries: CsvCardEntry[]): string {
+function buildDeckMarkdown(
+  name: string,
+  format: DeckFormatKey,
+  entries: ImportCardEntry[],
+): string {
   const sectionsByName = new Map<string, Card[]>()
   for (const entry of entries) {
     const card: Card = {
@@ -95,9 +114,9 @@ function buildDeckMarkdown(name: string, format: DeckFormatKey, entries: CsvCard
 }
 
 /** The list types that store flat per-copy bullet lines (everything but decks). */
-type FlatListType = Exclude<ListType, 'deck'>
+export type FlatListType = Exclude<ListType, 'deck'>
 
-type FlatCopy = CsvCardEntry & { cardId: number }
+type FlatCopy = ImportCardEntry & { cardId: number }
 
 /** A pre-existing entry parsed from the target list during an append. */
 type FlatEntry = (CollectionEntry | WantedListEntry) & { cardId?: number }
@@ -106,7 +125,7 @@ type FlatEntry = (CollectionEntry | WantedListEntry) & { cardId?: number }
 type AppendResult = { content: string; changes: ChangeEvent[] }
 
 /** Expand entries into per-copy lines (flat lists store one line per physical card). */
-function expandCopies(entries: CsvCardEntry[], pool: CardIdPool): FlatCopy[] {
+function expandCopies(entries: ImportCardEntry[], pool: CardIdPool): FlatCopy[] {
   const copies: FlatCopy[] = []
   for (const entry of entries) {
     for (let i = 0; i < entry.quantity; i++) {
@@ -116,33 +135,49 @@ function expandCopies(entries: CsvCardEntry[], pool: CardIdPool): FlatCopy[] {
   return copies
 }
 
-function formatCopyLine(listType: FlatListType, copy: FlatCopy): string {
+/**
+ * The fields a flat-list line is rendered from — the common shape of parsed
+ * entries ({@link FlatEntry}) and freshly imported copies ({@link FlatCopy}).
+ * Wanted lists never render a condition; the formatter drops it.
+ */
+type FlatLineEntry = {
+  name: string
+  set?: string
+  collectorNumber?: string
+  finish?: Finish
+  condition?: Condition
+  note?: string
+  cardId?: number
+}
+
+/** Render one flat-list bullet line in the target list type's canonical format. */
+function formatFlatListLine(listType: FlatListType, entry: FlatLineEntry): string {
   if (listType === 'collection') {
     return formatCollectionLine(
-      copy.name,
-      copy.set ?? '',
-      copy.collectorNumber ?? '',
-      copy.finish ?? 'nonfoil',
-      copy.condition,
-      undefined,
-      copy.cardId,
+      entry.name,
+      entry.set ?? '',
+      entry.collectorNumber ?? '',
+      entry.finish ?? 'nonfoil',
+      entry.condition,
+      entry.note,
+      entry.cardId,
     )
   }
   return formatWantedListLine(
-    copy.name,
-    copy.set && copy.collectorNumber
-      ? { set: copy.set, collectorNumber: copy.collectorNumber }
+    entry.name,
+    entry.set && entry.collectorNumber
+      ? { set: entry.set, collectorNumber: entry.collectorNumber }
       : undefined,
-    copy.finish,
-    undefined,
-    copy.cardId,
+    entry.finish,
+    entry.note,
+    entry.cardId,
   )
 }
 
 function buildFlatListMarkdown(
   listType: FlatListType,
   name: string,
-  entries: CsvCardEntry[],
+  entries: ImportCardEntry[],
 ): string {
   const copies = expandCopies(entries, createIdPool([]))
   const sectionOrder: string[] = []
@@ -150,13 +185,13 @@ function buildFlatListMarkdown(
     if (!sectionOrder.includes(copy.section)) sectionOrder.push(copy.section)
   }
   return serializeSectionedList(name, copies, sectionOrder, (copy) =>
-    formatCopyLine(listType, copy),
+    formatFlatListLine(listType, copy),
   )
 }
 
 async function createList(
   target: CsvImportTarget,
-  entries: CsvCardEntry[],
+  entries: ImportCardEntry[],
 ): Promise<CsvImportOutcome> {
   const safeName = sanitizeDeckFileName(target.name)
   if (safeName === '') {
@@ -196,7 +231,7 @@ function boardForSection(section: string): Board | undefined {
 function appendToDeck(
   content: string,
   fallbackName: string,
-  entries: CsvCardEntry[],
+  entries: ImportCardEntry[],
 ): AppendResult {
   const deck = parseDeckText(content, fallbackName)
   const frontMatter = matter(content).data
@@ -249,7 +284,7 @@ function appendToFlatList(
   listType: FlatListType,
   content: string,
   fallbackTitle: string,
-  entries: CsvCardEntry[],
+  entries: ImportCardEntry[],
 ): AppendResult {
   let existing: FlatEntry[]
   let sectionOrder: string[]
@@ -277,37 +312,18 @@ function appendToFlatList(
   )
 
   const title = parseTitleFromContent(content) ?? fallbackTitle
-  const formatLine = (entry: FlatEntry | FlatCopy): string => {
-    // CSV entries carry no note; only pre-existing parsed entries can have one.
-    const note = 'note' in entry ? entry.note : undefined
-    if (listType === 'collection') {
-      return formatCollectionLine(
-        entry.name,
-        entry.set ?? '',
-        entry.collectorNumber ?? '',
-        entry.finish ?? 'nonfoil',
-        'condition' in entry ? entry.condition : undefined,
-        note,
-        entry.cardId,
-      )
-    }
-    return formatWantedListLine(
-      entry.name,
-      entry.set && entry.collectorNumber
-        ? { set: entry.set, collectorNumber: entry.collectorNumber }
-        : undefined,
-      entry.finish,
-      note,
-      entry.cardId,
-    )
-  }
   const all: (FlatEntry | FlatCopy)[] = [...existing, ...copies]
-  return { content: serializeSectionedList(title, all, sectionOrder, formatLine), changes }
+  return {
+    content: serializeSectionedList(title, all, sectionOrder, (entry) =>
+      formatFlatListLine(listType, entry),
+    ),
+    changes,
+  }
 }
 
 async function appendToList(
   target: CsvImportTarget,
-  entries: CsvCardEntry[],
+  entries: ImportCardEntry[],
 ): Promise<CsvImportOutcome> {
   const location = await resolveList(target.name, target.listType)
   if (isResolveListError(location)) {
@@ -332,14 +348,14 @@ async function appendToList(
 }
 
 /**
- * Apply converted CSV entries to the target list. Create mode refuses to
+ * Apply converted card entries to the target list. Create mode refuses to
  * replace an existing file; overwrite replaces it; append requires an existing
  * list (resolved like every other list-name lookup) and records the added
  * cards in the list's changelog.
  */
 export async function applyCsvImport(
   target: CsvImportTarget,
-  entries: CsvCardEntry[],
+  entries: ImportCardEntry[],
 ): Promise<CsvImportOutcome> {
   if (target.mode === 'append') {
     return appendToList(target, entries)

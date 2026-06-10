@@ -49,11 +49,15 @@ already exists in the deck increments its quantity instead of duplicating the li
 \`\`\`bash
 # Archidekt, Moxfield, or MTGGoldfish URL, or a local decklist file
 ritual import https://archidekt.com/decks/123456
-ritual import ./my-decklist.txt
+ritual import ./my-decklist.txt --type deck
 ritual import <url> --overwrite          # replace an existing deck of the same name
 ritual import <url> --dry-run            # preview without writing files
 ritual import <url> --non-interactive    # never prompt (fail if input is required)
 \`\`\`
+
+URLs always import decks. A text file import prompts for the list type (deck,
+collection, or wanted list) unless \`--type\` is passed; non-interactive runs
+without \`--type\` default to a deck.
 
 Moxfield imports need a unique User-Agent: pass
 \`--moxfield-user-agent "you@example.com"\` or set \`MOXFIELD_USER_AGENT\`.

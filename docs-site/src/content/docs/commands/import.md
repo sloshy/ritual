@@ -2,13 +2,18 @@
 title: 'import'
 ---
 
-Import a deck from a URL or local text file.
+Import a deck from a URL, or a deck, collection, or wanted list from a local text file.
 
 ## Usage
 
 ```bash
 ./ritual import <source>
 ```
+
+When the source is a text file, `import` asks whether the cards are a deck, a
+collection, or a wanted list (pass `--type` to skip the prompt). URL imports
+always create decks — importing a collection or wanted list from a URL is not
+supported.
 
 ## Arguments
 
@@ -18,13 +23,14 @@ Import a deck from a URL or local text file.
 
 ## Options
 
-| Option                          | Description                                                                                  |
-| ------------------------------- | -------------------------------------------------------------------------------------------- |
-| `-o, --overwrite`               | Overwrite existing decks without prompting                                                   |
-| `--non-interactive`             | Disable interactive prompts; fail when user input is required                                |
-| `-y, --yes`                     | Automatically answer yes to prompts (implies overwrite conflicts)                            |
-| `--dry-run`                     | Preview actions without writing deck files                                                   |
-| `--moxfield-user-agent <agent>` | Moxfield-approved unique User-Agent string (required for Moxfield imports unless env is set) |
+| Option                          | Description                                                                                                                             |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `-t, --type <type>`             | List type for a text file import: `deck`, `collection`, or `wanted`. Skips the interactive prompt. URLs always import decks.            |
+| `-o, --overwrite`               | Overwrite existing lists without prompting                                                                                              |
+| `--non-interactive`             | Disable interactive prompts; fail when user input is required. Without `--type`, a text file import defaults to a deck.                 |
+| `-y, --yes`                     | Automatically answer yes to prompts (implies overwrite on conflicts and, like `--non-interactive`, defaults to a deck without `--type`) |
+| `--dry-run`                     | Preview actions without writing files                                                                                                   |
+| `--moxfield-user-agent <agent>` | Moxfield-approved unique User-Agent string (required for Moxfield imports unless env is set)                                            |
 
 ## Supported Sources
 
@@ -37,13 +43,13 @@ Import a deck from a URL or local text file.
 
 ## Examples
 
-Import from Archidekt:
+Import a deck from Archidekt:
 
 ```bash
 ./ritual import https://archidekt.com/decks/12345
 ```
 
-Import from Moxfield:
+Import a deck from Moxfield:
 
 ```bash
 ./ritual import https://moxfield.com/decks/abc123
@@ -55,13 +61,25 @@ Import from Moxfield with an explicit user agent:
 ./ritual import https://moxfield.com/decks/abc123 --moxfield-user-agent "YourName Ritual Import/1.0"
 ```
 
-Import from a local text file:
+Import from a local text file (prompts for the list type):
 
 ```bash
 ./ritual import ./decklist.txt
 ```
 
-Preview import without writing files:
+Import a text file into a collection:
+
+```bash
+./ritual import ./binder.txt --type collection
+```
+
+Import a text file into a wanted list without prompts:
+
+```bash
+./ritual import ./wants.txt --type wanted --non-interactive
+```
+
+Preview an import without writing files:
 
 ```bash
 ./ritual import ./decklist.txt --dry-run --non-interactive
@@ -78,13 +96,25 @@ If you need a unique user agent string, contact Moxfield support.
 
 ## Local File Format
 
-When importing from a local file, use the standard decklist format:
+When importing from a local file, use the standard decklist format. `## Section`
+headers split the cards into sections:
 
 ```
 4 Lightning Bolt
 4 Monastery Swiftspear
 2 Mountain
 
-// Sideboard
+## Sideboard
 2 Pyroblast
 ```
+
+Lines may also carry a printing, finish, condition, and note, e.g.
+`1 Sol Ring (C19:221) [foil] [NM] {trade binder}`.
+
+When importing into a collection or wanted list, each line expands to one
+bullet line per copy (`4 Lightning Bolt` becomes four `- Lightning Bolt` lines),
+matching how those lists track individual physical cards.
+
+Collection imports require a printing (`(SET:123)`) on every line, since
+collection entries always reference a specific physical printing. Wanted list
+entries may be name-only.

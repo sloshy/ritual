@@ -38,7 +38,6 @@ export default defineConfig({
               items: [
                 'commands/deck',
                 'commands/new-deck',
-                'commands/import',
                 'commands/import-account',
                 'commands/get-primer',
                 'commands/deck-sync',
@@ -55,7 +54,12 @@ export default defineConfig({
             },
             {
               label: 'Card Management',
-              items: ['commands/move', 'commands/history', 'commands/import-csv'],
+              items: [
+                'commands/move',
+                'commands/history',
+                'commands/import',
+                'commands/import-csv',
+              ],
             },
             {
               label: 'Card Lookup',

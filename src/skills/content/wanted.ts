@@ -3,7 +3,7 @@ import type { RitualSkill } from '../types'
 export const wantedSkill: RitualSkill = {
   name: 'ritual-wanted',
   description:
-    'Manage and price a Magic: The Gathering wanted list (cards to acquire) with Ritual. Use when the user wants to track cards they want to buy, add cards to a wishlist, import a wanted list from a CSV file, or price a wanted list.',
+    'Manage and price a Magic: The Gathering wanted list (cards to acquire) with Ritual. Use when the user wants to track cards they want to buy, add cards to a wishlist, import a wanted list from a CSV or text file, or price a wanted list.',
   body: `# Managing wanted lists with Ritual
 
 Wanted lists (cards to acquire) live in \`wanted/<name>.md\`. Entries may be
@@ -32,6 +32,19 @@ ritual wanted --finish foil
 ritual wanted --collector              # enter cards by collector number
 ritual wanted --allow-digital-only-cards
 \`\`\`
+
+## Import from a text file
+
+\`import\` turns a decklist-style text file into a new wanted list (quantities expand
+to one bullet line per copy):
+
+\`\`\`bash
+ritual import wants.txt --type wanted
+ritual import wants.txt --type wanted --overwrite --non-interactive
+\`\`\`
+
+Without \`--type\` an interactive run prompts for the list type; non-interactive runs
+default to a deck, so agents should always pass \`--type wanted\`.
 
 ## Import from a CSV file
 

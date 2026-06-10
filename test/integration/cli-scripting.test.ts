@@ -71,4 +71,73 @@ name: "Conflict Deck"
       expect(result.stderr).toContain('Import conflict')
     })
   })
+
+  test('import text file with --type wanted writes a wanted list', async () => {
+    await withTempDir(async (dir) => {
+      const sourcePath = path.join(dir, 'wants.txt')
+      await Bun.write(sourcePath, '2 Lightning Bolt (lea:161)\n')
+
+      const result = await runCli(
+        ['import', sourcePath, '--type', 'wanted', '--non-interactive'],
+        dir,
+      )
+
+      expect(result.exitCode).toBe(0)
+      const content = await fs.readFile(path.join(dir, 'wanted', 'wants.md'), 'utf-8')
+      expect(content).toContain('- Lightning Bolt (LEA:161) &1')
+      expect(content).toContain('- Lightning Bolt (LEA:161) &2')
+    })
+  })
+
+  test('import text file with --type collection writes a collection', async () => {
+    await withTempDir(async (dir) => {
+      const sourcePath = path.join(dir, 'binder.txt')
+      await Bun.write(sourcePath, '1 Sol Ring (C19:221)\n')
+
+      const result = await runCli(
+        ['import', sourcePath, '--type', 'collection', '--non-interactive'],
+        dir,
+      )
+
+      expect(result.exitCode).toBe(0)
+      const content = await fs.readFile(path.join(dir, 'collections', 'binder.md'), 'utf-8')
+      expect(content).toContain('- Sol Ring (C19:221) &1')
+    })
+  })
+
+  test('import text file without printings as collection returns runtime exit code', async () => {
+    await withTempDir(async (dir) => {
+      const sourcePath = path.join(dir, 'binder.txt')
+      await Bun.write(sourcePath, '1 Arcane Signet\n')
+
+      const result = await runCli(
+        ['import', sourcePath, '--type', 'collection', '--non-interactive'],
+        dir,
+      )
+
+      expect(result.exitCode).toBe(1)
+      expect(result.stderr).toContain('no printing')
+    })
+  })
+
+  test('import url with non-deck --type returns usage exit code', async () => {
+    await withTempDir(async (dir) => {
+      const result = await runCli(
+        ['import', 'https://archidekt.com/decks/12345', '--type', 'collection'],
+        dir,
+      )
+
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain('URL imports only support decks')
+    })
+  })
+
+  test('import with invalid --type returns usage exit code', async () => {
+    await withTempDir(async (dir) => {
+      const result = await runCli(['import', 'cards.txt', '--type', 'binder'], dir)
+
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain("Invalid list type 'binder'")
+    })
+  })
 })

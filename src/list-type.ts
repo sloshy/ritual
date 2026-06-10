@@ -11,6 +11,11 @@ export function isListType(value: string): value is ListType {
   return value === 'deck' || value === 'collection' || value === 'wanted'
 }
 
+/** Lowercase human-readable label for a list type in CLI messages. */
+export function listTypeLabel(type: ListType): string {
+  return type === 'wanted' ? 'wanted list' : type
+}
+
 export type ListTypeDisplay = { label: string; icon: string }
 
 /**
