@@ -158,6 +158,18 @@ describe('generateThemeCss', () => {
     expect(generateThemeCss('default')).not.toBe(generateThemeCss('default-inverted'))
   })
 
+  test('flips the foil blend mode by mode so the sheen reads on both', () => {
+    // screen lightens (great on dark rows, invisible on near-white); multiply
+    // darkens (visible on light rows). Each theme must pick the one that shows.
+    for (const name of themeNames) {
+      const css = generateThemeCss(name)
+      const expectedBlend = themes[name].isDark ? 'screen' : 'multiply'
+      expect(css).toContain(`--foil-blend: ${expectedBlend};`)
+      expect(css).toContain('--foil-opacity:')
+      expect(css).toContain('--foil-opacity-hover:')
+    }
+  })
+
   test('produces only valid oklch() values', () => {
     for (const name of themeNames) {
       const css = generateThemeCss(name)

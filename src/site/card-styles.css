@@ -818,15 +818,18 @@ h3 {
     background-position: 0% 0%;
     pointer-events: none;
     border-radius: var(--card-radius);
-    opacity: 0.6;
+    opacity: var(--foil-opacity);
     transition:
       opacity 0.3s ease,
       background-position 0.4s ease;
-    mix-blend-mode: screen;
+    /* screen (lightens) on dark themes, multiply (darkens) on light themes —
+       see darkFoilVars/lightFoilVars in themes.ts. Keeps the sheen visible
+       against both near-black and near-white rows. */
+    mix-blend-mode: var(--foil-blend);
   }
 
   &:hover::after {
-    opacity: 1;
+    opacity: var(--foil-opacity-hover);
     background-position: 100% 100%;
   }
 }

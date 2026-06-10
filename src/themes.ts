@@ -171,6 +171,9 @@ export type ResolvedPalette = ThemeCssVars & {
   '--card-label-text': string
   '--card-label-meta': string
   '--card-label-price': string
+  '--foil-blend': string
+  '--foil-opacity': string
+  '--foil-opacity-hover': string
 }
 
 // A custom theme captured from the in-browser editor or a user JSON file.
@@ -257,6 +260,26 @@ const cardLabelVars = {
   '--card-label-price': 'oklch(82% 0.16 155)',
 }
 
+// Foil rainbow sheen on card rows/tiles. The sheen gradient itself is a fixed
+// rainbow (in `card-styles.css`); what flips per mode is *how* it composites.
+// `screen` lightens, so on dark themes the rainbow reads as a bright additive
+// glow — but over a near-white light-theme row it does almost nothing (screen
+// onto white ≈ white). Light themes therefore switch to `multiply`, which
+// darkens the row into a clearly visible pastel rainbow instead. These are
+// mechanism tokens (a blend-mode keyword and opacity scalars), not color/length
+// values, so they are intentionally not surfaced in the theme editor.
+const darkFoilVars = {
+  '--foil-blend': 'screen',
+  '--foil-opacity': '0.6',
+  '--foil-opacity-hover': '1',
+}
+
+const lightFoilVars = {
+  '--foil-blend': 'multiply',
+  '--foil-opacity': '0.85',
+  '--foil-opacity-hover': '1',
+}
+
 function darkVars(p: ThemePalette): ResolvedPalette {
   const { bgHue: bH, bgChroma: bC, accentHue: aH, accentChroma: aC } = p
   const textC = Math.min(bC, 0.005)
@@ -292,6 +315,7 @@ function darkVars(p: ThemePalette): ResolvedPalette {
     ...darkStatusVars,
     ...darkLinkVars,
     ...cardLabelVars,
+    ...darkFoilVars,
   }
 }
 
@@ -329,6 +353,7 @@ function lightVars(p: ThemePalette): ResolvedPalette {
     ...lightStatusVars,
     ...lightLinkVars,
     ...cardLabelVars,
+    ...lightFoilVars,
   }
 }
 
