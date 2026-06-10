@@ -918,6 +918,7 @@ dialog.discard-dialog-native {
   inset: 0;
   border: none;
   background: transparent;
+  color: inherit;
   padding: 0;
   margin: 0;
   width: 100%;
