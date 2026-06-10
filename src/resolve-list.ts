@@ -49,7 +49,8 @@ export function isResolveListError(result: ResolveListResult): result is Resolve
   return 'kind' in result
 }
 
-function dirForType(type: ListType): string {
+/** The configured directory that holds list files of the given type. */
+export function dirForType(type: ListType): string {
   if (type === 'deck') return getDecksDir()
   if (type === 'collection') return getCollectionsDir()
   return getWantedDir()

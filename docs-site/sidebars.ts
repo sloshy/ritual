@@ -45,6 +45,11 @@ const sidebars: SidebarsConfig = {
         },
         {
           type: 'category',
+          label: 'Card Management',
+          items: ['commands/move', 'commands/history', 'commands/import-csv'],
+        },
+        {
+          type: 'category',
           label: 'Card Lookup',
           items: ['commands/card', 'commands/scry', 'commands/random'],
         },
@@ -77,7 +82,12 @@ const sidebars: SidebarsConfig = {
         {
           type: 'category',
           label: 'Utilities',
-          items: ['commands/config-set', 'commands/git-detect-changes', 'commands/list-all-cards'],
+          items: [
+            'commands/config-set',
+            'commands/git-detect-changes',
+            'commands/hash',
+            'commands/list-all-cards',
+          ],
         },
         {
           type: 'category',

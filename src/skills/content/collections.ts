@@ -3,7 +3,7 @@ import type { RitualSkill } from '../types'
 export const collectionsSkill: RitualSkill = {
   name: 'ritual-collections',
   description:
-    'Manage and price a Magic: The Gathering card collection with Ritual. Use when the user wants to add owned cards to a collection, browse or bulk-add cards interactively, or get the total value of a collection.',
+    'Manage and price a Magic: The Gathering card collection with Ritual. Use when the user wants to add owned cards to a collection, browse or bulk-add cards interactively, import a collection from a CSV export, or get the total value of a collection.',
   body: `# Managing collections with Ritual
 
 Collections of owned cards live in \`collections/<name>.md\`. See the **ritual**
@@ -33,6 +33,23 @@ ritual collection --finish foil --condition NM
 ritual collection --collector              # enter cards by collector number
 ritual collection --allow-digital-only-cards
 \`\`\`
+
+## Import from a CSV file
+
+\`import-csv\` creates a **new** collection from a CSV export (Moxfield, Deckbox,
+ManaBox, ...). Non-interactive agents must pass all flags (running it bare opens an
+interactive column-mapping wizard):
+
+\`\`\`bash
+ritual import-csv binder.csv --type collection --name "Red Binder" \\
+  --columns "name=1,set=2,collector-number=3,finish=4,condition=5,quantity=6"
+\`\`\`
+
+\`--columns\` maps fields to 1-based column numbers; collections require \`name\`,
+\`set\`, and \`collector-number\` columns. Add \`--no-header\` when the first row is data,
+\`--overwrite\` to replace an existing collection. Conditions/finishes are normalized
+(e.g. \`Near Mint\` → \`NM\`, \`F\` → foil, empty → non-foil). Failed rows are reported
+with line numbers on stderr and the rest still import (exit code 1 on partial failure).
 
 ## Price
 

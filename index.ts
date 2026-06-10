@@ -20,6 +20,7 @@ import { registerCacheServerCommand } from './src/commands/cache-server'
 import { registerLoginCommand } from './src/commands/login'
 
 import { registerImportAccountCommand } from './src/commands/import-account'
+import { registerImportCsvCommand } from './src/commands/import-csv'
 import { registerCollectionCommand } from './src/commands/collection'
 import { registerPriceCollectionCommand } from './src/commands/price-collection'
 import { registerWantedListCommand } from './src/commands/wanted'
@@ -129,6 +130,7 @@ registerPriceWantedListCommand(program)
 program.commandsGroup('Card Management')
 registerMoveCommand(program)
 registerHistoryCommand(program)
+registerImportCsvCommand(program)
 
 program.commandsGroup('Card Lookup')
 registerCardCommand(program)

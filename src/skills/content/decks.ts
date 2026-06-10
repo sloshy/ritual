@@ -3,7 +3,7 @@ import type { RitualSkill } from '../types'
 export const decksSkill: RitualSkill = {
   name: 'ritual-decks',
   description:
-    'Create, build, import, sync, and price Magic: The Gathering decks with Ritual. Use when the user wants to make a new deck, interactively build a deck by adding cards to sections, import a decklist from Archidekt, Moxfield, or MTGGoldfish, pull or push changes to Archidekt, extract a deck primer, or price a deck.',
+    'Create, build, import, sync, and price Magic: The Gathering decks with Ritual. Use when the user wants to make a new deck, interactively build a deck by adding cards to sections, import a decklist from Archidekt, Moxfield, or MTGGoldfish, import a deck from a CSV file, pull or push changes to Archidekt, extract a deck primer, or price a deck.',
   body: `# Managing decks with Ritual
 
 Decks live in \`decks/<name>.md\`. See the **ritual** skill for the file format and
@@ -57,6 +57,23 @@ ritual import <url> --non-interactive    # never prompt (fail if input is requir
 
 Moxfield imports need a unique User-Agent: pass
 \`--moxfield-user-agent "you@example.com"\` or set \`MOXFIELD_USER_AGENT\`.
+
+## Import from a CSV file
+
+\`import-csv\` creates a **new** deck from a CSV export. Non-interactive agents must
+pass all flags (running it bare opens an interactive column-mapping wizard):
+
+\`\`\`bash
+ritual import-csv burn.csv --type deck --name "Burn" --format modern \\
+  --columns "quantity=1,name=2,section=3"
+\`\`\`
+
+\`--columns\` maps fields to 1-based column numbers (fields: \`name\`, \`set\`,
+\`collector-number\`, \`condition\`, \`finish\`, \`section\`, \`quantity\`; only \`name\` is
+required for decks). Add \`--no-header\` when the first row is data, \`--overwrite\` to
+replace an existing deck. Conditions/finishes/sections are normalized (e.g.
+\`Near Mint\` → \`NM\`, \`F\` → foil, \`side\` → \`Sideboard\`). Failed rows are reported with
+line numbers on stderr and the rest still import (exit code 1 on partial failure).
 
 ## Import an entire Archidekt account
 

@@ -3,7 +3,7 @@ import type { RitualSkill } from '../types'
 export const wantedSkill: RitualSkill = {
   name: 'ritual-wanted',
   description:
-    'Manage and price a Magic: The Gathering wanted list (cards to acquire) with Ritual. Use when the user wants to track cards they want to buy, add cards to a wishlist, or price a wanted list.',
+    'Manage and price a Magic: The Gathering wanted list (cards to acquire) with Ritual. Use when the user wants to track cards they want to buy, add cards to a wishlist, import a wanted list from a CSV file, or price a wanted list.',
   body: `# Managing wanted lists with Ritual
 
 Wanted lists (cards to acquire) live in \`wanted/<name>.md\`. Entries may be
@@ -32,6 +32,21 @@ ritual wanted --finish foil
 ritual wanted --collector              # enter cards by collector number
 ritual wanted --allow-digital-only-cards
 \`\`\`
+
+## Import from a CSV file
+
+\`import-csv\` creates a **new** wanted list from a CSV file. Non-interactive agents
+must pass all flags (running it bare opens an interactive column-mapping wizard):
+
+\`\`\`bash
+ritual import-csv wants.csv --type wanted --name "To Buy" \\
+  --columns "name=1,set=2,collector-number=3,finish=4,quantity=5"
+\`\`\`
+
+\`--columns\` maps fields to 1-based column numbers; only \`name\` is required and
+wanted lists carry no \`condition\` column. Add \`--no-header\` when the first row is
+data, \`--overwrite\` to replace an existing list. Failed rows are reported with line
+numbers on stderr and the rest still import (exit code 1 on partial failure).
 
 ## Price
 

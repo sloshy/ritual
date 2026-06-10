@@ -88,7 +88,10 @@ export function getMainDeckSize(sections: DeckSection[]): number {
 
 const FORMAT_KEYS = new Set<string>(Object.keys(FORMAT_INFO))
 
-function normalizeFormatKey(raw: string): DeckFormatKey | null {
+/** Every legal deck format key, in declaration order. */
+export const DECK_FORMAT_KEYS = Object.keys(FORMAT_INFO) as DeckFormatKey[]
+
+export function normalizeFormatKey(raw: string): DeckFormatKey | null {
   const normalized = raw
     .trim()
     .toLowerCase()
