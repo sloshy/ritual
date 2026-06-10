@@ -103,4 +103,52 @@ test.describe('Theme picker', () => {
     await expect(page.locator('.theme-editor')).toBeVisible()
     await expect(page.getByRole('dialog', { name: 'Choose theme' })).toBeHidden()
   })
+
+  test('recolors the app icon (header flame + favicon) when the theme changes', async ({
+    page,
+  }) => {
+    // The inner-core base stop of the header flame resolves from the theme's
+    // --flame-* vars; the favicon is a re-tinted data URI of the same flame.
+    const coreColor = () =>
+      page.evaluate(() => {
+        // Inner-core gradient is the second/last radialGradient; its last stop
+        // is the saturated base (--flame-inner-3).
+        const el = document.querySelector(
+          '.site-logo-icon radialGradient:last-of-type stop:last-of-type',
+        )
+        return el ? getComputedStyle(el).stopColor : null
+      })
+    const faviconHref = () =>
+      page.evaluate(() => document.querySelector('link[rel="icon"]')?.getAttribute('href') ?? null)
+
+    const defaultCore = await coreColor()
+    const defaultFavicon = await faviconHref()
+    expect(defaultCore).toBeTruthy()
+    // The mounted SPA swaps the static app.svg favicon for a generated data URI.
+    expect(defaultFavicon).toMatch(/^data:image\/svg\+xml,/)
+
+    await page.getByRole('button', { name: 'Theme', exact: true }).click()
+    await page
+      .getByRole('dialog', { name: 'Choose theme' })
+      .getByRole('option', { name: /izzet/ })
+      .first()
+      .click()
+    await expect
+      .poll(async () => page.evaluate(() => document.documentElement.dataset.theme))
+      .toBe('izzet')
+
+    // izzet's accent is a warm red hue, so both the flame core and favicon must change.
+    await expect.poll(coreColor).not.toBe(defaultCore)
+    await expect.poll(faviconHref).not.toBe(defaultFavicon)
+
+    // The tint survives a reload: the persisted theme re-tints the favicon on
+    // mount rather than falling back to the static app.svg.
+    const izzetCore = await coreColor()
+    await page.reload()
+    await expect
+      .poll(async () => page.evaluate(() => document.documentElement.dataset.theme))
+      .toBe('izzet')
+    await expect.poll(faviconHref).toMatch(/^data:image\/svg\+xml,/)
+    await expect.poll(coreColor).toBe(izzetCore)
+  })
 })

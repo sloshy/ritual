@@ -4,6 +4,7 @@ import {
   generateCustomThemeCss,
   generateThemeCss,
   isThemeName,
+  paletteToVars,
   parseCustomTheme,
   resolveThemeName,
   themeNames,
@@ -170,6 +171,26 @@ describe('generateThemeCss', () => {
     }
   })
 
+  test('emits all six app-icon flame stops, hued to the theme accent', () => {
+    for (const name of themeNames) {
+      const css = generateThemeCss(name)
+      const accentHue = themes[name].accentHue
+      for (const stop of [
+        '--flame-outer-1',
+        '--flame-outer-2',
+        '--flame-outer-3',
+        '--flame-inner-1',
+        '--flame-inner-2',
+        '--flame-inner-3',
+      ]) {
+        const m = css.match(new RegExp(`${stop}: oklch\\(([^)]+)\\);`))
+        expect(m, `${name} should define ${stop}`).not.toBeNull()
+        const hue = Number(m![1]!.trim().split(/\s+/)[2])
+        expect(hue, `${name} ${stop} hue`).toBe(accentHue)
+      }
+    }
+  })
+
   test('produces only valid oklch() values', () => {
     for (const name of themeNames) {
       const css = generateThemeCss(name)
@@ -187,6 +208,24 @@ describe('generateThemeCss', () => {
         }
       }
     }
+  })
+})
+
+describe('paletteToVars flame stops', () => {
+  test('caps flame chroma at 0.3 for very saturated accents', () => {
+    // The largest flame chroma multiplier is 1.35 (inner-3); no registered
+    // theme reaches the cap (max accentChroma 0.2 → 0.27), so exercise it with
+    // a synthetic over-saturated palette.
+    const vars = paletteToVars({
+      bgHue: 285,
+      bgChroma: 0.02,
+      isDark: true,
+      accentHue: 290,
+      accentChroma: 0.25,
+    })
+    const chromaOf = (v: string): number => Number(v.match(/oklch\([^ ]+ ([^ ]+) /)![1])
+    expect(chromaOf(vars['--flame-inner-3'])).toBe(0.3)
+    expect(chromaOf(vars['--flame-outer-1'])).toBeLessThanOrEqual(0.3)
   })
 })
 

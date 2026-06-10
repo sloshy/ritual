@@ -28,6 +28,7 @@ export type ThemeVarGroupId =
   | 'buttons'
   | 'status'
   | 'overlays'
+  | 'flame'
   | 'misc'
 
 export type ThemeVarGroup = {
@@ -73,6 +74,12 @@ export const themeVarGroups: ThemeVarGroup[] = [
     label: 'Overlays',
     description:
       'Translucent dark scrims — and the text drawn on them — for modals, tooltips, and gradients on top of card art. Universal across themes.',
+  },
+  {
+    id: 'flame',
+    label: 'Flame icon',
+    description:
+      'Gradient stops for the app’s candle-flame logo and browser-tab favicon. Derived from the accent by default; the flame recolors live as you edit them.',
   },
   { id: 'misc', label: 'Misc', description: 'Sizing tokens and other non-color values.' },
 ]
@@ -403,6 +410,50 @@ export const themeVarMetadata: ThemeVarMeta[] = [
     label: 'Card label price',
     description: 'Price shown on the card hover label — a universally bright green.',
     group: 'overlays',
+    type: 'color',
+  },
+
+  // ----- Flame icon -----
+  {
+    name: '--flame-outer-1',
+    label: 'Flame body (bright)',
+    description: 'Brightest part of the flame’s dark outer body, near the inner core.',
+    group: 'flame',
+    type: 'color',
+  },
+  {
+    name: '--flame-outer-2',
+    label: 'Flame body (mid)',
+    description: 'Mid tone of the flame’s outer body.',
+    group: 'flame',
+    type: 'color',
+  },
+  {
+    name: '--flame-outer-3',
+    label: 'Flame body (edge)',
+    description: 'Darkest tone at the outer edge of the flame.',
+    group: 'flame',
+    type: 'color',
+  },
+  {
+    name: '--flame-inner-1',
+    label: 'Flame core (hot)',
+    description: 'The hot, near-white center of the flame’s glowing inner core.',
+    group: 'flame',
+    type: 'color',
+  },
+  {
+    name: '--flame-inner-2',
+    label: 'Flame core (glow)',
+    description: 'Mid glow of the flame’s inner core.',
+    group: 'flame',
+    type: 'color',
+  },
+  {
+    name: '--flame-inner-3',
+    label: 'Flame core (base)',
+    description: 'Saturated base of the flame’s inner core.',
+    group: 'flame',
     type: 'color',
   },
 

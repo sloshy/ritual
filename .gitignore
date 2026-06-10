@@ -55,6 +55,9 @@ styles.compiled.css
 app.compiled.js
 src/generated/
 
+**/.claude/agent-memory/
+
+
 # Personal files
 install_dev.sh
 
@@ -67,5 +70,3 @@ test/.test-*/
 
 # Dev files
 *.js.map
-
-.claude/agent-memory/

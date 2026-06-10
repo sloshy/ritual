@@ -116,21 +116,23 @@ You can edit these lists from the admin **Settings** page, with [`config-set`](/
 
 The generated site ships with multiple themes selectable at runtime, or setting a default theme at build time. The `--theme` flag controls which theme is the **initial** one served (i.e. what users see on first visit before they pick something). Ten Magic-flavored "guild" palettes are available alongside the default, each with a primary background color and a contrasting highlight color used for buttons, focus rings, and accents:
 
-| Theme      | Background     | Highlight |
-| ---------- | -------------- | --------- |
-| `default`  | dark cool blue | blue      |
-| `orzhov`   | dark gray      | white     |
-| `izzet`    | dark blue      | red       |
-| `gruul`    | dark green     | red       |
-| `rakdos`   | dark gray      | red       |
-| `selesnya` | off-white      | green     |
-| `azorius`  | off-white      | blue      |
-| `boros`    | off-white      | red       |
-| `dimir`    | dark gray      | blue      |
-| `simic`    | dark blue      | green     |
-| `golgari`  | dark gray      | green     |
+| Theme      | Background  | Highlight |
+| ---------- | ----------- | --------- |
+| `default`  | dark violet | violet    |
+| `orzhov`   | dark gray   | white     |
+| `izzet`    | dark blue   | red       |
+| `gruul`    | dark green  | red       |
+| `rakdos`   | dark gray   | red       |
+| `selesnya` | off-white   | green     |
+| `azorius`  | off-white   | blue      |
+| `boros`    | off-white   | red       |
+| `dimir`    | dark gray   | blue      |
+| `simic`    | dark blue   | green     |
+| `golgari`  | dark gray   | green     |
 
 Each theme also has an inverted variant accessible by appending `-inverted` to its name (e.g. `azorius-inverted`, `boros-inverted`). Inverted themes swap the background and highlight colors so the highlight becomes the dominant background and the original background becomes the accent — shade and intensity are adjusted so the resulting palette stays comfortable to read.
+
+The app's flame logo — both the header icon and the browser-tab favicon — is tinted from each theme's accent, so switching themes recolors the icon to match (a vivid flame for saturated accents, a pale "white flame" for near-neutral ones).
 
 ```bash
 ./ritual build-site --theme izzet
@@ -141,7 +143,7 @@ Each theme also has an inverted variant accessible by appending `-inverted` to i
 
 The header's **Theme** button opens a picker popover listing every built-in palette with a preview swatch. Clicking a palette switches the base theme; if the visitor has in-progress customizations, the picker first asks for confirmation before discarding them. Only the chosen theme name (and any explicit overrides) is stored in `localStorage` — when a future build ships updated built-in palettes, visitors who haven't customized see those updates automatically.
 
-For per-variable tweaks, the picker has a **Customize theme…** entry that opens the in-browser **theme editor**. The editor exposes every CSS variable as a labeled control (OKLch sliders for colors, number inputs for sizes), lets the user start from any built-in palette, and live-previews changes across all pages. The user's edits persist in `localStorage` so subsequent visits restore their custom palette.
+For per-variable tweaks, the picker has a **Customize theme…** entry that opens the in-browser **theme editor**. The editor exposes every CSS variable as a labeled control (OKLch sliders for colors, number inputs for sizes) grouped into tabs — including a **Flame icon** group for the six gradient stops of the app logo — lets the user start from any built-in palette, and live-previews changes across all pages (the flame logo and favicon recolor as you drag). The user's edits persist in `localStorage` so subsequent visits restore their custom palette.
 
 A **Download JSON** button in the editor exports the full set of variables as a `.json` file. To bake one of those palettes back into a build, pass it to `--theme-file`:
 

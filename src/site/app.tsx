@@ -28,6 +28,8 @@ import { useSiteData } from './useSiteData'
 import { useFetchJson } from './useFetchJson'
 import { tradeToast } from './useTradeState'
 import { createThemeStore, ThemeProvider, useTheme } from './useTheme'
+import { syncFaviconToTheme } from './useFavicon'
+import { FlameIcon } from './FlameIcon'
 import { ThemeEditor } from './ThemeEditor'
 import { ThemePicker } from './ThemePicker'
 
@@ -187,7 +189,7 @@ function App() {
       <header ref={headerRef} class="site-header">
         <div class="site-header-main">
           <a href="#/" class="site-logo">
-            <img src="app.svg" alt="Ritual logo" class="site-logo-icon" />
+            <FlameIcon class="site-logo-icon" />
             <span class="site-logo-text">Ritual</span>
           </a>
           <span class="site-nav-sep">|</span>
@@ -571,6 +573,7 @@ function ThemeHeaderControls() {
 
 function Root() {
   const themeStore = createThemeStore()
+  syncFaviconToTheme(themeStore)
   return (
     <ThemeProvider store={themeStore}>
       <EditChromeProvider>

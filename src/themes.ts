@@ -13,6 +13,8 @@
 // This file is browser-safe except for the Node-only `resolveThemeName`
 // helper at the very bottom; do not call that from SPA code.
 
+import { flameStopVars } from './flame'
+
 export type ThemePalette = {
   bgHue: number
   bgChroma: number
@@ -22,13 +24,16 @@ export type ThemePalette = {
 }
 
 export const themes = {
-  default: { bgHue: 260, bgChroma: 0.02, isDark: true, accentHue: 265, accentChroma: 0.15 },
+  // Violet palette matching the app's purple candle-flame icon (app.svg):
+  // a vivid violet accent at hue 290 over neutrals with a faint violet cast
+  // at hue 285. The docs site (docs-site/src/styles/custom.css) mirrors these.
+  default: { bgHue: 285, bgChroma: 0.02, isDark: true, accentHue: 290, accentChroma: 0.17 },
   'default-inverted': {
-    bgHue: 260,
+    bgHue: 285,
     bgChroma: 0.01,
     isDark: false,
-    accentHue: 265,
-    accentChroma: 0.16,
+    accentHue: 290,
+    accentChroma: 0.2,
   },
 
   orzhov: { bgHue: 280, bgChroma: 0.005, isDark: true, accentHue: 80, accentChroma: 0.005 },
@@ -125,6 +130,15 @@ export function isThemeName(value: string): value is ThemeName {
 
 export type ThemeCssVars = Record<string, string>
 
+// The six app-icon flame gradient stops, keyed by the `--flame-*` var names.
+// Derived from `flameStopVars` (the single source of truth in `flame.ts`) so a
+// stop added there flows into this type — and breaks `flameVars` at the
+// missing key — automatically. Its own type so `flameVars` can return exactly
+// these keys (a plain record won't satisfy `ResolvedPalette`).
+export type FlameCssVars = {
+  [K in (typeof flameStopVars)[keyof typeof flameStopVars]]: string
+}
+
 // Every CSS variable that `paletteToVars` is guaranteed to produce. Listed
 // explicitly so consumers can index a resolved palette without
 // undefined-narrowing, and so a future refactor that drops a key here breaks
@@ -132,49 +146,50 @@ export type ThemeCssVars = Record<string, string>
 // downstream. The intersection with `ThemeCssVars` keeps a resolved palette
 // structurally assignable wherever a generic theme-var dict is expected
 // (e.g. `renderRule`).
-export type ResolvedPalette = ThemeCssVars & {
-  '--bg-body': string
-  '--bg-panel': string
-  '--bg-hover': string
-  '--bg-active': string
-  '--bg-subtle': string
-  '--border': string
-  '--border-hover': string
-  '--border-focus': string
-  '--border-separator': string
-  '--text-primary': string
-  '--text-body': string
-  '--text-secondary': string
-  '--text-muted': string
-  '--text-dim': string
-  '--text-accent': string
-  '--accent': string
-  '--accent-hover': string
-  '--accent-dim': string
-  '--btn-bg': string
-  '--btn-hover': string
-  '--btn-text': string
-  '--btn-primary': string
-  '--btn-primary-hover': string
-  '--btn-export': string
-  '--btn-export-hover': string
-  '--btn-on-color-text': string
-  '--success-bg': string
-  '--success-border': string
-  '--success-text': string
-  '--error': string
-  '--error-bg': string
-  '--error-border': string
-  '--error-text': string
-  '--card-link': string
-  '--card-link-hover': string
-  '--card-label-text': string
-  '--card-label-meta': string
-  '--card-label-price': string
-  '--foil-blend': string
-  '--foil-opacity': string
-  '--foil-opacity-hover': string
-}
+export type ResolvedPalette = ThemeCssVars &
+  FlameCssVars & {
+    '--bg-body': string
+    '--bg-panel': string
+    '--bg-hover': string
+    '--bg-active': string
+    '--bg-subtle': string
+    '--border': string
+    '--border-hover': string
+    '--border-focus': string
+    '--border-separator': string
+    '--text-primary': string
+    '--text-body': string
+    '--text-secondary': string
+    '--text-muted': string
+    '--text-dim': string
+    '--text-accent': string
+    '--accent': string
+    '--accent-hover': string
+    '--accent-dim': string
+    '--btn-bg': string
+    '--btn-hover': string
+    '--btn-text': string
+    '--btn-primary': string
+    '--btn-primary-hover': string
+    '--btn-export': string
+    '--btn-export-hover': string
+    '--btn-on-color-text': string
+    '--success-bg': string
+    '--success-border': string
+    '--success-text': string
+    '--error': string
+    '--error-bg': string
+    '--error-border': string
+    '--error-text': string
+    '--card-link': string
+    '--card-link-hover': string
+    '--card-label-text': string
+    '--card-label-meta': string
+    '--card-label-price': string
+    '--foil-blend': string
+    '--foil-opacity': string
+    '--foil-opacity-hover': string
+  }
 
 // A custom theme captured from the in-browser editor or a user JSON file.
 // Variables is a flat map of any subset of theme vars to override; values
@@ -280,6 +295,27 @@ const lightFoilVars = {
   '--foil-opacity-hover': '1',
 }
 
+// App-icon flame gradient stops, derived from the theme's accent so the
+// candle flame (header logo + browser-tab favicon) wears the theme's color.
+// Lightness is a fixed flame ramp — a dark, saturated outer body fading to a
+// near-black edge, and a hot near-white core fading to a saturated base — so
+// the flame stays legible on any background. Chroma scales off the accent
+// (vivid accents → fiery flame; near-neutral accents like orzhov → a pale
+// white flame), capped to keep it in a sane range. The flame is identical in
+// dark and light modes since it is drawn on its own gradients, not the page.
+function flameVars(p: ThemePalette): FlameCssVars {
+  const H = p.accentHue
+  const c = (mult: number): number => Math.min(p.accentChroma * mult, 0.3)
+  return {
+    '--flame-outer-1': ok(48, c(1.24), H),
+    '--flame-outer-2': ok(37, c(1.06), H),
+    '--flame-outer-3': ok(26, c(0.82), H),
+    '--flame-inner-1': ok(95, c(0.18), H),
+    '--flame-inner-2': ok(74, c(0.94), H),
+    '--flame-inner-3': ok(53, c(1.35), H),
+  }
+}
+
 function darkVars(p: ThemePalette): ResolvedPalette {
   const { bgHue: bH, bgChroma: bC, accentHue: aH, accentChroma: aC } = p
   const textC = Math.min(bC, 0.005)
@@ -316,6 +352,7 @@ function darkVars(p: ThemePalette): ResolvedPalette {
     ...darkLinkVars,
     ...cardLabelVars,
     ...darkFoilVars,
+    ...flameVars(p),
   }
 }
 
@@ -354,6 +391,7 @@ function lightVars(p: ThemePalette): ResolvedPalette {
     ...lightLinkVars,
     ...cardLabelVars,
     ...lightFoilVars,
+    ...flameVars(p),
   }
 }
 
