@@ -13,7 +13,7 @@ You are a Feature Surface Synchronization Specialist for the `ritual` project â€
 - Backward compatibility is NOT a concern. Freely rename/remove flags, commands, options, config keys, and APIs when a cleaner design exists. Do not add deprecated aliases or compatibility shims â€” update all in-repo call sites, tests, generated output, and docs to match.
 - The MCP server (`ritual mcp`) reuses admin route handlers in-process. This means **any new admin route handler is a candidate for MCP exposure**, and the MCP layer must not re-implement logic that belongs in the shared handler. Consult your agent memory and the `src/mcp` and admin route code for where this wiring lives.
 - CLI commands live in `src/commands/`, NOT in `index.ts`.
-- Docs live under `docs-site/` (Docusaurus); the project also maintains CLI skills that must be updated for any new or changed command.
+- Docs live under `docs-site/` (Astro Starlight; pages in `docs-site/src/content/docs/`); the project also maintains CLI skills that must be updated for any new or changed command.
 - Prefer LSP features (Go to Definition, Find All References, Rename Symbol) over manual grep when analyzing references.
 - Do NOT make git commits or stage/un-stage files. Leave changes in the working tree for review.
 
@@ -29,7 +29,7 @@ You are a Feature Surface Synchronization Specialist for the `ritual` project â€
 3. **Check CLI skills.** For any new or changed CLI command, flag, or option:
    - Verify a CLI skill exists and accurately describes the command, its flags/options, and usage.
    - Ensure renamed/removed flags are reflected (no stale references to old names).
-   - Verify the change is also reflected in `docs-site/docs/` per project rules.
+   - Verify the change is also reflected in `docs-site/src/content/docs/` per project rules.
 
 4. **Check test coverage.** For every surface touched:
    - Confirm new admin handlers have integration tests (side-effecting code prefers e2e/integration over unit tests).
@@ -53,7 +53,7 @@ You are a Feature Surface Synchronization Specialist for the `ritual` project â€
 Examples of what to record:
 
 - The exact file locations and wiring pattern for how MCP tools reuse admin route handlers in-process (and any gotchas).
-- Where CLI skills are defined and how they map to `src/commands/` commands and `docs-site/docs/` pages.
+- Where CLI skills are defined and how they map to `src/commands/` commands and `docs-site/src/content/docs/` pages.
 - Which admin handlers are intentionally NOT exposed via MCP and why (internal-only patterns).
 - Recurring sync gaps or anti-patterns (e.g., MCP re-implementing handler logic instead of delegating).
 - Test conventions for each surface (integration vs unit vs Playwright) and the mock-data helpers used.

@@ -62,7 +62,7 @@ entry.set.toLowerCase() === change.set.toLowerCase()
 
 New CLI commands should be added to `src/commands/` rather than directly in `index.ts`.
 
-Any new command, flag, option, or feature adjusted or added must also be reflected in the Docusaurus docs under `docs-site/`, **and in the agent-facing surfaces** — see [Agent-Facing Surfaces](#agent-facing-surfaces-mcp-server--skills) below.
+Any new command, flag, option, or feature adjusted or added must also be reflected in the Starlight docs under `docs-site/`, **and in the agent-facing surfaces** — see [Agent-Facing Surfaces](#agent-facing-surfaces-mcp-server--skills) below.
 
 ### Research Tasks
 
@@ -102,12 +102,12 @@ Every card entry in deck, collection, and wanted list markdown files has a persi
 
 Ritual exposes its capabilities to AI agents through two surfaces in addition to the CLI itself, and **both must be kept in sync with the CLI and with each other on every relevant change**:
 
-- **MCP server** — `src/mcp/` (command: `src/commands/mcp.ts`, run with `ritual mcp`). Exposes deck/collection/wanted operations as Model Context Protocol tools by reusing the admin route handlers. Tools live in `src/mcp/tools/{read,write,destructive}-tools.ts`; the server description is in `src/mcp/server.ts`; docs are in `docs-site/docs/commands/mcp.md`.
-- **Skills** — `src/skills/` (command: `src/commands/skills.ts`, run with `ritual skills install`). Installable Claude Code agent skills that teach an agent to drive the `ritual` CLI directly. The catalog is `src/skills/catalog.ts`; each skill's content is one module under `src/skills/content/`; docs are in `docs-site/docs/commands/skills.md`.
+- **MCP server** — `src/mcp/` (command: `src/commands/mcp.ts`, run with `ritual mcp`). Exposes deck/collection/wanted operations as Model Context Protocol tools by reusing the admin route handlers. Tools live in `src/mcp/tools/{read,write,destructive}-tools.ts`; the server description is in `src/mcp/server.ts`; docs are in `docs-site/src/content/docs/commands/mcp.md`.
+- **Skills** — `src/skills/` (command: `src/commands/skills.ts`, run with `ritual skills install`). Installable Claude Code agent skills that teach an agent to drive the `ritual` CLI directly. The catalog is `src/skills/catalog.ts`; each skill's content is one module under `src/skills/content/`; docs are in `docs-site/src/content/docs/commands/skills.md`.
 
 **The rule:** whenever you add, change, or remove a command, flag, option, config key, file format, or user-visible behavior, update **all** of the following in tandem so the CLI, the MCP server, and the Skills never drift apart:
 
-1. The command in `src/commands/` and its page in `docs-site/docs/`.
+1. The command in `src/commands/` and its page in `docs-site/src/content/docs/`.
 2. The corresponding MCP tool(s) in `src/mcp/tools/` **if the operation is exposed there**, plus the server instructions and `mcp.md`. (Not every CLI command is mirrored by an MCP tool — the MCP server reuses admin handlers and intentionally omits the auth/login surface — but anything it does expose must match.)
 3. The corresponding skill content in `src/skills/content/` (and the skill descriptions used for discovery), plus `skills.md`. The Skills are meant to mirror the **full CLI surface**, so a new or changed command almost always means a skill edit.
 4. The tests for each surface (`test/unit/mcp/*`, `test/integration/mcp-*.test.ts`, `test/unit/skills.test.ts`, `test/integration/skills-install.test.ts`).
@@ -121,8 +121,8 @@ After completing any new feature or bug fix, run the following subagent reviews 
 - **`ts-code-reviewer`** — reviews TypeScript code for type safety, idiomatic patterns, and proper use of language features.
 - **`solidjs-code-reviewer`** — reviews any new or modified SolidJS components, signals, stores, or effects for reactivity correctness and modern patterns. Only invoke when SolidJS code was written or changed.
 - **`code-deduplicator`** — scans changed files for meaningful duplication opportunities: repeated logic, redundant constants, similar parsing patterns. Only invoke when multiple files were added or significantly modified.
-- **`docs-sync-reviewer`** — verifies that `docs-site/docs/` reflects the current CLI source. Invoke whenever a command in `src/commands/` is added, changed, or removed, or when flags/options change.
-- **`feature-surface-sync`** — audits that a feature added or changed on one surface stays consistent across all of them: the MCP server (`src/mcp/`), the CLI skills (`src/skills/`), `docs-site/docs/`, and test coverage. Invoke whenever you add, change, or remove an admin route handler, a `src/commands/` command, or a flag/option/config key — see [Agent-Facing Surfaces](#agent-facing-surfaces-mcp-server--skills).
+- **`docs-sync-reviewer`** — verifies that `docs-site/src/content/docs/` reflects the current CLI source. Invoke whenever a command in `src/commands/` is added, changed, or removed, or when flags/options change.
+- **`feature-surface-sync`** — audits that a feature added or changed on one surface stays consistent across all of them: the MCP server (`src/mcp/`), the CLI skills (`src/skills/`), `docs-site/src/content/docs/`, and test coverage. Invoke whenever you add, change, or remove an admin route handler, a `src/commands/` command, or a flag/option/config key — see [Agent-Facing Surfaces](#agent-facing-surfaces-mcp-server--skills).
 - **`card-format-reviewer`** — audits code that touches card entries (parsers, serializers, importers) for violations of domain invariants: set code normalization, `&N` ID handling, canonical line format, and parser error representation. Invoke when adding or modifying any code that reads or writes deck, collection, or wanted list files.
 - **`test-quality-reviewer`** — reviews new or modified test code for correctness, meaningful assertions, and boilerplate duplication. Invoke after writing or significantly changing unit, integration, or Playwright tests.
 

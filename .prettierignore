@@ -2,6 +2,5 @@ dist/
 node_modules/
 cache/
 mtg
-docs-site/.docusaurus/
-docs-site/build/
+docs-site/.astro/
 src/site/styles.compiled.css

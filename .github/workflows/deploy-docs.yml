@@ -1,4 +1,4 @@
-name: Deploy Docusaurus to GitHub Pages
+name: Deploy Docs to GitHub Pages
 
 on:
   push:
@@ -35,13 +35,13 @@ jobs:
       - name: Install dependencies
         run: cd docs-site && npm ci
 
-      - name: Build Docusaurus
+      - name: Build site
         run: cd docs-site && npm run build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs-site/build
+          path: docs-site/dist
 
   deploy:
     environment:

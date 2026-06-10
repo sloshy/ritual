@@ -14,7 +14,7 @@ All TypeScript code should follow these conventions:
 ## Organization
 
 - New CLI commands belong in `src/commands/`, not directly in `index.ts`.
-- Any new command, flag, option, or feature must be documented in the Docusaurus docs under `docs-site/`.
+- Any new command, flag, option, or feature must be documented in the Starlight docs under `docs-site/`.
 
 ## Tests
 
