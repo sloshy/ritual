@@ -12,9 +12,11 @@ import {
   generateAllThemesCss,
   resolveThemeName,
   themeBootstrapScript,
+  themeFlameStops,
   themeNames,
   type ThemeName,
 } from '../themes'
+import { buildFlameSvg } from '../flame'
 
 type AdminCommandOptions = {
   port: string
@@ -39,6 +41,7 @@ function buildIndexHtml(initialTheme: ThemeName): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ritual Admin</title>
+  <link rel="icon" type="image/svg+xml" href="app.svg">
   <script>${themeBootstrapScript}</script>
   <link rel="stylesheet" href="styles.css">${devReload}
 </head>
@@ -141,6 +144,9 @@ export function registerAdminCommand(program: Command): void {
       }
 
       await Bun.write(path.join(adminDistDir, 'index.html'), buildIndexHtml(themeName))
+      // Flame favicon tinted to the baked theme so the browser tab matches the
+      // in-app logo (the admin has no live theme switcher, so this is static).
+      await Bun.write(path.join(adminDistDir, 'app.svg'), buildFlameSvg(themeFlameStops(themeName)))
 
       console.log('Admin interface ready.')
 

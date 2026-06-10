@@ -1,6 +1,7 @@
 import type { ParentComponent } from 'solid-js'
 import { createSignal, For, Show } from 'solid-js'
 import type { Page, NavigateFn } from '../types'
+import { FlameIcon } from '../../../site/FlameIcon'
 
 interface NavItem {
   id: Page
@@ -57,7 +58,10 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
     <div class="layout-root">
       {/* Header */}
       <header class="admin-header">
-        <span class="admin-logo">⚗️ Ritual Admin</span>
+        <span class="admin-logo">
+          <FlameIcon class="admin-logo-icon" />
+          Ritual Admin
+        </span>
         <div class="admin-header-actions">
           <Show when={props.onLogout}>
             {(logout) => (
@@ -88,7 +92,10 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
           <div>
             <div class="mobile-backdrop mobile-only" onClick={() => setMenuOpen(false)} />
             <nav class="mobile-nav mobile-only">
-              <div class="mobile-nav-header">⚗️ Ritual Admin</div>
+              <div class="mobile-nav-header">
+                <FlameIcon class="admin-logo-icon" />
+                Ritual Admin
+              </div>
               {navList()}
               <Show when={props.onLogout}>
                 {(logout) => (

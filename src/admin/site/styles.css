@@ -60,9 +60,18 @@
 }
 
 .admin-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-size: 1rem;
   font-weight: 700;
   color: var(--text-accent);
+}
+
+.admin-logo-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
 }
 
 /* ===== Cards ===== */
@@ -396,6 +405,9 @@
 
 /* ----- Mobile navigation ----- */
 .mobile-nav-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   padding: 0.75rem 1rem;
   font-weight: 700;
   color: var(--text-accent);
@@ -439,11 +451,21 @@
 }
 
 .login-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--text-accent);
   margin-bottom: 0.25rem;
   text-align: center;
+}
+
+.login-title-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
 }
 
 .login-subtitle {

@@ -1,5 +1,6 @@
 import type { Component } from 'solid-js'
 import { createSignal, Show } from 'solid-js'
+import { FlameIcon } from '../../../site/FlameIcon'
 
 interface AuthGuardSetupProps {
   onSetupComplete: () => void
@@ -121,7 +122,10 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
   return (
     <div class="login-page">
       <div class="login-card">
-        <h1 class="login-title">⚗️ Ritual Admin</h1>
+        <h1 class="login-title">
+          <FlameIcon class="login-title-icon" />
+          Ritual Admin
+        </h1>
         <p class="login-subtitle">
           {props.isLogin ? 'Sign in to continue' : 'Create your admin account'}
         </p>

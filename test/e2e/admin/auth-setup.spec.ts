@@ -33,7 +33,10 @@ test.describe('Auth Setup', () => {
   test('shows setup form when no user exists', async ({ page }) => {
     await page.goto(ADMIN_URL)
     await expect(page.locator('text=Create your admin account')).toBeVisible()
-    await expect(page.locator('text=⚗️ Ritual Admin')).toBeVisible()
+    const title = page.locator('.login-title')
+    await expect(title).toContainText('Ritual Admin')
+    // The brand mark is the shared flame logo, not an emoji.
+    await expect(title.locator('svg[aria-label="Ritual logo"]')).toBeVisible()
   })
 
   test('shows error when fields are empty', async ({ page }) => {

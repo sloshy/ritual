@@ -13,7 +13,7 @@
 // This file is browser-safe except for the Node-only `resolveThemeName`
 // helper at the very bottom; do not call that from SPA code.
 
-import { flameStopVars } from './flame'
+import { flameStopVars, type FlameStops } from './flame'
 
 export type ThemePalette = {
   bgHue: number
@@ -397,6 +397,23 @@ function lightVars(p: ThemePalette): ResolvedPalette {
 
 export function paletteToVars(palette: ThemePalette): ResolvedPalette {
   return palette.isDark ? darkVars(palette) : lightVars(palette)
+}
+
+// The resolved candle-flame gradient stops for a named theme, keyed the way
+// `buildFlameSvg` wants them. Lets a server-rendered surface (e.g. the admin
+// favicon, which bakes a single theme into the HTML) emit a flame `app.svg`
+// that matches the active theme instead of the static violet default.
+export function themeFlameStops(name: ThemeName): FlameStops {
+  const vars = paletteToVars(themes[name])
+  const stop = (key: keyof FlameStops): string => vars[flameStopVars[key]]
+  return {
+    outer1: stop('outer1'),
+    outer2: stop('outer2'),
+    outer3: stop('outer3'),
+    inner1: stop('inner1'),
+    inner2: stop('inner2'),
+    inner3: stop('inner3'),
+  }
 }
 
 // ---------------------------------------------------------------------------
