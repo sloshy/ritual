@@ -168,6 +168,9 @@ export type ResolvedPalette = ThemeCssVars & {
   '--error-text': string
   '--card-link': string
   '--card-link-hover': string
+  '--card-label-text': string
+  '--card-label-meta': string
+  '--card-label-price': string
 }
 
 // A custom theme captured from the in-browser editor or a user JSON file.
@@ -241,6 +244,19 @@ const lightLinkVars = {
   '--card-link-hover': 'oklch(42% 0.19 250)',
 }
 
+// Text rendered on the universal dark scrim behind a card's hover label (the
+// `.card-label` gradient over card art). The scrim is always dark regardless
+// of theme, so this text must stay bright in every theme — unlike the
+// page-relative `--text-*` / `--success-text` vars, which flip to dark ink on
+// light themes and would vanish against the scrim. Same convention as
+// `--btn-on-color-text`: contrast against the surface the text sits on, not
+// the page background. Identical across dark and light modes.
+const cardLabelVars = {
+  '--card-label-text': 'oklch(95% 0 0)',
+  '--card-label-meta': 'oklch(72% 0 0)',
+  '--card-label-price': 'oklch(82% 0.16 155)',
+}
+
 function darkVars(p: ThemePalette): ResolvedPalette {
   const { bgHue: bH, bgChroma: bC, accentHue: aH, accentChroma: aC } = p
   const textC = Math.min(bC, 0.005)
@@ -275,6 +291,7 @@ function darkVars(p: ThemePalette): ResolvedPalette {
     '--btn-on-color-text': btnOnColorText(p),
     ...darkStatusVars,
     ...darkLinkVars,
+    ...cardLabelVars,
   }
 }
 
@@ -311,6 +328,7 @@ function lightVars(p: ThemePalette): ResolvedPalette {
     '--btn-on-color-text': btnOnColorText(p),
     ...lightStatusVars,
     ...lightLinkVars,
+    ...cardLabelVars,
   }
 }
 

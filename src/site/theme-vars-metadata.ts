@@ -72,7 +72,7 @@ export const themeVarGroups: ThemeVarGroup[] = [
     id: 'overlays',
     label: 'Overlays',
     description:
-      'Translucent dark scrims used for modals, tooltips, and gradients on top of card art. Universal across themes.',
+      'Translucent dark scrims — and the text drawn on them — for modals, tooltips, and gradients on top of card art. Universal across themes.',
   },
   { id: 'misc', label: 'Misc', description: 'Sizing tokens and other non-color values.' },
 ]
@@ -380,6 +380,28 @@ export const themeVarMetadata: ThemeVarMeta[] = [
     name: '--overlay-heavy',
     label: 'Heavy overlay',
     description: 'Strong dark scrim for modal backdrops and image gradients.',
+    group: 'overlays',
+    type: 'color',
+  },
+  {
+    name: '--card-label-text',
+    label: 'Card label text',
+    description:
+      'Card name shown on the hover label over card art. Stays bright on every theme so it reads against the dark scrim.',
+    group: 'overlays',
+    type: 'color',
+  },
+  {
+    name: '--card-label-meta',
+    label: 'Card label meta',
+    description: 'Secondary detail (e.g. foil/etched finish) on the card hover label.',
+    group: 'overlays',
+    type: 'color',
+  },
+  {
+    name: '--card-label-price',
+    label: 'Card label price',
+    description: 'Price shown on the card hover label — a universally bright green.',
     group: 'overlays',
     type: 'color',
   },

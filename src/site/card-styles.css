@@ -186,20 +186,20 @@ h3 {
 
 .card-label .card-label-name {
   font-size: 0.65rem;
-  color: var(--text-secondary);
+  color: var(--card-label-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .card-label .card-label-finish {
-  color: var(--text-muted);
+  color: var(--card-label-meta);
   font-style: italic;
 }
 
 .card-label .card-label-price {
   font-size: 0.6rem;
-  color: var(--success-text);
+  color: var(--card-label-price);
 }
 
 .card-binder:hover .card-label,
