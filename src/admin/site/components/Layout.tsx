@@ -15,6 +15,7 @@ const navItems: NavItem[] = [
   { id: 'list-manager', label: 'Manage Lists', icon: '🗂️' },
   { id: 'history', label: 'Change History', icon: '🕘' },
   { id: 'import-deck', label: 'Import Deck', icon: '📥' },
+  { id: 'import-csv', label: 'Import CSV', icon: '📄' },
   { id: 'build-site', label: 'Build Site', icon: '🔨' },
   { id: 'cache-refresh', label: 'Refresh Cache', icon: '🔄' },
   { id: 'archidekt-login', label: 'Archidekt Login', icon: '🔑' },

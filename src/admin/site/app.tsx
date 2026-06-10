@@ -7,6 +7,7 @@ import { AuthGuard } from './components/AuthGuard'
 import { NavigationGuardProvider, createNavigationGuard } from '../../editor/navigation-guard'
 import { Dashboard } from './pages/Dashboard'
 import { ImportDeck } from './pages/ImportDeck'
+import { ImportCsv } from './pages/ImportCsv'
 import { BuildSite } from './pages/BuildSite'
 import { CacheRefresh } from './pages/CacheRefresh'
 import { ArchidektLogin } from './pages/ArchidektLogin'
@@ -137,6 +138,9 @@ function App() {
               </Match>
               <Match when={page() === 'import-deck'}>
                 <ImportDeck />
+              </Match>
+              <Match when={page() === 'import-csv'}>
+                <ImportCsv />
               </Match>
               <Match when={page() === 'build-site'}>
                 <BuildSite />

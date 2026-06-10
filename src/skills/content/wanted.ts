@@ -35,18 +35,21 @@ ritual wanted --allow-digital-only-cards
 
 ## Import from a CSV file
 
-\`import-csv\` creates a **new** wanted list from a CSV file. Non-interactive agents
-must pass all flags (running it bare opens an interactive column-mapping wizard):
+\`import-csv\` imports a CSV file into a new wanted list, or appends to an existing
+one. Non-interactive agents must pass all flags (running it bare opens an interactive
+column-mapping wizard):
 
 \`\`\`bash
 ritual import-csv wants.csv --type wanted --name "To Buy" \\
   --columns "name=1,set=2,collector-number=3,finish=4,quantity=5"
+ritual import-csv more.csv --type wanted --name "To Buy" --append --columns "name=1"
 \`\`\`
 
 \`--columns\` maps fields to 1-based column numbers; only \`name\` is required and
 wanted lists carry no \`condition\` column. Add \`--no-header\` when the first row is
-data, \`--overwrite\` to replace an existing list. Failed rows are reported with line
-numbers on stderr and the rest still import (exit code 1 on partial failure).
+data, \`--overwrite\` to replace an existing list, or \`--append\` to add to one
+(appends continue card IDs and record the changelog). Failed rows are reported with
+line numbers on stderr and the rest still import (exit code 1 on partial failure).
 
 ## Price
 

@@ -3,6 +3,7 @@ import type { ListType } from '../../list-type'
 export type Page =
   | 'dashboard'
   | 'import-deck'
+  | 'import-csv'
   | 'list-editor'
   | 'list-manager'
   | 'move-cards'

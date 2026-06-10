@@ -11,6 +11,8 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
 - Lists are addressed by slug (the file basename without ".md").
 - Edit cards with add_card_to_*, remove_card_from_deck, set_card_note, set_card_printing, and set_commander.
   Content hashes for conflict detection are handled internally — you do not supply them.
+- import_deck imports a decklist from a URL or pasted text; import_csv imports CSV text into a new
+  or existing list of any type (create/overwrite/append, with a column-mapping spec).
 - move_cards moves cards between lists using opaque keys from move_candidates.
 - rename_*, delete_* (which require a matching confirmName), rewrite_history, and update_config are
   destructive; use them deliberately.

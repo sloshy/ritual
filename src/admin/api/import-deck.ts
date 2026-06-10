@@ -3,8 +3,7 @@ import { parseDeckText } from '../../importers/text-file'
 import { fetchDeckFromUrl } from '../../importers/url-dispatch'
 import { saveDeck } from '../../commands/import'
 import { sanitizeDeckFileName } from '../../utils'
-import { loadRitualConfig } from '../../ritual-config'
-import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
+import { autoCommitAndPush } from './save-helpers'
 import { apiHandler } from '../utils'
 import type { DeckData } from '../../types'
 import { getDecksDir } from '../../ritual-config'
@@ -70,16 +69,10 @@ export function handleImportDeck(req: Request): Promise<Response> {
       assumeYes: overwrite,
     })
 
-    const config = await loadRitualConfig()
     const safeName = sanitizeDeckFileName(deckData.name)
     const filePath = path.join(decksDir, `${safeName}.md`)
 
-    if (shouldAutoCommit(config, decksDir)) {
-      commitFiles([filePath], `Import deck: ${deckData.name}`)
-      if (shouldAutoPush(config, decksDir)) {
-        pushChanges(decksDir)
-      }
-    }
+    await autoCommitAndPush(decksDir, [filePath], `Import deck: ${deckData.name}`)
 
     const resp: ImportDeckResponse = {
       success: true,

@@ -642,3 +642,53 @@ Overwrite the list's change log with the supplied change sets. Each set needs a 
   "setCount": 1
 }
 ```
+
+## Import CSV
+
+```
+POST /api/import-csv
+```
+
+Import cards from CSV text into a deck, collection, or wanted list. Used by the admin site's **Import CSV** page and exposed as the MCP `import_csv` tool; shares its parsing, normalization, and column-mapping engine with the [`import-csv`](/commands/import-csv) CLI command.
+
+**Request Body:**
+
+```json
+{
+  "listType": "collection",
+  "name": "Red Binder",
+  "mode": "append",
+  "content": "Name,Set,Collector Number,Quantity\nSol Ring,C19,221,2",
+  "columns": "name=1,set=2,collector-number=3,quantity=4",
+  "hasHeader": true
+}
+```
+
+| Field       | Description                                                                      | Required |
+| ----------- | -------------------------------------------------------------------------------- | -------- |
+| `listType`  | `deck`, `collection`, or `wanted`                                                | Yes      |
+| `name`      | New list name (`create`/`overwrite`) or an existing list to append to (`append`) | Yes      |
+| `mode`      | `create` (default — fails if the list exists), `overwrite`, or `append`          | No       |
+| `format`    | Deck format; required when creating or overwriting a deck                        | No       |
+| `content`   | Raw CSV text                                                                     | Yes      |
+| `columns`   | 1-based column mapping spec, e.g. `name=1,set=2,collector-number=3`              | Yes      |
+| `hasHeader` | Whether the first row is a header row (default `true`)                           | No       |
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Appended 2 card(s) to collection 'Red Binder'",
+  "cardCount": 2,
+  "failures": [
+    {
+      "lineNumber": 3,
+      "raw": "No Printing,,",
+      "reason": "Missing set code (required for collections)"
+    }
+  ]
+}
+```
+
+Rows that fail validation are returned in `failures` while the valid rows still import; the response is `400` only when the request itself is invalid or **no** rows could be imported. Appends record each added card in the list's changelog. When git auto-commit is enabled, the list file (and changelog) are committed.

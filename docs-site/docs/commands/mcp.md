@@ -84,14 +84,15 @@ there (since the admin binds `0.0.0.0` by default) and is independent of the bro
 
 ### Write
 
-| Tool                                                               | Description                                                   |
-| ------------------------------------------------------------------ | ------------------------------------------------------------- |
-| `create_deck`, `create_collection`, `create_wanted`                | Create a new, empty list.                                     |
-| `import_deck`                                                      | Import a deck from a URL or pasted decklist text.             |
-| `add_card_to_deck`, `add_card_to_collection`, `add_card_to_wanted` | Add a card.                                                   |
-| `remove_card_from_deck`                                            | Remove one copy of a card from a deck.                        |
-| `set_card_note`, `set_card_printing`, `set_commander`              | Edit a card in place.                                         |
-| `move_cards`                                                       | Move cards between lists (using keys from `move_candidates`). |
+| Tool                                                               | Description                                                                                       |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `create_deck`, `create_collection`, `create_wanted`                | Create a new, empty list.                                                                         |
+| `import_deck`                                                      | Import a deck from a URL or pasted decklist text.                                                 |
+| `import_csv`                                                       | Import CSV text into a new or existing list (create/overwrite/append) with a column-mapping spec. |
+| `add_card_to_deck`, `add_card_to_collection`, `add_card_to_wanted` | Add a card.                                                                                       |
+| `remove_card_from_deck`                                            | Remove one copy of a card from a deck.                                                            |
+| `set_card_note`, `set_card_printing`, `set_commander`              | Edit a card in place.                                                                             |
+| `move_cards`                                                       | Move cards between lists (using keys from `move_candidates`).                                     |
 
 Card edits load the list, apply the change, and save in a single call, so **you never supply a content
 hash** — conflict detection is handled internally (a concurrent web-UI edit surfaces as an error you can

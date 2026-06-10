@@ -1253,3 +1253,29 @@
   font-size: 0.8rem;
   resize: vertical;
 }
+
+/* ===== CSV import page ===== */
+.csv-mapping-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+}
+.csv-mapping-label {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+.csv-mapping-optional {
+  color: var(--text-muted);
+}
+.csv-mapping-problem {
+  color: var(--color-danger);
+}
+.csv-failures ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+}
+.csv-failures code {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}

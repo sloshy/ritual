@@ -110,6 +110,30 @@ export const CSV_FIELDS = [
 ] as const
 export type CsvField = (typeof CSV_FIELDS)[number]
 
+/** Human-readable labels for each CSV field, shared by the CLI wizard and the admin page. */
+export const CSV_FIELD_LABELS: Record<CsvField, string> = {
+  name: 'Card name',
+  set: 'Set code',
+  'collector-number': 'Collector number',
+  condition: 'Condition',
+  finish: 'Finish',
+  section: 'Section',
+  quantity: 'Quantity',
+}
+
+/**
+ * Whether a field must be mapped to a column for the given list type: the card
+ * name always, plus the printing (set + collector number) for collections.
+ * The single source of the rule that `validateMapping` enforces, shared by the
+ * CLI wizard and the admin page so their required markers never drift.
+ */
+export function isRequiredCsvField(field: CsvField, listType: ListType): boolean {
+  return (
+    field === 'name' ||
+    (listType === 'collection' && (field === 'set' || field === 'collector-number'))
+  )
+}
+
 /** Maps card fields to 0-based column indexes. Only `name` is always required. */
 export type ColumnMapping = {
   name: number

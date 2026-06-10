@@ -4,7 +4,9 @@ sidebar_position: 3
 
 # import-csv
 
-Import cards from a CSV file into a **new** deck, collection, or wanted list. An interactive setup wizard maps your CSV's columns to card fields, and prints the equivalent non-interactive command so the same import can be scripted.
+Import cards from a CSV file into a deck, collection, or wanted list — creating a new list or appending to an existing one. An interactive setup wizard maps your CSV's columns to card fields, and prints the equivalent non-interactive command so the same import can be scripted.
+
+CSV import is also available in the [admin site](./admin.md#import-csv) (**Import CSV** page) and as the [MCP](./mcp.md) `import_csv` tool, both backed by the same engine.
 
 ## Usage
 
@@ -22,17 +24,29 @@ Run with no other flags to use the interactive wizard. The wizard asks for the l
 
 ## Options
 
-| Option                    | Description                                                     |
-| ------------------------- | --------------------------------------------------------------- |
-| `-t, --type <type>`       | List type to create: `deck`, `collection`, or `wanted`          |
-| `-n, --name <name>`       | Name for the new list                                           |
-| `-f, --format <format>`   | Deck format (deck imports only, e.g. `commander`, `modern`)     |
-| `-c, --columns <mapping>` | Column mapping (see below). Skips the interactive setup wizard. |
-| `--no-header`             | Treat the first row as data instead of a header row             |
-| `-o, --overwrite`         | Overwrite an existing list file with the same name              |
-| `--non-interactive`       | Disable interactive prompts; fail when input is required        |
+| Option                    | Description                                                        |
+| ------------------------- | ------------------------------------------------------------------ |
+| `-t, --type <type>`       | List type to import into: `deck`, `collection`, or `wanted`        |
+| `-n, --name <name>`       | Name of the list to create or append to                            |
+| `-f, --format <format>`   | Deck format when creating a deck (e.g. `commander`, `modern`)      |
+| `-c, --columns <mapping>` | Column mapping (see below). Skips the interactive setup wizard.    |
+| `--no-header`             | Treat the first row as data instead of a header row                |
+| `-o, --overwrite`         | Replace an existing list file with the same name                   |
+| `-a, --append`            | Append the cards to an existing list instead of creating a new one |
+| `--non-interactive`       | Disable interactive prompts; fail when input is required           |
 
-Every import requires a name, and deck imports also require a format. Interactively the wizard prompts for them; non-interactively pass `--name` (and `--format`).
+Every import requires a name, and creating a deck also requires a format (appending to a deck does not — the format is already in the file). Interactively the wizard prompts for them; non-interactively pass `--name` (and `--format`).
+
+## Create, Overwrite, or Append
+
+By default the import **creates** a new list and refuses to touch an existing one. Pass `--overwrite` to replace an existing list, or `--append` to add the cards to it (`--overwrite` and `--append` are mutually exclusive). Interactively, when a list with the chosen name already exists, the wizard asks whether to append, overwrite, or cancel.
+
+Appending:
+
+- Resolves the list name like every other command (case-insensitive, substring fallback).
+- Continues the list's `&N` card IDs from its existing pool.
+- For decks, merges rows into existing lines when the name and printing match (incrementing quantity) and creates any missing sections.
+- Records every added card in the list's changelog (visible in `ritual history` and the admin Change History page).
 
 ## Column Mapping
 
@@ -96,4 +110,11 @@ Replace an existing list:
 ```bash
 ./ritual import-csv binder.csv --type collection --name "Red Binder" \
   --columns "name=1,set=2,collector-number=3" --overwrite
+```
+
+Append new cards to an existing collection:
+
+```bash
+./ritual import-csv new-cards.csv --type collection --name "Red Binder" \
+  --columns "name=1,set=2,collector-number=3,quantity=4" --append
 ```

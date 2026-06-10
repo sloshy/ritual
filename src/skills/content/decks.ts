@@ -60,20 +60,25 @@ Moxfield imports need a unique User-Agent: pass
 
 ## Import from a CSV file
 
-\`import-csv\` creates a **new** deck from a CSV export. Non-interactive agents must
-pass all flags (running it bare opens an interactive column-mapping wizard):
+\`import-csv\` imports a CSV export into a new deck, or appends to an existing one.
+Non-interactive agents must pass all flags (running it bare opens an interactive
+column-mapping wizard):
 
 \`\`\`bash
 ritual import-csv burn.csv --type deck --name "Burn" --format modern \\
   --columns "quantity=1,name=2,section=3"
+ritual import-csv more.csv --type deck --name "Burn" --append \\
+  --columns "quantity=1,name=2"          # merge into existing lines; no --format needed
 \`\`\`
 
 \`--columns\` maps fields to 1-based column numbers (fields: \`name\`, \`set\`,
 \`collector-number\`, \`condition\`, \`finish\`, \`section\`, \`quantity\`; only \`name\` is
 required for decks). Add \`--no-header\` when the first row is data, \`--overwrite\` to
-replace an existing deck. Conditions/finishes/sections are normalized (e.g.
-\`Near Mint\` → \`NM\`, \`F\` → foil, \`side\` → \`Sideboard\`). Failed rows are reported with
-line numbers on stderr and the rest still import (exit code 1 on partial failure).
+replace an existing deck, or \`--append\` to add to one (appends merge identical
+printings, continue card IDs, and record the changelog). Conditions/finishes/sections
+are normalized (e.g. \`Near Mint\` → \`NM\`, \`F\` → foil, \`side\` → \`Sideboard\`). Failed
+rows are reported with line numbers on stderr and the rest still import (exit code 1
+on partial failure).
 
 ## Import an entire Archidekt account
 

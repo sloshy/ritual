@@ -246,6 +246,30 @@ export async function mockImportDeckApi(
 }
 
 /**
+ * Mock the import-csv API endpoint. Pass `onRequest` to capture the parsed
+ * request body, and `failures` to simulate rows that failed to import.
+ */
+export async function mockImportCsvApi(
+  page: Page,
+  onRequest?: (body: unknown) => void,
+  failures?: { lineNumber: number; raw: string; reason: string }[],
+): Promise<void> {
+  await page.route('**/api/import-csv', async (route: Route) => {
+    onRequest?.(route.request().postDataJSON())
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        message: 'Imported 3 card(s)',
+        cardCount: 3,
+        failures,
+      }),
+    })
+  })
+}
+
+/**
  * Mock the TOTP status endpoint
  */
 export async function mockTotpApi(page: Page): Promise<void> {

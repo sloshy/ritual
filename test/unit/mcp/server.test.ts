@@ -29,6 +29,7 @@ const EXPECTED_TOOLS = [
   'create_collection',
   'create_wanted',
   'import_deck',
+  'import_csv',
   'add_card_to_deck',
   'remove_card_from_deck',
   'add_card_to_collection',
@@ -169,6 +170,50 @@ describe('Ritual MCP server (in-memory transport)', () => {
     const names = reloaded.deck.sections.flatMap((s) => s.cards.map((c) => c.name))
     expect(names).not.toContain('Lightning Bolt')
     expect(names).toContain('Sol Ring')
+  })
+
+  test('import_csv creates a new list by default', async () => {
+    const result = await callTool(client, 'import_csv', {
+      listType: 'wanted',
+      name: 'csv-wants',
+      content: 'Name\nBrainstorm',
+      columns: 'name=1',
+    })
+    expect(result.isError).toBeFalsy()
+    const data = toolJson(result) as { success: boolean; cardCount: number }
+    expect(data.success).toBe(true)
+    expect(data.cardCount).toBe(1)
+
+    const onDisk = await fs.readFile(path.join(env.dir, 'wanted', 'csv-wants.md'), 'utf-8')
+    expect(onDisk).toContain('- Brainstorm &1')
+  })
+
+  test('import_csv appends CSV rows to an existing collection', async () => {
+    const result = await callTool(client, 'import_csv', {
+      listType: 'collection',
+      name: 'shoebox',
+      mode: 'append',
+      content: 'Name,Set,Collector Number,Quantity\nSol Ring,c19,221,2',
+      columns: 'name=1,set=2,collector-number=3,quantity=4',
+    })
+    expect(result.isError).toBeFalsy()
+    const data = toolJson(result) as { success: boolean; cardCount: number }
+    expect(data.success).toBe(true)
+    expect(data.cardCount).toBe(2)
+
+    const onDisk = await fs.readFile(path.join(env.dir, 'collections', 'shoebox.md'), 'utf-8')
+    expect(onDisk).toContain('- Sol Ring (C19:221) &1')
+    expect(onDisk).toContain('- Sol Ring (C19:221) &2')
+  })
+
+  test('import_csv surfaces row failures as an error when nothing imports', async () => {
+    const result = await callTool(client, 'import_csv', {
+      listType: 'collection',
+      name: 'csv-binder',
+      content: 'Name,Set,Collector Number\nNo Printing,,',
+      columns: 'name=1,set=2,collector-number=3',
+    })
+    expect(result.isError).toBe(true)
   })
 
   test('add_card_to_wanted persists through the entry-serializing save path', async () => {
