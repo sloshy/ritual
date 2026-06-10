@@ -24,6 +24,17 @@ test.describe('Deck Toolbar', () => {
     await expect(page.locator('.card-binder').first()).toBeVisible()
   })
 
+  test('switching to stack view activates the button and shows stacked card images', async ({
+    page,
+  }) => {
+    await page.locator('[data-view="stack"]').click()
+    await expect(page.locator('[data-view="stack"]')).toHaveClass(/active/)
+    // Stack view shares the .card-overlap representation; it must be visible
+    // (regression guard: the .view-stack CSS was once deleted, hiding all cards)
+    await expect(page.locator('.card-overlap').first()).toBeVisible()
+    await expect(page.locator('.card-binder').first()).not.toBeVisible()
+  })
+
   test('reverse toggle reverses sort order', async ({ page }) => {
     // Switch to list view so card names are visible as text
     await page.locator('[data-view="list"]').click()

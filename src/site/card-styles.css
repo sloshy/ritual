@@ -403,6 +403,84 @@ h3 {
   pointer-events: none;
 }
 
+/* ===== STACK VIEW — horizontal columns of vertically stacked/overlapping cards ===== */
+.view-stack .card-item .card-binder {
+  display: none;
+}
+.view-stack .card-item .card-list {
+  display: none;
+}
+.view-stack .card-item .card-overlap {
+  display: block;
+}
+
+/* Main container becomes horizontal columns, one per section */
+.card-sections.view-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+/* Override the default inter-section vertical spacing */
+.card-sections.view-stack > * + * {
+  margin-top: 0;
+}
+
+/* Each section is a fixed-width column */
+.card-sections.view-stack > [data-section] {
+  flex: 0 0 auto;
+  width: var(--card-width, 190px);
+}
+
+/* Cards stack vertically within each column */
+.view-stack .binder-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: visible;
+}
+
+/* Section divider compact as a column header */
+.view-stack .section-divider {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding-bottom: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+
+.view-stack .section-divider h2 {
+  font-size: 0.8rem;
+}
+
+/* Card fills the column width */
+.view-stack .card-overlap {
+  width: 100%;
+}
+
+/* Vertical overlap: show only the top ~35px (card name bar) of each card.
+   card height = card-width * (680/488) ≈ card-width * 1.393
+   margin = -(card-height - 35px) */
+.view-stack .card-item {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+  overflow: visible;
+}
+
+.view-stack .card-item:not(:first-child) {
+  margin-top: calc(var(--card-width, 190px) * -1.393 + 35px);
+}
+
+/* On hover: lift the card above its siblings and push the ones below it down */
+.view-stack .card-item:hover {
+  z-index: 20;
+}
+
+.view-stack .card-item:hover ~ .card-item {
+  transform: translateY(calc(var(--card-width, 190px) * 1.393 - 35px));
+}
+
 /* Card detail modal */
 .card-modal-backdrop {
   position: fixed;
