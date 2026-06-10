@@ -40,9 +40,9 @@ interface ToolbarProps {
 
 const VIEW_MODE_ICONS: Record<ViewMode, string> = {
   binder: '▦',
+  overlap: '⧉',
+  stack: '▤',
   list: '☰',
-  overlap: '⧗',
-  stack: '▥',
 }
 
 const CARD_SIZE_LABELS: Record<CardSize, string> = {
@@ -58,7 +58,7 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
       <div ref={sentinelRef} aria-hidden="true" class="toolbar-sentinel" />
       <div class="toolbar" classList={{ 'is-stuck': stuck() }}>
         <div class="view-toggle">
-          {(['binder', 'list', 'overlap', 'stack'] as ViewMode[]).map((mode) => (
+          {(['binder', 'overlap', 'stack', 'list'] as ViewMode[]).map((mode) => (
             <button
               data-view={mode}
               class={props.viewMode === mode ? 'active' : ''}
