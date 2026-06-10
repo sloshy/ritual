@@ -111,6 +111,9 @@ These are flagged with the MCP `destructiveHint` so clients can gate or confirm 
 | `build_site`                                        | Rebuild the public static site.                                           |
 | `refresh_cache`                                     | Refresh the Scryfall card cache (bulk download).                          |
 
+`import_deck` and `import_csv` (listed under [Write](#write)) also carry `destructiveHint`, because
+both can overwrite an existing list of the same name. Their default, non-overwrite modes are safe.
+
 The authentication endpoints (`setup`, `login`, TOTP, Archidekt) are intentionally **not** exposed.
 
 ## Resources

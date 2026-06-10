@@ -107,6 +107,36 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(Object.keys(props)).not.toContain('contentHash')
   })
 
+  test('flags every data-destroying tool with destructiveHint', async () => {
+    const { tools } = await client.listTools()
+    const destructiveHinted = new Set(
+      tools.filter((t) => t.annotations?.destructiveHint).map((t) => t.name),
+    )
+
+    // Renames, deletes, history rewrites, config/site/cache ops, plus the two
+    // import tools (which can overwrite an existing list of the same name).
+    expect(destructiveHinted).toEqual(
+      new Set([
+        'rename_deck',
+        'rename_collection',
+        'rename_wanted',
+        'delete_deck',
+        'delete_collection',
+        'delete_wanted',
+        'rewrite_history',
+        'update_config',
+        'build_site',
+        'refresh_cache',
+        'import_deck',
+        'import_csv',
+      ]),
+    )
+
+    // Purely additive edits stay unflagged.
+    const addCard = tools.find((t) => t.name === 'add_card_to_deck')
+    expect(addCard?.annotations?.destructiveHint).not.toBe(true)
+  })
+
   test('list_decks returns the synthetic deck', async () => {
     const data = toolJson(await callTool(client, 'list_decks', {})) as {
       decks: { slug: string; name: string }[]

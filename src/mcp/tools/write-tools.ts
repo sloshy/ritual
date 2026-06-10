@@ -35,10 +35,14 @@ const moveSchema = z.object({
 })
 
 /**
- * Register the safe-write tools: creating lists, importing decks, card-level edits
+ * Register the write tools: creating lists, importing decks/CSV, card-level edits
  * (add/remove/set-note/set-printing/set-commander), and committing cross-list moves.
  * Card edits go through {@link mutateDeck}/{@link mutateCollection}/{@link mutateWanted},
  * which load-then-save inside the one call so the agent never manages content hashes.
+ *
+ * Most of these are additive, but `import_deck` and `import_csv` can replace an
+ * existing list of the same name, so both carry the SDK's `destructiveHint` — the
+ * hint reflects what the tool is capable of, not what its default mode does.
  */
 export function registerWriteTools(server: McpServer): void {
   server.registerTool(
@@ -87,6 +91,7 @@ export function registerWriteTools(server: McpServer): void {
         name: z.string().optional().describe('Name for the imported deck (mode "text").'),
         overwrite: z.boolean().optional().describe('Overwrite an existing deck of the same name.'),
       },
+      annotations: { destructiveHint: true },
     },
     async ({ mode, url, content, name, overwrite }) => {
       const body = mode === 'url' ? { mode, url, overwrite } : { mode, content, name, overwrite }
@@ -128,6 +133,7 @@ export function registerWriteTools(server: McpServer): void {
           .optional()
           .describe('Whether the first row is a header row. Defaults to true.'),
       },
+      annotations: { destructiveHint: true },
     },
     async ({ listType, name, mode, format, content, columns, hasHeader }) =>
       jsonResult(
