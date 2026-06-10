@@ -88,8 +88,6 @@ export const CardItem: Component<CardItemProps> = (props) => {
         const isDFC = isDoubleFacedCard(card())
         const { frontImage } = resolveCardImageSources(card(), Boolean(props.useScryfallImgUrls))
 
-        const isSideways = isCardSideways(card())
-
         const price = getCardPrice(card(), currency)
 
         const dataAttrs = {
@@ -210,7 +208,13 @@ export const CardItem: Component<CardItemProps> = (props) => {
               <div
                 class={listClass}
                 onClick={props.onCardClick}
-                onMouseEnter={() => frontImage && props.onTooltipEnter?.(frontImage, isSideways)}
+                onMouseEnter={() => {
+                  const { frontImage } = resolveCardImageSources(
+                    card(),
+                    Boolean(props.useScryfallImgUrls),
+                  )
+                  if (frontImage) props.onTooltipEnter?.(frontImage, isCardSideways(card()))
+                }}
                 onMouseLeave={() => props.onTooltipLeave?.()}
               >
                 <Show when={!props.hideCount}>
