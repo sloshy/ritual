@@ -2,13 +2,19 @@ import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import prompts from 'prompts'
 import type { PromptState } from './prompts-types'
-import type { DeckData } from '../types'
-import { isSamePrinting, type PrintingTuple } from '../change-event'
+import type { Card, DeckData, DeckSection } from '../types'
+import {
+  createRemoveChange,
+  isSamePrinting,
+  type ChangeEvent,
+  type PrintingTuple,
+} from '../change-event'
 import { getDecksDir } from '../ritual-config'
 import { writeFileWithHash } from '../content-hash'
 import { serializeDeckToMarkdown, parseDeckFrontMatter } from '../deck-file'
 import { importFromTextFile, listDeckFiles, readDeckName } from '../importers/text-file'
-import { assignMissingDeckCardIds } from '../card-id'
+import { assignMissingDeckCardIds, repackSessionIds } from '../card-id'
+import { applyChangeToDeck } from '../editor/deck-changes'
 import {
   applySessionConfigAnswers,
   buildSessionConfigQuestions,
@@ -100,6 +106,100 @@ export function findDeckCard(
     if (card) return { section: section.name, cardId: card.cardId }
   }
   return null
+}
+
+// ── Discarding session adds ─────────────────────────────────────────
+
+/** One copy added to the deck this session, tracked for the discard menu. */
+export type DeckCopyRecord = {
+  cardId: number
+  name: string
+  printing: PrintingTuple
+  section: string
+}
+
+/** A located deck card together with the section it lives in. */
+export type DeckCardLocation = { section: DeckSection; card: Card }
+
+/** Locate a deck card (with its quantity) by its card ID, across all sections. */
+export function findCardById(deck: DeckData, cardId: number): DeckCardLocation | null {
+  for (const section of deck.sections) {
+    const card = section.cards.find((c) => c.cardId === cardId)
+    if (card) return { section, card }
+  }
+  return null
+}
+
+/** The mutable session state a discard transforms. */
+export type DeckDiscardState = {
+  deck: DeckData
+  sessionChanges: ChangeEvent[]
+  /** Per-copy adds this session, in add order. */
+  sessionAdds: DeckCopyRecord[]
+  /** Distinct line ids first created this session, for re-pack on full removal. */
+  sessionLineIds: number[]
+}
+
+/** A successful discard's next state, plus the copy that was removed. */
+export type DeckDiscardOutcome = DeckDiscardState & { discarded: DeckCopyRecord }
+
+/**
+ * Discard the session copy at `index` (into {@link DeckDiscardState.sessionAdds}):
+ * decrement that line (dropping it at quantity 0), drop one matching add event (or the
+ * line's whole changelog footprint when it's fully removed), and — only when a
+ * session-created line is fully removed — re-pack the surviving session line ids so
+ * they stay dense, freeing the highest. Pure: returns the next state, or null when the
+ * index is out of range. Pre-existing (non-session) cards and their ids are untouched.
+ */
+export function discardDeckCopy(state: DeckDiscardState, index: number): DeckDiscardOutcome | null {
+  const record = state.sessionAdds[index]
+  if (!record) return null
+  const { cardId } = record
+
+  // Remove one copy: applyChangeToDeck deep-clones, so the result is safe to mutate.
+  const deck = applyChangeToDeck(
+    state.deck,
+    createRemoveChange(record.name, { cardId, section: record.section }),
+  )
+  const sessionAdds = state.sessionAdds.filter((_, i) => i !== index)
+  const lineRemoved = findCardById(deck, cardId) === null
+
+  // A surviving line keeps its id, so only one add event for it is dropped; a fully
+  // removed line takes its whole changelog footprint with it.
+  let sessionChanges: ChangeEvent[]
+  if (lineRemoved) {
+    sessionChanges = state.sessionChanges.filter((c) => !('cardId' in c) || c.cardId !== cardId)
+  } else {
+    sessionChanges = [...state.sessionChanges]
+    const lastAddIdx = sessionChanges.findLastIndex(
+      (c) => c.action === 'add' && c.cardId === cardId,
+    )
+    if (lastAddIdx !== -1) sessionChanges.splice(lastAddIdx, 1)
+  }
+
+  let sessionLineIds = state.sessionLineIds
+  if (lineRemoved && sessionLineIds.includes(cardId)) {
+    const survivors = sessionLineIds.filter((id) => id !== cardId)
+    const { remap } = repackSessionIds(sessionLineIds, survivors)
+    for (const section of deck.sections) {
+      for (const card of section.cards) {
+        if (card.cardId !== undefined && remap.has(card.cardId)) {
+          card.cardId = remap.get(card.cardId)!
+        }
+      }
+    }
+    for (const c of sessionChanges) {
+      if ('cardId' in c && c.cardId !== undefined && remap.has(c.cardId)) {
+        c.cardId = remap.get(c.cardId)!
+      }
+    }
+    for (const rec of sessionAdds) {
+      if (remap.has(rec.cardId)) rec.cardId = remap.get(rec.cardId)!
+    }
+    sessionLineIds = survivors.map((id) => remap.get(id) ?? id)
+  }
+
+  return { deck, sessionChanges, sessionAdds, sessionLineIds, discarded: record }
 }
 
 const PROMPT_EVERY_TIME = '__PROMPT__'

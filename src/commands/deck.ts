@@ -8,8 +8,11 @@ import {
   resolveCardPrinting,
 } from './collection-helpers'
 import {
+  type DeckCopyRecord,
   type DeckSessionConfig,
+  discardDeckCopy,
   ensureDeckFile,
+  findCardById,
   findDeckCard,
   listExistingDecks,
   loadDeck,
@@ -25,6 +28,7 @@ import {
   runCardSession,
   type CardSessionContext,
   type CardSessionStrategy,
+  type SessionAddItem,
 } from './card-session'
 import { assignMissingDeckCardIds } from '../card-id'
 import { normalizeBoard } from './deck-sync-helpers'
@@ -63,6 +67,10 @@ function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy {
   let deck: DeckData = args.initialDeck
   let lastSection: string | null = null
   let lastPrinting: PrintingTuple | null = null
+  // Per-copy adds (one per copy, in add order) drive the discard picker; the distinct
+  // line ids first created this session are what re-pack keeps dense on full removal.
+  let sessionAdds: DeckCopyRecord[] = []
+  let sessionLineIds: number[] = []
 
   /**
    * Apply a change to the in-memory deck and persist it. IDs are assigned to
@@ -96,6 +104,15 @@ function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy {
         cardId: located?.cardId,
       }),
     )
+
+    if (located?.cardId !== undefined) {
+      sessionAdds.push({ cardId: located.cardId, name: cardName, printing, section })
+      // A quantity of 1 after the add means this add created the line, so its id was
+      // allocated this session and participates in re-pack when fully discarded.
+      if (findCardById(deck, located.cardId)?.card.quantity === 1) {
+        sessionLineIds.push(located.cardId)
+      }
+    }
 
     ctx.lastAdded = { name: cardName, hasNote: false, cardId: located?.cardId }
     ctx.lastAddedCount = 1
@@ -208,10 +225,51 @@ function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy {
       )
       const newIdx = trackAnotherCopy(ctx.sessionChanges, ctx.lastChangeIndex)
       if (newIdx !== null) ctx.lastChangeIndex = newIdx
+      if (ctx.lastAdded.cardId !== undefined) {
+        // Copies merge into the existing line, so this records another copy of the
+        // same id (no new line id, hence nothing added to sessionLineIds).
+        sessionAdds.push({
+          cardId: ctx.lastAdded.cardId,
+          name: ctx.lastAdded.name,
+          printing: lastPrinting ?? {},
+          section: lastSection,
+        })
+      }
       ctx.lastAddedCount++
       console.log(
         `Added another ${ctx.lastAdded.name} to ${lastSection} (${ctx.lastAddedCount}x total)`,
       )
+    },
+
+    listSessionAdds: (): SessionAddItem[] =>
+      sessionAdds.map((rec) => {
+        const printingInfo = rec.printing.set
+          ? ` (${rec.printing.set.toUpperCase()}:${rec.printing.collectorNumber})`
+          : ''
+        return { label: `${rec.name}${printingInfo} → ${rec.section}`, name: rec.name }
+      }),
+
+    async discardSessionAdd(ctx: CardSessionContext, index: number): Promise<void> {
+      const outcome = discardDeckCopy(
+        { deck, sessionChanges: ctx.sessionChanges, sessionAdds, sessionLineIds },
+        index,
+      )
+      if (!outcome) return
+      deck = outcome.deck
+      ctx.sessionChanges = outcome.sessionChanges
+      sessionAdds = outcome.sessionAdds
+      sessionLineIds = outcome.sessionLineIds
+
+      await writeDeck(deckFile, deck, frontMatter)
+
+      // The discarded copy may have been the "last added"; reset so the copy/edit
+      // shortcuts don't point at a stale entry until the next add.
+      ctx.lastAdded = null
+      ctx.lastChangeIndex = null
+      ctx.lastAddedCount = 0
+      lastSection = null
+      lastPrinting = null
+      console.log(`Discarded: ${outcome.discarded.name}`)
     },
   }
 }

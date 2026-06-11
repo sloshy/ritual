@@ -2,6 +2,7 @@ import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import {
   createAddChange,
+  createRemoveChange,
   createSetNoteChange,
   createSetPrintingChange,
   type AddRemoveOptions,
@@ -11,7 +12,14 @@ import type { CollectionCardEntry, WantedListCardEntry } from '../site/data-type
 import { DEFAULT_SECTION, type ScryfallCard } from '../types'
 import { parseTitleFromContent } from '../section-format'
 import { writeFileWithHash } from '../content-hash'
-import { allocateId, collectExistingIds, createIdPool, type CardIdPool } from '../card-id'
+import {
+  allocateId,
+  collectExistingIds,
+  createIdPool,
+  releaseId,
+  repackSessionIds,
+  type CardIdPool,
+} from '../card-id'
 import { applyChangeToCollection } from '../editor/collection-changes'
 import { applyChangeToWantedList } from '../editor/wanted-changes'
 import { collectionToMarkdown, wantedToMarkdown } from '../editor/list-export'
@@ -24,7 +32,7 @@ import {
 import { trackAdd, trackAnotherCopy, trackEdit } from '../session-changelog'
 import { parseCollectionFile } from './price-collection'
 import { parseWantedListFile } from './wanted-helpers'
-import type { CardSessionContext } from './card-session'
+import type { CardSessionContext, SessionAddItem } from './card-session'
 
 /** The minimal entry shape the flat-list session machinery relies on. */
 export type FlatListEntry = { section: string; cardId?: number }
@@ -163,7 +171,12 @@ export type FlatListPrintingOptions = Omit<AddRemoveOptions, 'cardId' | 'section
 export type FlatListStrategyContext<E extends FlatListEntry> = {
   session: FlatListSession<E>
   state: LastAddState
+  /** Render a freshly-added card's canonical line from its add snapshot (pre-persistence). */
   renderLine: (name: string, snapshot: LastAddSnapshot, cardId: number) => string
+  /** Render an already-persisted entry as its canonical line, for the discard picker. */
+  renderEntry: (entry: E) => string
+  /** Card ids added this session, in add order (drives the undo/discard menu). */
+  sessionAdds: number[]
 }
 
 /**
@@ -212,6 +225,7 @@ export async function applyFlatListCardEntry<E extends FlatListEntry>(
   } else {
     await applyFlatListChange(session, addEvent)
     ctx.lastChangeIndex = trackAdd(ctx.sessionChanges, addEvent)
+    list.sessionAdds.push(cardId)
     state.snapshot = { options }
     ctx.lastAdded = { name: cardName, hasNote: false, cardId }
     console.log(`Added: ${list.renderLine(cardName, state.snapshot, cardId)}`)
@@ -240,6 +254,7 @@ export async function addAnotherFlatListCopy<E extends FlatListEntry>(
     session,
     createAddChange(ctx.lastAdded.name, { ...state.snapshot.options, cardId }),
   )
+  list.sessionAdds.push(cardId)
   const newIdx = trackAnotherCopy(ctx.sessionChanges, ctx.lastChangeIndex, cardId)
   if (newIdx !== null) ctx.lastChangeIndex = newIdx
   // Copies inherit the previous entry's note, mirroring the rest of its line.
@@ -256,4 +271,77 @@ export async function addAnotherFlatListCopy<E extends FlatListEntry>(
   console.log(
     `Added: ${list.renderLine(ctx.lastAdded.name, state.snapshot, cardId)} (${ctx.lastAddedCount}x total)`,
   )
+}
+
+// ── Discarding session adds ─────────────────────────────────────────
+
+/** A flat-list entry carries a card name (both collection and wanted entries do). */
+type NamedFlatListEntry = FlatListEntry & { name: string }
+
+/**
+ * The cards added this session, in add order, rendered for the discard picker.
+ * Indices align 1:1 with {@link FlatListStrategyContext.sessionAdds} so the engine
+ * can pass a chosen index straight back to {@link discardFlatListAdd}.
+ */
+export function listFlatListSessionAdds<E extends NamedFlatListEntry>(
+  list: FlatListStrategyContext<E>,
+): SessionAddItem[] {
+  return list.sessionAdds.map((cardId) => {
+    const entry = list.session.entries.find((e) => e.cardId === cardId)
+    return entry
+      ? { label: list.renderEntry(entry), name: entry.name }
+      : { label: `(removed) &${cardId}`, name: `&${cardId}` }
+  })
+}
+
+/**
+ * Discard the session add at `index` (into {@link listFlatListSessionAdds}): remove
+ * its entry, drop its changelog events, and re-pack the surviving session ids so they
+ * stay dense and in add order (the highest session id returns to the pool). Pre-existing
+ * (non-session) entries and their ids are never touched.
+ */
+export async function discardFlatListAdd<E extends NamedFlatListEntry>(
+  list: FlatListStrategyContext<E>,
+  ctx: CardSessionContext,
+  index: number,
+): Promise<void> {
+  const { session } = list
+  const targetId = list.sessionAdds[index]
+  if (targetId === undefined) return
+  const entry = session.entries.find((e) => e.cardId === targetId)
+  if (!entry) return
+
+  // Remove the discarded entry and forget its changelog events.
+  session.entries = session.apply(
+    session.entries,
+    createRemoveChange(entry.name, { cardId: targetId }),
+  )
+  ctx.sessionChanges = ctx.sessionChanges.filter((c) => !('cardId' in c) || c.cardId !== targetId)
+
+  // Re-pack: survivors take the smallest of the session ids in add order; the top frees up.
+  const survivorIds = list.sessionAdds.filter((_, i) => i !== index)
+  const { remap, releasedId } = repackSessionIds(list.sessionAdds, survivorIds)
+  for (const e of session.entries) {
+    if (e.cardId !== undefined && remap.has(e.cardId)) e.cardId = remap.get(e.cardId)!
+  }
+  for (const c of ctx.sessionChanges) {
+    if ('cardId' in c && c.cardId !== undefined && remap.has(c.cardId)) {
+      c.cardId = remap.get(c.cardId)!
+    }
+  }
+  list.sessionAdds = survivorIds.map((id) => remap.get(id) ?? id)
+  releaseId(session.pool, releasedId)
+
+  await writeFileWithHash(
+    session.filePath,
+    session.serialize(session.title, session.entries, session.sectionOrder),
+  )
+
+  // The discarded card may have been the "last added"; reset so the copy/edit
+  // shortcuts don't point at a stale entry until the next add.
+  ctx.lastAdded = null
+  ctx.lastChangeIndex = null
+  ctx.lastAddedCount = 0
+  list.state.snapshot = null
+  console.log(`Discarded: ${entry.name}`)
 }

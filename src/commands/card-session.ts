@@ -61,6 +61,8 @@ export const MENU_SENTINELS: ReadonlySet<string> = new Set([
   '__DONE__',
   '__EXIT__',
   '__EDIT_LAST__',
+  '__UNDO_LAST__',
+  '__DISCARD__',
 ])
 
 /** A choice is a menu item (vs. a card) when its value is exactly a known sentinel. */
@@ -78,6 +80,8 @@ type ListPromptResponse = { list?: string }
 type NamePromptResponse = { name?: string }
 type NotePromptResponse = { note?: string }
 type ConfirmPromptResponse = { confirm?: boolean }
+/** The discard picker resolves to an add-order index, null (Cancel), or undefined (escaped). */
+type DiscardPromptResponse = { index?: number | null }
 type CodePromptResponse = { code?: string }
 /** An action picked in the Manage Set Codes menu. */
 type SetAction =
@@ -102,6 +106,13 @@ export type CardSessionContext = {
   /** Consecutive copies of {@link lastAdded} added this streak. */
   lastAddedCount: number
 }
+
+/**
+ * A card added during the current session, for the discard menu. `label` is the
+ * full rendered line shown in the picker; `name` is the bare card name used in the
+ * "Undo Last Add" shortcut.
+ */
+export type SessionAddItem = { label: string; name: string }
 
 /** Input to {@link CardSessionStrategy.handleCard} once the engine has resolved a selection. */
 export type CardChoiceInput = {
@@ -141,6 +152,10 @@ export type CardSessionStrategy = {
   addAnotherCopy: (ctx: CardSessionContext) => Promise<void>
   /** Notify the strategy that the engine applied a note to the last added card. */
   noteAdded?: (note: string) => void
+  /** The cards added this session, in add order, for the discard menu. */
+  listSessionAdds?: () => SessionAddItem[]
+  /** Discard the session add at `index` into {@link listSessionAdds}, re-packing ids. */
+  discardSessionAdd?: (ctx: CardSessionContext, index: number) => Promise<void>
 }
 
 // ── Shared startup helpers ──────────────────────────────────────────
@@ -463,13 +478,15 @@ export type MenuBuildInput = {
   activeSet: string
   /** Strategy-specific entries inserted after the note shortcut. */
   extraItems: Choice[]
+  /** Cards added this session, in add order (drives the undo/discard menu items). */
+  sessionAdds: SessionAddItem[]
   /** Card-name or collector-number choices appended after the menu entries. */
   cardChoices: Choice[]
 }
 
 /** Build the full autocomplete choice list (menu shortcuts first, then cards). */
 export function buildMenuChoices(input: MenuBuildInput): Choice[] {
-  const { mode, lastAdded, changeCount, activeSet, extraItems, cardChoices } = input
+  const { mode, lastAdded, changeCount, activeSet, extraItems, sessionAdds, cardChoices } = input
   const modeItems: Choice[] =
     mode === 'name'
       ? [
@@ -500,6 +517,18 @@ export function buildMenuChoices(input: MenuBuildInput): Choice[] {
     { title: '🚪 Exit Without Saving Changelog', value: '__EXIT__' },
     ...(lastAdded
       ? [{ title: `✏️  Edit Previous Card (${lastAdded.name})`, value: '__EDIT_LAST__' }]
+      : []),
+    ...(sessionAdds.length > 0
+      ? [
+          {
+            title: `↩️  Undo Last Add (${sessionAdds[sessionAdds.length - 1]!.name})`,
+            value: '__UNDO_LAST__',
+          },
+          {
+            title: `🗑️  Discard a Card Added This Session (${sessionAdds.length})`,
+            value: '__DISCARD__',
+          },
+        ]
       : []),
     ...cardChoices,
   ]
@@ -614,12 +643,15 @@ export async function runCardSession(options: CardSessionOptions): Promise<void>
               new Map<string, ScryfallCard>(),
           )
 
+    const sessionAdds = strategy.listSessionAdds?.() ?? []
+
     const choices = buildMenuChoices({
       mode: sessionConfig.entryMode,
       lastAdded: ctx.lastAdded,
       changeCount: ctx.sessionChanges.length,
       activeSet,
       extraItems: strategy.extraMenuItems?.() ?? [],
+      sessionAdds,
       cardChoices,
     })
 
@@ -738,6 +770,30 @@ export async function runCardSession(options: CardSessionOptions): Promise<void>
 
     if (response.cardName === '__CONFIG__') {
       cardNames = await strategy.updateConfig(excludeDigitalOnly)
+      continue
+    }
+
+    if (response.cardName === '__UNDO_LAST__' && strategy.discardSessionAdd) {
+      if (sessionAdds.length > 0) await strategy.discardSessionAdd(ctx, sessionAdds.length - 1)
+      continue
+    }
+
+    if (response.cardName === '__DISCARD__' && strategy.discardSessionAdd) {
+      if (sessionAdds.length === 0) continue
+      // Present newest-first; the choice value is the original add-order index, or
+      // null for Cancel (and undefined if the prompt itself is escaped).
+      const discardResponse = (await prompts({
+        type: 'select',
+        name: 'index',
+        message: 'Discard which card added this session?',
+        choices: [
+          ...sessionAdds.map((item, index) => ({ title: item.label, value: index })).reverse(),
+          { title: '← Cancel', value: null },
+        ],
+      })) as DiscardPromptResponse
+      if (discardResponse.index != null) {
+        await strategy.discardSessionAdd(ctx, discardResponse.index)
+      }
       continue
     }
 

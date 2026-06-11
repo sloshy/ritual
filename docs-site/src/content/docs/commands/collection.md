@@ -26,19 +26,23 @@ Options can be combined. When `--collector` is used with `--sets`, the set card 
 
 ## Menu Options
 
-The following options are always available in the menu when no search text is typed:
+The following options are available in the menu when no search text is typed:
 
-| Option                               | Description                                                                 |
-| ------------------------------------ | --------------------------------------------------------------------------- |
-| `✅ Done — Save N change(s)`         | Save the session changelog and exit                                         |
-| `🚪 Exit Without Saving Changelog`   | Exit without writing the session changelog (card changes are already saved) |
-| `⚙️ Configure Session Filters`       | Adjust default set codes, finish, and condition                             |
-| `🔢 Switch to Collector Number Mode` | Switch to collector number entry mode                                       |
-| `📦 Manage Set Codes`                | Add, remove, or switch active sets (collector mode)                         |
-| `🔤 Switch to Name Mode`             | Switch back to name entry mode (collector mode)                             |
-| `➕ Add Another Copy`                | Append another copy of the last added card                                  |
-| `📝 Add Note`                        | Attach a note to the last added card                                        |
-| `✏️ Edit Previous Card`              | Re-enter the last added card with forced prompts                            |
+| Option                                 | Description                                                                 |
+| -------------------------------------- | --------------------------------------------------------------------------- |
+| `✅ Done — Save N change(s)`           | Save the session changelog and exit                                         |
+| `🚪 Exit Without Saving Changelog`     | Exit without writing the session changelog (card changes are already saved) |
+| `⚙️ Configure Session Filters`         | Adjust default set codes, finish, and condition                             |
+| `🔢 Switch to Collector Number Mode`   | Switch to collector number entry mode                                       |
+| `📦 Manage Set Codes`                  | Add, remove, or switch active sets (collector mode)                         |
+| `🔤 Switch to Name Mode`               | Switch back to name entry mode (collector mode)                             |
+| `➕ Add Another Copy`                  | Append another copy of the last added card                                  |
+| `📝 Add Note`                          | Attach a note to the last added card                                        |
+| `✏️ Edit Previous Card`                | Re-enter the last added card with forced prompts                            |
+| `↩️ Undo Last Add`                     | Take back the most recently added card                                      |
+| `🗑️ Discard a Card Added This Session` | Remove any card added this session; frees its `&N` id and re-packs the rest |
+
+The `↩️ Undo Last Add` and `🗑️ Discard a Card Added This Session` options appear only after you have added at least one card this session. Discarding a card frees its `&N` id; the remaining cards added this session keep dense, in-order ids (each later card slides down one, and the highest id returns to the pool).
 
 ## Entry Modes
 

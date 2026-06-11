@@ -23,6 +23,8 @@ import {
   addAnotherFlatListCopy,
   applyFlatListCardEntry,
   applyFlatListChange,
+  discardFlatListAdd,
+  listFlatListSessionAdds,
   loadWantedSession,
   type FlatListStrategyContext,
   type LastAddState,
@@ -61,6 +63,17 @@ function createWantedStrategy(
         snapshot.note,
         cardId,
       ).trim(),
+    renderEntry: (entry) =>
+      formatWantedListLine(
+        entry.name,
+        entry.set && entry.collectorNumber
+          ? { set: entry.set, collectorNumber: entry.collectorNumber }
+          : undefined,
+        entry.finish,
+        entry.note,
+        entry.cardId,
+      ).trim(),
+    sessionAdds: [],
   }
 
   return {
@@ -135,6 +148,9 @@ function createWantedStrategy(
     },
 
     addAnotherCopy: (ctx: CardSessionContext) => addAnotherFlatListCopy(list, ctx),
+    listSessionAdds: () => listFlatListSessionAdds(list),
+    discardSessionAdd: (ctx: CardSessionContext, index: number) =>
+      discardFlatListAdd(list, ctx, index),
   }
 }
 

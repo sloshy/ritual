@@ -44,6 +44,11 @@ Set the **target section** to a fixed section or "prompt every time" via \`--sec
 the \`🗂️ Set Target Section\` menu, or the session filters. Adding a card whose printing
 already exists in the deck increments its quantity instead of duplicating the line.
 
+**Undo within the session:** \`↩️ Undo Last Add\` takes back the most recent card, and
+\`🗑️ Discard a Card Added This Session\` opens a picker to remove any card you added this
+session (decrementing a merged line, or removing it entirely). Discarding a card frees its
+\`&N\` id and keeps the remaining session ids dense.
+
 ## Import from a URL or text file
 
 \`\`\`bash

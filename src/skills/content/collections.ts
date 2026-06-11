@@ -34,6 +34,8 @@ ritual collection --collector              # enter cards by collector number
 ritual collection --allow-digital-only-cards
 \`\`\`
 
+Within the session, \`↩️ Undo Last Add\` removes the most recent card and \`🗑️ Discard a Card Added This Session\` opens a picker to drop any card you added this session. Discarding frees that card's \`&N\` id and keeps the remaining session ids dense (each later card slides down one).
+
 ## Import from a text file
 
 \`import\` turns a decklist-style text file into a new collection (quantities expand

@@ -9,6 +9,7 @@ import {
   parseCardIdsFromContent,
   allocateNextIdFromContent,
   assignMissingDeckCardIds,
+  repackSessionIds,
 } from '../../src/card-id'
 import type { DeckData } from '../../src/types'
 
@@ -466,5 +467,55 @@ describe('assignMissingDeckCardIds', () => {
     const deck = makeDeck('Empty', [])
     const result = assignMissingDeckCardIds(deck)
     expect(result.sections).toEqual([])
+  })
+})
+
+describe('repackSessionIds', () => {
+  test('discarding the 35th of a contiguous 1..40 slides survivors down and frees 40', () => {
+    const sessionIds = Array.from({ length: 40 }, (_, i) => i + 1)
+    // Survivors in add order: 1..34 then 36..40 (the 35th was discarded).
+    const survivors = [...sessionIds.slice(0, 34), ...sessionIds.slice(35)]
+    const { remap, releasedId } = repackSessionIds(sessionIds, survivors)
+
+    expect(releasedId).toBe(40)
+    // 1..34 are unchanged (not in the remap); 36→35, 37→36, ..., 40→39.
+    expect(remap.has(34)).toBe(false)
+    expect(remap.get(36)).toBe(35)
+    expect(remap.get(37)).toBe(36)
+    expect(remap.get(40)).toBe(39)
+    // The survivors, after remapping, occupy a dense 1..39.
+    const finalIds = survivors.map((id) => remap.get(id) ?? id).sort((a, b) => a - b)
+    expect(finalIds).toEqual(Array.from({ length: 39 }, (_, i) => i + 1))
+  })
+
+  test('discarding the highest add leaves survivors untouched and frees the top id', () => {
+    const sessionIds = [11, 12, 13, 14]
+    const survivors = [11, 12, 13] // the 14 was discarded
+    const { remap, releasedId } = repackSessionIds(sessionIds, survivors)
+    expect(releasedId).toBe(14)
+    expect(remap.size).toBe(0)
+  })
+
+  test('operates only over the session ids, even when one reused a low gap id', () => {
+    // A session that reused freed id 5, then allocated 41,42,43 in add order.
+    const sessionIds = [5, 41, 42, 43]
+    const survivors = [5, 42, 43] // discarded the add holding 41
+    const { remap, releasedId } = repackSessionIds(sessionIds, survivors)
+    expect(releasedId).toBe(43)
+    expect(remap.get(42)).toBe(41)
+    expect(remap.get(43)).toBe(42)
+    expect(remap.has(5)).toBe(false)
+  })
+
+  test('a single-add session releases its only id with an empty remap', () => {
+    const { remap, releasedId } = repackSessionIds([7], [])
+    expect(releasedId).toBe(7)
+    expect(remap.size).toBe(0)
+  })
+
+  test('no session ids releases nothing', () => {
+    const { remap, releasedId } = repackSessionIds([], [])
+    expect(releasedId).toBe(-1)
+    expect(remap.size).toBe(0)
   })
 })

@@ -23,6 +23,8 @@ import {
   addAnotherFlatListCopy,
   applyFlatListCardEntry,
   applyFlatListChange,
+  discardFlatListAdd,
+  listFlatListSessionAdds,
   loadCollectionSession,
   type CollectionSession,
   type FlatListStrategyContext,
@@ -62,6 +64,17 @@ function createCollectionStrategy(
         snapshot.note,
         cardId,
       ).trim(),
+    renderEntry: (entry) =>
+      formatCollectionLine(
+        entry.name,
+        entry.set,
+        entry.collectorNumber,
+        entry.finish,
+        entry.condition,
+        entry.note,
+        entry.cardId,
+      ).trim(),
+    sessionAdds: [],
   }
 
   return {
@@ -113,6 +126,9 @@ function createCollectionStrategy(
     },
 
     addAnotherCopy: (ctx: CardSessionContext) => addAnotherFlatListCopy(list, ctx),
+    listSessionAdds: () => listFlatListSessionAdds(list),
+    discardSessionAdd: (ctx: CardSessionContext, index: number) =>
+      discardFlatListAdd(list, ctx, index),
   }
 }
 

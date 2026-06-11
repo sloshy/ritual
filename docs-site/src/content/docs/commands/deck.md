@@ -38,18 +38,22 @@ format).
 
 The following options are available in the menu when no search text is typed:
 
-| Option                               | Description                                                                 |
-| ------------------------------------ | --------------------------------------------------------------------------- |
-| `✅ Done — Save N change(s)`         | Save the session changelog and exit                                         |
-| `🚪 Exit Without Saving Changelog`   | Exit without writing the session changelog (card changes are already saved) |
-| `🗂️ Set Target Section`              | Pin a section, create a new one, or prompt for each card                    |
-| `⚙️ Configure Session Filters`       | Adjust default sets, finish, condition, and target section                  |
-| `🔢 Switch to Collector Number Mode` | Switch to collector number entry mode                                       |
-| `📦 Manage Set Codes`                | Add, remove, or switch active sets (collector mode)                         |
-| `🔤 Switch to Name Mode`             | Switch back to name entry mode (collector mode)                             |
-| `➕ Add Another Copy`                | Increment the quantity of the last added card                               |
-| `📝 Add Note`                        | Attach a note to the last added card                                        |
-| `✏️ Edit Previous Card`              | Re-pick the printing/finish/condition for the last card                     |
+| Option                                 | Description                                                                 |
+| -------------------------------------- | --------------------------------------------------------------------------- |
+| `✅ Done — Save N change(s)`           | Save the session changelog and exit                                         |
+| `🚪 Exit Without Saving Changelog`     | Exit without writing the session changelog (card changes are already saved) |
+| `🗂️ Set Target Section`                | Pin a section, create a new one, or prompt for each card                    |
+| `⚙️ Configure Session Filters`         | Adjust default sets, finish, condition, and target section                  |
+| `🔢 Switch to Collector Number Mode`   | Switch to collector number entry mode                                       |
+| `📦 Manage Set Codes`                  | Add, remove, or switch active sets (collector mode)                         |
+| `🔤 Switch to Name Mode`               | Switch back to name entry mode (collector mode)                             |
+| `➕ Add Another Copy`                  | Increment the quantity of the last added card                               |
+| `📝 Add Note`                          | Attach a note to the last added card                                        |
+| `✏️ Edit Previous Card`                | Re-pick the printing/finish/condition for the last card                     |
+| `↩️ Undo Last Add`                     | Take back the most recently added card                                      |
+| `🗑️ Discard a Card Added This Session` | Remove any copy added this session (decrements or removes the line)         |
+
+The `↩️ Undo Last Add` and `🗑️ Discard a Card Added This Session` options appear only after you have added at least one card this session. When a discard fully removes a card line, its `&N` id is freed and the remaining session-added lines keep dense, in-order ids (each later line slides down one, and the highest id returns to the pool). Decrementing a multi-copy line keeps its id.
 
 ## Sections
 

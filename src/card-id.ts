@@ -127,6 +127,43 @@ export function claimId(pool: CardIdPool, id: number): void {
   }
 }
 
+/** The id remapping produced by {@link repackSessionIds}. */
+export type RepackResult = {
+  /** Old id → new id for every surviving session entry whose id changed. */
+  remap: Map<number, number>
+  /** The single id freed back to the pool (the largest of the session ids). */
+  releasedId: number
+}
+
+/**
+ * Re-pack the ids a session allocated after one of its entries is discarded, so the
+ * survivors stay dense and in add order. `allSessionIds` is the set of ids in use
+ * just before the discard (including the discarded one); `survivorIdsInAddOrder` is
+ * the survivors' current ids in the order they were added. The survivors are
+ * reassigned the smallest `survivorIdsInAddOrder.length` of the sorted session ids,
+ * and the largest session id is released.
+ *
+ * Pure: the caller applies `remap` to entries / changelog events and calls
+ * {@link releaseId} with `releasedId`. Only the ids passed in are touched, so
+ * pre-existing (non-session) entries are unaffected. Returns `releasedId: -1` and an
+ * empty remap when there is nothing to release (no session ids).
+ */
+export function repackSessionIds(
+  allSessionIds: number[],
+  survivorIdsInAddOrder: number[],
+): RepackResult {
+  if (allSessionIds.length === 0) return { remap: new Map(), releasedId: -1 }
+  const sorted = [...allSessionIds].sort((a, b) => a - b)
+  const releasedId = sorted[sorted.length - 1]!
+  const keep = sorted.slice(0, survivorIdsInAddOrder.length)
+  const remap = new Map<number, number>()
+  survivorIdsInAddOrder.forEach((oldId, i) => {
+    const newId = keep[i]!
+    if (newId !== oldId) remap.set(oldId, newId)
+  })
+  return { remap, releasedId }
+}
+
 /** Parse all &N card IDs from file content (any format). */
 export function parseCardIdsFromContent(content: string): number[] {
   const ids: number[] = []

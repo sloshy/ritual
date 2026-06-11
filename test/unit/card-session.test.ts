@@ -104,6 +104,7 @@ describe('buildMenuChoices', () => {
     changeCount: 0,
     activeSet: '',
     extraItems: [],
+    sessionAdds: [],
     cardChoices: [{ title: 'Sol Ring', value: 'Sol Ring' }],
   }
 
@@ -147,6 +148,20 @@ describe('buildMenuChoices', () => {
     const extra: Choice = { title: 'Set Target Section', value: '__SECTION__' }
     const values = buildMenuChoices({ ...base, extraItems: [extra] }).map((c) => c.value)
     expect(values.indexOf('__SECTION__')).toBeLessThan(values.indexOf('__CONFIG__'))
+  })
+
+  test('undo/discard items appear only when there are session adds, naming the last add', () => {
+    expect(buildMenuChoices(base).map((c) => c.value)).not.toContain('__UNDO_LAST__')
+
+    const sessionAdds = [
+      { label: 'Sol Ring (LEA:269) &1', name: 'Sol Ring' },
+      { label: 'Lightning Bolt (LEA:161) &2', name: 'Lightning Bolt' },
+    ]
+    const choices = buildMenuChoices({ ...base, sessionAdds })
+    const undo = choices.find((c) => c.value === '__UNDO_LAST__')
+    const discard = choices.find((c) => c.value === '__DISCARD__')
+    expect(undo?.title).toBe('↩️  Undo Last Add (Lightning Bolt)')
+    expect(discard?.title).toBe('🗑️  Discard a Card Added This Session (2)')
   })
 })
 
