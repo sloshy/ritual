@@ -6,6 +6,7 @@ import {
   buildMenuChoices,
   isMenuChoice,
   suggestCollectorMode,
+  suggestEditMode,
   suggestNameMode,
 } from '../../src/commands/card-session'
 
@@ -99,18 +100,27 @@ describe('suggestCollectorMode', () => {
 
 describe('buildMenuChoices', () => {
   const base = {
+    sessionMode: 'add' as const,
     mode: 'name' as const,
     lastAdded: null,
     changeCount: 0,
     activeSet: '',
     extraItems: [],
     sessionAdds: [],
+    editUndoLabel: null,
     cardChoices: [{ title: 'Sol Ring', value: 'Sol Ring' }],
   }
 
   test('without a last added card, the copy/note/edit shortcuts are absent', () => {
     const values = buildMenuChoices(base).map((c) => c.value)
-    expect(values).toEqual(['__CONFIG__', '__COLLECTOR_MODE__', '__DONE__', '__EXIT__', 'Sol Ring'])
+    expect(values).toEqual([
+      '__CONFIG__',
+      '__COLLECTOR_MODE__',
+      '__EDIT_MODE__',
+      '__DONE__',
+      '__EXIT__',
+      'Sol Ring',
+    ])
   })
 
   test('with a last added card, copy and edit appear; note only when it has none', () => {
@@ -127,10 +137,42 @@ describe('buildMenuChoices', () => {
     expect(noted.map((c) => c.value)).toContain('__EDIT_LAST__')
   })
 
-  test('Done shows the pending change count', () => {
+  test('Done shows the pending change count, and Save appears alongside it', () => {
     const choices = buildMenuChoices({ ...base, changeCount: 3 })
     const done = choices.find((c) => c.value === '__DONE__')
-    expect(done?.title).toBe('✅ Done — Save 3 change(s)')
+    expect(done?.title).toBe('✅ Done — Save 3 change(s) & Exit')
+    const save = choices.find((c) => c.value === '__SAVE__')
+    expect(save?.title).toBe('💾 Save 3 change(s) (keep editing)')
+  })
+
+  test('Save is hidden when there are no pending changes', () => {
+    expect(buildMenuChoices(base).map((c) => c.value)).not.toContain('__SAVE__')
+  })
+
+  test('edit mode pares the menu down to mode switch, save/exit, and cards', () => {
+    const entryChoice = {
+      title: '- Sol Ring (C19:221) [NM] &1',
+      value: { type: 'entry', cardId: 1 },
+    }
+    const choices = buildMenuChoices({
+      ...base,
+      sessionMode: 'edit',
+      lastAdded: { name: 'Sol Ring', hasNote: false, cardId: 1 },
+      cardChoices: [entryChoice],
+    })
+    const values = choices.map((c) => c.value)
+    expect(values).toEqual(['__ADD_MODE__', '__DONE__', '__EXIT__', entryChoice.value])
+    // The add-mode shortcuts must not leak into edit mode, even with a last added card.
+    expect(values).not.toContain('__ADD_ANOTHER__')
+    expect(values).not.toContain('__EDIT_LAST__')
+    expect(values).not.toContain('__CONFIG__')
+  })
+
+  test('the undo-edit item appears with its label when an edit is undoable', () => {
+    expect(buildMenuChoices(base).map((c) => c.value)).not.toContain('__UNDO_EDIT__')
+    const choices = buildMenuChoices({ ...base, editUndoLabel: 'printing on Sol Ring' })
+    const undoEdit = choices.find((c) => c.value === '__UNDO_EDIT__')
+    expect(undoEdit?.title).toBe('↩️  Undo Last Edit (printing on Sol Ring)')
   })
 
   test('collector mode swaps config/mode items and shows the active set', () => {
@@ -162,6 +204,30 @@ describe('buildMenuChoices', () => {
     const discard = choices.find((c) => c.value === '__DISCARD__')
     expect(undo?.title).toBe('↩️  Undo Last Add (Lightning Bolt)')
     expect(discard?.title).toBe('🗑️  Discard a Card Added This Session (2)')
+  })
+})
+
+describe('suggestEditMode', () => {
+  const choices: Choice[] = [
+    { title: '✅ Done', value: '__DONE__' },
+    { title: '- Sol Ring (C19:221) [NM] &1', value: { type: 'entry', cardId: 1 } },
+    { title: '- Lightning Bolt (LEA:161) [NM] &2', value: { type: 'entry', cardId: 2 } },
+  ]
+
+  test('empty input shows only menu items', () => {
+    expect(suggestEditMode('', choices).map((c) => c.value)).toEqual(['__DONE__'])
+  })
+
+  test('term-matches the rendered entry lines', () => {
+    const result = suggestEditMode('bolt lea', choices)
+    expect(result).toHaveLength(1)
+    expect(result[0]!.title).toContain('Lightning Bolt')
+  })
+
+  test('a trailing ! is treated as a literal character, never a force marker', () => {
+    // Edit-mode entry values are objects; a force suffix would corrupt them.
+    const result = suggestEditMode('bolt!', choices)
+    expect(result).toHaveLength(0)
   })
 })
 

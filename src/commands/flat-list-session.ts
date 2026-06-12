@@ -33,16 +33,18 @@ import { trackAdd, trackAnotherCopy, trackEdit } from '../session-changelog'
 import { parseCollectionFile } from './price-collection'
 import { parseWantedListFile } from './wanted-helpers'
 import type { CardSessionContext, SessionAddItem } from './card-session'
+import type { EditUndoEntry } from './edit-undo'
 
 /** The minimal entry shape the flat-list session machinery relies on. */
 export type FlatListEntry = { section: string; cardId?: number }
 
 /**
  * In-memory session model for the flat list types (collections and wanted
- * lists), mirroring how the admin save handlers work: parse the file into
- * entries once, apply each edit as a {@link ChangeEvent}, and re-serialize the
- * whole file in canonical form. Card IDs come from a {@link CardIdPool} seeded
- * at load, so removals' IDs are reused and the file is never re-read mid-session.
+ * lists), mirroring how the admin editor works: parse the file into entries
+ * once, apply each edit as a {@link ChangeEvent} in memory, and re-serialize the
+ * whole file in canonical form when the session is explicitly saved. Card IDs
+ * come from a {@link CardIdPool} seeded at load, so removals' IDs are reused and
+ * the file is never re-read mid-session.
  */
 export type FlatListSession<E extends FlatListEntry> = {
   filePath: string
@@ -52,6 +54,8 @@ export type FlatListSession<E extends FlatListEntry> = {
   /** Section names in file order, including empty sections. */
   sectionOrder: string[]
   pool: CardIdPool
+  /** Whether the in-memory entries differ from what was last written to disk. */
+  dirty: boolean
   apply: (entries: E[], change: ChangeEvent) => E[]
   serialize: (title: string, entries: E[], sectionOrder: string[]) => string
 }
@@ -91,6 +95,7 @@ export async function loadCollectionSession(filePath: string): Promise<Collectio
     entries,
     sectionOrder: parsed.sectionOrder,
     pool: assignMissingIds(entries),
+    dirty: false,
     apply: applyChangeToCollection,
     serialize: collectionToMarkdown,
   }
@@ -119,6 +124,7 @@ export async function loadWantedSession(filePath: string): Promise<WantedSession
     entries,
     sectionOrder: parsed.sectionOrder,
     pool: assignMissingIds(entries),
+    dirty: false,
     apply: applyChangeToWantedList,
     serialize: wantedToMarkdown,
   }
@@ -135,22 +141,30 @@ export function flatListTargetSection<E extends FlatListEntry>(
 }
 
 /**
- * Apply a change to the session's entries and write the file back in canonical form.
+ * Apply a change to the session's in-memory entries. The file is not touched —
+ * call {@link persistFlatListSession} (the session's Done/Save actions) to write it.
  *
  * Note: `remove` changes shrink the entry array but do not release the entry's ID
- * back to {@link FlatListSession.pool} — none of the interactive sessions emit
- * removals today. If one ever does, the removed ID must be released here so the
- * pool's gap-reuse guarantee holds within a session.
+ * back to {@link FlatListSession.pool} — the edit-mode removal flow
+ * (`removeFlatListEntry` in `flat-list-edit.ts`) owns that bookkeeping.
  */
-export async function applyFlatListChange<E extends FlatListEntry>(
+export function applyFlatListChange<E extends FlatListEntry>(
   session: FlatListSession<E>,
   change: ChangeEvent,
-): Promise<void> {
+): void {
   session.entries = session.apply(session.entries, change)
+  session.dirty = true
+}
+
+/** Write the session's in-memory entries back to its file in canonical form. */
+export async function persistFlatListSession<E extends FlatListEntry>(
+  session: FlatListSession<E>,
+): Promise<void> {
   await writeFileWithHash(
     session.filePath,
     session.serialize(session.title, session.entries, session.sectionOrder),
   )
+  session.dirty = false
 }
 
 // ── Shared strategy operations ──────────────────────────────────────
@@ -177,6 +191,28 @@ export type FlatListStrategyContext<E extends FlatListEntry> = {
   renderEntry: (entry: E) => string
   /** Card ids added this session, in add order (drives the undo/discard menu). */
   sessionAdds: number[]
+  /** Linear undo stack for edit-mode operations, oldest first. */
+  editUndo: EditUndoEntry[]
+  /**
+   * Session-start snapshots of entries touched in edit mode, keyed by card id.
+   * Used so an entry edited back to its original state drops out of the
+   * changelog entirely (the consolidate* "latest wins" comparisons).
+   */
+  originals: Map<number, E>
+}
+
+/**
+ * Reset the per-session tracking after a mid-session save: everything so far is
+ * committed to disk and the changelog, so the undo/discard menus must not be
+ * able to claw it back, and edit consolidation baselines restart from the saved state.
+ */
+export function resetFlatListSessionTracking<E extends FlatListEntry>(
+  list: FlatListStrategyContext<E>,
+): void {
+  list.sessionAdds = []
+  list.editUndo = []
+  list.originals.clear()
+  list.state.snapshot = null
 }
 
 /**
@@ -208,7 +244,7 @@ export async function applyFlatListCardEntry<E extends FlatListEntry>(
   const addEvent = createAddChange(cardName, options)
 
   if (isEditing && ctx.lastAdded) {
-    await applyFlatListChange(
+    applyFlatListChange(
       session,
       createSetPrintingChange(cardName, {
         set: options.set,
@@ -223,7 +259,7 @@ export async function applyFlatListCardEntry<E extends FlatListEntry>(
     ctx.lastAdded = { name: cardName, hasNote: ctx.lastAdded.hasNote, cardId }
     console.log(`Edited: ${list.renderLine(cardName, state.snapshot, cardId)}`)
   } else {
-    await applyFlatListChange(session, addEvent)
+    applyFlatListChange(session, addEvent)
     ctx.lastChangeIndex = trackAdd(ctx.sessionChanges, addEvent)
     list.sessionAdds.push(cardId)
     state.snapshot = { options }
@@ -250,7 +286,7 @@ export async function addAnotherFlatListCopy<E extends FlatListEntry>(
   const { session, state } = list
   if (!ctx.lastAdded || !state.snapshot) return
   const cardId = allocateId(session.pool)
-  await applyFlatListChange(
+  applyFlatListChange(
     session,
     createAddChange(ctx.lastAdded.name, { ...state.snapshot.options, cardId }),
   )
@@ -263,7 +299,7 @@ export async function addAnotherFlatListCopy<E extends FlatListEntry>(
       note: state.snapshot.note,
       cardId,
     })
-    await applyFlatListChange(session, noteChange)
+    applyFlatListChange(session, noteChange)
     ctx.sessionChanges.push(noteChange)
   }
   ctx.lastAddedCount++
@@ -300,11 +336,11 @@ export function listFlatListSessionAdds<E extends NamedFlatListEntry>(
  * stay dense and in add order (the highest session id returns to the pool). Pre-existing
  * (non-session) entries and their ids are never touched.
  */
-export async function discardFlatListAdd<E extends NamedFlatListEntry>(
+export function discardFlatListAdd<E extends NamedFlatListEntry>(
   list: FlatListStrategyContext<E>,
   ctx: CardSessionContext,
   index: number,
-): Promise<void> {
+): void {
   const { session } = list
   const targetId = list.sessionAdds[index]
   if (targetId === undefined) return
@@ -316,6 +352,7 @@ export async function discardFlatListAdd<E extends NamedFlatListEntry>(
     session.entries,
     createRemoveChange(entry.name, { cardId: targetId }),
   )
+  session.dirty = true
   ctx.sessionChanges = ctx.sessionChanges.filter((c) => !('cardId' in c) || c.cardId !== targetId)
 
   // Re-pack: survivors take the smallest of the session ids in add order; the top frees up.
@@ -332,10 +369,13 @@ export async function discardFlatListAdd<E extends NamedFlatListEntry>(
   list.sessionAdds = survivorIds.map((id) => remap.get(id) ?? id)
   releaseId(session.pool, releasedId)
 
-  await writeFileWithHash(
-    session.filePath,
-    session.serialize(session.title, session.entries, session.sectionOrder),
-  )
+  // The re-pack may have renumbered ids that pending edit-undo entries reference,
+  // so the edit history can no longer be replayed safely. Dropping it is the
+  // conservative move; the discarded card's own edit events were filtered above.
+  if (list.editUndo.length > 0) {
+    list.editUndo = []
+    console.log('(Edit undo history cleared by the discard.)')
+  }
 
   // The discarded card may have been the "last added"; reset so the copy/edit
   // shortcuts don't point at a stale entry until the next add.

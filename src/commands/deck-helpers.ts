@@ -206,7 +206,7 @@ const PROMPT_EVERY_TIME = '__PROMPT__'
 const NEW_SECTION = '__NEW__'
 
 /** Prompt for a free-form new section name. Returns the trimmed name, or null on cancel/empty. */
-async function promptNewSectionName(): Promise<string | null> {
+export async function promptNewSectionName(): Promise<string | null> {
   const response = (await prompts({
     type: 'text',
     name: 'name',

@@ -3,7 +3,7 @@ import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { getAllCardNames, getCardsBySet } from '../scryfall'
 import type { Condition, Finish, ScryfallCard } from '../types'
-import { isCondition, isFinish } from '../finish-condition'
+import { CONDITION_LABELS, isCondition, isFinish, VALID_CONDITIONS } from '../finish-condition'
 import type { PromptState } from './prompts-types'
 import { appendChangelog } from '../changelog-writer'
 import { createSetNoteChange, type ChangeEvent } from '../change-event'
@@ -58,10 +58,14 @@ export const MENU_SENTINELS: ReadonlySet<string> = new Set([
   '__COLLECTOR_MODE__',
   '__MANAGE_SETS__',
   '__NAME_MODE__',
+  '__EDIT_MODE__',
+  '__ADD_MODE__',
+  '__SAVE__',
   '__DONE__',
   '__EXIT__',
   '__EDIT_LAST__',
   '__UNDO_LAST__',
+  '__UNDO_EDIT__',
   '__DISCARD__',
 ])
 
@@ -73,8 +77,10 @@ export const isMenuChoice = (choice: Choice): boolean =>
 
 /** A collector-mode autocomplete choice value: a specific printing keyed by collector number. */
 export type CollectorChoiceValue = { type: 'card'; num: string; card: ScryfallCard }
-/** The card-entry prompt resolves to a menu sentinel/card-name string or a collector choice. */
-type CardSelectionResponse = { cardName?: string | CollectorChoiceValue }
+/** An edit-mode autocomplete choice value: an existing entry, targeted by card ID. */
+export type EntryChoiceValue = { type: 'entry'; cardId: number }
+/** The card-entry prompt resolves to a menu sentinel/card-name string, a collector choice, or an entry. */
+type CardSelectionResponse = { cardName?: string | CollectorChoiceValue | EntryChoiceValue }
 
 type ListPromptResponse = { list?: string }
 type NamePromptResponse = { name?: string }
@@ -92,6 +98,16 @@ type SetAction =
 type SetActionPromptResponse = { action?: SetAction }
 
 // ── Session context & strategy ──────────────────────────────────────
+
+/**
+ * Whether the session is adding new cards (autocomplete over the card database)
+ * or editing existing entries (autocomplete over the list's current entries).
+ * Toggled from the session menu; orthogonal to the name/collector {@link EntryMode}.
+ */
+export type SessionMode = 'add' | 'edit'
+
+/** An existing list entry offered in the edit-mode picker. */
+export type EditableEntryItem = { label: string; cardId: number }
 
 /** The most recently added/edited card, tracked for the menu shortcuts. */
 export type LastAdded = { name: string; hasNote: boolean; cardId?: number }
@@ -128,7 +144,9 @@ export type CardChoiceInput = {
 /**
  * The list-type-specific half of a card-entry session. Implementations close
  * over their list model (deck structure or flat entry array + ID pool) and apply
- * every mutation as a {@link ChangeEvent}, persisting after each change.
+ * every mutation as a {@link ChangeEvent} to the in-memory model. Nothing is
+ * written to disk until the engine asks the strategy to {@link CardSessionStrategy.persist}
+ * (the Done and Save menu actions); exiting instead discards the in-memory state.
  */
 export type CardSessionStrategy = {
   /** Used in exit messages, e.g. `collection manager`. */
@@ -144,8 +162,14 @@ export type CardSessionStrategy = {
   handleSentinel?: (ctx: CardSessionContext, value: string) => Promise<boolean>
   /** Re-prompt session filters and return the reloaded card-name list. */
   updateConfig: (excludeDigitalOnly: boolean) => Promise<string[]>
-  /** Apply a change to the in-memory list model and persist it. */
-  applyAndSave: (change: ChangeEvent) => Promise<void>
+  /** Apply a change to the in-memory list model (not written to disk until {@link persist}). */
+  applyChange: (change: ChangeEvent) => void
+  /** Write the in-memory list model to the list file. */
+  persist: () => Promise<void>
+  /** Whether the in-memory model differs from what was last written to disk. */
+  hasUnsavedChanges: () => boolean
+  /** Reset session-scoped tracking (session adds, undo stacks) after a mid-session save. */
+  sessionSaved: () => void
   /** Run the full add/edit flow for a selected card. */
   handleCard: (ctx: CardSessionContext, input: CardChoiceInput) => Promise<void>
   /** Add another copy of the last added card. */
@@ -156,6 +180,14 @@ export type CardSessionStrategy = {
   listSessionAdds?: () => SessionAddItem[]
   /** Discard the session add at `index` into {@link listSessionAdds}, re-packing ids. */
   discardSessionAdd?: (ctx: CardSessionContext, index: number) => Promise<void>
+  /** The list's current entries, for the edit-mode picker. */
+  listEntries: () => EditableEntryItem[]
+  /** Run the edit flow (action menu and prompts) for the entry with `cardId`. */
+  editEntry: (ctx: CardSessionContext, cardId: number) => Promise<void>
+  /** Label for the Undo Last Edit menu item, or null when there is no edit to undo. */
+  lastEditUndoLabel: () => string | null
+  /** Undo the most recent edit-mode operation. */
+  undoLastEdit: (ctx: CardSessionContext) => Promise<void>
 }
 
 // ── Shared startup helpers ──────────────────────────────────────────
@@ -312,11 +344,7 @@ export function buildSessionConfigQuestions(
       choices: [
         { title: 'None (Always Prompt)', value: '' },
         { title: "Don't Care", value: 'NONE' },
-        { title: 'Near Mint', value: 'NM' },
-        { title: 'Lightly Played', value: 'LP' },
-        { title: 'Moderately Played', value: 'MP' },
-        { title: 'Heavily Played', value: 'HP' },
-        { title: 'Damaged', value: 'DMG' },
+        ...VALID_CONDITIONS.map((c) => ({ title: CONDITION_LABELS[c], value: c })),
       ],
       initial: 0,
     })
@@ -467,10 +495,61 @@ export async function manageSetCodes(config: CollectorSessionConfig): Promise<vo
   }
 }
 
+// ── Edit-mode action menu ───────────────────────────────────────────
+
+/** One option in an edit-mode per-entry action menu. */
+export type EditActionChoice = { title: string; value: string }
+type EditActionPromptResponse = { action?: string }
+
+const CANCEL_ACTION = '__CANCEL__'
+
+/**
+ * Prompt for the edit action to run on the selected entry. Returns the chosen
+ * action value, or null when cancelled/escaped.
+ */
+export async function promptEditAction(
+  entryLabel: string,
+  actions: EditActionChoice[],
+): Promise<string | null> {
+  let isExited = false
+  const response = (await prompts({
+    type: 'select',
+    name: 'action',
+    message: `Edit ${entryLabel}:`,
+    choices: [...actions, { title: '← Cancel', value: CANCEL_ACTION }],
+    onState: (state: PromptState) => {
+      if (state.exited) isExited = true
+    },
+  })) as EditActionPromptResponse
+  if (isExited || !response.action || response.action === CANCEL_ACTION) return null
+  return response.action
+}
+
+/** A confirmed note edit: the new (trimmed) note and the value it replaces. */
+export type NoteEdit = { note: string; before: string }
+
+/**
+ * Prompt for an existing entry's note (empty input clears it). Returns null when
+ * the prompt is cancelled or the note is unchanged.
+ */
+export async function promptNoteEdit(currentNote: string | undefined): Promise<NoteEdit | null> {
+  const response = (await prompts({
+    type: 'text',
+    name: 'note',
+    message: 'Note (empty clears it):',
+    initial: currentNote ?? '',
+  })) as NotePromptResponse
+  if (response.note === undefined) return null
+  const note = response.note.trim()
+  const before = currentNote ?? ''
+  return note === before ? null : { note, before }
+}
+
 // ── Menu construction & suggestion filtering ────────────────────────
 
 /** Inputs to {@link buildMenuChoices}. */
 export type MenuBuildInput = {
+  sessionMode: SessionMode
   mode: EntryMode
   lastAdded: LastAdded | null
   changeCount: number
@@ -480,13 +559,25 @@ export type MenuBuildInput = {
   extraItems: Choice[]
   /** Cards added this session, in add order (drives the undo/discard menu items). */
   sessionAdds: SessionAddItem[]
-  /** Card-name or collector-number choices appended after the menu entries. */
+  /** Label for the Undo Last Edit item, or null when there is no edit to undo. */
+  editUndoLabel: string | null
+  /** Card-name, collector-number, or existing-entry choices appended after the menu entries. */
   cardChoices: Choice[]
 }
 
 /** Build the full autocomplete choice list (menu shortcuts first, then cards). */
 export function buildMenuChoices(input: MenuBuildInput): Choice[] {
-  const { mode, lastAdded, changeCount, activeSet, extraItems, sessionAdds, cardChoices } = input
+  const {
+    sessionMode,
+    mode,
+    lastAdded,
+    changeCount,
+    activeSet,
+    extraItems,
+    sessionAdds,
+    editUndoLabel,
+    cardChoices,
+  } = input
   const modeItems: Choice[] =
     mode === 'name'
       ? [
@@ -501,21 +592,34 @@ export function buildMenuChoices(input: MenuBuildInput): Choice[] {
           { title: '🔤 Switch to Name Mode', value: '__NAME_MODE__' },
         ]
 
+  // Edit mode pares the menu down to mode switching, save/exit, and undo — the
+  // add-mode shortcuts (copies, notes, filters) only make sense while adding.
+  const topItems: Choice[] =
+    sessionMode === 'edit'
+      ? [{ title: '➕ Switch to Add Mode', value: '__ADD_MODE__' }]
+      : [
+          ...(lastAdded
+            ? [{ title: `➕ Add Another Copy (${lastAdded.name})`, value: '__ADD_ANOTHER__' }]
+            : []),
+          ...(lastAdded && !lastAdded.hasNote
+            ? [{ title: `📝 Add Note (${lastAdded.name})`, value: '__ADD_NOTE__' }]
+            : []),
+          ...extraItems,
+          ...modeItems,
+          { title: '🛠️  Switch to Edit Mode (edit existing cards)', value: '__EDIT_MODE__' },
+        ]
+
   return [
-    ...(lastAdded
-      ? [{ title: `➕ Add Another Copy (${lastAdded.name})`, value: '__ADD_ANOTHER__' }]
+    ...topItems,
+    ...(changeCount > 0
+      ? [{ title: `💾 Save ${changeCount} change(s) (keep editing)`, value: '__SAVE__' }]
       : []),
-    ...(lastAdded && !lastAdded.hasNote
-      ? [{ title: `📝 Add Note (${lastAdded.name})`, value: '__ADD_NOTE__' }]
-      : []),
-    ...extraItems,
-    ...modeItems,
     {
-      title: changeCount > 0 ? `✅ Done — Save ${changeCount} change(s)` : '✅ Done',
+      title: changeCount > 0 ? `✅ Done — Save ${changeCount} change(s) & Exit` : '✅ Done',
       value: '__DONE__',
     },
-    { title: '🚪 Exit Without Saving Changelog', value: '__EXIT__' },
-    ...(lastAdded
+    { title: '🚪 Exit Without Saving', value: '__EXIT__' },
+    ...(sessionMode === 'add' && lastAdded
       ? [{ title: `✏️  Edit Previous Card (${lastAdded.name})`, value: '__EDIT_LAST__' }]
       : []),
     ...(sessionAdds.length > 0
@@ -529,6 +633,9 @@ export function buildMenuChoices(input: MenuBuildInput): Choice[] {
             value: '__DISCARD__',
           },
         ]
+      : []),
+    ...(editUndoLabel !== null
+      ? [{ title: `↩️  Undo Last Edit (${editUndoLabel})`, value: '__UNDO_EDIT__' }]
       : []),
     ...cardChoices,
   ]
@@ -552,6 +659,15 @@ export function buildCollectorChoices(setCardMap: Map<string, ScryfallCard>): Ch
   return collectorChoices
 }
 
+/** Filter choices so every space-separated term of `input` appears in the title. */
+function filterByTerms(input: string, choices: Choice[]): Choice[] {
+  const terms = input.toLowerCase().split(/\s+/).filter(Boolean)
+  return choices.filter((choice) => {
+    const title = choice.title.toLowerCase()
+    return terms.every((term) => title.includes(term))
+  })
+}
+
 /**
  * Name-mode suggestion filter: empty input shows the menu shortcuts; otherwise
  * all space-separated terms must appear in a title. A trailing `!` marks the
@@ -563,11 +679,7 @@ export function suggestNameMode(input: string, choices: Choice[]): Choice[] {
 
   if (!cleanInput) return choices.filter(isMenuChoice)
 
-  const terms = cleanInput.toLowerCase().split(/\s+/).filter(Boolean)
-  const matches = choices.filter((choice) => {
-    const title = choice.title.toLowerCase()
-    return terms.every((term) => title.includes(term))
-  })
+  const matches = filterByTerms(cleanInput, choices)
 
   if (isForce) {
     return matches.map((m) =>
@@ -583,11 +695,26 @@ export function suggestNameMode(input: string, choices: Choice[]): Choice[] {
   return matches
 }
 
+/**
+ * Edit-mode suggestion filter: empty input shows the menu shortcuts; otherwise
+ * term-matches the rendered entry lines. Unlike name mode there is no `!` force
+ * marker — entry values are objects, not strings, so they cannot carry a suffix.
+ */
+export function suggestEditMode(input: string, choices: Choice[]): Choice[] {
+  if (!input) return choices.filter(isMenuChoice)
+  return filterByTerms(input, choices)
+}
+
 /** Whether a prompt choice value is a collector-mode printing (vs. a menu sentinel string). */
 function isCollectorChoiceValue(value: unknown): value is CollectorChoiceValue {
   return (
     typeof value === 'object' && value !== null && (value as CollectorChoiceValue).type === 'card'
   )
+}
+
+/** Whether a prompt choice value is an edit-mode entry selection. */
+function isEntryChoiceValue(value: unknown): value is EntryChoiceValue {
+  return typeof value === 'object' && value !== null && (value as EntryChoiceValue).type === 'entry'
 }
 
 /**
@@ -612,15 +739,29 @@ export type CardSessionOptions = {
   excludeDigitalOnly: boolean
 }
 
+/** Persist the in-memory list model and append the session changelog, when either is pending. */
+async function saveSession(strategy: CardSessionStrategy, ctx: CardSessionContext): Promise<void> {
+  if (strategy.hasUnsavedChanges()) {
+    await strategy.persist()
+    console.log('Changes saved.')
+  }
+  if (ctx.sessionChanges.length > 0) {
+    await appendChangelog(strategy.filePath, strategy.listName, ctx.sessionChanges)
+    console.log('Changelog saved.')
+  }
+}
+
 /**
- * Run the interactive card-entry loop until the user finishes or exits. All
- * card changes are persisted as they are made; Done additionally appends the
- * session changelog, while Exit discards it (after confirmation).
+ * Run the interactive card-entry loop until the user finishes or exits. Changes
+ * accumulate on the in-memory list model; Done writes the file and the session
+ * changelog and exits, Save does the same without exiting, and Exit discards
+ * everything unsaved (after confirmation).
  */
 export async function runCardSession(options: CardSessionOptions): Promise<void> {
   const { strategy, excludeDigitalOnly } = options
   const { sessionConfig } = strategy
   let cardNames = options.cardNames
+  let sessionMode: SessionMode = 'add'
 
   const ctx: CardSessionContext = {
     sessionChanges: [],
@@ -636,22 +777,31 @@ export async function runCardSession(options: CardSessionOptions): Promise<void>
 
     const activeSet = sessionConfig.collectorSets[sessionConfig.activeSetIndex] || ''
     const cardChoices: Choice[] =
-      sessionConfig.entryMode === 'name'
-        ? cardNames.map((name) => ({ title: name, value: name }))
-        : buildCollectorChoices(
-            sessionConfig.setCardMaps.get(activeSet.toLowerCase()) ??
-              new Map<string, ScryfallCard>(),
+      sessionMode === 'edit'
+        ? strategy.listEntries().map(
+            (entry): Choice => ({
+              title: entry.label,
+              value: { type: 'entry', cardId: entry.cardId } satisfies EntryChoiceValue,
+            }),
           )
+        : sessionConfig.entryMode === 'name'
+          ? cardNames.map((name) => ({ title: name, value: name }))
+          : buildCollectorChoices(
+              sessionConfig.setCardMaps.get(activeSet.toLowerCase()) ??
+                new Map<string, ScryfallCard>(),
+            )
 
     const sessionAdds = strategy.listSessionAdds?.() ?? []
 
     const choices = buildMenuChoices({
+      sessionMode,
       mode: sessionConfig.entryMode,
       lastAdded: ctx.lastAdded,
       changeCount: ctx.sessionChanges.length,
       activeSet,
       extraItems: strategy.extraMenuItems?.() ?? [],
       sessionAdds,
+      editUndoLabel: strategy.lastEditUndoLabel(),
       cardChoices,
     })
 
@@ -660,9 +810,11 @@ export async function runCardSession(options: CardSessionOptions): Promise<void>
         ? ` (${ctx.lastAddedCount}x ${ctx.lastAdded.name})`
         : ''
     const promptMessage: string =
-      sessionConfig.entryMode === 'name'
-        ? `Enter card name to add${streakHint}`
-        : `Enter collector # for ${activeSet.toUpperCase() || 'SET'}${streakHint}`
+      sessionMode === 'edit'
+        ? 'Search for a card to edit'
+        : sessionConfig.entryMode === 'name'
+          ? `Enter card name to add${streakHint}`
+          : `Enter collector # for ${activeSet.toUpperCase() || 'SET'}${streakHint}`
 
     const response = (await prompts({
       type: 'autocomplete',
@@ -671,29 +823,40 @@ export async function runCardSession(options: CardSessionOptions): Promise<void>
       choices,
       limit: 10,
       suggest: async (rawInput, suggestChoices) =>
-        sessionConfig.entryMode === 'name'
-          ? suggestNameMode(String(rawInput), suggestChoices)
-          : suggestCollectorMode(String(rawInput), suggestChoices),
+        sessionMode === 'edit'
+          ? suggestEditMode(String(rawInput), suggestChoices)
+          : sessionConfig.entryMode === 'name'
+            ? suggestNameMode(String(rawInput), suggestChoices)
+            : suggestCollectorMode(String(rawInput), suggestChoices),
       onState: (state: PromptState) => {
         if (state.exited) isExited = true
       },
     })) as CardSelectionResponse
 
     if (isExited || response.cardName === '__DONE__') {
-      if (ctx.sessionChanges.length > 0) {
-        await appendChangelog(strategy.filePath, strategy.listName, ctx.sessionChanges)
-        console.log('Changelog saved.')
-      }
+      await saveSession(strategy, ctx)
       console.log(`Exiting ${strategy.managerLabel}.`)
       break
     }
 
+    if (response.cardName === '__SAVE__') {
+      await saveSession(strategy, ctx)
+      // Everything up to here is committed: the undo/discard menus reset so a
+      // later undo can never claw back changes that are already on disk.
+      strategy.sessionSaved()
+      ctx.sessionChanges = []
+      ctx.lastChangeIndex = null
+      ctx.lastAdded = null
+      ctx.lastAddedCount = 0
+      continue
+    }
+
     if (response.cardName === '__EXIT__') {
-      if (ctx.sessionChanges.length > 0) {
+      if (ctx.sessionChanges.length > 0 || strategy.hasUnsavedChanges()) {
         const confirmResponse = (await prompts({
           type: 'confirm',
           name: 'confirm',
-          message: `Card changes are already saved to the file. Exit without writing ${ctx.sessionChanges.length} change(s) to the changelog?`,
+          message: `Discard ${ctx.sessionChanges.length} unsaved change(s) and exit?`,
           initial: false,
         })) as ConfirmPromptResponse
         if (!confirmResponse.confirm) continue
@@ -728,13 +891,30 @@ export async function runCardSession(options: CardSessionOptions): Promise<void>
       const note = noteResponse.note?.trim()
       if (note) {
         const change = createSetNoteChange(target.name, { note, cardId: target.cardId })
-        await strategy.applyAndSave(change)
+        strategy.applyChange(change)
         // Notes never become the in-place edit target, so lastChangeIndex stays put.
         ctx.sessionChanges.push(change)
         ctx.lastAdded = { ...target, hasNote: true }
         strategy.noteAdded?.(note)
         console.log(`Note added to ${target.name}: ${note}`)
       }
+      continue
+    }
+
+    if (response.cardName === '__EDIT_MODE__') {
+      sessionMode = 'edit'
+      console.log('Switched to edit mode. Pick an existing card to change or remove it.')
+      continue
+    }
+
+    if (response.cardName === '__ADD_MODE__') {
+      sessionMode = 'add'
+      console.log('Switched to add mode.')
+      continue
+    }
+
+    if (response.cardName === '__UNDO_EDIT__') {
+      await strategy.undoLastEdit(ctx)
       continue
     }
 
@@ -829,6 +1009,9 @@ export async function runCardSession(options: CardSessionOptions): Promise<void>
     } else if (isCollectorChoiceValue(response.cardName)) {
       cardName = response.cardName.card.name
       preselected = response.cardName.card
+    } else if (isEntryChoiceValue(response.cardName)) {
+      await strategy.editEntry(ctx, response.cardName.cardId)
+      continue
     } else {
       // Unexpected value from the prompt library — ignore and re-prompt.
       continue

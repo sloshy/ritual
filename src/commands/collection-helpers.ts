@@ -3,11 +3,17 @@ import type { PromptState } from './prompts-types'
 import { getCardPrintings, isDigitalOnlySet } from '../scryfall'
 import type { ScryfallCard, Finish, Condition } from '../types'
 import { capitalize } from '../utils'
-import { VALID_FINISHES, VALID_CONDITIONS, isFinish, isCondition } from '../finish-condition'
+import {
+  VALID_FINISHES,
+  VALID_CONDITIONS,
+  CONDITION_LABELS,
+  isFinish,
+  isCondition,
+} from '../finish-condition'
 import { getCollectionsDir } from '../ritual-config'
 import { ensureListFile } from './card-session'
 
-export { VALID_FINISHES, VALID_CONDITIONS, isFinish, isCondition }
+export { VALID_FINISHES, VALID_CONDITIONS, CONDITION_LABELS, isFinish, isCondition }
 
 type FinishPromptResponse = { finish?: string }
 type ConditionPromptResponse = { condition?: string }
@@ -160,11 +166,7 @@ export async function promptFinishAndCondition(
       message: 'Condition:',
       choices: [
         { title: "Don't Care", value: '' },
-        { title: 'Near Mint', value: 'NM' },
-        { title: 'Lightly Played', value: 'LP' },
-        { title: 'Moderately Played', value: 'MP' },
-        { title: 'Heavily Played', value: 'HP' },
-        { title: 'Damaged', value: 'DMG' },
+        ...VALID_CONDITIONS.map((c) => ({ title: CONDITION_LABELS[c], value: c })),
       ],
     })) as ConditionPromptResponse
     if (conditionResponse.condition === undefined) return null

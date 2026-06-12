@@ -38,22 +38,34 @@ format).
 
 The following options are available in the menu when no search text is typed:
 
-| Option                                 | Description                                                                 |
-| -------------------------------------- | --------------------------------------------------------------------------- |
-| `✅ Done — Save N change(s)`           | Save the session changelog and exit                                         |
-| `🚪 Exit Without Saving Changelog`     | Exit without writing the session changelog (card changes are already saved) |
-| `🗂️ Set Target Section`                | Pin a section, create a new one, or prompt for each card                    |
-| `⚙️ Configure Session Filters`         | Adjust default sets, finish, condition, and target section                  |
-| `🔢 Switch to Collector Number Mode`   | Switch to collector number entry mode                                       |
-| `📦 Manage Set Codes`                  | Add, remove, or switch active sets (collector mode)                         |
-| `🔤 Switch to Name Mode`               | Switch back to name entry mode (collector mode)                             |
-| `➕ Add Another Copy`                  | Increment the quantity of the last added card                               |
-| `📝 Add Note`                          | Attach a note to the last added card                                        |
-| `✏️ Edit Previous Card`                | Re-pick the printing/finish/condition for the last card                     |
-| `↩️ Undo Last Add`                     | Take back the most recently added card                                      |
-| `🗑️ Discard a Card Added This Session` | Remove any copy added this session (decrements or removes the line)         |
+| Option                                 | Description                                                             |
+| -------------------------------------- | ----------------------------------------------------------------------- |
+| `💾 Save N change(s) (keep editing)`   | Write the deck file and changelog without leaving the session           |
+| `✅ Done — Save N change(s) & Exit`    | Write the deck file and changelog, then exit                            |
+| `🚪 Exit Without Saving`               | Exit and discard every unsaved change (asks for confirmation)           |
+| `🗂️ Set Target Section`                | Pin a section, create a new one, or prompt for each card                |
+| `⚙️ Configure Session Filters`         | Adjust default sets, finish, condition, and target section              |
+| `🔢 Switch to Collector Number Mode`   | Switch to collector number entry mode                                   |
+| `📦 Manage Set Codes`                  | Add, remove, or switch active sets (collector mode)                     |
+| `🔤 Switch to Name Mode`               | Switch back to name entry mode (collector mode)                         |
+| `🛠️ Switch to Edit Mode`               | Browse and edit the deck's existing lines (see [Edit Mode](#edit-mode)) |
+| `➕ Add Another Copy`                  | Increment the quantity of the last added card                           |
+| `📝 Add Note`                          | Attach a note to the last added card                                    |
+| `✏️ Edit Previous Card`                | Re-pick the printing/finish/condition for the last card                 |
+| `↩️ Undo Last Add`                     | Take back the most recently added card                                  |
+| `🗑️ Discard a Card Added This Session` | Remove any copy added this session (decrements or removes the line)     |
+| `↩️ Undo Last Edit`                    | Revert the most recent [edit-mode](#edit-mode) operation                |
 
 The `↩️ Undo Last Add` and `🗑️ Discard a Card Added This Session` options appear only after you have added at least one card this session. When a discard fully removes a card line, its `&N` id is freed and the remaining session-added lines keep dense, in-order ids (each later line slides down one, and the highest id returns to the pool). Decrementing a multi-copy line keeps its id.
+
+## Saving
+
+Like the admin Deck Editor, the session keeps every change **in memory** until you save: nothing is
+written to the deck file as you add or edit cards. `💾 Save` writes the file and appends the session
+changelog while you keep working (everything saved this way is committed — the undo and discard
+menus reset); `✅ Done` does the same and exits. `🚪 Exit Without Saving` throws away all unsaved
+changes after a confirmation. Pressing <kbd>Esc</kbd>/<kbd>Ctrl-C</kbd> at the main prompt behaves
+like `✅ Done`.
 
 ## Sections
 
@@ -83,6 +95,29 @@ If no printings can be found for a chosen card, it is added name-only rather tha
 ### Collector Number Mode
 
 Look up cards by collector number within one or more loaded sets, managed via `📦 Manage Set Codes`.
+
+## Edit Mode
+
+`🛠️ Switch to Edit Mode` repurposes the search prompt: instead of the card database, it
+autocompletes over the deck's **existing lines** (e.g. `2 Sol Ring (C19:221) — Main &5`). Selecting
+a line opens an action menu:
+
+| Action                     | Description                                                                       |
+| -------------------------- | --------------------------------------------------------------------------------- |
+| `🖼️ Change Printing`       | Pick a new printing, finish, and condition for the line                           |
+| `➕ Add a Copy`            | Increment the line's quantity                                                     |
+| `➖ Remove a Copy`         | Decrement the line's quantity (multi-copy lines only); keeps the `&N` id          |
+| `🗂️ Move to Section`       | Move the line to another section (or a new one)                                   |
+| `📝 Edit Note`             | Edit or clear the line's note                                                     |
+| `🗑️ Remove Card`           | Delete a single-copy line (asks for confirmation); releases its `&N` id           |
+| `🗑️ Remove All Copies (N)` | Delete all N copies of a multi-copy line (asks for confirmation); releases the id |
+
+Every edit is undoable with `↩️ Undo Last Edit` (a linear stack, newest first); undoing a full-line
+removal restores the line with its original `&N` id when the id has not been reused. Edits are
+folded into the session changelog with "latest wins" semantics — changing a line and then changing
+it back leaves no changelog entry. Removing copies that were added this session simply cancels
+their adds. `➕ Switch to Add Mode` returns to the regular add flow; you can toggle between the two
+modes freely within one session.
 
 ## Output Format
 

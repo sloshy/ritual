@@ -1,17 +1,22 @@
 import { Command } from 'commander'
+import prompts from 'prompts'
 import { getCollectionsDir } from '../ritual-config'
 import {
+  CONDITION_LABELS,
   ensureCollectionFile,
   formatCollectionLine,
   isCondition,
   isFinish,
   promptFinishAndCondition,
   resolveCardPrinting,
+  VALID_CONDITIONS,
+  VALID_FINISHES,
 } from './collection-helpers'
 import {
   listMarkdownNames,
   loadCardNamesOrWarn,
   loadCollectorSets,
+  promptEditAction,
   promptListSelection,
   promptSessionConfigUpdate,
   runCardSession,
@@ -26,12 +31,33 @@ import {
   discardFlatListAdd,
   listFlatListSessionAdds,
   loadCollectionSession,
+  persistFlatListSession,
+  resetFlatListSessionTracking,
   type CollectionSession,
   type FlatListStrategyContext,
   type LastAddState,
 } from './flat-list-session'
+import {
+  applyFlatListFieldEdit,
+  editFlatListNote,
+  entryPrinting,
+  findFlatListEntry,
+  lastFlatListEditLabel,
+  listFlatListEntries,
+  removeFlatListEntry,
+  undoFlatListEdit,
+} from './flat-list-edit'
 import type { CollectionCardEntry } from '../site/data-types'
-import type { ChangeEvent } from '../change-event'
+import type { Condition, Finish } from '../types'
+import {
+  consolidateSetFinish,
+  consolidateSetPrinting,
+  createSetFinishChange,
+  createSetPrintingChange,
+  type ChangeEvent,
+  type PrintingTuple,
+} from '../change-event'
+import { capitalize } from '../utils'
 import { parseSetCodesInput } from '../set-codes'
 
 type CollectionCommandOptions = {
@@ -40,6 +66,38 @@ type CollectionCommandOptions = {
   condition?: string
   collector?: boolean
   allowDigitalOnlyCards?: boolean
+}
+
+type ValuePromptResponse = { value?: string }
+
+/** Pick a finish for an existing entry, defaulting the cursor to the current one. */
+async function promptFinishChoice(current: Finish): Promise<Finish | null> {
+  const response = (await prompts({
+    type: 'select',
+    name: 'value',
+    message: 'Finish:',
+    choices: VALID_FINISHES.map((f) => ({
+      title: f === current ? `${capitalize(f)} (current)` : capitalize(f),
+      value: f,
+    })),
+    initial: Math.max(0, VALID_FINISHES.indexOf(current)),
+  })) as ValuePromptResponse
+  return isFinish(response.value) ? response.value : null
+}
+
+/** Pick a condition for an existing entry, defaulting the cursor to the current one. */
+async function promptConditionChoice(current: Condition): Promise<Condition | null> {
+  const response = (await prompts({
+    type: 'select',
+    name: 'value',
+    message: 'Condition:',
+    choices: VALID_CONDITIONS.map((c) => ({
+      title: c === current ? `${CONDITION_LABELS[c]} (current)` : CONDITION_LABELS[c],
+      value: c,
+    })),
+    initial: Math.max(0, VALID_CONDITIONS.indexOf(current)),
+  })) as ValuePromptResponse
+  return isCondition(response.value) ? response.value : null
 }
 
 function createCollectionStrategy(
@@ -75,6 +133,14 @@ function createCollectionStrategy(
         entry.cardId,
       ).trim(),
     sessionAdds: [],
+    editUndo: [],
+    originals: new Map(),
+  }
+
+  /** Re-render the entry after an edit (apply replaces entry objects). */
+  const logUpdated = (cardId: number, fallbackName: string): void => {
+    const updated = findFlatListEntry(list, cardId)
+    console.log(`Changed: ${updated ? list.renderEntry(updated) : fallbackName}`)
   }
 
   return {
@@ -84,7 +150,10 @@ function createCollectionStrategy(
     sessionConfig,
     updateConfig: (excludeDigital: boolean) =>
       promptSessionConfigUpdate(sessionConfig, true, excludeDigital),
-    applyAndSave: (change: ChangeEvent) => applyFlatListChange(session, change),
+    applyChange: (change: ChangeEvent) => applyFlatListChange(session, change),
+    persist: () => persistFlatListSession(session),
+    hasUnsavedChanges: () => session.dirty,
+    sessionSaved: () => resetFlatListSessionTracking(list),
     noteAdded: (note: string): void => {
       if (state.snapshot) state.snapshot.note = note
     },
@@ -127,8 +196,95 @@ function createCollectionStrategy(
 
     addAnotherCopy: (ctx: CardSessionContext) => addAnotherFlatListCopy(list, ctx),
     listSessionAdds: () => listFlatListSessionAdds(list),
-    discardSessionAdd: (ctx: CardSessionContext, index: number) =>
+    discardSessionAdd: async (ctx: CardSessionContext, index: number) =>
       discardFlatListAdd(list, ctx, index),
+
+    listEntries: () => listFlatListEntries(list),
+    lastEditUndoLabel: () => lastFlatListEditLabel(list),
+    undoLastEdit: async (ctx: CardSessionContext) => undoFlatListEdit(list, ctx),
+
+    async editEntry(ctx: CardSessionContext, cardId: number): Promise<void> {
+      const entry = findFlatListEntry(list, cardId)
+      if (!entry) return
+      const action = await promptEditAction(list.renderEntry(entry), [
+        { title: '🖼️  Change Printing', value: 'printing' },
+        { title: '✨ Change Finish', value: 'finish' },
+        { title: '📋 Change Condition', value: 'condition' },
+        { title: '📝 Edit Note', value: 'note' },
+        { title: '🗑️  Remove', value: 'remove' },
+      ])
+      if (!action) return
+
+      if (action === 'printing') {
+        const result = await resolveCardPrinting(entry.name, sessionConfig, excludeDigitalOnly)
+        if (!result) {
+          console.error('No printings found.')
+          return
+        }
+        const finishAndCondition = await promptFinishAndCondition(
+          result.printing,
+          sessionConfig,
+          true,
+        )
+        if (!finishAndCondition) return
+        const target: PrintingTuple = {
+          set: result.printing.set.toLowerCase(),
+          collectorNumber: result.printing.collector_number,
+          finish: finishAndCondition.finish,
+          condition: finishAndCondition.condition,
+        }
+        const before = entryPrinting(entry)
+        applyFlatListFieldEdit(list, ctx, entry, cardId, {
+          label: `printing on ${entry.name}`,
+          change: createSetPrintingChange(entry.name, { ...target, cardId }),
+          inverse: createSetPrintingChange(entry.name, { ...before, cardId }),
+          consolidate: (changes, original) =>
+            consolidateSetPrinting(changes, entry.name, target, entryPrinting(original), cardId),
+        })
+        logUpdated(cardId, entry.name)
+        return
+      }
+
+      if (action === 'finish') {
+        const finish = await promptFinishChoice(entry.finish)
+        if (!finish || finish === entry.finish) return
+        applyFlatListFieldEdit(list, ctx, entry, cardId, {
+          label: `finish on ${entry.name}`,
+          change: createSetFinishChange(entry.name, { finish, cardId }),
+          inverse: createSetFinishChange(entry.name, { finish: entry.finish, cardId }),
+          consolidate: (changes, original) =>
+            consolidateSetFinish(changes, entry.name, finish, original.finish ?? 'nonfoil', cardId),
+        })
+        logUpdated(cardId, entry.name)
+        return
+      }
+
+      if (action === 'condition') {
+        const condition = await promptConditionChoice(entry.condition)
+        if (!condition || condition === entry.condition) return
+        // There is no set-condition change; a set-printing carrying the entry's
+        // current printing plus the new condition is the canonical encoding.
+        const target: PrintingTuple = { ...entryPrinting(entry), condition }
+        applyFlatListFieldEdit(list, ctx, entry, cardId, {
+          label: `condition on ${entry.name}`,
+          change: createSetPrintingChange(entry.name, { ...target, cardId }),
+          inverse: createSetPrintingChange(entry.name, { ...entryPrinting(entry), cardId }),
+          consolidate: (changes, original) =>
+            consolidateSetPrinting(changes, entry.name, target, entryPrinting(original), cardId),
+        })
+        logUpdated(cardId, entry.name)
+        return
+      }
+
+      if (action === 'note') {
+        await editFlatListNote(list, ctx, entry, cardId)
+        return
+      }
+
+      if (action === 'remove') {
+        await removeFlatListEntry(list, ctx, entry, cardId)
+      }
+    },
   }
 }
 

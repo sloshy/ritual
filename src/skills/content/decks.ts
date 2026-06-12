@@ -44,6 +44,14 @@ Set the **target section** to a fixed section or "prompt every time" via \`--sec
 the \`🗂️ Set Target Section\` menu, or the session filters. Adding a card whose printing
 already exists in the deck increments its quantity instead of duplicating the line.
 
+**Saving:** changes accumulate **in memory** — \`💾 Save\` writes the deck file and changelog
+without exiting, \`✅ Done\` saves and exits, and \`🚪 Exit Without Saving\` discards everything
+unsaved.
+
+**Edit mode:** \`🛠️ Switch to Edit Mode\` turns the search prompt into a picker over the deck's
+existing lines — change a line's printing, add/remove copies, move it to another section, edit
+its note, or remove it entirely — and \`↩️ Undo Last Edit\` reverts the latest edit.
+
 **Undo within the session:** \`↩️ Undo Last Add\` takes back the most recent card, and
 \`🗑️ Discard a Card Added This Session\` opens a picker to remove any card you added this
 session (decrementing a merged line, or removing it entirely). Discarding a card frees its

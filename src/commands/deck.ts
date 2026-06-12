@@ -8,9 +8,7 @@ import {
   resolveCardPrinting,
 } from './collection-helpers'
 import {
-  type DeckCopyRecord,
   type DeckSessionConfig,
-  discardDeckCopy,
   ensureDeckFile,
   findCardById,
   findDeckCard,
@@ -22,6 +20,15 @@ import {
   writeDeck,
 } from './deck-helpers'
 import {
+  applyDeckChange,
+  discardDeckSessionAdd,
+  editDeckCard,
+  lastDeckEditLabel,
+  listDeckEntries,
+  undoDeckEdit,
+  type DeckSessionState,
+} from './deck-edit'
+import {
   loadCardNamesOrWarn,
   loadCollectorSets,
   promptListSelection,
@@ -30,7 +37,6 @@ import {
   type CardSessionStrategy,
   type SessionAddItem,
 } from './card-session'
-import { assignMissingDeckCardIds } from '../card-id'
 import { normalizeBoard } from './deck-sync-helpers'
 import {
   createAddChange,
@@ -38,7 +44,6 @@ import {
   type ChangeEvent,
   type PrintingTuple,
 } from '../change-event'
-import { applyChangeToDeck } from '../editor/deck-changes'
 import { trackAdd, trackAnotherCopy, trackEdit } from '../session-changelog'
 import { formatSpecificPrintingPrice } from '../price-currency'
 import { parseSetCodesInput } from '../set-codes'
@@ -63,24 +68,20 @@ type DeckStrategyArgs = {
 
 function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy {
   const { deckFile, deckName, frontMatter, sessionConfig, excludeDigitalOnly } = args
-  // Mutable in-memory deck — the single source of truth, re-serialized after each change.
-  let deck: DeckData = args.initialDeck
+  // Mutable in-memory deck session — the single source of truth, written to
+  // disk only when the session is saved. Per-copy adds (one per copy, in add
+  // order) drive the discard picker; the distinct line ids first created this
+  // session are what re-pack keeps dense on full removal.
+  const state: DeckSessionState = {
+    deck: args.initialDeck,
+    sessionAdds: [],
+    sessionLineIds: [],
+    editUndo: [],
+    originals: new Map(),
+    dirty: false,
+  }
   let lastSection: string | null = null
   let lastPrinting: PrintingTuple | null = null
-  // Per-copy adds (one per copy, in add order) drive the discard picker; the distinct
-  // line ids first created this session are what re-pack keeps dense on full removal.
-  let sessionAdds: DeckCopyRecord[] = []
-  let sessionLineIds: number[] = []
-
-  /**
-   * Apply a change to the in-memory deck and persist it. IDs are assigned to
-   * the in-memory copy too (not just on serialize) so the in-memory deck and
-   * the file stay identical and subsequent edits resolve cards by ID.
-   */
-  const applyAndSave = async (change: ChangeEvent): Promise<void> => {
-    deck = assignMissingDeckCardIds(applyChangeToDeck(deck, change))
-    await writeDeck(deckFile, deck, frontMatter)
-  }
 
   /** Add a card (with or without a printing) to `section`, tracking it as the last added. */
   const addToDeck = async (
@@ -89,12 +90,13 @@ function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy {
     printing: PrintingTuple,
     section: string,
   ): Promise<void> => {
-    await applyAndSave(
+    applyDeckChange(
+      state,
       createAddChange(cardName, { ...printing, section, board: normalizeBoard(section) }),
     )
 
     // Recover the assigned card ID for the changelog and "last added" tracking.
-    const located = findDeckCard(deck, cardName, printing, section)
+    const located = findDeckCard(state.deck, cardName, printing, section)
     ctx.lastChangeIndex = trackAdd(
       ctx.sessionChanges,
       createAddChange(cardName, {
@@ -106,11 +108,11 @@ function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy {
     )
 
     if (located?.cardId !== undefined) {
-      sessionAdds.push({ cardId: located.cardId, name: cardName, printing, section })
+      state.sessionAdds.push({ cardId: located.cardId, name: cardName, printing, section })
       // A quantity of 1 after the add means this add created the line, so its id was
       // allocated this session and participates in re-pack when fully discarded.
-      if (findCardById(deck, located.cardId)?.card.quantity === 1) {
-        sessionLineIds.push(located.cardId)
+      if (findCardById(state.deck, located.cardId)?.card.quantity === 1) {
+        state.sessionLineIds.push(located.cardId)
       }
     }
 
@@ -137,14 +139,27 @@ function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy {
     ],
     handleSentinel: async (_ctx: CardSessionContext, value: string): Promise<boolean> => {
       if (value === '__SECTION__') {
-        await promptSetTargetSection(deck, sessionConfig)
+        await promptSetTargetSection(state.deck, sessionConfig)
         return true
       }
       return false
     },
     updateConfig: (excludeDigital: boolean) =>
-      promptDeckConfigUpdate(deck, sessionConfig, excludeDigital),
-    applyAndSave,
+      promptDeckConfigUpdate(state.deck, sessionConfig, excludeDigital),
+    applyChange: (change: ChangeEvent) => applyDeckChange(state, change),
+    persist: async (): Promise<void> => {
+      await writeDeck(deckFile, state.deck, frontMatter)
+      state.dirty = false
+    },
+    hasUnsavedChanges: () => state.dirty,
+    sessionSaved: (): void => {
+      state.sessionAdds = []
+      state.sessionLineIds = []
+      state.editUndo = []
+      state.originals.clear()
+      lastSection = null
+      lastPrinting = null
+    },
 
     async handleCard(ctx: CardSessionContext, input): Promise<void> {
       const { cardName, forcePrompts, isEditing } = input
@@ -156,7 +171,7 @@ function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy {
           // Deck lines may omit the printing, so fall back to a name-only add
           // rather than dropping the card.
           console.error('No printings found. Adding name only.')
-          const section = await resolveTargetSection(deck, sessionConfig)
+          const section = await resolveTargetSection(state.deck, sessionConfig)
           if (!section) {
             console.log('No section selected. Skipping.')
             return
@@ -183,7 +198,8 @@ function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy {
 
       // ── Edit: re-set the printing on the existing card ────────────
       if (isEditing && ctx.lastAdded) {
-        await applyAndSave(
+        applyDeckChange(
+          state,
           createSetPrintingChange(cardName, { ...printingTuple, cardId: ctx.lastAdded.cardId }),
         )
         // The changelog records the entry's final state as an add.
@@ -202,7 +218,7 @@ function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy {
       }
 
       // ── Add a new copy to the resolved section ────────────────────
-      const section = await resolveTargetSection(deck, sessionConfig)
+      const section = await resolveTargetSection(state.deck, sessionConfig)
       if (!section) {
         console.log('No section selected. Skipping.')
         return
@@ -215,7 +231,8 @@ function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy {
       if (!ctx.lastAdded || !lastSection) return
       // Another copy of the same printing merges into the existing line, so the
       // entry keeps its card ID and only the quantity increments.
-      await applyAndSave(
+      applyDeckChange(
+        state,
         createAddChange(ctx.lastAdded.name, {
           ...(lastPrinting ?? undefined),
           cardId: ctx.lastAdded.cardId,
@@ -228,7 +245,7 @@ function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy {
       if (ctx.lastAdded.cardId !== undefined) {
         // Copies merge into the existing line, so this records another copy of the
         // same id (no new line id, hence nothing added to sessionLineIds).
-        sessionAdds.push({
+        state.sessionAdds.push({
           cardId: ctx.lastAdded.cardId,
           name: ctx.lastAdded.name,
           printing: lastPrinting ?? {},
@@ -242,7 +259,7 @@ function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy {
     },
 
     listSessionAdds: (): SessionAddItem[] =>
-      sessionAdds.map((rec) => {
+      state.sessionAdds.map((rec) => {
         const printingInfo = rec.printing.set
           ? ` (${rec.printing.set.toUpperCase()}:${rec.printing.collectorNumber})`
           : ''
@@ -250,27 +267,18 @@ function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy {
       }),
 
     async discardSessionAdd(ctx: CardSessionContext, index: number): Promise<void> {
-      const outcome = discardDeckCopy(
-        { deck, sessionChanges: ctx.sessionChanges, sessionAdds, sessionLineIds },
-        index,
-      )
-      if (!outcome) return
-      deck = outcome.deck
-      ctx.sessionChanges = outcome.sessionChanges
-      sessionAdds = outcome.sessionAdds
-      sessionLineIds = outcome.sessionLineIds
-
-      await writeDeck(deckFile, deck, frontMatter)
-
+      if (!discardDeckSessionAdd(state, ctx, index)) return
       // The discarded copy may have been the "last added"; reset so the copy/edit
       // shortcuts don't point at a stale entry until the next add.
-      ctx.lastAdded = null
-      ctx.lastChangeIndex = null
-      ctx.lastAddedCount = 0
       lastSection = null
       lastPrinting = null
-      console.log(`Discarded: ${outcome.discarded.name}`)
     },
+
+    listEntries: () => listDeckEntries(state.deck),
+    lastEditUndoLabel: () => lastDeckEditLabel(state),
+    undoLastEdit: async (ctx: CardSessionContext) => undoDeckEdit(state, ctx),
+    editEntry: (ctx: CardSessionContext, cardId: number) =>
+      editDeckCard(state, ctx, cardId, { sessionConfig, excludeDigitalOnly }),
   }
 }
 

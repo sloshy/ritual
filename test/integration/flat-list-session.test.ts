@@ -9,6 +9,7 @@ import {
   listFlatListSessionAdds,
   loadCollectionSession,
   loadWantedSession,
+  persistFlatListSession,
   type FlatListStrategyContext,
 } from '../../src/commands/flat-list-session'
 import { formatCollectionLine } from '../../src/commands/collection-helpers'
@@ -42,19 +43,19 @@ describe('flat-list session models', () => {
   describe('collection session', () => {
     test('add appends a canonical line to the last section and reuses pooled IDs', async () => {
       // ID 2 is missing, so the pool should hand it out before going sequential.
-      const filePath = await writeList(
-        'binder.md',
-        '# My Binder\n\n## Trade\n- Sol Ring (C19:221) [foil] [NM] &1\n\n## Keep\n- Lightning Bolt (LEA:161) &3\n',
-      )
+      const original =
+        '# My Binder\n\n## Trade\n- Sol Ring (C19:221) [foil] [NM] &1\n\n## Keep\n- Lightning Bolt (LEA:161) &3\n'
+      const filePath = await writeList('binder.md', original)
       const session = await loadCollectionSession(filePath)
 
       expect(session.title).toBe('My Binder')
       expect(flatListTargetSection(session)).toBe('Keep')
+      expect(session.dirty).toBe(false)
 
       const cardId = allocateId(session.pool)
       expect(cardId).toBe(2)
 
-      await applyFlatListChange(
+      applyFlatListChange(
         session,
         createAddChange('Mana Crypt', {
           set: '2xm',
@@ -65,6 +66,13 @@ describe('flat-list session models', () => {
           section: flatListTargetSection(session),
         }),
       )
+
+      // Changes stay in memory until the session is explicitly saved.
+      expect(session.dirty).toBe(true)
+      expect(await fs.readFile(filePath, 'utf-8')).toBe(original)
+
+      await persistFlatListSession(session)
+      expect(session.dirty).toBe(false)
 
       // Like an admin save, re-serialization normalizes condition-less entries to [NM].
       const content = await fs.readFile(filePath, 'utf-8')
@@ -81,11 +89,8 @@ describe('flat-list session models', () => {
       const session = await loadCollectionSession(filePath)
 
       // Target the FIRST entry even though another card was added after it.
-      await applyFlatListChange(
-        session,
-        createSetNoteChange('Sol Ring', { note: 'signed', cardId: 1 }),
-      )
-      await applyFlatListChange(
+      applyFlatListChange(session, createSetNoteChange('Sol Ring', { note: 'signed', cardId: 1 }))
+      applyFlatListChange(
         session,
         createSetPrintingChange('Sol Ring', {
           set: 'ltc',
@@ -95,6 +100,7 @@ describe('flat-list session models', () => {
           cardId: 1,
         }),
       )
+      await persistFlatListSession(session)
 
       const content = await fs.readFile(filePath, 'utf-8')
       expect(content).toContain('- Sol Ring (LTC:284) [foil] [LP] {signed} &1\n')
@@ -117,7 +123,7 @@ describe('flat-list session models', () => {
       const session = await loadCollectionSession(filePath)
       expect(session.entries[0]!.cardId).toBe(1)
 
-      await applyFlatListChange(
+      applyFlatListChange(
         session,
         createAddChange('Lightning Bolt', {
           set: 'lea',
@@ -126,6 +132,7 @@ describe('flat-list session models', () => {
           section: flatListTargetSection(session),
         }),
       )
+      await persistFlatListSession(session)
       const content = await fs.readFile(filePath, 'utf-8')
       expect(content).toContain('- Sol Ring (C19:221) [NM] &1\n')
       expect(content).toContain('- Lightning Bolt (LEA:161) [NM] &2\n')
@@ -137,10 +144,11 @@ describe('flat-list session models', () => {
       const filePath = await writeList('wishlist.md', '# Wishlist\n\n')
       const session = await loadWantedSession(filePath)
       const cardId = allocateId(session.pool)
-      await applyFlatListChange(
+      applyFlatListChange(
         session,
         createAddChange('Black Lotus', { cardId, section: flatListTargetSection(session) }),
       )
+      await persistFlatListSession(session)
       const content = await fs.readFile(filePath, 'utf-8')
       expect(content).toContain('- Black Lotus &1\n')
       expect(content).not.toContain('(')
@@ -152,7 +160,7 @@ describe('flat-list session models', () => {
       expect(session.entries[0]!.state).toBe('name-only')
 
       const cardId = allocateId(session.pool)
-      await applyFlatListChange(
+      applyFlatListChange(
         session,
         createAddChange('Mana Crypt', {
           set: '2xm',
@@ -162,11 +170,13 @@ describe('flat-list session models', () => {
           section: flatListTargetSection(session),
         }),
       )
+      await persistFlatListSession(session)
       let content = await fs.readFile(filePath, 'utf-8')
       expect(content).toContain('- Mana Crypt (2XM:270) [foil] &2\n')
 
       // Clearing the printing reverts the entry to a name-only line.
-      await applyFlatListChange(session, createSetPrintingChange('Mana Crypt', { cardId }))
+      applyFlatListChange(session, createSetPrintingChange('Mana Crypt', { cardId }))
+      await persistFlatListSession(session)
       content = await fs.readFile(filePath, 'utf-8')
       expect(content).toContain('- Mana Crypt &2\n')
       expect(content).not.toContain('2XM')
@@ -203,6 +213,8 @@ describe('flat-list session models', () => {
             e.cardId,
           ).trim(),
         sessionAdds: [],
+        editUndo: [],
+        originals: new Map(),
       }
       const ctx: CardSessionContext = {
         sessionChanges: [],
@@ -229,7 +241,7 @@ describe('flat-list session models', () => {
         cardId,
         section: flatListTargetSection(list.session),
       })
-      await applyFlatListChange(list.session, change)
+      applyFlatListChange(list.session, change)
       list.sessionAdds.push(cardId)
       ctx.sessionChanges.push(change)
     }
@@ -247,7 +259,8 @@ describe('flat-list session models', () => {
       expect(list.sessionAdds).toEqual([1, 2, 3, 4, 5])
 
       // Discard the 3rd add (Brainstorm, &3).
-      await discardFlatListAdd(list, ctx, 2)
+      discardFlatListAdd(list, ctx, 2)
+      await persistFlatListSession(session)
 
       // Survivors stay in add order and re-pack to a dense 1..4; the top id (5) frees up.
       expect(session.entries.map((e) => e.name)).toEqual([
@@ -295,7 +308,7 @@ describe('flat-list session models', () => {
       ])
 
       // Undo last == discard the highest index.
-      await discardFlatListAdd(list, ctx, list.sessionAdds.length - 1)
+      discardFlatListAdd(list, ctx, list.sessionAdds.length - 1)
 
       expect(session.entries.map((e) => e.cardId)).toEqual([1])
       expect(session.entries[0]!.name).toBe('Sol Ring')
@@ -318,7 +331,7 @@ describe('flat-list session models', () => {
       await addCard(list, ctx, 'Brainstorm', 'ice', '61') // &5
 
       // Discard the middle session add (Lightning Bolt, &4).
-      await discardFlatListAdd(list, ctx, 1)
+      discardFlatListAdd(list, ctx, 1)
 
       // The two pre-existing entries keep &1/&2; only the session ids re-pack
       // (Brainstorm &5 → &4), and the freed top id (5) returns to the pool.
