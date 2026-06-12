@@ -106,8 +106,9 @@
   }
 }
 
-/* Pushes the "Update Prices" button to the far right of the toolbar. */
-.toolbar-price-refresh {
+/* Pushes the Filters menu (and the "Update Prices" button after it) to the far
+   right of the toolbar, away from the grouping/sorting controls. */
+.filter-menu {
   margin-left: auto;
 }
 
@@ -122,7 +123,8 @@
   color: var(--text-muted);
 }
 
-.toolbar-select {
+.toolbar-select,
+.filter-input {
   background-color: var(--bg-panel);
   color: var(--text-body);
   border-radius: 0.25rem;
@@ -161,6 +163,221 @@
     color: var(--text-primary);
     border-color: var(--border-hover);
   }
+}
+
+/* ===== Toolbar Filter Menu ===== */
+.filter-menu-badge {
+  font-size: 0.6875rem;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--btn-on-color-text);
+}
+
+/* Positioned (fixed) by useAnchoredMenu; only the box styling lives here. */
+.filter-menu-panel {
+  z-index: 60; /* above the sticky toolbar */
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: 0.75rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 16px var(--overlay-light);
+}
+
+.filter-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.filter-row-toggles {
+  flex-direction: row;
+  gap: 0.5rem;
+}
+
+.filter-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Base input styling is shared with .toolbar-select above. */
+.filter-input[aria-invalid='true'] {
+  border-color: var(--error);
+}
+
+.filter-error {
+  font-size: 0.6875rem;
+  color: var(--error);
+}
+
+.filter-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  align-items: center;
+}
+
+.filter-color-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--btn-bg);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0.45;
+  transition: all 150ms;
+
+  &:hover {
+    background: var(--btn-hover);
+    opacity: 0.8;
+  }
+
+  &.active {
+    background: var(--bg-active);
+    border-color: var(--accent);
+    opacity: 1;
+  }
+
+  .mana-symbol {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+.filter-color-letter {
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--text-body);
+}
+
+.filter-color-mode {
+  display: inline-flex;
+  margin-left: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  overflow: hidden;
+
+  button {
+    font-size: 0.6875rem;
+    padding: 3px 7px;
+    background: var(--btn-bg);
+    color: var(--btn-text);
+    border: none;
+    cursor: pointer;
+
+    &.active {
+      background: var(--bg-active);
+      color: var(--text-primary);
+    }
+  }
+}
+
+.filter-tags {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+
+  &:focus-within {
+    border-color: var(--border-focus);
+  }
+}
+
+.filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.6875rem;
+  font-family: var(--font-mono);
+  padding: 1px 2px 1px 6px;
+  background: var(--bg-active);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+}
+
+.filter-tag-remove {
+  background: none;
+  border: none;
+  padding: 0 4px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text-primary);
+  }
+}
+
+.filter-tags-input {
+  flex: 1;
+  min-width: 60px;
+  padding: 2px;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text-body);
+  font-size: 0.75rem;
+}
+
+.filter-tags-suggestions {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  z-index: 61;
+  display: flex;
+  flex-direction: column;
+  max-height: 180px;
+  overflow-y: auto;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  box-shadow: 0 4px 16px var(--overlay-light);
+
+  button {
+    text-align: left;
+    padding: 4px 8px;
+    background: none;
+    border: none;
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    color: var(--text-body);
+    cursor: pointer;
+
+    &:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+  }
+}
+
+.filter-mana-value {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.filter-input-mana-value {
+  width: 6rem;
+}
+
+.filter-clear {
+  align-self: flex-start;
 }
 
 /* ===== Link Action ===== */

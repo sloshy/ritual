@@ -55,21 +55,8 @@ test.describe('Deck Toolbar', () => {
     expect(namesAfter).toEqual([...namesBefore].reverse())
   })
 
-  test('hide lands toggle hides land cards', async ({ page }) => {
-    // Count section dividers before hiding lands
-    const sectionsBefore = await page.locator('.section-divider').allTextContents()
-    const hasLands = sectionsBefore.some((text) => /land/i.test(text))
-    // Only test if lands section exists
-    if (hasLands) {
-      const hideToggle = page.locator('.toolbar button.toolbar-toggle', { hasText: 'Hide Lands' })
-      await hideToggle.click()
-      await expect(hideToggle).toHaveClass(/active/)
-      // Lands section should no longer appear
-      const sectionsAfter = await page.locator('.section-divider').allTextContents()
-      expect(sectionsAfter.some((text) => /land/i.test(text))).toBe(false)
-      expect(sectionsAfter.length).toBeLessThan(sectionsBefore.length)
-    }
-  })
+  // Hide Lands now lives in the toolbar's Filters menu; it is covered
+  // deterministically with synthetic data in filter-menu.spec.ts.
 
   test('card size buttons are visible in binder view and hidden in list view', async ({ page }) => {
     // In binder view (default), size buttons should be visible

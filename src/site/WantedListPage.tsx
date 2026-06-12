@@ -24,6 +24,8 @@ import { useTooltip } from './useTooltip'
 import { Toolbar } from './Toolbar'
 import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
+import { useCardFilters } from './useCardFilters'
+import { collectSetCodes, filterCards } from './card-filters'
 import { deriveSectionOrder, sectionDefaultGroupBy } from '../section-format'
 import { TradePrintingPicker } from './TradePrintingPicker'
 import { addEntryToRight, canAddMoreToRight, showTradeToast } from './useTradeState'
@@ -118,11 +120,10 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     setReverse,
     reverseGroups,
     setReverseGroups,
-    hideLands,
-    setHideLands,
     priceGroupStrategy,
     setPriceGroupStrategy,
   } = useToolbarState<WantedListGroupBy>({ groupBy: initialGroupBy, sortBy: 'file-order' })
+  const cardFilters = useCardFilters()
   const [showChangelog, setShowChangelog] = createSignal(false)
 
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
@@ -246,14 +247,10 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
   // Price refresh is wired for every render but only shown when `enablePriceRefresh`.
   const prices = usePublicPriceControls({ cards: allCards, pricesDate: props.pricesDate })
 
-  const cardGroups = createMemo((): CardGroup[] => {
-    let working = [...allCards()]
+  const setCodeOptions = createMemo(() => collectSetCodes(allCards()))
 
-    if (hideLands()) {
-      working = working.filter(
-        (c) => !(c.cmc === 0 && (c.type.includes('Land') || c.type.includes('Basic'))),
-      )
-    }
+  const cardGroups = createMemo((): CardGroup[] => {
+    const working = filterCards(allCards(), cardFilters.filters)
 
     return groupAndSortCards(
       working,
@@ -458,9 +455,9 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         onReverseChange={() => setReverse((prev) => !prev)}
         reverseGroups={reverseGroups()}
         onReverseGroupsChange={() => setReverseGroups((prev) => !prev)}
-        hideLands={hideLands()}
-        onHideLandsChange={() => setHideLands((prev) => !prev)}
-        extraToggles={[]}
+        filters={cardFilters}
+        symbolMap={props.symbolMap}
+        setCodeOptions={setCodeOptions()}
         priceRefresh={props.enablePriceRefresh ? prices : undefined}
       />
 

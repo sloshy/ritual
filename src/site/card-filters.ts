@@ -1,0 +1,143 @@
+import type { CardData } from './card-sorting'
+import { WUBRG } from './card-sorting'
+import { matchesAllTerms } from '../term-match'
+
+/** How selected colors are matched against a card's color identity. */
+export type ColorFilterMode = 'exclusive' | 'inclusive'
+
+/** Comparison applied between a card's mana value and the filter value. */
+export type ManaValueComparator = '=' | '<' | '<=' | '>' | '>='
+
+export interface CardFilters {
+  hideLands: boolean
+  hideUnpriced: boolean
+  /**
+   * Hide the extra sections (maybeboard, tokens). Only meaningful on deck pages,
+   * which apply it at the section level — `filterCards` does not use it.
+   */
+  hideExtras: boolean
+  /** Space-separated terms; every term must appear in the card name (case-insensitive). */
+  name: string
+  /** Selected WUBRG colors in canonical order. Empty = no color filtering. */
+  colors: string[]
+  /**
+   * 'exclusive': the card's color identity is exactly the selected colors.
+   * 'inclusive': the card could be played in a deck whose identity is the
+   * selected colors (its identity is a subset of the selection).
+   */
+  colorMode: ColorFilterMode
+  /** Lowercase set codes. Empty = no set filtering. */
+  setCodes: string[]
+  /** Mana value compared via `manaValueOp`. Null = no mana value filtering. */
+  manaValue: number | null
+  manaValueOp: ManaValueComparator
+}
+
+export function createDefaultCardFilters(): CardFilters {
+  return {
+    hideLands: false,
+    hideUnpriced: false,
+    hideExtras: false,
+    name: '',
+    colors: [],
+    colorMode: 'exclusive',
+    setCodes: [],
+    manaValue: null,
+    manaValueOp: '=',
+  }
+}
+
+function isLand(card: CardData): boolean {
+  return card.cmc === 0 && (card.type.includes('Land') || card.type.includes('Basic'))
+}
+
+function compareManaValue(cmc: number, op: ManaValueComparator, value: number): boolean {
+  switch (op) {
+    case '=':
+      return cmc === value
+    case '<':
+      return cmc < value
+    case '<=':
+      return cmc <= value
+    case '>':
+      return cmc > value
+    case '>=':
+      return cmc >= value
+  }
+}
+
+function matchesColorIdentity(
+  identity: string[],
+  selected: string[],
+  mode: ColorFilterMode,
+): boolean {
+  if (mode === 'exclusive') {
+    return identity.length === selected.length && identity.every((c) => selected.includes(c))
+  }
+  return identity.every((c) => selected.includes(c))
+}
+
+/** Apply every active filter to `cards`, returning the cards that pass all of them. */
+export function filterCards(cards: CardData[], filters: CardFilters): CardData[] {
+  const nameQuery = filters.name.trim()
+  const setCodes = new Set(filters.setCodes.map((code) => code.toLowerCase()))
+  return cards.filter((card) => {
+    if (filters.hideLands && isLand(card)) return false
+    if (filters.hideUnpriced && card.price <= 0) return false
+    if (nameQuery.length > 0 && !matchesAllTerms(card.name, nameQuery)) return false
+    if (
+      filters.colors.length > 0 &&
+      !matchesColorIdentity(card.colorIdentity, filters.colors, filters.colorMode)
+    ) {
+      return false
+    }
+    if (setCodes.size > 0 && !setCodes.has(card.setCode.toLowerCase())) return false
+    if (
+      filters.manaValue !== null &&
+      !compareManaValue(card.cmc, filters.manaValueOp, filters.manaValue)
+    ) {
+      return false
+    }
+    return true
+  })
+}
+
+/** Number of filters currently active; drives the toolbar button badge. */
+export function countActiveFilters(filters: CardFilters): number {
+  let count = 0
+  if (filters.hideLands) count++
+  if (filters.hideUnpriced) count++
+  if (filters.hideExtras) count++
+  if (filters.name.trim().length > 0) count++
+  if (filters.colors.length > 0) count++
+  if (filters.setCodes.length > 0) count++
+  if (filters.manaValue !== null) count++
+  return count
+}
+
+/** Collect the unique lowercase set codes present in `cards`, sorted, for autocomplete. */
+export function collectSetCodes(cards: CardData[]): string[] {
+  const codes = new Set<string>()
+  for (const card of cards) {
+    if (card.setCode.length > 0) codes.add(card.setCode.toLowerCase())
+  }
+  return [...codes].sort()
+}
+
+export type ManaValueParse = { ok: true; value: number | null } | { ok: false; error: string }
+
+/** Parse the mana value filter input: empty clears the filter, otherwise a non-negative integer. */
+export function parseManaValueFilter(raw: string): ManaValueParse {
+  const trimmed = raw.trim()
+  if (trimmed.length === 0) return { ok: true, value: null }
+  if (!/^\d+$/.test(trimmed)) {
+    return { ok: false, error: 'Mana value must be a non-negative integer' }
+  }
+  return { ok: true, value: parseInt(trimmed, 10) }
+}
+
+/** Toggle a color in a selection, keeping the result in canonical WUBRG order. */
+export function toggleColorSelection(selected: string[], color: string): string[] {
+  if (selected.includes(color)) return selected.filter((c) => c !== color)
+  return WUBRG.filter((c) => c === color || selected.includes(c))
+}

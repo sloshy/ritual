@@ -29,6 +29,8 @@ import type { TradeSearchEntry } from './useTradeData'
 import { resolveCardThumbnailUrl } from './image-sources'
 import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
+import { useCardFilters } from './useCardFilters'
+import { collectSetCodes, filterCards } from './card-filters'
 import { PrimerRenderer, buildToc } from './PrimerRenderer'
 
 type DeckTradePicker = { cardName: string; printings: ScryfallCard[]; deckEntry: Card }
@@ -96,12 +98,10 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     setReverse,
     reverseGroups,
     setReverseGroups,
-    hideLands,
-    setHideLands,
     priceGroupStrategy,
     setPriceGroupStrategy,
   } = useToolbarState<GroupBy>({ groupBy: 'type', sortBy: 'name' })
-  const [hideExtras, setHideExtras] = createSignal(false)
+  const cardFilters = useCardFilters()
   const [copyStatus, setCopyStatus] = createSignal<string | null>(null)
   const [lowestPrice, setLowestPrice] = createSignal(false)
   const [missingCardsExpanded, setMissingCardsExpanded] = createSignal(false)
@@ -337,15 +337,13 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     return { commanderCards, sideboardCards, extraCards, mainboardCards }
   })
 
+  // Toolbar filters apply to everything except the commander section, which is
+  // the deck's identity and stays pinned.
+  const setCodeOptions = createMemo(() => collectSetCodes(allCards()))
+
   // Sorted and grouped cards (mainboard only)
   const cardGroups = createMemo((): CardGroup[] => {
-    let working = partitioned().mainboardCards
-
-    if (hideLands()) {
-      working = working.filter(
-        (c) => !(c.cmc === 0 && (c.type.includes('Land') || c.type.includes('Basic'))),
-      )
-    }
+    const working = filterCards(partitioned().mainboardCards, cardFilters.filters)
 
     return groupAndSortCards(
       working,
@@ -446,14 +444,19 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     return (actualName ? props.printings[actualName] : undefined) ?? []
   })
 
+  const filteredSideboardCards = createMemo(() =>
+    filterCards(partitioned().sideboardCards, cardFilters.filters),
+  )
+
   // Pre-compute extra sections for reactive rendering
   const extraSections = createMemo(() => {
-    if (hideExtras() || partitioned().extraCards.length === 0) return []
+    if (cardFilters.filters.hideExtras || partitioned().extraCards.length === 0) return []
+    const extraCards = filterCards(partitioned().extraCards, cardFilters.filters)
     return props.deck.sections
       .filter((s) => isExtraSection(s.name))
       .map((s) => ({
         name: s.name,
-        cards: partitioned().extraCards.filter((c) => c.section === s.name),
+        cards: extraCards.filter((c) => c.section === s.name),
       }))
       .filter((s) => s.cards.length > 0)
   })
@@ -472,7 +475,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
           <h1 class="page-title">{props.deck.name}</h1>
           <p class="page-stats">
             Total: {formatPrice(totalPrice(), props.currency)}
-            <Show when={!hideExtras() && partitioned().extraCards.length > 0}>
+            <Show when={!cardFilters.filters.hideExtras && partitioned().extraCards.length > 0}>
               <span class="page-stats-label">
                 {' '}
                 (all cards: {formatPrice(totalPrice() + extrasPrice(), props.currency)})
@@ -552,15 +555,12 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         onReverseChange={() => setReverse((prev) => !prev)}
         reverseGroups={reverseGroups()}
         onReverseGroupsChange={() => setReverseGroups((prev) => !prev)}
-        hideLands={hideLands()}
-        onHideLandsChange={() => setHideLands((prev) => !prev)}
-        extraToggles={[
-          {
-            label: 'Hide Extras',
-            checked: hideExtras(),
-            onChange: () => setHideExtras((prev) => !prev),
-          },
-          ...(hasLowestPriceCards()
+        filters={cardFilters}
+        symbolMap={props.symbolMap}
+        setCodeOptions={setCodeOptions()}
+        showHideExtras
+        extraToggles={
+          hasLowestPriceCards()
             ? [
                 {
                   label: 'Lowest Price',
@@ -568,8 +568,8 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
                   onChange: () => setLowestPrice((prev) => !prev),
                 },
               ]
-            : []),
-        ]}
+            : undefined
+        }
         priceRefresh={props.enablePriceRefresh ? prices : undefined}
       />
 
@@ -666,10 +666,10 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         </For>
 
         {/* Sideboard always shown at bottom, ungrouped */}
-        <Show when={partitioned().sideboardCards.length > 0}>
+        <Show when={filteredSideboardCards().length > 0}>
           <CardSection
             label={props.deck.sections.find((s) => isSideboardSection(s.name))?.name ?? 'Sideboard'}
-            cards={partitioned().sideboardCards}
+            cards={filteredSideboardCards()}
             currency={props.currency}
             renderCard={renderDeckCard(false)}
           />

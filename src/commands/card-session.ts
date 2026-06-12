@@ -9,6 +9,7 @@ import { appendChangelog } from '../changelog-writer'
 import { createSetNoteChange, type ChangeEvent } from '../change-event'
 import { writeFileWithHash } from '../content-hash'
 import { formatSetCodesForDisplay, parseSetCodesInput } from '../set-codes'
+import { matchesAllTerms } from '../term-match'
 import { promptExitMenu } from './prompts-helpers'
 
 /**
@@ -671,11 +672,7 @@ export function buildCollectorChoices(setCardMap: Map<string, ScryfallCard>): Ch
 
 /** Filter choices so every space-separated term of `input` appears in the title. */
 function filterByTerms(input: string, choices: Choice[]): Choice[] {
-  const terms = input.toLowerCase().split(/\s+/).filter(Boolean)
-  return choices.filter((choice) => {
-    const title = choice.title.toLowerCase()
-    return terms.every((term) => title.includes(term))
-  })
+  return choices.filter((choice) => matchesAllTerms(choice.title, input))
 }
 
 /**

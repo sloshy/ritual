@@ -24,6 +24,8 @@ import { useTooltip } from './useTooltip'
 import { Toolbar } from './Toolbar'
 import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
+import { useCardFilters } from './useCardFilters'
+import { collectSetCodes, filterCards } from './card-filters'
 import { deriveSectionOrder, sectionDefaultGroupBy } from '../section-format'
 import { addEntryToLeft, canAddMoreToLeft, showTradeToast } from './useTradeState'
 import type { TradeSearchEntry } from './useTradeData'
@@ -102,13 +104,11 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     setReverse,
     reverseGroups,
     setReverseGroups,
-    hideLands,
-    setHideLands,
     priceGroupStrategy,
     setPriceGroupStrategy,
   } = useToolbarState<CollectionGroupBy>({ groupBy: initialGroupBy, sortBy: 'file-order' })
+  const cardFilters = useCardFilters()
   const [groupDuplicates, setGroupDuplicates] = createSignal(false)
-  const [hideUnpriced, setHideUnpriced] = createSignal(false)
   const [showChangelog, setShowChangelog] = createSignal(false)
 
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
@@ -229,7 +229,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         edhrec: card?.edhrec_rank ?? 999999,
         price: entry.price,
         type: card?.type_line ?? '',
-        section: 'Collection',
+        section: entry.section,
         fileOrder: entry.fileOrder,
         setCode: entry.set,
         colorIdentity: card?.color_identity ?? [],
@@ -249,18 +249,10 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   // Price refresh is wired for every render but only shown when `enablePriceRefresh`.
   const prices = usePublicPriceControls({ cards: allCards, pricesDate: props.pricesDate })
 
+  const setCodeOptions = createMemo(() => collectSetCodes(allCards()))
+
   const cardGroups = createMemo((): CardGroup[] => {
-    let working = [...allCards()]
-
-    if (hideLands()) {
-      working = working.filter(
-        (c) => !(c.cmc === 0 && (c.type.includes('Land') || c.type.includes('Basic'))),
-      )
-    }
-
-    if (hideUnpriced()) {
-      working = working.filter((c) => c.price > 0)
-    }
+    const working = filterCards(allCards(), cardFilters.filters)
 
     return groupAndSortCards(
       working,
@@ -469,18 +461,14 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         onReverseChange={() => setReverse((prev) => !prev)}
         reverseGroups={reverseGroups()}
         onReverseGroupsChange={() => setReverseGroups((prev) => !prev)}
-        hideLands={hideLands()}
-        onHideLandsChange={() => setHideLands((prev) => !prev)}
+        filters={cardFilters}
+        symbolMap={props.symbolMap}
+        setCodeOptions={setCodeOptions()}
         extraToggles={[
           {
             label: 'Group Duplicates',
             checked: groupDuplicates(),
             onChange: () => setGroupDuplicates((prev) => !prev),
-          },
-          {
-            label: 'Hide Unpriced',
-            checked: hideUnpriced(),
-            onChange: () => setHideUnpriced((prev) => !prev),
           },
         ]}
         priceRefresh={props.enablePriceRefresh ? prices : undefined}

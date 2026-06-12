@@ -5,6 +5,8 @@ import { capitalize } from './utils'
 import { useStuck } from './useStuck'
 import { UpdatePricesButton } from './PriceControls'
 import type { PriceRefresh } from './usePriceRefresh'
+import { FilterMenu } from './FilterMenu'
+import type { CardFiltersControl } from './useCardFilters'
 
 type SelectOption = { value: string; label: string }
 
@@ -31,8 +33,12 @@ interface ToolbarProps {
   onReverseChange: () => void
   reverseGroups: boolean
   onReverseGroupsChange: () => void
-  hideLands: boolean
-  onHideLandsChange: () => void
+  filters: CardFiltersControl
+  symbolMap: Record<string, string>
+  /** Lowercase set codes present in the list, for the set filter autocomplete. */
+  setCodeOptions: string[]
+  /** Show the "Hide Extras" filter toggle (deck pages only). */
+  showHideExtras?: boolean
   extraToggles?: ExtraToggle[]
   /** When set, a right-aligned "Update Prices" button is shown (public list pages). */
   priceRefresh?: PriceRefresh
@@ -142,15 +148,6 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
             <span aria-hidden="true">↑↓</span> Reverse Sections
           </button>
         </Show>
-        <button
-          type="button"
-          class="toolbar-toggle"
-          classList={{ active: props.hideLands }}
-          aria-pressed={props.hideLands}
-          onClick={props.onHideLandsChange}
-        >
-          Hide Lands
-        </button>
         <Show when={props.extraToggles}>
           {(toggles) => (
             <For each={toggles()}>
@@ -168,6 +165,12 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
             </For>
           )}
         </Show>
+        <FilterMenu
+          filters={props.filters}
+          symbolMap={props.symbolMap}
+          setCodeOptions={props.setCodeOptions}
+          showHideExtras={props.showHideExtras}
+        />
         <Show when={props.priceRefresh}>
           {(refresh) => (
             <div class="toolbar-price-refresh">

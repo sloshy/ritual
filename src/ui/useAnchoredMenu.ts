@@ -11,6 +11,12 @@ export type AnchoredMenuOptions = {
   width: number
   /** Called on Escape or a click outside the menu. */
   onClose: () => void
+  /**
+   * Element whose clicks should not count as "outside" — typically the toggle
+   * button that owns the menu, so its own click handler decides open/close
+   * instead of the outside-click dismissal racing it.
+   */
+  excludeEl?: () => HTMLElement | undefined
 }
 
 export type AnchoredMenu = {
@@ -74,7 +80,9 @@ export function useAnchoredMenu(opts: AnchoredMenuOptions): AnchoredMenu {
     if (menuRef) setMenuHeight(menuRef.getBoundingClientRect().height)
 
     const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef && !menuRef.contains(e.target as Node)) opts.onClose()
+      const target = e.target as Node
+      if (opts.excludeEl?.()?.contains(target)) return
+      if (menuRef && !menuRef.contains(target)) opts.onClose()
     }
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') opts.onClose()

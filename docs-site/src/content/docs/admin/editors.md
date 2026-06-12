@@ -10,7 +10,18 @@ The admin site provides a single **Edit Lists** page for managing decks, collect
 
 Pick a list type with the tabs at the top of the page, then choose the file to edit from the dropdown below them. Loading a file fetches full card data, printings, and pricing from the cache.
 
-### Quantity Controls
+### Filters Menu
+
+The list toolbar (shared with the public site pages) groups all card filters under a right-aligned **Filters** dropdown. The button shows a badge with the number of active filters, and the panel offers:
+
+- **Hide Lands** / **Hide Unpriced** — toggle lands and cards without a known price
+- **Hide Extras** — deck pages only; hides the maybeboard/token sections
+- **Name** — space-separated terms; a card matches when every term appears somewhere in its name (the same matching the CLI session filter uses)
+- **Color Identity** — toggle any combination of the five colors. **Exclusive** (the default) matches cards whose color identity is exactly the selection; **Inclusive** matches any card that could be played in a deck of the selected colors
+- **Sets** — a tag input filtering by set code; type a code (space or comma finishes the tag) or pick from the autocomplete list of codes present in the list
+- **Mana Value** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against a non-negative value (0 is valid)
+
+Filters combine, and **Clear all filters** resets everything. On deck pages the commander section is never filtered.
 
 Each card displays **+** and **−** buttons to add or remove copies. Reducing a card's quantity to zero removes it entirely.
 

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { mockPublicSiteCollection } from '../helpers/mock-data'
+import { openFilterMenu } from '../helpers/filter-menu'
 
 test.describe('Collection Toolbar – Hide Unpriced', () => {
   test.beforeEach(async ({ page }) => {
@@ -17,13 +18,15 @@ test.describe('Collection Toolbar – Hide Unpriced', () => {
     expect(cardNames).toContain('Unpriced Card')
   })
 
-  test('Hide Unpriced toggle is present in the toolbar', async ({ page }) => {
+  test('Hide Unpriced toggle is present in the Filters menu', async ({ page }) => {
+    await openFilterMenu(page)
     const toggle = page.getByRole('button', { name: 'Hide Unpriced' })
     await expect(toggle).toBeVisible()
     await expect(toggle).toHaveAttribute('aria-pressed', 'false')
   })
 
   test('enabling Hide Unpriced removes unpriced cards and keeps priced cards', async ({ page }) => {
+    await openFilterMenu(page)
     const toggle = page.getByRole('button', { name: 'Hide Unpriced' })
 
     await toggle.click()
@@ -35,6 +38,7 @@ test.describe('Collection Toolbar – Hide Unpriced', () => {
   })
 
   test('disabling Hide Unpriced restores unpriced cards', async ({ page }) => {
+    await openFilterMenu(page)
     const toggle = page.getByRole('button', { name: 'Hide Unpriced' })
 
     await toggle.click()

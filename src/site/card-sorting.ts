@@ -42,7 +42,7 @@ import type { PriceCurrency } from '../price-currency'
 import { getCurrencySymbol, getCurrencySuffix } from '../price-currency'
 
 // WUBRG canonical order
-const WUBRG = ['W', 'U', 'B', 'R', 'G']
+export const WUBRG: readonly string[] = ['W', 'U', 'B', 'R', 'G']
 
 const COLOR_COMBO_NAMES: Record<string, string> = {
   '': 'Colorless',

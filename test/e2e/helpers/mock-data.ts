@@ -1005,6 +1005,189 @@ export async function mockAdminCollectionLoadApi(page: Page): Promise<void> {
   })
 }
 
+// ===== Filter menu mock data =====
+
+const MOCK_FILTER_CARD_BASE = {
+  oracle_text: '',
+  image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
+  prices: { usd: '1.00', usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
+  finishes: ['nonfoil'],
+  games: ['paper'],
+  set_name: 'Test Set A',
+  rarity: 'common',
+}
+
+const MOCK_FILTER_CARD_KNIGHT = {
+  ...MOCK_FILTER_CARD_BASE,
+  id: 'filter-knight-id',
+  name: 'White Knight',
+  cmc: 2,
+  type_line: 'Creature — Human Knight',
+  mana_cost: '{W}{W}',
+  set: 'tsa',
+  collector_number: '1',
+  color_identity: ['W'],
+  edhrec_rank: 1000,
+}
+
+const MOCK_FILTER_CARD_ELF = {
+  ...MOCK_FILTER_CARD_BASE,
+  id: 'filter-elf-id',
+  name: 'Green Elf',
+  cmc: 1,
+  type_line: 'Creature — Elf Druid',
+  mana_cost: '{G}',
+  set: 'tsb',
+  set_name: 'Test Set B',
+  collector_number: '2',
+  color_identity: ['G'],
+  edhrec_rank: 1100,
+}
+
+const MOCK_FILTER_CARD_LORD = {
+  ...MOCK_FILTER_CARD_BASE,
+  id: 'filter-lord-id',
+  name: 'Golgari Lord',
+  cmc: 3,
+  type_line: 'Creature — Zombie Elf',
+  mana_cost: '{1}{B}{G}',
+  set: 'tsa',
+  collector_number: '3',
+  color_identity: ['B', 'G'],
+  edhrec_rank: 1200,
+}
+
+const MOCK_FILTER_CARD_FOREST = {
+  ...MOCK_FILTER_CARD_BASE,
+  id: 'filter-forest-id',
+  name: 'Test Forest',
+  cmc: 0,
+  type_line: 'Basic Land — Forest',
+  mana_cost: '',
+  set: 'tsa',
+  collector_number: '4',
+  color_identity: ['G'],
+  edhrec_rank: 1300,
+}
+
+const MOCK_FILTER_CARD_ROCK = {
+  ...MOCK_FILTER_CARD_BASE,
+  id: 'filter-rock-id',
+  name: 'Boring Rock',
+  cmc: 2,
+  type_line: 'Artifact',
+  mana_cost: '{2}',
+  set: 'tsb',
+  set_name: 'Test Set B',
+  collector_number: '5',
+  color_identity: [],
+  edhrec_rank: 1400,
+  prices: { usd: null, usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
+}
+
+const MOCK_FILTER_CARD_DRAGON = {
+  ...MOCK_FILTER_CARD_BASE,
+  id: 'filter-dragon-id',
+  name: 'Maybe Dragon',
+  cmc: 5,
+  type_line: 'Creature — Dragon',
+  mana_cost: '{3}{R}{R}',
+  set: 'tsa',
+  collector_number: '6',
+  color_identity: ['R'],
+  edhrec_rank: 1500,
+}
+
+const MOCK_FILTER_CARDS = [
+  MOCK_FILTER_CARD_KNIGHT,
+  MOCK_FILTER_CARD_ELF,
+  MOCK_FILTER_CARD_LORD,
+  MOCK_FILTER_CARD_FOREST,
+  MOCK_FILTER_CARD_ROCK,
+  MOCK_FILTER_CARD_DRAGON,
+]
+
+const MOCK_FILTER_DECK = {
+  deck: {
+    name: 'Test Filter Deck',
+    sections: [
+      {
+        name: 'Main',
+        cards: MOCK_FILTER_CARDS.filter((card) => card !== MOCK_FILTER_CARD_DRAGON).map(
+          (card, i) => ({
+            quantity: 1,
+            name: card.name,
+            set: card.set,
+            collectorNumber: card.collector_number,
+            cardId: i + 1,
+          }),
+        ),
+      },
+      {
+        name: 'Maybeboard',
+        cards: [
+          {
+            quantity: 1,
+            name: MOCK_FILTER_CARD_DRAGON.name,
+            set: MOCK_FILTER_CARD_DRAGON.set,
+            collectorNumber: MOCK_FILTER_CARD_DRAGON.collector_number,
+            cardId: 6,
+          },
+        ],
+      },
+    ],
+  },
+  cards: Object.fromEntries(MOCK_FILTER_CARDS.map((card) => [card.name, card])),
+  printings: Object.fromEntries(MOCK_FILTER_CARDS.map((card) => [card.name, [card]])),
+  symbolMap: {},
+  exportPath: 'decks/test-filter-deck.txt',
+  useScryfallImgUrls: false,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+  missingCards: { usd: [], eur: [], tix: [] },
+}
+
+const MOCK_SITE_INDEX_WITH_FILTER_DECK = {
+  decks: [
+    {
+      slug: 'test-filter-deck',
+      name: 'Test Filter Deck',
+      featuredCardImage: '',
+      commander: null,
+      format: null,
+      cardCount: MOCK_FILTER_CARDS.length,
+    },
+  ],
+  collections: [],
+  useScryfallImgUrls: false,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+}
+
+/**
+ * Mock the public site JSON endpoints with a synthetic deck whose cards differ in
+ * name, color identity, set code, mana value, type, and pricing — one card per
+ * axis the toolbar Filters menu can filter on — plus a Maybeboard card for the
+ * Hide Extras toggle.
+ */
+export async function mockPublicSiteDeckForFilters(page: Page): Promise<void> {
+  await page.route('**/index.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_SITE_INDEX_WITH_FILTER_DECK),
+    })
+  })
+
+  await page.route('**/decks/test-filter-deck.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_FILTER_DECK),
+    })
+  })
+}
+
 // ===== Trade page mock data =====
 
 /**
