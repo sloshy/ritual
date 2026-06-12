@@ -92,7 +92,7 @@ function stripQuotes(name: string): string {
   return match?.[1] ?? name
 }
 
-function parseChangeLine(line: string): ChangelogChange | null {
+export function parseChangeLine(line: string): ChangelogChange | null {
   // Section-structural lines carry the literal word `section` and quoted section names that the
   // generic add/remove/move regexes would misread as a card name — match them directly first.
   const sectionAddRemove = line.match(SECTION_ADD_REMOVE_LINE_REGEX)

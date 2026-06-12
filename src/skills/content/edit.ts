@@ -70,5 +70,9 @@ Only the changelog is touched — the list file itself is never modified:
 ritual history "Winota Stax"
 ritual history "Winota Stax" --deck
 \`\`\`
+
+Combining two change sets orders the merged lines oldest-set-first (newest changes
+at the bottom) and cancels opposite changes — an add and a later remove of the same
+card annihilate — mirroring the card editor's live change log.
 `,
 }

@@ -1,5 +1,5 @@
 /**
- * Lossless block-level model of a `.changes.md` changelog, used by the `history`
+ * Block-level model of a `.changes.md` changelog, used by the `history`
  * command to compact and rewrite change history.
  *
  * Unlike {@link ./changelog-parser}, which decodes each line into structured
@@ -9,7 +9,17 @@
  * {@link parseChangeSets} and {@link serializeChangeSets} preserves every line
  * verbatim — including card IDs — so the editing operations here never corrupt
  * the data they move around.
+ *
+ * The one place lines are interpreted is {@link combineSetsInto}: when two sets
+ * merge it parses each line just far enough to cancel opposite changes (an add
+ * and a later remove of the same card, set/unset-commander, add/remove-section),
+ * mirroring the live changelog compaction in `editor/useCardChanges`. Surviving
+ * lines still keep their exact original text — only cancelled pairs are dropped.
  */
+
+import type { Board, Condition, Finish } from './types'
+import { type ChangeEvent, areOppositeChanges } from './change-event'
+import { parseChangeLine } from './changelog-parser'
 
 /** One timestamped block of raw change lines. */
 export type ChangeSet = {
@@ -121,10 +131,82 @@ export function retimeSetAt(sets: ChangeSet[], index: number, timestamp: string)
 }
 
 /**
- * Merge the set at `otherIndex` into the set at `targetIndex`: the target keeps
- * its timestamp and gains the other set's lines appended; the other set is
- * removed. Returns a new array. A no-op (returns a copy) if the indices are equal
- * or out of range.
+ * Parse a raw change line into the {@link ChangeEvent} it represents, but only for
+ * the actions that can cancel against an opposite (add/remove, set/unset-commander,
+ * add/remove-section). Any other line — or one that doesn't parse — returns null and
+ * is treated as opaque, so it can never be compacted away. The `id`/`timestamp` are
+ * placeholders: only the discriminant and identity fields matter to
+ * {@link areOppositeChanges}. The validated `finish`/`condition`/`board` strings are
+ * cast back to their unions, matching how the writer produced them.
+ */
+function lineToCancelableEvent(line: string): ChangeEvent | null {
+  const change = parseChangeLine(line)
+  if (!change) return null
+  const idMatch = line.match(/&(\d+)\s*$/)
+  const cardId = idMatch ? Number(idMatch[1]) : undefined
+  const base = { id: '', timestamp: 0, cardName: change.cardName, cardId }
+  const printing = {
+    set: change.set,
+    collectorNumber: change.collectorNumber,
+    finish: change.finish as Finish | undefined,
+    condition: change.condition as Condition | undefined,
+    board: change.board as Board | undefined,
+  }
+  switch (change.action) {
+    case 'Added':
+      return { ...base, action: 'add', ...printing }
+    case 'Removed':
+      return { ...base, action: 'remove', ...printing }
+    case 'Set as commander':
+      return { ...base, action: 'set-commander' }
+    case 'Unset as commander':
+      return { ...base, action: 'unset-commander' }
+    case 'Added section':
+      return { id: '', timestamp: 0, action: 'add-section', section: change.section ?? '' }
+    case 'Removed section':
+      return { id: '', timestamp: 0, action: 'remove-section', section: change.section ?? '' }
+    default:
+      return null
+  }
+}
+
+/** A raw change line paired with its parsed cancelable event (null when opaque). */
+type CompactItem = { raw: string; event: ChangeEvent | null }
+
+/**
+ * Cancel opposite changes out of an ordered (oldest-first) line list, the way the
+ * live editor does as a card is added then removed: walking oldest→newest, a line
+ * whose change is the exact opposite of an earlier surviving line annihilates that
+ * line and drops itself. Lines that aren't a cancelable change pass through and keep
+ * their exact original text. Returns the surviving lines in order.
+ */
+function compactLines(lines: string[]): string[] {
+  const survivors: CompactItem[] = []
+  for (const raw of lines) {
+    const event = lineToCancelableEvent(raw)
+    if (event) {
+      const oppositeIndex = survivors.findIndex(
+        (item) => item.event !== null && areOppositeChanges(item.event, event),
+      )
+      if (oppositeIndex !== -1) {
+        survivors.splice(oppositeIndex, 1)
+        continue
+      }
+    }
+    survivors.push({ raw, event })
+  }
+  return survivors.map((item) => item.raw)
+}
+
+/**
+ * Merge the set at `otherIndex` into the set at `targetIndex`. The merged set keeps
+ * the target's timestamp, but its lines are ordered so the older source set's
+ * changes sit above the newer source set's — newest changes always end up at the
+ * bottom, regardless of which set was the combine target. Opposite changes across
+ * the two sets then cancel out (see {@link compactLines}), mirroring the live
+ * changelog in the card editor. The other set is removed; if compaction empties the
+ * merged set, it is dropped too. Returns a new array. A no-op copy if the indices
+ * are equal or out of range.
  */
 export function combineSetsInto(
   sets: ChangeSet[],
@@ -135,16 +217,24 @@ export function combineSetsInto(
   const other = sets[otherIndex]
   if (!target || !other || targetIndex === otherIndex) return cloneSets(sets)
 
+  const [olderLines, newerLines] =
+    timestampOrder(other.timestamp) < timestampOrder(target.timestamp)
+      ? [other.lines, target.lines]
+      : [target.lines, other.lines]
   const merged: ChangeSet = {
     timestamp: target.timestamp,
-    lines: [...target.lines, ...other.lines],
+    lines: compactLines([...olderLines, ...newerLines]),
   }
+
   const result: ChangeSet[] = []
   for (let i = 0; i < sets.length; i++) {
     if (i === otherIndex) continue
-    result.push(
-      i === targetIndex ? merged : { timestamp: sets[i]!.timestamp, lines: [...sets[i]!.lines] },
-    )
+    if (i === targetIndex) {
+      // A combine that fully cancels out leaves nothing to keep — drop the set.
+      if (merged.lines.length > 0) result.push(merged)
+    } else {
+      result.push({ timestamp: sets[i]!.timestamp, lines: [...sets[i]!.lines] })
+    }
   }
   return result
 }

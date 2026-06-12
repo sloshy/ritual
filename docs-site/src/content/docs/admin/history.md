@@ -14,11 +14,11 @@ Switching to another list (or leaving the page) while you have unsaved edits pro
 
 Each change-set row has three actions:
 
-| Action        | Effect                                                                                                                                                                                                       |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Combine**   | Opens a picker of the other change sets; the chosen set's entries are merged into this one and the chosen set is deleted. This set keeps its own timestamp. Disabled when the log holds only one change set. |
-| **Edit time** | Replaces the set's timestamp. The new value must be a valid ISO-8601 timestamp (e.g. `2026-05-29T12:00:00.000Z`); on save, sets are re-sorted chronologically.                                               |
-| **Delete**    | Removes the change set from the log. The cards themselves are **not** removed from the list — only the history entry. Use **Undo** if you delete the wrong one.                                              |
+| Action        | Effect                                                                                                                                                                                                                                                                                                                                             |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Combine**   | Opens a picker of the other change sets; the two sets' entries are merged into this one (which keeps its own timestamp) and the chosen set is deleted. Lines are ordered oldest-set-first (newest changes at the bottom) and opposite changes cancel out — see [Combining sets](#combining-sets). Disabled when the log holds only one change set. |
+| **Edit time** | Replaces the set's timestamp. The new value must be a valid ISO-8601 timestamp (e.g. `2026-05-29T12:00:00.000Z`); on save, sets are re-sorted chronologically.                                                                                                                                                                                     |
+| **Delete**    | Removes the change set from the log. The cards themselves are **not** removed from the list — only the history entry. Use **Undo** if you delete the wrong one.                                                                                                                                                                                    |
 
 ## Global actions
 
@@ -31,9 +31,13 @@ Each change-set row has three actions:
 
 A summary line above the sets shows how the saved file will differ from what was loaded: the change-set and change-line counts before → after.
 
+## Combining sets
+
+When two change sets are combined, their lines are interleaved by age — the older set's entries on top, the newer set's beneath — so newer changes always end up at the bottom, no matter which set you combined into which. The merge then compacts the result the same way the card editor's live change log does: an **add** and a later **remove** of the same card (matching printing, finish, condition, board, and ID) annihilate, as do set/unset-commander and add/remove-section pairs. A combine that cancels everything leaves the set empty, so it is dropped. Lines that survive keep their exact original text, including their internal card IDs.
+
 ## Lossless editing
 
-Change lines — including their internal card IDs — are moved around verbatim; the editor never re-parses or reformats them. The **Rewrite with defaults** action is the one exception, since it regenerates lines from the current list contents.
+Apart from combine's compaction, change lines — including their internal card IDs — are moved around verbatim; the editor never re-parses or reformats them. The **Rewrite with defaults** action regenerates lines from the current list contents.
 
 :::note
 Only the `.changes.md` file is written. When git auto-commit is enabled in the admin config, the save is recorded in a single commit (`Rewrite change history for <list>`), the same as the editor and move endpoints.

@@ -68,9 +68,13 @@ test.describe('Change History page', () => {
     await expect(remaining).toContainText('2026-02-01')
     await expect(remaining).toContainText('2 changes')
 
-    // Expanding shows both merged change lines.
+    // Expanding shows both merged change lines, ordered oldest-set-first: the
+    // 2026-01-01 "Sol Ring" entry sits above the newer 2026-02-01 "Mana Crypt".
     await remaining.locator('.history-set-main').click()
-    await expect(remaining.locator('.history-line')).toHaveCount(2)
+    const lines = remaining.locator('.history-line')
+    await expect(lines).toHaveCount(2)
+    await expect(lines.nth(0)).toContainText('Sol Ring')
+    await expect(lines.nth(1)).toContainText('Mana Crypt')
   })
 
   test('rewrites history with defaults', async ({ page }) => {

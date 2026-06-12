@@ -38,11 +38,11 @@ The main menu lists each change set (newest first) as a collapsed row — its ti
 
 ### Per-set actions
 
-| Action             | Effect                                                                                                                                                        |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Delete**         | Removes the selected change set from the log. The cards themselves are **not** removed from the list — only the history entry.                                |
-| **Combine**        | Prompts for another change set; its entries are appended to the selected set and the other set is deleted. The selected set keeps its original timestamp.     |
-| **Edit timestamp** | Replace the set's timestamp. The new value must be a valid ISO-8601 timestamp (e.g. `2026-05-29T12:00:00.000Z`); on save, sets are re-sorted chronologically. |
+| Action             | Effect                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Delete**         | Removes the selected change set from the log. The cards themselves are **not** removed from the list — only the history entry.                                                                                                                                                                                                                                                                               |
+| **Combine**        | Prompts for another change set; the two sets' entries are merged into the selected set (which keeps its original timestamp) and the other set is deleted. Lines are ordered so the older set's changes sit above the newer set's — newest changes always at the bottom — and opposite changes cancel out (see [Combining sets](#combining-sets) below). If the merge cancels everything, the set is dropped. |
+| **Edit timestamp** | Replace the set's timestamp. The new value must be a valid ISO-8601 timestamp (e.g. `2026-05-29T12:00:00.000Z`); on save, sets are re-sorted chronologically.                                                                                                                                                                                                                                                |
 
 ### Global actions
 
@@ -59,9 +59,13 @@ The main menu lists each change set (newest first) as a collapsed row — its ti
 
 `[listName]` is matched case-insensitively across all list types (exact name first, then a unique substring), and a name that exists in more than one type is rejected unless you pin it with a type flag. See [List Resolution](/commands/list-resolution/).
 
+### Combining sets
+
+When two change sets are combined, their lines are interleaved by age — the older set's entries on top, the newer set's beneath — so newer changes always end up at the bottom, no matter which set you combined into which. The merge then compacts the result the same way the card editor's live change log does: an **add** and a later **remove** of the same card (matching printing, finish, condition, board, and ID) annihilate, as do set/unset-commander and add/remove-section pairs. A combine that cancels everything leaves the set empty, so it is dropped. Lines that survive keep their exact original text, including their `&N` card IDs.
+
 ### Lossless editing
 
-Change lines — including their `&N` card IDs — are moved around verbatim; the editor never re-parses or reformats them. The "rewrite with defaults" action is the one exception, since it regenerates lines from the current list contents.
+Apart from combine's compaction, change lines — including their `&N` card IDs — are moved around verbatim; the editor never re-parses or reformats them. The "rewrite with defaults" action regenerates lines from the current list contents.
 
 ### Only the change log is modified
 

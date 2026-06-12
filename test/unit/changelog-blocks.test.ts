@@ -133,15 +133,107 @@ describe('editing operations', () => {
     expect(result[0]!.timestamp).toBe(base[0]!.timestamp)
   })
 
-  it('combineSetsInto merges other into target, keeping the target timestamp', () => {
-    const result = combineSetsInto(base, 0, 1)
-    expect(result).toHaveLength(1)
-    expect(result[0]!.timestamp).toBe('2026-03-09T10:00:00.000Z')
-    expect(result[0]!.lines).toEqual([
-      '- Added "Sol Ring" &1',
+  it('combineSetsInto orders lines newest-at-bottom regardless of combine direction', () => {
+    // Combining the older set into the newer (above) and the newer into the older
+    // (below) both yield the same oldest-first line order; only the kept timestamp
+    // differs (the target's).
+    const intoNewer = combineSetsInto(base, 0, 1)
+    const intoOlder = combineSetsInto(base, 1, 0)
+    expect(intoNewer[0]!.lines).toEqual(intoOlder[0]!.lines)
+    expect(intoNewer[0]!.lines).toEqual([
       '- Added "Bolt" &2',
       '- Removed "Forest" &3',
+      '- Added "Sol Ring" &1',
     ])
+    expect(intoNewer[0]!.timestamp).toBe('2026-03-09T10:00:00.000Z')
+    expect(intoOlder[0]!.timestamp).toBe('2026-03-07T22:01:21.452Z')
+  })
+
+  it('combineSetsInto cancels an add against a later remove of the same card', () => {
+    const sets: ChangeSet[] = [
+      { timestamp: '2026-03-09T10:00:00.000Z', lines: ['- Removed "Sol Ring" &1'] },
+      {
+        timestamp: '2026-03-07T22:01:21.452Z',
+        lines: ['- Added "Sol Ring" &1', '- Added "Bolt" &2'],
+      },
+    ]
+    // Older "Added Sol Ring" then newer "Removed Sol Ring" annihilate; the
+    // unrelated "Added Bolt" survives.
+    const result = combineSetsInto(sets, 0, 1)
+    expect(result).toHaveLength(1)
+    expect(result[0]!.lines).toEqual(['- Added "Bolt" &2'])
+  })
+
+  it('combineSetsInto drops a set entirely when compaction empties it', () => {
+    const sets: ChangeSet[] = [
+      { timestamp: '2026-03-09T10:00:00.000Z', lines: ['- Removed "Bolt" &1'] },
+      { timestamp: '2026-03-07T22:01:21.452Z', lines: ['- Added "Bolt" &1'] },
+    ]
+    expect(combineSetsInto(sets, 0, 1)).toEqual([])
+  })
+
+  it('combineSetsInto does not cancel adds/removes of different printings', () => {
+    // Same cardId on both — it is the printing difference (LEA vs 2ED) that
+    // prevents the add/remove from cancelling.
+    const sets: ChangeSet[] = [
+      { timestamp: '2026-03-09T10:00:00.000Z', lines: ['- Removed "Bolt" (2ED:162) &1'] },
+      { timestamp: '2026-03-07T22:01:21.452Z', lines: ['- Added "Bolt" (LEA:161) &1'] },
+    ]
+    const result = combineSetsInto(sets, 0, 1)
+    expect(result).toHaveLength(1)
+    expect(result[0]!.lines).toEqual([
+      '- Added "Bolt" (LEA:161) &1',
+      '- Removed "Bolt" (2ED:162) &1',
+    ])
+  })
+
+  it('combineSetsInto does not cancel adds/removes with mismatched card IDs', () => {
+    // Same name and printing, but different &N — distinct copies, so they stay.
+    const sets: ChangeSet[] = [
+      { timestamp: '2026-03-09T10:00:00.000Z', lines: ['- Removed "Bolt" &2'] },
+      { timestamp: '2026-03-07T22:01:21.452Z', lines: ['- Added "Bolt" &1'] },
+    ]
+    const result = combineSetsInto(sets, 0, 1)
+    expect(result).toHaveLength(1)
+    expect(result[0]!.lines).toEqual(['- Added "Bolt" &1', '- Removed "Bolt" &2'])
+  })
+
+  it('combineSetsInto cancels set-commander against a later unset-commander', () => {
+    const sets: ChangeSet[] = [
+      { timestamp: '2026-03-09T10:00:00.000Z', lines: ['- Unset "Urza" as commander &5'] },
+      { timestamp: '2026-03-07T22:01:21.452Z', lines: ['- Set "Urza" as commander &5'] },
+    ]
+    expect(combineSetsInto(sets, 0, 1)).toEqual([])
+  })
+
+  it('combineSetsInto cancels add-section against a later remove-section', () => {
+    const sets: ChangeSet[] = [
+      { timestamp: '2026-03-09T10:00:00.000Z', lines: ['- Removed section "Sideboard"'] },
+      { timestamp: '2026-03-07T22:01:21.452Z', lines: ['- Added section "Sideboard"'] },
+    ]
+    expect(combineSetsInto(sets, 0, 1)).toEqual([])
+  })
+
+  it('combineSetsInto cancels only one add per opposing remove', () => {
+    const sets: ChangeSet[] = [
+      { timestamp: '2026-03-09T10:00:00.000Z', lines: ['- Removed "Island" &1'] },
+      {
+        timestamp: '2026-03-07T22:01:21.452Z',
+        lines: ['- Added "Island" &1', '- Added "Island" &1'],
+      },
+    ]
+    const result = combineSetsInto(sets, 0, 1)
+    expect(result).toHaveLength(1)
+    expect(result[0]!.lines).toEqual(['- Added "Island" &1'])
+  })
+
+  it('combineSetsInto leaves unparseable lines untouched (treated as opaque)', () => {
+    const sets: ChangeSet[] = [
+      { timestamp: '2026-03-09T10:00:00.000Z', lines: ['- something freeform'] },
+      { timestamp: '2026-03-07T22:01:21.452Z', lines: ['- another note'] },
+    ]
+    const result = combineSetsInto(sets, 0, 1)
+    expect(result[0]!.lines).toEqual(['- another note', '- something freeform'])
   })
 
   it('combineSetsInto is a no-op copy when indices are equal', () => {
