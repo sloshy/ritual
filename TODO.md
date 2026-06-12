@@ -10,9 +10,6 @@
 
 - Allow exporting deck information to be used by other tooling
 - Add scryfall interactive mode
-- Change the discard feature to work with all changes and have it be more of a "view changes" menu with the option to remove
-- Allow compacting changes when combining them with the history tool (i.e. an add followed by a remove should be treated as a single change)
-- Assume temporal stability by default in history tool (newer edits go on the bottom always when combining unless otherwise specified)
 
 ## Misc
 
