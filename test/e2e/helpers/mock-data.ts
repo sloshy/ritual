@@ -843,6 +843,121 @@ const MOCK_SITE_INDEX_WITH_MULTI_SECTION_DECK = {
   availableCurrencies: ['usd'],
 }
 
+// A portrait card image (matching Scryfall's 488×680 frame) served as an SVG so
+// the <img> loads with the correct intrinsic aspect ratio in tests — no network
+// and no flakiness from a missing image. Used by the sideways-card modal test.
+const PORTRAIT_CARD_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="488" height="680" viewBox="0 0 488 680"><rect width="488" height="680" fill="#334"/></svg>'
+
+const MOCK_SCRYFALL_BATTLE = {
+  id: 'battle-id',
+  name: 'Test Battle',
+  cmc: 4,
+  type_line: 'Battle — Siege',
+  oracle_text: 'When Test Battle enters, draw a card.',
+  mana_cost: '{3}{R}',
+  image_uris: {
+    small: '',
+    normal: 'https://card-images.test/battle.svg',
+    large: '',
+    png: '',
+    art_crop: '',
+    border_crop: '',
+  },
+  prices: { usd: '5.00', usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
+  finishes: ['nonfoil'],
+  games: ['paper'],
+  set: 'tst',
+  set_name: 'Test Set',
+  collector_number: '20',
+  rarity: 'rare',
+  color_identity: ['R'],
+  edhrec_rank: 800,
+}
+
+const MOCK_SCRYFALL_UPRIGHT = {
+  ...MOCK_SCRYFALL_CREATURE,
+  image_uris: {
+    small: '',
+    normal: 'https://card-images.test/creature.svg',
+    large: '',
+    png: '',
+    art_crop: '',
+    border_crop: '',
+  },
+}
+
+const MOCK_SIDEWAYS_DECK = {
+  deck: {
+    name: 'Test Sideways Deck',
+    sections: [
+      {
+        name: 'Main',
+        cards: [
+          { quantity: 1, name: 'Test Battle', set: 'tst', collectorNumber: '20', cardId: 1 },
+          { quantity: 1, name: 'Test Creature', set: 'tst', collectorNumber: '1', cardId: 2 },
+        ],
+      },
+    ],
+  },
+  cards: {
+    'Test Battle': MOCK_SCRYFALL_BATTLE,
+    'Test Creature': MOCK_SCRYFALL_UPRIGHT,
+  },
+  printings: {
+    'Test Battle': [MOCK_SCRYFALL_BATTLE],
+    'Test Creature': [MOCK_SCRYFALL_UPRIGHT],
+  },
+  symbolMap: {},
+  exportPath: 'decks/test-sideways-deck.txt',
+  useScryfallImgUrls: true,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+  missingCards: { usd: [], eur: [], tix: [] },
+}
+
+const MOCK_SITE_INDEX_WITH_SIDEWAYS_DECK = {
+  decks: [
+    {
+      slug: 'test-sideways-deck',
+      name: 'Test Sideways Deck',
+      featuredCardImage: '',
+      commander: null,
+      format: null,
+      cardCount: 2,
+    },
+  ],
+  collections: [],
+  useScryfallImgUrls: true,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+}
+
+/**
+ * Mock the public site JSON endpoints with a synthetic deck containing a sideways
+ * card (a Battle, which renders rotated) alongside an upright card, for testing
+ * that the card-detail modal lays the sideways image out in a landscape panel.
+ */
+export async function mockPublicSiteDeckWithSidewaysCard(page: Page): Promise<void> {
+  await page.route('https://card-images.test/*.svg', async (route: Route) => {
+    await route.fulfill({ status: 200, contentType: 'image/svg+xml', body: PORTRAIT_CARD_SVG })
+  })
+  await page.route('**/index.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_SITE_INDEX_WITH_SIDEWAYS_DECK),
+    })
+  })
+  await page.route('**/decks/test-sideways-deck.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_SIDEWAYS_DECK),
+    })
+  })
+}
+
 /**
  * Mock the public site JSON endpoints with a synthetic deck that has cards of multiple
  * types (Creature, Instant, Artifact), producing multiple type-based sections in the toolbar.

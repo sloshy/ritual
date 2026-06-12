@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test'
-import { mockPublicSiteDeckWithMultipleSections } from '../helpers/mock-data'
+import {
+  mockPublicSiteDeckWithMultipleSections,
+  mockPublicSiteDeckWithSidewaysCard,
+} from '../helpers/mock-data'
 
 test.describe('Card detail modal', () => {
   test.beforeEach(async ({ page }) => {
@@ -31,5 +34,45 @@ test.describe('Card detail modal', () => {
     await expect(page.locator('.card-modal')).toBeVisible({ timeout: 5000 })
     await expect(page.locator('.modal-printings-view')).toHaveCount(0)
     await expect(page.getByRole('button', { name: /Other Printings/ })).toBeVisible()
+  })
+})
+
+test.describe('Card detail modal — sideways cards', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockPublicSiteDeckWithSidewaysCard(page)
+    await page.goto('#/deck/test-sideways-deck')
+    await page.waitForSelector('.card-item', { timeout: 15_000 })
+  })
+
+  test('a sideways card gets the landscape image panel and stays within it', async ({ page }) => {
+    // Upright card: normal (portrait) panel, no sideways layout.
+    await page.locator('.card-item[data-name="test creature"] .card-binder').click()
+    await expect(page.locator('.card-modal')).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('.card-modal-image')).not.toHaveClass(/sideways/)
+    await page.locator('.modal-close').click()
+    await expect(page.locator('.card-modal-backdrop.open')).not.toBeVisible({ timeout: 3000 })
+
+    // Sideways card (Battle): the image panel switches to the landscape layout.
+    await page.locator('.card-item[data-name="test battle"] .card-binder').click()
+    await expect(page.locator('.card-modal')).toBeVisible({ timeout: 5000 })
+    const imagePanel = page.locator('.card-modal-image')
+    await expect(imagePanel).toHaveClass(/sideways/)
+
+    const sidewaysImg = page.locator('.card-modal-image img.sideways')
+    await expect(sidewaysImg).toBeVisible()
+
+    // The rotated image must not spill out of its panel into the details column —
+    // its visual right edge stays within the image panel's right edge.
+    const imgBox = await sidewaysImg.boundingBox()
+    const panelBox = await imagePanel.boundingBox()
+    const detailsBox = await page.locator('.card-modal-details').boundingBox()
+    expect(imgBox).not.toBeNull()
+    expect(panelBox).not.toBeNull()
+    expect(detailsBox).not.toBeNull()
+    // Drawn (rotated) image is wider than tall — confirms it reads landscape.
+    expect(imgBox!.width).toBeGreaterThan(imgBox!.height)
+    // Right edge contained by the panel, which sits left of the details column.
+    expect(imgBox!.x + imgBox!.width).toBeLessThanOrEqual(panelBox!.x + panelBox!.width + 1)
+    expect(panelBox!.x + panelBox!.width).toBeLessThanOrEqual(detailsBox!.x + 1)
   })
 })

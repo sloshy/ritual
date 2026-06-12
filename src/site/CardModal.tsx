@@ -244,7 +244,7 @@ export const CardModal: Component<CardModalProps> = (props) => {
           when={showPrintings()}
           fallback={
             <>
-              <div class="card-modal-image">
+              <div class={`card-modal-image ${isSideways() && !showingBack() ? 'sideways' : ''}`}>
                 <Show
                   when={!showingBack()}
                   fallback={

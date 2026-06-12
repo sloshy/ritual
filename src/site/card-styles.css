@@ -573,13 +573,33 @@ h3 {
   gap: 0.5rem;
   background: var(--bg-body);
 
+  /* A sideways card (Battle/Room) reads landscape, so widen its panel and let
+     it be short — the rotated image then fits its own section instead of
+     spilling into the details column on the right. */
+  &.sideways {
+    flex-basis: 360px;
+  }
+
   & img {
     max-width: 100%;
     border-radius: var(--card-corner-radius);
 
+    /* The source image is portrait; rotating it 90° makes it read landscape.
+       A transform is visual only and doesn't change layout size, so the
+       un-rotated box reserves the wrong space (too tall, too narrow) and the
+       drawn card overflows sideways. --sw is the pre-rotation width and its
+       height is --sw * 680/488; the margins expand the layout box horizontally
+       and collapse it vertically by the same (height − width)/2 so the reserved
+       space matches the rotated image. Border-radius stays the portrait token:
+       the element itself is still a portrait box, so that already yields a
+       circular corner that the rotation preserves. */
     &.sideways {
-      max-width: 85%;
+      --sw: 220px;
+      width: var(--sw);
+      max-width: none;
       transform: rotate(90deg);
+      margin: calc((var(--sw) - var(--sw) * 680 / 488) / 2)
+        calc((var(--sw) * 680 / 488 - var(--sw)) / 2);
     }
   }
 }
@@ -660,6 +680,11 @@ h3 {
   .card-modal-image {
     flex: 0 0 auto;
     max-height: 45vh;
+  }
+  /* Stacked column layout — the panel is full-width, so let the sideways card
+     hug its (short) content height instead of reserving the desktop basis. */
+  .card-modal-image.sideways {
+    flex-basis: auto;
   }
   .binder-grid {
     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
