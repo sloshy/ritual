@@ -35,3 +35,31 @@ export async function promptListType(): Promise<ListType | undefined> {
     choices: LIST_TYPES.map((type) => ({ title: type, value: type })),
   })
 }
+
+/** The user's pick from the shared editor exit menu. */
+export type ExitMenuChoice = 'save' | 'discard' | 'cancel'
+
+/**
+ * The shared "you have unsaved changes" exit menu used by every interactive
+ * editor (the card sessions, `move`, and `history`). Editors call this when
+ * the user exits with unsaved changes; cancelling the prompt itself
+ * (Esc / Ctrl-C) counts as Cancel, so the editor keeps running. The change
+ * count is shown when given and positive; omit it (or pass 0) when the caller
+ * only knows that *something* is unsaved.
+ */
+export async function promptExitMenu(changeCount?: number): Promise<ExitMenuChoice> {
+  const message =
+    changeCount !== undefined && changeCount > 0
+      ? `You have ${changeCount} unsaved change(s):`
+      : 'You have unsaved changes:'
+  const choice = await ask<ExitMenuChoice>({
+    type: 'select',
+    message,
+    choices: [
+      { title: '✅ Save and exit', value: 'save' },
+      { title: '🚪 Exit without saving', value: 'discard' },
+      { title: '← Cancel (keep editing)', value: 'cancel' },
+    ],
+  })
+  return choice ?? 'cancel'
+}

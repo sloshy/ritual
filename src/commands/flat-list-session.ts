@@ -142,7 +142,7 @@ export function flatListTargetSection<E extends FlatListEntry>(
 
 /**
  * Apply a change to the session's in-memory entries. The file is not touched —
- * call {@link persistFlatListSession} (the session's Done/Save actions) to write it.
+ * call {@link persistFlatListSession} (the session's Save or save-and-exit actions) to write it.
  *
  * Note: `remove` changes shrink the entry array but do not release the entry's ID
  * back to {@link FlatListSession.pool} — the edit-mode removal flow

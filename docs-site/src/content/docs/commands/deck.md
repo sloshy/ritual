@@ -41,8 +41,7 @@ The following options are available in the menu when no search text is typed:
 | Option                               | Description                                                             |
 | ------------------------------------ | ----------------------------------------------------------------------- |
 | `💾 Save N change(s) (keep editing)` | Write the deck file and changelog without leaving the session           |
-| `✅ Done — Save N change(s) & Exit`  | Write the deck file and changelog, then exit                            |
-| `🚪 Exit Without Saving`             | Exit and discard every unsaved change (asks for confirmation)           |
+| `🚪 Exit`                            | Leave the session (asks to save, discard, or cancel when unsaved)       |
 | `🗂️ Set Target Section`              | Pin a section, create a new one, or prompt for each card                |
 | `⚙️ Configure Session Filters`       | Adjust default sets, finish, condition, and target section              |
 | `🔢 Switch to Collector Number Mode` | Switch to collector number entry mode                                   |
@@ -63,9 +62,9 @@ The `↩️ Undo Last Add` option appears only after you have added at least one
 Like the admin Deck Editor, the session keeps every change **in memory** until you save: nothing is
 written to the deck file as you add or edit cards. `💾 Save` writes the file and appends the session
 changelog while you keep working (everything saved this way is committed — the undo and discard
-menus reset); `✅ Done` does the same and exits. `🚪 Exit Without Saving` throws away all unsaved
-changes after a confirmation. Pressing <kbd>Esc</kbd>/<kbd>Ctrl-C</kbd> at the main prompt behaves
-like `✅ Done`.
+menus reset). `🚪 Exit` leaves the session: with unsaved changes it opens a menu to **Save and
+exit**, **Exit without saving** (throws away all unsaved changes), or **Cancel** (keep editing).
+Pressing <kbd>Esc</kbd>/<kbd>Ctrl-C</kbd> at the main prompt behaves like `🚪 Exit`.
 
 ## Sections
 

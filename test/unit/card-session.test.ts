@@ -12,7 +12,7 @@ import {
 
 describe('isMenuChoice', () => {
   test('recognizes menu sentinel values', () => {
-    for (const value of ['__DONE__', '__EXIT__', '__SECTION__', '__ADD_ANOTHER__']) {
+    for (const value of ['__SAVE__', '__EXIT__', '__SECTION__', '__ADD_ANOTHER__']) {
       expect(isMenuChoice({ title: value, value })).toBe(true)
     }
   })
@@ -34,8 +34,8 @@ describe('isMenuChoice', () => {
 
 function nameModeChoices(): Choice[] {
   return [
-    { title: '✅ Done', value: '__DONE__' },
-    { title: '🚪 Exit Without Saving Changelog', value: '__EXIT__' },
+    { title: '💾 Save 1 change(s) (keep editing)', value: '__SAVE__' },
+    { title: '🚪 Exit', value: '__EXIT__' },
     { title: 'Sol Ring', value: 'Sol Ring' },
     { title: 'Lightning Bolt', value: 'Lightning Bolt' },
     { title: 'Bolt of Lightning', value: 'Bolt of Lightning' },
@@ -45,7 +45,7 @@ function nameModeChoices(): Choice[] {
 describe('suggestNameMode', () => {
   test('empty input shows only menu items', () => {
     const result = suggestNameMode('', nameModeChoices())
-    expect(result.map((c) => c.value)).toEqual(['__DONE__', '__EXIT__'])
+    expect(result.map((c) => c.value)).toEqual(['__SAVE__', '__EXIT__'])
   })
 
   test('all space-separated terms must match the title', () => {
@@ -61,10 +61,10 @@ describe('suggestNameMode', () => {
   })
 
   test('trailing ! does not rewrite menu items', () => {
-    // Typing e.g. `done!` should still surface the plain Done sentinel, never
-    // a bogus `__DONE____FORCE__` value.
-    const result = suggestNameMode('done!', nameModeChoices())
-    expect(result.map((c) => c.value)).toEqual(['__DONE__'])
+    // Typing e.g. `exit!` should still surface the plain Exit sentinel, never
+    // a bogus `__EXIT____FORCE__` value.
+    const result = suggestNameMode('exit!', nameModeChoices())
+    expect(result.map((c) => c.value)).toEqual(['__EXIT__'])
   })
 
   test('trailing ! rewrites all card matches, not just the first', () => {
@@ -76,25 +76,25 @@ describe('suggestNameMode', () => {
 
 describe('suggestCollectorMode', () => {
   const choices: Choice[] = [
-    { title: '✅ Done', value: '__DONE__' },
+    { title: '🚪 Exit', value: '__EXIT__' },
     { title: '1 - Sol Ring', value: { type: 'card', num: '1' } },
     { title: '12 - Arcane Signet', value: { type: 'card', num: '12' } },
     { title: '2 - Mana Crypt', value: { type: 'card', num: '2' } },
   ]
 
   test('empty input shows only menu items', () => {
-    expect(suggestCollectorMode('', choices).map((c) => c.value)).toEqual(['__DONE__'])
+    expect(suggestCollectorMode('', choices).map((c) => c.value)).toEqual(['__EXIT__'])
   })
 
   test('filters by collector-number prefix, keeping menu items', () => {
     const result = suggestCollectorMode('1', choices)
-    expect(result.map((c) => c.title)).toEqual(['✅ Done', '1 - Sol Ring', '12 - Arcane Signet'])
+    expect(result.map((c) => c.title)).toEqual(['🚪 Exit', '1 - Sol Ring', '12 - Arcane Signet'])
   })
 
   test('matches collector-number prefixes only, not substrings', () => {
     // '12 - Arcane Signet' contains a 2 but does not start with one.
     const result = suggestCollectorMode('2', choices)
-    expect(result.map((c) => c.title)).toEqual(['✅ Done', '2 - Mana Crypt'])
+    expect(result.map((c) => c.title)).toEqual(['🚪 Exit', '2 - Mana Crypt'])
   })
 })
 
@@ -118,7 +118,6 @@ describe('buildMenuChoices', () => {
       '__CONFIG__',
       '__COLLECTOR_MODE__',
       '__EDIT_MODE__',
-      '__DONE__',
       '__EXIT__',
       'Sol Ring',
     ])
@@ -138,12 +137,12 @@ describe('buildMenuChoices', () => {
     expect(noted.map((c) => c.value)).toContain('__EDIT_LAST__')
   })
 
-  test('Done shows the pending change count, and Save appears alongside it', () => {
+  test('Save shows the pending change count, and Exit stays a plain item', () => {
     const choices = buildMenuChoices({ ...base, changeCount: 3 })
-    const done = choices.find((c) => c.value === '__DONE__')
-    expect(done?.title).toBe('✅ Done — Save 3 change(s) & Exit')
     const save = choices.find((c) => c.value === '__SAVE__')
     expect(save?.title).toBe('💾 Save 3 change(s) (keep editing)')
+    const exit = choices.find((c) => c.value === '__EXIT__')
+    expect(exit?.title).toBe('🚪 Exit')
   })
 
   test('Save is hidden when there are no pending changes', () => {
@@ -162,7 +161,7 @@ describe('buildMenuChoices', () => {
       cardChoices: [entryChoice],
     })
     const values = choices.map((c) => c.value)
-    expect(values).toEqual(['__ADD_MODE__', '__DONE__', '__EXIT__', entryChoice.value])
+    expect(values).toEqual(['__ADD_MODE__', '__EXIT__', entryChoice.value])
     // The add-mode shortcuts must not leak into edit mode, even with a last added card.
     expect(values).not.toContain('__ADD_ANOTHER__')
     expect(values).not.toContain('__EDIT_LAST__')
@@ -218,13 +217,13 @@ describe('buildMenuChoices', () => {
 
 describe('suggestEditMode', () => {
   const choices: Choice[] = [
-    { title: '✅ Done', value: '__DONE__' },
+    { title: '🚪 Exit', value: '__EXIT__' },
     { title: '- Sol Ring (C19:221) [NM] &1', value: { type: 'entry', cardId: 1 } },
     { title: '- Lightning Bolt (LEA:161) [NM] &2', value: { type: 'entry', cardId: 2 } },
   ]
 
   test('empty input shows only menu items', () => {
-    expect(suggestEditMode('', choices).map((c) => c.value)).toEqual(['__DONE__'])
+    expect(suggestEditMode('', choices).map((c) => c.value)).toEqual(['__EXIT__'])
   })
 
   test('term-matches the rendered entry lines', () => {

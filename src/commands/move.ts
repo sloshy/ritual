@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 import prompts, { type Choice } from 'prompts'
 import type { PromptState } from './prompts-types'
+import { promptExitMenu } from './prompts-helpers'
 import { resolveCardPrinting } from './collection-helpers'
 import { listRefLabel, type ListRef } from '../change-event'
 import type { ListEntry, MoveSessionConfig, VirtualCard } from './move-helpers'
@@ -17,6 +18,12 @@ import {
   toggleSetAll,
   finishLabel,
 } from './move-helpers'
+
+/** The main move-session prompt resolves to a menu sentinel or a physical-card key. */
+type MoveSelectionResponse = { selection?: string }
+
+/** The session's lists, bucketed by list type for the toggle menus. */
+type ListsByType = Record<ListRef['type'], ListEntry[]>
 
 export function registerMoveCommand(program: Command): void {
   program
@@ -48,9 +55,8 @@ export function registerMoveCommand(program: Command): void {
 
       console.log(`Ready. ${physicalCards.length} card(s) across ${allLists.length} list(s).`)
 
-      let isExited = false
-
-      while (!isExited) {
+      while (true) {
+        let isExited = false
         const pending = getPendingMoves(virtualState)
         const cardChoices = buildCardSearchChoices(virtualState, config.enabledSources)
 
@@ -63,11 +69,7 @@ export function registerMoveCommand(program: Command): void {
                 : '📋 View Pending Changes',
             value: '__VIEW_PENDING__',
           },
-          {
-            title: pending.length > 0 ? `✅ Done — Save ${pending.length} move(s)` : '✅ Done',
-            value: '__DONE__',
-          },
-          { title: '🚪 Exit Without Saving', value: '__EXIT__' },
+          { title: '🚪 Exit', value: '__EXIT__' },
         ]
 
         const allChoices: Choice[] = [
@@ -75,7 +77,7 @@ export function registerMoveCommand(program: Command): void {
           ...cardChoices.map((c) => ({ title: c.title, value: c.value })),
         ]
 
-        const response = await prompts({
+        const response = (await prompts({
           type: 'autocomplete',
           name: 'selection',
           message: 'Search for a card to move, or choose an option:',
@@ -96,33 +98,19 @@ export function registerMoveCommand(program: Command): void {
           onState: (state: PromptState) => {
             if (state.exited) isExited = true
           },
-        })
+        })) as MoveSelectionResponse
 
-        if (isExited || response.selection === undefined) {
-          isExited = true
-          break
-        }
-
-        const selection: string = response.selection
-
-        if (selection === '__EXIT__') {
-          const pending = getPendingMoves(virtualState)
-          if (pending.length > 0) {
-            const confirmResponse = await prompts({
-              type: 'confirm',
-              name: 'confirm',
-              message: `Are you sure you want to exit and lose ${pending.length} change(s)?`,
-              initial: false,
-            })
-            if (!confirmResponse.confirm) continue
+        if (isExited || response.selection === undefined || response.selection === '__EXIT__') {
+          const pendingNow = getPendingMoves(virtualState)
+          if (pendingNow.length > 0) {
+            const choice = await promptExitMenu(pendingNow.length)
+            if (choice === 'cancel') continue
+            if (choice === 'save') await savePendingMoves(virtualState)
           }
           break
         }
 
-        if (selection === '__DONE__') {
-          await handleDone(virtualState)
-          break
-        }
+        const selection: string = response.selection
 
         if (selection === '__CONFIG__') {
           await handleConfig(config)
@@ -140,26 +128,10 @@ export function registerMoveCommand(program: Command): void {
 
         await handleCardMove(vc, config, virtualState)
       }
-
-      // On ESC/exit, if there are pending changes, offer to save them
-      if (isExited) {
-        const pending = getPendingMoves(virtualState)
-        if (pending.length > 0) {
-          const saveResponse = await prompts({
-            type: 'confirm',
-            name: 'save',
-            message: `You have ${pending.length} pending move(s). Save before exiting?`,
-            initial: true,
-          })
-          if (saveResponse.save) {
-            await handleDone(virtualState)
-          }
-        }
-      }
     })
 }
 
-async function handleDone(virtualState: Map<string, VirtualCard>): Promise<void> {
+async function savePendingMoves(virtualState: Map<string, VirtualCard>): Promise<void> {
   const pending = getPendingMoves(virtualState)
   if (pending.length === 0) {
     console.log('No pending moves.')
@@ -315,7 +287,6 @@ async function promptListToggle(
   label: string,
   requireAtLeastOne: boolean,
 ): Promise<void> {
-  type ListsByType = Record<ListRef['type'], ListEntry[]>
   const byType: ListsByType = {
     deck: allLists.filter((l) => l.ref.type === 'deck'),
     collection: allLists.filter((l) => l.ref.type === 'collection'),

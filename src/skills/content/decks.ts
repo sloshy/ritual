@@ -45,8 +45,8 @@ the \`🗂️ Set Target Section\` menu, or the session filters. Adding a card w
 already exists in the deck increments its quantity instead of duplicating the line.
 
 **Saving:** changes accumulate **in memory** — \`💾 Save\` writes the deck file and changelog
-without exiting, \`✅ Done\` saves and exits, and \`🚪 Exit Without Saving\` discards everything
-unsaved.
+without exiting, and \`🚪 Exit\` (or Esc) opens an exit menu when changes are unsaved: save and
+exit, exit without saving (discards everything unsaved), or cancel to keep editing.
 
 **Edit mode:** \`🛠️ Switch to Edit Mode\` turns the search prompt into a picker over the deck's
 existing lines — change a line's printing, add/remove copies, move it to another section, edit

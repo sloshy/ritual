@@ -26,18 +26,19 @@ Key behaviors:
 
 When launched, the tool shows an autocomplete search field. You can type a card name to search, or select from the menu:
 
-| Option                         | Description                                                  |
-| ------------------------------ | ------------------------------------------------------------ |
-| `⚙️ Configure Session Filters` | Restrict which lists are eligible as sources or destinations |
-| `📋 View Pending Changes (N)`  | Preview queued moves before committing                       |
-| `✅ Done — Save N move(s)`     | Commit all pending moves and exit                            |
-| `🚪 Exit Without Saving`       | Exit without writing any changes                             |
+| Option                         | Description                                                       |
+| ------------------------------ | ----------------------------------------------------------------- |
+| `⚙️ Configure Session Filters` | Restrict which lists are eligible as sources or destinations      |
+| `📋 View Pending Changes (N)`  | Preview queued moves before committing                            |
+| `🚪 Exit`                      | Leave the session (asks to save, discard, or cancel when pending) |
 
 After searching, select a card and choose a destination (or confirm the single available one). The destination prompt is also an autocomplete field — type to filter the list of destinations instead of scrolling with the arrow keys. The move is queued as a pending change. You can queue multiple moves before committing.
 
 Foil and etched cards are flagged in the search results, the pending-changes view, and the queued-move confirmation (e.g. `Lightning Bolt (LEA:161) [Foil]`). Normal non-foil printings are shown without a finish tag.
 
-Pressing Escape shows a confirmation prompt if there are pending moves.
+Nothing is written until you exit and choose to save. `🚪 Exit` (or pressing Escape) leaves the
+session immediately when nothing is pending; with pending moves it opens a menu to **Save and
+exit** (commit all pending moves), **Exit without saving**, or **Cancel** (keep editing).
 
 ## Session Filters
 

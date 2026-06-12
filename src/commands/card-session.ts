@@ -9,12 +9,13 @@ import { appendChangelog } from '../changelog-writer'
 import { createSetNoteChange, type ChangeEvent } from '../change-event'
 import { writeFileWithHash } from '../content-hash'
 import { formatSetCodesForDisplay, parseSetCodesInput } from '../set-codes'
+import { promptExitMenu } from './prompts-helpers'
 
 /**
  * Shared engine for the interactive card-entry commands (`deck`, `collection`,
  * `wanted-list`). Owns everything the three sessions have in common — the
  * autocomplete loop, menu construction, entry modes, collector-set management,
- * session filters, and Done/Exit/changelog plumbing — and delegates the
+ * session filters, and save/exit/changelog plumbing — and delegates the
  * list-type-specific flows (printing/finish/condition prompts, change
  * application, copy semantics) to a {@link CardSessionStrategy}.
  */
@@ -46,7 +47,7 @@ export type SetsPromptResponse = { sets?: string }
 // ── Menu sentinels ──────────────────────────────────────────────────
 
 /**
- * The menu sentinel values (e.g. `__DONE__`). Matched by exact membership rather
+ * The menu sentinel values (e.g. `__EXIT__`). Matched by exact membership rather
  * than a `__` prefix check, because real card names can begin with underscores
  * (e.g. the Unstable card `_____ Goblin`) and must not be mistaken for menu items.
  */
@@ -61,7 +62,6 @@ export const MENU_SENTINELS: ReadonlySet<string> = new Set([
   '__EDIT_MODE__',
   '__ADD_MODE__',
   '__SAVE__',
-  '__DONE__',
   '__EXIT__',
   '__EDIT_LAST__',
   '__UNDO_LAST__',
@@ -153,7 +153,8 @@ export type CardChoiceInput = {
  * over their list model (deck structure or flat entry array + ID pool) and apply
  * every mutation as a {@link ChangeEvent} to the in-memory model. Nothing is
  * written to disk until the engine asks the strategy to {@link CardSessionStrategy.persist}
- * (the Done and Save menu actions); exiting instead discards the in-memory state.
+ * (the Save menu action or the save-and-exit choice in the exit menu); exiting
+ * without saving instead discards the in-memory state.
  */
 export type CardSessionStrategy = {
   /** Used in exit messages, e.g. `collection manager`. */
@@ -628,11 +629,7 @@ export function buildMenuChoices(input: MenuBuildInput): Choice[] {
     ...(changeCount > 0
       ? [{ title: `💾 Save ${changeCount} change(s) (keep editing)`, value: '__SAVE__' }]
       : []),
-    {
-      title: changeCount > 0 ? `✅ Done — Save ${changeCount} change(s) & Exit` : '✅ Done',
-      value: '__DONE__',
-    },
-    { title: '🚪 Exit Without Saving', value: '__EXIT__' },
+    { title: '🚪 Exit', value: '__EXIT__' },
     ...(sessionMode === 'add' && lastAdded
       ? [{ title: `✏️  Edit Previous Card (${lastAdded.name})`, value: '__EDIT_LAST__' }]
       : []),
@@ -808,10 +805,10 @@ async function viewSessionChanges(
 }
 
 /**
- * Run the interactive card-entry loop until the user finishes or exits. Changes
- * accumulate on the in-memory list model; Done writes the file and the session
- * changelog and exits, Save does the same without exiting, and Exit discards
- * everything unsaved (after confirmation).
+ * Run the interactive card-entry loop until the user exits. Changes accumulate
+ * on the in-memory list model; Save writes the file and the session changelog
+ * without leaving the session, and Exit (or Esc) opens the shared exit menu to
+ * save and exit, exit without saving, or keep editing.
  */
 export async function runCardSession(options: CardSessionOptions): Promise<void> {
   const { strategy, excludeDigitalOnly } = options
@@ -890,8 +887,13 @@ export async function runCardSession(options: CardSessionOptions): Promise<void>
       },
     })) as CardSelectionResponse
 
-    if (isExited || response.cardName === '__DONE__') {
-      await saveSession(strategy, ctx)
+    if (isExited || response.cardName === '__EXIT__') {
+      if (ctx.sessionChanges.length > 0 || strategy.hasUnsavedChanges()) {
+        const choice = await promptExitMenu(ctx.sessionChanges.length)
+        if (choice === 'cancel') continue
+        if (choice === 'save') await saveSession(strategy, ctx)
+        else console.log('Discarded all unsaved changes.')
+      }
       console.log(`Exiting ${strategy.managerLabel}.`)
       break
     }
@@ -906,20 +908,6 @@ export async function runCardSession(options: CardSessionOptions): Promise<void>
       ctx.lastAdded = null
       ctx.lastAddedCount = 0
       continue
-    }
-
-    if (response.cardName === '__EXIT__') {
-      if (ctx.sessionChanges.length > 0 || strategy.hasUnsavedChanges()) {
-        const confirmResponse = (await prompts({
-          type: 'confirm',
-          name: 'confirm',
-          message: `Discard ${ctx.sessionChanges.length} unsaved change(s) and exit?`,
-          initial: false,
-        })) as ConfirmPromptResponse
-        if (!confirmResponse.confirm) continue
-      }
-      console.log(`Exiting ${strategy.managerLabel}.`)
-      break
     }
 
     if (!response.cardName) {

@@ -24,6 +24,7 @@ import {
   type ChangeSet,
 } from '../changelog-blocks'
 import { buildDefaultChangeLines, changesPathFor, loadListSnapshot } from './history-helpers'
+import { promptExitMenu } from './prompts-helpers'
 
 type HistoryOptions = ListTypeFlags
 
@@ -155,7 +156,7 @@ type EditorState = {
   readonly header: string
   sets: ChangeSet[]
   readonly originalSerialized: string
-  undoStack: ChangeSet[][]
+  readonly undoStack: ChangeSet[][]
 }
 
 async function runHistoryEditor(location: ListLocation): Promise<void> {
@@ -185,11 +186,11 @@ async function runHistoryEditor(location: ListLocation): Promise<void> {
       buildMainChoices(state),
       MAIN_ACTION_VALUES,
     )
-    // ESC at the top level behaves like Quit.
-    const selection = choice ?? '__quit__'
+    // ESC at the top level behaves like Exit.
+    const selection = choice ?? '__exit__'
 
-    if (selection === '__quit__') {
-      const done = await handleQuit(state, changesPath)
+    if (selection === '__exit__') {
+      const done = await handleExit(state, changesPath)
       if (done) return
       continue
     }
@@ -216,7 +217,7 @@ const MAIN_ACTION_VALUES: ReadonlySet<string> = new Set([
   '__rewrite__',
   '__preview__',
   '__undo__',
-  '__quit__',
+  '__exit__',
 ])
 
 function buildMainChoices(state: EditorState): prompts.Choice[] {
@@ -232,7 +233,7 @@ function buildMainChoices(state: EditorState): prompts.Choice[] {
   if (state.undoStack.length > 0) {
     actions.push({ title: `↩️  Undo last change (${state.undoStack.length})`, value: '__undo__' })
   }
-  actions.push({ title: '🚪 Quit', value: '__quit__' })
+  actions.push({ title: '🚪 Exit', value: '__exit__' })
 
   return [...setChoices, ...actions]
 }
@@ -385,17 +386,13 @@ async function handlePreview(state: EditorState): Promise<void> {
 }
 
 /** Returns true when the editor should exit (saved or discarded), false to keep editing. */
-async function handleQuit(state: EditorState, changesPath: string): Promise<boolean> {
+async function handleExit(state: EditorState, changesPath: string): Promise<boolean> {
   if (!hasUnsavedChanges(state)) {
     console.log('No changes to save.')
     return true
   }
 
-  const choice = await selectMenu('You have unsaved changes:', [
-    { title: '✅ Quit and save', value: 'save' },
-    { title: '🚪 Quit without saving', value: 'discard' },
-    { title: '← Cancel (keep editing)', value: 'cancel' },
-  ])
+  const choice = await promptExitMenu()
 
   if (choice === 'save') {
     await fs.writeFile(changesPath, serializeChangeSets({ header: state.header, sets: state.sets }))
