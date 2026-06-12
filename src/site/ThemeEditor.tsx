@@ -389,7 +389,9 @@ const ThemeVarSwatch: Component<ThemeVarSwatchProps> = (props) => {
             <p class="theme-editor-picker-desc">{props.meta.description}</p>
             <Show
               when={props.meta.type === 'color'}
-              fallback={<LengthPicker value={props.value} onInput={props.onChange} />}
+              fallback={
+                <LengthPicker value={props.value} onInput={props.onChange} unit={props.meta.unit} />
+              }
             >
               <ColorPicker value={props.value} onInput={props.onChange} />
             </Show>

@@ -126,7 +126,7 @@ h3 {
 
 .card-binder {
   position: relative;
-  border-radius: var(--card-radius);
+  border-radius: var(--card-corner-radius);
   overflow: hidden;
   cursor: pointer;
   transition:
@@ -146,7 +146,7 @@ h3 {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: var(--card-radius);
+  border-radius: var(--card-corner-radius);
 }
 
 .card-binder .qty-badge {
@@ -289,7 +289,7 @@ h3 {
   z-index: 200;
   pointer-events: none;
   width: 240px;
-  border-radius: var(--card-radius);
+  border-radius: var(--card-corner-radius);
   overflow: hidden;
   box-shadow: 0 8px 24px var(--overlay-medium);
   border: 1px solid var(--border);
@@ -302,7 +302,7 @@ h3 {
   & img {
     width: 100%;
     display: block;
-    border-radius: var(--card-radius);
+    border-radius: var(--card-corner-radius);
   }
 }
 
@@ -310,10 +310,12 @@ h3 {
   z-index: 300;
 }
 
-/* Sideways card tooltip (e.g. Battles, Rooms) */
+/* Sideways card tooltip (e.g. Battles, Rooms) — a landscape box, so it needs
+   the swapped aspect correction to keep its clipped corners circular. */
 .list-tooltip-sideways {
   width: 358px;
   height: 256px;
+  border-radius: var(--card-corner-radius-sideways);
   display: none;
   align-items: center;
   justify-content: center;
@@ -342,7 +344,7 @@ h3 {
   position: relative;
   width: var(--card-width, 190px);
   aspect-ratio: 488 / 680;
-  border-radius: var(--card-radius);
+  border-radius: var(--card-corner-radius);
   overflow: hidden;
   cursor: pointer;
   transition:
@@ -396,7 +398,7 @@ h3 {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: var(--card-radius);
+  border-radius: var(--card-corner-radius);
 }
 
 .card-overlap:hover {
@@ -573,7 +575,7 @@ h3 {
 
   & img {
     max-width: 100%;
-    border-radius: var(--card-radius);
+    border-radius: var(--card-corner-radius);
 
     &.sideways {
       max-width: 85%;
@@ -817,7 +819,7 @@ h3 {
     background-size: 200% 200%;
     background-position: 0% 0%;
     pointer-events: none;
-    border-radius: var(--card-radius);
+    border-radius: var(--card-corner-radius);
     opacity: var(--foil-opacity);
     transition:
       opacity 0.3s ease,
@@ -1040,7 +1042,7 @@ h3 {
 
 .modal-printing-card {
   position: relative;
-  border-radius: var(--card-radius);
+  border-radius: var(--card-corner-radius);
   overflow: hidden;
   cursor: pointer;
   transition:
@@ -1055,7 +1057,7 @@ h3 {
   & img {
     width: 100%;
     display: block;
-    border-radius: var(--card-radius);
+    border-radius: var(--card-corner-radius);
   }
 
   /* Always-dark gradient over card art so the label reads in any theme. */

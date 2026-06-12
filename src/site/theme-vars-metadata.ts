@@ -7,6 +7,9 @@
 
 export type ThemeVarType = 'color' | 'length'
 
+/** Units a `length` theme variable may be authored in. */
+export type LengthUnit = 'px' | '%'
+
 export type ThemeVarMeta = {
   /** CSS custom property name, e.g. `--bg-body`. */
   name: string
@@ -18,6 +21,8 @@ export type ThemeVarMeta = {
   group: ThemeVarGroupId
   /** Control type — determines the picker rendered for this variable. */
   type: ThemeVarType
+  /** CSS unit for `length` variables. Defaults to `px`. */
+  unit?: LengthUnit
 }
 
 export type ThemeVarGroupId =
@@ -461,9 +466,11 @@ export const themeVarMetadata: ThemeVarMeta[] = [
   {
     name: '--card-radius',
     label: 'Card radius',
-    description: 'Border-radius applied to card images, modal panels, and similar surfaces.',
+    description:
+      'Corner rounding of card images, as a percentage of the card width, so it scales with the card at every display size.',
     group: 'misc',
     type: 'length',
+    unit: '%',
   },
 ]
 

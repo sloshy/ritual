@@ -381,7 +381,7 @@
 
 .search-card-preview img {
   width: 100%;
-  border-radius: var(--card-radius);
+  border-radius: var(--card-corner-radius);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
@@ -395,7 +395,7 @@
 
 .printing-select-card {
   cursor: pointer;
-  border-radius: var(--card-radius);
+  border-radius: var(--card-corner-radius);
   overflow: hidden;
   border: 2px solid transparent;
   transition:
@@ -435,7 +435,7 @@
   font-size: 0.875rem;
   cursor: pointer;
   border: 2px solid var(--border);
-  border-radius: var(--card-radius);
+  border-radius: var(--card-corner-radius);
   background: transparent;
   aspect-ratio: 63 / 88;
   transition:

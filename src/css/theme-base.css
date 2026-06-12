@@ -6,8 +6,21 @@
    ===== */
 
 :root {
-  /* ---- Card corners ---- */
-  --card-radius: 9px;
+  /* ---- Card corners ----
+     The radius is a percentage of the card's *width* so it scales with the
+     rendered card and matches the printed card's corner at any display size —
+     not a fixed pixel value that only looks right at one size (and leaves the
+     card image's own rounded corner unclipped, showing white, at others).
+     --card-corner-radius applies the aspect-ratio correction (cards are
+     488×680) so the corner stays circular rather than elliptical; use it for
+     `border-radius` on card surfaces. --card-corner-radius-sideways is the same
+     radius for a *landscape* card box (e.g. the sideways Battle/Room tooltip,
+     wider than tall): the horizontal/vertical correction is swapped so its
+     corners stay circular and match the upright cards. Theme --card-radius to
+     taste; 4.75% reproduces the previous 9px at the 190px large-card size. */
+  --card-radius: 4.75%;
+  --card-corner-radius: var(--card-radius) / calc(var(--card-radius) * 488 / 680);
+  --card-corner-radius-sideways: calc(var(--card-radius) * 488 / 680) / var(--card-radius);
 
   /* ---- Success / Error ---- */
   /* The success/error palette (--success-*, --error-*) is theme-generated in

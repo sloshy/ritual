@@ -1,5 +1,6 @@
 import { Show, createMemo, type Component } from 'solid-js'
 import { formatOklch, parseColor, type OklchColor } from './oklch-color'
+import type { LengthUnit } from './theme-vars-metadata'
 
 type ColorPickerProps = {
   value: string
@@ -152,11 +153,22 @@ export const ColorPicker: Component<ColorPickerProps> = (props) => {
 type LengthPickerProps = {
   value: string
   onInput: (next: string) => void
+  /** CSS unit the value is authored in. Defaults to `px`. */
+  unit?: LengthUnit
 }
 
-// Currently only px lengths are themed (--card-radius). If more units arrive
-// later, extend this picker with a unit dropdown.
+type LengthBounds = { max: number; step: number }
+
+// Per-unit input bounds. Percentage lengths (e.g. --card-radius, a fraction of
+// the card width) need a much smaller range than pixel lengths.
+const LENGTH_BOUNDS: Record<LengthUnit, LengthBounds> = {
+  px: { max: 64, step: 0.5 },
+  '%': { max: 20, step: 0.25 },
+}
+
 export const LengthPicker: Component<LengthPickerProps> = (props) => {
+  const unit = (): LengthUnit => props.unit ?? 'px'
+  const bounds = () => LENGTH_BOUNDS[unit()]
   const numeric = createMemo(() => {
     const match = props.value.match(/^(-?\d*\.?\d+)/)
     return match ? parseFloat(match[1]!) : 0
@@ -167,15 +179,15 @@ export const LengthPicker: Component<LengthPickerProps> = (props) => {
       <input
         type="number"
         min="0"
-        max="64"
-        step="0.5"
+        max={bounds().max}
+        step={bounds().step}
         value={numeric()}
         onInput={(e) => {
           const v = parseFloat(e.target.value)
-          if (Number.isFinite(v)) props.onInput(`${v}px`)
+          if (Number.isFinite(v)) props.onInput(`${v}${unit()}`)
         }}
       />
-      <span class="theme-length-picker-unit">px</span>
+      <span class="theme-length-picker-unit">{unit()}</span>
     </div>
   )
 }
