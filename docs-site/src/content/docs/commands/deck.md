@@ -38,25 +38,25 @@ format).
 
 The following options are available in the menu when no search text is typed:
 
-| Option                                 | Description                                                             |
-| -------------------------------------- | ----------------------------------------------------------------------- |
-| `💾 Save N change(s) (keep editing)`   | Write the deck file and changelog without leaving the session           |
-| `✅ Done — Save N change(s) & Exit`    | Write the deck file and changelog, then exit                            |
-| `🚪 Exit Without Saving`               | Exit and discard every unsaved change (asks for confirmation)           |
-| `🗂️ Set Target Section`                | Pin a section, create a new one, or prompt for each card                |
-| `⚙️ Configure Session Filters`         | Adjust default sets, finish, condition, and target section              |
-| `🔢 Switch to Collector Number Mode`   | Switch to collector number entry mode                                   |
-| `📦 Manage Set Codes`                  | Add, remove, or switch active sets (collector mode)                     |
-| `🔤 Switch to Name Mode`               | Switch back to name entry mode (collector mode)                         |
-| `🛠️ Switch to Edit Mode`               | Browse and edit the deck's existing lines (see [Edit Mode](#edit-mode)) |
-| `➕ Add Another Copy`                  | Increment the quantity of the last added card                           |
-| `📝 Add Note`                          | Attach a note to the last added card                                    |
-| `✏️ Edit Previous Card`                | Re-pick the printing/finish/condition for the last card                 |
-| `↩️ Undo Last Add`                     | Take back the most recently added card                                  |
-| `🗑️ Discard a Card Added This Session` | Remove any copy added this session (decrements or removes the line)     |
-| `↩️ Undo Last Edit`                    | Revert the most recent [edit-mode](#edit-mode) operation                |
+| Option                               | Description                                                             |
+| ------------------------------------ | ----------------------------------------------------------------------- |
+| `💾 Save N change(s) (keep editing)` | Write the deck file and changelog without leaving the session           |
+| `✅ Done — Save N change(s) & Exit`  | Write the deck file and changelog, then exit                            |
+| `🚪 Exit Without Saving`             | Exit and discard every unsaved change (asks for confirmation)           |
+| `🗂️ Set Target Section`              | Pin a section, create a new one, or prompt for each card                |
+| `⚙️ Configure Session Filters`       | Adjust default sets, finish, condition, and target section              |
+| `🔢 Switch to Collector Number Mode` | Switch to collector number entry mode                                   |
+| `📦 Manage Set Codes`                | Add, remove, or switch active sets (collector mode)                     |
+| `🔤 Switch to Name Mode`             | Switch back to name entry mode (collector mode)                         |
+| `🛠️ Switch to Edit Mode`             | Browse and edit the deck's existing lines (see [Edit Mode](#edit-mode)) |
+| `➕ Add Another Copy`                | Increment the quantity of the last added card                           |
+| `📝 Add Note`                        | Attach a note to the last added card                                    |
+| `✏️ Edit Previous Card`              | Re-pick the printing/finish/condition for the last card                 |
+| `↩️ Undo Last Add`                   | Take back the most recently added card                                  |
+| `↩️ Undo Last Edit`                  | Revert the most recent [edit-mode](#edit-mode) operation                |
+| `📋 View Session Changes (N)`        | Review every change this session and optionally discard individual ones |
 
-The `↩️ Undo Last Add` and `🗑️ Discard a Card Added This Session` options appear only after you have added at least one card this session. When a discard fully removes a card line, its `&N` id is freed and the remaining session-added lines keep dense, in-order ids (each later line slides down one, and the highest id returns to the pool). Decrementing a multi-copy line keeps its id.
+The `↩️ Undo Last Add` option appears only after you have added at least one card this session, and `📋 View Session Changes` once the session has any change to show. The viewer lists everything done this session — adds, edits, and removals — and selecting an entry offers to discard just that change (see [Reviewing Session Changes](#reviewing-session-changes)).
 
 ## Saving
 
@@ -118,6 +118,23 @@ folded into the session changelog with "latest wins" semantics — changing a li
 it back leaves no changelog entry. Removing copies that were added this session simply cancels
 their adds. `➕ Switch to Add Mode` returns to the regular add flow; you can toggle between the two
 modes freely within one session.
+
+## Reviewing Session Changes
+
+`📋 View Session Changes` opens a picker listing every change made this session — `➕` copy adds,
+`✏️` field edits (printing, section, note), and `🗑️` removals. Selecting an entry asks whether to
+discard that change, reverting just it while keeping the rest of the session intact:
+
+- **Discarding an add** cancels that copy (decrementing or removing the line). When the discard
+  fully removes a line first created this session, its `&N` id is freed and the remaining
+  session-added lines keep dense, in-order ids (each later line slides down one, and the highest id
+  returns to the pool). Because the re-pack renumbers ids, it also clears the edit-undo history.
+  Decrementing a multi-copy line keeps its id.
+- **Discarding an edit or removal** reverts that operation in place. When several changes touch the
+  **same line**, they must be discarded newest-first — older ones are blocked until the newer
+  change is discarded (the picker tells you which one).
+
+Everything already saved with `💾 Save` is committed and no longer appears in the viewer.
 
 ## Output Format
 

@@ -20,6 +20,7 @@ import {
   buildSessionConfigQuestions,
   ensureListFile,
   reloadCardNames,
+  type SessionAddItem,
   type SessionConfig,
   type SessionConfigAnswers,
 } from './card-session'
@@ -110,12 +111,20 @@ export function findDeckCard(
 
 // ── Discarding session adds ─────────────────────────────────────────
 
-/** One copy added to the deck this session, tracked for the discard menu. */
+/** One copy added to the deck this session, tracked for the Undo Last Add and session-changes pickers. */
 export type DeckCopyRecord = {
   cardId: number
   name: string
   printing: PrintingTuple
   section: string
+}
+
+/** Render a session copy record for the Undo Last Add and session-changes pickers. */
+export function renderDeckCopyRecord(record: DeckCopyRecord): SessionAddItem {
+  const printingInfo = record.printing.set
+    ? ` (${record.printing.set.toUpperCase()}:${record.printing.collectorNumber})`
+    : ''
+  return { label: `${record.name}${printingInfo} → ${record.section}`, name: record.name }
 }
 
 /** A located deck card together with the section it lives in. */

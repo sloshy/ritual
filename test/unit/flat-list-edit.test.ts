@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import {
   applyFlatListFieldEdit,
+  discardFlatListSessionChange,
   entryPrinting,
   findFlatListEntry,
   lastFlatListEditLabel,
   listFlatListEntries,
+  listFlatListSessionChanges,
   performFlatListRemoval,
   undoFlatListEdit,
   type FlatListFieldEdit,
@@ -295,6 +297,139 @@ describe('performFlatListRemoval', () => {
     expect(restored.cardId).toBe(3)
     // Both the reusing card and the restored card coexist with distinct ids.
     expect(session.entries.map((e) => e.cardId).sort()).toEqual([1, 2, 3])
+  })
+})
+
+describe('listFlatListSessionChanges', () => {
+  /** Simulate a session add of `name`, mirroring what applyFlatListCardEntry tracks. */
+  function simulateAdd(h: Harness, name: string): number {
+    const cardId = allocateId(h.session.pool)
+    h.session.entries = [...h.session.entries, entry(name, cardId)]
+    h.list.sessionAdds.push(cardId)
+    h.ctx.sessionChanges.push(createAddChange(name, { set: 'lea', cardId }))
+    return cardId
+  }
+
+  test('lists adds, edits, and removals with their icons', () => {
+    const h = harness([entry('Sol Ring', 1), entry('Lightning Bolt', 2)])
+    simulateAdd(h, 'Brainstorm')
+    applyFlatListFieldEdit(
+      h.list,
+      h.ctx,
+      findFlatListEntry(h.list, 1)!,
+      1,
+      printingEdit(findFlatListEntry(h.list, 1)!, 1, LTC),
+    )
+    performFlatListRemoval(h.list, h.ctx, findFlatListEntry(h.list, 2)!, 2)
+
+    const items = listFlatListSessionChanges(h.list)
+    expect(items).toHaveLength(3)
+    expect(items[0]!.label).toStartWith('➕ Added')
+    expect(items[0]!.label).toContain('Brainstorm')
+    expect(items[1]!.label).toBe('✏️  printing on Sol Ring')
+    expect(items[2]!.label).toBe('🗑️  removal of Lightning Bolt')
+    expect(items.every((i) => i.blocked === undefined)).toBe(true)
+  })
+
+  test('an edit shadowed by a newer same-card change is blocked, naming the newer one', () => {
+    const h = harness([entry('Sol Ring', 1)])
+    applyFlatListFieldEdit(
+      h.list,
+      h.ctx,
+      findFlatListEntry(h.list, 1)!,
+      1,
+      printingEdit(findFlatListEntry(h.list, 1)!, 1, LTC),
+    )
+    performFlatListRemoval(h.list, h.ctx, findFlatListEntry(h.list, 1)!, 1)
+
+    const items = listFlatListSessionChanges(h.list)
+    expect(items[0]!.blocked).toBe('discard the newer "removal of Sol Ring" first')
+    expect(items[1]!.blocked).toBeUndefined()
+  })
+
+  test('discarding a middle edit reverts only that change and keeps the rest replayable', () => {
+    const h = harness([entry('Sol Ring', 1), entry('Lightning Bolt', 2)])
+    applyFlatListFieldEdit(
+      h.list,
+      h.ctx,
+      findFlatListEntry(h.list, 1)!,
+      1,
+      printingEdit(findFlatListEntry(h.list, 1)!, 1, LTC),
+    )
+    applyFlatListFieldEdit(
+      h.list,
+      h.ctx,
+      findFlatListEntry(h.list, 2)!,
+      2,
+      printingEdit(findFlatListEntry(h.list, 2)!, 2, C19),
+    )
+
+    // Discard the older edit (different card, so unblocked).
+    discardFlatListSessionChange(h.list, h.ctx, 0)
+    expect(findFlatListEntry(h.list, 1)!.set).toBe('lea')
+    expect(findFlatListEntry(h.list, 2)!.set).toBe('c19')
+    expect(h.ctx.sessionChanges).toMatchObject([{ action: 'set-printing', cardId: 2 }])
+
+    // The surviving edit is still undoable afterwards.
+    undoFlatListEdit(h.list, h.ctx)
+    expect(findFlatListEntry(h.list, 2)!.set).toBe('lea')
+    expect(h.ctx.sessionChanges).toHaveLength(0)
+  })
+
+  test('a blocked discard is refused and changes nothing', () => {
+    const h = harness([entry('Sol Ring', 1)])
+    applyFlatListFieldEdit(
+      h.list,
+      h.ctx,
+      findFlatListEntry(h.list, 1)!,
+      1,
+      printingEdit(findFlatListEntry(h.list, 1)!, 1, LTC),
+    )
+    performFlatListRemoval(h.list, h.ctx, findFlatListEntry(h.list, 1)!, 1)
+    const changesBefore = [...h.ctx.sessionChanges]
+
+    discardFlatListSessionChange(h.list, h.ctx, 0)
+    expect(h.list.editUndo).toHaveLength(2)
+    expect(h.ctx.sessionChanges).toEqual(changesBefore)
+    expect(h.session.entries).toHaveLength(0)
+  })
+
+  test('discarding a removal out of order restores the entry', () => {
+    const h = harness([entry('Sol Ring', 1), entry('Lightning Bolt', 2)])
+    performFlatListRemoval(h.list, h.ctx, findFlatListEntry(h.list, 1)!, 1)
+    applyFlatListFieldEdit(
+      h.list,
+      h.ctx,
+      findFlatListEntry(h.list, 2)!,
+      2,
+      printingEdit(findFlatListEntry(h.list, 2)!, 2, C19),
+    )
+
+    discardFlatListSessionChange(h.list, h.ctx, 0)
+    expect(findFlatListEntry(h.list, 1)).toMatchObject({ name: 'Sol Ring', cardId: 1 })
+    // Only the surviving edit's event remains in the changelog.
+    expect(h.ctx.sessionChanges).toMatchObject([{ action: 'set-printing', cardId: 2 }])
+    expect(h.list.editUndo.map((e) => e.label)).toEqual(['printing on Lightning Bolt'])
+  })
+
+  test('discarding an add routes through the session-add machinery', () => {
+    const h = harness([entry('Sol Ring', 1)])
+    simulateAdd(h, 'Brainstorm')
+    applyFlatListFieldEdit(
+      h.list,
+      h.ctx,
+      findFlatListEntry(h.list, 1)!,
+      1,
+      printingEdit(findFlatListEntry(h.list, 1)!, 1, LTC),
+    )
+
+    // Index 0 is the add (adds precede edits in the unified list).
+    discardFlatListSessionChange(h.list, h.ctx, 0)
+    expect(h.session.entries.map((e) => e.name)).toEqual(['Sol Ring'])
+    expect(h.list.sessionAdds).toHaveLength(0)
+    // The add's id returns to the pool, and the discard clears the edit history.
+    expect(allocateId(h.session.pool)).toBe(2)
+    expect(h.list.editUndo).toHaveLength(0)
   })
 })
 

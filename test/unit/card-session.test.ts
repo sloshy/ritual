@@ -108,6 +108,7 @@ describe('buildMenuChoices', () => {
     extraItems: [],
     sessionAdds: [],
     editUndoLabel: null,
+    sessionChangeCount: 0,
     cardChoices: [{ title: 'Sol Ring', value: 'Sol Ring' }],
   }
 
@@ -192,18 +193,26 @@ describe('buildMenuChoices', () => {
     expect(values.indexOf('__SECTION__')).toBeLessThan(values.indexOf('__CONFIG__'))
   })
 
-  test('undo/discard items appear only when there are session adds, naming the last add', () => {
+  test('the undo-last-add item appears only when there are session adds, naming the last add', () => {
     expect(buildMenuChoices(base).map((c) => c.value)).not.toContain('__UNDO_LAST__')
 
     const sessionAdds = [
       { label: 'Sol Ring (LEA:269) &1', name: 'Sol Ring' },
       { label: 'Lightning Bolt (LEA:161) &2', name: 'Lightning Bolt' },
     ]
-    const choices = buildMenuChoices({ ...base, sessionAdds })
+    const choices = buildMenuChoices({ ...base, sessionAdds, sessionChangeCount: 2 })
     const undo = choices.find((c) => c.value === '__UNDO_LAST__')
-    const discard = choices.find((c) => c.value === '__DISCARD__')
     expect(undo?.title).toBe('↩️  Undo Last Add (Lightning Bolt)')
-    expect(discard?.title).toBe('🗑️  Discard a Card Added This Session (2)')
+  })
+
+  test('the view-changes item counts every session change, adds or not', () => {
+    expect(buildMenuChoices(base).map((c) => c.value)).not.toContain('__CHANGES__')
+
+    // Edit-only sessions (no adds) still surface the viewer.
+    const choices = buildMenuChoices({ ...base, sessionChangeCount: 3 })
+    expect(choices.map((c) => c.value)).not.toContain('__UNDO_LAST__')
+    const changes = choices.find((c) => c.value === '__CHANGES__')
+    expect(changes?.title).toBe('📋 View Session Changes (3)')
   })
 })
 

@@ -23,6 +23,7 @@ import {
   discardDeckCopy,
   findCardById,
   promptNewSectionName,
+  renderDeckCopyRecord,
   type DeckCopyRecord,
 } from './deck-helpers'
 import {
@@ -30,6 +31,8 @@ import {
   promptNoteEdit,
   type CardSessionContext,
   type EditableEntryItem,
+  type SessionAddItem,
+  type SessionChangeItem,
 } from './card-session'
 import {
   promptFinishAndCondition,
@@ -39,8 +42,10 @@ import {
 } from './collection-helpers'
 import {
   changelogDelta,
+  listSessionChangeItems,
   retargetUndoCardId,
   swapUndoChangelog,
+  targetedUndoBlocker,
   type EditUndoEntry,
 } from './edit-undo'
 
@@ -210,6 +215,7 @@ export function applyDeckFieldEdit(
   ctx.sessionChanges = result.changes
   state.editUndo.push({
     cardId,
+    kind: 'edit',
     label: edit.label,
     inverse: [edit.inverse],
     ...changelogDelta(result),
@@ -351,22 +357,33 @@ export async function editDeckCard(
   }
 
   if (action === 'note') {
-    const edit = await promptNoteEdit(card.note)
-    if (!edit) return
-    applyDeckFieldEdit(state, ctx, card, sectionName, cardId, {
-      label: `note on ${card.name}`,
-      change: createSetNoteChange(card.name, { note: edit.note, cardId }),
-      inverse: createSetNoteChange(card.name, { note: edit.before, cardId }),
-      consolidate: (changes, original) =>
-        consolidateSetNote(changes, card.name, edit.note, original.note ?? '', cardId),
-    })
-    console.log(edit.note ? `Note set on ${card.name}.` : `Note cleared on ${card.name}.`)
+    await editDeckNote(state, ctx, card, sectionName, cardId)
     return
   }
 
   if (action === 'remove-line') {
     await removeDeckLine(state, ctx, cardId)
   }
+}
+
+/** Prompt for and apply a note edit on an existing deck line (empty input clears the note). */
+export async function editDeckNote(
+  state: DeckSessionState,
+  ctx: CardSessionContext,
+  card: Card,
+  sectionName: string,
+  cardId: number,
+): Promise<void> {
+  const edit = await promptNoteEdit(card.note)
+  if (!edit) return
+  applyDeckFieldEdit(state, ctx, card, sectionName, cardId, {
+    label: `note on ${card.name}`,
+    change: createSetNoteChange(card.name, { note: edit.note, cardId }),
+    inverse: createSetNoteChange(card.name, { note: edit.before, cardId }),
+    consolidate: (changes, original) =>
+      consolidateSetNote(changes, card.name, edit.note, original.note ?? '', cardId),
+  })
+  console.log(edit.note ? `Note set on ${card.name}.` : `Note cleared on ${card.name}.`)
 }
 
 /**
@@ -401,6 +418,7 @@ export function performDeckCopyRemoval(
   ctx.sessionChanges.push(removeEvent)
   state.editUndo.push({
     cardId,
+    kind: 'removal',
     label: `removing a copy of ${card.name}`,
     inverse: [
       createAddChange(card.name, {
@@ -497,6 +515,7 @@ export function performDeckLineRemoval(
 
   state.editUndo.push({
     cardId,
+    kind: 'removal',
     label: `removal of ${snapshot.name}`,
     inverse,
     addedToChangelog: removeEvents,
@@ -519,8 +538,29 @@ export function lastDeckEditLabel(state: DeckSessionState): string | null {
  * instead (and the deeper history for the old id is retargeted to the new one).
  */
 export function undoDeckEdit(state: DeckSessionState, ctx: CardSessionContext): void {
-  const undo = state.editUndo.pop()
+  undoDeckEditAt(state, ctx, state.editUndo.length - 1)
+}
+
+/**
+ * Undo the edit-mode operation at `index` into the undo stack, out of order.
+ * Safe only while no newer operation touches the same card (the
+ * {@link targetedUndoBlocker} guard) — inverses are absolute field restores and
+ * changelog footprints only overlap between same-card operations, so removing a
+ * conflict-free entry from the middle of the stack leaves the rest replayable.
+ */
+export function undoDeckEditAt(
+  state: DeckSessionState,
+  ctx: CardSessionContext,
+  index: number,
+): void {
+  const undo = state.editUndo[index]
   if (!undo) return
+  const blocked = targetedUndoBlocker(state.editUndo, index)
+  if (blocked) {
+    console.log(`Cannot discard "${undo.label}" yet — ${blocked}.`)
+    return
+  }
+  state.editUndo.splice(index, 1)
 
   // Decks have no explicit pool: an id is free exactly when no line carries it,
   // and a free id needs no claim step — applying the inverse adds below restores
@@ -538,4 +578,36 @@ export function undoDeckEdit(state: DeckSessionState, ctx: CardSessionContext): 
   swapUndoChangelog(ctx, undo)
   resetStaleLastAdded(ctx, undo.cardId)
   console.log(`Undid ${undo.label}.`)
+}
+
+/** The copies added this session rendered for the Undo Last Add picker. */
+export function listDeckSessionAdds(state: DeckSessionState): SessionAddItem[] {
+  return state.sessionAdds.map(renderDeckCopyRecord)
+}
+
+/**
+ * Every change made this session — copy adds, field edits, and removals — for
+ * the View Session Changes picker. Indices feed {@link discardDeckSessionChange}.
+ */
+export function listDeckSessionChanges(state: DeckSessionState): SessionChangeItem[] {
+  return listSessionChangeItems(listDeckSessionAdds(state), state.editUndo)
+}
+
+/**
+ * Discard the session change at `index` (into {@link listDeckSessionChanges}):
+ * a copy add is discarded through the session-add machinery, anything else
+ * through a targeted undo of its edit-mode operation. Returns whether a session
+ * add was discarded (the caller resets its last-added shortcuts in that case).
+ */
+export function discardDeckSessionChange(
+  state: DeckSessionState,
+  ctx: CardSessionContext,
+  index: number,
+): boolean {
+  const addCount = state.sessionAdds.length
+  if (index < addCount) {
+    return discardDeckSessionAdd(state, ctx, index)
+  }
+  undoDeckEditAt(state, ctx, index - addCount)
+  return false
 }

@@ -10,11 +10,23 @@ import {
 } from '../change-event'
 import type { Condition, Finish } from '../types'
 import { allocateId, claimId, releaseId } from '../card-id'
-import { promptNoteEdit, type CardSessionContext, type EditableEntryItem } from './card-session'
-import { changelogDelta, retargetUndoCardId, swapUndoChangelog } from './edit-undo'
+import {
+  promptNoteEdit,
+  type CardSessionContext,
+  type EditableEntryItem,
+  type SessionChangeItem,
+} from './card-session'
+import {
+  changelogDelta,
+  listSessionChangeItems,
+  retargetUndoCardId,
+  swapUndoChangelog,
+  targetedUndoBlocker,
+} from './edit-undo'
 import {
   applyFlatListChange,
   discardFlatListAdd,
+  listFlatListSessionAdds,
   type FlatListEntry,
   type FlatListStrategyContext,
 } from './flat-list-session'
@@ -133,6 +145,7 @@ export function applyFlatListFieldEdit<E extends EditableFlatListEntry>(
   ctx.sessionChanges = result.changes
   list.editUndo.push({
     cardId,
+    kind: 'edit',
     label: edit.label,
     inverse: [edit.inverse],
     ...changelogDelta(result),
@@ -230,6 +243,7 @@ export function performFlatListRemoval<E extends EditableFlatListEntry>(
   }
   list.editUndo.push({
     cardId,
+    kind: 'removal',
     label: `removal of ${removed.name}`,
     inverse,
     addedToChangelog: [removeEvent],
@@ -257,8 +271,29 @@ export function undoFlatListEdit<E extends EditableFlatListEntry>(
   list: FlatListStrategyContext<E>,
   ctx: CardSessionContext,
 ): void {
-  const undo = list.editUndo.pop()
+  undoFlatListEditAt(list, ctx, list.editUndo.length - 1)
+}
+
+/**
+ * Undo the edit-mode operation at `index` into the undo stack, out of order.
+ * Safe only while no newer operation touches the same card (the
+ * {@link targetedUndoBlocker} guard) — inverses are absolute field restores and
+ * changelog footprints only overlap between same-card operations, so removing a
+ * conflict-free entry from the middle of the stack leaves the rest replayable.
+ */
+export function undoFlatListEditAt<E extends EditableFlatListEntry>(
+  list: FlatListStrategyContext<E>,
+  ctx: CardSessionContext,
+  index: number,
+): void {
+  const undo = list.editUndo[index]
   if (!undo) return
+  const blocked = targetedUndoBlocker(list.editUndo, index)
+  if (blocked) {
+    console.log(`Cannot discard "${undo.label}" yet — ${blocked}.`)
+    return
+  }
+  list.editUndo.splice(index, 1)
 
   if (undo.reclaimId !== undefined) {
     if (!list.session.pool.usedIds.has(undo.reclaimId)) {
@@ -275,4 +310,32 @@ export function undoFlatListEdit<E extends EditableFlatListEntry>(
   swapUndoChangelog(ctx, undo)
   resetStaleLastAdded(list, ctx, undo.cardId)
   console.log(`Undid ${undo.label}.`)
+}
+
+/**
+ * Every change made this session — adds, field edits, and removals — for the
+ * View Session Changes picker. Indices feed {@link discardFlatListSessionChange}.
+ */
+export function listFlatListSessionChanges<E extends EditableFlatListEntry>(
+  list: FlatListStrategyContext<E>,
+): SessionChangeItem[] {
+  return listSessionChangeItems(listFlatListSessionAdds(list), list.editUndo)
+}
+
+/**
+ * Discard the session change at `index` (into {@link listFlatListSessionChanges}):
+ * an add is discarded through the session-add machinery, anything else through a
+ * targeted undo of its edit-mode operation.
+ */
+export function discardFlatListSessionChange<E extends EditableFlatListEntry>(
+  list: FlatListStrategyContext<E>,
+  ctx: CardSessionContext,
+  index: number,
+): void {
+  const addCount = list.sessionAdds.length
+  if (index < addCount) {
+    discardFlatListAdd(list, ctx, index)
+    return
+  }
+  undoFlatListEditAt(list, ctx, index - addCount)
 }

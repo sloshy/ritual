@@ -3,8 +3,10 @@ import {
   applyDeckChange,
   applyDeckFieldEdit,
   discardDeckSessionAdd,
+  discardDeckSessionChange,
   lastDeckEditLabel,
   listDeckEntries,
+  listDeckSessionChanges,
   performDeckCopyRemoval,
   performDeckLineRemoval,
   renderDeckCardLine,
@@ -208,6 +210,67 @@ describe('discardDeckSessionAdd', () => {
     expect(state.editUndo).toHaveLength(0)
     // The edit's changelog event survives the discard — only its undo entry is dropped.
     expect(ctx.sessionChanges).toMatchObject([{ action: 'set-printing', set: 'ltc' }])
+  })
+})
+
+describe('listDeckSessionChanges', () => {
+  /** A state with a pre-existing Sol Ring line and a session-added Brainstorm copy. */
+  function withSessionAdd(): { state: DeckSessionState; ctx: CardSessionContext } {
+    const state = stateOf(
+      deckOf([{ quantity: 1, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }]),
+    )
+    const ctx = contextOf()
+    applyDeckChange(state, createAddChange('Brainstorm', { section: 'Main', cardId: 2 }))
+    ctx.sessionChanges.push(createAddChange('Brainstorm', { section: 'Main', cardId: 2 }))
+    state.sessionAdds.push({ cardId: 2, name: 'Brainstorm', printing: {}, section: 'Main' })
+    state.sessionLineIds.push(2)
+    return { state, ctx }
+  }
+
+  test('lists copy adds, edits, and removals with their icons', () => {
+    const { state, ctx } = withSessionAdd()
+    printingEdit(state, ctx, 1, LTC)
+
+    const items = listDeckSessionChanges(state)
+    expect(items.map((i) => i.label)).toEqual([
+      '➕ Added Brainstorm → Main',
+      '✏️  printing on Sol Ring',
+    ])
+    expect(items.every((i) => i.blocked === undefined)).toBe(true)
+  })
+
+  test('an edit shadowed by a newer same-card removal is blocked until the removal goes', () => {
+    const { state, ctx } = withSessionAdd()
+    printingEdit(state, ctx, 1, LTC)
+    performDeckLineRemoval(state, ctx, 1)
+
+    let items = listDeckSessionChanges(state)
+    expect(items[1]!.blocked).toBe('discard the newer "removal of Sol Ring" first')
+    expect(items[2]!.blocked).toBeUndefined()
+
+    // A blocked discard is refused outright.
+    expect(discardDeckSessionChange(state, ctx, 1)).toBe(false)
+    expect(state.editUndo).toHaveLength(2)
+
+    // Discarding the removal unblocks the edit; discarding that too restores the card.
+    discardDeckSessionChange(state, ctx, 2)
+    items = listDeckSessionChanges(state)
+    expect(items[1]!.blocked).toBeUndefined()
+    discardDeckSessionChange(state, ctx, 1)
+    expect(findCardById(state.deck, 1)!.card.set).toBe('c19')
+    // Only the session add's event remains in the changelog.
+    expect(ctx.sessionChanges).toMatchObject([{ action: 'add', cardName: 'Brainstorm' }])
+  })
+
+  test('discarding an add routes through the session-add machinery and reports it', () => {
+    const { state, ctx } = withSessionAdd()
+    printingEdit(state, ctx, 1, LTC)
+
+    expect(discardDeckSessionChange(state, ctx, 0)).toBe(true)
+    expect(findCardById(state.deck, 2)).toBeNull()
+    expect(state.sessionAdds).toHaveLength(0)
+    // The add discard conservatively drops the edit-undo history.
+    expect(listDeckSessionChanges(state)).toHaveLength(0)
   })
 })
 

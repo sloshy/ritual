@@ -53,9 +53,11 @@ existing lines — change a line's printing, add/remove copies, move it to anoth
 its note, or remove it entirely — and \`↩️ Undo Last Edit\` reverts the latest edit.
 
 **Undo within the session:** \`↩️ Undo Last Add\` takes back the most recent card, and
-\`🗑️ Discard a Card Added This Session\` opens a picker to remove any card you added this
-session (decrementing a merged line, or removing it entirely). Discarding a card frees its
-\`&N\` id and keeps the remaining session ids dense.
+\`📋 View Session Changes\` opens a picker over every change made this session — copy adds,
+field edits, and removals — where selecting one offers to discard just that change
+(same-line changes must be discarded newest-first). Discarding an add decrements or removes
+the line; a fully removed session line frees its \`&N\` id and keeps the remaining session
+ids dense.
 
 ## Import from a URL or text file
 

@@ -41,6 +41,8 @@ import {
   lastFlatListEditLabel,
   listFlatListEntries,
   removeFlatListEntry,
+  discardFlatListSessionChange,
+  listFlatListSessionChanges,
   undoFlatListEdit,
 } from './flat-list-edit'
 import type { WantedListCardEntry } from '../site/data-types'
@@ -221,6 +223,9 @@ function createWantedStrategy(
     listSessionAdds: () => listFlatListSessionAdds(list),
     discardSessionAdd: async (ctx: CardSessionContext, index: number) =>
       discardFlatListAdd(list, ctx, index),
+    listSessionChanges: () => listFlatListSessionChanges(list),
+    discardSessionChange: async (ctx: CardSessionContext, index: number) =>
+      discardFlatListSessionChange(list, ctx, index),
 
     listEntries: () => listFlatListEntries(list),
     lastEditUndoLabel: () => lastFlatListEditLabel(list),

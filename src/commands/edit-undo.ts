@@ -1,5 +1,5 @@
 import type { ChangeEvent, ConsolidateResult } from '../change-event'
-import type { CardSessionContext } from './card-session'
+import type { CardSessionContext, SessionAddItem, SessionChangeItem } from './card-session'
 
 /**
  * The linear undo stack for edit-mode operations, shared by the flat-list
@@ -13,6 +13,8 @@ import type { CardSessionContext } from './card-session'
 export type EditUndoEntry = {
   /** The card id the operation targeted. */
   cardId: number
+  /** Whether the operation changed fields or removed copies/lines (picks the list icon). */
+  kind: 'edit' | 'removal'
   /** Short description for the Undo Last Edit menu item, e.g. `printing on Sol Ring`. */
   label: string
   /** Inverse changes that restore the pre-operation state, applied in order. */
@@ -42,6 +44,46 @@ export function swapUndoChangelog(ctx: CardSessionContext, undo: EditUndoEntry):
   ctx.sessionChanges = [
     ...ctx.sessionChanges.filter((c) => !addedIds.has(c.id)),
     ...undo.removedFromChangelog,
+  ]
+}
+
+/**
+ * Why the edit operation at `index` cannot be undone out of order, or null when
+ * a targeted undo is safe. An operation is blocked while a newer operation
+ * touches the same card: its inverse would clobber the newer state, so the
+ * same-card operations must be discarded newest-first. The newest operation for
+ * any card is never blocked.
+ */
+export function targetedUndoBlocker(entries: EditUndoEntry[], index: number): string | null {
+  const target = entries[index]
+  if (!target) return 'the change no longer exists'
+  for (let later = entries.length - 1; later > index; later--) {
+    if (entries[later]!.cardId === target.cardId) {
+      return `discard the newer "${entries[later]!.label}" first`
+    }
+  }
+  return null
+}
+
+/**
+ * The unified View Session Changes list: the session's adds (each discardable
+ * at any time) followed by its edit-mode operations (each discardable unless a
+ * newer operation touches the same card). Indices align with the concatenation
+ * of the two underlying arrays, so a chosen index maps straight back to an
+ * add-discard or a targeted edit undo.
+ */
+export function listSessionChangeItems(
+  adds: SessionAddItem[],
+  editUndo: EditUndoEntry[],
+): SessionChangeItem[] {
+  return [
+    ...adds.map((add): SessionChangeItem => ({ label: `➕ Added ${add.label}` })),
+    ...editUndo.map((entry, index): SessionChangeItem => {
+      // Two spaces after the icon: variation-selector emoji render double-wide.
+      const label = `${entry.kind === 'removal' ? '🗑️' : '✏️'}  ${entry.label}`
+      const blocked = targetedUndoBlocker(editUndo, index)
+      return blocked === null ? { label } : { label, blocked }
+    }),
   ]
 }
 

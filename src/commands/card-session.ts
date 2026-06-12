@@ -66,7 +66,7 @@ export const MENU_SENTINELS: ReadonlySet<string> = new Set([
   '__EDIT_LAST__',
   '__UNDO_LAST__',
   '__UNDO_EDIT__',
-  '__DISCARD__',
+  '__CHANGES__',
 ])
 
 /** A choice is a menu item (vs. a card) when its value is exactly a known sentinel. */
@@ -86,8 +86,8 @@ type ListPromptResponse = { list?: string }
 type NamePromptResponse = { name?: string }
 type NotePromptResponse = { note?: string }
 type ConfirmPromptResponse = { confirm?: boolean }
-/** The discard picker resolves to an add-order index, null (Cancel), or undefined (escaped). */
-type DiscardPromptResponse = { index?: number | null }
+/** The session-changes picker resolves to an item index, null (Back), or undefined (escaped). */
+type ChangeIndexPromptResponse = { index?: number | null }
 type CodePromptResponse = { code?: string }
 /** An action picked in the Manage Set Codes menu. */
 type SetAction =
@@ -124,11 +124,18 @@ export type CardSessionContext = {
 }
 
 /**
- * A card added during the current session, for the discard menu. `label` is the
- * full rendered line shown in the picker; `name` is the bare card name used in the
- * "Undo Last Add" shortcut.
+ * A card added during the current session, for the Undo Last Add shortcut and
+ * the session-changes list. `label` is the full rendered line shown in the
+ * picker; `name` is the bare card name used in the "Undo Last Add" shortcut.
  */
 export type SessionAddItem = { label: string; name: string }
+
+/**
+ * One change made this session, as shown in the View Session Changes picker.
+ * `blocked` carries the reason the change cannot be discarded right now (a
+ * newer change touches the same card), or is undefined when it can be.
+ */
+export type SessionChangeItem = { label: string; blocked?: string }
 
 /** Input to {@link CardSessionStrategy.handleCard} once the engine has resolved a selection. */
 export type CardChoiceInput = {
@@ -176,10 +183,14 @@ export type CardSessionStrategy = {
   addAnotherCopy: (ctx: CardSessionContext) => Promise<void>
   /** Notify the strategy that the engine applied a note to the last added card. */
   noteAdded?: (note: string) => void
-  /** The cards added this session, in add order, for the discard menu. */
+  /** The cards added this session, in add order, for the Undo Last Add shortcut. */
   listSessionAdds?: () => SessionAddItem[]
   /** Discard the session add at `index` into {@link listSessionAdds}, re-packing ids. */
   discardSessionAdd?: (ctx: CardSessionContext, index: number) => Promise<void>
+  /** Every change made this session (adds, edits, removals), for the View Session Changes picker. */
+  listSessionChanges: () => SessionChangeItem[]
+  /** Discard the session change at `index` into {@link listSessionChanges}. */
+  discardSessionChange: (ctx: CardSessionContext, index: number) => Promise<void>
   /** The list's current entries, for the edit-mode picker. */
   listEntries: () => EditableEntryItem[]
   /** Run the edit flow (action menu and prompts) for the entry with `cardId`. */
@@ -557,10 +568,12 @@ export type MenuBuildInput = {
   activeSet: string
   /** Strategy-specific entries inserted after the note shortcut. */
   extraItems: Choice[]
-  /** Cards added this session, in add order (drives the undo/discard menu items). */
+  /** Cards added this session, in add order (drives the Undo Last Add item). */
   sessionAdds: SessionAddItem[]
   /** Label for the Undo Last Edit item, or null when there is no edit to undo. */
   editUndoLabel: string | null
+  /** Total changes this session (drives the View Session Changes item). */
+  sessionChangeCount: number
   /** Card-name, collector-number, or existing-entry choices appended after the menu entries. */
   cardChoices: Choice[]
 }
@@ -576,6 +589,7 @@ export function buildMenuChoices(input: MenuBuildInput): Choice[] {
     extraItems,
     sessionAdds,
     editUndoLabel,
+    sessionChangeCount,
     cardChoices,
   } = input
   const modeItems: Choice[] =
@@ -628,14 +642,13 @@ export function buildMenuChoices(input: MenuBuildInput): Choice[] {
             title: `↩️  Undo Last Add (${sessionAdds[sessionAdds.length - 1]!.name})`,
             value: '__UNDO_LAST__',
           },
-          {
-            title: `🗑️  Discard a Card Added This Session (${sessionAdds.length})`,
-            value: '__DISCARD__',
-          },
         ]
       : []),
     ...(editUndoLabel !== null
       ? [{ title: `↩️  Undo Last Edit (${editUndoLabel})`, value: '__UNDO_EDIT__' }]
+      : []),
+    ...(sessionChangeCount > 0
+      ? [{ title: `📋 View Session Changes (${sessionChangeCount})`, value: '__CHANGES__' }]
       : []),
     ...cardChoices,
   ]
@@ -752,6 +765,49 @@ async function saveSession(strategy: CardSessionStrategy, ctx: CardSessionContex
 }
 
 /**
+ * The View Session Changes screen: list every change made this session and
+ * offer to discard the selected one. Discarding re-renders the list; Back (or
+ * escape) returns to the main prompt.
+ */
+async function viewSessionChanges(
+  strategy: CardSessionStrategy,
+  ctx: CardSessionContext,
+): Promise<void> {
+  while (true) {
+    const items = strategy.listSessionChanges()
+    if (items.length === 0) {
+      console.log('No changes this session.')
+      return
+    }
+    const response = (await prompts({
+      type: 'select',
+      name: 'index',
+      message: `${items.length} change(s) this session — select one to discard it:`,
+      choices: [
+        ...items.map((item, index) => ({ title: item.label, value: index })).reverse(),
+        { title: '← Back', value: null },
+      ],
+    })) as ChangeIndexPromptResponse
+    if (response.index == null) return
+    const item = items[response.index]
+    if (!item) return
+    if (item.blocked) {
+      console.log(`Cannot discard this change yet — ${item.blocked}.`)
+      continue
+    }
+    const confirmResponse = (await prompts({
+      type: 'confirm',
+      name: 'confirm',
+      message: `Discard ${item.label}?`,
+      initial: false,
+    })) as ConfirmPromptResponse
+    if (confirmResponse.confirm) {
+      await strategy.discardSessionChange(ctx, response.index)
+    }
+  }
+}
+
+/**
  * Run the interactive card-entry loop until the user finishes or exits. Changes
  * accumulate on the in-memory list model; Done writes the file and the session
  * changelog and exits, Save does the same without exiting, and Exit discards
@@ -802,6 +858,7 @@ export async function runCardSession(options: CardSessionOptions): Promise<void>
       extraItems: strategy.extraMenuItems?.() ?? [],
       sessionAdds,
       editUndoLabel: strategy.lastEditUndoLabel(),
+      sessionChangeCount: strategy.listSessionChanges().length,
       cardChoices,
     })
 
@@ -958,22 +1015,8 @@ export async function runCardSession(options: CardSessionOptions): Promise<void>
       continue
     }
 
-    if (response.cardName === '__DISCARD__' && strategy.discardSessionAdd) {
-      if (sessionAdds.length === 0) continue
-      // Present newest-first; the choice value is the original add-order index, or
-      // null for Cancel (and undefined if the prompt itself is escaped).
-      const discardResponse = (await prompts({
-        type: 'select',
-        name: 'index',
-        message: 'Discard which card added this session?',
-        choices: [
-          ...sessionAdds.map((item, index) => ({ title: item.label, value: index })).reverse(),
-          { title: '← Cancel', value: null },
-        ],
-      })) as DiscardPromptResponse
-      if (discardResponse.index != null) {
-        await strategy.discardSessionAdd(ctx, discardResponse.index)
-      }
+    if (response.cardName === '__CHANGES__') {
+      await viewSessionChanges(strategy, ctx)
       continue
     }
 

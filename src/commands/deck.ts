@@ -22,9 +22,12 @@ import {
 import {
   applyDeckChange,
   discardDeckSessionAdd,
+  discardDeckSessionChange,
   editDeckCard,
   lastDeckEditLabel,
   listDeckEntries,
+  listDeckSessionAdds,
+  listDeckSessionChanges,
   undoDeckEdit,
   type DeckSessionState,
 } from './deck-edit'
@@ -258,17 +261,21 @@ function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy {
       )
     },
 
-    listSessionAdds: (): SessionAddItem[] =>
-      state.sessionAdds.map((rec) => {
-        const printingInfo = rec.printing.set
-          ? ` (${rec.printing.set.toUpperCase()}:${rec.printing.collectorNumber})`
-          : ''
-        return { label: `${rec.name}${printingInfo} → ${rec.section}`, name: rec.name }
-      }),
+    listSessionAdds: (): SessionAddItem[] => listDeckSessionAdds(state),
 
     async discardSessionAdd(ctx: CardSessionContext, index: number): Promise<void> {
       if (!discardDeckSessionAdd(state, ctx, index)) return
       // The discarded copy may have been the "last added"; reset so the copy/edit
+      // shortcuts don't point at a stale entry until the next add.
+      lastSection = null
+      lastPrinting = null
+    },
+
+    listSessionChanges: () => listDeckSessionChanges(state),
+
+    async discardSessionChange(ctx: CardSessionContext, index: number): Promise<void> {
+      if (!discardDeckSessionChange(state, ctx, index)) return
+      // A discarded copy may have been the "last added"; reset so the copy/edit
       // shortcuts don't point at a stale entry until the next add.
       lastSection = null
       lastPrinting = null
