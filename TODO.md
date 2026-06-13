@@ -3,7 +3,6 @@
 ## Public Site
 
 - Add more filtering options (scryfall syntax?)
-- Add filtering printings from appearing as default
 - Allow downloading deck info as JSON, CSV pre-rendered
 
 ## Other commands
