@@ -9,6 +9,8 @@
 
 - Allow exporting deck information to be used by other tooling
 - Add scryfall interactive mode
+- Allow adding/editing to multiple lists, or multiple kinds of lists, at once
+- Multiple saves in the same session should save to the same changelog entry
 
 ## Misc
 
