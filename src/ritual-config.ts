@@ -39,6 +39,13 @@ export type SiteConfig = SiteSelectionConfig & {
   deployMode?: DeployMode
   distDir?: string
   detectChanges?: boolean
+  /**
+   * Printings barred from being auto-selected as a card's default (representative)
+   * printing, as canonical `set:collectorNumber` keys (set code lowercased, e.g.
+   * `sld:123`). A banned printing can still be viewed or entered manually; it is
+   * only skipped when Ritual picks the featured printing on its own.
+   */
+  bannedPrintings?: string[]
 }
 
 /**
@@ -125,6 +132,51 @@ function parseSelectionList(value: unknown, field: string, fallback: string[]): 
   return value
 }
 
+export type ParsedBannedPrinting = { set: string; collectorNumber: string; key: string }
+
+/**
+ * Parse one `bannedPrintings` entry of the form `SET:COLLECTOR` (e.g. `sld:123`).
+ * The set code is normalized to lowercase; the collector number is kept verbatim.
+ * Returns the parsed pieces plus the canonical `set:collectorNumber` key, or an
+ * error string when the entry is malformed.
+ */
+export function parseBannedPrinting(raw: string): ParsedBannedPrinting | string {
+  const trimmed = raw.trim()
+  const colon = trimmed.indexOf(':')
+  // Require exactly one ':' with non-empty text on each side.
+  if (colon <= 0 || trimmed.indexOf(':', colon + 1) !== -1) {
+    return `banned printing "${raw}" must be in "SET:COLLECTOR" form (e.g. "sld:123")`
+  }
+  const set = trimmed.slice(0, colon).toLowerCase()
+  const collectorNumber = trimmed.slice(colon + 1).trim()
+  if (set.length === 0 || collectorNumber.length === 0) {
+    return `banned printing "${raw}" must be in "SET:COLLECTOR" form (e.g. "sld:123")`
+  }
+  return { set, collectorNumber, key: `${set}:${collectorNumber}` }
+}
+
+/**
+ * Validate and normalize a `bannedPrintings` list. Every entry must parse as a
+ * `SET:COLLECTOR` pair. Returns the deduped, normalized `set:collectorNumber`
+ * keys (set codes lowercased) or an error string describing the first bad entry.
+ */
+export function normalizeBannedPrintings(value: unknown): string[] | string {
+  if (!isStringArray(value)) {
+    return 'site config: "bannedPrintings" must be an array of strings'
+  }
+  const keys: string[] = []
+  const seen = new Set<string>()
+  for (const entry of value) {
+    const parsed = parseBannedPrinting(entry)
+    if (typeof parsed === 'string') return `site config: ${parsed}`
+    if (!seen.has(parsed.key)) {
+      seen.add(parsed.key)
+      keys.push(parsed.key)
+    }
+  }
+  return keys
+}
+
 /**
  * Parse the `site` sub-object of a ritual.config.json. Returns the parsed
  * site config or an error string describing what is wrong.
@@ -165,6 +217,16 @@ export function parseSiteConfig(value: unknown): SiteConfig | string {
     excludeWantedLists,
   }
 
+  let bannedPrintings: string[] | undefined
+  if (obj.bannedPrintings !== undefined) {
+    const parsed = normalizeBannedPrintings(obj.bannedPrintings)
+    if (typeof parsed === 'string') return parsed
+    bannedPrintings = parsed
+  }
+  // Only carry the key when present, so a selection-only config still equals its
+  // selection object (no spurious empty `bannedPrintings`).
+  const banned = bannedPrintings !== undefined ? { bannedPrintings } : {}
+
   // Deployment settings are written only by `init-site`. Detect their presence
   // so a site object carrying just selection settings (set via config-set or the
   // admin UI before init-site has run) is still valid.
@@ -176,7 +238,7 @@ export function parseSiteConfig(value: unknown): SiteConfig | string {
     obj.detectChanges !== undefined
 
   if (!hasDeploy) {
-    return selection
+    return { ...selection, ...banned }
   }
 
   if (typeof obj.version !== 'string') {
@@ -201,6 +263,7 @@ export function parseSiteConfig(value: unknown): SiteConfig | string {
     }
     return {
       ...selection,
+      ...banned,
       version: obj.version,
       ciSystem: obj.ciSystem,
       deployMode: obj.deployMode,
@@ -209,7 +272,7 @@ export function parseSiteConfig(value: unknown): SiteConfig | string {
     }
   }
 
-  return { ...selection, version: obj.version, ciSystem: obj.ciSystem }
+  return { ...selection, ...banned, version: obj.version, ciSystem: obj.ciSystem }
 }
 
 /**
@@ -476,6 +539,15 @@ export function getCollectionsDir(config: RitualConfig = getRitualConfig()): str
 
 export function getWantedDir(config: RitualConfig = getRitualConfig()): string {
   return resolveDir(config.wantedDir)
+}
+
+/**
+ * The set of `set:collectorNumber` keys barred from default-printing selection,
+ * derived from `site.bannedPrintings`. Keys are already normalized (set code
+ * lowercased) so callers match against `${card.set.toLowerCase()}:${card.collector_number}`.
+ */
+export function getBannedPrintings(config: RitualConfig = getRitualConfig()): Set<string> {
+  return new Set(config.site?.bannedPrintings ?? [])
 }
 
 /**

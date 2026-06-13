@@ -139,6 +139,41 @@ describe('applyConfigSet — site selection lists', () => {
   })
 })
 
+describe('applyConfigSet — site.bannedPrintings', () => {
+  test('normalizes set codes to lowercase on replace', () => {
+    const result = applyConfigSet(base, 'site.bannedPrintings', ['SLD:123', 'MH2:42'], 'replace')
+    expect('error' in result).toBeFalse()
+    if (!('error' in result)) {
+      expect(result.newValue).toEqual(['sld:123', 'mh2:42'])
+      expect(result.updatedConfig.site?.bannedPrintings).toEqual(['sld:123', 'mh2:42'])
+    }
+  })
+
+  test('--remove matches a stored key regardless of input case', () => {
+    const seeded = applyConfigSet(base, 'site.bannedPrintings', ['sld:123', 'mh2:42'], 'replace')
+    expect('error' in seeded).toBeFalse()
+    if ('error' in seeded) throw new Error(`seed setup failed: ${seeded.error}`)
+    const result = applyConfigSet(
+      seeded.updatedConfig,
+      'site.bannedPrintings',
+      ['SLD:123'],
+      'remove',
+    )
+    expect('error' in result).toBeFalse()
+    if (!('error' in result)) {
+      expect(result.updatedConfig.site?.bannedPrintings).toEqual(['mh2:42'])
+    }
+  })
+
+  test('rejects an entry without a collector number', () => {
+    const result = applyConfigSet(base, 'site.bannedPrintings', ['sld'], 'replace')
+    expect('error' in result).toBeTrue()
+    if ('error' in result) {
+      expect(result.error).toContain('SET:COLLECTOR')
+    }
+  })
+})
+
 describe('applyConfigSet — string properties', () => {
   test.each([
     ['decksDir', './my-decks'],

@@ -25,6 +25,7 @@ import type { ChangelogPage } from '../changelog-parser'
 import { detectDeckFormat, getMainDeckSize } from '../deck-format'
 import { getBaseDir } from '../base-dir'
 import {
+  getBannedPrintings,
   getCollectionsDir,
   getDecksDir,
   getRitualConfig,
@@ -572,6 +573,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
           sortedPrintings,
           sortedPrintings,
           availableCurrencies,
+          getBannedPrintings(),
         )
       } else {
         // Fetch representative and cheapest print per requested currency (all pages via queue)
@@ -1056,7 +1058,12 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
           const sorted = [...printingsForCard].sort((a, b) =>
             (b.released_at ?? '').localeCompare(a.released_at ?? ''),
           )
-          const repPrints = computeRepresentativePrints(sorted, sorted, availableCurrencies)
+          const repPrints = computeRepresentativePrints(
+            sorted,
+            sorted,
+            availableCurrencies,
+            getBannedPrintings(),
+          )
           collectionCardMap[canonical] = repPrints.usd?.representative ?? sorted[0]!
         }
       }
@@ -1333,7 +1340,12 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
           const sorted = [...printingsForCard].sort((a, b) =>
             (b.released_at ?? '').localeCompare(a.released_at ?? ''),
           )
-          const repPrints = computeRepresentativePrints(sorted, sorted, availableCurrencies)
+          const repPrints = computeRepresentativePrints(
+            sorted,
+            sorted,
+            availableCurrencies,
+            getBannedPrintings(),
+          )
           wlCardMap[canonical] = repPrints.usd?.representative ?? sorted[0]!
         }
       }

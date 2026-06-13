@@ -14,6 +14,7 @@ type ConfigPutBody = {
     excludeDecks?: string[]
     excludeCollections?: string[]
     excludeWantedLists?: string[]
+    bannedPrintings?: string[]
   }
 }
 
@@ -102,5 +103,44 @@ test.describe('Settings Page', () => {
     expect(body.site?.excludeDecks).toEqual(['Old Brew'])
     // Include lists keep the wildcard default.
     expect(body.site?.includeDecks).toEqual(['*'])
+  })
+
+  test('editing banned default printings persists to the config', async ({ page }) => {
+    const main = page.locator('main')
+    await main.locator('textarea[name="bannedPrintings"]').fill('SLD:123\nMH2:42')
+
+    const requestPromise = page.waitForRequest(
+      (req) => req.url().includes('/api/config') && req.method() === 'PUT',
+    )
+    await main.locator('button:has-text("Save")').click()
+    const request = await requestPromise
+    const body = JSON.parse(request.postData() ?? '{}') as ConfigPutBody
+    expect(body.site?.bannedPrintings).toEqual(['SLD:123', 'MH2:42'])
+  })
+})
+
+test.describe('Settings Page — banned printings prefill', () => {
+  test.beforeEach(async ({ page }) => {
+    // Serve a config that already has a stored (lowercase) banned printing so the
+    // prefill path is exercised. PUTs echo the plain mock config back.
+    await page.route('**/api/config', async (route) => {
+      const config =
+        route.request().method() === 'GET'
+          ? { ...MOCK_CONFIG, site: { bannedPrintings: ['sld:123'] } }
+          : MOCK_CONFIG
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, config }),
+      })
+    })
+    await mockTotpApi(page)
+    await loginAsAdmin(page)
+    await page.locator('.admin-sidebar .admin-nav-item:has-text("Settings")').click()
+    await expect(page.locator('.section-heading')).toContainText('Settings')
+  })
+
+  test('prefills stored banned printings with the set code uppercased', async ({ page }) => {
+    await expect(page.locator('main textarea[name="bannedPrintings"]')).toHaveValue('SLD:123')
   })
 })

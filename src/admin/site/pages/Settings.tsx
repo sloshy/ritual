@@ -21,6 +21,12 @@ function parseList(value: string): string[] {
     .filter((s) => s.length > 0)
 }
 
+/** Render a stored `set:collector` printing key with the set code uppercased for display. */
+function displayBannedPrinting(key: string): string {
+  const colon = key.indexOf(':')
+  return colon > 0 ? `${key.slice(0, colon).toUpperCase()}:${key.slice(colon + 1)}` : key
+}
+
 export function Settings(): JSX.Element {
   const [config, setConfig] = createSignal<RitualConfig | null>(null)
   const { status, error, loading, run, setStatus, setError } = useApiAction()
@@ -79,6 +85,20 @@ export function Settings(): JSX.Element {
       // (deployment settings and the other selection lists) via the spread.
       const site = prev.site ?? defaultSiteSelection()
       return { ...prev, site: { ...site, [field]: parseList(value) } }
+    })
+  }
+
+  // Banned default printings live under `site`. Stored keys are lowercase
+  // (`sld:123`) but shown with the set code uppercased; the server re-normalizes
+  // whatever is submitted on save.
+  const bannedPrintingsText = (): string =>
+    (config()?.site?.bannedPrintings ?? []).map(displayBannedPrinting).join('\n')
+
+  const updateBannedPrintings = (value: string) => {
+    setConfig((prev) => {
+      if (!prev) return null
+      const site = prev.site ?? defaultSiteSelection()
+      return { ...prev, site: { ...site, bannedPrintings: parseList(value) } }
     })
   }
 
@@ -378,6 +398,26 @@ export function Settings(): JSX.Element {
               name="excludeWantedLists"
               value={listToString(siteList('excludeWantedLists', []))}
               onInput={(e) => updateSiteListField('excludeWantedLists', e.currentTarget.value)}
+            />
+          </div>
+
+          {/* Banned default printings */}
+          <h3 class="section-subheading">Default Printings</h3>
+          <p class="form-hint form-hint-gap">
+            Printings that may never be auto-selected as a card's default (featured) printing, one
+            per line as <code>SET:COLLECTOR</code> (e.g. <code>SLD:123</code>). When a banned
+            printing would be chosen, the next eligible printing is featured instead. Banned
+            printings can still be viewed and entered manually.
+          </p>
+
+          <div>
+            <label class="form-label">Banned default printings</label>
+            <textarea
+              class="form-input form-input-monospace"
+              name="bannedPrintings"
+              value={bannedPrintingsText()}
+              onInput={(e) => updateBannedPrintings(e.currentTarget.value)}
+              placeholder="e.g. SLD:123"
             />
           </div>
 

@@ -56,8 +56,11 @@ The following nested `site` keys — the [public-site publish lists](/commands/b
 | `site.excludeDecks`       | `string[]` | `[]`    |
 | `site.excludeCollections` | `string[]` | `[]`    |
 | `site.excludeWantedLists` | `string[]` | `[]`    |
+| `site.bannedPrintings`    | `string[]` | `[]`    |
 
 Each `exclude*` list drops lists by display name even when the matching `include*` list selects them; exclusion always wins. The exclude lists have no wildcard and default to empty. The admin **Manage Lists** page edits them through per-list [visibility toggles](/admin/manage-lists/#publishing-visibility).
+
+`site.bannedPrintings` blocks specific printings from being chosen as a card's **default (featured) printing** when no printing is otherwise specified. Each entry is a `SET:COLLECTOR` pair (e.g. `SLD:123`). Ritual normally features the most recent non-outlier printing among a card's five newest priced printings; when that printing is banned, it skips to the next eligible one. A banned printing can still be viewed and entered manually — it is only barred from automatic selection. Set codes are stored lowercase; the value you pass may use either case.
 
 The rest of the `site` key (the deployment settings) is managed exclusively by `ritual init-site` and cannot be set with this command.
 
@@ -122,6 +125,12 @@ Hide a single deck from the built site (leaving the rest published):
 
 ```bash
 ./ritual config-set --add site.excludeDecks "Untuned Brew"
+```
+
+Stop a specific printing from being featured as a card's default (it can still be selected manually):
+
+```bash
+./ritual config-set --add site.bannedPrintings "SLD:123"
 ```
 
 ## Notes

@@ -9,6 +9,7 @@ import {
 } from '../interfaces'
 import type { PriceCurrency } from '../price-currency'
 import { getPriceField } from '../price-currency'
+import { getBannedPrintings } from '../ritual-config'
 import { getLogger } from '../logger'
 import { throwHttpError } from '../errors'
 import path from 'node:path'
@@ -86,11 +87,15 @@ export type SearchPageResult = {
  * Compute representative and cheapest prints from cached card data.
  * @param recentPrintings - Printings sorted by release date descending, used to pick the representative.
  * @param allPrintings - All printings for the card, used to find the cheapest.
+ * @param bannedPrintings - `set:collectorNumber` keys (set code lowercased) that must
+ *   never be chosen as the representative; the selection slides to the next eligible
+ *   printing. Banned printings still count toward `cheapest`.
  */
 export function computeRepresentativePrints(
   recentPrintings: ScryfallCard[],
   allPrintings: ScryfallCard[],
   currencies: PriceCurrency[],
+  bannedPrintings: ReadonlySet<string> = new Set(),
 ): RepresentativePrintsResult {
   type Candidate = { card: ScryfallCard; price: number }
   const result: RepresentativePrintsResult = {}
@@ -101,6 +106,7 @@ export function computeRepresentativePrints(
     const candidates: Candidate[] = []
     for (const card of recentPrintings) {
       if (candidates.length >= 5) break
+      if (bannedPrintings.has(`${card.set.toLowerCase()}:${card.collector_number}`)) continue
       const raw = card.prices?.[priceField]
       if (!raw) continue
       const price = parseFloat(raw)
@@ -511,7 +517,14 @@ export class ScryfallClient implements PricingBackend {
           })
         }
         const nonTokenFirstPage = firstPageCards.filter((c) => !isToken(c))
-        resolve(computeRepresentativePrints(nonTokenFirstPage, nonTokens, currencies))
+        resolve(
+          computeRepresentativePrints(
+            nonTokenFirstPage,
+            nonTokens,
+            currencies,
+            getBannedPrintings(),
+          ),
+        )
       }
 
       const processPage =

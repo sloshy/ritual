@@ -5,6 +5,7 @@ import {
   getCardPrintings,
 } from '../../scryfall'
 import { getErrorMessage } from '../../errors'
+import { getBannedPrintings } from '../../ritual-config'
 import type { ScryfallCard } from '../../types'
 import type { PriceCurrency } from '../../price-currency'
 
@@ -81,7 +82,12 @@ export async function handleCardPrice(req: Request): Promise<Response> {
     const sorted = [...printings].sort((a, b) =>
       (b.released_at ?? '').localeCompare(a.released_at ?? ''),
     )
-    const repPrints = computeRepresentativePrints(sorted, sorted, ALL_CURRENCIES)
+    const repPrints = computeRepresentativePrints(
+      sorted,
+      sorted,
+      ALL_CURRENCIES,
+      getBannedPrintings(),
+    )
 
     const fallback = printings[0]!
     const usdRep = repPrints.usd?.representative ?? fallback

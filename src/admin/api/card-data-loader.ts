@@ -1,6 +1,7 @@
 import { cardCache, ensureCacheForCards } from '../../cache'
 import { fetchCardData, fetchSymbology, getCardPrintings } from '../../scryfall'
 import { computeRepresentativePrints } from '../../scryfall/client'
+import { getBannedPrintings } from '../../ritual-config'
 import { extractChangelogCardNames, parseChangelog } from '../../changelog-parser'
 import type { ScryfallCard } from '../../types'
 import type { PriceCurrency } from '../../price-currency'
@@ -52,6 +53,7 @@ export async function fetchSymbolMap(): Promise<Record<string, string>> {
 export async function loadDeckCardData(cardNames: Set<string>): Promise<DeckCardLoadResult> {
   await ensureCacheForCards(cardNames)
 
+  const bannedPrintings = getBannedPrintings()
   const cards: Record<string, ScryfallCard | null> = {}
   const printings: Record<string, ScryfallCard[]> = {}
   const lowestPriceCards: Record<string, ScryfallCard | null> = {}
@@ -67,7 +69,7 @@ export async function loadDeckCardData(cardNames: Set<string>): Promise<DeckCard
       const sorted = [...cached].sort((a, b) =>
         (b.released_at ?? '').localeCompare(a.released_at ?? ''),
       )
-      const repPrints = computeRepresentativePrints(sorted, sorted, ALL_CURRENCIES)
+      const repPrints = computeRepresentativePrints(sorted, sorted, ALL_CURRENCIES, bannedPrintings)
 
       // Use USD representative as the display card (matching build-site behavior)
       const usdRep = repPrints.usd?.representative ?? null
@@ -105,6 +107,7 @@ export async function loadDeckCardData(cardNames: Set<string>): Promise<DeckCard
 export async function loadEntryCardData(cardNames: Set<string>): Promise<EntryCardLoadResult> {
   await ensureCacheForCards(cardNames)
 
+  const bannedPrintings = getBannedPrintings()
   const cards: Record<string, ScryfallCard | null> = {}
   const printings: Record<string, ScryfallCard[]> = {}
 
@@ -121,7 +124,7 @@ export async function loadEntryCardData(cardNames: Set<string>): Promise<EntryCa
       const sorted = [...cached].sort((a, b) =>
         (b.released_at ?? '').localeCompare(a.released_at ?? ''),
       )
-      const repPrints = computeRepresentativePrints(sorted, sorted, ALL_CURRENCIES)
+      const repPrints = computeRepresentativePrints(sorted, sorted, ALL_CURRENCIES, bannedPrintings)
       cards[name] = repPrints.usd?.representative ?? cached[0]!
     } else {
       const card = await fetchCardData(name, { silent: true })

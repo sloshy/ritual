@@ -1,9 +1,11 @@
 import { Command } from 'commander'
 import {
   loadRitualConfig,
+  parseBannedPrinting,
   saveRitualConfig,
   type AdminConfig,
   type RitualConfig,
+  type SiteConfig,
   type SiteSelectionConfig,
 } from '../ritual-config'
 
@@ -81,14 +83,21 @@ export const SETTABLE_ADMIN_FIELDS: Record<string, ConfigFieldType> = {
   'admin.failedAuthDelayMs': 'number',
 } satisfies SettableAdminFieldsMap
 
-// The public-site selection lists live under `site` but, unlike the rest of the
-// init-site-managed `site` object, are user-tunable. They are exposed here as
-// dotted nested paths handled through the same string[] machinery. The
-// `satisfies` check keeps the keys in sync with SiteSelectionConfig.
-type SiteSelectionFieldsMap = {
+// The dotted path of the banned-printings list. Its values are validated and
+// normalized to canonical `set:collectorNumber` keys before being stored.
+export const SITE_BANNED_PRINTINGS = 'site.bannedPrintings'
+
+// The public-site selection lists and the banned-printings list live under
+// `site` but, unlike the rest of the init-site-managed `site` object, are
+// user-tunable. They are exposed here as dotted nested paths handled through the
+// same string[] machinery. The `satisfies` check keeps the keys in sync with
+// SiteSelectionConfig and SiteConfig.
+type SettableSiteFieldsMap = {
   [K in keyof SiteSelectionConfig as `site.${K & string}`]: ConfigFieldTypeFor<
     SiteSelectionConfig[K]
   >
+} & {
+  'site.bannedPrintings': ConfigFieldTypeFor<NonNullable<SiteConfig['bannedPrintings']>>
 }
 export const SETTABLE_SITE_FIELDS: Record<string, ConfigFieldType> = {
   'site.includeDecks': 'string[]',
@@ -97,7 +106,8 @@ export const SETTABLE_SITE_FIELDS: Record<string, ConfigFieldType> = {
   'site.excludeDecks': 'string[]',
   'site.excludeCollections': 'string[]',
   'site.excludeWantedLists': 'string[]',
-} satisfies SiteSelectionFieldsMap
+  'site.bannedPrintings': 'string[]',
+} satisfies SettableSiteFieldsMap
 
 function getAtPath(obj: unknown, path: string[]): unknown {
   let current = obj
@@ -179,16 +189,30 @@ export function applyConfigSet(
   const configObj = config as unknown as Record<string, unknown>
 
   if (fieldType === 'string[]') {
+    // Banned printings are stored as canonical `set:collectorNumber` keys, so
+    // normalize the inputs (lowercasing set codes) before any set operation —
+    // this also lets `--remove SLD:123` match a stored `sld:123` entry.
+    let inputValues = values
+    if (property === SITE_BANNED_PRINTINGS) {
+      const normalized: string[] = []
+      for (const value of values) {
+        const parsed = parseBannedPrinting(value)
+        if (typeof parsed === 'string') return { error: parsed }
+        normalized.push(parsed.key)
+      }
+      inputValues = normalized
+    }
+
     const current = (getAtPath(config, path) as string[] | undefined) ?? []
     let newArr: string[]
 
     if (mode === 'replace') {
-      newArr = [...new Set(values)]
+      newArr = [...new Set(inputValues)]
     } else if (mode === 'add') {
       const existing = new Set(current)
-      newArr = [...current, ...values.filter((v) => !existing.has(v))]
+      newArr = [...current, ...inputValues.filter((v) => !existing.has(v))]
     } else {
-      const toRemove = new Set(values)
+      const toRemove = new Set(inputValues)
       newArr = current.filter((v) => !toRemove.has(v))
     }
 

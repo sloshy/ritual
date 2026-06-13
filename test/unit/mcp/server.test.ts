@@ -300,4 +300,24 @@ describe('Ritual MCP server (in-memory transport)', () => {
     }
     expect(decks.decks.map((d) => d.slug)).not.toContain('test-deck')
   })
+
+  test('update_config normalizes bannedPrintings and get_config returns them', async () => {
+    const updated = await callTool(client, 'update_config', {
+      config: { site: { bannedPrintings: ['SLD:123', 'mh2:42'] } },
+    })
+    expect(updated.isError).toBeFalsy()
+
+    const got = toolJson(await callTool(client, 'get_config', {})) as {
+      config: { site?: { bannedPrintings?: string[] } }
+    }
+    // The admin handler normalizes set codes to lowercase before persisting.
+    expect(got.config.site?.bannedPrintings).toEqual(['sld:123', 'mh2:42'])
+  })
+
+  test('update_config rejects a malformed bannedPrintings entry', async () => {
+    const result = await callTool(client, 'update_config', {
+      config: { site: { bannedPrintings: ['not-a-printing'] } },
+    })
+    expect(result.isError).toBe(true)
+  })
 })

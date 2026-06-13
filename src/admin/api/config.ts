@@ -1,6 +1,7 @@
 import {
   getRitualConfigPath,
   loadRitualConfig,
+  normalizeBannedPrintings,
   reloadRitualConfig,
   saveRitualConfig,
   type RitualConfig,
@@ -29,6 +30,18 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
       return Response.json({ success: false, message: 'Request body too large' }, { status: 413 })
     }
     const updates = (await req.json()) as Partial<RitualConfig>
+
+    // Validate and normalize banned printings before persisting so the stored
+    // config always holds canonical `set:collectorNumber` keys (set codes
+    // lowercased), matching what config-set writes.
+    if (updates.site?.bannedPrintings !== undefined) {
+      const normalized = normalizeBannedPrintings(updates.site.bannedPrintings)
+      if (typeof normalized === 'string') {
+        return Response.json({ success: false, message: normalized }, { status: 400 })
+      }
+      updates.site = { ...updates.site, bannedPrintings: normalized }
+    }
+
     const current = await loadRitualConfig()
     // `admin` is nested, so a partial update must merge into it rather than
     // replace it wholesale (the top-level spread would otherwise drop omitted

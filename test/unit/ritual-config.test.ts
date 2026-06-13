@@ -2,6 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
+  getBannedPrintings,
   getDecksDir,
   getCollectionsDir,
   getWantedDir,
@@ -11,7 +12,9 @@ import {
   getSiteSelectionConfig,
   initRitualConfig,
   loadRitualConfig,
+  normalizeBannedPrintings,
   parseAdminConfig,
+  parseBannedPrinting,
   parseSiteConfig,
   resetRitualConfigCache,
   saveRitualConfig,
@@ -481,6 +484,61 @@ describe('parseSiteConfig', () => {
   ] as const)('ignores extra unknown fields for %s config', (_label, input) => {
     const result = parseSiteConfig({ ...input, unknown: 'field' })
     expect(result).toEqual({ ...defaultSelection, ...input } as SiteConfig)
+  })
+
+  test('parses and normalizes bannedPrintings alongside selection', () => {
+    const result = parseSiteConfig({ bannedPrintings: ['SLD:123', 'mh2:42'] })
+    expect(result).toEqual({ ...defaultSelection, bannedPrintings: ['sld:123', 'mh2:42'] })
+  })
+
+  test('returns error when a bannedPrintings entry is malformed', () => {
+    const result = parseSiteConfig({ bannedPrintings: ['SLD:123', 'oops'] })
+    expect(typeof result).toBe('string')
+    expect(result as string).toContain('oops')
+  })
+
+  test('returns error when bannedPrintings is not an array of strings', () => {
+    expect(typeof parseSiteConfig({ bannedPrintings: 'SLD:123' })).toBe('string')
+  })
+})
+
+describe('parseBannedPrinting', () => {
+  test('lowercases the set code and keeps the collector number verbatim', () => {
+    expect(parseBannedPrinting('SLD:123★')).toEqual({
+      set: 'sld',
+      collectorNumber: '123★',
+      key: 'sld:123★',
+    })
+  })
+
+  test.each(['sld', 'sld:', ':123', 'sld:12:3', '   '])('rejects malformed entry %p', (raw) => {
+    expect(typeof parseBannedPrinting(raw)).toBe('string')
+  })
+})
+
+describe('normalizeBannedPrintings', () => {
+  test('dedupes after normalizing set codes', () => {
+    expect(normalizeBannedPrintings(['SLD:123', 'sld:123', 'MH2:42'])).toEqual([
+      'sld:123',
+      'mh2:42',
+    ])
+  })
+
+  test('returns error for a non-array', () => {
+    expect(typeof normalizeBannedPrintings('SLD:123')).toBe('string')
+  })
+})
+
+describe('getBannedPrintings', () => {
+  test('returns the configured keys as a set', () => {
+    const config = { ...getDefaultRitualConfig(), site: { bannedPrintings: ['sld:123'] } }
+    const banned = getBannedPrintings(config as RitualConfig)
+    expect(banned.has('sld:123')).toBeTrue()
+    expect(banned.size).toBe(1)
+  })
+
+  test('is empty when no site config is present', () => {
+    expect(getBannedPrintings(getDefaultRitualConfig()).size).toBe(0)
   })
 })
 

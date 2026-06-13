@@ -3,6 +3,7 @@ import {
   ScryfallClient,
   type ScryfallSymbol,
   comparePrintings,
+  computeRepresentativePrints,
   getCardGames,
   isArenaOnly,
   isToken,
@@ -947,5 +948,43 @@ describe('getCardGames', () => {
 
   test('returns empty for cards with empty games', () => {
     expect(getCardGames([makeGamesCard([])])).toEqual([])
+  })
+})
+
+describe('computeRepresentativePrints — banned printings', () => {
+  function makeCard(set: string, collectorNumber: string, usd: string): ScryfallCard {
+    return makeStubScryfallCard({
+      id: `${set}-${collectorNumber}`,
+      set,
+      collector_number: collectorNumber,
+      prices: { usd, usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
+    })
+  }
+
+  // Newest first. Without bans the representative is the newest within 1.5x median.
+  const printings = [
+    makeCard('sld', '123', '1.00'),
+    makeCard('mh2', '42', '2.00'),
+    makeCard('lea', '161', '3.00'),
+  ]
+
+  test('skips a banned printing and features the next eligible one', () => {
+    const result = computeRepresentativePrints(printings, printings, ['usd'], new Set(['sld:123']))
+    expect(result.usd?.representative?.id).toBe('mh2-42')
+    // Cheapest is unaffected by the ban — it still reflects the true lowest price.
+    expect(result.usd?.cheapest?.id).toBe('sld-123')
+  })
+
+  test('lowercases the card set code when matching normalized banned keys', () => {
+    // Scryfall set codes are normally lowercase, but the match defensively
+    // lowercases the card's set so an upper-cased set still matches a key.
+    const upper = [makeCard('SLD', '123', '1.00'), makeCard('mh2', '42', '2.00')]
+    const result = computeRepresentativePrints(upper, upper, ['usd'], new Set(['sld:123']))
+    expect(result.usd?.representative?.id).toBe('mh2-42')
+  })
+
+  test('without bans the newest eligible printing is featured', () => {
+    const result = computeRepresentativePrints(printings, printings, ['usd'])
+    expect(result.usd?.representative?.id).toBe('sld-123')
   })
 })
