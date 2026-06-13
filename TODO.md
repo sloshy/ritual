@@ -11,6 +11,8 @@
 - Add scryfall interactive mode
 - Allow adding/editing to multiple lists, or multiple kinds of lists, at once
 - Multiple saves in the same session should save to the same changelog entry
+- Allow saying you "used to have" a card, specifically when it's removed you can say where it went (sold to X, traded to Y)
+- Allow viewing multiple lists at once on the public sites
 
 ## Misc
 
