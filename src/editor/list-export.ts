@@ -1,4 +1,5 @@
 import type { CollectionCardEntry, WantedListCardEntry } from '../site/data-types'
+import type { SelectedCard } from '../site/useCardSelection'
 import { serializeSectionedList } from '../section-format'
 import { formatCollectionLine, formatWantedListLine } from '../card-line'
 
@@ -49,7 +50,64 @@ export function wantedToMarkdown(
   return serializeSectionedList(title, entries, sectionOrder, serializeWantedListEntry)
 }
 
-const csvCell = (value: string): string => (value.includes(',') ? `"${value}"` : value)
+/** Quote a CSV field when it contains a comma, quote, or newline, escaping embedded quotes per RFC 4180. */
+export const csvCell = (value: string): string =>
+  /[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value
+
+/**
+ * Build the parenthesised printing suffix for a selected card's text line, e.g.
+ * ` (LEA:161)`. Empty when the card has no resolved set/collector number
+ * (a name-only entry whose printing never resolved).
+ */
+function selectionPrintingSuffix(card: SelectedCard): string {
+  if (!card.set || !card.collectorNumber) return ''
+  return ` (${card.set.toUpperCase()}:${card.collectorNumber})`
+}
+
+/** Aggregation key grouping identical selected printings so quantities sum. */
+function selectionKey(card: SelectedCard): string {
+  return `${card.name}|${card.set ?? ''}|${card.collectorNumber ?? ''}|${card.finish ?? ''}|${card.condition ?? ''}`
+}
+
+type AggregatedSelection = { card: SelectedCard; quantity: number }
+
+/** Collapse identical selected printings, summing their quantities, preserving first-seen order. */
+function aggregateSelection(cards: SelectedCard[]): AggregatedSelection[] {
+  const counts = new Map<string, AggregatedSelection>()
+  for (const card of cards) {
+    const key = selectionKey(card)
+    const existing = counts.get(key)
+    if (existing) existing.quantity += card.quantity
+    else counts.set(key, { card, quantity: card.quantity })
+  }
+  return [...counts.values()]
+}
+
+/**
+ * Serialize selected cards to a plain-text list, one line per distinct printing:
+ * `N {Name} ({SET}:{Collector Number})`. Matches the deck "Copy" text shape and
+ * the canonical set-code uppercasing.
+ */
+export function selectionToText(cards: SelectedCard[]): string {
+  return aggregateSelection(cards)
+    .map(({ card, quantity }) => `${quantity} ${card.name}${selectionPrintingSuffix(card)}`)
+    .join('\n')
+}
+
+/**
+ * Serialize selected cards to CSV (`Name,Set,Collector Number,Finish,Condition,Quantity`).
+ * Mirrors {@link collectionToCsv} so a "Copy as CSV" of a whole collection matches
+ * its "Download CSV", but works across decks and wanted lists too.
+ */
+export function selectionToCsv(cards: SelectedCard[]): string {
+  const lines = ['Name,Set,Collector Number,Finish,Condition,Quantity']
+  for (const { card, quantity } of aggregateSelection(cards)) {
+    lines.push(
+      `${csvCell(card.name)},${card.set?.toUpperCase() ?? ''},${card.collectorNumber ?? ''},${card.finish ?? ''},${card.condition ?? ''},${quantity}`,
+    )
+  }
+  return lines.join('\n')
+}
 
 /**
  * Serialize a collection to CSV (`Name,Set,Collector Number,Finish,Condition,Quantity`).

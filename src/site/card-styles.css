@@ -1512,6 +1512,301 @@ h3 {
   cursor: not-allowed;
 }
 
+/* ===== MULTI-SELECT CHECKBOX ===== */
+
+/* Reserve the top-left corner on selectable art cards so the quantity badge is
+   never hidden behind the checkbox that lives there. */
+.card-item.is-selectable .card-binder .qty-badge,
+.card-item.is-selectable .card-overlap .qty-badge {
+  left: 28px;
+}
+
+.card-select-checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  border: 1.5px solid var(--border-hover);
+  background: color-mix(in oklch, var(--bg-panel) 70%, transparent);
+  color: var(--btn-on-color-text);
+  transition:
+    opacity 0.15s,
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.card-select-checkbox .card-select-check {
+  font-weight: 800;
+  line-height: 1;
+  opacity: 0; /* hidden until the card is selected */
+}
+
+.card-select-checkbox.selected,
+.card-select-checkbox.partial {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.card-select-checkbox.selected .card-select-check,
+.card-select-checkbox.partial .card-select-check {
+  opacity: 1;
+}
+
+/* Overlay variant — absolutely positioned in an art card's top-left corner,
+   revealed on hover (slightly transparent) and pinned visible once selected. */
+.card-select-checkbox--overlay {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  z-index: 6;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.card-select-checkbox--overlay .card-select-check {
+  font-size: 0.9rem;
+}
+
+.card-binder:hover .card-select-checkbox--overlay,
+.card-overlap:hover .card-select-checkbox--overlay {
+  opacity: 0.85;
+  pointer-events: auto;
+}
+
+.card-select-checkbox--overlay.selected,
+.card-select-checkbox--overlay.partial,
+.card-binder:hover .card-select-checkbox--overlay.selected,
+.card-overlap:hover .card-select-checkbox--overlay.selected {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* List variant — inline at the far left of a list-view row, always visible. */
+.card-select-checkbox--list {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+}
+
+.card-select-checkbox--list .card-select-check {
+  font-size: 0.7rem;
+}
+
+/* ===== SELECTION ACTIONS MENU ===== */
+
+.selection-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Cross-list selection button living in the navbar (public + admin). The accent
+   fill from .toolbar-toggle.active reads as a call-to-action among the nav
+   controls; this just keeps it compact and on one line. */
+.selection-menu-btn--navbar {
+  white-space: nowrap;
+  font-size: 0.8rem;
+}
+
+.selection-menu-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  padding: 0.3rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-hover);
+  border-radius: 0.5rem;
+  box-shadow: 0 8px 24px var(--overlay-light);
+  z-index: 300;
+}
+
+.selection-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.45rem 0.6rem;
+  border: none;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.selection-menu-item:hover {
+  background: var(--bg-hover);
+}
+
+.selection-menu-sep {
+  height: 1px;
+  margin: 0.3rem 0.2rem;
+  background: var(--border-separator);
+}
+
+.selection-menu-status {
+  padding: 0.35rem 0.6rem 0.15rem;
+  font-size: 0.75rem;
+  color: var(--text-accent);
+}
+
+/* ===== SELECTION "VIEW ALL" MODAL ===== */
+
+.selection-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: var(--overlay-medium);
+}
+
+.selection-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(640px, 100%);
+  max-height: 80vh;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-hover);
+  border-radius: 0.6rem;
+  box-shadow: 0 12px 40px var(--overlay-heavy);
+  overflow: hidden;
+}
+
+.selection-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-separator);
+}
+
+.selection-modal-title {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.selection-modal-close {
+  padding: 0.2rem;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.selection-modal-close:hover {
+  color: var(--text-primary);
+}
+
+.selection-modal-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--border-separator);
+}
+
+.selection-modal-controls-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.selection-modal-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem;
+}
+
+.selection-modal-group-header {
+  padding: 0.5rem 0.5rem 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-accent);
+}
+
+.selection-modal-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--text-body);
+}
+
+.selection-modal-row:hover {
+  background: var(--bg-hover);
+}
+
+.selection-modal-row-remove {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.selection-modal-row-remove:hover {
+  background: var(--bg-active);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
+.selection-modal-row-qty {
+  min-width: 1.75rem;
+  text-align: right;
+  color: var(--text-accent);
+  font-weight: 700;
+}
+
+.selection-modal-row-printing {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.selection-modal-row-source {
+  margin-left: auto;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.selection-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border-separator);
+}
+
+.selection-modal-status {
+  font-size: 0.8rem;
+  color: var(--text-accent);
+}
+
+/* Hover preview sits above the modal content (the modal overlay's stacking context). */
+.selection-modal-tooltip {
+  z-index: 600;
+}
+
 /* ===== GLOBAL TRADE TOAST ===== */
 
 .trade-add-toast {

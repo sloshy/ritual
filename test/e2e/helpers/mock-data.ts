@@ -2128,3 +2128,225 @@ export async function mockChangeHistoryApi(
     })
   })
 }
+
+// ===== Multi-select mock data =====
+
+// A two-card deck (one Instant, one Artifact, so default type-grouping splits
+// them) used to exercise the list-page multi-select feature. Reuses the trade
+// mock cards so the resolved printings carry real set/collector data.
+const MOCK_MULTISELECT_DECK = {
+  deck: {
+    name: 'Multi Select Deck',
+    sections: [
+      {
+        name: 'Main',
+        cards: [
+          { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 },
+          { quantity: 1, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 2 },
+        ],
+      },
+    ],
+  },
+  cards: {
+    'Lightning Bolt': MOCK_TRADE_COLLECTION_CARD_BOLT,
+    'Sol Ring': MOCK_TRADE_COLLECTION_CARD_RING,
+  },
+  printings: {
+    'Lightning Bolt': [MOCK_TRADE_COLLECTION_CARD_BOLT],
+    'Sol Ring': [MOCK_TRADE_COLLECTION_CARD_RING],
+  },
+  symbolMap: {},
+  exportPath: 'decks/test-multi-select.txt',
+  useScryfallImgUrls: false,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+  missingCards: { usd: [], eur: [], tix: [] },
+}
+
+const MOCK_MULTISELECT_INDEX = {
+  decks: [
+    {
+      slug: 'test-multi-select',
+      name: 'Multi Select Deck',
+      featuredCardImage: '',
+      commander: null,
+      format: null,
+      cardCount: 2,
+    },
+  ],
+  collections: [],
+  useScryfallImgUrls: false,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+}
+
+/** Serve a synthetic two-card deck for the public-site multi-select tests. */
+export async function mockPublicSiteDeckForMultiSelect(page: Page): Promise<void> {
+  await page.route('**/index.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_MULTISELECT_INDEX),
+    })
+  })
+
+  await page.route('**/decks/test-multi-select.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_MULTISELECT_DECK),
+    })
+  })
+}
+
+// Two decks for cross-list selection tests. Deck A holds printing-pinned cards;
+// deck B holds a single name-only card (no set/collector number) so adding it to
+// a trade has to prompt for a printing. The cards carry a non-empty image so the
+// modal's hover preview has something to show (these decks use Scryfall URLs).
+// A 1×1 PNG data URL so the hover-preview <img> actually loads and gives the
+// tooltip a non-zero size in tests (a 404 URL would leave it zero-height).
+const TINY_PNG =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+type CardWithImageUris = { id: string; image_uris: Record<string, string> }
+function withImage<T extends CardWithImageUris>(
+  card: T,
+): Omit<T, 'image_uris'> & CardWithImageUris {
+  return { ...card, image_uris: { ...card.image_uris, normal: TINY_PNG } }
+}
+const MS_BOLT = withImage(MOCK_TRADE_COLLECTION_CARD_BOLT)
+const MS_RING = withImage(MOCK_TRADE_COLLECTION_CARD_RING)
+const MS_CRYPT = withImage(MOCK_TRADE_WANTED_CARD_CRYPT)
+
+const MOCK_MS_DECK_A = {
+  deck: {
+    name: 'MS Deck A',
+    sections: [
+      {
+        name: 'Main',
+        cards: [
+          { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 },
+          {
+            quantity: 1,
+            name: 'Sol Ring',
+            set: 'c19',
+            collectorNumber: '221',
+            finish: 'foil',
+            condition: 'LP',
+            cardId: 2,
+          },
+        ],
+      },
+    ],
+  },
+  cards: { 'Lightning Bolt': MS_BOLT, 'Sol Ring': MS_RING },
+  printings: { 'Lightning Bolt': [MS_BOLT], 'Sol Ring': [MS_RING] },
+  symbolMap: {},
+  exportPath: 'decks/ms-a.txt',
+  useScryfallImgUrls: true,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+  missingCards: { usd: [], eur: [], tix: [] },
+}
+
+const MOCK_MS_DECK_B = {
+  deck: {
+    name: 'MS Deck B',
+    sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Mana Crypt', cardId: 1 }] }],
+  },
+  cards: { 'Mana Crypt': MS_CRYPT },
+  printings: { 'Mana Crypt': [MS_CRYPT] },
+  symbolMap: {},
+  exportPath: 'decks/ms-b.txt',
+  useScryfallImgUrls: true,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+  missingCards: { usd: [], eur: [], tix: [] },
+}
+
+// A deck with a 4× quantity group, for the per-copy selection tests.
+const MOCK_MS_DECK_QTY = {
+  deck: {
+    name: 'MS Deck Qty',
+    sections: [
+      {
+        name: 'Main',
+        cards: [
+          { quantity: 4, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 },
+        ],
+      },
+    ],
+  },
+  cards: { 'Lightning Bolt': MS_BOLT },
+  printings: { 'Lightning Bolt': [MS_BOLT] },
+  symbolMap: {},
+  exportPath: 'decks/ms-qty.txt',
+  useScryfallImgUrls: true,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+  missingCards: { usd: [], eur: [], tix: [] },
+}
+
+const MOCK_MS_INDEX = {
+  decks: [
+    {
+      slug: 'ms-a',
+      name: 'MS Deck A',
+      featuredCardImage: '',
+      commander: null,
+      format: null,
+      cardCount: 2,
+    },
+    {
+      slug: 'ms-b',
+      name: 'MS Deck B',
+      featuredCardImage: '',
+      commander: null,
+      format: null,
+      cardCount: 1,
+    },
+    {
+      slug: 'ms-qty',
+      name: 'MS Deck Qty',
+      featuredCardImage: '',
+      commander: null,
+      format: null,
+      cardCount: 4,
+    },
+  ],
+  collections: [],
+  useScryfallImgUrls: true,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+}
+
+/** Serve two synthetic decks (one with a name-only card) for cross-list selection tests. */
+export async function mockPublicSiteMultiSelectLists(page: Page): Promise<void> {
+  await page.route('**/index.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_MS_INDEX),
+    })
+  })
+  await page.route('**/decks/ms-a.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_MS_DECK_A),
+    })
+  })
+  await page.route('**/decks/ms-b.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_MS_DECK_B),
+    })
+  })
+  await page.route('**/decks/ms-qty.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_MS_DECK_QTY),
+    })
+  })
+}

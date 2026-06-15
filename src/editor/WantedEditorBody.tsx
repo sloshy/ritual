@@ -21,6 +21,8 @@ type WantedEditorBodyProps = {
   fullWidth?: boolean
   /** Forwarded to the page: show the public "Update Prices" toolbar button + staleness. */
   enablePriceRefresh?: boolean
+  /** Forwarded to the page: offer "Add to Trade" in the multi-select menu (public site only). */
+  enableTrade?: boolean
 }
 
 /**
@@ -60,6 +62,7 @@ export function WantedEditorBody(props: WantedEditorBodyProps): JSX.Element {
         editMode={true}
         fullWidth={props.fullWidth}
         enablePriceRefresh={props.enablePriceRefresh}
+        enableTrade={props.enableTrade}
         onCardIncrement={ctrl.handleIncrement}
         onCardDecrement={ctrl.handleDecrement}
         onCardContextMenu={ctrl.handleContextMenu}

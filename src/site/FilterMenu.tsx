@@ -1,6 +1,7 @@
 import type { Accessor, Component } from 'solid-js'
-import { createEffect, createMemo, createSignal, For, onCleanup, Show } from 'solid-js'
+import { createMemo, createSignal, For, Show } from 'solid-js'
 import { useAnchoredMenu } from '../ui/useAnchoredMenu'
+import { useAnchoredToggle } from '../ui/useAnchoredToggle'
 import { parseSetCodesInput } from '../set-codes'
 import { colorIdentityName, WUBRG } from './card-sorting'
 import {
@@ -36,57 +37,31 @@ export interface FilterMenuProps {
  * hide lands/unpriced toggles, name terms, color identity, set codes, mana value.
  */
 export const FilterMenu: Component<FilterMenuProps> = (props) => {
-  const [open, setOpen] = createSignal(false)
-  const [anchorRect, setAnchorRect] = createSignal<DOMRect | null>(null)
-  let buttonRef: HTMLButtonElement | undefined
-
-  const toggleOpen = () => {
-    if (open()) {
-      setOpen(false)
-      return
-    }
-    if (buttonRef) setAnchorRect(buttonRef.getBoundingClientRect())
-    setOpen(true)
-  }
-
-  // Keep the panel attached to the button while the page scrolls or resizes
-  // (the sticky toolbar moves until it sticks).
-  createEffect(() => {
-    if (!open()) return
-    const updateAnchor = () => {
-      if (buttonRef) setAnchorRect(buttonRef.getBoundingClientRect())
-    }
-    window.addEventListener('scroll', updateAnchor, true)
-    window.addEventListener('resize', updateAnchor)
-    onCleanup(() => {
-      window.removeEventListener('scroll', updateAnchor, true)
-      window.removeEventListener('resize', updateAnchor)
-    })
-  })
+  const toggle = useAnchoredToggle()
 
   return (
     <div class="filter-menu">
       <button
         type="button"
-        ref={buttonRef}
+        ref={toggle.setButtonRef}
         class="toolbar-toggle"
         classList={{ active: props.filters.activeCount() > 0 }}
-        aria-expanded={open()}
+        aria-expanded={toggle.open()}
         aria-haspopup="true"
-        onClick={toggleOpen}
+        onClick={toggle.toggleOpen}
       >
         Filters
         <Show when={props.filters.activeCount() > 0}>
           <span class="filter-menu-badge">{props.filters.activeCount()}</span>
         </Show>
-        <span aria-hidden="true">{open() ? '▴' : '▾'}</span>
+        <span aria-hidden="true">{toggle.open() ? '▴' : '▾'}</span>
       </button>
-      <Show when={open() ? anchorRect() : null}>
+      <Show when={toggle.open() ? toggle.anchorRect() : null}>
         {(rect) => (
           <FilterPanel
             anchorRect={rect}
-            onClose={() => setOpen(false)}
-            anchorEl={() => buttonRef}
+            onClose={toggle.close}
+            anchorEl={toggle.buttonEl}
             filters={props.filters}
             symbolMap={props.symbolMap}
             setCodeOptions={props.setCodeOptions}

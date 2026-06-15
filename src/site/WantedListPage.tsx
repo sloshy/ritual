@@ -30,8 +30,10 @@ import { deriveSectionOrder, sectionDefaultGroupBy } from '../section-format'
 import { TradePrintingPicker } from './TradePrintingPicker'
 import { addEntryToRight, canAddMoreToRight, showTradeToast } from './useTradeState'
 import type { TradeSearchEntry } from './useTradeData'
-import { resolveCardThumbnailUrl } from './image-sources'
+import { resolveCardThumbnailUrl, resolveCardPreview } from './image-sources'
 import { hasSpecificPrinting } from '../card-printing'
+import { useCardSelection, type SelectedCard } from './useCardSelection'
+import { SelectionMenu } from './SelectionMenu'
 
 type WantedListGroupBy = GroupBy
 type MetaEntry = { label: string; value: string }
@@ -74,6 +76,8 @@ interface WantedListPageProps {
   pricesDate?: string
   /** Show the public "Update Prices" toolbar button + staleness notice (public site only). */
   enablePriceRefresh?: boolean
+  /** Offer "Add to Trade" in the multi-select menu (public site only; the trade page is unreachable on admin). */
+  enableTrade?: boolean
 }
 
 function resolveCardForEntry(
@@ -88,6 +92,7 @@ function resolveCardForEntry(
 }
 
 export const WantedListPage: Component<WantedListPageProps> = (props) => {
+  const selection = useCardSelection({ kind: 'wanted', name: props.name })
   // Section order, including any empty sections from the build/save payload; falls back to the
   // sections discovered in the entries (in file order) when not provided.
   const sectionOrder = createMemo(() => deriveSectionOrder(props.sectionOrder, props.entries))
@@ -319,6 +324,30 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     const entryIdx = findEntryIndex(c)
     const entry = currencyEntries()[entryIdx]
     const showTrade = !props.editMode && !props.onCardMove && entry !== undefined
+    const selectKey = String(entryIdx)
+    const specific = entry !== undefined && hasSpecificPrinting(entry)
+    const buildSelected = (): SelectedCard => {
+      const preview = resolveCardPreview(c.card, Boolean(props.useScryfallImgUrls))
+      return {
+        key: selectKey,
+        name: c.name,
+        set: specific ? entry.set.toLowerCase() : undefined,
+        collectorNumber: specific ? entry.collectorNumber : undefined,
+        finish: entry?.finish,
+        note: entry?.note,
+        quantity: 1,
+        groupSize: 1,
+        price: c.price,
+        scryfallCard: c.card,
+        image: preview.image || undefined,
+        sideways: preview.sideways,
+        printings: specific ? undefined : (props.printings[c.name] ?? []),
+        sourceName: props.name,
+        sourceKind: 'wanted',
+        maxQty: 1,
+        cardIds: entry?.cardId !== undefined ? [entry.cardId] : [],
+      }
+    }
     const contextInfo = (): CardContextInfo => ({
       cardName: c.name,
       card: c.card,
@@ -357,6 +386,9 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         onMove={props.onCardMove ? (rect) => props.onCardMove!(contextInfo(), rect) : undefined}
         onAddToTrade={showTrade ? () => handleWantedAddToTrade(entry, c.card) : undefined}
         addToTradeDisabled={showTrade ? isWantedCardAddDisabled(entry, c.card) : undefined}
+        selectable={entry !== undefined}
+        selectState={selection.state(selectKey)}
+        onToggleSelect={() => selection.toggle(buildSelected())}
       />
     )
   }
@@ -459,6 +491,14 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         symbolMap={props.symbolMap}
         setCodeOptions={setCodeOptions()}
         priceRefresh={props.enablePriceRefresh ? prices : undefined}
+        selectionMenu={
+          <SelectionMenu
+            selection={selection}
+            currency={props.currency}
+            enableTrade={props.enableTrade}
+            useScryfallImgUrls={props.useScryfallImgUrls}
+          />
+        }
       />
 
       <Show when={props.enablePriceRefresh}>

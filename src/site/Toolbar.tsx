@@ -1,4 +1,4 @@
-import type { Component } from 'solid-js'
+import type { Component, JSX } from 'solid-js'
 import { Show, For } from 'solid-js'
 import type { ViewMode, CardSize, SortBy, PriceGroupStrategy } from './card-sorting'
 import { capitalize } from './utils'
@@ -42,6 +42,8 @@ interface ToolbarProps {
   extraToggles?: ExtraToggle[]
   /** When set, a right-aligned "Update Prices" button is shown (public list pages). */
   priceRefresh?: PriceRefresh
+  /** Bulk multi-select actions control; rendered only while cards are selected. */
+  selectionMenu?: JSX.Element
 }
 
 const VIEW_MODE_ICONS: Record<ViewMode, string> = {
@@ -171,6 +173,7 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
           setCodeOptions={props.setCodeOptions}
           showHideExtras={props.showHideExtras}
         />
+        {props.selectionMenu}
         <Show when={props.priceRefresh}>
           {(refresh) => (
             <div class="toolbar-price-refresh">

@@ -10,6 +10,7 @@ import type {
   WantedListSummary,
 } from './data-types'
 import { fetchJson } from './useFetchJson'
+import type { SelectionSourceKind } from './useCardSelection'
 
 /** A single searchable card entry derived from a collection, deck, or wanted list. */
 export interface TradeSearchEntry {
@@ -24,8 +25,7 @@ export interface TradeSearchEntry {
   price?: number
   scryfallCard: ScryfallCard | null
   sourceName: string
-  /** 'collection' | 'deck' | 'wanted' */
-  sourceKind: 'collection' | 'deck' | 'wanted'
+  sourceKind: SelectionSourceKind
   /** Maximum quantity available from this source for this exact variant. */
   maxQty: number
   /** All card IDs in this aggregated group, in order. Used for URL encoding. */

@@ -2,6 +2,13 @@ import type { ParentComponent } from 'solid-js'
 import { createSignal, For, Show } from 'solid-js'
 import type { Page, NavigateFn } from '../types'
 import { FlameIcon } from '../../../site/FlameIcon'
+import { SelectionMenu } from '../../../site/SelectionMenu'
+import {
+  SelectionModal,
+  isSelectionViewOpen,
+  closeSelectionView,
+} from '../../../site/SelectionModal'
+import { useAllSelections } from '../../../site/useCardSelection'
 
 interface NavItem {
   id: Page
@@ -34,6 +41,10 @@ interface LayoutProps {
 export const Layout: ParentComponent<LayoutProps> = (props) => {
   const [menuOpen, setMenuOpen] = createSignal(false)
 
+  // Cross-list selection button: always present (self-hides when nothing is
+  // selected). The admin site has no trade page, so it offers copy/clear only.
+  const allSelections = useAllSelections()
+
   const handleNav = (page: Page) => {
     props.onNavigate(page)
     setMenuOpen(false)
@@ -63,6 +74,14 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
           Ritual Admin
         </span>
         <div class="admin-header-actions">
+          <SelectionMenu
+            selection={allSelections}
+            currency="usd"
+            label="All Selected"
+            clearLabel="Clear all selections"
+            buttonClass="selection-menu-btn--navbar"
+            showViewAll
+          />
           <Show when={props.onLogout}>
             {(logout) => (
               <button class="btn btn-secondary btn-xs desktop-only" onClick={() => logout()()}>
@@ -121,6 +140,11 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
           {props.children}
         </main>
       </div>
+      <SelectionModal
+        open={isSelectionViewOpen()}
+        selection={allSelections}
+        onClose={closeSelectionView}
+      />
     </div>
   )
 }

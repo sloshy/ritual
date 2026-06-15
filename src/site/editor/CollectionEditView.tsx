@@ -139,6 +139,7 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
           showDiscard={false}
           fullWidth={false}
           enablePriceRefresh={true}
+          enableTrade={true}
         />
       }
       original={

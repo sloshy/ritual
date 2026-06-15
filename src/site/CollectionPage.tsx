@@ -29,7 +29,9 @@ import { collectSetCodes, filterCards } from './card-filters'
 import { deriveSectionOrder, sectionDefaultGroupBy } from '../section-format'
 import { addEntryToLeft, canAddMoreToLeft, showTradeToast } from './useTradeState'
 import type { TradeSearchEntry } from './useTradeData'
-import { resolveCardThumbnailUrl } from './image-sources'
+import { resolveCardThumbnailUrl, resolveCardPreview } from './image-sources'
+import { useCardSelection, type SelectedCard } from './useCardSelection'
+import { SelectionMenu } from './SelectionMenu'
 
 // Collections always have a specific printing, so 'printing' grouping does not apply.
 type CollectionGroupBy = Exclude<GroupBy, 'printing'>
@@ -70,9 +72,12 @@ interface CollectionPageProps {
   pricesDate?: string
   /** Show the public "Update Prices" toolbar button + staleness notice (public site only). */
   enablePriceRefresh?: boolean
+  /** Offer "Add to Trade" in the multi-select menu (public site only; the trade page is unreachable on admin). */
+  enableTrade?: boolean
 }
 
 export const CollectionPage: Component<CollectionPageProps> = (props) => {
+  const selection = useCardSelection({ kind: 'collection', name: props.name })
   // Section order, including any empty sections from the build/save payload; falls back to the
   // sections discovered in the entries (in file order) when not provided.
   const sectionOrder = createMemo(() => deriveSectionOrder(props.sectionOrder, props.entries))
@@ -328,6 +333,29 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     const entryIdx = findEntryIndex(c)
     const entry = currencyEntries()[entryIdx]
     const showTrade = !props.editMode && !props.onCardMove && entry !== undefined
+    const selectKey = String(entryIdx)
+    const buildSelected = (): SelectedCard => {
+      const preview = resolveCardPreview(c.card, Boolean(props.useScryfallImgUrls))
+      return {
+        key: selectKey,
+        name: c.name,
+        set: entry?.set.toLowerCase(),
+        collectorNumber: entry?.collectorNumber,
+        finish: entry?.finish,
+        condition: entry?.condition,
+        note: entry?.note,
+        quantity: c.quantity,
+        groupSize: c.quantity,
+        price: c.price,
+        scryfallCard: c.card,
+        image: preview.image || undefined,
+        sideways: preview.sideways,
+        sourceName: props.name,
+        sourceKind: 'collection',
+        maxQty: c.quantity,
+        cardIds: entry ? groupCardIds(entry) : [],
+      }
+    }
     const contextInfo = (): CardContextInfo => ({
       cardName: c.name,
       card: c.card,
@@ -364,6 +392,9 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         onMove={props.onCardMove ? (rect) => props.onCardMove!(contextInfo(), rect) : undefined}
         onAddToTrade={showTrade ? () => handleCollectionAddToTrade(entry) : undefined}
         addToTradeDisabled={showTrade ? isCollectionCardAddDisabled(entry) : undefined}
+        selectable={entry !== undefined}
+        selectState={selection.state(selectKey)}
+        onToggleSelect={() => selection.toggle(buildSelected())}
       />
     )
   }
@@ -472,6 +503,14 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
           },
         ]}
         priceRefresh={props.enablePriceRefresh ? prices : undefined}
+        selectionMenu={
+          <SelectionMenu
+            selection={selection}
+            currency={props.currency}
+            enableTrade={props.enableTrade}
+            useScryfallImgUrls={props.useScryfallImgUrls}
+          />
+        }
       />
 
       <Show when={props.enablePriceRefresh}>

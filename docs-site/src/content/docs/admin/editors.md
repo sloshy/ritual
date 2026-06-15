@@ -27,6 +27,20 @@ Each card displays **+** and **−** buttons to add or remove copies. Reducing a
 
 In binder and overlap views, these appear as transparent overlay buttons on hover. In list view, they appear inline.
 
+### Multi-Select
+
+Cards can be selected across every view mode for bulk actions. Hovering a card in binder, row, or column view reveals a translucent checkbox in its top-left corner; in list view the checkbox sits at the far left of each row. Clicking it — or **Ctrl-clicking** (**⌘-clicking** on macOS) anywhere on the card — marks the card with an accent-colored checkmark, and a **Selected (N)** button appears in the toolbar showing the running count of selected copies for the list you're editing. The selection persists across grouping, sorting, and view-mode changes. A quantity group (e.g. `4×`) selects all of its copies at once and counts them individually; once some copies are removed it shows a **dash** instead of a checkmark.
+
+Opening the button reveals a menu of actions over that list's selection:
+
+- **Copy as Text** — copies a quantity-prefixed `N Card Name (SET:Collector Number)` list to the clipboard
+- **Copy as CSV** — copies the selection as CSV (`Name,Set,Collector Number,Finish,Condition,Quantity`)
+- **Clear selection** — deselects the current list's cards only
+
+The public site adds an **Add to Trade** action here; the admin site omits it because it has no Trade Planner page.
+
+Selections are held globally, so switching to another list (or list type) keeps them. Whenever anything is selected, an **All Selected (N)** button is shown in the admin header (on every page) with the total across all lists; its menu runs the copy actions over the whole cross-list selection and its **Clear all selections** entry wipes every list. The menu's **View all selections…** entry opens a dialog listing every selected card — with its quantity, printing, finish, and condition — and the list it came from, shown in selection order or grouped by source, where each row's ✕ removes one copy and the copy/clear actions are repeated.
+
 ### Add Card Defaults
 
 Each editor has an **Add Card Defaults** toggle in the bottom [action bar](#editor-action-bar), between the **+ Add Card** and **Changes** buttons. Clicking it expands a panel upward revealing the default fields; a dot on the toggle indicates when any default is currently active. It mirrors the session filters in the CLI's `collection`, `wanted`, and `add-card` commands and is intended for batch entry — set defaults once, then add many cards in a row without confirming the same fields each time.

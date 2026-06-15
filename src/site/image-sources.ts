@@ -64,3 +64,22 @@ export function resolveCardImageSources(
 
   return { frontImage: '', backImage: '' }
 }
+
+export interface CardPreview {
+  /** Front-image URL (empty when the card has no resolvable image). */
+  image: string
+  /** Whether the art is rendered sideways (rotated preview). */
+  sideways: boolean
+}
+
+/** Resolve the hover-preview image + orientation for a card, or empties when absent. */
+export function resolveCardPreview(
+  card: ScryfallCard | null,
+  useScryfallImgUrls: boolean,
+): CardPreview {
+  if (!card) return { image: '', sideways: false }
+  return {
+    image: resolveCardImageSources(card, useScryfallImgUrls).frontImage,
+    sideways: isCardSideways(card),
+  }
+}

@@ -139,6 +139,7 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
           showDiscard={false}
           fullWidth={false}
           enablePriceRefresh={true}
+          enableTrade={true}
         />
       }
       original={

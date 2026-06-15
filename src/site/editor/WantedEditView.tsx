@@ -133,6 +133,7 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
           showDiscard={false}
           fullWidth={false}
           enablePriceRefresh={true}
+          enableTrade={true}
         />
       }
       original={

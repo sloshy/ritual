@@ -6,6 +6,7 @@ import { ManaCost } from './symbols'
 import type { PriceCurrency } from '../price-currency'
 import { getCardPrice, formatPrice, formatPriceOrNA } from '../price-currency'
 import type { ViewMode } from './card-sorting'
+import type { SelectionState } from './useCardSelection'
 import { capitalize } from './utils'
 
 type ButtonMouseEvent = MouseEvent & { currentTarget: HTMLButtonElement }
@@ -54,6 +55,46 @@ export interface CardItemProps {
   onMove?: (rect: DOMRect) => void
   onAddToTrade?: () => void
   addToTradeDisabled?: boolean
+  /** Show the multi-select checkbox (top-left on art views, far-left in list view). */
+  selectable?: boolean
+  /** Selection state of this tile: none, partial (some copies of a quantity group), or all. */
+  selectState?: SelectionState
+  onToggleSelect?: () => void
+}
+
+/**
+ * Multi-select checkbox overlaid on a card. `overlay` variant is absolutely
+ * positioned in the card's top-left corner (binder / overlap / stack); `list`
+ * variant sits inline at the far left of a list-view row. Clicking toggles the
+ * selection without bubbling to the card's own click (modal / tooltip). A
+ * quantity group that is only partially selected shows a dash rather than a check.
+ */
+type SelectCheckboxProps = {
+  state?: SelectionState
+  onToggle?: () => void
+  variant: 'overlay' | 'list'
+}
+
+const SelectCheckbox: Component<SelectCheckboxProps> = (props) => {
+  const selected = () => props.state === 'all'
+  const partial = () => props.state === 'partial'
+  return (
+    <button
+      type="button"
+      class={`card-select-checkbox card-select-checkbox--${props.variant}`}
+      classList={{ selected: selected(), partial: partial() }}
+      aria-pressed={selected() ? true : partial() ? 'mixed' : false}
+      aria-label={props.state === 'all' ? 'Deselect card' : 'Select card'}
+      onClick={(e) => {
+        e.stopPropagation()
+        props.onToggle?.()
+      }}
+    >
+      <span class="card-select-check" aria-hidden="true">
+        {partial() ? '–' : '✓'}
+      </span>
+    </button>
+  )
 }
 
 export const CardItem: Component<CardItemProps> = (props) => {
@@ -86,6 +127,19 @@ export const CardItem: Component<CardItemProps> = (props) => {
       {(card) => {
         const currency = props.currency ?? 'usd'
         const isDFC = isDoubleFacedCard(card())
+
+        // Ctrl/Cmd-click toggles selection from anywhere on the card instead of
+        // opening the modal (the standard multi-select modifier; Mac uses Cmd
+        // since Ctrl-click maps to the context menu there).
+        const handleCardClick = (e: MouseEvent) => {
+          if (props.selectable && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault()
+            e.stopPropagation()
+            props.onToggleSelect?.()
+            return
+          }
+          props.onCardClick?.()
+        }
         const { frontImage } = resolveCardImageSources(card(), Boolean(props.useScryfallImgUrls))
 
         const price = getCardPrice(card(), currency)
@@ -129,10 +183,24 @@ export const CardItem: Component<CardItemProps> = (props) => {
         const printingLabel = printingParts.length > 0 ? `(${printingParts.join(' · ')})` : null
 
         return (
-          <div class="card-item" {...dataAttrs}>
+          <div
+            class="card-item"
+            classList={{
+              'is-selectable': props.selectable,
+              'is-selected': props.selectState === 'all' || props.selectState === 'partial',
+            }}
+            {...dataAttrs}
+          >
             {/* Binder view */}
             <Show when={props.viewMode === 'binder'}>
-              <div class={binderClass} onClick={props.onCardClick}>
+              <div class={binderClass} onClick={handleCardClick}>
+                <Show when={props.selectable}>
+                  <SelectCheckbox
+                    variant="overlay"
+                    state={props.selectState}
+                    onToggle={props.onToggleSelect}
+                  />
+                </Show>
                 <Show when={frontImage}>
                   {(src) => <img src={src()} alt={props.name} loading="lazy" />}
                 </Show>
@@ -207,7 +275,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
             <Show when={props.viewMode === 'list'}>
               <div
                 class={listClass}
-                onClick={props.onCardClick}
+                onClick={handleCardClick}
                 onMouseEnter={() => {
                   const { frontImage } = resolveCardImageSources(
                     card(),
@@ -217,6 +285,13 @@ export const CardItem: Component<CardItemProps> = (props) => {
                 }}
                 onMouseLeave={() => props.onTooltipLeave?.()}
               >
+                <Show when={props.selectable}>
+                  <SelectCheckbox
+                    variant="list"
+                    state={props.selectState}
+                    onToggle={props.onToggleSelect}
+                  />
+                </Show>
                 <Show when={!props.hideCount}>
                   <span class="list-qty">{props.quantity}</span>
                 </Show>
@@ -284,7 +359,14 @@ export const CardItem: Component<CardItemProps> = (props) => {
 
             {/* Overlap / Stack view */}
             <Show when={props.viewMode === 'overlap' || props.viewMode === 'stack'}>
-              <div class={overlapClass} onClick={props.onCardClick}>
+              <div class={overlapClass} onClick={handleCardClick}>
+                <Show when={props.selectable}>
+                  <SelectCheckbox
+                    variant="overlay"
+                    state={props.selectState}
+                    onToggle={props.onToggleSelect}
+                  />
+                </Show>
                 <Show when={frontImage}>
                   {(src) => <img src={src()} alt={props.name} loading="lazy" />}
                 </Show>

@@ -1,0 +1,45 @@
+import { test, expect } from '@playwright/test'
+import { loginAsAdmin } from '../helpers/auth-helper'
+import { openListEditor } from '../helpers/editor-nav'
+
+/**
+ * Multi-select on the admin list editors. The selection checkbox and
+ * "Selected (N)" menu work the same as on the public site, but the admin has no
+ * trade page, so the menu offers only the copy actions — "Add to Trade" is
+ * intentionally absent.
+ */
+test.describe('Admin list multi-select', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginAsAdmin(page)
+    await openListEditor(page, 'deck')
+    const select = page.locator('select').first()
+    await page.waitForFunction(() => (document.querySelector('select')?.options.length ?? 0) > 1, {
+      timeout: 10_000,
+    })
+    const value = await select.locator('option').nth(1).getAttribute('value')
+    await select.selectOption(value)
+    await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
+  })
+
+  test('selecting a card shows the menu with copy actions but no trade action', async ({
+    page,
+  }) => {
+    await expect(page.locator('.selection-menu-btn')).toHaveCount(0)
+
+    const first = page.locator('.card-item').first()
+    await first.locator('.card-binder').hover()
+    await first.locator('.card-select-checkbox').click()
+
+    const btn = page.locator('.selection-menu-btn')
+    await expect(btn).toHaveText(/Selected \(1\)/)
+
+    await btn.click()
+    const panel = page.locator('.selection-menu-panel')
+    await expect(panel.locator('.selection-menu-item', { hasText: 'Copy as Text' })).toBeVisible()
+    await expect(panel.locator('.selection-menu-item', { hasText: 'Copy as CSV' })).toBeVisible()
+    await expect(panel.locator('.selection-menu-item', { hasText: 'Add to Trade' })).toHaveCount(0)
+
+    await panel.locator('.selection-menu-item', { hasText: 'Clear selection' }).click()
+    await expect(page.locator('.selection-menu-btn')).toHaveCount(0)
+  })
+})

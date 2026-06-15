@@ -26,12 +26,14 @@ import { Toolbar } from './Toolbar'
 import { TradePrintingPicker } from './TradePrintingPicker'
 import { addEntryToLeft, canAddMoreToLeft, showTradeToast } from './useTradeState'
 import type { TradeSearchEntry } from './useTradeData'
-import { resolveCardThumbnailUrl } from './image-sources'
+import { resolveCardThumbnailUrl, resolveCardPreview } from './image-sources'
 import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
 import { useCardFilters } from './useCardFilters'
 import { collectSetCodes, filterCards } from './card-filters'
 import { PrimerRenderer, buildToc } from './PrimerRenderer'
+import { useCardSelection, type SelectedCard } from './useCardSelection'
+import { SelectionMenu } from './SelectionMenu'
 
 type DeckTradePicker = { cardName: string; printings: ScryfallCard[]; deckEntry: Card }
 
@@ -82,9 +84,12 @@ export interface DeckPageProps {
   pricesDate?: string
   /** Show the public "Update Prices" toolbar button + staleness notice (public site only). */
   enablePriceRefresh?: boolean
+  /** Offer "Add to Trade" in the multi-select menu (public site only; the trade page is unreachable on admin). */
+  enableTrade?: boolean
 }
 
 export const DeckPage: Component<DeckPageProps> = (props) => {
+  const selection = useCardSelection({ kind: 'deck', name: props.deck.name })
   const {
     viewMode,
     setViewMode,
@@ -397,6 +402,32 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
   const renderDeckCard = (hideCount: boolean) => (c: CardData) => {
     const deckEntry = deckEntryByOrder().get(c.fileOrder)
     const showTrade = !props.editMode && !props.onCardMove && deckEntry !== undefined
+    const selectKey = String(c.fileOrder)
+    // Name-only deck entries carry no pinned printing, so leave set/CN unset and
+    // ship the printings list — adding such a card to a trade prompts for one.
+    const specific = deckEntry !== undefined && hasSpecificPrinting(deckEntry)
+    const buildSelected = (): SelectedCard => {
+      const preview = resolveCardPreview(c.card, Boolean(props.useScryfallImgUrls))
+      return {
+        key: selectKey,
+        name: c.name,
+        set: specific ? deckEntry?.set?.toLowerCase() : undefined,
+        collectorNumber: specific ? deckEntry?.collectorNumber : undefined,
+        finish: deckEntry?.finish,
+        condition: deckEntry?.condition,
+        quantity: c.quantity,
+        groupSize: c.quantity,
+        price: c.price,
+        scryfallCard: c.card,
+        image: preview.image || undefined,
+        sideways: preview.sideways,
+        printings: specific ? undefined : (props.printings[c.name] ?? []),
+        sourceName: props.deck.name,
+        sourceKind: 'deck',
+        maxQty: c.quantity,
+        cardIds: deckEntry?.cardId !== undefined ? [deckEntry.cardId] : [],
+      }
+    }
     const contextInfo = (): CardContextInfo => ({
       cardName: c.name,
       card: c.card,
@@ -430,6 +461,9 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         onMove={props.onCardMove ? (rect) => props.onCardMove!(contextInfo(), rect) : undefined}
         onAddToTrade={showTrade ? () => handleDeckAddToTrade(c, deckEntry) : undefined}
         addToTradeDisabled={showTrade ? isDeckCardAddDisabled(c, deckEntry) : undefined}
+        selectable
+        selectState={selection.state(selectKey)}
+        onToggleSelect={() => selection.toggle(buildSelected())}
       />
     )
   }
@@ -571,6 +605,14 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
             : undefined
         }
         priceRefresh={props.enablePriceRefresh ? prices : undefined}
+        selectionMenu={
+          <SelectionMenu
+            selection={selection}
+            currency={props.currency}
+            enableTrade={props.enableTrade}
+            useScryfallImgUrls={props.useScryfallImgUrls}
+          />
+        }
       />
 
       <Show when={props.enablePriceRefresh}>

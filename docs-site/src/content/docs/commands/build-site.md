@@ -210,6 +210,27 @@ A card size selector (**L / M / S**) appears in the toolbar for binder, row, and
 
 Card size applies uniformly across all three image views. In row and column modes, the row width and column width shift automatically to match the selected card size.
 
+## Multi-Select
+
+Any list page (deck, collection, or wanted list) lets you select cards across every view mode and act on the whole selection at once. Hovering a card in binder, row, or column mode reveals a translucent checkbox in its top-left corner; clicking it marks the card with a checkmark in the current theme's accent color. In list view the checkbox sits at the far left of each row. You can also **Ctrl-click** (or **⌘-click** on macOS) anywhere on a card in any view to toggle its selection without opening the card modal.
+
+A card shown with a quantity (e.g. `4×` in a deck, or a grouped duplicate in a collection) is selected as all of its copies at once, and the count reflects the individual copies (selecting `4× Lightning Bolt` counts as four). When you later remove some — but not all — of a group's copies (from the dialog below), its checkbox shows a **dash** instead of a checkmark to indicate the partial selection.
+
+Once at least one card is selected, a **Selected (N)** button appears in the toolbar (N is the running count of selected copies for the list you're viewing). The selection survives changes to grouping, sorting, and view mode. Opening the button reveals a menu of bulk actions over that list's selection:
+
+- **Copy as Text** — copies a quantity-prefixed list (`N Card Name (SET:Collector Number)`) to the clipboard, matching the deck **Copy** button's format
+- **Copy as CSV** — copies the same selection as CSV with a `Name,Set,Collector Number,Finish,Condition,Quantity` header, matching the **Download CSV** output but scoped to the selected cards
+- **Add to Trade** — adds the selected cards to the active [Trade Planner](#trade-planner) (deck and collection cards go to the offering side, wanted-list cards to the receiving side). Name-only cards (no pinned printing) prompt for a printing one at a time, exactly like the single-card add
+- **Clear selection** — deselects the current list's cards only
+
+Identical printings are merged and their quantities summed in both copy formats.
+
+### Selecting across lists
+
+Selections are held globally, so they persist as you navigate between lists. Whenever anything is selected, an **All Selected (N)** button is shown in the top navbar (N is the total across every list) — on every page, including the index and Trade Planner, not just list pages. Its menu offers the same actions but over the entire cross-list selection, and its **Clear all selections** entry wipes every list at once. This makes it easy to gather cards from several decks, collections, and wanted lists and then copy or trade them together.
+
+The menu's **View all selections…** entry opens a dialog listing every selected card — with its quantity, printing, foil/etched finish, and condition — alongside the list it came from. The cards can be shown in selection order or grouped by source, hovering a row previews the card art, and each row's ✕ removes a single copy (so a `4×` group drops to `3×`). The dialog repeats the **Copy as Text** / **Copy as CSV** and **Clear all selections** actions.
+
 ## Deck Features
 
 Deck pages include a "Lowest Price" toggle that swaps all cards to their cheapest available printing. When enabled, card images and prices update to reflect the lowest-priced version. Only printings with a listed price are considered.

@@ -27,6 +27,12 @@ import { useRouting } from './useRouting'
 import { useSiteData } from './useSiteData'
 import { useFetchJson } from './useFetchJson'
 import { tradeToast } from './useTradeState'
+import { SelectionMenu } from './SelectionMenu'
+import { SelectionModal, isSelectionViewOpen, closeSelectionView } from './SelectionModal'
+import { useAllSelections } from './useCardSelection'
+import { pendingPrintingPrompt } from './useSelectionTrade'
+import { TradePrintingPicker } from './TradePrintingPicker'
+import { useTooltip } from './useTooltip'
 import { createThemeStore, ThemeProvider, useTheme } from './useTheme'
 import { syncFaviconToTheme } from './useFavicon'
 import { FlameIcon } from './FlameIcon'
@@ -59,6 +65,18 @@ function App() {
 
   // The editor publishes its controls here while editing; the navbar renders them.
   const editChrome = useEditChrome()
+
+  // Cross-list selection: the navbar button is always present (it self-hides
+  // when nothing is selected) and acts on the whole selection across every list.
+  const allSelections = useAllSelections()
+
+  // Tooltip backing the bulk "Add to Trade" printing picker rendered app-wide.
+  const {
+    tooltip: pickerTooltip,
+    tooltipPos: pickerTooltipPos,
+    tooltipRef: pickerTooltipRef,
+    setTooltip: setPickerTooltip,
+  } = useTooltip()
 
   useQuickSwitchShortcut(() => setQuickSwitchOpen((v) => !v))
 
@@ -303,6 +321,16 @@ function App() {
             </span>
             <span class="btn-edit-label">{editTarget()?.editing() ? 'Done' : 'Edit'}</span>
           </button>
+          <SelectionMenu
+            selection={allSelections}
+            currency={currency()}
+            enableTrade
+            useScryfallImgUrls={useScryfallImgUrls()}
+            label="All Selected"
+            clearLabel="Clear all selections"
+            buttonClass="selection-menu-btn--navbar"
+            showViewAll
+          />
           <ThemeHeaderControls />
         </div>
 
@@ -373,6 +401,7 @@ function App() {
                         currency={currency()}
                         changelog={wantedListDetail()!.changelog}
                         enablePriceRefresh={true}
+                        enableTrade={true}
                       />
                     }
                   >
@@ -416,6 +445,7 @@ function App() {
                         currency={currency()}
                         changelog={collectionDetail()!.changelog}
                         enablePriceRefresh={true}
+                        enableTrade={true}
                       />
                     }
                   >
@@ -456,6 +486,7 @@ function App() {
                         sectionId={deckSectionId()}
                         changelog={deckDetail()!.changelog}
                         enablePriceRefresh={true}
+                        enableTrade={true}
                       />
                     }
                   >
@@ -508,6 +539,43 @@ function App() {
           </div>
         )}
       </Show>
+
+      {/* Cross-list "view all selections" modal. */}
+      <SelectionModal
+        open={isSelectionViewOpen()}
+        selection={allSelections}
+        onClose={closeSelectionView}
+      />
+
+      {/* Sequential printing picker for bulk "Add to Trade" of name-only cards. */}
+      <Show when={pendingPrintingPrompt()}>
+        {(prompt) => (
+          <TradePrintingPicker
+            cardName={prompt().cardName}
+            printings={prompt().printings}
+            loading={false}
+            useScryfallImgUrls={useScryfallImgUrls()}
+            currency={currency()}
+            onSelect={(printing, finish) => prompt().onSelect(printing, finish)}
+            onClose={() => prompt().onSkip()}
+            onTooltipEnter={(src, sideways) => setPickerTooltip({ src, sideways })}
+            onTooltipLeave={() => setPickerTooltip(null)}
+          />
+        )}
+      </Show>
+      <div
+        ref={pickerTooltipRef}
+        class={`list-tooltip ${pickerTooltip() ? 'visible' : ''} ${pickerTooltip()?.sideways ? 'list-tooltip-sideways' : ''}`}
+        style={`left:${pickerTooltipPos().left}px;top:${pickerTooltipPos().top}px;`}
+      >
+        <Show when={pickerTooltip()}>
+          <img
+            src={pickerTooltip()!.src}
+            alt=""
+            class={pickerTooltip()!.sideways ? 'tooltip-rotated' : ''}
+          />
+        </Show>
+      </div>
     </div>
   )
 }
