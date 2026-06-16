@@ -6,6 +6,7 @@ import {
   loadEditSession,
   hasEditSession,
   clearEditSession,
+  appendChangesToSession,
   editSessionKey,
 } from '../../src/site/editor/edit-session-storage'
 
@@ -103,5 +104,37 @@ describe('edit-session-storage', () => {
     expect(() => saveEditSession(deckFile())).not.toThrow()
     expect(hasEditSession('deck', 'my-deck')).toBe(false)
     expect(loadEditSession('deck', 'my-deck')).toBeNull()
+  })
+
+  describe('appendChangesToSession', () => {
+    const removes: ChangeEvent[] = [
+      { id: '2', timestamp: 2, action: 'remove', cardName: 'Island', cardId: 7 },
+      { id: '3', timestamp: 3, action: 'remove', cardName: 'Forest', cardId: 8 },
+    ]
+
+    it('creates a fresh session when none exists', () => {
+      appendChangesToSession('collection', 'my-cards', 'My Cards', removes)
+      const loaded = loadEditSession('collection', 'my-cards')
+      expect(loaded).not.toBeNull()
+      expect(loaded!.name).toBe('My Cards')
+      expect(loaded!.changes).toEqual(removes)
+    })
+
+    it('appends onto an existing session, preserving order', () => {
+      saveEditSession(deckFile())
+      appendChangesToSession('deck', 'my-deck', 'My Deck', removes)
+      const loaded = loadEditSession('deck', 'my-deck')
+      expect(loaded!.changes).toEqual([...CHANGES, ...removes])
+    })
+
+    it('is a no-op for an empty change list', () => {
+      appendChangesToSession('deck', 'my-deck', 'My Deck', [])
+      expect(hasEditSession('deck', 'my-deck')).toBe(false)
+    })
+
+    it('degrades safely when storage is unavailable', () => {
+      Object.defineProperty(globalThis, 'localStorage', { value: undefined, configurable: true })
+      expect(() => appendChangesToSession('deck', 'my-deck', 'My Deck', removes)).not.toThrow()
+    })
   })
 })

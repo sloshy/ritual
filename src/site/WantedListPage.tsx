@@ -34,6 +34,8 @@ import { resolveCardThumbnailUrl, resolveCardPreview } from './image-sources'
 import { hasSpecificPrinting } from '../card-printing'
 import { useCardSelection, type SelectedCard } from './useCardSelection'
 import { SelectionMenu } from './SelectionMenu'
+import { buildSelectionEditActions } from './selection-edit-actions'
+import type { FlatBulkEdit } from '../editor/flat-list-controller'
 
 type WantedListGroupBy = GroupBy
 type MetaEntry = { label: string; value: string }
@@ -45,6 +47,8 @@ type WantedTradePicker = {
 
 interface WantedListPageProps {
   name: string
+  /** Slug of this list, threaded into selected cards so cross-list edits can target it. */
+  slug?: string
   entries: WantedListCardEntry[]
   /** Section names in display order, including empty sections. Falls back to entry order. */
   sectionOrder?: string[]
@@ -78,6 +82,8 @@ interface WantedListPageProps {
   enablePriceRefresh?: boolean
   /** Offer "Add to Trade" in the multi-select menu (public site only; the trade page is unreachable on admin). */
   enableTrade?: boolean
+  /** When provided (edit mode), enables bulk edit actions in the multi-select menu. */
+  bulkEdit?: FlatBulkEdit
 }
 
 function resolveCardForEntry(
@@ -93,6 +99,9 @@ function resolveCardForEntry(
 
 export const WantedListPage: Component<WantedListPageProps> = (props) => {
   const selection = useCardSelection({ kind: 'wanted', name: props.name })
+  const editActions = createMemo(() =>
+    props.bulkEdit ? buildSelectionEditActions(props.bulkEdit, selection) : undefined,
+  )
   // Section order, including any empty sections from the build/save payload; falls back to the
   // sections discovered in the entries (in file order) when not provided.
   const sectionOrder = createMemo(() => deriveSectionOrder(props.sectionOrder, props.entries))
@@ -343,6 +352,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         sideways: preview.sideways,
         printings: specific ? undefined : (props.printings[c.name] ?? []),
         sourceName: props.name,
+        sourceSlug: props.slug,
         sourceKind: 'wanted',
         maxQty: 1,
         cardIds: entry?.cardId !== undefined ? [entry.cardId] : [],
@@ -497,6 +507,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
             currency={props.currency}
             enableTrade={props.enableTrade}
             useScryfallImgUrls={props.useScryfallImgUrls}
+            editActions={editActions()}
           />
         }
       />

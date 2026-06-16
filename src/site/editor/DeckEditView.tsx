@@ -118,6 +118,7 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
       storageKind="deck"
       slug={props.slug}
       onImport={(changes) => ctrl.editor.importChanges(changes)}
+      bulkEdit={ctrl.bulkEdit}
       fileExports={[
         {
           label: 'Download updated deck (.txt)',

@@ -1,9 +1,11 @@
 import { type Accessor, type JSX, Show, createSignal } from 'solid-js'
-import type { DeckData, Card } from '../types'
+import type { DeckData, Card, Finish } from '../types'
 import { DeckPage } from '../site/DeckPage'
 import type { PriceCurrency } from '../price-currency'
+import type { SelectedCard } from '../site/useCardSelection'
 import type { CardContextInfo, ContextMenuState } from './context-menu'
 import type { EditorConfig, UseEditorResult } from './useEditor'
+import { contextInfoFromSelected } from './selected-to-context'
 import { useEditor } from './useEditor'
 import type { UseEditorDefaultsResult } from './useEditorDefaults'
 import type { SearchProvider } from './search-provider'
@@ -15,6 +17,33 @@ import { EditorShell } from './components/EditorShell'
 
 /** Deck context-menu state plus whether the targeted card is currently a commander. */
 export type DeckContextMenuState = ContextMenuState & { isInCommanderSection: boolean }
+
+/**
+ * Bulk edit operations over a multi-select of deck cards. Each maps the selection
+ * onto the controller's existing single-card primitives (quantity steppers,
+ * foil/section/commander, change printing), iterating copies where needed. Decks
+ * operate by card name; copies are applied as repeated single-step changes.
+ */
+export type DeckBulkEdit = {
+  /** Add one more copy of each selected card. */
+  addCopy: (cards: SelectedCard[]) => void
+  /** Remove one copy of each selected card. */
+  removeCopy: (cards: SelectedCard[]) => void
+  /** Remove every copy of each selected card (full removal). */
+  removeAll: (cards: SelectedCard[]) => void
+  /** Set the finish on each selected card that supports it; others are skipped. */
+  setFinish: (cards: SelectedCard[], finish: Finish) => void
+  /** Run the change-printing flow over the selection one card at a time. */
+  changePrinting: (cards: SelectedCard[]) => void
+  /** Mark each selected card as a commander. */
+  setCommander: (cards: SelectedCard[]) => void
+  /** Move every selected card into an existing section. */
+  moveToSection: (cards: SelectedCard[], section: string) => void
+  /** Prompt for a new section name and move every selected card into it. */
+  promptNewSection: (cards: SelectedCard[]) => void
+  /** Current section names, for the move submenu. */
+  sections: () => string[]
+}
 
 /**
  * Shared controller for the deck editor: owns the card-data store, the
@@ -38,6 +67,8 @@ export type DeckEditController = {
   handleUnsetCommander: () => void
   closeModal: () => void
   closeContextMenu: () => void
+  /** Bulk edit operations over a multi-select of deck cards. */
+  bulkEdit: DeckBulkEdit
 }
 
 /**
@@ -110,17 +141,20 @@ export function useDeckEditController(
     if (menu) editor.startChangePrinting(menu)
   }
 
+  const setCommanderFor = (cardName: string) => {
+    const d = editor.data()
+    if (!d) return
+    const cardId = findDeckCardIdInSection(d, cardName, false)
+    editor.changes.addChange({ action: 'set-commander', cardName, cardId })
+    editor.setData((prev) =>
+      prev ? applyChangeToDeck(prev, { action: 'set-commander', cardName, cardId }) : prev,
+    )
+  }
+
   const handleSetCommander = () => {
     const menu = deckContextMenu()
-    const d = editor.data()
-    if (!menu || !d) return
-    const cardId = findDeckCardIdInSection(d, menu.cardName, false)
-    editor.changes.addChange({ action: 'set-commander', cardName: menu.cardName, cardId })
-    editor.setData((prev) =>
-      prev
-        ? applyChangeToDeck(prev, { action: 'set-commander', cardName: menu.cardName, cardId })
-        : prev,
-    )
+    if (!menu) return
+    setCommanderFor(menu.cardName)
     closeContextMenu()
   }
 
@@ -140,6 +174,36 @@ export function useDeckEditController(
 
   const closeModal = () => setModalCardName(null)
 
+  const bulkEdit: DeckBulkEdit = {
+    addCopy: (cards) => {
+      for (const c of cards) handleIncrement(c.name)
+    },
+    removeCopy: (cards) => {
+      for (const c of cards) handleDecrement(c.name)
+    },
+    removeAll: (cards) => {
+      // groupSize is the tile's full copy count; decrement that many times so a
+      // partial selection still removes the whole card. handleDecrement re-reads
+      // the data each call and collapses the line at 0 — self-terminating.
+      for (const c of cards) for (let i = 0; i < c.groupSize; i++) handleDecrement(c.name)
+    },
+    setFinish: (cards, finish) => {
+      for (const c of cards) {
+        if (!c.scryfallCard?.finishes?.includes(finish)) continue
+        editor.handleSetFinishFor(c.name, finish, c.cardIds[0])
+      }
+    },
+    changePrinting: (cards) => editor.startBulkChangePrinting(cards.map(contextInfoFromSelected)),
+    setCommander: (cards) => {
+      for (const c of cards) setCommanderFor(c.name)
+    },
+    moveToSection: (cards, section) =>
+      editor.handleMoveCardsToSection(cards.map(contextInfoFromSelected), section),
+    promptNewSection: (cards) =>
+      editor.promptNewSectionForCards(cards.map(contextInfoFromSelected)),
+    sections: () => editor.sectionOrder(),
+  }
+
   return {
     editor,
     cardData,
@@ -155,6 +219,7 @@ export function useDeckEditController(
     handleUnsetCommander,
     closeModal,
     closeContextMenu,
+    bulkEdit,
   }
 }
 
@@ -258,6 +323,7 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
         onCardIncrement={ctrl.handleIncrement}
         onCardDecrement={ctrl.handleDecrement}
         onCardContextMenu={ctrl.handleContextMenu}
+        bulkEdit={ctrl.bulkEdit}
         unsavedChangeCount={editor.changes.changeCount()}
       />
     </EditorShell>

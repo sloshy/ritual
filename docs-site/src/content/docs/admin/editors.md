@@ -39,7 +39,22 @@ Opening the button reveals a menu of actions over that list's selection:
 
 The public site adds an **Add to Trade** action here; the admin site omits it because it has no Trade Planner page.
 
+#### Bulk Edit Actions
+
+While a list is open in edit mode, the **Selected (N)** menu also gains an **edit** section that applies the same operations as a single card's **+** / **−** buttons and **⋯** context menu, but over the whole selection at once:
+
+- **Add a copy** / **Remove a copy** — bump each selected card up or down by one copy
+- **Remove from list** (decks: **Remove from deck**) — remove every copy of each selected card
+- **Set as Foil** / **Set as Nonfoil** — set the finish on each selected card that supports it (others are skipped)
+- **Change Printing…** — runs the printing picker over the selected cards one at a time (cancelling skips that card and continues)
+- **Set as Commander** — decks only; marks each selected card as a commander
+- **Move to section** — move every selected card into an existing section, or **New section…** to name a new one
+
+These edits go through the same pending-changes/undo flow as per-card edits, so nothing is written until you **Save** (admin) or export (public). The selection is cleared once an action is applied.
+
 Selections are held globally, so switching to another list (or list type) keeps them. Whenever anything is selected, an **All Selected (N)** button is shown in the admin header (on every page) with the total across all lists; its menu runs the copy actions over the whole cross-list selection and its **Clear all selections** entry wipes every list. The menu's **View all selections…** entry opens a dialog listing every selected card — with its quantity, printing, finish, and condition — and the list it came from, shown in selection order or grouped by source, where each row's ✕ removes one copy and the copy/clear actions are repeated.
+
+The cross-list menu (and the **View all selections…** dialog) also offers **Remove all selected**, which deletes every selected card from its list. On the admin site this commits atomically to each list file across all lists in one pass (auto-committed to git when enabled), much like the [Move Cards](/admin/move-cards/) page. On the public site — which has no server — the list currently open in the editor is updated live, while removals for any other selected lists are merged into those lists' saved browser sessions, surfacing the next time each is opened in edit mode.
 
 ### Add Card Defaults
 

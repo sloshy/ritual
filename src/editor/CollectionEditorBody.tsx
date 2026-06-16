@@ -48,6 +48,7 @@ export function CollectionEditorBody(props: CollectionEditorBodyProps): JSX.Elem
     >
       <CollectionPage
         name={props.name}
+        slug={ctrl.editor.slug() ?? undefined}
         entries={ctrl.editor.data()!}
         sectionOrder={ctrl.editor.sectionOrder()}
         cards={ctrl.cardData.cards}
@@ -66,6 +67,7 @@ export function CollectionEditorBody(props: CollectionEditorBodyProps): JSX.Elem
         onCardIncrement={ctrl.handleIncrement}
         onCardDecrement={ctrl.handleDecrement}
         onCardContextMenu={ctrl.handleContextMenu}
+        bulkEdit={ctrl.bulkEdit}
         unsavedChangeCount={ctrl.editor.changes.changeCount()}
       />
     </FlatListEditorShell>

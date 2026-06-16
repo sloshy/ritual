@@ -32,6 +32,8 @@ import type { TradeSearchEntry } from './useTradeData'
 import { resolveCardThumbnailUrl, resolveCardPreview } from './image-sources'
 import { useCardSelection, type SelectedCard } from './useCardSelection'
 import { SelectionMenu } from './SelectionMenu'
+import { buildSelectionEditActions } from './selection-edit-actions'
+import type { FlatBulkEdit } from '../editor/flat-list-controller'
 
 // Collections always have a specific printing, so 'printing' grouping does not apply.
 type CollectionGroupBy = Exclude<GroupBy, 'printing'>
@@ -40,6 +42,8 @@ type GroupedEntry = { entry: CollectionCardEntry; count: number }
 
 interface CollectionPageProps {
   name: string
+  /** Slug of this list, threaded into selected cards so cross-list edits can target it. */
+  slug?: string
   entries: CollectionCardEntry[]
   /** Section names in display order, including empty sections. Falls back to entry order. */
   sectionOrder?: string[]
@@ -74,10 +78,15 @@ interface CollectionPageProps {
   enablePriceRefresh?: boolean
   /** Offer "Add to Trade" in the multi-select menu (public site only; the trade page is unreachable on admin). */
   enableTrade?: boolean
+  /** When provided (edit mode), enables bulk edit actions in the multi-select menu. */
+  bulkEdit?: FlatBulkEdit
 }
 
 export const CollectionPage: Component<CollectionPageProps> = (props) => {
   const selection = useCardSelection({ kind: 'collection', name: props.name })
+  const editActions = createMemo(() =>
+    props.bulkEdit ? buildSelectionEditActions(props.bulkEdit, selection) : undefined,
+  )
   // Section order, including any empty sections from the build/save payload; falls back to the
   // sections discovered in the entries (in file order) when not provided.
   const sectionOrder = createMemo(() => deriveSectionOrder(props.sectionOrder, props.entries))
@@ -351,6 +360,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         image: preview.image || undefined,
         sideways: preview.sideways,
         sourceName: props.name,
+        sourceSlug: props.slug,
         sourceKind: 'collection',
         maxQty: c.quantity,
         cardIds: entry ? groupCardIds(entry) : [],
@@ -509,6 +519,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
             currency={props.currency}
             enableTrade={props.enableTrade}
             useScryfallImgUrls={props.useScryfallImgUrls}
+            editActions={editActions()}
           />
         }
       />

@@ -1,5 +1,5 @@
 import type { Accessor, Component } from 'solid-js'
-import { Show } from 'solid-js'
+import { For, Show } from 'solid-js'
 import { useAnchoredMenu } from '../ui/useAnchoredMenu'
 import { useAnchoredToggle } from '../ui/useAnchoredToggle'
 import type { PriceCurrency } from '../price-currency'
@@ -9,6 +9,27 @@ import { addSelectionToTrade } from './useSelectionTrade'
 import { openSelectionView } from './SelectionModal'
 
 const PANEL_WIDTH = 220
+
+/**
+ * Bulk edit operations exposed by the selection menu when a list is open in edit
+ * mode. Mirrors the per-card `⋯` context menu: quantity steppers, full removal,
+ * foil toggling, change printing, commander (decks only), and section moves. The
+ * owning page wires each to its editor's bulk-edit bundle over the live selection.
+ */
+export interface SelectionEditActions {
+  addCopy: () => void
+  removeCopy: () => void
+  removeAll: () => void
+  setFoil: () => void
+  setNonfoil: () => void
+  changePrinting: () => void
+  /** Present for decks only. */
+  setCommander?: () => void
+  moveToSection: (section: string) => void
+  promptNewSection: () => void
+  /** Current section names, for the move submenu. */
+  sections: () => string[]
+}
 
 export interface SelectionMenuProps {
   selection: CardSelectionControl
@@ -24,6 +45,14 @@ export interface SelectionMenuProps {
   buttonClass?: string
   /** Show the "View all selections" item that opens the full selection modal (navbar only). */
   showViewAll?: boolean
+  /** When set (edit mode), show bulk edit actions over the selection. */
+  editActions?: SelectionEditActions
+  /**
+   * When set, show a "Remove all selected" action. Used by the cross-list navbar
+   * menu to delete every selected card from its list. The handler owns confirmation
+   * and clearing the selection.
+   */
+  onRemoveAll?: () => void
 }
 
 /**
@@ -87,6 +116,13 @@ const SelectionPanel: Component<SelectionPanelProps> = (props) => {
     props.onClose()
   }
 
+  // Run a bulk edit action then dismiss the menu. The action snapshots and clears
+  // the selection itself, so closing here just tidies the dropdown.
+  const runEdit = (action: () => void) => {
+    action()
+    props.onClose()
+  }
+
   const addToTrade = async () => {
     // Snapshot before the (possibly async, picker-driven) add so clearing the
     // selection afterward doesn't race the in-flight prompts.
@@ -109,6 +145,94 @@ const SelectionPanel: Component<SelectionPanelProps> = (props) => {
           View all selections…
         </button>
         <div class="selection-menu-sep" />
+      </Show>
+      <Show when={props.editActions}>
+        {(actions) => (
+          <>
+            <button
+              type="button"
+              role="menuitem"
+              class="selection-menu-item"
+              onClick={() => runEdit(actions().addCopy)}
+            >
+              Add a copy
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              class="selection-menu-item"
+              onClick={() => runEdit(actions().removeCopy)}
+            >
+              Remove a copy
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              class="selection-menu-item"
+              onClick={() => runEdit(actions().removeAll)}
+            >
+              Remove from list
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              class="selection-menu-item"
+              onClick={() => runEdit(actions().setFoil)}
+            >
+              Set as Foil
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              class="selection-menu-item"
+              onClick={() => runEdit(actions().setNonfoil)}
+            >
+              Set as Nonfoil
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              class="selection-menu-item"
+              onClick={() => runEdit(actions().changePrinting)}
+            >
+              Change Printing…
+            </button>
+            <Show when={actions().setCommander}>
+              {(setCommander) => (
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="selection-menu-item"
+                  onClick={() => runEdit(setCommander())}
+                >
+                  Set as Commander
+                </button>
+              )}
+            </Show>
+            <div class="selection-menu-label">Move to section</div>
+            <For each={actions().sections()}>
+              {(section) => (
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="selection-menu-item selection-menu-item--indented"
+                  onClick={() => runEdit(() => actions().moveToSection(section))}
+                >
+                  {section}
+                </button>
+              )}
+            </For>
+            <button
+              type="button"
+              role="menuitem"
+              class="selection-menu-item selection-menu-item--indented"
+              onClick={() => runEdit(actions().promptNewSection)}
+            >
+              New section…
+            </button>
+            <div class="selection-menu-sep" />
+          </>
+        )}
       </Show>
       <button
         type="button"
@@ -137,6 +261,21 @@ const SelectionPanel: Component<SelectionPanelProps> = (props) => {
         </button>
       </Show>
       <div class="selection-menu-sep" />
+      <Show when={props.onRemoveAll}>
+        {(onRemoveAll) => (
+          <button
+            type="button"
+            role="menuitem"
+            class="selection-menu-item selection-menu-item--danger"
+            onClick={() => {
+              onRemoveAll()()
+              props.onClose()
+            }}
+          >
+            Remove all selected
+          </button>
+        )}
+      </Show>
       <button
         type="button"
         role="menuitem"

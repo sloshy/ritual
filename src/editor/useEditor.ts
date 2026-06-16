@@ -1,6 +1,7 @@
 import {
   type Accessor,
   type Setter,
+  batch,
   createSignal,
   createEffect,
   createMemo,
@@ -194,6 +195,8 @@ export type UseEditorResult<TData, TCardEntry> = {
   changePrinting: Accessor<ChangePrintingFlow | null>
   /** Open the change-printing flow for a targeted tile. */
   startChangePrinting: (target: CardContextInfo) => void
+  /** Begin a sequential change-printing run over many targets (bulk multi-select). */
+  startBulkChangePrinting: (targets: CardContextInfo[]) => void
   /** Advance from the quantity prompt to the printing picker. */
   confirmChangePrintingCount: (count: number) => void
   /** Apply the chosen printing to the targeted copies. */
@@ -211,6 +214,8 @@ export type UseEditorResult<TData, TCardEntry> = {
   handleSelect: (e: Event) => void
   handleCancelDiscard: () => void
   handleSetFoil: () => void
+  /** Set an explicit finish on one targeted card/copy (backs the bulk foil actions). */
+  handleSetFinishFor: (cardName: string, finish: Finish, cardId?: number) => void
   handleAddCardFromSearch: (
     cardName: string,
     options?: CardPrintingOptions,
@@ -235,6 +240,8 @@ export type UseEditorResult<TData, TCardEntry> = {
   handleRemoveSection: (name: string) => void
   /** Move a card (identified by the context menu target) into a section, creating it if needed. */
   handleMoveCardToSection: (target: CardContextInfo, section: string) => void
+  /** Move many targeted cards into a section in one pass (creating it once if needed). */
+  handleMoveCardsToSection: (targets: CardContextInfo[], section: string) => void
 
   /** The active in-app text prompt (section naming), or null when none is open. */
   textPrompt: Accessor<TextPromptState | null>
@@ -242,6 +249,8 @@ export type UseEditorResult<TData, TCardEntry> = {
   closeTextPrompt: () => void
   /** Open a styled prompt to name a new section and move the targeted card into it. */
   promptNewSectionForCard: (target: CardContextInfo) => void
+  /** Open a styled prompt to name a new section and move many targeted cards into it. */
+  promptNewSectionForCards: (targets: CardContextInfo[]) => void
   /** Open a styled prompt to rename an existing section. */
   promptRenameSection: (oldName: string) => void
 }
@@ -260,6 +269,10 @@ export function useEditor<TData, TCardEntry = unknown>(
   const [extra, setExtra] = createSignal<Record<string, unknown>>({})
   const [contextMenuCard, setContextMenuCard] = createSignal<ContextMenuState | null>(null)
   const [changePrinting, setChangePrinting] = createSignal<ChangePrintingFlow | null>(null)
+  // Remaining cards awaiting their turn in a bulk change-printing run. Each card's
+  // flow (quantity → printing) is driven one at a time; completing or skipping one
+  // advances to the next. Empty for the single-card menu flow.
+  const [printingQueue, setPrintingQueue] = createSignal<CardContextInfo[]>([])
   const [refreshKey, setRefreshKey] = createSignal(0)
   const [pendingNav, setPendingNav] = createSignal<PendingNavigation | null>(null)
 
@@ -378,28 +391,36 @@ export function useEditor<TData, TCardEntry = unknown>(
     dialogs.closeDiscard()
   }
 
+  /**
+   * Set an explicit finish on one targeted card (vs {@link handleSetFoil}'s toggle).
+   * `cardId` should be supplied by the caller when a specific copy is meant — flat
+   * lists have one entry per copy, so resolving by name alone would be ambiguous.
+   * Backs both the menu foil toggle and the bulk "Set as Foil/Nonfoil" actions.
+   */
+  const handleSetFinishFor = (cardName: string, finish: Finish, cardId?: number) => {
+    const d = data()
+    if (!d) return
+    const id = cardId ?? config.findCardId(d, cardName)
+    const originalFinish: Finish = original
+      ? config.findOriginalFinish(original, cardName, id)
+      : 'nonfoil'
+    changes.setFinish(cardName, finish, originalFinish, id)
+    setData((prev) =>
+      prev !== null
+        ? config.applyChange(prev, { action: 'set-finish', cardName, finish, cardId: id })
+        : prev,
+    )
+  }
+
   const handleSetFoil = () => {
     const menu = contextMenuCard()
     const d = data()
     if (!menu || !d) return
     const cardId = config.findCardId(d, menu.cardName)
     const currentFinish = config.findCurrentFinish(d, menu.cardName)
-    const originalFinish = original
-      ? config.findOriginalFinish(original, menu.cardName, cardId)
-      : ('nonfoil' as Finish)
     const newFinish: Finish =
       currentFinish === 'foil' || currentFinish === 'etched' ? 'nonfoil' : 'foil'
-    changes.setFinish(menu.cardName, newFinish, originalFinish, cardId)
-    setData((prev) =>
-      prev !== null
-        ? config.applyChange(prev, {
-            action: 'set-finish',
-            cardName: menu.cardName,
-            finish: newFinish,
-            cardId,
-          })
-        : prev,
-    )
+    handleSetFinishFor(menu.cardName, newFinish, cardId)
     setContextMenuCard(null)
   }
 
@@ -454,7 +475,30 @@ export function useEditor<TData, TCardEntry = unknown>(
     setChangePrinting((prev) => (prev ? { ...prev, step: 'printing', count } : prev))
   }
 
-  const cancelChangePrinting = () => setChangePrinting(null)
+  /** Begin a sequential change-printing run over many targets (bulk multi-select). */
+  const startBulkChangePrinting = (targets: CardContextInfo[]) => {
+    const [first, ...rest] = targets
+    if (!config.applyChangePrinting || !first) return
+    setPrintingQueue(rest)
+    startChangePrinting(first)
+  }
+
+  /** Advance a bulk change-printing run to the next queued card, if any. No-op otherwise. */
+  const advancePrintingQueue = () => {
+    const [next, ...rest] = printingQueue()
+    if (!next) return
+    setPrintingQueue(rest)
+    startChangePrinting(next)
+  }
+
+  // Cancelling means "skip this card and continue" while a bulk run is active
+  // (mirrors the per-card skip in the bulk Add-to-Trade flow); for the single-card
+  // menu flow the queue is empty so this just closes the flow.
+  const cancelChangePrinting = () =>
+    batch(() => {
+      setChangePrinting(null)
+      advancePrintingQueue()
+    })
 
   const handleChangePrintingSelect = (
     options?: CardPrintingOptions,
@@ -464,7 +508,10 @@ export function useEditor<TData, TCardEntry = unknown>(
     const flow = changePrinting()
     const d = data()
     if (!flow || !d || !config.applyChangePrinting) {
-      setChangePrinting(null)
+      batch(() => {
+        setChangePrinting(null)
+        advancePrintingQueue()
+      })
       return
     }
     // Register the chosen printing's card data so the editor immediately shows
@@ -487,7 +534,10 @@ export function useEditor<TData, TCardEntry = unknown>(
       tools: changePrintingTools,
       setData,
     })
-    setChangePrinting(null)
+    batch(() => {
+      setChangePrinting(null)
+      advancePrintingQueue()
+    })
   }
 
   // Sections live in the data for decks (`sectionsOf`) and in a separate order list for flat
@@ -547,9 +597,14 @@ export function useEditor<TData, TCardEntry = unknown>(
     )
   }
 
-  const handleMoveCardToSection = (target: CardContextInfo, section: string) => {
+  /**
+   * Move one or more targeted cards into a section, creating it if needed. The
+   * destination section is resolved/created once up front, then each target's move
+   * is applied. Backs both the single-card menu move and the bulk multi-select move.
+   */
+  const handleMoveCardsToSection = (targets: CardContextInfo[], section: string) => {
     const d = data()
-    if (!d) return
+    if (!d || targets.length === 0) return
     const raw = section.trim()
     if (!raw) return
     // Resolve to an existing section's canonical casing when one matches case-insensitively;
@@ -557,24 +612,30 @@ export function useEditor<TData, TCardEntry = unknown>(
     const existing = canonicalSection(raw)
     const trimmed = existing ?? raw
     if (!existing) handleAddSection(trimmed)
-    const cardId = target.cardIds[0]
-    // The original section drives "latest wins" consolidation: moving a card back to where it
-    // started cancels the pending move outright. A card not present in the on-disk original
-    // (e.g. added this session) baselines to DEFAULT_SECTION — never the destination, which
-    // would make the very first move look like a no-op revert and silently drop it.
-    const originalSection =
-      (original ? config.cardSectionOf?.(original, target) : undefined) ?? DEFAULT_SECTION
-    changes.setSection(target.cardName, trimmed, originalSection, cardId)
-    setData((prev) =>
-      prev !== null
-        ? config.applyChange(prev, {
-            action: 'set-section',
-            cardName: target.cardName,
-            section: trimmed,
-            cardId,
-          })
-        : prev,
-    )
+    for (const target of targets) {
+      const cardId = target.cardIds[0]
+      // The original section drives "latest wins" consolidation: moving a card back to where it
+      // started cancels the pending move outright. A card not present in the on-disk original
+      // (e.g. added this session) baselines to DEFAULT_SECTION — never the destination, which
+      // would make the very first move look like a no-op revert and silently drop it.
+      const originalSection =
+        (original ? config.cardSectionOf?.(original, target) : undefined) ?? DEFAULT_SECTION
+      changes.setSection(target.cardName, trimmed, originalSection, cardId)
+      setData((prev) =>
+        prev !== null
+          ? config.applyChange(prev, {
+              action: 'set-section',
+              cardName: target.cardName,
+              section: trimmed,
+              cardId,
+            })
+          : prev,
+      )
+    }
+  }
+
+  const handleMoveCardToSection = (target: CardContextInfo, section: string) => {
+    handleMoveCardsToSection([target], section)
     setContextMenuCard(null)
   }
 
@@ -591,7 +652,7 @@ export function useEditor<TData, TCardEntry = unknown>(
     return null
   }
 
-  const promptNewSectionForCard = (target: CardContextInfo) => {
+  const promptNewSectionForCards = (targets: CardContextInfo[]) => {
     // Close the editor-level menu; the deck editor's parallel menu state is cleared by its wrapper.
     setContextMenuCard(null)
     setTextPrompt({
@@ -601,11 +662,13 @@ export function useEditor<TData, TCardEntry = unknown>(
       confirmLabel: 'Move',
       validate: (v) => sectionNameError(v),
       onConfirm: (v) => {
-        handleMoveCardToSection(target, v.trim())
+        handleMoveCardsToSection(targets, v.trim())
         closeTextPrompt()
       },
     })
   }
+
+  const promptNewSectionForCard = (target: CardContextInfo) => promptNewSectionForCards([target])
 
   const promptRenameSection = (oldName: string) => {
     setTextPrompt({
@@ -717,6 +780,7 @@ export function useEditor<TData, TCardEntry = unknown>(
 
     changePrinting,
     startChangePrinting,
+    startBulkChangePrinting,
     confirmChangePrintingCount,
     handleChangePrintingSelect,
     cancelChangePrinting,
@@ -727,6 +791,7 @@ export function useEditor<TData, TCardEntry = unknown>(
     handleSelect,
     handleCancelDiscard,
     handleSetFoil,
+    handleSetFinishFor,
     handleAddCardFromSearch,
     handleUndo,
     handleSave,
@@ -739,10 +804,12 @@ export function useEditor<TData, TCardEntry = unknown>(
     handleRenameSection,
     handleRemoveSection,
     handleMoveCardToSection,
+    handleMoveCardsToSection,
 
     textPrompt,
     closeTextPrompt,
     promptNewSectionForCard,
+    promptNewSectionForCards,
     promptRenameSection,
   }
 }

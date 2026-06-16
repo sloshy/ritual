@@ -48,6 +48,7 @@ export function WantedEditorBody(props: WantedEditorBodyProps): JSX.Element {
     >
       <WantedListPage
         name={props.name}
+        slug={ctrl.editor.slug() ?? undefined}
         entries={ctrl.editor.data()!}
         sectionOrder={ctrl.editor.sectionOrder()}
         cards={ctrl.cardData.cards}
@@ -66,6 +67,7 @@ export function WantedEditorBody(props: WantedEditorBodyProps): JSX.Element {
         onCardIncrement={ctrl.handleIncrement}
         onCardDecrement={ctrl.handleDecrement}
         onCardContextMenu={ctrl.handleContextMenu}
+        bulkEdit={ctrl.bulkEdit}
         unsavedChangeCount={ctrl.editor.changes.changeCount()}
       />
     </FlatListEditorShell>

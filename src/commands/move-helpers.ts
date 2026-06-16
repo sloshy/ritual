@@ -5,6 +5,7 @@ import { appendChangelog } from '../changelog-writer'
 import {
   createMoveFromChange,
   createMoveToChange,
+  createRemoveChange,
   listRefLabel,
   type ListRef,
 } from '../change-event'
@@ -59,6 +60,8 @@ export type VirtualCard = {
   /** Where the card currently sits (may be different from card.listEntry after pending moves). */
   currentList: ListEntry
   pendingMove: PendingMove | null
+  /** Marked for deletion from its source list (cross-list bulk remove). */
+  pendingRemove?: true
 }
 
 /** A VirtualCard that has been committed to a pending move (pendingMove is guaranteed non-null). */
@@ -219,6 +222,18 @@ export function getPendingMoves(state: Map<string, VirtualCard>): CommittedVirtu
   return Array.from(state.values()).filter(
     (vc): vc is CommittedVirtualCard => vc.pendingMove !== null,
   )
+}
+
+/** Mark a virtual card for deletion from its source list. Returns false if unknown. */
+export function applyVirtualRemove(state: Map<string, VirtualCard>, physicalKey: string): boolean {
+  const vc = state.get(physicalKey)
+  if (!vc) return false
+  vc.pendingRemove = true
+  return true
+}
+
+function getPendingRemoves(state: Map<string, VirtualCard>): VirtualCard[] {
+  return Array.from(state.values()).filter((vc) => vc.pendingRemove === true)
 }
 
 // ── UI helpers ─────────────────────────────────────────────────────────────────
@@ -448,4 +463,81 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
   }
 
   return { moved: removedKeys.size, writtenFiles: [...new Set(writtenFiles)] }
+}
+
+export type CommitRemovalsResult = {
+  /** Number of cards actually removed. */
+  removed: number
+  /** Every file written this commit (list markdown + hash sidecars + changelogs), deduplicated. */
+  writtenFiles: string[]
+}
+
+/**
+ * Commit all pending removals to disk atomically and write changelog entries.
+ *
+ * Mirrors {@link commitAllMoves} but only does the source-side removal: all source
+ * files are pre-loaded, removals applied in memory, every modified file written in
+ * one pass, then a `remove` changelog entry is appended per successfully removed
+ * card. Used by the cross-list bulk "Remove all selected" admin action.
+ */
+export async function commitAllRemovals(
+  state: Map<string, VirtualCard>,
+): Promise<CommitRemovalsResult> {
+  const pending = getPendingRemoves(state)
+  if (pending.length === 0) return { removed: 0, writtenFiles: [] }
+
+  // Group by source file.
+  const bySource = new Map<string, PerFileChanges>()
+  for (const vc of pending) {
+    const srcPath = vc.card.listEntry.filePath
+    if (!bySource.has(srcPath)) {
+      bySource.set(srcPath, { listEntry: vc.card.listEntry, removes: [], adds: [] })
+    }
+    bySource.get(srcPath)!.removes.push(vc)
+  }
+
+  // --- LOAD: Pre-read all source files into memory (absence aborts before mutation) ---
+  const staged = new Map<string, StagedFile>()
+  for (const { listEntry } of bySource.values()) {
+    if (staged.has(listEntry.filePath)) continue
+    const file = await loadStagedFile(listEntry.filePath, listEntry.ref.type)
+    if (!file) throw new Error(`Source file not readable, aborting remove: ${listEntry.filePath}`)
+    staged.set(listEntry.filePath, file)
+  }
+
+  // --- APPLY: Removals in memory ---
+  const removedKeys = new Set<string>()
+  for (const { listEntry, removes } of bySource.values()) {
+    const stagedFile = staged.get(listEntry.filePath)!
+    for (const vc of removes) {
+      if (applyRemoveFromStaged(stagedFile, vc.card)) removedKeys.add(vc.physicalKey)
+    }
+  }
+
+  // --- WRITE: All modified files to disk in a single pass ---
+  const writtenFiles: string[] = []
+  for (const [filePath, stagedFile] of staged.entries()) {
+    await writeStagedFile(filePath, stagedFile)
+    writtenFiles.push(filePath, hashPath(filePath))
+  }
+
+  // --- CHANGELOG: One `remove` entry per successfully removed card ---
+  for (const { listEntry, removes } of bySource.values()) {
+    const changes = removes
+      .filter((vc) => removedKeys.has(vc.physicalKey))
+      .map((vc) =>
+        createRemoveChange(vc.card.name, {
+          set: vc.card.set,
+          collectorNumber: vc.card.collectorNumber,
+          finish: vc.card.finish,
+          condition: vc.card.condition,
+          cardId: vc.card.cardId,
+        }),
+      )
+    if (changes.length > 0) {
+      writtenFiles.push(await appendChangelog(listEntry.filePath, listEntry.ref.name, changes))
+    }
+  }
+
+  return { removed: removedKeys.size, writtenFiles: [...new Set(writtenFiles)] }
 }

@@ -1,9 +1,11 @@
 import { type Accessor, type JSX, Show, createSignal } from 'solid-js'
-import type { Finish, Condition } from '../types'
+import { type Finish, type Condition, DEFAULT_SECTION } from '../types'
 import type { ChangeInput } from '../change-event'
+import type { SelectedCard } from '../site/useCardSelection'
 import type { CardContextInfo } from './context-menu'
 import type { EditorConfig, UseEditorResult } from './useEditor'
 import type { ChangeFileKind } from './change-file'
+import { contextInfoFromSelected } from './selected-to-context'
 import { useEditor } from './useEditor'
 import type { UseEditorDefaultsResult } from './useEditorDefaults'
 import type { SearchProvider } from './search-provider'
@@ -37,6 +39,30 @@ export type FlatPrinting = {
 export type FlatChangeInput = ChangeInput & { fileOrder?: number }
 
 /**
+ * Bulk edit operations over a multi-select of flat-list cards (collections/wanted).
+ * Flat entries are one-per-copy with their own `cardId`, so removals target specific
+ * entries resolved from the selection's `cardIds` — never by name. No commander.
+ */
+export type FlatBulkEdit = {
+  /** Add one more copy of each selected card. */
+  addCopy: (cards: SelectedCard[]) => void
+  /** Remove one copy of each selected card. */
+  removeCopy: (cards: SelectedCard[]) => void
+  /** Remove every copy of each selected card (full removal). */
+  removeAll: (cards: SelectedCard[]) => void
+  /** Set the finish on each selected card that supports it; others are skipped. */
+  setFinish: (cards: SelectedCard[], finish: Finish) => void
+  /** Run the change-printing flow over the selection one card at a time. */
+  changePrinting: (cards: SelectedCard[]) => void
+  /** Move every selected card into an existing section. */
+  moveToSection: (cards: SelectedCard[], section: string) => void
+  /** Prompt for a new section name and move every selected card into it. */
+  promptNewSection: (cards: SelectedCard[]) => void
+  /** Current section names, for the move submenu. */
+  sections: () => string[]
+}
+
+/**
  * Shared controller for the flat-list editors (collections and wanted lists):
  * owns the entry card-data store, the {@link useEditor} instance, and the
  * quantity-stepper / context-menu / change-printing handlers. Collections and
@@ -55,6 +81,8 @@ export type FlatListController<E extends FlatEntry> = {
   handleChangePrinting: () => void
   closeModal: () => void
   closeContextMenu: () => void
+  /** Bulk edit operations over a multi-select of flat-list cards. */
+  bulkEdit: FlatBulkEdit
 }
 
 type FlatListControllerParams<E extends FlatEntry> = {
@@ -114,6 +142,60 @@ export function useFlatListEditController<E extends FlatEntry>(
 
   const closeModal = () => setModalCardKey(null)
 
+  // Resolve a selection cardId back to its live entry — flat removals must target
+  // the specific copy, since each copy is its own entry with its own printing.
+  const entryByCardId = (id: number): E | undefined => editor.data()?.find((e) => e.cardId === id)
+
+  // The entry to add another copy of: prefer a live entry, else synthesize one from
+  // the selection's captured printing (DEFAULT_SECTION when its section is unknown).
+  const entryToAdd = (c: SelectedCard): E => {
+    const live = c.cardIds.map(entryByCardId).find((e): e is E => e !== undefined)
+    if (live) return live
+    return {
+      name: c.name,
+      cardId: c.cardIds[0],
+      section: DEFAULT_SECTION,
+      set: c.set,
+      collectorNumber: c.collectorNumber,
+      finish: c.finish,
+      condition: c.condition,
+      note: c.note,
+    } as E
+  }
+
+  const bulkEdit: FlatBulkEdit = {
+    addCopy: (cards) => {
+      for (const c of cards) handleIncrement(entryToAdd(c))
+    },
+    removeCopy: (cards) => {
+      // One copy per tile: the first resolvable entry.
+      for (const c of cards) {
+        const entry = c.cardIds.map(entryByCardId).find((e): e is E => e !== undefined)
+        if (entry) handleDecrement(entry)
+      }
+    },
+    removeAll: (cards) => {
+      for (const c of cards) {
+        for (const id of c.cardIds) {
+          const entry = entryByCardId(id)
+          if (entry) handleDecrement(entry)
+        }
+      }
+    },
+    setFinish: (cards, finish) => {
+      for (const c of cards) {
+        if (!c.scryfallCard?.finishes?.includes(finish)) continue
+        for (const id of c.cardIds) editor.handleSetFinishFor(c.name, finish, id)
+      }
+    },
+    changePrinting: (cards) => editor.startBulkChangePrinting(cards.map(contextInfoFromSelected)),
+    moveToSection: (cards, section) =>
+      editor.handleMoveCardsToSection(cards.map(contextInfoFromSelected), section),
+    promptNewSection: (cards) =>
+      editor.promptNewSectionForCards(cards.map(contextInfoFromSelected)),
+    sections: () => editor.sectionOrder(),
+  }
+
   return {
     editor,
     cardData,
@@ -125,6 +207,7 @@ export function useFlatListEditController<E extends FlatEntry>(
     handleContextMenu,
     handleChangePrinting,
     closeModal,
+    bulkEdit,
     closeContextMenu,
   }
 }

@@ -35,6 +35,8 @@ export interface SelectionModalProps {
   open: boolean
   selection: CardSelectionControl
   onClose: () => void
+  /** When set, show a "Remove all selected" action that deletes every selected card from its list. */
+  onRemoveAll?: () => void
 }
 
 /**
@@ -173,6 +175,20 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
             >
               Copy as CSV
             </button>
+            <Show when={props.onRemoveAll}>
+              {(onRemoveAll) => (
+                <button
+                  type="button"
+                  class="site-btn site-btn-danger"
+                  onClick={() => {
+                    onRemoveAll()()
+                    props.onClose()
+                  }}
+                >
+                  Remove all selected
+                </button>
+              )}
+            </Show>
             <button
               type="button"
               class="site-btn site-btn-secondary"

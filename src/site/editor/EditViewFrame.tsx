@@ -3,7 +3,9 @@ import type { ChangeEvent } from '../../change-event'
 import { type ChangeFile, type ChangeFileKind, serializeChangeFile } from '../../editor/change-file'
 import type { ImportResult } from '../../editor/useEditor'
 import { ImportChangesDialog } from '../../editor/components/ImportChangesDialog'
+import type { BulkEditBundle } from '../selection-edit-actions'
 import { type EditView, useEditChrome } from './edit-chrome'
+import { setActiveEditSession } from './active-edit-session'
 import { ExportPanel, type ListFileExport } from './ExportPanel'
 import {
   saveEditSession,
@@ -28,6 +30,8 @@ type EditViewFrameProps = {
    * Load Changes dialog.
    */
   onImport: (changes: ChangeEvent[]) => ImportResult
+  /** The editor's bulk-edit bundle, registered as the active session for cross-list removal. */
+  bulkEdit: BulkEditBundle
   fileExports?: ListFileExport[]
   /** The editor (edit mode) — shown for the 'edited' view. */
   edited: JSX.Element
@@ -68,7 +72,13 @@ export function EditViewFrame(props: EditViewFrameProps): JSX.Element {
       onLoadChanges: () => setImportOpen(true),
       onExit: () => props.onExit(),
     })
-    onCleanup(() => editChrome.setCurrent(null))
+    // kind/slug/bulkEdit are stable per mount (one editor per list); remount the
+    // frame to change them. The cross-list navbar reads this to apply removals live.
+    setActiveEditSession({ kind: props.storageKind, slug: props.slug, bulkEdit: props.bulkEdit })
+    onCleanup(() => {
+      editChrome.setCurrent(null)
+      setActiveEditSession(null)
+    })
   })
 
   const buildJson = (): string => serializeChangeFile(props.buildFile())

@@ -30,6 +30,7 @@ import { tradeToast } from './useTradeState'
 import { SelectionMenu } from './SelectionMenu'
 import { SelectionModal, isSelectionViewOpen, closeSelectionView } from './SelectionModal'
 import { useAllSelections } from './useCardSelection'
+import { removeAllSelectedPublic } from './remove-selected'
 import { pendingPrintingPrompt } from './useSelectionTrade'
 import { TradePrintingPicker } from './TradePrintingPicker'
 import { useTooltip } from './useTooltip'
@@ -69,6 +70,15 @@ function App() {
   // Cross-list selection: the navbar button is always present (it self-hides
   // when nothing is selected) and acts on the whole selection across every list.
   const allSelections = useAllSelections()
+
+  const handleRemoveAll = () => {
+    const cards = allSelections.selected()
+    const count = cards.reduce((sum, c) => sum + c.quantity, 0)
+    if (!window.confirm(`Remove ${count} selected card${count === 1 ? '' : 's'} from their lists?`))
+      return
+    removeAllSelectedPublic(cards)
+    allSelections.clear()
+  }
 
   // Tooltip backing the bulk "Add to Trade" printing picker rendered app-wide.
   const {
@@ -330,6 +340,7 @@ function App() {
             clearLabel="Clear all selections"
             buttonClass="selection-menu-btn--navbar"
             showViewAll
+            onRemoveAll={handleRemoveAll}
           />
           <ThemeHeaderControls />
         </div>
@@ -386,6 +397,7 @@ function App() {
                     fallback={
                       <WantedListPage
                         name={wantedListDetail()!.name}
+                        slug={wantedListSlug() ?? undefined}
                         entries={wantedListDetail()!.entries}
                         sectionOrder={wantedListDetail()!.sectionOrder}
                         cards={wantedListDetail()!.cards}
@@ -429,6 +441,7 @@ function App() {
                     fallback={
                       <CollectionPage
                         name={collectionDetail()!.name}
+                        slug={collectionSlug() ?? undefined}
                         entries={collectionDetail()!.entries}
                         sectionOrder={collectionDetail()!.sectionOrder}
                         cards={collectionDetail()!.cards}
@@ -545,6 +558,7 @@ function App() {
         open={isSelectionViewOpen()}
         selection={allSelections}
         onClose={closeSelectionView}
+        onRemoveAll={handleRemoveAll}
       />
 
       {/* Sequential printing picker for bulk "Add to Trade" of name-only cards. */}

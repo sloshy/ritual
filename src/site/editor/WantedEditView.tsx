@@ -109,6 +109,7 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
       storageKind="wanted"
       slug={props.slug}
       onImport={(changes) => ctrl.editor.importChanges(changes)}
+      bulkEdit={ctrl.bulkEdit}
       fileExports={[
         {
           label: 'Download updated wanted list (.md)',

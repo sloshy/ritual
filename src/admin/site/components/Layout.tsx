@@ -9,6 +9,7 @@ import {
   closeSelectionView,
 } from '../../../site/SelectionModal'
 import { useAllSelections } from '../../../site/useCardSelection'
+import { removeSelectedAdmin } from '../remove-selected'
 
 interface NavItem {
   id: Page
@@ -42,8 +43,20 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
   const [menuOpen, setMenuOpen] = createSignal(false)
 
   // Cross-list selection button: always present (self-hides when nothing is
-  // selected). The admin site has no trade page, so it offers copy/clear only.
+  // selected). The admin site has no trade page, so it offers copy/clear plus a
+  // server-backed "Remove all selected" that deletes the cards from their lists.
   const allSelections = useAllSelections()
+
+  const handleRemoveAll = () => {
+    const cards = allSelections.selected()
+    const count = cards.reduce((sum, c) => sum + c.quantity, 0)
+    if (!window.confirm(`Remove ${count} selected card${count === 1 ? '' : 's'} from their lists?`))
+      return
+    void removeSelectedAdmin(cards).then((res) => {
+      if (res.success) allSelections.clear()
+      else window.alert(res.message)
+    })
+  }
 
   const handleNav = (page: Page) => {
     props.onNavigate(page)
@@ -81,6 +94,7 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
             clearLabel="Clear all selections"
             buttonClass="selection-menu-btn--navbar"
             showViewAll
+            onRemoveAll={handleRemoveAll}
           />
           <Show when={props.onLogout}>
             {(logout) => (
@@ -144,6 +158,7 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
         open={isSelectionViewOpen()}
         selection={allSelections}
         onClose={closeSelectionView}
+        onRemoveAll={handleRemoveAll}
       />
     </div>
   )

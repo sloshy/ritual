@@ -8,7 +8,9 @@ import {
   loadPhysicalCards,
   buildVirtualState,
   applyVirtualMove,
+  applyVirtualRemove,
   commitAllMoves,
+  commitAllRemovals,
   type ListEntry,
 } from '../../commands/move-helpers'
 import { listSlug, type ListInfo } from './list-info'
@@ -216,6 +218,106 @@ export async function handleMoveCommit(req: Request): Promise<Response> {
       requested: body.moves.length,
       skipped,
       message: `Moved ${moved} card${moved === 1 ? '' : 's'}.`,
+    })
+  } catch (error) {
+    return Response.json({ success: false, message: getErrorMessage(error) }, { status: 500 })
+  }
+}
+
+/**
+ * One card to remove, addressed by list + identity. `cardId`/`copyIndex` mirror the
+ * physical-card key scheme: deck copies are distinguished by `copyIndex` (0..qty-1),
+ * while collection/wanted entries use their `cardId` with `copyIndex` 0.
+ */
+export type RemoveCommitItem = {
+  listType: ListType
+  listSlug: string
+  name: string
+  cardId?: number
+  copyIndex?: number
+}
+
+export type RemoveCommitRequest = { removes: RemoveCommitItem[] }
+
+/** Untrusted request body shape, validated before narrowing to {@link RemoveCommitRequest}. */
+type RawRemoveBody = { removes?: unknown }
+
+/**
+ * POST /api/remove/commit — remove a batch of cards across lists atomically.
+ *
+ * Backs the cross-list "Remove all selected" multi-select action. The virtual
+ * state is rebuilt fresh from disk, each requested card is resolved back to its
+ * physical key and marked for removal, and {@link commitAllRemovals} performs the
+ * atomic LOAD→APPLY→WRITE→CHANGELOG pass. Cards that can no longer be resolved
+ * (e.g. the file changed since the page loaded) are skipped and reported.
+ */
+export async function handleRemoveCommit(req: Request): Promise<Response> {
+  try {
+    const sizeError = validateBodySize(req)
+    if (sizeError) return sizeError
+
+    const raw = (await req.json()) as RawRemoveBody
+    if (raw === null || typeof raw !== 'object' || !Array.isArray(raw.removes)) {
+      return Response.json(
+        { success: false, message: 'removes array is required' },
+        { status: 400 },
+      )
+    }
+    for (const r of raw.removes as unknown[]) {
+      const item = r as Record<string, unknown>
+      if (
+        typeof item.listType !== 'string' ||
+        !isListType(item.listType) ||
+        typeof item.listSlug !== 'string' ||
+        typeof item.name !== 'string' ||
+        (item.cardId !== undefined && typeof item.cardId !== 'number') ||
+        (item.copyIndex !== undefined && typeof item.copyIndex !== 'number')
+      ) {
+        return Response.json({ success: false, message: 'Invalid remove request' }, { status: 400 })
+      }
+    }
+    const body = raw as RemoveCommitRequest
+
+    const lists = await loadAllLists()
+    const physical = await loadPhysicalCards(lists)
+    const state = buildVirtualState(physical)
+    const slugByPath = new Map(lists.map((l) => [l.filePath, listSlug(l.filePath)]))
+
+    // Reconstruct the same physical-card keys the load endpoint produced.
+    const internalByClient = new Map<string, string>()
+    for (const pc of physical) {
+      const slug = slugByPath.get(pc.listEntry.filePath)!
+      internalByClient.set(
+        moveCardKey(pc.listEntry.ref.type, slug, pc.cardId, pc.name, pc.copyIndex),
+        pc.key,
+      )
+    }
+
+    let skipped = 0
+    for (const r of body.removes) {
+      const clientKey = moveCardKey(r.listType, r.listSlug, r.cardId, r.name, r.copyIndex)
+      const internalKey = internalByClient.get(clientKey)
+      if (!internalKey || !applyVirtualRemove(state, internalKey)) {
+        skipped++
+      }
+    }
+
+    const { removed, writtenFiles } = await commitAllRemovals(state)
+
+    if (removed > 0) {
+      await autoCommitAndPush(
+        getBaseDir(),
+        writtenFiles,
+        `Remove ${removed} card${removed === 1 ? '' : 's'}`,
+      )
+    }
+
+    return Response.json({
+      success: true,
+      removed,
+      requested: body.removes.length,
+      skipped,
+      message: `Removed ${removed} card${removed === 1 ? '' : 's'}.`,
     })
   } catch (error) {
     return Response.json({ success: false, message: getErrorMessage(error) }, { status: 500 })

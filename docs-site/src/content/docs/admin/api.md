@@ -569,6 +569,42 @@ Apply a batch of queued moves atomically. The move state is rebuilt from disk an
 }
 ```
 
+## Remove Cards
+
+```
+POST /api/remove/commit
+```
+
+Remove a batch of cards across lists atomically — backs the cross-list **Remove all selected** multi-select action. The state is rebuilt from disk, each requested card is resolved to its physical key and marked for removal, and the source files and their changelogs are written in a single pass. Deck copies are addressed by `copyIndex` (one item per copy); collection and wanted entries use their `cardId` at `copyIndex` 0. Cards that can no longer be resolved are skipped and reported. When git auto-commit is enabled, the written files are committed in a single commit (`Remove N cards`).
+
+**Request Body:**
+
+```json
+{
+  "removes": [
+    {
+      "listType": "collection",
+      "listSlug": "binder",
+      "name": "Lightning Bolt",
+      "cardId": 1,
+      "copyIndex": 0
+    }
+  ]
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "removed": 1,
+  "requested": 1,
+  "skipped": 0,
+  "message": "Removed 1 card."
+}
+```
+
 ## List Histories
 
 ```

@@ -109,6 +109,7 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
       storageKind="collection"
       slug={props.slug}
       onImport={(changes) => ctrl.editor.importChanges(changes)}
+      bulkEdit={ctrl.bulkEdit}
       fileExports={[
         {
           label: 'Download updated collection (.md)',

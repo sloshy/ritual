@@ -49,6 +49,12 @@
   }
 }
 
+.site-btn-danger {
+  background-color: var(--error-bg);
+  color: var(--error-text);
+  border: 1px solid var(--error-border);
+}
+
 .site-btn-download {
   padding: 0.25rem 0.75rem;
   background-color: var(--bg-panel);

@@ -34,6 +34,8 @@ import { collectSetCodes, filterCards } from './card-filters'
 import { PrimerRenderer, buildToc } from './PrimerRenderer'
 import { useCardSelection, type SelectedCard } from './useCardSelection'
 import { SelectionMenu } from './SelectionMenu'
+import { buildSelectionEditActions } from './selection-edit-actions'
+import type { DeckBulkEdit } from '../editor/DeckEditController'
 
 type DeckTradePicker = { cardName: string; printings: ScryfallCard[]; deckEntry: Card }
 
@@ -86,10 +88,15 @@ export interface DeckPageProps {
   enablePriceRefresh?: boolean
   /** Offer "Add to Trade" in the multi-select menu (public site only; the trade page is unreachable on admin). */
   enableTrade?: boolean
+  /** When provided (edit mode), enables bulk edit actions in the multi-select menu. */
+  bulkEdit?: DeckBulkEdit
 }
 
 export const DeckPage: Component<DeckPageProps> = (props) => {
   const selection = useCardSelection({ kind: 'deck', name: props.deck.name })
+  const editActions = createMemo(() =>
+    props.bulkEdit ? buildSelectionEditActions(props.bulkEdit, selection) : undefined,
+  )
   const {
     viewMode,
     setViewMode,
@@ -423,6 +430,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         sideways: preview.sideways,
         printings: specific ? undefined : (props.printings[c.name] ?? []),
         sourceName: props.deck.name,
+        sourceSlug: props.slug,
         sourceKind: 'deck',
         maxQty: c.quantity,
         cardIds: deckEntry?.cardId !== undefined ? [deckEntry.cardId] : [],
@@ -611,6 +619,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
             currency={props.currency}
             enableTrade={props.enableTrade}
             useScryfallImgUrls={props.useScryfallImgUrls}
+            editActions={editActions()}
           />
         }
       />
