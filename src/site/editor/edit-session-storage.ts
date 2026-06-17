@@ -1,8 +1,6 @@
-import type { ChangeEvent } from '../../change-event'
 import {
   type ChangeFile,
   type ChangeFileKind,
-  buildChangeFile,
   parseChangeFile,
   serializeChangeFile,
 } from '../../editor/change-file'
@@ -74,27 +72,6 @@ export function hasEditSession(kind: ChangeFileKind, slug: string): boolean {
   } catch {
     return false
   }
-}
-
-/**
- * Append change events into a list's saved session, creating one if none exists.
- *
- * Backs the cross-list "Remove all selected" action for lists that are not the one
- * currently open in an editor: the removals are merged into that list's browser
- * session so they surface (via the restore prompt) the next time it is edited.
- */
-export function appendChangesToSession(
-  kind: ChangeFileKind,
-  slug: string,
-  name: string,
-  changes: ChangeEvent[],
-): void {
-  if (changes.length === 0) return
-  const existing = loadEditSession(kind, slug)
-  const base =
-    existing ??
-    buildChangeFile({ kind, slug, name, changes: [], exportedAt: new Date().toISOString() })
-  saveEditSession({ ...base, changes: [...base.changes, ...changes] })
 }
 
 /** Remove any saved session for a list. A no-op if storage fails. */

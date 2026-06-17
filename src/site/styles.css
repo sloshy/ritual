@@ -48,6 +48,13 @@ body {
   border-top: 1px solid var(--border-separator, var(--border));
 }
 
+/* Shown in the edit row when edit mode is armed but no list editor is open. */
+.edit-mode-hint {
+  align-self: center;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
 .btn-edit {
   display: inline-flex;
   align-items: center;

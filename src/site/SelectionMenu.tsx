@@ -49,8 +49,8 @@ export interface SelectionMenuProps {
   editActions?: SelectionEditActions
   /**
    * When set, show a "Remove all selected" action. Used by the cross-list navbar
-   * menu to delete every selected card from its list. The handler owns confirmation
-   * and clearing the selection.
+   * menu to delete every selected card from its list; passed only while a list is
+   * open in edit mode. The handler owns confirmation and clearing the selection.
    */
   onRemoveAll?: () => void
 }

@@ -41,6 +41,7 @@ import { SelectionMenu } from './SelectionMenu'
 import { SelectionModal, isSelectionViewOpen, closeSelectionView } from './SelectionModal'
 import { useAllSelections } from './useCardSelection'
 import { removeAllSelectedPublic } from './remove-selected'
+import { clearEditSessions, confirmDiscardOnExit } from './editor/edit-session-memory'
 import { pendingPrintingPrompt } from './useSelectionTrade'
 import { TradePrintingPicker } from './TradePrintingPicker'
 import { useTooltip } from './useTooltip'
@@ -69,10 +70,11 @@ function App() {
   // Quick switch dialog state
   const [quickSwitchOpen, setQuickSwitchOpen] = createSignal(false)
 
-  // Public list editors: ephemeral, opt-in. Reset whenever the route changes.
-  const [editingDeck, setEditingDeck] = createSignal(false)
-  const [editingCollection, setEditingCollection] = createSignal(false)
-  const [editingWanted, setEditingWanted] = createSignal(false)
+  // Site-wide edit mode: a single toggle that persists across navigation. While
+  // on, the list in view (if any) is shown in its editor, and moving to another
+  // list keeps edit mode on so you can edit across lists in one session. Non-list
+  // pages (index, combined, trade) simply have nothing to edit.
+  const [editMode, setEditMode] = createSignal(false)
 
   // "Combine with list" modal — opened from any single list view, lets the user
   // pick other lists to view together as one synthetic "Combined List".
@@ -105,16 +107,14 @@ function App() {
 
   useQuickSwitchShortcut(() => setQuickSwitchOpen((v) => !v))
 
-  // Reset modal, quick switch, and edit mode on route changes
+  // Reset the modal, quick switch, and combine dialog on route changes. Edit mode
+  // is intentionally left alone here so it persists across lists (see editMode).
   createEffect(
     on(
       route,
       () => {
         setModalCard(null)
         setQuickSwitchOpen(false)
-        setEditingDeck(false)
-        setEditingCollection(false)
-        setEditingWanted(false)
         setCombineOpen(false)
       },
       { defer: true },
@@ -242,43 +242,32 @@ function App() {
     wantedListSlug() ? `wanted/${wantedListSlug()}.json` : null,
   )
 
-  // The currently-editable list for the navbar Edit toggle: which page is in view,
-  // whether its data is loaded (so editing is possible), and how to enter edit mode.
-  type EditTarget = {
-    editing: () => boolean
-    canEdit: () => boolean
-    enter: () => void
-  }
-  const editTarget = createMemo<EditTarget | null>(() => {
-    switch (route().page) {
-      case 'deck':
-        return {
-          editing: editingDeck,
-          canEdit: () => !deckLoading() && deckDetail() !== undefined,
-          enter: () => setEditingDeck(true),
-        }
-      case 'collection':
-        return {
-          editing: editingCollection,
-          canEdit: () => !collectionLoading() && collectionDetail() !== undefined,
-          enter: () => setEditingCollection(true),
-        }
-      case 'wanted':
-        return {
-          editing: editingWanted,
-          canEdit: () => !wantedListLoading() && wantedListDetail() !== undefined,
-          enter: () => setEditingWanted(true),
-        }
-      default:
-        return null
-    }
+  // Whether an editable list (deck/collection/wanted) is currently in view. Edit
+  // mode is site-wide and can be toggled from any page; on a non-list page it is
+  // simply "armed" until a list is opened (see the header hint below).
+  const editableListInView = createMemo(() => {
+    const page = route().page
+    return page === 'deck' || page === 'collection' || page === 'wanted'
   })
 
   const toggleEdit = () => {
-    const target = editTarget()
-    if (!target) return
-    if (target.editing()) editChrome.current()?.onExit()
-    else target.enter()
+    if (!editMode()) {
+      setEditMode(true)
+      return
+    }
+    // Leaving edit mode: a mounted list editor runs its own discard confirmation;
+    // off a list page (no editor mounted), confirm here if any session still has
+    // pending edits, then tear them all down.
+    const chrome = editChrome.current()
+    if (chrome) chrome.onExit()
+    else if (confirmDiscardOnExit(0)) exitEditMode()
+  }
+
+  // Leave edit mode entirely: discard every list's in-memory session (the edits
+  // that were surviving navigation) and drop back to the read-only views.
+  const exitEditMode = () => {
+    clearEditSessions()
+    setEditMode(false)
   }
 
   const openModal = (cardName: string) => {
@@ -365,21 +354,20 @@ function App() {
           <button
             type="button"
             class="site-btn site-btn-secondary btn-edit"
-            classList={{ 'btn-edit--active': editTarget()?.editing() ?? false }}
-            disabled={!editTarget() || !editTarget()!.canEdit()}
+            classList={{ 'btn-edit--active': editMode() }}
             title={
-              editTarget()
-                ? editTarget()!.editing()
-                  ? 'Leave edit mode'
-                  : 'Edit this list locally'
-                : 'Open a deck, collection, or wanted list to edit'
+              editMode()
+                ? 'Leave edit mode'
+                : editableListInView()
+                  ? 'Edit this list locally'
+                  : 'Enter edit mode, then open a list to edit'
             }
             onClick={toggleEdit}
           >
             <span class="btn-edit-icon" aria-hidden="true">
-              {editTarget()?.editing() ? '✓' : '✏️'}
+              {editMode() ? '✓' : '✏️'}
             </span>
-            <span class="btn-edit-label">{editTarget()?.editing() ? 'Done' : 'Edit'}</span>
+            <span class="btn-edit-label">{editMode() ? 'Done' : 'Edit'}</span>
           </button>
           <SelectionMenu
             selection={allSelections}
@@ -390,12 +378,23 @@ function App() {
             clearLabel="Clear all selections"
             buttonClass="selection-menu-btn--navbar"
             showViewAll
-            onRemoveAll={handleRemoveAll}
+            onRemoveAll={editMode() ? handleRemoveAll : undefined}
           />
           <ThemeHeaderControls />
         </div>
 
-        <Show when={editChrome.current()}>
+        <Show
+          when={editChrome.current()}
+          fallback={
+            <Show when={editMode()}>
+              <div class="site-header-edit-row">
+                <span class="edit-mode-hint">
+                  Edit mode is on — open a deck, collection, or wanted list to edit.
+                </span>
+              </div>
+            </Show>
+          }
+        >
           {(chrome) => (
             <div class="site-header-edit-row">
               <EditControlsRow chrome={chrome()} />
@@ -443,7 +442,7 @@ function App() {
                   fallback={<LoadingSpinner />}
                 >
                   <Show
-                    when={editingWanted()}
+                    when={editMode()}
                     fallback={
                       <WantedListPage
                         name={wantedListDetail()!.name}
@@ -472,7 +471,7 @@ function App() {
                       detail={wantedListDetail()!}
                       slug={wantedListSlug() ?? ''}
                       currency={currency()}
-                      onExit={() => setEditingWanted(false)}
+                      onExit={exitEditMode}
                     />
                   </Show>
                 </Show>
@@ -488,7 +487,7 @@ function App() {
                   fallback={<LoadingSpinner />}
                 >
                   <Show
-                    when={editingCollection()}
+                    when={editMode()}
                     fallback={
                       <CollectionPage
                         name={collectionDetail()!.name}
@@ -518,7 +517,7 @@ function App() {
                       detail={collectionDetail()!}
                       slug={collectionSlug() ?? ''}
                       currency={currency()}
-                      onExit={() => setEditingCollection(false)}
+                      onExit={exitEditMode}
                     />
                   </Show>
                 </Show>
@@ -528,7 +527,7 @@ function App() {
               <Show when={!deckError()} fallback={<ErrorMessage message={deckError()!} />}>
                 <Show when={!deckLoading() && deckDetail()} fallback={<LoadingSpinner />}>
                   <Show
-                    when={editingDeck()}
+                    when={editMode()}
                     fallback={
                       <DeckPage
                         deck={deckDetail()!.deck}
@@ -560,7 +559,7 @@ function App() {
                       detail={deckDetail()!}
                       slug={deckSlug() ?? ''}
                       currency={currency()}
-                      onExit={() => setEditingDeck(false)}
+                      onExit={exitEditMode}
                     />
                   </Show>
                 </Show>
@@ -635,7 +634,7 @@ function App() {
         open={isSelectionViewOpen()}
         selection={allSelections}
         onClose={closeSelectionView}
-        onRemoveAll={handleRemoveAll}
+        onRemoveAll={editMode() ? handleRemoveAll : undefined}
       />
 
       {/* Sequential printing picker for bulk "Add to Trade" of name-only cards. */}

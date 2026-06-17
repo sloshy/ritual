@@ -1,4 +1,4 @@
-import { type JSX, Show, createSignal, onMount, onCleanup } from 'solid-js'
+import { type JSX, Show, batch, createEffect, createSignal, onMount, onCleanup } from 'solid-js'
 import type { ChangeEvent } from '../../change-event'
 import { type ChangeFile, type ChangeFileKind, serializeChangeFile } from '../../editor/change-file'
 import type { ImportResult } from '../../editor/useEditor'
@@ -13,6 +13,7 @@ import {
   clearEditSession,
   hasEditSession,
 } from './edit-session-storage'
+import { rememberEditSession, recallEditSession } from './edit-session-memory'
 
 type EditViewFrameProps = {
   changeCount: number
@@ -30,8 +31,18 @@ type EditViewFrameProps = {
    * Load Changes dialog.
    */
   onImport: (changes: ChangeEvent[]) => ImportResult
+  /**
+   * Resume an in-memory edit session verbatim (no re-targeting). Used to restore a
+   * list's pending edits when it is reopened after navigating away, preserving exact
+   * card IDs — unlike {@link onImport}, which re-aims an externally-authored file.
+   */
+  onRestore: (changes: ChangeEvent[]) => void
   /** The editor's bulk-edit bundle, registered as the active session for cross-list removal. */
   bulkEdit: BulkEditBundle
+  /** The editor's live change list, mirrored into the in-memory session so edits survive navigation. */
+  changes: () => ChangeEvent[]
+  /** Whether the editor has finished loading its data (so remembered edits can be re-targeted). */
+  ready: () => boolean
   fileExports?: ListFileExport[]
   /** The editor (edit mode) — shown for the 'edited' view. */
   edited: JSX.Element
@@ -53,16 +64,15 @@ export function EditViewFrame(props: EditViewFrameProps): JSX.Element {
   const [importOpen, setImportOpen] = createSignal(false)
   const [savedExists, setSavedExists] = createSignal(false)
   const [restorable, setRestorable] = createSignal<ChangeFile | null>(null)
+  // Remembered in-memory edits awaiting (re)application once the editor has loaded.
+  const [pendingImport, setPendingImport] = createSignal<ChangeEvent[] | null>(null)
 
   const editChrome = useEditChrome()
 
-  // Publish the edit controls to the navbar while this editor is mounted.
+  // Publish the edit controls to the navbar while this editor is mounted. Register
+  // the chrome and active session first, then decide what (if anything) to restore —
+  // so the frame is fully wired before any restore could apply.
   onMount(() => {
-    setSavedExists(hasEditSession(props.storageKind, props.slug))
-    if (props.changeCount === 0) {
-      const saved = loadEditSession(props.storageKind, props.slug)
-      if (saved && saved.changes.length > 0) setRestorable(saved)
-    }
     editChrome.setCurrent({
       changeCount: () => props.changeCount,
       view,
@@ -75,10 +85,50 @@ export function EditViewFrame(props: EditViewFrameProps): JSX.Element {
     // kind/slug/bulkEdit are stable per mount (one editor per list); remount the
     // frame to change them. The cross-list navbar reads this to apply removals live.
     setActiveEditSession({ kind: props.storageKind, slug: props.slug, bulkEdit: props.bulkEdit })
+
+    setSavedExists(hasEditSession(props.storageKind, props.slug))
+    const remembered = recallEditSession(props.storageKind, props.slug)
+    if (remembered) {
+      // This list was already edited this session (or targeted by a cross-list
+      // removal): silently resume its in-memory edits once the editor is ready
+      // (restoring needs the loaded data), no restore prompt.
+      if (remembered.length > 0) setPendingImport(remembered)
+    } else if (props.changeCount === 0) {
+      // First time opening this list this session: offer to restore a session
+      // previously saved to the browser (opt-in localStorage), if any.
+      const saved = loadEditSession(props.storageKind, props.slug)
+      if (saved && saved.changes.length > 0) setRestorable(saved)
+    }
+
     onCleanup(() => {
       editChrome.setCurrent(null)
       setActiveEditSession(null)
     })
+  })
+
+  // Apply remembered edits once the editor has loaded (so the change list can be
+  // replayed against the baseline). The load itself discards pending changes, so
+  // this must wait for readiness rather than fire during mount. The restore and the
+  // pending-flag clear are batched so the mirror effect below re-runs only once,
+  // after the restored changes are in place.
+  createEffect(() => {
+    const remembered = pendingImport()
+    if (remembered && props.ready()) {
+      batch(() => {
+        props.onRestore(remembered)
+        setPendingImport(null)
+      })
+    }
+  })
+
+  // Mirror the live edits into the in-memory session so they survive navigating to
+  // another list and back. Held off until the editor is ready and any remembered
+  // edits have been restored, so an unloaded editor never overwrites a list's saved
+  // session with an empty change list. Unmounting (navigation) leaves the last value
+  // in place; exiting edit mode clears every session (see app's exitEditMode).
+  createEffect(() => {
+    if (!props.ready() || pendingImport()) return
+    rememberEditSession(props.storageKind, props.slug, props.changes())
   })
 
   const buildJson = (): string => serializeChangeFile(props.buildFile())

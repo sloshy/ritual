@@ -17,6 +17,7 @@ import { WantedListPage } from '../WantedListPage'
 import { createScryfallSearchProvider } from './scryfall-search-provider'
 import { backfillImportedCard } from './backfill-added-card'
 import { EditViewFrame } from './EditViewFrame'
+import { confirmDiscardOnExit } from './edit-session-memory'
 import { safeFilename } from './safe-filename'
 
 const scryfallSearch = createScryfallSearchProvider()
@@ -93,8 +94,7 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
     })
 
   const handleExit = () => {
-    if (changeCount() > 0 && !window.confirm('Discard your edits and exit?')) return
-    props.onExit()
+    if (confirmDiscardOnExit(changeCount())) props.onExit()
   }
 
   const safe = () => safeFilename(props.detail.name)
@@ -109,7 +109,10 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
       storageKind="wanted"
       slug={props.slug}
       onImport={(changes) => ctrl.editor.importChanges(changes)}
+      onRestore={(changes) => ctrl.editor.restoreChanges(changes)}
       bulkEdit={ctrl.bulkEdit}
+      changes={() => ctrl.editor.changes.changes()}
+      ready={() => !ctrl.editor.status.loading && ctrl.editor.data() != null}
       fileExports={[
         {
           label: 'Download updated wanted list (.md)',

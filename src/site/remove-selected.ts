@@ -1,6 +1,6 @@
 import { type ChangeEvent, createRemoveChange } from '../change-event'
 import { activeEditSession } from './editor/active-edit-session'
-import { appendChangesToSession } from './editor/edit-session-storage'
+import { appendEditSession } from './editor/edit-session-memory'
 import { groupSelectionsBySource, type SelectedCard } from './useCardSelection'
 
 /**
@@ -28,8 +28,8 @@ function removeEventsFor(card: SelectedCard): ChangeEvent[] {
 /**
  * Remove every selected card from its list on the public site. The list currently
  * open in an editor is updated live (its pending changes show the removals); every
- * other list's removals are merged into its saved browser session, surfacing via
- * the restore prompt when that list is next opened in edit mode. Cards lacking a
+ * other list's removals are appended to its in-memory edit session, so they apply
+ * when that list is next opened in edit mode this page session. Cards lacking a
  * `sourceSlug` cannot be targeted off-editor and are skipped there.
  */
 export function removeAllSelectedPublic(cards: SelectedCard[]): void {
@@ -41,6 +41,6 @@ export function removeAllSelectedPublic(cards: SelectedCard[]): void {
     }
     if (!group.slug) continue
     const events = group.cards.flatMap(removeEventsFor)
-    appendChangesToSession(group.kind, group.slug, group.name, events)
+    appendEditSession(group.kind, group.slug, events)
   }
 }

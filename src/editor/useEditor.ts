@@ -227,6 +227,8 @@ export type UseEditorResult<TData, TCardEntry> = {
   handleDiscard: () => void
   /** Load an imported change file's events as pending edits, re-targeted to current card IDs. */
   importChanges: (changes: ChangeEvent[]) => ImportResult
+  /** Resume an in-memory edit session verbatim (no re-targeting), preserving exact card IDs. */
+  restoreChanges: (changes: ChangeEvent[]) => void
 
   /** Current section names in display order, including empty sections. */
   sectionOrder: Accessor<string[]>
@@ -742,6 +744,27 @@ export function useEditor<TData, TCardEntry = unknown>(
     return { loaded: retargeted.length, conflicts }
   }
 
+  /**
+   * Restore a change list verbatim, without re-targeting. Unlike {@link importChanges}
+   * (which re-aims an externally-authored file at the current IDs, allocating fresh
+   * IDs for adds), this resumes an in-memory edit session captured from the *same*
+   * baseline this editor just loaded, so every card ID — including the increments
+   * behind "add a copy" — is preserved exactly rather than split into new entries.
+   */
+  const restoreChanges = (restored: ChangeEvent[]): void => {
+    const orig = original
+    if (!orig || restored.length === 0) return
+    changes.loadChanges(restored)
+    setData(() => replayChanges(orig, restored, config.applyChange))
+    // Mark every ID the restored changes reference as in use, so later adds in this
+    // resumed session don't reallocate one of them.
+    const used = new Set<number>(config.getOriginalIds(orig))
+    for (const change of restored) {
+      if ('cardId' in change && typeof change.cardId === 'number') used.add(change.cardId)
+    }
+    pool.resetPool([...used])
+  }
+
   const handleDiscard = () => {
     changes.discardAll()
     if (original) {
@@ -797,6 +820,7 @@ export function useEditor<TData, TCardEntry = unknown>(
     handleSave,
     handleDiscard,
     importChanges,
+    restoreChanges,
 
     sectionOrder,
     sectionInfo,

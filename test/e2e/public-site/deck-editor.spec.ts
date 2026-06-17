@@ -8,11 +8,35 @@ test.describe('Public deck editor', () => {
     await page.waitForSelector('.card-item', { timeout: 15_000 })
   })
 
-  test('the global Edit toggle is present but disabled on non-list pages', async ({ page }) => {
-    await page.goto('#/')
-    // The toggle lives in the navbar site-wide, but there's nothing to edit on the index.
-    await expect(page.locator('.btn-edit')).toBeVisible()
-    await expect(page.locator('.btn-edit')).toBeDisabled()
+  test('the global Edit toggle arms edit mode on non-list pages, hinting until a list is opened', async ({
+    page,
+  }) => {
+    // In-SPA navigation (hash, not goto) so the edit-mode signal persists.
+    await page.evaluate(() => {
+      window.location.hash = '#/'
+    })
+    const editBtn = page.locator('.btn-edit')
+    // The toggle is site-wide and usable even with nothing to edit on the index.
+    await expect(editBtn).toBeVisible()
+    await expect(editBtn).toBeEnabled()
+
+    // Arming edit mode off a list page shows a hint instead of editor controls.
+    await editBtn.click()
+    await expect(editBtn).toContainText('Done')
+    await expect(page.locator('.edit-mode-hint')).toBeVisible()
+    await expect(page.locator('.edit-banner')).toHaveCount(0)
+
+    // Opening a list while armed drops straight into its editor — no second click.
+    await page.evaluate(() => {
+      window.location.hash = '#/deck/test-multi-section-deck'
+    })
+    await expect(page.locator('.edit-banner')).toBeVisible()
+    await expect(page.locator('.edit-mode-hint')).toHaveCount(0)
+
+    // Leaving edit mode from the list returns to the read-only view and clears the hint.
+    await page.locator('.btn-edit', { hasText: 'Done' }).click()
+    await expect(page.locator('.edit-banner')).toHaveCount(0)
+    await expect(editBtn).toContainText('Edit')
   })
 
   test('edits a local copy, toggles original/edited, and exports', async ({ page }) => {

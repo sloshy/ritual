@@ -141,6 +141,82 @@ test.describe('Cross-list multi-select', () => {
     await expect(page.locator('.selection-menu-btn--navbar')).toHaveCount(0)
   })
 
+  test('the cross-list "Remove all selected" action appears only in edit mode', async ({
+    page,
+  }) => {
+    await page.goto('#/deck/ms-a')
+    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+
+    // Select a card while NOT in edit mode; the navbar all-lists button appears.
+    await page
+      .locator('.card-item')
+      .nth(0)
+      .locator('.card-binder')
+      .click({ modifiers: ['ControlOrMeta'] })
+    await expect(page.locator('.selection-menu-btn--navbar')).toHaveText(/All Selected \(1\)/)
+
+    // Outside edit mode, the destructive cross-list removal is not offered.
+    await page.locator('.selection-menu-btn--navbar').click()
+    await expect(
+      page.locator('.selection-menu-item', { hasText: 'Remove all selected' }),
+    ).toHaveCount(0)
+
+    // Close the menu, then enter edit mode on the list in view.
+    await page.locator('.selection-menu-btn--navbar').click()
+    await expect(page.locator('.selection-menu-panel')).toHaveCount(0)
+    await page.locator('.btn-edit').click()
+    await expect(page.locator('.selection-menu-btn--navbar')).toHaveText(/All Selected \(1\)/)
+
+    // Now the action is present in the navbar menu.
+    await page.locator('.selection-menu-btn--navbar').click()
+    await expect(
+      page.locator('.selection-menu-item', { hasText: 'Remove all selected' }),
+    ).toBeVisible()
+  })
+
+  test('edit mode persists across lists and in-flight edits survive navigating away and back', async ({
+    page,
+  }) => {
+    await page.goto('#/deck/ms-a')
+    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+
+    // Enter edit mode and add a copy of the first card via the selection menu.
+    await page.locator('.btn-edit').click()
+    await expect(page.locator('.edit-banner')).toBeVisible()
+    const card = page.locator('.card-item').nth(0)
+    await card.locator('.card-binder').hover()
+    await card.locator('.card-select-checkbox').click()
+    await page.locator('.toolbar .selection-menu-btn').click()
+    await page.locator('.selection-menu-item', { hasText: 'Add a copy' }).click()
+    await expect(page.locator('.changes-badge')).toHaveText('1')
+    await expect(page.locator('.card-item .qty-badge', { hasText: '2x' })).toHaveCount(1)
+
+    // Navigate to deck B within the SPA (no reload). Edit mode is a single site-wide
+    // toggle, so it stays on — deck B opens directly in its editor.
+    await page.evaluate(() => {
+      window.location.hash = '#/deck/ms-b'
+    })
+    await expect(page.locator('.page-title')).toHaveText('MS Deck B')
+    await expect(page.locator('.edit-banner')).toBeVisible()
+
+    // Back to deck A: the pending edit was held in memory and is restored.
+    await page.evaluate(() => {
+      window.location.hash = '#/deck/ms-a'
+    })
+    await expect(page.locator('.page-title')).toHaveText('MS Deck A')
+    await expect(page.locator('.changes-badge')).toHaveText('1')
+    await expect(page.locator('.card-item .qty-badge', { hasText: '2x' })).toHaveCount(1)
+
+    // Exiting edit mode ends the session and discards the in-memory edits.
+    page.once('dialog', (d) => void d.accept())
+    await page.locator('.btn-edit', { hasText: 'Done' }).click()
+    await expect(page.locator('.edit-banner')).toHaveCount(0)
+    await page.locator('.btn-edit').click()
+    await expect(page.locator('.changes-badge')).toHaveCount(0)
+    // The increment is gone too — not just the badge, but the underlying edit.
+    await expect(page.locator('.card-item .qty-badge', { hasText: '2x' })).toHaveCount(0)
+  })
+
   test('a quantity group selects every copy and supports per-copy removal', async ({ page }) => {
     await page.goto('#/deck/ms-qty')
     await page.waitForSelector('[data-view]', { timeout: 15_000 })
