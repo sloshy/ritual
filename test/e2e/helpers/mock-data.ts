@@ -1095,6 +1095,77 @@ export async function mockPublicSiteCollection(page: Page): Promise<void> {
   })
 }
 
+// A collection holding two identical copies of one card, so "Group Duplicates"
+// merges them into a single quantity-2 tile — used to test that "Remove a copy"
+// appears only for a real multi-copy group.
+const MOCK_COLLECTION_DUP_DETAIL = {
+  name: 'Dup Collection',
+  entries: [
+    {
+      name: 'Priced Card',
+      set: 'tst',
+      collectorNumber: '10',
+      finish: 'nonfoil',
+      condition: 'NM',
+      price: 3.5,
+      fileOrder: 0,
+    },
+    {
+      name: 'Priced Card',
+      set: 'tst',
+      collectorNumber: '10',
+      finish: 'nonfoil',
+      condition: 'NM',
+      price: 3.5,
+      fileOrder: 1,
+    },
+  ],
+  cards: { 'tst:10': MOCK_COLLECTION_CARD_PRICED },
+  printings: { 'Priced Card': [MOCK_COLLECTION_CARD_PRICED] },
+  symbolMap: {},
+  useScryfallImgUrls: false,
+  totalPrice: 7.0,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+}
+
+const MOCK_SITE_INDEX_WITH_DUP_COLLECTION = {
+  decks: [],
+  collections: [
+    {
+      slug: 'dup-collection',
+      name: 'Dup Collection',
+      featuredCardImage: '',
+      cardCount: 2,
+      totalPrice: 7.0,
+      totalPriceEur: 0,
+      totalPriceTix: 0,
+    },
+  ],
+  useScryfallImgUrls: false,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+}
+
+/** Mock a collection with duplicate entries, for the duplicate-grouping selection tests. */
+export async function mockPublicSiteCollectionWithDuplicates(page: Page): Promise<void> {
+  await page.route('**/index.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_SITE_INDEX_WITH_DUP_COLLECTION),
+    })
+  })
+
+  await page.route('**/collections/dup-collection.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_COLLECTION_DUP_DETAIL),
+    })
+  })
+}
+
 /**
  * Mock the admin API endpoint for loading a single collection with priced and unpriced cards.
  */

@@ -25,6 +25,9 @@ export type BulkEditBundle = {
  * selection menu renders. Each action snapshots the live selection before applying
  * (so an async/queued flow like change-printing keeps its targets) and then clears
  * it. Shared by the deck/collection/wanted pages so their menus behave identically.
+ *
+ * Every action is always built; the menu itself decides which to show — e.g. it
+ * only surfaces "Remove a copy" when the selection holds a multi-copy group.
  */
 export function buildSelectionEditActions(
   bulk: BulkEditBundle,

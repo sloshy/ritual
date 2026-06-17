@@ -38,6 +38,9 @@ test.describe('Multi-select bulk edit actions', () => {
     await selectCard(page, 0)
     const panel = await openSelectionMenu(page)
     await expect(panel.locator('.selection-menu-item', { hasText: 'Add a copy' })).toBeVisible()
+    // This deck holds a single copy of the card (a common commander-deck case), so
+    // "Remove a copy" would duplicate "Remove from list" and is hidden.
+    await expect(panel.locator('.selection-menu-item', { hasText: 'Remove a copy' })).toHaveCount(0)
     await expect(
       panel.locator('.selection-menu-item', { hasText: 'Remove from list' }),
     ).toBeVisible()

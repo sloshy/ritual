@@ -1,5 +1,5 @@
 import type { Accessor, Component } from 'solid-js'
-import { For, Show } from 'solid-js'
+import { For, Show, createMemo } from 'solid-js'
 import { useAnchoredMenu } from '../ui/useAnchoredMenu'
 import { useAnchoredToggle } from '../ui/useAnchoredToggle'
 import type { PriceCurrency } from '../price-currency'
@@ -18,6 +18,13 @@ const PANEL_WIDTH = 220
  */
 export interface SelectionEditActions {
   addCopy: () => void
+  /**
+   * Decrement one copy from each selected group. The menu only shows the "Remove a
+   * copy" item when the selection actually contains a multi-copy group (some tile
+   * with `groupSize > 1`); for single-copy tiles it would be identical to "Remove
+   * from list", so it is hidden. This is selection-driven, not list-type-driven —
+   * a deck holding one of a card (a common commander-deck case) does not qualify.
+   */
   removeCopy: () => void
   removeAll: () => void
   setFoil: () => void
@@ -111,6 +118,11 @@ const SelectionPanel: Component<SelectionPanelProps> = (props) => {
   })
   const copy = useSelectionCopy(() => props.selection.selected())
 
+  // "Remove a copy" (decrement) is only meaningful when at least one selected tile
+  // represents more than one copy; for single-copy tiles it duplicates "Remove from
+  // list". Reactive to the live selection so it appears/disappears as it changes.
+  const canRemoveCopy = createMemo(() => props.selection.selected().some((c) => c.groupSize > 1))
+
   const viewAll = () => {
     openSelectionView()
     props.onClose()
@@ -157,14 +169,16 @@ const SelectionPanel: Component<SelectionPanelProps> = (props) => {
             >
               Add a copy
             </button>
-            <button
-              type="button"
-              role="menuitem"
-              class="selection-menu-item"
-              onClick={() => runEdit(actions().removeCopy)}
-            >
-              Remove a copy
-            </button>
+            <Show when={canRemoveCopy()}>
+              <button
+                type="button"
+                role="menuitem"
+                class="selection-menu-item"
+                onClick={() => runEdit(actions().removeCopy)}
+              >
+                Remove a copy
+              </button>
+            </Show>
             <button
               type="button"
               role="menuitem"

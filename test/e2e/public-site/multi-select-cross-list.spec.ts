@@ -217,6 +217,39 @@ test.describe('Cross-list multi-select', () => {
     await expect(page.locator('.card-item .qty-badge', { hasText: '2x' })).toHaveCount(0)
   })
 
+  test('"Remove a copy" is offered for a multi-copy deck group but not a single copy', async ({
+    page,
+  }) => {
+    // ms-qty holds a 4× Lightning Bolt: decrementing one copy differs from removing it.
+    await page.goto('#/deck/ms-qty')
+    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    await page.locator('.btn-edit').click()
+    await expect(page.locator('.edit-banner')).toBeVisible()
+
+    const playset = page.locator('.card-item').first()
+    await playset.locator('.card-binder').hover()
+    await playset.locator('.card-select-checkbox').click()
+    await page.locator('.selection-menu-btn').click()
+    await expect(
+      page.locator('.selection-menu-panel .selection-menu-item', { hasText: 'Remove a copy' }),
+    ).toBeVisible()
+    await page.locator('.selection-menu-item', { hasText: 'Clear selection' }).click()
+
+    // ms-a holds single copies — edit mode persists across the navigation, and the
+    // option is absent there.
+    await page.evaluate(() => {
+      window.location.hash = '#/deck/ms-a'
+    })
+    await expect(page.locator('.page-title')).toHaveText('MS Deck A')
+    const single = page.locator('.card-item').first()
+    await single.locator('.card-binder').hover()
+    await single.locator('.card-select-checkbox').click()
+    await page.locator('.selection-menu-btn').click()
+    const panel = page.locator('.selection-menu-panel')
+    await expect(panel.locator('.selection-menu-item', { hasText: 'Add a copy' })).toBeVisible()
+    await expect(panel.locator('.selection-menu-item', { hasText: 'Remove a copy' })).toHaveCount(0)
+  })
+
   test('a quantity group selects every copy and supports per-copy removal', async ({ page }) => {
     await page.goto('#/deck/ms-qty')
     await page.waitForSelector('[data-view]', { timeout: 15_000 })

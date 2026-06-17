@@ -24,6 +24,7 @@
 - Allow importing changes across multiple lists as a change batch
 - Allow moving cards on the public site
 - Add ability to change focus / switch lists in the editor interface
+- "remove all selected" should not appear when not in edit mode
 
 ## Misc
 
