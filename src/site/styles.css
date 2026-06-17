@@ -157,6 +157,13 @@ body {
   flex-grow: 1;
 }
 
+/* The editor's sticky bottom dock bleeds to the screen edges like the header,
+   escaping the horizontal .app-padding inset that otherwise leaves it short of
+   the viewport on each side. */
+.site-app .editor-action-dock {
+  margin-inline: -2rem;
+}
+
 .site-footer {
   margin-top: 3rem;
   border-top: 1px solid var(--border-separator);
@@ -273,6 +280,10 @@ body {
     gap: 0.5rem;
     margin: -1rem -1rem 1.5rem;
     padding: 0.625rem 1rem;
+  }
+
+  .site-app .editor-action-dock {
+    margin-inline: -1rem;
   }
 
   .site-header-main {
