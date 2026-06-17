@@ -1,18 +1,20 @@
-import type { Component, JSX } from 'solid-js'
+import type { JSX } from 'solid-js'
 import { Show, For } from 'solid-js'
 import type { CardData } from './card-sorting'
 import type { PriceCurrency } from '../price-currency'
 import { formatPrice } from '../price-currency'
 import { groupTotalPrice } from './card-sorting'
 
-interface CardSectionProps {
+interface CardSectionProps<T extends CardData = CardData> {
   label: string
-  cards: CardData[]
+  cards: T[]
   currency: PriceCurrency
-  renderCard: (card: CardData, index: number) => JSX.Element
+  renderCard: (card: T, index: number) => JSX.Element
 }
 
-export const CardSection: Component<CardSectionProps> = (props) => {
+export function CardSection<T extends CardData = CardData>(
+  props: CardSectionProps<T>,
+): JSX.Element {
   const sectionId = () => props.label.replace(/[^a-zA-Z0-9]/g, '_')
   const sectionTotal = () => groupTotalPrice(props.cards)
 

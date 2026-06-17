@@ -5,7 +5,15 @@ export const CARD_SIZE_WIDTHS = {
   medium: 140,
   small: 100,
 } as const satisfies Record<CardSize, number>
-export type GroupBy = 'type' | 'section' | 'cmc' | 'color-identity' | 'price' | 'printing' | 'none'
+export type GroupBy =
+  | 'type'
+  | 'section'
+  | 'cmc'
+  | 'color-identity'
+  | 'price'
+  | 'printing'
+  | 'source'
+  | 'none'
 export type SortBy =
   | 'name'
   | 'cmc'
@@ -30,11 +38,17 @@ export interface CardData {
   /** Whether this entry is pinned to a specific printing (has both set and collector number). */
   hasPrinting: boolean
   card: ScryfallCard | null
+  /**
+   * Display name of the list this card came from. Only set in the combined
+   * multi-list view, where it drives the "Source List" grouping. Undefined on
+   * single-list pages.
+   */
+  sourceName?: string
 }
 
-export interface CardGroup {
+export interface CardGroup<T extends CardData = CardData> {
   key: string
-  cards: CardData[]
+  cards: T[]
 }
 
 import type { ScryfallCard } from '../types'
@@ -236,8 +250,8 @@ const PRINTING_SPECIFIC_KEY = 'Specific Printing'
 const PRINTING_ANY_KEY = 'Any Printing'
 const PRINTING_ORDER = [PRINTING_SPECIFIC_KEY, PRINTING_ANY_KEY]
 
-export function groupAndSortCards(
-  cards: CardData[],
+export function groupAndSortCards<T extends CardData>(
+  cards: T[],
   groupBy: GroupBy,
   sortBy: SortBy,
   reverse: boolean,
@@ -245,10 +259,10 @@ export function groupAndSortCards(
   priceGroupStrategy?: PriceGroupStrategy,
   currency: PriceCurrency = 'usd',
   reverseGroups: boolean = false,
-): CardGroup[] {
+): CardGroup<T>[] {
   const sortFn = (a: CardData, b: CardData) => sortCards(a, b, sortBy, reverse)
 
-  const groups: Record<string, CardData[]> = {}
+  const groups: Record<string, T[]> = {}
 
   if (groupBy === 'none') {
     groups['All Cards'] = [...cards].sort(sortFn)
@@ -288,6 +302,12 @@ export function groupAndSortCards(
       if (!groups[key]) groups[key] = []
       groups[key].push(c)
     }
+  } else if (groupBy === 'source') {
+    for (const c of cards) {
+      const key = c.sourceName ?? 'Unknown'
+      if (!groups[key]) groups[key] = []
+      groups[key].push(c)
+    }
   }
 
   const keys = Object.keys(groups)
@@ -314,6 +334,15 @@ export function groupAndSortCards(
     )
   } else if (groupBy === 'printing') {
     keys.sort((a, b) => PRINTING_ORDER.indexOf(a) - PRINTING_ORDER.indexOf(b))
+  } else if (groupBy === 'source') {
+    // Order source groups by the order their lists first appear in the card list,
+    // which mirrors the order the lists were selected for the combined view.
+    const firstIndex = new Map<string, number>()
+    cards.forEach((c, i) => {
+      const key = c.sourceName ?? 'Unknown'
+      if (!firstIndex.has(key)) firstIndex.set(key, i)
+    })
+    keys.sort((a, b) => (firstIndex.get(a) ?? 0) - (firstIndex.get(b) ?? 0))
   }
 
   const orderedKeys = keys.filter((key) => groups[key] && groups[key].length > 0)

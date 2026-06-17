@@ -9,6 +9,7 @@ import {
   Show,
   Switch,
   Match,
+  type JSX,
 } from 'solid-js'
 import type { DeckDetail, CollectionDetail, WantedListDetail } from './data-types'
 import type { PriceCurrency } from '../price-currency'
@@ -19,6 +20,15 @@ import { CollectionEditView } from './editor/CollectionEditView'
 import { WantedEditView } from './editor/WantedEditView'
 import { CollectionPage } from './CollectionPage'
 import { WantedListPage } from './WantedListPage'
+import { CombinedListPage } from './CombinedListPage'
+import { CombineListModal } from './CombineListModal'
+import {
+  type CombinedSelection,
+  type NamedListRef,
+  combinedAllHref,
+  encodeCombinedHash,
+} from './combined-list'
+import type { ListType } from '../list-type'
 import { TradePage } from './TradePage'
 import { EditChromeProvider, useEditChrome } from './editor/edit-chrome'
 import { EditControlsRow } from './editor/EditControlsRow'
@@ -64,6 +74,11 @@ function App() {
   const [editingCollection, setEditingCollection] = createSignal(false)
   const [editingWanted, setEditingWanted] = createSignal(false)
 
+  // "Combine with list" modal — opened from any single list view, lets the user
+  // pick other lists to view together as one synthetic "Combined List".
+  const [combineOpen, setCombineOpen] = createSignal(false)
+  const openCombine = () => setCombineOpen(true)
+
   // The editor publishes its controls here while editing; the navbar renders them.
   const editChrome = useEditChrome()
 
@@ -100,14 +115,89 @@ function App() {
         setEditingDeck(false)
         setEditingCollection(false)
         setEditingWanted(false)
+        setCombineOpen(false)
       },
       { defer: true },
     ),
   )
 
+  // Every list known to the site index, as named refs — backs the combine modal
+  // and the combined-view resolution of `all` / individual refs.
+  const allNamedLists = createMemo<NamedListRef[]>(() => {
+    const out: NamedListRef[] = []
+    for (const d of deckList() ?? []) out.push({ type: 'deck', slug: d.slug, name: d.name })
+    for (const c of collectionList() ?? [])
+      out.push({ type: 'collection', slug: c.slug, name: c.name })
+    for (const w of wantedListList() ?? []) out.push({ type: 'wanted', slug: w.slug, name: w.name })
+    return out
+  })
+
+  // The list currently in view (deck/collection/wanted), passed to the combine
+  // modal as the list always included in the combination.
+  const currentListRef = createMemo<NamedListRef | undefined>(() => {
+    const r = route()
+    if (r.page !== 'deck' && r.page !== 'collection' && r.page !== 'wanted') return undefined
+    const type: ListType = r.page
+    const slug = r.slug
+    return (
+      allNamedLists().find((l) => l.type === type && l.slug === slug) ?? { type, slug, name: slug }
+    )
+  })
+
+  // Resolve the combined-view route into named lists (every list when `all`).
+  const combinedAll = createMemo(() => {
+    const r = route()
+    return r.page === 'combined' ? r.all : false
+  })
+  // The list type a combined-`all` view is restricted to (e.g. "all decks"), or
+  // undefined for plain `all` (every list) and non-combined routes.
+  const combinedAllType = createMemo<ListType | undefined>(() => {
+    const r = route()
+    return r.page === 'combined' && r.all ? r.allType : undefined
+  })
+  const combinedLists = createMemo<NamedListRef[]>(() => {
+    const r = route()
+    if (r.page !== 'combined') return []
+    if (r.all) {
+      const all = allNamedLists()
+      return r.allType ? all.filter((l) => l.type === r.allType) : all
+    }
+    return r.refs
+      .map((ref) => allNamedLists().find((l) => l.type === ref.type && l.slug === ref.slug))
+      .filter((l): l is NamedListRef => l !== undefined)
+  })
+
+  const handleCombineView = (selection: CombinedSelection) => {
+    setCombineOpen(false)
+    window.location.hash = encodeCombinedHash(selection)
+  }
+
   const activeTab = createMemo(() => {
     const r = route()
     return r.page === 'index' ? (r.tab ?? 'decks') : undefined
+  })
+
+  // Which navbar link is highlighted. A per-type combined-`all` view ("all decks")
+  // keeps its own type's tab lit; a plain `all` view lights the dedicated "All" link.
+  const navActive = createMemo<NavActiveState>(() => {
+    const r = route()
+    const tab = activeTab()
+    const allType = combinedAllType()
+    const isAll = r.page === 'combined' && r.all
+    return {
+      decks:
+        (r.page === 'index' && (!tab || tab === 'decks')) ||
+        r.page === 'deck' ||
+        allType === 'deck',
+      collections:
+        (r.page === 'index' && tab === 'collections') ||
+        r.page === 'collection' ||
+        allType === 'collection',
+      wanted:
+        (r.page === 'index' && tab === 'wanted') || r.page === 'wanted' || allType === 'wanted',
+      all: isAll && !allType,
+      trade: r.page === 'trade',
+    }
   })
 
   const deckSlug = createMemo(() => {
@@ -222,61 +312,21 @@ function App() {
           </a>
           <span class="site-nav-sep">|</span>
           <nav class="site-nav">
-            <a
-              href="#/"
-              class="site-nav-link"
-              classList={{
-                'site-nav-link-active':
-                  (route().page === 'index' && (!activeTab() || activeTab() === 'decks')) ||
-                  route().page === 'deck',
-                'site-nav-link-inactive': !(
-                  (route().page === 'index' && (!activeTab() || activeTab() === 'decks')) ||
-                  route().page === 'deck'
-                ),
-              }}
-            >
+            <NavLink href="#/" active={navActive().decks}>
               Decks
-            </a>
-            <a
-              href="#/collections"
-              class="site-nav-link"
-              classList={{
-                'site-nav-link-active':
-                  (route().page === 'index' && activeTab() === 'collections') ||
-                  route().page === 'collection',
-                'site-nav-link-inactive': !(
-                  (route().page === 'index' && activeTab() === 'collections') ||
-                  route().page === 'collection'
-                ),
-              }}
-            >
+            </NavLink>
+            <NavLink href="#/collections" active={navActive().collections}>
               Collections
-            </a>
-            <a
-              href="#/wanted"
-              class="site-nav-link"
-              classList={{
-                'site-nav-link-active':
-                  (route().page === 'index' && activeTab() === 'wanted') ||
-                  route().page === 'wanted',
-                'site-nav-link-inactive': !(
-                  (route().page === 'index' && activeTab() === 'wanted') ||
-                  route().page === 'wanted'
-                ),
-              }}
-            >
+            </NavLink>
+            <NavLink href="#/wanted" active={navActive().wanted}>
               Wanted Lists
-            </a>
-            <a
-              href="#/trade"
-              class="site-nav-link"
-              classList={{
-                'site-nav-link-active': route().page === 'trade',
-                'site-nav-link-inactive': route().page !== 'trade',
-              }}
-            >
+            </NavLink>
+            <NavLink href={combinedAllHref()} active={navActive().all}>
+              All
+            </NavLink>
+            <NavLink href="#/trade" active={navActive().trade}>
               Trade
-            </a>
+            </NavLink>
           </nav>
           <button
             type="button"
@@ -414,6 +464,7 @@ function App() {
                         changelog={wantedListDetail()!.changelog}
                         enablePriceRefresh={true}
                         enableTrade={true}
+                        onCombine={openCombine}
                       />
                     }
                   >
@@ -459,6 +510,7 @@ function App() {
                         changelog={collectionDetail()!.changelog}
                         enablePriceRefresh={true}
                         enableTrade={true}
+                        onCombine={openCombine}
                       />
                     }
                   >
@@ -500,6 +552,7 @@ function App() {
                         changelog={deckDetail()!.changelog}
                         enablePriceRefresh={true}
                         enableTrade={true}
+                        onCombine={openCombine}
                       />
                     }
                   >
@@ -511,6 +564,18 @@ function App() {
                     />
                   </Show>
                 </Show>
+              </Show>
+            </Match>
+            <Match when={route().page === 'combined'}>
+              <Show when={deckList()} fallback={<LoadingSpinner />}>
+                <CombinedListPage
+                  all={combinedAll()}
+                  allType={combinedAllType()}
+                  lists={combinedLists()}
+                  currency={currency()}
+                  useScryfallImgUrls={useScryfallImgUrls()}
+                  enableTrade
+                />
               </Show>
             </Match>
             <Match when={route().page === 'trade'}>
@@ -553,6 +618,18 @@ function App() {
         )}
       </Show>
 
+      {/* "Combine with list" modal, opened from any single list view. */}
+      <CombineListModal
+        open={combineOpen()}
+        onClose={() => setCombineOpen(false)}
+        current={currentListRef()}
+        decks={deckList() ?? []}
+        collections={collectionList() ?? []}
+        wantedLists={wantedListList() ?? []}
+        currency={currency()}
+        onView={handleCombineView}
+      />
+
       {/* Cross-list "view all selections" modal. */}
       <SelectionModal
         open={isSelectionViewOpen()}
@@ -591,6 +668,35 @@ function App() {
         </Show>
       </div>
     </div>
+  )
+}
+
+type NavActiveState = {
+  decks: boolean
+  collections: boolean
+  wanted: boolean
+  all: boolean
+  trade: boolean
+}
+
+interface NavLinkProps {
+  href: string
+  active: boolean
+  children: JSX.Element
+}
+
+function NavLink(props: NavLinkProps) {
+  return (
+    <a
+      href={props.href}
+      class="site-nav-link"
+      classList={{
+        'site-nav-link-active': props.active,
+        'site-nav-link-inactive': !props.active,
+      }}
+    >
+      {props.children}
+    </a>
   )
 }
 

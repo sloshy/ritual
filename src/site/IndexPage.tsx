@@ -7,6 +7,8 @@ import { getDeckCountLabel, pluralizeCards } from '../deck-format'
 import { getSummaryLowestPrice, getSummaryMissingPriceCount, getSummaryTotalPrice } from './utils'
 import { CoverCard } from './CoverCard'
 import { IndexToolbar } from './IndexToolbar'
+import type { ListType } from '../list-type'
+import { combinedAllHref } from './combined-list'
 import {
   DEFAULT_INDEX_GROUP,
   DEFAULT_INDEX_SORT,
@@ -28,6 +30,25 @@ interface IndexPageProps {
   activeTab: IndexTab
   currency: PriceCurrency
 }
+
+interface SectionHeaderProps {
+  title: string
+  viewAllType: ListType
+  viewAllLabel: string
+  /** Hide the "view all" link when there are no lists to combine. */
+  show: boolean
+}
+
+const SectionHeader: Component<SectionHeaderProps> = (props) => (
+  <div class="section-header">
+    <h1 class="section-title">{props.title}</h1>
+    <Show when={props.show}>
+      <a href={combinedAllHref(props.viewAllType)} class="site-btn site-btn-secondary">
+        {props.viewAllLabel}
+      </a>
+    </Show>
+  </div>
+)
 
 interface DeckCoverLinkProps {
   deck: DeckSummary
@@ -107,7 +128,12 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
       <Switch
         fallback={
           <>
-            <h1 class="section-title">My Decks</h1>
+            <SectionHeader
+              title="My Decks"
+              viewAllType="deck"
+              viewAllLabel="View all decks"
+              show={props.decks.length > 0}
+            />
             <IndexToolbar
               sort={deckSort()}
               onSortChange={setDeckSort}
@@ -144,7 +170,12 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
         }
       >
         <Match when={props.activeTab === 'collections'}>
-          <h1 class="section-title">My Collections</h1>
+          <SectionHeader
+            title="My Collections"
+            viewAllType="collection"
+            viewAllLabel="View all collections"
+            show={props.collections.length > 0}
+          />
           <IndexToolbar
             sort={collectionSort()}
             onSortChange={setCollectionSort}
@@ -161,7 +192,12 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
           </div>
         </Match>
         <Match when={props.activeTab === 'wanted'}>
-          <h1 class="section-title">My Wanted Lists</h1>
+          <SectionHeader
+            title="My Wanted Lists"
+            viewAllType="wanted"
+            viewAllLabel="View all wanted lists"
+            show={props.wantedLists.length > 0}
+          />
           <IndexToolbar
             sort={wantedSort()}
             onSortChange={setWantedSort}

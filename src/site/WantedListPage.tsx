@@ -1,7 +1,7 @@
 import type { Component } from 'solid-js'
 import { createSignal, createMemo, onMount, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
-import { seedCards, seedPrintings, overlayCard, sessionCacheVersion } from './session-cache'
+import { seedCards, seedPrintings, sessionCacheVersion } from './session-cache'
 import { usePublicPriceControls } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import type { ScryfallCard, Finish } from '../types'
@@ -32,6 +32,7 @@ import { addEntryToRight, canAddMoreToRight, showTradeToast } from './useTradeSt
 import type { TradeSearchEntry } from './useTradeData'
 import { resolveCardThumbnailUrl, resolveCardPreview } from './image-sources'
 import { hasSpecificPrinting } from '../card-printing'
+import { resolveWantedCardEntry } from './resolve-card'
 import { useCardSelection, type SelectedCard } from './useCardSelection'
 import { SelectionMenu } from './SelectionMenu'
 import { buildSelectionEditActions } from './selection-edit-actions'
@@ -84,17 +85,8 @@ interface WantedListPageProps {
   enableTrade?: boolean
   /** When provided (edit mode), enables bulk edit actions in the multi-select menu. */
   bulkEdit?: FlatBulkEdit
-}
-
-function resolveCardForEntry(
-  entry: WantedListCardEntry,
-  cards: Record<string, ScryfallCard | null>,
-): ScryfallCard | null {
-  if (hasSpecificPrinting(entry)) {
-    const key = `${entry.set.toLowerCase()}:${entry.collectorNumber}`
-    return overlayCard(cards[key] ?? cards[entry.name] ?? null)
-  }
-  return overlayCard(cards[entry.name] ?? null)
+  /** When provided (public read view), shows a "Combine with list…" header button. */
+  onCombine?: () => void
 }
 
 export const WantedListPage: Component<WantedListPageProps> = (props) => {
@@ -219,7 +211,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
   const currencyEntries = createMemo((): WantedListCardEntry[] => {
     sessionCacheVersion() // re-price after an in-session "Update Prices"
     return props.entries.map((entry) => {
-      const card = resolveCardForEntry(entry, props.cards)
+      const card = resolveWantedCardEntry(entry, props.cards)
       if (!card) return entry
 
       const price = getCardPriceForFinish(card, entry.finish ?? 'nonfoil', props.currency)
@@ -233,7 +225,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
 
   const allCards = createMemo((): CardData[] => {
     return currencyEntries().map((entry) => {
-      const card = resolveCardForEntry(entry, props.cards)
+      const card = resolveWantedCardEntry(entry, props.cards)
       return {
         name: entry.name,
         quantity: 1,
@@ -287,7 +279,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
 
   const modalCard = createMemo((): ScryfallCard | null => {
     if (!modalEntry()) return null
-    return resolveCardForEntry(modalEntry()!, props.cards)
+    return resolveWantedCardEntry(modalEntry()!, props.cards)
   })
 
   const modalAddToTrade = createMemo(() => {
@@ -457,6 +449,11 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
           </p>
         </div>
         <div class="btn-group">
+          <Show when={props.onCombine}>
+            <button onClick={() => props.onCombine!()} class="site-btn site-btn-secondary">
+              Combine with list…
+            </button>
+          </Show>
           <Show when={props.changelog && props.changelog.length > 0}>
             <button
               onClick={() => setShowChangelog(true)}

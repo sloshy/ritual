@@ -108,6 +108,10 @@ export default defineConfig({
           ],
         },
         {
+          label: 'Public Site',
+          items: ['public-site/combined-view'],
+        },
+        {
           label: 'Admin Site',
           items: [
             { label: 'Overview', slug: 'admin' },

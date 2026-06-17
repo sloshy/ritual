@@ -80,6 +80,8 @@ interface CollectionPageProps {
   enableTrade?: boolean
   /** When provided (edit mode), enables bulk edit actions in the multi-select menu. */
   bulkEdit?: FlatBulkEdit
+  /** When provided (public read view), shows a "Combine with list…" header button. */
+  onCombine?: () => void
 }
 
 export const CollectionPage: Component<CollectionPageProps> = (props) => {
@@ -457,6 +459,11 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
           </p>
         </div>
         <div class="btn-group">
+          <Show when={props.onCombine}>
+            <button onClick={() => props.onCombine!()} class="site-btn site-btn-secondary">
+              Combine with list…
+            </button>
+          </Show>
           <Show when={props.changelog && props.changelog.length > 0}>
             <button
               onClick={() => setShowChangelog(true)}

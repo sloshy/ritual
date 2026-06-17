@@ -9,6 +9,7 @@ import { scoreMatch } from './quick-switch-search'
 import { fetchJson } from './useFetchJson'
 import { getSummaryMissingPriceCount, getSummaryTotalPrice } from './utils'
 import { getDeckCountLabel, pluralizeCards } from '../deck-format'
+import { listHref } from './combined-list'
 
 type ListKind = 'deck' | 'collection' | 'wanted'
 
@@ -137,12 +138,6 @@ function detailUrl(kind: ListKind, slug: string): string {
   if (kind === 'deck') return `decks/${slug}.json`
   if (kind === 'collection') return `collections/${slug}.json`
   return `wanted/${slug}.json`
-}
-
-function listHref(kind: ListKind, slug: string): string {
-  if (kind === 'deck') return `#/deck/${slug}`
-  if (kind === 'collection') return `#/collection/${slug}`
-  return `#/wanted/${slug}`
 }
 
 function entryKindLabel(entry: QuickSwitchEntry): string {

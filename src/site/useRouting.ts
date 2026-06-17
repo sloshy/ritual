@@ -1,11 +1,15 @@
 import { createSignal, onMount, onCleanup } from 'solid-js'
 import type { Accessor } from 'solid-js'
+import type { ListType } from '../list-type'
+import type { ListRef } from './combined-list'
+import { parseCombinedQuery } from './combined-list'
 
 export type Route =
   | { page: 'index'; tab?: 'decks' | 'collections' | 'wanted' }
   | { page: 'deck'; slug: string; primerOpen?: boolean; sectionId?: string }
   | { page: 'collection'; slug: string }
   | { page: 'wanted'; slug: string }
+  | { page: 'combined'; all: boolean; allType?: ListType; refs: ListRef[] }
   | { page: 'trade' }
 
 export type UseRoutingResult = {
@@ -18,6 +22,11 @@ function parseHash(): Route {
   const raw = window.location.hash.replace(/^#\/?/, '')
   const qIdx = raw.indexOf('?')
   const hash = qIdx < 0 ? raw : raw.slice(0, qIdx)
+  const query = qIdx < 0 ? '' : raw.slice(qIdx + 1)
+  if (hash === 'combined') {
+    const { all, allType, refs } = parseCombinedQuery(query)
+    return { page: 'combined', all, allType, refs }
+  }
   if (hash.startsWith('deck/')) {
     const rest = hash.slice('deck/'.length)
     const parts = rest.split('/')

@@ -90,6 +90,8 @@ export interface DeckPageProps {
   enableTrade?: boolean
   /** When provided (edit mode), enables bulk edit actions in the multi-select menu. */
   bulkEdit?: DeckBulkEdit
+  /** When provided (public read view), shows a "Combine with list…" header button. */
+  onCombine?: () => void
 }
 
 export const DeckPage: Component<DeckPageProps> = (props) => {
@@ -537,8 +539,17 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
             </a>
           </Show>
         </div>
-        <Show when={props.exportPath || (props.changelog && props.changelog.length > 0)}>
+        <Show
+          when={
+            props.onCombine || props.exportPath || (props.changelog && props.changelog.length > 0)
+          }
+        >
           <div class="btn-group">
+            <Show when={props.onCombine}>
+              <button onClick={() => props.onCombine!()} class="site-btn site-btn-secondary">
+                Combine with list…
+              </button>
+            </Show>
             <Show when={props.changelog && props.changelog.length > 0}>
               <button
                 onClick={() => setShowChangelog(true)}

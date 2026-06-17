@@ -2350,3 +2350,98 @@ export async function mockPublicSiteMultiSelectLists(page: Page): Promise<void> 
     })
   })
 }
+
+// ---- Combined List view ----
+// A deck and a collection that share a card (Sol Ring), used to exercise the
+// "Combine with list" modal and the combined view: cross-type combining, the
+// lowest-common-denominator "no card merging" rule, and source-list grouping.
+const MOCK_CV_DECK = {
+  deck: {
+    name: 'CV Deck',
+    sections: [
+      {
+        name: 'Main',
+        cards: [
+          { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 },
+          { quantity: 2, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 2 },
+        ],
+      },
+    ],
+  },
+  cards: { 'Lightning Bolt': MS_BOLT, 'Sol Ring': MS_RING },
+  printings: { 'Lightning Bolt': [MS_BOLT], 'Sol Ring': [MS_RING] },
+  symbolMap: {},
+  exportPath: 'decks/cv-deck.txt',
+  useScryfallImgUrls: true,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+  missingCards: { usd: [], eur: [], tix: [] },
+}
+
+const MOCK_CV_COLLECTION = {
+  name: 'CV Box',
+  entries: [
+    {
+      name: 'Sol Ring',
+      set: 'c19',
+      collectorNumber: '221',
+      finish: 'nonfoil',
+      condition: 'NM',
+      price: 3,
+      fileOrder: 0,
+      section: 'Main',
+      cardId: 1,
+    },
+  ],
+  cards: { 'c19:221': MS_RING },
+  printings: { 'Sol Ring': [MS_RING] },
+  symbolMap: {},
+  useScryfallImgUrls: true,
+  totalPrice: 3,
+  defaultCurrency: 'usd',
+}
+
+const MOCK_CV_INDEX = {
+  decks: [
+    {
+      slug: 'cv-deck',
+      name: 'CV Deck',
+      featuredCardImage: '',
+      commander: null,
+      format: null,
+      cardCount: 3,
+      totalPrice: 8,
+    },
+  ],
+  collections: [
+    { slug: 'cv-box', name: 'CV Box', featuredCardImage: '', cardCount: 1, totalPrice: 3 },
+  ],
+  useScryfallImgUrls: true,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+}
+
+/** Serve a deck + collection for the combined-list-view tests. */
+export async function mockPublicSiteCombinedLists(page: Page): Promise<void> {
+  await page.route('**/index.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_CV_INDEX),
+    })
+  })
+  await page.route('**/decks/cv-deck.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_CV_DECK),
+    })
+  })
+  await page.route('**/collections/cv-box.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_CV_COLLECTION),
+    })
+  })
+}

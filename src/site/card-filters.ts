@@ -78,7 +78,7 @@ function matchesColorIdentity(
 }
 
 /** Apply every active filter to `cards`, returning the cards that pass all of them. */
-export function filterCards(cards: CardData[], filters: CardFilters): CardData[] {
+export function filterCards<T extends CardData>(cards: T[], filters: CardFilters): T[] {
   const nameQuery = filters.name.trim()
   const setCodes = new Set(filters.setCodes.map((code) => code.toLowerCase()))
   return cards.filter((card) => {
