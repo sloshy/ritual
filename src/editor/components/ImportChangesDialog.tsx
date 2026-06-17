@@ -75,8 +75,7 @@ export const ImportChangesDialog: Component<ImportChangesDialogProps> = (props) 
 
         <Show when={!result()}>
           <p class="dialog-message">
-            Upload or paste a change-list JSON. Its changes load as pending edits, re-targeted to
-            this list's cards, for you to review.
+            Upload or paste a change-list JSON to import into the current editor view.
           </p>
           <input
             type="file"
