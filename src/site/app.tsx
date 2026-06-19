@@ -389,7 +389,7 @@ function App() {
             <Show when={editMode()}>
               <div class="site-header-edit-row">
                 <span class="edit-mode-hint">
-                  Edit mode is on — open a deck, collection, or wanted list to edit.
+                  Edit mode is on — open a single deck, collection, or wanted list to edit.
                 </span>
               </div>
             </Show>
