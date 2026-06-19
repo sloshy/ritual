@@ -1,11 +1,14 @@
-import { type Accessor, type JSX, Show, createSignal } from 'solid-js'
+import { type Accessor, type JSX, Show, batch, createSignal } from 'solid-js'
 import type { DeckData, Card, Finish } from '../types'
 import { DeckPage } from '../site/DeckPage'
 import type { PriceCurrency } from '../price-currency'
+import type { ListRef, PrintingTuple } from '../change-event'
 import type { SelectedCard } from '../site/useCardSelection'
 import type { CardContextInfo, ContextMenuState } from './context-menu'
 import type { EditorConfig, UseEditorResult } from './useEditor'
 import { contextInfoFromSelected } from './selected-to-context'
+import { printingForMove } from '../site/printing-prompt'
+import { promptListMove, promptSectionMove } from '../site/move-prompt'
 import { useEditor } from './useEditor'
 import type { UseEditorDefaultsResult } from './useEditorDefaults'
 import type { SearchProvider } from './search-provider'
@@ -43,6 +46,10 @@ export type DeckBulkEdit = {
   promptNewSection: (cards: SelectedCard[]) => void
   /** Current section names, for the move submenu. */
   sections: () => string[]
+  /** Move every selected card out of this deck into another list. */
+  moveToList: (cards: SelectedCard[], dest: ListRef) => void
+  /** The other lists cards can be moved to, for the move-to-list submenu. */
+  moveTargets: () => ListRef[]
 }
 
 /**
@@ -65,6 +72,8 @@ export type DeckEditController = {
   handleChangePrinting: () => void
   handleSetCommander: () => void
   handleUnsetCommander: () => void
+  /** Move the context-menu's card (every copy of the entry) into another list. */
+  handleMoveCardToList: (target: CardContextInfo, dest: ListRef) => void
   closeModal: () => void
   closeContextMenu: () => void
   /** Bulk edit operations over a multi-select of deck cards. */
@@ -172,6 +181,55 @@ export function useDeckEditController(
     closeContextMenu()
   }
 
+  // Emit one move-from per copy. A deck entry holds all its copies under a single
+  // cardId, so every event shares that id and it is freed to the pool once.
+  const emitMove = (
+    cardName: string,
+    dest: ListRef,
+    printing: PrintingTuple,
+    cardId: number | undefined,
+    copies: number,
+  ) => {
+    batch(() => {
+      for (let i = 0; i < copies; i++) {
+        editor.changes.moveCardToList(cardName, dest, { ...printing, cardId })
+        editor.setData((prev) =>
+          prev
+            ? applyChangeToDeck(prev, {
+                action: 'move-from',
+                cardName,
+                ...printing,
+                cardId,
+                to: dest,
+              })
+            : prev,
+        )
+      }
+      if (cardId !== undefined) editor.pool.release(cardId)
+    })
+  }
+
+  const moveCardToList = (target: CardContextInfo, dest: ListRef) => {
+    void printingForMove(
+      target.cardName,
+      dest,
+      {
+        set: target.set,
+        collectorNumber: target.collectorNumber,
+        finish: target.finish,
+        condition: target.condition,
+      },
+      cardData.printings[target.cardName] ?? [],
+    ).then((printing) => {
+      if (printing) emitMove(target.cardName, dest, printing, target.cardIds[0], target.quantity)
+    })
+  }
+
+  const handleMoveCardToList = (target: CardContextInfo, dest: ListRef) => {
+    closeContextMenu()
+    moveCardToList(target, dest)
+  }
+
   const closeModal = () => setModalCardName(null)
 
   const bulkEdit: DeckBulkEdit = {
@@ -202,6 +260,25 @@ export function useDeckEditController(
     promptNewSection: (cards) =>
       editor.promptNewSectionForCards(cards.map(contextInfoFromSelected)),
     sections: () => editor.sectionOrder(),
+    moveToList: (cards, dest) => {
+      void (async () => {
+        for (const c of cards) {
+          const printing = await printingForMove(
+            c.name,
+            dest,
+            {
+              set: c.set,
+              collectorNumber: c.collectorNumber,
+              finish: c.finish,
+              condition: c.condition,
+            },
+            c.printings ?? [],
+          )
+          if (printing) emitMove(c.name, dest, printing, c.cardIds[0], c.groupSize)
+        }
+      })()
+    },
+    moveTargets: () => editor.moveTargets(),
   }
 
   return {
@@ -217,6 +294,7 @@ export function useDeckEditController(
     handleChangePrinting,
     handleSetCommander,
     handleUnsetCommander,
+    handleMoveCardToList,
     closeModal,
     closeContextMenu,
     bulkEdit,
@@ -285,17 +363,25 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
               isCommander={menu().isInCommanderSection}
               anchorRect={menu().anchorRect}
               onClose={ctrl.closeContextMenu}
-              sections={editor.sectionOrder()}
-              currentSection={
-                editor.data() ? findDeckCardSection(editor.data()!, menu()) : undefined
-              }
-              onMoveToSection={(section) => {
-                editor.handleMoveCardToSection(menu(), section)
+              onMoveToSection={() => {
+                const target = menu()
+                const current = editor.data()
+                  ? findDeckCardSection(editor.data()!, target)
+                  : undefined
                 ctrl.closeContextMenu()
+                promptSectionMove(
+                  editor.sectionOrder().filter((s) => s !== current),
+                  (section) => editor.handleMoveCardToSection(target, section),
+                  () => editor.promptNewSectionForCard(target),
+                )
               }}
-              onCreateSection={() => {
-                editor.promptNewSectionForCard(menu())
+              moveTargets={editor.moveTargets()}
+              onMoveToList={() => {
+                const target = menu()
                 ctrl.closeContextMenu()
+                promptListMove(editor.moveTargets(), (dest) =>
+                  ctrl.handleMoveCardToList(target, dest),
+                )
               }}
             />
           )}

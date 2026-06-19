@@ -1,6 +1,12 @@
-import { type ChangeEvent, createRemoveChange } from '../change-event'
+import {
+  type ChangeEvent,
+  type ListRef,
+  createMoveFromChange,
+  createRemoveChange,
+} from '../change-event'
 import { activeEditSession } from './editor/active-edit-session'
 import { appendEditSession } from './editor/edit-session-memory'
+import { printingForMove } from './printing-prompt'
 import { groupSelectionsBySource, type SelectedCard } from './useCardSelection'
 
 /**
@@ -42,5 +48,58 @@ export function removeAllSelectedPublic(cards: SelectedCard[]): void {
     if (!group.slug) continue
     const events = group.cards.flatMap(removeEventsFor)
     appendEditSession(group.kind, group.slug, events)
+  }
+}
+
+/**
+ * Build the `move-from` events that move one selected card out to `dest`, prompting
+ * for a printing when a name-only card is bound for a collection. Mirrors
+ * {@link removeEventsFor}'s per-copy decomposition. Returns null if the required
+ * printing prompt is skipped.
+ */
+async function moveEventsFor(card: SelectedCard, dest: ListRef): Promise<ChangeEvent[] | null> {
+  const printing = await printingForMove(
+    card.name,
+    dest,
+    {
+      set: card.set,
+      collectorNumber: card.collectorNumber,
+      finish: card.finish,
+      condition: card.condition,
+    },
+    card.printings ?? [],
+  )
+  if (!printing) return null
+  if (card.sourceKind === 'deck') {
+    const cardId = card.cardIds[0]
+    return Array.from({ length: card.groupSize }, () =>
+      createMoveFromChange(card.name, { ...printing, cardId, to: dest }),
+    )
+  }
+  return card.cardIds.map((cardId) =>
+    createMoveFromChange(card.name, { ...printing, cardId, to: dest }),
+  )
+}
+
+/**
+ * Move every selected card from its list into `dest` on the public site. The list
+ * currently open in an editor is updated live (via its bulk move, which prompts for
+ * any needed printing); every other list's moves are appended to its in-memory edit
+ * session so they apply when that list is next opened this page session. Cards
+ * already on `dest`, or lacking a `sourceSlug` off-editor, are skipped.
+ */
+export async function moveAllSelectedPublic(cards: SelectedCard[], dest: ListRef): Promise<void> {
+  const active = activeEditSession()
+  for (const group of groupSelectionsBySource(cards)) {
+    if (group.kind === dest.type && group.name === dest.name) continue
+    if (active && active.kind === group.kind && active.slug === group.slug) {
+      active.bulkEdit.moveToList(group.cards, dest)
+      continue
+    }
+    if (!group.slug) continue
+    for (const card of group.cards) {
+      const events = await moveEventsFor(card, dest)
+      if (events) appendEditSession(group.kind, group.slug, events)
+    }
   }
 }

@@ -2,6 +2,7 @@ import { type Component, createSignal } from 'solid-js'
 import type { WantedListDetail } from '../data-types'
 import type { PriceCurrency } from '../../price-currency'
 import type { WantedListCardEntry } from '../data-types'
+import type { ListRef } from '../../change-event'
 import type { EditorConfig } from '../../editor/useEditor'
 import type { EntryCardDataActions } from '../../editor/useEntryCardData'
 import { collectExistingIds } from '../../card-id'
@@ -27,6 +28,8 @@ type WantedEditViewProps = {
   slug: string
   currency: PriceCurrency
   onExit: () => void
+  /** Other lists a card can be moved into (excludes this wanted list). */
+  moveTargets?: () => ListRef[]
 }
 
 /** Public-site wanted-list editor — mirrors {@link DeckEditView} for the flat wanted list. */
@@ -41,6 +44,7 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
     showSelector: false,
     commit: () => Promise.resolve(undefined),
     entityLabel: 'wanted list',
+    moveTargets: () => props.moveTargets?.() ?? [],
 
     processLoadResponse: () => ({
       data: props.detail.entries,

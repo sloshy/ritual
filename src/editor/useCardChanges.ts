@@ -5,6 +5,7 @@ import {
   type ChangeEvent,
   type CardPrintingOptions,
   type PrintingTuple,
+  type ListRef,
   createChangeId,
   areOppositeChanges,
   consolidateSetFinish,
@@ -43,6 +44,13 @@ export type UseCardChangesResult<T = unknown> = {
   decrementCard: (cardName: string, cardId?: number, removedCardData?: T) => void
   addCard: (cardName: string, options?: CardPrintingOptions) => void
   removeCard: (cardName: string, options?: CardPrintingOptions, removedCardData?: T) => void
+  /** Record a move of a card out of this list into another list (`to`). */
+  moveCardToList: (
+    cardName: string,
+    to: ListRef,
+    options?: CardPrintingOptions,
+    removedCardData?: T,
+  ) => void
   setFinish: (cardName: string, finish: Finish, originalFinish: Finish, cardId?: number) => void
   setPrinting: (
     cardName: string,
@@ -142,6 +150,15 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     addChange({ action: 'remove', cardName, ...options }, removedCardData)
   }
 
+  function moveCardToList(
+    cardName: string,
+    to: ListRef,
+    options?: CardPrintingOptions,
+    removedCardData?: T,
+  ) {
+    addChange({ action: 'move-from', cardName, ...options, to }, removedCardData)
+  }
+
   function setFinish(cardName: string, finish: Finish, originalFinish: Finish, cardId?: number) {
     const {
       changes: newChanges,
@@ -205,6 +222,7 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     decrementCard,
     addCard,
     removeCard,
+    moveCardToList,
     setFinish,
     setPrinting,
     setSection,

@@ -5,6 +5,7 @@ import { appendChangelog } from '../../changelog-writer'
 import type { DeckData } from '../../types'
 import type { ChangeEvent } from '../../change-event'
 import { getDecksDir } from '../../ritual-config'
+import { applyOutgoingMoves } from './move-save'
 import {
   validateBodySize,
   validateContentHash,
@@ -58,6 +59,12 @@ export async function handleDeckSave(req: Request): Promise<Response> {
     if (!hashCheck.valid) return hashCheck.response
 
     const filesToCommit: string[] = [filePath, hashPath(filePath)]
+
+    // Apply the destination side of any cross-list moves first; a bad destination
+    // (missing list, or a printing-less card into a collection) aborts before the
+    // source is written.
+    const movedFiles = await applyOutgoingMoves({ type: 'deck', name: deck.name }, changes)
+    filesToCommit.push(...movedFiles)
 
     // Write changelog
     if (changes.length > 0) {

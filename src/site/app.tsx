@@ -29,6 +29,7 @@ import {
   encodeCombinedHash,
 } from './combined-list'
 import type { ListType } from '../list-type'
+import type { ListRef } from '../change-event'
 import { TradePage } from './TradePage'
 import { EditChromeProvider, useEditChrome } from './editor/edit-chrome'
 import { EditControlsRow } from './editor/EditControlsRow'
@@ -40,10 +41,12 @@ import { tradeToast } from './useTradeState'
 import { SelectionMenu } from './SelectionMenu'
 import { SelectionModal, isSelectionViewOpen, closeSelectionView } from './SelectionModal'
 import { useAllSelections } from './useCardSelection'
-import { removeAllSelectedPublic } from './remove-selected'
+import { removeAllSelectedPublic, moveAllSelectedPublic } from './remove-selected'
 import { clearEditSessions, confirmDiscardOnExit } from './editor/edit-session-memory'
-import { pendingPrintingPrompt } from './useSelectionTrade'
+import { pendingPrintingPrompt } from './printing-prompt'
 import { TradePrintingPicker } from './TradePrintingPicker'
+import { pendingMovePrompt, closeMovePrompt } from './move-prompt'
+import { MoveTargetPicker } from './MoveTargetPicker'
 import { useTooltip } from './useTooltip'
 import { createThemeStore, ThemeProvider, useTheme } from './useTheme'
 import { syncFaviconToTheme } from './useFavicon'
@@ -97,6 +100,11 @@ function App() {
     allSelections.clear()
   }
 
+  const handleMoveAll = (dest: ListRef) => {
+    const cards = allSelections.selected()
+    void moveAllSelectedPublic(cards, dest).then(() => allSelections.clear())
+  }
+
   // Tooltip backing the bulk "Add to Trade" printing picker rendered app-wide.
   const {
     tooltip: pickerTooltip,
@@ -131,6 +139,16 @@ function App() {
     for (const w of wantedListList() ?? []) out.push({ type: 'wanted', slug: w.slug, name: w.name })
     return out
   })
+
+  // Every list as a move destination (all are offered; per-card self-moves are skipped).
+  const moveAllTargets = (): ListRef[] =>
+    allNamedLists().map((l) => ({ type: l.type, name: l.name }))
+
+  // The other lists a single editor's cards can move to (excludes the current list).
+  const moveTargetsFor = (type: ListRef['type'], slug: () => string | null) => (): ListRef[] =>
+    allNamedLists()
+      .filter((l) => !(l.type === type && l.slug === slug()))
+      .map((l) => ({ type: l.type, name: l.name }))
 
   // The list currently in view (deck/collection/wanted), passed to the combine
   // modal as the list always included in the combination.
@@ -379,6 +397,8 @@ function App() {
             buttonClass="selection-menu-btn--navbar"
             showViewAll
             onRemoveAll={editMode() ? handleRemoveAll : undefined}
+            onMoveAll={editMode() ? handleMoveAll : undefined}
+            moveAllTargets={editMode() ? moveAllTargets : undefined}
           />
           <ThemeHeaderControls />
         </div>
@@ -472,6 +492,7 @@ function App() {
                       slug={wantedListSlug() ?? ''}
                       currency={currency()}
                       onExit={exitEditMode}
+                      moveTargets={moveTargetsFor('wanted', wantedListSlug)}
                     />
                   </Show>
                 </Show>
@@ -518,6 +539,7 @@ function App() {
                       slug={collectionSlug() ?? ''}
                       currency={currency()}
                       onExit={exitEditMode}
+                      moveTargets={moveTargetsFor('collection', collectionSlug)}
                     />
                   </Show>
                 </Show>
@@ -560,6 +582,7 @@ function App() {
                       slug={deckSlug() ?? ''}
                       currency={currency()}
                       onExit={exitEditMode}
+                      moveTargets={moveTargetsFor('deck', deckSlug)}
                     />
                   </Show>
                 </Show>
@@ -635,7 +658,14 @@ function App() {
         selection={allSelections}
         onClose={closeSelectionView}
         onRemoveAll={editMode() ? handleRemoveAll : undefined}
+        onMoveAll={editMode() ? handleMoveAll : undefined}
+        moveAllTargets={editMode() ? moveAllTargets : undefined}
       />
+
+      {/* Shared picker for choosing a move destination (section or list). */}
+      <Show when={pendingMovePrompt()}>
+        {(prompt) => <MoveTargetPicker prompt={prompt()} onClose={closeMovePrompt} />}
+      </Show>
 
       {/* Sequential printing picker for bulk "Add to Trade" of name-only cards. */}
       <Show when={pendingPrintingPrompt()}>

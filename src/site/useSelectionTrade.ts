@@ -1,32 +1,18 @@
-import { createSignal, type Accessor } from 'solid-js'
-import type { Finish, ScryfallCard } from '../types'
+import type { ScryfallCard } from '../types'
 import type { PriceCurrency } from '../price-currency'
 import type { SelectedCard } from './useCardSelection'
 import type { TradeSearchEntry } from './useTradeData'
 import { addEntryToLeft, addEntryToRight, showTradeToast } from './useTradeState'
 import { resolveCardThumbnailUrl } from './image-sources'
+import { promptForPrinting } from './printing-prompt'
 
 /**
  * Bulk "Add to Trade" for a card selection, shared by the per-list toolbar menu
  * and the cross-list navbar menu. Cards pinned to a specific printing are added
  * straight away; name-only cards (deck/wanted entries that accept any printing)
- * are prompted one at a time via the {@link pendingPrintingPrompt} picker, just
- * like the single-card flow. The app renders one picker bound to that signal.
+ * are prompted one at a time via the shared {@link promptForPrinting} picker, just
+ * like the single-card flow.
  */
-
-export interface SelectionPrintingPrompt {
-  cardName: string
-  printings: ScryfallCard[]
-  /** Apply the user's chosen printing/finish and advance the queue. */
-  onSelect: (printing: ScryfallCard, finish: Finish) => void
-  /** Skip this card (closing the picker) and advance the queue. */
-  onSkip: () => void
-}
-
-const [pendingPrompt, setPendingPrompt] = createSignal<SelectionPrintingPrompt | null>(null)
-
-/** The name-only card currently awaiting a printing choice, or null. */
-export const pendingPrintingPrompt: Accessor<SelectionPrintingPrompt | null> = pendingPrompt
 
 const sideAdder = (kind: SelectedCard['sourceKind']) =>
   kind === 'wanted' ? addEntryToRight : addEntryToLeft
@@ -62,25 +48,6 @@ function addCopies(entry: TradeSearchEntry, qty: number, currency: PriceCurrency
   return added
 }
 
-type PickedPrinting = { printing: ScryfallCard; finish: Finish }
-
-function promptForPrinting(card: SelectedCard): Promise<PickedPrinting | null> {
-  return new Promise((resolve) => {
-    setPendingPrompt({
-      cardName: card.name,
-      printings: card.printings ?? [],
-      onSelect: (printing, finish) => {
-        setPendingPrompt(null)
-        resolve({ printing, finish })
-      },
-      onSkip: () => {
-        setPendingPrompt(null)
-        resolve(null)
-      },
-    })
-  })
-}
-
 /**
  * Add a selection to the active trade, prompting for a printing on each name-only
  * card in sequence. Returns the number of copies actually added. Shows a single
@@ -104,7 +71,7 @@ export async function addSelectionToTrade(
       noteAdd(addCopies(baseEntry(card), card.quantity, currency), card.scryfallCard)
       continue
     }
-    const picked = await promptForPrinting(card)
+    const picked = await promptForPrinting(card.name, card.printings ?? [])
     if (!picked) continue
     const entry: TradeSearchEntry = {
       ...baseEntry(card),

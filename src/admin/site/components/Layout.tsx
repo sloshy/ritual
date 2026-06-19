@@ -8,8 +8,10 @@ import {
   isSelectionViewOpen,
   closeSelectionView,
 } from '../../../site/SelectionModal'
+import type { ListRef } from '../../../change-event'
 import { useAllSelections } from '../../../site/useCardSelection'
-import { removeSelectedAdmin } from '../remove-selected'
+import { moveSelectedAdmin, removeSelectedAdmin } from '../remove-selected'
+import { useAdminLists, listInfosToRefs } from '../move-targets'
 
 interface NavItem {
   id: Page
@@ -46,6 +48,7 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
   // selected). The admin site has no trade page, so it offers copy/clear plus a
   // server-backed "Remove all selected" that deletes the cards from their lists.
   const allSelections = useAllSelections()
+  const lists = useAdminLists()
 
   const handleRemoveAll = () => {
     const cards = allSelections.selected()
@@ -57,6 +60,16 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
       else window.alert(res.message)
     })
   }
+
+  const handleMoveAll = (dest: ListRef) => {
+    const cards = allSelections.selected()
+    void moveSelectedAdmin(cards, dest).then((res) => {
+      if (res.success) allSelections.clear()
+      else window.alert(res.message)
+    })
+  }
+
+  const moveAllTargets = (): ListRef[] => listInfosToRefs(lists())
 
   const handleNav = (page: Page) => {
     props.onNavigate(page)
@@ -95,6 +108,8 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
             buttonClass="selection-menu-btn--navbar"
             showViewAll
             onRemoveAll={handleRemoveAll}
+            onMoveAll={handleMoveAll}
+            moveAllTargets={moveAllTargets}
           />
           <Show when={props.onLogout}>
             {(logout) => (
@@ -159,6 +174,8 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
         selection={allSelections}
         onClose={closeSelectionView}
         onRemoveAll={handleRemoveAll}
+        onMoveAll={handleMoveAll}
+        moveAllTargets={moveAllTargets}
       />
     </div>
   )

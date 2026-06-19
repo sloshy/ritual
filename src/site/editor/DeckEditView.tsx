@@ -2,6 +2,7 @@ import { type Component, createSignal } from 'solid-js'
 import type { DeckDetail } from '../data-types'
 import type { PriceCurrency } from '../../price-currency'
 import type { DeckData } from '../../types'
+import type { ListRef } from '../../change-event'
 import type { EditorConfig } from '../../editor/useEditor'
 import type { DeckCardDataActions } from '../../editor/useDeckCardData'
 import { collectDeckCardIds } from '../../card-id'
@@ -34,6 +35,8 @@ type DeckEditViewProps = {
   currency: PriceCurrency
   /** Leave edit mode, returning to the published deck view. */
   onExit: () => void
+  /** Other lists a card can be moved into (excludes this deck). */
+  moveTargets?: () => ListRef[]
 }
 
 /**
@@ -57,6 +60,7 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
     // The public editor exports via the banner, not a save button — commit is unused.
     commit: () => Promise.resolve(undefined),
     entityLabel: 'deck',
+    moveTargets: () => props.moveTargets?.() ?? [],
 
     // `applyChangeToDeck` clones on edit, so handing the editor the baked deck
     // directly is safe — the original is never mutated and a discard reloads it.

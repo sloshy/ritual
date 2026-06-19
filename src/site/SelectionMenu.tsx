@@ -1,12 +1,14 @@
 import type { Accessor, Component } from 'solid-js'
-import { For, Show, createMemo } from 'solid-js'
+import { Show, createMemo } from 'solid-js'
 import { useAnchoredMenu } from '../ui/useAnchoredMenu'
 import { useAnchoredToggle } from '../ui/useAnchoredToggle'
+import type { ListRef } from '../change-event'
 import type { PriceCurrency } from '../price-currency'
 import type { CardSelectionControl } from './useCardSelection'
 import { useSelectionCopy } from './useSelectionCopy'
 import { addSelectionToTrade } from './useSelectionTrade'
 import { openSelectionView } from './SelectionModal'
+import { promptListMove, promptSectionMove } from './move-prompt'
 
 const PANEL_WIDTH = 220
 
@@ -36,6 +38,10 @@ export interface SelectionEditActions {
   promptNewSection: () => void
   /** Current section names, for the move submenu. */
   sections: () => string[]
+  /** Move every selected card out of this list into another list. */
+  moveToList: (dest: ListRef) => void
+  /** The other lists the selection can be moved to, for the move-to-list submenu. */
+  moveTargets: () => ListRef[]
 }
 
 export interface SelectionMenuProps {
@@ -60,6 +66,14 @@ export interface SelectionMenuProps {
    * open in edit mode. The handler owns confirmation and clearing the selection.
    */
   onRemoveAll?: () => void
+  /**
+   * When set (with {@link moveAllTargets}), show a cross-list "Move all to list"
+   * group. Used by the navbar menu to move every selected card from its own list
+   * into the chosen destination; passed only while a list is open in edit mode.
+   */
+  onMoveAll?: (dest: ListRef) => void
+  /** Destination lists for the cross-list "Move all to list" group. */
+  moveAllTargets?: () => ListRef[]
 }
 
 /**
@@ -223,27 +237,34 @@ const SelectionPanel: Component<SelectionPanelProps> = (props) => {
                 </button>
               )}
             </Show>
-            <div class="selection-menu-label">Move to section</div>
-            <For each={actions().sections()}>
-              {(section) => (
-                <button
-                  type="button"
-                  role="menuitem"
-                  class="selection-menu-item selection-menu-item--indented"
-                  onClick={() => runEdit(() => actions().moveToSection(section))}
-                >
-                  {section}
-                </button>
-              )}
-            </For>
             <button
               type="button"
               role="menuitem"
-              class="selection-menu-item selection-menu-item--indented"
-              onClick={() => runEdit(actions().promptNewSection)}
+              class="selection-menu-item"
+              onClick={() => {
+                props.onClose()
+                promptSectionMove(
+                  actions().sections(),
+                  (section) => actions().moveToSection(section),
+                  actions().promptNewSection,
+                )
+              }}
             >
-              New section…
+              Move to section…
             </button>
+            <Show when={actions().moveTargets().length > 0}>
+              <button
+                type="button"
+                role="menuitem"
+                class="selection-menu-item"
+                onClick={() => {
+                  props.onClose()
+                  promptListMove(actions().moveTargets(), (dest) => actions().moveToList(dest))
+                }}
+              >
+                Move to list…
+              </button>
+            </Show>
             <div class="selection-menu-sep" />
           </>
         )}
@@ -275,6 +296,19 @@ const SelectionPanel: Component<SelectionPanelProps> = (props) => {
         </button>
       </Show>
       <div class="selection-menu-sep" />
+      <Show when={props.onMoveAll && (props.moveAllTargets?.().length ?? 0) > 0}>
+        <button
+          type="button"
+          role="menuitem"
+          class="selection-menu-item"
+          onClick={() => {
+            props.onClose()
+            promptListMove(props.moveAllTargets?.() ?? [], (dest) => props.onMoveAll!(dest))
+          }}
+        >
+          Move all to list…
+        </button>
+      </Show>
       <Show when={props.onRemoveAll}>
         {(onRemoveAll) => (
           <button

@@ -61,6 +61,14 @@ ritual move
 For **non-interactive** moves, use the web admin's HTTP API or the MCP \`move_cards\`
 tool (see the **ritual-site** skill).
 
+You can also move a card **while editing a list** (in the admin or public in-browser
+editor) instead of using the dedicated batch tool: a **Move to list…** item appears in
+the per-card menu, the per-list **Selected** menu, and the cross-list **All Selected**
+navbar menu, opening a picker of destination lists. The card leaves the list you're
+editing, and on save **both** lists are
+written — removed from the source, added to the destination, with a changelog entry on
+each. Moving a printing-less card into a collection prompts for a specific printing first.
+
 ## Compact change history
 
 \`ritual history\` interactively compacts and rewrites a list's \`.changes.md\` log.

@@ -36,7 +36,13 @@ import { handleCollectionSave } from './api/collection-save'
 import { handleListWantedLists } from './api/wanted-list'
 import { handleWantedListLoad } from './api/wanted-load'
 import { handleWantedListSave } from './api/wanted-save'
-import { handleMoveData, handleMoveCommit, handleRemoveCommit } from './api/move'
+import {
+  handleMoveData,
+  handleMoveCommit,
+  handleRemoveCommit,
+  handleSelectedMove,
+} from './api/move'
+import { handleLists } from './api/lists'
 import { handleHistoryLists, handleHistoryLoad, handleHistorySave } from './api/history'
 import {
   handleSimpleListCreate,
@@ -208,8 +214,10 @@ export const routes: Route[] = [
     handler: (req) => handleSimpleListDelete(req, WANTED_CFG),
     requiresAuth: true,
   },
+  { method: 'GET', path: '/api/lists', handler: handleLists, requiresAuth: true },
   { method: 'GET', path: '/api/move', handler: handleMoveData, requiresAuth: true },
   { method: 'POST', path: '/api/move/commit', handler: handleMoveCommit, requiresAuth: true },
+  { method: 'POST', path: '/api/move/selected', handler: handleSelectedMove, requiresAuth: true },
   { method: 'POST', path: '/api/remove/commit', handler: handleRemoveCommit, requiresAuth: true },
   { method: 'GET', path: '/api/history', handler: handleHistoryLists, requiresAuth: true },
   {

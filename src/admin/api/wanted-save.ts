@@ -8,6 +8,7 @@ import type { ChangeEvent } from '../../change-event'
 import { getWantedDir } from '../../ritual-config'
 import { wantedToMarkdown } from '../../editor/list-export'
 import { parseTitleFromContent } from '../../section-format'
+import { applyOutgoingMoves } from './move-save'
 import {
   validateBodySize,
   validateContentHash,
@@ -77,6 +78,12 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
     // section from the client; the client-sent section order drives ordering (including any
     // now-empty sections), falling back to the order discovered in the entries themselves.
     const title = parseTitleFromContent(hashCheck.content) ?? slug
+
+    // Apply the destination side of any cross-list moves first; a bad destination
+    // aborts before the source is rewritten.
+    const movedFiles = await applyOutgoingMoves({ type: 'wanted', name: title }, changes)
+    filesToCommit.push(...movedFiles)
+
     const order = sectionOrder ?? []
     const newContent = wantedToMarkdown(title, entries, order)
     const newContentHash = await writeFileWithHash(filePath, newContent)

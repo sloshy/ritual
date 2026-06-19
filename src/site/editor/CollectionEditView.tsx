@@ -2,6 +2,7 @@ import { type Component, createSignal } from 'solid-js'
 import type { CollectionDetail } from '../data-types'
 import type { PriceCurrency } from '../../price-currency'
 import type { CollectionCardEntry } from '../data-types'
+import type { ListRef } from '../../change-event'
 import type { EditorConfig } from '../../editor/useEditor'
 import type { EntryCardDataActions } from '../../editor/useEntryCardData'
 import { collectExistingIds } from '../../card-id'
@@ -27,6 +28,8 @@ type CollectionEditViewProps = {
   slug: string
   currency: PriceCurrency
   onExit: () => void
+  /** Other lists a card can be moved into (excludes this collection). */
+  moveTargets?: () => ListRef[]
 }
 
 /** Public-site collection editor — mirrors {@link DeckEditView} for the flat collection list. */
@@ -41,6 +44,7 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
     showSelector: false,
     commit: () => Promise.resolve(undefined),
     entityLabel: 'collection',
+    moveTargets: () => props.moveTargets?.() ?? [],
 
     processLoadResponse: () => ({
       data: props.detail.entries,

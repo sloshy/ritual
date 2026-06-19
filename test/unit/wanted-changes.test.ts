@@ -252,4 +252,28 @@ describe('applyChangeToWantedList', () => {
       expect(result).toEqual(entries)
     })
   })
+
+  describe('moves', () => {
+    test('move-from removes the matched entry', () => {
+      const entries = [makeEntry({ cardId: 1 }), makeEntry({ name: 'Brainstorm', cardId: 2 })]
+      const result = applyChangeToWantedList(entries, {
+        action: 'move-from',
+        cardName: 'Lightning Bolt',
+        cardId: 1,
+        to: { type: 'collection', name: 'Binder' },
+      })
+      expect(result).toHaveLength(1)
+      expect(result[0]!.name).toBe('Brainstorm')
+    })
+
+    test('move-to adds the card', () => {
+      const result = applyChangeToWantedList([], {
+        action: 'move-to',
+        cardName: 'Brainstorm',
+        from: { type: 'deck', name: 'Mono-U' },
+      })
+      expect(result).toHaveLength(1)
+      expect(result[0]!.name).toBe('Brainstorm')
+    })
+  })
 })

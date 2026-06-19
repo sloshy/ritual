@@ -10,6 +10,7 @@ import { parseCollectionFile } from '../../commands/price-collection'
 import { applyChangeToCollection } from '../../editor/collection-changes'
 import { collectionToMarkdown } from '../../editor/list-export'
 import { parseTitleFromContent } from '../../section-format'
+import { applyOutgoingMoves } from './move-save'
 import {
   validateBodySize,
   validateContentHash,
@@ -98,6 +99,12 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
     // order (which reflects any add/rename/remove-section edits, including now-empty sections)
     // drives ordering; fall back to the file's parsed order when the client omits it.
     const title = parseTitleFromContent(hashCheck.content) ?? slug
+
+    // Apply the destination side of any cross-list moves first; a bad destination
+    // aborts before the source is rewritten.
+    const movedFiles = await applyOutgoingMoves({ type: 'collection', name: title }, changes)
+    filesToCommit.push(...movedFiles)
+
     const order = sectionOrder ?? parsed.sectionOrder
     const newContent = collectionToMarkdown(title, current, order)
     const newContentHash = await writeFileWithHash(filePath, newContent)

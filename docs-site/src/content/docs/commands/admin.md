@@ -76,6 +76,20 @@ The deck, collection, and wanted-list editors each have an **Import…** button 
 - Changes whose target can no longer be found are reported as conflicts and skipped, with a count shown after import.
 - The loaded changes appear in the editor for you to review and then **Save Changes** as a normal edit (recorded in the changelog).
 
+### Moving Cards While Editing
+
+While editing a deck, collection, or wanted list you can move a card into another list without leaving the editor (this is separate from the dedicated **Move Cards** batch tool). A single **Move to list…** item appears in three places:
+
+- the per-card **⋯** context menu (moves that card),
+- the per-list **Selected** menu (moves the current multi-selection), and
+- the cross-list **All Selected** navbar menu (moves every selected card from its own list).
+
+Choosing **Move to list…** opens a small picker listing your other decks, collections, and wanted lists; pick one to set the destination. (The picker replaces the older layout that listed every destination as its own menu entry.)
+
+For the per-card and per-list **Selected** moves, choosing a destination removes the card from the list you're editing and **stages** a move. **When you Save, both lists are written**: the card is removed from the source (with a "Move … to …" changelog entry) and added to the destination (with a matching "Move … from …" entry). Moving a printing-less card into a collection — which requires a specific printing — opens a printing picker first.
+
+The cross-list **All Selected** move does not go through the editor's Save button: it is applied **immediately** and atomically across every affected file via `POST /api/move/selected` (each card moves from its own list to the chosen destination).
+
 ### Build Site
 
 Trigger a full static site build from the browser. This runs the same process as `ritual build-site`.
@@ -368,6 +382,52 @@ List all deck files in the decks directory.
   "decks": ["burn", "elves", "mono-red-aggro"]
 }
 ```
+
+### `GET /api/lists`
+
+**Auth required:** Yes
+
+List every deck, collection, and wanted list as lightweight summaries. Backs the editor's "Move to list" destination picker.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "lists": [
+    { "type": "deck", "slug": "burn", "name": "Burn" },
+    { "type": "collection", "slug": "binder", "name": "Binder" }
+  ]
+}
+```
+
+### `POST /api/move/selected`
+
+**Auth required:** Yes
+
+Move a batch of selected cards across lists atomically — the server side of the cross-list **All Selected → Move all to list…** action. Each item identifies a card by its source list and identity and names a destination list (by `toType` + `toName`); optional `set`/`collectorNumber`/`finish`/`condition` pin a resolved printing (required when moving a printing-less card into a collection).
+
+**Request body:**
+
+```json
+{
+  "moves": [
+    {
+      "listType": "deck",
+      "listSlug": "burn",
+      "name": "Lightning Bolt",
+      "cardId": 3,
+      "copyIndex": 0,
+      "toType": "collection",
+      "toName": "Binder",
+      "set": "lea",
+      "collectorNumber": "161"
+    }
+  ]
+}
+```
+
+**Response:** `{ "success": true, "moved": 1, "requested": 1, "skipped": 0, "message": "Moved 1 card." }`. Cards whose source or destination can no longer be resolved (or whose destination is their own list) are skipped and counted.
 
 ### `POST /api/search-cards`
 

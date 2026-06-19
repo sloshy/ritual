@@ -52,7 +52,7 @@ test.describe('Multi-select bulk edit actions', () => {
       panel.locator('.selection-menu-item', { hasText: 'Set as Commander' }),
     ).toBeVisible()
     await expect(
-      panel.locator('.selection-menu-label', { hasText: 'Move to section' }),
+      panel.locator('.selection-menu-item', { hasText: 'Move to section…' }),
     ).toBeVisible()
   })
 
@@ -91,7 +91,10 @@ test.describe('Multi-select bulk edit actions', () => {
   }) => {
     await selectCard(page, 0)
     const panel = await openSelectionMenu(page)
-    await panel.locator('.selection-menu-item', { hasText: 'New section…' }).click()
+    await panel.locator('.selection-menu-item', { hasText: 'Move to section…' }).click()
+    // The picker lists existing sections alongside the "New section…" entry.
+    await expect(page.locator('.move-picker-item', { hasText: 'Main' })).toBeVisible()
+    await page.locator('.move-picker-item', { hasText: 'New section…' }).click()
 
     // The in-app prompt replaces window.prompt for section naming.
     const input = page.locator('#text-prompt-input')

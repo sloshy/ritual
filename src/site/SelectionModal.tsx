@@ -1,8 +1,10 @@
 import type { Accessor, Component } from 'solid-js'
 import { createSignal, createMemo, createEffect, onCleanup, For, Show } from 'solid-js'
+import type { ListRef } from '../change-event'
 import type { CardSelectionControl, SelectedCard } from './useCardSelection'
 import { groupSelectionsBySource } from './useCardSelection'
 import { useSelectionCopy } from './useSelectionCopy'
+import { promptListMove } from './move-prompt'
 import { useTooltip } from './useTooltip'
 import { capitalize } from './utils'
 
@@ -37,6 +39,10 @@ export interface SelectionModalProps {
   onClose: () => void
   /** When set, show a "Remove all selected" action that deletes every selected card from its list. */
   onRemoveAll?: () => void
+  /** When set (with {@link moveAllTargets}), show a "Move all to list" group moving each card from its own list. */
+  onMoveAll?: (dest: ListRef) => void
+  /** Destination lists for the "Move all to list" group. */
+  moveAllTargets?: () => ListRef[]
 }
 
 /**
@@ -175,6 +181,20 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
             >
               Copy as CSV
             </button>
+            <Show when={props.onMoveAll && (props.moveAllTargets?.().length ?? 0) > 0}>
+              <button
+                type="button"
+                class="site-btn site-btn-secondary"
+                onClick={() =>
+                  promptListMove(props.moveAllTargets?.() ?? [], (dest) => {
+                    props.onMoveAll!(dest)
+                    props.onClose()
+                  })
+                }
+              >
+                Move all to list…
+              </button>
+            </Show>
             <Show when={props.onRemoveAll}>
               {(onRemoveAll) => (
                 <button

@@ -867,4 +867,32 @@ describe('applyChangeToDeck — additional action coverage', () => {
     expect(result.sections[0]!.cards).toHaveLength(1)
     expect(result.sections[0]!.cards[0]!.finish).toBe('nonfoil')
   })
+
+  test('move-from decrements one copy (behaves like remove)', () => {
+    const deck = makeDeck()
+    const result = applyChangeToDeck(deck, {
+      action: 'move-from',
+      cardName: 'Lightning Bolt',
+      cardId: 5,
+      set: 'lea',
+      collectorNumber: '161',
+      to: { type: 'collection', name: 'Binder' },
+    })
+    expect(result.sections[0]!.cards[0]!.quantity).toBe(3)
+  })
+
+  test('move-to adds the card with its printing (behaves like add)', () => {
+    const deck = makeDeck()
+    const result = applyChangeToDeck(deck, {
+      action: 'move-to',
+      cardName: 'Counterspell',
+      set: 'lea',
+      collectorNumber: '54',
+      from: { type: 'deck', name: 'Other' },
+    })
+    const added = result.sections.flatMap((s) => s.cards).find((c) => c.name === 'Counterspell')
+    expect(added).toBeDefined()
+    expect(added!.set).toBe('lea')
+    expect(added!.collectorNumber).toBe('54')
+  })
 })

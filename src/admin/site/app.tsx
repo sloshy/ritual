@@ -1,6 +1,10 @@
 import { render } from 'solid-js/web'
-import { createSignal, onMount, onCleanup, batch, Switch, Match } from 'solid-js'
+import { createSignal, onMount, onCleanup, batch, Show, Switch, Match } from 'solid-js'
 import type { Page, NavigateFn } from './types'
+import { pendingPrintingPrompt } from '../../site/printing-prompt'
+import { TradePrintingPicker } from '../../site/TradePrintingPicker'
+import { pendingMovePrompt, closeMovePrompt } from '../../site/move-prompt'
+import { MoveTargetPicker } from '../../site/MoveTargetPicker'
 import type { ListType } from '../../list-type'
 import { Layout } from './components/Layout'
 import { AuthGuard } from './components/AuthGuard'
@@ -158,6 +162,26 @@ function App() {
                 <AuditLog />
               </Match>
             </Switch>
+            {/* Shared picker for choosing a move destination (section or list). */}
+            <Show when={pendingMovePrompt()}>
+              {(prompt) => <MoveTargetPicker prompt={prompt()} onClose={closeMovePrompt} />}
+            </Show>
+
+            {/* Shared printing picker for moving a printing-less card into a collection. */}
+            <Show when={pendingPrintingPrompt()}>
+              {(prompt) => (
+                <TradePrintingPicker
+                  cardName={prompt().cardName}
+                  printings={prompt().printings}
+                  loading={false}
+                  currency="usd"
+                  onSelect={(printing, finish) => prompt().onSelect(printing, finish)}
+                  onClose={() => prompt().onSkip()}
+                  onTooltipEnter={() => {}}
+                  onTooltipLeave={() => {}}
+                />
+              )}
+            </Show>
           </Layout>
         </NavigationGuardProvider>
       </Match>

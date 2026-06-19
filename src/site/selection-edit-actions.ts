@@ -1,4 +1,5 @@
 import type { Finish } from '../types'
+import type { ListRef } from '../change-event'
 import type { SelectionEditActions } from './SelectionMenu'
 import type { CardSelectionControl, SelectedCard } from './useCardSelection'
 
@@ -18,6 +19,8 @@ export type BulkEditBundle = {
   moveToSection: (cards: SelectedCard[], section: string) => void
   promptNewSection: (cards: SelectedCard[]) => void
   sections: () => string[]
+  moveToList: (cards: SelectedCard[], dest: ListRef) => void
+  moveTargets: () => ListRef[]
 }
 
 /**
@@ -51,5 +54,10 @@ export function buildSelectionEditActions(
     },
     promptNewSection: apply(bulk.promptNewSection),
     sections: bulk.sections,
+    moveToList: (dest) => {
+      bulk.moveToList(selection.selected(), dest)
+      selection.clear()
+    },
+    moveTargets: bulk.moveTargets,
   }
 }

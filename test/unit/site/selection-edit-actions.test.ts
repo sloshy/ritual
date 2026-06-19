@@ -24,6 +24,8 @@ function harness(withCommander = true) {
     moveToSection: (cards, section) => calls.push({ name: 'moveToSection', cards, arg: section }),
     promptNewSection: record('promptNewSection'),
     sections: () => ['Main', 'Sideboard'],
+    moveToList: (cards, dest) => calls.push({ name: 'moveToList', cards, arg: dest }),
+    moveTargets: () => [{ type: 'collection', name: 'Binder' }],
   }
 
   const cards: SelectedCard[] = [
@@ -106,5 +108,19 @@ describe('buildSelectionEditActions', () => {
   test('exposes the bundle sections accessor', () => {
     const h = harness()
     expect(h.actions.sections()).toEqual(['Main', 'Sideboard'])
+  })
+
+  test('moveToList forwards the live selection plus destination and clears', () => {
+    const h = harness()
+    const dest = { type: 'collection' as const, name: 'Binder' }
+    h.actions.moveToList(dest)
+    expect(h.calls).toEqual([{ name: 'moveToList', cards: h.cards, arg: dest }])
+    expect(h.cleared()).toBe(1)
+  })
+
+  test('exposes the bundle moveTargets accessor without clearing', () => {
+    const h = harness()
+    expect(h.actions.moveTargets()).toEqual([{ type: 'collection', name: 'Binder' }])
+    expect(h.cleared()).toBe(0)
   })
 })

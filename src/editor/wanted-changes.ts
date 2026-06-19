@@ -98,8 +98,28 @@ export function applyChangeToWantedList(
     }
 
     case 'move-from':
+      // A move out of this list removes the card here; the destination write is
+      // handled at save time (admin) or on import of the destination's change file.
+      return applyChangeToWantedList(entries, {
+        action: 'remove',
+        cardName: change.cardName,
+        cardId: change.cardId,
+        set: change.set,
+        collectorNumber: change.collectorNumber,
+        finish: change.finish,
+        condition: change.condition,
+        fileOrder: change.fileOrder,
+      })
+
     case 'move-to':
-      // Move events are managed by the CLI move command and are not applied via the admin UI
-      return entries
+      // A move into this list adds the card (e.g. when importing a destination list's changes).
+      return applyChangeToWantedList(entries, {
+        action: 'add',
+        cardName: change.cardName,
+        cardId: change.cardId,
+        set: change.set,
+        collectorNumber: change.collectorNumber,
+        finish: change.finish,
+      })
   }
 }

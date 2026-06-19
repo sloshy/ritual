@@ -1,11 +1,13 @@
-import { type Accessor, type JSX, Show, createSignal } from 'solid-js'
+import { type Accessor, type JSX, Show, batch, createSignal } from 'solid-js'
 import { type Finish, type Condition, DEFAULT_SECTION } from '../types'
-import type { ChangeInput } from '../change-event'
+import type { ChangeInput, ListRef, PrintingTuple } from '../change-event'
 import type { SelectedCard } from '../site/useCardSelection'
 import type { CardContextInfo } from './context-menu'
 import type { EditorConfig, UseEditorResult } from './useEditor'
 import type { ChangeFileKind } from './change-file'
 import { contextInfoFromSelected } from './selected-to-context'
+import { printingForMove } from '../site/printing-prompt'
+import { promptListMove, promptSectionMove } from '../site/move-prompt'
 import { useEditor } from './useEditor'
 import type { UseEditorDefaultsResult } from './useEditorDefaults'
 import type { SearchProvider } from './search-provider'
@@ -60,6 +62,10 @@ export type FlatBulkEdit = {
   promptNewSection: (cards: SelectedCard[]) => void
   /** Current section names, for the move submenu. */
   sections: () => string[]
+  /** Move every selected card out of this list into another list. */
+  moveToList: (cards: SelectedCard[], dest: ListRef) => void
+  /** The other lists cards can be moved to, for the move-to-list submenu. */
+  moveTargets: () => ListRef[]
 }
 
 /**
@@ -79,6 +85,8 @@ export type FlatListController<E extends FlatEntry> = {
   handleDecrement: (entry: E) => void
   handleContextMenu: (info: CardContextInfo, rect: DOMRect) => void
   handleChangePrinting: () => void
+  /** Move the context-menu's card (every copy of the tile) into another list. */
+  handleMoveCardToList: (target: CardContextInfo, dest: ListRef) => void
   closeModal: () => void
   closeContextMenu: () => void
   /** Bulk edit operations over a multi-select of flat-list cards. */
@@ -140,6 +148,50 @@ export function useFlatListEditController<E extends FlatEntry>(
     if (menu) editor.startChangePrinting(menu)
   }
 
+  // Emit one move-from per copy (flat lists hold one entry per copy, each with its
+  // own cardId), updating the live data and freeing each id back to the pool.
+  const emitMove = (
+    cardName: string,
+    dest: ListRef,
+    printing: PrintingTuple,
+    cardIds: number[],
+  ) => {
+    batch(() => {
+      for (const id of cardIds) {
+        editor.changes.moveCardToList(cardName, dest, { ...printing, cardId: id })
+        editor.setData((prev) =>
+          prev
+            ? params.applyChange(prev, {
+                action: 'move-from',
+                cardName,
+                ...printing,
+                cardId: id,
+                to: dest,
+              })
+            : prev,
+        )
+        editor.pool.release(id)
+      }
+    })
+  }
+
+  const handleMoveCardToList = (target: CardContextInfo, dest: ListRef) => {
+    closeContextMenu()
+    void printingForMove(
+      target.cardName,
+      dest,
+      {
+        set: target.set,
+        collectorNumber: target.collectorNumber,
+        finish: target.finish,
+        condition: target.condition,
+      },
+      cardData.printings[target.cardName] ?? [],
+    ).then((printing) => {
+      if (printing) emitMove(target.cardName, dest, printing, target.cardIds)
+    })
+  }
+
   const closeModal = () => setModalCardKey(null)
 
   // Resolve a selection cardId back to its live entry — flat removals must target
@@ -194,6 +246,25 @@ export function useFlatListEditController<E extends FlatEntry>(
     promptNewSection: (cards) =>
       editor.promptNewSectionForCards(cards.map(contextInfoFromSelected)),
     sections: () => editor.sectionOrder(),
+    moveToList: (cards, dest) => {
+      void (async () => {
+        for (const c of cards) {
+          const printing = await printingForMove(
+            c.name,
+            dest,
+            {
+              set: c.set,
+              collectorNumber: c.collectorNumber,
+              finish: c.finish,
+              condition: c.condition,
+            },
+            c.printings ?? [],
+          )
+          if (printing) emitMove(c.name, dest, printing, c.cardIds)
+        }
+      })()
+    },
+    moveTargets: () => editor.moveTargets(),
   }
 
   return {
@@ -206,6 +277,7 @@ export function useFlatListEditController<E extends FlatEntry>(
     handleDecrement,
     handleContextMenu,
     handleChangePrinting,
+    handleMoveCardToList,
     closeModal,
     bulkEdit,
     closeContextMenu,
@@ -232,10 +304,24 @@ export function FlatListContextMenu<E extends FlatEntry>(
           anchorRect={menu().anchorRect}
           onClose={props.ctrl.closeContextMenu}
           hideCommander={true}
-          sections={editor.sectionOrder()}
-          currentSection={editor.data() ? sectionOfTarget(editor.data()!, menu()) : undefined}
-          onMoveToSection={(section) => editor.handleMoveCardToSection(menu(), section)}
-          onCreateSection={() => editor.promptNewSectionForCard(menu())}
+          onMoveToSection={() => {
+            const target = menu()
+            const current = editor.data() ? sectionOfTarget(editor.data()!, target) : undefined
+            props.ctrl.closeContextMenu()
+            promptSectionMove(
+              editor.sectionOrder().filter((s) => s !== current),
+              (section) => editor.handleMoveCardToSection(target, section),
+              () => editor.promptNewSectionForCard(target),
+            )
+          }}
+          moveTargets={editor.moveTargets()}
+          onMoveToList={() => {
+            const target = menu()
+            props.ctrl.closeContextMenu()
+            promptListMove(editor.moveTargets(), (dest) =>
+              props.ctrl.handleMoveCardToList(target, dest),
+            )
+          }}
         />
       )}
     </Show>

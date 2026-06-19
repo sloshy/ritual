@@ -48,7 +48,8 @@ While a list is open in edit mode, the **Selected (N)** menu also gains an **edi
 - **Set as Foil** / **Set as Nonfoil** — set the finish on each selected card that supports it (others are skipped)
 - **Change Printing…** — runs the printing picker over the selected cards one at a time (cancelling skips that card and continues)
 - **Set as Commander** — decks only; marks each selected card as a commander
-- **Move to section** — move every selected card into an existing section, or **New section…** to name a new one
+- **Move to section…** — opens a picker to move every selected card into an existing section, or **New section…** to name a new one
+- **Move to list…** — opens a picker to move every selected card into another list
 
 These edits go through the same pending-changes/undo flow as per-card edits, so nothing is written until you **Save** (admin) or export (public). The selection is cleared once an action is applied.
 
@@ -101,11 +102,11 @@ This step appears when the selected printing has multiple finish options.
 
 ### Context Menu
 
-Right-clicking a card (or clicking the **⋯** button in binder/overlap views) opens a context menu. **Set as Foil**, **Change Printing…**, and **Move to section** are available in all editors. The Deck Editor additionally offers **Set as Commander**.
+Right-clicking a card (or clicking the **⋯** button in binder/overlap views) opens a context menu. **Set as Foil**, **Change Printing…**, and **Move to section…** are available in all editors. The Deck Editor additionally offers **Set as Commander**.
 
 #### Move to Section
 
-The **Move to section** group lists every section except the card's current one, plus a **New section…** entry that prompts for a name and moves the card into a freshly created section. Moving a card emits a `set-section` change (latest-wins: moving a card back to its original section cancels the pending move).
+The **Move to section…** item opens a picker listing every section except the card's current one, plus a **New section…** entry that prompts for a name and moves the card into a freshly created section. Moving a card emits a `set-section` change (latest-wins: moving a card back to its original section cancels the pending move).
 
 ### Sections
 

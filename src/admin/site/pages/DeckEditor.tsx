@@ -17,6 +17,7 @@ import {
 } from '../../../editor/deck-config'
 import { useDeckEditController, DeckEditorBody } from '../../../editor/DeckEditController'
 import { adminSearch, fetchAdminJson, fetchCardPrice } from '../editor-backend'
+import { useAdminLists, moveTargetsExcluding } from '../move-targets'
 
 type DeckListResponse = { decks?: { slug: string; name: string }[] }
 
@@ -38,6 +39,9 @@ type DeckEditorProps = { initialSlug?: string | null }
 
 export function DeckEditor(props: DeckEditorProps): JSX.Element {
   const defaults = useEditorDefaults('deck', 'admin')
+  const lists = useAdminLists()
+  // Late-bound so the config (built before the controller) can read the live slug.
+  let currentSlug: () => string | null = () => props.initialSlug ?? null
 
   const buildConfig = (cardActions: DeckCardDataActions): EditorConfig<DeckData> => ({
     fetchList: () => fetchAdminJson('/api/decks'),
@@ -101,9 +105,11 @@ export function DeckEditor(props: DeckEditorProps): JSX.Element {
     sectionsOf: (deck) => deck.sections.map((s) => s.name),
     cardCountsBySection: deckCountsBySection,
     cardSectionOf: findDeckCardSection,
+    moveTargets: () => moveTargetsExcluding(lists(), 'deck', currentSlug()),
   })
 
   const ctrl = useDeckEditController(buildConfig, props.initialSlug)
+  currentSlug = () => ctrl.editor.slug()
 
   return (
     <DeckEditorBody

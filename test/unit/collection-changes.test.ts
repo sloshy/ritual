@@ -278,4 +278,33 @@ describe('applyChangeToCollection', () => {
     expect(copy.condition).toBe('LP')
     expect(copy.fileOrder).toBe(1)
   })
+
+  it('move-from — removes the matched entry (behaves like remove)', () => {
+    const entries = [makeEntry({ cardId: 1 }), makeEntry({ name: 'Dark Ritual', cardId: 2 })]
+    const result = applyChangeToCollection(entries, {
+      action: 'move-from',
+      cardName: 'Lightning Bolt',
+      cardId: 1,
+      set: 'lea',
+      collectorNumber: '161',
+      to: { type: 'deck', name: 'Burn' },
+    })
+    expect(result).toHaveLength(1)
+    expect(result[0]!.name).toBe('Dark Ritual')
+  })
+
+  it('move-to — adds the card (behaves like add)', () => {
+    const result = applyChangeToCollection([], {
+      action: 'move-to',
+      cardName: 'Tarmogoyf',
+      set: 'fut',
+      collectorNumber: '153',
+      finish: 'foil',
+      from: { type: 'deck', name: 'Jund' },
+    })
+    expect(result).toHaveLength(1)
+    expect(result[0]!.name).toBe('Tarmogoyf')
+    expect(result[0]!.set).toBe('fut')
+    expect(result[0]!.finish).toBe('foil')
+  })
 })

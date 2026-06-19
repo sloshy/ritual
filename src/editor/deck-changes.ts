@@ -207,8 +207,28 @@ export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData
     }
 
     case 'move-from':
+      // A move out of this deck removes one copy here; the destination write is
+      // handled at save time (admin) or on import of the destination's change file.
+      return applyChangeToDeck(deck, {
+        action: 'remove',
+        cardName: change.cardName,
+        cardId: change.cardId,
+        set: change.set,
+        collectorNumber: change.collectorNumber,
+        finish: change.finish,
+        condition: change.condition,
+      })
+
     case 'move-to':
-      // Move events are managed by the CLI move command and are not applied via the admin UI
-      return { ...deck, sections }
+      // A move into this deck adds the card (e.g. when importing a destination list's changes).
+      return applyChangeToDeck(deck, {
+        action: 'add',
+        cardName: change.cardName,
+        cardId: change.cardId,
+        set: change.set,
+        collectorNumber: change.collectorNumber,
+        finish: change.finish,
+        condition: change.condition,
+      })
   }
 }

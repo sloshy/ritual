@@ -134,7 +134,8 @@ test.describe('Collection Editor sections', () => {
     await card.locator('.edit-btn-context').click()
     const menu = page.locator('.card-context-menu')
     await expect(menu).toBeVisible()
-    await menu.locator('button', { hasText: /^Foils$/ }).click()
+    await menu.locator('.card-context-menu-item', { hasText: 'Move to section…' }).click()
+    await page.locator('.move-picker-item', { hasText: /^Foils$/ }).click()
 
     await expect(page.locator('.changes-badge')).toHaveText('2')
 
@@ -193,7 +194,8 @@ test.describe('Collection Editor sections', () => {
   }) => {
     const card = page.locator('.card-item').filter({ hasText: 'Sol Ring' }).first()
     await card.locator('.edit-btn-context').click()
-    await page.locator('.card-context-menu-item', { hasText: 'New section' }).click()
+    await page.locator('.card-context-menu-item', { hasText: 'Move to section…' }).click()
+    await page.locator('.move-picker-item', { hasText: 'New section' }).click()
 
     // A styled in-app dialog (site dialog chrome), not the browser's native window.prompt.
     const prompt = page.locator('dialog.discard-dialog-native .confirm-dialog.text-prompt')

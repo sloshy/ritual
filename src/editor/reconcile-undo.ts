@@ -11,7 +11,12 @@ export function reconcileIdPoolForUndo(
     if (change.action === 'add' && change.cardId !== undefined) {
       release(change.cardId)
     }
-    if (change.action === 'remove' && change.cardId !== undefined) {
+    // A move out of the list frees its id just like a removal, so undoing one
+    // must reclaim that id to restore the card's original &N.
+    if (
+      (change.action === 'remove' || change.action === 'move-from') &&
+      change.cardId !== undefined
+    ) {
       claim(change.cardId)
     }
   }

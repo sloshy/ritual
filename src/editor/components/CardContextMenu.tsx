@@ -1,6 +1,6 @@
-import { type Component, For } from 'solid-js'
-import { createMemo, Show } from 'solid-js'
+import { type Component, createMemo, Show } from 'solid-js'
 import type { Finish, ScryfallCard } from '../../types'
+import type { ListRef } from '../../change-event'
 import { useAnchoredMenu } from '../../ui/useAnchoredMenu'
 
 const MENU_WIDTH = 180
@@ -17,14 +17,18 @@ interface CardContextMenuProps {
   onClose: () => void
   isCommander?: boolean
   hideCommander?: boolean
-  /** All section names; the card's current section is omitted from the move targets. */
-  sections?: string[]
-  /** The section the targeted card currently belongs to. */
-  currentSection?: string
-  /** Move the targeted card to an existing section. */
-  onMoveToSection?: (section: string) => void
-  /** Open a styled prompt to name a new section and move the targeted card into it. */
-  onCreateSection?: () => void
+  /**
+   * Open the move-to-section picker for the targeted card. Present whenever section
+   * moves apply (the picker offers the other sections plus "New section…").
+   */
+  onMoveToSection?: () => void
+  /** Other lists the targeted card can be moved into (excludes the current list). */
+  moveTargets?: ListRef[]
+  /**
+   * Open the move-to-list picker for the targeted card (every copy of the tile).
+   * Only shown when {@link moveTargets} is non-empty.
+   */
+  onMoveToList?: () => void
 }
 
 export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
@@ -42,11 +46,6 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
   const foilButtonLabel = createMemo(() => (isFoilOrEtched() ? 'Set as Nonfoil' : 'Set as Foil'))
   const foilButtonDisabled = createMemo(() =>
     isFoilOrEtched() ? !supportsNonfoil() : !supportsFoil(),
-  )
-
-  // Move targets are every section except the one the card already lives in.
-  const moveTargets = createMemo(() =>
-    (props.sections ?? []).filter((s) => s !== props.currentSection),
   )
 
   return (
@@ -93,30 +92,15 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
       </Show>
       <Show when={props.onMoveToSection}>
         {(moveToSection) => (
-          <>
-            <div class="card-context-menu-label">Move to section</div>
-            <For each={moveTargets()}>
-              {(section) => (
-                <button
-                  class="card-context-menu-item card-context-menu-item--indented"
-                  onClick={() => moveToSection()(section)}
-                >
-                  {section}
-                </button>
-              )}
-            </For>
-            <Show when={props.onCreateSection}>
-              {(createSection) => (
-                <button
-                  class="card-context-menu-item card-context-menu-item--indented"
-                  onClick={() => createSection()()}
-                >
-                  New section…
-                </button>
-              )}
-            </Show>
-          </>
+          <button class="card-context-menu-item" onClick={() => moveToSection()()}>
+            Move to section…
+          </button>
         )}
+      </Show>
+      <Show when={props.onMoveToList && (props.moveTargets?.length ?? 0) > 0}>
+        <button class="card-context-menu-item" onClick={() => props.onMoveToList!()}>
+          Move to list…
+        </button>
       </Show>
     </div>
   )

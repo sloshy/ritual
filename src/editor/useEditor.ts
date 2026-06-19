@@ -13,7 +13,13 @@ import { replaySectionOrder } from '../change-event'
 import { DEFAULT_SECTION, type Finish, type ScryfallCard } from '../types'
 import type { PriceCurrency } from '../price-currency'
 import { DEFAULT_CURRENCY } from '../price-currency'
-import type { ChangeEvent, ChangeInput, CardPrintingOptions, PrintingTuple } from '../change-event'
+import type {
+  ChangeEvent,
+  ChangeInput,
+  CardPrintingOptions,
+  PrintingTuple,
+  ListRef,
+} from '../change-event'
 import { retargetImportedChanges, type ImportConflict } from './import-changes'
 import type { ContextMenuState, CardContextInfo } from './context-menu'
 import type { EditorStatus, EditorStatusActions } from './useEditorStatus'
@@ -148,6 +154,12 @@ export type EditorConfig<TData> = {
   cardCountsBySection?: (data: TData) => Record<string, number>
   /** Resolve the section a targeted card currently belongs to (for move consolidation). */
   cardSectionOf?: (data: TData, target: CardContextInfo) => string | undefined
+
+  /**
+   * The other lists a card in this editor can be moved to, already excluding the
+   * current list. Drives the "Move to list" menus; omit to disable cross-list moves.
+   */
+  moveTargets?: () => ListRef[]
 }
 
 /** A section plus how many cards it currently holds. */
@@ -244,6 +256,9 @@ export type UseEditorResult<TData, TCardEntry> = {
   handleMoveCardToSection: (target: CardContextInfo, section: string) => void
   /** Move many targeted cards into a section in one pass (creating it once if needed). */
   handleMoveCardsToSection: (targets: CardContextInfo[], section: string) => void
+
+  /** The other lists a card here can be moved to (excludes the current list). */
+  moveTargets: () => ListRef[]
 
   /** The active in-app text prompt (section naming), or null when none is open. */
   textPrompt: Accessor<TextPromptState | null>
@@ -829,6 +844,7 @@ export function useEditor<TData, TCardEntry = unknown>(
     handleRemoveSection,
     handleMoveCardToSection,
     handleMoveCardsToSection,
+    moveTargets: () => config.moveTargets?.() ?? [],
 
     textPrompt,
     closeTextPrompt,

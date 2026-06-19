@@ -323,3 +323,135 @@ export async function handleRemoveCommit(req: Request): Promise<Response> {
     return Response.json({ success: false, message: getErrorMessage(error) }, { status: 500 })
   }
 }
+
+/**
+ * One selected card to move, addressed by source list + identity (mirroring
+ * {@link RemoveCommitItem}) plus a destination list (by type + display name) and an
+ * optional resolved printing. Used by the cross-list "Move all selected" navbar
+ * action, which moves each selected card from its own list into one destination.
+ */
+export type SelectedMoveItem = {
+  listType: ListType
+  listSlug: string
+  name: string
+  cardId?: number
+  copyIndex?: number
+  toType: ListType
+  toName: string
+  set?: string
+  collectorNumber?: string
+  finish?: Finish
+  condition?: Condition
+}
+
+export type SelectedMoveRequest = { moves: SelectedMoveItem[] }
+
+type RawSelectedMoveBody = { moves?: unknown }
+
+/**
+ * POST /api/move/selected — move a batch of selected cards across lists atomically.
+ *
+ * Backs the cross-list "Move all selected" multi-select action. Each item is
+ * resolved back to its physical key (same scheme as the load endpoint) and its
+ * destination by display name, optional printing overrides are applied, and the
+ * shared {@link commitAllMoves} performs the atomic LOAD→APPLY→WRITE→CHANGELOG pass.
+ * Cards or destinations that can no longer be resolved are skipped and reported.
+ */
+export async function handleSelectedMove(req: Request): Promise<Response> {
+  try {
+    const sizeError = validateBodySize(req)
+    if (sizeError) return sizeError
+
+    const raw = (await req.json()) as RawSelectedMoveBody
+    if (raw === null || typeof raw !== 'object' || !Array.isArray(raw.moves)) {
+      return Response.json({ success: false, message: 'moves array is required' }, { status: 400 })
+    }
+    for (const m of raw.moves as unknown[]) {
+      const item = m as Record<string, unknown>
+      if (
+        typeof item.listType !== 'string' ||
+        !isListType(item.listType) ||
+        typeof item.listSlug !== 'string' ||
+        typeof item.name !== 'string' ||
+        typeof item.toType !== 'string' ||
+        !isListType(item.toType) ||
+        typeof item.toName !== 'string' ||
+        (item.cardId !== undefined && typeof item.cardId !== 'number') ||
+        (item.copyIndex !== undefined && typeof item.copyIndex !== 'number')
+      ) {
+        return Response.json({ success: false, message: 'Invalid move request' }, { status: 400 })
+      }
+    }
+    const body = raw as SelectedMoveRequest
+
+    const lists = await loadAllLists()
+    const physical = await loadPhysicalCards(lists)
+    const state = buildVirtualState(physical)
+    const slugByPath = new Map(lists.map((l) => [l.filePath, listSlug(l.filePath)]))
+
+    const internalByClient = new Map<string, string>()
+    for (const pc of physical) {
+      const slug = slugByPath.get(pc.listEntry.filePath)!
+      internalByClient.set(
+        moveCardKey(pc.listEntry.ref.type, slug, pc.cardId, pc.name, pc.copyIndex),
+        pc.key,
+      )
+    }
+
+    const findDest = (type: ListType, name: string): ListEntry | undefined =>
+      lists.find((l) => l.ref.type === type && l.ref.name === name)
+
+    let skipped = 0
+    for (const m of body.moves) {
+      const internalKey = internalByClient.get(
+        moveCardKey(m.listType, m.listSlug, m.cardId, m.name, m.copyIndex),
+      )
+      const dest = findDest(m.toType, m.toName)
+      const vc = internalKey ? state.get(internalKey) : undefined
+      if (!internalKey || !dest || !vc) {
+        skipped++
+        continue
+      }
+      // Don't move a card onto the list it already lives in.
+      if (vc.currentList.filePath === dest.filePath) {
+        skipped++
+        continue
+      }
+      if (
+        m.set !== undefined ||
+        m.collectorNumber !== undefined ||
+        m.finish !== undefined ||
+        m.condition !== undefined
+      ) {
+        vc.card = {
+          ...vc.card,
+          set: m.set !== undefined ? m.set.toLowerCase() : vc.card.set,
+          collectorNumber: m.collectorNumber ?? vc.card.collectorNumber,
+          finish: m.finish ?? vc.card.finish,
+          condition: m.condition ?? vc.card.condition,
+        }
+      }
+      applyVirtualMove(state, internalKey, dest)
+    }
+
+    const { moved, writtenFiles } = await commitAllMoves(state)
+
+    if (moved > 0) {
+      await autoCommitAndPush(
+        getBaseDir(),
+        writtenFiles,
+        `Move ${moved} card${moved === 1 ? '' : 's'}`,
+      )
+    }
+
+    return Response.json({
+      success: true,
+      moved,
+      requested: body.moves.length,
+      skipped,
+      message: `Moved ${moved} card${moved === 1 ? '' : 's'}.`,
+    })
+  } catch (error) {
+    return Response.json({ success: false, message: getErrorMessage(error) }, { status: 500 })
+  }
+}
