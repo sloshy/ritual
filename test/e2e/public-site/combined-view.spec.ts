@@ -66,7 +66,7 @@ test.describe('Combined list view', () => {
     await modal.getByRole('button', { name: 'View' }).click()
 
     await expect(page).toHaveURL(/#\/combined\?all$/)
-    await expect(page.locator('.page-title')).toHaveText('Combined List')
+    await expect(page.locator('.page-title')).toHaveText('All Cards')
     await expect(page.locator('.combined-sources')).toHaveText('Viewing all cards from all lists')
     // Deck (3 copies across 2 tiles) + collection (1) = 4 copies, 3 tiles.
     await expect(page.locator('.page-stats')).toContainText('4 cards')
@@ -113,6 +113,7 @@ test.describe('Combined list view', () => {
     await viewAll.click()
 
     await expect(page).toHaveURL(/#\/combined\?all=deck$/)
+    await expect(page.locator('.page-title')).toHaveText('All Decks')
     await expect(page.locator('.combined-sources')).toHaveText('Viewing all decks')
     // Only the deck's cards appear (the CV Box collection is excluded): Bolt + Sol
     // Ring ×2 = 2 tiles, 3 copies. The "Decks" navbar link stays lit for this view.

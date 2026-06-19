@@ -116,6 +116,14 @@ export const CombinedListPage: Component<CombinedListPageProps> = (props) => {
       : 'Viewing all cards from all lists'
   })
 
+  // Page title: "All Decks"/"All Collections"/"All Wanted Lists" for a single-type
+  // "all" view, "All Cards" for every list (equivalent to all cards across types),
+  // and "Combined List" for an explicit multi-list selection.
+  const pageTitle = createMemo<string>(() => {
+    if (!props.all) return 'Combined List'
+    return props.allType ? `All ${LIST_TYPE_DISPLAY[props.allType].label}` : 'All Cards'
+  })
+
   const symbolMap = createMemo(() => mergeSymbolMaps(loaded() ?? []))
 
   const combinedCards = createMemo((): CombinedCardData[] => {
@@ -229,7 +237,7 @@ export const CombinedListPage: Component<CombinedListPageProps> = (props) => {
       {/* Header */}
       <div class="page-header">
         <div>
-          <h1 class="page-title">Combined List</h1>
+          <h1 class="page-title">{pageTitle()}</h1>
           <p class="page-stats">
             {cardCount()} cards · Total: {formatPrice(totalPrice(), props.currency)}
           </p>
