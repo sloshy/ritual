@@ -56,7 +56,7 @@ jobs:
       name: github-pages
       url: \${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Get Ritual version
         id: ritual-version
@@ -98,16 +98,16 @@ jobs:
         run: ./ritual build-site --allow-refresh
 
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 `
 }
 
@@ -135,7 +135,7 @@ jobs:
       name: github-pages
       url: \${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -201,18 +201,18 @@ jobs:
 
       - name: Setup Pages
         if: steps.detect-changes.outputs.has-changes != 'true'
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Upload artifact
         if: steps.detect-changes.outputs.has-changes != 'true'
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
       - name: Deploy to GitHub Pages
         if: steps.detect-changes.outputs.has-changes != 'true'
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 `
 }
 
@@ -240,19 +240,19 @@ jobs:
       name: github-pages
       url: \${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: ${distDir}
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 `
 }
 

@@ -85,7 +85,7 @@ describe('generatePublishForMeWorkflow', () => {
   })
 
   test('checks out the repository as the first step', () => {
-    expect(job.steps[0]?.uses).toBe('actions/checkout@v6')
+    expect(job.steps[0]?.uses).toBe('actions/checkout@v7')
   })
 
   test('resolves Ritual version from RITUAL_VERSION variable, falling back to latest release', () => {
@@ -137,21 +137,21 @@ describe('generatePublishForMeWorkflow', () => {
   test('uploads dist directory as pages artifact', () => {
     const step = findStep(job.steps, 'Upload artifact')
     expect(step).toBeDefined()
-    expect(step!.uses).toBe('actions/upload-pages-artifact@v4')
+    expect(step!.uses).toBe('actions/upload-pages-artifact@v5')
     expect(step!.with?.path).toBe('dist')
   })
 
   test('deploys to GitHub Pages as the final step', () => {
     const step = findStep(job.steps, 'Deploy to GitHub Pages')
     expect(step).toBeDefined()
-    expect(step!.uses).toBe('actions/deploy-pages@v4')
+    expect(step!.uses).toBe('actions/deploy-pages@v5')
     expect(step!.id).toBe('deployment')
   })
 
   test('has exactly 10 steps in the expected order', () => {
     const stepNames = job.steps.map((s) => s.name ?? s.uses)
     expect(stepNames).toEqual([
-      'actions/checkout@v6',
+      'actions/checkout@v7',
       'Get Ritual version',
       'Cache Ritual binary',
       'Download Ritual',
@@ -191,7 +191,7 @@ describe('generatePublishForMeWorkflow with detectChanges', () => {
 
   test('checks out with full history for git-detect-changes', () => {
     const checkout = job.steps[0]
-    expect(checkout?.uses).toBe('actions/checkout@v6')
+    expect(checkout?.uses).toBe('actions/checkout@v7')
     expect(checkout?.with?.['fetch-depth']).toBe(0)
   })
 
@@ -231,7 +231,7 @@ describe('generatePublishForMeWorkflow with detectChanges', () => {
   test('has exactly 11 steps in the expected order', () => {
     const stepNames = job.steps.map((s) => s.name ?? s.uses)
     expect(stepNames).toEqual([
-      'actions/checkout@v6',
+      'actions/checkout@v7',
       'Get Ritual version',
       'Cache Ritual binary',
       'Download Ritual',
@@ -295,7 +295,7 @@ describe('generateLocalBuildWorkflow', () => {
   test('has exactly 4 steps in the expected order', () => {
     const stepNames = job.steps.map((s) => s.name ?? s.uses)
     expect(stepNames).toEqual([
-      'actions/checkout@v6',
+      'actions/checkout@v7',
       'Setup Pages',
       'Upload artifact',
       'Deploy to GitHub Pages',
