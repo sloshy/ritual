@@ -222,13 +222,17 @@ export function sortCards(a: CardData, b: CardData, sortBy: SortBy, reverse: boo
 }
 
 export function getCardTypeCategory(typeLine: string): string {
-  if (typeLine.includes('Creature')) return 'Creature'
-  if (typeLine.includes('Planeswalker')) return 'Planeswalker'
-  if (typeLine.includes('Instant')) return 'Instant'
-  if (typeLine.includes('Sorcery')) return 'Sorcery'
-  if (typeLine.includes('Artifact')) return 'Artifact'
-  if (typeLine.includes('Enchantment')) return 'Enchantment'
-  if (typeLine.includes('Land')) return 'Land'
+  // For double-faced / multi-faced cards, Scryfall's combined type line is
+  // "Front // Back". Categorize by the front face only, so e.g. a Creature
+  // front with a Land back groups under Creature.
+  const frontType = typeLine.split(' // ')[0] ?? typeLine
+  if (frontType.includes('Creature')) return 'Creature'
+  if (frontType.includes('Planeswalker')) return 'Planeswalker'
+  if (frontType.includes('Instant')) return 'Instant'
+  if (frontType.includes('Sorcery')) return 'Sorcery'
+  if (frontType.includes('Artifact')) return 'Artifact'
+  if (frontType.includes('Enchantment')) return 'Enchantment'
+  if (frontType.includes('Land')) return 'Land'
   return 'Other'
 }
 

@@ -128,6 +128,11 @@ describe('getCardTypeCategory', () => {
     ['Enchantment — Aura', 'Enchantment'],
     ['Basic Land — Mountain', 'Land'],
     ['Conspiracy', 'Other'],
+    // Double-faced / multi-faced cards categorize by the front face only.
+    ['Creature — Elf Druid // Land', 'Creature'],
+    ['Land // Sorcery', 'Land'],
+    ['Instant // Instant', 'Instant'],
+    ['Enchantment — Saga // Creature — Avatar', 'Enchantment'],
   ])('identifies %s as %s', (typeLine, expected) => {
     expect(getCardTypeCategory(typeLine)).toBe(expected)
   })

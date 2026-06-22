@@ -200,6 +200,10 @@ Deck and collection pages offer four view modes, toggled via buttons in the tool
 
 In binder, row, and column modes, hovering a card shows its name and price in an overlay at the bottom of the card image.
 
+Double-faced cards show a translucent **flip** button (⇄) on the left edge when hovered in these three image views (it is not shown in list view). Clicking it flips the card in place — with a short rotate animation that does not disturb the surrounding layout — to reveal the back face; clicking again flips back to the front. The flip is purely visual and does not change grouping, sorting, or any saved data.
+
+When grouping by **type**, double-faced cards are categorized by their **front face only**: a card whose front is a creature and whose back is a land is grouped under Creature.
+
 A card size selector (**L / M / S**) appears in the toolbar for binder, row, and column modes. The three sizes are:
 
 | Size               | Card width |

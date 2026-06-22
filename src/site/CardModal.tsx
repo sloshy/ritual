@@ -262,7 +262,7 @@ export const CardModal: Component<CardModalProps> = (props) => {
                 </Show>
                 <Show when={isDfc() && imgSources()?.backImage}>
                   <button class="flip-btn" onClick={() => setShowingBack((prev) => !prev)}>
-                    Flip ↻
+                    Flip ⇄
                   </button>
                 </Show>
               </div>

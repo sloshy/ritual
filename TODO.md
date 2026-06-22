@@ -1,12 +1,5 @@
 # TODO
 
-## Public Site
-
-- Add more filtering options (scryfall syntax?)
-- Allow downloading deck info as JSON, CSV pre-rendered
-
-## Other commands
-
 - Allow exporting deck information to be used by other tooling
 - Add scryfall interactive mode
 - Allow adding/editing to multiple lists, or multiple kinds of lists, at once
@@ -23,8 +16,8 @@
 - Allow importing changes from public site through CLI
 - Allow importing changes across multiple lists as a change batch
 - Allow moving cards on the public site
-- Add ability to change focus / switch lists in the editor interface
-- "remove all selected" should not appear when not in edit mode
+- Add ability to search a collection by a list of cards to find matches
+- Add prompt to refresh prices / cache when doing an interactive command
 
 ## Misc
 

@@ -1,5 +1,5 @@
 import type { Component } from 'solid-js'
-import { Show } from 'solid-js'
+import { createEffect, createSignal, on, Show } from 'solid-js'
 import type { ScryfallCard } from '../types'
 import { isCardSideways, isDoubleFacedCard, resolveCardImageSources } from './image-sources'
 import { ManaCost } from './symbols'
@@ -97,7 +97,71 @@ const SelectCheckbox: Component<SelectCheckboxProps> = (props) => {
   )
 }
 
+/**
+ * Renders a card's art. For double-faced cards (a non-empty `backImage`) it
+ * builds a 3D flip structure so the {@link FlipButton} can rotate the front and
+ * back faces in place; otherwise it renders a plain `<img>`. The flip only
+ * affects the art — surrounding badges, labels and buttons stay put.
+ */
+type CardFaceProps = {
+  frontImage: string
+  backImage: string
+  flipped: boolean
+  alt: string
+}
+
+const CardFace: Component<CardFaceProps> = (props) => (
+  <Show
+    when={props.backImage}
+    fallback={<img src={props.frontImage} alt={props.alt} loading="lazy" />}
+  >
+    <div class="card-flip" classList={{ flipped: props.flipped }}>
+      <img class="card-flip-front" src={props.frontImage} alt={props.alt} loading="lazy" />
+      <img
+        class="card-flip-back"
+        src={props.backImage}
+        alt={`${props.alt} (back)`}
+        loading="lazy"
+      />
+    </div>
+  </Show>
+)
+
+/**
+ * Translucent "flip" button shown on hover over a double-faced card in the
+ * image views (binder / overlap / stack). Toggles between the front and back
+ * face; pressing it again on the back flips it back to the front.
+ */
+type FlipButtonProps = {
+  flipped: boolean
+  onFlip: () => void
+}
+
+const FlipButton: Component<FlipButtonProps> = (props) => (
+  <button
+    type="button"
+    class="card-flip-btn"
+    classList={{ flipped: props.flipped }}
+    onClick={stopPropAnd(props.onFlip)}
+    title={props.flipped ? 'Show front face' : 'Show back face'}
+    aria-label={props.flipped ? 'Show front face' : 'Show back face'}
+  >
+    ⇄
+  </button>
+)
+
 export const CardItem: Component<CardItemProps> = (props) => {
+  const [flipped, setFlipped] = createSignal(false)
+  const toggleFlip = () => setFlipped((f) => !f)
+  // Reset to the front face whenever this tile is reused for a different card
+  // (e.g. a keyed list slot swaps cards), so a new card never appears flipped.
+  createEffect(
+    on(
+      () => props.card?.id,
+      () => setFlipped(false),
+      { defer: true },
+    ),
+  )
   return (
     <Show
       when={props.card}
@@ -140,7 +204,12 @@ export const CardItem: Component<CardItemProps> = (props) => {
           }
           props.onCardClick?.()
         }
-        const { frontImage } = resolveCardImageSources(card(), Boolean(props.useScryfallImgUrls))
+        const { frontImage, backImage } = resolveCardImageSources(
+          card(),
+          Boolean(props.useScryfallImgUrls),
+        )
+        // A flippable face exists only for double-faced cards with a resolvable back image.
+        const canFlip = isDFC && Boolean(backImage)
 
         const price = getCardPrice(card(), currency)
 
@@ -202,7 +271,15 @@ export const CardItem: Component<CardItemProps> = (props) => {
                   />
                 </Show>
                 <Show when={frontImage}>
-                  {(src) => <img src={src()} alt={props.name} loading="lazy" />}
+                  <CardFace
+                    frontImage={frontImage}
+                    backImage={backImage}
+                    flipped={flipped()}
+                    alt={props.name}
+                  />
+                </Show>
+                <Show when={canFlip}>
+                  <FlipButton flipped={flipped()} onFlip={toggleFlip} />
                 </Show>
                 <Show when={!props.hideCount && props.quantity > 1}>
                   <span class="qty-badge">{props.quantity}x</span>
@@ -368,7 +445,15 @@ export const CardItem: Component<CardItemProps> = (props) => {
                   />
                 </Show>
                 <Show when={frontImage}>
-                  {(src) => <img src={src()} alt={props.name} loading="lazy" />}
+                  <CardFace
+                    frontImage={frontImage}
+                    backImage={backImage}
+                    flipped={flipped()}
+                    alt={props.name}
+                  />
+                </Show>
+                <Show when={canFlip}>
+                  <FlipButton flipped={flipped()} onFlip={toggleFlip} />
                 </Show>
                 <Show when={!props.hideCount && props.quantity > 1}>
                   <span class="qty-badge">{props.quantity}x</span>

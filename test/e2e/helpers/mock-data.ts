@@ -2516,3 +2516,141 @@ export async function mockPublicSiteCombinedLists(page: Page): Promise<void> {
     })
   })
 }
+
+// A double-faced card whose front is a Creature and back is a Land. Has no
+// top-level image_uris (so isDoubleFacedCard() is true) and distinct per-face
+// images, exercising both the front-face grouping rule and the flip button.
+const MOCK_SCRYFALL_DFC = {
+  id: 'dfc-id',
+  name: 'Werewolf Front // Werewolf Back',
+  cmc: 3,
+  type_line: 'Creature — Human Werewolf // Land',
+  oracle_text: '',
+  card_faces: [
+    {
+      name: 'Werewolf Front',
+      mana_cost: '{2}{G}',
+      type_line: 'Creature — Human Werewolf',
+      oracle_text: 'Front face.',
+      image_uris: { normal: 'https://card-images.test/dfc-front.svg' },
+    },
+    {
+      name: 'Werewolf Back',
+      mana_cost: '',
+      type_line: 'Land',
+      oracle_text: 'Back face.',
+      image_uris: { normal: 'https://card-images.test/dfc-back.svg' },
+    },
+  ],
+  prices: { usd: '2.00', usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
+  finishes: ['nonfoil'],
+  games: ['paper'],
+  set: 'tst',
+  set_name: 'Test Set',
+  collector_number: '30',
+  rarity: 'rare',
+  color_identity: ['G'],
+  edhrec_rank: 500,
+}
+
+const MOCK_SCRYFALL_PLAIN_LAND = {
+  id: 'land-id',
+  name: 'Test Wastes',
+  cmc: 0,
+  type_line: 'Land',
+  oracle_text: '',
+  image_uris: {
+    small: '',
+    normal: 'https://card-images.test/land.svg',
+    large: '',
+    png: '',
+    art_crop: '',
+    border_crop: '',
+  },
+  prices: { usd: '0.10', usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
+  finishes: ['nonfoil'],
+  games: ['paper'],
+  set: 'tst',
+  set_name: 'Test Set',
+  collector_number: '31',
+  rarity: 'common',
+  color_identity: [],
+  edhrec_rank: 600,
+}
+
+const MOCK_DFC_DECK = {
+  deck: {
+    name: 'Test DFC Deck',
+    sections: [
+      {
+        name: 'Main',
+        cards: [
+          {
+            quantity: 1,
+            name: 'Werewolf Front // Werewolf Back',
+            set: 'tst',
+            collectorNumber: '30',
+            cardId: 1,
+          },
+          { quantity: 1, name: 'Test Wastes', set: 'tst', collectorNumber: '31', cardId: 2 },
+        ],
+      },
+    ],
+  },
+  cards: {
+    'Werewolf Front // Werewolf Back': MOCK_SCRYFALL_DFC,
+    'Test Wastes': MOCK_SCRYFALL_PLAIN_LAND,
+  },
+  printings: {
+    'Werewolf Front // Werewolf Back': [MOCK_SCRYFALL_DFC],
+    'Test Wastes': [MOCK_SCRYFALL_PLAIN_LAND],
+  },
+  symbolMap: {},
+  exportPath: 'decks/test-dfc-deck.txt',
+  useScryfallImgUrls: true,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+  missingCards: { usd: [], eur: [], tix: [] },
+}
+
+const MOCK_SITE_INDEX_WITH_DFC_DECK = {
+  decks: [
+    {
+      slug: 'test-dfc-deck',
+      name: 'Test DFC Deck',
+      featuredCardImage: '',
+      commander: null,
+      format: null,
+      cardCount: 2,
+    },
+  ],
+  collections: [],
+  useScryfallImgUrls: true,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+}
+
+/**
+ * Mock the public site JSON endpoints with a synthetic deck containing a
+ * double-faced card (Creature front / Land back) alongside a plain land, for
+ * testing front-face type grouping and the in-place flip button.
+ */
+export async function mockPublicSiteDeckWithDoubleFacedCard(page: Page): Promise<void> {
+  await page.route('https://card-images.test/*.svg', async (route: Route) => {
+    await route.fulfill({ status: 200, contentType: 'image/svg+xml', body: PORTRAIT_CARD_SVG })
+  })
+  await page.route('**/index.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_SITE_INDEX_WITH_DFC_DECK),
+    })
+  })
+  await page.route('**/decks/test-dfc-deck.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_DFC_DECK),
+    })
+  })
+}
