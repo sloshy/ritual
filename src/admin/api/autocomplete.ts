@@ -1,12 +1,18 @@
 import { cardCache } from '../../cache'
 import { getErrorMessage } from '../../errors'
+import { normalizeForSearch } from '../../term-match'
 
 export async function handleAutocomplete(req: Request): Promise<Response> {
   try {
     const url = new URL(req.url)
-    const query = url.searchParams.get('q')?.trim().toLowerCase()
+    const rawQuery = url.searchParams.get('q')?.trim()
+    if (!rawQuery || rawQuery.length < 2) {
+      return Response.json({ success: true, names: [] })
+    }
 
-    if (!query || query.length < 2) {
+    // Fold case and diacritics so e.g. "jotun" matches "Jötun Grunt".
+    const query = normalizeForSearch(rawQuery)
+    if (!query) {
       return Response.json({ success: true, names: [] })
     }
 
@@ -16,10 +22,10 @@ export async function handleAutocomplete(req: Request): Promise<Response> {
     const substringMatches: string[] = []
 
     for (const name of allNames) {
-      const lower = name.toLowerCase()
-      if (lower.startsWith(query)) {
+      const normalized = normalizeForSearch(name)
+      if (normalized.startsWith(query)) {
         prefixMatches.push(name)
-      } else if (lower.includes(query)) {
+      } else if (normalized.includes(query)) {
         substringMatches.push(name)
       }
     }

@@ -18,9 +18,9 @@ The admin site offers the same editor in the browser — see the [Change History
 
 ## Arguments
 
-| Argument     | Description                                                                   | Required |
-| ------------ | ----------------------------------------------------------------------------- | -------- |
-| `[listName]` | Name of the deck, collection, or wanted list (case-insensitive, no extension) | No       |
+| Argument     | Description                                                                               | Required |
+| ------------ | ----------------------------------------------------------------------------------------- | -------- |
+| `[listName]` | Name of the deck, collection, or wanted list (case- and accent-insensitive, no extension) | No       |
 
 ## Options
 
@@ -57,7 +57,7 @@ The main menu lists each change set (newest first) as a collapsed row — its ti
 
 ### List Resolution
 
-`[listName]` is matched case-insensitively across all list types (exact name first, then a unique substring), and a name that exists in more than one type is rejected unless you pin it with a type flag. See [List Resolution](/commands/list-resolution/).
+`[listName]` is matched case- and accent-insensitively across all list types (exact name first, then a unique substring), and a name that exists in more than one type is rejected unless you pin it with a type flag. See [List Resolution](/commands/list-resolution/).
 
 ### Combining sets
 

@@ -16,10 +16,10 @@ The target list is resolved from `<targetName>` across all three list types (see
 
 ## Arguments
 
-| Argument        | Description                                                                   | Required |
-| --------------- | ----------------------------------------------------------------------------- | -------- |
-| `<targetName>`  | Name of the deck, collection, or wanted list (case-insensitive, no extension) | Yes      |
-| `<cardName...>` | Name of the card to search for                                                | Yes      |
+| Argument        | Description                                                                               | Required |
+| --------------- | ----------------------------------------------------------------------------------------- | -------- |
+| `<targetName>`  | Name of the deck, collection, or wanted list (case- and accent-insensitive, no extension) | Yes      |
+| `<cardName...>` | Name of the card to search for                                                            | Yes      |
 
 ## Options
 
@@ -77,7 +77,7 @@ Add a card with exact matching (no interactive prompt if the name matches):
 
 ### List Resolution
 
-`<targetName>` is matched case-insensitively against existing list files — an exact name wins, otherwise a unique substring match is accepted, and any ambiguity is an error. A `--deck`/`--collection`/`--wanted` flag restricts the search to that type. See [List Resolution](/commands/list-resolution/) for the full rules.
+`<targetName>` is matched case- and accent-insensitively against existing list files — an exact name wins, otherwise a unique substring match is accepted, and any ambiguity is an error. A `--deck`/`--collection`/`--wanted` flag restricts the search to that type. See [List Resolution](/commands/list-resolution/) for the full rules.
 
 A missing **collection** or **wanted list** is created automatically, but only when the type is pinned with a flag (the command can't know which kind of list to create otherwise). Decks are never auto-created — create them first with [`new-deck`](/commands/new-deck/).
 
@@ -85,7 +85,7 @@ A missing **collection** or **wanted list** is created automatically, but only w
 
 The card name you provide is used to filter the local card cache. An autocomplete prompt lets you type to narrow down the list and select the correct card.
 
-When `--exact` is used, the input name is normalized (punctuation stripped, lowercased) and compared against all cached card names. If exactly one card matches, it is selected automatically with a confirmation message. If no exact match is found, the command exits with an error indicating how many cards contain the input as a substring (counted up to 100, reported as "100+" if the limit is reached).
+When `--exact` is used, the input name is normalized (case and accents folded, punctuation stripped) and compared against all cached card names. If exactly one card matches, it is selected automatically with a confirmation message. If no exact match is found, the command exits with an error indicating how many cards contain the input as a substring (counted up to 100, reported as "100+" if the limit is reached).
 
 ### Cache Freshness
 

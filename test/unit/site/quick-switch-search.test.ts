@@ -1,16 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { normalizeForSearch, scoreMatch } from '../../../src/site/quick-switch-search'
-
-describe('normalizeForSearch', () => {
-  test('lowercases ASCII', () => {
-    expect(normalizeForSearch('Lightning Bolt')).toBe('lightning bolt')
-  })
-
-  test('strips diacritics', () => {
-    expect(normalizeForSearch('Téferi')).toBe('teferi')
-    expect(normalizeForSearch('Jötun Grunt')).toBe('jotun grunt')
-  })
-})
+import { scoreMatch } from '../../../src/site/quick-switch-search'
 
 describe('scoreMatch', () => {
   test('empty query returns zero (no filtering)', () => {
@@ -48,6 +37,8 @@ describe('scoreMatch', () => {
   test('diacritic-insensitive matching', () => {
     expect(scoreMatch('Téferi, Hero of Dominaria', 'teferi')).toBeGreaterThan(0)
     expect(scoreMatch('Teferi, Hero of Dominaria', 'téferi')).toBeGreaterThan(0)
+    // An accented query still fails against an unrelated name (no false positives).
+    expect(scoreMatch('Klauth, Unrivaled Ancient', 'téferi')).toBe(-1)
   })
 
   test('multi-word query: each whitespace-separated term must match as a substring (AND)', () => {

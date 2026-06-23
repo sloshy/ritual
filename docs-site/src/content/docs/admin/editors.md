@@ -16,7 +16,7 @@ The list toolbar (shared with the public site pages) groups all card filters und
 
 - **Hide Lands** / **Hide Unpriced** — toggle lands and cards without a known price
 - **Hide Extras** — deck pages only; hides the maybeboard/token sections
-- **Name** — space-separated terms; a card matches when every term appears somewhere in its name (the same matching the CLI session filter uses)
+- **Name** — space-separated terms; a card matches when every term appears somewhere in its name, case- and accent-insensitively (`jotun` matches `Jötun Grunt`; the same matching the CLI session filter uses)
 - **Color Identity** — toggle any combination of the five colors. **Exclusive** (the default) matches cards whose color identity is exactly the selection; **Inclusive** matches any card that could be played in a deck of the selected colors
 - **Sets** — a tag input filtering by set code; type a code (space or comma finishes the tag) or pick from the autocomplete list of codes present in the list
 - **Mana Value** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against a non-negative value (0 is valid)

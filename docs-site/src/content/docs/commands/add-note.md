@@ -16,10 +16,10 @@ Notes are stored in list files as `{note text}` between the bracketed metadata a
 
 ## Arguments
 
-| Argument        | Description                                                                   | Required |
-| --------------- | ----------------------------------------------------------------------------- | -------- |
-| `[listName]`    | Name of the deck, collection, or wanted list (case-insensitive, no extension) | No       |
-| `[cardName...]` | Card name to attach the note to (fuzzy match)                                 | No       |
+| Argument        | Description                                                                               | Required |
+| --------------- | ----------------------------------------------------------------------------------------- | -------- |
+| `[listName]`    | Name of the deck, collection, or wanted list (case- and accent-insensitive, no extension) | No       |
+| `[cardName...]` | Card name to attach the note to (fuzzy match)                                             | No       |
 
 ## Options
 
@@ -72,11 +72,11 @@ Pipe a JSON record for scripting:
 
 ### List Resolution
 
-`[listName]` is matched case-insensitively across all list types (exact name first, then a unique substring), and a name that exists in more than one type is rejected unless you pin it with `--deck`, `--collection`, or `--wanted`. See [List Resolution](/commands/list-resolution/) for the full rules.
+`[listName]` is matched case- and accent-insensitively across all list types (exact name first, then a unique substring), and a name that exists in more than one type is rejected unless you pin it with `--deck`, `--collection`, or `--wanted`. See [List Resolution](/commands/list-resolution/) for the full rules.
 
 ### Card Resolution
 
-- **By name**: the input is fuzzy-matched against the cards in the list. Punctuation and case are ignored; substring matches are accepted. If multiple cards match (e.g. two different printings of "Lightning Bolt"), the command exits with a `usage_error` listing each match. Disambiguate with `--card-id` or run interactively.
+- **By name**: the input is fuzzy-matched against the cards in the list. Punctuation, case, and accents are ignored (so `seance` matches `Séance`); substring matches are accepted. If multiple cards match (e.g. two different printings of "Lightning Bolt"), the command exits with a `usage_error` listing each match. Disambiguate with `--card-id` or run interactively.
 - **By card ID**: pass `--card-id <N>` to target an entry by its persistent `&N` suffix. Card IDs are unique within each list file, and must be positive integers.
 
 ### Quantity Behavior

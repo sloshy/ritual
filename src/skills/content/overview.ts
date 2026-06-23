@@ -27,7 +27,8 @@ workspace if it contains \`decks/\`, \`collections/\`, or \`wanted/\` folders, o
 
 A list is addressed by its **name** = the file basename without \`.md\`
 (e.g. \`decks/winota-stax.md\` → \`winota-stax\`). Most commands resolve a name
-case-insensitively across all three types; when a name is ambiguous, pass a type
+case- and accent-insensitively across all three types (so \`cafe\` matches a list
+named \`Café\`); when a name is ambiguous, pass a type
 flag (\`--deck\`, \`--collection\`, \`--wanted\`).
 
 ## File format

@@ -16,7 +16,7 @@ Get pricing information for a deck.
 | ------------ | ----------------------------------------- | -------- |
 | `<deckName>` | Name of the deck file (without extension) | Yes      |
 
-The name is matched case-insensitively, with a unique-substring fallback; an ambiguous name is rejected. See [List Resolution](/commands/list-resolution/).
+The name is matched case- and accent-insensitively, with a unique-substring fallback; an ambiguous name is rejected. See [List Resolution](/commands/list-resolution/).
 
 ## Options
 

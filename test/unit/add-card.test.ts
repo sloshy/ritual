@@ -18,8 +18,15 @@ describe('normalizeCardName', () => {
     expect(normalizeCardName('Sol   Ring')).toBe('sol ring')
   })
 
-  test('strips hyphens', () => {
-    expect(normalizeCardName('Lim-Dûl the Necromancer')).toBe('limdl the necromancer')
+  test('strips hyphens and folds diacritics to base letters', () => {
+    // The accented û folds to a plain u rather than being dropped, so an
+    // accent-free query ("lim dul ...") still matches.
+    expect(normalizeCardName('Lim-Dûl the Necromancer')).toBe('limdul the necromancer')
+  })
+
+  test('folds diacritics so accented names match plain queries', () => {
+    expect(normalizeCardName('Séance')).toBe('seance')
+    expect(normalizeCardName('Jötun Grunt')).toBe('jotun grunt')
   })
 
   test('handles empty string', () => {

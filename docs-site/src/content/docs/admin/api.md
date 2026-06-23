@@ -97,7 +97,7 @@ The `confirmName` must match the deck's `name` field exactly. Returns `400` if t
 GET /api/autocomplete?q=<query>
 ```
 
-Search for card names using the in-memory card cache. Returns up to 20 results sorted by relevance (prefix matches first, then substring matches).
+Search for card names using the in-memory card cache. Matching is case- and accent-insensitive (e.g. `jotun` matches `Jötun Grunt`). Returns up to 20 results sorted by relevance (prefix matches first, then substring matches).
 
 **Query Parameters:**
 

@@ -19,6 +19,7 @@ import {
   groupCards,
 } from '../move-overlay'
 import { type ListId, listId, listInfoId } from '../list-grouping'
+import { normalizeForSearch } from '../../../term-match'
 
 /** Merged Scryfall display data, accumulated across every list fetched this session. */
 export type MoveCardData = {
@@ -318,14 +319,14 @@ export function useMoveSession(): UseMoveSessionResult {
   const pendingKeys = createMemo(() => new Set(pending().map((m) => m.cardKey)))
 
   const searchResults = createMemo<CardGroup[]>(() => {
-    const q = search().trim().toLowerCase()
+    const q = normalizeForSearch(search().trim())
     if (q.length < 2) return []
     const keys = pendingKeys()
     const matches = allCards().filter(
       (c) =>
         sourceEnabled(listId(c.listType, c.listSlug)) &&
         !keys.has(c.key) &&
-        c.name.toLowerCase().includes(q),
+        normalizeForSearch(c.name).includes(q),
     )
     return groupCards(matches).sort((a, b) => a.name.localeCompare(b.name))
   })

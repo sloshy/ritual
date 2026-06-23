@@ -27,6 +27,7 @@ import {
   formatCheapestPrintingDisplay,
 } from '../price-currency'
 import type { ListType } from '../list-type'
+import { normalizeForSearch } from '../term-match'
 import {
   formatResolveListError,
   isResolveListError,
@@ -91,12 +92,13 @@ async function resolveAddCardTarget(
 }
 
 /**
- * Normalize a card name for exact matching by stripping punctuation
- * and collapsing to lowercase.
+ * Normalize a card name for exact matching by folding case and diacritics
+ * (so `Téferi` matches `teferi`), then stripping punctuation. Diacritics are
+ * folded to their base letters *before* punctuation removal so accented letters
+ * survive as their plain forms rather than being dropped entirely.
  */
 export function normalizeCardName(name: string): string {
-  return name
-    .toLowerCase()
+  return normalizeForSearch(name)
     .replace(/[^a-z0-9 ]/g, '')
     .replace(/\s+/g, ' ')
     .trim()

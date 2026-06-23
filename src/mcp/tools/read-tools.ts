@@ -158,7 +158,8 @@ export function registerReadTools(server: McpServer): void {
     'autocomplete_card',
     {
       title: 'Autocomplete card name',
-      description: 'Autocomplete card names by prefix/substring (up to 20).',
+      description:
+        'Autocomplete card names by prefix/substring, case- and accent-insensitive (up to 20).',
       inputSchema: { query: z.string().min(1).describe('Partial card name.') },
       annotations: { readOnlyHint: true, openWorldHint: true },
     },

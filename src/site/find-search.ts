@@ -10,7 +10,7 @@
  * also matches double-art printings named `Steam Vents // Steam Vents`.
  */
 
-import { normalizeForSearch } from './quick-switch-search'
+import { normalizeForSearch } from '../term-match'
 
 /** The front face of a possibly double-faced name: text before the first `//`, trimmed. */
 export function frontFaceName(name: string): string {

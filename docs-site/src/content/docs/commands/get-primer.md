@@ -16,7 +16,7 @@ Extract and output the primer for a deck as Markdown.
 | ---------- | ------------------------------------------------------------- | -------- |
 | `<source>` | Local deck name (e.g. `winota-snowball-stax`) or Moxfield URL | Yes      |
 
-A local deck name is matched case-insensitively, with a unique-substring fallback; an ambiguous name is rejected. See [List Resolution](/commands/list-resolution/).
+A local deck name is matched case- and accent-insensitively, with a unique-substring fallback; an ambiguous name is rejected. See [List Resolution](/commands/list-resolution/).
 
 ## Options
 

@@ -41,7 +41,7 @@ By default the import **creates** a new list and refuses to touch an existing on
 
 Appending:
 
-- Resolves the list name like every other command (case-insensitive, substring fallback).
+- Resolves the list name like every other command (case- and accent-insensitive, substring fallback).
 - Continues the list's `&N` card IDs from its existing pool.
 - For decks, merges rows into existing lines when the name and printing match (incrementing quantity) and creates any missing sections.
 - Records every added card in the list's changelog (visible in `ritual history` and the admin Change History page).

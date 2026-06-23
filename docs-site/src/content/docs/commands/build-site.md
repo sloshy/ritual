@@ -335,7 +335,7 @@ These flags are also what `bun run dev serve-site` requires — see [Development
 
 A **Quick switch** button (centered in the site header on desktop, right-aligned on mobile) opens a command-palette-style dialog for jumping between any deck, collection, or wanted list on the site. The same dialog also opens with the keyboard shortcut **Ctrl+K** (or **Cmd+K** on macOS).
 
-When the search field is empty, the dialog lists every deck, collection, and wanted list. As soon as you start typing, results are grouped into four priority tiers:
+When the search field is empty, the dialog lists every deck, collection, and wanted list. As soon as you start typing, results are grouped into four priority tiers. Matching is case- and accent-insensitive throughout, so `teferi` finds `Téferi` and vice versa:
 
 1. **Lists** — matches against deck, collection, and wanted-list names (highest priority).
 2. **Commanders** — matches against the commander of any deck. Selecting one opens the deck containing that commander.

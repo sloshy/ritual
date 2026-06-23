@@ -6,12 +6,7 @@
  * matching all terms gets a positive score; non-matches return -1.
  */
 
-export function normalizeForSearch(s: string): string {
-  return s
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-}
+import { normalizeForSearch } from '../term-match'
 
 export function scoreMatch(name: string, query: string): number {
   const trimmed = query.trim()

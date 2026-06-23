@@ -3,9 +3,9 @@
  * wanted-list file. This is the single source of truth for how the CLI turns a bare
  * name into a file, so every command that loads a list by name behaves identically:
  *
- * - Matching is case-insensitive.
- * - An exact (case-insensitive) name match wins outright.
- * - Failing that, a single case-insensitive substring match is accepted.
+ * - Matching is case- and diacritic-insensitive (so `cafe` matches `Café`).
+ * - An exact (normalized) name match wins outright.
+ * - Failing that, a single normalized substring match is accepted.
  * - **Any** ambiguity at the chosen tier is an error — the caller must disambiguate
  *   (e.g. with a `--deck` / `--collection` / `--wanted` flag) rather than the resolver
  *   silently picking one.
@@ -24,6 +24,7 @@ import { listDeckFiles } from './importers/text-file'
 import { getCollectionsDir, getDecksDir, getWantedDir } from './ritual-config'
 import { isPathWithinDir } from './path-validation'
 import { LIST_TYPES, LIST_TYPE_DISPLAY, type ListType } from './list-type'
+import { normalizeForSearch } from './term-match'
 
 /** A concrete list file on disk. */
 export type ListLocation = {
@@ -106,13 +107,13 @@ export function matchList(
   if (candidates.length === 0) return { kind: 'no-lists', type }
 
   const cleaned = query.replace(/\.md$/i, '').trim()
-  const lower = cleaned.toLowerCase()
+  const normalized = normalizeForSearch(cleaned)
 
-  const exact = candidates.filter((c) => c.name.toLowerCase() === lower)
+  const exact = candidates.filter((c) => normalizeForSearch(c.name) === normalized)
   if (exact.length === 1) return exact[0]!
   if (exact.length > 1) return { kind: 'ambiguous', query: cleaned, matches: exact }
 
-  const substring = candidates.filter((c) => c.name.toLowerCase().includes(lower))
+  const substring = candidates.filter((c) => normalizeForSearch(c.name).includes(normalized))
   if (substring.length === 1) return substring[0]!
   if (substring.length > 1) return { kind: 'ambiguous', query: cleaned, matches: substring }
 

@@ -16,10 +16,10 @@ This is the dedicated counterpart to [`add-note`](/commands/add-note/). Card res
 
 ## Arguments
 
-| Argument        | Description                                                                   | Required |
-| --------------- | ----------------------------------------------------------------------------- | -------- |
-| `[listName]`    | Name of the deck, collection, or wanted list (case-insensitive, no extension) | No       |
-| `[cardName...]` | Card name whose note should be cleared (fuzzy match)                          | No       |
+| Argument        | Description                                                                               | Required |
+| --------------- | ----------------------------------------------------------------------------------------- | -------- |
+| `[listName]`    | Name of the deck, collection, or wanted list (case- and accent-insensitive, no extension) | No       |
+| `[cardName...]` | Card name whose note should be cleared (fuzzy match)                                      | No       |
 
 ## Options
 
@@ -73,7 +73,7 @@ When a note is removed, the response includes the removed text:
 
 ### List Resolution
 
-`[listName]` is matched case-insensitively across all list types (exact name first, then a unique substring), with ambiguous names rejected unless pinned by `--deck`, `--collection`, or `--wanted`. See [List Resolution](/commands/list-resolution/).
+`[listName]` is matched case- and accent-insensitively across all list types (exact name first, then a unique substring), with ambiguous names rejected unless pinned by `--deck`, `--collection`, or `--wanted`. See [List Resolution](/commands/list-resolution/).
 
 ### Card Resolution
 

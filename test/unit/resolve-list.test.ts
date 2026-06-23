@@ -36,6 +36,15 @@ describe('matchList', () => {
     expect(matchList([goblins], 'Goblins.md')).toBe(goblins)
   })
 
+  it('matches a name diacritic-insensitively in both directions', () => {
+    const accented = loc('deck', 'Café Standard')
+    // Plain query exactly matches an accented list name (exact-match tier).
+    expect(matchList([accented], 'cafe standard')).toBe(accented)
+    // Accented query exactly matches a plain list name (exact-match tier).
+    const plain = loc('deck', 'Cafe Standard')
+    expect(matchList([plain], 'Café Standard')).toBe(plain)
+  })
+
   it('prefers an exact match over a substring match', () => {
     const burn = loc('deck', 'Burn')
     const burnIncremental = loc('deck', 'Burn Incremental')
