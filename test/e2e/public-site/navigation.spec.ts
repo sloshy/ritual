@@ -50,7 +50,7 @@ test.describe('Navigation', () => {
     await expect(page.locator('h1')).toContainText('My Decks')
   })
 
-  test('Wanted Lists nav link navigates to wanted lists tab', async ({ page }) => {
+  test('Wanted nav link navigates to wanted lists tab', async ({ page }) => {
     await page.goto('/')
     await page.locator('a[href="#/wanted"]').click()
     await expect(page.locator('h1')).toContainText('My Wanted Lists')

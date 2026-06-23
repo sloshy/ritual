@@ -186,7 +186,7 @@ Generates a single-page application in the `dist/` directory containing:
 - Responsive design for desktop and mobile
 - Dark mode support
 - Client-side hash routing (`#/` for index, `#/deck/{slug}` for deck pages, `#/collection/{slug}` for collection pages, `#/wanted/{slug}` for wanted list pages)
-- Navigation bar with "Decks", "Collections", and "Wanted Lists" links always visible
+- Navigation bar with "Decks", "Collections", and "Wanted" links always visible
 - Page transition animations
 
 ## View Modes and Card Size

@@ -25,7 +25,7 @@ Toggling **All lists** selects every list at once (the individual checkboxes are
 
 You don't have to start from the combine dialog:
 
-- The navbar's **All** link (between **Wanted Lists** and **Trade**) jumps straight to the every-list combined view — the same as ticking **All lists**. The **All** link is highlighted while you're on that view.
+- The navbar's **All** link (between **Wanted** and **Trade**) jumps straight to the every-list combined view — the same as ticking **All lists**. The **All** link is highlighted while you're on that view.
 - Each list-index tab (**Decks**, **Collections**, **Wanted Lists**) has a **View all…** button that opens a combined view of just that one type — every deck, every collection, or every wanted list. Each has its own URL (`#/combined?all=deck`, `?all=collection`, `?all=wanted`), and the matching navbar tab stays highlighted while you're viewing it.
 
 ## How the combined view behaves

@@ -329,7 +329,7 @@ function App() {
               Collections
             </NavLink>
             <NavLink href="#/wanted" active={navActive().wanted}>
-              Wanted Lists
+              Wanted
             </NavLink>
             <NavLink href={combinedAllHref()} active={navActive().all}>
               All
