@@ -2654,3 +2654,245 @@ export async function mockPublicSiteDeckWithDoubleFacedCard(page: Page): Promise
     })
   })
 }
+
+// ----- Find page -----
+// Exercises name-based search across a deck, a collection, and a wanted list,
+// including a true double-faced card (front-face-only matching) and a double-art
+// printing whose two faces share one name (`Steam Vents // Steam Vents`).
+const FIND_BASE_CARD = {
+  cmc: 1,
+  type_line: 'Instant',
+  oracle_text: '',
+  prices: { usd: '1.00', usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
+  finishes: ['nonfoil'],
+  games: ['paper'],
+  rarity: 'common',
+  set_name: 'Test Set',
+}
+
+const FIND_BOLT = {
+  ...FIND_BASE_CARD,
+  id: 'find-bolt',
+  name: 'Lightning Bolt',
+  image_uris: { normal: '' },
+  set: 'lea',
+  collector_number: '161',
+  color_identity: ['R'],
+  edhrec_rank: 100,
+}
+
+const FIND_RING = {
+  ...FIND_BASE_CARD,
+  id: 'find-ring',
+  name: 'Sol Ring',
+  type_line: 'Artifact',
+  image_uris: { normal: '' },
+  set: 'c19',
+  collector_number: '221',
+  color_identity: [],
+  edhrec_rank: 50,
+}
+
+const FIND_STEAM = {
+  ...FIND_BASE_CARD,
+  id: 'find-steam',
+  name: 'Steam Vents',
+  type_line: 'Land — Island Mountain',
+  image_uris: { normal: '' },
+  set: 'gpt',
+  collector_number: '233',
+  color_identity: ['U', 'R'],
+  edhrec_rank: 200,
+}
+
+// A double-art printing: one physical card whose two faces share the same name.
+const FIND_STEAM_DOUBLE_ART = {
+  ...FIND_STEAM,
+  id: 'find-steam-da',
+  name: 'Steam Vents // Steam Vents',
+  set: 'sld',
+  collector_number: '1234',
+}
+
+// A true double-faced card: front "Bruce Banner", back "The Incredible Hulk".
+const FIND_BRUCE = {
+  ...FIND_BASE_CARD,
+  id: 'find-bruce',
+  name: 'Bruce Banner // The Incredible Hulk',
+  type_line: 'Legendary Creature — Human Scientist // Legendary Creature — Monster',
+  card_faces: [
+    { name: 'Bruce Banner', image_uris: { normal: 'https://card-images.test/bruce-front.svg' } },
+    {
+      name: 'The Incredible Hulk',
+      image_uris: { normal: 'https://card-images.test/bruce-back.svg' },
+    },
+  ],
+  set: 'mom',
+  collector_number: '40',
+  color_identity: ['G'],
+  edhrec_rank: 300,
+}
+
+const FIND_COUNTER = {
+  ...FIND_BASE_CARD,
+  id: 'find-counter',
+  name: 'Counterspell',
+  image_uris: { normal: '' },
+  set: 'lea',
+  collector_number: '54',
+  color_identity: ['U'],
+  edhrec_rank: 150,
+}
+
+const FIND_DECK = {
+  deck: {
+    name: 'Find Deck',
+    sections: [
+      {
+        name: 'Main',
+        cards: [
+          { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 },
+          {
+            quantity: 1,
+            name: 'Bruce Banner // The Incredible Hulk',
+            set: 'mom',
+            collectorNumber: '40',
+            cardId: 2,
+          },
+          { quantity: 1, name: 'Steam Vents', set: 'gpt', collectorNumber: '233', cardId: 3 },
+        ],
+      },
+    ],
+  },
+  cards: {
+    'Lightning Bolt': FIND_BOLT,
+    'Bruce Banner // The Incredible Hulk': FIND_BRUCE,
+    'Steam Vents': FIND_STEAM,
+  },
+  printings: {
+    'Lightning Bolt': [FIND_BOLT],
+    'Bruce Banner // The Incredible Hulk': [FIND_BRUCE],
+    'Steam Vents': [FIND_STEAM],
+  },
+  symbolMap: {},
+  exportPath: 'decks/find-deck.txt',
+  useScryfallImgUrls: true,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+  missingCards: { usd: [], eur: [], tix: [] },
+}
+
+const FIND_COLLECTION = {
+  name: 'Find Box',
+  entries: [
+    {
+      name: 'Sol Ring',
+      set: 'c19',
+      collectorNumber: '221',
+      finish: 'nonfoil',
+      condition: 'NM',
+      price: 3,
+      fileOrder: 0,
+      section: 'Main',
+      cardId: 1,
+    },
+    {
+      name: 'Steam Vents',
+      set: 'sld',
+      collectorNumber: '1234',
+      finish: 'nonfoil',
+      condition: 'NM',
+      price: 5,
+      fileOrder: 1,
+      section: 'Main',
+      cardId: 2,
+    },
+  ],
+  cards: { 'c19:221': FIND_RING, 'sld:1234': FIND_STEAM_DOUBLE_ART },
+  printings: { 'Sol Ring': [FIND_RING], 'Steam Vents': [FIND_STEAM_DOUBLE_ART] },
+  symbolMap: {},
+  useScryfallImgUrls: true,
+  totalPrice: 8,
+  defaultCurrency: 'usd',
+}
+
+const FIND_WANTED = {
+  name: 'Find Wanted',
+  entries: [
+    {
+      name: 'Counterspell',
+      price: 1,
+      fileOrder: 0,
+      section: 'Main',
+      state: 'name-only',
+      cardId: 1,
+    },
+  ],
+  cards: { Counterspell: FIND_COUNTER },
+  printings: { Counterspell: [FIND_COUNTER] },
+  symbolMap: {},
+  useScryfallImgUrls: true,
+  totalPrice: 1,
+  defaultCurrency: 'usd',
+}
+
+const FIND_INDEX = {
+  decks: [
+    {
+      slug: 'find-deck',
+      name: 'Find Deck',
+      featuredCardImage: '',
+      commander: null,
+      format: null,
+      cardCount: 3,
+      totalPrice: 10,
+    },
+  ],
+  collections: [
+    { slug: 'find-box', name: 'Find Box', featuredCardImage: '', cardCount: 2, totalPrice: 8 },
+  ],
+  wantedLists: [
+    {
+      slug: 'find-wanted',
+      name: 'Find Wanted',
+      featuredCardImage: '',
+      cardCount: 1,
+      totalPrice: 1,
+    },
+  ],
+  useScryfallImgUrls: true,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+}
+
+/** Serve a deck + collection + wanted list for the Find page tests. */
+export async function mockPublicSiteForFind(page: Page): Promise<void> {
+  await page.route('**/index.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(FIND_INDEX),
+    })
+  })
+  await page.route('**/decks/find-deck.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(FIND_DECK),
+    })
+  })
+  await page.route('**/collections/find-box.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(FIND_COLLECTION),
+    })
+  })
+  await page.route('**/wanted/find-wanted.json', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(FIND_WANTED),
+    })
+  })
+}

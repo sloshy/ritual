@@ -31,6 +31,8 @@ import {
 import type { ListType } from '../list-type'
 import type { ListRef } from '../change-event'
 import { TradePage } from './TradePage'
+import { FindPage } from './FindPage'
+import { SearchResultsPage } from './SearchResultsPage'
 import { EditChromeProvider, useEditChrome } from './editor/edit-chrome'
 import { EditControlsRow } from './editor/EditControlsRow'
 import { QuickSwitch, useQuickSwitchShortcut } from './QuickSwitch'
@@ -215,6 +217,7 @@ function App() {
         (r.page === 'index' && tab === 'wanted') || r.page === 'wanted' || allType === 'wanted',
       all: isAll && !allType,
       trade: r.page === 'trade',
+      find: r.page === 'find' || r.page === 'search-results',
     }
   })
 
@@ -333,6 +336,9 @@ function App() {
             </NavLink>
             <NavLink href="#/trade" active={navActive().trade}>
               Trade
+            </NavLink>
+            <NavLink href="#/find" active={navActive().find}>
+              Find
             </NavLink>
           </nav>
           <button
@@ -609,6 +615,20 @@ function App() {
                 wantedLists={wantedListList}
               />
             </Match>
+            <Match when={route().page === 'find'}>
+              <Show when={deckList()} fallback={<LoadingSpinner />}>
+                <FindPage
+                  decks={deckList}
+                  collections={collectionList}
+                  wantedLists={wantedListList}
+                  currency={currency()}
+                  useScryfallImgUrls={useScryfallImgUrls()}
+                />
+              </Show>
+            </Match>
+            <Match when={route().page === 'search-results'}>
+              <SearchResultsPage currency={currency()} useScryfallImgUrls={useScryfallImgUrls()} />
+            </Match>
           </Switch>
         </div>
       </main>
@@ -706,6 +726,7 @@ type NavActiveState = {
   wanted: boolean
   all: boolean
   trade: boolean
+  find: boolean
 }
 
 interface NavLinkProps {

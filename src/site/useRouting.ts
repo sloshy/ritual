@@ -11,6 +11,8 @@ export type Route =
   | { page: 'wanted'; slug: string }
   | { page: 'combined'; all: boolean; allType?: ListType; refs: ListRef[] }
   | { page: 'trade' }
+  | { page: 'find' }
+  | { page: 'search-results' }
 
 export type UseRoutingResult = {
   route: Accessor<Route>
@@ -53,6 +55,12 @@ function parseHash(): Route {
   }
   if (hash === 'trade') {
     return { page: 'trade' }
+  }
+  if (hash === 'find') {
+    return { page: 'find' }
+  }
+  if (hash === 'search-results') {
+    return { page: 'search-results' }
   }
   return { page: 'index', tab: 'decks' }
 }

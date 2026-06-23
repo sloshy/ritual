@@ -109,7 +109,7 @@ export default defineConfig({
         },
         {
           label: 'Public Site',
-          items: ['public-site/combined-view'],
+          items: ['public-site/combined-view', 'public-site/find'],
         },
         {
           label: 'Admin Site',
