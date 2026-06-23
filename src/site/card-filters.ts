@@ -1,6 +1,12 @@
 import type { CardData } from './card-sorting'
 import { WUBRG } from './card-sorting'
 import { matchesAllTerms } from '../term-match'
+import {
+  extractCardTypeTags,
+  matchesCardTypes,
+  type CardTypeFilterMode,
+  type CardTypeMatchLogic,
+} from './card-types'
 
 /** How selected colors are matched against a card's color identity. */
 export type ColorFilterMode = 'exclusive' | 'inclusive'
@@ -28,6 +34,12 @@ export interface CardFilters {
   colorMode: ColorFilterMode
   /** Lowercase set codes. Empty = no set filtering. */
   setCodes: string[]
+  /** Lowercase card type tags (types and subtypes). Empty = no type filtering. */
+  cardTypes: string[]
+  /** 'and': a card must have every selected type. 'or': at least one. */
+  cardTypeLogic: CardTypeMatchLogic
+  /** 'include': keep matching cards. 'exclude': drop matching cards. */
+  cardTypeMode: CardTypeFilterMode
   /** Mana value compared via `manaValueOp`. Null = no mana value filtering. */
   manaValue: number | null
   manaValueOp: ManaValueComparator
@@ -42,6 +54,9 @@ export function createDefaultCardFilters(): CardFilters {
     colors: [],
     colorMode: 'exclusive',
     setCodes: [],
+    cardTypes: [],
+    cardTypeLogic: 'or',
+    cardTypeMode: 'include',
     manaValue: null,
     manaValueOp: '=',
   }
@@ -92,6 +107,11 @@ export function filterCards<T extends CardData>(cards: T[], filters: CardFilters
       return false
     }
     if (setCodes.size > 0 && !setCodes.has(card.setCode.toLowerCase())) return false
+    if (filters.cardTypes.length > 0) {
+      const matches = matchesCardTypes(card.type, filters.cardTypes, filters.cardTypeLogic)
+      const shouldExclude = filters.cardTypeMode === 'include' ? !matches : matches
+      if (shouldExclude) return false
+    }
     if (
       filters.manaValue !== null &&
       !compareManaValue(card.cmc, filters.manaValueOp, filters.manaValue)
@@ -111,6 +131,7 @@ export function countActiveFilters(filters: CardFilters): number {
   if (filters.name.trim().length > 0) count++
   if (filters.colors.length > 0) count++
   if (filters.setCodes.length > 0) count++
+  if (filters.cardTypes.length > 0) count++
   if (filters.manaValue !== null) count++
   return count
 }
@@ -122,6 +143,15 @@ export function collectSetCodes(cards: CardData[]): string[] {
     if (card.setCode.length > 0) codes.add(card.setCode.toLowerCase())
   }
   return [...codes].sort()
+}
+
+/** Collect the unique lowercase card type tags present in `cards`, sorted, for autocomplete. */
+export function collectCardTypes(cards: CardData[]): string[] {
+  const types = new Set<string>()
+  for (const card of cards) {
+    for (const tag of extractCardTypeTags(card.type)) types.add(tag)
+  }
+  return [...types].sort()
 }
 
 export type ManaValueParse = { ok: true; value: number | null } | { ok: false; error: string }

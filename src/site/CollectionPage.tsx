@@ -25,7 +25,7 @@ import { Toolbar } from './Toolbar'
 import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
 import { useCardFilters } from './useCardFilters'
-import { collectSetCodes, filterCards } from './card-filters'
+import { collectCardTypes, collectSetCodes, filterCards } from './card-filters'
 import { deriveSectionOrder, sectionDefaultGroupBy } from '../section-format'
 import { addEntryToLeft, canAddMoreToLeft, showTradeToast } from './useTradeState'
 import type { TradeSearchEntry } from './useTradeData'
@@ -266,6 +266,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   const prices = usePublicPriceControls({ cards: allCards, pricesDate: props.pricesDate })
 
   const setCodeOptions = createMemo(() => collectSetCodes(allCards()))
+  const cardTypeOptions = createMemo(() => collectCardTypes(allCards()))
 
   const cardGroups = createMemo((): CardGroup[] => {
     const working = filterCards(allCards(), cardFilters.filters)
@@ -512,6 +513,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         filters={cardFilters}
         symbolMap={props.symbolMap}
         setCodeOptions={setCodeOptions()}
+        cardTypeOptions={cardTypeOptions()}
         extraToggles={[
           {
             label: 'Group Duplicates',

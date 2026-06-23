@@ -1,14 +1,16 @@
 import type { Accessor, Component } from 'solid-js'
-import { createMemo, createSignal, For, Show } from 'solid-js'
+import { createSignal, For, Show } from 'solid-js'
 import { useAnchoredMenu } from '../ui/useAnchoredMenu'
 import { useAnchoredToggle } from '../ui/useAnchoredToggle'
-import { parseSetCodesInput } from '../set-codes'
+import { parseSetCodesInput, scanSetCodesInput } from '../set-codes'
 import { colorIdentityName, WUBRG } from './card-sorting'
 import {
   parseManaValueFilter,
   toggleColorSelection,
   type ManaValueComparator,
 } from './card-filters'
+import { formatCardTypeForDisplay, parseCardTypesInput, scanCardTypeInput } from './card-types'
+import { TagsInput } from './TagsInput'
 import type { CardFiltersControl } from './useCardFilters'
 
 const PANEL_WIDTH = 320
@@ -28,6 +30,8 @@ export interface FilterMenuProps {
   symbolMap: Record<string, string>
   /** Lowercase set codes present in the current list, for the set filter autocomplete. */
   setCodeOptions: string[]
+  /** Lowercase card type tags present in the current list, for the type filter autocomplete. */
+  cardTypeOptions: string[]
   /** Show the "Hide Extras" toggle (deck pages only). */
   showHideExtras?: boolean
 }
@@ -65,6 +69,7 @@ export const FilterMenu: Component<FilterMenuProps> = (props) => {
             filters={props.filters}
             symbolMap={props.symbolMap}
             setCodeOptions={props.setCodeOptions}
+            cardTypeOptions={props.cardTypeOptions}
             showHideExtras={props.showHideExtras}
           />
         )}
@@ -208,10 +213,85 @@ const FilterPanel: Component<FilterPanelProps> = (props) => {
         <label class="filter-label" for="filter-sets">
           Sets
         </label>
-        <SetCodeTagsInput
+        <TagsInput
           selected={props.filters.filters.setCodes}
           options={props.setCodeOptions}
           onChange={(setCodes) => props.filters.update({ setCodes })}
+          inputId="filter-sets"
+          placeholder="Set codes…"
+          suggestionsLabel="Set code suggestions"
+          format={(code) => code.toUpperCase()}
+          query={(draft) => draft.trim().toLowerCase()}
+          matches={(code, query) => code.startsWith(query)}
+          scan={scanSetCodesInput}
+          parse={parseSetCodesInput}
+        />
+      </div>
+      <div class="filter-row">
+        <div class="filter-type-header">
+          <label class="filter-label" for="filter-types">
+            Card Type
+          </label>
+          <div class="filter-toggle-group" role="group" aria-label="Card type match logic">
+            <button
+              type="button"
+              classList={{ active: props.filters.filters.cardTypeLogic === 'or' }}
+              aria-pressed={props.filters.filters.cardTypeLogic === 'or'}
+              title="Match cards with any of the selected types"
+              onClick={() => props.filters.update({ cardTypeLogic: 'or' })}
+            >
+              Any
+            </button>
+            <button
+              type="button"
+              classList={{ active: props.filters.filters.cardTypeLogic === 'and' }}
+              aria-pressed={props.filters.filters.cardTypeLogic === 'and'}
+              title="Match cards with all of the selected types"
+              onClick={() => props.filters.update({ cardTypeLogic: 'and' })}
+            >
+              All
+            </button>
+          </div>
+          <div class="filter-toggle-group" role="group" aria-label="Card type filter mode">
+            <button
+              type="button"
+              classList={{ active: props.filters.filters.cardTypeMode === 'include' }}
+              aria-pressed={props.filters.filters.cardTypeMode === 'include'}
+              title="Show only cards of the selected types"
+              onClick={() => props.filters.update({ cardTypeMode: 'include' })}
+            >
+              Include
+            </button>
+            <button
+              type="button"
+              classList={{ active: props.filters.filters.cardTypeMode === 'exclude' }}
+              aria-pressed={props.filters.filters.cardTypeMode === 'exclude'}
+              title="Hide cards of the selected types"
+              onClick={() => props.filters.update({ cardTypeMode: 'exclude' })}
+            >
+              Exclude
+            </button>
+          </div>
+        </div>
+        <TagsInput
+          selected={props.filters.filters.cardTypes}
+          options={props.cardTypeOptions}
+          onChange={(cardTypes) => props.filters.update({ cardTypes })}
+          inputId="filter-types"
+          placeholder="Card types…"
+          suggestionsLabel="Card type suggestions"
+          format={formatCardTypeForDisplay}
+          // Strip a leading open quote so suggestions still appear while typing `"Time…`.
+          query={(draft) => draft.trim().toLowerCase().replace(/^"/, '')}
+          // Match a prefix of the whole tag or of any word within it, so multi-word
+          // types like "Time Lord" surface when typing "time" or "lord".
+          matches={(type, query) =>
+            query.length === 0 ||
+            type.startsWith(query) ||
+            type.split(' ').some((word) => word.startsWith(query))
+          }
+          scan={scanCardTypeInput}
+          parse={parseCardTypesInput}
         />
       </div>
       <div class="filter-row">
@@ -252,111 +332,6 @@ const FilterPanel: Component<FilterPanelProps> = (props) => {
         <button type="button" class="link-action filter-clear" onClick={handleClearAll}>
           Clear all filters
         </button>
-      </Show>
-    </div>
-  )
-}
-
-type SetCodeTagsInputProps = {
-  /** Currently selected set codes (lowercase). */
-  selected: string[]
-  /** All set codes available for autocomplete (lowercase). */
-  options: string[]
-  onChange: (codes: string[]) => void
-}
-
-const SetCodeTagsInput: Component<SetCodeTagsInputProps> = (props) => {
-  const [draft, setDraft] = createSignal('')
-  const [focused, setFocused] = createSignal(false)
-
-  const suggestions = createMemo(() => {
-    const query = draft().trim().toLowerCase()
-    return props.options.filter((code) => !props.selected.includes(code) && code.startsWith(query))
-  })
-
-  const addCodes = (raw: string) => {
-    const codes = parseSetCodesInput(raw.replace(/\s+/g, ','))
-    if (codes.length === 0) return
-    const merged = [...props.selected]
-    for (const code of codes) {
-      if (!merged.includes(code)) merged.push(code)
-    }
-    props.onChange(merged)
-  }
-
-  // Space and comma both finish the tag being typed; pasted text may contain
-  // several separators, in which case every complete token becomes a tag and
-  // any trailing partial token stays in the input as the new draft.
-  const handleInput = (value: string) => {
-    if (!/[\s,]/.test(value)) {
-      setDraft(value)
-      return
-    }
-    const endsWithSeparator = /[\s,]$/.test(value)
-    const tokens = value.split(/[\s,]+/).filter(Boolean)
-    const remainder = endsWithSeparator ? '' : (tokens.pop() ?? '')
-    if (tokens.length > 0) addCodes(tokens.join(','))
-    setDraft(remainder)
-  }
-
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      addCodes(draft())
-      setDraft('')
-    } else if (e.key === 'Backspace' && draft().length === 0 && props.selected.length > 0) {
-      props.onChange(props.selected.slice(0, -1))
-    }
-  }
-
-  return (
-    <div class="filter-tags">
-      <For each={props.selected}>
-        {(code) => (
-          <span class="filter-tag">
-            {code.toUpperCase()}
-            <button
-              type="button"
-              class="filter-tag-remove"
-              aria-label={`Remove ${code.toUpperCase()}`}
-              onClick={() => props.onChange(props.selected.filter((c) => c !== code))}
-            >
-              ×
-            </button>
-          </span>
-        )}
-      </For>
-      <input
-        id="filter-sets"
-        class="filter-tags-input"
-        type="text"
-        placeholder={props.selected.length === 0 ? 'Set codes…' : ''}
-        value={draft()}
-        onInput={(e) => handleInput(e.currentTarget.value)}
-        onKeyDown={handleKeyDown}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-      />
-      <Show when={focused() && suggestions().length > 0}>
-        <div class="filter-tags-suggestions" role="listbox" aria-label="Set code suggestions">
-          <For each={suggestions()}>
-            {(code) => (
-              <button
-                type="button"
-                role="option"
-                // preventDefault keeps the text input focused so the list stays open
-                // for picking several sets in a row.
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  addCodes(code)
-                  setDraft('')
-                }}
-              >
-                {code.toUpperCase()}
-              </button>
-            )}
-          </For>
-        </div>
       </Show>
     </div>
   )

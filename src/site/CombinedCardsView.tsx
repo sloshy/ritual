@@ -17,7 +17,7 @@ import { Toolbar } from './Toolbar'
 import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
 import { useCardFilters } from './useCardFilters'
-import { collectSetCodes, filterCards } from './card-filters'
+import { collectCardTypes, collectSetCodes, filterCards } from './card-filters'
 import { useCombinedSelection, type SelectionListId } from './useCardSelection'
 import { SelectionMenu } from './SelectionMenu'
 import type { MetaEntry } from './meta-entry'
@@ -110,6 +110,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
   const selection = useCombinedSelection(() => props.selectionLists)
 
   const setCodeOptions = createMemo(() => collectSetCodes(props.cards))
+  const cardTypeOptions = createMemo(() => collectCardTypes(props.cards))
 
   const cardGroups = createMemo((): CardGroup<CombinedCardData>[] => {
     const working = filterCards(props.cards, cardFilters.filters)
@@ -213,6 +214,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
         filters={cardFilters}
         symbolMap={props.symbolMap}
         setCodeOptions={setCodeOptions()}
+        cardTypeOptions={cardTypeOptions()}
         selectionMenu={
           <SelectionMenu
             selection={selection}

@@ -30,7 +30,7 @@ import { resolveCardThumbnailUrl, resolveCardPreview } from './image-sources'
 import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
 import { useCardFilters } from './useCardFilters'
-import { collectSetCodes, filterCards } from './card-filters'
+import { collectCardTypes, collectSetCodes, filterCards } from './card-filters'
 import { PrimerRenderer, buildToc } from './PrimerRenderer'
 import { useCardSelection, type SelectedCard } from './useCardSelection'
 import { SelectionMenu } from './SelectionMenu'
@@ -354,6 +354,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
   // Toolbar filters apply to everything except the commander section, which is
   // the deck's identity and stays pinned.
   const setCodeOptions = createMemo(() => collectSetCodes(allCards()))
+  const cardTypeOptions = createMemo(() => collectCardTypes(allCards()))
 
   // Sorted and grouped cards (mainboard only)
   const cardGroups = createMemo((): CardGroup[] => {
@@ -611,6 +612,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         filters={cardFilters}
         symbolMap={props.symbolMap}
         setCodeOptions={setCodeOptions()}
+        cardTypeOptions={cardTypeOptions()}
         showHideExtras
         extraToggles={
           hasLowestPriceCards()

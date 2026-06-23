@@ -265,9 +265,9 @@
   color: var(--text-body);
 }
 
-.filter-color-mode {
+.filter-color-mode,
+.filter-toggle-group {
   display: inline-flex;
-  margin-left: auto;
   border: 1px solid var(--border);
   border-radius: 0.25rem;
   overflow: hidden;
@@ -284,6 +284,23 @@
       background: var(--bg-active);
       color: var(--text-primary);
     }
+  }
+}
+
+/* In the color row the mode toggle is pushed to the right edge. */
+.filter-color-mode {
+  margin-left: auto;
+}
+
+/* Card type row: label on the left, the logic + mode toggle groups on the right. */
+.filter-type-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+
+  .filter-toggle-group:first-of-type {
+    margin-left: auto;
   }
 }
 
@@ -365,7 +382,8 @@
     color: var(--text-body);
     cursor: pointer;
 
-    &:hover {
+    &:hover,
+    &.active {
       background: var(--bg-hover);
       color: var(--text-primary);
     }

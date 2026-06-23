@@ -37,6 +37,8 @@ interface ToolbarProps {
   symbolMap: Record<string, string>
   /** Lowercase set codes present in the list, for the set filter autocomplete. */
   setCodeOptions: string[]
+  /** Lowercase card type tags present in the list, for the type filter autocomplete. */
+  cardTypeOptions: string[]
   /** Show the "Hide Extras" filter toggle (deck pages only). */
   showHideExtras?: boolean
   extraToggles?: ExtraToggle[]
@@ -171,6 +173,7 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
           filters={props.filters}
           symbolMap={props.symbolMap}
           setCodeOptions={props.setCodeOptions}
+          cardTypeOptions={props.cardTypeOptions}
           showHideExtras={props.showHideExtras}
         />
         {props.selectionMenu}

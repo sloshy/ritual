@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  collectCardTypes,
   collectSetCodes,
   countActiveFilters,
   createDefaultCardFilters,
@@ -121,6 +122,37 @@ describe('filterCards', () => {
     expect(filterCards([noSet], makeFilters({ setCodes: ['mkm'] }))).toHaveLength(0)
   })
 
+  test('card type filter (OR include) keeps cards with any selected type or subtype', () => {
+    const robot = makeCard({ name: 'Robot', type: 'Artifact Creature — Robot' })
+    const elf = makeCard({ name: 'Elf', type: 'Creature — Elf Druid' })
+    const land = makeCard({ name: 'Land', type: 'Basic Land — Forest' })
+    const result = filterCards(
+      [robot, elf, land],
+      makeFilters({ cardTypes: ['artifact', 'elf'], cardTypeLogic: 'or' }),
+    )
+    expect(result.map((c) => c.name)).toEqual(['Robot', 'Elf'])
+  })
+
+  test('card type filter (AND include) requires every selected type', () => {
+    const artifactCreature = makeCard({ name: 'Robot', type: 'Artifact Creature — Robot' })
+    const plainCreature = makeCard({ name: 'Elf', type: 'Creature — Elf' })
+    const result = filterCards(
+      [artifactCreature, plainCreature],
+      makeFilters({ cardTypes: ['artifact', 'creature'], cardTypeLogic: 'and' }),
+    )
+    expect(result.map((c) => c.name)).toEqual(['Robot'])
+  })
+
+  test('card type filter (exclude) drops matching cards and keeps the rest', () => {
+    const creature = makeCard({ name: 'Elf', type: 'Creature — Elf' })
+    const artifact = makeCard({ name: 'Rock', type: 'Artifact' })
+    const result = filterCards(
+      [creature, artifact],
+      makeFilters({ cardTypes: ['creature'], cardTypeMode: 'exclude' }),
+    )
+    expect(result.map((c) => c.name)).toEqual(['Rock'])
+  })
+
   test('hideExtras has no effect in filterCards (applied at section level by the deck page)', () => {
     const cards = [makeCard(), makeCard({ name: 'Other' })]
     expect(filterCards(cards, makeFilters({ hideExtras: true }))).toEqual(cards)
@@ -201,9 +233,16 @@ describe('countActiveFilters', () => {
       name: 'bolt',
       colors: ['R'],
       setCodes: ['lea'],
+      cardTypes: ['creature'],
       manaValue: 1,
     })
-    expect(countActiveFilters(filters)).toBe(7)
+    expect(countActiveFilters(filters)).toBe(8)
+  })
+
+  test('card type logic/mode alone do not count as active', () => {
+    expect(countActiveFilters(makeFilters({ cardTypeLogic: 'and', cardTypeMode: 'exclude' }))).toBe(
+      0,
+    )
   })
 
   test('a non-default comparator alone does not count as active', () => {
@@ -248,5 +287,24 @@ describe('collectSetCodes', () => {
       makeCard({ setCode: '' }),
     ]
     expect(collectSetCodes(cards)).toEqual(['lea', 'mkm'])
+  })
+})
+
+describe('collectCardTypes', () => {
+  test('returns unique lowercase type tags across all cards, sorted', () => {
+    const cards = [
+      makeCard({ type: 'Artifact Creature — Robot' }),
+      makeCard({ type: 'Creature — Elf Druid' }),
+      makeCard({ type: 'Legendary Creature — Time Lord' }),
+    ]
+    expect(collectCardTypes(cards)).toEqual([
+      'artifact',
+      'creature',
+      'druid',
+      'elf',
+      'legendary',
+      'robot',
+      'time lord',
+    ])
   })
 })

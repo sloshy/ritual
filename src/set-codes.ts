@@ -23,3 +23,24 @@ export function parseSetCodesInput(value: string): string[] {
 export function formatSetCodesForDisplay(sets: string[]): string {
   return sets.map((s) => s.toUpperCase()).join(', ')
 }
+
+export type SetCodesInputScan = {
+  /** Completed, normalized set codes. */
+  tags: string[]
+  /** The trailing token still being typed. */
+  remainder: string
+}
+
+/**
+ * Scan a (possibly partial) set-code input into completed codes plus a trailing
+ * remainder still being typed. Whitespace and commas separate codes; a pasted value
+ * with several separators yields several tags, and any unfinished trailing token
+ * stays as the remainder.
+ */
+export function scanSetCodesInput(value: string): SetCodesInputScan {
+  if (!/[\s,]/.test(value)) return { tags: [], remainder: value }
+  const endsWithSeparator = /[\s,]$/.test(value)
+  const tokens = value.split(/[\s,]+/).filter(Boolean)
+  const remainder = endsWithSeparator ? '' : (tokens.pop() ?? '')
+  return { tags: parseSetCodesInput(tokens.join(',')), remainder }
+}

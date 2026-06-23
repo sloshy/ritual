@@ -91,6 +91,103 @@ test.describe('Toolbar Filters menu', () => {
     await expectVisibleCards(page, ['Golgari Lord', 'Maybe Dragon', 'Test Forest', 'White Knight'])
   })
 
+  test('card type filter matches by type tag and inverts with Exclude', async ({ page }) => {
+    await openFilterMenu(page)
+    // 'Boring Rock' is the only Artifact; everything else is a Creature or Land.
+    await page.locator('#filter-types').fill('artifact ')
+    await expect(page.locator('.filter-tag')).toHaveText(/Artifact/)
+    await expectVisibleCards(page, ['Boring Rock'])
+
+    await page.getByRole('button', { name: 'Exclude' }).click()
+    await expectVisibleCards(page, [
+      'Golgari Lord',
+      'Green Elf',
+      'Maybe Dragon',
+      'Test Forest',
+      'White Knight',
+    ])
+
+    // Removing the tag clears the filter, even while Exclude is selected.
+    await page.getByRole('button', { name: 'Remove Artifact' }).click()
+    await expectVisibleCards(page, ALL_CARDS)
+  })
+
+  test('card type Any/All logic combines a type and a subtype tag', async ({ page }) => {
+    await openFilterMenu(page)
+    // 'Green Elf' is Elf Druid; 'Golgari Lord' is Zombie Elf (Elf but not Druid).
+    await page.locator('#filter-types').fill('elf ')
+    // Confirm the first tag committed before adding the second (each tag commits on space).
+    await expect(page.locator('.filter-tag').filter({ hasText: 'Elf' })).toBeVisible()
+    await page.locator('#filter-types').fill('druid ')
+    await expect(page.locator('.filter-tag').filter({ hasText: 'Druid' })).toBeVisible()
+
+    // Any (default): Elf OR Druid
+    await expectVisibleCards(page, ['Golgari Lord', 'Green Elf'])
+
+    // All: Elf AND Druid
+    await page.getByRole('button', { name: 'All', exact: true }).click()
+    await expectVisibleCards(page, ['Green Elf'])
+  })
+
+  test('card type autocomplete suggests tags from the list and adds one on click', async ({
+    page,
+  }) => {
+    await openFilterMenu(page)
+    await page.locator('#filter-types').click()
+
+    const suggestions = page.locator('.filter-tags-suggestions button')
+    await expect(suggestions.filter({ hasText: 'Druid' })).toBeVisible()
+    await expect(suggestions.filter({ hasText: 'Knight' })).toBeVisible()
+
+    await suggestions.filter({ hasText: 'Knight' }).click()
+    await expect(page.locator('.filter-tag')).toHaveText(/Knight/)
+    await expectVisibleCards(page, ['White Knight'])
+  })
+
+  test('quoted input keeps a multi-word type as a single tag', async ({ page }) => {
+    await openFilterMenu(page)
+    // No card is a Time Lord, but the space must be preserved as one tag rather
+    // than split into "Time" and "Lord".
+    await page.locator('#filter-types').fill('"Time Lord"')
+    // Exactly one tag — the space was preserved, not split into "Time" and "Lord".
+    await expect(page.locator('.filter-tag')).toHaveCount(1)
+    await expect(page.locator('.filter-tag')).toHaveText(/Time Lord/)
+    await expectVisibleCards(page, [])
+  })
+
+  test('Enter selects the highlighted suggestion, or commits the typed text when none is highlighted', async ({
+    page,
+  }) => {
+    await openFilterMenu(page)
+    const input = page.locator('#filter-sets')
+
+    // No suggestion matches "zzz", so Enter commits exactly what was typed.
+    await input.fill('zzz')
+    await input.press('Enter')
+    await expect(page.locator('.filter-tag').filter({ hasText: 'ZZZ' })).toBeVisible()
+
+    // With an empty draft the full list (TSA, TSB) shows; ArrowDown highlights the
+    // first and Enter adds that suggestion rather than the (empty) typed text.
+    await input.press('ArrowDown')
+    await input.press('Enter')
+    await expect(page.locator('.filter-tag').filter({ hasText: 'TSA' })).toBeVisible()
+  })
+
+  test('card type suggestions are navigable with the arrow keys', async ({ page }) => {
+    await openFilterMenu(page)
+    const input = page.locator('#filter-types')
+
+    // "k" matches only "Knight"; ArrowDown highlights it and Enter selects it.
+    await input.fill('k')
+    await expect(page.locator('.filter-tags-suggestions button.active')).toHaveCount(0)
+    await input.press('ArrowDown')
+    await expect(page.locator('.filter-tags-suggestions button.active')).toHaveText('Knight')
+
+    await input.press('Enter')
+    await expect(page.locator('.filter-tag').filter({ hasText: 'Knight' })).toBeVisible()
+    await expectVisibleCards(page, ['White Knight'])
+  })
+
   test('mana value filter matches the exact value, including 0', async ({ page }) => {
     await openFilterMenu(page)
     await page.locator('#filter-mana-value').fill('0')
