@@ -1,7 +1,11 @@
+import type { Command } from 'commander'
 import prompts, { type Choice } from 'prompts'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { getAllCardNames, getCardsBySet } from '../scryfall'
+import { refreshCardCacheForSession, type CacheRefreshOptions } from '../cache/freshness'
+
+export type { CacheRefreshOptions } from '../cache/freshness'
 import type { Condition, Finish, ScryfallCard } from '../types'
 import { CONDITION_LABELS, isCondition, isFinish, VALID_CONDITIONS } from '../finish-condition'
 import type { PromptState } from './prompts-types'
@@ -210,6 +214,30 @@ export type CardSessionStrategy = {
 }
 
 // ── Shared startup helpers ──────────────────────────────────────────
+
+/**
+ * Apply the card-cache freshness flags shared by the interactive `deck`,
+ * `collection`, and `wanted-list` commands. See {@link CacheRefreshOptions}.
+ */
+export function applyCacheRefreshOptions(command: Command): Command {
+  return command
+    .option('--no-cache-prompt', 'Do not prompt to update a card cache older than a week')
+    .option('--refresh-prices', 'Refresh cached prices that are more than a day old')
+}
+
+/**
+ * Apply the {@link CacheRefreshOptions} freshness policy before a session, then
+ * load the card-name list for autocomplete, logging progress. Returns null
+ * (after telling the user to preload) when the Scryfall cache is empty.
+ */
+export async function prepareCardSessionCache(
+  options: CacheRefreshOptions,
+  sets: string[] | undefined,
+  excludeDigitalOnly: boolean,
+): Promise<string[] | null> {
+  await refreshCardCacheForSession(options)
+  return loadCardNamesOrWarn(sets, excludeDigitalOnly)
+}
 
 /**
  * Load the card-name list for autocomplete, logging progress. Returns null (after

@@ -32,7 +32,11 @@ ritual collection --sets "FDN,SPG"         # restrict to these set codes
 ritual collection --finish foil --condition NM
 ritual collection --collector              # enter cards by collector number
 ritual collection --allow-digital-only-cards
+ritual collection --no-cache-prompt        # skip the "cache is >1 week old, update?" prompt
+ritual collection --refresh-prices         # redownload the cache when prices are >1 day old
 \`\`\`
+
+When the card cache was last fully downloaded more than a week ago, the session prompts to redownload it before starting; \`--no-cache-prompt\` suppresses that prompt. \`--refresh-prices\` redownloads the cache (refreshing prices) without prompting when the cached prices are more than a day old.
 
 Within the session, changes accumulate **in memory**: \`💾 Save\` writes the file and changelog without exiting (saving repeatedly in one session folds the later changes into that session's existing changelog entry and bumps its timestamp, so one editing session is always one changelog entry), and \`🚪 Exit\` (or Esc) opens an exit menu when changes are unsaved — save and exit, exit without saving (discards everything unsaved), or cancel to keep editing. \`🛠️ Switch to Edit Mode\` turns the search prompt into a picker over the collection's existing entries — change a card's printing, finish, condition, or note, or remove it — and \`↩️ Undo Last Edit\` reverts the latest edit. \`↩️ Undo Last Add\` removes the most recent card and \`📋 View Session Changes\` opens a picker over every change made this session — adds, edits, and removals — where selecting one offers to discard just that change (same-card changes must be discarded newest-first). Discarding an add frees that card's \`&N\` id and keeps the remaining session ids dense (each later card slides down one).
 

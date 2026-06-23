@@ -9,13 +9,15 @@ import {
   type WantedListSessionConfig,
 } from './wanted-helpers'
 import {
+  applyCacheRefreshOptions,
   listMarkdownNames,
-  loadCardNamesOrWarn,
   loadCollectorSets,
+  prepareCardSessionCache,
   promptEditAction,
   promptListSelection,
   promptSessionConfigUpdate,
   runCardSession,
+  type CacheRefreshOptions,
   type CardSessionContext,
   type CardSessionStrategy,
   type SessionConfig,
@@ -56,7 +58,7 @@ import {
 import { capitalize } from '../utils'
 import { parseSetCodesInput } from '../set-codes'
 
-type WantedCommandOptions = {
+type WantedCommandOptions = CacheRefreshOptions & {
   sets?: string
   finish?: string
   collector?: boolean
@@ -306,7 +308,7 @@ function createWantedStrategy(
 }
 
 export function registerWantedListCommand(program: Command): void {
-  program
+  const wantedCommand = program
     .command('wanted-list')
     .alias('wanted')
     .description('Manage your wanted list of cards to acquire')
@@ -314,44 +316,45 @@ export function registerWantedListCommand(program: Command): void {
     .option('-f, --finish <finish>', 'Default finish (nonfoil, foil, etched)')
     .option('--collector', 'Start in collector number mode')
     .option('--allow-digital-only-cards', 'Include digital-only sets (e.g., Alchemy)')
-    .action(async (options: WantedCommandOptions) => {
-      const parsedSets = options.sets ? parseSetCodesInput(options.sets) : undefined
-      const excludeDigitalOnly = !options.allowDigitalOnlyCards
+  applyCacheRefreshOptions(wantedCommand)
+  wantedCommand.action(async (options: WantedCommandOptions) => {
+    const parsedSets = options.sets ? parseSetCodesInput(options.sets) : undefined
+    const excludeDigitalOnly = !options.allowDigitalOnlyCards
 
-      const cardNames = await loadCardNamesOrWarn(parsedSets, excludeDigitalOnly)
-      if (!cardNames) return
+    const cardNames = await prepareCardSessionCache(options, parsedSets, excludeDigitalOnly)
+    if (!cardNames) return
 
-      const existingLists = await listMarkdownNames(getWantedDir())
-      const selection = await promptListSelection({
-        message: 'Select a wanted list file',
-        items: existingLists.map((c) => ({ title: c, value: c })),
-        createTitle: '+ Create New Wanted List',
-        newNameMessage: 'Enter name for new wanted list:',
-      })
-      if (!selection) return
-      const selectedList = selection.kind === 'new' ? selection.name : selection.value
-
-      const listFile = await ensureWantedListFile(selectedList)
-      const session = await loadWantedSession(listFile)
-
-      const sessionConfig: SessionConfig = {
-        sets: parsedSets,
-        finish: isFinish(options.finish) ? options.finish : undefined,
-        entryMode: options.collector ? 'collector' : 'name',
-        collectorSets: [],
-        activeSetIndex: 0,
-        setCardMaps: new Map(),
-      }
-
-      // Pre-load set data when starting in collector mode with sets provided
-      if (options.collector && parsedSets && parsedSets.length > 0) {
-        await loadCollectorSets(sessionConfig, parsedSets)
-      }
-
-      await runCardSession({
-        strategy: createWantedStrategy(session, sessionConfig, selectedList, excludeDigitalOnly),
-        cardNames,
-        excludeDigitalOnly,
-      })
+    const existingLists = await listMarkdownNames(getWantedDir())
+    const selection = await promptListSelection({
+      message: 'Select a wanted list file',
+      items: existingLists.map((c) => ({ title: c, value: c })),
+      createTitle: '+ Create New Wanted List',
+      newNameMessage: 'Enter name for new wanted list:',
     })
+    if (!selection) return
+    const selectedList = selection.kind === 'new' ? selection.name : selection.value
+
+    const listFile = await ensureWantedListFile(selectedList)
+    const session = await loadWantedSession(listFile)
+
+    const sessionConfig: SessionConfig = {
+      sets: parsedSets,
+      finish: isFinish(options.finish) ? options.finish : undefined,
+      entryMode: options.collector ? 'collector' : 'name',
+      collectorSets: [],
+      activeSetIndex: 0,
+      setCardMaps: new Map(),
+    }
+
+    // Pre-load set data when starting in collector mode with sets provided
+    if (options.collector && parsedSets && parsedSets.length > 0) {
+      await loadCollectorSets(sessionConfig, parsedSets)
+    }
+
+    await runCardSession({
+      strategy: createWantedStrategy(session, sessionConfig, selectedList, excludeDigitalOnly),
+      cardNames,
+      excludeDigitalOnly,
+    })
+  })
 }

@@ -32,10 +32,12 @@ import {
   type DeckSessionState,
 } from './deck-edit'
 import {
-  loadCardNamesOrWarn,
+  applyCacheRefreshOptions,
   loadCollectorSets,
+  prepareCardSessionCache,
   promptListSelection,
   runCardSession,
+  type CacheRefreshOptions,
   type CardSessionContext,
   type CardSessionStrategy,
   type SessionAddItem,
@@ -51,7 +53,7 @@ import { trackAdd, trackAnotherCopy, trackEdit } from '../session-changelog'
 import { formatSpecificPrintingPrice } from '../price-currency'
 import { parseSetCodesInput } from '../set-codes'
 
-type DeckCommandOptions = {
+type DeckCommandOptions = CacheRefreshOptions & {
   sets?: string
   finish?: string
   condition?: string
@@ -290,7 +292,7 @@ function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy {
 }
 
 export function registerDeckCommand(program: Command): void {
-  program
+  const deckCommand = program
     .command('deck')
     .description('Manage a deck by interactively adding cards to named sections')
     .option('-s, --sets <codes>', 'Filter by set codes (comma-separated, e.g., "FDN, SPG")')
@@ -299,66 +301,67 @@ export function registerDeckCommand(program: Command): void {
     .option('--section <name>', 'Add cards to this section (otherwise prompts per card)')
     .option('--collector', 'Start in collector number mode')
     .option('--allow-digital-only-cards', 'Include digital-only sets (e.g., Alchemy)')
-    .action(async (options: DeckCommandOptions) => {
-      const parsedSets = options.sets ? parseSetCodesInput(options.sets) : undefined
-      const excludeDigitalOnly = !options.allowDigitalOnlyCards
+  applyCacheRefreshOptions(deckCommand)
+  deckCommand.action(async (options: DeckCommandOptions) => {
+    const parsedSets = options.sets ? parseSetCodesInput(options.sets) : undefined
+    const excludeDigitalOnly = !options.allowDigitalOnlyCards
 
-      const cardNames = await loadCardNamesOrWarn(parsedSets, excludeDigitalOnly)
-      if (!cardNames) return
+    const cardNames = await prepareCardSessionCache(options, parsedSets, excludeDigitalOnly)
+    if (!cardNames) return
 
-      // Select or create a deck. Choices show each deck's display name (front
-      // matter `name:`), while the selected value carries its file path.
-      const existingDecks = await listExistingDecks()
-      const selection = await promptListSelection({
-        message: 'Select a deck',
-        items: existingDecks.map((d) => ({ title: d.name, value: d.file })),
-        createTitle: '+ Create New Deck',
-        newNameMessage: 'Enter name for new deck:',
-      })
-      if (!selection) return
-
-      let deckName: string
-      let deckFile: string
-      if (selection.kind === 'new') {
-        deckName = selection.name
-        deckFile = await ensureDeckFile(deckName)
-      } else {
-        const selected = existingDecks.find((d) => d.file === selection.value)
-        if (!selected) return
-        deckName = selected.name
-        deckFile = selected.file
-      }
-
-      const loaded = await loadDeck(deckFile)
-
-      const upperCondition = options.condition?.toUpperCase()
-      const sessionConfig: DeckSessionConfig = {
-        sets: parsedSets,
-        finish: isFinish(options.finish) ? options.finish : undefined,
-        condition: isCondition(upperCondition) ? upperCondition : undefined,
-        entryMode: options.collector ? 'collector' : 'name',
-        collectorSets: [],
-        activeSetIndex: 0,
-        setCardMaps: new Map(),
-        targetSection: options.section ?? null,
-      }
-
-      // Pre-load set data when starting in collector mode with sets provided
-      if (options.collector && parsedSets && parsedSets.length > 0) {
-        await loadCollectorSets(sessionConfig, parsedSets)
-      }
-
-      await runCardSession({
-        strategy: createDeckStrategy({
-          deckFile,
-          deckName,
-          initialDeck: loaded.deck,
-          frontMatter: loaded.frontMatter,
-          sessionConfig,
-          excludeDigitalOnly,
-        }),
-        cardNames,
-        excludeDigitalOnly,
-      })
+    // Select or create a deck. Choices show each deck's display name (front
+    // matter `name:`), while the selected value carries its file path.
+    const existingDecks = await listExistingDecks()
+    const selection = await promptListSelection({
+      message: 'Select a deck',
+      items: existingDecks.map((d) => ({ title: d.name, value: d.file })),
+      createTitle: '+ Create New Deck',
+      newNameMessage: 'Enter name for new deck:',
     })
+    if (!selection) return
+
+    let deckName: string
+    let deckFile: string
+    if (selection.kind === 'new') {
+      deckName = selection.name
+      deckFile = await ensureDeckFile(deckName)
+    } else {
+      const selected = existingDecks.find((d) => d.file === selection.value)
+      if (!selected) return
+      deckName = selected.name
+      deckFile = selected.file
+    }
+
+    const loaded = await loadDeck(deckFile)
+
+    const upperCondition = options.condition?.toUpperCase()
+    const sessionConfig: DeckSessionConfig = {
+      sets: parsedSets,
+      finish: isFinish(options.finish) ? options.finish : undefined,
+      condition: isCondition(upperCondition) ? upperCondition : undefined,
+      entryMode: options.collector ? 'collector' : 'name',
+      collectorSets: [],
+      activeSetIndex: 0,
+      setCardMaps: new Map(),
+      targetSection: options.section ?? null,
+    }
+
+    // Pre-load set data when starting in collector mode with sets provided
+    if (options.collector && parsedSets && parsedSets.length > 0) {
+      await loadCollectorSets(sessionConfig, parsedSets)
+    }
+
+    await runCardSession({
+      strategy: createDeckStrategy({
+        deckFile,
+        deckName,
+        initialDeck: loaded.deck,
+        frontMatter: loaded.frontMatter,
+        sessionConfig,
+        excludeDigitalOnly,
+      }),
+      cardNames,
+      excludeDigitalOnly,
+    })
+  })
 }

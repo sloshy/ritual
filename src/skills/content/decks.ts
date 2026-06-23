@@ -38,7 +38,14 @@ a terminal**, so it is not suitable for non-interactive agents — use \`add-car
 ritual deck                                   # pick a deck, prompt for a section per card
 ritual deck --section Sideboard               # add every card to one section
 ritual deck --collector --sets "FDN, SPG"     # collector-number entry, sets preloaded
+ritual deck --no-cache-prompt                 # skip the "cache is >1 week old, update?" prompt
+ritual deck --refresh-prices                  # redownload the cache when prices are >1 day old
 \`\`\`
+
+When the card cache was last fully downloaded more than a week ago, the session prompts
+to redownload it before starting; \`--no-cache-prompt\` suppresses that prompt and uses the
+existing cache. \`--refresh-prices\` redownloads the cache (refreshing prices) without
+prompting when the cached prices are more than a day old.
 
 Set the **target section** to a fixed section or "prompt every time" via \`--section\`,
 the \`🗂️ Set Target Section\` menu, or the session filters. Adding a card whose printing

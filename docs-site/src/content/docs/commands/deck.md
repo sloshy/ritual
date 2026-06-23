@@ -23,6 +23,19 @@ deck-specific section targeting.
 | `--section <name>`            | Add every card to this section (otherwise you are prompted) |
 | `--collector`                 | Start in collector number mode                              |
 | `--allow-digital-only-cards`  | Include digital-only sets (e.g., Alchemy) in results        |
+| `--no-cache-prompt`           | Do not prompt to update a card cache older than a week      |
+| `--refresh-prices`            | Refresh cached prices that are more than a day old          |
+
+## Cache Freshness
+
+The `deck`, `collection`, and `wanted-list` commands read card data from the built-in Scryfall
+cache. When that cache was last fully downloaded **more than a week ago**, the command prompts
+you to redownload it before the session starts. Pass `--no-cache-prompt` to skip the prompt and
+use the existing cache as-is.
+
+Card prices ride along inside the cached card data. Pass `--refresh-prices` to redownload the
+cache (and thus refresh prices) whenever the cached prices are **more than a day old**; this
+happens without prompting because you asked for it explicitly.
 
 When `--section` is omitted, the **target section** defaults to "prompt every time": you choose
 a section (or create one) for each card. You can change the target section at any time from the

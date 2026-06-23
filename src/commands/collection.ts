@@ -13,13 +13,15 @@ import {
   VALID_FINISHES,
 } from './collection-helpers'
 import {
+  applyCacheRefreshOptions,
   listMarkdownNames,
-  loadCardNamesOrWarn,
   loadCollectorSets,
+  prepareCardSessionCache,
   promptEditAction,
   promptListSelection,
   promptSessionConfigUpdate,
   runCardSession,
+  type CacheRefreshOptions,
   type CardSessionContext,
   type CardSessionStrategy,
   type SessionConfig,
@@ -62,7 +64,7 @@ import {
 import { capitalize } from '../utils'
 import { parseSetCodesInput } from '../set-codes'
 
-type CollectionCommandOptions = {
+type CollectionCommandOptions = CacheRefreshOptions & {
   sets?: string
   finish?: string
   condition?: string
@@ -294,7 +296,7 @@ function createCollectionStrategy(
 }
 
 export function registerCollectionCommand(program: Command): void {
-  program
+  const collectionCommand = program
     .command('collection')
     .alias('collect')
     .description('Manage your collection of cards by interactively adding them')
@@ -303,51 +305,52 @@ export function registerCollectionCommand(program: Command): void {
     .option('-c, --condition <condition>', 'Default condition (NM, LP, MP, HP, DMG)')
     .option('--collector', 'Start in collector number mode')
     .option('--allow-digital-only-cards', 'Include digital-only sets (e.g., Alchemy)')
-    .action(async (options: CollectionCommandOptions) => {
-      const parsedSets = options.sets ? parseSetCodesInput(options.sets) : undefined
-      const excludeDigitalOnly = !options.allowDigitalOnlyCards
+  applyCacheRefreshOptions(collectionCommand)
+  collectionCommand.action(async (options: CollectionCommandOptions) => {
+    const parsedSets = options.sets ? parseSetCodesInput(options.sets) : undefined
+    const excludeDigitalOnly = !options.allowDigitalOnlyCards
 
-      const cardNames = await loadCardNamesOrWarn(parsedSets, excludeDigitalOnly)
-      if (!cardNames) return
+    const cardNames = await prepareCardSessionCache(options, parsedSets, excludeDigitalOnly)
+    if (!cardNames) return
 
-      const existingCollections = await listMarkdownNames(getCollectionsDir())
-      const selection = await promptListSelection({
-        message: 'Select a collection file',
-        items: existingCollections.map((c) => ({ title: c, value: c })),
-        createTitle: '+ Create New Collection',
-        newNameMessage: 'Enter name for new collection:',
-      })
-      if (!selection) return
-      const selectedCollection = selection.kind === 'new' ? selection.name : selection.value
-
-      const collectionFile = await ensureCollectionFile(selectedCollection)
-      const session = await loadCollectionSession(collectionFile)
-
-      const upperCondition = options.condition?.toUpperCase()
-      const sessionConfig: SessionConfig = {
-        sets: parsedSets,
-        finish: isFinish(options.finish) ? options.finish : undefined,
-        condition: isCondition(upperCondition) ? upperCondition : undefined,
-        entryMode: options.collector ? 'collector' : 'name',
-        collectorSets: [],
-        activeSetIndex: 0,
-        setCardMaps: new Map(),
-      }
-
-      // Pre-load set data when starting in collector mode with sets provided
-      if (options.collector && parsedSets && parsedSets.length > 0) {
-        await loadCollectorSets(sessionConfig, parsedSets)
-      }
-
-      await runCardSession({
-        strategy: createCollectionStrategy(
-          session,
-          sessionConfig,
-          selectedCollection,
-          excludeDigitalOnly,
-        ),
-        cardNames,
-        excludeDigitalOnly,
-      })
+    const existingCollections = await listMarkdownNames(getCollectionsDir())
+    const selection = await promptListSelection({
+      message: 'Select a collection file',
+      items: existingCollections.map((c) => ({ title: c, value: c })),
+      createTitle: '+ Create New Collection',
+      newNameMessage: 'Enter name for new collection:',
     })
+    if (!selection) return
+    const selectedCollection = selection.kind === 'new' ? selection.name : selection.value
+
+    const collectionFile = await ensureCollectionFile(selectedCollection)
+    const session = await loadCollectionSession(collectionFile)
+
+    const upperCondition = options.condition?.toUpperCase()
+    const sessionConfig: SessionConfig = {
+      sets: parsedSets,
+      finish: isFinish(options.finish) ? options.finish : undefined,
+      condition: isCondition(upperCondition) ? upperCondition : undefined,
+      entryMode: options.collector ? 'collector' : 'name',
+      collectorSets: [],
+      activeSetIndex: 0,
+      setCardMaps: new Map(),
+    }
+
+    // Pre-load set data when starting in collector mode with sets provided
+    if (options.collector && parsedSets && parsedSets.length > 0) {
+      await loadCollectorSets(sessionConfig, parsedSets)
+    }
+
+    await runCardSession({
+      strategy: createCollectionStrategy(
+        session,
+        sessionConfig,
+        selectedCollection,
+        excludeDigitalOnly,
+      ),
+      cardNames,
+      excludeDigitalOnly,
+    })
+  })
 }

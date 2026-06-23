@@ -1,11 +1,31 @@
 import { cardCache } from './index'
 import { preloadCache } from '../scryfall'
-import { BULK_CACHE_MAX_AGE_MS } from './constants'
-import { shouldBulkRefresh, type RefreshMode } from '../refresh'
+import { BULK_CACHE_MAX_AGE_MS, PRICE_MAX_AGE_MS } from './constants'
+import { shouldBulkRefresh, type BulkRefreshPrompt, type RefreshMode } from '../refresh'
+
+const ONE_DAY_MS = 24 * 60 * 60 * 1000
 
 type CacheFreshnessResult = {
   ready: boolean
   cardCount: number
+}
+
+/**
+ * Prompt to redownload a bulk cache that is older than a week, preloading when
+ * the prompt is accepted. Does nothing when the cache is younger than a week.
+ */
+async function promptStaleCacheRefresh(
+  age: number,
+  confirm: (prompt: BulkRefreshPrompt) => Promise<boolean>,
+  preload: () => Promise<void>,
+): Promise<void> {
+  if (age <= BULK_CACHE_MAX_AGE_MS) return
+  const days = Math.floor(age / ONE_DAY_MS)
+  const accepted = await confirm({
+    message: `Card cache is ${days} day${days !== 1 ? 's' : ''} old. Would you like to update it?`,
+    initial: false,
+  })
+  if (accepted) await preload()
 }
 
 /**
@@ -43,21 +63,80 @@ export async function ensureFreshCardCache(
     const lastRefreshed = await cardCache.getLastRefreshedAt()
 
     if (lastRefreshed !== null) {
-      const age = Date.now() - lastRefreshed
-      if (age > BULK_CACHE_MAX_AGE_MS) {
-        const days = Math.floor(age / (24 * 60 * 60 * 1000))
-        const shouldPreload = await shouldBulkRefresh(mode, {
-          message: `Card cache is ${days} day${days !== 1 ? 's' : ''} old. Would you like to update it?`,
-          initial: false,
-        })
-
-        if (shouldPreload) {
-          await preloadCache()
-        }
-      }
+      await promptStaleCacheRefresh(
+        Date.now() - lastRefreshed,
+        (prompt) => shouldBulkRefresh(mode, prompt),
+        preloadCache,
+      )
     }
   }
 
   const keys = await cardCache.keys()
   return { ready: keys.length > 0, cardCount: keys.length }
+}
+
+/** The card-cache flags shared by the interactive `deck`/`collection`/`wanted-list` commands. */
+export type CacheRefreshOptions = {
+  /**
+   * Commander stores `--no-cache-prompt` as `cachePrompt: false`. When false,
+   * the stale-cache (>1 week) update prompt is suppressed and the existing
+   * cache is used as-is.
+   */
+  cachePrompt?: boolean
+  /**
+   * `--refresh-prices`: redownload the bulk card cache (which carries prices)
+   * when its cached prices are more than a day old.
+   */
+  refreshPrices?: boolean
+}
+
+/** The slice of the card cache that {@link refreshCardCacheForSession} reads. */
+export type SessionCardCache = {
+  isEmpty(): Promise<boolean>
+  getLastRefreshedAt(): Promise<number | null>
+}
+
+/** Injectable dependencies for {@link refreshCardCacheForSession}. */
+export type SessionCacheDeps = {
+  cache?: SessionCardCache
+  preload?: () => Promise<void>
+  confirmStaleRefresh?: (prompt: BulkRefreshPrompt) => Promise<boolean>
+}
+
+/**
+ * Apply the {@link CacheRefreshOptions} freshness policy before an interactive
+ * card-entry session starts.
+ *
+ * - With `--refresh-prices`, redownloads the bulk cache when its prices are more
+ *   than a day old (prices ride along inside the cached cards, so a redownload
+ *   is how they are refreshed).
+ * - Otherwise, unless `--no-cache-prompt` was passed, prompts to update a bulk
+ *   cache older than a week.
+ *
+ * An empty cache is left untouched here — the commands surface that separately
+ * via their own preload warning.
+ */
+export async function refreshCardCacheForSession(
+  options: CacheRefreshOptions,
+  deps: SessionCacheDeps = {},
+): Promise<void> {
+  const cache = deps.cache ?? cardCache
+  const preload = deps.preload ?? preloadCache
+  const confirmStaleRefresh =
+    deps.confirmStaleRefresh ?? ((prompt) => shouldBulkRefresh('ask', prompt))
+
+  if (await cache.isEmpty()) return
+
+  const lastRefreshed = await cache.getLastRefreshedAt()
+  if (lastRefreshed === null) return
+  const age = Date.now() - lastRefreshed
+
+  if (options.refreshPrices && age > PRICE_MAX_AGE_MS) {
+    console.log('Cached prices are more than a day old. Refreshing the card cache from Scryfall...')
+    await preload()
+    return
+  }
+
+  if (options.cachePrompt === false) return
+  await promptStaleCacheRefresh(age, confirmStaleRefresh, preload)
 }

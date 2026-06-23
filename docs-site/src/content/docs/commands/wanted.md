@@ -18,8 +18,12 @@ Interactively manage a wanted list of cards you're looking for. Alias: `wanted`.
 | `-f, --finish <finish>`      | Default finish: `nonfoil`, `foil`, or `etched`            |
 | `--collector`                | Start in collector number mode                            |
 | `--allow-digital-only-cards` | Include digital-only sets (e.g., Alchemy) in results      |
+| `--no-cache-prompt`          | Do not prompt to update a card cache older than a week    |
+| `--refresh-prices`           | Refresh cached prices that are more than a day old        |
 
 Digital-only sets (Alchemy sets, plus `OM1`) are filtered out by default since they have no paper printings.
+
+When the card cache was last fully downloaded more than a week ago, the session prompts you to redownload it; pass `--no-cache-prompt` to skip that prompt. Pass `--refresh-prices` to redownload the cache (refreshing prices) when the cached prices are more than a day old. See [Cache Freshness](/commands/deck#cache-freshness) on the deck page for details.
 
 Unlike the `collection` command, there is no `--condition` option — wanted lists track desired cards, not owned cards.
 
