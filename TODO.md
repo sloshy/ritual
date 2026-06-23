@@ -3,21 +3,17 @@
 - Allow exporting deck information to be used by other tooling
 - Add scryfall interactive mode
 - Allow adding/editing to multiple lists, or multiple kinds of lists, at once
-- Multiple saves in the same session should save to the same changelog entry
 - Allow saying you "used to have" a card, specifically when it's removed you can say where it went (sold to X, traded to Y)
-- Allow viewing multiple lists at once on the public sites
-- Allow selecting multiple cards across lists so that you can export a list, add to trade, or create a new list with those cards (unsaved)
 - Allow importing lists of cards from text/json for the trade feature
 - Add "Copy" button to collections / wanted lists (actually, standardize on a single copy + download button each, with formats in a menu on click)
 - Reorganize buttons on collection/etc so they are in a more logical order
 - Git support from CLI commands (kinda dumb but someone might want this)
-- Normalize search terms across site / cli commands, so cards with accent characters are searched correctly
 - Add list style views for modal dialogs like printings selection
 - Allow importing changes from public site through CLI
 - Allow importing changes across multiple lists as a change batch
-- Allow moving cards on the public site
 - Add ability to search a collection by a list of cards to find matches
 - Add prompt to refresh prices / cache when doing an interactive command
+- Allow sharing lists with filter settings in URL params
 
 ## Misc
 
