@@ -41,11 +41,12 @@ export function WantedListEditor(props: WantedListEditorProps): JSX.Element {
     fetchData: (slug, signal) => fetchAdminJson(`/api/wanted/${slug}`, signal),
     commit: createApiCommit(
       (slug) => `/api/wanted/${slug}/save`,
-      ({ data, changes, contentHash, sectionOrder }) => ({
+      ({ data, changes, contentHash, sectionOrder, continueSession }) => ({
         changes,
         entries: data,
         contentHash,
         sectionOrder,
+        continueSession,
       }),
     ),
     entityLabel: 'wanted list',

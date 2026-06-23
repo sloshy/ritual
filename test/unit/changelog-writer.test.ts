@@ -206,4 +206,137 @@ describe('appendChangelog', () => {
 
     await fs.rm(tmpDir, { recursive: true })
   })
+
+  describe('continueSession', () => {
+    /** Count the `## ` blocks (one per changelog entry) in a changelog file. */
+    function countBlocks(content: string): number {
+      return content.split('\n').filter((line) => line.startsWith('## ')).length
+    }
+
+    test('merges into the last block and bumps its timestamp', async () => {
+      const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'changelog-test-'))
+      const filePath = path.join(tmpDir, 'Test.md')
+      const changelogPath = path.join(tmpDir, 'Test.changes.md')
+      await fs.writeFile(filePath, '# Test\n')
+      await fs.writeFile(
+        changelogPath,
+        '# Changelog for Test\n\n## 2026-01-01T00:00:00.000Z\n\n- Added "Lightning Bolt"\n',
+      )
+
+      await appendChangelog(filePath, 'Test', [makeChange({ cardName: 'Counterspell' })], {
+        continueSession: true,
+      })
+
+      const content = await fs.readFile(changelogPath, 'utf-8')
+      // Both changes live under a single block — no second `## ` header.
+      expect(countBlocks(content)).toBe(1)
+      expect(content).toContain('- Added "Lightning Bolt"')
+      expect(content).toContain('- Added "Counterspell"')
+      // The original timestamp was replaced with a fresh one.
+      expect(content).not.toContain('2026-01-01T00:00:00.000Z')
+
+      await fs.rm(tmpDir, { recursive: true })
+    })
+
+    test('preserves the order: existing lines first, then new ones', async () => {
+      const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'changelog-test-'))
+      const filePath = path.join(tmpDir, 'Test.md')
+      const changelogPath = path.join(tmpDir, 'Test.changes.md')
+      await fs.writeFile(filePath, '# Test\n')
+      await fs.writeFile(
+        changelogPath,
+        '# Changelog for Test\n\n## 2026-01-01T00:00:00.000Z\n\n- Added "Lightning Bolt"\n',
+      )
+
+      await appendChangelog(filePath, 'Test', [makeChange({ cardName: 'Counterspell' })], {
+        continueSession: true,
+      })
+
+      const content = await fs.readFile(changelogPath, 'utf-8')
+      expect(content.indexOf('Lightning Bolt')).toBeLessThan(content.indexOf('Counterspell'))
+
+      await fs.rm(tmpDir, { recursive: true })
+    })
+
+    test('only merges into the most recent block, leaving earlier blocks intact', async () => {
+      const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'changelog-test-'))
+      const filePath = path.join(tmpDir, 'Test.md')
+      const changelogPath = path.join(tmpDir, 'Test.changes.md')
+      await fs.writeFile(filePath, '# Test\n')
+      await fs.writeFile(
+        changelogPath,
+        '# Changelog for Test\n\n## 2026-01-01T00:00:00.000Z\n\n- Added "Sol Ring"\n' +
+          '\n## 2026-02-02T00:00:00.000Z\n\n- Added "Lightning Bolt"\n',
+      )
+
+      await appendChangelog(filePath, 'Test', [makeChange({ cardName: 'Counterspell' })], {
+        continueSession: true,
+      })
+
+      const content = await fs.readFile(changelogPath, 'utf-8')
+      // First block untouched; second block absorbed the new line and was retimed.
+      expect(countBlocks(content)).toBe(2)
+      expect(content).toContain('## 2026-01-01T00:00:00.000Z')
+      expect(content).not.toContain('2026-02-02T00:00:00.000Z')
+      expect(content).toContain('- Added "Sol Ring"')
+      expect(content).toContain('- Added "Lightning Bolt"')
+      expect(content).toContain('- Added "Counterspell"')
+
+      await fs.rm(tmpDir, { recursive: true })
+    })
+
+    test('leaves an existing block untouched when changes is empty', async () => {
+      const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'changelog-test-'))
+      const filePath = path.join(tmpDir, 'Test.md')
+      const changelogPath = path.join(tmpDir, 'Test.changes.md')
+      await fs.writeFile(filePath, '# Test\n')
+      const original =
+        '# Changelog for Test\n\n## 2026-01-01T00:00:00.000Z\n\n- Added "Lightning Bolt"\n'
+      await fs.writeFile(changelogPath, original)
+
+      await appendChangelog(filePath, 'Test', [], { continueSession: true })
+
+      // Empty changes short-circuit before any read/write — the block and its
+      // timestamp are left exactly as they were.
+      const content = await fs.readFile(changelogPath, 'utf-8')
+      expect(content).toBe(original)
+
+      await fs.rm(tmpDir, { recursive: true })
+    })
+
+    test('starts a fresh block when the changelog does not exist yet', async () => {
+      const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'changelog-test-'))
+      const filePath = path.join(tmpDir, 'Test.md')
+      const changelogPath = path.join(tmpDir, 'Test.changes.md')
+      await fs.writeFile(filePath, '# Test\n')
+
+      await appendChangelog(filePath, 'Test', [makeChange()], { continueSession: true })
+
+      const content = await fs.readFile(changelogPath, 'utf-8')
+      expect(content).toContain('# Changelog for Test')
+      expect(countBlocks(content)).toBe(1)
+
+      await fs.rm(tmpDir, { recursive: true })
+    })
+
+    test('appends a new block when continueSession is false', async () => {
+      const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'changelog-test-'))
+      const filePath = path.join(tmpDir, 'Test.md')
+      const changelogPath = path.join(tmpDir, 'Test.changes.md')
+      await fs.writeFile(filePath, '# Test\n')
+      await fs.writeFile(
+        changelogPath,
+        '# Changelog for Test\n\n## 2026-01-01T00:00:00.000Z\n\n- Added "Lightning Bolt"\n',
+      )
+
+      await appendChangelog(filePath, 'Test', [makeChange({ cardName: 'Counterspell' })], {
+        continueSession: false,
+      })
+
+      const content = await fs.readFile(changelogPath, 'utf-8')
+      expect(countBlocks(content)).toBe(2)
+
+      await fs.rm(tmpDir, { recursive: true })
+    })
+  })
 })

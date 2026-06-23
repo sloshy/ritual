@@ -283,6 +283,9 @@ export function useEditor<TData, TCardEntry = unknown>(
     Setter<TData | null>,
   ]
   const [contentHash, setContentHash] = createSignal<string>('')
+  // True once this editing session has saved at least once. Subsequent saves
+  // fold into the same changelog entry; reloading the list starts a new session.
+  const [hasSavedThisSession, setHasSavedThisSession] = createSignal(false)
   const [extra, setExtra] = createSignal<Record<string, unknown>>({})
   const [contextMenuCard, setContextMenuCard] = createSignal<ContextMenuState | null>(null)
   const [changePrinting, setChangePrinting] = createSignal<ChangePrintingFlow | null>(null)
@@ -353,6 +356,7 @@ export function useEditor<TData, TCardEntry = unknown>(
             setContentHash(result.contentHash)
             setExtra(result.extra)
             changes.discardAll()
+            setHasSavedThisSession(false)
             statusActions.loadSuccess()
           } else {
             statusActions.loadError(`Failed to load ${config.entityLabel}`)
@@ -721,11 +725,13 @@ export function useEditor<TData, TCardEntry = unknown>(
       contentHash: contentHash(),
       extra: extra(),
       sectionOrder: sectionOrder(),
+      continueSession: hasSavedThisSession(),
       statusActions,
       discardAll: changes.discardAll,
     })
     if (result?.contentHash) {
       setContentHash(result.contentHash)
+      setHasSavedThisSession(true)
     }
   }
 

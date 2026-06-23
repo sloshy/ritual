@@ -10,6 +10,12 @@ export type CommitContext<TData> = {
   contentHash: string
   extra: Record<string, unknown>
   sectionOrder: string[]
+  /**
+   * True when this session has already saved at least once, so the changelog
+   * should fold these changes into the existing session entry rather than open
+   * a new one.
+   */
+  continueSession: boolean
   /** Drives the editor's save/error status messaging. */
   statusActions: EditorStatusActions
   /** Clears the pending-change stack on a successful commit. */
@@ -26,6 +32,8 @@ export type SaveBodyParams<TData> = {
   contentHash: string
   extra: Record<string, unknown>
   sectionOrder: string[]
+  /** Whether to merge this save into the session's existing changelog entry. */
+  continueSession: boolean
 }
 
 /**
@@ -54,6 +62,7 @@ export function createApiCommit<TData>(
         contentHash: ctx.contentHash,
         extra: ctx.extra,
         sectionOrder: ctx.sectionOrder,
+        continueSession: ctx.continueSession,
       }),
       ctx.statusActions,
       ctx.discardAll,

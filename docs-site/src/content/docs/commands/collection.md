@@ -51,7 +51,10 @@ The `↩️ Undo Last Add` option appears only after you have added at least one
 Like the admin Collection Editor, the session keeps every change **in memory** until you save:
 nothing is written to the collection file as you add or edit cards. `💾 Save` writes the file and
 appends the session changelog while you keep working (everything saved this way is committed — the
-undo and discard menus reset). `🚪 Exit` leaves the session: with unsaved changes it opens a menu
+undo and discard menus reset). Saving more than once in the same session does **not** create a new
+changelog entry each time — the additional changes are folded into the session's existing entry and
+its timestamp is bumped to the latest save, so one editing session is always one changelog entry.
+`🚪 Exit` leaves the session: with unsaved changes it opens a menu
 to **Save and exit**, **Exit without saving** (throws away all unsaved changes), or **Cancel**
 (keep editing). Pressing <kbd>Esc</kbd>/<kbd>Ctrl-C</kbd> at the main prompt behaves like
 `🚪 Exit`.

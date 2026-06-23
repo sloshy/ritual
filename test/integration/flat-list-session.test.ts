@@ -221,6 +221,7 @@ describe('flat-list session models', () => {
         lastChangeIndex: null,
         lastAdded: null,
         lastAddedCount: 0,
+        hasSavedChangelog: false,
       }
       return { list, ctx }
     }

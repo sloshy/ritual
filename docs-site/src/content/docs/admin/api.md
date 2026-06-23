@@ -199,7 +199,7 @@ Get price data for a card including representative and cheapest printings for al
 POST /api/deck/:slug/save
 ```
 
-Save deck changes. Writes the updated deck file and appends to the changelog.
+Save deck changes. Writes the updated deck file and appends to the changelog. Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session.
 
 **Request Body:**
 
@@ -207,7 +207,9 @@ Save deck changes. Writes the updated deck file and appends to the changelog.
 {
   "changes": [{ "id": "...", "timestamp": 123, "action": "add", "cardName": "Sol Ring" }],
   "deck": { "name": "...", "sections": [] },
-  "frontMatter": {}
+  "frontMatter": {},
+  "contentHash": "…",
+  "continueSession": false
 }
 ```
 
@@ -264,14 +266,16 @@ Load a collection with full card data, printings, and mana symbol map.
 POST /api/collection/:slug/save
 ```
 
-Save collection changes. Writes the updated collection file and creates a changelog entry.
+Save collection changes. Writes the updated collection file and creates a changelog entry. Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session.
 
 **Request Body:**
 
 ```json
 {
   "changes": [{ "id": "...", "timestamp": 123, "action": "add", "cardName": "Sol Ring" }],
-  "collection": { "name": "...", "cards": [] }
+  "collection": { "name": "...", "cards": [] },
+  "contentHash": "…",
+  "continueSession": false
 }
 ```
 
@@ -404,14 +408,16 @@ Load a wanted list with full card data, printings, and mana symbol map.
 POST /api/wanted/:slug/save
 ```
 
-Save wanted list changes. Writes the updated wanted list file and appends to the changelog.
+Save wanted list changes. Writes the updated wanted list file and appends to the changelog. Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session.
 
 **Request Body:**
 
 ```json
 {
   "changes": [{ "id": "...", "timestamp": 123, "action": "add", "cardName": "Sol Ring" }],
-  "entries": [{ "name": "Sol Ring", "set": "2xm", "collectorNumber": "270" }]
+  "entries": [{ "name": "Sol Ring", "set": "2xm", "collectorNumber": "270" }],
+  "contentHash": "…",
+  "continueSession": false
 }
 ```
 

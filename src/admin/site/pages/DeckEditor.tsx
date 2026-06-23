@@ -49,11 +49,12 @@ export function DeckEditor(props: DeckEditorProps): JSX.Element {
     fetchData: (slug, signal) => fetchAdminJson(`/api/deck/${slug}`, signal),
     commit: createApiCommit(
       (slug) => `/api/deck/${slug}/save`,
-      ({ data, changes, contentHash, extra }) => ({
+      ({ data, changes, contentHash, extra, continueSession }) => ({
         changes,
         deck: data,
         frontMatter: extra.frontMatter,
         contentHash,
+        continueSession,
       }),
     ),
     entityLabel: 'deck',

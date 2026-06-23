@@ -18,6 +18,8 @@ interface DeckSaveRequest {
   deck: DeckData
   frontMatter: Record<string, unknown>
   contentHash: string
+  /** Merge into the session's existing changelog entry instead of a new one. */
+  continueSession?: boolean
 }
 
 export async function handleDeckSave(req: Request): Promise<Response> {
@@ -34,7 +36,7 @@ export async function handleDeckSave(req: Request): Promise<Response> {
     const sizeError = validateBodySize(req)
     if (sizeError) return sizeError
     const body = (await req.json()) as DeckSaveRequest
-    const { changes, deck, frontMatter, contentHash } = body
+    const { changes, deck, frontMatter, contentHash, continueSession } = body
 
     if (!deck || !changes || typeof contentHash !== 'string') {
       return Response.json(
@@ -68,7 +70,9 @@ export async function handleDeckSave(req: Request): Promise<Response> {
 
     // Write changelog
     if (changes.length > 0) {
-      const changelogPath = await appendChangelog(filePath, deck.name, changes)
+      const changelogPath = await appendChangelog(filePath, deck.name, changes, {
+        continueSession,
+      })
       filesToCommit.push(changelogPath)
     }
 

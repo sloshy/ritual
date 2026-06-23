@@ -44,7 +44,12 @@ export function CollectionEditor(props: CollectionEditorProps): JSX.Element {
     fetchData: (slug, signal) => fetchAdminJson(`/api/collection/${slug}`, signal),
     commit: createApiCommit(
       (slug) => `/api/collection/${slug}/save`,
-      ({ changes, contentHash, sectionOrder }) => ({ changes, contentHash, sectionOrder }),
+      ({ changes, contentHash, sectionOrder, continueSession }) => ({
+        changes,
+        contentHash,
+        sectionOrder,
+        continueSession,
+      }),
     ),
     entityLabel: 'collection',
 

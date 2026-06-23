@@ -62,7 +62,9 @@ The `↩️ Undo Last Add` option appears only after you have added at least one
 Like the admin Deck Editor, the session keeps every change **in memory** until you save: nothing is
 written to the deck file as you add or edit cards. `💾 Save` writes the file and appends the session
 changelog while you keep working (everything saved this way is committed — the undo and discard
-menus reset). `🚪 Exit` leaves the session: with unsaved changes it opens a menu to **Save and
+menus reset). Saving repeatedly in one session folds each save's changes into the session's existing
+changelog entry (bumping its timestamp) rather than adding a new entry per save, so one editing
+session is always one changelog entry. `🚪 Exit` leaves the session: with unsaved changes it opens a menu to **Save and
 exit**, **Exit without saving** (throws away all unsaved changes), or **Cancel** (keep editing).
 Pressing <kbd>Esc</kbd>/<kbd>Ctrl-C</kbd> at the main prompt behaves like `🚪 Exit`.
 

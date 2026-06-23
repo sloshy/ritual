@@ -39,7 +39,13 @@ function stateOf(deck: DeckData): DeckSessionState {
 }
 
 function contextOf(): CardSessionContext {
-  return { sessionChanges: [], lastChangeIndex: null, lastAdded: null, lastAddedCount: 0 }
+  return {
+    sessionChanges: [],
+    lastChangeIndex: null,
+    lastAdded: null,
+    lastAddedCount: 0,
+    hasSavedChangelog: false,
+  }
 }
 
 const LTC: PrintingTuple = { set: 'ltc', collectorNumber: '284', finish: 'foil' }

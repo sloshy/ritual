@@ -22,6 +22,8 @@ interface WantedListSaveRequest {
   contentHash: string
   /** Section names in display order, including empty sections. Optional for back-compat. */
   sectionOrder?: string[]
+  /** Merge into the session's existing changelog entry instead of a new one. */
+  continueSession?: boolean
 }
 
 export async function handleWantedListSave(req: Request): Promise<Response> {
@@ -42,7 +44,7 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
     const sizeError = validateBodySize(req)
     if (sizeError) return sizeError
     const body = (await req.json()) as WantedListSaveRequest
-    const { changes, entries, contentHash, sectionOrder } = body
+    const { changes, entries, contentHash, sectionOrder, continueSession } = body
 
     if (!entries || !changes || typeof contentHash !== 'string') {
       return Response.json(
@@ -90,7 +92,7 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
 
     // Write changelog
     if (changes.length > 0) {
-      const changelogPath = await appendChangelog(filePath, slug, changes)
+      const changelogPath = await appendChangelog(filePath, slug, changes, { continueSession })
       filesToCommit.push(changelogPath)
     }
 

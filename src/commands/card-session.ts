@@ -122,6 +122,12 @@ export type CardSessionContext = {
   lastAdded: LastAdded | null
   /** Consecutive copies of {@link lastAdded} added this streak. */
   lastAddedCount: number
+  /**
+   * Whether this session has already written a changelog block. Once true, later
+   * saves merge into that block (one changelog entry per session) rather than
+   * appending a new one. Never reset mid-session — only a new session clears it.
+   */
+  hasSavedChangelog: boolean
 }
 
 /**
@@ -753,7 +759,10 @@ async function saveSession(strategy: CardSessionStrategy, ctx: CardSessionContex
     console.log('Changes saved.')
   }
   if (ctx.sessionChanges.length > 0) {
-    await appendChangelog(strategy.filePath, strategy.listName, ctx.sessionChanges)
+    await appendChangelog(strategy.filePath, strategy.listName, ctx.sessionChanges, {
+      continueSession: ctx.hasSavedChangelog,
+    })
+    ctx.hasSavedChangelog = true
     console.log('Changelog saved.')
   }
 }
@@ -818,6 +827,7 @@ export async function runCardSession(options: CardSessionOptions): Promise<void>
     lastChangeIndex: null,
     lastAdded: null,
     lastAddedCount: 0,
+    hasSavedChangelog: false,
   }
 
   while (true) {

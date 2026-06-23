@@ -427,7 +427,7 @@ When a deck or collection has a `.changes.md` changelog file (created by the adm
 
 - A **View Changes** button appears next to the download buttons in the page header
 - Clicking it opens a modal dialog showing paginated change entries, sorted most recent first
-- Each page shows one editing session with its timestamp and a list of additions, removals, and other changes
+- Each page shows one editing session with its timestamp and a list of additions, removals, and other changes (every save within a single session is grouped into that one entry)
 - Prev/Next buttons allow paging through older and newer changes
 - Card names in the change list are clickable links that open the card detail modal
 - Hovering a card name shows a preview image of the card

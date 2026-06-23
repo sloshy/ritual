@@ -46,7 +46,10 @@ already exists in the deck increments its quantity instead of duplicating the li
 
 **Saving:** changes accumulate **in memory** — \`💾 Save\` writes the deck file and changelog
 without exiting, and \`🚪 Exit\` (or Esc) opens an exit menu when changes are unsaved: save and
-exit, exit without saving (discards everything unsaved), or cancel to keep editing.
+exit, exit without saving (discards everything unsaved), or cancel to keep editing. Saving more than
+once in one session folds the later changes into the session's existing changelog entry (bumping its
+timestamp) rather than writing a new entry per save — one editing session is always one changelog
+entry.
 
 **Edit mode:** \`🛠️ Switch to Edit Mode\` turns the search prompt into a picker over the deck's
 existing lines — change a line's printing, add/remove copies, move it to another section, edit

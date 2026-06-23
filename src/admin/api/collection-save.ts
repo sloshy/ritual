@@ -23,6 +23,8 @@ interface CollectionSaveRequest {
   contentHash: string
   /** Section names in display order, including empty sections. Optional for back-compat. */
   sectionOrder?: string[]
+  /** Merge into the session's existing changelog entry instead of a new one. */
+  continueSession?: boolean
 }
 
 export async function handleCollectionSave(req: Request): Promise<Response> {
@@ -43,7 +45,7 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
     const sizeError = validateBodySize(req)
     if (sizeError) return sizeError
     const body = (await req.json()) as CollectionSaveRequest
-    const { changes, contentHash, sectionOrder } = body
+    const { changes, contentHash, sectionOrder, continueSession } = body
 
     if (!changes || typeof contentHash !== 'string') {
       return Response.json(
@@ -111,7 +113,7 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
 
     // Write changelog
     if (changes.length > 0) {
-      const changelogPath = await appendChangelog(filePath, slug, changes)
+      const changelogPath = await appendChangelog(filePath, slug, changes, { continueSession })
       filesToCommit.push(changelogPath)
     }
 

@@ -91,6 +91,7 @@ function harness(entries: CollectionCardEntry[]): Harness {
     lastChangeIndex: null,
     lastAdded: null,
     lastAddedCount: 0,
+    hasSavedChangelog: false,
   }
   return { list, ctx, session }
 }
