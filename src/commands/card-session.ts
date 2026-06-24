@@ -277,25 +277,36 @@ export type ListSelectionPromptOptions = {
 export async function promptListSelection(
   options: ListSelectionPromptOptions,
 ): Promise<ListSelection | null> {
+  // The `prompts` autocomplete returns the highlighted choice on Esc/Ctrl-C
+  // rather than an empty value, so detect the cancel via `onState.exited` and
+  // bail out instead of silently selecting whatever was highlighted.
+  let exited = false
   const selectionResponse = (await prompts({
     type: 'autocomplete',
     name: 'list',
     message: options.message,
     choices: [...options.items, { title: options.createTitle, value: NEW_LIST }],
+    onState: (state: PromptState) => {
+      if (state.exited) exited = true
+    },
   })) as ListPromptResponse
 
-  if (!selectionResponse.list) return null
+  if (exited || !selectionResponse.list) return null
   if (selectionResponse.list !== NEW_LIST) {
     return { kind: 'existing', value: selectionResponse.list }
   }
 
+  let nameExited = false
   const nameResponse = (await prompts({
     type: 'text',
     name: 'name',
     message: options.newNameMessage,
     validate: (value: string) => (value.length > 0 ? true : 'Name cannot be empty'),
+    onState: (state: PromptState) => {
+      if (state.exited) nameExited = true
+    },
   })) as NamePromptResponse
-  if (!nameResponse.name) return null
+  if (nameExited || !nameResponse.name) return null
   return { kind: 'new', name: nameResponse.name }
 }
 
