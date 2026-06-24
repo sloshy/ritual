@@ -11,7 +11,6 @@
 - Add list style views for modal dialogs like printings selection
 - Allow importing changes from public site through CLI
 - Allow importing changes across multiple lists as a change batch
-- Allow sharing lists with filter settings in URL params
 
 ## Misc
 
