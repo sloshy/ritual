@@ -107,7 +107,7 @@ These are flagged with the MCP `destructiveHint` so clients can gate or confirm 
 | `rewrite_history`                                   | Replace a list's entire change log.                                       |
 | `update_config`                                     | Merge a partial configuration.                                            |
 | `build_site`                                        | Rebuild the public static site.                                           |
-| `refresh_cache`                                     | Refresh the Scryfall card cache (bulk download).                          |
+| `refresh_cache`                                     | Refresh the Scryfall card cache (bulk download + oracle/art tags).        |
 
 `import_deck` and `import_csv` (listed under [Write](#write)) also carry `destructiveHint`, because
 both can overwrite an existing list of the same name. Their default, non-overwrite modes are safe.

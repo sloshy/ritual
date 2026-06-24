@@ -53,6 +53,10 @@ export interface PriceData {
 
 export interface ScryfallCard {
   id: string
+  /** Stable Scryfall oracle identity; shared by every printing of a card. Join key for oracle tags. */
+  oracle_id?: string
+  /** Identifies this printing's artwork (top level for single-faced/split cards). Join key for art tags. */
+  illustration_id?: string
   name: string
   layout?: string
   cmc: number
@@ -73,6 +77,8 @@ export interface ScryfallCard {
     mana_cost: string
     type_line: string
     oracle_text: string
+    /** Per-face artwork identity (double-faced cards). Join key for art tags. */
+    illustration_id?: string
     image_uris?: {
       normal: string
     }
@@ -93,6 +99,16 @@ export interface ScryfallCard {
   rarity: string
   color_identity: string[]
   released_at?: string
+  /**
+   * Oracle (functional) tag slugs from Scryfall Tagger, shared by every printing of a card.
+   * Sorted, deduped. Omitted when the card has no oracle tags.
+   */
+  oracleTags?: string[]
+  /**
+   * Art (illustration) tag slugs for this specific printing's artwork.
+   * Sorted, deduped, unioned across all faces. Omitted when the printing has no art tags.
+   */
+  artTags?: string[]
 }
 
 export interface ScryfallList<T> {

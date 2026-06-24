@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { searchCards, preloadCache } from '../scryfall'
+import { searchCards, preloadCache, refreshTags } from '../scryfall'
 
 export function registerCacheCommand(program: Command): void {
   const cache = program.command('cache').description('Manage card cache')
@@ -24,8 +24,17 @@ export function registerCacheCommand(program: Command): void {
 
   cache
     .command('preload-all')
-    .description('Download and cache all Scryfall card data (bulk)')
+    .description('Download and cache all Scryfall card data (bulk), including oracle and art tags')
     .action(async () => {
       await preloadCache()
+    })
+
+  cache
+    .command('refresh-tags')
+    .description(
+      'Re-download oracle and art tag bulks and re-attach them to cached cards (no full card re-download)',
+    )
+    .action(async () => {
+      await refreshTags()
     })
 }

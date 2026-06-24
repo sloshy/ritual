@@ -22,6 +22,14 @@ import {
   getFrontFaceName,
   mapScryfallCard,
 } from './card-utils'
+import {
+  type ScryfallTag,
+  type TagIndex,
+  attachTags,
+  buildTagIndex,
+  parseTagBulk,
+  parseTagIndex,
+} from './tags'
 
 const RATE_LIMIT_MS = 150
 const SCRYFALL_CARDS_PER_PAGE = 175
@@ -75,7 +83,12 @@ export type MinMaxPrice = {
 export type FetchCardDataOptions = { silent?: boolean }
 export type FetchNamedCardOptions = { fuzzy?: boolean; set?: string }
 type ScryfallErrorBody = { details: string }
-type ScryfallBulkMetadataEntry = { type: string; download_uri: string; size: number }
+type ScryfallBulkMetadataEntry = {
+  type: string
+  download_uri: string
+  size: number
+  updated_at?: string
+}
 
 export type SearchPageResult = {
   data: ScryfallList<ScryfallCard> | null
@@ -175,6 +188,8 @@ export class ScryfallClient implements PricingBackend {
   }
 
   private hasPrompted = false
+  /** undefined = not yet loaded; null = loaded but no cache file; TagIndex = loaded. */
+  private tagIndex: TagIndex | null | undefined
 
   private async checkAndPromptPreload() {
     if (this.hasPrompted) return
@@ -358,6 +373,9 @@ export class ScryfallClient implements PricingBackend {
           await Bun.sleep(RATE_LIMIT_MS)
           return null
         }
+
+        const tagIndex = await this.loadTagIndex()
+        if (tagIndex) attachTags(card, tagIndex)
 
         await this.cardCache.set(name, [card]) // wrap in array
         await Bun.sleep(RATE_LIMIT_MS)
@@ -714,16 +732,118 @@ export class ScryfallClient implements PricingBackend {
     }
   }
 
+  private tagCachePath(): string {
+    return path.join(getCacheDir(), 'tags.json')
+  }
+
+  private async fetchTagBulk(url: string): Promise<ScryfallTag[]> {
+    const response = await this.http.fetch(url)
+    if (!response.ok) throwHttpError(response, `Failed to fetch tag bulk ${url}`)
+    const parsed = parseTagBulk(await response.json())
+    if (typeof parsed === 'string') throw new Error(parsed)
+    return parsed
+  }
+
+  /** Fetch the Scryfall bulk-data manifest listing each available bulk file. */
+  private async fetchBulkMetadata(): Promise<ScryfallBulkMetadataEntry[]> {
+    const response = await this.http.fetch('https://api.scryfall.com/bulk-data')
+    if (!response.ok) throwHttpError(response, 'Failed to fetch bulk metadata')
+    const json = (await response.json()) as ScryfallList<ScryfallBulkMetadataEntry>
+    return json.data ?? []
+  }
+
+  /** Persist a batch of name → printings entries, using bulkSet when available. */
+  private async flushCardEntries(entries: Record<string, ScryfallCard[]>): Promise<void> {
+    if (this.cardCache.bulkSet) {
+      await this.cardCache.bulkSet(entries)
+    } else {
+      for (const [name, cards] of Object.entries(entries)) {
+        await this.cardCache.set(name, cards)
+      }
+    }
+  }
+
+  /**
+   * Download the oracle + art tag bulk files, build a derived {@link TagIndex},
+   * and persist it to `cache/tags.json`. Returns `null` (and logs a warning) on
+   * failure so callers can proceed without tags.
+   */
+  async downloadTagIndex(): Promise<TagIndex | null> {
+    try {
+      getLogger().info('Fetching tag bulk metadata from Scryfall...')
+      const metadata = await this.fetchBulkMetadata()
+
+      const oracleMeta = metadata.find((d) => d.type === 'oracle_tags')
+      const artMeta = metadata.find((d) => d.type === 'art_tags')
+      if (!oracleMeta?.download_uri || !artMeta?.download_uri) {
+        throw new Error('Could not find oracle_tags / art_tags bulk data URIs')
+      }
+
+      getLogger().info('Downloading oracle and art tags...')
+      const oracleTags = await this.fetchTagBulk(oracleMeta.download_uri)
+      const artTags = await this.fetchTagBulk(artMeta.download_uri)
+
+      const index = buildTagIndex(oracleTags, artTags, Date.now())
+      await this.fileSystem.mkdir(getCacheDir(), { recursive: true })
+      await this.fileSystem.writeFile(this.tagCachePath(), JSON.stringify(index))
+      this.tagIndex = index
+      getLogger().info(
+        `Indexed tags for ${Object.keys(index.oracle).length} oracle ids and ${Object.keys(index.illustration).length} illustrations.`,
+      )
+      return index
+    } catch (e) {
+      getLogger().warn(`Failed to download tags: ${e instanceof Error ? e.message : String(e)}`)
+      return null
+    }
+  }
+
+  /**
+   * Load the persisted {@link TagIndex} from `cache/tags.json`, memoized for the
+   * lifetime of the client. Returns `null` when no tag cache exists yet.
+   */
+  private async loadTagIndex(): Promise<TagIndex | null> {
+    if (this.tagIndex !== undefined) return this.tagIndex
+    try {
+      const raw = await this.fileSystem.readFile(this.tagCachePath(), 'utf-8')
+      const parsed = parseTagIndex(JSON.parse(raw))
+      this.tagIndex = typeof parsed === 'string' ? null : parsed
+    } catch {
+      this.tagIndex = null
+    }
+    return this.tagIndex
+  }
+
+  /**
+   * Re-download the tag bulks and re-attach tags to every already-cached card,
+   * without re-downloading the (much larger) `default_cards` bulk.
+   */
+  async refreshTags(): Promise<void> {
+    const index = await this.downloadTagIndex()
+    if (!index) {
+      getLogger().error('Tag refresh aborted: could not download tags.')
+      return
+    }
+
+    const names = await this.cardCache.keys()
+    getLogger().info(`Re-attaching tags to ${names.length} cached cards...`)
+    const entries: Record<string, ScryfallCard[]> = {}
+    for (const name of names) {
+      const printings = await this.cardCache.get(name)
+      if (!printings) continue
+      for (const card of printings) attachTags(card, index)
+      entries[name] = printings
+    }
+
+    await this.flushCardEntries(entries)
+    getLogger().info('Done! Tags refreshed.')
+  }
+
   async preloadCache(): Promise<void> {
     getLogger().info('Fetching bulk data metadata from Scryfall...')
 
     try {
-      const metaResponse = await this.http.fetch('https://api.scryfall.com/bulk-data')
-      if (!metaResponse.ok) {
-        throwHttpError(metaResponse, 'Failed to fetch bulk metadata')
-      }
-      const metaJson = (await metaResponse.json()) as ScryfallList<ScryfallBulkMetadataEntry>
-      const defaultData = metaJson.data?.find((d) => d.type === 'default_cards')
+      const metadata = await this.fetchBulkMetadata()
+      const defaultData = metadata.find((d) => d.type === 'default_cards')
 
       if (!defaultData?.download_uri) {
         throw new Error('Could not find default_cards bulk data URI')
@@ -778,6 +898,9 @@ export class ScryfallClient implements PricingBackend {
         throw new Error('Invalid JSON format: expected array')
       }
 
+      // Download tags up front so they can be baked onto each card as we process it.
+      const tagIndex = await this.downloadTagIndex()
+
       getLogger().info(`Processing ${json.length} cards...`)
 
       const entries: Record<string, ScryfallCard[]> = {}
@@ -790,6 +913,7 @@ export class ScryfallClient implements PricingBackend {
         }
 
         const card = mapScryfallCard(item)
+        if (tagIndex) attachTags(card, tagIndex)
         const newEntries = [...(entries[card.name] ?? []), card]
         entries[card.name] = newEntries
       }
@@ -799,13 +923,7 @@ export class ScryfallClient implements PricingBackend {
       }
 
       getLogger().info('Saving to cache...')
-      if (this.cardCache.bulkSet) {
-        await this.cardCache.bulkSet(entries)
-      } else {
-        for (const [name, cards] of Object.entries(entries)) {
-          await this.cardCache.set(name, cards)
-        }
-      }
+      await this.flushCardEntries(entries)
 
       getLogger().info('Done! Card cache populated.')
     } catch (e) {

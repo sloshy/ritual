@@ -161,7 +161,8 @@ export function registerDestructiveTools(server: McpServer): void {
     'refresh_cache',
     {
       title: 'Refresh card cache',
-      description: 'Refresh the local Scryfall card cache (downloads bulk data; may take a while).',
+      description:
+        'Refresh the local Scryfall card cache (downloads bulk card data and oracle/art tags; may take a while).',
       inputSchema: {},
       annotations: { destructiveHint: true, openWorldHint: true },
     },

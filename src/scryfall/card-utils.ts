@@ -44,6 +44,8 @@ export function getFrontFaceName(name: string): string {
 export function mapScryfallCard(item: ScryfallCard): ScryfallCard {
   return {
     id: item.id,
+    oracle_id: item.oracle_id,
+    illustration_id: item.illustration_id,
     name: item.name,
     layout: item.layout,
     cmc: item.cmc || 0,
@@ -69,6 +71,9 @@ export function mapScryfallCard(item: ScryfallCard): ScryfallCard {
     rarity: item.rarity,
     color_identity: item.color_identity || [],
     released_at: item.released_at,
+    // Preserve any already-attached tags so the mapper round-trips enriched cards.
+    oracleTags: item.oracleTags,
+    artTags: item.artTags,
   }
 }
 

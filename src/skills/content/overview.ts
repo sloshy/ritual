@@ -74,7 +74,8 @@ inspection is fine.
 \`\`\`bash
 ritual login archidekt            # log in to Archidekt (for imports/sync)
 ritual config-set <prop> <value>  # set a config value (dot notation for nested keys)
-ritual cache preload-all          # warm the Scryfall card cache (bulk download)
+ritual cache preload-all          # warm the Scryfall card cache + tags (bulk download)
+ritual cache refresh-tags         # refresh only the oracle/art tags on cached cards
 \`\`\`
 
 ## Alternative: the MCP server

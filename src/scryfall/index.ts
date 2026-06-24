@@ -80,6 +80,10 @@ export function preloadCache(): Promise<void> {
   return scryfallClient.preloadCache()
 }
 
+export function refreshTags(): Promise<void> {
+  return scryfallClient.refreshTags()
+}
+
 export async function getCardPrintings(name: string): Promise<ScryfallCard[]> {
   const cards = await scryfallClient.getCardPrintings(name)
   return cards.sort(comparePrintings)
