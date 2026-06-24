@@ -37,6 +37,8 @@ import { useCardSelection, type SelectedCard } from './useCardSelection'
 import { SelectionMenu } from './SelectionMenu'
 import { buildSelectionEditActions } from './selection-edit-actions'
 import type { FlatBulkEdit } from '../editor/flat-list-controller'
+import { ExportMenu, type ExportFormat } from './ExportMenu'
+import { wantedToText, wantedToMarkdown, wantedToCsv } from '../editor/list-export'
 
 type WantedListGroupBy = GroupBy
 type MetaEntry = { label: string; value: string }
@@ -58,7 +60,8 @@ interface WantedListPageProps {
   symbolMap: Record<string, string>
   useScryfallImgUrls?: boolean
   totalPrice: number
-  exportMdPath?: string
+  /** Show the page-header Copy/Download export menu (public read view only). */
+  enableExport?: boolean
   modalCardKey: string | null
   onOpenModal: (cardKey: string) => void
   onCloseModal: () => void
@@ -432,6 +435,17 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     modalEntry() ? (props.printings[modalEntry()!.name] ?? []) : [],
   )
 
+  const serializeWanted = (format: ExportFormat): string => {
+    switch (format) {
+      case 'txt':
+        return wantedToText(props.entries)
+      case 'md':
+        return wantedToMarkdown(props.name, props.entries, sectionOrder())
+      case 'csv':
+        return wantedToCsv(props.entries)
+    }
+  }
+
   return (
     <div
       class={
@@ -449,26 +463,30 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
             {formatPrice(computedTotalPrice(), props.currency)}
           </p>
         </div>
-        <div class="btn-group">
-          <Show when={props.onCombine}>
-            <button onClick={() => props.onCombine!()} class="site-btn site-btn-secondary">
-              Combine with list…
-            </button>
-          </Show>
-          <Show when={props.changelog && props.changelog.length > 0}>
-            <button
-              onClick={() => setShowChangelog(true)}
-              class="site-btn site-btn-secondary btn-view-changes"
-            >
-              View Changes
-            </button>
-          </Show>
-          <Show when={props.exportMdPath}>
-            <a href={props.exportMdPath} download="" class="site-btn-download">
-              Download MD
-            </a>
-          </Show>
-        </div>
+        <Show
+          when={
+            props.onCombine || props.enableExport || (props.changelog && props.changelog.length > 0)
+          }
+        >
+          <div class="btn-group">
+            <Show when={props.onCombine}>
+              <button onClick={() => props.onCombine!()} class="site-btn site-btn-secondary">
+                Combine with list…
+              </button>
+            </Show>
+            <Show when={props.changelog && props.changelog.length > 0}>
+              <button
+                onClick={() => setShowChangelog(true)}
+                class="site-btn site-btn-secondary btn-view-changes"
+              >
+                View Changes
+              </button>
+            </Show>
+            <Show when={props.enableExport}>
+              <ExportMenu serialize={serializeWanted} name={props.name} />
+            </Show>
+          </div>
+        </Show>
       </div>
       <Toolbar
         viewMode={viewMode()}

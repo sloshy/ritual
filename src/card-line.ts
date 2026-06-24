@@ -4,6 +4,19 @@ import type { Finish, Condition } from './types'
 export type CardPrinting = { set: string; collectorNumber: string }
 
 /**
+ * The canonical parenthesised printing suffix for a card line / text export, e.g.
+ * ` (LEA:161)` — a leading space, the set code uppercased, and the collector
+ * number. Empty when either field is missing (a name-only entry).
+ */
+export function printingSuffix(
+  set: string | undefined,
+  collectorNumber: string | undefined,
+): string {
+  if (!set || !collectorNumber) return ''
+  return ` (${set.toUpperCase()}:${collectorNumber})`
+}
+
+/**
  * Format a single collection card line in the canonical markdown format, e.g.
  * `- Sol Ring (LTC:284) [foil] [LP] {note} &12`. Pure string formatting shared by
  * the CLI, the admin save handlers, and the public editor's export.

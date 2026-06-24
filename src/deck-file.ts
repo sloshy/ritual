@@ -6,6 +6,12 @@ import { listDeckFiles } from './importers/text-file'
 import { isPathWithinDir } from './path-validation'
 import { allocateNextIdFromContent, assignMissingDeckCardIds } from './card-id'
 import { writeFileWithHash } from './content-hash'
+import { serializeCardLine } from './deck-text'
+
+// Re-exported from `deck-text` (a browser-safe, type-only module) so existing
+// importers of `deck-file` keep working while the public site reuses the pure
+// formatter without the node-only helpers below.
+export { serializeCardLine }
 
 /**
  * Resolve a deck name to its file path. Tries exact match first,
@@ -34,27 +40,6 @@ export async function resolveDeckFilePath(
 
   const match = files.find((f) => f.toLowerCase().includes(deckName.toLowerCase()))
   return match ? path.join(decksDir, match) : null
-}
-
-/** Format a single card line with optional printing metadata */
-export function serializeCardLine(card: Card): string {
-  let line = `${card.quantity} ${card.name}`
-  if (card.set && card.collectorNumber) {
-    line += ` (${card.set.toUpperCase()}:${card.collectorNumber})`
-  }
-  if (card.finish && card.finish !== 'nonfoil') {
-    line += ` [${card.finish}]`
-  }
-  if (card.condition && card.condition !== 'NM') {
-    line += ` [${card.condition}]`
-  }
-  if (card.note) {
-    line += ` {${card.note}}`
-  }
-  if (card.cardId !== undefined) {
-    line += ` &${card.cardId}`
-  }
-  return line
 }
 
 /** Serialize a full deck back to markdown with YAML front matter */

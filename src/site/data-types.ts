@@ -39,7 +39,6 @@ export interface DeckDetail {
   lowestPriceCardsEur?: Record<string, ScryfallCard | null>
   lowestPriceCardsTix?: Record<string, ScryfallCard | null>
   symbolMap: Record<string, string>
-  exportPath: string
   useScryfallImgUrls: boolean
   defaultCurrency: PriceCurrency
   availableCurrencies: PriceCurrency[]
@@ -92,8 +91,6 @@ export interface CollectionDetail {
   useScryfallImgUrls: boolean
   totalPrice: number
   defaultCurrency: PriceCurrency
-  exportMdPath?: string
-  exportCsvPath?: string
   pricesDate?: string
   changelog?: ChangelogPage[]
 }
@@ -144,7 +141,6 @@ export interface WantedListDetail {
   useScryfallImgUrls: boolean
   totalPrice: number
   defaultCurrency: PriceCurrency
-  exportMdPath?: string
   pricesDate?: string
   changelog?: ChangelogPage[]
 }

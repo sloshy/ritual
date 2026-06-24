@@ -1728,6 +1728,46 @@ h3 {
   color: var(--text-accent);
 }
 
+/* ===== PAGE-HEADER EXPORT MENU (Copy / Download) ===== */
+
+.export-menu {
+  position: relative;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.export-menu-control {
+  display: inline-flex;
+}
+
+.export-feedback {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 300;
+  padding: 0.3rem 0.7rem;
+  background: var(--bg-active);
+  border: 1px solid var(--border-hover);
+  color: var(--text-primary);
+  border-radius: 0.4rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 4px 16px var(--overlay-light);
+  animation: export-feedback-in 0.15s ease-out;
+}
+
+@keyframes export-feedback-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* ===== SELECTION "VIEW ALL" MODAL ===== */
 
 .selection-modal-overlay {

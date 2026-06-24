@@ -34,6 +34,8 @@ import { useCardSelection, type SelectedCard } from './useCardSelection'
 import { SelectionMenu } from './SelectionMenu'
 import { buildSelectionEditActions } from './selection-edit-actions'
 import type { FlatBulkEdit } from '../editor/flat-list-controller'
+import { ExportMenu, type ExportFormat } from './ExportMenu'
+import { collectionToText, collectionToMarkdown, collectionToCsv } from '../editor/list-export'
 
 // Collections always have a specific printing, so 'printing' grouping does not apply.
 type CollectionGroupBy = Exclude<GroupBy, 'printing'>
@@ -52,8 +54,8 @@ interface CollectionPageProps {
   symbolMap: Record<string, string>
   useScryfallImgUrls?: boolean
   totalPrice: number
-  exportMdPath?: string
-  exportCsvPath?: string
+  /** Show the page-header Copy/Download export menu (public read view only). */
+  enableExport?: boolean
   modalCardKey: string | null
   onOpenModal: (cardKey: string) => void
   onCloseModal: () => void
@@ -442,6 +444,17 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     modalEntry() ? (props.printings[modalEntry()!.name] ?? []) : [],
   )
 
+  const serializeCollection = (format: ExportFormat): string => {
+    switch (format) {
+      case 'txt':
+        return collectionToText(props.entries)
+      case 'md':
+        return collectionToMarkdown(props.name, props.entries, sectionOrder())
+      case 'csv':
+        return collectionToCsv(props.entries)
+    }
+  }
+
   return (
     <div
       class={
@@ -459,31 +472,30 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
             {formatPrice(computedTotalPrice(), props.currency)}
           </p>
         </div>
-        <div class="btn-group">
-          <Show when={props.onCombine}>
-            <button onClick={() => props.onCombine!()} class="site-btn site-btn-secondary">
-              Combine with list…
-            </button>
-          </Show>
-          <Show when={props.changelog && props.changelog.length > 0}>
-            <button
-              onClick={() => setShowChangelog(true)}
-              class="site-btn site-btn-secondary btn-view-changes"
-            >
-              View Changes
-            </button>
-          </Show>
-          <Show when={props.exportMdPath}>
-            <a href={props.exportMdPath} download="" class="site-btn-download">
-              Download MD
-            </a>
-          </Show>
-          <Show when={props.exportCsvPath}>
-            <a href={props.exportCsvPath} download="" class="site-btn-download">
-              Download CSV
-            </a>
-          </Show>
-        </div>
+        <Show
+          when={
+            props.onCombine || props.enableExport || (props.changelog && props.changelog.length > 0)
+          }
+        >
+          <div class="btn-group">
+            <Show when={props.onCombine}>
+              <button onClick={() => props.onCombine!()} class="site-btn site-btn-secondary">
+                Combine with list…
+              </button>
+            </Show>
+            <Show when={props.changelog && props.changelog.length > 0}>
+              <button
+                onClick={() => setShowChangelog(true)}
+                class="site-btn site-btn-secondary btn-view-changes"
+              >
+                View Changes
+              </button>
+            </Show>
+            <Show when={props.enableExport}>
+              <ExportMenu serialize={serializeCollection} name={props.name} />
+            </Show>
+          </div>
+        </Show>
       </div>
       <Toolbar
         viewMode={viewMode()}

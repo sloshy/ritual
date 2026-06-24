@@ -480,7 +480,7 @@ function App() {
                         symbolMap={wantedListDetail()!.symbolMap}
                         useScryfallImgUrls={wantedListDetail()!.useScryfallImgUrls}
                         totalPrice={wantedListDetail()!.totalPrice}
-                        exportMdPath={wantedListDetail()!.exportMdPath}
+                        enableExport={true}
                         pricesDate={wantedListDetail()!.pricesDate}
                         modalCardKey={modalCard()}
                         onOpenModal={openModal}
@@ -526,8 +526,7 @@ function App() {
                         symbolMap={collectionDetail()!.symbolMap}
                         useScryfallImgUrls={collectionDetail()!.useScryfallImgUrls}
                         totalPrice={collectionDetail()!.totalPrice}
-                        exportMdPath={collectionDetail()!.exportMdPath}
-                        exportCsvPath={collectionDetail()!.exportCsvPath}
+                        enableExport={true}
                         pricesDate={collectionDetail()!.pricesDate}
                         modalCardKey={modalCard()}
                         onOpenModal={openModal}
@@ -565,7 +564,7 @@ function App() {
                         lowestPriceCardsEur={deckDetail()!.lowestPriceCardsEur}
                         lowestPriceCardsTix={deckDetail()!.lowestPriceCardsTix}
                         symbolMap={deckDetail()!.symbolMap}
-                        exportPath={deckDetail()!.exportPath}
+                        enableExport={true}
                         useScryfallImgUrls={deckDetail()!.useScryfallImgUrls}
                         modalCardName={modalCard()}
                         onOpenModal={openModal}

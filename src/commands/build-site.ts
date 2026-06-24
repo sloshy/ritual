@@ -2,7 +2,6 @@ import { Command } from 'commander'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { extractMarkdownTitle } from '../markdown-utils'
-import { deckToExportText } from '../deck-text'
 import { importFromTextFile } from '../importers/text-file'
 import { resolveDeckSources, resolveListSources } from '../site/list-sources'
 import {
@@ -697,11 +696,6 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '')
 
-    // Generate Deck List Text (Commander + Main) via the shared serializer.
-    const deckText = deckToExportText(deckData)
-    const deckTextPath = path.join(decksDataDir, `${safeName}.txt`)
-    await Bun.write(deckTextPath, deckText)
-
     // Build deck-specific card map and printings (only cards in this deck)
     const deckCardMap: Record<string, ScryfallCard | null> = {}
     const deckPrintingsMap: Record<string, ScryfallCard[]> = {}
@@ -771,7 +765,6 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       lowestPriceCardsEur: hasEur ? deckLowestPriceCardMapEur : undefined,
       lowestPriceCardsTix: hasTix ? deckLowestPriceCardMapTix : undefined,
       symbolMap,
-      exportPath: `decks/${safeName}.txt`,
       useScryfallImgUrls,
       defaultCurrency,
       availableCurrencies,
@@ -1025,25 +1018,6 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '')
 
-    // Write collection export files (MD and CSV)
-    const exportMdPath = `collections/${safeName}.md`
-    const exportCsvPath = `collections/${safeName}.csv`
-
-    // Write original MD file
-    await Bun.write(path.join(distDir, exportMdPath), content)
-
-    // Write CSV
-    const csvLines = ['Name,Set,Collector Number,Finish,Condition,Quantity']
-    for (const entry of entries) {
-      const finish = entry.finish || ''
-      const condition = entry.condition || ''
-      const csvName = entry.name.includes(',') ? `"${entry.name}"` : entry.name
-      csvLines.push(
-        `${csvName},${entry.set.toUpperCase()},${entry.collectorNumber},${finish},${condition},${entry.quantity}`,
-      )
-    }
-    await Bun.write(path.join(distDir, exportCsvPath), csvLines.join('\n'))
-
     // Write collection detail JSON
     // Include changelog-referenced cards in the card maps
     for (const clName of extractChangelogCardNames(collectionChangelog)) {
@@ -1079,8 +1053,6 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       useScryfallImgUrls,
       totalPrice,
       defaultCurrency,
-      exportMdPath,
-      exportCsvPath,
       pricesDate,
       changelog: collectionChangelog.length > 0 ? collectionChangelog : undefined,
     }
@@ -1324,10 +1296,6 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '')
 
-    // Write wanted list export MD
-    const exportMdPath = `wanted/${safeName}.md`
-    await Bun.write(path.join(distDir, exportMdPath), content)
-
     // Include changelog-referenced cards
     for (const clName of extractChangelogCardNames(wlChangelog)) {
       const canonical = (await cardCache.resolveCardName(clName.toLowerCase())) ?? clName
@@ -1361,7 +1329,6 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       useScryfallImgUrls,
       totalPrice,
       defaultCurrency,
-      exportMdPath,
       pricesDate,
       changelog: wlChangelog.length > 0 ? wlChangelog : undefined,
     }

@@ -176,12 +176,8 @@ Generates a single-page application in the `dist/` directory containing:
 - `app.js` — Bundled SPA with client-side routing
 - `index.json` — Deck and collection listing used by the index page
 - `decks/{slug}.json` — Full deck data loaded on demand
-- `decks/{slug}.txt` — Exportable deck lists
 - `collections/{slug}.json` — Full collection data with pricing loaded on demand
-- `collections/{slug}.md` — Original collection Markdown file for download
-- `collections/{slug}.csv` — Collection exported as CSV for importing into other sites
 - `wanted/{slug}.json` — Full wanted list data with pricing loaded on demand
-- `wanted/{slug}.md` — Original wanted list Markdown file for download
 - `styles.css` — Bundled CSS
 - Responsive design for desktop and mobile
 - Dark mode support
@@ -214,6 +210,16 @@ A card size selector (**L / M / S**) appears in the toolbar for binder, row, and
 
 Card size applies uniformly across all three image views. In row and column modes, the row width and column width shift automatically to match the selected card size.
 
+## Exporting a list
+
+Every list page (deck, collection, or wanted list) carries a **Copy** and a **Download** button in its header. Clicking either opens a dropdown of three formats:
+
+- **Text (.txt)** — a quantity-prefixed list (`N Card Name (SET:Collector Number)`). Decks render the import-friendly decklist (Commander then Main, extras omitted); collections and wanted lists render one line per card.
+- **Markdown (.md)** — the canonical source Markdown, with `## Section` headers and full card lines (printing, finish, condition, note, and internal id).
+- **CSV (.csv)** — spreadsheet rows under a `Name,Set,Collector Number,Finish,Condition,Quantity` header, for importing into other sites.
+
+**Copy** writes the chosen format to the clipboard; **Download** saves it as a file named after the list. A small tooltip ("Copied!" / "Downloaded!") confirms the action — the button labels never change. The list is serialized in the browser from the data already on the page, so no extra files are generated at build time.
+
 ## Multi-Select
 
 Any list page (deck, collection, or wanted list) lets you select cards across every view mode and act on the whole selection at once. Hovering a card in binder, row, or column mode reveals a translucent checkbox in its top-left corner; clicking it marks the card with a checkmark in the current theme's accent color. In list view the checkbox sits at the far left of each row. You can also **Ctrl-click** (or **⌘-click** on macOS) anywhere on a card in any view to toggle its selection without opening the card modal.
@@ -222,8 +228,8 @@ A card shown with a quantity (e.g. `4×` in a deck, or a grouped duplicate in a 
 
 Once at least one card is selected, a **Selected (N)** button appears in the toolbar (N is the running count of selected copies for the list you're viewing). The selection survives changes to grouping, sorting, and view mode. Opening the button reveals a menu of bulk actions over that list's selection:
 
-- **Copy as Text** — copies a quantity-prefixed list (`N Card Name (SET:Collector Number)`) to the clipboard, matching the deck **Copy** button's format
-- **Copy as CSV** — copies the same selection as CSV with a `Name,Set,Collector Number,Finish,Condition,Quantity` header, matching the **Download CSV** output but scoped to the selected cards
+- **Copy as Text** — copies a quantity-prefixed list (`N Card Name (SET:Collector Number)`) to the clipboard, matching the header **Copy → Text** format but scoped to the selected cards
+- **Copy as CSV** — copies the same selection as CSV with a `Name,Set,Collector Number,Finish,Condition,Quantity` header, matching the header **Copy → CSV** output but scoped to the selected cards
 - **Add to Trade** — adds the selected cards to the active [Trade Planner](#trade-planner) (deck and collection cards go to the offering side, wanted-list cards to the receiving side). Name-only cards (no pinned printing) prompt for a printing one at a time, exactly like the single-card add
 - **Clear selection** — deselects the current list's cards only
 
@@ -425,7 +431,7 @@ Deck pages include:
 
 When a deck or collection has a `.changes.md` changelog file (created by the admin editor when saving changes), its edit history is included in the generated site.
 
-- A **View Changes** button appears next to the download buttons in the page header
+- A **View Changes** button appears next to the **Copy** and **Download** buttons in the page header
 - Clicking it opens a modal dialog showing paginated change entries, sorted most recent first
 - Each page shows one editing session with its timestamp and a list of additions, removals, and other changes (every save within a single session is grouped into that one entry)
 - Prev/Next buttons allow paging through older and newer changes

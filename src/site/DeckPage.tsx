@@ -36,6 +36,9 @@ import { useCardSelection, type SelectedCard } from './useCardSelection'
 import { SelectionMenu } from './SelectionMenu'
 import { buildSelectionEditActions } from './selection-edit-actions'
 import type { DeckBulkEdit } from '../editor/DeckEditController'
+import { ExportMenu, type ExportFormat } from './ExportMenu'
+import { deckToExportText, deckToMarkdown } from '../deck-text'
+import { deckToCsv } from '../editor/list-export'
 
 type DeckTradePicker = { cardName: string; printings: ScryfallCard[]; deckEntry: Card }
 
@@ -54,7 +57,8 @@ export interface DeckPageProps {
   lowestPriceCardsEur?: Record<string, ScryfallCard | null>
   lowestPriceCardsTix?: Record<string, ScryfallCard | null>
   symbolMap: Record<string, string>
-  exportPath?: string
+  /** Show the page-header Copy/Download export menu (public read view only). */
+  enableExport?: boolean
   useScryfallImgUrls?: boolean
   modalCardName: string | null
   onOpenModal: (cardName: string) => void
@@ -116,7 +120,6 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     setPriceGroupStrategy,
   } = useToolbarState<GroupBy>({ groupBy: 'type', sortBy: 'name' })
   const cardFilters = useCardFilters()
-  const [copyStatus, setCopyStatus] = createSignal<string | null>(null)
   const [lowestPrice, setLowestPrice] = createSignal(false)
   const [missingCardsExpanded, setMissingCardsExpanded] = createSignal(false)
   const [showChangelog, setShowChangelog] = createSignal(false)
@@ -393,19 +396,14 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     return activeCards()[props.modalCardName] ?? null
   })
 
-  const handleCopy = async () => {
-    if (!props.exportPath) return
-    try {
-      setCopyStatus('Fetching...')
-      const response = await fetch(props.exportPath)
-      if (!response.ok) throw new Error('Failed to fetch deck list')
-      const text = await response.text()
-      await navigator.clipboard.writeText(text)
-      setCopyStatus('Copied!')
-      setTimeout(() => setCopyStatus(null), 2000)
-    } catch {
-      setCopyStatus('Error!')
-      setTimeout(() => setCopyStatus(null), 2000)
+  const serializeDeck = (format: ExportFormat): string => {
+    switch (format) {
+      case 'txt':
+        return deckToExportText(props.deck)
+      case 'md':
+        return deckToMarkdown(props.deck)
+      case 'csv':
+        return deckToCsv(props.deck)
     }
   }
 
@@ -542,7 +540,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         </div>
         <Show
           when={
-            props.onCombine || props.exportPath || (props.changelog && props.changelog.length > 0)
+            props.onCombine || props.enableExport || (props.changelog && props.changelog.length > 0)
           }
         >
           <div class="btn-group">
@@ -559,19 +557,8 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
                 View Changes
               </button>
             </Show>
-            <Show when={props.exportPath}>
-              <a
-                href={props.exportPath}
-                download={`${props.deck.name.replace(/[^a-zA-Z0-9]/g, '_')}.txt`}
-                class="site-btn site-btn-secondary"
-              >
-                Download
-              </a>
-            </Show>
-            <Show when={props.exportPath}>
-              <button onClick={() => void handleCopy()} class="site-btn site-btn-export">
-                {copyStatus() ?? 'Copy'}
-              </button>
+            <Show when={props.enableExport}>
+              <ExportMenu serialize={serializeDeck} name={props.deck.name} />
             </Show>
           </div>
         </Show>

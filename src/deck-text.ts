@@ -1,4 +1,45 @@
-import type { DeckData } from './types'
+import type { Card, DeckData } from './types'
+import { printingSuffix } from './card-line'
+
+/**
+ * Format a single deck card line in the canonical markdown format, e.g.
+ * `2 Lightning Bolt (2XM:157) [foil] [LP] {note} &5`. Pure string formatting
+ * shared by the deck markdown serializer, the CLI importers, and the admin save
+ * handlers. Lives here (a browser-safe, type-only module) so the public site can
+ * reuse it without pulling in the node-only `deck-file` helpers.
+ */
+export function serializeCardLine(card: Card): string {
+  let line = `${card.quantity} ${card.name}${printingSuffix(card.set, card.collectorNumber)}`
+  if (card.finish && card.finish !== 'nonfoil') {
+    line += ` [${card.finish}]`
+  }
+  if (card.condition && card.condition !== 'NM') {
+    line += ` [${card.condition}]`
+  }
+  if (card.note) {
+    line += ` {${card.note}}`
+  }
+  if (card.cardId !== undefined) {
+    line += ` &${card.cardId}`
+  }
+  return line
+}
+
+/**
+ * Render a deck to its canonical markdown body: one `## Section` block per
+ * section, each followed by its cards' full `serializeCardLine` form (printing,
+ * finish, condition, note, and `&N` id). This is the "MD" export offered in the
+ * page header; it mirrors what a server save writes minus the YAML front matter,
+ * which the client does not carry.
+ */
+export function deckToMarkdown(deck: DeckData): string {
+  const blocks = deck.sections.map((section) => {
+    const header = `## ${section.name}`
+    const cardLines = section.cards.map(serializeCardLine)
+    return [header, ...cardLines].join('\n')
+  })
+  return blocks.join('\n\n').replace(/\n*$/, '\n')
+}
 
 /**
  * Render a deck to the plain-text decklist format used for the public site's

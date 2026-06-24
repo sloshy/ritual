@@ -1,7 +1,11 @@
+import type { DeckData } from '../types'
 import type { CollectionCardEntry, WantedListCardEntry } from '../site/data-types'
 import type { SelectedCard } from '../site/useCardSelection'
 import { serializeSectionedList } from '../section-format'
-import { formatCollectionLine, formatWantedListLine } from '../card-line'
+import { formatCollectionLine, formatWantedListLine, printingSuffix } from '../card-line'
+
+/** Header row shared by every CSV export (`Name,Set,Collector Number,Finish,Condition,Quantity`). */
+export const CSV_HEADER = 'Name,Set,Collector Number,Finish,Condition,Quantity'
 
 /**
  * Markdown/CSV serializers for collection and wanted-list entries. Shared by the
@@ -55,33 +59,64 @@ export const csvCell = (value: string): string =>
   /[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value
 
 /**
- * Build the parenthesised printing suffix for a selected card's text line, e.g.
- * ` (LEA:161)`. Empty when the card has no resolved set/collector number
- * (a name-only entry whose printing never resolved).
+ * Build one CSV data row in the canonical {@link CSV_HEADER} column order. Only the
+ * name is quoted (the other columns are simple tokens); the set code is uppercased
+ * here so every export path applies the rule in one place. Callers pass already
+ * caller-specific normalisation (e.g. stripping a `nonfoil` finish).
  */
-function selectionPrintingSuffix(card: SelectedCard): string {
-  if (!card.set || !card.collectorNumber) return ''
-  return ` (${card.set.toUpperCase()}:${card.collectorNumber})`
+function csvRow(
+  name: string,
+  set: string,
+  collectorNumber: string,
+  finish: string,
+  condition: string,
+  quantity: number,
+): string {
+  return [csvCell(name), set.toUpperCase(), collectorNumber, finish, condition, quantity].join(',')
 }
 
-/** Aggregation key grouping identical selected printings so quantities sum. */
-function selectionKey(card: SelectedCard): string {
-  return `${card.name}|${card.set ?? ''}|${card.collectorNumber ?? ''}|${card.finish ?? ''}|${card.condition ?? ''}`
-}
+/** One grouped item plus its summed quantity, preserving first-seen order. */
+type Aggregated<E> = { entry: E; quantity: number }
 
-type AggregatedSelection = { card: SelectedCard; quantity: number }
-
-/** Collapse identical selected printings, summing their quantities, preserving first-seen order. */
-function aggregateSelection(cards: SelectedCard[]): AggregatedSelection[] {
-  const counts = new Map<string, AggregatedSelection>()
-  for (const card of cards) {
-    const key = selectionKey(card)
-    const existing = counts.get(key)
-    if (existing) existing.quantity += card.quantity
-    else counts.set(key, { card, quantity: card.quantity })
+/** Group items by a string key, summing per-item quantities, preserving first-seen order. */
+function aggregate<E>(
+  items: E[],
+  key: (item: E) => string,
+  quantity: (item: E) => number,
+): Aggregated<E>[] {
+  const counts = new Map<string, Aggregated<E>>()
+  for (const item of items) {
+    const k = key(item)
+    const existing = counts.get(k)
+    if (existing) existing.quantity += quantity(item)
+    else counts.set(k, { entry: item, quantity: quantity(item) })
   }
   return [...counts.values()]
 }
+
+/** Aggregation key grouping identical printings (name + printing + finish + condition). */
+const variantKey = (
+  name: string,
+  set: string | undefined,
+  collectorNumber: string | undefined,
+  finish: string | undefined,
+  condition: string | undefined,
+): string => `${name}|${set ?? ''}|${collectorNumber ?? ''}|${finish ?? ''}|${condition ?? ''}`
+
+const aggregateSelection = (cards: SelectedCard[]): Aggregated<SelectedCard>[] =>
+  aggregate(
+    cards,
+    (c) => variantKey(c.name, c.set, c.collectorNumber, c.finish, c.condition),
+    (c) => c.quantity,
+  )
+
+/** Collection entries are atomic (one copy each), so each contributes a quantity of 1. */
+const aggregateCollection = (entries: CollectionCardEntry[]): Aggregated<CollectionCardEntry>[] =>
+  aggregate(
+    entries,
+    (e) => variantKey(e.name, e.set, e.collectorNumber, e.finish, e.condition),
+    () => 1,
+  )
 
 /**
  * Serialize selected cards to a plain-text list, one line per distinct printing:
@@ -90,52 +125,104 @@ function aggregateSelection(cards: SelectedCard[]): AggregatedSelection[] {
  */
 export function selectionToText(cards: SelectedCard[]): string {
   return aggregateSelection(cards)
-    .map(({ card, quantity }) => `${quantity} ${card.name}${selectionPrintingSuffix(card)}`)
+    .map(
+      ({ entry, quantity }) =>
+        `${quantity} ${entry.name}${printingSuffix(entry.set, entry.collectorNumber)}`,
+    )
     .join('\n')
 }
 
 /**
- * Serialize selected cards to CSV (`Name,Set,Collector Number,Finish,Condition,Quantity`).
- * Mirrors {@link collectionToCsv} so a "Copy as CSV" of a whole collection matches
- * its "Download CSV", but works across decks and wanted lists too.
+ * Serialize selected cards to CSV ({@link CSV_HEADER}). Mirrors {@link collectionToCsv}
+ * so a "Copy as CSV" of a whole collection matches its CSV export, but works across
+ * decks and wanted lists too.
  */
 export function selectionToCsv(cards: SelectedCard[]): string {
-  const lines = ['Name,Set,Collector Number,Finish,Condition,Quantity']
-  for (const { card, quantity } of aggregateSelection(cards)) {
-    lines.push(
-      `${csvCell(card.name)},${card.set?.toUpperCase() ?? ''},${card.collectorNumber ?? ''},${card.finish ?? ''},${card.condition ?? ''},${quantity}`,
-    )
-  }
-  return lines.join('\n')
+  const rows = aggregateSelection(cards).map(({ entry, quantity }) =>
+    csvRow(
+      entry.name,
+      entry.set ?? '',
+      entry.collectorNumber ?? '',
+      entry.finish ?? '',
+      entry.condition ?? '',
+      quantity,
+    ),
+  )
+  return [CSV_HEADER, ...rows].join('\n')
 }
 
 /**
- * Serialize a collection to CSV (`Name,Set,Collector Number,Finish,Condition,Quantity`).
- * Collection entries are atomic (one copy each), so identical printings are grouped
- * and counted into the Quantity column.
+ * Serialize a collection to CSV ({@link CSV_HEADER}). Collection entries are atomic
+ * (one copy each), so identical printings are grouped and counted into the Quantity
+ * column.
  */
 export function collectionToCsv(entries: CollectionCardEntry[]): string {
-  type Row = { name: string; set: string; cn: string; finish: string; condition: string }
-  type CountedRow = { row: Row; quantity: number }
-  const counts = new Map<string, CountedRow>()
-  for (const entry of entries) {
-    const row: Row = {
-      name: entry.name,
-      set: entry.set.toUpperCase(),
-      cn: entry.collectorNumber,
-      finish: entry.finish || '',
-      condition: entry.condition || '',
-    }
-    const key = `${row.name}|${row.set}|${row.cn}|${row.finish}|${row.condition}`
-    const existing = counts.get(key)
-    if (existing) existing.quantity += 1
-    else counts.set(key, { row, quantity: 1 })
-  }
-  const lines = ['Name,Set,Collector Number,Finish,Condition,Quantity']
-  for (const { row, quantity } of counts.values()) {
-    lines.push(
-      `${csvCell(row.name)},${row.set},${row.cn},${row.finish},${row.condition},${quantity}`,
+  const rows = aggregateCollection(entries).map(({ entry, quantity }) =>
+    csvRow(
+      entry.name,
+      entry.set,
+      entry.collectorNumber,
+      entry.finish || '',
+      entry.condition || '',
+      quantity,
+    ),
+  )
+  return [CSV_HEADER, ...rows].join('\n')
+}
+
+/**
+ * Serialize a collection to a plain-text list, one line per distinct printing:
+ * `N {Name} ({SET}:{Collector Number})`. Identical printings are grouped and their
+ * quantities summed, matching {@link collectionToCsv}.
+ */
+export function collectionToText(entries: CollectionCardEntry[]): string {
+  return aggregateCollection(entries)
+    .map(
+      ({ entry, quantity }) =>
+        `${quantity} ${entry.name}${printingSuffix(entry.set, entry.collectorNumber)}`,
     )
-  }
-  return lines.join('\n')
+    .join('\n')
+}
+
+/**
+ * Serialize a wanted list to a plain-text list, one line per entry:
+ * `1 {Name} ({SET}:{Collector Number})`. Wanted entries are atomic and may be
+ * name-only (no printing suffix).
+ */
+export function wantedToText(entries: WantedListCardEntry[]): string {
+  return entries
+    .map((entry) => `1 ${entry.name}${printingSuffix(entry.set, entry.collectorNumber)}`)
+    .join('\n')
+}
+
+/**
+ * Serialize a wanted list to CSV ({@link CSV_HEADER}). Wanted entries are atomic
+ * (one per line, quantity 1) and never carry a condition.
+ */
+export function wantedToCsv(entries: WantedListCardEntry[]): string {
+  const rows = entries.map((entry) =>
+    csvRow(entry.name, entry.set ?? '', entry.collectorNumber ?? '', entry.finish ?? '', '', 1),
+  )
+  return [CSV_HEADER, ...rows].join('\n')
+}
+
+/**
+ * Serialize a deck to CSV ({@link CSV_HEADER}), one row per card line using the
+ * line's own quantity. Name-only deck entries leave the set/collector columns
+ * blank.
+ */
+export function deckToCsv(deck: DeckData): string {
+  const rows = deck.sections.flatMap((section) =>
+    section.cards.map((card) =>
+      csvRow(
+        card.name,
+        card.set ?? '',
+        card.collectorNumber ?? '',
+        card.finish && card.finish !== 'nonfoil' ? card.finish : '',
+        card.condition ?? '',
+        card.quantity,
+      ),
+    ),
+  )
+  return [CSV_HEADER, ...rows].join('\n')
 }
