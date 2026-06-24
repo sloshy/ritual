@@ -11,8 +11,6 @@
 - Add list style views for modal dialogs like printings selection
 - Allow importing changes from public site through CLI
 - Allow importing changes across multiple lists as a change batch
-- Add ability to search a collection by a list of cards to find matches
-- Add prompt to refresh prices / cache when doing an interactive command
 - Allow sharing lists with filter settings in URL params
 
 ## Misc

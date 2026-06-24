@@ -489,6 +489,7 @@ function App() {
                         changelog={wantedListDetail()!.changelog}
                         enablePriceRefresh={true}
                         enableTrade={true}
+                        enableUrlState={true}
                         onCombine={openCombine}
                       />
                     }
@@ -535,6 +536,7 @@ function App() {
                         changelog={collectionDetail()!.changelog}
                         enablePriceRefresh={true}
                         enableTrade={true}
+                        enableUrlState={true}
                         onCombine={openCombine}
                       />
                     }
@@ -578,6 +580,7 @@ function App() {
                         changelog={deckDetail()!.changelog}
                         enablePriceRefresh={true}
                         enableTrade={true}
+                        enableUrlState={true}
                         onCombine={openCombine}
                       />
                     }

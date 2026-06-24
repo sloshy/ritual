@@ -24,6 +24,7 @@ import { useTooltip } from './useTooltip'
 import { Toolbar } from './Toolbar'
 import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
+import { useListViewUrlSync } from './useListViewUrlSync'
 import { useCardFilters } from './useCardFilters'
 import { collectCardTypes, collectSetCodes, filterCards } from './card-filters'
 import { deriveSectionOrder, sectionDefaultGroupBy } from '../section-format'
@@ -90,6 +91,8 @@ interface WantedListPageProps {
   bulkEdit?: FlatBulkEdit
   /** When provided (public read view), shows a "Combine with list…" header button. */
   onCombine?: () => void
+  /** Mirror the toolbar/filter state into the URL query so the view is shareable (public read view only). */
+  enableUrlState?: boolean
 }
 
 export const WantedListPage: Component<WantedListPageProps> = (props) => {
@@ -116,6 +119,10 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
   // each load, so a stale seed is not reachable.
   const initialGroupBy: WantedListGroupBy = sectionDefaultGroupBy(props.entries)
 
+  const toolbar = useToolbarState<WantedListGroupBy>({
+    groupBy: initialGroupBy,
+    sortBy: 'file-order',
+  })
   const {
     viewMode,
     setViewMode,
@@ -131,8 +138,15 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     setReverseGroups,
     priceGroupStrategy,
     setPriceGroupStrategy,
-  } = useToolbarState<WantedListGroupBy>({ groupBy: initialGroupBy, sortBy: 'file-order' })
+  } = toolbar
   const cardFilters = useCardFilters()
+  useListViewUrlSync({
+    toolbar,
+    filters: cardFilters,
+    defaults: { groupBy: initialGroupBy, sortBy: 'file-order' },
+    groupByValues: groupByOptions().map((o) => o.value as WantedListGroupBy),
+    enabled: props.enableUrlState,
+  })
   const [showChangelog, setShowChangelog] = createSignal(false)
 
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()

@@ -28,3 +28,14 @@ Two toggles control how the selected types are applied:
 
 - **Any / All** — **Any** keeps cards that have at least one of the selected types; **All** keeps only cards that have every selected type. For example, with **Artifact** and **Creature** selected, **Any** shows all artifacts and all creatures, while **All** shows only artifact creatures.
 - **Include / Exclude** — **Include** keeps cards of the selected types; **Exclude** hides them and keeps everything else.
+
+## Sharing a configured view
+
+How you've set up a list view is captured in the page URL, so you can copy the link from your browser and share it — whoever opens it sees the same view. This covers the whole toolbar:
+
+- the **grouping** (and the price-bracket size when grouping by price),
+- the **sorting**, including the **Reverse** and **Reverse Sections** toggles,
+- the **view layout** (binder, overlap, stack, or list) and **card size**, and
+- every active **filter** from the Filters menu.
+
+Only settings that differ from the page's defaults are added to the URL, so a link stays as short as the changes you've made — an untouched view has a clean URL. As you adjust the toolbar the link updates in place (it doesn't add browser-history steps), and opening a link that omits a setting simply uses that page's default for it. Editing a list does not write these parameters; sharing applies to the normal read view.

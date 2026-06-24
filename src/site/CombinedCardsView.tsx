@@ -16,6 +16,7 @@ import { useTooltip } from './useTooltip'
 import { Toolbar } from './Toolbar'
 import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
+import { useListViewUrlSync } from './useListViewUrlSync'
 import { useCardFilters } from './useCardFilters'
 import { collectCardTypes, collectSetCodes, filterCards } from './card-filters'
 import { useCombinedSelection, type SelectionListId } from './useCardSelection'
@@ -46,6 +47,8 @@ interface CombinedCardsViewProps {
   error?: JSX.Element | string
   /** Message shown when there are no cards and we are neither loading nor errored. */
   emptyMessage?: string
+  /** Mirror the toolbar/filter state into the URL query so the view is shareable (combined-list view only). */
+  enableUrlState?: boolean
 }
 
 /**
@@ -56,6 +59,7 @@ interface CombinedCardsViewProps {
  * themselves and hand it in, along with the title and header.
  */
 export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
+  const toolbar = useToolbarState<GroupBy>({ groupBy: 'source', sortBy: 'name' })
   const {
     viewMode,
     setViewMode,
@@ -71,7 +75,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
     setReverseGroups,
     priceGroupStrategy,
     setPriceGroupStrategy,
-  } = useToolbarState<GroupBy>({ groupBy: 'source', sortBy: 'name' })
+  } = toolbar
   const cardFilters = useCardFilters()
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
   const [modalTile, setModalTile] = createSignal<CombinedCardData | null>(null)
@@ -105,6 +109,14 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
     if (!hasCollections()) opts.push({ value: 'printing', label: 'Printing' })
     opts.push({ value: 'none', label: 'None' })
     return opts
+  })
+
+  useListViewUrlSync({
+    toolbar,
+    filters: cardFilters,
+    defaults: { groupBy: 'source', sortBy: 'name' },
+    groupByValues: groupByOptions().map((o) => o.value as GroupBy),
+    enabled: props.enableUrlState,
   })
 
   const selection = useCombinedSelection(() => props.selectionLists)

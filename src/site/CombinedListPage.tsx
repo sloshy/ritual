@@ -104,6 +104,7 @@ export const CombinedListPage: Component<CombinedListPageProps> = (props) => {
       currency={props.currency}
       useScryfallImgUrls={props.useScryfallImgUrls}
       enableTrade={props.enableTrade}
+      enableUrlState
       title={pageTitle()}
       loading={loaded() === null}
       error={error() ? 'Failed to load one or more lists.' : undefined}

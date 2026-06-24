@@ -29,6 +29,7 @@ import type { TradeSearchEntry } from './useTradeData'
 import { resolveCardThumbnailUrl, resolveCardPreview } from './image-sources'
 import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
+import { useListViewUrlSync } from './useListViewUrlSync'
 import { useCardFilters } from './useCardFilters'
 import { collectCardTypes, collectSetCodes, filterCards } from './card-filters'
 import { PrimerRenderer, buildToc } from './PrimerRenderer'
@@ -41,6 +42,24 @@ import { deckToExportText, deckToMarkdown } from '../deck-text'
 import { deckToCsv } from '../editor/list-export'
 
 type DeckTradePicker = { cardName: string; printings: ScryfallCard[]; deckEntry: Card }
+
+type DeckGroupByOption = { value: GroupBy; label: string }
+const DECK_GROUP_BY_OPTIONS: DeckGroupByOption[] = [
+  { value: 'type', label: 'Type' },
+  { value: 'section', label: 'Section' },
+  { value: 'cmc', label: 'Mana Value' },
+  { value: 'color-identity', label: 'Color Identity' },
+  { value: 'price', label: 'Price' },
+  { value: 'printing', label: 'Printing' },
+  { value: 'none', label: 'None' },
+]
+
+/** Rebuild the deck hash for a primer toggle, preserving any shareable list-view query string. */
+const deckPrimerHash = (slug: string, primerOpen: boolean): string => {
+  const query = window.location.hash.split('?')[1]
+  const base = `#/deck/${slug}${primerOpen ? '/primer' : ''}`
+  return query ? `${base}?${query}` : base
+}
 
 const isCommanderSection = (s: string): boolean => s.toLowerCase().includes('commander')
 const isSideboardSection = (s: string): boolean => s.toLowerCase().includes('sideboard')
@@ -96,6 +115,8 @@ export interface DeckPageProps {
   bulkEdit?: DeckBulkEdit
   /** When provided (public read view), shows a "Combine with list…" header button. */
   onCombine?: () => void
+  /** Mirror the toolbar/filter state into the URL query so the view is shareable (public read view only). */
+  enableUrlState?: boolean
 }
 
 export const DeckPage: Component<DeckPageProps> = (props) => {
@@ -103,6 +124,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
   const editActions = createMemo(() =>
     props.bulkEdit ? buildSelectionEditActions(props.bulkEdit, selection) : undefined,
   )
+  const toolbar = useToolbarState<GroupBy>({ groupBy: 'type', sortBy: 'name' })
   const {
     viewMode,
     setViewMode,
@@ -118,8 +140,15 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     setReverseGroups,
     priceGroupStrategy,
     setPriceGroupStrategy,
-  } = useToolbarState<GroupBy>({ groupBy: 'type', sortBy: 'name' })
+  } = toolbar
   const cardFilters = useCardFilters()
+  useListViewUrlSync({
+    toolbar,
+    filters: cardFilters,
+    defaults: { groupBy: 'type', sortBy: 'name' },
+    groupByValues: DECK_GROUP_BY_OPTIONS.map((o) => o.value),
+    enabled: props.enableUrlState,
+  })
   const [lowestPrice, setLowestPrice] = createSignal(false)
   const [missingCardsExpanded, setMissingCardsExpanded] = createSignal(false)
   const [showChangelog, setShowChangelog] = createSignal(false)
@@ -571,15 +600,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         cardSize={cardSize()}
         onCardSizeChange={setCardSize}
         groupBy={groupBy()}
-        groupByOptions={[
-          { value: 'type', label: 'Type' },
-          { value: 'section', label: 'Section' },
-          { value: 'cmc', label: 'Mana Value' },
-          { value: 'color-identity', label: 'Color Identity' },
-          { value: 'price', label: 'Price' },
-          { value: 'printing', label: 'Printing' },
-          { value: 'none', label: 'None' },
-        ]}
+        groupByOptions={DECK_GROUP_BY_OPTIONS}
         onGroupByChange={(v) => setGroupBy(v as GroupBy)}
         sortBy={sortBy()}
         sortByOptions={[
@@ -864,7 +885,7 @@ function ExpandablePrimer(props: ExpandablePrimerProps) {
               aria-expanded={false}
               onClick={() => {
                 setExpanded(true)
-                history.replaceState(null, '', `#/deck/${props.slug}/primer`)
+                history.replaceState(null, '', deckPrimerHash(props.slug, true))
               }}
             >
               Read more
@@ -901,7 +922,7 @@ function ExpandablePrimer(props: ExpandablePrimerProps) {
             aria-expanded={true}
             onClick={() => {
               setExpanded(false)
-              history.replaceState(null, '', `#/deck/${props.slug}`)
+              history.replaceState(null, '', deckPrimerHash(props.slug, false))
             }}
           >
             Show less
