@@ -18,7 +18,13 @@ import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
 import { useListViewUrlSync } from './useListViewUrlSync'
 import { useCardFilters } from './useCardFilters'
-import { collectCardTypes, collectSetCodes, filterCards } from './card-filters'
+import {
+  collectArtTags,
+  collectCardTypes,
+  collectOracleTags,
+  collectSetCodes,
+  filterCards,
+} from './card-filters'
 import { useCombinedSelection, type SelectionListId } from './useCardSelection'
 import { SelectionMenu } from './SelectionMenu'
 import type { MetaEntry } from './meta-entry'
@@ -123,6 +129,8 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
 
   const setCodeOptions = createMemo(() => collectSetCodes(props.cards))
   const cardTypeOptions = createMemo(() => collectCardTypes(props.cards))
+  const oracleTagOptions = createMemo(() => collectOracleTags(props.cards))
+  const artTagOptions = createMemo(() => collectArtTags(props.cards))
 
   const cardGroups = createMemo((): CardGroup<CombinedCardData>[] => {
     const working = filterCards(props.cards, cardFilters.filters)
@@ -227,6 +235,8 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
         symbolMap={props.symbolMap}
         setCodeOptions={setCodeOptions()}
         cardTypeOptions={cardTypeOptions()}
+        oracleTagOptions={oracleTagOptions()}
+        artTagOptions={artTagOptions()}
         selectionMenu={
           <SelectionMenu
             selection={selection}

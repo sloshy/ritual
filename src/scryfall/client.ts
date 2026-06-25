@@ -814,11 +814,12 @@ export class ScryfallClient implements PricingBackend {
   }
 
   /**
-   * Re-download the tag bulks and re-attach tags to every already-cached card,
-   * without re-downloading the (much larger) `default_cards` bulk.
+   * Re-attach tags to every already-cached card without re-downloading the (much
+   * larger) `default_cards` bulk. Downloads a fresh tag index unless `prefetched`
+   * is supplied (e.g. by a caller that already downloaded it for its own use).
    */
-  async refreshTags(): Promise<void> {
-    const index = await this.downloadTagIndex()
+  async refreshTags(prefetched?: TagIndex | null): Promise<void> {
+    const index = prefetched ?? (await this.downloadTagIndex())
     if (!index) {
       getLogger().error('Tag refresh aborted: could not download tags.')
       return

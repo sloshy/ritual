@@ -13,6 +13,7 @@ import {
   createDefaultCardFilters,
 } from './card-filters'
 import type { CardTypeFilterMode, CardTypeMatchLogic } from './card-types'
+import type { TagFilterMode, TagMatchLogic } from './card-tags'
 import {
   type CardSize,
   type GroupBy,
@@ -78,6 +79,8 @@ const COLOR_MODES: readonly ColorFilterMode[] = ['exclusive', 'inclusive']
 const MANA_VALUE_OPS: readonly ManaValueComparator[] = ['=', '<', '<=', '>', '>=']
 const TYPE_LOGICS: readonly CardTypeMatchLogic[] = ['and', 'or']
 const TYPE_MODES: readonly CardTypeFilterMode[] = ['include', 'exclude']
+const TAG_LOGICS: readonly TagMatchLogic[] = ['and', 'or']
+const TAG_MODES: readonly TagFilterMode[] = ['include', 'exclude']
 
 /** Param keys, kept short and readable for shareable URLs. */
 const KEYS = {
@@ -98,6 +101,12 @@ const KEYS = {
   cardTypes: 'types',
   cardTypeLogic: 'typeLogic',
   cardTypeMode: 'typeMode',
+  oracleTags: 'otags',
+  oracleTagLogic: 'otagLogic',
+  oracleTagMode: 'otagMode',
+  artTags: 'atags',
+  artTagLogic: 'atagLogic',
+  artTagMode: 'atagMode',
   manaValue: 'mv',
   manaValueOp: 'mvOp',
 } as const
@@ -156,6 +165,32 @@ export function writeListViewParams(
     params,
     KEYS.cardTypeMode,
     hasTypes && f.cardTypeMode !== d.cardTypeMode ? f.cardTypeMode : null,
+  )
+
+  const hasOracleTags = f.oracleTags.length > 0
+  setOrDelete(params, KEYS.oracleTags, hasOracleTags ? f.oracleTags.join(',') : null)
+  setOrDelete(
+    params,
+    KEYS.oracleTagLogic,
+    hasOracleTags && f.oracleTagLogic !== d.oracleTagLogic ? f.oracleTagLogic : null,
+  )
+  setOrDelete(
+    params,
+    KEYS.oracleTagMode,
+    hasOracleTags && f.oracleTagMode !== d.oracleTagMode ? f.oracleTagMode : null,
+  )
+
+  const hasArtTags = f.artTags.length > 0
+  setOrDelete(params, KEYS.artTags, hasArtTags ? f.artTags.join(',') : null)
+  setOrDelete(
+    params,
+    KEYS.artTagLogic,
+    hasArtTags && f.artTagLogic !== d.artTagLogic ? f.artTagLogic : null,
+  )
+  setOrDelete(
+    params,
+    KEYS.artTagMode,
+    hasArtTags && f.artTagMode !== d.artTagMode ? f.artTagMode : null,
   )
 
   const hasMana = f.manaValue !== null
@@ -239,6 +274,20 @@ export function parseListViewParams(params: URLSearchParams): ListViewOverrides 
   if (cardTypeLogic) filters.cardTypeLogic = cardTypeLogic
   const cardTypeMode = oneOf(get(KEYS.cardTypeMode), TYPE_MODES)
   if (cardTypeMode) filters.cardTypeMode = cardTypeMode
+
+  const oracleTags = parseCsv(get(KEYS.oracleTags))
+  if (oracleTags) filters.oracleTags = oracleTags
+  const oracleTagLogic = oneOf(get(KEYS.oracleTagLogic), TAG_LOGICS)
+  if (oracleTagLogic) filters.oracleTagLogic = oracleTagLogic
+  const oracleTagMode = oneOf(get(KEYS.oracleTagMode), TAG_MODES)
+  if (oracleTagMode) filters.oracleTagMode = oracleTagMode
+
+  const artTags = parseCsv(get(KEYS.artTags))
+  if (artTags) filters.artTags = artTags
+  const artTagLogic = oneOf(get(KEYS.artTagLogic), TAG_LOGICS)
+  if (artTagLogic) filters.artTagLogic = artTagLogic
+  const artTagMode = oneOf(get(KEYS.artTagMode), TAG_MODES)
+  if (artTagMode) filters.artTagMode = artTagMode
 
   const manaValue = parseManaValue(get(KEYS.manaValue))
   if (manaValue !== undefined) {

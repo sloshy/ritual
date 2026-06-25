@@ -10,6 +10,7 @@ import {
   type ManaValueComparator,
 } from './card-filters'
 import { formatCardTypeForDisplay, parseCardTypesInput, scanCardTypeInput } from './card-types'
+import { formatTagForDisplay, type TagFilterMode, type TagMatchLogic } from './card-tags'
 import { TagsInput } from './TagsInput'
 import type { CardFiltersControl } from './useCardFilters'
 
@@ -32,8 +33,98 @@ export interface FilterMenuProps {
   setCodeOptions: string[]
   /** Lowercase card type tags present in the current list, for the type filter autocomplete. */
   cardTypeOptions: string[]
+  /** Oracle tag slugs present in the current list, for the oracle tag filter autocomplete. */
+  oracleTagOptions: string[]
+  /** Art tag slugs present in the current list, for the art tag filter autocomplete. */
+  artTagOptions: string[]
   /** Show the "Hide Extras" toggle (deck pages only). */
   showHideExtras?: boolean
+}
+
+type TagFilterRowProps = {
+  /** Heading for the row (e.g. "Oracle Tags"). */
+  label: string
+  /** id linking the label to the input; also the e2e hook (e.g. "filter-oracle-tags"). */
+  inputId: string
+  placeholder: string
+  suggestionsLabel: string
+  options: string[]
+  selected: string[]
+  logic: TagMatchLogic
+  mode: TagFilterMode
+  onTags: (tags: string[]) => void
+  onLogic: (logic: TagMatchLogic) => void
+  onMode: (mode: TagFilterMode) => void
+}
+
+/**
+ * A tag filter row (Oracle or Art): an any/all logic toggle, an include/exclude
+ * mode toggle, and a chip autocomplete. Tag slugs are already lowercase, so the
+ * card-type scanner is reused and matching is a plain substring test.
+ */
+const TagFilterRow: Component<TagFilterRowProps> = (props) => {
+  return (
+    <div class="filter-row">
+      <div class="filter-type-header">
+        <label class="filter-label" for={props.inputId}>
+          {props.label}
+        </label>
+        <div class="filter-toggle-group" role="group" aria-label={`${props.label} match logic`}>
+          <button
+            type="button"
+            classList={{ active: props.logic === 'or' }}
+            aria-pressed={props.logic === 'or'}
+            title="Match cards with any of the selected tags"
+            onClick={() => props.onLogic('or')}
+          >
+            Any
+          </button>
+          <button
+            type="button"
+            classList={{ active: props.logic === 'and' }}
+            aria-pressed={props.logic === 'and'}
+            title="Match cards with all of the selected tags"
+            onClick={() => props.onLogic('and')}
+          >
+            All
+          </button>
+        </div>
+        <div class="filter-toggle-group" role="group" aria-label={`${props.label} filter mode`}>
+          <button
+            type="button"
+            classList={{ active: props.mode === 'include' }}
+            aria-pressed={props.mode === 'include'}
+            title="Show only cards with the selected tags"
+            onClick={() => props.onMode('include')}
+          >
+            Include
+          </button>
+          <button
+            type="button"
+            classList={{ active: props.mode === 'exclude' }}
+            aria-pressed={props.mode === 'exclude'}
+            title="Hide cards with the selected tags"
+            onClick={() => props.onMode('exclude')}
+          >
+            Exclude
+          </button>
+        </div>
+      </div>
+      <TagsInput
+        selected={props.selected}
+        options={props.options}
+        onChange={props.onTags}
+        inputId={props.inputId}
+        placeholder={props.placeholder}
+        suggestionsLabel={props.suggestionsLabel}
+        format={formatTagForDisplay}
+        query={(draft) => draft.trim().toLowerCase()}
+        matches={(tag, query) => query.length === 0 || tag.includes(query)}
+        scan={scanCardTypeInput}
+        parse={parseCardTypesInput}
+      />
+    </div>
+  )
 }
 
 /**
@@ -70,6 +161,8 @@ export const FilterMenu: Component<FilterMenuProps> = (props) => {
             symbolMap={props.symbolMap}
             setCodeOptions={props.setCodeOptions}
             cardTypeOptions={props.cardTypeOptions}
+            oracleTagOptions={props.oracleTagOptions}
+            artTagOptions={props.artTagOptions}
             showHideExtras={props.showHideExtras}
           />
         )}
@@ -294,6 +387,32 @@ const FilterPanel: Component<FilterPanelProps> = (props) => {
           parse={parseCardTypesInput}
         />
       </div>
+      <TagFilterRow
+        label="Oracle Tags"
+        inputId="filter-oracle-tags"
+        placeholder="Oracle tags…"
+        suggestionsLabel="Oracle tag suggestions"
+        options={props.oracleTagOptions}
+        selected={props.filters.filters.oracleTags}
+        logic={props.filters.filters.oracleTagLogic}
+        mode={props.filters.filters.oracleTagMode}
+        onTags={(oracleTags) => props.filters.update({ oracleTags })}
+        onLogic={(oracleTagLogic) => props.filters.update({ oracleTagLogic })}
+        onMode={(oracleTagMode) => props.filters.update({ oracleTagMode })}
+      />
+      <TagFilterRow
+        label="Art Tags"
+        inputId="filter-art-tags"
+        placeholder="Art tags…"
+        suggestionsLabel="Art tag suggestions"
+        options={props.artTagOptions}
+        selected={props.filters.filters.artTags}
+        logic={props.filters.filters.artTagLogic}
+        mode={props.filters.filters.artTagMode}
+        onTags={(artTags) => props.filters.update({ artTags })}
+        onLogic={(artTagLogic) => props.filters.update({ artTagLogic })}
+        onMode={(artTagMode) => props.filters.update({ artTagMode })}
+      />
       <div class="filter-row">
         <label class="filter-label" for="filter-mana-value">
           Mana Value

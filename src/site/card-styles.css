@@ -2256,3 +2256,46 @@ h3 {
 .price-staleness-list li {
   margin: 0.1rem 0;
 }
+
+/* ── Tag-filter warning (added cards lack Scryfall tag data) ───────────── */
+.tag-filter-warning {
+  margin-bottom: 1rem;
+  border: 1px solid var(--warning-border);
+  border-radius: 0.5rem;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  font-size: 0.85rem;
+}
+
+.tag-filter-warning-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.55rem 0.8rem;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tag-filter-warning-icon {
+  font-size: 1rem;
+}
+
+.tag-filter-warning-caret {
+  margin-left: auto;
+  font-size: 0.75rem;
+}
+
+.tag-filter-warning-list {
+  margin: 0;
+  padding: 0 0.8rem 0.6rem 2.1rem;
+  list-style: disc;
+}
+
+.tag-filter-warning-list li {
+  margin: 0.1rem 0;
+}

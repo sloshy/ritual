@@ -24,6 +24,8 @@ function makeCard(overrides: Partial<CardData> = {}): CardData {
     setCode: 'FDN',
     colorIdentity: [],
     hasPrinting: true,
+    oracleTags: [],
+    artTags: [],
     card: null,
     ...overrides,
   }

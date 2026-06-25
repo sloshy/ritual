@@ -1,12 +1,16 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  collectArtTags,
   collectCardTypes,
+  collectOracleTags,
   collectSetCodes,
   countActiveFilters,
   createDefaultCardFilters,
   filterCards,
+  isTagFilterActive,
   parseManaValueFilter,
   toggleColorSelection,
+  untaggedAddedCardNames,
   type CardFilters,
 } from '../../../src/site/card-filters'
 import { matchesAllTerms } from '../../../src/term-match'
@@ -25,6 +29,8 @@ function makeCard(overrides: Partial<CardData> = {}): CardData {
     setCode: 'tst',
     colorIdentity: [],
     hasPrinting: true,
+    oracleTags: [],
+    artTags: [],
     card: null,
     ...overrides,
   }
@@ -153,6 +159,54 @@ describe('filterCards', () => {
     expect(result.map((c) => c.name)).toEqual(['Rock'])
   })
 
+  test('oracle tag filter (OR include) keeps cards with any selected tag', () => {
+    const ramp = makeCard({ name: 'Ramp', oracleTags: ['mana-rock', 'ramp'] })
+    const draw = makeCard({ name: 'Draw', oracleTags: ['card-draw'] })
+    const none = makeCard({ name: 'None', oracleTags: [] })
+    const result = filterCards(
+      [ramp, draw, none],
+      makeFilters({ oracleTags: ['ramp', 'flying'], oracleTagLogic: 'or' }),
+    )
+    expect(result.map((c) => c.name)).toEqual(['Ramp'])
+  })
+
+  test('oracle tag filter (AND include) requires every selected tag', () => {
+    const both = makeCard({ name: 'Both', oracleTags: ['ramp', 'artifact'] })
+    const one = makeCard({ name: 'One', oracleTags: ['ramp'] })
+    const result = filterCards(
+      [both, one],
+      makeFilters({ oracleTags: ['ramp', 'artifact'], oracleTagLogic: 'and' }),
+    )
+    expect(result.map((c) => c.name)).toEqual(['Both'])
+  })
+
+  test('oracle tag filter (exclude) drops matching cards and keeps untagged ones', () => {
+    const ramp = makeCard({ name: 'Ramp', oracleTags: ['ramp'] })
+    const none = makeCard({ name: 'None', oracleTags: [] })
+    const result = filterCards(
+      [ramp, none],
+      makeFilters({ oracleTags: ['ramp'], oracleTagMode: 'exclude' }),
+    )
+    expect(result.map((c) => c.name)).toEqual(['None'])
+  })
+
+  test('art tag filter matches a printing’s art tags independently of oracle tags', () => {
+    const dragon = makeCard({ name: 'Dragon', oracleTags: ['flying'], artTags: ['dragon', 'fire'] })
+    const plains = makeCard({ name: 'Plains', oracleTags: ['flying'], artTags: ['mountains'] })
+    const result = filterCards([dragon, plains], makeFilters({ artTags: ['dragon'] }))
+    expect(result.map((c) => c.name)).toEqual(['Dragon'])
+  })
+
+  test('oracle and art tag filters combine independently', () => {
+    const match = makeCard({ name: 'Match', oracleTags: ['ramp'], artTags: ['dragon'] })
+    const wrongArt = makeCard({ name: 'WrongArt', oracleTags: ['ramp'], artTags: ['forest'] })
+    const result = filterCards(
+      [match, wrongArt],
+      makeFilters({ oracleTags: ['ramp'], artTags: ['dragon'] }),
+    )
+    expect(result.map((c) => c.name)).toEqual(['Match'])
+  })
+
   test('hideExtras has no effect in filterCards (applied at section level by the deck page)', () => {
     const cards = [makeCard(), makeCard({ name: 'Other' })]
     expect(filterCards(cards, makeFilters({ hideExtras: true }))).toEqual(cards)
@@ -234,15 +288,30 @@ describe('countActiveFilters', () => {
       colors: ['R'],
       setCodes: ['lea'],
       cardTypes: ['creature'],
+      oracleTags: ['ramp'],
+      artTags: ['dragon'],
       manaValue: 1,
     })
-    expect(countActiveFilters(filters)).toBe(8)
+    expect(countActiveFilters(filters)).toBe(10)
   })
 
   test('card type logic/mode alone do not count as active', () => {
     expect(countActiveFilters(makeFilters({ cardTypeLogic: 'and', cardTypeMode: 'exclude' }))).toBe(
       0,
     )
+  })
+
+  test('tag logic/mode alone do not count as active', () => {
+    expect(
+      countActiveFilters(
+        makeFilters({
+          oracleTagLogic: 'and',
+          oracleTagMode: 'exclude',
+          artTagLogic: 'and',
+          artTagMode: 'exclude',
+        }),
+      ),
+    ).toBe(0)
   })
 
   test('a non-default comparator alone does not count as active', () => {
@@ -306,5 +375,75 @@ describe('collectCardTypes', () => {
       'robot',
       'time lord',
     ])
+  })
+})
+
+describe('collectOracleTags', () => {
+  test('returns unique oracle tag slugs across all cards, sorted', () => {
+    const cards = [
+      makeCard({ oracleTags: ['ramp', 'mana-rock'] }),
+      makeCard({ oracleTags: ['ramp', 'card-draw'] }),
+      makeCard({ oracleTags: [] }),
+    ]
+    expect(collectOracleTags(cards)).toEqual(['card-draw', 'mana-rock', 'ramp'])
+  })
+})
+
+describe('collectArtTags', () => {
+  test('returns unique art tag slugs across all cards, sorted', () => {
+    const cards = [
+      makeCard({ artTags: ['dragon', 'fire'] }),
+      makeCard({ artTags: ['mountains', 'dragon'] }),
+    ]
+    expect(collectArtTags(cards)).toEqual(['dragon', 'fire', 'mountains'])
+  })
+})
+
+describe('isTagFilterActive', () => {
+  test('true when an oracle or art tag is selected', () => {
+    expect(isTagFilterActive(makeFilters({ oracleTags: ['ramp'] }))).toBe(true)
+    expect(isTagFilterActive(makeFilters({ artTags: ['dragon'] }))).toBe(true)
+  })
+
+  test('false when no tag filter is selected (other filters do not count)', () => {
+    expect(isTagFilterActive(makeFilters())).toBe(false)
+    expect(isTagFilterActive(makeFilters({ cardTypes: ['creature'], name: 'bolt' }))).toBe(false)
+  })
+})
+
+describe('untaggedAddedCardNames', () => {
+  test('returns only added cards that have no tag data', () => {
+    const cards = [
+      makeCard({ name: 'Tagged Added', oracleTags: ['ramp'] }),
+      makeCard({ name: 'Untagged Added' }),
+      makeCard({ name: 'Untagged Not Added' }),
+    ]
+    expect(untaggedAddedCardNames(cards, ['Tagged Added', 'Untagged Added'])).toEqual([
+      'Untagged Added',
+    ])
+  })
+
+  test('excludes added cards that carry tags (e.g. moved from a tagged list)', () => {
+    const cards = [makeCard({ name: 'Has Art', artTags: ['dragon'] })]
+    expect(untaggedAddedCardNames(cards, ['Has Art'])).toEqual([])
+  })
+
+  test('excludes added cards with oracle tags but no art tags (guards && vs ||)', () => {
+    const cards = [makeCard({ name: 'Has Oracle', oracleTags: ['ramp'] })]
+    expect(untaggedAddedCardNames(cards, ['Has Oracle'])).toEqual([])
+  })
+
+  test('returns names in cards-list order, not added-set order', () => {
+    const cards = [makeCard({ name: 'B' }), makeCard({ name: 'A' })]
+    expect(untaggedAddedCardNames(cards, ['A', 'B'])).toEqual(['B', 'A'])
+  })
+
+  test('returns empty when nothing was added this session', () => {
+    expect(untaggedAddedCardNames([makeCard({ name: 'X' })], [])).toEqual([])
+  })
+
+  test('dedupes repeated card names', () => {
+    const cards = [makeCard({ name: 'Dup' }), makeCard({ name: 'Dup' })]
+    expect(untaggedAddedCardNames(cards, ['Dup'])).toEqual(['Dup'])
   })
 })

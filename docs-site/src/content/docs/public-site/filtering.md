@@ -13,9 +13,10 @@ Every list view on the public site — decks, collections, wanted lists, and the
 - **Color Identity** — pick any of the five colors. **Exclusive** matches cards whose identity is exactly the selected colors; **Inclusive** matches any card playable in a deck of those colors (its identity is a subset of the selection).
 - **Sets** — a tag input of set codes. Type a code and press space, comma, or Enter to add it; autocomplete suggests the set codes present in the current list. Cards are kept if their printing is from any selected set.
 
-Both tag inputs (Sets and Card Type) share the same autocomplete behavior: as you type, a suggestion list appears. Use the **↑/↓ arrow keys** to move through it and **Enter** to add the highlighted suggestion; with nothing highlighted, Enter adds whatever you've typed. You can also click a suggestion, and **Backspace** on an empty input removes the last tag.
+All tag inputs (Sets, Card Type, Oracle Tags, and Art Tags) share the same autocomplete behavior: as you type, a suggestion list appears. Use the **↑/↓ arrow keys** to move through it and **Enter** to add the highlighted suggestion; with nothing highlighted, Enter adds whatever you've typed. You can also click a suggestion, and **Backspace** on an empty input removes the last tag.
 
 - **Card Type** — a tag input of card types and subtypes (see below).
+- **Oracle Tags** / **Art Tags** — tag inputs backed by [Scryfall Tagger](https://tagger.scryfall.com/) data (see below).
 - **Mana Value** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against the card's mana value.
 
 ## Card Type filter
@@ -28,6 +29,17 @@ Two toggles control how the selected types are applied:
 
 - **Any / All** — **Any** keeps cards that have at least one of the selected types; **All** keeps only cards that have every selected type. For example, with **Artifact** and **Creature** selected, **Any** shows all artifacts and all creatures, while **All** shows only artifact creatures.
 - **Include / Exclude** — **Include** keeps cards of the selected types; **Exclude** hides them and keeps everything else.
+
+## Oracle Tag and Art Tag filters
+
+Cards carry community tags from [Scryfall Tagger](https://tagger.scryfall.com/), exposed as two separate filters:
+
+- **Oracle Tags** describe what a card _does_ — its function (e.g. `ramp`, `removal`, `mana-rock`). Oracle tags are shared by every printing of a card.
+- **Art Tags** describe what a card's _artwork depicts_ (e.g. `dragon`, `mountains`). Art tags are specific to a printing's illustration, so different printings of the same card can carry different art tags.
+
+Add tags the same way as card types — type a tag and press space, comma, or Enter, or pick one from the autocomplete, which only offers the tags present in the cards you're currently viewing. Each filter has the same **Any / All** and **Include / Exclude** toggles as the Card Type filter.
+
+Tags appear only when the local cache includes them. If the cache has no tags when you build the site, the build offers to download them automatically (under the same refresh prompt/flags as the bulk cache); you can also add them at any time with `ritual cache refresh-tags` — see the [`cache` command](/commands/cache/).
 
 ## Sharing a configured view
 

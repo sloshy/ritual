@@ -1,8 +1,15 @@
 import { describe, expect, test, beforeEach } from 'bun:test'
 import { ScryfallClient } from '../../src/scryfall'
+import type { TagIndex } from '../../src/scryfall/tags'
 import type { FileSystemClient } from '../../src/interfaces'
 import type { ScryfallCard } from '../../src/types'
-import { MockHttpClient, InMemoryCacheManager, MemoryLogger, setLogger } from '../test-utils'
+import {
+  MockHttpClient,
+  InMemoryCacheManager,
+  DenyHttpClient,
+  MemoryLogger,
+  setLogger,
+} from '../test-utils'
 
 /** InMemoryCacheManager that also implements the optional bulkSet fast path. */
 class BulkSetCacheManager<T> extends InMemoryCacheManager<T> {
@@ -241,5 +248,25 @@ describe('ScryfallClient tag integration', () => {
     const sol = await reader.fetchCardData('Sol Ring', { silent: true })
     expect(sol?.oracleTags).toEqual(['artifact', 'ramp'])
     expect(sol?.artTags).toEqual(['machine'])
+  })
+
+  test('refreshTags(prefetched) bakes a supplied index without any network access', async () => {
+    // build-site downloads the index once for its in-memory cards, then hands it to
+    // refreshTags to persist — this must not trigger a second download.
+    const cache = new InMemoryCacheManager<ScryfallCard[]>(0)
+    await cache.set('Sol Ring', [SOL_RING as ScryfallCard])
+    // DenyHttpClient throws on any fetch, so the test fails if a download is attempted.
+    const offlineClient = new ScryfallClient(new DenyHttpClient(), cache, makeMemoryFs())
+
+    const index: TagIndex = {
+      updatedAt: 1,
+      oracle: { 'o-sol': ['artifact', 'ramp'] },
+      illustration: { 'i-sol': ['machine'] },
+    }
+    await offlineClient.refreshTags(index)
+
+    const sol = (await cache.get('Sol Ring'))![0]!
+    expect(sol.oracleTags).toEqual(['artifact', 'ramp'])
+    expect(sol.artTags).toEqual(['machine'])
   })
 })

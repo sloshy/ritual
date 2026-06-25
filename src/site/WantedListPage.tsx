@@ -4,6 +4,7 @@ import { CardItem } from './CardItem'
 import { seedCards, seedPrintings, sessionCacheVersion } from './session-cache'
 import { usePublicPriceControls } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
+import { TagFilterWarning } from './TagFilterWarning'
 import type { ScryfallCard, Finish } from '../types'
 import type { CardContextInfo } from './card-context'
 import type { WantedListCardEntry } from './data-types'
@@ -26,7 +27,15 @@ import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
 import { useListViewUrlSync } from './useListViewUrlSync'
 import { useCardFilters } from './useCardFilters'
-import { collectCardTypes, collectSetCodes, filterCards } from './card-filters'
+import {
+  collectArtTags,
+  collectCardTypes,
+  collectOracleTags,
+  collectSetCodes,
+  filterCards,
+  isTagFilterActive,
+  untaggedAddedCardNames,
+} from './card-filters'
 import { deriveSectionOrder, sectionDefaultGroupBy } from '../section-format'
 import { TradePrintingPicker } from './TradePrintingPicker'
 import { addEntryToRight, canAddMoreToRight, showTradeToast } from './useTradeState'
@@ -68,6 +77,8 @@ interface WantedListPageProps {
   onCloseModal: () => void
   currency: PriceCurrency
   editMode?: boolean
+  /** Card names added during the current edit session (edit mode only). */
+  addedCardNames?: string[]
   onCardIncrement?: (entry: WantedListCardEntry) => void
   onCardDecrement?: (entry: WantedListCardEntry) => void
   onCardContextMenu?: (info: CardContextInfo, rect: DOMRect) => void
@@ -255,6 +266,8 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         setCode: entry.set ?? '',
         colorIdentity: card?.color_identity ?? [],
         hasPrinting: hasSpecificPrinting(entry),
+        oracleTags: card?.oracleTags ?? [],
+        artTags: card?.artTags ?? [],
         card,
       }
     })
@@ -272,6 +285,13 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
 
   const setCodeOptions = createMemo(() => collectSetCodes(allCards()))
   const cardTypeOptions = createMemo(() => collectCardTypes(allCards()))
+  const oracleTagOptions = createMemo(() => collectOracleTags(allCards()))
+  const artTagOptions = createMemo(() => collectArtTags(allCards()))
+  const untaggedAddedNames = createMemo(() =>
+    isTagFilterActive(cardFilters.filters)
+      ? untaggedAddedCardNames(allCards(), props.addedCardNames ?? [])
+      : [],
+  )
 
   const cardGroups = createMemo((): CardGroup[] => {
     const working = filterCards(allCards(), cardFilters.filters)
@@ -531,6 +551,8 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         symbolMap={props.symbolMap}
         setCodeOptions={setCodeOptions()}
         cardTypeOptions={cardTypeOptions()}
+        oracleTagOptions={oracleTagOptions()}
+        artTagOptions={artTagOptions()}
         priceRefresh={props.enablePriceRefresh ? prices : undefined}
         selectionMenu={
           <SelectionMenu
@@ -546,6 +568,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
       <Show when={props.enablePriceRefresh}>
         <PriceStalenessNotice outdatedNames={prices.outdatedNames()} />
       </Show>
+      <TagFilterWarning untaggedCardNames={untaggedAddedNames()} />
 
       {/* Card sections */}
       <div

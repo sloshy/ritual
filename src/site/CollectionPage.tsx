@@ -4,6 +4,7 @@ import { CardItem } from './CardItem'
 import { seedCards, seedPrintings, overlayCard, sessionCacheVersion } from './session-cache'
 import { usePublicPriceControls } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
+import { TagFilterWarning } from './TagFilterWarning'
 import type { ScryfallCard } from '../types'
 import type { CardContextInfo } from './card-context'
 import type { CollectionCardEntry } from './data-types'
@@ -26,7 +27,15 @@ import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
 import { useListViewUrlSync } from './useListViewUrlSync'
 import { useCardFilters } from './useCardFilters'
-import { collectCardTypes, collectSetCodes, filterCards } from './card-filters'
+import {
+  collectArtTags,
+  collectCardTypes,
+  collectOracleTags,
+  collectSetCodes,
+  filterCards,
+  isTagFilterActive,
+  untaggedAddedCardNames,
+} from './card-filters'
 import { deriveSectionOrder, sectionDefaultGroupBy } from '../section-format'
 import { addEntryToLeft, canAddMoreToLeft, showTradeToast } from './useTradeState'
 import type { TradeSearchEntry } from './useTradeData'
@@ -62,6 +71,8 @@ interface CollectionPageProps {
   onCloseModal: () => void
   currency: PriceCurrency
   editMode?: boolean
+  /** Card names added during the current edit session (edit mode only). */
+  addedCardNames?: string[]
   onCardIncrement?: (entry: CollectionCardEntry) => void
   onCardDecrement?: (entry: CollectionCardEntry) => void
   onCardContextMenu?: (info: CardContextInfo, rect: DOMRect) => void
@@ -245,6 +256,8 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
           setCode: entry.set,
           colorIdentity: card?.color_identity ?? [],
           hasPrinting: true,
+          oracleTags: card?.oracleTags ?? [],
+          artTags: card?.artTags ?? [],
           card,
         })
       }
@@ -266,6 +279,8 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         setCode: entry.set,
         colorIdentity: card?.color_identity ?? [],
         hasPrinting: true,
+        oracleTags: card?.oracleTags ?? [],
+        artTags: card?.artTags ?? [],
         card,
       }
     })
@@ -283,6 +298,13 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
 
   const setCodeOptions = createMemo(() => collectSetCodes(allCards()))
   const cardTypeOptions = createMemo(() => collectCardTypes(allCards()))
+  const oracleTagOptions = createMemo(() => collectOracleTags(allCards()))
+  const artTagOptions = createMemo(() => collectArtTags(allCards()))
+  const untaggedAddedNames = createMemo(() =>
+    isTagFilterActive(cardFilters.filters)
+      ? untaggedAddedCardNames(allCards(), props.addedCardNames ?? [])
+      : [],
+  )
 
   const cardGroups = createMemo((): CardGroup[] => {
     const working = filterCards(allCards(), cardFilters.filters)
@@ -540,6 +562,8 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         symbolMap={props.symbolMap}
         setCodeOptions={setCodeOptions()}
         cardTypeOptions={cardTypeOptions()}
+        oracleTagOptions={oracleTagOptions()}
+        artTagOptions={artTagOptions()}
         extraToggles={[
           {
             label: 'Group Duplicates',
@@ -562,6 +586,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       <Show when={props.enablePriceRefresh}>
         <PriceStalenessNotice outdatedNames={prices.outdatedNames()} />
       </Show>
+      <TagFilterWarning untaggedCardNames={untaggedAddedNames()} />
 
       {/* Card sections */}
       <div

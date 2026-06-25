@@ -37,6 +37,10 @@ export interface CardData {
   colorIdentity: string[]
   /** Whether this entry is pinned to a specific printing (has both set and collector number). */
   hasPrinting: boolean
+  /** Oracle (functional) tag slugs, shared across printings. Empty when untagged. */
+  oracleTags: string[]
+  /** Art (illustration) tag slugs for this printing. Empty when untagged. */
+  artTags: string[]
   card: ScryfallCard | null
   /**
    * Display name of the list this card came from. Only set in the combined

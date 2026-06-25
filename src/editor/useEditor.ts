@@ -221,6 +221,8 @@ export type UseEditorResult<TData, TCardEntry> = {
   cancelChangePrinting: () => void
 
   changes: UseCardChangesResult<TCardEntry>
+  /** Card names added this session (not pre-existing, not moved from another list). */
+  addedCardNames: () => string[]
   pool: UseCardIdPoolResult
 
   handleSelect: (e: Event) => void
@@ -786,6 +788,29 @@ export function useEditor<TData, TCardEntry = unknown>(
     pool.resetPool([...used])
   }
 
+  /**
+   * Card names added during this session — an `add` change for a card that wasn't
+   * in the on-disk original. Cards moved in from another list are recorded as
+   * `move-from` on the source (not `add` here), so they're correctly excluded.
+   *
+   * `original` is a plain variable, not a signal, but reading it here is safe: it's
+   * reassigned only on load, which also calls `changes.discardAll()` — that writes
+   * the `changes` signal this memo tracks, so a stale `original` is never observed.
+   */
+  const addedCardNames = createMemo((): string[] => {
+    const orig = original
+    const names = new Set<string>()
+    for (const change of changes.changes()) {
+      if (
+        change.action === 'add' &&
+        (!orig || config.findCardId(orig, change.cardName) === undefined)
+      ) {
+        names.add(change.cardName)
+      }
+    }
+    return [...names]
+  })
+
   const handleDiscard = () => {
     changes.discardAll()
     if (original) {
@@ -830,6 +855,7 @@ export function useEditor<TData, TCardEntry = unknown>(
     cancelChangePrinting,
 
     changes,
+    addedCardNames,
     pool,
 
     handleSelect,

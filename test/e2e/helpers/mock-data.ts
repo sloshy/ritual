@@ -1210,6 +1210,8 @@ const MOCK_FILTER_CARD_KNIGHT = {
   collector_number: '1',
   color_identity: ['W'],
   edhrec_rank: 1000,
+  oracleTags: ['removal'],
+  artTags: ['human'],
 }
 
 const MOCK_FILTER_CARD_ELF = {
@@ -1224,6 +1226,8 @@ const MOCK_FILTER_CARD_ELF = {
   collector_number: '2',
   color_identity: ['G'],
   edhrec_rank: 1100,
+  oracleTags: ['ramp'],
+  artTags: ['forest'],
 }
 
 const MOCK_FILTER_CARD_LORD = {
@@ -1237,6 +1241,8 @@ const MOCK_FILTER_CARD_LORD = {
   collector_number: '3',
   color_identity: ['B', 'G'],
   edhrec_rank: 1200,
+  oracleTags: ['removal', 'ramp'],
+  artTags: ['zombie'],
 }
 
 const MOCK_FILTER_CARD_FOREST = {
@@ -1278,6 +1284,8 @@ const MOCK_FILTER_CARD_DRAGON = {
   collector_number: '6',
   color_identity: ['R'],
   edhrec_rank: 1500,
+  oracleTags: ['flying'],
+  artTags: ['dragon'],
 }
 
 const MOCK_FILTER_CARDS = [

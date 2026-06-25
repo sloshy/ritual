@@ -372,6 +372,28 @@ export const themeVarMetadata: ThemeVarMeta[] = [
     group: 'status',
     type: 'color',
   },
+  {
+    name: '--warning-bg',
+    label: 'Warning background',
+    description:
+      'Translucent amber background for cautionary notices (e.g. stale prices, missing tag data).',
+    group: 'status',
+    type: 'color',
+  },
+  {
+    name: '--warning-border',
+    label: 'Warning border',
+    description: 'Border for cautionary notice banners.',
+    group: 'status',
+    type: 'color',
+  },
+  {
+    name: '--warning-text',
+    label: 'Warning text',
+    description: 'Amber text for cautionary notice banners.',
+    group: 'status',
+    type: 'color',
+  },
 
   // ----- Overlays -----
   {

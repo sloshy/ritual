@@ -314,18 +314,19 @@ A build pulls card data and prices from three places, in order:
    ```
 
 3. **Per-card fetch** — every card whose cached price is stale (>24h) is then refetched individually; cards with fresh prices are reused from cache.
+4. **Tag download** — if none of the build's cards carry oracle/art tags (needed by the site's [tag filters](/public-site/filtering/)), `build-site` offers to download them and bake them into the cache. It is gated by the same flags as the bulk download — `--allow-refresh` accepts it and `--allow-refresh-no-bulk` / `--no-refresh` skip it (leaving the tag filters empty for that build) — but its prompt defaults to **Yes**, since the filters are unusable without it.
 
-When stdin is not a TTY (e.g. a CI pipeline) the prompt can't be answered, so it resolves to its default of **No** and per-card refreshing proceeds as normal.
+When stdin is not a TTY (e.g. a CI pipeline) the prompts can't be answered, so each resolves to its default: the bulk price-refresh prompt (step 2) to **No**, and the tag-download prompt (step 4) to **Yes**.
 
 ### Refresh flags
 
 The three `--*-refresh` flags answer the prompt non-interactively and control the bulk download:
 
-| Flag                      | Bulk download (steps 1 & 2) | Per-card refresh of stale prices (step 3) |
-| ------------------------- | --------------------------- | ----------------------------------------- |
-| `--allow-refresh`         | Allowed                     | Yes                                       |
-| `--allow-refresh-no-bulk` | **Suppressed**              | Yes                                       |
-| `--no-refresh`            | **Suppressed**              | **No** (uses cached prices as-is)         |
+| Flag                      | Bulk download (steps 1 & 2) | Per-card refresh of stale prices (step 3) | Tag download (step 4) |
+| ------------------------- | --------------------------- | ----------------------------------------- | --------------------- |
+| `--allow-refresh`         | Allowed                     | Yes                                       | Allowed               |
+| `--allow-refresh-no-bulk` | **Suppressed**              | Yes                                       | **Suppressed**        |
+| `--no-refresh`            | **Suppressed**              | **No** (uses cached prices as-is)         | **Suppressed**        |
 
 ```bash
 ./ritual build-site --allow-refresh          # fastest full refresh

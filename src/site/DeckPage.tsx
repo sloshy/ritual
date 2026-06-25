@@ -4,6 +4,7 @@ import { CardItem } from './CardItem'
 import { seedCards, seedPrintings, overlayCard, sessionCacheVersion } from './session-cache'
 import { usePublicPriceControls } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
+import { TagFilterWarning } from './TagFilterWarning'
 import type { Card, DeckData, ScryfallCard, Finish } from '../types'
 import type { CardContextInfo } from './card-context'
 import type { ChangelogPage } from '../changelog-parser'
@@ -31,7 +32,15 @@ import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
 import { useListViewUrlSync } from './useListViewUrlSync'
 import { useCardFilters } from './useCardFilters'
-import { collectCardTypes, collectSetCodes, filterCards } from './card-filters'
+import {
+  collectArtTags,
+  collectCardTypes,
+  collectOracleTags,
+  collectSetCodes,
+  filterCards,
+  isTagFilterActive,
+  untaggedAddedCardNames,
+} from './card-filters'
 import { PrimerRenderer, buildToc } from './PrimerRenderer'
 import { useCardSelection, type SelectedCard } from './useCardSelection'
 import { SelectionMenu } from './SelectionMenu'
@@ -88,6 +97,8 @@ export interface DeckPageProps {
   primerOpen?: boolean
   sectionId?: string
   editMode?: boolean
+  /** Card names added during the current edit session (edit mode only). */
+  addedCardNames?: string[]
   onCardIncrement?: (cardName: string) => void
   onCardDecrement?: (cardName: string) => void
   onCardContextMenu?: (info: CardContextInfo, rect: DOMRect) => void
@@ -339,6 +350,8 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
           setCode: card?.set ?? '',
           colorIdentity: card?.color_identity ?? [],
           hasPrinting: hasSpecificPrinting(entry),
+          oracleTags: card?.oracleTags ?? [],
+          artTags: card?.artTags ?? [],
           card,
         })
       }
@@ -387,6 +400,13 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
   // the deck's identity and stays pinned.
   const setCodeOptions = createMemo(() => collectSetCodes(allCards()))
   const cardTypeOptions = createMemo(() => collectCardTypes(allCards()))
+  const oracleTagOptions = createMemo(() => collectOracleTags(allCards()))
+  const artTagOptions = createMemo(() => collectArtTags(allCards()))
+  const untaggedAddedNames = createMemo(() =>
+    isTagFilterActive(cardFilters.filters)
+      ? untaggedAddedCardNames(allCards(), props.addedCardNames ?? [])
+      : [],
+  )
 
   // Sorted and grouped cards (mainboard only)
   const cardGroups = createMemo((): CardGroup[] => {
@@ -621,6 +641,8 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         symbolMap={props.symbolMap}
         setCodeOptions={setCodeOptions()}
         cardTypeOptions={cardTypeOptions()}
+        oracleTagOptions={oracleTagOptions()}
+        artTagOptions={artTagOptions()}
         showHideExtras
         extraToggles={
           hasLowestPriceCards()
@@ -648,6 +670,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
       <Show when={props.enablePriceRefresh}>
         <PriceStalenessNotice outdatedNames={prices.outdatedNames()} />
       </Show>
+      <TagFilterWarning untaggedCardNames={untaggedAddedNames()} />
 
       {/* Description / Primer */}
       <Show when={props.deck.description || props.deck.primer}>

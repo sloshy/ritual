@@ -411,6 +411,7 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
         onCardContextMenu={ctrl.handleContextMenu}
         bulkEdit={ctrl.bulkEdit}
         unsavedChangeCount={editor.changes.changeCount()}
+        addedCardNames={editor.addedCardNames()}
       />
     </EditorShell>
   )

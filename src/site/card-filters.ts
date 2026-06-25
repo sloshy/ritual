@@ -7,6 +7,7 @@ import {
   type CardTypeFilterMode,
   type CardTypeMatchLogic,
 } from './card-types'
+import { matchesTags, type TagFilterMode, type TagMatchLogic } from './card-tags'
 
 /** How selected colors are matched against a card's color identity. */
 export type ColorFilterMode = 'exclusive' | 'inclusive'
@@ -40,6 +41,18 @@ export interface CardFilters {
   cardTypeLogic: CardTypeMatchLogic
   /** 'include': keep matching cards. 'exclude': drop matching cards. */
   cardTypeMode: CardTypeFilterMode
+  /** Lowercase oracle (functional) tag slugs. Empty = no oracle tag filtering. */
+  oracleTags: string[]
+  /** 'and': a card must have every selected oracle tag. 'or': at least one. */
+  oracleTagLogic: TagMatchLogic
+  /** 'include': keep matching cards. 'exclude': drop matching cards. */
+  oracleTagMode: TagFilterMode
+  /** Lowercase art (illustration) tag slugs. Empty = no art tag filtering. */
+  artTags: string[]
+  /** 'and': a card must have every selected art tag. 'or': at least one. */
+  artTagLogic: TagMatchLogic
+  /** 'include': keep matching cards. 'exclude': drop matching cards. */
+  artTagMode: TagFilterMode
   /** Mana value compared via `manaValueOp`. Null = no mana value filtering. */
   manaValue: number | null
   manaValueOp: ManaValueComparator
@@ -57,6 +70,12 @@ export function createDefaultCardFilters(): CardFilters {
     cardTypes: [],
     cardTypeLogic: 'or',
     cardTypeMode: 'include',
+    oracleTags: [],
+    oracleTagLogic: 'or',
+    oracleTagMode: 'include',
+    artTags: [],
+    artTagLogic: 'or',
+    artTagMode: 'include',
     manaValue: null,
     manaValueOp: '=',
   }
@@ -112,6 +131,16 @@ export function filterCards<T extends CardData>(cards: T[], filters: CardFilters
       const shouldExclude = filters.cardTypeMode === 'include' ? !matches : matches
       if (shouldExclude) return false
     }
+    if (filters.oracleTags.length > 0) {
+      const matches = matchesTags(card.oracleTags, filters.oracleTags, filters.oracleTagLogic)
+      const shouldExclude = filters.oracleTagMode === 'include' ? !matches : matches
+      if (shouldExclude) return false
+    }
+    if (filters.artTags.length > 0) {
+      const matches = matchesTags(card.artTags, filters.artTags, filters.artTagLogic)
+      const shouldExclude = filters.artTagMode === 'include' ? !matches : matches
+      if (shouldExclude) return false
+    }
     if (
       filters.manaValue !== null &&
       !compareManaValue(card.cmc, filters.manaValueOp, filters.manaValue)
@@ -132,6 +161,8 @@ export function countActiveFilters(filters: CardFilters): number {
   if (filters.colors.length > 0) count++
   if (filters.setCodes.length > 0) count++
   if (filters.cardTypes.length > 0) count++
+  if (filters.oracleTags.length > 0) count++
+  if (filters.artTags.length > 0) count++
   if (filters.manaValue !== null) count++
   return count
 }
@@ -152,6 +183,55 @@ export function collectCardTypes(cards: CardData[]): string[] {
     for (const tag of extractCardTypeTags(card.type)) types.add(tag)
   }
   return [...types].sort()
+}
+
+/** Collect the unique slugs from one tag field across `cards`, sorted, for autocomplete. */
+function collectTagField(cards: CardData[], field: 'oracleTags' | 'artTags'): string[] {
+  const tags = new Set<string>()
+  for (const card of cards) {
+    for (const tag of card[field]) tags.add(tag)
+  }
+  return [...tags].sort()
+}
+
+/** Collect the unique oracle tag slugs present in `cards`, sorted, for autocomplete. */
+export function collectOracleTags(cards: CardData[]): string[] {
+  return collectTagField(cards, 'oracleTags')
+}
+
+/** Collect the unique art tag slugs present in `cards`, sorted, for autocomplete. */
+export function collectArtTags(cards: CardData[]): string[] {
+  return collectTagField(cards, 'artTags')
+}
+
+/** Whether an oracle or art tag filter is currently active. */
+export function isTagFilterActive(filters: CardFilters): boolean {
+  return filters.oracleTags.length > 0 || filters.artTags.length > 0
+}
+
+/**
+ * Names of cards from `addedNames` that appear in `cards` with no tag data
+ * (empty `oracleTags` and `artTags`), deduped in list order. Used to warn that a
+ * tag filter can't match cards just added in the editor, which arrive without
+ * Scryfall Tagger data.
+ */
+export function untaggedAddedCardNames(cards: CardData[], addedNames: readonly string[]): string[] {
+  if (addedNames.length === 0) return []
+  const added = new Set(addedNames)
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const card of cards) {
+    if (
+      added.has(card.name) &&
+      card.oracleTags.length === 0 &&
+      card.artTags.length === 0 &&
+      !seen.has(card.name)
+    ) {
+      seen.add(card.name)
+      result.push(card.name)
+    }
+  }
+  return result
 }
 
 export type ManaValueParse = { ok: true; value: number | null } | { ok: false; error: string }

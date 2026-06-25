@@ -181,6 +181,9 @@ export type ResolvedPalette = ThemeCssVars &
     '--error-bg': string
     '--error-border': string
     '--error-text': string
+    '--warning-bg': string
+    '--warning-border': string
+    '--warning-text': string
     '--card-link': string
     '--card-link-hover': string
     '--card-label-text': string
@@ -235,6 +238,9 @@ const darkStatusVars = {
   '--error-bg': 'oklch(30% 0.08 25 / 0.5)',
   '--error-border': 'oklch(45% 0.17 25)',
   '--error-text': 'oklch(80% 0.1 20)',
+  '--warning-bg': 'oklch(35% 0.07 85 / 0.45)',
+  '--warning-border': 'oklch(55% 0.13 85)',
+  '--warning-text': 'oklch(85% 0.1 85)',
 }
 
 const lightStatusVars = {
@@ -245,6 +251,9 @@ const lightStatusVars = {
   '--error-bg': 'oklch(92% 0.06 25 / 0.6)',
   '--error-border': 'oklch(72% 0.16 25)',
   '--error-text': 'oklch(48% 0.2 22)',
+  '--warning-bg': 'oklch(92% 0.07 85 / 0.6)',
+  '--warning-border': 'oklch(72% 0.14 85)',
+  '--warning-text': 'oklch(45% 0.1 85)',
 }
 
 // Card-name hyperlinks (e.g. in the changes dialog). A fixed blue hue —

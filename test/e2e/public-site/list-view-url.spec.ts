@@ -117,6 +117,23 @@ test.describe('List view shareable URL', () => {
     await expect(page.locator('.filter-menu-badge')).toHaveText('1')
   })
 
+  test('an oracle tag selection is written to the URL and restored on load', async ({ page }) => {
+    await page.goto('#/deck/test-filter-deck')
+    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    await page.locator('[data-view="list"]').click()
+
+    await openFilterMenu(page)
+    await page.locator('#filter-oracle-tags').fill('removal ')
+    await expect.poll(() => page.url()).toContain('otags=removal')
+
+    // Reload the shared URL and confirm the tag filter is restored and applied.
+    await page.reload()
+    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    await expectVisibleCards(page, ['Golgari Lord', 'White Knight'])
+    await openFilterMenu(page)
+    await expect(page.locator('.filter-tag').filter({ hasText: 'Removal' })).toBeVisible()
+  })
+
   test('malformed parameters are ignored and fall back to defaults', async ({ page }) => {
     await page.goto('#/deck/test-filter-deck?group=banana&sort=chaos&view=teleport')
     await page.waitForSelector('[data-view]', { timeout: 15_000 })

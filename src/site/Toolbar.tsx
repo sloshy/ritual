@@ -39,6 +39,10 @@ interface ToolbarProps {
   setCodeOptions: string[]
   /** Lowercase card type tags present in the list, for the type filter autocomplete. */
   cardTypeOptions: string[]
+  /** Oracle tag slugs present in the list, for the oracle tag filter autocomplete. */
+  oracleTagOptions: string[]
+  /** Art tag slugs present in the list, for the art tag filter autocomplete. */
+  artTagOptions: string[]
   /** Show the "Hide Extras" filter toggle (deck pages only). */
   showHideExtras?: boolean
   extraToggles?: ExtraToggle[]
@@ -174,6 +178,8 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
           symbolMap={props.symbolMap}
           setCodeOptions={props.setCodeOptions}
           cardTypeOptions={props.cardTypeOptions}
+          oracleTagOptions={props.oracleTagOptions}
+          artTagOptions={props.artTagOptions}
           showHideExtras={props.showHideExtras}
         />
         {props.selectionMenu}

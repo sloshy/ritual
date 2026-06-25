@@ -98,7 +98,10 @@ test.describe('Toolbar Filters menu', () => {
     await expect(page.locator('.filter-tag')).toHaveText(/Artifact/)
     await expectVisibleCards(page, ['Boring Rock'])
 
-    await page.getByRole('button', { name: 'Exclude' }).click()
+    await page
+      .getByRole('group', { name: 'Card type filter mode' })
+      .getByRole('button', { name: 'Exclude' })
+      .click()
     await expectVisibleCards(page, [
       'Golgari Lord',
       'Green Elf',
@@ -125,7 +128,10 @@ test.describe('Toolbar Filters menu', () => {
     await expectVisibleCards(page, ['Golgari Lord', 'Green Elf'])
 
     // All: Elf AND Druid
-    await page.getByRole('button', { name: 'All', exact: true }).click()
+    await page
+      .getByRole('group', { name: 'Card type match logic' })
+      .getByRole('button', { name: 'All', exact: true })
+      .click()
     await expectVisibleCards(page, ['Green Elf'])
   })
 
@@ -186,6 +192,73 @@ test.describe('Toolbar Filters menu', () => {
     await input.press('Enter')
     await expect(page.locator('.filter-tag').filter({ hasText: 'Knight' })).toBeVisible()
     await expectVisibleCards(page, ['White Knight'])
+  })
+
+  test('oracle tag filter matches by tag and inverts with Exclude', async ({ page }) => {
+    await openFilterMenu(page)
+    // 'removal' is on White Knight and Golgari Lord.
+    await page.locator('#filter-oracle-tags').fill('removal ')
+    await expect(page.locator('.filter-tag')).toHaveText(/Removal/)
+    await expectVisibleCards(page, ['Golgari Lord', 'White Knight'])
+
+    await page
+      .getByRole('group', { name: 'Oracle Tags filter mode' })
+      .getByRole('button', { name: 'Exclude' })
+      .click()
+    await expectVisibleCards(page, ['Boring Rock', 'Green Elf', 'Maybe Dragon', 'Test Forest'])
+  })
+
+  test('oracle tag Any/All logic combines two tags', async ({ page }) => {
+    await openFilterMenu(page)
+    // Golgari Lord has both 'removal' and 'ramp'; White Knight only 'removal'; Green Elf only 'ramp'.
+    await page.locator('#filter-oracle-tags').fill('removal ')
+    await expect(page.locator('.filter-tag').filter({ hasText: 'Removal' })).toBeVisible()
+    await page.locator('#filter-oracle-tags').fill('ramp ')
+    await expect(page.locator('.filter-tag').filter({ hasText: 'Ramp' })).toBeVisible()
+
+    // Any (default): removal OR ramp
+    await expectVisibleCards(page, ['Golgari Lord', 'Green Elf', 'White Knight'])
+
+    // All: removal AND ramp
+    await page
+      .getByRole('group', { name: 'Oracle Tags match logic' })
+      .getByRole('button', { name: 'All', exact: true })
+      .click()
+    await expectVisibleCards(page, ['Golgari Lord'])
+  })
+
+  test('art tag filter matches a printing’s artwork independently of oracle tags', async ({
+    page,
+  }) => {
+    await openFilterMenu(page)
+    // 'dragon' art is only on Maybe Dragon.
+    await page.locator('#filter-art-tags').fill('dragon ')
+    await expect(page.locator('.filter-tag')).toHaveText(/Dragon/)
+    await expectVisibleCards(page, ['Maybe Dragon'])
+
+    // Exclude inverts: every card except the dragon survives.
+    await page
+      .getByRole('group', { name: 'Art Tags filter mode' })
+      .getByRole('button', { name: 'Exclude' })
+      .click()
+    await expectVisibleCards(
+      page,
+      ALL_CARDS.filter((c) => c !== 'Maybe Dragon'),
+    )
+  })
+
+  test('oracle tag autocomplete suggests tags from the list and adds one on click', async ({
+    page,
+  }) => {
+    await openFilterMenu(page)
+    await page.locator('#filter-oracle-tags').click()
+
+    const suggestions = page.locator('.filter-tags-suggestions button')
+    await expect(suggestions.filter({ hasText: 'Removal' })).toBeVisible()
+    await expect(suggestions.filter({ hasText: 'Ramp' })).toBeVisible()
+
+    await suggestions.filter({ hasText: 'Removal' }).click()
+    await expectVisibleCards(page, ['Golgari Lord', 'White Knight'])
   })
 
   test('mana value filter matches the exact value, including 0', async ({ page }) => {

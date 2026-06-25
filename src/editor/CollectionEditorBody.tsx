@@ -69,6 +69,7 @@ export function CollectionEditorBody(props: CollectionEditorBodyProps): JSX.Elem
         onCardContextMenu={ctrl.handleContextMenu}
         bulkEdit={ctrl.bulkEdit}
         unsavedChangeCount={ctrl.editor.changes.changeCount()}
+        addedCardNames={ctrl.editor.addedCardNames()}
       />
     </FlatListEditorShell>
   )

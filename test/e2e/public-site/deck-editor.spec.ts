@@ -185,6 +185,59 @@ test.describe('Public deck editor', () => {
     await expect(page.locator('.card-item')).toHaveCount(3)
   })
 
+  test('warns when a tag filter is active and an added card has no tag data', async ({ page }) => {
+    // Cards added in the editor come from Scryfall search, which returns no Tagger
+    // tags — so a tag filter can't match them. Stub all Scryfall calls offline so the
+    // imported add's backfill never hits the network; the card stays tag-free.
+    await page.route('**/api.scryfall.com/**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ object: 'list', total_cards: 0, has_more: false, data: [] }),
+      }),
+    )
+
+    await page.locator('.btn-edit').click()
+
+    // Add a brand-new card (not in the deck) via a change file — recorded as an
+    // `add`, exactly like adding from search.
+    await page.locator('.edit-banner').getByRole('button', { name: 'Load Changes' }).click()
+    const dialog = page.locator('.import-dialog')
+    await dialog.locator('.import-dialog-textarea').fill(
+      JSON.stringify({
+        format: 'ritual-change-file',
+        version: 1,
+        kind: 'deck',
+        slug: 'test-multi-section-deck',
+        name: 'Test Multi-Section Deck',
+        exportedAt: '2026-06-04T00:00:00.000Z',
+        changes: [{ id: 'a', timestamp: 1, action: 'add', cardName: 'Sol Ring' }],
+      }),
+    )
+    await dialog.getByRole('button', { name: 'Import', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Done' }).click()
+    await expect(page.locator('.changes-badge')).toHaveText('1')
+
+    // No tag filter yet → no warning.
+    await expect(page.locator('.tag-filter-warning')).toHaveCount(0)
+
+    // Activate an Oracle Tag filter.
+    await page.locator('.filter-menu > button').click()
+    await page.locator('#filter-oracle-tags').fill('ramp ')
+
+    // The warning appears and names the added, tag-free card. (Expanding it clicks
+    // outside the filter panel, which dismisses the panel.)
+    const warning = page.locator('.tag-filter-warning')
+    await expect(warning).toBeVisible()
+    await warning.locator('.tag-filter-warning-toggle').click()
+    await expect(warning.locator('.tag-filter-warning-list')).toContainText('Sol Ring')
+
+    // Removing the tag filter clears the warning.
+    await page.locator('.filter-menu > button').click()
+    await page.getByRole('button', { name: 'Remove Ramp' }).click()
+    await expect(page.locator('.tag-filter-warning')).toHaveCount(0)
+  })
+
   test('rejects a change file for the wrong list kind', async ({ page }) => {
     await page.locator('.btn-edit').click()
     await page.locator('.edit-banner').getByRole('button', { name: 'Load Changes' }).click()

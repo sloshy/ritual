@@ -128,6 +128,22 @@ describe('writeListViewParams', () => {
     expect(encode(defaultState({ filters })).get('mv')).toBe('0')
   })
 
+  test('oracle and art tag selections and their non-default sub-options are written', () => {
+    const filters = createDefaultCardFilters()
+    filters.oracleTags = ['ramp', 'mana-rock']
+    filters.oracleTagLogic = 'and'
+    filters.oracleTagMode = 'exclude'
+    filters.artTags = ['dragon']
+    // artTagLogic / artTagMode left at default, so they stay out of the URL.
+    const params = encode(defaultState({ filters }))
+    expect(params.get('otags')).toBe('ramp,mana-rock')
+    expect(params.get('otagLogic')).toBe('and')
+    expect(params.get('otagMode')).toBe('exclude')
+    expect(params.get('atags')).toBe('dragon')
+    expect(params.has('atagLogic')).toBe(false)
+    expect(params.has('atagMode')).toBe(false)
+  })
+
   test('writing onto existing params clears keys that returned to default', () => {
     const params = new URLSearchParams('group=cmc&noLands=1&lists=deck:a')
     writeListViewParams(params, defaultState(), DEFAULTS)
@@ -151,6 +167,11 @@ describe('parseListViewParams', () => {
     filters.cardTypes = ['instant', 'goblin']
     filters.cardTypeLogic = 'and'
     filters.cardTypeMode = 'exclude'
+    filters.oracleTags = ['ramp', 'mana-rock']
+    filters.oracleTagLogic = 'and'
+    filters.oracleTagMode = 'exclude'
+    filters.artTags = ['dragon']
+    // artTagLogic / artTagMode left at default to verify they stay absent from the round-trip.
     filters.manaValue = 4
     filters.manaValueOp = '<='
     const state = defaultState({
@@ -183,6 +204,10 @@ describe('parseListViewParams', () => {
       cardTypes: ['instant', 'goblin'],
       cardTypeLogic: 'and',
       cardTypeMode: 'exclude',
+      oracleTags: ['ramp', 'mana-rock'],
+      oracleTagLogic: 'and',
+      oracleTagMode: 'exclude',
+      artTags: ['dragon'],
       manaValue: 4,
       manaValueOp: '<=',
     })
@@ -229,6 +254,19 @@ describe('parseListViewParams', () => {
     const parsed = parseListViewParams(new URLSearchParams('sets=MKM,,LEA&types=Instant, ,Goblin'))
     expect(parsed.filters?.setCodes).toEqual(['mkm', 'lea'])
     expect(parsed.filters?.cardTypes).toEqual(['instant', 'goblin'])
+  })
+
+  test('oracle and art tag params parse with their logic/mode sub-options', () => {
+    const parsed = parseListViewParams(
+      new URLSearchParams('otags=Ramp,Mana-Rock&otagLogic=and&otagMode=exclude&atags=dragon'),
+    )
+    expect(parsed.filters?.oracleTags).toEqual(['ramp', 'mana-rock'])
+    expect(parsed.filters?.oracleTagLogic).toBe('and')
+    expect(parsed.filters?.oracleTagMode).toBe('exclude')
+    expect(parsed.filters?.artTags).toEqual(['dragon'])
+    // Sub-options absent from the URL keep their defaults (omitted from overrides).
+    expect(parsed.filters?.artTagLogic).toBeUndefined()
+    expect(parsed.filters?.artTagMode).toBeUndefined()
   })
 })
 

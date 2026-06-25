@@ -13,6 +13,9 @@ import {
   fetchSymbology,
   downloadSymbol,
   preloadCache,
+  downloadTagIndex,
+  refreshTags,
+  attachTags,
 } from '../scryfall'
 import { cardCache, ensureCacheForCards } from '../cache'
 import { isRunningFromSource } from '../runtime'
@@ -648,6 +651,57 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     updateProgress(processed, totalCards)
   }
   process.stdout.write('\n\n')
+
+  // The site's tag filters need oracle/art tags on the cards. If none are present
+  // (e.g. a cache populated before tags existed), fetch them now rather than
+  // shipping empty filters — gated by the same refresh mode as the bulk download.
+  const collectBuildCards = (): ScryfallCard[] => {
+    const cards = new Set<ScryfallCard>()
+    for (const map of [
+      globalCardMap,
+      globalLowestPriceCardMap,
+      globalLowestPriceCardMapEur,
+      globalLowestPriceCardMapTix,
+      globalCheapestCardMap,
+      globalCheapestCardMapEur,
+      globalCheapestCardMapTix,
+    ]) {
+      for (const card of Object.values(map)) if (card) cards.add(card)
+    }
+    for (const printings of Object.values(globalPrintingsMap)) {
+      for (const card of printings) cards.add(card)
+    }
+    return [...cards]
+  }
+  const hasAnyTags = (cards: ScryfallCard[]): boolean =>
+    cards.some((c) => (c.oracleTags?.length ?? 0) > 0 || (c.artTags?.length ?? 0) > 0)
+
+  const buildCards = collectBuildCards()
+  if (buildCards.length > 0 && !hasAnyTags(buildCards)) {
+    const refresh = await shouldBulkRefresh(mode, {
+      message:
+        'The card cache has no oracle/art tags (used by the site’s tag filters). Download them now?',
+      initial: true,
+    })
+    if (refresh) {
+      console.log('Fetching oracle/art tags from Scryfall...')
+      const tagIndex = await downloadTagIndex()
+      if (tagIndex) {
+        // Tag the cards headed for this build, then bake into the cache so future
+        // builds and CLI features have them too (no re-download — reuse the index).
+        for (const card of buildCards) attachTags(card, tagIndex)
+        await refreshTags(tagIndex)
+        console.log('Added oracle/art tags to the card cache.')
+      } else {
+        console.warn("Could not download tags; the site's tag filters will be empty.")
+      }
+    } else {
+      console.log(
+        "Skipping tag download; the site's tag filters will be empty. " +
+          'Run `ritual cache refresh-tags` later to add them.',
+      )
+    }
+  }
 
   if (latestPriceTimestamp == null) {
     throw new Error('No price data found. Run the cache refresh before building the site.')

@@ -29,6 +29,9 @@ import type {
 } from './client'
 import { comparePrintings, type CardNameFilter } from './card-utils'
 import type { PriceCurrency } from '../price-currency'
+import type { TagIndex } from './tags'
+
+export { attachTags, type TagIndex } from './tags'
 
 export type SearchPageResult = {
   data: ScryfallList<ScryfallCard> | null
@@ -80,8 +83,12 @@ export function preloadCache(): Promise<void> {
   return scryfallClient.preloadCache()
 }
 
-export function refreshTags(): Promise<void> {
-  return scryfallClient.refreshTags()
+export function refreshTags(prefetched?: TagIndex | null): Promise<void> {
+  return scryfallClient.refreshTags(prefetched)
+}
+
+export function downloadTagIndex(): Promise<TagIndex | null> {
+  return scryfallClient.downloadTagIndex()
 }
 
 export async function getCardPrintings(name: string): Promise<ScryfallCard[]> {
