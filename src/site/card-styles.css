@@ -674,6 +674,34 @@ h3 {
   }
 }
 
+/* Animated front/back flip for double-faced cards in the modal. Mirrors the
+   list-view flip (perspective + rotateY): both faces are stacked in one grid
+   cell so the box keeps the card's intrinsic size, and the container rotates
+   to reveal whichever face is forward. backface-visibility hides the face
+   turned away mid-rotation. */
+.card-modal-flip {
+  width: 100%;
+  display: grid;
+  transform: perspective(900px) rotateY(0deg);
+  transform-style: preserve-3d;
+  transition: transform 0.4s ease;
+}
+
+.card-modal-flip.flipped {
+  transform: perspective(900px) rotateY(180deg);
+}
+
+.card-modal-flip > img {
+  grid-area: 1 / 1;
+  width: 100%;
+  border-radius: var(--card-corner-radius);
+  backface-visibility: hidden;
+}
+
+.card-modal-flip-back {
+  transform: rotateY(180deg);
+}
+
 .card-modal-details {
   flex: 1;
   padding: 1.25rem;

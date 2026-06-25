@@ -51,6 +51,28 @@ test.describe('Double-faced cards', () => {
     await expect(page.locator(`${LAND} .card-flip`)).toHaveCount(0)
   })
 
+  test('modal flip button animates the face via the rotateY flip container', async ({ page }) => {
+    // Open the detail modal for the DFC.
+    await page.locator(DFC).locator('.card-binder').click()
+    const modal = page.locator('.card-modal-backdrop.open')
+    await expect(modal).toBeVisible({ timeout: 5000 })
+
+    // The modal renders the animated flip container (not a plain swapped <img>),
+    // with both faces mounted carrying the distinct front/back images.
+    const flipWrap = modal.locator('.card-modal-flip')
+    await expect(flipWrap).toHaveCount(1)
+    await expect(flipWrap).not.toHaveClass(/flipped/)
+    await expect(flipWrap.locator('img').first()).toHaveAttribute('src', /dfc-front\.svg/)
+    await expect(flipWrap.locator('.card-modal-flip-back')).toHaveAttribute('src', /dfc-back\.svg/)
+
+    // Pressing flip rotates to the back, and again returns to the front — the
+    // class toggle is what drives the CSS rotateY transition.
+    await modal.locator('.flip-btn').click()
+    await expect(flipWrap).toHaveClass(/flipped/)
+    await modal.locator('.flip-btn').click()
+    await expect(flipWrap).not.toHaveClass(/flipped/)
+  })
+
   test('flip button is absent in list view but present in stack view', async ({ page }) => {
     await page.locator('[data-view="list"]').click()
     await expect(page.locator('.card-flip-btn')).toHaveCount(0)

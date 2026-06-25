@@ -245,20 +245,38 @@ export const CardModal: Component<CardModalProps> = (props) => {
           fallback={
             <>
               <div class={`card-modal-image ${isSideways() && !showingBack() ? 'sideways' : ''}`}>
+                {/* Double-faced cards animate with the same 3D rotateY flip as the
+                    list views (both faces stay mounted and the container rotates).
+                    Sideways cards (Battles) keep the instant swap — rotating a
+                    landscape front into a portrait back reads poorly. */}
                 <Show
-                  when={!showingBack()}
+                  when={isDfc() && imgSources()?.backImage && !isSideways()}
                   fallback={
+                    <Show
+                      when={!showingBack()}
+                      fallback={
+                        <img
+                          src={imgSources()?.backImage ?? ''}
+                          alt={`${props.cardName ?? ''} (Back)`}
+                        />
+                      }
+                    >
+                      <img
+                        src={imgSources()?.frontImage ?? ''}
+                        alt={props.cardName || ''}
+                        class={isSideways() ? 'sideways' : ''}
+                      />
+                    </Show>
+                  }
+                >
+                  <div class="card-modal-flip" classList={{ flipped: showingBack() }}>
+                    <img src={imgSources()?.frontImage ?? ''} alt={props.cardName || ''} />
                     <img
+                      class="card-modal-flip-back"
                       src={imgSources()?.backImage ?? ''}
                       alt={`${props.cardName ?? ''} (Back)`}
                     />
-                  }
-                >
-                  <img
-                    src={imgSources()?.frontImage ?? ''}
-                    alt={props.cardName || ''}
-                    class={isSideways() ? 'sideways' : ''}
-                  />
+                  </div>
                 </Show>
                 <Show when={isDfc() && imgSources()?.backImage}>
                   <button class="flip-btn" onClick={() => setShowingBack((prev) => !prev)}>
