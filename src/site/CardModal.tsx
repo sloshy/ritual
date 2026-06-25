@@ -6,6 +6,7 @@ import { ManaCost, OracleText } from './symbols'
 import type { PriceCurrency } from '../price-currency'
 import { getCardPrice, getCardPriceForFinish, formatPrice } from '../price-currency'
 import { capitalize } from './utils'
+import { formatTagForDisplay } from './card-tags'
 
 type PrintingsSortField = 'released_at' | 'set_name' | 'price'
 
@@ -33,6 +34,7 @@ interface CardModalProps {
 export const CardModal: Component<CardModalProps> = (props) => {
   const [showingBack, setShowingBack] = createSignal(false)
   const [showPrintings, setShowPrintings] = createSignal(false)
+  const [showTags, setShowTags] = createSignal(false)
   const [printingsPage, setPrintingsPage] = createSignal(0)
   const [printingsSortField, setPrintingsSortField] =
     createSignal<PrintingsSortField>('released_at')
@@ -48,6 +50,7 @@ export const CardModal: Component<CardModalProps> = (props) => {
       () => {
         setShowingBack(false)
         setShowPrintings(false)
+        setShowTags(false)
         setPrintingsPage(0)
       },
     ),
@@ -67,6 +70,13 @@ export const CardModal: Component<CardModalProps> = (props) => {
   )
 
   const isSideways = createMemo(() => isCardSideways(props.card))
+
+  const oracleTags = createMemo(() => props.card?.oracleTags ?? [])
+  const artTags = createMemo(() => props.card?.artTags ?? [])
+  // Tags are baked onto cards at build time. A card the site was *not* built with
+  // (e.g. added later via the editor's Scryfall search) — or one that genuinely has
+  // no tags — carries neither list, so we surface an "incomplete cache" warning.
+  const hasTags = createMemo(() => oracleTags().length > 0 || artTags().length > 0)
 
   const scryfallUrl = createMemo(() =>
     props.card
@@ -314,6 +324,11 @@ export const CardModal: Component<CardModalProps> = (props) => {
                       Other Printings ({props.printings.length})
                     </button>
                   </Show>
+                  <Show when={props.card}>
+                    <button aria-expanded={showTags()} onClick={() => setShowTags((prev) => !prev)}>
+                      Tags {showTags() ? '▾' : '▸'}
+                    </button>
+                  </Show>
                   <Show when={props.onAddToTrade !== undefined}>
                     <button
                       onClick={props.onAddToTrade}
@@ -326,6 +341,46 @@ export const CardModal: Component<CardModalProps> = (props) => {
                     </button>
                   </Show>
                 </div>
+                <Show when={showTags()}>
+                  <Show
+                    when={hasTags()}
+                    fallback={
+                      <div class="modal-tags-warning">
+                        <span class="modal-tags-warning-icon" aria-hidden="true">
+                          ⚠
+                        </span>
+                        <span>
+                          No tag data for this card — the card cache is incomplete. Tags are only
+                          available for cards the site was built with; rebuild the cache to include
+                          them.
+                        </span>
+                      </div>
+                    }
+                  >
+                    <div class="modal-tags">
+                      <Show when={oracleTags().length > 0}>
+                        <div class="modal-tags-group">
+                          <span class="modal-tags-label">Oracle Tags</span>
+                          <div class="modal-tags-list">
+                            <For each={oracleTags()}>
+                              {(tag) => <span class="modal-tag">{formatTagForDisplay(tag)}</span>}
+                            </For>
+                          </div>
+                        </div>
+                      </Show>
+                      <Show when={artTags().length > 0}>
+                        <div class="modal-tags-group">
+                          <span class="modal-tags-label">Art Tags</span>
+                          <div class="modal-tags-list">
+                            <For each={artTags()}>
+                              {(tag) => <span class="modal-tag">{formatTagForDisplay(tag)}</span>}
+                            </For>
+                          </div>
+                        </div>
+                      </Show>
+                    </div>
+                  </Show>
+                </Show>
               </div>
             </>
           }

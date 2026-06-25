@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import {
+  mockPublicSiteDeckForFilters,
   mockPublicSiteDeckWithMultipleSections,
   mockPublicSiteDeckWithSidewaysCard,
 } from '../helpers/mock-data'
@@ -34,6 +35,45 @@ test.describe('Card detail modal', () => {
     await expect(page.locator('.card-modal')).toBeVisible({ timeout: 5000 })
     await expect(page.locator('.modal-printings-view')).toHaveCount(0)
     await expect(page.getByRole('button', { name: /Other Printings/ })).toBeVisible()
+  })
+})
+
+test.describe('Card detail modal — tags', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockPublicSiteDeckForFilters(page)
+    await page.goto('#/deck/test-filter-deck')
+    await page.waitForSelector('.card-item', { timeout: 15_000 })
+  })
+
+  test('Tags button reveals the current printing oracle and art tags', async ({ page }) => {
+    // White Knight is built with oracle tag "removal" and art tag "human".
+    await page.locator('.card-item[data-name="white knight"] .card-binder').click()
+    await expect(page.locator('.card-modal')).toBeVisible({ timeout: 5000 })
+
+    // Tags are hidden until the button is pressed.
+    await expect(page.locator('.modal-tags')).toHaveCount(0)
+    await page.getByRole('button', { name: /^Tags/ }).click()
+
+    const tags = page.locator('.modal-tags')
+    await expect(tags).toBeVisible()
+    await expect(tags.getByText('Oracle Tags')).toBeVisible()
+    await expect(tags.locator('.modal-tag', { hasText: 'Removal' })).toBeVisible()
+    await expect(tags.getByText('Art Tags')).toBeVisible()
+    await expect(tags.locator('.modal-tag', { hasText: 'Human' })).toBeVisible()
+
+    // The warning must not appear for a card the site was built with.
+    await expect(page.locator('.modal-tags-warning')).toHaveCount(0)
+  })
+
+  test('a card with no tag data shows the incomplete-cache warning', async ({ page }) => {
+    // Test Forest carries neither oracleTags nor artTags.
+    await page.locator('.card-item[data-name="test forest"] .card-binder').click()
+    await expect(page.locator('.card-modal')).toBeVisible({ timeout: 5000 })
+
+    await page.getByRole('button', { name: /^Tags/ }).click()
+    await expect(page.locator('.modal-tags-warning')).toBeVisible()
+    await expect(page.locator('.modal-tags-warning')).toContainText(/cache is incomplete/i)
+    await expect(page.locator('.modal-tags')).toHaveCount(0)
   })
 })
 

@@ -39,6 +39,8 @@ Cards carry community tags from [Scryfall Tagger](https://tagger.scryfall.com/),
 
 Add tags the same way as card types — type a tag and press space, comma, or Enter, or pick one from the autocomplete, which only offers the tags present in the cards you're currently viewing. Each filter has the same **Any / All** and **Include / Exclude** toggles as the Card Type filter.
 
+To see every tag a card carries, open its detail modal (click the card) and press the **Tags** button — it lists the card's oracle tags and the art tags for the printing shown. If the card has no tag data — because it has none, or because it was added after the site was built (e.g. through the editor) — the button shows a notice that the card cache is incomplete instead.
+
 Tags appear only when the local cache includes them. If the cache has no tags when you build the site, the build offers to download them automatically (under the same refresh prompt/flags as the bulk cache); you can also add them at any time with `ritual cache refresh-tags` — see the [`cache` command](/commands/cache/).
 
 ## Sharing a configured view
