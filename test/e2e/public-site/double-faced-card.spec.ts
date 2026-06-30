@@ -54,7 +54,7 @@ test.describe('Double-faced cards', () => {
   test('modal flip button animates the face via the rotateY flip container', async ({ page }) => {
     // Open the detail modal for the DFC.
     await page.locator(DFC).locator('.card-binder').click()
-    const modal = page.locator('.card-modal-backdrop.open')
+    const modal = page.locator('.card-modal')
     await expect(modal).toBeVisible({ timeout: 5000 })
 
     // The modal renders the animated flip container (not a plain swapped <img>),

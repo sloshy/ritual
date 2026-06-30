@@ -1,5 +1,5 @@
 import { type Component, createMemo, createSignal, Show } from 'solid-js'
-import { useDialogModal } from '../../ui/useDialogModal'
+import { Modal } from '../../ui/Modal'
 
 type TextPromptDialogProps = {
   open: boolean
@@ -14,24 +14,12 @@ type TextPromptDialogProps = {
 }
 
 /**
- * A small styled text-input modal — the in-app replacement for `window.prompt`, matching the
- * other editor dialogs (`discard-dialog-native` shell + `confirm-dialog` box). Used for naming a
+ * A small styled text-input modal — the in-app replacement for `window.prompt`. Used for naming a
  * new section or renaming one, with live validation and a disabled confirm while invalid/empty.
  */
 export const TextPromptDialog: Component<TextPromptDialogProps> = (props) => {
   let inputRef: HTMLInputElement | undefined
   const [value, setValue] = createSignal('')
-
-  // Seed the draft and focus the input when the dialog opens.
-  const dialog = useDialogModal(() => props.open, {
-    onOpen: () => {
-      setValue(props.initialValue)
-      queueMicrotask(() => {
-        inputRef?.focus()
-        inputRef?.select()
-      })
-    },
-  })
 
   const error = createMemo(() => props.validate?.(value()) ?? null)
   const canConfirm = () => error() === null && value().trim() !== ''
@@ -43,46 +31,54 @@ export const TextPromptDialog: Component<TextPromptDialogProps> = (props) => {
   }
 
   return (
-    <dialog
-      ref={dialog.setDialog}
-      class="discard-dialog-native"
+    <Modal
+      open={props.open}
       onClose={props.onCancel}
-      onClick={dialog.onBackdropClick}
+      size="md"
+      panelClass="modal-panel--prompt text-prompt"
+      // Seed the draft and focus the input when the dialog opens.
+      onOpen={() => {
+        setValue(props.initialValue)
+        // Defer a microtask so the seeded value lands and the dialog is in the
+        // top layer before we focus and select the input.
+        queueMicrotask(() => {
+          inputRef?.focus()
+          inputRef?.select()
+        })
+      }}
     >
-      <div class="confirm-dialog text-prompt">
-        <h3>{props.title}</h3>
-        <div class="text-prompt-field">
-          <label class="text-prompt-label" for="text-prompt-input">
-            {props.label}
-          </label>
-          <input
-            id="text-prompt-input"
-            ref={inputRef}
-            type="text"
-            class={`form-input${showError() ? ' form-input--invalid' : ''}`}
-            value={value()}
-            aria-invalid={showError() ? 'true' : undefined}
-            onInput={(e) => setValue(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                confirm()
-              }
-            }}
-          />
-          <Show when={showError()}>
-            <p class="form-error">{error()}</p>
-          </Show>
-        </div>
-        <div class="confirm-dialog-actions">
-          <button type="button" class="btn btn-secondary" onClick={dialog.close}>
-            Cancel
-          </button>
-          <button type="button" class="btn" disabled={!canConfirm()} onClick={confirm}>
-            {props.confirmLabel}
-          </button>
-        </div>
+      <h3>{props.title}</h3>
+      <div class="text-prompt-field">
+        <label class="text-prompt-label" for="text-prompt-input">
+          {props.label}
+        </label>
+        <input
+          id="text-prompt-input"
+          ref={inputRef}
+          type="text"
+          class={`form-input${showError() ? ' form-input--invalid' : ''}`}
+          value={value()}
+          aria-invalid={showError() ? 'true' : undefined}
+          onInput={(e) => setValue(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              confirm()
+            }
+          }}
+        />
+        <Show when={showError()}>
+          <p class="form-error">{error()}</p>
+        </Show>
       </div>
-    </dialog>
+      <div class="confirm-dialog-actions">
+        <button type="button" class="btn btn-secondary" onClick={props.onCancel}>
+          Cancel
+        </button>
+        <button type="button" class="btn btn-primary" disabled={!canConfirm()} onClick={confirm}>
+          {props.confirmLabel}
+        </button>
+      </div>
+    </Modal>
   )
 }

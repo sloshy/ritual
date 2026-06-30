@@ -85,7 +85,7 @@ test.describe('Public deck editor', () => {
     await expect(page.locator('.changes-badge')).toHaveText('1')
 
     // Export panel reflects the change count and enables the JSON download.
-    await page.locator('.edit-banner .site-btn-export').click()
+    await page.locator('.edit-banner .btn-export').click()
     await expect(page.locator('.export-panel')).toBeVisible()
     await expect(page.locator('.export-panel')).toContainText('1 change')
     await expect(
@@ -111,7 +111,7 @@ test.describe('Public deck editor', () => {
     await expect(page.locator('.changes-badge')).toHaveText('1')
 
     // Save the session to the browser (opt-in, via the export panel).
-    await page.locator('.edit-banner .site-btn-export').click()
+    await page.locator('.edit-banner .btn-export').click()
     await page.locator('.export-panel button', { hasText: 'Save edits to this browser' }).click()
     await expect(
       page.locator('.export-panel button', { hasText: 'Clear saved edits' }),
@@ -269,7 +269,7 @@ test.describe('Public deck editor', () => {
 
     // Discard via the banner → confirm in the discard dialog.
     await page.locator('.edit-banner button', { hasText: 'Discard' }).click()
-    await page.locator('.discard-dialog-native .btn-discard').click()
+    await page.locator('.modal-shell .btn-danger').click()
 
     await expect(page.locator('.changes-badge')).toHaveCount(0)
     await expect(page.locator('.edit-banner')).not.toContainText('change')

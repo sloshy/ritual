@@ -211,7 +211,7 @@ export function History(): JSX.Element {
             </button>
             <button
               type="button"
-              class="btn-discard"
+              class="btn btn-danger"
               disabled={!session.dirty()}
               onClick={requestDiscard}
             >
@@ -288,7 +288,7 @@ export function History(): JSX.Element {
                           </button>
                           <button
                             type="button"
-                            class="btn-discard btn-xs"
+                            class="btn btn-danger btn-xs"
                             onClick={() => doDelete(index())}
                           >
                             Delete

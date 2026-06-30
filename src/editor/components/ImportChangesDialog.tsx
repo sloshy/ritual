@@ -1,8 +1,8 @@
-import { type Component, Show, For, createSignal, createEffect } from 'solid-js'
+import { type Component, Show, For, createSignal } from 'solid-js'
 import { type ChangeFile, type ChangeFileKind, parseChangeFile } from '../change-file'
 import { formatChange } from '../../change-event'
 import type { ImportResult } from '../useEditor'
-import { useDialogModal } from '../../ui/useDialogModal'
+import { Modal } from '../../ui/Modal'
 
 type ImportChangesDialogProps = {
   open: boolean
@@ -26,18 +26,9 @@ const KIND_LABELS: Record<ChangeFileKind, string> = {
  * that could not be matched.
  */
 export const ImportChangesDialog: Component<ImportChangesDialogProps> = (props) => {
-  const dialog = useDialogModal(() => props.open)
   const [text, setText] = createSignal('')
   const [error, setError] = createSignal<string | null>(null)
   const [result, setResult] = createSignal<ImportResult | null>(null)
-
-  createEffect(() => {
-    if (props.open) {
-      setText('')
-      setError(null)
-      setResult(null)
-    }
-  })
 
   const handleFile = async (input: HTMLInputElement) => {
     const file = input.files?.[0]
@@ -64,81 +55,84 @@ export const ImportChangesDialog: Component<ImportChangesDialogProps> = (props) 
   }
 
   return (
-    <dialog
-      ref={dialog.setDialog}
-      class="discard-dialog-native"
+    <Modal
+      open={props.open}
       onClose={props.onClose}
-      onClick={dialog.onBackdropClick}
+      size="md"
+      panelClass="modal-panel--prompt import-dialog"
+      onOpen={() => {
+        setText('')
+        setError(null)
+        setResult(null)
+      }}
     >
-      <div class="confirm-dialog import-dialog">
-        <h3>Import changes</h3>
+      <h3>Import changes</h3>
 
-        <Show when={!result()}>
-          <p class="dialog-message">
-            Upload or paste a change-list JSON to import into the current editor view.
-          </p>
-          <input
-            type="file"
-            accept="application/json,.json"
-            onChange={(e) => void handleFile(e.currentTarget)}
-          />
-          <textarea
-            class="form-input import-dialog-textarea"
-            placeholder="…or paste JSON here"
-            rows={8}
-            value={text()}
-            onInput={(e) => setText(e.currentTarget.value)}
-          />
-          <Show when={error()}>
-            <p class="form-error">{error()}</p>
-          </Show>
-          <div class="confirm-dialog-actions">
-            <button type="button" class="btn btn-secondary" onClick={dialog.close}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              class="btn"
-              disabled={text().trim() === ''}
-              onClick={handleImport}
-            >
-              Import
-            </button>
-          </div>
+      <Show when={!result()}>
+        <p class="dialog-message">
+          Upload or paste a change-list JSON to import into the current editor view.
+        </p>
+        <input
+          type="file"
+          accept="application/json,.json"
+          onChange={(e) => void handleFile(e.currentTarget)}
+        />
+        <textarea
+          class="form-input import-dialog-textarea"
+          placeholder="…or paste JSON here"
+          rows={8}
+          value={text()}
+          onInput={(e) => setText(e.currentTarget.value)}
+        />
+        <Show when={error()}>
+          <p class="form-error">{error()}</p>
         </Show>
+        <div class="confirm-dialog-actions">
+          <button type="button" class="btn btn-secondary" onClick={props.onClose}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            disabled={text().trim() === ''}
+            onClick={handleImport}
+          >
+            Import
+          </button>
+        </div>
+      </Show>
 
-        <Show when={result()}>
-          {(r) => (
-            <>
-              <p class="dialog-message">
-                Loaded {r().loaded} change{r().loaded !== 1 ? 's' : ''} as pending edits. Review
-                them, then save or export.
+      <Show when={result()}>
+        {(r) => (
+          <>
+            <p class="dialog-message">
+              Loaded {r().loaded} change{r().loaded !== 1 ? 's' : ''} as pending edits. Review them,
+              then save or export.
+            </p>
+            <Show when={r().conflicts.length > 0}>
+              <p class="form-error">
+                {r().conflicts.length} change{r().conflicts.length !== 1 ? 's' : ''} could not be
+                matched to a card in this list and {r().conflicts.length !== 1 ? 'were' : 'was'}{' '}
+                skipped:
               </p>
-              <Show when={r().conflicts.length > 0}>
-                <p class="form-error">
-                  {r().conflicts.length} change{r().conflicts.length !== 1 ? 's' : ''} could not be
-                  matched to a card in this list and {r().conflicts.length !== 1 ? 'were' : 'was'}{' '}
-                  skipped:
-                </p>
-                <div class="changes-dialog changes-list-box">
-                  <For each={r().conflicts}>
-                    {(c) => (
-                      <div class="change-item change-item--remove">
-                        <span>{formatChange(c.change)}</span>
-                      </div>
-                    )}
-                  </For>
-                </div>
-              </Show>
-              <div class="confirm-dialog-actions">
-                <button type="button" class="btn" onClick={dialog.close}>
-                  Done
-                </button>
+              <div class="changes-dialog changes-list-box">
+                <For each={r().conflicts}>
+                  {(c) => (
+                    <div class="change-item change-item--remove">
+                      <span>{formatChange(c.change)}</span>
+                    </div>
+                  )}
+                </For>
               </div>
-            </>
-          )}
-        </Show>
-      </div>
-    </dialog>
+            </Show>
+            <div class="confirm-dialog-actions">
+              <button type="button" class="btn btn-primary" onClick={props.onClose}>
+                Done
+              </button>
+            </div>
+          </>
+        )}
+      </Show>
+    </Modal>
   )
 }

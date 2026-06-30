@@ -57,6 +57,16 @@ test.describe('Combined list view', () => {
     await expect(sectionLabels.nth(1)).toHaveText('CV Box')
   })
 
+  test('the combine modal closes on Escape', async ({ page }) => {
+    await page.getByRole('button', { name: /Combine with list/ }).click()
+    const modal = page.locator('.combine-modal')
+    await expect(modal).toBeVisible()
+
+    await page.keyboard.press('Escape')
+    // The modal is a native <dialog> that stays mounted; closing hides it.
+    await expect(modal).not.toBeVisible()
+  })
+
   test('the All switch views every list and labels it accordingly', async ({ page }) => {
     await page.getByRole('button', { name: /Combine with list/ }).click()
     const modal = page.locator('.combine-modal')

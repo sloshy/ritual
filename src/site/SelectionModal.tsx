@@ -1,5 +1,6 @@
 import type { Accessor, Component } from 'solid-js'
-import { createSignal, createMemo, createEffect, onCleanup, For, Show } from 'solid-js'
+import { createSignal, createMemo, createEffect, For, Show } from 'solid-js'
+import { Modal } from '../ui/Modal'
 import type { ListRef } from '../change-event'
 import type { CardSelectionControl, SelectedCard } from './useCardSelection'
 import { groupSelectionsBySource } from './useCardSelection'
@@ -74,160 +75,14 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
     if (props.open && props.selection.count() === 0) props.onClose()
   })
 
-  // Escape closes the dialog while it is open.
-  createEffect(() => {
-    if (!props.open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') props.onClose()
-    }
-    // `document` (not `window`), matching the other site modals' Escape handling.
-    document.addEventListener('keydown', onKey)
-    onCleanup(() => document.removeEventListener('keydown', onKey))
-  })
-
   return (
-    <Show when={props.open}>
-      <div class="selection-modal-overlay" onClick={props.onClose}>
-        <div
-          class="selection-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Selected cards"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div class="selection-modal-header">
-            <span class="selection-modal-title">Selected Cards ({props.selection.count()})</span>
-            <button
-              type="button"
-              class="selection-modal-close"
-              aria-label="Close"
-              onClick={props.onClose}
-            >
-              ✕
-            </button>
-          </div>
-
-          <div class="selection-modal-controls">
-            <span class="selection-modal-controls-label">Group:</span>
-            <div class="view-toggle">
-              <button
-                type="button"
-                classList={{ active: groupMode() === 'order' }}
-                onClick={() => setGroupMode('order')}
-              >
-                Selection order
-              </button>
-              <button
-                type="button"
-                classList={{ active: groupMode() === 'source' }}
-                onClick={() => setGroupMode('source')}
-              >
-                By source
-              </button>
-            </div>
-          </div>
-
-          <div class="selection-modal-list">
-            <Show
-              when={groupMode() === 'source'}
-              fallback={
-                <For each={props.selection.selected()}>
-                  {(card) => (
-                    <SelectionRow
-                      card={card}
-                      showSource
-                      onRemove={() => props.selection.removeOne(card)}
-                      onHover={() => showPreview(card)}
-                      onLeave={hidePreview}
-                    />
-                  )}
-                </For>
-              }
-            >
-              <For each={groupedBySource()}>
-                {(group) => (
-                  <div class="selection-modal-group">
-                    <div class="selection-modal-group-header">
-                      {sourceLabel(group.kind, group.name)} ({group.cards.length})
-                    </div>
-                    <For each={group.cards}>
-                      {(card) => (
-                        <SelectionRow
-                          card={card}
-                          onRemove={() => props.selection.removeOne(card)}
-                          onHover={() => showPreview(card)}
-                          onLeave={hidePreview}
-                        />
-                      )}
-                    </For>
-                  </div>
-                )}
-              </For>
-            </Show>
-          </div>
-
-          <div class="selection-modal-actions">
-            <button
-              type="button"
-              class="site-btn site-btn-secondary"
-              onClick={() => void copy.copyText()}
-            >
-              Copy as Text
-            </button>
-            <button
-              type="button"
-              class="site-btn site-btn-secondary"
-              onClick={() => void copy.copyCsv()}
-            >
-              Copy as CSV
-            </button>
-            <Show when={props.onMoveAll && (props.moveAllTargets?.().length ?? 0) > 0}>
-              <button
-                type="button"
-                class="site-btn site-btn-secondary"
-                onClick={() =>
-                  promptListMove(props.moveAllTargets?.() ?? [], (dest) => {
-                    props.onMoveAll!(dest)
-                    props.onClose()
-                  })
-                }
-              >
-                Move all to list…
-              </button>
-            </Show>
-            <Show when={props.onRemoveAll}>
-              {(onRemoveAll) => (
-                <button
-                  type="button"
-                  class="site-btn site-btn-danger"
-                  onClick={() => {
-                    onRemoveAll()()
-                    props.onClose()
-                  }}
-                >
-                  Remove all selected
-                </button>
-              )}
-            </Show>
-            <button
-              type="button"
-              class="site-btn site-btn-secondary"
-              onClick={() => {
-                props.selection.clear()
-                props.onClose()
-              }}
-            >
-              Clear all selections
-            </button>
-            <Show when={copy.status()}>
-              <span class="selection-modal-status" aria-live="polite">
-                {copy.status()}
-              </span>
-            </Show>
-          </div>
-        </div>
-
-        {/* Card-art hover preview — sibling of the modal so its overflow:hidden can't clip it. */}
+    <Modal
+      open={props.open}
+      onClose={props.onClose}
+      size="lg"
+      aria-label="Selected cards"
+      panelClass="selection-modal"
+      overlay={
         <div
           ref={tooltipRef}
           class={`list-tooltip selection-modal-tooltip ${tooltip() ? 'visible' : ''} ${
@@ -236,11 +91,134 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
           style={`left:${tooltipPos().left}px;top:${tooltipPos().top}px;`}
         >
           <Show when={tooltip()}>
-            <img src={tooltip()!.src} alt="" class={tooltip()!.sideways ? 'tooltip-rotated' : ''} />
+            {(t) => <img src={t().src} alt="" class={t().sideways ? 'tooltip-rotated' : ''} />}
           </Show>
         </div>
+      }
+    >
+      <div class="selection-modal-header">
+        <span class="selection-modal-title">Selected Cards ({props.selection.count()})</span>
+        <button
+          type="button"
+          class="selection-modal-close"
+          aria-label="Close"
+          onClick={props.onClose}
+        >
+          ×
+        </button>
       </div>
-    </Show>
+
+      <div class="selection-modal-controls">
+        <span class="selection-modal-controls-label">Group:</span>
+        <div class="view-toggle">
+          <button
+            type="button"
+            classList={{ active: groupMode() === 'order' }}
+            onClick={() => setGroupMode('order')}
+          >
+            Selection order
+          </button>
+          <button
+            type="button"
+            classList={{ active: groupMode() === 'source' }}
+            onClick={() => setGroupMode('source')}
+          >
+            By source
+          </button>
+        </div>
+      </div>
+
+      <div class="selection-modal-list">
+        <Show
+          when={groupMode() === 'source'}
+          fallback={
+            <For each={props.selection.selected()}>
+              {(card) => (
+                <SelectionRow
+                  card={card}
+                  showSource
+                  onRemove={() => props.selection.removeOne(card)}
+                  onHover={() => showPreview(card)}
+                  onLeave={hidePreview}
+                />
+              )}
+            </For>
+          }
+        >
+          <For each={groupedBySource()}>
+            {(group) => (
+              <div class="selection-modal-group">
+                <div class="selection-modal-group-header">
+                  {sourceLabel(group.kind, group.name)} ({group.cards.length})
+                </div>
+                <For each={group.cards}>
+                  {(card) => (
+                    <SelectionRow
+                      card={card}
+                      onRemove={() => props.selection.removeOne(card)}
+                      onHover={() => showPreview(card)}
+                      onLeave={hidePreview}
+                    />
+                  )}
+                </For>
+              </div>
+            )}
+          </For>
+        </Show>
+      </div>
+
+      <div class="selection-modal-actions">
+        <button type="button" class="btn btn-secondary" onClick={() => void copy.copyText()}>
+          Copy as Text
+        </button>
+        <button type="button" class="btn btn-secondary" onClick={() => void copy.copyCsv()}>
+          Copy as CSV
+        </button>
+        <Show when={props.onMoveAll && (props.moveAllTargets?.().length ?? 0) > 0}>
+          <button
+            type="button"
+            class="btn btn-secondary"
+            onClick={() =>
+              promptListMove(props.moveAllTargets?.() ?? [], (dest) => {
+                props.onMoveAll!(dest)
+                props.onClose()
+              })
+            }
+          >
+            Move all to list…
+          </button>
+        </Show>
+        <Show when={props.onRemoveAll}>
+          {(onRemoveAll) => (
+            <button
+              type="button"
+              class="btn btn-danger"
+              onClick={() => {
+                onRemoveAll()()
+                props.onClose()
+              }}
+            >
+              Remove all selected
+            </button>
+          )}
+        </Show>
+        <button
+          type="button"
+          class="btn btn-secondary"
+          onClick={() => {
+            props.selection.clear()
+            props.onClose()
+          }}
+        >
+          Clear all selections
+        </button>
+        <Show when={copy.status()}>
+          <span class="selection-modal-status" aria-live="polite">
+            {copy.status()}
+          </span>
+        </Show>
+      </div>
+    </Modal>
   )
 }
 
@@ -262,7 +240,7 @@ const SelectionRow: Component<SelectionRowProps> = (props) => (
       title="Remove from selection"
       onClick={props.onRemove}
     >
-      ✕
+      ×
     </button>
     <span class="selection-modal-row-qty">{props.card.quantity}×</span>
     <span class="selection-modal-row-name">{props.card.name}</span>

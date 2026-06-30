@@ -64,7 +64,7 @@ test.describe('Find page', () => {
     await deckGroup.locator('.card-item .card-list').first().click()
     await expect(page.locator('.card-modal')).toBeVisible({ timeout: 5000 })
     await page.locator('.modal-close').click()
-    await expect(page.locator('.card-modal-backdrop.open')).not.toBeVisible({ timeout: 3000 })
+    await expect(page.locator('.card-modal')).not.toBeVisible({ timeout: 3000 })
   })
 
   test('a double-faced back-side name does not match', async ({ page }) => {

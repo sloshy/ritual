@@ -235,7 +235,7 @@ export function MoveCards(): JSX.Element {
           </button>
           <button
             type="button"
-            class="btn-discard"
+            class="btn btn-danger"
             disabled={session.pendingCount() === 0}
             onClick={() => session.discardAll()}
           >

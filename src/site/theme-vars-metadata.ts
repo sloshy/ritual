@@ -33,6 +33,7 @@ export type ThemeVarGroupId =
   | 'buttons'
   | 'status'
   | 'overlays'
+  | 'modals'
   | 'flame'
   | 'misc'
 
@@ -79,6 +80,11 @@ export const themeVarGroups: ThemeVarGroup[] = [
     label: 'Overlays',
     description:
       'Translucent dark scrims — and the text drawn on them — for modals, tooltips, and gradients on top of card art. Universal across themes.',
+  },
+  {
+    id: 'modals',
+    label: 'Modals',
+    description: 'Corner rounding and drop-shadow shared by every modal dialog.',
   },
   {
     id: 'flame',
@@ -286,6 +292,20 @@ export const themeVarMetadata: ThemeVarMeta[] = [
     type: 'color',
   },
   {
+    name: '--btn-danger',
+    label: 'Danger button',
+    description: 'Background for destructive action buttons.',
+    group: 'buttons',
+    type: 'color',
+  },
+  {
+    name: '--btn-danger-hover',
+    label: 'Danger button hover',
+    description: 'Hover state for destructive action buttons.',
+    group: 'buttons',
+    type: 'color',
+  },
+  {
     name: '--btn-export',
     label: 'Export button',
     description: 'Background for export/download buttons.',
@@ -437,6 +457,23 @@ export const themeVarMetadata: ThemeVarMeta[] = [
     label: 'Card label price',
     description: 'Price shown on the card hover label — a universally bright green.',
     group: 'overlays',
+    type: 'color',
+  },
+
+  // ----- Modals -----
+  {
+    name: '--modal-radius',
+    label: 'Modal radius',
+    description: 'Corner rounding of modal dialog panels.',
+    group: 'modals',
+    type: 'length',
+    unit: 'px',
+  },
+  {
+    name: '--modal-shadow-color',
+    label: 'Modal shadow',
+    description: 'Tint of the drop shadow cast by modal dialog panels.',
+    group: 'modals',
     type: 'color',
   },
 

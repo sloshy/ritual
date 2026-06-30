@@ -159,18 +159,10 @@ export function EditViewFrame(props: EditViewFrameProps): JSX.Element {
               {file().changes.length === 1 ? 'change' : 'changes'}). Restore them?
             </span>
             <div class="edit-restore-actions">
-              <button
-                type="button"
-                class="site-btn site-btn-export"
-                onClick={() => handleRestore(file())}
-              >
+              <button type="button" class="btn btn-export" onClick={() => handleRestore(file())}>
                 Restore
               </button>
-              <button
-                type="button"
-                class="site-btn site-btn-secondary"
-                onClick={() => setRestorable(null)}
-              >
+              <button type="button" class="btn btn-secondary" onClick={() => setRestorable(null)}>
                 Dismiss
               </button>
             </div>

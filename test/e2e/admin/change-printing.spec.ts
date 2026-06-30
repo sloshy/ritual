@@ -128,7 +128,7 @@ test.describe('Deck Editor — change printing', () => {
     const qtyInput = page.locator('#change-printing-qty')
     await expect(qtyInput).toBeVisible()
     await expect(qtyInput).toHaveValue('4')
-    await page.locator('.confirm-dialog button', { hasText: 'Continue' }).click()
+    await page.locator('.modal-panel button', { hasText: 'Continue' }).click()
 
     // The reused printing picker opens straight on the printing step.
     await expect(page.locator('.modal-heading-flex')).toContainText('Select a printing')
@@ -145,7 +145,7 @@ test.describe('Deck Editor — change printing', () => {
 
     // The change is logged unambiguously by ID and target printing.
     await page.locator('.btn-changes').click()
-    await expect(page.locator('.changes-dialog-native .changes-dialog')).toContainText(
+    await expect(page.locator('.changes-modal .changes-dialog')).toContainText(
       'Set Lightning Bolt printing to M10:146',
     )
   })
@@ -156,7 +156,7 @@ test.describe('Deck Editor — change printing', () => {
     const qtyInput = page.locator('#change-printing-qty')
     await expect(qtyInput).toBeVisible()
     await qtyInput.fill('2')
-    await page.locator('.confirm-dialog button', { hasText: 'Continue' }).click()
+    await page.locator('.modal-panel button', { hasText: 'Continue' }).click()
 
     await expect(page.locator('.modal-heading-flex')).toContainText('Select a printing')
     await page.locator('.printing-select-card', { hasText: 'M10' }).click()
@@ -173,7 +173,7 @@ test.describe('Deck Editor — change printing', () => {
 
     // The changelog shows the quantity decrease (removes) plus the new-printing adds.
     await page.locator('.btn-changes').click()
-    const changes = page.locator('.changes-dialog-native .changes-dialog')
+    const changes = page.locator('.changes-modal .changes-dialog')
     await expect(changes).toContainText('Remove Lightning Bolt')
     await expect(changes).toContainText('Add Lightning Bolt (M10:146)')
   })
@@ -187,7 +187,7 @@ test.describe('Deck Editor — change printing', () => {
     await expect(qtyInput).toBeVisible()
 
     // Scope to the quantity dialog — the discard dialog (always in the DOM) also
-    // has a "Cancel" button under a `.confirm-dialog`.
+    // has a "Cancel" button under a `.modal-panel`.
     await page.locator('dialog:has(#change-printing-qty) button', { hasText: 'Cancel' }).click()
 
     // Dismissing the quantity prompt must end the flow: the printing picker never

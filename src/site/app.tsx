@@ -49,7 +49,6 @@ import { pendingPrintingPrompt } from './printing-prompt'
 import { TradePrintingPicker } from './TradePrintingPicker'
 import { pendingMovePrompt, closeMovePrompt } from './move-prompt'
 import { MoveTargetPicker } from './MoveTargetPicker'
-import { useTooltip } from './useTooltip'
 import { createThemeStore, ThemeProvider, useTheme } from './useTheme'
 import { syncFaviconToTheme } from './useFavicon'
 import { FlameIcon } from './FlameIcon'
@@ -106,14 +105,6 @@ function App() {
     const cards = allSelections.selected()
     void moveAllSelectedPublic(cards, dest).then(() => allSelections.clear())
   }
-
-  // Tooltip backing the bulk "Add to Trade" printing picker rendered app-wide.
-  const {
-    tooltip: pickerTooltip,
-    tooltipPos: pickerTooltipPos,
-    tooltipRef: pickerTooltipRef,
-    setTooltip: setPickerTooltip,
-  } = useTooltip()
 
   useQuickSwitchShortcut(() => setQuickSwitchOpen((v) => !v))
 
@@ -377,7 +368,7 @@ function App() {
           </div>
           <button
             type="button"
-            class="site-btn site-btn-secondary btn-edit"
+            class="btn btn-secondary btn-edit"
             classList={{ 'btn-edit--active': editMode() }}
             title={
               editMode()
@@ -700,24 +691,9 @@ function App() {
             currency={currency()}
             onSelect={(printing, finish) => prompt().onSelect(printing, finish)}
             onClose={() => prompt().onSkip()}
-            onTooltipEnter={(src, sideways) => setPickerTooltip({ src, sideways })}
-            onTooltipLeave={() => setPickerTooltip(null)}
           />
         )}
       </Show>
-      <div
-        ref={pickerTooltipRef}
-        class={`list-tooltip ${pickerTooltip() ? 'visible' : ''} ${pickerTooltip()?.sideways ? 'list-tooltip-sideways' : ''}`}
-        style={`left:${pickerTooltipPos().left}px;top:${pickerTooltipPos().top}px;`}
-      >
-        <Show when={pickerTooltip()}>
-          <img
-            src={pickerTooltip()!.src}
-            alt=""
-            class={pickerTooltip()!.sideways ? 'tooltip-rotated' : ''}
-          />
-        </Show>
-      </div>
     </div>
   )
 }

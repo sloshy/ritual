@@ -479,11 +479,11 @@ export const TradePage: Component<TradePageProps> = (props) => {
           >
             {updatingPrices() ? '↻ Updating…' : '↻ Update prices'}
           </button>
-          <button class="btn" onClick={handleResetRequest}>
+          <button class="btn btn-secondary" onClick={handleResetRequest}>
             Reset
           </button>
           <span class="primary-toolbar-sep" />
-          <button ref={copyButtonRef} class="btn" onClick={handleCopyLink}>
+          <button ref={copyButtonRef} class="btn btn-secondary" onClick={handleCopyLink}>
             Copy Link
           </button>
         </div>
@@ -619,7 +619,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
               cleared.
             </p>
             <div class="trade-confirm-actions">
-              <button class="btn" onClick={() => setResetConfirmOpen(false)}>
+              <button class="btn btn-secondary" onClick={() => setResetConfirmOpen(false)}>
                 Cancel
               </button>
               <button class="btn btn-danger" onClick={handleResetConfirm}>
@@ -642,10 +642,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
             onClose={() => {
               setPicker(null)
               scryfallSearch.clearPrintings()
-              handleTooltipLeave()
             }}
-            onTooltipEnter={handleTooltipEnter}
-            onTooltipLeave={handleTooltipLeave}
           />
         )}
       </Show>

@@ -1,10 +1,12 @@
 import type { Component } from 'solid-js'
-import { createSignal, createMemo, createEffect, For, Show, onMount, onCleanup } from 'solid-js'
+import { createSignal, createMemo, createEffect, For, Show } from 'solid-js'
+import { Modal } from '../ui/Modal'
 import type { ScryfallCard, Finish } from '../types'
 import type { PriceCurrency } from '../price-currency'
 import { formatPrice, getCardPriceForFinish } from '../price-currency'
 import { isCardSideways, resolveCardImageSources } from './image-sources'
 import { defaultFinishForCard } from './trade-finish'
+import { useTooltip } from './useTooltip'
 
 export interface TradePrintingPickerProps {
   cardName: string
@@ -14,8 +16,6 @@ export interface TradePrintingPickerProps {
   currency: PriceCurrency
   onSelect: (printing: ScryfallCard, finish: Finish) => void
   onClose: () => void
-  onTooltipEnter: (src: string, sideways: boolean) => void
-  onTooltipLeave: () => void
 }
 
 const PRINTINGS_PAGE_SIZE = 8
@@ -38,10 +38,13 @@ const PickerItem: Component<PickerItemProps> = (props) => {
     (f): f is Finish => f === 'nonfoil' || f === 'foil' || f === 'etched',
   )
   if (finishes.length === 0) finishes.push('nonfoil')
-  const prices = finishes.map((f) => ({
-    finish: f,
-    value: getCardPriceForFinish(props.printing, f, props.currency),
-  }))
+  // Memoized so a currency change while the picker is open re-prices reactively.
+  const prices = createMemo(() =>
+    finishes.map((f) => ({
+      finish: f,
+      value: getCardPriceForFinish(props.printing, f, props.currency),
+    })),
+  )
   const handleEnter = () => {
     if (frontImage) props.onTooltipEnter(frontImage, isCardSideways(props.printing))
   }
@@ -69,7 +72,7 @@ const PickerItem: Component<PickerItemProps> = (props) => {
         </span>
         <span class="trade-picker-release">{props.printing.released_at ?? ''}</span>
         <span class="trade-picker-price">
-          <For each={prices}>
+          <For each={prices()}>
             {(p, i) => (
               <>
                 <Show when={i() > 0}> </Show>
@@ -107,10 +110,10 @@ export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) 
   const [selectedPrinting, setSelectedPrinting] = createSignal<ScryfallCard | null>(null)
   const [selectedFinish, setSelectedFinish] = createSignal<Finish>('nonfoil')
   const [page, setPage] = createSignal(0)
-  const [setFilter, setSetFilter] = createSignal('')
+  const [filterText, setFilterText] = createSignal('')
 
   const filteredPrintings = createMemo(() => {
-    const filter = setFilter().toLowerCase().trim()
+    const filter = filterText().toLowerCase().trim()
     if (!filter) return props.printings
     return props.printings.filter((p) => p.set.toLowerCase().includes(filter))
   })
@@ -126,7 +129,7 @@ export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) 
 
   createEffect(() => {
     props.printings
-    setFilter()
+    filterText()
     setPage(0)
   })
 
@@ -141,91 +144,106 @@ export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) 
     props.onSelect(p, selectedFinish())
   }
 
-  const keyHandler = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') props.onClose()
-  }
-  onMount(() => document.addEventListener('keydown', keyHandler))
-  onCleanup(() => document.removeEventListener('keydown', keyHandler))
+  // Own the hover preview so it renders inside the dialog's top layer (a
+  // page-level tooltip would be occluded by the modal backdrop).
+  const tip = useTooltip()
 
   return (
-    <div class="trade-picker-overlay" onClick={props.onClose}>
-      <div class="trade-picker-modal" onClick={(e) => e.stopPropagation()}>
-        <div class="trade-picker-header">
-          <span class="trade-picker-title">Select Printing: {props.cardName}</span>
-          <button class="trade-picker-close" onClick={props.onClose}>
-            ×
-          </button>
-        </div>
-        <div class="trade-picker-filter-row">
-          <input
-            type="text"
-            class="trade-picker-filter"
-            placeholder="Filter by set code (e.g. mkm, lea)…"
-            value={setFilter()}
-            onInput={(e) => setSetFilter(e.target.value)}
-            autocomplete="off"
-          />
-        </div>
-        <Show when={props.loading}>
-          <div class="trade-picker-loading">Loading printings…</div>
-        </Show>
-        <Show when={!props.loading}>
-          <div class="trade-picker-list">
-            <Show when={filteredPrintings().length === 0 && props.printings.length > 0}>
-              <div class="trade-picker-loading">No printings match that set code.</div>
-            </Show>
-            <For each={pagedPrintings()}>
-              {(printing) => (
-                <PickerItem
-                  printing={printing}
-                  useScryfallImgUrls={props.useScryfallImgUrls}
-                  currency={props.currency}
-                  selectedPrinting={selectedPrinting()}
-                  selectedFinish={selectedFinish()}
-                  onSelectPrinting={setSelectedPrinting}
-                  onSelectFinish={(p, f) => {
-                    setSelectedPrinting(p)
-                    setSelectedFinish(f)
-                  }}
-                  onTooltipEnter={props.onTooltipEnter}
-                  onTooltipLeave={props.onTooltipLeave}
-                />
-              )}
-            </For>
-          </div>
-          <Show when={totalPages() > 1}>
-            <div class="trade-picker-pagination">
-              <button
-                class="btn"
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                disabled={page() === 0}
-              >
-                ← Prev
-              </button>
-              <span class="trade-picker-pagination-info">
-                Page {page() + 1} of {totalPages()} · {filteredPrintings().length} printings
-              </span>
-              <button
-                class="btn"
-                onClick={() => setPage((p) => Math.min(totalPages() - 1, p + 1))}
-                disabled={page() >= totalPages() - 1}
-              >
-                Next →
-              </button>
-            </div>
+    <Modal
+      open
+      onClose={props.onClose}
+      size="lg"
+      aria-label={`Select printing for ${props.cardName}`}
+      panelClass="trade-picker-modal"
+      overlay={
+        <div
+          ref={tip.tooltipRef}
+          class={`list-tooltip ${tip.tooltip() ? 'visible' : ''} ${
+            tip.tooltip()?.sideways ? 'list-tooltip-sideways' : ''
+          }`}
+          style={`left:${tip.tooltipPos().left}px;top:${tip.tooltipPos().top}px;`}
+        >
+          <Show when={tip.tooltip()}>
+            {(t) => <img src={t().src} alt="" class={t().sideways ? 'tooltip-rotated' : ''} />}
           </Show>
-          <Show when={selectedPrinting()}>
-            <div class="trade-picker-actions">
-              <button class="btn btn-add" onClick={handleConfirm}>
-                Add to Trade
-              </button>
-              <button class="btn" onClick={props.onClose}>
-                Cancel
-              </button>
-            </div>
-          </Show>
-        </Show>
+        </div>
+      }
+    >
+      <div class="trade-picker-header">
+        <span class="trade-picker-title">Select Printing: {props.cardName}</span>
+        <button class="trade-picker-close" onClick={props.onClose}>
+          ×
+        </button>
       </div>
-    </div>
+      <div class="trade-picker-filter-row">
+        <input
+          type="text"
+          class="trade-picker-filter"
+          placeholder="Filter by set code (e.g. mkm, lea)…"
+          value={filterText()}
+          onInput={(e) => setFilterText(e.target.value)}
+          autocomplete="off"
+        />
+      </div>
+      <Show when={props.loading}>
+        <div class="trade-picker-loading">Loading printings…</div>
+      </Show>
+      <Show when={!props.loading}>
+        <div class="trade-picker-list">
+          <Show when={filteredPrintings().length === 0 && props.printings.length > 0}>
+            <div class="trade-picker-loading">No printings match that set code.</div>
+          </Show>
+          <For each={pagedPrintings()}>
+            {(printing) => (
+              <PickerItem
+                printing={printing}
+                useScryfallImgUrls={props.useScryfallImgUrls}
+                currency={props.currency}
+                selectedPrinting={selectedPrinting()}
+                selectedFinish={selectedFinish()}
+                onSelectPrinting={setSelectedPrinting}
+                onSelectFinish={(p, f) => {
+                  setSelectedPrinting(p)
+                  setSelectedFinish(f)
+                }}
+                onTooltipEnter={(src, sideways) => tip.setTooltip({ src, sideways })}
+                onTooltipLeave={() => tip.setTooltip(null)}
+              />
+            )}
+          </For>
+        </div>
+        <Show when={totalPages() > 1}>
+          <div class="trade-picker-pagination">
+            <button
+              class="btn btn-secondary"
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page() === 0}
+            >
+              ← Prev
+            </button>
+            <span class="trade-picker-pagination-info">
+              Page {page() + 1} of {totalPages()} · {filteredPrintings().length} printings
+            </span>
+            <button
+              class="btn btn-secondary"
+              onClick={() => setPage((p) => Math.min(totalPages() - 1, p + 1))}
+              disabled={page() >= totalPages() - 1}
+            >
+              Next →
+            </button>
+          </div>
+        </Show>
+        <Show when={selectedPrinting()}>
+          <div class="trade-picker-actions">
+            <button class="btn btn-success" onClick={handleConfirm}>
+              Add to Trade
+            </button>
+            <button class="btn btn-secondary" onClick={props.onClose}>
+              Cancel
+            </button>
+          </div>
+        </Show>
+      </Show>
+    </Modal>
   )
 }

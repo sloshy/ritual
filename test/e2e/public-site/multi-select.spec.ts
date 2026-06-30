@@ -47,7 +47,7 @@ test.describe('List multi-select', () => {
     await expect(first.locator('.card-select-checkbox.selected')).toBeVisible()
     await expect(page.locator('.selection-menu-btn')).toHaveText(/Selected \(1\)/)
     // The modal stays mounted and is toggled via the backdrop's `open` class.
-    await expect(page.locator('.card-modal-backdrop.open')).not.toBeVisible()
+    await expect(page.locator('.card-modal')).not.toBeVisible()
 
     // A second ctrl/cmd-click toggles it back off.
     await first.locator('.card-binder').click({ modifiers: ['ControlOrMeta'] })

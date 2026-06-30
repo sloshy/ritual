@@ -177,8 +177,6 @@ function App() {
                   currency="usd"
                   onSelect={(printing, finish) => prompt().onSelect(printing, finish)}
                   onClose={() => prompt().onSkip()}
-                  onTooltipEnter={() => {}}
-                  onTooltipLeave={() => {}}
                 />
               )}
             </Show>

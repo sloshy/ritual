@@ -1,5 +1,6 @@
 import type { Component } from 'solid-js'
-import { createSignal, createEffect, createMemo, onCleanup, For, Show } from 'solid-js'
+import { createSignal, createMemo, For, Show } from 'solid-js'
+import { Modal } from '../../ui/Modal'
 import type { ScryfallCard } from '../../types'
 import type { PriceCurrency } from '../../price-currency'
 import { type ChangeEvent, isAdditiveChange, formatChange } from '../../change-event'
@@ -19,57 +20,41 @@ interface ChangesDialogProps {
 }
 
 export const ChangesDialog: Component<ChangesDialogProps> = (props) => {
-  let dialogRef: HTMLDialogElement | undefined
-
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
   const [selectedCard, setSelectedCard] = createSignal<string | null>(null)
 
-  createEffect(() => {
-    const dialog = dialogRef
-    if (!dialog) return
-    if (props.open && !dialog.open) dialog.showModal()
-    else if (!props.open && dialog.open) dialog.close()
-  })
-
-  // Intercept Escape: close CardModal first, then allow dialog to close
-  createEffect(() => {
-    const dialog = dialogRef
-    if (!dialog) return
-    const handleCancel = (e: Event) => {
-      if (selectedCard()) {
-        e.preventDefault()
-        setSelectedCard(null)
-      }
-    }
-    dialog.addEventListener('cancel', handleCancel)
-    onCleanup(() => dialog.removeEventListener('cancel', handleCancel))
-  })
-
-  const handleBackdropClick = (e: MouseEvent) => {
-    if ((e.target as Element) === dialogRef) dialogRef?.close()
-  }
-
-  const modalCard = () => {
+  const modalCard = createMemo(() => {
     const name = selectedCard()
     return name ? (props.cards[name] ?? null) : null
-  }
-  const modalPrintings = () => {
+  })
+  const modalPrintings = createMemo(() => {
     const name = selectedCard()
     const printingsMap = props.printings ?? {}
     return name ? (printingsMap[name] ?? []) : []
-  }
+  })
 
   return (
-    <dialog
-      ref={dialogRef}
-      class="changes-dialog-native"
-      onClose={props.onClose}
-      onClick={handleBackdropClick}
-    >
-      <div class="search-modal changes-modal">
+    <>
+      <Modal
+        open={props.open}
+        onClose={props.onClose}
+        size="lg"
+        placement="top"
+        panelClass="changes-modal"
+        aria-label="Pending changes"
+        overlay={
+          <div
+            ref={tooltipRef}
+            class={`changes-card-tooltip ${tooltip() ? 'visible' : ''}`}
+            style={`left:${tooltipPos().left}px;top:${tooltipPos().top}px;`}
+          >
+            <Show when={tooltip()}>{(t) => <img src={t().src} alt="" />}</Show>
+          </div>
+        }
+      >
         <div class="search-modal-header">
           <h3 class="modal-heading">Pending Changes ({props.changes.length})</h3>
-          <button type="button" class="modal-close-btn" onClick={() => dialogRef?.close()}>
+          <button type="button" class="modal-close-btn" onClick={props.onClose}>
             &times;
           </button>
         </div>
@@ -104,18 +89,9 @@ export const ChangesDialog: Component<ChangesDialogProps> = (props) => {
             </For>
           </Show>
         </div>
-      </div>
+      </Modal>
 
-      {/* Card hover tooltip — rendered outside modal div to avoid clipping */}
-      <div
-        ref={tooltipRef}
-        class={`changes-card-tooltip ${tooltip() ? 'visible' : ''}`}
-        style={`left:${tooltipPos().left}px;top:${tooltipPos().top}px;`}
-      >
-        <Show when={tooltip()}>{(t) => <img src={t().src} alt="" />}</Show>
-      </div>
-
-      {/* Card detail modal opened from change item */}
+      {/* Card detail modal — a native dialog that stacks above this one in the top layer. */}
       <CardModal
         open={Boolean(modalCard())}
         card={modalCard()}
@@ -125,9 +101,8 @@ export const ChangesDialog: Component<ChangesDialogProps> = (props) => {
         currency={props.currency ?? 'usd'}
         printings={modalPrintings()}
         onClose={() => setSelectedCard(null)}
-        backdropClass="changelog-card-modal"
       />
-    </dialog>
+    </>
   )
 }
 

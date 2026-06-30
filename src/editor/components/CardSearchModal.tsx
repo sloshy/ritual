@@ -1,5 +1,6 @@
 import type { Component } from 'solid-js'
 import { createSignal, createEffect, createMemo, on, onCleanup, Show, For } from 'solid-js'
+import { Modal } from '../../ui/Modal'
 import type { Finish, Condition, ScryfallCard } from '../../types'
 import type { CardPrintingOptions } from '../../change-event'
 import { getCardImageUrl } from '../../card-image'
@@ -252,16 +253,6 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       const id = setTimeout(() => inputRef?.focus(), 50)
       onCleanup(() => clearTimeout(id))
     }
-  })
-
-  // Escape key closes modal from any step
-  createEffect(() => {
-    if (!props.open) return
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') props.onClose()
-    }
-    document.addEventListener('keydown', handler)
-    onCleanup(() => document.removeEventListener('keydown', handler))
   })
 
   // Cleanup debounce timer on unmount
@@ -552,231 +543,15 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   })
 
   return (
-    <Show when={props.open}>
-      <div
-        class="search-modal-backdrop"
-        onClick={(e) => {
-          if (e.target === e.currentTarget) props.onClose()
-        }}
-      >
-        <div
-          class="search-modal"
-          ref={modalRef}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Add card"
-        >
-          <Show when={step() === 'search'}>
-            <>
-              <div class="search-modal-header">
-                <input
-                  ref={inputRef}
-                  type="text"
-                  placeholder="Search for a card..."
-                  value={query()}
-                  onInput={(e) => handleInputChange(e.currentTarget.value)}
-                  onKeyDown={handleSearchKeyDown}
-                />
-              </div>
-              <div
-                class="search-modal-body"
-                onMouseLeave={() => {
-                  setHighlightedIndex(-1)
-                  setQuery(typedQuery)
-                  setPreviewCard(null)
-                }}
-              >
-                <For each={results()}>
-                  {(name, i) => (
-                    <button
-                      class={`search-result-item${i() === highlightedIndex() ? ' search-result-item--highlighted' : ''}`}
-                      onClick={() => void selectCardName(name)}
-                      onMouseEnter={() => {
-                        setHighlightedIndex(i())
-                        setQuery(name)
-                        void fetchCardImage(name)
-                      }}
-                    >
-                      {name}
-                    </button>
-                  )}
-                </For>
-              </div>
-            </>
-          </Show>
-
-          <Show when={step() === 'printing'}>
-            <>
-              <div class="search-modal-header">
-                <button onClick={goBack} class="search-tab-btn">
-                  ← Back
-                </button>
-                <h3 class="modal-heading-flex">Select a printing for {selectedCardName()}</h3>
-              </div>
-              <div class="search-modal-body">
-                <Show
-                  when={!loadingPrintings()}
-                  fallback={<div class="empty-state">Loading printings…</div>}
-                >
-                  <Show when={setFilterFellBack()}>
-                    <div class="search-modal-hint">
-                      No printings match the set filter (
-                      {props.defaults?.sets.map((s) => s.toUpperCase()).join(', ')}). Showing all
-                      printings.
-                    </div>
-                  </Show>
-                  <div class="printing-select-grid">
-                    <Show when={!props.requirePrinting && printingsPage() === 0}>
-                      <button
-                        class={`printing-no-printing${printingHighlightIndex() === 0 ? ' printing-no-printing--highlighted' : ''}`}
-                        onClick={() => selectPrinting(null)}
-                      >
-                        No specific printing
-                      </button>
-                    </Show>
-                    <For each={paginatedPrintings()}>
-                      {(printing, i) => {
-                        const offset = props.requirePrinting ? 0 : 1
-                        const globalIdx = printingsPage() * PRINTING_PAGE_SIZE + i() + offset
-                        const imageUrl = getCardImageUrl(printing)
-                        return (
-                          <button
-                            class={`printing-select-card btn-unstyled${globalIdx === printingHighlightIndex() ? ' printing-select-card--highlighted' : ''}`}
-                            onClick={() => selectPrinting(printing)}
-                          >
-                            <Show when={imageUrl}>
-                              {(url) => <img src={url()} alt={printing.name} loading="lazy" />}
-                            </Show>
-                            <div class="printing-label">
-                              {printing.set.toUpperCase()} #{printing.collector_number}
-                              {' · '}
-                              {formatPrice(printing)}
-                            </div>
-                          </button>
-                        )
-                      }}
-                    </For>
-                  </div>
-                </Show>
-              </div>
-              <Show when={totalPrintingsPages() > 1}>
-                <div class="printing-select-pagination">
-                  <button
-                    disabled={printingsPage() === 0}
-                    onClick={() => {
-                      setPrintingsPage((p) => p - 1)
-                      setPrintingHighlightIndex(0)
-                    }}
-                  >
-                    ← Prev
-                  </button>
-                  <span>
-                    Page {printingsPage() + 1} of {totalPrintingsPages()}
-                  </span>
-                  <button
-                    disabled={printingsPage() >= totalPrintingsPages() - 1}
-                    onClick={() => {
-                      setPrintingsPage((p) => p + 1)
-                      setPrintingHighlightIndex(0)
-                    }}
-                  >
-                    Next →
-                  </button>
-                </div>
-              </Show>
-            </>
-          </Show>
-
-          <Show when={step() === 'finish-condition' && selectedPrinting()}>
-            {(printing) => (
-              <>
-                <div class="search-modal-header">
-                  <button onClick={goBack} class="search-tab-btn">
-                    ← Back
-                  </button>
-                  <h3 class="modal-heading-flex">
-                    Set finish & condition for {selectedCardName()} ({printing().set.toUpperCase()}:
-                    {printing().collector_number})
-                  </h3>
-                </div>
-                <div class="search-modal-body">
-                  <div class="finish-condition-grid">
-                    <Show
-                      when={
-                        printing().finishes.length > 1 ||
-                        printing().finishes.some((f) => f === 'foil' || f === 'etched')
-                      }
-                    >
-                      <div class="finish-condition-section">
-                        <h4>Finish</h4>
-                        <div class="radio-group">
-                          <For each={printing().finishes}>
-                            {(finish) => (
-                              <label
-                                class={`radio-option${selectedFinish() === finish ? ' radio-option--selected' : ''}`}
-                              >
-                                <input
-                                  type="radio"
-                                  name="finish"
-                                  value={finish}
-                                  checked={selectedFinish() === finish}
-                                  onChange={() => {
-                                    if (isFinish(finish)) setSelectedFinish(finish)
-                                  }}
-                                />
-                                {finish}
-                              </label>
-                            )}
-                          </For>
-                        </div>
-                      </div>
-                    </Show>
-
-                    <Show when={usesCondition()}>
-                      <div class="finish-condition-section">
-                        <h4>Condition</h4>
-                        <div class="radio-group">
-                          <For each={VALID_CONDITIONS}>
-                            {(condition) => (
-                              <label
-                                class={`radio-option${selectedCondition() === condition ? ' radio-option--selected' : ''}`}
-                              >
-                                <input
-                                  type="radio"
-                                  name="condition"
-                                  value={condition}
-                                  checked={selectedCondition() === condition}
-                                  onChange={() => setSelectedCondition(condition)}
-                                />
-                                {condition}
-                              </label>
-                            )}
-                          </For>
-                        </div>
-                      </div>
-                    </Show>
-
-                    <button onClick={handleAddWithOptions} class="btn-add-card">
-                      Add Card
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
-          </Show>
-
-          <div class="search-modal-footer">
-            <For each={keyHints()}>
-              {(hint) => (
-                <span>
-                  <For each={hint.keys}>{(key) => <kbd>{key}</kbd>}</For>
-                  {hint.label}
-                </span>
-              )}
-            </For>
-          </div>
-        </div>
-
+    <Modal
+      open={props.open}
+      onClose={props.onClose}
+      size="lg"
+      placement="top"
+      panelClass="search-modal"
+      aria-label="Add card"
+      panelRef={(el) => (modalRef = el)}
+      overlay={
         <Show when={previewCard() && step() === 'search'}>
           <div class="search-card-preview" style={previewPositionStyle()}>
             <Show when={previewCard()}>
@@ -784,7 +559,217 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
             </Show>
           </div>
         </Show>
+      }
+    >
+      <Show when={step() === 'search'}>
+        <>
+          <div class="search-modal-header">
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder="Search for a card..."
+              value={query()}
+              onInput={(e) => handleInputChange(e.currentTarget.value)}
+              onKeyDown={handleSearchKeyDown}
+            />
+          </div>
+          <div
+            class="search-modal-body"
+            onMouseLeave={() => {
+              setHighlightedIndex(-1)
+              setQuery(typedQuery)
+              setPreviewCard(null)
+            }}
+          >
+            <For each={results()}>
+              {(name, i) => (
+                <button
+                  class={`search-result-item${i() === highlightedIndex() ? ' search-result-item--highlighted' : ''}`}
+                  onClick={() => void selectCardName(name)}
+                  onMouseEnter={() => {
+                    setHighlightedIndex(i())
+                    setQuery(name)
+                    void fetchCardImage(name)
+                  }}
+                >
+                  {name}
+                </button>
+              )}
+            </For>
+          </div>
+        </>
+      </Show>
+
+      <Show when={step() === 'printing'}>
+        <>
+          <div class="search-modal-header">
+            <button onClick={goBack} class="search-tab-btn">
+              ← Back
+            </button>
+            <h3 class="modal-heading-flex">Select a printing for {selectedCardName()}</h3>
+          </div>
+          <div class="search-modal-body">
+            <Show
+              when={!loadingPrintings()}
+              fallback={<div class="empty-state">Loading printings…</div>}
+            >
+              <Show when={setFilterFellBack()}>
+                <div class="search-modal-hint">
+                  No printings match the set filter (
+                  {props.defaults?.sets.map((s) => s.toUpperCase()).join(', ')}). Showing all
+                  printings.
+                </div>
+              </Show>
+              <div class="printing-select-grid">
+                <Show when={!props.requirePrinting && printingsPage() === 0}>
+                  <button
+                    class={`printing-no-printing${printingHighlightIndex() === 0 ? ' printing-no-printing--highlighted' : ''}`}
+                    onClick={() => selectPrinting(null)}
+                  >
+                    No specific printing
+                  </button>
+                </Show>
+                <For each={paginatedPrintings()}>
+                  {(printing, i) => {
+                    const offset = props.requirePrinting ? 0 : 1
+                    const globalIdx = printingsPage() * PRINTING_PAGE_SIZE + i() + offset
+                    const imageUrl = getCardImageUrl(printing)
+                    return (
+                      <button
+                        class={`printing-select-card btn-unstyled${globalIdx === printingHighlightIndex() ? ' printing-select-card--highlighted' : ''}`}
+                        onClick={() => selectPrinting(printing)}
+                      >
+                        <Show when={imageUrl}>
+                          {(url) => <img src={url()} alt={printing.name} loading="lazy" />}
+                        </Show>
+                        <div class="printing-label">
+                          {printing.set.toUpperCase()} #{printing.collector_number}
+                          {' · '}
+                          {formatPrice(printing)}
+                        </div>
+                      </button>
+                    )
+                  }}
+                </For>
+              </div>
+            </Show>
+          </div>
+          <Show when={totalPrintingsPages() > 1}>
+            <div class="printing-select-pagination">
+              <button
+                disabled={printingsPage() === 0}
+                onClick={() => {
+                  setPrintingsPage((p) => p - 1)
+                  setPrintingHighlightIndex(0)
+                }}
+              >
+                ← Prev
+              </button>
+              <span>
+                Page {printingsPage() + 1} of {totalPrintingsPages()}
+              </span>
+              <button
+                disabled={printingsPage() >= totalPrintingsPages() - 1}
+                onClick={() => {
+                  setPrintingsPage((p) => p + 1)
+                  setPrintingHighlightIndex(0)
+                }}
+              >
+                Next →
+              </button>
+            </div>
+          </Show>
+        </>
+      </Show>
+
+      <Show when={step() === 'finish-condition' && selectedPrinting()}>
+        {(printing) => (
+          <>
+            <div class="search-modal-header">
+              <button onClick={goBack} class="search-tab-btn">
+                ← Back
+              </button>
+              <h3 class="modal-heading-flex">
+                Set finish & condition for {selectedCardName()} ({printing().set.toUpperCase()}:
+                {printing().collector_number})
+              </h3>
+            </div>
+            <div class="search-modal-body">
+              <div class="finish-condition-grid">
+                <Show
+                  when={
+                    printing().finishes.length > 1 ||
+                    printing().finishes.some((f) => f === 'foil' || f === 'etched')
+                  }
+                >
+                  <div class="finish-condition-section">
+                    <h4>Finish</h4>
+                    <div class="radio-group">
+                      <For each={printing().finishes}>
+                        {(finish) => (
+                          <label
+                            class={`radio-option${selectedFinish() === finish ? ' radio-option--selected' : ''}`}
+                          >
+                            <input
+                              type="radio"
+                              name="finish"
+                              value={finish}
+                              checked={selectedFinish() === finish}
+                              onChange={() => {
+                                if (isFinish(finish)) setSelectedFinish(finish)
+                              }}
+                            />
+                            {finish}
+                          </label>
+                        )}
+                      </For>
+                    </div>
+                  </div>
+                </Show>
+
+                <Show when={usesCondition()}>
+                  <div class="finish-condition-section">
+                    <h4>Condition</h4>
+                    <div class="radio-group">
+                      <For each={VALID_CONDITIONS}>
+                        {(condition) => (
+                          <label
+                            class={`radio-option${selectedCondition() === condition ? ' radio-option--selected' : ''}`}
+                          >
+                            <input
+                              type="radio"
+                              name="condition"
+                              value={condition}
+                              checked={selectedCondition() === condition}
+                              onChange={() => setSelectedCondition(condition)}
+                            />
+                            {condition}
+                          </label>
+                        )}
+                      </For>
+                    </div>
+                  </div>
+                </Show>
+
+                <button onClick={handleAddWithOptions} class="btn-add-card">
+                  Add Card
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </Show>
+
+      <div class="search-modal-footer">
+        <For each={keyHints()}>
+          {(hint) => (
+            <span>
+              <For each={hint.keys}>{(key) => <kbd>{key}</kbd>}</For>
+              {hint.label}
+            </span>
+          )}
+        </For>
       </div>
-    </Show>
+    </Modal>
   )
 }

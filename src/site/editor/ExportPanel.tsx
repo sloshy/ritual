@@ -97,7 +97,7 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
           <div class="export-panel-actions">
             <button
               type="button"
-              class="site-btn site-btn-secondary"
+              class="btn btn-secondary"
               disabled={props.changeCount === 0}
               onClick={downloadJson}
             >
@@ -105,7 +105,7 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
             </button>
             <button
               type="button"
-              class="site-btn site-btn-secondary"
+              class="btn btn-secondary"
               disabled={props.changeCount === 0}
               onClick={() => void copyJson()}
             >
@@ -115,7 +115,7 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
               {(fx) => (
                 <button
                   type="button"
-                  class="site-btn site-btn-secondary"
+                  class="btn btn-secondary"
                   onClick={() => downloadTextFile(fx.filename, fx.build(), fx.mime)}
                 >
                   {fx.label}
@@ -133,7 +133,7 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
               <div class="export-panel-actions">
                 <button
                   type="button"
-                  class="site-btn site-btn-secondary"
+                  class="btn btn-secondary"
                   disabled={props.changeCount === 0}
                   onClick={() => {
                     props.onSaveToBrowser?.()
@@ -146,7 +146,7 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
                 <Show when={props.hasSavedSession}>
                   <button
                     type="button"
-                    class="site-btn site-btn-secondary"
+                    class="btn btn-secondary"
                     onClick={() => props.onClearSaved?.()}
                   >
                     Clear saved edits

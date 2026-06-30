@@ -198,7 +198,7 @@ test.describe('Collection Editor sections', () => {
     await page.locator('.move-picker-item', { hasText: 'New section' }).click()
 
     // A styled in-app dialog (site dialog chrome), not the browser's native window.prompt.
-    const prompt = page.locator('dialog.discard-dialog-native .confirm-dialog.text-prompt')
+    const prompt = page.locator('dialog.modal-shell .modal-panel.text-prompt')
     await expect(prompt).toBeVisible()
     await expect(prompt.locator('h3')).toHaveText('Move to new section')
 
@@ -223,7 +223,7 @@ test.describe('Collection Editor sections', () => {
       .locator('.section-manager-rename')
       .click()
 
-    const prompt = page.locator('dialog.discard-dialog-native .confirm-dialog.text-prompt')
+    const prompt = page.locator('dialog.modal-shell .modal-panel.text-prompt')
     await expect(prompt).toBeVisible()
     await expect(prompt.locator('h3')).toHaveText('Rename section')
     await expect(page.locator('#text-prompt-input')).toHaveValue('Main')

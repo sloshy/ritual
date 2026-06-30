@@ -1,5 +1,6 @@
 import type { Component } from 'solid-js'
-import { createSignal, createEffect, createMemo, onCleanup, Show, For } from 'solid-js'
+import { createSignal, createMemo, Show, For } from 'solid-js'
+import { Modal } from '../ui/Modal'
 import type { ChangelogPage } from '../changelog-parser'
 import type { ScryfallCard } from '../types'
 import type { PriceCurrency } from '../price-currency'
@@ -30,16 +31,7 @@ export const ChangelogModal: Component<ChangelogModalProps> = (props) => {
 
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
 
-  createEffect(() => {
-    if (!props.open || cardModalName()) return
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') props.onClose()
-    }
-    document.addEventListener('keydown', handler)
-    onCleanup(() => document.removeEventListener('keydown', handler))
-  })
-
-  const totalPages = createMemo(() => props.changelog.length)
+  const totalPages = () => props.changelog.length
   const currentPage = createMemo(() => props.changelog[page()])
 
   const formattedTimestamp = createMemo(() => {
@@ -71,93 +63,90 @@ export const ChangelogModal: Component<ChangelogModalProps> = (props) => {
   })
 
   return (
-    <Show when={props.open && props.changelog.length > 0}>
-      <div
-        class="changelog-modal-backdrop"
-        onClick={(e) => {
-          if (e.target === e.currentTarget) props.onClose()
-        }}
+    <>
+      <Modal
+        open={props.open && props.changelog.length > 0}
+        onClose={props.onClose}
+        size="lg"
+        panelClass="changelog-modal"
+        aria-label="Change History"
+        overlay={
+          <div
+            ref={tooltipRef}
+            class={`changelog-card-tooltip ${tooltip() ? 'visible' : ''}`}
+            style={{ left: `${tooltipPos().left}px`, top: `${tooltipPos().top}px` }}
+          >
+            <Show when={tooltip()}>{(t) => <img src={t().src} alt="" />}</Show>
+          </div>
+        }
       >
-        <div class="changelog-modal">
-          <div class="changelog-modal-header">
-            <h3>Change History</h3>
-            <button class="modal-close" aria-label="Close" onClick={props.onClose}>
-              &times;
+        <div class="changelog-modal-header">
+          <h3>Change History</h3>
+          <button class="modal-close" aria-label="Close" onClick={props.onClose}>
+            &times;
+          </button>
+        </div>
+
+        <div class="changelog-modal-body">
+          <Show when={currentPage()}>
+            <div class="changelog-timestamp">{formattedTimestamp()}</div>
+            <For each={currentPage()!.changes}>
+              {(change) => {
+                const additive = isAdditiveAction(change.action)
+                const card = props.cards[change.cardName] ?? null
+                const imageUrl =
+                  card && props.useScryfallImgUrls !== undefined
+                    ? getCardImageUrl(card, props.useScryfallImgUrls)
+                    : null
+                const { prefix, suffix } = formatChangeText(change)
+                // Every action is categorized as additive or destructive (see
+                // isAdditiveAction), so there is no neutral middle state.
+                const colorClass = additive
+                  ? 'changelog-change-item--add'
+                  : 'changelog-change-item--remove'
+
+                return (
+                  <div class={`changelog-change-item ${colorClass}`}>
+                    <span class="changelog-change-icon">{additive ? '+' : '−'}</span>
+                    <span>
+                      {prefix}
+                      <span
+                        class={card ? 'changelog-card-link' : ''}
+                        onClick={card ? () => setCardModalName(change.cardName) : undefined}
+                        onMouseEnter={
+                          imageUrl
+                            ? () => setTooltip({ src: imageUrl, sideways: false })
+                            : undefined
+                        }
+                        onMouseLeave={imageUrl ? () => setTooltip(null) : undefined}
+                      >
+                        {change.cardName}
+                      </span>
+                      {suffix}
+                    </span>
+                  </div>
+                )
+              }}
+            </For>
+          </Show>
+        </div>
+
+        <Show when={totalPages() > 1}>
+          <div class="changelog-modal-footer">
+            <button disabled={page() <= 0} onClick={() => setPage((p) => p - 1)}>
+              ← Newer
+            </button>
+            <span>
+              {page() + 1} / {totalPages()}
+            </span>
+            <button disabled={page() >= totalPages() - 1} onClick={() => setPage((p) => p + 1)}>
+              Older →
             </button>
           </div>
+        </Show>
+      </Modal>
 
-          <div class="changelog-modal-body">
-            <Show when={currentPage()}>
-              <div class="changelog-timestamp">{formattedTimestamp()}</div>
-              <For each={currentPage()!.changes}>
-                {(change) => {
-                  const additive = isAdditiveAction(change.action)
-                  const card = props.cards[change.cardName] ?? null
-                  const imageUrl =
-                    card && props.useScryfallImgUrls !== undefined
-                      ? getCardImageUrl(card, props.useScryfallImgUrls)
-                      : null
-                  const { prefix, suffix } = formatChangeText(change)
-                  // Every action is categorized as additive or destructive (see
-                  // isAdditiveAction), so there is no neutral middle state.
-                  const colorClass = additive
-                    ? 'changelog-change-item--add'
-                    : 'changelog-change-item--remove'
-
-                  return (
-                    <div class={`changelog-change-item ${colorClass}`}>
-                      <span class="changelog-change-icon">{additive ? '+' : '−'}</span>
-                      <span>
-                        {prefix}
-                        <span
-                          class={card ? 'changelog-card-link' : ''}
-                          onClick={card ? () => setCardModalName(change.cardName) : undefined}
-                          onMouseEnter={
-                            imageUrl
-                              ? () => setTooltip({ src: imageUrl, sideways: false })
-                              : undefined
-                          }
-                          onMouseLeave={imageUrl ? () => setTooltip(null) : undefined}
-                        >
-                          {change.cardName}
-                        </span>
-                        {suffix}
-                      </span>
-                    </div>
-                  )
-                }}
-              </For>
-            </Show>
-          </div>
-
-          <Show when={totalPages() > 1}>
-            <div class="changelog-modal-footer">
-              <button disabled={page() <= 0} onClick={() => setPage((p) => p - 1)}>
-                ← Newer
-              </button>
-              <span>
-                {page() + 1} / {totalPages()}
-              </span>
-              <button disabled={page() >= totalPages() - 1} onClick={() => setPage((p) => p + 1)}>
-                Older →
-              </button>
-            </div>
-          </Show>
-        </div>
-
-        {/* Hover tooltip */}
-        <div
-          ref={tooltipRef}
-          class={`changelog-card-tooltip ${tooltip() ? 'visible' : ''}`}
-          style={{ left: `${tooltipPos().left}px`, top: `${tooltipPos().top}px` }}
-        >
-          <Show when={tooltip()}>
-            <img src={tooltip()!.src} alt="" />
-          </Show>
-        </div>
-      </div>
-
-      {/* Secondary card modal (rendered above changelog via CSS z-index) */}
+      {/* Secondary card modal — a native dialog that stacks above the changelog in the top layer. */}
       <CardModal
         open={Boolean(cardModalCard())}
         card={cardModalCard()}
@@ -167,8 +156,7 @@ export const ChangelogModal: Component<ChangelogModalProps> = (props) => {
         currency={props.currency}
         printings={cardModalPrintings()}
         onClose={() => setCardModalName(null)}
-        backdropClass="changelog-card-modal"
       />
-    </Show>
+    </>
   )
 }

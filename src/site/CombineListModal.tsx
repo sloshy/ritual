@@ -1,5 +1,6 @@
 import type { Component } from 'solid-js'
 import { createSignal, createMemo, createEffect, on, For, Show } from 'solid-js'
+import { Modal } from '../ui/Modal'
 import type { DeckSummary, CollectionSummary, WantedListSummary } from './data-types'
 import type { PriceCurrency } from '../price-currency'
 import { formatPriceWithMissing } from '../price-currency'
@@ -130,107 +131,94 @@ export const CombineListModal: Component<CombineListModalProps> = (props) => {
   }
 
   return (
-    <Show when={props.open}>
-      <div
-        class="combine-modal-overlay"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Combine with list"
-        onClick={(e) => {
-          if (e.target === e.currentTarget) props.onClose()
-        }}
-      >
-        <div class="combine-modal">
-          <div class="combine-modal-header">
-            <div>
-              <h2 class="combine-modal-title">Combine with list</h2>
-              <Show when={props.current}>
-                {(cur) => (
-                  <p class="combine-modal-subtitle">
-                    Combining with <strong>{cur().name}</strong>
-                  </p>
-                )}
-              </Show>
-            </div>
-            <button
-              type="button"
-              class="combine-modal-close"
-              aria-label="Close"
-              onClick={props.onClose}
-            >
-              ✕
-            </button>
-          </div>
+    <Modal
+      open={props.open}
+      onClose={props.onClose}
+      size="lg"
+      aria-label="Combine with list"
+      panelClass="combine-modal"
+    >
+      <div class="combine-modal-header">
+        <div>
+          <h2 class="combine-modal-title">Combine with list</h2>
+          <Show when={props.current}>
+            {(cur) => (
+              <p class="combine-modal-subtitle">
+                Combining with <strong>{cur().name}</strong>
+              </p>
+            )}
+          </Show>
+        </div>
+        <button
+          type="button"
+          class="combine-modal-close"
+          aria-label="Close"
+          onClick={props.onClose}
+        >
+          ×
+        </button>
+      </div>
 
-          <div class="combine-modal-controls">
-            <label class="combine-modal-all">
-              <input
-                type="checkbox"
-                checked={all()}
-                onChange={(e) => setAll(e.currentTarget.checked)}
-              />
-              <span>All lists</span>
-            </label>
-            <div class="combine-modal-sort">
-              <label class="toolbar-label">Sort:</label>
-              <select
-                class="toolbar-select"
-                value={sort()}
-                onChange={(e) => setSort(e.currentTarget.value as CombineSort)}
-              >
-                <For each={SORT_OPTIONS}>
-                  {(opt) => <option value={opt.value}>{opt.label}</option>}
-                </For>
-              </select>
-            </div>
-          </div>
-
-          <div class="combine-modal-list">
-            <Show
-              when={sortedChoices().length > 0}
-              fallback={<div class="combine-modal-empty">No other lists to combine with.</div>}
-            >
-              <For each={sortedChoices()}>
-                {(choice) => (
-                  <label class="combine-modal-row" classList={{ 'is-disabled': all() }}>
-                    <input
-                      type="checkbox"
-                      checked={isChecked(choice.ref)}
-                      disabled={all()}
-                      onChange={() => toggle(choice.ref)}
-                    />
-                    <span class="combine-modal-row-name">{choice.ref.name}</span>
-                    <span class="combine-modal-row-type">
-                      <span aria-hidden="true">{LIST_TYPE_DISPLAY[choice.ref.type].icon}</span>{' '}
-                      {LIST_TYPE_DISPLAY[choice.ref.type].label}
-                    </span>
-                    <span class="combine-modal-row-count">{pluralizeCards(choice.cardCount)}</span>
-                    <span class="combine-modal-row-price">
-                      {formatPriceWithMissing(choice.total, props.currency, choice.missing)}
-                    </span>
-                  </label>
-                )}
-              </For>
-            </Show>
-          </div>
-
-          <div class="combine-modal-footer">
-            <span class="combine-modal-footer-info">
-              {all()
-                ? 'All lists selected'
-                : `${selectedCount()} list${selectedCount() === 1 ? '' : 's'} selected`}
-            </span>
-            <button
-              type="button"
-              class="site-btn site-btn-export"
-              disabled={!canView()}
-              onClick={view}
-            >
-              View
-            </button>
-          </div>
+      <div class="combine-modal-controls">
+        <label class="combine-modal-all">
+          <input
+            type="checkbox"
+            checked={all()}
+            onChange={(e) => setAll(e.currentTarget.checked)}
+          />
+          <span>All lists</span>
+        </label>
+        <div class="combine-modal-sort">
+          <label class="toolbar-label">Sort:</label>
+          <select
+            class="toolbar-select"
+            value={sort()}
+            onChange={(e) => setSort(e.currentTarget.value as CombineSort)}
+          >
+            <For each={SORT_OPTIONS}>{(opt) => <option value={opt.value}>{opt.label}</option>}</For>
+          </select>
         </div>
       </div>
-    </Show>
+
+      <div class="combine-modal-list">
+        <Show
+          when={sortedChoices().length > 0}
+          fallback={<div class="combine-modal-empty">No other lists to combine with.</div>}
+        >
+          <For each={sortedChoices()}>
+            {(choice) => (
+              <label class="combine-modal-row" classList={{ 'is-disabled': all() }}>
+                <input
+                  type="checkbox"
+                  checked={isChecked(choice.ref)}
+                  disabled={all()}
+                  onChange={() => toggle(choice.ref)}
+                />
+                <span class="combine-modal-row-name">{choice.ref.name}</span>
+                <span class="combine-modal-row-type">
+                  <span aria-hidden="true">{LIST_TYPE_DISPLAY[choice.ref.type].icon}</span>{' '}
+                  {LIST_TYPE_DISPLAY[choice.ref.type].label}
+                </span>
+                <span class="combine-modal-row-count">{pluralizeCards(choice.cardCount)}</span>
+                <span class="combine-modal-row-price">
+                  {formatPriceWithMissing(choice.total, props.currency, choice.missing)}
+                </span>
+              </label>
+            )}
+          </For>
+        </Show>
+      </div>
+
+      <div class="combine-modal-footer">
+        <span class="combine-modal-footer-info">
+          {all()
+            ? 'All lists selected'
+            : `${selectedCount()} list${selectedCount() === 1 ? '' : 's'} selected`}
+        </span>
+        <button type="button" class="btn btn-export" disabled={!canView()} onClick={view}>
+          View
+        </button>
+      </div>
+    </Modal>
   )
 }

@@ -43,7 +43,7 @@ const SectionHeader: Component<SectionHeaderProps> = (props) => (
   <div class="section-header">
     <h1 class="section-title">{props.title}</h1>
     <Show when={props.show}>
-      <a href={combinedAllHref(props.viewAllType)} class="site-btn site-btn-secondary">
+      <a href={combinedAllHref(props.viewAllType)} class="btn btn-secondary">
         {props.viewAllLabel}
       </a>
     </Show>

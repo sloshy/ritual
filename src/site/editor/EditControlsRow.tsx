@@ -51,20 +51,16 @@ export const EditControlsRow: Component<EditControlsRowProps> = (props) => {
 
         <button
           type="button"
-          class="site-btn site-btn-secondary"
+          class="btn btn-secondary"
           disabled={count() === 0}
           onClick={props.chrome.onDiscard}
         >
           Discard
         </button>
-        <button
-          type="button"
-          class="site-btn site-btn-secondary"
-          onClick={props.chrome.onLoadChanges}
-        >
+        <button type="button" class="btn btn-secondary" onClick={props.chrome.onLoadChanges}>
           Load Changes…
         </button>
-        <button type="button" class="site-btn site-btn-export" onClick={props.chrome.onExport}>
+        <button type="button" class="btn btn-export" onClick={props.chrome.onExport}>
           Export…
         </button>
       </div>

@@ -96,7 +96,8 @@ test.describe('View Changes', () => {
   test('changelog modal can be closed by clicking the backdrop', async ({ page }) => {
     await page.getByRole('button', { name: 'View Changes' }).click()
     await expect(page.locator('.changelog-modal')).toBeVisible()
-    await page.locator('.changelog-modal-backdrop').click({ position: { x: 5, y: 5 } })
+    // Click the dialog shell's padding area (the backdrop) to dismiss.
+    await page.locator('.modal-shell[open]').click({ position: { x: 5, y: 5 } })
     await expect(page.locator('.changelog-modal')).not.toBeVisible()
   })
 })

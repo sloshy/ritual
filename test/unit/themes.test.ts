@@ -35,6 +35,8 @@ const REQUIRED_VARS = [
   '--btn-text',
   '--btn-primary',
   '--btn-primary-hover',
+  '--btn-danger',
+  '--btn-danger-hover',
   '--btn-export',
   '--btn-export-hover',
   '--btn-on-color-text',

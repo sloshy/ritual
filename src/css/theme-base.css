@@ -40,4 +40,20 @@
   --overlay-light: rgba(0, 0, 0, 0.5);
   --overlay-medium: rgba(0, 0, 0, 0.7);
   --overlay-heavy: rgba(0, 0, 0, 0.85);
+
+  /* ---- Modals ----
+     Shared chrome tokens for every modal/dialog so the family stays visually
+     consistent. --modal-radius and --modal-shadow-color are themable in the
+     runtime editor (see src/site/theme-vars-metadata.ts); --modal-backdrop
+     aliases an overlay scrim (themable through Overlays); the width rungs are
+     structural design tokens, not user-tunable. Modals are native <dialog>
+     elements rendered in the top layer, so no z-index is needed. */
+  --modal-radius: 12px;
+  --modal-shadow-color: var(--overlay-heavy);
+  --modal-shadow: 0 24px 48px var(--modal-shadow-color);
+  --modal-backdrop: var(--overlay-medium);
+  --modal-w-sm: 360px;
+  --modal-w-md: 440px;
+  --modal-w-lg: 600px;
+  --modal-w-xl: 720px;
 }

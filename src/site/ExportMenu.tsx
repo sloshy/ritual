@@ -103,7 +103,7 @@ const ExportButton: Component<ExportButtonProps> = (props) => {
       <button
         type="button"
         ref={toggle.setButtonRef}
-        class="site-btn site-btn-secondary"
+        class="btn btn-secondary"
         aria-haspopup="true"
         aria-expanded={toggle.open()}
         onClick={toggle.toggleOpen}

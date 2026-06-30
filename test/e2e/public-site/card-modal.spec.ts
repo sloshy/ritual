@@ -28,7 +28,7 @@ test.describe('Card detail modal', () => {
 
     // Close the modal while still on the printings view.
     await page.locator('.modal-close').click()
-    await expect(page.locator('.card-modal-backdrop.open')).not.toBeVisible({ timeout: 3000 })
+    await expect(page.locator('.card-modal')).not.toBeVisible({ timeout: 3000 })
 
     // Open a different card → it must land on the details view, not the stale printings view.
     await cards.nth(1).locator('.card-binder').click()
@@ -90,7 +90,7 @@ test.describe('Card detail modal — sideways cards', () => {
     await expect(page.locator('.card-modal')).toBeVisible({ timeout: 5000 })
     await expect(page.locator('.card-modal-image')).not.toHaveClass(/sideways/)
     await page.locator('.modal-close').click()
-    await expect(page.locator('.card-modal-backdrop.open')).not.toBeVisible({ timeout: 3000 })
+    await expect(page.locator('.card-modal')).not.toBeVisible({ timeout: 3000 })
 
     // Sideways card (Battle): the image panel switches to the landscape layout.
     await page.locator('.card-item[data-name="test battle"] .card-binder').click()

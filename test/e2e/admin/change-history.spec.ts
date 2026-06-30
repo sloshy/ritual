@@ -85,7 +85,7 @@ test.describe('Change History page', () => {
     await openDeckHistory(page)
 
     await page.locator('.btn-defaults:has-text("Rewrite with defaults")').click()
-    await page.locator('.confirm-dialog button:has-text("Rewrite")').click()
+    await page.locator('.modal-panel button:has-text("Rewrite")').click()
 
     // A single set replaces the two, holding the two default change lines.
     await expect(page.locator('.history-set')).toHaveCount(1)

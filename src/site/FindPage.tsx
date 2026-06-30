@@ -297,7 +297,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
       <div class="find-controls">
         <button
           type="button"
-          class="site-btn site-btn-export"
+          class="btn btn-export"
           disabled={!canSearch()}
           onClick={() => void runSearch('replace')}
         >
@@ -306,7 +306,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
         <Show when={searched()}>
           <button
             type="button"
-            class="site-btn site-btn-secondary"
+            class="btn btn-secondary"
             disabled={!canSearch()}
             onClick={() => void runSearch('add')}
           >
@@ -335,7 +335,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
             <span class="find-selection-count">{plural(selectedCopies(), 'card')} selected</span>
             <button
               type="button"
-              class="site-btn site-btn-secondary"
+              class="btn btn-secondary"
               disabled={allSelected()}
               onClick={selectAll}
             >
@@ -343,7 +343,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
             </button>
             <button
               type="button"
-              class="site-btn site-btn-secondary"
+              class="btn btn-secondary"
               disabled={selectedCards().length === 0}
               onClick={() => void addSelectedToTrade()}
             >
@@ -351,7 +351,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
             </button>
             <button
               type="button"
-              class="site-btn site-btn-secondary"
+              class="btn btn-secondary"
               disabled={selectedCards().length === 0}
               onClick={viewSelectedAsList}
             >
@@ -359,7 +359,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
             </button>
             <button
               type="button"
-              class="site-btn site-btn-secondary"
+              class="btn btn-secondary"
               disabled={selectedCards().length === 0}
               onClick={() => setSelectedKeys(new Set<string>())}
             >

@@ -171,6 +171,8 @@ export type ResolvedPalette = ThemeCssVars &
     '--btn-text': string
     '--btn-primary': string
     '--btn-primary-hover': string
+    '--btn-danger': string
+    '--btn-danger-hover': string
     '--btn-export': string
     '--btn-export-hover': string
     '--btn-on-color-text': string
@@ -354,6 +356,8 @@ function darkVars(p: ThemePalette): ResolvedPalette {
     '--btn-text': ok(80, bodyC, bH),
     '--btn-primary': ok(55, aC, aH),
     '--btn-primary-hover': ok(50, aC, aH),
+    '--btn-danger': ok(45, 0.15, 25),
+    '--btn-danger-hover': ok(40, 0.15, 25),
     '--btn-export': ok(50, aC * 1.2, aH),
     '--btn-export-hover': ok(58, aC, aH),
     '--btn-on-color-text': btnOnColorText(p),
@@ -393,6 +397,8 @@ function lightVars(p: ThemePalette): ResolvedPalette {
     '--btn-text': ok(20, textC, bH),
     '--btn-primary': ok(50, aC, aH),
     '--btn-primary-hover': ok(45, aC, aH),
+    '--btn-danger': ok(48, 0.16, 25),
+    '--btn-danger-hover': ok(43, 0.17, 25),
     '--btn-export': ok(48, aC * 1.1, aH),
     '--btn-export-hover': ok(42, aC * 1.1, aH),
     '--btn-on-color-text': btnOnColorText(p),

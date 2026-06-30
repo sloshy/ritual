@@ -47,7 +47,7 @@ function deckPayload(slug: string, name: string) {
   }
 }
 
-const DISCARD_DIALOG = '.discard-dialog-native[open]'
+const DISCARD_DIALOG = '.modal-shell[open]'
 
 test.describe('Editor — discard guard on navigation', () => {
   test.beforeEach(async ({ page }) => {
@@ -148,7 +148,7 @@ test.describe('Editor — discard guard on navigation', () => {
 
     const dialog = page.locator(DISCARD_DIALOG)
     await expect(dialog).toBeVisible()
-    await dialog.locator('.btn-discard', { hasText: 'Yes, discard' }).click()
+    await dialog.locator('.btn-danger', { hasText: 'Yes, discard' }).click()
 
     await expect(dialog).toHaveCount(0)
     await expect(page.locator('#deck-select')).toHaveValue('deck-b')
@@ -170,7 +170,7 @@ test.describe('Editor — discard guard on navigation', () => {
 
     // Confirm swaps to the collection editor, dropping the change.
     await page.locator('.list-type-tab:has-text("Collections")').click()
-    await page.locator(DISCARD_DIALOG).locator('.btn-discard').click()
+    await page.locator(DISCARD_DIALOG).locator('.btn-danger').click()
     await expect(page.locator('#collection-select')).toBeVisible()
     await expect(page.locator('#deck-select')).toHaveCount(0)
   })
@@ -190,7 +190,7 @@ test.describe('Editor — discard guard on navigation', () => {
 
     // Confirm leaves for the dashboard.
     await page.locator('.admin-nav-item:has-text("Dashboard")').click()
-    await page.locator(DISCARD_DIALOG).locator('.btn-discard').click()
+    await page.locator(DISCARD_DIALOG).locator('.btn-danger').click()
     await expect(page.locator('.section-heading:has-text("Edit Lists")')).toHaveCount(0)
     await expect(page.locator('#deck-select')).toHaveCount(0)
   })
@@ -209,7 +209,7 @@ test.describe('Editor — discard guard on navigation', () => {
 
     // Confirm tears down the authenticated layout.
     await logout.click()
-    await page.locator(DISCARD_DIALOG).locator('.btn-discard').click()
+    await page.locator(DISCARD_DIALOG).locator('.btn-danger').click()
     await expect(page.locator('.admin-nav-item')).toHaveCount(0)
   })
 

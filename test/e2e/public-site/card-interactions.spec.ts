@@ -27,6 +27,6 @@ test.describe('Card Interactions', () => {
     await card.locator('.card-binder').click()
     await expect(page.locator('.card-modal')).toBeVisible({ timeout: 5000 })
     await page.keyboard.press('Escape')
-    await expect(page.locator('.card-modal-backdrop.open')).not.toBeVisible({ timeout: 3000 })
+    await expect(page.locator('.card-modal')).not.toBeVisible({ timeout: 3000 })
   })
 })

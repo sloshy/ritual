@@ -594,14 +594,14 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         >
           <div class="btn-group">
             <Show when={props.onCombine}>
-              <button onClick={() => props.onCombine!()} class="site-btn site-btn-secondary">
+              <button onClick={() => props.onCombine!()} class="btn btn-secondary">
                 Combine with list…
               </button>
             </Show>
             <Show when={props.changelog && props.changelog.length > 0}>
               <button
                 onClick={() => setShowChangelog(true)}
-                class="site-btn site-btn-secondary btn-view-changes"
+                class="btn btn-secondary btn-view-changes"
               >
                 View Changes
               </button>
@@ -821,8 +821,6 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
             currency={props.currency}
             onSelect={handleDeckTradePickerSelect}
             onClose={() => setDeckTradePicker(null)}
-            onTooltipEnter={(src, sideways) => setTooltip({ src, sideways })}
-            onTooltipLeave={() => setTooltip(null)}
           />
         )}
       </Show>

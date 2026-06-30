@@ -1,5 +1,6 @@
 import type { Component } from 'solid-js'
-import { createSignal, createMemo, createEffect, on, onMount, onCleanup, For, Show } from 'solid-js'
+import { createSignal, createMemo, createEffect, on, For, Show } from 'solid-js'
+import { Modal } from '../ui/Modal'
 import type { ScryfallCard } from '../types'
 import { isCardSideways, isDoubleFacedCard, resolveCardImageSources } from './image-sources'
 import { ManaCost, OracleText } from './symbols'
@@ -26,7 +27,6 @@ interface CardModalProps {
   onClose: () => void
   meta?: CardModalMetaEntry[]
   note?: string
-  backdropClass?: string
   onAddToTrade?: () => void
   addToTradeDisabled?: boolean
 }
@@ -40,10 +40,11 @@ export const CardModal: Component<CardModalProps> = (props) => {
     createSignal<PrintingsSortField>('released_at')
   const [printingsSortReversed, setPrintingsSortReversed] = createSignal(false)
 
-  // The modal stays mounted and is toggled via the `open` class, so its sub-view
-  // signals would otherwise persist between cards. Reset to the front/details view
-  // whenever the modal (re)opens or the displayed card changes, so opening a new
-  // card never lands straight in the "other printings" or card-back view.
+  // Sub-view signals live in this (always-mounted) scope, so they persist across
+  // open/close cycles and when the displayed card changes while the modal stays
+  // open. Reset to the front/details view on (re)open or card change so a new card
+  // never lands straight in the "other printings" or card-back view. (The brief
+  // window before this effect runs is masked by the dialog's open animation.)
   createEffect(
     on(
       () => [props.open, props.cardName, props.card?.id],
@@ -55,14 +56,6 @@ export const CardModal: Component<CardModalProps> = (props) => {
       },
     ),
   )
-
-  onMount(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') props.onClose()
-    }
-    document.addEventListener('keydown', handler)
-    onCleanup(() => document.removeEventListener('keydown', handler))
-  })
 
   const isDfc = createMemo(() => (props.card ? isDoubleFacedCard(props.card) : false))
   const imgSources = createMemo(() =>
@@ -237,157 +230,157 @@ export const CardModal: Component<CardModalProps> = (props) => {
   )
 
   return (
-    <div
-      class={`card-modal-backdrop ${props.open ? 'open' : ''}${props.backdropClass ? ` ${props.backdropClass}` : ''}`}
-      role="dialog"
-      aria-modal="true"
+    <Modal
+      open={props.open}
+      onClose={props.onClose}
+      size="xl"
+      panelClass="card-modal"
       aria-label={`Card details: ${props.card?.name ?? props.cardName ?? 'Card'}`}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) props.onClose()
-      }}
     >
-      <div class="card-modal">
-        <button class="modal-close" aria-label="Close" onClick={props.onClose}>
-          &times;
-        </button>
-        <Show
-          when={showPrintings()}
-          fallback={
-            <>
-              <div class={`card-modal-image ${isSideways() && !showingBack() ? 'sideways' : ''}`}>
-                {/* Double-faced cards animate with the same 3D rotateY flip as the
+      <button class="modal-close" aria-label="Close" onClick={props.onClose}>
+        &times;
+      </button>
+      <Show
+        when={showPrintings()}
+        fallback={
+          <>
+            <div class={`card-modal-image ${isSideways() && !showingBack() ? 'sideways' : ''}`}>
+              {/* Double-faced cards animate with the same 3D rotateY flip as the
                     list views (both faces stay mounted and the container rotates).
                     Sideways cards (Battles) keep the instant swap — rotating a
                     landscape front into a portrait back reads poorly. */}
-                <Show
-                  when={isDfc() && imgSources()?.backImage && !isSideways()}
-                  fallback={
-                    <Show
-                      when={!showingBack()}
-                      fallback={
-                        <img
-                          src={imgSources()?.backImage ?? ''}
-                          alt={`${props.cardName ?? ''} (Back)`}
-                        />
-                      }
-                    >
+              <Show
+                when={isDfc() && imgSources()?.backImage && !isSideways()}
+                fallback={
+                  <Show
+                    when={!showingBack()}
+                    fallback={
                       <img
-                        src={imgSources()?.frontImage ?? ''}
-                        alt={props.cardName || ''}
-                        class={isSideways() ? 'sideways' : ''}
+                        src={imgSources()?.backImage ?? ''}
+                        alt={`${props.cardName ?? ''} (Back)`}
                       />
-                    </Show>
-                  }
-                >
-                  <div class="card-modal-flip" classList={{ flipped: showingBack() }}>
-                    <img src={imgSources()?.frontImage ?? ''} alt={props.cardName || ''} />
+                    }
+                  >
                     <img
-                      class="card-modal-flip-back"
-                      src={imgSources()?.backImage ?? ''}
-                      alt={`${props.cardName ?? ''} (Back)`}
+                      src={imgSources()?.frontImage ?? ''}
+                      alt={props.cardName || ''}
+                      class={isSideways() ? 'sideways' : ''}
                     />
-                  </div>
+                  </Show>
+                }
+              >
+                <div class="card-modal-flip" classList={{ flipped: showingBack() }}>
+                  <img src={imgSources()?.frontImage ?? ''} alt={props.cardName || ''} />
+                  <img
+                    class="card-modal-flip-back"
+                    src={imgSources()?.backImage ?? ''}
+                    alt={`${props.cardName ?? ''} (Back)`}
+                  />
+                </div>
+              </Show>
+              <Show when={isDfc() && imgSources()?.backImage}>
+                <button class="flip-btn" onClick={() => setShowingBack((prev) => !prev)}>
+                  Flip ⇄
+                </button>
+              </Show>
+            </div>
+            <div class="card-modal-details">
+              <div class="modal-card-name">{props.card?.name ?? props.cardName}</div>
+              <div class="modal-type-line">{props.card?.type_line}</div>
+              <div class="modal-mana-cost">
+                <Show when={props.card}>
+                  {(card) => <ManaCost card={card()} isDFC={isDfc()} symbolMap={props.symbolMap} />}
                 </Show>
-                <Show when={isDfc() && imgSources()?.backImage}>
-                  <button class="flip-btn" onClick={() => setShowingBack((prev) => !prev)}>
-                    Flip ⇄
+              </div>
+              <div class="modal-oracle-text">
+                <Show when={props.card}>
+                  {(card) => (
+                    <OracleText card={card()} isDFC={isDfc()} symbolMap={props.symbolMap} />
+                  )}
+                </Show>
+              </div>
+              <div class="modal-meta">
+                <For each={defaultMeta()}>{(m) => <span>{m.value}</span>}</For>
+              </div>
+              <Show when={props.note}>
+                <div class="modal-note">NOTE: {props.note}</div>
+              </Show>
+              <div class="modal-actions">
+                <Show when={scryfallUrl()}>
+                  {(url) => (
+                    <a href={url()} target="_blank" rel="noopener noreferrer">
+                      View on Scryfall ↗
+                    </a>
+                  )}
+                </Show>
+                <Show when={props.printings.length > 0}>
+                  <button onClick={() => setShowPrintings(true)}>
+                    Other Printings ({props.printings.length})
+                  </button>
+                </Show>
+                <Show when={props.card}>
+                  <button aria-expanded={showTags()} onClick={() => setShowTags((prev) => !prev)}>
+                    Tags {showTags() ? '▾' : '▸'}
+                  </button>
+                </Show>
+                <Show when={props.onAddToTrade !== undefined}>
+                  <button
+                    onClick={props.onAddToTrade}
+                    disabled={props.addToTradeDisabled}
+                    title={
+                      props.addToTradeDisabled ? 'Already at maximum quantity' : 'Add to trade'
+                    }
+                  >
+                    + Add to Trade
                   </button>
                 </Show>
               </div>
-              <div class="card-modal-details">
-                <div class="modal-card-name">{props.card?.name ?? props.cardName}</div>
-                <div class="modal-type-line">{props.card?.type_line}</div>
-                <div class="modal-mana-cost">
-                  <Show when={props.card}>
-                    <ManaCost card={props.card!} isDFC={isDfc()} symbolMap={props.symbolMap} />
-                  </Show>
-                </div>
-                <div class="modal-oracle-text">
-                  <Show when={props.card}>
-                    <OracleText card={props.card!} isDFC={isDfc()} symbolMap={props.symbolMap} />
-                  </Show>
-                </div>
-                <div class="modal-meta">
-                  <For each={defaultMeta()}>{(m) => <span>{m.value}</span>}</For>
-                </div>
-                <Show when={props.note}>
-                  <div class="modal-note">NOTE: {props.note}</div>
-                </Show>
-                <div class="modal-actions">
-                  <Show when={scryfallUrl()}>
-                    <a href={scryfallUrl()!} target="_blank" rel="noopener noreferrer">
-                      View on Scryfall ↗
-                    </a>
-                  </Show>
-                  <Show when={props.printings.length > 0}>
-                    <button onClick={() => setShowPrintings(true)}>
-                      Other Printings ({props.printings.length})
-                    </button>
-                  </Show>
-                  <Show when={props.card}>
-                    <button aria-expanded={showTags()} onClick={() => setShowTags((prev) => !prev)}>
-                      Tags {showTags() ? '▾' : '▸'}
-                    </button>
-                  </Show>
-                  <Show when={props.onAddToTrade !== undefined}>
-                    <button
-                      onClick={props.onAddToTrade}
-                      disabled={props.addToTradeDisabled}
-                      title={
-                        props.addToTradeDisabled ? 'Already at maximum quantity' : 'Add to trade'
-                      }
-                    >
-                      + Add to Trade
-                    </button>
-                  </Show>
-                </div>
-                <Show when={showTags()}>
-                  <Show
-                    when={hasTags()}
-                    fallback={
-                      <div class="modal-tags-warning">
-                        <span class="modal-tags-warning-icon" aria-hidden="true">
-                          ⚠
-                        </span>
-                        <span>
-                          No tag data for this card — the card cache is incomplete. Tags are only
-                          available for cards the site was built with; rebuild the cache to include
-                          them.
-                        </span>
-                      </div>
-                    }
-                  >
-                    <div class="modal-tags">
-                      <Show when={oracleTags().length > 0}>
-                        <div class="modal-tags-group">
-                          <span class="modal-tags-label">Oracle Tags</span>
-                          <div class="modal-tags-list">
-                            <For each={oracleTags()}>
-                              {(tag) => <span class="modal-tag">{formatTagForDisplay(tag)}</span>}
-                            </For>
-                          </div>
-                        </div>
-                      </Show>
-                      <Show when={artTags().length > 0}>
-                        <div class="modal-tags-group">
-                          <span class="modal-tags-label">Art Tags</span>
-                          <div class="modal-tags-list">
-                            <For each={artTags()}>
-                              {(tag) => <span class="modal-tag">{formatTagForDisplay(tag)}</span>}
-                            </For>
-                          </div>
-                        </div>
-                      </Show>
+              <Show when={showTags()}>
+                <Show
+                  when={hasTags()}
+                  fallback={
+                    <div class="modal-tags-warning">
+                      <span class="modal-tags-warning-icon" aria-hidden="true">
+                        ⚠
+                      </span>
+                      <span>
+                        No tag data for this card — the card cache is incomplete. Tags are only
+                        available for cards the site was built with; rebuild the cache to include
+                        them.
+                      </span>
                     </div>
-                  </Show>
+                  }
+                >
+                  <div class="modal-tags">
+                    <Show when={oracleTags().length > 0}>
+                      <div class="modal-tags-group">
+                        <span class="modal-tags-label">Oracle Tags</span>
+                        <div class="modal-tags-list">
+                          <For each={oracleTags()}>
+                            {(tag) => <span class="modal-tag">{formatTagForDisplay(tag)}</span>}
+                          </For>
+                        </div>
+                      </div>
+                    </Show>
+                    <Show when={artTags().length > 0}>
+                      <div class="modal-tags-group">
+                        <span class="modal-tags-label">Art Tags</span>
+                        <div class="modal-tags-list">
+                          <For each={artTags()}>
+                            {(tag) => <span class="modal-tag">{formatTagForDisplay(tag)}</span>}
+                          </For>
+                        </div>
+                      </div>
+                    </Show>
+                  </div>
                 </Show>
-              </div>
-            </>
-          }
-        >
-          {renderPrintingsView()}
-        </Show>
-      </div>
-    </div>
+              </Show>
+            </div>
+          </>
+        }
+      >
+        {renderPrintingsView()}
+      </Show>
+    </Modal>
   )
 }

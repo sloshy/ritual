@@ -4,7 +4,7 @@
 // Layout:
 //   - Top row: base theme picker, custom theme name, action buttons (download,
 //     import, reset, exit).
-//   - Tabs row: the eight variable groups.
+//   - Tabs row: the variable groups.
 //   - Variables row: every variable in the active group, each as a swatch
 //     button. Clicking a swatch opens an OKLch (or length) picker popover.
 //

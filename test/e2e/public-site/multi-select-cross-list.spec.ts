@@ -137,7 +137,7 @@ test.describe('Cross-list multi-select', () => {
 
     // Clearing from the modal closes it and removes the navbar button.
     await modal.locator('button', { hasText: 'Clear all selections' }).click()
-    await expect(page.locator('.selection-modal')).toHaveCount(0)
+    await expect(page.locator('.selection-modal')).not.toBeVisible()
     await expect(page.locator('.selection-menu-btn--navbar')).toHaveCount(0)
   })
 

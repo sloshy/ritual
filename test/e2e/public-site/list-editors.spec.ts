@@ -50,7 +50,7 @@ test.describe('Public collection editor', () => {
     await expect(page.locator('.changes-badge')).toHaveText('1')
 
     // Export panel offers the change-list JSON plus the .md and .csv files.
-    await page.locator('.edit-banner .site-btn-export').click()
+    await page.locator('.edit-banner .btn-export').click()
     await expect(page.locator('.export-panel')).toContainText('1 change')
     await expect(page.locator('.export-panel button', { hasText: 'Download CSV' })).toBeEnabled()
     await expect(
@@ -61,7 +61,7 @@ test.describe('Public collection editor', () => {
   test('discard reverts pending changes', async ({ page }) => {
     await enterEditAndRemoveOne(page)
     await page.locator('.edit-banner button', { hasText: 'Discard' }).click()
-    await page.locator('.discard-dialog-native .btn-discard').click()
+    await page.locator('.modal-shell .btn-danger').click()
     await expect(page.locator('.changes-badge')).toHaveCount(0)
   })
 
@@ -129,7 +129,7 @@ test.describe('Public wanted-list editor', () => {
   test('edits a local copy and exports a change list', async ({ page }) => {
     await enterEditAndRemoveOne(page)
 
-    await page.locator('.edit-banner .site-btn-export').click()
+    await page.locator('.edit-banner .btn-export').click()
     await expect(page.locator('.export-panel')).toContainText('1 change')
     await expect(
       page.locator('.export-panel button', { hasText: 'Download change list' }),

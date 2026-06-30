@@ -1,5 +1,5 @@
 import { type Component, Show } from 'solid-js'
-import { useDialogModal } from './useDialogModal'
+import { Modal } from './Modal'
 
 type ConfirmDialogProps = {
   open: boolean
@@ -13,38 +13,28 @@ type ConfirmDialogProps = {
 }
 
 /**
- * A small yes/no confirmation modal — the in-app replacement for `window.confirm`,
- * matching the other editor dialogs (`discard-dialog-native` shell + `confirm-dialog`
- * box). Used wherever an action needs a plain confirmation without a typed value.
+ * A small yes/no confirmation modal — the in-app replacement for `window.confirm`.
+ * Used wherever an action needs a plain confirmation without a typed value.
  */
 export const ConfirmDialog: Component<ConfirmDialogProps> = (props) => {
-  const dialog = useDialogModal(() => props.open)
-
   return (
-    <dialog
-      ref={dialog.setDialog}
-      class="discard-dialog-native"
-      onClose={props.onCancel}
-      onClick={dialog.onBackdropClick}
-    >
-      <div class="confirm-dialog">
-        <h3>{props.title}</h3>
-        <Show when={props.message}>
-          <p class="dialog-message">{props.message}</p>
-        </Show>
-        <div class="confirm-dialog-actions">
-          <button type="button" class="btn btn-secondary" onClick={dialog.close}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            class={props.destructive ? 'btn-discard' : 'btn'}
-            onClick={props.onConfirm}
-          >
-            {props.confirmLabel}
-          </button>
-        </div>
+    <Modal open={props.open} onClose={props.onCancel} size="md" panelClass="modal-panel--prompt">
+      <h3>{props.title}</h3>
+      <Show when={props.message}>
+        <p class="dialog-message">{props.message}</p>
+      </Show>
+      <div class="confirm-dialog-actions">
+        <button type="button" class="btn btn-secondary" onClick={props.onCancel}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          class={props.destructive ? 'btn btn-danger' : 'btn btn-primary'}
+          onClick={props.onConfirm}
+        >
+          {props.confirmLabel}
+        </button>
       </div>
-    </dialog>
+    </Modal>
   )
 }
