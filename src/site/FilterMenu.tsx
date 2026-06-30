@@ -10,7 +10,7 @@ import {
   type ManaValueComparator,
 } from './card-filters'
 import { formatCardTypeForDisplay, parseCardTypesInput, scanCardTypeInput } from './card-types'
-import { formatTagForDisplay, type TagFilterMode, type TagMatchLogic } from './card-tags'
+import type { TagFilterMode, TagMatchLogic } from './card-tags'
 import { TagsInput } from './TagsInput'
 import type { CardFiltersControl } from './useCardFilters'
 
@@ -117,7 +117,7 @@ const TagFilterRow: Component<TagFilterRowProps> = (props) => {
         inputId={props.inputId}
         placeholder={props.placeholder}
         suggestionsLabel={props.suggestionsLabel}
-        format={formatTagForDisplay}
+        format={(tag) => tag}
         query={(draft) => draft.trim().toLowerCase()}
         matches={(tag, query) => query.length === 0 || tag.includes(query)}
         scan={scanCardTypeInput}

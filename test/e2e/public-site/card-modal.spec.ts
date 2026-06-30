@@ -46,7 +46,7 @@ test.describe('Card detail modal — tags', () => {
   })
 
   test('Tags button reveals the current printing oracle and art tags', async ({ page }) => {
-    // White Knight is built with oracle tag "removal" and art tag "human".
+    // White Knight is built with oracle tags "removal"/"mana-rock" and art tag "human".
     await page.locator('.card-item[data-name="white knight"] .card-binder').click()
     await expect(page.locator('.card-modal')).toBeVisible({ timeout: 5000 })
 
@@ -57,9 +57,12 @@ test.describe('Card detail modal — tags', () => {
     const tags = page.locator('.modal-tags')
     await expect(tags).toBeVisible()
     await expect(tags.getByText('Oracle Tags')).toBeVisible()
-    await expect(tags.locator('.modal-tag', { hasText: 'Removal' })).toBeVisible()
+    // Tags render as their raw Scryfall slugs — lowercase, hyphens preserved,
+    // never title-cased ("mana-rock", not "Mana Rock").
+    await expect(tags.locator('.modal-tag').filter({ hasText: /^removal$/ })).toBeVisible()
+    await expect(tags.locator('.modal-tag').filter({ hasText: /^mana-rock$/ })).toBeVisible()
     await expect(tags.getByText('Art Tags')).toBeVisible()
-    await expect(tags.locator('.modal-tag', { hasText: 'Human' })).toBeVisible()
+    await expect(tags.locator('.modal-tag').filter({ hasText: /^human$/ })).toBeVisible()
 
     // The warning must not appear for a card the site was built with.
     await expect(page.locator('.modal-tags-warning')).toHaveCount(0)

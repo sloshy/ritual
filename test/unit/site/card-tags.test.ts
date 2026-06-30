@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { formatTagForDisplay, matchesTags } from '../../../src/site/card-tags'
+import { matchesTags } from '../../../src/site/card-tags'
 
 describe('matchesTags', () => {
   const tags = ['mana-rock', 'ramp', 'artifact']
@@ -22,16 +22,5 @@ describe('matchesTags', () => {
   test('a card with no tags fails any non-empty selection', () => {
     expect(matchesTags([], ['ramp'], 'or')).toBe(false)
     expect(matchesTags([], ['ramp'], 'and')).toBe(false)
-  })
-})
-
-describe('formatTagForDisplay', () => {
-  test('converts hyphenated slugs to title case', () => {
-    expect(formatTagForDisplay('mana-rock')).toBe('Mana Rock')
-    expect(formatTagForDisplay('tutor-creature-giant')).toBe('Tutor Creature Giant')
-  })
-
-  test('handles single-word slugs', () => {
-    expect(formatTagForDisplay('ramp')).toBe('Ramp')
   })
 })

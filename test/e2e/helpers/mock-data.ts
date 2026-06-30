@@ -1210,7 +1210,7 @@ const MOCK_FILTER_CARD_KNIGHT = {
   collector_number: '1',
   color_identity: ['W'],
   edhrec_rank: 1000,
-  oracleTags: ['removal'],
+  oracleTags: ['removal', 'mana-rock'],
   artTags: ['human'],
 }
 

@@ -131,7 +131,8 @@ test.describe('List view shareable URL', () => {
     await page.waitForSelector('[data-view]', { timeout: 15_000 })
     await expectVisibleCards(page, ['Golgari Lord', 'White Knight'])
     await openFilterMenu(page)
-    await expect(page.locator('.filter-tag').filter({ hasText: 'Removal' })).toBeVisible()
+    // The selected-tag chip shows the raw lowercase slug, never title-cased.
+    await expect(page.locator('.filter-tag').filter({ hasText: /^removal$/ })).toBeVisible()
   })
 
   test('malformed parameters are ignored and fall back to defaults', async ({ page }) => {

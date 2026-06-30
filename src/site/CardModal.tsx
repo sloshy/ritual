@@ -7,7 +7,6 @@ import { ManaCost, OracleText } from './symbols'
 import type { PriceCurrency } from '../price-currency'
 import { getCardPrice, getCardPriceForFinish, formatPrice } from '../price-currency'
 import { capitalize } from './utils'
-import { formatTagForDisplay } from './card-tags'
 
 type PrintingsSortField = 'released_at' | 'set_name' | 'price'
 
@@ -357,7 +356,7 @@ export const CardModal: Component<CardModalProps> = (props) => {
                         <span class="modal-tags-label">Oracle Tags</span>
                         <div class="modal-tags-list">
                           <For each={oracleTags()}>
-                            {(tag) => <span class="modal-tag">{formatTagForDisplay(tag)}</span>}
+                            {(tag) => <span class="modal-tag">{tag}</span>}
                           </For>
                         </div>
                       </div>
@@ -367,7 +366,7 @@ export const CardModal: Component<CardModalProps> = (props) => {
                         <span class="modal-tags-label">Art Tags</span>
                         <div class="modal-tags-list">
                           <For each={artTags()}>
-                            {(tag) => <span class="modal-tag">{formatTagForDisplay(tag)}</span>}
+                            {(tag) => <span class="modal-tag">{tag}</span>}
                           </For>
                         </div>
                       </div>
