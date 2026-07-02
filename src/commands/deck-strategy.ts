@@ -35,6 +35,7 @@ import {
 } from '../change-event'
 import { trackAdd, trackAnotherCopy, trackEdit } from '../session-changelog'
 import { formatSpecificPrintingPrice } from '../price-currency'
+import { getDefaultCurrency } from '../ritual-config'
 
 export type DeckStrategyArgs = {
   deckFile: string
@@ -234,7 +235,9 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
         return
       }
       await addToDeck(ctx, cardName, printingTuple, section)
-      console.log(formatSpecificPrintingPrice(printing, finishAndCondition.finish))
+      console.log(
+        formatSpecificPrintingPrice(printing, finishAndCondition.finish, getDefaultCurrency()),
+      )
     },
 
     async addAnotherCopy(ctx: CardSessionContext): Promise<void> {

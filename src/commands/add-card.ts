@@ -26,6 +26,7 @@ import {
   formatSpecificPrintingPrice,
   formatCheapestPrintingDisplay,
 } from '../price-currency'
+import { getDefaultCurrency } from '../ritual-config'
 import type { ListType } from '../list-type'
 import { normalizeForSearch } from '../term-match'
 import {
@@ -336,7 +337,13 @@ async function handleCollectionAddCard(
 
   await appendFileWithHash(collectionFilePath, line)
   console.log(`Added: ${line.trim()}`)
-  console.log(formatSpecificPrintingPrice(printingResult.printing, finishAndCondition.finish))
+  console.log(
+    formatSpecificPrintingPrice(
+      printingResult.printing,
+      finishAndCondition.finish,
+      getDefaultCurrency(),
+    ),
+  )
 
   const change = createAddChange(selectedName, {
     set: printingResult.printing.set.toLowerCase(),
@@ -377,7 +384,10 @@ async function handleWantedAddCard(
     await appendFileWithHash(listFile, line)
     console.log(`Added: ${line.trim()}`)
     const allPrintings = await getCardPrintings(selectedName)
-    console.log(formatCheapestPrintingDisplay(findCheapestPrinting(allPrintings)))
+    const currency = getDefaultCurrency()
+    console.log(
+      formatCheapestPrintingDisplay(findCheapestPrinting(allPrintings, currency), currency),
+    )
     const change = createAddChange(selectedName, { finish: userFinish, cardId })
     await appendChangelog(listFile, wantedListName, [change])
     return
@@ -392,7 +402,10 @@ async function handleWantedAddCard(
     await appendFileWithHash(listFile, line)
     console.log(`Added: ${line.trim()}`)
     const allPrintings = await getCardPrintings(selectedName)
-    console.log(formatCheapestPrintingDisplay(findCheapestPrinting(allPrintings)))
+    const currency = getDefaultCurrency()
+    console.log(
+      formatCheapestPrintingDisplay(findCheapestPrinting(allPrintings, currency), currency),
+    )
     const change = createAddChange(selectedName, { finish: userFinish, cardId })
     await appendChangelog(listFile, wantedListName, [change])
     return
@@ -419,7 +432,7 @@ async function handleWantedAddCard(
 
   await appendFileWithHash(listFile, line)
   console.log(`Added: ${line.trim()}`)
-  console.log(formatSpecificPrintingPrice(printingResult.printing, finish))
+  console.log(formatSpecificPrintingPrice(printingResult.printing, finish, getDefaultCurrency()))
 
   const change = createAddChange(selectedName, {
     set: printingResult.printing.set.toLowerCase(),

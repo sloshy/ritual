@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import { refreshCardCacheForSession, type SessionCardCache } from '../../src/cache/freshness'
+import {
+  ensureFreshPriceData,
+  refreshCardCacheForSession,
+  type SessionCardCache,
+} from '../../src/cache/freshness'
 import { BULK_CACHE_MAX_AGE_MS, PRICE_MAX_AGE_MS } from '../../src/cache/constants'
 import type { BulkRefreshPrompt } from '../../src/refresh'
 
@@ -121,5 +125,108 @@ describe('refreshCardCacheForSession', () => {
     )
     expect(h.preloadCalls).toBe(0)
     expect(h.confirmCalls).toHaveLength(0)
+  })
+})
+
+describe('ensureFreshPriceData', () => {
+  test('offers to download when the cache is empty and preloads on acceptance', async () => {
+    const h = harness(true)
+    const result = await ensureFreshPriceData(
+      {},
+      { cache: stubCache({ empty: true, lastRefreshedAt: null }), ...h },
+    )
+    expect(h.confirmCalls).toHaveLength(1)
+    expect(h.confirmCalls[0]!.initial).toBe(true)
+    expect(h.preloadCalls).toBe(1)
+    expect(result.ready).toBe(true)
+  })
+
+  test('is not ready when the empty-cache download is declined', async () => {
+    const h = harness(false)
+    const result = await ensureFreshPriceData(
+      {},
+      { cache: stubCache({ empty: true, lastRefreshedAt: null }), ...h },
+    )
+    expect(h.preloadCalls).toBe(0)
+    expect(result).toEqual({ ready: false, lastRefreshedAt: null })
+  })
+
+  test('never downloads into an empty cache when prompting is suppressed', async () => {
+    const h = harness(true)
+    const result = await ensureFreshPriceData(
+      { cachePrompt: false },
+      { cache: stubCache({ empty: true, lastRefreshedAt: null }), ...h },
+    )
+    expect(h.confirmCalls).toHaveLength(0)
+    expect(h.preloadCalls).toBe(0)
+    expect(result.ready).toBe(false)
+  })
+
+  test('prompts when prices are more than a day old and preloads on acceptance', async () => {
+    const h = harness(true)
+    const stale = Date.now() - PRICE_MAX_AGE_MS - 60_000
+    const result = await ensureFreshPriceData(
+      {},
+      { cache: stubCache({ lastRefreshedAt: stale }), ...h },
+    )
+    expect(h.confirmCalls).toHaveLength(1)
+    expect(h.confirmCalls[0]!.initial).toBe(false)
+    expect(h.confirmCalls[0]!.message).toContain('Prices were last updated')
+    expect(h.preloadCalls).toBe(1)
+    expect(result.ready).toBe(true)
+  })
+
+  test('stays ready without preloading when the stale prompt is declined', async () => {
+    const h = harness(false)
+    const stale = Date.now() - PRICE_MAX_AGE_MS - 60_000
+    const result = await ensureFreshPriceData(
+      {},
+      { cache: stubCache({ lastRefreshedAt: stale }), ...h },
+    )
+    expect(h.preloadCalls).toBe(0)
+    expect(result.ready).toBe(true)
+    expect(result.lastRefreshedAt).toBe(stale)
+  })
+
+  test('--refresh-prices refreshes stale prices without prompting', async () => {
+    const h = harness(false)
+    await ensureFreshPriceData(
+      { refreshPrices: true },
+      { cache: stubCache({ lastRefreshedAt: Date.now() - PRICE_MAX_AGE_MS - 1 }), ...h },
+    )
+    expect(h.confirmCalls).toHaveLength(0)
+    expect(h.preloadCalls).toBe(1)
+  })
+
+  test('--no-cache-prompt suppresses the stale-price prompt', async () => {
+    const h = harness(true)
+    await ensureFreshPriceData(
+      { cachePrompt: false },
+      { cache: stubCache({ lastRefreshedAt: Date.now() - PRICE_MAX_AGE_MS - 1 }), ...h },
+    )
+    expect(h.confirmCalls).toHaveLength(0)
+    expect(h.preloadCalls).toBe(0)
+  })
+
+  test('does not prompt when prices are fresh', async () => {
+    const h = harness(true)
+    const fresh = Date.now() - 60_000
+    const result = await ensureFreshPriceData(
+      {},
+      { cache: stubCache({ lastRefreshedAt: fresh }), ...h },
+    )
+    expect(h.confirmCalls).toHaveLength(0)
+    expect(result).toEqual({ ready: true, lastRefreshedAt: fresh })
+  })
+
+  test('an age of exactly one day is still considered fresh', async () => {
+    const h = harness(true)
+    const now = Date.now()
+    await ensureFreshPriceData(
+      {},
+      { cache: stubCache({ lastRefreshedAt: now - PRICE_MAX_AGE_MS }), ...h },
+    )
+    expect(h.confirmCalls).toHaveLength(0)
+    expect(h.preloadCalls).toBe(0)
   })
 })

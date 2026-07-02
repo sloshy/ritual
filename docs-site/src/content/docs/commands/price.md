@@ -1,84 +1,94 @@
 ---
-title: 'price-deck'
+title: 'price'
 ---
 
-Get pricing information for a deck.
+Browse the prices of every deck, collection, and wanted list in one place.
+
+Run without flags in a terminal, `price` opens an interactive browser. It shows when prices were last updated, each list with its total (and its "lowest price" total for decks and wanted lists), how many cards in each list are unpriced, totals per list type, and a grand total across everything. From the main screen you can drill into a single list, search every list at once, refresh prices, or switch currency.
+
+With scripting flags (or when output is piped), the same information prints non-interactively.
 
 ## Usage
 
 ```bash
-./ritual price-deck <deckName> [options]
+./ritual price [listName] [options]
 ```
 
 ## Arguments
 
-| Argument     | Description                               | Required |
-| ------------ | ----------------------------------------- | -------- |
-| `<deckName>` | Name of the deck file (without extension) | Yes      |
+| Argument     | Description                                        | Required |
+| ------------ | -------------------------------------------------- | -------- |
+| `[listName]` | Open (or print) a single list instead of all lists | No       |
 
-The name is matched case- and accent-insensitively, with a unique-substring fallback; an ambiguous name is rejected. See [List Resolution](/commands/list-resolution/).
+The name is matched case- and accent-insensitively across all three list types, with a unique-substring fallback; an ambiguous name is rejected — disambiguate with `--deck`, `--collection`, or `--wanted`. See [List Resolution](/commands/list-resolution/).
 
 ## Options
 
-| Option                | Description                                             |
-| --------------------- | ------------------------------------------------------- |
-| `--all`               | Include all sections (Sideboard, Maybeboard, etc.)      |
-| `--with-sideboard`    | Include Sideboard cards in pricing                      |
-| `--with-maybeboard`   | Include Maybeboard cards in pricing                     |
-| `--prices <currency>` | Price currency: `usd`, `eur`, or `tix` (default: `usd`) |
-| `--output <format>`   | Output format (`json` or `text`)                        |
-| `--quiet`             | Suppress non-essential output                           |
+| Option                 | Description                                                                                                            |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `--deck`               | Only decks (also disambiguates `listName`)                                                                             |
+| `--collection`         | Only collections (also disambiguates `listName`)                                                                       |
+| `--wanted`             | Only wanted lists (also disambiguates `listName`)                                                                      |
+| `--prices <currency>`  | Price currency: `usd`, `eur`, or `tix` (default: the configured [`defaultCurrency`](/configuration/#default-currency)) |
+| `--name <terms>`       | Print cards whose name contains every space-separated term                                                             |
+| `--set <code>`         | Print cards from this set code                                                                                         |
+| `--collector <number>` | Print cards with this collector number                                                                                 |
+| `--sort <field>`       | Sort cards by `name`, `price`, `lowest`, `set`, `cmc`, `edhrec`, or `quantity`                                         |
+| `--descending`         | Reverse the sort direction                                                                                             |
+| `--summary`            | Print the price summary instead of opening the browser                                                                 |
+| `--no-interactive`     | Never open the interactive browser                                                                                     |
+| `--no-cache-prompt`    | Do not prompt to update stale prices                                                                                   |
+| `--refresh-prices`     | Refresh cached prices that are more than a day old                                                                     |
+| `--output <format>`    | Output format (`text`, `json`, or `ndjson`)                                                                            |
+| `--quiet`              | Suppress non-essential output                                                                                          |
 
-## Examples
+## The Interactive Browser
 
-Get pricing for main deck only:
+The main screen shows, at a glance:
+
+- When prices were last updated and the active currency
+- Every list with its total price, its lowest-price total (when it differs), how many cards are unpriced, and its card count
+- Totals per list type (decks / collections / wanted lists) and across all lists
+
+Selecting a list opens a card browser over that list; **🔎 Search all cards** opens the same browser over every list at once, with each card labelled by its source list. In a card browser, typing filters rows live by name, set code, or collector number, and menu items adjust the sort field/direction and set persistent set-code, collector-number, and (in the global search) list-type filters. Selecting a card shows a detail view — its printing, unit and line price, the cheapest printing, mana value, and EDHREC rank — and can list every printing with per-finish prices.
+
+**🔄 Refresh prices** redownloads the card database (prices ride along inside it) and rebuilds the report; **💱 Change currency** re-prices everything in `usd`, `eur`, or `tix`.
+
+## Price Freshness
+
+Prices come from the local Scryfall card cache. On launch, `price` reports when the cache was last refreshed; if prices are more than a day old it asks whether to update them (suppress with `--no-cache-prompt`, or auto-accept with `--refresh-prices`). When the cache is empty it offers to download the card database; declining exits, since nothing can be priced.
+
+Prompts never fire in non-TTY or structured-output (`--output json`/`ndjson`) runs.
+
+## How Cards Are Priced
+
+- An entry pinned to a specific printing (set + collector number) is priced at that exact printing — at its own finish when recorded, otherwise the printing's default finish. Collection entries are always pinned.
+- An unpinned entry is priced at a representative recent printing (the same pick the public site uses). Such printings are marked with `*` in card listings.
+- Every deck and wanted-list entry also carries a **lowest** price — the cheapest acceptable copy. For deck entries and name-only wanted entries that is the cheapest printing+finish overall; for a wanted entry pinned to a printing without a finish it is that printing's cheapest finish; for fully-specified entries it is the entry price itself.
+- Deck totals cover every section except extras (maybeboard/token sections), matching the public site.
+- A card with no price in the active currency counts as **unpriced**; unpriced counts are quantity-weighted.
+
+## Non-Interactive Output
+
+Three views, chosen by the flags:
 
 ```bash
-./ritual price-deck "Atraxa Superfriends"
+# Summary of every list (the main screen as text)
+./ritual price --summary
+
+# One list's cards and totals
+./ritual price "Red Binder" --no-interactive
+
+# Search cards across all lists
+./ritual price --set neo --sort price --descending
+./ritual price --name "sol ring"
 ```
 
-Include sideboard cards:
+Each view supports `--output json` (one structured document) and `--output ndjson` (one JSON line per list or card). The summary JSON includes `lastRefreshedAt`, per-list summaries, per-type totals, and grand totals; card listings include per-entry prices, lowest prices, and unpriced reasons.
 
 ```bash
-./ritual price-deck "Mono Red Aggro" --with-sideboard
+./ritual price --summary --output json
+./ritual price --wanted --set otc --output ndjson
 ```
 
-Include all sections:
-
-```bash
-./ritual price-deck "Atraxa Superfriends" --all
-```
-
-Output machine-readable JSON:
-
-```bash
-./ritual price-deck "Atraxa Superfriends" --output json
-```
-
-Show EUR (Cardmarket) prices:
-
-```bash
-./ritual price-deck "Atraxa Superfriends" --prices eur
-```
-
-Show MTGO tix prices:
-
-```bash
-./ritual price-deck "Mono Red Aggro" --prices tix
-```
-
-## Output
-
-The command displays:
-
-- **Latest Price**: Most recent market price
-- **Min Price**: Lowest recorded price
-- **Max Price**: Highest recorded price
-
-Prices are fetched from Scryfall's price data. By default, prices are shown in USD (TCGPlayer). Use `--prices eur` for EUR (Cardmarket) prices or `--prices tix` for MTGO ticket prices. The flag is case insensitive.
-
-If Scryfall returns any missing cards in collection pricing (`not_found`), the command fails and reports the missing names without updating the local price cache.
-
-## Missing Card Warnings
-
-Cards that are not available in the selected currency's game format are omitted from totals with a warning. For example, a paper-only card will have no TIX price, and an MTGO-only card will have no USD/EUR price. The command lists any cards with missing prices and notes the count of omitted cards. In JSON output mode, a `missingCards` array is included in the result.
+Prices are fetched from Scryfall and reflect NM (Near Mint) market values.

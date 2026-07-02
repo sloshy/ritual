@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'bun:test'
 import {
+  isPriceCurrency,
   parsePriceCurrencyFlag,
   getCurrencySymbol,
   getCurrencySuffix,
@@ -42,9 +43,25 @@ function makeCard(prices: Partial<ScryfallCard['prices']> = {}): ScryfallCard {
   } as ScryfallCard
 }
 
+describe('isPriceCurrency', () => {
+  test('accepts only the known currencies', () => {
+    expect(isPriceCurrency('usd')).toBe(true)
+    expect(isPriceCurrency('eur')).toBe(true)
+    expect(isPriceCurrency('tix')).toBe(true)
+    expect(isPriceCurrency('gbp')).toBe(false)
+    expect(isPriceCurrency('')).toBe(false)
+  })
+})
+
 describe('parsePriceCurrencyFlag', () => {
   test('defaults to usd when undefined', () => {
     expect(parsePriceCurrencyFlag(undefined)).toBe('usd')
+  })
+
+  test('uses the given fallback when undefined or empty', () => {
+    expect(parsePriceCurrencyFlag(undefined, 'eur')).toBe('eur')
+    expect(parsePriceCurrencyFlag('', 'tix')).toBe('tix')
+    expect(parsePriceCurrencyFlag('usd', 'eur')).toBe('usd')
   })
 
   test('parses case-insensitively', () => {

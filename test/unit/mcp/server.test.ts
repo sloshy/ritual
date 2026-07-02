@@ -320,4 +320,23 @@ describe('Ritual MCP server (in-memory transport)', () => {
     })
     expect(result.isError).toBe(true)
   })
+
+  test('update_config normalizes defaultCurrency case and get_config returns it', async () => {
+    const updated = await callTool(client, 'update_config', {
+      config: { defaultCurrency: 'EUR' },
+    })
+    expect(updated.isError).toBeFalsy()
+
+    const got = toolJson(await callTool(client, 'get_config', {})) as {
+      config: { defaultCurrency?: string }
+    }
+    expect(got.config.defaultCurrency).toBe('eur')
+  })
+
+  test('update_config rejects an invalid defaultCurrency', async () => {
+    const result = await callTool(client, 'update_config', {
+      config: { defaultCurrency: 'gbp' },
+    })
+    expect(result.isError).toBe(true)
+  })
 })

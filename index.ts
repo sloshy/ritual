@@ -7,7 +7,7 @@ setupGlobalFetch()
 import { Command } from 'commander'
 import { registerNewDeckCommand } from './src/commands/new-deck'
 import { registerImportCommand } from './src/commands/import'
-import { registerPriceDeckCommand } from './src/commands/price'
+import { registerPriceCommand } from './src/commands/price'
 import { registerBuildSiteCommand } from './src/commands/build-site'
 import { registerServeCommand } from './src/commands/serve'
 import { registerServeSiteCommand } from './src/commands/serve-site'
@@ -20,8 +20,6 @@ import { registerLoginCommand } from './src/commands/login'
 
 import { registerImportAccountCommand } from './src/commands/import-account'
 import { registerImportCsvCommand } from './src/commands/import-csv'
-import { registerPriceCollectionCommand } from './src/commands/price-collection'
-import { registerPriceWantedListCommand } from './src/commands/price-wanted'
 import { registerScryCommand } from './src/commands/scry'
 import { registerCardCommand } from './src/commands/card'
 import { registerRandomCommand } from './src/commands/random'
@@ -114,16 +112,10 @@ registerImportCommand(program)
 registerImportAccountCommand(program)
 registerGetPrimerCommand(program)
 registerDeckSyncCommand(program)
-registerPriceDeckCommand(program)
-
-program.commandsGroup('Collection Management')
-registerPriceCollectionCommand(program)
-
-program.commandsGroup('Wanted List Management')
-registerPriceWantedListCommand(program)
 
 program.commandsGroup('Card Management')
 registerEditCommand(program)
+registerPriceCommand(program)
 registerMoveCommand(program)
 registerHistoryCommand(program)
 registerImportCsvCommand(program)

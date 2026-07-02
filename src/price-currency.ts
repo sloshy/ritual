@@ -5,8 +5,11 @@ export type PriceCurrency = 'usd' | 'eur' | 'tix'
 
 export const DEFAULT_CURRENCY: PriceCurrency = 'usd'
 
-export function parsePriceCurrencyFlag(input: string | undefined): PriceCurrency {
-  if (!input) return DEFAULT_CURRENCY
+export function parsePriceCurrencyFlag(
+  input: string | undefined,
+  fallback: PriceCurrency = DEFAULT_CURRENCY,
+): PriceCurrency {
+  if (!input) return fallback
   const lower = input.toLowerCase().trim()
   if (lower === 'eur') return 'eur'
   if (lower === 'tix') return 'tix'
@@ -105,6 +108,10 @@ export function getCardPriceForFinish(
 
 export const VALID_CURRENCIES = ['usd', 'eur', 'tix'] as const satisfies readonly PriceCurrency[]
 
+export function isPriceCurrency(value: string): value is PriceCurrency {
+  return (VALID_CURRENCIES as readonly string[]).includes(value)
+}
+
 /** Check if a currency is available for a card based on its game formats. */
 export function isCurrencyAvailableForCard(games: string[], currency: PriceCurrency): boolean {
   if (games.length === 0) return true // No games info → assume available
@@ -115,6 +122,7 @@ export function isCurrencyAvailableForCard(games: string[], currency: PriceCurre
 
 /**
  * Parse the --prices flag with standardized error handling for CLI commands.
+ * An absent flag resolves to `fallback` (the configured default currency).
  * Returns the parsed currency on success, or null if validation failed (after emitting error).
  */
 export function parseCurrencyFlagOrError<T>(
@@ -122,9 +130,10 @@ export function parseCurrencyFlagOrError<T>(
   emitError: (code: ErrorCode, message: string, options: T) => void,
   scriptingOptions: T,
   exitCode: number,
+  fallback: PriceCurrency = DEFAULT_CURRENCY,
 ): PriceCurrency | null {
   try {
-    return parsePriceCurrencyFlag(input)
+    return parsePriceCurrencyFlag(input, fallback)
   } catch (e) {
     const message = getErrorMessage(e)
     emitError('usage_error', message, scriptingOptions)
@@ -163,14 +172,17 @@ export type CheapestPrintingResult = {
 }
 
 /**
- * Find the cheapest printing+finish combination from a list of card printings.
- * Only considers USD prices and physical finishes.
+ * Find the cheapest printing+finish combination from a list of card printings,
+ * in the given currency (USD by default).
  */
-export function findCheapestPrinting(printings: ScryfallCard[]): CheapestPrintingResult | null {
+export function findCheapestPrinting(
+  printings: ScryfallCard[],
+  currency: PriceCurrency = 'usd',
+): CheapestPrintingResult | null {
   let best: CheapestPrintingResult | null = null
   for (const card of printings) {
     for (const finish of card.finishes) {
-      const price = getCardPriceForFinish(card, finish, 'usd')
+      const price = getCardPriceForFinish(card, finish, currency)
       if (price > 0 && (best === null || price < best.price)) {
         best = { price, card, finish }
       }
@@ -186,20 +198,24 @@ export function findCheapestPrinting(printings: ScryfallCard[]): CheapestPrintin
 export function formatSpecificPrintingPrice(
   card: ScryfallCard,
   finish: string | undefined,
+  currency: PriceCurrency = DEFAULT_CURRENCY,
 ): string {
   const resolvedFinish =
     finish ?? (card.finishes.includes('nonfoil') ? 'nonfoil' : (card.finishes[0] ?? 'nonfoil'))
-  const price = getCardPriceForFinish(card, resolvedFinish, 'usd')
+  const price = getCardPriceForFinish(card, resolvedFinish, currency)
   if (price <= 0) return 'Price: unavailable'
-  return `Price: ${formatPrice(price, 'usd')}`
+  return `Price: ${formatPrice(price, currency)}`
 }
 
 /**
  * Format a price line for display after adding a wanted card with no specific printing.
  * Shows "Cheapest printing: $X.XX (SET:NUM) [finish]" or "Cheapest printing: unavailable".
  */
-export function formatCheapestPrintingDisplay(result: CheapestPrintingResult | null): string {
+export function formatCheapestPrintingDisplay(
+  result: CheapestPrintingResult | null,
+  currency: PriceCurrency = DEFAULT_CURRENCY,
+): string {
   if (!result) return 'Cheapest printing: unavailable'
   const setNum = `${result.card.set.toUpperCase()}:${result.card.collector_number}`
-  return `Cheapest printing: ${formatPrice(result.price, 'usd')} (${setNum}) [${result.finish}]`
+  return `Cheapest printing: ${formatPrice(result.price, currency)} (${setNum}) [${result.finish}]`
 }

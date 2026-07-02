@@ -2,6 +2,7 @@ import { cardCache } from './index'
 import { preloadCache } from '../scryfall'
 import { BULK_CACHE_MAX_AGE_MS, PRICE_MAX_AGE_MS } from './constants'
 import { shouldBulkRefresh, type BulkRefreshPrompt, type RefreshMode } from '../refresh'
+import { formatDuration } from '../utils'
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 
@@ -139,4 +140,68 @@ export async function refreshCardCacheForSession(
 
   if (options.cachePrompt === false) return
   await promptStaleCacheRefresh(age, confirmStaleRefresh, preload)
+}
+
+/** Whether price data exists at all, and when it was last refreshed. */
+export type PriceFreshnessResult = {
+  ready: boolean
+  lastRefreshedAt: number | null
+}
+
+/**
+ * Ensure price data exists and is reasonably fresh before a pricing command
+ * runs. Prices ride along inside the bulk card cache, so "refreshing prices"
+ * means a bulk redownload.
+ *
+ * - An empty cache prompts to download the card database (default yes);
+ *   declining returns `ready: false` since nothing can be priced.
+ * - Prices more than a day old are refreshed automatically under
+ *   `--refresh-prices`, otherwise the user is prompted (default no) unless
+ *   `--no-cache-prompt` suppresses it.
+ *
+ * The confirm prompt falls back to its default answer when stdin is not a TTY,
+ * so non-interactive runs never hang (and never trigger a surprise download).
+ */
+export async function ensureFreshPriceData(
+  options: CacheRefreshOptions,
+  deps: SessionCacheDeps = {},
+): Promise<PriceFreshnessResult> {
+  const cache = deps.cache ?? cardCache
+  const preload = deps.preload ?? preloadCache
+  const confirmStaleRefresh =
+    deps.confirmStaleRefresh ?? ((prompt) => shouldBulkRefresh('ask', prompt))
+
+  if (await cache.isEmpty()) {
+    // With prompting suppressed (--no-cache-prompt, or structured output that
+    // must stay parseable) an empty cache is simply unusable — never download.
+    if (options.cachePrompt === false) return { ready: false, lastRefreshedAt: null }
+    console.log('Card cache is empty. Pricing requires the Scryfall card database.')
+    const accepted = await confirmStaleRefresh({
+      message: 'Would you like to download it now?',
+      initial: true,
+    })
+    if (!accepted) return { ready: false, lastRefreshedAt: null }
+    await preload()
+    return { ready: true, lastRefreshedAt: await cache.getLastRefreshedAt() }
+  }
+
+  const lastRefreshed = await cache.getLastRefreshedAt()
+  if (lastRefreshed !== null) {
+    const age = Date.now() - lastRefreshed
+    if (age > PRICE_MAX_AGE_MS) {
+      if (options.refreshPrices) {
+        console.log(
+          'Cached prices are more than a day old. Refreshing the card cache from Scryfall...',
+        )
+        await preload()
+      } else if (options.cachePrompt !== false) {
+        const accepted = await confirmStaleRefresh({
+          message: `Prices were last updated ${formatDuration(age)} ago. Update now?`,
+          initial: false,
+        })
+        if (accepted) await preload()
+      }
+    }
+  }
+  return { ready: true, lastRefreshedAt: await cache.getLastRefreshedAt() }
 }

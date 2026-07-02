@@ -17,7 +17,7 @@ ritual init-site [options]
 | `--skills`      | Install Ritual agent skills into `.claude/skills` without prompting                |
 | `--no-skills`   | Skip installing Ritual agent skills (no prompt)                                    |
 
-This interactive command creates the scaffolding files needed to publish a Ritual-built deck and collection site. It first prompts you to choose a CI system, then a deployment strategy, and generates the appropriate files.
+This interactive command creates the scaffolding files needed to publish a Ritual-built deck and collection site. It first prompts you to choose a CI system, then a deployment strategy, then the default price currency (`usd`, `eur`, or `tix` — defaulting to USD, stored as the root-level [`defaultCurrency`](/configuration/#default-currency) key), and generates the appropriate files.
 
 The site settings are stored under the `site` key of [`ritual.config.json`](/configuration/). On subsequent runs, `init-site` compares the current Ritual version to the version recorded there. If a newer version is detected, it prompts you to confirm before regenerating any tracked managed files.
 
@@ -76,6 +76,17 @@ When enabled, the generated workflow runs [`git-detect-changes`](/commands/git-d
 This is useful when you edit list files directly (outside the admin UI or CLI) and want changelogs to stay up to date without manual intervention.
 
 Detection is **hash-aware**, so it's safe to leave enabled even if you also edit with Ritual locally: files whose contents still match their `.sha256` sidecar (i.e. Ritual itself wrote them and already recorded a changelog) are skipped, and only hand-edited files are processed. See [Hash-aware detection](/commands/git-detect-changes/#hash-aware-detection) for details.
+
+### Default currency
+
+```
+? Default price currency?
+❯   USD (current) - US Dollars (TCGplayer)
+    EUR - Euros (Cardmarket)
+    TIX - MTGO tickets
+```
+
+Sets the root-level [`defaultCurrency`](/configuration/#default-currency) key — the currency the [price](/commands/price/) command, editor price displays, and the public site default to. USD is the default; the currently configured value is preselected. Change it later with `config-set defaultCurrency <usd|eur|tix>`.
 
 ### Agent skills
 

@@ -1,5 +1,6 @@
 import { type JSX, createSignal, onMount, Show } from 'solid-js'
 import type { AdminConfig, RitualConfig } from '../../../ritual-config'
+import type { PriceCurrency } from '../../../price-currency'
 import {
   INCLUDE_ALL,
   defaultSiteSelection,
@@ -55,7 +56,7 @@ export function Settings(): JSX.Element {
     if (ok) setStatus('Settings saved')
   }
 
-  const updateField = (field: keyof RitualConfig, value: string | boolean | number) => {
+  const updateField = <K extends keyof RitualConfig>(field: K, value: RitualConfig[K]) => {
     setConfig((prev) => (prev ? { ...prev, [field]: value } : null))
   }
 
@@ -148,6 +149,21 @@ export function Settings(): JSX.Element {
               value={config()!.wantedDir}
               onInput={(e) => updateField('wantedDir', e.currentTarget.value)}
             />
+          </div>
+          <div>
+            <label class="form-label">Default Price Currency</label>
+            <select
+              class="form-input"
+              name="defaultCurrency"
+              value={config()!.defaultCurrency}
+              onChange={(e) =>
+                updateField('defaultCurrency', e.currentTarget.value as PriceCurrency)
+              }
+            >
+              <option value="usd">USD (TCGplayer)</option>
+              <option value="eur">EUR (Cardmarket)</option>
+              <option value="tix">TIX (MTGO)</option>
+            </select>
           </div>
 
           {/* Git settings */}

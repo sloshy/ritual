@@ -2,6 +2,7 @@ import { Command } from 'commander'
 import {
   loadRitualConfig,
   parseBannedPrinting,
+  parseDefaultCurrency,
   saveRitualConfig,
   type AdminConfig,
   type RitualConfig,
@@ -62,6 +63,7 @@ export const SETTABLE_FIELDS: Record<string, ConfigFieldType> = {
   decksDir: 'string',
   collectionsDir: 'string',
   wantedDir: 'string',
+  defaultCurrency: 'string',
 } satisfies SettableFieldsMap
 
 // The admin settings, exposed as dotted `admin.<field>` paths handled through the
@@ -262,9 +264,18 @@ export function applyConfigSet(
   }
 
   // fieldType === 'string'
+  // defaultCurrency is a constrained string; validate and normalize to lowercase.
+  let newValue = rawValue
+  if (property === 'defaultCurrency') {
+    const parsed = parseDefaultCurrency(rawValue)
+    if (typeof parsed !== 'string') {
+      return parsed
+    }
+    newValue = parsed
+  }
   // Safe: path is a validated keyof RitualConfig, value matches the field's string type.
-  const updatedConfig = setAtPath(configObj, path, rawValue) as unknown as RitualConfig
-  return { property, newValue: rawValue, updatedConfig }
+  const updatedConfig = setAtPath(configObj, path, newValue) as unknown as RitualConfig
+  return { property, newValue, updatedConfig }
 }
 
 type ConfigSetOptions = {

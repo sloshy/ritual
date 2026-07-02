@@ -4,9 +4,9 @@ import path from 'node:path'
 import { runCli, withTempDir } from './helpers/cli'
 
 describe('CLI scripting behavior (Integration)', () => {
-  test('price-deck returns structured json error with not-found exit code', async () => {
+  test('price returns structured json error with not-found exit code', async () => {
     await withTempDir(async (dir) => {
-      const result = await runCli(['price-deck', 'missing-deck', '--output', 'json'], dir)
+      const result = await runCli(['price', 'missing-deck', '--deck', '--output', 'json'], dir)
 
       expect(result.exitCode).toBe(3)
       expect(result.stdout).toBe('')
@@ -16,6 +16,21 @@ describe('CLI scripting behavior (Integration)', () => {
       }
       expect(errorJson.error.code).toBe('not_found')
       expect(errorJson.error.message).toContain('No deck')
+    })
+  })
+
+  test('price with an empty cache reports a structured runtime error', async () => {
+    await withTempDir(async (dir) => {
+      await fs.mkdir(path.join(dir, 'decks'), { recursive: true })
+      await fs.writeFile(path.join(dir, 'decks', 'sample.md'), '# sample\n\n1 Sol Ring &1\n')
+      const result = await runCli(['price', '--summary', '--output', 'json'], dir)
+
+      expect(result.exitCode).toBe(1)
+      const errorJson = JSON.parse(result.stderr) as {
+        error: { code: string; message: string }
+      }
+      expect(errorJson.error.code).toBe('runtime_error')
+      expect(errorJson.error.message).toContain('card cache is empty')
     })
   })
 

@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { getContentHash } from '../../content-hash'
-import { parseCollectionFile } from '../../commands/price-collection'
+import { parseCollectionFile } from '../../collection-file'
 import { getErrorMessage } from '../../errors'
 import { isPathWithinDir } from '../../path-validation'
 import { getCollectionsDir } from '../../ritual-config'

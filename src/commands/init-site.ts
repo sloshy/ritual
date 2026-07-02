@@ -16,6 +16,7 @@ import {
   reloadRitualConfig,
   saveRitualConfig,
 } from '../ritual-config'
+import { VALID_CURRENCIES, type PriceCurrency } from '../price-currency'
 import type { ActiveManagedFile, ManagedFile, Migration } from '../managed-files'
 import { computeMigrations, isActiveManagedFile } from '../managed-files'
 import { compareVersions } from '../semver'
@@ -554,8 +555,10 @@ export function registerInitSiteCommand(program: Command): void {
       if (options.force) {
         const config = await promptForConfig()
         if (!config) return
+        const defaultCurrency = await promptDefaultCurrency()
+        if (!defaultCurrency) return
         await writeInitFiles(config, { force: true })
-        await persistSiteConfigOrExit({ ...config, version: ritualVersion })
+        await persistSiteConfigOrExit({ ...config, version: ritualVersion }, defaultCurrency)
         await maybeInstallSkills(options, true)
         printNextSteps(config)
         return
@@ -632,20 +635,26 @@ export function registerInitSiteCommand(program: Command): void {
       // Fresh init (no site config yet)
       const config = await promptForConfig()
       if (!config) return
+      const defaultCurrency = await promptDefaultCurrency()
+      if (!defaultCurrency) return
       await writeInitFiles(config, { force: false })
-      await persistSiteConfigOrExit({ ...config, version: ritualVersion })
+      await persistSiteConfigOrExit({ ...config, version: ritualVersion }, defaultCurrency)
       await maybeInstallSkills(options, false)
       printNextSteps(config)
     })
 }
 
-async function persistSiteConfigOrExit(deploy: SiteDeployConfig): Promise<void> {
+async function persistSiteConfigOrExit(
+  deploy: SiteDeployConfig,
+  defaultCurrency?: PriceCurrency,
+): Promise<void> {
   try {
     const config = await loadRitualConfig()
     // Preserve any existing public-site selection settings (or seed the `['*']`
     // defaults) so writing the init-site-managed deployment config never clobbers
     // them.
     config.site = { ...getSiteSelectionConfig(config.site), ...deploy }
+    if (defaultCurrency !== undefined) config.defaultCurrency = defaultCurrency
     await saveRitualConfig(config)
     await reloadRitualConfig()
   } catch (err) {
@@ -654,6 +663,48 @@ async function persistSiteConfigOrExit(deploy: SiteDeployConfig): Promise<void> 
     )
     process.exit(1)
   }
+}
+
+/** Currency choices for the init-site prompt, USD first so it is the default. */
+export function defaultCurrencyChoices(current: PriceCurrency): prompts.Choice[] {
+  const descriptions: Record<PriceCurrency, string> = {
+    usd: 'US Dollars (TCGplayer)',
+    eur: 'Euros (Cardmarket)',
+    tix: 'MTGO tickets',
+  }
+  return VALID_CURRENCIES.map((currency) => ({
+    title: currency.toUpperCase() + (currency === current ? ' (current)' : ''),
+    description: descriptions[currency],
+    value: currency,
+  }))
+}
+
+type DefaultCurrencyPromptResponse = { currency?: PriceCurrency }
+
+/**
+ * Ask which currency price-touching surfaces should default to. Defaults to
+ * the currently configured value (USD out of the box). Returns null when the
+ * prompt is cancelled.
+ */
+async function promptDefaultCurrency(): Promise<PriceCurrency | null> {
+  const current = (await loadRitualConfig()).defaultCurrency
+  let cancelled = false
+  const response = (await prompts(
+    {
+      type: 'select',
+      name: 'currency',
+      message: 'Default price currency?',
+      choices: defaultCurrencyChoices(current),
+      initial: Math.max(0, VALID_CURRENCIES.indexOf(current)),
+    },
+    {
+      onCancel: () => {
+        cancelled = true
+      },
+    },
+  )) as DefaultCurrencyPromptResponse
+  if (cancelled || response.currency === undefined) return null
+  return response.currency
 }
 
 async function promptForConfig(): Promise<InitSiteConfig | null> {

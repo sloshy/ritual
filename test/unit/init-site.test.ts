@@ -4,6 +4,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import {
+  defaultCurrencyChoices,
   generatePublishForMeWorkflow,
   generateLocalBuildWorkflow,
   generateWorkflow,
@@ -492,5 +493,22 @@ describe('updateGitignore', () => {
     expect(
       written.split('\n').filter((l) => l === '# Ritual binary downloaded by the deploy workflow'),
     ).toHaveLength(1)
+  })
+})
+
+describe('defaultCurrencyChoices', () => {
+  test('offers every currency with USD first and marks the current one', () => {
+    const choices = defaultCurrencyChoices('usd')
+    expect(choices.map((c) => c.value)).toEqual(['usd', 'eur', 'tix'])
+    expect(choices[0]!.title).toBe('USD (current)')
+    expect(choices[0]!.description).toContain('TCGplayer')
+    expect(choices[1]!.title).toBe('EUR')
+    expect(choices[1]!.description).toContain('Cardmarket')
+  })
+
+  test('marks a non-default configured currency', () => {
+    const choices = defaultCurrencyChoices('tix')
+    expect(choices[2]!.title).toBe('TIX (current)')
+    expect(choices[0]!.title).toBe('USD')
   })
 })

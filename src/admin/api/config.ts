@@ -2,6 +2,7 @@ import {
   getRitualConfigPath,
   loadRitualConfig,
   normalizeBannedPrintings,
+  parseDefaultCurrency,
   reloadRitualConfig,
   saveRitualConfig,
   type RitualConfig,
@@ -40,6 +41,18 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
         return Response.json({ success: false, message: normalized }, { status: 400 })
       }
       updates.site = { ...updates.site, bannedPrintings: normalized }
+    }
+
+    // Validate and normalize the default currency before persisting, matching
+    // what config-set does — an unvalidated write here would otherwise persist
+    // an invalid value that only gets caught (and silently reset to the
+    // default) the next time the config is loaded, with no feedback to the caller.
+    if (updates.defaultCurrency !== undefined) {
+      const parsed = parseDefaultCurrency(updates.defaultCurrency)
+      if (typeof parsed !== 'string') {
+        return Response.json({ success: false, message: parsed.error }, { status: 400 })
+      }
+      updates.defaultCurrency = parsed
     }
 
     const current = await loadRitualConfig()

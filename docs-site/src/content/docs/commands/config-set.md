@@ -22,11 +22,14 @@ Set or update a value in `ritual.config.json`.
 
 ## Settable properties
 
-| Property         | Type     | Default         |
-| ---------------- | -------- | --------------- |
-| `decksDir`       | `string` | `./decks`       |
-| `collectionsDir` | `string` | `./collections` |
-| `wantedDir`      | `string` | `./wanted`      |
+| Property          | Type     | Default         |
+| ----------------- | -------- | --------------- |
+| `decksDir`        | `string` | `./decks`       |
+| `collectionsDir`  | `string` | `./collections` |
+| `wantedDir`       | `string` | `./wanted`      |
+| `defaultCurrency` | `string` | `usd`           |
+
+`defaultCurrency` must be one of `usd`, `eur`, or `tix`; it sets the currency every price-touching command defaults to.
 
 The nested `admin` keys — settings for the [admin server](/commands/admin/) — are set with dot notation:
 

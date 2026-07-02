@@ -80,14 +80,19 @@ partial failure).
 
 ## Price
 
+The unified \`price\` command covers all list types; scope it with \`--collection\` or a
+name. An interactive browser opens on a TTY — for agents, always pass a non-interactive
+flag (\`--summary\`, \`--no-interactive\`, or \`--output json\`):
+
 \`\`\`bash
-ritual price-collection                       # every collection
-ritual price-collection main-binder           # one collection
-ritual price-collection main-binder --output json --quiet
-ritual price-collection main-binder --sort price --descending
-ritual price-collection main-binder --prices eur     # usd | eur | tix
+ritual price --collection --summary            # every collection's totals
+ritual price main-binder --no-interactive      # one collection's cards + totals
+ritual price main-binder --output json --quiet
+ritual price main-binder --sort price --descending --no-interactive
+ritual price main-binder --prices eur          # usd | eur | tix (defaults to config defaultCurrency)
 \`\`\`
 
-Alias: \`ritual pc\`.
+Collection entries are priced at their exact printing and finish; totals include a
+quantity-weighted unpriced-card count.
 `,
 }

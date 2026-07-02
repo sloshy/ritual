@@ -29,8 +29,9 @@ import {
   formatCheapestPrintingDisplay,
   formatSpecificPrintingPrice,
 } from '../price-currency'
+import { getDefaultCurrency } from '../ritual-config'
 import { trackAdd, trackAnotherCopy, trackEdit } from '../session-changelog'
-import { parseCollectionFile } from './price-collection'
+import { parseCollectionFile } from '../collection-file'
 import { parseWantedListFile } from './wanted-helpers'
 import type { CardSessionContext, SessionAddItem } from './card-session'
 import type { EditUndoEntry } from './edit-undo'
@@ -267,9 +268,12 @@ export async function applyFlatListCardEntry<E extends FlatListEntry>(
     console.log(`Added: ${list.renderLine(cardName, state.snapshot, cardId)}`)
     if (price.kind === 'cheapest') {
       const printings = await getCardPrintings(cardName)
-      console.log(formatCheapestPrintingDisplay(findCheapestPrinting(printings)))
+      const currency = getDefaultCurrency()
+      console.log(
+        formatCheapestPrintingDisplay(findCheapestPrinting(printings, currency), currency),
+      )
     } else {
-      console.log(formatSpecificPrintingPrice(price.printing, options.finish))
+      console.log(formatSpecificPrintingPrice(price.printing, options.finish, getDefaultCurrency()))
     }
   }
   ctx.lastAddedCount = 1

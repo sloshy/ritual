@@ -121,6 +121,7 @@ Configure admin settings including:
 
 - **Decks Directory**: path to the decks folder (default: `./decks`)
 - **Collections Directory**: path to the collections folder (default: `./collections`)
+- **Default Price Currency**: the currency price-touching surfaces default to (default: `usd`; see [Configuration](/configuration/#default-currency))
 - **Git Integration**: enable/disable git auto-commit
 - **Two-Factor Authentication (TOTP)**: set up or disable TOTP 2FA
 - **Rate Limiting**: configure failed login attempt limits and lockout duration
@@ -140,6 +141,7 @@ Settings are stored in `ritual.config.json` in the base directory. The file is s
   "decksDir": "./decks",
   "collectionsDir": "./collections",
   "wantedDir": "./wanted",
+  "defaultCurrency": "usd",
   "admin": {
     "gitEnabled": false,
     "gitAutoCommit": false,
@@ -698,6 +700,7 @@ Returns the current application configuration.
     "decksDir": "./decks",
     "collectionsDir": "./collections",
     "wantedDir": "./wanted",
+    "defaultCurrency": "usd",
     "admin": {
       "gitEnabled": false,
       "gitAutoCommit": false,
@@ -741,6 +744,7 @@ Update the application configuration. Partial updates are supported — only the
     "decksDir": "./decks",
     "collectionsDir": "./collections",
     "wantedDir": "./wanted",
+    "defaultCurrency": "usd",
     "admin": {
       "gitEnabled": true,
       "gitAutoCommit": true,

@@ -18,6 +18,7 @@ When you pass `--base-dir`, Ritual loads the config from that directory and reso
   "decksDir": "./decks",
   "collectionsDir": "./collections",
   "wantedDir": "./wanted",
+  "defaultCurrency": "usd",
   "admin": {
     "gitEnabled": false,
     "gitAutoCommit": false,
@@ -47,6 +48,12 @@ When you pass `--base-dir`, Ritual loads the config from that directory and reso
 Directory paths are resolved relative to the base directory. For example, with `--base-dir ~/mtg` and `"decksDir": "./my-decks"`, Ritual reads decks from `~/mtg/my-decks`.
 
 You can use absolute paths (`"/srv/mtg/decks"`) or paths that step outside the base dir (`"../shared-decks"`) when that fits your workflow.
+
+## Default currency
+
+| Field             | Default | Description                                                                                                                                                                                                                                                                                                                                                      |
+| ----------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `defaultCurrency` | `usd`   | The currency price-touching surfaces default to: `usd`, `eur`, or `tix`. Used by the [price](/commands/price/) command, the price lines shown when adding cards in the editor, and as the public site's initial currency (when that currency is built). [init-site](/commands/init-site/) prompts for it; change it later with `config-set defaultCurrency eur`. |
 
 ## Admin options (`admin` key)
 

@@ -74,14 +74,20 @@ line numbers on stderr and the rest still import (exit code 1 on partial failure
 
 ## Price
 
+The unified \`price\` command covers all list types; scope it with \`--wanted\` or a
+name. An interactive browser opens on a TTY — for agents, always pass a non-interactive
+flag (\`--summary\`, \`--no-interactive\`, or \`--output json\`):
+
 \`\`\`bash
-ritual price-wanted-list                       # every wanted list
-ritual price-wanted-list to-buy                # one list
-ritual price-wanted-list to-buy --output json --quiet
-ritual price-wanted-list to-buy --sort price --descending
-ritual price-wanted-list to-buy --prices eur   # usd | eur | tix
+ritual price --wanted --summary                # every wanted list's totals
+ritual price to-buy --no-interactive           # one list's cards + totals
+ritual price to-buy --output json --quiet
+ritual price to-buy --sort price --descending --no-interactive
+ritual price to-buy --prices eur               # usd | eur | tix (defaults to config defaultCurrency)
 \`\`\`
 
-Alias: \`ritual pwl\`.
+Each wanted list also reports a "lowest" total: name-only entries use the cheapest
+printing, printing-pinned entries the cheapest finish of that printing, and
+fully-specified entries their exact price.
 `,
 }

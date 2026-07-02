@@ -6,7 +6,7 @@
 
 import * as fs from 'node:fs/promises'
 import { importFromTextFile } from '../importers/text-file'
-import { parseCollectionFile } from './price-collection'
+import { parseCollectionFile } from '../collection-file'
 import { parseWantedListFile } from './wanted-helpers'
 import { DEFAULT_SECTION, type Condition, type Finish } from '../types'
 import type { ListType } from '../list-type'

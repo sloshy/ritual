@@ -4,7 +4,7 @@ import path from 'node:path'
 import { getBaseDir } from '../base-dir'
 import { getCollectionsDir, getDecksDir, getWantedDir } from '../ritual-config'
 import { importFromTextFile, listDeckFiles } from '../importers/text-file'
-import { parseCollectionFile } from './price-collection'
+import { parseCollectionFile } from '../collection-file'
 import { parseWantedListFile } from './wanted-helpers'
 
 export type UniqueCardEntry = {

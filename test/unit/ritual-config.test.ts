@@ -46,6 +46,7 @@ describe('ritual config', () => {
     expect(config.decksDir).toBe('./decks')
     expect(config.collectionsDir).toBe('./collections')
     expect(config.wantedDir).toBe('./wanted')
+    expect(config.defaultCurrency).toBe('usd')
     expect(config.admin.gitEnabled).toBe(false)
     expect(config.admin.gitAutoCommit).toBe(false)
     expect(config.admin.gitAutoPush).toBe(false)
@@ -69,6 +70,7 @@ describe('ritual config', () => {
       decksDir: './my-decks',
       collectionsDir: './my-collections',
       wantedDir: './my-wanted',
+      defaultCurrency: 'eur',
       admin: {
         gitEnabled: true,
         gitAutoCommit: true,
@@ -101,6 +103,30 @@ describe('ritual config', () => {
     expect(config.admin.gitAutoCommit).toBe(false)
     expect(config.admin.rateLimitEnabled).toBe(true)
     expect(config.admin.rateLimitMaxAttempts).toBe(5)
+  })
+
+  test('defaultCurrency defaults to usd when absent', async () => {
+    await fs.writeFile(configPath, JSON.stringify({ decksDir: './d' }))
+    const config = await loadRitualConfig()
+    expect(config.defaultCurrency).toBe('usd')
+  })
+
+  test('defaultCurrency loads a valid value, normalizing case', async () => {
+    await fs.writeFile(configPath, JSON.stringify({ defaultCurrency: 'EUR' }))
+    const config = await loadRitualConfig()
+    expect(config.defaultCurrency).toBe('eur')
+  })
+
+  test('defaultCurrency falls back to usd when invalid', async () => {
+    await fs.writeFile(configPath, JSON.stringify({ defaultCurrency: 'gbp' }))
+    const config = await loadRitualConfig()
+    expect(config.defaultCurrency).toBe('usd')
+  })
+
+  test('defaultCurrency falls back to usd when not a string', async () => {
+    await fs.writeFile(configPath, JSON.stringify({ defaultCurrency: 5 }))
+    const config = await loadRitualConfig()
+    expect(config.defaultCurrency).toBe('usd')
   })
 
   test('loadRitualConfig falls back to admin defaults when admin is absent', async () => {

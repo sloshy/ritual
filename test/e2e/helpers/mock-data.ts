@@ -68,6 +68,7 @@ const MOCK_CONFIG = {
   decksDir: './decks',
   collectionsDir: './collections',
   wantedDir: './wanted',
+  defaultCurrency: 'eur',
   admin: {
     gitEnabled: false,
     gitAutoCommit: false,

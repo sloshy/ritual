@@ -11,7 +11,7 @@ import {
 } from '../change-event'
 import type { Finish, Condition } from '../types'
 import { listDeckFiles, importFromTextFile } from '../importers/text-file'
-import { parseCollectionFile } from './price-collection'
+import { parseCollectionFile } from '../collection-file'
 import { parseWantedListFile } from './wanted-helpers'
 import { parseDeckFrontMatter } from '../deck-file'
 import { extractMarkdownTitle } from '../markdown-utils'

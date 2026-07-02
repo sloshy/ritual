@@ -23,7 +23,7 @@ By default, deck card images use Scryfall URLs from card data. This can be overr
 | `--wanted-lists [names...]` | Wanted list names to include in the site (default: the `site.includeWantedLists` config selection)                       |
 | `--collection-sort <field>` | Default sort order for collection pages (`file-order`, `name`, `price`, `set-code`, `type`, `cmc`, `color-identity`)     |
 | `--deck-sort <field>`       | Default sort order for deck pages (`name`, `cmc`, `price`, `type`, `edhrec`, `color-identity`)                           |
-| `--currencies <list>`       | Comma-separated currencies to include on the site: `usd`, `eur`, `tix` (default: all three; first listed is default)     |
+| `--currencies <list>`       | Comma-separated currencies to include on the site: `usd`, `eur`, `tix` (default: all three)                              |
 | `--allow-refresh`           | Refresh the card cache when stale, including the fast Scryfall bulk download (answers the prompt for you)                |
 | `--allow-refresh-no-bulk`   | Refresh stale prices per-card but never trigger a bulk download                                                          |
 | `--no-refresh`              | Never refresh the card cache; build from cached data as-is                                                               |
@@ -288,7 +288,7 @@ The generated site includes a **Prices** dropdown in the header for switching be
 - The "Lowest Price" toggle finds the cheapest printing per the active currency — images update accordingly
 - Price bracket grouping labels adapt to the active currency symbol
 
-The `--currencies` flag controls which currencies are available on the site. The first currency listed becomes the default shown on load. Users can switch between available currencies at any time using the dropdown.
+The `--currencies` flag controls which currencies are available on the site. The site opens in the configured [`defaultCurrency`](/configuration/#default-currency) when it is among the built currencies, otherwise the first currency listed. Users can switch between available currencies at any time using the dropdown.
 
 ## Price Disclaimer
 

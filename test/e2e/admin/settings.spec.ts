@@ -35,6 +35,9 @@ test.describe('Settings Page', () => {
     await expect(
       main.locator('input[name="collectionsDir"], input[placeholder*="collection" i]').first(),
     ).toHaveValue(MOCK_CONFIG.collectionsDir)
+    await expect(main.locator('select[name="defaultCurrency"]')).toHaveValue(
+      MOCK_CONFIG.defaultCurrency,
+    )
   })
 
   test('save button triggers API call and shows success', async ({ page }) => {

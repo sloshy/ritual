@@ -18,7 +18,7 @@ Accented letters are folded to their plain forms before matching, so `cafe` reso
 
 ## Type flags and disambiguation
 
-Type-agnostic commands (`add-card`, `add-note`, `clear-note`, `history`) search **all three** list types at once. A name that exists in more than one type — say a deck _and_ a collection both called `staples` — is ambiguous. Resolve it with a type flag:
+Type-agnostic commands (`add-card`, `add-note`, `clear-note`, `history`, `price`) search **all three** list types at once. A name that exists in more than one type — say a deck _and_ a collection both called `staples` — is ambiguous. Resolve it with a type flag:
 
 | Flag           | Restricts the search to |
 | -------------- | ----------------------- |
@@ -26,16 +26,16 @@ Type-agnostic commands (`add-card`, `add-note`, `clear-note`, `history`) search 
 | `--collection` | Collections             |
 | `--wanted`     | Wanted lists            |
 
-The flags are mutually exclusive. Single-type commands (`price-deck`, `price-collection`, `price-wanted-list`, `deck-sync`, `get-primer`) already know their type, so they never need a flag — but they match names by the same case- and accent-insensitive, substring, ambiguity-aware rules.
+The flags are mutually exclusive. Single-type commands (`deck-sync`, `get-primer`) already know their type, so they never need a flag — but they match names by the same case- and accent-insensitive, substring, ambiguity-aware rules.
 
 ## Examples
 
 ```bash
 # Exact, case- and accent-insensitive — resolves decks/Goblins.md
-./ritual price-deck goblins
+./ritual price goblins --deck
 
 # Unique substring — resolves decks/mono-red-burn.md
-./ritual price-deck burn
+./ritual price burn --deck
 
 # Ambiguous across types — fails, asking you to disambiguate
 ./ritual add-note staples "Sol Ring" --note ramp

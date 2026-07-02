@@ -41,21 +41,13 @@ export default defineConfig({
                 'commands/import-account',
                 'commands/get-primer',
                 'commands/deck-sync',
-                'commands/price',
               ],
-            },
-            {
-              label: 'Collection Management',
-              items: ['commands/price-collection'],
-            },
-            {
-              label: 'Wanted List Management',
-              items: ['commands/price-wanted'],
             },
             {
               label: 'Card Management',
               items: [
                 'commands/edit',
+                'commands/price',
                 'commands/move',
                 'commands/history',
                 'commands/import',

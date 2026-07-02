@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { parseCollectionFile, type CollectionEntry } from '../../src/commands/price-collection'
+import { parseCollectionFile, type CollectionEntry } from '../../src/collection-file'
 import {
   parseWantedListFile,
   formatWantedListLine,

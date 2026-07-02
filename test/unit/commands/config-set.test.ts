@@ -484,3 +484,26 @@ describe('applyConfigSet — immutability', () => {
     expect(original).toEqual(['10.0.0.1'])
   })
 })
+
+describe('applyConfigSet — defaultCurrency', () => {
+  test('sets a valid currency', () => {
+    const result = applyConfigSet(base, 'defaultCurrency', ['eur'], 'replace')
+    if ('error' in result) throw new Error(result.error)
+    expect(result.newValue).toBe('eur')
+    expect(result.updatedConfig.defaultCurrency).toBe('eur')
+  })
+
+  test('normalizes the currency to lowercase', () => {
+    const result = applyConfigSet(base, 'defaultCurrency', ['TIX'], 'replace')
+    if ('error' in result) throw new Error(result.error)
+    expect(result.newValue).toBe('tix')
+  })
+
+  test('rejects an unknown currency', () => {
+    const result = applyConfigSet(base, 'defaultCurrency', ['gbp'], 'replace')
+    expect('error' in result).toBeTrue()
+    if ('error' in result) {
+      expect(result.error).toContain('usd, eur, tix')
+    }
+  })
+})

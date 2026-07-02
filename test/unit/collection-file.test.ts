@@ -1,10 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import {
-  getPriceForFinish,
-  parseCollectionFile,
-  resolveFinish,
-  type CollectionEntry,
-} from '../../src/commands/price-collection'
+import { parseCollectionFile, resolveFinish, type CollectionEntry } from '../../src/collection-file'
 import type { ScryfallCard } from '../../src/types'
 
 describe('parseCollectionFile', () => {
@@ -181,27 +176,6 @@ function makeEntry(overrides: Partial<CollectionEntry> = {}): CollectionEntry {
     ...overrides,
   }
 }
-
-describe('getPriceForFinish', () => {
-  test('returns usd price for nonfoil', () => {
-    expect(getPriceForFinish(makeCard(), 'nonfoil')).toBe(2.5)
-  })
-
-  test('returns usd_foil price for foil', () => {
-    expect(getPriceForFinish(makeCard(), 'foil')).toBe(5.0)
-  })
-
-  test('returns usd_etched price for etched', () => {
-    expect(getPriceForFinish(makeCard(), 'etched')).toBe(8.0)
-  })
-
-  test('returns 0 when price is null', () => {
-    const card = makeCard({
-      prices: { usd: null, usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
-    })
-    expect(getPriceForFinish(card, 'nonfoil')).toBe(0)
-  })
-})
 
 describe('resolveFinish', () => {
   test('uses entry finish if specified', () => {

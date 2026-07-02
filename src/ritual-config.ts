@@ -1,6 +1,12 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getBaseDir } from './base-dir'
+import {
+  DEFAULT_CURRENCY,
+  isPriceCurrency,
+  VALID_CURRENCIES,
+  type PriceCurrency,
+} from './price-currency'
 import { isValidSemver } from './semver'
 import { INCLUDE_ALL, defaultSiteSelection, type SiteSelectionConfig } from './site/list-selection'
 
@@ -73,6 +79,12 @@ export interface RitualConfig {
   decksDir: string
   collectionsDir: string
   wantedDir: string
+  /**
+   * The currency every price-touching surface defaults to (the `price` command,
+   * editor price displays, and the public site's initial currency). Always
+   * present, defaulting to `usd`.
+   */
+  defaultCurrency: PriceCurrency
   /** Admin-server settings; always present, defaulting to {@link DEFAULT_ADMIN_CONFIG}. */
   admin: AdminConfig
   /** Present only when `ritual init-site` has been run; managed exclusively by that command. */
@@ -99,6 +111,7 @@ const DEFAULT_CONFIG = {
   decksDir: './decks',
   collectionsDir: './collections',
   wantedDir: './wanted',
+  defaultCurrency: DEFAULT_CURRENCY,
 } satisfies Omit<RitualConfig, 'admin' | 'site'>
 
 const CONFIG_FILENAME = 'ritual.config.json'
@@ -439,15 +452,38 @@ export function parseAdminConfig(value: unknown): AdminConfig | string {
   }
 }
 
+/** The error branch of {@link parseDefaultCurrency}. A currency is itself a
+ * string, so the usual `T | string` parser union would not be discriminable —
+ * the error is wrapped in a structured object instead. */
+export type DefaultCurrencyParseError = { error: string }
+
+/**
+ * Parse the `defaultCurrency` config value. Absent falls back to `usd`; an
+ * unrecognized value is reported as a structured error for the caller to surface.
+ */
+export function parseDefaultCurrency(value: unknown): PriceCurrency | DefaultCurrencyParseError {
+  if (value === undefined) return DEFAULT_CURRENCY
+  if (typeof value === 'string') {
+    const lower = value.toLowerCase()
+    if (isPriceCurrency(lower)) return lower
+  }
+  return { error: `"defaultCurrency" must be one of: ${VALID_CURRENCIES.join(', ')}` }
+}
+
 function applyDefaults(parsed: ParsedConfig): RitualConfig {
   const admin = parseAdminConfig(parsed.admin)
   if (typeof admin === 'string') {
     console.warn(`ritual.config.json: ignoring invalid admin config — ${admin}`)
   }
+  const defaultCurrency = parseDefaultCurrency(parsed.defaultCurrency)
+  if (typeof defaultCurrency !== 'string') {
+    console.warn(`ritual.config.json: ignoring invalid defaultCurrency — ${defaultCurrency.error}`)
+  }
   const merged: RitualConfig = {
     decksDir: parsed.decksDir ?? DEFAULT_CONFIG.decksDir,
     collectionsDir: parsed.collectionsDir ?? DEFAULT_CONFIG.collectionsDir,
     wantedDir: parsed.wantedDir ?? DEFAULT_CONFIG.wantedDir,
+    defaultCurrency: typeof defaultCurrency === 'string' ? defaultCurrency : DEFAULT_CURRENCY,
     admin: typeof admin === 'string' ? { ...DEFAULT_ADMIN_CONFIG } : admin,
   }
   if (parsed.site !== undefined) {
@@ -539,6 +575,11 @@ export function getCollectionsDir(config: RitualConfig = getRitualConfig()): str
 
 export function getWantedDir(config: RitualConfig = getRitualConfig()): string {
   return resolveDir(config.wantedDir)
+}
+
+/** The configured default price currency (`usd` unless overridden). */
+export function getDefaultCurrency(config: RitualConfig = getRitualConfig()): PriceCurrency {
+  return config.defaultCurrency
 }
 
 /**

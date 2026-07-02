@@ -12,7 +12,7 @@ import {
 } from '../git-diff'
 import { diffDeckCards, diffCollectionEntries, diffWantedEntries } from '../diff-cards'
 import { importFromTextFile } from '../importers/text-file'
-import { parseCollectionFile } from './price-collection'
+import { parseCollectionFile } from '../collection-file'
 import { parseWantedListFile } from './wanted-helpers'
 import { appendChangelog } from '../changelog-writer'
 import { formatChange, type ChangeEvent } from '../change-event'

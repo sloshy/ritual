@@ -2,20 +2,7 @@ import { type JSX, createSignal, onMount, Show, Switch, Match } from 'solid-js'
 import type { ArchidektLoginStatus } from '../../../auth/interfaces'
 import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from '../components/StatusAlerts'
-
-function formatDuration(ms: number): string {
-  const totalMinutes = Math.floor(ms / 60000)
-  if (totalMinutes < 1) return 'less than a minute'
-  const days = Math.floor(totalMinutes / 1440)
-  const hours = Math.floor((totalMinutes % 1440) / 60)
-  const minutes = totalMinutes % 60
-  const parts: string[] = []
-  if (days > 0) parts.push(`${days} day${days === 1 ? '' : 's'}`)
-  if (hours > 0) parts.push(`${hours} hour${hours === 1 ? '' : 's'}`)
-  // Only bother with minute precision when the total is under a day.
-  if (minutes > 0 && days === 0) parts.push(`${minutes} minute${minutes === 1 ? '' : 's'}`)
-  return parts.join(', ')
-}
+import { formatDuration } from '../../../utils'
 
 function describeExpiry(expiration: string | null, valid: boolean): string {
   if (!expiration) return valid ? 'valid' : 'expiration unknown'

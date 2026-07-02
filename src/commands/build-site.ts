@@ -30,6 +30,7 @@ import {
   getBannedPrintings,
   getCollectionsDir,
   getDecksDir,
+  getDefaultCurrency,
   getRitualConfig,
   getSiteSelectionConfig,
   getWantedDir,
@@ -49,7 +50,7 @@ import type {
 import { ArchidektClient } from '../clients/ArchidektClient'
 import { fetchMoxfieldDeck } from '../importers/moxfield-lib'
 import { resolveCardImageSources } from '../site/image-sources'
-import { parseCollectionFile, getPriceForFinish, resolveFinish } from './price-collection'
+import { parseCollectionFile, resolveFinish } from '../collection-file'
 import { parseWantedListFile } from './wanted-helpers'
 import { parseCurrenciesFlag, getCardPrice, getCardPriceForFinish } from '../price-currency'
 import type { PriceCurrency } from '../price-currency'
@@ -217,7 +218,12 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     console.error(getErrorMessage(e))
     return
   }
-  const defaultCurrency = availableCurrencies[0]!
+  // The site opens in the configured default currency when it's built at all,
+  // otherwise the first built currency.
+  const configuredCurrency = getDefaultCurrency()
+  const defaultCurrency = availableCurrencies.includes(configuredCurrency)
+    ? configuredCurrency
+    : availableCurrencies[0]!
 
   const customThemes = await loadCustomThemes(options.themeFile ?? [])
   const customNames = new Set(customThemes.map((t) => t.name))
@@ -1038,7 +1044,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
 
       const card = collectionCardMap[cardKey] ?? null
       const finish: Finish = card ? resolveFinish(entry, card) : entry.finish || 'nonfoil'
-      const price = card ? getPriceForFinish(card, finish) : 0
+      const price = card ? getCardPriceForFinish(card, finish, 'usd') : 0
       const priceEur = card ? getCardPriceForFinish(card, finish, 'eur') : 0
       const priceTix = card ? getCardPriceForFinish(card, finish, 'tix') : 0
       totalPrice += price
@@ -1287,16 +1293,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
             }
           } else {
             // State 2: cheapest finish of this printing
-            const defaultFinish = resolveFinish(
-              {
-                name: entry.name,
-                quantity: 1,
-                set: entry.set!,
-                collectorNumber: entry.collectorNumber!,
-                section: entry.section,
-              },
-              exactPrinting,
-            )
+            const defaultFinish = resolveFinish({}, exactPrinting)
 
             if (hasUsd) {
               price = getCardPriceForFinish(exactPrinting, defaultFinish, 'usd')

@@ -136,14 +136,19 @@ ritual get-primer <moxfield-url>          # fetch a primer from Moxfield
 
 ## Price
 
-\`price-deck\` is non-interactive and supports JSON, so it is easy to parse:
+The unified \`price\` command covers all list types; scope it with \`--deck\` or a name.
+An interactive browser opens on a TTY — for agents, always pass a non-interactive flag
+(\`--summary\`, \`--no-interactive\`, or \`--output json\`):
 
 \`\`\`bash
-ritual price-deck winota-stax
-ritual price-deck winota-stax --output json --quiet
-ritual price-deck winota-stax --prices eur          # usd | eur | tix
-ritual price-deck winota-stax --all                 # include Sideboard/Maybeboard
-ritual price-deck winota-stax --with-sideboard      # include just the Sideboard
+ritual price --deck --summary                       # every deck's totals
+ritual price winota-stax --no-interactive           # one deck's cards + totals
+ritual price winota-stax --output json --quiet
+ritual price winota-stax --prices eur               # usd | eur | tix (defaults to config defaultCurrency)
 \`\`\`
+
+Deck totals cover every section except extras (maybeboard/token). Each deck also
+reports a "lowest" total (cheapest printing of every card) and a quantity-weighted
+unpriced-card count.
 `,
 }
