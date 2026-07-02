@@ -49,28 +49,28 @@ async function addCardToDeck(
 
 describe('deck editor helpers (Integration)', () => {
   test('ensureDeckFile creates a slugged file with display name front matter', async () => {
-    const filePath = await ensureDeckFile('My Cool Deck')
+    const filePath = await ensureDeckFile('My Cool Deck', 'commander')
     expect(filePath).toBe(path.join(dir, 'decks', 'my-cool-deck.md'))
     const content = await fs.readFile(filePath, 'utf-8')
     expect(content).toContain('name: "My Cool Deck"')
   })
 
   test('ensureDeckFile is idempotent and does not clobber an existing deck', async () => {
-    const filePath = await ensureDeckFile('Keeper')
+    const filePath = await ensureDeckFile('Keeper', 'commander')
     const { deck, frontMatter } = await loadDeck(filePath)
     await addCardToDeck(filePath, deck, frontMatter, 'Sol Ring', 'Main', {
       set: 'ltc',
       collectorNumber: '284',
     })
     // A second ensureDeckFile must reuse the file, leaving the added card intact.
-    const again = await ensureDeckFile('Keeper')
+    const again = await ensureDeckFile('Keeper', 'commander')
     expect(again).toBe(filePath)
     const reloaded = await loadDeck(filePath)
     expect(reloaded.deck.sections.flatMap((s) => s.cards).map((c) => c.name)).toContain('Sol Ring')
   })
 
   test('adds a card to a named section, creating the section and assigning an ID', async () => {
-    const filePath = await ensureDeckFile('Lands Deck')
+    const filePath = await ensureDeckFile('Lands Deck', 'commander')
     const { deck, frontMatter } = await loadDeck(filePath)
     await addCardToDeck(filePath, deck, frontMatter, 'Lightning Bolt', 'Burn', {
       set: 'lea',
@@ -93,7 +93,7 @@ describe('deck editor helpers (Integration)', () => {
   })
 
   test('a second copy of the same printing increments quantity, keeping one line and its ID', async () => {
-    const filePath = await ensureDeckFile('Aggro')
+    const filePath = await ensureDeckFile('Aggro', 'commander')
     const { deck: loadedDeck, frontMatter } = await loadDeck(filePath)
     const deck = await addCardToDeck(filePath, loadedDeck, frontMatter, 'Goblin Guide', 'Main', {
       set: 'zen',
@@ -123,7 +123,7 @@ describe('deck editor helpers (Integration)', () => {
   })
 
   test('re-adding the same printing merges into the existing entry regardless of target section', async () => {
-    const filePath = await ensureDeckFile('Toolbox')
+    const filePath = await ensureDeckFile('Toolbox', 'commander')
     const { deck: loadedDeck, frontMatter } = await loadDeck(filePath)
     const deck = await addCardToDeck(
       filePath,
@@ -153,8 +153,8 @@ describe('deck editor helpers (Integration)', () => {
 
   test('listExistingDecks reports display names (not file slugs), sorted by name', async () => {
     // Slugged file names diverge from their front-matter display names.
-    await ensureDeckFile('Zephyr Tempo')
-    await ensureDeckFile('Atraxa Superfriends')
+    await ensureDeckFile('Zephyr Tempo', 'commander')
+    await ensureDeckFile('Atraxa Superfriends', 'commander')
     // A deck file with no `name:` front matter falls back to its file base name.
     await fs.writeFile(path.join(dir, 'decks', 'orphan-deck.md'), '## Main\n')
 
@@ -166,7 +166,7 @@ describe('deck editor helpers (Integration)', () => {
   })
 
   test('a different printing of the same card is kept as its own entry', async () => {
-    const filePath = await ensureDeckFile('Reprints')
+    const filePath = await ensureDeckFile('Reprints', 'commander')
     const { deck: loadedDeck, frontMatter } = await loadDeck(filePath)
     const deck = await addCardToDeck(filePath, loadedDeck, frontMatter, 'Counterspell', 'Main', {
       set: 'lea',

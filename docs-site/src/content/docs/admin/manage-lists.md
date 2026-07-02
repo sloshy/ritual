@@ -55,7 +55,7 @@ You must type the **exact deck name** before the Delete button becomes active. D
 
 ## Collections
 
-A collection is a Markdown file in the configured `collectionsDir` (defaults to `collections/`). Collection files are simpler than decks — there is no YAML frontmatter, just a top-level `# Title` heading followed by card lines, optionally organized under `## Section Name` (H2) headers (see the [collection format](/commands/collection/#sections)).
+A collection is a Markdown file in the configured `collectionsDir` (defaults to `collections/`). Collection files are simpler than decks — there is no YAML frontmatter, just a top-level `# Title` heading followed by card lines, optionally organized under `## Section Name` (H2) headers (see the [collection format](/commands/edit/#sections)).
 
 ### Creating a collection
 
@@ -78,7 +78,7 @@ Click **Delete** next to any collection. As with decks, you must type the exact 
 
 ## Wanted Lists
 
-A wanted list is a Markdown file in the configured `wantedDir` (defaults to `wanted/`). It uses the same simple format as a collection — a `# Title` heading followed by card lines (without condition fields), optionally organized under `## Section Name` (H2) headers (see the [wanted format](/commands/wanted/#sections)).
+A wanted list is a Markdown file in the configured `wantedDir` (defaults to `wanted/`). It uses the same simple format as a collection — a `# Title` heading followed by card lines (without condition fields), optionally organized under `## Section Name` (H2) headers (see the [wanted format](/commands/edit/#sections)).
 
 The Create / Rename / Delete flow is identical to **Collections**, including the changelog sidecar handling.
 

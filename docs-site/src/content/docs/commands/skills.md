@@ -54,15 +54,15 @@ ritual skills list
 
 ## The skills
 
-| Skill                | Covers                                                                |
-| -------------------- | --------------------------------------------------------------------- |
-| `ritual`             | Overview, workspace layout, file format, global options, and setup.   |
-| `ritual-decks`       | Create, import, sync, and price decks.                                |
-| `ritual-collections` | Manage and price collections.                                         |
-| `ritual-wanted`      | Manage and price wanted lists.                                        |
-| `ritual-edit`        | Non-interactive card edits (add/remove cards, notes) across any list. |
-| `ritual-cards`       | Card lookup and Scryfall searches.                                    |
-| `ritual-site`        | Build, serve, and administer the site, plus the MCP server.           |
+| Skill                | Covers                                                                                   |
+| -------------------- | ---------------------------------------------------------------------------------------- |
+| `ritual`             | Overview, workspace layout, file format, global options, and setup.                      |
+| `ritual-decks`       | Create, import, sync, and price decks.                                                   |
+| `ritual-collections` | Manage and price collections.                                                            |
+| `ritual-wanted`      | Manage and price wanted lists.                                                           |
+| `ritual-edit`        | Card edits across any list: non-interactive commands and the unified interactive editor. |
+| `ritual-cards`       | Card lookup and Scryfall searches.                                                       |
+| `ritual-site`        | Build, serve, and administer the site, plus the MCP server.                              |
 
 ## Keeping skills current
 

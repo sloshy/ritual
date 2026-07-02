@@ -24,7 +24,7 @@ export type ListTypeDisplay = { label: string; icon: string }
  * and icons never drift between them.
  */
 export const LIST_TYPE_DISPLAY: Record<ListType, ListTypeDisplay> = {
-  deck: { label: 'Decks', icon: '🃏' },
+  deck: { label: 'Decks', icon: '🎴' },
   collection: { label: 'Collections', icon: '📦' },
   wanted: { label: 'Wanted Lists', icon: '🎯' },
 }

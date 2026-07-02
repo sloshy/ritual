@@ -28,18 +28,19 @@ ritual add-card winota-stax "Lightning Bolt" --deck -q 4   # -q quantity
 
 ## Build interactively
 
-\`ritual deck\` opens an interactive builder (the deck counterpart to \`ritual collection\`
-and \`ritual wanted\`). You select or create a deck, then add cards to named \`## Section\`
-headers. It shares the same name/collector entry modes and session filters
-(\`-s/--sets\`, \`-f/--finish\`, \`-c/--condition\`) and adds section targeting. It **requires
-a terminal**, so it is not suitable for non-interactive agents — use \`add-card\` instead.
+\`ritual edit\` opens the interactive editor (covered in full by the **ritual-edit**
+skill); pick a deck (or \`➕ New Deck\`, which prompts for a format) from its list
+selection menu, then add cards to named \`## Section\` headers with name/collector entry
+modes and session filters (\`-s/--sets\`, \`-f/--finish\`, \`-c/--condition\`) plus section
+targeting and a \`🏷️ Change Format\` action. It **requires a terminal**, so it is not
+suitable for non-interactive agents — use \`add-card\` instead.
 
 \`\`\`bash
-ritual deck                                   # pick a deck, prompt for a section per card
-ritual deck --section Sideboard               # add every card to one section
-ritual deck --collector --sets "FDN, SPG"     # collector-number entry, sets preloaded
-ritual deck --no-cache-prompt                 # skip the "cache is >1 week old, update?" prompt
-ritual deck --refresh-prices                  # redownload the cache when prices are >1 day old
+ritual edit                                   # pick a deck, prompt for a section per card
+ritual edit --section Sideboard               # add every deck card to one section
+ritual edit --collector --sets "FDN, SPG"     # collector-number entry, sets preloaded
+ritual edit --no-cache-prompt                 # skip the "cache is >1 week old, update?" prompt
+ritual edit --refresh-prices                  # redownload the cache when prices are >1 day old
 \`\`\`
 
 When the card cache was last fully downloaded more than a week ago, the session prompts

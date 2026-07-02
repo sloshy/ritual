@@ -59,7 +59,7 @@ The cross-list menu (and the **View all selections…** dialog) also offers **Re
 
 ### Add Card Defaults
 
-Each editor has an **Add Card Defaults** toggle in the bottom [action bar](#editor-action-bar), between the **+ Add Card** and **Changes** buttons. Clicking it expands a panel upward revealing the default fields; a dot on the toggle indicates when any default is currently active. It mirrors the session filters in the CLI's `collection`, `wanted`, and `add-card` commands and is intended for batch entry — set defaults once, then add many cards in a row without confirming the same fields each time.
+Each editor has an **Add Card Defaults** toggle in the bottom [action bar](#editor-action-bar), between the **+ Add Card** and **Changes** buttons. Clicking it expands a panel upward revealing the default fields; a dot on the toggle indicates when any default is currently active. It mirrors the session filters in the CLI's `edit` and `add-card` commands and is intended for batch entry — set defaults once, then add many cards in a row without confirming the same fields each time.
 
 The available defaults vary per editor:
 
@@ -120,7 +120,7 @@ Click the **Sections** button in the bottom [action bar](#editor-action-bar) to 
 
 Cards with no explicit section belong to an implicit **Main** section, which is written out explicitly the next time the list is saved. On the public site, a list with two or more sections defaults to grouping by section, and **Section** becomes a selectable grouping option in the toolbar.
 
-On disk, sections are `## Section Name` (H2) headers beneath the list's `# Title`, with card lines grouped under each header. See the [collection](/commands/collection/) and [wanted](/commands/wanted/) command docs for the file format.
+On disk, sections are `## Section Name` (H2) headers beneath the list's `# Title`, with card lines grouped under each header. See the [collection](/commands/edit/#collection-files) and [wanted list](/commands/edit/#wanted-list-files) file formats.
 
 #### Change Printing
 

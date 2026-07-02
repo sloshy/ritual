@@ -3,7 +3,7 @@ import type { RitualSkill } from '../types'
 export const editSkill: RitualSkill = {
   name: 'ritual-edit',
   description:
-    'Edit cards in any Ritual deck, collection, or wanted list without a TUI — the right tools for agents and scripts. Use when the user wants to add or remove a card, set or clear a card note, move cards between lists, or compact a change history.',
+    'Edit cards in any Ritual deck, collection, or wanted list — non-interactive commands for agents and scripts, plus the interactive editor TUI. Use when the user wants to add or remove a card, set or clear a card note, edit lists interactively, move cards between lists, or compact a change history.',
   body: `# Editing cards in any Ritual list (non-interactive)
 
 These commands edit a deck, collection, or wanted list **without an interactive
@@ -47,6 +47,28 @@ suffix in the file) when the same card name appears more than once. Without
 ritual clear-note "Winota Stax" "Sol Ring"
 ritual clear-note "Winota Stax" "Sol Ring" --card-id 5
 ritual clear-note "Winota Stax" "Sol Ring" --output json --quiet
+\`\`\`
+
+## Interactive editor
+
+\`ritual edit\` is **the** interactive TUI (requires a terminal) for editing decks,
+collections, and wanted lists: a selection menu covers all lists (plus create-new
+items), and backing out of a list (\`🔀 Switch List\` or Esc) keeps its unsaved changes
+in memory while you edit other lists. Save flushes every open list (a separate "save
+current list" item saves just one), and each saved list gets one changelog entry per
+session. Sessions support name/collector entry modes, per-type edit modes over
+existing entries, and undo. Creating a deck prompts for its format, and deck sessions
+have a \`🏷️ Change Format\` menu action that rewrites the \`format:\` front matter on the
+next save. Not suitable for non-interactive agents — use
+\`add-card\`/\`add-note\`/\`clear-note\` instead:
+
+\`\`\`bash
+ritual edit
+ritual edit --sets "FDN,SPG" --finish foil --condition NM   # session filter defaults
+ritual edit --section Sideboard             # pin the deck target section
+ritual edit --collector --sets "FDN, SPG"   # collector-number entry, sets preloaded
+ritual edit --no-cache-prompt               # skip the "cache is >1 week old?" prompt
+ritual edit --refresh-prices                # redownload cache when prices are >1 day old
 \`\`\`
 
 ## Move cards between lists

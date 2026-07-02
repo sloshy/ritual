@@ -37,7 +37,6 @@ export default defineConfig({
             {
               label: 'Deck Management',
               items: [
-                'commands/deck',
                 'commands/new-deck',
                 'commands/import-account',
                 'commands/get-primer',
@@ -47,15 +46,16 @@ export default defineConfig({
             },
             {
               label: 'Collection Management',
-              items: ['commands/collection', 'commands/price-collection'],
+              items: ['commands/price-collection'],
             },
             {
               label: 'Wanted List Management',
-              items: ['commands/wanted', 'commands/price-wanted'],
+              items: ['commands/price-wanted'],
             },
             {
               label: 'Card Management',
               items: [
+                'commands/edit',
                 'commands/move',
                 'commands/history',
                 'commands/import',

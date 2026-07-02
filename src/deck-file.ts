@@ -42,11 +42,23 @@ export async function resolveDeckFilePath(
   return match ? path.join(decksDir, match) : null
 }
 
+/**
+ * A deck file's YAML front matter. The named fields are the ones Ritual itself
+ * reads or writes; the index signature preserves any other keys a user (or an
+ * older version) put in the file, so they round-trip untouched.
+ */
+export type DeckFrontMatter = {
+  name?: string
+  /** Usually a `DeckFormatKey`; free text is tolerated for unrecognized/legacy values. */
+  format?: string
+  created?: string
+  tags?: string[]
+  sourceId?: string
+  sourceUrl?: string
+} & Record<string, unknown>
+
 /** Serialize a full deck back to markdown with YAML front matter */
-export function serializeDeckToMarkdown(
-  deck: DeckData,
-  frontMatter: Record<string, unknown>,
-): string {
+export function serializeDeckToMarkdown(deck: DeckData, frontMatter: DeckFrontMatter): string {
   // Invariant: a deck is never written to disk with an ID-less card line. Cards
   // that arrive without an ID (e.g. freshly synced from Archidekt) are assigned
   // one here, seeded from the deck's existing IDs, before serialization.
@@ -62,7 +74,7 @@ export function serializeDeckToMarkdown(
 }
 
 /** Parse the front matter from a deck file */
-export async function parseDeckFrontMatter(filePath: string): Promise<Record<string, unknown>> {
+export async function parseDeckFrontMatter(filePath: string): Promise<DeckFrontMatter> {
   const content = await fs.readFile(filePath, 'utf-8')
   const parsed = matter(content)
   return parsed.data

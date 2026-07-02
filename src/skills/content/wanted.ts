@@ -22,17 +22,19 @@ ritual add-card "To Buy" "Ragavan" --wanted -f foil         # -f finish (optiona
 
 ## Interactive management
 
-\`ritual wanted\` opens an interactive TUI. It **requires a terminal**, so it is not
-suitable for non-interactive agents — use \`add-card\` instead.
+\`ritual edit\` opens the interactive editor (covered in full by the **ritual-edit**
+skill); pick a wanted list (or \`➕ New Wanted List\`) from its list selection menu. It
+**requires a terminal**, so it is not suitable for non-interactive agents — use
+\`add-card\` instead.
 
 \`\`\`bash
-ritual wanted                          # alias: ritual wanted-list
-ritual wanted --sets "FDN,SPG"         # restrict to these set codes
-ritual wanted --finish foil
-ritual wanted --collector              # enter cards by collector number
-ritual wanted --allow-digital-only-cards
-ritual wanted --no-cache-prompt        # skip the "cache is >1 week old, update?" prompt
-ritual wanted --refresh-prices         # redownload the cache when prices are >1 day old
+ritual edit
+ritual edit --sets "FDN,SPG"         # restrict to these set codes
+ritual edit --finish foil
+ritual edit --collector              # enter cards by collector number
+ritual edit --allow-digital-only-cards
+ritual edit --no-cache-prompt        # skip the "cache is >1 week old, update?" prompt
+ritual edit --refresh-prices         # redownload the cache when prices are >1 day old
 \`\`\`
 
 When the card cache was last fully downloaded more than a week ago, the session prompts to redownload it before starting; \`--no-cache-prompt\` suppresses that prompt. \`--refresh-prices\` redownloads the cache (refreshing prices) without prompting when the cached prices are more than a day old.

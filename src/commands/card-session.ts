@@ -17,8 +17,8 @@ import { matchesAllTerms } from '../term-match'
 import { promptExitMenu } from './prompts-helpers'
 
 /**
- * Shared engine for the interactive card-entry commands (`deck`, `collection`,
- * `wanted-list`). Owns everything the three sessions have in common — the
+ * Shared engine for the unified `edit` command's interactive card-entry
+ * sessions. Owns everything the three list types have in common — the
  * autocomplete loop, menu construction, entry modes, collector-set management,
  * session filters, and save/exit/changelog plumbing — and delegates the
  * list-type-specific flows (printing/finish/condition prompts, change
@@ -41,7 +41,7 @@ export type SessionConfig = {
 }
 
 /** The slice of {@link SessionConfig} used by collector-set management. */
-export type CollectorSessionConfig = Pick<
+type CollectorSessionConfig = Pick<
   SessionConfig,
   'collectorSets' | 'activeSetIndex' | 'setCardMaps'
 >
@@ -60,6 +60,7 @@ export const MENU_SENTINELS: ReadonlySet<string> = new Set([
   '__ADD_ANOTHER__',
   '__ADD_NOTE__',
   '__SECTION__',
+  '__FORMAT__',
   '__CONFIG__',
   '__COLLECTOR_MODE__',
   '__MANAGE_SETS__',
@@ -67,6 +68,8 @@ export const MENU_SENTINELS: ReadonlySet<string> = new Set([
   '__EDIT_MODE__',
   '__ADD_MODE__',
   '__SAVE__',
+  '__SAVE_CURRENT__',
+  '__SWITCH_LIST__',
   '__EXIT__',
   '__EDIT_LAST__',
   '__UNDO_LAST__',
@@ -81,14 +84,12 @@ export const isMenuChoice = (choice: Choice): boolean =>
 // ── Choice values & prompt responses ────────────────────────────────
 
 /** A collector-mode autocomplete choice value: a specific printing keyed by collector number. */
-export type CollectorChoiceValue = { type: 'card'; num: string; card: ScryfallCard }
+type CollectorChoiceValue = { type: 'card'; num: string; card: ScryfallCard }
 /** An edit-mode autocomplete choice value: an existing entry, targeted by card ID. */
-export type EntryChoiceValue = { type: 'entry'; cardId: number }
+type EntryChoiceValue = { type: 'entry'; cardId: number }
 /** The card-entry prompt resolves to a menu sentinel/card-name string, a collector choice, or an entry. */
 type CardSelectionResponse = { cardName?: string | CollectorChoiceValue | EntryChoiceValue }
 
-type ListPromptResponse = { list?: string }
-type NamePromptResponse = { name?: string }
 type NotePromptResponse = { note?: string }
 type ConfirmPromptResponse = { confirm?: boolean }
 /** The session-changes picker resolves to an item index, null (Back), or undefined (escaped). */
@@ -132,6 +133,17 @@ export type CardSessionContext = {
    * appending a new one. Never reset mid-session — only a new session clears it.
    */
   hasSavedChangelog: boolean
+}
+
+/** Create a fresh session context. Multi-list sessions own one per open list. */
+export function createCardSessionContext(): CardSessionContext {
+  return {
+    sessionChanges: [],
+    lastChangeIndex: null,
+    lastAdded: null,
+    lastAddedCount: 0,
+    hasSavedChangelog: false,
+  }
 }
 
 /**
@@ -216,8 +228,8 @@ export type CardSessionStrategy = {
 // ── Shared startup helpers ──────────────────────────────────────────
 
 /**
- * Apply the card-cache freshness flags shared by the interactive `deck`,
- * `collection`, and `wanted-list` commands. See {@link CacheRefreshOptions}.
+ * Apply the card-cache freshness flags of the interactive card-entry
+ * sessions. See {@link CacheRefreshOptions}.
  */
 export function applyCacheRefreshOptions(command: Command): Command {
   return command
@@ -243,7 +255,7 @@ export async function prepareCardSessionCache(
  * Load the card-name list for autocomplete, logging progress. Returns null (after
  * telling the user to preload) when the Scryfall cache is empty.
  */
-export async function loadCardNamesOrWarn(
+async function loadCardNamesOrWarn(
   sets: string[] | undefined,
   excludeDigitalOnly: boolean,
 ): Promise<string[] | null> {
@@ -255,59 +267,6 @@ export async function loadCardNamesOrWarn(
   }
   console.log(`Loaded ${cardNames.length} cards.`)
   return cardNames
-}
-
-/** Result of the list-selection prompt: an existing list's value, or a new list's name. */
-export type ListSelection = { kind: 'existing'; value: string } | { kind: 'new'; name: string }
-
-const NEW_LIST = '__NEW__'
-
-/** Inputs to {@link promptListSelection}. */
-export type ListSelectionPromptOptions = {
-  message: string
-  items: Choice[]
-  createTitle: string
-  newNameMessage: string
-}
-
-/**
- * Prompt to select an existing list or create a new one. Returns null when the
- * prompt is cancelled or the new-list name is empty.
- */
-export async function promptListSelection(
-  options: ListSelectionPromptOptions,
-): Promise<ListSelection | null> {
-  // The `prompts` autocomplete returns the highlighted choice on Esc/Ctrl-C
-  // rather than an empty value, so detect the cancel via `onState.exited` and
-  // bail out instead of silently selecting whatever was highlighted.
-  let exited = false
-  const selectionResponse = (await prompts({
-    type: 'autocomplete',
-    name: 'list',
-    message: options.message,
-    choices: [...options.items, { title: options.createTitle, value: NEW_LIST }],
-    onState: (state: PromptState) => {
-      if (state.exited) exited = true
-    },
-  })) as ListPromptResponse
-
-  if (exited || !selectionResponse.list) return null
-  if (selectionResponse.list !== NEW_LIST) {
-    return { kind: 'existing', value: selectionResponse.list }
-  }
-
-  let nameExited = false
-  const nameResponse = (await prompts({
-    type: 'text',
-    name: 'name',
-    message: options.newNameMessage,
-    validate: (value: string) => (value.length > 0 ? true : 'Name cannot be empty'),
-    onState: (state: PromptState) => {
-      if (state.exited) nameExited = true
-    },
-  })) as NamePromptResponse
-  if (nameExited || !nameResponse.name) return null
-  return { kind: 'new', name: nameResponse.name }
 }
 
 /**
@@ -338,6 +297,38 @@ export async function listMarkdownNames(dir: string): Promise<string[]> {
   return files
     .filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))
     .map((f) => f.replace('.md', ''))
+}
+
+/** The CLI flags every card-entry command shares for its initial session filters. */
+export type SessionConfigFlags = {
+  finish?: string
+  condition?: string
+  collector?: boolean
+}
+
+/**
+ * Build the initial session config from the shared CLI flags, validating the
+ * finish/condition strings through the domain guards and preloading
+ * collector-set data when starting in collector mode with set filters.
+ */
+export async function buildInitialSessionConfig(
+  options: SessionConfigFlags,
+  parsedSets: string[] | undefined,
+): Promise<SessionConfig> {
+  const upperCondition = options.condition?.toUpperCase()
+  const config: SessionConfig = {
+    sets: parsedSets,
+    finish: isFinish(options.finish) ? options.finish : undefined,
+    condition: isCondition(upperCondition) ? upperCondition : undefined,
+    entryMode: options.collector ? 'collector' : 'name',
+    collectorSets: [],
+    activeSetIndex: 0,
+    setCardMaps: new Map(),
+  }
+  if (options.collector && parsedSets && parsedSets.length > 0) {
+    await loadCollectorSets(config, parsedSets)
+  }
+  return config
 }
 
 /** Load card maps for `setCodes` and make them the session's collector sets. */
@@ -605,6 +596,19 @@ export async function promptNoteEdit(currentNote: string | undefined): Promise<N
 
 // ── Menu construction & suggestion filtering ────────────────────────
 
+/**
+ * Cross-list pending-change counts for the unified editor's menu labels. When
+ * present, Save flushes every open list (and a separate "save current list"
+ * item appears once another list also has pending changes), and a Switch List
+ * item lets the user back out to the list selection menu.
+ */
+export type MultiListMenuInfo = {
+  /** Pending changes across every open list, including the current one. */
+  totalChangeCount: number
+  /** How many open lists have anything unsaved (pending events or a dirty model). */
+  listsWithChanges: number
+}
+
 /** Inputs to {@link buildMenuChoices}. */
 export type MenuBuildInput = {
   sessionMode: SessionMode
@@ -623,6 +627,54 @@ export type MenuBuildInput = {
   sessionChangeCount: number
   /** Card-name, collector-number, or existing-entry choices appended after the menu entries. */
   cardChoices: Choice[]
+  /**
+   * The list model differs from disk beyond the tracked change events (e.g. a
+   * deck format change). Surfaces the Save items even at a zero change count.
+   */
+  dirty?: boolean
+  /** Present in a unified multi-list session: cross-list counts for the save/switch items. */
+  multiList?: MultiListMenuInfo
+}
+
+/** The Save label: the change count when there is one, plain otherwise (dirty-only saves). */
+function saveLabel(changeCount: number): string {
+  return changeCount > 0
+    ? `💾 Save ${changeCount} change(s) (keep editing)`
+    : '💾 Save changes (keep editing)'
+}
+
+/** The Save/Switch List menu entries, which differ between single- and multi-list sessions. */
+function buildSaveAndSwitchItems(input: MenuBuildInput): Choice[] {
+  const { changeCount, multiList } = input
+  const currentUnsaved = changeCount > 0 || input.dirty === true
+  if (!multiList) {
+    return currentUnsaved ? [{ title: saveLabel(changeCount), value: '__SAVE__' }] : []
+  }
+
+  const items: Choice[] = []
+  if (multiList.listsWithChanges > 1) {
+    // With only dirty models and no tracked change events, a "0 across N
+    // lists" count would misread as nothing to save, so drop the count.
+    const scope =
+      multiList.totalChangeCount > 0
+        ? `${multiList.totalChangeCount} across ${multiList.listsWithChanges} lists`
+        : `${multiList.listsWithChanges} lists`
+    items.push({ title: `💾 Save all changes (${scope})`, value: '__SAVE__' })
+    if (currentUnsaved) {
+      items.push({
+        title:
+          changeCount > 0
+            ? `💾 Save current list changes (${changeCount})`
+            : '💾 Save current list changes',
+        value: '__SAVE_CURRENT__',
+      })
+    }
+  } else if (multiList.listsWithChanges === 1) {
+    // Only one list has anything unsaved, so save-all and save-current coincide.
+    items.push({ title: saveLabel(multiList.totalChangeCount), value: '__SAVE__' })
+  }
+  items.push({ title: '🔀 Switch List', value: '__SWITCH_LIST__' })
+  return items
 }
 
 /** Build the full autocomplete choice list (menu shortcuts first, then cards). */
@@ -631,7 +683,6 @@ export function buildMenuChoices(input: MenuBuildInput): Choice[] {
     sessionMode,
     mode,
     lastAdded,
-    changeCount,
     activeSet,
     extraItems,
     sessionAdds,
@@ -672,9 +723,7 @@ export function buildMenuChoices(input: MenuBuildInput): Choice[] {
 
   return [
     ...topItems,
-    ...(changeCount > 0
-      ? [{ title: `💾 Save ${changeCount} change(s) (keep editing)`, value: '__SAVE__' }]
-      : []),
+    ...buildSaveAndSwitchItems(input),
     { title: '🚪 Exit', value: '__EXIT__' },
     ...(sessionMode === 'add' && lastAdded
       ? [{ title: `✏️  Edit Previous Card (${lastAdded.name})`, value: '__EDIT_LAST__' }]
@@ -783,16 +832,68 @@ export function suggestCollectorMode(input: string, choices: Choice[]): Choice[]
 
 // ── The session loop ────────────────────────────────────────────────
 
+/**
+ * Hooks the unified multi-list editor injects into the session loop. When
+ * present, Save writes every open list, Esc and the Switch List item back out
+ * to the list selection menu (keeping unsaved changes in memory), and the exit
+ * menu accounts for every open list's pending changes.
+ */
+export type MultiListSessionControls = {
+  /** Pending changes across every open list, including the current one. */
+  totalChangeCount: () => number
+  /** How many open lists have pending changes. */
+  listsWithChanges: () => number
+  /** Whether any open list has unsaved changes. */
+  hasAnyUnsaved: () => boolean
+  /** Persist every open list's pending changes and reset their session tracking. */
+  saveAll: () => Promise<void>
+}
+
+/**
+ * The unified editor's exit gate, shared by the in-session Exit action and the
+ * list selection menu's Exit item: with unsaved changes anywhere, offer to save
+ * them all, discard them all, or cancel. Returns false when the user cancels
+ * (keep editing); logs the exit message otherwise.
+ */
+export async function confirmMultiListExit(multiList: MultiListSessionControls): Promise<boolean> {
+  if (multiList.hasAnyUnsaved()) {
+    const choice = await promptExitMenu(multiList.totalChangeCount())
+    if (choice === 'cancel') return false
+    if (choice === 'save') await multiList.saveAll()
+    else console.log('Discarded all unsaved changes.')
+  }
+  console.log('Exiting editor.')
+  return true
+}
+
 /** Inputs to {@link runCardSession}. */
 export type CardSessionOptions = {
   strategy: CardSessionStrategy
   /** Initial autocomplete card names (already filtered by the session's set codes). */
   cardNames: string[]
   excludeDigitalOnly: boolean
+  /**
+   * Session context to resume. The unified editor owns one per open list so
+   * pending changes survive backing out to the list selection menu; when
+   * omitted, a fresh context is created (the single-list commands).
+   */
+  ctx?: CardSessionContext
+  /** Present when the session runs inside the unified multi-list editor. */
+  multiList?: MultiListSessionControls
 }
 
+/**
+ * Why the session loop returned: the user exited the editor, or backed out to
+ * the list selection menu (multi-list sessions only). Carries the possibly
+ * reloaded card-name list so a later session can resume with current filters.
+ */
+export type CardSessionResult = { reason: 'exit' | 'switch'; cardNames: string[] }
+
 /** Persist the in-memory list model and append the session changelog, when either is pending. */
-async function saveSession(strategy: CardSessionStrategy, ctx: CardSessionContext): Promise<void> {
+export async function saveCardSession(
+  strategy: CardSessionStrategy,
+  ctx: CardSessionContext,
+): Promise<void> {
   if (strategy.hasUnsavedChanges()) {
     await strategy.persist()
     console.log('Changes saved.')
@@ -804,6 +905,22 @@ async function saveSession(strategy: CardSessionStrategy, ctx: CardSessionContex
     ctx.hasSavedChangelog = true
     console.log('Changelog saved.')
   }
+}
+
+/**
+ * Reset the session tracking after a save: everything up to here is committed,
+ * so the undo/discard menus must not be able to claw back changes that are
+ * already on disk.
+ */
+export function resetCardSessionTracking(
+  strategy: CardSessionStrategy,
+  ctx: CardSessionContext,
+): void {
+  strategy.sessionSaved()
+  ctx.sessionChanges = []
+  ctx.lastChangeIndex = null
+  ctx.lastAdded = null
+  ctx.lastAddedCount = 0
 }
 
 /**
@@ -854,20 +971,18 @@ async function viewSessionChanges(
  * on the in-memory list model; Save writes the file and the session changelog
  * without leaving the session, and Exit (or Esc) opens the shared exit menu to
  * save and exit, exit without saving, or keep editing.
+ *
+ * In a unified multi-list session (`multiList` present), Save flushes every
+ * open list, Esc and Switch List return to the list selection menu with
+ * unsaved changes kept in memory, and the exit menu covers all open lists.
  */
-export async function runCardSession(options: CardSessionOptions): Promise<void> {
-  const { strategy, excludeDigitalOnly } = options
+export async function runCardSession(options: CardSessionOptions): Promise<CardSessionResult> {
+  const { strategy, excludeDigitalOnly, multiList } = options
   const { sessionConfig } = strategy
   let cardNames = options.cardNames
   let sessionMode: SessionMode = 'add'
 
-  const ctx: CardSessionContext = {
-    sessionChanges: [],
-    lastChangeIndex: null,
-    lastAdded: null,
-    lastAddedCount: 0,
-    hasSavedChangelog: false,
-  }
+  const ctx: CardSessionContext = options.ctx ?? createCardSessionContext()
 
   while (true) {
     let isExited = false
@@ -903,6 +1018,13 @@ export async function runCardSession(options: CardSessionOptions): Promise<void>
       editUndoLabel: strategy.lastEditUndoLabel(),
       sessionChangeCount: strategy.listSessionChanges().length,
       cardChoices,
+      dirty: strategy.hasUnsavedChanges(),
+      multiList: multiList
+        ? {
+            totalChangeCount: multiList.totalChangeCount(),
+            listsWithChanges: multiList.listsWithChanges(),
+          }
+        : undefined,
     })
 
     const streakHint: string =
@@ -933,26 +1055,45 @@ export async function runCardSession(options: CardSessionOptions): Promise<void>
       },
     })) as CardSelectionResponse
 
+    // In a multi-list session, Esc backs out to the list selection menu (like
+    // Switch List) rather than exiting — unsaved changes stay in memory.
+    if (multiList && (isExited || response.cardName === '__SWITCH_LIST__')) {
+      console.log('Returning to list selection.')
+      return { reason: 'switch', cardNames }
+    }
+
     if (isExited || response.cardName === '__EXIT__') {
+      if (multiList) {
+        if (!(await confirmMultiListExit(multiList))) continue
+        return { reason: 'exit', cardNames }
+      }
       if (ctx.sessionChanges.length > 0 || strategy.hasUnsavedChanges()) {
         const choice = await promptExitMenu(ctx.sessionChanges.length)
         if (choice === 'cancel') continue
-        if (choice === 'save') await saveSession(strategy, ctx)
+        if (choice === 'save') await saveCardSession(strategy, ctx)
         else console.log('Discarded all unsaved changes.')
       }
       console.log(`Exiting ${strategy.managerLabel}.`)
-      break
+      return { reason: 'exit', cardNames }
     }
 
     if (response.cardName === '__SAVE__') {
-      await saveSession(strategy, ctx)
+      // In a multi-list session, Save flushes every open list (saveAll also
+      // resets each list's tracking, including this session's ctx).
+      if (multiList) {
+        await multiList.saveAll()
+        continue
+      }
+      await saveCardSession(strategy, ctx)
       // Everything up to here is committed: the undo/discard menus reset so a
       // later undo can never claw back changes that are already on disk.
-      strategy.sessionSaved()
-      ctx.sessionChanges = []
-      ctx.lastChangeIndex = null
-      ctx.lastAdded = null
-      ctx.lastAddedCount = 0
+      resetCardSessionTracking(strategy, ctx)
+      continue
+    }
+
+    if (response.cardName === '__SAVE_CURRENT__') {
+      await saveCardSession(strategy, ctx)
+      resetCardSessionTracking(strategy, ctx)
       continue
     }
 

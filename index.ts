@@ -6,7 +6,6 @@ setupGlobalFetch()
 
 import { Command } from 'commander'
 import { registerNewDeckCommand } from './src/commands/new-deck'
-import { registerDeckCommand } from './src/commands/deck'
 import { registerImportCommand } from './src/commands/import'
 import { registerPriceDeckCommand } from './src/commands/price'
 import { registerBuildSiteCommand } from './src/commands/build-site'
@@ -21,9 +20,7 @@ import { registerLoginCommand } from './src/commands/login'
 
 import { registerImportAccountCommand } from './src/commands/import-account'
 import { registerImportCsvCommand } from './src/commands/import-csv'
-import { registerCollectionCommand } from './src/commands/collection'
 import { registerPriceCollectionCommand } from './src/commands/price-collection'
-import { registerWantedListCommand } from './src/commands/wanted'
 import { registerPriceWantedListCommand } from './src/commands/price-wanted'
 import { registerScryCommand } from './src/commands/scry'
 import { registerCardCommand } from './src/commands/card'
@@ -35,6 +32,7 @@ import { registerLicenseCommand } from './src/commands/license'
 import { registerDepLicenseCommand } from './src/commands/dep-license'
 import { registerGitDetectChangesCommand } from './src/commands/git-detect-changes'
 import { registerDeckSyncCommand } from './src/commands/deck-sync'
+import { registerEditCommand } from './src/commands/edit'
 import { registerMoveCommand } from './src/commands/move'
 import { registerHistoryCommand } from './src/commands/history'
 import { registerConfigSetCommand } from './src/commands/config-set'
@@ -111,7 +109,6 @@ registerAddNoteCommand(program)
 registerClearNoteCommand(program)
 
 program.commandsGroup('Deck Management')
-registerDeckCommand(program)
 registerNewDeckCommand(program)
 registerImportCommand(program)
 registerImportAccountCommand(program)
@@ -120,14 +117,13 @@ registerDeckSyncCommand(program)
 registerPriceDeckCommand(program)
 
 program.commandsGroup('Collection Management')
-registerCollectionCommand(program)
 registerPriceCollectionCommand(program)
 
 program.commandsGroup('Wanted List Management')
-registerWantedListCommand(program)
 registerPriceWantedListCommand(program)
 
 program.commandsGroup('Card Management')
+registerEditCommand(program)
 registerMoveCommand(program)
 registerHistoryCommand(program)
 registerImportCsvCommand(program)

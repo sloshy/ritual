@@ -1,26 +1,15 @@
-import { Command } from 'commander'
 import prompts from 'prompts'
-import { getWantedDir } from '../ritual-config'
 import { isFinish, resolveCardPrinting } from './collection-helpers'
 import {
-  ensureWantedListFile,
   formatWantedListLine,
   promptWantedFinish,
   type WantedListSessionConfig,
 } from './wanted-helpers'
 import {
-  applyCacheRefreshOptions,
-  listMarkdownNames,
-  loadCollectorSets,
-  prepareCardSessionCache,
   promptEditAction,
-  promptListSelection,
   promptSessionConfigUpdate,
-  runCardSession,
-  type CacheRefreshOptions,
   type CardSessionContext,
   type CardSessionStrategy,
-  type SessionConfig,
 } from './card-session'
 import {
   addAnotherFlatListCopy,
@@ -28,7 +17,6 @@ import {
   applyFlatListChange,
   discardFlatListAdd,
   listFlatListSessionAdds,
-  loadWantedSession,
   persistFlatListSession,
   resetFlatListSessionTracking,
   type FlatListStrategyContext,
@@ -56,14 +44,6 @@ import {
   type PrintingTuple,
 } from '../change-event'
 import { capitalize } from '../utils'
-import { parseSetCodesInput } from '../set-codes'
-
-type WantedCommandOptions = CacheRefreshOptions & {
-  sets?: string
-  finish?: string
-  collector?: boolean
-  allowDigitalOnlyCards?: boolean
-}
 
 type SpecificityPromptResponse = { specificity?: 'name-only' | 'specific' }
 type FinishPromptResponse = { finish?: string }
@@ -115,7 +95,8 @@ async function promptWantedFinishChoice(
   return isFinish(response.finish) ? response.finish : null
 }
 
-function createWantedStrategy(
+/** Build the wanted-list half of a card session. Shared with the unified `edit` command. */
+export function createWantedStrategy(
   session: WantedSession,
   sessionConfig: WantedListSessionConfig,
   listName: string,
@@ -161,7 +142,7 @@ function createWantedStrategy(
     filePath: session.filePath,
     listName,
     // The wanted list has no condition, but the shared engine config carries the
-    // full shape; the condition field simply stays undefined for this command.
+    // full shape; the condition field is simply never read by this strategy.
     sessionConfig,
     updateConfig: (excludeDigital: boolean) =>
       promptSessionConfigUpdate(sessionConfig, false, excludeDigital),
@@ -305,56 +286,4 @@ function createWantedStrategy(
       }
     },
   }
-}
-
-export function registerWantedListCommand(program: Command): void {
-  const wantedCommand = program
-    .command('wanted-list')
-    .alias('wanted')
-    .description('Manage your wanted list of cards to acquire')
-    .option('-s, --sets <codes>', 'Filter by set codes (comma-separated, e.g., "FDN, SPG")')
-    .option('-f, --finish <finish>', 'Default finish (nonfoil, foil, etched)')
-    .option('--collector', 'Start in collector number mode')
-    .option('--allow-digital-only-cards', 'Include digital-only sets (e.g., Alchemy)')
-  applyCacheRefreshOptions(wantedCommand)
-  wantedCommand.action(async (options: WantedCommandOptions) => {
-    const parsedSets = options.sets ? parseSetCodesInput(options.sets) : undefined
-    const excludeDigitalOnly = !options.allowDigitalOnlyCards
-
-    const cardNames = await prepareCardSessionCache(options, parsedSets, excludeDigitalOnly)
-    if (!cardNames) return
-
-    const existingLists = await listMarkdownNames(getWantedDir())
-    const selection = await promptListSelection({
-      message: 'Select a wanted list file',
-      items: existingLists.map((c) => ({ title: c, value: c })),
-      createTitle: '+ Create New Wanted List',
-      newNameMessage: 'Enter name for new wanted list:',
-    })
-    if (!selection) return
-    const selectedList = selection.kind === 'new' ? selection.name : selection.value
-
-    const listFile = await ensureWantedListFile(selectedList)
-    const session = await loadWantedSession(listFile)
-
-    const sessionConfig: SessionConfig = {
-      sets: parsedSets,
-      finish: isFinish(options.finish) ? options.finish : undefined,
-      entryMode: options.collector ? 'collector' : 'name',
-      collectorSets: [],
-      activeSetIndex: 0,
-      setCardMaps: new Map(),
-    }
-
-    // Pre-load set data when starting in collector mode with sets provided
-    if (options.collector && parsedSets && parsedSets.length > 0) {
-      await loadCollectorSets(sessionConfig, parsedSets)
-    }
-
-    await runCardSession({
-      strategy: createWantedStrategy(session, sessionConfig, selectedList, excludeDigitalOnly),
-      cardNames,
-      excludeDigitalOnly,
-    })
-  })
 }

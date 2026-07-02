@@ -10,8 +10,10 @@ import {
   type PrintingTuple,
 } from '../change-event'
 import { getDecksDir } from '../ritual-config'
+import { DECK_FORMAT_KEYS, getDeckFormatLabel, type DeckFormatKey } from '../deck-format'
+import { ask } from './prompts-helpers'
 import { writeFileWithHash } from '../content-hash'
-import { serializeDeckToMarkdown, parseDeckFrontMatter } from '../deck-file'
+import { parseDeckFrontMatter, serializeDeckToMarkdown, type DeckFrontMatter } from '../deck-file'
 import { importFromTextFile, listDeckFiles, readDeckName } from '../importers/text-file'
 import { assignMissingDeckCardIds, repackSessionIds } from '../card-id'
 import { applyChangeToDeck } from '../editor/deck-changes'
@@ -26,9 +28,9 @@ import {
 } from './card-session'
 
 /**
- * Session state for the interactive `deck` command. Extends the shared
- * collection {@link SessionConfig} (set filters, default finish/condition, entry
- * mode) with a deck-specific **target section**: the named section new cards are
+ * Session state for interactive deck-editing sessions. Extends the shared
+ * {@link SessionConfig} (set filters, default finish/condition, entry mode)
+ * with a deck-specific **target section**: the named section new cards are
  * added to. `null` means "prompt for the section on every card".
  */
 export type DeckSessionConfig = SessionConfig & {
@@ -38,7 +40,7 @@ export type DeckSessionConfig = SessionConfig & {
 /** A loaded deck file: its parsed structure plus the front matter needed to round-trip it. */
 export type LoadedDeck = {
   deck: DeckData
-  frontMatter: Record<string, unknown>
+  frontMatter: DeckFrontMatter
 }
 
 /** Response of a section `select` prompt (an existing name, or a sentinel value). */
@@ -52,14 +54,43 @@ type SectionNameResponse = { name?: string }
  * Ensure a deck file exists for `name`, creating it with YAML front matter when
  * missing (mirroring `new-deck`). Returns the resolved file path. The on-disk
  * file name is a slug of `name`; the display name is preserved in front matter.
+ * `format` only applies to a newly created file — an existing deck keeps its own.
  */
-export async function ensureDeckFile(name: string): Promise<string> {
+export async function ensureDeckFile(name: string, format: DeckFormatKey): Promise<string> {
   const safeName = name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '')
-  const content = `---\nname: "${name}"\nformat: "commander"\ntags: []\n---\n\n## Main\n`
+  const content = `---\nname: "${name}"\nformat: "${format}"\ncreated: "${new Date().toISOString()}"\ntags: []\n---\n\n## Main\n`
   return ensureListFile(getDecksDir(), `${safeName}.md`, content, 'deck')
+}
+
+/**
+ * The deck-format select choices: every known format in declaration order,
+ * with a "(current)" marker on the deck's present format.
+ */
+export function deckFormatChoices(current: DeckFormatKey | null): prompts.Choice[] {
+  return DECK_FORMAT_KEYS.map((key) => ({
+    title: key === current ? `${getDeckFormatLabel(key)} (current)` : getDeckFormatLabel(key),
+    value: key,
+  }))
+}
+
+/**
+ * Prompt for a deck format, defaulting the cursor to `current` when given.
+ * Returns null when the prompt is cancelled.
+ */
+export async function promptDeckFormat(
+  current: DeckFormatKey | null,
+): Promise<DeckFormatKey | null> {
+  const choices = deckFormatChoices(current)
+  const format = await ask<DeckFormatKey>({
+    type: 'select',
+    message: 'Deck format:',
+    choices,
+    initial: current ? DECK_FORMAT_KEYS.indexOf(current) : 0,
+  })
+  return format ?? null
 }
 
 /** Load a deck file into structured data plus its front matter for later re-serialization. */
@@ -73,7 +104,7 @@ export async function loadDeck(filePath: string): Promise<LoadedDeck> {
 export async function writeDeck(
   filePath: string,
   deck: DeckData,
-  frontMatter: Record<string, unknown>,
+  frontMatter: DeckFrontMatter,
 ): Promise<void> {
   await writeFileWithHash(filePath, serializeDeckToMarkdown(deck, frontMatter))
 }

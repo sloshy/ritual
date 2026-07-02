@@ -1,24 +1,18 @@
-import { Command } from 'commander'
 import type { Choice } from 'prompts'
 import type { DeckData } from '../types'
-import {
-  isCondition,
-  isFinish,
-  promptFinishAndCondition,
-  resolveCardPrinting,
-} from './collection-helpers'
+import { promptFinishAndCondition, resolveCardPrinting } from './collection-helpers'
 import {
   type DeckSessionConfig,
-  ensureDeckFile,
   findCardById,
   findDeckCard,
-  listExistingDecks,
-  loadDeck,
   promptDeckConfigUpdate,
+  promptDeckFormat,
   promptSetTargetSection,
   resolveTargetSection,
   writeDeck,
 } from './deck-helpers'
+import { getDeckFormatLabel, normalizeFormatKey } from '../deck-format'
+import type { DeckFrontMatter } from '../deck-file'
 import {
   applyDeckChange,
   discardDeckSessionAdd,
@@ -31,17 +25,7 @@ import {
   undoDeckEdit,
   type DeckSessionState,
 } from './deck-edit'
-import {
-  applyCacheRefreshOptions,
-  loadCollectorSets,
-  prepareCardSessionCache,
-  promptListSelection,
-  runCardSession,
-  type CacheRefreshOptions,
-  type CardSessionContext,
-  type CardSessionStrategy,
-  type SessionAddItem,
-} from './card-session'
+import type { CardSessionContext, CardSessionStrategy, SessionAddItem } from './card-session'
 import { normalizeBoard } from './deck-sync-helpers'
 import {
   createAddChange,
@@ -51,27 +35,18 @@ import {
 } from '../change-event'
 import { trackAdd, trackAnotherCopy, trackEdit } from '../session-changelog'
 import { formatSpecificPrintingPrice } from '../price-currency'
-import { parseSetCodesInput } from '../set-codes'
 
-type DeckCommandOptions = CacheRefreshOptions & {
-  sets?: string
-  finish?: string
-  condition?: string
-  section?: string
-  collector?: boolean
-  allowDigitalOnlyCards?: boolean
-}
-
-type DeckStrategyArgs = {
+export type DeckStrategyArgs = {
   deckFile: string
   deckName: string
   initialDeck: DeckData
-  frontMatter: Record<string, unknown>
+  frontMatter: DeckFrontMatter
   sessionConfig: DeckSessionConfig
   excludeDigitalOnly: boolean
 }
 
-function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy {
+/** Build the deck half of a card session. Shared with the unified `edit` command. */
+export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy {
   const { deckFile, deckName, frontMatter, sessionConfig, excludeDigitalOnly } = args
   // Mutable in-memory deck session — the single source of truth, written to
   // disk only when the session is saved. Per-copy adds (one per copy, in add
@@ -87,6 +62,28 @@ function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy {
   }
   let lastSection: string | null = null
   let lastPrinting: PrintingTuple | null = null
+
+  /** The deck's format as shown in the menu: its label, the raw string, or "not set". */
+  const formatDisplay = (): string => {
+    const raw = frontMatter.format ?? ''
+    const known = normalizeFormatKey(raw)
+    if (known) return getDeckFormatLabel(known)
+    return raw || 'not set'
+  }
+
+  /**
+   * Prompt for a new deck format and apply it to the front matter. Format is a
+   * deck-level property outside the card change-event model, so it marks the
+   * session dirty (persisted by the next save) without a changelog entry.
+   */
+  const changeFormat = async (): Promise<void> => {
+    const next = await promptDeckFormat(normalizeFormatKey(frontMatter.format ?? ''))
+    if (!next || next === normalizeFormatKey(frontMatter.format ?? '')) return
+    frontMatter.format = next
+    state.deck.format = next
+    state.dirty = true
+    console.log(`Format changed to ${getDeckFormatLabel(next)}.`)
+  }
 
   /** Add a card (with or without a printing) to `section`, tracking it as the last added. */
   const addToDeck = async (
@@ -141,10 +138,18 @@ function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy {
         title: `🗂️  Set Target Section (${sessionConfig.targetSection ?? 'prompt every time'})`,
         value: '__SECTION__',
       },
+      {
+        title: `🏷️  Change Format (${formatDisplay()})`,
+        value: '__FORMAT__',
+      },
     ],
     handleSentinel: async (_ctx: CardSessionContext, value: string): Promise<boolean> => {
       if (value === '__SECTION__') {
         await promptSetTargetSection(state.deck, sessionConfig)
+        return true
+      }
+      if (value === '__FORMAT__') {
+        await changeFormat()
         return true
       }
       return false
@@ -289,79 +294,4 @@ function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy {
     editEntry: (ctx: CardSessionContext, cardId: number) =>
       editDeckCard(state, ctx, cardId, { sessionConfig, excludeDigitalOnly }),
   }
-}
-
-export function registerDeckCommand(program: Command): void {
-  const deckCommand = program
-    .command('deck')
-    .description('Manage a deck by interactively adding cards to named sections')
-    .option('-s, --sets <codes>', 'Filter by set codes (comma-separated, e.g., "FDN, SPG")')
-    .option('-f, --finish <finish>', 'Default finish (nonfoil, foil, etched)')
-    .option('-c, --condition <condition>', 'Default condition (NM, LP, MP, HP, DMG)')
-    .option('--section <name>', 'Add cards to this section (otherwise prompts per card)')
-    .option('--collector', 'Start in collector number mode')
-    .option('--allow-digital-only-cards', 'Include digital-only sets (e.g., Alchemy)')
-  applyCacheRefreshOptions(deckCommand)
-  deckCommand.action(async (options: DeckCommandOptions) => {
-    const parsedSets = options.sets ? parseSetCodesInput(options.sets) : undefined
-    const excludeDigitalOnly = !options.allowDigitalOnlyCards
-
-    const cardNames = await prepareCardSessionCache(options, parsedSets, excludeDigitalOnly)
-    if (!cardNames) return
-
-    // Select or create a deck. Choices show each deck's display name (front
-    // matter `name:`), while the selected value carries its file path.
-    const existingDecks = await listExistingDecks()
-    const selection = await promptListSelection({
-      message: 'Select a deck',
-      items: existingDecks.map((d) => ({ title: d.name, value: d.file })),
-      createTitle: '+ Create New Deck',
-      newNameMessage: 'Enter name for new deck:',
-    })
-    if (!selection) return
-
-    let deckName: string
-    let deckFile: string
-    if (selection.kind === 'new') {
-      deckName = selection.name
-      deckFile = await ensureDeckFile(deckName)
-    } else {
-      const selected = existingDecks.find((d) => d.file === selection.value)
-      if (!selected) return
-      deckName = selected.name
-      deckFile = selected.file
-    }
-
-    const loaded = await loadDeck(deckFile)
-
-    const upperCondition = options.condition?.toUpperCase()
-    const sessionConfig: DeckSessionConfig = {
-      sets: parsedSets,
-      finish: isFinish(options.finish) ? options.finish : undefined,
-      condition: isCondition(upperCondition) ? upperCondition : undefined,
-      entryMode: options.collector ? 'collector' : 'name',
-      collectorSets: [],
-      activeSetIndex: 0,
-      setCardMaps: new Map(),
-      targetSection: options.section ?? null,
-    }
-
-    // Pre-load set data when starting in collector mode with sets provided
-    if (options.collector && parsedSets && parsedSets.length > 0) {
-      await loadCollectorSets(sessionConfig, parsedSets)
-    }
-
-    await runCardSession({
-      strategy: createDeckStrategy({
-        deckFile,
-        deckName,
-        initialDeck: loaded.deck,
-        frontMatter: loaded.frontMatter,
-        sessionConfig,
-        excludeDigitalOnly,
-      }),
-      cardNames,
-      excludeDigitalOnly,
-    })
-  })
 }

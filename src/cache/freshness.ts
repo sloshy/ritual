@@ -75,7 +75,7 @@ export async function ensureFreshCardCache(
   return { ready: keys.length > 0, cardCount: keys.length }
 }
 
-/** The card-cache flags shared by the interactive `deck`/`collection`/`wanted-list` commands. */
+/** The card-cache flags of the interactive card-entry sessions (the `edit` command). */
 export type CacheRefreshOptions = {
   /**
    * Commander stores `--no-cache-prompt` as `cachePrompt: false`. When false,

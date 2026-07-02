@@ -23,17 +23,19 @@ ritual add-card "Main Binder" "Black Lotus" --collection -f foil -c NM
 
 ## Interactive management
 
-\`ritual collection\` opens an interactive TUI for bulk-adding cards. It **requires a
-terminal**, so it is not suitable for non-interactive agents — use \`add-card\` instead.
+\`ritual edit\` opens the interactive editor (covered in full by the **ritual-edit**
+skill); pick a collection (or \`➕ New Collection\`) from its list selection menu to
+bulk-add cards. It **requires a terminal**, so it is not suitable for non-interactive
+agents — use \`add-card\` instead.
 
 \`\`\`bash
-ritual collection                          # alias: ritual collect
-ritual collection --sets "FDN,SPG"         # restrict to these set codes
-ritual collection --finish foil --condition NM
-ritual collection --collector              # enter cards by collector number
-ritual collection --allow-digital-only-cards
-ritual collection --no-cache-prompt        # skip the "cache is >1 week old, update?" prompt
-ritual collection --refresh-prices         # redownload the cache when prices are >1 day old
+ritual edit
+ritual edit --sets "FDN,SPG"         # restrict to these set codes
+ritual edit --finish foil --condition NM
+ritual edit --collector              # enter cards by collector number
+ritual edit --allow-digital-only-cards
+ritual edit --no-cache-prompt        # skip the "cache is >1 week old, update?" prompt
+ritual edit --refresh-prices         # redownload the cache when prices are >1 day old
 \`\`\`
 
 When the card cache was last fully downloaded more than a week ago, the session prompts to redownload it before starting; \`--no-cache-prompt\` suppresses that prompt. \`--refresh-prices\` redownloads the cache (refreshing prices) without prompting when the cached prices are more than a day old.

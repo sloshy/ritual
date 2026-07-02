@@ -37,6 +37,7 @@ export interface DeckSection {
 
 export interface DeckData {
   name: string
+  /** Usually a `DeckFormatKey`; free text is tolerated for unrecognized/legacy values. */
   format?: string
   sourceId?: string
   sourceUrl?: string
