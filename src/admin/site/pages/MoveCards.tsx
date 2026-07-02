@@ -1,5 +1,5 @@
 import { type JSX, Show, Switch, Match, For, createSignal, createMemo } from 'solid-js'
-import { DEFAULT_CURRENCY } from '../../../price-currency'
+import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
 import type { CardPrintingOptions } from '../../../change-event'
 import type { CardContextInfo } from '../../../site/card-context'
 import { DeckPage } from '../../../site/DeckPage'
@@ -35,6 +35,7 @@ type MoveFlow = {
 }
 
 export function MoveCards(): JSX.Element {
+  const defaultCurrency = useDefaultCurrency()
   const session = useMoveSession()
   const [filtersOpen, setFiltersOpen] = createSignal(false)
   const [pendingOpen, setPendingOpen] = createSignal(false)
@@ -292,7 +293,7 @@ export function MoveCards(): JSX.Element {
                 modalCardName={modalKey()}
                 onOpenModal={setModalKey}
                 onCloseModal={closeModal}
-                currency={DEFAULT_CURRENCY}
+                currency={defaultCurrency()}
                 onCardMove={handleCardMove}
               />
             )}
@@ -311,7 +312,7 @@ export function MoveCards(): JSX.Element {
                 modalCardKey={modalKey()}
                 onOpenModal={setModalKey}
                 onCloseModal={closeModal}
-                currency={DEFAULT_CURRENCY}
+                currency={defaultCurrency()}
                 onCardMove={handleCardMove}
               />
             )}
@@ -330,7 +331,7 @@ export function MoveCards(): JSX.Element {
                 modalCardKey={modalKey()}
                 onOpenModal={setModalKey}
                 onCloseModal={closeModal}
-                currency={DEFAULT_CURRENCY}
+                currency={defaultCurrency()}
                 onCardMove={handleCardMove}
               />
             )}

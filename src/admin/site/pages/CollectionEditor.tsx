@@ -16,6 +16,7 @@ import {
 import { CollectionEditorBody } from '../../../editor/CollectionEditorBody'
 import { adminSearch, fetchAdminJson, fetchCardPrice } from '../editor-backend'
 import { useAdminLists, moveTargetsExcluding } from '../move-targets'
+import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
 
 type CollectionListResponse = { collections?: { slug: string; name: string }[] }
 
@@ -38,7 +39,10 @@ export function CollectionEditor(props: CollectionEditorProps): JSX.Element {
   // Late-bound so the config (built before the controller) can read the live slug.
   let currentSlug: () => string | null = () => props.initialSlug ?? null
 
+  const defaultCurrency = useDefaultCurrency()
+
   const buildConfig = (cardActions: EntryCardDataActions): EditorConfig<CollectionCardEntry[]> => ({
+    currency: defaultCurrency,
     fetchList: () => fetchAdminJson('/api/collections'),
     extractListItems: (r) => (r as CollectionListResponse).collections ?? [],
     fetchData: (slug, signal) => fetchAdminJson(`/api/collection/${slug}`, signal),
@@ -113,7 +117,7 @@ export function CollectionEditor(props: CollectionEditorProps): JSX.Element {
       ctrl={ctrl}
       defaults={defaults}
       search={adminSearch}
-      currency={ctrl.editor.currency}
+      currency={ctrl.editor.currency()}
       useScryfallImgUrls={true}
       name={name()}
       enableImport={true}

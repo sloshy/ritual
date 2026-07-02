@@ -13,6 +13,7 @@ import { applyWantedChangePrinting, wantedPrintingOf } from '../../../editor/wan
 import { WantedEditorBody } from '../../../editor/WantedEditorBody'
 import { adminSearch, fetchAdminJson, fetchCardPrice } from '../editor-backend'
 import { useAdminLists, moveTargetsExcluding } from '../move-targets'
+import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
 
 type WantedListListResponse = { wantedLists?: { slug: string; name: string }[] }
 
@@ -35,7 +36,10 @@ export function WantedListEditor(props: WantedListEditorProps): JSX.Element {
   // Late-bound so the config (built before the controller) can read the live slug.
   let currentSlug: () => string | null = () => props.initialSlug ?? null
 
+  const defaultCurrency = useDefaultCurrency()
+
   const buildConfig = (cardActions: EntryCardDataActions): EditorConfig<WantedListCardEntry[]> => ({
+    currency: defaultCurrency,
     fetchList: () => fetchAdminJson('/api/wanted'),
     extractListItems: (r) => (r as WantedListListResponse).wantedLists ?? [],
     fetchData: (slug, signal) => fetchAdminJson(`/api/wanted/${slug}`, signal),
@@ -111,7 +115,7 @@ export function WantedListEditor(props: WantedListEditorProps): JSX.Element {
       ctrl={ctrl}
       defaults={defaults}
       search={adminSearch}
-      currency={ctrl.editor.currency}
+      currency={ctrl.editor.currency()}
       useScryfallImgUrls={true}
       name={name()}
       enableImport={true}

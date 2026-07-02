@@ -52,6 +52,7 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
   const deckName = () => props.detail.deck.name
 
   const buildConfig = (cardActions: DeckCardDataActions): EditorConfig<DeckData> => ({
+    currency: () => props.currency,
     // Single preloaded item — no list, no network. The selector is hidden.
     fetchList: () => Promise.resolve(undefined),
     extractListItems: () => [{ slug: props.slug, name: deckName() }],

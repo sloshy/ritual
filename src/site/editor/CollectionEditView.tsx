@@ -38,6 +38,7 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
   const [originalModalCard, setOriginalModalCard] = createSignal<string | null>(null)
 
   const buildConfig = (cardActions: EntryCardDataActions): EditorConfig<CollectionCardEntry[]> => ({
+    currency: () => props.currency,
     fetchList: () => Promise.resolve(undefined),
     extractListItems: () => [{ slug: props.slug, name: props.detail.name }],
     fetchData: () => Promise.resolve(props.detail),

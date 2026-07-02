@@ -128,7 +128,7 @@ export function EditorShell<TData, TCardEntry>(
         cards={props.cardData.cards}
         printings={props.cardData.printings}
         symbolMap={props.cardData.symbolMap}
-        currency={editor.currency}
+        currency={editor.currency()}
         onClose={editor.dialogs.closeChanges}
       />
 

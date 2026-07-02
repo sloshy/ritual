@@ -4,7 +4,7 @@ import type { ScryfallCard } from '../types'
 import { isCardSideways, isDoubleFacedCard, resolveCardImageSources } from './image-sources'
 import { ManaCost } from './symbols'
 import type { PriceCurrency } from '../price-currency'
-import { getCardPrice, formatPrice, formatPriceOrNA } from '../price-currency'
+import { DEFAULT_CURRENCY, getCardPrice, formatPrice, formatPriceOrNA } from '../price-currency'
 import type { ViewMode } from './card-sorting'
 import type { SelectionState } from './useCardSelection'
 import { capitalize } from './utils'
@@ -189,7 +189,12 @@ export const CardItem: Component<CardItemProps> = (props) => {
       }
     >
       {(card) => {
-        const currency = props.currency ?? 'usd'
+        // Reactive accessors, not captured consts: this callback runs once per
+        // mount (untracked, per <Show>), so a plain `const` would freeze the
+        // price at whatever the currency was at mount time. The admin editors
+        // resolve the configured currency asynchronously, so late updates must
+        // still reach the rendered price text.
+        const currency = () => props.currency ?? DEFAULT_CURRENCY
         const isDFC = isDoubleFacedCard(card())
 
         // Ctrl/Cmd-click toggles selection from anywhere on the card instead of
@@ -211,15 +216,15 @@ export const CardItem: Component<CardItemProps> = (props) => {
         // A flippable face exists only for double-faced cards with a resolvable back image.
         const canFlip = isDFC && Boolean(backImage)
 
-        const price = getCardPrice(card(), currency)
+        const price = () => getCardPrice(card(), currency())
 
-        const dataAttrs = {
+        const dataAttrs = () => ({
           'data-name': props.name.toLowerCase(),
           'data-cmc': card().cmc,
           'data-edhrec': card().edhrec_rank ?? 999999,
-          'data-price': price,
+          'data-price': price(),
           'data-type': card().type_line,
-        }
+        })
 
         const isFoil = props.collectionFinish
           ? props.collectionFinish !== 'nonfoil'
@@ -238,8 +243,9 @@ export const CardItem: Component<CardItemProps> = (props) => {
         const binderClass = `card-binder${isFoil ? ' foil-card' : ''}`
         const listClass = `card-list${isFoil ? ' foil-card' : ''}`
         const overlapClass = `card-overlap${isFoil ? ' foil-card' : ''}`
-        const displayPrice = props.collectionPrice !== undefined ? props.collectionPrice : price
-        const showPrice = displayPrice > 0
+        const displayPrice = () =>
+          props.collectionPrice !== undefined ? props.collectionPrice : price()
+        const showPrice = () => displayPrice() > 0
 
         // List view groups the printing identity (set:number, finish, condition) into a
         // single parenthesised label rendered next to the card name. Reuses finishLabel so
@@ -258,7 +264,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
               'is-selectable': props.selectable,
               'is-selected': props.selectState === 'all' || props.selectState === 'partial',
             }}
-            {...dataAttrs}
+            {...dataAttrs()}
           >
             {/* Binder view */}
             <Show when={props.viewMode === 'binder'}>
@@ -341,8 +347,8 @@ export const CardItem: Component<CardItemProps> = (props) => {
                       <span class="card-label-finish"> ({finishLabel})</span>
                     </Show>
                   </span>
-                  <Show when={showPrice}>
-                    <span class="card-label-price">{formatPrice(displayPrice, currency)}</span>
+                  <Show when={showPrice()}>
+                    <span class="card-label-price">{formatPrice(displayPrice(), currency())}</span>
                   </Show>
                 </div>
               </div>
@@ -430,7 +436,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
                     + Trade
                   </button>
                 </Show>
-                <span class="list-price">{formatPriceOrNA(displayPrice, currency)}</span>
+                <span class="list-price">{formatPriceOrNA(displayPrice(), currency())}</span>
               </div>
             </Show>
 
@@ -515,8 +521,8 @@ export const CardItem: Component<CardItemProps> = (props) => {
                       <span class="card-label-finish"> ({finishLabel})</span>
                     </Show>
                   </span>
-                  <Show when={showPrice}>
-                    <span class="card-label-price">{formatPrice(displayPrice, currency)}</span>
+                  <Show when={showPrice()}>
+                    <span class="card-label-price">{formatPrice(displayPrice(), currency())}</span>
                   </Show>
                 </div>
               </div>

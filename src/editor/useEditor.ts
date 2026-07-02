@@ -160,6 +160,13 @@ export type EditorConfig<TData> = {
    * current list. Drives the "Move to list" menus; omit to disable cross-list moves.
    */
   moveTargets?: () => ListRef[]
+
+  /**
+   * The currency price displays should use, as a reactive accessor. The admin
+   * editors pass the configured default currency (from `/api/config`); the
+   * public editors pass the site's active currency. Defaults to USD.
+   */
+  currency?: Accessor<PriceCurrency>
 }
 
 /** A section plus how many cards it currently holds. */
@@ -193,7 +200,8 @@ export type UseEditorResult<TData, TCardEntry> = {
   setData: Setter<TData | null>
   contentHash: Accessor<string>
   extra: Accessor<Record<string, unknown>>
-  currency: PriceCurrency
+  /** The currency price displays use (the config's accessor, or a USD constant). */
+  currency: Accessor<PriceCurrency>
   getOriginal: () => TData | null
   isDataReady: () => boolean
 
@@ -304,7 +312,7 @@ export function useEditor<TData, TCardEntry = unknown>(
   const changes = useCardChanges<TCardEntry>()
   const navigationGuard = useNavigationGuard()
 
-  const currency: PriceCurrency = DEFAULT_CURRENCY
+  const currency = config.currency ?? ((): PriceCurrency => DEFAULT_CURRENCY)
   let original: TData | null = null
   // Section order as loaded from disk. The live order is this replayed against the
   // section-structural changes (see `sectionOrder`), so it stays correct across undo.

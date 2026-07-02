@@ -985,7 +985,7 @@ const MOCK_COLLECTION_CARD_PRICED = {
   oracle_text: '',
   mana_cost: '{1}{W}',
   image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
-  prices: { usd: '3.50', usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
+  prices: { usd: '3.50', usd_foil: null, usd_etched: null, eur: '2.75', eur_foil: null, tix: null },
   finishes: ['nonfoil'],
   games: ['paper'],
   set: 'tst',

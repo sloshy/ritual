@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { loginAsAdmin } from '../helpers/auth-helper'
 import { openListEditor } from '../helpers/editor-nav'
-import { mockAdminCollectionLoadApi, mockCollectionsApi } from '../helpers/mock-data'
+import { mockAdminCollectionLoadApi, mockCollectionsApi, mockConfigApi } from '../helpers/mock-data'
 import { openFilterMenu } from '../helpers/filter-menu'
 
 test.describe('Collection Editor – Hide Unpriced', () => {
@@ -47,6 +47,26 @@ test.describe('Collection Editor – Hide Unpriced', () => {
       .locator('.card-list')
       .filter({ has: page.getByText('Priced Card', { exact: true }) })
     await expect(pricedRow.locator('.list-price')).toHaveText('$3.50')
+  })
+
+  test('prices render in the configured default currency', async ({ page }) => {
+    // MOCK_CONFIG carries defaultCurrency: 'eur'; with the config API mocked,
+    // a fresh editor mount must price the row in euros instead of USD.
+    await mockConfigApi(page)
+    await page.reload()
+    await openListEditor(page, 'collection')
+    await page.waitForFunction(() => (document.querySelector('select')?.options.length ?? 0) > 1, {
+      timeout: 10_000,
+    })
+    await page.locator('select#collection-select').selectOption('test-collection')
+    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    await page.locator('[data-view="list"]').click()
+    await page.waitForSelector('.card-list', { timeout: 10_000 })
+
+    const pricedRow = page
+      .locator('.card-list')
+      .filter({ has: page.getByText('Priced Card', { exact: true }) })
+    await expect(pricedRow.locator('.list-price')).toHaveText('€2.75')
   })
 
   test('printing info renders next to the card name in parentheses', async ({ page }) => {

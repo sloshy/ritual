@@ -18,6 +18,7 @@ import {
 import { useDeckEditController, DeckEditorBody } from '../../../editor/DeckEditController'
 import { adminSearch, fetchAdminJson, fetchCardPrice } from '../editor-backend'
 import { useAdminLists, moveTargetsExcluding } from '../move-targets'
+import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
 
 type DeckListResponse = { decks?: { slug: string; name: string }[] }
 
@@ -43,7 +44,10 @@ export function DeckEditor(props: DeckEditorProps): JSX.Element {
   // Late-bound so the config (built before the controller) can read the live slug.
   let currentSlug: () => string | null = () => props.initialSlug ?? null
 
+  const defaultCurrency = useDefaultCurrency()
+
   const buildConfig = (cardActions: DeckCardDataActions): EditorConfig<DeckData> => ({
+    currency: defaultCurrency,
     fetchList: () => fetchAdminJson('/api/decks'),
     extractListItems: (r) => (r as DeckListResponse).decks ?? [],
     fetchData: (slug, signal) => fetchAdminJson(`/api/deck/${slug}`, signal),
@@ -117,7 +121,7 @@ export function DeckEditor(props: DeckEditorProps): JSX.Element {
       ctrl={ctrl}
       defaults={defaults}
       search={adminSearch}
-      currency={ctrl.editor.currency}
+      currency={ctrl.editor.currency()}
       useScryfallImgUrls={true}
       enableImport={true}
     />
