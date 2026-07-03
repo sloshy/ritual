@@ -1,6 +1,7 @@
 import { type Component, Show, For, createSignal } from 'solid-js'
-import { type ChangeFile, type ChangeFileKind, parseChangeFile } from '../change-file'
-import { formatChange } from '../../change-event'
+import { type ChangeBundleList, parseChangeBundle } from '../change-bundle'
+import { type ChangeEvent, formatChange } from '../../change-event'
+import { type ListType, listTypeLabel } from '../../list-type'
 import type { ImportResult } from '../useEditor'
 import { Modal } from '../../ui/Modal'
 
@@ -8,20 +9,18 @@ type ImportChangesDialogProps = {
   open: boolean
   onClose: () => void
   /** The list kind being edited; an imported file must match it. */
-  expectedKind: ChangeFileKind
-  /** Apply the parsed change file's events; returns the import outcome. */
-  onImport: (file: ChangeFile) => ImportResult
-}
-
-const KIND_LABELS: Record<ChangeFileKind, string> = {
-  deck: 'deck',
-  collection: 'collection',
-  wanted: 'wanted list',
+  expectedKind: ListType
+  /** Slug of the list being edited, to pick the right entry out of a multi-list bundle. */
+  expectedSlug?: string
+  /** Apply the matched change list's events; returns the import outcome. */
+  onImport: (changes: ChangeEvent[]) => ImportResult
 }
 
 /**
  * Dialog to load a change-list JSON into the editor (used by the admin editor and
- * the public site's edit mode). Validates the file, loads its changes as pending
+ * the public site's edit mode). The entry for the list being edited is picked
+ * out of the bundle (the rest must be applied via the admin Import Changes page
+ * or `ritual import-changes`). Validates the bundle, loads its changes as pending
  * edits (re-targeted to current card IDs by the editor), and reports any changes
  * that could not be matched.
  */
@@ -37,21 +36,33 @@ export const ImportChangesDialog: Component<ImportChangesDialogProps> = (props) 
     setError(null)
   }
 
+  /** Pick the bundle entry for the list being edited, or an error message. */
+  const matchList = (lists: ChangeBundleList[]): ChangeBundleList | string => {
+    const kindMatches = lists.filter((l) => l.kind === props.expectedKind)
+    if (kindMatches.length === 0) {
+      const kinds = [...new Set(lists.map((l) => listTypeLabel(l.kind)))].join(', ')
+      return `This file has no changes for a ${listTypeLabel(props.expectedKind)} (it targets: ${kinds}).`
+    }
+    const slugMatch = kindMatches.find((l) => l.slug === props.expectedSlug)
+    if (slugMatch) return slugMatch
+    if (kindMatches.length === 1) return kindMatches[0]!
+    return `This file has changes for ${kindMatches.length} ${listTypeLabel(props.expectedKind)}s and none match this list. Apply it with the admin Import Changes page or \`ritual import-changes\` instead.`
+  }
+
   const handleImport = () => {
     setError(null)
     setResult(null)
-    const parsed = parseChangeFile(text())
+    const parsed = parseChangeBundle(text())
     if (typeof parsed === 'string') {
       setError(parsed)
       return
     }
-    if (parsed.kind !== props.expectedKind) {
-      setError(
-        `This file is for a ${KIND_LABELS[parsed.kind]}, but you're editing a ${KIND_LABELS[props.expectedKind]}.`,
-      )
+    const matched = matchList(parsed.lists)
+    if (typeof matched === 'string') {
+      setError(matched)
       return
     }
-    setResult(props.onImport(parsed))
+    setResult(props.onImport(matched.changes))
   }
 
   return (

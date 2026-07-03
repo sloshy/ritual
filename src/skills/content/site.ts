@@ -63,6 +63,11 @@ ritual admin -p 9000
 ritual admin --no-refresh
 \`\`\`
 
+The admin's **Import Changes** page applies a change-list JSON exported from the
+public site's edit mode (a bundle covering one or more lists) with a per-list
+preview before applying — the same operation as \`ritual import-changes\` (see the
+**ritual-edit** skill) and the MCP \`import_changes\` tool.
+
 It can also expose an MCP endpoint in the same process:
 
 \`\`\`bash

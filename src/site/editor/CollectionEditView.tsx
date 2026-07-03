@@ -12,7 +12,6 @@ import { countsBySection, sectionOfTarget } from '../../editor/section-helpers'
 import { useFlatListEditController } from '../../editor/flat-list-controller'
 import { applyCollectionChangePrinting, collectionPrintingOf } from '../../editor/collection-config'
 import { CollectionEditorBody } from '../../editor/CollectionEditorBody'
-import { type ChangeFile, buildChangeFile } from '../../editor/change-file'
 import { collectionToMarkdown, collectionToCsv } from '../../editor/list-export'
 import { CollectionPage } from '../CollectionPage'
 import { createScryfallSearchProvider } from './scryfall-search-provider'
@@ -89,15 +88,6 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
 
   const changeCount = () => ctrl.editor.changes.changeCount()
 
-  const buildFile = (): ChangeFile =>
-    buildChangeFile({
-      kind: 'collection',
-      slug: props.slug,
-      name: props.detail.name,
-      changes: ctrl.editor.changes.changes(),
-      exportedAt: new Date().toISOString(),
-    })
-
   const handleExit = () => {
     if (confirmDiscardOnExit(changeCount())) props.onExit()
   }
@@ -110,9 +100,9 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
       onDiscard={ctrl.editor.dialogs.openDiscard}
       onExit={handleExit}
       jsonFilename={`${safe()}-edits.json`}
-      buildFile={buildFile}
-      storageKind="collection"
+      kind="collection"
       slug={props.slug}
+      listName={props.detail.name}
       onImport={(changes) => ctrl.editor.importChanges(changes)}
       onRestore={(changes) => ctrl.editor.restoreChanges(changes)}
       bulkEdit={ctrl.bulkEdit}

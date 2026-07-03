@@ -20,6 +20,7 @@ import { registerLoginCommand } from './src/commands/login'
 
 import { registerImportAccountCommand } from './src/commands/import-account'
 import { registerImportCsvCommand } from './src/commands/import-csv'
+import { registerImportChangesCommand } from './src/commands/import-changes'
 import { registerScryCommand } from './src/commands/scry'
 import { registerCardCommand } from './src/commands/card'
 import { registerRandomCommand } from './src/commands/random'
@@ -119,6 +120,7 @@ registerPriceCommand(program)
 registerMoveCommand(program)
 registerHistoryCommand(program)
 registerImportCsvCommand(program)
+registerImportChangesCommand(program)
 
 program.commandsGroup('Card Lookup')
 registerCardCommand(program)

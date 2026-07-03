@@ -18,7 +18,6 @@ import {
   findDeckCardSection,
 } from '../../editor/deck-config'
 import { useDeckEditController, DeckEditorBody } from '../../editor/DeckEditController'
-import { type ChangeFile, buildChangeFile } from '../../editor/change-file'
 import { deckToExportText } from '../../deck-text'
 import { DeckPage } from '../DeckPage'
 import { createScryfallSearchProvider } from './scryfall-search-provider'
@@ -100,15 +99,6 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
   const ctrl = useDeckEditController(buildConfig, props.slug)
   const changeCount = () => ctrl.editor.changes.changeCount()
 
-  const buildFile = (): ChangeFile =>
-    buildChangeFile({
-      kind: 'deck',
-      slug: props.slug,
-      name: deckName(),
-      changes: ctrl.editor.changes.changes(),
-      exportedAt: new Date().toISOString(),
-    })
-
   const handleExit = () => {
     if (confirmDiscardOnExit(changeCount())) props.onExit()
   }
@@ -119,9 +109,9 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
       onDiscard={ctrl.editor.dialogs.openDiscard}
       onExit={handleExit}
       jsonFilename={`${safeFilename(deckName())}-edits.json`}
-      buildFile={buildFile}
-      storageKind="deck"
+      kind="deck"
       slug={props.slug}
+      listName={deckName()}
       onImport={(changes) => ctrl.editor.importChanges(changes)}
       onRestore={(changes) => ctrl.editor.restoreChanges(changes)}
       bulkEdit={ctrl.bulkEdit}

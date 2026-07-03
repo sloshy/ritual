@@ -1,30 +1,44 @@
 import { type JSX, Show, batch, createEffect, createSignal, onMount, onCleanup } from 'solid-js'
 import type { ChangeEvent } from '../../change-event'
-import { type ChangeFile, type ChangeFileKind, serializeChangeFile } from '../../editor/change-file'
+import {
+  type ChangeBundleList,
+  buildChangeBundle,
+  serializeChangeBundle,
+} from '../../editor/change-bundle'
+import type { ListType } from '../../list-type'
 import type { ImportResult } from '../../editor/useEditor'
 import { ImportChangesDialog } from '../../editor/components/ImportChangesDialog'
 import type { BulkEditBundle } from '../selection-edit-actions'
 import { type EditView, useEditChrome } from './edit-chrome'
 import { setActiveEditSession } from './active-edit-session'
-import { ExportPanel, type ListFileExport } from './ExportPanel'
+import {
+  ExportPanel,
+  type ExportListGroup,
+  type ExportScope,
+  type ListFileExport,
+} from './ExportPanel'
 import {
   saveEditSession,
   loadEditSession,
   clearEditSession,
   hasEditSession,
 } from './edit-session-storage'
-import { rememberEditSession, recallEditSession } from './edit-session-memory'
+import { listEditSessions, rememberEditSession, recallEditSession } from './edit-session-memory'
+
+/** Filename for the multi-list bundle download; not tied to any one list's name. */
+const BUNDLE_FILENAME = 'ritual-all-edits.json'
 
 type EditViewFrameProps = {
   changeCount: number
   onDiscard: () => void
   onExit: () => void
+  /** Filename for the downloaded change JSON when exporting just this list. */
   jsonFilename: string
-  /** Build the current edit session as a change file (serialized for export, stored for save). */
-  buildFile: () => ChangeFile
-  /** List kind + slug, used to key the opt-in localStorage session. */
-  storageKind: ChangeFileKind
+  /** The list's kind, keying its sessions and change-bundle entries. */
+  kind: ListType
   slug: string
+  /** Display name of the list, labelling its edits in exports and sessions. */
+  listName: string
   /**
    * Apply a change list (re-targeted to current card IDs) into the live editor,
    * returning the import outcome. Backs both restoring a saved session and the
@@ -63,7 +77,7 @@ export function EditViewFrame(props: EditViewFrameProps): JSX.Element {
   const [exportOpen, setExportOpen] = createSignal(false)
   const [importOpen, setImportOpen] = createSignal(false)
   const [savedExists, setSavedExists] = createSignal(false)
-  const [restorable, setRestorable] = createSignal<ChangeFile | null>(null)
+  const [restorable, setRestorable] = createSignal<ChangeBundleList | null>(null)
   // Remembered in-memory edits awaiting (re)application once the editor has loaded.
   const [pendingImport, setPendingImport] = createSignal<ChangeEvent[] | null>(null)
 
@@ -84,10 +98,10 @@ export function EditViewFrame(props: EditViewFrameProps): JSX.Element {
     })
     // kind/slug/bulkEdit are stable per mount (one editor per list); remount the
     // frame to change them. The cross-list navbar reads this to apply removals live.
-    setActiveEditSession({ kind: props.storageKind, slug: props.slug, bulkEdit: props.bulkEdit })
+    setActiveEditSession({ kind: props.kind, slug: props.slug, bulkEdit: props.bulkEdit })
 
-    setSavedExists(hasEditSession(props.storageKind, props.slug))
-    const remembered = recallEditSession(props.storageKind, props.slug)
+    setSavedExists(hasEditSession(props.kind, props.slug))
+    const remembered = recallEditSession(props.kind, props.slug)
     if (remembered) {
       // This list was already edited this session (or targeted by a cross-list
       // removal): silently resume its in-memory edits once the editor is ready
@@ -96,7 +110,7 @@ export function EditViewFrame(props: EditViewFrameProps): JSX.Element {
     } else if (props.changeCount === 0) {
       // First time opening this list this session: offer to restore a session
       // previously saved to the browser (opt-in localStorage), if any.
-      const saved = loadEditSession(props.storageKind, props.slug)
+      const saved = loadEditSession(props.kind, props.slug)
       if (saved && saved.changes.length > 0) setRestorable(saved)
     }
 
@@ -128,38 +142,61 @@ export function EditViewFrame(props: EditViewFrameProps): JSX.Element {
   // in place; exiting edit mode clears every session (see app's exitEditMode).
   createEffect(() => {
     if (!props.ready() || pendingImport()) return
-    rememberEditSession(props.storageKind, props.slug, props.changes())
+    rememberEditSession(props.kind, props.slug, props.listName, props.changes())
   })
 
-  const buildJson = (): string => serializeChangeFile(props.buildFile())
+  /** The open list's live pending edits, always fresher than its mirrored session. */
+  const currentGroup = (): ExportListGroup => ({
+    kind: props.kind,
+    slug: props.slug,
+    name: props.listName,
+    changes: props.changes(),
+  })
+
+  /**
+   * Every list with pending edits this session, with the open list's live changes
+   * substituted for its (possibly not-yet-mirrored) remembered session.
+   */
+  const allEditedGroups = (): ExportListGroup[] => {
+    const current = currentGroup()
+    const others = listEditSessions().filter(
+      (s) => !(s.kind === current.kind && s.slug === current.slug),
+    )
+    return current.changes.length > 0 ? [current, ...others] : others
+  }
+
+  const buildJson = (scope: ExportScope): string => {
+    const lists = scope === 'current' ? [currentGroup()] : allEditedGroups()
+    return serializeChangeBundle(buildChangeBundle({ lists, exportedAt: new Date().toISOString() }))
+  }
 
   const handleSaveToBrowser = (): void => {
-    saveEditSession(props.buildFile())
+    saveEditSession(currentGroup(), new Date().toISOString())
     setSavedExists(true)
   }
 
   const handleClearSaved = (): void => {
-    clearEditSession(props.storageKind, props.slug)
+    clearEditSession(props.kind, props.slug)
     setSavedExists(false)
     setRestorable(null)
   }
 
-  const handleRestore = (file: ChangeFile): void => {
-    props.onImport(file.changes)
+  const handleRestore = (saved: ChangeBundleList): void => {
+    props.onImport(saved.changes)
     setRestorable(null)
   }
 
   return (
     <div>
       <Show when={restorable()}>
-        {(file) => (
+        {(saved) => (
           <div class="edit-restore-bar" role="status">
             <span>
-              You saved edits to this list in this browser ({file().changes.length}{' '}
-              {file().changes.length === 1 ? 'change' : 'changes'}). Restore them?
+              You saved edits to this list in this browser ({saved().changes.length}{' '}
+              {saved().changes.length === 1 ? 'change' : 'changes'}). Restore them?
             </span>
             <div class="edit-restore-actions">
-              <button type="button" class="btn btn-export" onClick={() => handleRestore(file())}>
+              <button type="button" class="btn btn-export" onClick={() => handleRestore(saved())}>
                 Restore
               </button>
               <button type="button" class="btn btn-secondary" onClick={() => setRestorable(null)}>
@@ -177,8 +214,10 @@ export function EditViewFrame(props: EditViewFrameProps): JSX.Element {
       <ExportPanel
         open={exportOpen()}
         onClose={() => setExportOpen(false)}
-        changeCount={props.changeCount}
+        current={currentGroup()}
+        allGroups={allEditedGroups}
         jsonFilename={props.jsonFilename}
+        bundleFilename={BUNDLE_FILENAME}
         buildJson={buildJson}
         fileExports={props.fileExports}
         onSaveToBrowser={handleSaveToBrowser}
@@ -189,8 +228,9 @@ export function EditViewFrame(props: EditViewFrameProps): JSX.Element {
       <ImportChangesDialog
         open={importOpen()}
         onClose={() => setImportOpen(false)}
-        expectedKind={props.storageKind}
-        onImport={(file) => props.onImport(file.changes)}
+        expectedKind={props.kind}
+        expectedSlug={props.slug}
+        onImport={(changes) => props.onImport(changes)}
       />
     </div>
   )

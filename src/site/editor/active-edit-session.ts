@@ -1,5 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js'
-import type { ChangeFileKind } from '../../editor/change-file'
+import type { ListType } from '../../list-type'
 import type { BulkEditBundle } from '../selection-edit-actions'
 
 /**
@@ -9,7 +9,7 @@ import type { BulkEditBundle } from '../selection-edit-actions'
  * selection modal's open state — the editor and navbar share the app root tree.
  */
 export type ActiveEditSession = {
-  kind: ChangeFileKind
+  kind: ListType
   slug: string
   bulkEdit: BulkEditBundle
 }

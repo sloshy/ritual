@@ -4,6 +4,7 @@ export type Page =
   | 'dashboard'
   | 'import-deck'
   | 'import-csv'
+  | 'import-changes'
   | 'list-editor'
   | 'list-manager'
   | 'move-cards'

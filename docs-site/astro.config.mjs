@@ -52,6 +52,7 @@ export default defineConfig({
                 'commands/history',
                 'commands/import',
                 'commands/import-csv',
+                'commands/import-changes',
               ],
             },
             {

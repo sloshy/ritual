@@ -3,7 +3,7 @@ import type { ScryfallCard } from '../../types'
 import type { UseEditorResult, ListItem } from '../useEditor'
 import type { UseEditorDefaultsResult } from '../useEditorDefaults'
 import type { SearchProvider } from '../search-provider'
-import type { ChangeFileKind } from '../change-file'
+import type { ListType } from '../../list-type'
 import { ChangesDialog } from './ChangesDialog'
 import { ImportChangesDialog } from './ImportChangesDialog'
 import { DiscardConfirmDialog } from './DiscardConfirmDialog'
@@ -41,7 +41,7 @@ type EditorShellProps<TData, TCardEntry> = {
   /** Enable the admin-only "Import…" button + dialog for loading exported change files. */
   enableImport?: boolean
   /** The list kind for import validation; required when `enableImport` is set. */
-  importKind?: ChangeFileKind
+  importKind?: ListType
   contextMenu?: JSX.Element
   children: JSX.Element
 }
@@ -147,7 +147,7 @@ export function EditorShell<TData, TCardEntry>(
             open={editor.dialogs.showImport()}
             onClose={editor.dialogs.closeImport}
             expectedKind={kind()}
-            onImport={(file) => editor.importChanges(file.changes)}
+            onImport={(changes) => editor.importChanges(changes)}
           />
         )}
       </Show>

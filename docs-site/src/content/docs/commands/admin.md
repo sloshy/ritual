@@ -70,7 +70,13 @@ When creating, an **Overwrite if a list with this name exists** checkbox replace
 
 ### Import Changes
 
-The deck, collection, and wanted-list editors each have an **Import…** button that accepts a change-list JSON exported from the public site's [in-browser editor](/commands/build-site/#editing-on-the-public-site). Upload the file or paste its contents; the editor validates it (rejecting a file whose list kind doesn't match), then loads its changes as **pending edits** rather than applying them immediately:
+The **Import Changes** page applies a change bundle exported from the public site's [in-browser editor](/commands/build-site/#editing-on-the-public-site) — a `ritual-change-bundle` JSON covering one or more lists (the export panel's **This list** and **All lists** scopes both produce it). Upload the file or paste its contents; the page parses it in the browser and shows a full **preview of every pending change grouped by target list**, with per-list and total counts. Nothing is written until you press **Apply N changes to K lists**.
+
+Applying re-targets each list's changes to its current card IDs (by ID when it still exists, otherwise by card name), writes the list files and their changelogs, and reports a per-list outcome: applied count, changes skipped because their target card no longer exists, and any list that failed entirely (which does not stop the others). This is the same engine as the [`import-changes`](/commands/import-changes/) CLI command and the MCP `import_changes` tool.
+
+#### Loading changes into an editor
+
+Alternatively, the deck, collection, and wanted-list editors each have an **Import…** button that loads a change bundle as **pending edits** rather than applying it immediately — useful when you want to adjust the changes before committing them. The dialog picks the bundle entry matching the list being edited (other entries are ignored) and rejects a bundle with no changes for the list's kind:
 
 - Each change is **re-targeted** to the current list's card IDs — added cards get fresh IDs, and other changes match by ID when it still exists, otherwise by card name.
 - Changes whose target can no longer be found are reported as conflicts and skipped, with a count shown after import.
@@ -504,6 +510,12 @@ Import a deck from a supported URL, or from decklist text supplied directly (pas
 **Auth required:** Yes
 
 Import cards from CSV text into a deck, collection, or wanted list — creating, overwriting, or appending. See the [admin API reference](/admin/api/#import-csv) for the full request/response specification.
+
+### `POST /api/import-changes`
+
+**Auth required:** Yes
+
+Apply an exported change bundle to the underlying lists. See the [admin API reference](/admin/api/#import-changes) for the full request/response specification.
 
 ### `POST /api/build-site`
 

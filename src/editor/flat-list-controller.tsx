@@ -4,7 +4,7 @@ import type { ChangeInput, ListRef, PrintingTuple } from '../change-event'
 import type { SelectedCard } from '../site/useCardSelection'
 import type { CardContextInfo } from './context-menu'
 import type { EditorConfig, UseEditorResult } from './useEditor'
-import type { ChangeFileKind } from './change-file'
+import type { ListType } from '../list-type'
 import { contextInfoFromSelected } from './selected-to-context'
 import { printingForMove } from '../site/printing-prompt'
 import { promptListMove, promptSectionMove } from '../site/move-prompt'
@@ -340,7 +340,7 @@ type FlatListEditorShellProps<E extends FlatEntry> = {
   showSave?: boolean
   showDiscard?: boolean
   enableImport?: boolean
-  importKind?: ChangeFileKind
+  importKind?: ListType
   children: JSX.Element
 }
 

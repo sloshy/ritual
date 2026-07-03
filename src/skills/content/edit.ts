@@ -3,7 +3,7 @@ import type { RitualSkill } from '../types'
 export const editSkill: RitualSkill = {
   name: 'ritual-edit',
   description:
-    'Edit cards in any Ritual deck, collection, or wanted list — non-interactive commands for agents and scripts, plus the interactive editor TUI. Use when the user wants to add or remove a card, set or clear a card note, edit lists interactively, move cards between lists, or compact a change history.',
+    'Edit cards in any Ritual deck, collection, or wanted list — non-interactive commands for agents and scripts, plus the interactive editor TUI. Use when the user wants to add or remove a card, set or clear a card note, edit lists interactively, move cards between lists, apply a change bundle exported from the site editor, or compact a change history.',
   body: `# Editing cards in any Ritual list (non-interactive)
 
 These commands edit a deck, collection, or wanted list **without an interactive
@@ -90,6 +90,25 @@ navbar menu, opening a picker of destination lists. The card leaves the list you
 editing, and on save **both** lists are
 written — removed from the source, added to the destination, with a changelog entry on
 each. Moving a printing-less card into a collection prompts for a specific printing first.
+
+## Apply exported changes
+
+\`ritual import-changes\` applies a change bundle exported from the public site's
+edit mode (or the admin editor's Export panel) to the underlying list files. The
+JSON is a \`ritual-change-bundle\` covering one or more lists — the export panel's
+"This list" and "All lists" scopes both produce it. The full change list is
+previewed grouped by target list, and nothing is written until you confirm:
+
+\`\`\`bash
+ritual import-changes edits.json          # preview, then confirm interactively
+ritual import-changes edits.json --yes    # apply without the confirmation prompt
+\`\`\`
+
+Changes are re-targeted to each list's current \`&N\` card IDs (by ID when it still
+exists, else by card name); changes whose target card no longer exists are skipped
+and reported. Each list gets a changelog entry, and a failed list (e.g. one that no
+longer exists) is reported without stopping the rest. Exits non-zero when any list
+fails. The same JSON can also be applied in the web admin's **Import Changes** page.
 
 ## Compact change history
 

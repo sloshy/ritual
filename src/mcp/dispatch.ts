@@ -1,4 +1,5 @@
 import { dispatchRoute, type HttpMethod, type RequestContext } from '../admin/server'
+import { buildSyntheticRequest } from '../synthetic-request'
 import { apiErrorToMcp, type ApiErrorBody } from './errors'
 
 /**
@@ -34,12 +35,7 @@ function errorBody(data: unknown, status: number): ApiErrorBody {
  * tool surfaces it as an `isError` result rather than a silent failure.
  */
 export async function callApi(method: HttpMethod, path: string, body?: unknown): Promise<unknown> {
-  const init: RequestInit = { method }
-  if (body !== undefined) {
-    init.body = JSON.stringify(body)
-    init.headers = { 'Content-Type': 'application/json' }
-  }
-  const req = new Request(`${SYNTHETIC_ORIGIN}${path}`, init)
+  const req = buildSyntheticRequest(SYNTHETIC_ORIGIN, method, path, body)
 
   const dispatched = await dispatchRoute(req, MCP_CONTEXT)
   if (!dispatched.matched) {

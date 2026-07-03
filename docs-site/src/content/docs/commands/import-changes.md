@@ -1,0 +1,64 @@
+---
+title: 'import-changes'
+---
+
+Apply a change bundle exported from the public site's [in-browser editor](/commands/build-site/#editing-on-the-public-site) (or the admin editor's Export panel) to your list files. The full change list is previewed grouped by target list, and nothing is written until you confirm.
+
+The same JSON can also be applied in the [admin site](/commands/admin/#import-changes) (**Import Changes** page) and via the [MCP](/commands/mcp/) `import_changes` tool, all backed by the same engine.
+
+## Usage
+
+```bash
+./ritual import-changes <file>
+```
+
+## Arguments
+
+| Argument | Description                    | Required |
+| -------- | ------------------------------ | -------- |
+| `<file>` | Path to the exported JSON file | Yes      |
+
+## Options
+
+| Option      | Description                           |
+| ----------- | ------------------------------------- |
+| `-y, --yes` | Apply without asking for confirmation |
+
+## Format
+
+The file is a **`ritual-change-bundle`** JSON covering one or more lists — the Export panel's **This list** scope produces a one-list bundle, and its **All lists** scope (available when edit mode accumulated changes across several lists) covers every edited list in the same envelope.
+
+## Preview and Confirmation
+
+Before anything is applied, the command prints every pending change grouped by its target list:
+
+```text
+🎴 Winota Stax (deck 'winota-stax') — 2 changes
+  • Add Counterspell
+  • Remove Lightning Bolt (LEA:161) &2
+
+📦 Main Binder (collection 'main-binder') — 1 change
+  • Add Sol Ring (C19:221)
+
+? Apply 3 changes to 2 lists? › (y/N)
+```
+
+Pass `--yes` to skip the prompt (for scripts and agents).
+
+## How Changes Are Applied
+
+Lists are applied in file order, each loaded fresh immediately before saving (so a cross-list move applied by an earlier list never conflicts with a later one):
+
+- Changes are **re-targeted** to each list's current `&N` card IDs — added cards draw fresh IDs, and other changes match by ID when it still exists, otherwise by card name.
+- Changes whose target card can no longer be found are **skipped and reported** as conflicts; the rest still apply.
+- `move-from` changes also write the destination list (the card is added there, with a `move-to` changelog entry), exactly like an admin editor save.
+- Every list that received changes gets an entry in its `.changes.md` changelog, and files are auto-committed when `git.autoCommit` is enabled — the same save path the admin editors use.
+
+A list that fails entirely (for example, one that no longer exists) is reported without stopping the remaining lists.
+
+## Exit Codes
+
+| Code | Meaning                                                          |
+| ---- | ---------------------------------------------------------------- |
+| `0`  | All lists applied (or nothing to apply / cancelled at prompt)    |
+| `1`  | Invalid or unreadable file, or at least one list failed to apply |

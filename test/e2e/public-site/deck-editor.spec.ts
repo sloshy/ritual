@@ -149,21 +149,25 @@ test.describe('Public deck editor', () => {
     // card (by ID) and re-foil another. Both target cards already in the deck, so
     // re-targeting matches them and nothing is fetched from Scryfall.
     const changeFile = JSON.stringify({
-      format: 'ritual-change-file',
+      format: 'ritual-change-bundle',
       version: 1,
-      kind: 'deck',
-      slug: 'test-multi-section-deck',
-      name: 'Test Multi-Section Deck',
       exportedAt: '2026-06-04T00:00:00.000Z',
-      changes: [
-        { id: 'a', timestamp: 1, action: 'remove', cardName: 'Test Creature', cardId: 1 },
+      lists: [
         {
-          id: 'b',
-          timestamp: 2,
-          action: 'set-finish',
-          cardName: 'Alpha Creature',
-          finish: 'foil',
-          cardId: 2,
+          kind: 'deck',
+          slug: 'test-multi-section-deck',
+          name: 'Test Multi-Section Deck',
+          changes: [
+            { id: 'a', timestamp: 1, action: 'remove', cardName: 'Test Creature', cardId: 1 },
+            {
+              id: 'b',
+              timestamp: 2,
+              action: 'set-finish',
+              cardName: 'Alpha Creature',
+              finish: 'foil',
+              cardId: 2,
+            },
+          ],
         },
       ],
     })
@@ -205,13 +209,17 @@ test.describe('Public deck editor', () => {
     const dialog = page.locator('.import-dialog')
     await dialog.locator('.import-dialog-textarea').fill(
       JSON.stringify({
-        format: 'ritual-change-file',
+        format: 'ritual-change-bundle',
         version: 1,
-        kind: 'deck',
-        slug: 'test-multi-section-deck',
-        name: 'Test Multi-Section Deck',
         exportedAt: '2026-06-04T00:00:00.000Z',
-        changes: [{ id: 'a', timestamp: 1, action: 'add', cardName: 'Sol Ring' }],
+        lists: [
+          {
+            kind: 'deck',
+            slug: 'test-multi-section-deck',
+            name: 'Test Multi-Section Deck',
+            changes: [{ id: 'a', timestamp: 1, action: 'add', cardName: 'Sol Ring' }],
+          },
+        ],
       }),
     )
     await dialog.getByRole('button', { name: 'Import', exact: true }).click()
@@ -238,24 +246,28 @@ test.describe('Public deck editor', () => {
     await expect(page.locator('.tag-filter-warning')).toHaveCount(0)
   })
 
-  test('rejects a change file for the wrong list kind', async ({ page }) => {
+  test('rejects a change bundle for the wrong list kind', async ({ page }) => {
     await page.locator('.btn-edit').click()
     await page.locator('.edit-banner').getByRole('button', { name: 'Load Changes' }).click()
     const dialog = page.locator('.import-dialog')
     await dialog.locator('.import-dialog-textarea').fill(
       JSON.stringify({
-        format: 'ritual-change-file',
+        format: 'ritual-change-bundle',
         version: 1,
-        kind: 'collection',
-        slug: 'x',
-        name: 'X',
         exportedAt: '2026-06-04T00:00:00.000Z',
-        changes: [{ id: 'a', timestamp: 1, action: 'add', cardName: 'Sol Ring' }],
+        lists: [
+          {
+            kind: 'collection',
+            slug: 'x',
+            name: 'X',
+            changes: [{ id: 'a', timestamp: 1, action: 'add', cardName: 'Sol Ring' }],
+          },
+        ],
       }),
     )
     await dialog.getByRole('button', { name: 'Import', exact: true }).click()
 
-    await expect(dialog).toContainText("for a collection, but you're editing a deck")
+    await expect(dialog).toContainText('no changes for a deck (it targets: collection)')
     await expect(page.locator('.changes-badge')).toHaveCount(0)
   })
 

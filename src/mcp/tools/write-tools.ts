@@ -7,6 +7,7 @@ import {
   createSetNoteChange,
   createSetPrintingChange,
 } from '../../change-event'
+import { parseChangeBundle } from '../../editor/change-bundle'
 import { callApi } from '../dispatch'
 import { mutateCollection, mutateDeck, mutateList, mutateWanted } from '../mutations'
 import { jsonResult, textResult } from '../result'
@@ -147,6 +148,31 @@ export function registerWriteTools(server: McpServer): void {
           hasHeader,
         }),
       ),
+  )
+
+  server.registerTool(
+    'import_changes',
+    {
+      title: 'Import changes',
+      description:
+        'Apply a change bundle exported from the site editor (format "ritual-change-bundle", ' +
+        'one or more lists) to the underlying lists. Changes are re-targeted to current ' +
+        'card IDs; ones whose target card no longer exists are reported as skipped conflicts. ' +
+        'The response lists per-list applied counts, conflicts, and errors.',
+      inputSchema: {
+        json: z.string().min(1).describe('The exported change JSON, verbatim.'),
+      },
+      annotations: { destructiveHint: true },
+    },
+    async ({ json }) => {
+      // Validate locally so a malformed payload surfaces as a clear message
+      // instead of a generic HTTP 400; the route re-validates the same way.
+      const bundle = parseChangeBundle(json)
+      if (typeof bundle === 'string') {
+        return { ...textResult(`Invalid change bundle: ${bundle}`), isError: true }
+      }
+      return jsonResult(await callApi('POST', '/api/import-changes', bundle))
+    },
   )
 
   server.registerTool(

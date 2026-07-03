@@ -12,6 +12,7 @@ import { NavigationGuardProvider, createNavigationGuard } from '../../editor/nav
 import { Dashboard } from './pages/Dashboard'
 import { ImportDeck } from './pages/ImportDeck'
 import { ImportCsv } from './pages/ImportCsv'
+import { ImportChanges } from './pages/ImportChanges'
 import { BuildSite } from './pages/BuildSite'
 import { CacheRefresh } from './pages/CacheRefresh'
 import { ArchidektLogin } from './pages/ArchidektLogin'
@@ -145,6 +146,9 @@ function App() {
               </Match>
               <Match when={page() === 'import-csv'}>
                 <ImportCsv />
+              </Match>
+              <Match when={page() === 'import-changes'}>
+                <ImportChanges />
               </Match>
               <Match when={page() === 'build-site'}>
                 <BuildSite />

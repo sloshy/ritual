@@ -272,6 +272,43 @@ export async function mockImportCsvApi(
   })
 }
 
+/** One list's outcome in a mocked import-changes response. */
+type MockImportChangesListResult = {
+  kind: string
+  slug: string
+  name: string
+  applied: number
+  conflicts: { change: Record<string, unknown>; reason: string }[]
+  error?: string
+}
+
+/**
+ * Mock the import-changes API endpoint. Pass `onRequest` to capture the parsed
+ * request body, and `lists` to control the per-list outcomes reported back.
+ */
+export async function mockImportChangesApi(
+  page: Page,
+  lists: MockImportChangesListResult[],
+  onRequest?: (body: unknown) => void,
+): Promise<void> {
+  await page.route('**/api/import-changes', async (route: Route) => {
+    onRequest?.(route.request().postDataJSON())
+    const success = lists.every((l) => l.error === undefined)
+    const applied = lists.reduce((sum, l) => sum + l.applied, 0)
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success,
+        lists,
+        message: success
+          ? `Applied ${applied} changes across ${lists.length} lists`
+          : `Applied ${applied} changes; some lists failed`,
+      }),
+    })
+  })
+}
+
 /**
  * Mock the TOTP status endpoint
  */

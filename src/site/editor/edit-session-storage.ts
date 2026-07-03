@@ -1,24 +1,26 @@
 import {
-  type ChangeFile,
-  type ChangeFileKind,
-  parseChangeFile,
-  serializeChangeFile,
-} from '../../editor/change-file'
+  type ChangeBundleList,
+  buildChangeBundle,
+  parseChangeBundle,
+  serializeChangeBundle,
+} from '../../editor/change-bundle'
+import type { ListType } from '../../list-type'
 
 /**
  * Opt-in persistence of a public edit session in the browser's localStorage.
  *
  * Edits are ephemeral by default — nothing is written here unless the visitor
- * explicitly clicks "Save to browser". A saved session is the same
- * {@link ChangeFile} that the Export panel produces, so restoring reuses the
- * editor's safe import (re-target) path. All access is guarded: localStorage may
- * be unavailable (SSR, private mode, disabled) or throw on quota, and a stored
- * value may be stale/corrupt — every failure degrades to "no saved session".
+ * explicitly clicks "Save to browser". A saved session is a one-list
+ * {@link ChangeBundleList} wrapped in the same bundle envelope the Export panel
+ * produces, so restoring reuses the editor's safe import (re-target) path. All
+ * access is guarded: localStorage may be unavailable (SSR, private mode,
+ * disabled) or throw on quota, and a stored value may be stale/corrupt — every
+ * failure degrades to "no saved session".
  */
 const KEY_PREFIX = 'ritual:site:edits'
 
 /** The localStorage key a list's edit session is stored under. Exported for tests. */
-export function editSessionKey(kind: ChangeFileKind, slug: string): string {
+export function editSessionKey(kind: ListType, slug: string): string {
   return `${KEY_PREFIX}:${kind}:${slug}`
 }
 
@@ -31,23 +33,27 @@ function storage(): Storage | null {
   }
 }
 
-/** Persist the change file for a list under its slug. A no-op if storage fails. */
-export function saveEditSession(file: ChangeFile): void {
+/** Persist a list's pending edits under its slug. A no-op if storage fails. */
+export function saveEditSession(list: ChangeBundleList, exportedAt: string): void {
   const store = storage()
   if (!store) return
   try {
-    store.setItem(editSessionKey(file.kind, file.slug), serializeChangeFile(file))
+    store.setItem(
+      editSessionKey(list.kind, list.slug),
+      serializeChangeBundle(buildChangeBundle({ lists: [list], exportedAt })),
+    )
   } catch {
     // Quota or serialization failure — nothing more we can do; stay ephemeral.
   }
 }
 
 /**
- * Load a previously saved session for a list. Returns the parsed {@link ChangeFile}
- * only when one exists and validates against the expected kind/slug; otherwise null
- * (missing, corrupt, or belonging to a different list).
+ * Load a previously saved session for a list. Returns the stored
+ * {@link ChangeBundleList} only when one exists and validates against the
+ * expected kind/slug; otherwise null (missing, corrupt, or belonging to a
+ * different list).
  */
-export function loadEditSession(kind: ChangeFileKind, slug: string): ChangeFile | null {
+export function loadEditSession(kind: ListType, slug: string): ChangeBundleList | null {
   const store = storage()
   if (!store) return null
   let raw: string | null
@@ -57,14 +63,14 @@ export function loadEditSession(kind: ChangeFileKind, slug: string): ChangeFile 
     return null
   }
   if (raw === null) return null
-  const parsed = parseChangeFile(raw)
+  const parsed = parseChangeBundle(raw)
   if (typeof parsed === 'string') return null
-  if (parsed.kind !== kind || parsed.slug !== slug) return null
-  return parsed
+  const list = parsed.lists.find((l) => l.kind === kind && l.slug === slug)
+  return list ?? null
 }
 
 /** Whether a saved session exists for a list (without parsing it fully). */
-export function hasEditSession(kind: ChangeFileKind, slug: string): boolean {
+export function hasEditSession(kind: ListType, slug: string): boolean {
   const store = storage()
   if (!store) return false
   try {
@@ -75,7 +81,7 @@ export function hasEditSession(kind: ChangeFileKind, slug: string): boolean {
 }
 
 /** Remove any saved session for a list. A no-op if storage fails. */
-export function clearEditSession(kind: ChangeFileKind, slug: string): void {
+export function clearEditSession(kind: ListType, slug: string): void {
   const store = storage()
   if (!store) return
   try {

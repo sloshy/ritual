@@ -2208,6 +2208,63 @@ h3 {
   margin-top: 0.5rem;
 }
 
+.export-panel-scope {
+  display: flex;
+  margin-top: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.export-panel-scope-option {
+  flex: 1;
+  padding: 0.4rem 0.6rem;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.export-panel-scope-option + .export-panel-scope-option {
+  border-left: 1px solid var(--border);
+}
+
+.export-panel-scope-option[data-active='true'] {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.export-panel-review-toggle {
+  margin-bottom: 0.75rem;
+}
+
+.export-panel-review {
+  max-height: 14rem;
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  overflow-y: auto;
+  font-size: 0.85rem;
+}
+
+.export-panel-review-group + .export-panel-review-group {
+  margin-top: 0.75rem;
+}
+
+.export-panel-review-list {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.export-panel-review-changes {
+  margin: 0.25rem 0 0;
+  padding-left: 1.25rem;
+  color: var(--text-secondary);
+}
+
 /* ── Price staleness disclaimer (after "Update Prices") ────────────────── */
 .price-staleness {
   margin-bottom: 1rem;

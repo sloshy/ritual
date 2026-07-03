@@ -87,6 +87,7 @@ there (since the admin binds `0.0.0.0` by default) and is independent of the bro
 | `create_deck`, `create_collection`, `create_wanted`                | Create a new, empty list.                                                                         |
 | `import_deck`                                                      | Import a deck from a URL or pasted decklist text.                                                 |
 | `import_csv`                                                       | Import CSV text into a new or existing list (create/overwrite/append) with a column-mapping spec. |
+| `import_changes`                                                   | Apply a change bundle exported from the site editor to the underlying lists.                      |
 | `add_card_to_deck`, `add_card_to_collection`, `add_card_to_wanted` | Add a card.                                                                                       |
 | `remove_card_from_deck`                                            | Remove one copy of a card from a deck.                                                            |
 | `set_card_note`, `set_card_printing`, `set_commander`              | Edit a card in place.                                                                             |
@@ -109,8 +110,9 @@ These are flagged with the MCP `destructiveHint` so clients can gate or confirm 
 | `build_site`                                        | Rebuild the public static site.                                           |
 | `refresh_cache`                                     | Refresh the Scryfall card cache (bulk download + oracle/art tags).        |
 
-`import_deck` and `import_csv` (listed under [Write](#write)) also carry `destructiveHint`, because
-both can overwrite an existing list of the same name. Their default, non-overwrite modes are safe.
+`import_deck`, `import_csv`, and `import_changes` (listed under [Write](#write)) also carry
+`destructiveHint`: the first two can overwrite an existing list of the same name, and an imported
+change list can remove cards. The imports' default, non-overwrite modes are otherwise safe.
 
 The authentication endpoints (`setup`, `login`, TOTP, Archidekt) are intentionally **not** exposed.
 

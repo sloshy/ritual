@@ -732,3 +732,49 @@ Import cards from CSV text into a deck, collection, or wanted list. Used by the 
 ```
 
 Rows that fail validation are returned in `failures` while the valid rows still import; the response is `400` only when the request itself is invalid or **no** rows could be imported. Appends record each added card in the list's changelog. When git auto-commit is enabled, the list file (and changelog) are committed.
+
+## Import Changes
+
+```
+POST /api/import-changes
+```
+
+Apply a change bundle exported from the site editor to the underlying lists. Used by the admin site's **Import Changes** page and exposed as the MCP `import_changes` tool; shares its apply engine with the [`import-changes`](/commands/import-changes/) CLI command.
+
+**Request Body:** the exported JSON, verbatim — a `ritual-change-bundle` covering one or more lists:
+
+```json
+{
+  "format": "ritual-change-bundle",
+  "version": 1,
+  "exportedAt": "2026-06-04T00:00:00.000Z",
+  "lists": [
+    {
+      "kind": "deck",
+      "slug": "winota-stax",
+      "name": "Winota Stax",
+      "changes": [{ "id": "a1", "timestamp": 1, "action": "add", "cardName": "Counterspell" }]
+    }
+  ]
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Applied 1 change across 1 list",
+  "lists": [
+    {
+      "kind": "deck",
+      "slug": "winota-stax",
+      "name": "Winota Stax",
+      "applied": 1,
+      "conflicts": []
+    }
+  ]
+}
+```
+
+Each list is loaded fresh and its changes re-targeted to the current card IDs (by ID when it still exists, otherwise by card name). Changes whose target card no longer exists are skipped and reported in that list's `conflicts` (`{ change, reason: "target-not-found" }`). A list that fails to load or save carries an `error` string (and `applied: 0`) without stopping the remaining lists; `success` is `true` only when no list errored. `move-from` changes also write their destination lists, and every applied list gets a changelog entry — the same save path as the editors. The response is `400` when the body is not a valid change bundle.

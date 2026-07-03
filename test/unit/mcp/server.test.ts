@@ -30,6 +30,7 @@ const EXPECTED_TOOLS = [
   'create_wanted',
   'import_deck',
   'import_csv',
+  'import_changes',
   'add_card_to_deck',
   'remove_card_from_deck',
   'add_card_to_collection',
@@ -113,8 +114,8 @@ describe('Ritual MCP server (in-memory transport)', () => {
       tools.filter((t) => t.annotations?.destructiveHint).map((t) => t.name),
     )
 
-    // Renames, deletes, history rewrites, config/site/cache ops, plus the two
-    // import tools (which can overwrite an existing list of the same name).
+    // Renames, deletes, history rewrites, config/site/cache ops, plus the import
+    // tools (deck/CSV can overwrite an existing list; changes can remove cards).
     expect(destructiveHinted).toEqual(
       new Set([
         'rename_deck',
@@ -129,6 +130,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
         'refresh_cache',
         'import_deck',
         'import_csv',
+        'import_changes',
       ]),
     )
 
@@ -244,6 +246,118 @@ describe('Ritual MCP server (in-memory transport)', () => {
       columns: 'name=1,set=2,collector-number=3',
     })
     expect(result.isError).toBe(true)
+  })
+
+  test('import_changes applies a multi-list bundle across list files', async () => {
+    const bundle = {
+      format: 'ritual-change-bundle',
+      version: 1,
+      exportedAt: '2026-06-04T00:00:00.000Z',
+      lists: [
+        {
+          kind: 'deck',
+          slug: 'test-deck',
+          name: 'Test Deck',
+          changes: [
+            { id: 'a1', timestamp: 1, action: 'add', cardName: 'Counterspell' },
+            { id: 'r1', timestamp: 2, action: 'remove', cardName: 'Lightning Bolt', cardId: 2 },
+          ],
+        },
+        {
+          kind: 'wanted',
+          slug: 'wishlist',
+          name: 'Wishlist',
+          changes: [{ id: 'a2', timestamp: 3, action: 'add', cardName: 'Brainstorm' }],
+        },
+        // A list with no changes must be reported as applied: 0 without touching its file.
+        { kind: 'collection', slug: 'shoebox', name: 'Shoebox', changes: [] },
+      ],
+    }
+    const collectionBefore = await fs.readFile(
+      path.join(env.dir, 'collections', 'shoebox.md'),
+      'utf-8',
+    )
+    const result = await callTool(client, 'import_changes', { json: JSON.stringify(bundle) })
+    expect(result.isError).toBeFalsy()
+    const data = toolJson(result) as {
+      success: boolean
+      lists: { slug: string; applied: number; conflicts: unknown[] }[]
+    }
+    expect(data.success).toBe(true)
+    expect(data.lists.map((l) => l.applied)).toEqual([2, 1, 0])
+
+    const deckOnDisk = await fs.readFile(path.join(env.dir, 'decks', 'test-deck.md'), 'utf-8')
+    expect(deckOnDisk).toMatch(/Counterspell &\d+/)
+    expect(deckOnDisk).not.toContain('Lightning Bolt')
+    const wantedOnDisk = await fs.readFile(path.join(env.dir, 'wanted', 'wishlist.md'), 'utf-8')
+    expect(wantedOnDisk).toMatch(/Brainstorm &\d+/)
+    const collectionAfter = await fs.readFile(
+      path.join(env.dir, 'collections', 'shoebox.md'),
+      'utf-8',
+    )
+    expect(collectionAfter).toBe(collectionBefore)
+  })
+
+  test('import_changes reports unresolvable changes as skipped conflicts', async () => {
+    const bundle = {
+      format: 'ritual-change-bundle',
+      version: 1,
+      exportedAt: '2026-06-04T00:00:00.000Z',
+      lists: [
+        {
+          kind: 'deck',
+          slug: 'test-deck',
+          name: 'Test Deck',
+          changes: [
+            { id: 'a1', timestamp: 1, action: 'add', cardName: 'Counterspell' },
+            { id: 'r1', timestamp: 2, action: 'remove', cardName: 'Not In Deck', cardId: 99 },
+          ],
+        },
+      ],
+    }
+    const result = await callTool(client, 'import_changes', { json: JSON.stringify(bundle) })
+    expect(result.isError).toBeFalsy()
+    const data = toolJson(result) as {
+      success: boolean
+      lists: { applied: number; conflicts: { change: { cardName: string } }[] }[]
+    }
+    expect(data.success).toBe(true)
+    expect(data.lists[0]?.applied).toBe(1)
+    expect(data.lists[0]?.conflicts.map((c) => c.change.cardName)).toEqual(['Not In Deck'])
+  })
+
+  test('import_changes reports a missing list without failing the rest of the bundle', async () => {
+    const bundle = {
+      format: 'ritual-change-bundle',
+      version: 1,
+      exportedAt: '2026-06-04T00:00:00.000Z',
+      lists: [
+        {
+          kind: 'collection',
+          slug: 'no-such-collection',
+          name: 'Ghost',
+          changes: [{ id: 'a1', timestamp: 1, action: 'add', cardName: 'Sol Ring' }],
+        },
+        {
+          kind: 'wanted',
+          slug: 'wishlist',
+          name: 'Wishlist',
+          changes: [{ id: 'a2', timestamp: 2, action: 'add', cardName: 'Brainstorm' }],
+        },
+      ],
+    }
+    // The bundle partially fails, so the tool surfaces an error result — but the
+    // valid list must still have been applied on disk.
+    const result = await callTool(client, 'import_changes', { json: JSON.stringify(bundle) })
+    expect(result.isError).toBe(true)
+    const wantedOnDisk = await fs.readFile(path.join(env.dir, 'wanted', 'wishlist.md'), 'utf-8')
+    expect(wantedOnDisk).toContain('Brainstorm')
+  })
+
+  test('import_changes rejects malformed JSON with a clear error', async () => {
+    const result = await callTool(client, 'import_changes', { json: '{"format":"other"}' })
+    expect(result.isError).toBe(true)
+    expect(firstText(result)).toContain('Invalid change bundle')
   })
 
   test('add_card_to_wanted persists through the entry-serializing save path', async () => {

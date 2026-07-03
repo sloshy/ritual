@@ -12,7 +12,6 @@ import { countsBySection, sectionOfTarget } from '../../editor/section-helpers'
 import { useFlatListEditController } from '../../editor/flat-list-controller'
 import { applyWantedChangePrinting, wantedPrintingOf } from '../../editor/wanted-config'
 import { WantedEditorBody } from '../../editor/WantedEditorBody'
-import { type ChangeFile, buildChangeFile } from '../../editor/change-file'
 import { wantedToMarkdown } from '../../editor/list-export'
 import { WantedListPage } from '../WantedListPage'
 import { createScryfallSearchProvider } from './scryfall-search-provider'
@@ -89,15 +88,6 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
 
   const changeCount = () => ctrl.editor.changes.changeCount()
 
-  const buildFile = (): ChangeFile =>
-    buildChangeFile({
-      kind: 'wanted',
-      slug: props.slug,
-      name: props.detail.name,
-      changes: ctrl.editor.changes.changes(),
-      exportedAt: new Date().toISOString(),
-    })
-
   const handleExit = () => {
     if (confirmDiscardOnExit(changeCount())) props.onExit()
   }
@@ -110,9 +100,9 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
       onDiscard={ctrl.editor.dialogs.openDiscard}
       onExit={handleExit}
       jsonFilename={`${safe()}-edits.json`}
-      buildFile={buildFile}
-      storageKind="wanted"
+      kind="wanted"
       slug={props.slug}
+      listName={props.detail.name}
       onImport={(changes) => ctrl.editor.importChanges(changes)}
       onRestore={(changes) => ctrl.editor.restoreChanges(changes)}
       bulkEdit={ctrl.bulkEdit}

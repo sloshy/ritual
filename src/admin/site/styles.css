@@ -1302,3 +1302,51 @@
   font-family: var(--font-mono);
   font-size: 0.75rem;
 }
+
+/* ===== Import Changes page ===== */
+.import-changes-preview {
+  max-height: 22rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  overflow-y: auto;
+  font-size: 0.85rem;
+}
+.import-changes-preview-group + .import-changes-preview-group {
+  margin-top: 0.75rem;
+}
+.import-changes-preview-list {
+  font-weight: 600;
+}
+.import-changes-preview-changes {
+  margin: 0.25rem 0 0;
+  padding-left: 1.25rem;
+  color: var(--text-secondary);
+}
+.import-changes-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.import-changes-result {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+}
+.import-changes-result[data-error='true'] {
+  border-color: var(--color-danger);
+}
+.import-changes-result-heading {
+  font-weight: 600;
+  margin-right: 0.5rem;
+}
+.import-changes-result-error {
+  color: var(--color-danger);
+}
+.import-changes-conflicts {
+  margin: 0.25rem 0 0;
+  padding-left: 1.25rem;
+  color: var(--text-secondary);
+}

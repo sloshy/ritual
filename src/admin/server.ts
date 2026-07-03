@@ -7,6 +7,7 @@ import { parseSessionCookie, validateSession } from './session'
 import { handleStatus, handleListDecks } from './api/status'
 import { handleImportDeck } from './api/import-deck'
 import { handleImportCsv } from './api/import-csv'
+import { handleImportChanges } from './api/import-changes'
 import { handleBuildSite } from './api/build-site'
 import { handleCacheRefresh, handleCacheRefreshStream } from './api/cache'
 import { handleArchidektLogin, handleArchidektStatus } from './api/login'
@@ -106,6 +107,7 @@ export const routes: Route[] = [
   { method: 'GET', path: '/api/decks', handler: handleListDecks, requiresAuth: true },
   { method: 'POST', path: '/api/import-deck', handler: handleImportDeck, requiresAuth: true },
   { method: 'POST', path: '/api/import-csv', handler: handleImportCsv, requiresAuth: true },
+  { method: 'POST', path: '/api/import-changes', handler: handleImportChanges, requiresAuth: true },
   { method: 'POST', path: '/api/build-site', handler: handleBuildSite, requiresAuth: true },
   {
     method: 'GET',

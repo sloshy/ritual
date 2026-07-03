@@ -1,5 +1,19 @@
 import type { ChangeEvent } from '../../change-event'
-import type { ChangeFileKind } from '../../editor/change-file'
+import type { ListType } from '../../list-type'
+
+/** One list's remembered pending edits (plus its display name, for export labels). */
+type EditSession = {
+  name: string
+  changes: ChangeEvent[]
+}
+
+/** A list's remembered session, as surfaced by {@link listEditSessions}. */
+export type EditSessionSnapshot = {
+  kind: ListType
+  slug: string
+  name: string
+  changes: ChangeEvent[]
+}
 
 /**
  * In-memory store of each list's pending edits for the current page session.
@@ -12,17 +26,18 @@ import type { ChangeFileKind } from '../../editor/change-file'
  * lists that are not currently open in an editor. Turning edit mode off clears every
  * session, and a reload drops them all (edit mode itself does not survive a reload).
  */
-const sessions = new Map<string, ChangeEvent[]>()
+const sessions = new Map<string, EditSession>()
 
-const keyOf = (kind: ChangeFileKind, slug: string): string => `${kind}:${slug}`
+const keyOf = (kind: ListType, slug: string): string => `${kind}:${slug}`
 
 /** Replace a list's remembered pending edits with the current change list. */
 export function rememberEditSession(
-  kind: ChangeFileKind,
+  kind: ListType,
   slug: string,
+  name: string,
   changes: ChangeEvent[],
 ): void {
-  sessions.set(keyOf(kind, slug), [...changes])
+  sessions.set(keyOf(kind, slug), { name, changes: [...changes] })
 }
 
 /**
@@ -30,8 +45,8 @@ export function rememberEditSession(
  * has not been opened in an editor (nor targeted by a cross-list removal) yet. An
  * empty array means the list was opened but currently has no edits.
  */
-export function recallEditSession(kind: ChangeFileKind, slug: string): ChangeEvent[] | undefined {
-  return sessions.get(keyOf(kind, slug))
+export function recallEditSession(kind: ListType, slug: string): ChangeEvent[] | undefined {
+  return sessions.get(keyOf(kind, slug))?.changes
 }
 
 /**
@@ -40,21 +55,45 @@ export function recallEditSession(kind: ChangeFileKind, slug: string): ChangeEve
  * currently open in an editor, so the removals apply when that list is next opened.
  */
 export function appendEditSession(
-  kind: ChangeFileKind,
+  kind: ListType,
   slug: string,
+  name: string,
   changes: ChangeEvent[],
 ): void {
   if (changes.length === 0) return
-  const existing = sessions.get(keyOf(kind, slug)) ?? []
-  sessions.set(keyOf(kind, slug), [...existing, ...changes])
+  const existing = sessions.get(keyOf(kind, slug))
+  sessions.set(keyOf(kind, slug), {
+    name,
+    changes: [...(existing?.changes ?? []), ...changes],
+  })
 }
 
 /** Whether any remembered session currently holds at least one pending edit. */
 export function hasAnyEditSession(): boolean {
-  for (const changes of sessions.values()) {
-    if (changes.length > 0) return true
+  for (const session of sessions.values()) {
+    if (session.changes.length > 0) return true
   }
   return false
+}
+
+/**
+ * Every remembered session that currently holds at least one pending edit, in
+ * insertion order. Backs the export panel's "all lists" scope, so the visitor can
+ * export the edits accumulated across every list touched this session.
+ */
+export function listEditSessions(): EditSessionSnapshot[] {
+  const snapshots: EditSessionSnapshot[] = []
+  for (const [key, session] of sessions) {
+    if (session.changes.length === 0) continue
+    const separator = key.indexOf(':')
+    snapshots.push({
+      kind: key.slice(0, separator) as ListType,
+      slug: key.slice(separator + 1),
+      name: session.name,
+      changes: [...session.changes],
+    })
+  }
+  return snapshots
 }
 
 /** Forget every remembered session — called when edit mode is turned off. */

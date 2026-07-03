@@ -1,56 +1,21 @@
-import type { Condition, DeckData, Finish } from '../types'
 import type { ListType } from '../list-type'
+import type { ParsedWantedEntry } from '../editor/wanted-entries'
 
 /**
  * Named result shapes for the subset of admin API responses the MCP layer reads.
- * Each interface captures only the fields a tool or mutation flow actually consumes;
- * the admin handlers return more, but narrowing to these keeps tool output focused
- * and the casts in `dispatch`/`mutations` honest.
+ * The load-endpoint shapes are shared with the change-bundle import engine and
+ * live next to the handlers (see `src/admin/api/load-results.ts`); they are
+ * re-exported here so MCP code keeps one import site for its response types.
  */
-
-/** A collection entry as returned by `GET /api/collection/:slug`. */
-export interface CollectionEntry {
-  name: string
-  set: string
-  collectorNumber: string
-  finish?: Finish
-  condition?: Condition
-  note?: string
-  cardId?: number
-  section?: string
-}
+export type {
+  CollectionEntry,
+  DeckLoadResult,
+  CollectionLoadResult,
+  WantedLoadResult,
+} from '../admin/api/load-results'
 
 /** A wanted-list entry as returned by `GET /api/wanted/:slug`. */
-export interface ParsedWantedEntry {
-  name: string
-  set?: string
-  collectorNumber?: string
-  finish?: Finish
-  note?: string
-  cardId?: number
-  section?: string
-}
-
-/** `GET /api/deck/:slug` — the fields the deck read and mutation flows consume. */
-export interface DeckLoadResult {
-  deck: DeckData
-  frontMatter: Record<string, unknown>
-  contentHash: string
-}
-
-/** `GET /api/collection/:slug` — entries plus the section order and content hash. */
-export interface CollectionLoadResult {
-  entries: CollectionEntry[]
-  sectionOrder?: string[]
-  contentHash: string
-}
-
-/** `GET /api/wanted/:slug` — entries plus the section order and content hash. */
-export interface WantedLoadResult {
-  entries: ParsedWantedEntry[]
-  sectionOrder?: string[]
-  contentHash: string
-}
+export type { ParsedWantedEntry }
 
 /** Response shape shared by the deck/collection/wanted save endpoints. */
 export interface SaveResult {

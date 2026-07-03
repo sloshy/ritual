@@ -1,47 +1,13 @@
 import type { ChangeEvent } from '../change-event'
 import type { ListType } from '../list-type'
-import type { WantedListCardEntry, WantedListEntryState } from '../site/data-types'
-import { DEFAULT_SECTION } from '../types'
 import { applyChangeToDeck } from '../editor/deck-changes'
 import { applyChangeToWantedList } from '../editor/wanted-changes'
+import { toWantedCardEntries } from '../editor/wanted-entries'
 import { callApi } from './dispatch'
-import type {
-  CollectionLoadResult,
-  DeckLoadResult,
-  ParsedWantedEntry,
-  SaveResult,
-  WantedLoadResult,
-} from './types'
+import type { CollectionLoadResult, DeckLoadResult, SaveResult, WantedLoadResult } from './types'
 
 function slugPath(slug: string): string {
   return encodeURIComponent(slug)
-}
-
-function wantedState(entry: ParsedWantedEntry): WantedListEntryState {
-  if (!entry.set || !entry.collectorNumber) return 'name-only'
-  return entry.finish ? 'fully-specified' : 'printing'
-}
-
-/**
- * Convert the parsed entries returned by the wanted load endpoint into the
- * card-entry shape {@link applyChangeToWantedList} operates on. The wanted save
- * endpoint serializes the entries it receives (unlike the collection endpoint,
- * which re-derives them from disk), so the change must be applied here and the
- * full entry list sent back.
- */
-function toWantedCardEntries(parsed: ParsedWantedEntry[]): WantedListCardEntry[] {
-  return parsed.map((entry, index) => ({
-    name: entry.name,
-    set: entry.set,
-    collectorNumber: entry.collectorNumber,
-    finish: entry.finish,
-    price: 0,
-    fileOrder: index,
-    section: entry.section ?? DEFAULT_SECTION,
-    note: entry.note,
-    state: wantedState(entry),
-    cardId: entry.cardId,
-  }))
 }
 
 /**

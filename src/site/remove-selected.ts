@@ -47,7 +47,7 @@ export function removeAllSelectedPublic(cards: SelectedCard[]): void {
     }
     if (!group.slug) continue
     const events = group.cards.flatMap(removeEventsFor)
-    appendEditSession(group.kind, group.slug, events)
+    appendEditSession(group.kind, group.slug, group.name, events)
   }
 }
 
@@ -99,7 +99,7 @@ export async function moveAllSelectedPublic(cards: SelectedCard[], dest: ListRef
     if (!group.slug) continue
     for (const card of group.cards) {
       const events = await moveEventsFor(card, dest)
-      if (events) appendEditSession(group.kind, group.slug, events)
+      if (events) appendEditSession(group.kind, group.slug, group.name, events)
     }
   }
 }
