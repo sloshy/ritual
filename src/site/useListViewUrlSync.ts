@@ -74,7 +74,9 @@ export function useListViewUrlSync<G extends GroupBy>(config: UseListViewUrlSync
 
   // Mirror subsequent state changes back into the URL.
   createEffect(() => {
-    const f = filters.filters
+    // Spreading the store proxy reads every filter field, so the effect subscribes
+    // to all of them and re-runs on any change — and new CardFilters fields are
+    // picked up automatically without editing this list.
     const state: ListViewState = {
       viewMode: toolbar.viewMode(),
       cardSize: toolbar.cardSize(),
@@ -83,26 +85,7 @@ export function useListViewUrlSync<G extends GroupBy>(config: UseListViewUrlSync
       reverse: toolbar.reverse(),
       reverseGroups: toolbar.reverseGroups(),
       priceGroupStrategy: toolbar.priceGroupStrategy(),
-      filters: {
-        hideLands: f.hideLands,
-        hideUnpriced: f.hideUnpriced,
-        hideExtras: f.hideExtras,
-        name: f.name,
-        colors: f.colors,
-        colorMode: f.colorMode,
-        setCodes: f.setCodes,
-        cardTypes: f.cardTypes,
-        cardTypeLogic: f.cardTypeLogic,
-        cardTypeMode: f.cardTypeMode,
-        oracleTags: f.oracleTags,
-        oracleTagLogic: f.oracleTagLogic,
-        oracleTagMode: f.oracleTagMode,
-        artTags: f.artTags,
-        artTagLogic: f.artTagLogic,
-        artTagMode: f.artTagMode,
-        manaValue: f.manaValue,
-        manaValueOp: f.manaValueOp,
-      },
+      filters: { ...filters.filters },
     }
     syncStateToUrl(state, defaults)
   })

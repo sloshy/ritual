@@ -17,7 +17,8 @@ All tag inputs (Sets, Card Type, Oracle Tags, and Art Tags) share the same autoc
 
 - **Card Type** — a tag input of card types and subtypes (see below).
 - **Oracle Tags** / **Art Tags** — tag inputs backed by [Scryfall Tagger](https://tagger.scryfall.com/) data (see below).
-- **Mana Value** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against the card's mana value.
+- **Mana Value** — pick a comparison operator (`=`, `<`, `≤`, `>`, `≥`) from the toggle buttons and type a value to compare against the card's mana value.
+- **Price** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against the card's price in the currency chosen by the header **Prices** selector. Pick the operator from the toggle buttons and type an amount (up to two decimals); the currency symbol next to the field shows which currency the threshold is in. Cards with no price in that currency never match. Because the threshold is currency-specific, switching the currency selector clears the field automatically.
 
 ## Card Type filter
 

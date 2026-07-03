@@ -1,6 +1,7 @@
 import type { Component, JSX } from 'solid-js'
 import { Show, For } from 'solid-js'
 import type { ViewMode, CardSize, SortBy, PriceGroupStrategy } from './card-sorting'
+import type { PriceCurrency } from '../price-currency'
 import { capitalize } from './utils'
 import { useStuck } from './useStuck'
 import { UpdatePricesButton } from './PriceControls'
@@ -35,6 +36,8 @@ interface ToolbarProps {
   onReverseGroupsChange: () => void
   filters: CardFiltersControl
   symbolMap: Record<string, string>
+  /** Active currency, used to label and interpret the price filter. */
+  currency: PriceCurrency
   /** Lowercase set codes present in the list, for the set filter autocomplete. */
   setCodeOptions: string[]
   /** Lowercase card type tags present in the list, for the type filter autocomplete. */
@@ -176,6 +179,7 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
         <FilterMenu
           filters={props.filters}
           symbolMap={props.symbolMap}
+          currency={props.currency}
           setCodeOptions={props.setCodeOptions}
           cardTypeOptions={props.cardTypeOptions}
           oracleTagOptions={props.oracleTagOptions}

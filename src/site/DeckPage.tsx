@@ -639,6 +639,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         onReverseGroupsChange={() => setReverseGroups((prev) => !prev)}
         filters={cardFilters}
         symbolMap={props.symbolMap}
+        currency={props.currency}
         setCodeOptions={setCodeOptions()}
         cardTypeOptions={cardTypeOptions()}
         oracleTagOptions={oracleTagOptions()}

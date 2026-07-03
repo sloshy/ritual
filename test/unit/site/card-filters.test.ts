@@ -8,7 +8,10 @@ import {
   createDefaultCardFilters,
   filterCards,
   isTagFilterActive,
+  parseManaValueAmount,
   parseManaValueFilter,
+  parsePriceAmount,
+  parsePriceFilter,
   toggleColorSelection,
   untaggedAddedCardNames,
   type CardFilters,
@@ -235,6 +238,34 @@ describe('filterCards', () => {
     expect(result.map((c) => c.name)).toEqual(expected)
   })
 
+  test.each([
+    ['<' as const, ['0.50', '2.00']],
+    ['<=' as const, ['0.50', '2.00', '5.00']],
+    ['>' as const, ['10.00', '25.00']],
+    ['>=' as const, ['5.00', '10.00', '25.00']],
+    ['=' as const, ['5.00']],
+  ])('price comparator %s 5 keeps the expected cards (active currency)', (op, expected) => {
+    const cards = [0.5, 2, 5, 10, 25].map((price) => makeCard({ name: price.toFixed(2), price }))
+    const result = filterCards(cards, makeFilters({ price: 5, priceOp: op }))
+    expect(result.map((c) => c.name)).toEqual(expected)
+  })
+
+  test('price filter never matches cards with no price data, even for < or =', () => {
+    const unpriced = makeCard({ name: 'Unpriced', price: 0 })
+    const cheap = makeCard({ name: 'Cheap', price: 1 })
+    expect(
+      filterCards([unpriced, cheap], makeFilters({ price: 5, priceOp: '<' })).map((c) => c.name),
+    ).toEqual(['Cheap'])
+    expect(filterCards([unpriced], makeFilters({ price: 0, priceOp: '=' }))).toHaveLength(0)
+  })
+
+  test('price filter compares decimal thresholds', () => {
+    const cards = [makeCard({ name: 'A', price: 0.24 }), makeCard({ name: 'B', price: 0.26 })]
+    expect(
+      filterCards(cards, makeFilters({ price: 0.25, priceOp: '<' })).map((c) => c.name),
+    ).toEqual(['A'])
+  })
+
   test('filters combine: every active filter must pass', () => {
     const match = makeCard({
       name: 'Green Elf',
@@ -279,6 +310,10 @@ describe('countActiveFilters', () => {
     expect(countActiveFilters(makeFilters({ manaValue: 0 }))).toBe(1)
   })
 
+  test('price 0 counts as active', () => {
+    expect(countActiveFilters(makeFilters({ price: 0 }))).toBe(1)
+  })
+
   test('each filter contributes one to the count', () => {
     const filters = makeFilters({
       hideLands: true,
@@ -291,8 +326,9 @@ describe('countActiveFilters', () => {
       oracleTags: ['ramp'],
       artTags: ['dragon'],
       manaValue: 1,
+      price: 5,
     })
-    expect(countActiveFilters(filters)).toBe(10)
+    expect(countActiveFilters(filters)).toBe(11)
   })
 
   test('card type logic/mode alone do not count as active', () => {
@@ -316,6 +352,7 @@ describe('countActiveFilters', () => {
 
   test('a non-default comparator alone does not count as active', () => {
     expect(countActiveFilters(makeFilters({ manaValueOp: '>=' }))).toBe(0)
+    expect(countActiveFilters(makeFilters({ priceOp: '>=' }))).toBe(0)
   })
 })
 
@@ -333,6 +370,42 @@ describe('parseManaValueFilter', () => {
   test.each(['-1', '1.5', 'abc', '1e3'])('rejects %p', (input) => {
     const result = parseManaValueFilter(input)
     expect(result.ok).toBe(false)
+  })
+})
+
+describe('parsePriceFilter', () => {
+  test('empty input clears the filter', () => {
+    expect(parsePriceFilter('')).toEqual({ ok: true, value: null })
+    expect(parsePriceFilter('   ')).toEqual({ ok: true, value: null })
+  })
+
+  test('parses non-negative amounts with up to two decimals', () => {
+    expect(parsePriceFilter('0')).toEqual({ ok: true, value: 0 })
+    expect(parsePriceFilter('5')).toEqual({ ok: true, value: 5 })
+    expect(parsePriceFilter('0.25')).toEqual({ ok: true, value: 0.25 })
+    expect(parsePriceFilter('12.9')).toEqual({ ok: true, value: 12.9 })
+  })
+
+  test.each(['-1', '1.234', 'abc', '1e3', '.5', '5.'])('rejects %p', (input) => {
+    expect(parsePriceFilter(input).ok).toBe(false)
+  })
+})
+
+// The raw amount parsers are the single source of truth for the numeric formats,
+// shared by both the filter inputs above and the lenient URL-param parsers.
+describe('parseManaValueAmount / parsePriceAmount', () => {
+  test('parse valid tokens, tolerating surrounding whitespace', () => {
+    expect(parseManaValueAmount(' 3 ')).toBe(3)
+    expect(parseManaValueAmount('0')).toBe(0)
+    expect(parsePriceAmount(' 5.25 ')).toBe(5.25)
+    expect(parsePriceAmount('0')).toBe(0)
+  })
+
+  test('return undefined for malformed or empty tokens', () => {
+    expect(parseManaValueAmount('')).toBeUndefined()
+    expect(parseManaValueAmount('2.5')).toBeUndefined()
+    expect(parsePriceAmount('')).toBeUndefined()
+    expect(parsePriceAmount('1.234')).toBeUndefined()
   })
 })
 

@@ -1,14 +1,16 @@
 import type { Accessor, Component } from 'solid-js'
-import { createSignal, For, Show } from 'solid-js'
+import { createEffect, createSignal, For, on, Show } from 'solid-js'
 import { useAnchoredMenu } from '../ui/useAnchoredMenu'
 import { useAnchoredToggle } from '../ui/useAnchoredToggle'
 import { parseSetCodesInput, scanSetCodesInput } from '../set-codes'
 import { colorIdentityName, WUBRG } from './card-sorting'
 import {
   parseManaValueFilter,
+  parsePriceFilter,
   toggleColorSelection,
-  type ManaValueComparator,
+  type NumericComparator,
 } from './card-filters'
+import { type PriceCurrency, getCurrencySymbol } from '../price-currency'
 import { formatCardTypeForDisplay, parseCardTypesInput, scanCardTypeInput } from './card-types'
 import type { TagFilterMode, TagMatchLogic } from './card-tags'
 import { TagsInput } from './TagsInput'
@@ -16,9 +18,10 @@ import type { CardFiltersControl } from './useCardFilters'
 
 const PANEL_WIDTH = 320
 
-type ComparatorOption = { value: ManaValueComparator; label: string }
+type ComparatorOption = { value: NumericComparator; label: string }
 
-const MANA_VALUE_COMPARATORS: ComparatorOption[] = [
+/** Shared comparator choices for the numeric (mana value, price) filters. */
+const COMPARATOR_OPTIONS: ComparatorOption[] = [
   { value: '=', label: '=' },
   { value: '<', label: '<' },
   { value: '<=', label: '≤' },
@@ -29,6 +32,8 @@ const MANA_VALUE_COMPARATORS: ComparatorOption[] = [
 export interface FilterMenuProps {
   filters: CardFiltersControl
   symbolMap: Record<string, string>
+  /** Active currency, used to label and interpret the price filter. */
+  currency: PriceCurrency
   /** Lowercase set codes present in the current list, for the set filter autocomplete. */
   setCodeOptions: string[]
   /** Lowercase card type tags present in the current list, for the type filter autocomplete. */
@@ -159,6 +164,7 @@ export const FilterMenu: Component<FilterMenuProps> = (props) => {
             anchorEl={toggle.buttonEl}
             filters={props.filters}
             symbolMap={props.symbolMap}
+            currency={props.currency}
             setCodeOptions={props.setCodeOptions}
             cardTypeOptions={props.cardTypeOptions}
             oracleTagOptions={props.oracleTagOptions}
@@ -186,6 +192,20 @@ const FilterPanel: Component<FilterPanelProps> = (props) => {
     excludeEl: props.anchorEl,
   })
   const [manaValueError, setManaValueError] = createSignal<string | null>(null)
+  const [priceError, setPriceError] = createSignal<string | null>(null)
+
+  // The price filter can be cleared externally (switching currency resets it in the
+  // store), which leaves no error to show — drop any stale validation message so it
+  // isn't stranded next to an emptied field.
+  createEffect(
+    on(
+      () => props.filters.filters.price,
+      (price) => {
+        if (price === null) setPriceError(null)
+      },
+      { defer: true },
+    ),
+  )
 
   const handleManaValueInput = (raw: string) => {
     const parsed = parseManaValueFilter(raw)
@@ -193,9 +213,16 @@ const FilterPanel: Component<FilterPanelProps> = (props) => {
     if (parsed.ok) props.filters.update({ manaValue: parsed.value })
   }
 
+  const handlePriceInput = (raw: string) => {
+    const parsed = parsePriceFilter(raw)
+    setPriceError(parsed.ok ? null : parsed.error)
+    if (parsed.ok) props.filters.update({ price: parsed.value })
+  }
+
   const handleClearAll = () => {
     props.filters.reset()
     setManaValueError(null)
+    setPriceError(null)
   }
 
   return (
@@ -414,22 +441,26 @@ const FilterPanel: Component<FilterPanelProps> = (props) => {
         onMode={(artTagMode) => props.filters.update({ artTagMode })}
       />
       <div class="filter-row">
-        <label class="filter-label" for="filter-mana-value">
-          Mana Value
-        </label>
-        <div class="filter-mana-value">
-          <select
-            class="toolbar-select"
-            aria-label="Mana value comparison"
-            value={props.filters.filters.manaValueOp}
-            onChange={(e) =>
-              props.filters.update({ manaValueOp: e.currentTarget.value as ManaValueComparator })
-            }
-          >
-            <For each={MANA_VALUE_COMPARATORS}>
-              {(opt) => <option value={opt.value}>{opt.label}</option>}
+        <div class="filter-type-header">
+          <label class="filter-label" for="filter-mana-value">
+            Mana Value
+          </label>
+          <div class="filter-toggle-group" role="group" aria-label="Mana value comparison">
+            <For each={COMPARATOR_OPTIONS}>
+              {(opt) => (
+                <button
+                  type="button"
+                  classList={{ active: props.filters.filters.manaValueOp === opt.value }}
+                  aria-pressed={props.filters.filters.manaValueOp === opt.value}
+                  onClick={() => props.filters.update({ manaValueOp: opt.value })}
+                >
+                  {opt.label}
+                </button>
+              )}
             </For>
-          </select>
+          </div>
+        </div>
+        <div class="filter-mana-value">
           <input
             id="filter-mana-value"
             class="filter-input filter-input-mana-value"
@@ -446,6 +477,49 @@ const FilterPanel: Component<FilterPanelProps> = (props) => {
         <Show when={manaValueError()}>
           {(error) => <span class="filter-error">{error()}</span>}
         </Show>
+      </div>
+      <div class="filter-row">
+        <div class="filter-type-header">
+          <label class="filter-label" for="filter-price">
+            Price
+          </label>
+          <div class="filter-toggle-group" role="group" aria-label="Price comparison">
+            <For each={COMPARATOR_OPTIONS}>
+              {(opt) => (
+                <button
+                  type="button"
+                  classList={{ active: props.filters.filters.priceOp === opt.value }}
+                  aria-pressed={props.filters.filters.priceOp === opt.value}
+                  onClick={() => props.filters.update({ priceOp: opt.value })}
+                >
+                  {opt.label}
+                </button>
+              )}
+            </For>
+          </div>
+        </div>
+        <div class="filter-price">
+          <Show when={getCurrencySymbol(props.currency)}>
+            {(symbol) => (
+              <span class="filter-price-symbol" aria-hidden="true">
+                {symbol()}
+              </span>
+            )}
+          </Show>
+          <input
+            id="filter-price"
+            class="filter-input filter-input-price"
+            type="number"
+            min="0"
+            step="0.01"
+            inputmode="decimal"
+            placeholder="Any"
+            aria-invalid={priceError() !== null}
+            value={props.filters.filters.price ?? ''}
+            onInput={(e) => handlePriceInput(e.currentTarget.value)}
+          />
+        </div>
+        <Show when={priceError()}>{(error) => <span class="filter-error">{error()}</span>}</Show>
       </div>
       <Show when={props.filters.activeCount() > 0}>
         <button type="button" class="link-action filter-clear" onClick={handleClearAll}>

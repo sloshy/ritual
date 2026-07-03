@@ -233,6 +233,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
         onReverseGroupsChange={() => setReverseGroups((prev) => !prev)}
         filters={cardFilters}
         symbolMap={props.symbolMap}
+        currency={props.currency}
         setCodeOptions={setCodeOptions()}
         cardTypeOptions={cardTypeOptions()}
         oracleTagOptions={oracleTagOptions()}

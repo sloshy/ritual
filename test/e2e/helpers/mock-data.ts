@@ -1213,6 +1213,7 @@ const MOCK_FILTER_CARD_KNIGHT = {
   edhrec_rank: 1000,
   oracleTags: ['removal', 'mana-rock'],
   artTags: ['human'],
+  prices: { usd: '5.00', usd_foil: null, usd_etched: null, eur: '4.00', eur_foil: null, tix: null },
 }
 
 const MOCK_FILTER_CARD_ELF = {
@@ -1229,6 +1230,7 @@ const MOCK_FILTER_CARD_ELF = {
   edhrec_rank: 1100,
   oracleTags: ['ramp'],
   artTags: ['forest'],
+  prices: { usd: '0.50', usd_foil: null, usd_etched: null, eur: '0.40', eur_foil: null, tix: null },
 }
 
 const MOCK_FILTER_CARD_LORD = {
@@ -1244,6 +1246,14 @@ const MOCK_FILTER_CARD_LORD = {
   edhrec_rank: 1200,
   oracleTags: ['removal', 'ramp'],
   artTags: ['zombie'],
+  prices: {
+    usd: '10.00',
+    usd_foil: null,
+    usd_etched: null,
+    eur: '8.00',
+    eur_foil: null,
+    tix: null,
+  },
 }
 
 const MOCK_FILTER_CARD_FOREST = {
@@ -1257,6 +1267,7 @@ const MOCK_FILTER_CARD_FOREST = {
   collector_number: '4',
   color_identity: ['G'],
   edhrec_rank: 1300,
+  prices: { usd: '0.25', usd_foil: null, usd_etched: null, eur: '0.20', eur_foil: null, tix: null },
 }
 
 const MOCK_FILTER_CARD_ROCK = {
@@ -1287,6 +1298,14 @@ const MOCK_FILTER_CARD_DRAGON = {
   edhrec_rank: 1500,
   oracleTags: ['flying'],
   artTags: ['dragon'],
+  prices: {
+    usd: '25.00',
+    usd_foil: null,
+    usd_etched: null,
+    eur: '20.00',
+    eur_foil: null,
+    tix: null,
+  },
 }
 
 const MOCK_FILTER_CARDS = [
@@ -1333,7 +1352,7 @@ const MOCK_FILTER_DECK = {
   symbolMap: {},
   useScryfallImgUrls: false,
   defaultCurrency: 'usd',
-  availableCurrencies: ['usd'],
+  availableCurrencies: ['usd', 'eur'],
   missingCards: { usd: [], eur: [], tix: [] },
 }
 
@@ -1351,7 +1370,7 @@ const MOCK_SITE_INDEX_WITH_FILTER_DECK = {
   collections: [],
   useScryfallImgUrls: false,
   defaultCurrency: 'usd',
-  availableCurrencies: ['usd'],
+  availableCurrencies: ['usd', 'eur'],
 }
 
 /**

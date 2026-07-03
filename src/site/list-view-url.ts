@@ -9,8 +9,10 @@
 import {
   type CardFilters,
   type ColorFilterMode,
-  type ManaValueComparator,
+  type NumericComparator,
   createDefaultCardFilters,
+  parseManaValueAmount,
+  parsePriceAmount,
 } from './card-filters'
 import type { CardTypeFilterMode, CardTypeMatchLogic } from './card-types'
 import type { TagFilterMode, TagMatchLogic } from './card-tags'
@@ -76,7 +78,7 @@ const SORT_BYS: readonly SortBy[] = [
 ]
 const PRICE_STRATEGIES: readonly PriceGroupStrategy[] = ['archidekt', 'five', 'ten']
 const COLOR_MODES: readonly ColorFilterMode[] = ['exclusive', 'inclusive']
-const MANA_VALUE_OPS: readonly ManaValueComparator[] = ['=', '<', '<=', '>', '>=']
+const NUMERIC_OPS: readonly NumericComparator[] = ['=', '<', '<=', '>', '>=']
 const TYPE_LOGICS: readonly CardTypeMatchLogic[] = ['and', 'or']
 const TYPE_MODES: readonly CardTypeFilterMode[] = ['include', 'exclude']
 const TAG_LOGICS: readonly TagMatchLogic[] = ['and', 'or']
@@ -109,6 +111,8 @@ const KEYS = {
   artTagMode: 'atagMode',
   manaValue: 'mv',
   manaValueOp: 'mvOp',
+  price: 'price',
+  priceOp: 'priceOp',
 } as const
 
 function setOrDelete(params: URLSearchParams, key: string, value: string | null): void {
@@ -200,6 +204,10 @@ export function writeListViewParams(
     KEYS.manaValueOp,
     hasMana && f.manaValueOp !== d.manaValueOp ? f.manaValueOp : null,
   )
+
+  const hasPrice = f.price !== null
+  setOrDelete(params, KEYS.price, hasPrice ? String(f.price) : null)
+  setOrDelete(params, KEYS.priceOp, hasPrice && f.priceOp !== d.priceOp ? f.priceOp : null)
 }
 
 /** True if any list-view parameter is present (used to decide whether to apply overrides). */
@@ -230,8 +238,11 @@ function parseColors(value: string | null): string[] | undefined {
 }
 
 function parseManaValue(value: string | null): number | undefined {
-  if (value === null || !/^\d+$/.test(value.trim())) return undefined
-  return parseInt(value.trim(), 10)
+  return value === null ? undefined : parseManaValueAmount(value)
+}
+
+function parsePrice(value: string | null): number | undefined {
+  return value === null ? undefined : parsePriceAmount(value)
 }
 
 /** Read every recognized list-view parameter from `params` into a partial state. */
@@ -292,8 +303,15 @@ export function parseListViewParams(params: URLSearchParams): ListViewOverrides 
   const manaValue = parseManaValue(get(KEYS.manaValue))
   if (manaValue !== undefined) {
     filters.manaValue = manaValue
-    const manaValueOp = oneOf(get(KEYS.manaValueOp), MANA_VALUE_OPS)
+    const manaValueOp = oneOf(get(KEYS.manaValueOp), NUMERIC_OPS)
     if (manaValueOp) filters.manaValueOp = manaValueOp
+  }
+
+  const price = parsePrice(get(KEYS.price))
+  if (price !== undefined) {
+    filters.price = price
+    const priceOp = oneOf(get(KEYS.priceOp), NUMERIC_OPS)
+    if (priceOp) filters.priceOp = priceOp
   }
 
   if (Object.keys(filters).length > 0) overrides.filters = filters

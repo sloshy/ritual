@@ -339,6 +339,21 @@
   width: 6rem;
 }
 
+.filter-price {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.filter-price-symbol {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.filter-input-price {
+  width: 6rem;
+}
+
 .filter-clear {
   align-self: flex-start;
 }

@@ -128,6 +128,29 @@ describe('writeListViewParams', () => {
     expect(encode(defaultState({ filters })).get('mv')).toBe('0')
   })
 
+  test('an active price filter and its non-default operator are written', () => {
+    const filters = createDefaultCardFilters()
+    filters.price = 5.25
+    filters.priceOp = '<='
+    const params = encode(defaultState({ filters }))
+    expect(params.get('price')).toBe('5.25')
+    expect(params.get('priceOp')).toBe('<=')
+  })
+
+  test('priceOp at its default stays out of the URL, and a price of 0 is written', () => {
+    const filters = createDefaultCardFilters()
+    filters.price = 0 // priceOp left at default '='
+    const params = encode(defaultState({ filters }))
+    expect(params.get('price')).toBe('0')
+    expect(params.has('priceOp')).toBe(false)
+  })
+
+  test('priceOp alone (no price) stays out of the URL', () => {
+    const filters = createDefaultCardFilters()
+    filters.priceOp = '>='
+    expect(encode(defaultState({ filters })).has('priceOp')).toBe(false)
+  })
+
   test('oracle and art tag selections and their non-default sub-options are written', () => {
     const filters = createDefaultCardFilters()
     filters.oracleTags = ['ramp', 'mana-rock']
@@ -174,6 +197,8 @@ describe('parseListViewParams', () => {
     // artTagLogic / artTagMode left at default to verify they stay absent from the round-trip.
     filters.manaValue = 4
     filters.manaValueOp = '<='
+    filters.price = 5.25
+    filters.priceOp = '>='
     const state = defaultState({
       viewMode: 'overlap',
       cardSize: 'medium',
@@ -210,6 +235,8 @@ describe('parseListViewParams', () => {
       artTags: ['dragon'],
       manaValue: 4,
       manaValueOp: '<=',
+      price: 5.25,
+      priceOp: '>=',
     })
   })
 
@@ -248,6 +275,19 @@ describe('parseListViewParams', () => {
 
   test('a mana value of 0 parses to 0, not undefined', () => {
     expect(parseListViewParams(new URLSearchParams('mv=0')).filters).toEqual({ manaValue: 0 })
+  })
+
+  test('a price with up to two decimals parses; more decimals or junk are ignored', () => {
+    expect(parseListViewParams(new URLSearchParams('price=5.25')).filters).toEqual({ price: 5.25 })
+    expect(parseListViewParams(new URLSearchParams('price=0')).filters).toEqual({ price: 0 })
+    expect(parseListViewParams(new URLSearchParams('price=1.234')).filters).toBeUndefined()
+    expect(parseListViewParams(new URLSearchParams('price=abc')).filters).toBeUndefined()
+  })
+
+  test('priceOp is only applied alongside a valid price', () => {
+    expect(parseListViewParams(new URLSearchParams('priceOp=>=')).filters).toBeUndefined()
+    const parsed = parseListViewParams(new URLSearchParams('price=5&priceOp=>='))
+    expect(parsed.filters).toEqual({ price: 5, priceOp: '>=' })
   })
 
   test('set and type tokens are lowercased and blanks dropped', () => {

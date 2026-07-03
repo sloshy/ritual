@@ -12,8 +12,14 @@ import { matchesTags, type TagFilterMode, type TagMatchLogic } from './card-tags
 /** How selected colors are matched against a card's color identity. */
 export type ColorFilterMode = 'exclusive' | 'inclusive'
 
+/** A numeric comparison operator shared by the mana value and price filters. */
+export type NumericComparator = '=' | '<' | '<=' | '>' | '>='
+
 /** Comparison applied between a card's mana value and the filter value. */
-export type ManaValueComparator = '=' | '<' | '<=' | '>' | '>='
+export type ManaValueComparator = NumericComparator
+
+/** Comparison applied between a card's price (in the active currency) and the filter value. */
+export type PriceComparator = NumericComparator
 
 export interface CardFilters {
   hideLands: boolean
@@ -56,6 +62,13 @@ export interface CardFilters {
   /** Mana value compared via `manaValueOp`. Null = no mana value filtering. */
   manaValue: number | null
   manaValueOp: ManaValueComparator
+  /**
+   * Price (in the active currency) compared via `priceOp`. Null = no price
+   * filtering. The value is currency-specific, so it is cleared when the user
+   * switches currency. Cards with no price data never match a price filter.
+   */
+  price: number | null
+  priceOp: PriceComparator
 }
 
 export function createDefaultCardFilters(): CardFilters {
@@ -78,6 +91,8 @@ export function createDefaultCardFilters(): CardFilters {
     artTagMode: 'include',
     manaValue: null,
     manaValueOp: '=',
+    price: null,
+    priceOp: '=',
   }
 }
 
@@ -85,18 +100,18 @@ function isLand(card: CardData): boolean {
   return card.cmc === 0 && (card.type.includes('Land') || card.type.includes('Basic'))
 }
 
-function compareManaValue(cmc: number, op: ManaValueComparator, value: number): boolean {
+function compareNumeric(actual: number, op: NumericComparator, value: number): boolean {
   switch (op) {
     case '=':
-      return cmc === value
+      return actual === value
     case '<':
-      return cmc < value
+      return actual < value
     case '<=':
-      return cmc <= value
+      return actual <= value
     case '>':
-      return cmc > value
+      return actual > value
     case '>=':
-      return cmc >= value
+      return actual >= value
   }
 }
 
@@ -143,9 +158,14 @@ export function filterCards<T extends CardData>(cards: T[], filters: CardFilters
     }
     if (
       filters.manaValue !== null &&
-      !compareManaValue(card.cmc, filters.manaValueOp, filters.manaValue)
+      !compareNumeric(card.cmc, filters.manaValueOp, filters.manaValue)
     ) {
       return false
+    }
+    if (filters.price !== null) {
+      // A card with no price data (price <= 0) can't satisfy a price comparison.
+      if (card.price <= 0) return false
+      if (!compareNumeric(card.price, filters.priceOp, filters.price)) return false
     }
     return true
   })
@@ -164,6 +184,7 @@ export function countActiveFilters(filters: CardFilters): number {
   if (filters.oracleTags.length > 0) count++
   if (filters.artTags.length > 0) count++
   if (filters.manaValue !== null) count++
+  if (filters.price !== null) count++
   return count
 }
 
@@ -234,16 +255,48 @@ export function untaggedAddedCardNames(cards: CardData[], addedNames: readonly s
   return result
 }
 
-export type ManaValueParse = { ok: true; value: number | null } | { ok: false; error: string }
+/** Result of parsing a numeric filter input: a value (null = cleared) or an error message. */
+export type NumericFilterParse = { ok: true; value: number | null } | { ok: false; error: string }
+
+/**
+ * Parse a mana value token to a non-negative integer, or undefined if malformed.
+ * The single source of truth for the mana value format, shared by the filter
+ * input (below) and the lenient URL-param parser.
+ */
+export function parseManaValueAmount(raw: string): number | undefined {
+  const trimmed = raw.trim()
+  if (!/^\d+$/.test(trimmed)) return undefined
+  return parseInt(trimmed, 10)
+}
 
 /** Parse the mana value filter input: empty clears the filter, otherwise a non-negative integer. */
-export function parseManaValueFilter(raw: string): ManaValueParse {
+export function parseManaValueFilter(raw: string): NumericFilterParse {
+  if (raw.trim().length === 0) return { ok: true, value: null }
+  const value = parseManaValueAmount(raw)
+  if (value === undefined) return { ok: false, error: 'Mana value must be a non-negative integer' }
+  return { ok: true, value }
+}
+
+/**
+ * Parse a price token to a non-negative amount with up to two decimal places, or
+ * undefined if malformed. The single source of truth for the price format, shared
+ * by the filter input (below) and the lenient URL-param parser.
+ */
+export function parsePriceAmount(raw: string): number | undefined {
   const trimmed = raw.trim()
-  if (trimmed.length === 0) return { ok: true, value: null }
-  if (!/^\d+$/.test(trimmed)) {
-    return { ok: false, error: 'Mana value must be a non-negative integer' }
-  }
-  return { ok: true, value: parseInt(trimmed, 10) }
+  if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) return undefined
+  return parseFloat(trimmed)
+}
+
+/**
+ * Parse the price filter input: empty clears the filter, otherwise a non-negative
+ * amount with up to two decimal places (in the currently selected currency).
+ */
+export function parsePriceFilter(raw: string): NumericFilterParse {
+  if (raw.trim().length === 0) return { ok: true, value: null }
+  const value = parsePriceAmount(raw)
+  if (value === undefined) return { ok: false, error: 'Price must be a non-negative number' }
+  return { ok: true, value }
 }
 
 /** Toggle a color in a selection, keeping the result in canonical WUBRG order. */

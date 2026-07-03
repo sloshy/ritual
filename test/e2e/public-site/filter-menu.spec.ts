@@ -277,17 +277,61 @@ test.describe('Toolbar Filters menu', () => {
     page,
   }) => {
     await openFilterMenu(page)
-    const comparator = page.getByLabel('Mana value comparison')
+    const comparator = page.getByRole('group', { name: 'Mana value comparison' })
     await page.locator('#filter-mana-value').fill('2')
 
-    await comparator.selectOption('>=')
+    await comparator.getByRole('button', { name: '≥', exact: true }).click()
     await expectVisibleCards(page, ['Boring Rock', 'Golgari Lord', 'Maybe Dragon', 'White Knight'])
 
-    await comparator.selectOption('<')
+    await comparator.getByRole('button', { name: '<', exact: true }).click()
     await expectVisibleCards(page, ['Green Elf', 'Test Forest'])
 
-    await comparator.selectOption('<=')
+    await comparator.getByRole('button', { name: '≤', exact: true }).click()
     await expectVisibleCards(page, ['Boring Rock', 'Green Elf', 'Test Forest', 'White Knight'])
+  })
+
+  test('price filter compares against the active currency and excludes unpriced cards', async ({
+    page,
+  }) => {
+    // Prices (USD): Green Elf 0.50, Test Forest 0.25, White Knight 5, Golgari Lord 10,
+    // Maybe Dragon 25; Boring Rock has no price.
+    await openFilterMenu(page)
+    const comparator = page.getByRole('group', { name: 'Price comparison' })
+    await page.locator('#filter-price').fill('5')
+
+    // Default operator is '=': only the card priced at exactly 5.
+    await expectVisibleCards(page, ['White Knight'])
+
+    // '<' keeps the cheaper cards; the unpriced Boring Rock is never matched.
+    await comparator.getByRole('button', { name: '<', exact: true }).click()
+    await expectVisibleCards(page, ['Green Elf', 'Test Forest'])
+
+    await comparator.getByRole('button', { name: '≥', exact: true }).click()
+    await expectVisibleCards(page, ['Golgari Lord', 'Maybe Dragon', 'White Knight'])
+
+    // Clearing the field removes the filter entirely.
+    await page.locator('#filter-price').fill('')
+    await expectVisibleCards(page, ALL_CARDS)
+  })
+
+  test('switching currency clears the price filter field', async ({ page }) => {
+    await openFilterMenu(page)
+    await page.locator('#filter-price').fill('5')
+    await expect(page.locator('.filter-menu-badge')).toHaveText('1')
+    await expectVisibleCards(page, ['White Knight'])
+
+    // Changing the active currency invalidates the (currency-specific) threshold.
+    await page.locator('.currency-select').selectOption('eur')
+
+    await expect(page.locator('.filter-menu-badge')).not.toBeVisible()
+    await expectVisibleCards(page, ALL_CARDS)
+
+    // The field itself is emptied, not just the applied filter. Reopen the menu
+    // from a known-closed state (Escape is a no-op if it already closed) so the
+    // assertion doesn't depend on whether the currency change dismissed the panel.
+    await page.keyboard.press('Escape')
+    await openFilterMenu(page)
+    await expect(page.locator('#filter-price')).toHaveValue('')
   })
 
   test('Hide Lands and Hide Unpriced toggles live in the menu and combine', async ({ page }) => {

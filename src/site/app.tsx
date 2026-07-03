@@ -38,6 +38,7 @@ import { EditControlsRow } from './editor/EditControlsRow'
 import { QuickSwitch, useQuickSwitchShortcut } from './QuickSwitch'
 import { useRouting } from './useRouting'
 import { useSiteData } from './useSiteData'
+import { notifyCurrencyChanged } from './currency-epoch'
 import { useFetchJson } from './useFetchJson'
 import { tradeToast } from './useTradeState'
 import { SelectionMenu } from './SelectionMenu'
@@ -353,7 +354,10 @@ function App() {
             <select
               class="currency-select"
               value={currency()}
-              onChange={(e) => setCurrency(e.target.value as PriceCurrency)}
+              onChange={(e) => {
+                setCurrency(e.target.value as PriceCurrency)
+                notifyCurrencyChanged()
+              }}
             >
               <Show when={availableCurrencies().includes('usd')}>
                 <option value="usd">USD ($)</option>
