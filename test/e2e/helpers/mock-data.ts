@@ -1,10 +1,12 @@
 import type { Page, Route } from '@playwright/test'
 import type {
+  CollectionCardEntry,
   CollectionDetail,
   DeckDetail,
   SiteIndex,
   WantedListDetail,
 } from '../../../src/site/data-types'
+import type { ScryfallCard } from '../../../src/types'
 
 type MockDeck = {
   slug: string
@@ -1856,13 +1858,116 @@ const MOCK_QUICK_SWITCH_DECK_MONO_RED = {
   missingCards: { usd: [], eur: [], tix: [] },
 } satisfies DeckDetail
 
+function binderEntry(
+  name: string,
+  set: string,
+  collectorNumber: string,
+  fileOrder: number,
+): CollectionCardEntry {
+  return {
+    name,
+    set,
+    collectorNumber,
+    finish: 'nonfoil',
+    condition: 'NM',
+    price: 0,
+    fileOrder,
+    section: 'Main',
+  }
+}
+
+// The owned Moonshadow printing (ecl:386). The collection's card map also holds
+// a second, differently-illustrated printing of the same name (ecl:110) under a
+// bare card-name key — the shape build-site emits for changelog-referenced
+// cards so the changelog modal can resolve a thumbnail. Because only ecl:386 is
+// an actual entry, the quick switch must surface a single Moonshadow card and a
+// single ECL:386 printing, never the non-owned ecl:110.
+const MOONSHADOW_OWNED_PRINTING: ScryfallCard = {
+  id: 'moonshadow-ecl-386',
+  oracle_id: 'moonshadow-oracle',
+  illustration_id: 'moonshadow-art-a',
+  name: 'Moonshadow',
+  cmc: 1,
+  type_line: 'Creature — Elemental',
+  prices: {
+    usd: '5.00',
+    usd_foil: null,
+    usd_etched: null,
+    eur: null,
+    eur_foil: null,
+    tix: null,
+  },
+  finishes: ['nonfoil'],
+  games: ['paper'],
+  set: 'ecl',
+  set_name: 'Eclipse',
+  collector_number: '386',
+  rarity: 'rare',
+  color_identity: ['B'],
+}
+
+const MOONSHADOW_OTHER_PRINTING: ScryfallCard = {
+  ...MOONSHADOW_OWNED_PRINTING,
+  id: 'moonshadow-ecl-110',
+  illustration_id: 'moonshadow-art-b',
+  collector_number: '110',
+}
+
+// Sol Ring owned as two distinct printings — the "Card" tier must collapse these
+// to one row while the "Printing" tier keeps them separate.
+const SOL_RING_C16: ScryfallCard = {
+  id: 'sol-ring-c16',
+  oracle_id: 'sol-ring-oracle',
+  illustration_id: 'sol-ring-art-a',
+  name: 'Sol Ring',
+  cmc: 1,
+  type_line: 'Artifact',
+  prices: {
+    usd: '2.00',
+    usd_foil: null,
+    usd_etched: null,
+    eur: null,
+    eur_foil: null,
+    tix: null,
+  },
+  finishes: ['nonfoil'],
+  games: ['paper'],
+  set: 'c16',
+  set_name: 'Commander 2016',
+  collector_number: '234',
+  rarity: 'uncommon',
+  color_identity: [],
+}
+
+const SOL_RING_LGN: ScryfallCard = {
+  ...SOL_RING_C16,
+  id: 'sol-ring-lgn',
+  illustration_id: 'sol-ring-art-b',
+  set: 'lgn',
+  set_name: 'Legions',
+  collector_number: '303',
+}
+
 const MOCK_QUICK_SWITCH_COLLECTION_MAIN_BINDER = {
   name: 'Main Binder',
-  entries: [],
+  entries: [
+    binderEntry('Lightning Bolt', 'm10', '146', 0),
+    binderEntry('Mock Sanity', 'mkm', '42', 1),
+    binderEntry('Moonshadow', 'ecl', '386', 2),
+    binderEntry('Sol Ring', 'c16', '234', 3),
+    binderEntry('Sol Ring', 'lgn', '303', 4),
+  ],
   cards: {
-    'Sol Ring': null,
-    'Lightning Bolt': null,
+    'm10:146': null,
     'mkm:42': null,
+    'ecl:386': MOONSHADOW_OWNED_PRINTING,
+    'c16:234': SOL_RING_C16,
+    'lgn:303': SOL_RING_LGN,
+    // Changelog-modal lookup entries (keyed by name), NOT owned entries. These
+    // must never appear in the quick switch: Moonshadow points at a non-owned
+    // printing, and Mistrise Village is a removed card no longer in the binder.
+    Moonshadow: MOONSHADOW_OTHER_PRINTING,
+    'Mistrise Village': null,
   },
   printings: {},
   symbolMap: {},

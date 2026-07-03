@@ -1,6 +1,13 @@
 import type { Component, Accessor } from 'solid-js'
 import { createSignal, createMemo, createEffect, on, onMount, onCleanup, For, Show } from 'solid-js'
-import type { DeckSummary, CollectionSummary, WantedListSummary } from './data-types'
+import type {
+  DeckSummary,
+  CollectionSummary,
+  WantedListSummary,
+  DeckDetail,
+  CollectionDetail,
+  WantedListDetail,
+} from './data-types'
 import type { ScryfallCard } from '../types'
 import type { PriceCurrency } from '../price-currency'
 import { formatPriceWithMissing } from '../price-currency'
@@ -57,7 +64,14 @@ type QuickSwitchEntry = ListEntry | CommanderEntry | CardEntry | PrintingEntry
 
 type Scored<T> = { entry: T; score: number }
 
-type DetailCardsPayload = { cards: Record<string, ScryfallCard | null> }
+type DetailPayload = DeckDetail | CollectionDetail | WantedListDetail
+
+// A single owned/wanted/deck card line, normalized across list kinds.
+type ListCardRef = {
+  name: string
+  set?: string
+  collectorNumber?: string
+}
 
 type CardCandidate = {
   cardName: string
@@ -72,28 +86,63 @@ type LoadedDetail = {
   candidates: CardCandidate[]
 }
 
-function buildCandidates(cards: Record<string, ScryfallCard | null>): CardCandidate[] {
-  const seenCardIds = new Set<string>()
-  const seenNullKeys = new Set<string>()
-  const out: CardCandidate[] = []
-  for (const [key, card] of Object.entries(cards)) {
-    if (card) {
-      if (seenCardIds.has(card.id)) continue
-      seenCardIds.add(card.id)
-      out.push({
-        cardName: card.name,
-        setCollectorKey: `${card.set}:${card.collector_number}`.toLowerCase(),
-        card,
-      })
-      continue
+function collectCardRefs(data: DetailPayload): ListCardRef[] {
+  if ('deck' in data) {
+    const refs: ListCardRef[] = []
+    for (const section of data.deck.sections) {
+      for (const c of section.cards) {
+        refs.push({ name: c.name, set: c.set, collectorNumber: c.collectorNumber })
+      }
     }
-    if (seenNullKeys.has(key)) continue
-    seenNullKeys.add(key)
-    const isPrintingKey = key.includes(':')
+    return refs
+  }
+  return data.entries.map((e) => ({
+    name: e.name,
+    set: e.set,
+    collectorNumber: e.collectorNumber,
+  }))
+}
+
+// The set:collector key a card line declares, if any. Lowercased per the
+// internal set-code convention.
+function refPrintingKey(ref: ListCardRef): string | null {
+  if (ref.set && ref.collectorNumber) return `${ref.set}:${ref.collectorNumber}`.toLowerCase()
+  return null
+}
+
+// Build search candidates from the list's actual card lines (owned/wanted/deck
+// cards), NOT the raw `cards` lookup map. That map also holds changelog-only
+// entries — keyed by the name of a card that was added then later removed — and
+// those must never surface in search. Each distinct printing yields one
+// candidate; duplicate lines of the same printing collapse by resolved card id
+// (or by printing/name key when the card is unresolved).
+function buildCandidates(data: DetailPayload): CardCandidate[] {
+  const cards = data.cards
+  const seen = new Set<string>()
+  const out: CardCandidate[] = []
+  for (const ref of collectCardRefs(data)) {
+    // Collections/wanted lists key their card map by set:collector; decks key by
+    // name. Try the declared printing key first, then fall back to the name.
+    const declaredKey = refPrintingKey(ref)
+    const card =
+      (declaredKey && declaredKey in cards ? cards[declaredKey] : cards[ref.name]) ?? null
+    // Label the printing by the resolved card so the shown set:collector always
+    // matches the shown art; fall back to the declared key when unresolved so an
+    // owned printing without card data is still searchable by its code.
+    const setCollectorKey = card
+      ? `${card.set}:${card.collector_number}`.toLowerCase()
+      : declaredKey
+    const dedupKey = card
+      ? `id:${card.id}`
+      : declaredKey
+        ? `p:${declaredKey}`
+        : `n:${ref.name.toLowerCase()}`
+    if (seen.has(dedupKey)) continue
+    seen.add(dedupKey)
     out.push({
-      cardName: isPrintingKey ? '' : key,
-      setCollectorKey: isPrintingKey ? key.toLowerCase() : null,
-      card: null,
+      cardName: card?.name ?? ref.name,
+      setCollectorKey,
+      card,
     })
   }
   return out
@@ -172,8 +221,8 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
     listName: string,
   ): Promise<LoadedDetail | null> => {
     try {
-      const data = await fetchJson<DetailCardsPayload>(detailUrl(kind, slug))
-      return { kind, slug, listName, candidates: buildCandidates(data.cards) }
+      const data = await fetchJson<DetailPayload>(detailUrl(kind, slug))
+      return { kind, slug, listName, candidates: buildCandidates(data) }
     } catch (e) {
       console.error(`QuickSwitch: failed to load ${kind}/${slug}:`, e)
       return null
@@ -262,8 +311,15 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
     const scored: Scored<CardEntry>[] = []
     const useScryfall = props.useScryfallImgUrls()
     for (const detail of details()) {
+      // A card belongs in the "Card" results once per list, regardless of how
+      // many printings of it the list's card map holds. Distinct printings are
+      // surfaced separately by findPrintingMatches.
+      const seenNames = new Set<string>()
       for (const cand of detail.candidates) {
         if (!cand.cardName) continue
+        const nameKey = cand.cardName.toLowerCase()
+        if (seenNames.has(nameKey)) continue
+        seenNames.add(nameKey)
         const score = scoreMatch(cand.cardName, q)
         if (score < 0) continue
         const image = resolveCardThumbnailUrl(cand.card, useScryfall) ?? ''

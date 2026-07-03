@@ -84,6 +84,58 @@ test.describe('Quick Switch', () => {
     await expect.poll(() => page.url()).toContain('#/deck/mono-red-aggro')
   })
 
+  test('the quick switch searches owned entries, not changelog-only card map entries', async ({
+    page,
+  }) => {
+    // Main Binder owns Moonshadow ecl:386. Its card map ALSO holds a non-owned
+    // ecl:110 printing under the bare "Moonshadow" name key (for changelog
+    // thumbnails). Search must reflect only the owned printing: one Moonshadow
+    // card, one ECL:386 printing, and never ECL:110.
+    await page.locator('.quick-switch-trigger').click()
+    await page.locator('.quick-switch-input').fill('moonshadow')
+    const moonshadowCardRows = page.locator('.quick-switch-row').filter({ hasText: 'Card' })
+    await expect.poll(() => moonshadowCardRows.count()).toBe(1)
+    await expect(moonshadowCardRows.first()).toContainText('Moonshadow')
+    await expect(moonshadowCardRows.first()).toContainText('Main Binder')
+
+    await page.locator('.quick-switch-input').fill('ecl:')
+    const printingRows = page.locator('.quick-switch-row').filter({ hasText: 'Printing' })
+    await expect.poll(() => printingRows.count()).toBe(1)
+    await expect(printingRows.first()).toContainText('ECL:386')
+    await expect(page.locator('.quick-switch-row').filter({ hasText: 'ECL:110' })).toHaveCount(0)
+  })
+
+  test('a changelog-only card that is no longer owned does not appear in search', async ({
+    page,
+  }) => {
+    // "Mistrise Village" is present in Main Binder's card map by name (so the
+    // changelog can render it) but is not an owned entry. It must not surface.
+    await page.locator('.quick-switch-trigger').click()
+    await page.locator('.quick-switch-input').fill('mistrise')
+    await expect.poll(() => page.locator('.quick-switch-row').count()).toBe(0)
+  })
+
+  test('a card owned as multiple printings surfaces one card row but distinct printings', async ({
+    page,
+  }) => {
+    // Sol Ring is owned as two printings (c16:234 and lgn:303). The "Card" tier
+    // shows it once; the "Printing" tier keeps both.
+    await page.locator('.quick-switch-trigger').click()
+    await page.locator('.quick-switch-input').fill('sol ring')
+    const solCardRows = page.locator('.quick-switch-row').filter({ hasText: 'Card' })
+    await expect.poll(() => solCardRows.count()).toBe(1)
+    await expect(solCardRows.first()).toContainText('Sol Ring')
+
+    await page.locator('.quick-switch-input').fill('c16:234')
+    await expect
+      .poll(() => page.locator('.quick-switch-row').filter({ hasText: 'C16:234' }).count())
+      .toBe(1)
+    await page.locator('.quick-switch-input').fill('lgn:303')
+    await expect
+      .poll(() => page.locator('.quick-switch-row').filter({ hasText: 'LGN:303' }).count())
+      .toBe(1)
+  })
+
   test('list matches rank above commander matches which rank above card matches', async ({
     page,
   }) => {
