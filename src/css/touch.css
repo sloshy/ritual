@@ -1,0 +1,247 @@
+/* ===== Touch / coarse-pointer adaptations =====
+   Everything the public site changes on touch-first devices (no hover, or a
+   coarse primary pointer). Two concerns live here:
+
+   1. Un-gating hover-revealed controls — on touch there is no hover, so any
+      control that fades in on :hover is otherwise unreachable. They become
+      always visible instead.
+   2. Touch-target sizing — pointer targets are raised toward the ~44px
+      guideline without changing the desktop design.
+
+   The media query must stay in sync with COARSE_POINTER_QUERY in
+   src/ui/useMediaQuery.ts, which is the same condition for JSX branching. */
+
+@media (hover: none), (pointer: coarse) {
+  /* ----- Un-gate hover-revealed card controls ----- */
+
+  /* Edit overlay (+ / − / ⋯) on binder/overlap tiles. */
+  .edit-overlay {
+    opacity: 1;
+  }
+
+  /* Double-faced card flip toggle. */
+  .card-flip-btn {
+    opacity: 1;
+  }
+
+  /* Multi-select checkbox on art tiles: visible and tappable. */
+  .card-binder .card-select-checkbox--overlay,
+  .card-overlap .card-select-checkbox--overlay {
+    opacity: 0.85;
+    pointer-events: auto;
+  }
+
+  /* "Add to Trade" corner bookmark. */
+  .card-trade-btn {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Card name/price label at the bottom of art tiles. */
+  .card-binder .card-label,
+  .card-overlap .card-label {
+    opacity: 1;
+  }
+
+  /* ----- Touch-target sizing: card tiles ----- */
+
+  .edit-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
+  .edit-overlay {
+    gap: 4px;
+  }
+
+  .edit-controls-list {
+    gap: 4px;
+  }
+
+  .edit-btn-list {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+  }
+
+  .card-select-checkbox--overlay {
+    width: 28px;
+    height: 28px;
+  }
+
+  /* Keep the quantity badge clear of the larger checkbox. */
+  .card-item.is-selectable .card-binder .qty-badge,
+  .card-item.is-selectable .card-overlap .qty-badge {
+    left: 38px;
+  }
+
+  .card-select-checkbox--list {
+    width: 22px;
+    height: 22px;
+  }
+
+  .card-select-checkbox--list .card-select-check {
+    font-size: 0.85rem;
+  }
+
+  .card-flip-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
+  .card-trade-btn {
+    width: 44px;
+    height: 44px;
+    font-size: 1rem;
+  }
+
+  /* List rows: taller, with room for the bigger inline controls. */
+  .card-list {
+    padding: 0.55rem 0.5rem;
+  }
+
+  .list-trade-btn {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.75rem;
+  }
+
+  /* ----- Touch-target sizing: toolbar & filters ----- */
+
+  .view-toggle button {
+    padding: 0.6rem 0.8rem;
+    font-size: 0.85rem;
+  }
+
+  .toolbar-toggle {
+    padding: 9px 12px;
+  }
+
+  .toolbar-select {
+    padding: 0.5rem 0.625rem;
+  }
+
+  /* 16px inputs stop mobile browsers from zooming the page on focus. */
+  .filter-input,
+  .filter-tags-input {
+    font-size: 1rem;
+  }
+
+  .filter-input {
+    padding: 0.5rem 0.625rem;
+  }
+
+  .filter-color-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .filter-color-btn .mana-symbol {
+    width: 20px;
+    height: 20px;
+  }
+
+  .filter-color-mode button,
+  .filter-toggle-group button {
+    padding: 8px 10px;
+    font-size: 0.75rem;
+  }
+
+  .filter-tag {
+    font-size: 0.8125rem;
+    padding: 3px 2px 3px 8px;
+  }
+
+  .filter-tag-remove {
+    padding: 4px 8px;
+    font-size: 0.9375rem;
+  }
+
+  .filter-tags-suggestions button {
+    padding: 10px 12px;
+    font-size: 0.875rem;
+  }
+
+  /* ----- Touch-target sizing: menus, dialogs, pickers ----- */
+
+  .selection-menu-item {
+    padding: 0.7rem 0.75rem;
+    font-size: 0.9375rem;
+  }
+
+  .card-context-menu-item {
+    padding: 12px 16px;
+    font-size: 0.875rem;
+  }
+
+  .card-modal .modal-close {
+    font-size: 2rem;
+    padding: 0.5rem 0.875rem;
+  }
+
+  .selection-modal-close,
+  .move-picker-close,
+  .combine-modal-close,
+  .trade-picker-close {
+    padding: 0.5rem 0.75rem;
+    font-size: 1.375rem;
+  }
+
+  .selection-modal-row-remove {
+    width: 32px;
+    height: 32px;
+    font-size: 0.875rem;
+  }
+
+  .move-picker-item {
+    padding: 0.8rem 0.875rem;
+  }
+
+  .trade-picker-finish-btn {
+    padding: 8px 10px;
+    font-size: 0.75rem;
+  }
+
+  /* ----- Touch-target sizing: trade rows ----- */
+
+  .qty-stepper button {
+    width: 34px;
+    height: 38px;
+    font-size: 1rem;
+  }
+
+  .trade-row-edit,
+  .trade-row-remove {
+    width: 38px;
+    height: 38px;
+    font-size: 1rem;
+  }
+
+  .trade-row-edit-slot {
+    width: 38px;
+    height: 38px;
+  }
+
+  /* ----- Header controls ----- */
+
+  .site-nav {
+    gap: 0.25rem;
+  }
+
+  .site-nav-link {
+    padding: 0.5rem;
+  }
+
+  .quick-switch-trigger {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .currency-select {
+    padding: 0.5rem 0.625rem;
+  }
+
+  .theme-customize-btn {
+    padding: 0.5rem 0.75rem;
+  }
+}

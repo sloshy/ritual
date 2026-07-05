@@ -7,9 +7,19 @@ import type { PriceCurrency } from '../price-currency'
 import { DEFAULT_CURRENCY, getCardPrice, formatPrice, formatPriceOrNA } from '../price-currency'
 import type { ViewMode } from './card-sorting'
 import type { SelectionState } from './useCardSelection'
+import { selectionModeActive } from './selection-mode'
 import { capitalize } from './utils'
 
 type ButtonMouseEvent = MouseEvent & { currentTarget: HTMLButtonElement }
+
+/** Sorting/filtering hooks exposed on the tile root as data attributes. */
+type CardDataAttrs = {
+  'data-name': string
+  'data-cmc': number
+  'data-edhrec': number
+  'data-price': number
+  'data-type': string
+}
 
 /** Wraps a callback with stopPropagation so click events don't bubble to the card container. */
 const stopPropAnd =
@@ -189,19 +199,21 @@ export const CardItem: Component<CardItemProps> = (props) => {
       }
     >
       {(card) => {
-        // Reactive accessors, not captured consts: this callback runs once per
-        // mount (untracked, per <Show>), so a plain `const` would freeze the
-        // price at whatever the currency was at mount time. The admin editors
-        // resolve the configured currency asynchronously, so late updates must
-        // still reach the rendered price text.
+        // Everything derived from `card()` must be a reactive accessor, not a
+        // captured const: this callback runs once per truthy transition of
+        // `props.card` (untracked, per <Show>), so a plain `const` would freeze
+        // its value from whatever card the tile first rendered — going stale if
+        // the tile slot is reused for a different card, and likewise for the
+        // asynchronously-resolved currency in the admin editors.
         const currency = () => props.currency ?? DEFAULT_CURRENCY
-        const isDFC = isDoubleFacedCard(card())
+        const isDFC = () => isDoubleFacedCard(card())
 
         // Ctrl/Cmd-click toggles selection from anywhere on the card instead of
         // opening the modal (the standard multi-select modifier; Mac uses Cmd
-        // since Ctrl-click maps to the context menu there).
+        // since Ctrl-click maps to the context menu there). Touch selection mode
+        // does the same for plain taps — touch has no modifier keys.
         const handleCardClick = (e: MouseEvent) => {
-          if (props.selectable && (e.ctrlKey || e.metaKey)) {
+          if (props.selectable && (e.ctrlKey || e.metaKey || selectionModeActive())) {
             e.preventDefault()
             e.stopPropagation()
             props.onToggleSelect?.()
@@ -209,16 +221,13 @@ export const CardItem: Component<CardItemProps> = (props) => {
           }
           props.onCardClick?.()
         }
-        const { frontImage, backImage } = resolveCardImageSources(
-          card(),
-          Boolean(props.useScryfallImgUrls),
-        )
+        const images = () => resolveCardImageSources(card(), Boolean(props.useScryfallImgUrls))
         // A flippable face exists only for double-faced cards with a resolvable back image.
-        const canFlip = isDFC && Boolean(backImage)
+        const canFlip = () => isDFC() && Boolean(images().backImage)
 
         const price = () => getCardPrice(card(), currency())
 
-        const dataAttrs = () => ({
+        const dataAttrs = (): CardDataAttrs => ({
           'data-name': props.name.toLowerCase(),
           'data-cmc': card().cmc,
           'data-edhrec': card().edhrec_rank ?? 999999,
@@ -226,23 +235,26 @@ export const CardItem: Component<CardItemProps> = (props) => {
           'data-type': card().type_line,
         })
 
-        const isFoil = props.collectionFinish
-          ? props.collectionFinish !== 'nonfoil'
-          : card().finishes?.length === 1 && card().finishes[0] !== 'nonfoil'
+        const isFoil = () =>
+          props.collectionFinish
+            ? props.collectionFinish !== 'nonfoil'
+            : card().finishes?.length === 1 && card().finishes[0] !== 'nonfoil'
 
-        const rawFinish =
-          props.collectionFinish && props.collectionFinish !== 'nonfoil'
-            ? props.collectionFinish
-            : !props.collectionFinish &&
-                card().finishes?.length === 1 &&
-                card().finishes[0] !== 'nonfoil'
-              ? card().finishes[0]
-              : null
-        const finishLabel = rawFinish ? capitalize(rawFinish) : null
+        const finishLabel = () => {
+          const rawFinish =
+            props.collectionFinish && props.collectionFinish !== 'nonfoil'
+              ? props.collectionFinish
+              : !props.collectionFinish &&
+                  card().finishes?.length === 1 &&
+                  card().finishes[0] !== 'nonfoil'
+                ? card().finishes[0]
+                : null
+          return rawFinish ? capitalize(rawFinish) : null
+        }
 
-        const binderClass = `card-binder${isFoil ? ' foil-card' : ''}`
-        const listClass = `card-list${isFoil ? ' foil-card' : ''}`
-        const overlapClass = `card-overlap${isFoil ? ' foil-card' : ''}`
+        const binderClass = () => `card-binder${isFoil() ? ' foil-card' : ''}`
+        const listClass = () => `card-list${isFoil() ? ' foil-card' : ''}`
+        const overlapClass = () => `card-overlap${isFoil() ? ' foil-card' : ''}`
         const displayPrice = () =>
           props.collectionPrice !== undefined ? props.collectionPrice : price()
         const showPrice = () => displayPrice() > 0
@@ -250,12 +262,12 @@ export const CardItem: Component<CardItemProps> = (props) => {
         // List view groups the printing identity (set:number, finish, condition) into a
         // single parenthesised label rendered next to the card name. Reuses finishLabel so
         // the capitalised finish stays consistent with the binder/overlap views.
-        const printingParts = [
-          props.collectionSetCN,
-          finishLabel,
-          props.collectionCondition,
-        ].filter((part): part is string => Boolean(part))
-        const printingLabel = printingParts.length > 0 ? `(${printingParts.join(' · ')})` : null
+        const printingLabel = () => {
+          const parts = [props.collectionSetCN, finishLabel(), props.collectionCondition].filter(
+            (part): part is string => Boolean(part),
+          )
+          return parts.length > 0 ? `(${parts.join(' · ')})` : null
+        }
 
         return (
           <div
@@ -263,12 +275,13 @@ export const CardItem: Component<CardItemProps> = (props) => {
             classList={{
               'is-selectable': props.selectable,
               'is-selected': props.selectState === 'all' || props.selectState === 'partial',
+              'select-mode': props.selectable && selectionModeActive(),
             }}
             {...dataAttrs()}
           >
             {/* Binder view */}
             <Show when={props.viewMode === 'binder'}>
-              <div class={binderClass} onClick={handleCardClick}>
+              <div class={binderClass()} onClick={handleCardClick}>
                 <Show when={props.selectable}>
                   <SelectCheckbox
                     variant="overlay"
@@ -276,15 +289,15 @@ export const CardItem: Component<CardItemProps> = (props) => {
                     onToggle={props.onToggleSelect}
                   />
                 </Show>
-                <Show when={frontImage}>
+                <Show when={images().frontImage}>
                   <CardFace
-                    frontImage={frontImage}
-                    backImage={backImage}
+                    frontImage={images().frontImage}
+                    backImage={images().backImage}
                     flipped={flipped()}
                     alt={props.name}
                   />
                 </Show>
-                <Show when={canFlip}>
+                <Show when={canFlip()}>
                   <FlipButton flipped={flipped()} onFlip={toggleFlip} />
                 </Show>
                 <Show when={!props.hideCount && props.quantity > 1}>
@@ -343,8 +356,8 @@ export const CardItem: Component<CardItemProps> = (props) => {
                 <div class="card-label">
                   <span class="card-label-name">
                     {props.name}
-                    <Show when={finishLabel}>
-                      <span class="card-label-finish"> ({finishLabel})</span>
+                    <Show when={finishLabel()}>
+                      <span class="card-label-finish"> ({finishLabel()})</span>
                     </Show>
                   </span>
                   <Show when={showPrice()}>
@@ -357,13 +370,10 @@ export const CardItem: Component<CardItemProps> = (props) => {
             {/* List view */}
             <Show when={props.viewMode === 'list'}>
               <div
-                class={listClass}
+                class={listClass()}
                 onClick={handleCardClick}
                 onMouseEnter={() => {
-                  const { frontImage } = resolveCardImageSources(
-                    card(),
-                    Boolean(props.useScryfallImgUrls),
-                  )
+                  const { frontImage } = images()
                   if (frontImage) props.onTooltipEnter?.(frontImage, isCardSideways(card()))
                 }}
                 onMouseLeave={() => props.onTooltipLeave?.()}
@@ -380,12 +390,12 @@ export const CardItem: Component<CardItemProps> = (props) => {
                 </Show>
                 <span class="list-name-group">
                   <span class="list-name">{props.name}</span>
-                  <Show when={printingLabel}>
-                    <span class="list-printing">{printingLabel}</span>
+                  <Show when={printingLabel()}>
+                    <span class="list-printing">{printingLabel()}</span>
                   </Show>
                 </span>
                 <span class="list-mana">
-                  <ManaCost card={card()} isDFC={isDFC} symbolMap={props.symbolMap} />
+                  <ManaCost card={card()} isDFC={isDFC()} symbolMap={props.symbolMap} />
                 </span>
                 <Show when={props.editMode}>
                   <span class="edit-controls-list">
@@ -442,7 +452,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
 
             {/* Overlap / Stack view */}
             <Show when={props.viewMode === 'overlap' || props.viewMode === 'stack'}>
-              <div class={overlapClass} onClick={handleCardClick}>
+              <div class={overlapClass()} onClick={handleCardClick}>
                 <Show when={props.selectable}>
                   <SelectCheckbox
                     variant="overlay"
@@ -450,15 +460,15 @@ export const CardItem: Component<CardItemProps> = (props) => {
                     onToggle={props.onToggleSelect}
                   />
                 </Show>
-                <Show when={frontImage}>
+                <Show when={images().frontImage}>
                   <CardFace
-                    frontImage={frontImage}
-                    backImage={backImage}
+                    frontImage={images().frontImage}
+                    backImage={images().backImage}
                     flipped={flipped()}
                     alt={props.name}
                   />
                 </Show>
-                <Show when={canFlip}>
+                <Show when={canFlip()}>
                   <FlipButton flipped={flipped()} onFlip={toggleFlip} />
                 </Show>
                 <Show when={!props.hideCount && props.quantity > 1}>
@@ -517,8 +527,8 @@ export const CardItem: Component<CardItemProps> = (props) => {
                 <div class="card-label">
                   <span class="card-label-name">
                     {props.name}
-                    <Show when={finishLabel}>
-                      <span class="card-label-finish"> ({finishLabel})</span>
+                    <Show when={finishLabel()}>
+                      <span class="card-label-finish"> ({finishLabel()})</span>
                     </Show>
                   </span>
                   <Show when={showPrice()}>

@@ -5,6 +5,7 @@
 @import '../css/controls.css';
 @import '../css/modal.css';
 @import '../css/editor.css';
+@import '../css/touch.css';
 
 /* ===== Site-specific body extension ===== */
 body {
@@ -304,6 +305,75 @@ body {
   }
 
   .currency-label {
+    display: none;
+  }
+}
+
+/* Icon-only "Update prices" in the compact phone toolbar. */
+.btn-update-prices--compact {
+  padding: 0.5rem 0.7rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+/* ===== Mobile Tab Bar ===== */
+.mobile-tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  display: flex;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.mobile-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0.5rem 0 0.45rem;
+  text-decoration: none;
+  color: var(--text-secondary);
+}
+
+.mobile-tab.active {
+  color: var(--text-accent);
+}
+
+.mobile-tab-icon {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.mobile-tab-label {
+  font-size: 0.65rem;
+  font-weight: 500;
+}
+
+/* While the tab bar is shown: reserve space for it at the page bottom, and lift
+   other bottom-edge surfaces (selection dock, trade toast) above it. The dock
+   drops its own safe-area inset (--dock-inset-scale) since the tab bar beneath
+   it already absorbs the inset. */
+.site-app.has-tabbar {
+  --mobile-tabbar-h: calc(3.3rem + env(safe-area-inset-bottom));
+  --dock-bottom-offset: var(--mobile-tabbar-h);
+  --dock-inset-scale: 0;
+  padding-bottom: calc(var(--mobile-tabbar-h) + 1rem);
+}
+
+.site-app.has-tabbar .trade-add-toast {
+  bottom: calc(var(--mobile-tabbar-h) + 1rem);
+}
+
+/* The tab bar replaces the header nav links at phone widths (keep in sync with
+   MOBILE_LAYOUT_QUERY in src/ui/useMediaQuery.ts). */
+@media (max-width: 767px) {
+  .site-nav,
+  .site-nav-sep {
     display: none;
   }
 }
@@ -1502,6 +1572,13 @@ body {
 
   .primary-toolbar-right {
     flex-shrink: 0;
+  }
+
+  /* Wrap instead of clipping the left-side buttons on narrow screens (the
+     desktop nowrap + overflow:hidden otherwise hides them silently). */
+  .primary-toolbar {
+    flex-wrap: wrap;
+    overflow: visible;
   }
 }
 

@@ -3,6 +3,7 @@ import {
   createSignal,
   createEffect,
   createMemo,
+  For,
   on,
   onCleanup,
   onMount,
@@ -55,6 +56,9 @@ import { syncFaviconToTheme } from './useFavicon'
 import { FlameIcon } from './FlameIcon'
 import { ThemeEditor } from './ThemeEditor'
 import { ThemePicker } from './ThemePicker'
+import { MobileTabBar } from './MobileTabBar'
+import { NAV_DESTINATIONS, type NavActiveState } from './nav-destinations'
+import { useMobileLayout } from '../ui/useMediaQuery'
 
 function App() {
   const { route, visible } = useRouting()
@@ -291,6 +295,12 @@ function App() {
     setModalCard(null)
   }
 
+  // The bottom tab bar replaces the header nav links on phone-width viewports;
+  // in edit mode the editor's bottom action dock owns that edge instead (Quick
+  // Switch still covers navigation while editing).
+  const mobileLayout = useMobileLayout()
+  const showTabBar = () => mobileLayout() && !editMode()
+
   let headerRef: HTMLElement | undefined
   onMount(() => {
     if (!headerRef) return
@@ -305,7 +315,7 @@ function App() {
   })
 
   return (
-    <div class="site-app app-padding">
+    <div class="site-app app-padding" classList={{ 'has-tabbar': showTabBar() }}>
       <header ref={headerRef} class="site-header">
         <div class="site-header-main">
           <a href="#/" class="site-logo">
@@ -313,25 +323,27 @@ function App() {
             <span class="site-logo-text">Ritual</span>
           </a>
           <span class="site-nav-sep">|</span>
+          {/* Destinations come from the shared NAV_DESTINATIONS list (also the
+              tab bar's source); "All" is header-only with its computed href,
+              slotted between Wanted and Trade. */}
           <nav class="site-nav">
-            <NavLink href="#/" active={navActive().decks}>
-              Decks
-            </NavLink>
-            <NavLink href="#/collections" active={navActive().collections}>
-              Collections
-            </NavLink>
-            <NavLink href="#/wanted" active={navActive().wanted}>
-              Wanted
-            </NavLink>
+            <For each={NAV_DESTINATIONS.slice(0, 3)}>
+              {(d) => (
+                <NavLink href={d.href} active={navActive()[d.key]}>
+                  {d.label}
+                </NavLink>
+              )}
+            </For>
             <NavLink href={combinedAllHref()} active={navActive().all}>
               All
             </NavLink>
-            <NavLink href="#/trade" active={navActive().trade}>
-              Trade
-            </NavLink>
-            <NavLink href="#/find" active={navActive().find}>
-              Find
-            </NavLink>
+            <For each={NAV_DESTINATIONS.slice(3)}>
+              {(d) => (
+                <NavLink href={d.href} active={navActive()[d.key]}>
+                  {d.label}
+                </NavLink>
+              )}
+            </For>
           </nav>
           <button
             type="button"
@@ -636,6 +648,10 @@ function App() {
         </p>
       </footer>
 
+      <Show when={showTabBar()}>
+        <MobileTabBar active={navActive()} />
+      </Show>
+
       <QuickSwitch
         open={quickSwitchOpen()}
         onClose={() => setQuickSwitchOpen(false)}
@@ -700,15 +716,6 @@ function App() {
       </Show>
     </div>
   )
-}
-
-type NavActiveState = {
-  decks: boolean
-  collections: boolean
-  wanted: boolean
-  all: boolean
-  trade: boolean
-  find: boolean
 }
 
 interface NavLinkProps {

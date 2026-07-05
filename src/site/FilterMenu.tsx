@@ -1,6 +1,6 @@
-import type { Accessor, Component } from 'solid-js'
+import type { Component } from 'solid-js'
 import { createEffect, createSignal, For, on, Show } from 'solid-js'
-import { useAnchoredMenu } from '../ui/useAnchoredMenu'
+import { AdaptiveMenu } from '../ui/AdaptiveMenu'
 import { useAnchoredToggle } from '../ui/useAnchoredToggle'
 import { parseSetCodesInput, scanSetCodesInput } from '../set-codes'
 import { colorIdentityName, WUBRG } from './card-sorting'
@@ -156,41 +156,30 @@ export const FilterMenu: Component<FilterMenuProps> = (props) => {
         </Show>
         <span aria-hidden="true">{toggle.open() ? '▴' : '▾'}</span>
       </button>
-      <Show when={toggle.open() ? toggle.anchorRect() : null}>
-        {(rect) => (
-          <FilterPanel
-            anchorRect={rect}
-            onClose={toggle.close}
-            anchorEl={toggle.buttonEl}
-            filters={props.filters}
-            symbolMap={props.symbolMap}
-            currency={props.currency}
-            setCodeOptions={props.setCodeOptions}
-            cardTypeOptions={props.cardTypeOptions}
-            oracleTagOptions={props.oracleTagOptions}
-            artTagOptions={props.artTagOptions}
-            showHideExtras={props.showHideExtras}
-          />
-        )}
-      </Show>
+      <AdaptiveMenu
+        toggle={toggle}
+        width={PANEL_WIDTH}
+        panelClass="filter-menu-panel"
+        title="Filters"
+        role="group"
+        aria-label="Card filters"
+      >
+        <FilterPanelBody
+          filters={props.filters}
+          symbolMap={props.symbolMap}
+          currency={props.currency}
+          setCodeOptions={props.setCodeOptions}
+          cardTypeOptions={props.cardTypeOptions}
+          oracleTagOptions={props.oracleTagOptions}
+          artTagOptions={props.artTagOptions}
+          showHideExtras={props.showHideExtras}
+        />
+      </AdaptiveMenu>
     </div>
   )
 }
 
-type FilterPanelProps = FilterMenuProps & {
-  anchorRect: Accessor<DOMRect>
-  onClose: () => void
-  /** The Filters button, excluded from outside-click dismissal so it can toggle the panel. */
-  anchorEl: () => HTMLElement | undefined
-}
-
-const FilterPanel: Component<FilterPanelProps> = (props) => {
-  const menu = useAnchoredMenu({
-    anchorRect: props.anchorRect,
-    width: PANEL_WIDTH,
-    onClose: props.onClose,
-    excludeEl: props.anchorEl,
-  })
+const FilterPanelBody: Component<FilterMenuProps> = (props) => {
   const [manaValueError, setManaValueError] = createSignal<string | null>(null)
   const [priceError, setPriceError] = createSignal<string | null>(null)
 
@@ -226,13 +215,7 @@ const FilterPanel: Component<FilterPanelProps> = (props) => {
   }
 
   return (
-    <div
-      ref={menu.setMenuRef}
-      class="filter-menu-panel"
-      style={menu.style()}
-      role="group"
-      aria-label="Card filters"
-    >
+    <>
       <div class="filter-row filter-row-toggles">
         <button
           type="button"
@@ -526,6 +509,6 @@ const FilterPanel: Component<FilterPanelProps> = (props) => {
           Clear all filters
         </button>
       </Show>
-    </div>
+    </>
   )
 }

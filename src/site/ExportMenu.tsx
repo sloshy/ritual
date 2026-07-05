@@ -1,6 +1,6 @@
-import type { Accessor, Component } from 'solid-js'
+import type { Component } from 'solid-js'
 import { For, Show, createSignal, onCleanup } from 'solid-js'
-import { useAnchoredMenu } from '../ui/useAnchoredMenu'
+import { AdaptiveMenu } from '../ui/AdaptiveMenu'
 import { useAnchoredToggle } from '../ui/useAnchoredToggle'
 import { downloadTextFile } from './editor/download'
 
@@ -111,58 +111,27 @@ const ExportButton: Component<ExportButtonProps> = (props) => {
         {props.label}
         <span aria-hidden="true">{toggle.open() ? ' ▴' : ' ▾'}</span>
       </button>
-      <Show when={toggle.open() ? toggle.anchorRect() : null}>
-        {(rect) => (
-          <ExportFormatPanel
-            anchorRect={rect}
-            anchorEl={toggle.buttonEl}
-            label={props.label}
-            onClose={toggle.close}
-            onPick={pick}
-          />
-        )}
-      </Show>
-    </div>
-  )
-}
-
-type ExportFormatPanelProps = {
-  anchorRect: Accessor<DOMRect>
-  /** The trigger button, excluded from outside-click dismissal so it can toggle the panel. */
-  anchorEl: () => HTMLElement | undefined
-  label: string
-  onClose: () => void
-  onPick: (format: FormatOption) => void
-}
-
-const ExportFormatPanel: Component<ExportFormatPanelProps> = (props) => {
-  const menu = useAnchoredMenu({
-    anchorRect: props.anchorRect,
-    width: PANEL_WIDTH,
-    onClose: props.onClose,
-    excludeEl: props.anchorEl,
-  })
-
-  return (
-    <div
-      ref={menu.setMenuRef}
-      class="selection-menu-panel"
-      style={menu.style()}
-      role="menu"
-      aria-label={`${props.label} format`}
-    >
-      <For each={FORMATS}>
-        {(format) => (
-          <button
-            type="button"
-            role="menuitem"
-            class="selection-menu-item"
-            onClick={() => props.onPick(format)}
-          >
-            {format.label}
-          </button>
-        )}
-      </For>
+      <AdaptiveMenu
+        toggle={toggle}
+        width={PANEL_WIDTH}
+        panelClass="selection-menu-panel"
+        title={`${props.label} format`}
+        role="menu"
+        aria-label={`${props.label} format`}
+      >
+        <For each={FORMATS}>
+          {(format) => (
+            <button
+              type="button"
+              role="menuitem"
+              class="selection-menu-item"
+              onClick={() => pick(format)}
+            >
+              {format.label}
+            </button>
+          )}
+        </For>
+      </AdaptiveMenu>
     </div>
   )
 }

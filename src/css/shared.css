@@ -6,6 +6,7 @@
 /* ===== Button Group ===== */
 .btn-group {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 

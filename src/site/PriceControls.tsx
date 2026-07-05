@@ -27,6 +27,8 @@ export function usePublicPriceControls(input: PublicPriceControlsInput): PriceRe
 
 type UpdatePricesButtonProps = {
   prices: PriceRefresh
+  /** Icon-only rendering for the compact phone toolbar. */
+  compact?: boolean
 }
 
 /** The header "Update Prices" button shared by the public list pages. */
@@ -37,8 +39,11 @@ export function UpdatePricesButton(props: UpdatePricesButtonProps): JSX.Element 
       onClick={props.prices.refresh}
       disabled={props.prices.refreshing()}
       class="btn btn-primary btn-update-prices"
+      classList={{ 'btn-update-prices--compact': props.compact }}
+      aria-label="Update prices"
+      title="Update prices"
     >
-      {props.prices.refreshing() ? '↻ Updating…' : '↻ Update prices'}
+      {props.compact ? '↻' : props.prices.refreshing() ? '↻ Updating…' : '↻ Update prices'}
     </button>
   )
 }

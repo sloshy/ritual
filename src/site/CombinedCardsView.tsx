@@ -244,6 +244,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
             currency={props.currency}
             enableTrade={props.enableTrade}
             useScryfallImgUrls={props.useScryfallImgUrls}
+            dockOnTouch
           />
         }
       />

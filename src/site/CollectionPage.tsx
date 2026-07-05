@@ -580,6 +580,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
             enableTrade={props.enableTrade}
             useScryfallImgUrls={props.useScryfallImgUrls}
             editActions={editActions()}
+            dockOnTouch
           />
         }
       />

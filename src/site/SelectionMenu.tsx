@@ -1,7 +1,8 @@
-import type { Accessor, Component } from 'solid-js'
+import type { Component } from 'solid-js'
 import { Show, createMemo } from 'solid-js'
-import { useAnchoredMenu } from '../ui/useAnchoredMenu'
+import { AdaptiveMenu } from '../ui/AdaptiveMenu'
 import { useAnchoredToggle } from '../ui/useAnchoredToggle'
+import { usePointerCoarse } from '../ui/useMediaQuery'
 import type { ListRef } from '../change-event'
 import type { PriceCurrency } from '../price-currency'
 import type { CardSelectionControl } from './useCardSelection'
@@ -61,6 +62,13 @@ export interface SelectionMenuProps {
   /** When set (edit mode), show bulk edit actions over the selection. */
   editActions?: SelectionEditActions
   /**
+   * On touch devices, present the selection as a fixed bottom action bar (count +
+   * Actions + clear) instead of a toolbar dropdown button. Passed by the list
+   * pages; off for the cross-list navbar menu. Suppressed in edit mode, where the
+   * editor's own bottom dock occupies that edge.
+   */
+  dockOnTouch?: boolean
+  /**
    * When set, show a "Remove all selected" action. Used by the cross-list navbar
    * menu to delete every selected card from its list; passed only while a list is
    * open in edit mode. The handler owns confirmation and clearing the selection.
@@ -77,59 +85,88 @@ export interface SelectionMenuProps {
 }
 
 /**
- * A "Selected (N)" dropdown button: appears once one or more cards are selected,
- * and opens a menu of bulk actions over the selection — copy as text, copy as
- * CSV, and (on the public site) add to the active trade. Used both per-list (the
- * toolbar, scoped to the current list) and cross-list (the navbar, all lists).
+ * Bulk actions over the current selection. Appears once one or more cards are
+ * selected, as a "Selected (N)" dropdown button — or, on touch devices when the
+ * owning page opts in via `dockOnTouch`, as a fixed bottom action bar. Opens a
+ * menu (anchored popover on desktop, bottom sheet on touch) of bulk actions:
+ * copy as text/CSV, add to trade, and the edit-mode bundle. Used both per-list
+ * (the toolbar, scoped to the current list) and cross-list (the navbar).
  */
 export const SelectionMenu: Component<SelectionMenuProps> = (props) => {
   const toggle = useAnchoredToggle()
+  const coarse = usePointerCoarse()
+
+  // The fixed bottom bar replaces the dropdown trigger on touch, except in edit
+  // mode where the editor's action dock already owns the bottom edge.
+  const docked = () => Boolean(props.dockOnTouch) && coarse() && !props.editActions
+
+  const surface = () => (
+    <AdaptiveMenu
+      toggle={toggle}
+      width={PANEL_WIDTH}
+      panelClass="selection-menu-panel"
+      title={`${props.label ?? 'Selected'} (${props.selection.count()})`}
+      role="menu"
+      aria-label="Selection actions"
+    >
+      <SelectionMenuItems {...props} onClose={toggle.close} />
+    </AdaptiveMenu>
+  )
 
   return (
     <Show when={props.selection.count() > 0}>
-      <div class="selection-menu">
-        <button
-          type="button"
-          ref={toggle.setButtonRef}
-          class={`toolbar-toggle active ${props.buttonClass ?? 'selection-menu-btn'}`}
-          aria-expanded={toggle.open()}
-          aria-haspopup="true"
-          onClick={toggle.toggleOpen}
-        >
-          {props.label ?? 'Selected'} ({props.selection.count()})
-          <span aria-hidden="true">{toggle.open() ? '▴' : '▾'}</span>
-        </button>
-        <Show when={toggle.open() ? toggle.anchorRect() : null}>
-          {(rect) => (
-            <SelectionPanel
-              anchorRect={rect}
-              anchorEl={toggle.buttonEl}
-              onClose={toggle.close}
-              {...props}
-            />
-          )}
-        </Show>
-      </div>
+      <Show
+        when={docked()}
+        fallback={
+          <div class="selection-menu">
+            <button
+              type="button"
+              ref={toggle.setButtonRef}
+              class={`toolbar-toggle active ${props.buttonClass ?? 'selection-menu-btn'}`}
+              aria-expanded={toggle.open()}
+              aria-haspopup="true"
+              onClick={toggle.toggleOpen}
+            >
+              {props.label ?? 'Selected'} ({props.selection.count()})
+              <span aria-hidden="true">{toggle.open() ? '▴' : '▾'}</span>
+            </button>
+            {surface()}
+          </div>
+        }
+      >
+        <div class="selection-dock">
+          <span class="selection-dock-count">{props.selection.count()} selected</span>
+          <button
+            type="button"
+            ref={toggle.setButtonRef}
+            class="btn btn-primary selection-dock-actions"
+            aria-expanded={toggle.open()}
+            aria-haspopup="true"
+            onClick={toggle.toggleOpen}
+          >
+            Actions
+          </button>
+          <button
+            type="button"
+            class="selection-dock-clear"
+            aria-label={props.clearLabel ?? 'Clear selection'}
+            title={props.clearLabel ?? 'Clear selection'}
+            onClick={() => props.selection.clear()}
+          >
+            ✕
+          </button>
+          {surface()}
+        </div>
+      </Show>
     </Show>
   )
 }
 
-type SelectionPanelAnchor = {
-  anchorRect: Accessor<DOMRect>
+type SelectionMenuItemsProps = SelectionMenuProps & {
   onClose: () => void
-  /** The toggle button, excluded from outside-click dismissal so it can close the panel itself. */
-  anchorEl: () => HTMLElement | undefined
 }
 
-type SelectionPanelProps = SelectionMenuProps & SelectionPanelAnchor
-
-const SelectionPanel: Component<SelectionPanelProps> = (props) => {
-  const menu = useAnchoredMenu({
-    anchorRect: props.anchorRect,
-    width: PANEL_WIDTH,
-    onClose: props.onClose,
-    excludeEl: props.anchorEl,
-  })
+const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
   const copy = useSelectionCopy(() => props.selection.selected())
 
   // "Remove a copy" (decrement) is only meaningful when at least one selected tile
@@ -159,13 +196,7 @@ const SelectionPanel: Component<SelectionPanelProps> = (props) => {
   }
 
   return (
-    <div
-      ref={menu.setMenuRef}
-      class="selection-menu-panel"
-      style={menu.style()}
-      role="menu"
-      aria-label="Selection actions"
-    >
+    <>
       <Show when={props.showViewAll}>
         <button type="button" role="menuitem" class="selection-menu-item" onClick={viewAll}>
           View all selections…
@@ -340,6 +371,6 @@ const SelectionPanel: Component<SelectionPanelProps> = (props) => {
           {copy.status()}
         </div>
       </Show>
-    </div>
+    </>
   )
 }

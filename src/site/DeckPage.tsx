@@ -664,6 +664,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
             enableTrade={props.enableTrade}
             useScryfallImgUrls={props.useScryfallImgUrls}
             editActions={editActions()}
+            dockOnTouch
           />
         }
       />

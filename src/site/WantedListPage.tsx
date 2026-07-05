@@ -562,6 +562,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
             enableTrade={props.enableTrade}
             useScryfallImgUrls={props.useScryfallImgUrls}
             editActions={editActions()}
+            dockOnTouch
           />
         }
       />
