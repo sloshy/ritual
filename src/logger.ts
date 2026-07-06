@@ -59,7 +59,7 @@ export class MemoryLogger implements Logger {
 }
 
 export type CacheProgressEvent = {
-  stage: 'download' | 'parse' | 'process' | 'save' | 'done' | 'info'
+  stage: 'download' | 'save' | 'done' | 'info'
   percentage?: number
   message: string
 }
@@ -85,11 +85,7 @@ export class StreamingLogger implements Logger {
     const msg = stringifyLogMessage(message)
     this.mirrorTo?.info(message, ...optionalParams)
 
-    if (msg.includes('Parsing JSON')) {
-      this.onEvent({ stage: 'parse', message: msg })
-    } else if (msg.includes('Processing') && msg.includes('cards')) {
-      this.onEvent({ stage: 'process', message: msg })
-    } else if (msg.includes('Saving to cache')) {
+    if (msg.includes('Saving to cache')) {
       this.onEvent({ stage: 'save', message: msg })
     } else if (msg.includes('Done!')) {
       this.onEvent({ stage: 'done', message: msg })

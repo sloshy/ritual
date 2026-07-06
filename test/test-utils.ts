@@ -1,6 +1,78 @@
-import { type HttpClient, type CacheManager } from '../src/interfaces'
+import {
+  type HttpClient,
+  type CacheManager,
+  type FileSystemClient,
+  type ExclusiveWriteResult,
+} from '../src/interfaces'
 import { streamFromBatchResults } from '../src/cache'
 import { MemoryLogger, resetLogger, setLogger } from '../src/logger'
+
+/** In-memory FileSystemClient for tests that must not touch the real filesystem. */
+export class MemoryFileSystemClient implements FileSystemClient {
+  readonly files = new Map<string, string>()
+
+  async readFile(filePath: string): Promise<string> {
+    const data = this.files.get(filePath)
+    if (data === undefined) throw new Error(`ENOENT: ${filePath}`)
+    return data
+  }
+
+  async writeFile(filePath: string, data: string | Uint8Array): Promise<void> {
+    this.files.set(filePath, typeof data === 'string' ? data : new TextDecoder().decode(data))
+  }
+
+  async writeFileExclusive(
+    filePath: string,
+    data: string | Uint8Array,
+  ): Promise<ExclusiveWriteResult> {
+    if (this.files.has(filePath)) return 'exists'
+    await this.writeFile(filePath, data)
+    return 'created'
+  }
+
+  async rename(source: string, destination: string): Promise<void> {
+    const data = this.files.get(source)
+    if (data === undefined) throw new Error(`ENOENT: ${source}`)
+    this.files.delete(source)
+    this.files.set(destination, data)
+  }
+
+  async unlink(filePath: string): Promise<void> {
+    this.files.delete(filePath)
+  }
+
+  async access(filePath: string): Promise<void> {
+    if (!this.files.has(filePath)) throw new Error(`ENOENT: ${filePath}`)
+  }
+
+  async copyFile(source: string, destination: string): Promise<void> {
+    const data = this.files.get(source)
+    if (data === undefined) throw new Error(`ENOENT: ${source}`)
+    this.files.set(destination, data)
+  }
+
+  async mkdir(): Promise<void> {}
+}
+
+/** Gzip-compress `values` into JSONL bytes, as Scryfall's `.jsonl.gz` bulk files are served. */
+export function gzipJsonLines(values: unknown[]): Uint8Array {
+  const text = values.map((value) => JSON.stringify(value)).join('\n') + '\n'
+  return Bun.gzipSync(new TextEncoder().encode(text))
+}
+
+/** A Response streaming `values` as a gzipped JSONL body. */
+export function gzipJsonLinesResponse(values: unknown[]): Response {
+  const bytes = gzipJsonLines(values)
+  return new Response(
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(bytes)
+        controller.close()
+      },
+    }),
+    { headers: { 'content-length': bytes.byteLength.toString() } },
+  )
+}
 
 export class MockHttpClient implements HttpClient {
   private handlers: Map<string, (init?: RequestInit) => Response | Promise<Response>> = new Map()

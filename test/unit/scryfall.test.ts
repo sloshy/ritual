@@ -13,7 +13,9 @@ import type { FileSystemClient } from '../../src/interfaces'
 import {
   MockHttpClient,
   InMemoryCacheManager,
+  MemoryFileSystemClient,
   MemoryLogger,
+  gzipJsonLinesResponse,
   resetLogger,
   setLogger,
 } from '../test-utils'
@@ -21,6 +23,11 @@ import { type ScryfallCard } from '../../src/types'
 
 const readFileMock = mock(async (_path: string, _encoding: BufferEncoding) => '[]')
 const writeFileMock = mock(async (_path: string, _data: string | Uint8Array) => {})
+const writeFileExclusiveMock = mock(
+  async (_path: string, _data: string | Uint8Array) => 'created' as const,
+)
+const renameMock = mock(async (_source: string, _destination: string) => {})
+const unlinkMock = mock(async (_path: string) => {})
 const accessMock = mock(async (_path: string) => {})
 const copyFileMock = mock(async (_source: string, _destination: string) => {})
 const mkdirMock = mock(async (_path: string, _options?: { recursive?: boolean }) => {})
@@ -28,6 +35,9 @@ const mkdirMock = mock(async (_path: string, _options?: { recursive?: boolean })
 const mockFileSystem: FileSystemClient = {
   readFile: readFileMock,
   writeFile: writeFileMock,
+  writeFileExclusive: writeFileExclusiveMock,
+  rename: renameMock,
+  unlink: unlinkMock,
   access: accessMock,
   copyFile: copyFileMock,
   mkdir: mkdirMock,
@@ -97,10 +107,8 @@ describe('ScryfallClient', () => {
       expect(result).toEqual(mockData)
       expect(writeFileMock).toHaveBeenCalled()
 
-      const writeCall = writeFileMock.mock.calls[0]
-      if (writeCall && typeof writeCall[1] === 'string') {
-        expect(JSON.parse(writeCall[1])).toEqual(mockData)
-      }
+      const writeCall = writeFileMock.mock.calls[0]!
+      expect(JSON.parse(writeCall[1] as string)).toEqual(mockData)
     })
 
     test('should fetch symbology when cache file is missing', async () => {
@@ -820,20 +828,11 @@ describe('preloadCache', () => {
         },
       },
     ]
-    const jsonString = JSON.stringify(mockData)
-    const stream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode(jsonString))
-        controller.close()
-      },
-    })
-
     const mockMeta = {
       data: [
         {
           type: 'default_cards',
-          download_uri: 'https://example.com/bulk.json',
-          size: jsonString.length,
+          jsonl_download_uri: 'https://example.com/bulk.jsonl.gz',
         },
       ],
     }
@@ -842,11 +841,9 @@ describe('preloadCache', () => {
       if (url === 'https://api.scryfall.com/bulk-data') {
         return new Response(JSON.stringify(mockMeta))
       }
-      return new Response(stream, {
-        headers: { 'content-length': jsonString.length.toString() },
-      })
+      return gzipJsonLinesResponse(mockData)
     })
-    const client = new ScryfallClient({ fetch: mockFetch }, cardCache)
+    const client = new ScryfallClient({ fetch: mockFetch }, cardCache, new MemoryFileSystemClient())
 
     bulkSetSpy = spyOn(cardCache, 'bulkSet').mockResolvedValue(undefined)
 

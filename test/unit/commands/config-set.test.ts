@@ -485,6 +485,31 @@ describe('applyConfigSet — immutability', () => {
   })
 })
 
+describe('applyConfigSet — cacheLockTimeoutSeconds', () => {
+  test('sets a valid timeout', () => {
+    const result = applyConfigSet(base, 'cacheLockTimeoutSeconds', ['120'], 'replace')
+    if ('error' in result) throw new Error(result.error)
+    expect(result.newValue).toBe(120)
+    expect(result.updatedConfig.cacheLockTimeoutSeconds).toBe(120)
+  })
+
+  test('rejects zero (must be strictly positive, unlike a plain non-negative number)', () => {
+    const result = applyConfigSet(base, 'cacheLockTimeoutSeconds', ['0'], 'replace')
+    expect('error' in result).toBeTrue()
+    if ('error' in result) {
+      expect(result.error).toContain('positive integer')
+    }
+  })
+
+  test('rejects a negative value', () => {
+    const result = applyConfigSet(base, 'cacheLockTimeoutSeconds', ['-5'], 'replace')
+    expect('error' in result).toBeTrue()
+    if ('error' in result) {
+      expect(result.error).toContain('non-negative')
+    }
+  })
+})
+
 describe('applyConfigSet — defaultCurrency', () => {
   test('sets a valid currency', () => {
     const result = applyConfigSet(base, 'defaultCurrency', ['eur'], 'replace')

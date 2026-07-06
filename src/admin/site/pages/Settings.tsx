@@ -1,5 +1,8 @@
 import { type JSX, createSignal, onMount, Show } from 'solid-js'
 import type { AdminConfig, RitualConfig } from '../../../ritual-config'
+// Value imports here must stay browser-safe: ritual-config pulls in node:fs,
+// so only its types may be imported into the admin SPA bundle.
+import { DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS } from '../../../cache/constants'
 import type { PriceCurrency } from '../../../price-currency'
 import {
   INCLUDE_ALL,
@@ -164,6 +167,24 @@ export function Settings(): JSX.Element {
               <option value="eur">EUR (Cardmarket)</option>
               <option value="tix">TIX (MTGO)</option>
             </select>
+          </div>
+          <div>
+            <label class="form-label">Cache Lock Timeout (seconds)</label>
+            <input
+              type="number"
+              class="form-input"
+              name="cacheLockTimeoutSeconds"
+              min={1}
+              step={1}
+              placeholder="e.g. 300"
+              value={config()!.cacheLockTimeoutSeconds}
+              onInput={(e) =>
+                updateField(
+                  'cacheLockTimeoutSeconds',
+                  parseInt(e.currentTarget.value, 10) || DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS,
+                )
+              }
+            />
           </div>
 
           {/* Git settings */}

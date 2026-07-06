@@ -1,7 +1,12 @@
 import path from 'node:path'
 import { mkdir } from 'node:fs/promises'
 import { type PriceData, type ScryfallCard } from '../types'
-import { type CacheManager, type CacheStreamEntryMeta } from '../interfaces'
+import {
+  createDefaultFileSystemClient,
+  type CacheManager,
+  type CacheStreamEntryMeta,
+} from '../interfaces'
+import { writeFileAtomic } from './atomic-write'
 import { getLogger } from '../logger'
 import { getBaseDir } from '../base-dir'
 
@@ -16,6 +21,8 @@ export function getCacheFile(): string {
 }
 export const DEFAULT_EXPIRATION_MS = 86400000 // 24 hours
 const BLOCKLIST_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
+
+const fileSystem = createDefaultFileSystemClient()
 
 interface CachedItem<T> {
   timestamp: number
@@ -115,7 +122,7 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
     try {
       const filePath = this.filePathGetter()
       await mkdir(path.dirname(filePath), { recursive: true })
-      await Bun.write(filePath, JSON.stringify(this.memoryCache, null, 2))
+      await writeFileAtomic(fileSystem, filePath, JSON.stringify(this.memoryCache, null, 2))
     } catch (e) {
       getLogger().error('Failed to save cache:', e)
     }

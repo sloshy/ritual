@@ -453,4 +453,23 @@ describe('Ritual MCP server (in-memory transport)', () => {
     })
     expect(result.isError).toBe(true)
   })
+
+  test('update_config accepts a valid cacheLockTimeoutSeconds and get_config returns it', async () => {
+    const updated = await callTool(client, 'update_config', {
+      config: { cacheLockTimeoutSeconds: 120 },
+    })
+    expect(updated.isError).toBeFalsy()
+
+    const got = toolJson(await callTool(client, 'get_config', {})) as {
+      config: { cacheLockTimeoutSeconds?: number }
+    }
+    expect(got.config.cacheLockTimeoutSeconds).toBe(120)
+  })
+
+  test('update_config rejects a non-positive cacheLockTimeoutSeconds', async () => {
+    const result = await callTool(client, 'update_config', {
+      config: { cacheLockTimeoutSeconds: 0 },
+    })
+    expect(result.isError).toBe(true)
+  })
 })

@@ -107,7 +107,8 @@ Download and cache all Scryfall card data. Equivalent to `ritual cache preload-a
 The Refresh Cache page shows real-time progress during the operation:
 
 - **Progress bar** with download percentage and MiB counter
-- **Stage indicators** tracking each phase: Downloading → Parsing → Processing → Saving
+- **Stage indicators** tracking each phase: Downloading & processing → Saving
+  (cards are parsed and processed as the stream downloads, so they are one phase)
 - Falls back gracefully if streaming is unavailable
 
 ### Archidekt Login
@@ -128,6 +129,7 @@ Configure admin settings including:
 - **Decks Directory**: path to the decks folder (default: `./decks`)
 - **Collections Directory**: path to the collections folder (default: `./collections`)
 - **Default Price Currency**: the currency price-touching surfaces default to (default: `usd`; see [Configuration](/configuration/#default-currency))
+- **Cache Lock Timeout**: seconds a cache refresh waits for another process's cache-write lock before failing (default: `300`; see [Configuration](/configuration/#cache-lock-timeout))
 - **Git Integration**: enable/disable git auto-commit
 - **Two-Factor Authentication (TOTP)**: set up or disable TOTP 2FA
 - **Rate Limiting**: configure failed login attempt limits and lockout duration
@@ -148,6 +150,7 @@ Settings are stored in `ritual.config.json` in the base directory. The file is s
   "collectionsDir": "./collections",
   "wantedDir": "./wanted",
   "defaultCurrency": "usd",
+  "cacheLockTimeoutSeconds": 300,
   "admin": {
     "gitEnabled": false,
     "gitAutoCommit": false,
@@ -565,16 +568,16 @@ Stream cache refresh progress via Server-Sent Events (SSE). The UI uses this end
 | `done`     | `message`                         | Refresh completed successfully |
 | `error`    | `message`                         | Refresh failed                 |
 
-**Stage values:** `download`, `parse`, `process`, `save`, `done`, `info`
+**Stage values:** `download`, `save`, `done`, `info` (parsing/processing happen inline while the gzipped-JSONL bulk streams, so `download` covers them)
 
 **Example event stream:**
 
 ```
 event: progress
-data: {"stage":"download","percentage":45,"message":"Downloading: 45% (112.50/250.45 MiB)"}
+data: {"stage":"download","percentage":45,"message":"Downloading: 45% (32.50/72.50 MiB)"}
 
 event: progress
-data: {"stage":"parse","message":"Parsing JSON..."}
+data: {"stage":"save","message":"Saving to cache..."}
 
 event: done
 data: {"message":"Cache refreshed successfully"}
@@ -713,6 +716,7 @@ Returns the current application configuration.
     "collectionsDir": "./collections",
     "wantedDir": "./wanted",
     "defaultCurrency": "usd",
+    "cacheLockTimeoutSeconds": 300,
     "admin": {
       "gitEnabled": false,
       "gitAutoCommit": false,
@@ -757,6 +761,7 @@ Update the application configuration. Partial updates are supported — only the
     "collectionsDir": "./collections",
     "wantedDir": "./wanted",
     "defaultCurrency": "usd",
+    "cacheLockTimeoutSeconds": 300,
     "admin": {
       "gitEnabled": true,
       "gitAutoCommit": true,

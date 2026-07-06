@@ -14,6 +14,9 @@ test.describe('Cache Refresh Page', () => {
     const main = page.locator('main')
     await main.locator('button:has-text("Refresh Cache")').click()
     await expect(main.locator('.progress-stages')).toBeVisible({ timeout: 5000 })
+    // The streamed pipeline has exactly two stages: the download (which parses
+    // and processes cards as bytes arrive) and the cache save.
+    await expect(main.locator('.progress-stage')).toHaveCount(2)
     await expect(main.locator('.alert-success')).toBeVisible({ timeout: 15_000 })
   })
 })

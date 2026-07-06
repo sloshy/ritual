@@ -22,14 +22,17 @@ Set or update a value in `ritual.config.json`.
 
 ## Settable properties
 
-| Property          | Type     | Default         |
-| ----------------- | -------- | --------------- |
-| `decksDir`        | `string` | `./decks`       |
-| `collectionsDir`  | `string` | `./collections` |
-| `wantedDir`       | `string` | `./wanted`      |
-| `defaultCurrency` | `string` | `usd`           |
+| Property                  | Type     | Default         |
+| ------------------------- | -------- | --------------- |
+| `decksDir`                | `string` | `./decks`       |
+| `collectionsDir`          | `string` | `./collections` |
+| `wantedDir`               | `string` | `./wanted`      |
+| `defaultCurrency`         | `string` | `usd`           |
+| `cacheLockTimeoutSeconds` | `number` | `300`           |
 
 `defaultCurrency` must be one of `usd`, `eur`, or `tix`; it sets the currency every price-touching command defaults to.
+
+`cacheLockTimeoutSeconds` is how long a cache-refreshing operation waits for another process's refresh to finish before failing — see [Configuration → Cache lock timeout](/configuration/#cache-lock-timeout).
 
 The nested `admin` keys — settings for the [admin server](/commands/admin/) — are set with dot notation:
 

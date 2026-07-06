@@ -2,6 +2,7 @@ import { Command } from 'commander'
 import {
   loadRitualConfig,
   parseBannedPrinting,
+  parseCacheLockTimeoutSeconds,
   parseDefaultCurrency,
   saveRitualConfig,
   type AdminConfig,
@@ -64,6 +65,7 @@ export const SETTABLE_FIELDS: Record<string, ConfigFieldType> = {
   collectionsDir: 'string',
   wantedDir: 'string',
   defaultCurrency: 'string',
+  cacheLockTimeoutSeconds: 'number',
 } satisfies SettableFieldsMap
 
 // The admin settings, exposed as dotted `admin.<field>` paths handled through the
@@ -257,6 +259,15 @@ export function applyConfigSet(
     }
     if (num < 0) {
       return { error: `"${property}" expects a non-negative integer, got "${rawValue}".` }
+    }
+    // cacheLockTimeoutSeconds is a constrained number (must be strictly positive); reject
+    // 0 here rather than letting it round-trip to a value the config loader silently
+    // discards (falling back to the default with only a console.warn) on the next load.
+    if (property === 'cacheLockTimeoutSeconds') {
+      const parsed = parseCacheLockTimeoutSeconds(num)
+      if (typeof parsed === 'string') {
+        return { error: parsed }
+      }
     }
     // Safe: path is a validated keyof RitualConfig, value matches the field's number type.
     const updatedConfig = setAtPath(configObj, path, num) as unknown as RitualConfig

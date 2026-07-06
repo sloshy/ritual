@@ -77,26 +77,6 @@ describe('StreamingLogger', () => {
     expect(events).toHaveLength(0)
   })
 
-  test('detects parsing stage from info', () => {
-    const events = collect((logger) => {
-      logger.info('Parsing JSON...')
-    })
-
-    expect(events).toHaveLength(1)
-    expect(events[0]!.stage).toBe('parse')
-    expect(events[0]!.message).toBe('Parsing JSON...')
-  })
-
-  test('detects processing stage from info', () => {
-    const events = collect((logger) => {
-      logger.info('Processing 62000 cards...')
-    })
-
-    expect(events).toHaveLength(1)
-    expect(events[0]!.stage).toBe('process')
-    expect(events[0]!.message).toContain('Processing')
-  })
-
   test('detects save stage from info', () => {
     const events = collect((logger) => {
       logger.info('Saving to cache...')
@@ -155,12 +135,12 @@ describe('StreamingLogger', () => {
     const events: CacheProgressEvent[] = []
     const logger = new StreamingLogger((e) => events.push(e), mirror)
 
-    logger.info('Parsing JSON...')
+    logger.info('Saving to cache...')
     logger.progress('\rDownloading: 50% (125.00/250.00 MiB)')
     logger.error('oops')
 
     expect(mirrored).toEqual([
-      'info:Parsing JSON...',
+      'info:Saving to cache...',
       'progress:\rDownloading: 50% (125.00/250.00 MiB)',
       'error:oops',
     ])
@@ -168,17 +148,19 @@ describe('StreamingLogger', () => {
   })
 
   test('full cache refresh lifecycle produces correct stage sequence', () => {
+    // Mirrors the messages downloadBulkCards emits for the streamed JSONL bulk:
+    // parsing/processing happen inline with the download, so there is no
+    // separate parse/process stage anymore.
     const events = collect((logger) => {
       logger.info('Fetching bulk data metadata from Scryfall...')
-      logger.info('Bulk URL: https://example.com/bulk.json')
-      logger.info('Download size: 250.45 MiB')
-      logger.progress('\rDownloading: 0% (0.00/250.45 MiB)')
-      logger.progress('\rDownloading: 50% (125.22/250.45 MiB)')
-      logger.progress('\rDownloading: 100% (250.45/250.45 MiB)')
+      logger.info('Bulk URL: https://example.com/bulk.jsonl.gz')
+      logger.info('Download size: 72.50 MiB (compressed)')
+      logger.progress('\rDownloading: 0% (0.00/72.50 MiB)')
+      logger.progress('\rDownloading: 50% (36.25/72.50 MiB)')
+      logger.progress('\rDownloading: 100% (72.50/72.50 MiB)')
       logger.progress('\n')
-      logger.info('Parsing JSON...')
-      logger.info('Processing 62000 cards...')
       logger.info('Filtered out 1234 arena-only or token printings.')
+      logger.info('Processed 62000 cards.')
       logger.info('Saving to cache...')
       logger.info('Done! Card cache populated.')
     })
@@ -191,9 +173,8 @@ describe('StreamingLogger', () => {
       'download', // 0%
       'download', // 50%
       'download', // 100%
-      'parse', // Parsing JSON
-      'process', // Processing cards
       'info', // Filtered out
+      'info', // Processed cards
       'save', // Saving to cache
       'done', // Done!
     ])

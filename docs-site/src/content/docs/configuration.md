@@ -19,6 +19,7 @@ When you pass `--base-dir`, Ritual loads the config from that directory and reso
   "collectionsDir": "./collections",
   "wantedDir": "./wanted",
   "defaultCurrency": "usd",
+  "cacheLockTimeoutSeconds": 300,
   "admin": {
     "gitEnabled": false,
     "gitAutoCommit": false,
@@ -54,6 +55,14 @@ You can use absolute paths (`"/srv/mtg/decks"`) or paths that step outside the b
 | Field             | Default | Description                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | ----------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `defaultCurrency` | `usd`   | The currency price-touching surfaces default to: `usd`, `eur`, or `tix`. Used by the [price](/commands/price/) command, the price lines shown when adding cards in the CLI editor, the [admin site](/commands/admin/)'s editor and move-cards price displays, and as the public site's initial currency (when that currency is built). [init-site](/commands/init-site/) prompts for it; change it later with `config-set defaultCurrency eur`. |
+
+## Cache lock timeout
+
+| Field                     | Default | Description                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cacheLockTimeoutSeconds` | `300`   | How long a cache-refreshing operation waits for another process's cache refresh to finish before failing. Refreshes take an exclusive lock (`cache/.ritual-cache-lock`) so concurrent processes — CLI commands, the [cache server](/commands/cache-server/), the [admin server](/commands/admin/) — never interleave writes to the cache. Must be a positive integer. |
+
+A waiting process breaks the lock immediately when its holder is provably no longer running (e.g. it crashed without cleaning up), so a stale lock never wedges the cache for longer than one acquisition attempt.
 
 ## Admin options (`admin` key)
 

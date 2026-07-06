@@ -2,6 +2,7 @@ import {
   getRitualConfigPath,
   loadRitualConfig,
   normalizeBannedPrintings,
+  parseCacheLockTimeoutSeconds,
   parseDefaultCurrency,
   reloadRitualConfig,
   saveRitualConfig,
@@ -53,6 +54,16 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
         return Response.json({ success: false, message: parsed.error }, { status: 400 })
       }
       updates.defaultCurrency = parsed
+    }
+
+    // Same rationale as defaultCurrency: reject an invalid lock timeout here
+    // instead of persisting it and silently resetting on the next load.
+    if (updates.cacheLockTimeoutSeconds !== undefined) {
+      const parsed = parseCacheLockTimeoutSeconds(updates.cacheLockTimeoutSeconds)
+      if (typeof parsed === 'string') {
+        return Response.json({ success: false, message: parsed }, { status: 400 })
+      }
+      updates.cacheLockTimeoutSeconds = parsed
     }
 
     const current = await loadRitualConfig()

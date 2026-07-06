@@ -25,6 +25,7 @@ Start a local cache server for card and pricing cache data.
 
 - Uses local `cache/cache.json` as the cache storage backend.
 - If the card cache is empty or stale for the selected cards cadence (weekly if unset) on startup, it performs a full preload before serving requests.
+- Startup and scheduled full preloads take the exclusive cache-write lock (`cache/.ritual-cache-lock`), so they never interleave with another process's refresh — see [Configuration → Cache lock timeout](/configuration/#cache-lock-timeout).
 - On cache misses, it performs read-through fetches and stores the results back into local cache.
 - Price entries can be grouped into cadence buckets and refreshed on schedule.
 - Price refresh scheduling is game-format-aware: USD/EUR price refreshes are skipped for cards without paper printings, and TIX refreshes are skipped for cards without MTGO printings.

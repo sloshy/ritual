@@ -1,7 +1,7 @@
 import { type JSX, createSignal, createMemo, onCleanup, Show, For } from 'solid-js'
 import { StatusAlerts } from '../components/StatusAlerts'
 
-type Stage = 'idle' | 'connecting' | 'download' | 'parse' | 'process' | 'save' | 'done' | 'error'
+type Stage = 'idle' | 'connecting' | 'download' | 'save' | 'done' | 'error'
 
 interface StageInfo {
   id: Stage
@@ -14,10 +14,10 @@ type CacheProgressEventData = { stage: string; percentage?: number; message: str
 type CacheDoneEventData = { message: string }
 type CacheErrorEventData = { message: string }
 
+// The bulk download streams: cards are parsed and processed as bytes arrive,
+// so downloading and processing are a single stage.
 const stages: StageInfo[] = [
-  { id: 'download', label: 'Downloading card data', icon: '📡' },
-  { id: 'parse', label: 'Parsing JSON', icon: '📄' },
-  { id: 'process', label: 'Processing cards', icon: '⚙️' },
+  { id: 'download', label: 'Downloading & processing card data', icon: '📡' },
   { id: 'save', label: 'Saving to cache', icon: '💾' },
 ]
 
@@ -84,7 +84,7 @@ export function CacheRefresh(): JSX.Element {
         try {
           const data = JSON.parse(e.data as string) as CacheProgressEventData
           const s = data.stage as Stage
-          if (s === 'download' || s === 'parse' || s === 'process' || s === 'save') {
+          if (s === 'download' || s === 'save') {
             setStage(s)
           }
           if (data.percentage !== undefined) {
