@@ -1,0 +1,327 @@
+import * as fs from 'node:fs/promises'
+import path from 'node:path'
+import type { Command } from 'commander'
+import { getErrorMessage } from '../errors'
+import { countLabel } from '../editor/change-bundle'
+import { isFinish, VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
+import { isListType, type ListType } from '../list-type'
+import {
+  buildExportSelection,
+  hasActiveExportFilters,
+  parseConditionFilterValues,
+  type ExportFilters,
+} from '../export/entries'
+import { describeExportProperties, parseColumnsFlag, type ExportProperty } from '../export/render'
+import {
+  EXPORT_FORMATS,
+  isExportFormat,
+  resolveExportSettings,
+  type ExportFormat,
+  type ExportPreset,
+} from '../export/presets'
+import { renderExport, saveExportPreset } from '../export/output'
+import {
+  isResolveListError,
+  listLocations,
+  listTypeFromFlags,
+  resolveList,
+  type ListLocation,
+} from '../resolve-list'
+import { getExportPresets } from '../ritual-config'
+import { emitError, emitResolveListError, ExitCode, type ScriptingOptions } from './scripting'
+import { runExportWizard } from './export-wizard'
+
+/** Raw commander option values; format/columns/finish/condition are validated in the action. */
+type ExportCommandOptions = {
+  deck?: boolean
+  collection?: boolean
+  wanted?: boolean
+  all?: boolean
+  card: string[]
+  name?: string
+  set?: string
+  finish?: string
+  condition?: string
+  format?: string
+  columns?: string
+  /** Commander stores `--no-header` as `header: false` (true when not given). */
+  header: boolean
+  quoteAll?: boolean
+  out?: string
+  preset?: string
+  savePreset?: string
+  quiet?: boolean
+  /** Commander stores `--no-interactive` as `interactive: false` (true when not given). */
+  interactive: boolean
+}
+
+/** Validated flag values that decide gating and output shape. */
+export type ParsedExportFlags = {
+  all: boolean
+  cards: string[]
+  filters: ExportFilters
+  format?: ExportFormat
+  columns?: ExportProperty[]
+  /** undefined when `--no-header` was not given. */
+  header?: boolean
+  quoteAll?: boolean
+  out?: string
+  preset?: string
+  savePreset?: string
+  quiet?: boolean
+  interactive: boolean
+}
+
+/**
+ * The wizard launches only for a bare TTY invocation: no list args and no flag
+ * that describes a concrete export. `--preset` alone still opens the wizard
+ * (pre-loaded with that preset's output shape).
+ */
+export function shouldRunExportInteractive(
+  flags: ParsedExportFlags,
+  listArgs: string[],
+  isTTY: boolean,
+): boolean {
+  if (!isTTY) return false
+  if (!flags.interactive) return false
+  if (listArgs.length > 0) return false
+  if (flags.all || flags.cards.length > 0) return false
+  if (flags.format || flags.columns || flags.header !== undefined || flags.quoteAll) return false
+  if (flags.out || flags.savePreset) return false
+  if (hasActiveExportFilters(flags.filters)) return false
+  return true
+}
+
+/** A list argument with an optional `deck:` / `collection:` / `wanted:` type prefix. */
+export type ListArgument = { type?: ListType; name: string }
+
+/** Split an optional list-type prefix off a `[lists...]` argument. */
+export function parseListArgument(raw: string): ListArgument {
+  const match = raw.match(/^([a-z]+):(.+)$/)
+  const prefix = match?.[1]
+  if (match && prefix !== undefined && isListType(prefix)) {
+    return { type: prefix, name: match[2]! }
+  }
+  return { name: raw }
+}
+
+const textOptions: ScriptingOptions = { output: 'text', quiet: false }
+
+function usageError(message: string): void {
+  emitError('usage_error', message, textOptions)
+  process.exitCode = ExitCode.UsageError
+}
+
+/** Validate the raw filter/format/column flag strings, or report and return undefined. */
+function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | undefined {
+  const filters: ExportFilters = { name: options.name, set: options.set }
+  if (options.finish !== undefined) {
+    const finish = options.finish.toLowerCase()
+    if (!isFinish(finish)) {
+      usageError(`Invalid finish '${options.finish}'. Use one of: ${VALID_FINISHES.join(', ')}.`)
+      return undefined
+    }
+    filters.finish = finish
+  }
+  if (options.condition !== undefined) {
+    const conditions = parseConditionFilterValues(
+      options.condition
+        .split(',')
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0),
+    )
+    if (typeof conditions === 'string') {
+      usageError(conditions)
+      return undefined
+    }
+    filters.conditions = conditions
+  }
+
+  let format: ExportFormat | undefined
+  if (options.format !== undefined) {
+    const lower = options.format.toLowerCase()
+    if (!isExportFormat(lower)) {
+      usageError(`Invalid format '${options.format}'. Use one of: ${EXPORT_FORMATS.join(', ')}.`)
+      return undefined
+    }
+    format = lower
+  }
+
+  let columns: ExportProperty[] | undefined
+  if (options.columns !== undefined) {
+    const parsed = parseColumnsFlag(options.columns)
+    if (typeof parsed === 'string') {
+      usageError(parsed)
+      return undefined
+    }
+    columns = parsed
+  }
+
+  return {
+    all: options.all ?? false,
+    cards: options.card,
+    filters,
+    format,
+    columns,
+    header: options.header ? undefined : false,
+    quoteAll: options.quoteAll ? true : undefined,
+    out: options.out,
+    preset: options.preset,
+    savePreset: options.savePreset,
+    quiet: options.quiet,
+    interactive: options.interactive !== false,
+  }
+}
+
+/** Write the export to a file (creating parent directories) or raw to stdout. */
+async function emitExport(
+  content: string,
+  entryCount: number,
+  out: string | undefined,
+  quiet: boolean,
+): Promise<void> {
+  if (out) {
+    const target = path.resolve(out)
+    await fs.mkdir(path.dirname(target), { recursive: true })
+    await fs.writeFile(target, content + '\n', 'utf-8')
+    if (!quiet) console.log(`✓ Exported ${countLabel(entryCount, 'card')} to ${target}`)
+    return
+  }
+  process.stdout.write(content + '\n')
+  // Keep stdout parseable: the confirmation goes to stderr.
+  if (!quiet) process.stderr.write(`Exported ${countLabel(entryCount, 'card')}\n`)
+}
+
+async function runFlagExport(
+  listArgs: string[],
+  type: ListType | undefined,
+  flags: ParsedExportFlags,
+): Promise<void> {
+  const quiet = flags.quiet ?? false
+
+  // Resolve the preset before doing any work so an unknown name fails fast.
+  let preset: ExportPreset | undefined
+  if (flags.preset !== undefined) {
+    const presets = getExportPresets()
+    preset = presets[flags.preset]
+    if (!preset) {
+      const names = Object.keys(presets)
+      emitError(
+        'not_found',
+        names.length > 0
+          ? `No export preset named '${flags.preset}'. Saved presets: ${names.join(', ')}.`
+          : `No export preset named '${flags.preset}'. No presets are saved yet.`,
+        textOptions,
+      )
+      process.exitCode = ExitCode.NotFound
+      return
+    }
+  }
+  const settings = resolveExportSettings(preset, {
+    format: flags.format,
+    columns: flags.columns,
+    header: flags.header,
+    quoteAll: flags.quoteAll,
+  })
+
+  // Selected lists: named args, or every list in scope when --all (or nothing) was given.
+  const selected: ListLocation[] = []
+  for (const raw of listArgs) {
+    const arg = parseListArgument(raw)
+    const resolved = await resolveList(arg.name, arg.type ?? type)
+    if (isResolveListError(resolved)) {
+      emitResolveListError(resolved, textOptions)
+      return
+    }
+    if (!selected.some((l) => l.type === resolved.type && l.name === resolved.name)) {
+      selected.push(resolved)
+    }
+  }
+  const exportAll = flags.all || (listArgs.length === 0 && flags.cards.length === 0)
+  const scope = await listLocations(type)
+  if (exportAll) {
+    for (const location of scope) {
+      if (!selected.some((l) => l.type === location.type && l.name === location.name)) {
+        selected.push(location)
+      }
+    }
+  }
+
+  // Card picks search every list in scope, not just the selected ones.
+  const selection = await buildExportSelection(selected, scope, flags.cards, flags.filters)
+  if (!quiet) {
+    for (const warning of selection.warnings) console.warn(`⚠️  ${warning}`)
+  }
+
+  if (flags.savePreset !== undefined) {
+    await saveExportPreset(flags.savePreset, settings)
+    if (!quiet) console.log(`✓ Saved export preset '${flags.savePreset}'`)
+  }
+
+  await emitExport(
+    renderExport(selection.entries, settings),
+    selection.entries.length,
+    flags.out,
+    quiet,
+  )
+}
+
+export function registerExportCommand(program: Command): void {
+  program
+    .command('export')
+    .description('Export cards from decks, collections, and wanted lists as CSV or JSON')
+    .argument(
+      '[lists...]',
+      'Lists to export; an optional deck:/collection:/wanted: prefix pins the type',
+    )
+    .option('--deck', 'Only decks (also disambiguates list names)')
+    .option('--collection', 'Only collections (also disambiguates list names)')
+    .option('--wanted', 'Only wanted lists (also disambiguates list names)')
+    .option('--all', 'Export every list (the default when no lists or --card are given)')
+    .option(
+      '--card <terms>',
+      'Add cards whose name matches every term (repeatable)',
+      (value: string, previous: string[]) => [...previous, value],
+      [] as string[],
+    )
+    .option('--name <terms>', 'Only cards whose name contains every term')
+    .option('--set <code>', 'Only cards from this set code')
+    .option('--finish <finish>', `Only cards with this finish: ${VALID_FINISHES.join(', ')}`)
+    .option(
+      '--condition <list>',
+      `Only cards with one of these conditions (comma-separated): ${VALID_CONDITIONS.join(', ')}, none (no condition marked)`,
+    )
+    .option('--format <format>', `Output format: ${EXPORT_FORMATS.join(' or ')} (default: csv)`)
+    .option(
+      '--columns <list>',
+      `Comma-separated columns in output order. Available: ${describeExportProperties()}`,
+    )
+    .option('--no-header', 'Omit the CSV header row')
+    .option('--quote-all', 'Quote every CSV cell instead of only cells that need it')
+    .option('--out <file>', 'Write to this file instead of stdout')
+    .option('--preset <name>', 'Start from a saved export preset')
+    .option('--save-preset <name>', 'Save the resolved format/columns/CSV options as a preset')
+    .option('--quiet', 'Suppress warnings and confirmations')
+    .option('--no-interactive', 'Never open the interactive wizard')
+    .action(async (listArgs: string[], options: ExportCommandOptions) => {
+      const type = listTypeFromFlags(options)
+      if (type === 'conflict') {
+        usageError('Use only one of --deck, --collection, or --wanted.')
+        return
+      }
+
+      const flags = parseExportFlags(options)
+      if (!flags) return
+
+      try {
+        if (shouldRunExportInteractive(flags, listArgs, process.stdout.isTTY === true)) {
+          await runExportWizard(flags.preset)
+          return
+        }
+        await runFlagExport(listArgs, type, flags)
+      } catch (e) {
+        emitError('runtime_error', getErrorMessage(e), textOptions, e)
+        process.exitCode = ExitCode.RuntimeError
+      }
+    })
+}

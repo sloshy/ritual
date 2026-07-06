@@ -69,16 +69,17 @@ there (since the admin binds `0.0.0.0` by default) and is independent of the bro
 
 ### Read (read-only)
 
-| Tool                                            | Description                                                  |
-| ----------------------------------------------- | ------------------------------------------------------------ |
-| `list_decks`, `list_collections`, `list_wanted` | List lists of one type.                                      |
-| `list_all_lists`                                | Every deck/collection/wanted list as `{ type, slug, name }`. |
-| `load_deck`, `load_collection`, `load_wanted`   | Load a list's cards/entries and sections.                    |
-| `search_cards`, `autocomplete_card`             | Find card names on Scryfall.                                 |
-| `card_printings`, `card_price`                  | A card's printings and per-currency prices.                  |
-| `load_history`                                  | A list's change history.                                     |
-| `move_candidates`                               | Every movable card across lists, with keys for `move_cards`. |
-| `get_config`, `get_audit_log`                   | Configuration and admin activity.                            |
+| Tool                                            | Description                                                                                                  |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `list_decks`, `list_collections`, `list_wanted` | List lists of one type.                                                                                      |
+| `list_all_lists`                                | Every deck/collection/wanted list as `{ type, slug, name }`.                                                 |
+| `load_deck`, `load_collection`, `load_wanted`   | Load a list's cards/entries and sections.                                                                    |
+| `search_cards`, `autocomplete_card`             | Find card names on Scryfall.                                                                                 |
+| `card_printings`, `card_price`                  | A card's printings and per-currency prices.                                                                  |
+| `load_history`                                  | A list's change history.                                                                                     |
+| `move_candidates`                               | Every movable card across lists, with keys for `move_cards`.                                                 |
+| `get_config`, `get_audit_log`                   | Configuration and admin activity.                                                                            |
+| `export_cards`                                  | Render a CSV/JSON [export](/commands/export/) of lists and/or card picks, with filters and column selection. |
 
 ### Write
 

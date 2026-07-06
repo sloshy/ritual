@@ -35,6 +35,7 @@ import { registerDeckSyncCommand } from './src/commands/deck-sync'
 import { registerEditCommand } from './src/commands/edit'
 import { registerMoveCommand } from './src/commands/move'
 import { registerHistoryCommand } from './src/commands/history'
+import { registerExportCommand } from './src/commands/export'
 import { registerConfigSetCommand } from './src/commands/config-set'
 import { registerHashCommand } from './src/commands/hash'
 import { registerListAllCardsCommand } from './src/commands/list-all-cards'
@@ -122,6 +123,7 @@ registerMoveCommand(program)
 registerHistoryCommand(program)
 registerImportCsvCommand(program)
 registerImportChangesCommand(program)
+registerExportCommand(program)
 
 program.commandsGroup('Card Lookup')
 registerCardCommand(program)

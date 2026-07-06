@@ -3,9 +3,17 @@ import type { CollectionCardEntry, WantedListCardEntry } from '../site/data-type
 import type { SelectedCard } from '../site/useCardSelection'
 import { serializeSectionedList } from '../section-format'
 import { formatCollectionLine, formatWantedListLine, printingSuffix } from '../card-line'
+import { csvCell } from '../csv'
+import { DEFAULT_EXPORT_COLUMNS, EXPORT_PROPERTY_LABELS } from '../export/render'
 
-/** Header row shared by every CSV export (`Name,Set,Collector Number,Finish,Condition,Quantity`). */
-export const CSV_HEADER = 'Name,Set,Collector Number,Finish,Condition,Quantity'
+/**
+ * Header row shared by every fixed-column CSV export
+ * (`Name,Set,Collector Number,Finish,Condition,Quantity`). Derived from the
+ * `ritual export` property labels so the two CSV surfaces can never drift.
+ */
+export const CSV_HEADER = DEFAULT_EXPORT_COLUMNS.map(
+  (column) => EXPORT_PROPERTY_LABELS[column],
+).join(',')
 
 /**
  * Markdown/CSV serializers for collection and wanted-list entries. Shared by the
@@ -53,10 +61,6 @@ export function wantedToMarkdown(
 ): string {
   return serializeSectionedList(title, entries, sectionOrder, serializeWantedListEntry)
 }
-
-/** Quote a CSV field when it contains a comma, quote, or newline, escaping embedded quotes per RFC 4180. */
-export const csvCell = (value: string): string =>
-  /[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value
 
 /**
  * Build one CSV data row in the canonical {@link CSV_HEADER} column order. Only the

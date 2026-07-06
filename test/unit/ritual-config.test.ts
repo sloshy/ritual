@@ -205,6 +205,30 @@ describe('ritual config', () => {
     expect(config.admin).toEqual(getDefaultRitualConfig().admin)
   })
 
+  test('exportPresets survive a save/load round-trip', async () => {
+    const presets = {
+      deckbox: { format: 'csv', columns: ['name', 'quantity'], quoteAll: true },
+    }
+    await fs.writeFile(configPath, JSON.stringify({ exportPresets: presets }))
+    const config = await loadRitualConfig()
+    expect(config.exportPresets).toEqual({
+      deckbox: { format: 'csv', columns: ['name', 'quantity'], quoteAll: true },
+    })
+
+    await saveRitualConfig(config)
+    const reloaded = await loadRitualConfig()
+    expect(reloaded.exportPresets).toEqual(config.exportPresets)
+  })
+
+  test('exportPresets are dropped with a warning when malformed', async () => {
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({ exportPresets: { bad: { format: 'xml', columns: ['name'] } } }),
+    )
+    const config = await loadRitualConfig()
+    expect(config.exportPresets).toBeUndefined()
+  })
+
   test('loadRitualConfig drops the whole admin object when a field has the wrong type', async () => {
     await fs.writeFile(
       configPath,

@@ -3,7 +3,7 @@ import type { RitualSkill } from '../types'
 export const editSkill: RitualSkill = {
   name: 'ritual-edit',
   description:
-    'Edit cards in any Ritual deck, collection, or wanted list — non-interactive commands for agents and scripts, plus the interactive editor TUI. Use when the user wants to add or remove a card, set or clear a card note, edit lists interactively, move cards between lists, apply a change bundle exported from the site editor, or compact a change history.',
+    'Edit cards in any Ritual deck, collection, or wanted list — non-interactive commands for agents and scripts, plus the interactive editor TUI. Use when the user wants to add or remove a card, set or clear a card note, edit lists interactively, move cards between lists, apply a change bundle exported from the site editor, export cards as CSV or JSON, or compact a change history.',
   body: `# Editing cards in any Ritual list (non-interactive)
 
 These commands edit a deck, collection, or wanted list **without an interactive
@@ -109,6 +109,37 @@ exists, else by card name); changes whose target card no longer exists are skipp
 and reported. Each list gets a changelog entry, and a failed list (e.g. one that no
 longer exists) is reported without stopping the rest. Exits non-zero when any list
 fails. The same JSON can also be applied in the web admin's **Import Changes** page.
+
+## Export cards as CSV or JSON
+
+\`ritual export\` renders any grouping of cards to CSV or JSON. Bare \`ritual export\`
+in a terminal opens an interactive wizard; agents should always pass flags (any
+source, filter, or output flag runs non-interactively). With no lists and no
+\`--card\` picks, **every list** is exported:
+
+\`\`\`bash
+ritual export --format json > all-cards.json          # everything, JSON on stdout
+ritual export deck:burn --out burn.csv                # one deck to a CSV file
+ritual export "Main Binder" wishlist --set MKM        # two lists, filtered by set
+ritual export --card "sol ring" --card "mana crypt"   # cherry-pick cards across lists
+ritual export --collection --finish foil --condition NM
+ritual export --all --columns name,quantity,listName --no-header --quote-all
+ritual export --all --save-preset trade-sheet         # save format/columns/CSV options
+ritual export --all --preset trade-sheet --out t.csv  # reuse them (flags override)
+\`\`\`
+
+List names take an optional \`deck:\`/\`collection:\`/\`wanted:\` prefix (or scope with
+\`--deck\`/\`--collection\`/\`--wanted\`). Filters: \`--name <terms>\`, \`--set <code>\`,
+\`--finish nonfoil|foil|etched\` (nonfoil also matches unmarked cards), and
+\`--condition <list>\` — comma-separated NM|LP|MP|HP|DMG|none, where a grade
+matches only cards with it explicitly marked and \`none\` matches cards without
+one (e.g. \`--condition NM,none\`); wanted entries never match. Available columns:
+\`name\`, \`quantity\`, \`set\`, \`collectorNumber\`, \`edition\` (set + collector
+number as \`SET:number\`), \`finish\`, \`isFoil\` (true when foil or etched),
+\`condition\`, \`note\`, \`section\`, \`listName\`, \`listType\`. Set codes are
+lowercase in JSON and UPPERCASE in CSV. Without \`--out\` the export goes to stdout (the confirmation goes to
+stderr, so stdout stays parseable). Presets persist in \`ritual.config.json\` under
+\`exportPresets\`. Exit codes: 2 usage error, 3 unknown list/preset.
 
 ## Compact change history
 

@@ -16,6 +16,8 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
 - import_changes applies a change bundle exported from the site editor ("ritual-change-bundle"
   JSON covering one or more lists) to the underlying lists.
 - move_cards moves cards between lists using opaque keys from move_candidates.
+- export_cards renders a CSV/JSON export of any mix of lists and card picks (filterable by name,
+  set, finish, condition; column selection and order included) and returns the content string.
 - rename_*, delete_* (which require a matching confirmName), rewrite_history, and update_config are
   destructive; use them deliberately.
 - Lists are also exposed as readable resources at ritual://{type}/{slug}.`

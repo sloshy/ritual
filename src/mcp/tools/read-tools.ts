@@ -2,7 +2,9 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { callApi } from '../dispatch'
 import { jsonResult } from '../result'
-import { listTypeSchema, slugField } from '../schemas'
+import { finishSchema, listTypeSchema, slugField } from '../schemas'
+import { EXPORT_PROPERTIES } from '../../export/render'
+import { VALID_CONDITIONS } from '../../finish-condition'
 import type { ScryfallCard } from '../../types'
 import type {
   CollectionLoadResult,
@@ -257,5 +259,65 @@ export function registerReadTools(server: McpServer): void {
       const query = limit === undefined ? '' : `?limit=${limit}`
       return jsonResult(await callApi('GET', `/api/audit-log${query}`))
     },
+  )
+
+  server.registerTool(
+    'export_cards',
+    {
+      title: 'Export cards',
+      description:
+        'Render a CSV or JSON export of cards from decks, collections, and wanted lists. ' +
+        'Select whole lists and/or pick cards by name terms; filter by name, set, finish, or ' +
+        'condition; choose the columns and their order. With no lists and no cards, every ' +
+        'list is exported. Returns { format, entryCount, content, warnings } — the content ' +
+        'string is the rendered export (nothing is written to disk).',
+      inputSchema: {
+        lists: z
+          .array(
+            z.object({
+              type: listTypeSchema.optional().describe('Pin the list type of an ambiguous name.'),
+              name: z.string().min(1).describe('List name (matched like CLI list arguments).'),
+            }),
+          )
+          .optional()
+          .describe('Lists to export whole.'),
+        cards: z
+          .array(z.string().min(1))
+          .optional()
+          .describe(
+            'Card picks: each entry is whitespace-separated name terms; every entry across ' +
+              'all lists whose name matches all terms is added.',
+          ),
+        filters: z
+          .object({
+            name: z.string().optional().describe('Only cards whose name contains every term.'),
+            set: z.string().optional().describe('Only cards from this set code.'),
+            finish: finishSchema
+              .optional()
+              .describe('Only this finish; nonfoil also matches unmarked cards.'),
+            conditions: z
+              .array(z.enum([...VALID_CONDITIONS, 'none']))
+              .optional()
+              .describe(
+                'Only cards with one of these conditions. An explicit grade matches only cards ' +
+                  "with it marked; 'none' matches cards without one. Wanted entries never match.",
+              ),
+          })
+          .optional(),
+        format: z.enum(['csv', 'json']).optional().describe('Output format (default csv).'),
+        columns: z
+          .array(z.enum(EXPORT_PROPERTIES))
+          .optional()
+          .describe('Columns to export, in output order.'),
+        header: z.boolean().optional().describe('CSV: include the header row (default true).'),
+        quoteAll: z.boolean().optional().describe('CSV: quote every cell (default false).'),
+        preset: z
+          .string()
+          .optional()
+          .describe('Start from a saved export preset; explicit fields override it.'),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async (args) => jsonResult(await callApi('POST', '/api/export', args)),
   )
 }

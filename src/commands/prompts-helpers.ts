@@ -36,6 +36,22 @@ export async function promptListType(): Promise<ListType | undefined> {
   })
 }
 
+/**
+ * Prompt for a free-text filter value, prefilled with the current one. An
+ * empty submission clears the filter (returns undefined); cancelling the
+ * prompt keeps the current value. Shared by the price browser and the export
+ * wizard filter screens.
+ */
+export async function promptTextFilter(
+  message: string,
+  current: string | undefined,
+): Promise<string | undefined> {
+  const value = await ask<string>({ type: 'text', message, initial: current ?? '' })
+  if (value === undefined) return current
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
 /** The user's pick from the shared editor exit menu. */
 export type ExitMenuChoice = 'save' | 'discard' | 'cancel'
 

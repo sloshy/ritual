@@ -72,6 +72,25 @@ A waiting process breaks the lock immediately when its holder is provably no lon
 | `cacheSource`  | `scryfall` | Where card-cache refreshes download from. `scryfall` hits Scryfall's bulk API directly; `feed` syncs from a peer-to-peer [cache feed](/commands/cache-feed/) — checking the feed's infohashes and only downloading when they changed — falling back to Scryfall when unreachable. |
 | `cacheFeedUrl` | —          | The feed URL used when `cacheSource` is `feed` (and by `cache-feed fetch` without `--url`). Must be an http(s) URL; the built-in default is used when absent.                                                                                                                     |
 
+## Export presets (`exportPresets` key)
+
+| Field           | Default | Description                                                                                                                                                                                                                                                                                                                                             |
+| --------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `exportPresets` | —       | Named output shapes for the [export](/commands/export/) command: each preset holds a `format` (`csv`/`json`), a `columns` array (in output order), and the CSV toggles `header` and `quoteAll`. Managed with `export --save-preset`, the export wizard, or by hand — `config-set` does not manage this key. Present only after a preset has been saved. |
+
+```json
+{
+  "exportPresets": {
+    "trade-sheet": {
+      "format": "csv",
+      "columns": ["name", "set", "collectorNumber", "condition", "quantity"],
+      "header": true,
+      "quoteAll": false
+    }
+  }
+}
+```
+
 ## Admin options (`admin` key)
 
 The `admin` key holds settings that are configured through, and for, the [admin server](/commands/admin/): git integration for admin file changes, network access control, and login rate limiting. Set them from the admin **Settings** page, with [`config-set admin.<field>`](/commands/config-set/), or by hand. The key is always present and each field falls back to its default when omitted.

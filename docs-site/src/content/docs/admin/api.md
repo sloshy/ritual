@@ -778,3 +778,42 @@ Apply a change bundle exported from the site editor to the underlying lists. Use
 ```
 
 Each list is loaded fresh and its changes re-targeted to the current card IDs (by ID when it still exists, otherwise by card name). Changes whose target card no longer exists are skipped and reported in that list's `conflicts` (`{ change, reason: "target-not-found" }`). A list that fails to load or save carries an `error` string (and `applied: 0`) without stopping the remaining lists; `success` is `true` only when no list errored. `move-from` changes also write their destination lists, and every applied list gets a changelog entry — the same save path as the editors. The response is `400` when the body is not a valid change bundle.
+
+## Export Cards
+
+```
+POST /api/export
+```
+
+Render a CSV or JSON export of cards from decks, collections, and wanted lists. Exposed as the MCP `export_cards` tool; shares its engine with the [`export`](/commands/export/) CLI command. Nothing is written to disk — the rendered export is returned as a string.
+
+**Request Body:** every field is optional. With no `lists` and no `cards`, every list is exported.
+
+```json
+{
+  "lists": [{ "type": "deck", "name": "winota-stax" }],
+  "cards": ["sol ring"],
+  "filters": { "name": "sol", "set": "c21", "finish": "foil", "conditions": ["NM", "none"] },
+  "format": "csv",
+  "columns": ["name", "set", "collectorNumber", "quantity"],
+  "header": true,
+  "quoteAll": false,
+  "preset": "trade-sheet"
+}
+```
+
+`lists` names resolve like CLI list arguments (the optional `type` pins an ambiguous name). Each `cards` entry is whitespace-separated name terms; every entry across all lists whose name matches all terms is added (deduplicated against the selected lists). `filters.conditions` takes condition grades and/or `none` (cards with no condition marked), matching the CLI's `--condition` semantics. `preset` starts from a saved [export preset](/commands/export/#presets); the explicit fields override its values.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "format": "csv",
+  "entryCount": 2,
+  "content": "Name,Set,Collector Number,Quantity\nSol Ring,C21,263,1\n...",
+  "warnings": []
+}
+```
+
+`warnings` carries list parse warnings and `cards` terms that matched nothing. The response is `400` for an unknown list, preset, column, or filter value.

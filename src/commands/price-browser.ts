@@ -39,7 +39,7 @@ import { comparePrintings } from '../scryfall'
 import { formatDuration } from '../utils'
 import { matchesAllTerms } from '../term-match'
 import type { ScryfallCard } from '../types'
-import { ask } from './prompts-helpers'
+import { ask, promptTextFilter } from './prompts-helpers'
 
 export const SORT_FIELD_LABELS: Record<PriceSortField, string> = {
   name: 'Name',
@@ -355,16 +355,6 @@ async function promptSortChange(state: CardBrowserState): Promise<void> {
     state.descending = selection === state.sort ? !state.descending : false
     state.sort = selection
   }
-}
-
-async function promptTextFilter(
-  message: string,
-  current: string | undefined,
-): Promise<string | undefined> {
-  const value = await ask<string>({ type: 'text', message, initial: current ?? '' })
-  if (value === undefined) return current
-  const trimmed = value.trim()
-  return trimmed.length > 0 ? trimmed : undefined
 }
 
 async function promptTypeFilter(current: ListType | undefined): Promise<ListType | undefined> {

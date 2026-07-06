@@ -60,7 +60,7 @@ inspection is fine.
 - **ritual-decks** — create, import, sync, and price decks
 - **ritual-collections** — manage and price collections
 - **ritual-wanted** — manage and price wanted lists
-- **ritual-edit** — card edits across any list: non-interactive commands (add/remove cards, notes) and the unified interactive editor
+- **ritual-edit** — card edits across any list: non-interactive commands (add/remove cards, notes), the unified interactive editor, and CSV/JSON exports
 - **ritual-cards** — look up cards and run Scryfall searches
 - **ritual-site** — build, serve, and administer the published site (and the MCP server)
 

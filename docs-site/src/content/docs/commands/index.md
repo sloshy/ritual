@@ -8,7 +8,7 @@ jump to a category:
 
 - **Account & Auth** — [login](/commands/login/)
 - **Deck Management** — [new-deck](/commands/new-deck/), [import-account](/commands/import-account/), [get-primer](/commands/get-primer/), [deck-sync](/commands/deck-sync/)
-- **Card Management** — [edit](/commands/edit/), [price](/commands/price/), [move](/commands/move/), [history](/commands/history/), [import](/commands/import/), [import-csv](/commands/import-csv/), [import-changes](/commands/import-changes/)
+- **Card Management** — [edit](/commands/edit/), [price](/commands/price/), [move](/commands/move/), [history](/commands/history/), [import](/commands/import/), [import-csv](/commands/import-csv/), [import-changes](/commands/import-changes/), [export](/commands/export/)
 - **Card Lookup** — [card](/commands/card/), [scry](/commands/scry/), [random](/commands/random/)
 - **Site** — [build-site](/commands/build-site/), [serve](/commands/serve/), [serve-site](/commands/serve-site/), [init-site](/commands/init-site/), [admin](/commands/admin/)
 - **Integrations** — [mcp](/commands/mcp/), [skills](/commands/skills/)

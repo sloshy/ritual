@@ -10,6 +10,7 @@ import {
 import { isValidSemver } from './semver'
 import { DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS } from './cache/constants'
 import { INCLUDE_ALL, defaultSiteSelection, type SiteSelectionConfig } from './site/list-selection'
+import { parseExportPresets, type ExportPreset } from './export/presets'
 
 export { INCLUDE_ALL } from './site/list-selection'
 export type { SiteSelectionConfig } from './site/list-selection'
@@ -103,6 +104,12 @@ export interface RitualConfig {
   admin: AdminConfig
   /** Present only when `ritual init-site` has been run; managed exclusively by that command. */
   site?: SiteConfig
+  /**
+   * Named `ritual export` output-shape presets (format, columns, CSV toggles),
+   * managed via `ritual export --save-preset` or the interactive wizard.
+   * Present only when at least one preset has been saved.
+   */
+  exportPresets?: Record<string, ExportPreset>
 }
 
 const DEFAULT_ADMIN_CONFIG = {
@@ -357,9 +364,10 @@ export function getSiteDeployConfig(site: SiteConfig | undefined): SiteDeployCon
  * to `unknown` because JSON.parse returns untrusted data; {@link parseAdminConfig}
  * and {@link parseSiteConfig} validate and narrow them in {@link applyDefaults}.
  */
-type ParsedConfig = Omit<Partial<RitualConfig>, 'admin' | 'site'> & {
+type ParsedConfig = Omit<Partial<RitualConfig>, 'admin' | 'site' | 'exportPresets'> & {
   admin?: unknown
   site?: unknown
+  exportPresets?: unknown
 }
 
 /** Validate a boolean admin field, defaulting when absent or erroring when malformed. */
@@ -581,6 +589,14 @@ function applyDefaults(parsed: ParsedConfig): RitualConfig {
       console.warn(`ritual.config.json: ignoring invalid site config — ${site}`)
     }
   }
+  if (parsed.exportPresets !== undefined) {
+    const exportPresets = parseExportPresets(parsed.exportPresets)
+    if (typeof exportPresets !== 'string') {
+      merged.exportPresets = exportPresets
+    } else {
+      console.warn(`ritual.config.json: ignoring invalid exportPresets — ${exportPresets}`)
+    }
+  }
   return merged
 }
 
@@ -691,6 +707,13 @@ export function getCacheFeedUrl(config: RitualConfig = getRitualConfig()): strin
  */
 export function getBannedPrintings(config: RitualConfig = getRitualConfig()): Set<string> {
   return new Set(config.site?.bannedPrintings ?? [])
+}
+
+/** The saved `ritual export` presets, keyed by preset name (empty when none saved). */
+export function getExportPresets(
+  config: RitualConfig = getRitualConfig(),
+): Record<string, ExportPreset> {
+  return config.exportPresets ?? {}
 }
 
 /**

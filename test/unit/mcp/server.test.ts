@@ -24,6 +24,7 @@ const EXPECTED_TOOLS = [
   'move_candidates',
   'get_config',
   'get_audit_log',
+  'export_cards',
   // write
   'create_deck',
   'create_collection',
@@ -156,6 +157,31 @@ describe('Ritual MCP server (in-memory transport)', () => {
     const names = data.deck.sections.flatMap((s) => s.cards.map((c) => c.name))
     expect(names).toContain('Sol Ring')
     expect(data.cards).toBeUndefined()
+  })
+
+  test('export_cards renders the selected list with chosen columns', async () => {
+    const result = await callTool(client, 'export_cards', {
+      lists: [{ type: 'deck', name: 'test-deck' }],
+      format: 'csv',
+      columns: ['name', 'quantity', 'section'],
+      quoteAll: true,
+    })
+    expect(result.isError).toBeFalsy()
+    const data = toolJson(result) as { entryCount: number; content: string; warnings: string[] }
+    expect(data.entryCount).toBe(2)
+    expect(data.content.split('\n')).toEqual([
+      '"Name","Quantity","Section"',
+      '"Sol Ring","1","Commander"',
+      '"Lightning Bolt","1","Main"',
+    ])
+  })
+
+  test('export_cards rejects an unknown list with a clear error', async () => {
+    const result = await callTool(client, 'export_cards', {
+      lists: [{ name: 'nope' }],
+    })
+    expect(result.isError).toBe(true)
+    expect(firstText(result)).toContain('nope')
   })
 
   test('add_card_to_deck persists a new card (no content hash exposed)', async () => {
