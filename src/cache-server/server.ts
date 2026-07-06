@@ -6,7 +6,13 @@ import { type HttpClient } from '../interfaces'
 import { ScryfallClient } from '../scryfall'
 import { type PriceData, type ScryfallCard } from '../types'
 import { getErrorMessage } from '../errors'
-import { parsePort, parseRefreshCadence, resolveRefreshCadence, resolveRefreshMs } from './cadence'
+import {
+  parsePort,
+  parseRefreshCadence,
+  resolveRefreshCadence,
+  resolveRefreshMs,
+  scheduleRecurringTask,
+} from './cadence'
 import { CACHE_SERVER_LOG_PREFIX, PRICE_REFRESH_STAGGER_MS, WEEKLY_REFRESH_MS } from './constants'
 import {
   createFileSystemClient,
@@ -468,20 +474,19 @@ export function registerCacheServerCommand(program: Command): void {
         console.log(
           `${CACHE_SERVER_LOG_PREFIX} Scheduled cards cache refresh enabled: ${cardsRefreshCadence}`,
         )
-        setInterval(() => {
-          void (async () => {
-            try {
-              await localScryfallClient.preloadCache()
-              logCacheUpdate('section=cards action=scheduled-preload')
-              console.log(`${CACHE_SERVER_LOG_PREFIX} Scheduled cards cache refresh complete.`)
-            } catch (error) {
-              console.error(
-                `${CACHE_SERVER_LOG_PREFIX} Scheduled cards cache refresh failed:`,
-                error,
-              )
-            }
-          })()
-        }, cardsRefreshMs)
+        scheduleRecurringTask(
+          cardsRefreshMs,
+          async () => {
+            await localScryfallClient.preloadCache()
+            logCacheUpdate('section=cards action=scheduled-preload')
+            console.log(`${CACHE_SERVER_LOG_PREFIX} Scheduled cards cache refresh complete.`)
+          },
+          (error) =>
+            console.error(
+              `${CACHE_SERVER_LOG_PREFIX} Scheduled cards cache refresh failed:`,
+              error,
+            ),
+        )
       }
 
       if (priceRefreshScheduler && pricesRefreshCadence) {

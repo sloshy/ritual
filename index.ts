@@ -16,6 +16,7 @@ import { registerAddNoteCommand } from './src/commands/add-note'
 import { registerClearNoteCommand } from './src/commands/clear-note'
 import { registerCacheCommand } from './src/commands/cache'
 import { registerCacheServerCommand } from './src/commands/cache-server'
+import { registerCacheFeedCommand } from './src/commands/cache-feed'
 import { registerLoginCommand } from './src/commands/login'
 
 import { registerImportAccountCommand } from './src/commands/import-account'
@@ -141,6 +142,7 @@ registerSkillsCommand(program)
 program.commandsGroup('Cache')
 registerCacheCommand(program)
 registerCacheServerCommand(program)
+registerCacheFeedCommand(program)
 
 program.commandsGroup('Utilities')
 registerGitDetectChangesCommand(program)

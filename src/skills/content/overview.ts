@@ -77,6 +77,7 @@ ritual config-set <prop> <value>  # set a config value (dot notation for nested 
 ritual config-set defaultCurrency eur  # currency price commands/displays default to (usd | eur | tix)
 ritual cache preload-all          # warm the Scryfall card cache + tags (bulk download)
 ritual cache refresh-tags         # refresh only the oracle/art tags on cached cards
+ritual cache-feed host            # host a P2P feed of the raw Scryfall bulk files
 \`\`\`
 
 Cache refreshes take an exclusive lock (\`cache/.ritual-cache-lock\`); a refresh

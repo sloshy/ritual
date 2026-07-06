@@ -31,6 +31,7 @@ import {
   parseTagIndex,
 } from './tags'
 import { type GzipJsonLinesProgress, readGzipJsonLines } from './jsonl'
+import { fetchScryfallBulkManifest, type ScryfallBulkManifestEntry } from './bulk-manifest'
 import { withCacheLock } from '../cache/lock'
 import { writeFileAtomic } from '../cache/atomic-write'
 
@@ -86,13 +87,6 @@ export type MinMaxPrice = {
 export type FetchCardDataOptions = { silent?: boolean }
 export type FetchNamedCardOptions = { fuzzy?: boolean; set?: string }
 type ScryfallErrorBody = { details: string }
-type ScryfallBulkMetadataEntry = {
-  type: string
-  /** URL of the gzipped-JSONL form of this bulk file (`*.jsonl.gz`). */
-  jsonl_download_uri: string
-  updated_at?: string
-}
-
 export type SearchPageResult = {
   data: ScryfallList<ScryfallCard> | null
   raw: string
@@ -768,11 +762,8 @@ export class ScryfallClient implements PricingBackend {
   }
 
   /** Fetch the Scryfall bulk-data manifest listing each available bulk file. */
-  private async fetchBulkMetadata(): Promise<ScryfallBulkMetadataEntry[]> {
-    const response = await this.http.fetch('https://api.scryfall.com/bulk-data')
-    if (!response.ok) throwHttpError(response, 'Failed to fetch bulk metadata')
-    const json = (await response.json()) as ScryfallList<ScryfallBulkMetadataEntry>
-    return json.data ?? []
+  private fetchBulkMetadata(): Promise<ScryfallBulkManifestEntry[]> {
+    return fetchScryfallBulkManifest(this.http)
   }
 
   /** Persist a batch of name → printings entries, using bulkSet when available. */

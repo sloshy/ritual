@@ -43,3 +43,17 @@ export function resolveRefreshMs(
   if (!cadence) return undefined
   return cadenceToMs(cadence)
 }
+
+/**
+ * Run `task` every `intervalMs`, fire-and-forget: a rejection is routed to
+ * `onError` and never kills the timer, so the next tick still fires.
+ */
+export function scheduleRecurringTask(
+  intervalMs: number,
+  task: () => Promise<void>,
+  onError: (error: unknown) => void,
+): ReturnType<typeof setInterval> {
+  return setInterval(() => {
+    void task().catch(onError)
+  }, intervalMs)
+}

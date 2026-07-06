@@ -18,7 +18,7 @@ export {
 } from './client'
 
 import type { ScryfallCard, ScryfallList } from '../types'
-import { cardCache } from '../cache'
+import { cardCache } from '../cache/instances'
 import { defaultHttpClient } from '../http'
 import { ScryfallClient } from './client'
 import type {

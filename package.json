@@ -52,6 +52,13 @@
   "peerDependencies": {},
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "create-torrent": "^6.1.2",
+    "parse-torrent": "^11.0.21",
+    "webrtc-polyfill": "./vendor/webrtc-polyfill",
+    "webtorrent": "^3.0.16",
     "zod": "^4.4.3"
+  },
+  "overrides": {
+    "webrtc-polyfill": "file:./vendor/webrtc-polyfill"
   }
 }

@@ -75,7 +75,7 @@ export default defineConfig({
             },
             {
               label: 'Cache',
-              items: ['commands/cache', 'commands/cache-server'],
+              items: ['commands/cache', 'commands/cache-server', 'commands/cache-feed'],
             },
             {
               label: 'Scripting',
