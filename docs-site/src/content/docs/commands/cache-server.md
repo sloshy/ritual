@@ -12,20 +12,26 @@ Start a local cache server for card and pricing cache data.
 
 ## Options
 
-| Option                        | Description                                                                    | Default     |
-| ----------------------------- | ------------------------------------------------------------------------------ | ----------- |
-| `-p, --port <number>`         | Port for the cache server                                                      | `4000`      |
-| `--host <hostname>`           | Host interface for the cache server                                            | `127.0.0.1` |
-| `--cards-refresh <interval>`  | Run full cards cache refresh on a cadence (`daily`, `weekly`, `monthly`)       | disabled    |
-| `--prices-refresh <interval>` | Run price cache refresh scheduling on a cadence (`daily`, `weekly`, `monthly`) | disabled    |
-| `-v, --verbose`               | Log every incoming cache-server request                                        | disabled    |
-| `--deny-http`                 | Reject all outgoing HTTP requests (can be used for testing)                    | disabled    |
+| Option                        | Description                                                                    | Default                                          |
+| ----------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------ |
+| `-p, --port <number>`         | Port for the cache server                                                      | `4000`                                           |
+| `--host <hostname>`           | Host interface for the cache server                                            | `127.0.0.1`                                      |
+| `--cards-refresh <interval>`  | Run full cards cache refresh on a cadence (`daily`, `weekly`, `monthly`)       | disabled                                         |
+| `--prices-refresh <interval>` | Run price cache refresh scheduling on a cadence (`daily`, `weekly`, `monthly`) | disabled                                         |
+| `--cache-source <source>`     | Where card refreshes download from: `scryfall` or `feed`                       | `cacheSource` config key                         |
+| `--feed-url <url>`            | Cache feed URL for feed-sourced refreshes                                      | `cacheFeedUrl` config, then the built-in default |
+| `--feed-torrent-port <n>`     | Fixed TCP port for incoming torrent peers while seeding feed artifacts         | random                                           |
+| `--no-feed-seed`              | With a feed source, sync without seeding the artifacts back to the swarm       | seeding on                                       |
+| `-v, --verbose`               | Log every incoming cache-server request                                        | disabled                                         |
+| `--deny-http`                 | Reject all outgoing HTTP requests (can be used for testing)                    | disabled                                         |
 
 ## Behavior
 
 - Uses local `cache/cache.json` as the cache storage backend.
 - If the card cache is empty or stale for the selected cards cadence (weekly if unset) on startup, it performs a full preload before serving requests.
 - Startup and scheduled full preloads take the exclusive cache-write lock (`cache/.ritual-cache-lock`), so they never interleave with another process's refresh — see [Configuration → Cache lock timeout](/configuration/#cache-lock-timeout).
+- With a `feed` cache source, card refreshes sync from a peer-to-peer [cache feed](/commands/cache-feed/) instead of Scryfall (unchanged feeds are a cheap infohash check; feed failures fall back to a direct Scryfall preload), and — unless `--no-feed-seed` — the server **keeps seeding** the feed's artifacts between refreshes, making every always-on cache server a permanent swarm member. In feed-seeding mode the startup refresh always runs (it is what starts the seeding), even when the local cache is fresh.
+- `--deny-http` also disables feed syncing and seeding.
 - On cache misses, it performs read-through fetches and stores the results back into local cache.
 - Price entries can be grouped into cadence buckets and refreshed on schedule.
 - Price refresh scheduling is game-format-aware: USD/EUR price refreshes are skipped for cards without paper printings, and TIX refreshes are skipped for cards without MTGO printings.

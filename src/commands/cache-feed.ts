@@ -4,6 +4,7 @@ import { getCacheDir } from '../cache'
 import { defaultHttpClient } from '../http'
 import { getErrorMessage } from '../errors'
 import {
+  parseFeedUrlFlag,
   parsePort,
   parseRefreshCadence,
   resolveRefreshMs,
@@ -149,6 +150,7 @@ export function registerCacheFeedCommand(program: Command): void {
     .option(
       '--url <feedUrl>',
       'Feed URL (defaults to the cacheFeedUrl config key, then the built-in default)',
+      parseFeedUrlFlag,
     )
     .option('--no-p2p', 'Download over plain HTTP instead of BitTorrent')
     .option('--no-seed', 'Exit after ingesting instead of staying open to seed')

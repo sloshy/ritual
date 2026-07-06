@@ -11,6 +11,8 @@ import { gzipJsonLines } from '../test-utils'
 // Fixed ports for the spawned host; chosen away from the other suites' ports.
 const FEED_PORT = 4915
 const TORRENT_PORT = 4916
+const CACHE_SERVER_PORT = 4918
+const CACHE_SERVER_TORRENT_PORT = 4919
 
 const artifacts: Record<string, Uint8Array> = {
   'default-cards-e2e.jsonl.gz': gzipJsonLines([
@@ -136,6 +138,145 @@ describe('cache-feed host (e2e over the built binary)', () => {
       await fs.rm(fetchDir, { recursive: true, force: true })
     }
   }, 60_000)
+
+  test('a feed-mode cache server syncs on startup and seeds persistently', async () => {
+    const serverDir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-cache-server-feed-'))
+    let serverProc: Subprocess | undefined
+    try {
+      serverProc = Bun.spawn(
+        [
+          binaryPath,
+          'cache-server',
+          '--port',
+          String(CACHE_SERVER_PORT),
+          '--cache-source',
+          'feed',
+          '--feed-url',
+          `http://127.0.0.1:${FEED_PORT}/feed.json`,
+          '--feed-torrent-port',
+          String(CACHE_SERVER_TORRENT_PORT),
+        ],
+        { cwd: serverDir, stdout: 'pipe', stderr: 'pipe' },
+      )
+
+      // Wait for the server to come up (startup feed sync happens first).
+      const start = Date.now()
+      while (true) {
+        const health = await fetch(`http://127.0.0.1:${CACHE_SERVER_PORT}/health`).catch(() => null)
+        if (health?.ok) break
+        if (Date.now() - start > 60_000) throw new Error('cache-server did not come up')
+        await new Promise((resolve) => setTimeout(resolve, 250))
+      }
+
+      // Startup sync ingested the feed's cards into this base dir's cache.
+      const cacheJson = await Bun.file(path.join(serverDir, 'cache', 'cache.json')).text()
+      expect(cacheJson).toContain('Sol Ring')
+      // And recorded the sync state (proves the ingest branch ran, not a fallback).
+      expect(
+        await Bun.file(path.join(serverDir, 'cache', 'feed-client', 'state.json')).exists(),
+      ).toBeTrue()
+
+      // And the server seeds: leech the default-cards artifact from it over TCP.
+      const entry = feed.entries.find((candidate) => candidate.kind === 'default-cards')!
+      const torrentBuf = new Uint8Array(await (await fetch(entry.torrentUrl)).arrayBuffer())
+      const downloadDir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-server-leech-'))
+      const leecher = new WebTorrent({
+        dht: false,
+        tracker: false,
+        lsd: false,
+        utp: false,
+        webSeeds: false,
+        natUpnp: false,
+        natPmp: false,
+      })
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(
+            () => reject(new Error('Leech from cache-server timed out')),
+            30_000,
+          )
+          const torrent = leecher.add(torrentBuf, { path: downloadDir })
+          torrent.on('error', (err) => reject(err instanceof Error ? err : new Error(String(err))))
+          torrent.on('infoHash', () => torrent.addPeer(`127.0.0.1:${CACHE_SERVER_TORRENT_PORT}`))
+          torrent.on('done', () => {
+            clearTimeout(timer)
+            resolve()
+          })
+        })
+        const downloaded = new Uint8Array(
+          await Bun.file(path.join(downloadDir, entry.fileName)).arrayBuffer(),
+        )
+        const hash = new Bun.CryptoHasher('sha256').update(downloaded).digest('hex')
+        expect(hash).toBe(entry.sha256)
+      } finally {
+        await new Promise<void>((resolve) => leecher.destroy(() => resolve()))
+        await fs.rm(downloadDir, { recursive: true, force: true })
+      }
+      // The server's own log must attribute the ingest to the feed — a silent
+      // fallback to a live Scryfall download would otherwise mask a broken
+      // feed path (the synthetic cards share names with real ones).
+      serverProc.kill()
+      const [serverStdout] = await Promise.all([
+        new Response(serverProc.stdout as ReadableStream).text(),
+        serverProc.exited,
+      ])
+      serverProc = undefined
+      expect(serverStdout).toContain('source=feed outcome=ingested')
+      expect(serverStdout).not.toContain('source=scryfall')
+    } finally {
+      serverProc?.kill()
+      await serverProc?.exited
+      await fs.rm(serverDir, { recursive: true, force: true })
+    }
+  }, 120_000)
+
+  test('--no-feed-seed syncs the cache without seeding', async () => {
+    const serverDir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-cache-server-noseed-'))
+    let serverProc: Subprocess | undefined
+    try {
+      serverProc = Bun.spawn(
+        [
+          binaryPath,
+          'cache-server',
+          '--port',
+          String(CACHE_SERVER_PORT + 2),
+          '--cache-source',
+          'feed',
+          '--feed-url',
+          `http://127.0.0.1:${FEED_PORT}/feed.json`,
+          '--no-feed-seed',
+        ],
+        { cwd: serverDir, stdout: 'pipe', stderr: 'pipe' },
+      )
+      const start = Date.now()
+      while (true) {
+        const health = await fetch(`http://127.0.0.1:${CACHE_SERVER_PORT + 2}/health`).catch(
+          () => null,
+        )
+        if (health?.ok) break
+        if (Date.now() - start > 60_000) throw new Error('cache-server did not come up')
+        await new Promise((resolve) => setTimeout(resolve, 250))
+      }
+
+      serverProc.kill()
+      const [stdout] = await Promise.all([
+        new Response(serverProc.stdout as ReadableStream).text(),
+        serverProc.exited,
+      ])
+      serverProc = undefined
+      // The cache was still synced from the feed on startup...
+      const cacheJson = await Bun.file(path.join(serverDir, 'cache', 'cache.json')).text()
+      expect(cacheJson).toContain('Sol Ring')
+      // ...from the feed, not a Scryfall fallback...
+      expect(stdout).toContain('source=feed outcome=ingested')
+      // ...but no torrent client was started.
+      expect(stdout).not.toContain('Seeding feed artifacts')
+    } finally {
+      serverProc?.kill()
+      await serverProc?.exited
+      await fs.rm(serverDir, { recursive: true, force: true })
+    }
+  }, 120_000)
 
   test('a torrent client downloads an artifact from the host over TCP', async () => {
     const entry = feed.entries.find((candidate) => candidate.kind === 'default-cards')!

@@ -218,7 +218,25 @@ export class CacheFeedClient {
     }
 
     await this.pruneUnreferenced(feed)
+    this.pruneStaleTorrents(feed)
     return { feed, changedKinds, files }
+  }
+
+  /**
+   * Drop torrents for artifacts the current feed no longer references, so a
+   * long-running seeder doesn't accumulate one orphaned torrent per rotation
+   * (each pointing at a file {@link pruneUnreferenced} just deleted).
+   */
+  private pruneStaleTorrents(feed: CacheFeedDocument): void {
+    const client = this.torrentClient
+    if (!client) return
+    const live = new Set(feed.entries.map((entry) => entry.infoHash))
+    for (const torrent of [...client.torrents]) {
+      if (!live.has(torrent.infoHash)) {
+        this.log(`Stopped seeding superseded artifact ${torrent.name} (${torrent.infoHash})`)
+        client.remove(torrent.infoHash)
+      }
+    }
   }
 
   /**

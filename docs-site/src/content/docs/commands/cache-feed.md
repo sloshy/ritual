@@ -75,6 +75,10 @@ Refreshes then check the feed's infohashes instead of re-downloading from
 Scryfall, fall back to Scryfall with a warning when the feed is unreachable,
 and seed to peers for the duration of any download.
 
+For an always-on swarm member, run a [cache server](/commands/cache-server/)
+with `--cache-source feed` — it syncs from the feed on its refresh cadence and
+keeps seeding the artifacts between refreshes.
+
 ## HTTP endpoints
 
 | Path                           | Description                                                             |

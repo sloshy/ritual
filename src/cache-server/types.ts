@@ -1,4 +1,5 @@
 import { type PriceData } from '../types'
+import { type CacheSource } from '../ritual-config'
 
 export type RefreshCadence = 'daily' | 'weekly' | 'monthly'
 export type PriceRefreshReason = 'scheduled' | 'manual-override'
@@ -28,4 +29,9 @@ export interface CacheServerCommandOptions {
   pricesRefresh?: RefreshCadence
   verbose?: boolean
   denyHttp?: boolean
+  cacheSource?: CacheSource
+  feedUrl?: string
+  feedTorrentPort?: number
+  /** Commander stores `--no-feed-seed` as `feedSeed: false`. */
+  feedSeed: boolean
 }

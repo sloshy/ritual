@@ -1,12 +1,16 @@
-import { Command } from 'commander'
+import { Command, InvalidArgumentError } from 'commander'
 import * as fs from 'node:fs/promises'
 import { getCacheDir, getCacheFile, FileCacheManager } from '../cache'
 import { defaultHttpClient } from '../http'
+import { getCacheSource, parseCacheSource, type CacheSource } from '../ritual-config'
+import { CacheFeedClient, type FeedSyncResult } from '../cache-feed/fetch'
+import { getFeedClientDataDir, resolveFeedUrl } from '../cache/refresh-source'
 import { type HttpClient } from '../interfaces'
 import { ScryfallClient } from '../scryfall'
 import { type PriceData, type ScryfallCard } from '../types'
 import { getErrorMessage } from '../errors'
 import {
+  parseFeedUrlFlag,
   parsePort,
   parseRefreshCadence,
   resolveRefreshCadence,
@@ -408,6 +412,25 @@ export function registerCacheServerCommand(program: Command): void {
       "Run prices cache refresh on an interval (supported: 'daily', 'weekly', 'monthly')",
       parseRefreshCadence,
     )
+    .option(
+      '--cache-source <source>',
+      "Where card refreshes download from: 'scryfall' or 'feed' (defaults to the cacheSource config key)",
+      parseCacheSourceFlag,
+    )
+    .option(
+      '--feed-url <url>',
+      'Cache feed URL for feed-sourced refreshes (defaults to the cacheFeedUrl config key)',
+      parseFeedUrlFlag,
+    )
+    .option(
+      '--feed-torrent-port <number>',
+      'Fixed TCP port for incoming torrent peers while seeding feed artifacts',
+      parsePort,
+    )
+    .option(
+      '--no-feed-seed',
+      'With a feed source, sync without seeding the artifacts back to the swarm',
+    )
     .option('-v, --verbose', 'Log every cache-server request', false)
     .option(
       '--deny-http',
@@ -459,15 +482,77 @@ export function registerCacheServerCommand(program: Command): void {
         localCardCache,
       )
 
+      // Feed mode: refresh from the P2P cache feed and (by default) keep
+      // seeding its artifacts between refreshes, so every always-on cache
+      // server is a permanent swarm member.
+      const cacheSource: CacheSource = options.cacheSource ?? getCacheSource()
+      const feedClient: CacheFeedClient | null =
+        cacheSource === 'feed' && !options.denyHttp
+          ? new CacheFeedClient({
+              feedUrl: resolveFeedUrl(options.feedUrl),
+              dataDir: getFeedClientDataDir(),
+              http: httpClient,
+              ingest: (files) => localScryfallClient.preloadCacheFromFiles(files),
+              ...(options.feedTorrentPort !== undefined
+                ? { torrentPort: options.feedTorrentPort }
+                : {}),
+            })
+          : null
+
+      /**
+       * One cards refresh from the configured source. Feed failures fall back
+       * to a direct Scryfall preload so a broken feed never wedges the server.
+       */
+      const refreshCards = async (action: string): Promise<void> => {
+        if (feedClient) {
+          let result: FeedSyncResult | null = null
+          try {
+            result = await feedClient.sync()
+          } catch (error) {
+            console.error(
+              `${CACHE_SERVER_LOG_PREFIX} Feed sync failed; falling back to Scryfall:`,
+              error,
+            )
+          }
+          if (result) {
+            if (result.outcome === 'unchanged') {
+              await localCardCache.bulkSet({})
+              console.log(`${CACHE_SERVER_LOG_PREFIX} Cache feed is unchanged; cards are current.`)
+            }
+            logCacheUpdate(`section=cards action=${action} source=feed outcome=${result.outcome}`)
+            if (options.feedSeed) {
+              // The cards are already ingested — a seeding failure is a
+              // warning, never a reason to redo the refresh from Scryfall.
+              try {
+                await feedClient.seedAll(result.feed)
+              } catch (error) {
+                console.error(
+                  `${CACHE_SERVER_LOG_PREFIX} Seeding feed artifacts failed (cards already ingested):`,
+                  error,
+                )
+              }
+            }
+            return
+          }
+        }
+        await localScryfallClient.preloadCache()
+        logCacheUpdate(`section=cards action=${action} source=scryfall`)
+      }
+
       const cardCacheIsEmpty = await localCardCache.isEmpty()
       const cardsLastRefreshedAt = await localCardCache.getLastRefreshedAt()
       const cardsStaleThresholdMs = cardsRefreshMs ?? WEEKLY_REFRESH_MS
       const cardCacheIsStale = isOlderThan(cardsLastRefreshedAt, cardsStaleThresholdMs)
-      if (!options.denyHttp && (cardCacheIsEmpty || cardCacheIsStale)) {
-        const reason = cardCacheIsEmpty ? 'empty' : 'stale'
-        console.log(`${CACHE_SERVER_LOG_PREFIX} Card cache is ${reason}; running full preload...`)
-        await localScryfallClient.preloadCache()
-        logCacheUpdate(`section=cards action=startup-preload reason=${reason}`)
+      // With a seeding feed client, always sync at startup: an unchanged feed
+      // is a cheap infohash check, and seeding needs the current artifacts.
+      const startupRefreshNeeded =
+        cardCacheIsEmpty || cardCacheIsStale || (feedClient !== null && options.feedSeed)
+      if (!options.denyHttp && startupRefreshNeeded) {
+        const reason = cardCacheIsEmpty ? 'empty' : cardCacheIsStale ? 'stale' : 'seed'
+        console.log(
+          `${CACHE_SERVER_LOG_PREFIX} Running startup cards refresh (${reason}, source: ${cacheSource})...`,
+        )
+        await refreshCards(`startup-preload reason=${reason}`)
       }
 
       if (cardsRefreshMs && cardsRefreshCadence) {
@@ -477,8 +562,7 @@ export function registerCacheServerCommand(program: Command): void {
         scheduleRecurringTask(
           cardsRefreshMs,
           async () => {
-            await localScryfallClient.preloadCache()
-            logCacheUpdate('section=cards action=scheduled-preload')
+            await refreshCards('scheduled-preload')
             console.log(`${CACHE_SERVER_LOG_PREFIX} Scheduled cards cache refresh complete.`)
           },
           (error) =>
@@ -511,12 +595,30 @@ export function registerCacheServerCommand(program: Command): void {
 
       if (options.denyHttp) {
         console.log(`${CACHE_SERVER_LOG_PREFIX} HTTP requests denied (--deny-http).`)
+        if (cacheSource === 'feed') {
+          console.log(`${CACHE_SERVER_LOG_PREFIX} Feed mode disabled by --deny-http.`)
+        }
       }
       if (options.verbose) {
         console.log(`${CACHE_SERVER_LOG_PREFIX} Verbose request logging enabled.`)
+      }
+      if (feedClient && options.feedSeed) {
+        const port = feedClient.torrentPortInUse()
+        console.log(
+          `${CACHE_SERVER_LOG_PREFIX} Seeding feed artifacts${port ? ` on TCP port ${port}` : ''}.`,
+        )
       }
       console.log(
         `${CACHE_SERVER_LOG_PREFIX} Cache server listening on http://${options.host}:${options.port}`,
       )
     })
+}
+
+/** Commander argParser for `--cache-source`. */
+function parseCacheSourceFlag(value: string): CacheSource {
+  const parsed = parseCacheSource(value)
+  if (typeof parsed !== 'string') {
+    throw new InvalidArgumentError(parsed.error)
+  }
+  return parsed
 }

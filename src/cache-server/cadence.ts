@@ -1,5 +1,6 @@
 import { InvalidArgumentError } from 'commander'
 import { DAY_REFRESH_MS, MONTHLY_REFRESH_MS, WEEKLY_REFRESH_MS } from './constants'
+import { parseCacheFeedUrl } from '../ritual-config'
 import { type RefreshCadence } from './types'
 
 export function parsePort(value: string): number {
@@ -56,4 +57,15 @@ export function scheduleRecurringTask(
   return setInterval(() => {
     void task().catch(onError)
   }, intervalMs)
+}
+
+/** Commander argParser for feed-URL flags: fail at parse time, not first fetch. */
+export function parseFeedUrlFlag(value: string): string {
+  const parsed = parseCacheFeedUrl(value)
+  if (typeof parsed !== 'string') {
+    throw new InvalidArgumentError(
+      parsed === undefined ? '"--feed-url" requires a value' : parsed.error,
+    )
+  }
+  return parsed
 }
