@@ -8,6 +8,7 @@ import {
   type PriceCurrency,
 } from './price-currency'
 import { isValidSemver } from './semver'
+import { DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS } from './cache/constants'
 import { INCLUDE_ALL, defaultSiteSelection, type SiteSelectionConfig } from './site/list-selection'
 
 export { INCLUDE_ALL } from './site/list-selection'
@@ -85,6 +86,11 @@ export interface RitualConfig {
    * present, defaulting to `usd`.
    */
   defaultCurrency: PriceCurrency
+  /**
+   * How long cache-refreshing operations wait for the cache-write lock held by
+   * another process before failing. Always present, defaulting to 300 (5 minutes).
+   */
+  cacheLockTimeoutSeconds: number
   /** Admin-server settings; always present, defaulting to {@link DEFAULT_ADMIN_CONFIG}. */
   admin: AdminConfig
   /** Present only when `ritual init-site` has been run; managed exclusively by that command. */
@@ -112,6 +118,7 @@ const DEFAULT_CONFIG = {
   collectionsDir: './collections',
   wantedDir: './wanted',
   defaultCurrency: DEFAULT_CURRENCY,
+  cacheLockTimeoutSeconds: DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS,
 } satisfies Omit<RitualConfig, 'admin' | 'site'>
 
 const CONFIG_FILENAME = 'ritual.config.json'
@@ -470,6 +477,18 @@ export function parseDefaultCurrency(value: unknown): PriceCurrency | DefaultCur
   return { error: `"defaultCurrency" must be one of: ${VALID_CURRENCIES.join(', ')}` }
 }
 
+/**
+ * Parse a `cacheLockTimeoutSeconds` value. Returns the number when it is a
+ * positive integer, the default when absent, or an error string when malformed.
+ */
+export function parseCacheLockTimeoutSeconds(value: unknown): number | string {
+  if (value === undefined) return DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+    return '"cacheLockTimeoutSeconds" must be a positive integer'
+  }
+  return value
+}
+
 function applyDefaults(parsed: ParsedConfig): RitualConfig {
   const admin = parseAdminConfig(parsed.admin)
   if (typeof admin === 'string') {
@@ -479,11 +498,21 @@ function applyDefaults(parsed: ParsedConfig): RitualConfig {
   if (typeof defaultCurrency !== 'string') {
     console.warn(`ritual.config.json: ignoring invalid defaultCurrency — ${defaultCurrency.error}`)
   }
+  const cacheLockTimeoutSeconds = parseCacheLockTimeoutSeconds(parsed.cacheLockTimeoutSeconds)
+  if (typeof cacheLockTimeoutSeconds === 'string') {
+    console.warn(
+      `ritual.config.json: ignoring invalid cacheLockTimeoutSeconds — ${cacheLockTimeoutSeconds}`,
+    )
+  }
   const merged: RitualConfig = {
     decksDir: parsed.decksDir ?? DEFAULT_CONFIG.decksDir,
     collectionsDir: parsed.collectionsDir ?? DEFAULT_CONFIG.collectionsDir,
     wantedDir: parsed.wantedDir ?? DEFAULT_CONFIG.wantedDir,
     defaultCurrency: typeof defaultCurrency === 'string' ? defaultCurrency : DEFAULT_CURRENCY,
+    cacheLockTimeoutSeconds:
+      typeof cacheLockTimeoutSeconds === 'number'
+        ? cacheLockTimeoutSeconds
+        : DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS,
     admin: typeof admin === 'string' ? { ...DEFAULT_ADMIN_CONFIG } : admin,
   }
   if (parsed.site !== undefined) {
@@ -580,6 +609,11 @@ export function getWantedDir(config: RitualConfig = getRitualConfig()): string {
 /** The configured default price currency (`usd` unless overridden). */
 export function getDefaultCurrency(config: RitualConfig = getRitualConfig()): PriceCurrency {
   return config.defaultCurrency
+}
+
+/** How long to wait for the cache-write lock, in seconds (300 unless overridden). */
+export function getCacheLockTimeoutSeconds(config: RitualConfig = getRitualConfig()): number {
+  return config.cacheLockTimeoutSeconds
 }
 
 /**

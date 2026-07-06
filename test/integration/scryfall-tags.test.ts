@@ -1,13 +1,14 @@
 import { describe, expect, test, beforeEach } from 'bun:test'
 import { ScryfallClient } from '../../src/scryfall'
 import type { TagIndex } from '../../src/scryfall/tags'
-import type { FileSystemClient } from '../../src/interfaces'
 import type { ScryfallCard } from '../../src/types'
 import {
   MockHttpClient,
   InMemoryCacheManager,
   DenyHttpClient,
+  MemoryFileSystemClient,
   MemoryLogger,
+  gzipJsonLinesResponse,
   setLogger,
 } from '../test-utils'
 
@@ -21,41 +22,22 @@ class BulkSetCacheManager<T> extends InMemoryCacheManager<T> {
 }
 
 const BULK_META_URL = 'https://api.scryfall.com/bulk-data'
-const DEFAULT_URI = 'https://data.example/default-cards.json'
-const ORACLE_URI = 'https://data.example/oracle-tags.json'
-const ART_URI = 'https://data.example/art-tags.json'
+const DEFAULT_URI = 'https://data.example/default-cards.jsonl.gz'
+const ORACLE_URI = 'https://data.example/oracle-tags.jsonl.gz'
+const ART_URI = 'https://data.example/art-tags.jsonl.gz'
 
-/** Minimal in-memory FileSystemClient so the client can persist cache/tags.json. */
-function makeMemoryFs(): FileSystemClient {
-  const files = new Map<string, string>()
-  return {
-    async readFile(filePath) {
-      const data = files.get(filePath)
-      if (data === undefined) throw new Error(`ENOENT: ${filePath}`)
-      return data
-    },
-    async writeFile(filePath, data) {
-      files.set(filePath, typeof data === 'string' ? data : new TextDecoder().decode(data))
-    },
-    async access(filePath) {
-      if (!files.has(filePath)) throw new Error(`ENOENT: ${filePath}`)
-    },
-    async copyFile(source, destination) {
-      const data = files.get(source)
-      if (data === undefined) throw new Error(`ENOENT: ${source}`)
-      files.set(destination, data)
-    },
-    async mkdir() {},
-  }
+/** In-memory FileSystemClient so the client can persist cache/tags.json. */
+function makeMemoryFs(): MemoryFileSystemClient {
+  return new MemoryFileSystemClient()
 }
 
 function bulkMetaResponse(): Response {
   return new Response(
     JSON.stringify({
       data: [
-        { type: 'default_cards', download_uri: DEFAULT_URI, size: 0 },
-        { type: 'oracle_tags', download_uri: ORACLE_URI, size: 0 },
-        { type: 'art_tags', download_uri: ART_URI, size: 0 },
+        { type: 'default_cards', jsonl_download_uri: DEFAULT_URI },
+        { type: 'oracle_tags', jsonl_download_uri: ORACLE_URI },
+        { type: 'art_tags', jsonl_download_uri: ART_URI },
       ],
     }),
   )
@@ -107,15 +89,7 @@ const DELVER: Partial<ScryfallCard> = {
 }
 
 function cardsStream(cards: Partial<ScryfallCard>[]): Response {
-  const json = JSON.stringify(cards)
-  return new Response(
-    new ReadableStream({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode(json))
-        controller.close()
-      },
-    }),
-  )
+  return gzipJsonLinesResponse(cards)
 }
 
 const oracleTag = (id: string, slug: string, oracleId: string) => ({
@@ -136,17 +110,17 @@ const artTag = (id: string, slug: string, illustrationId: string) => ({
   taggings: [{ illustration_id: illustrationId }],
 })
 
-const oracleTagBulk = JSON.stringify([
+const oracleTagBulk = [
   oracleTag('t1', 'ramp', 'o-sol'),
   oracleTag('t2', 'artifact', 'o-sol'),
   oracleTag('t3', 'card-draw', 'o-delver'),
-])
+]
 
-const artTagBulk = JSON.stringify([
+const artTagBulk = [
   artTag('a1', 'machine', 'i-sol'),
   artTag('a2', 'wizard', 'i-delver-front'),
   artTag('a3', 'insect', 'i-delver-back'),
-])
+]
 
 describe('ScryfallClient tag integration', () => {
   let http: MockHttpClient
@@ -158,8 +132,8 @@ describe('ScryfallClient tag integration', () => {
     http = new MockHttpClient()
     cache = new InMemoryCacheManager<ScryfallCard[]>(0)
     http.mock(BULK_META_URL, () => bulkMetaResponse())
-    http.mock(ORACLE_URI, () => new Response(oracleTagBulk))
-    http.mock(ART_URI, () => new Response(artTagBulk))
+    http.mock(ORACLE_URI, () => gzipJsonLinesResponse(oracleTagBulk))
+    http.mock(ART_URI, () => gzipJsonLinesResponse(artTagBulk))
     client = new ScryfallClient(http, cache, makeMemoryFs())
   })
 

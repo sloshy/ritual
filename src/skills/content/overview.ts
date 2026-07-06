@@ -79,6 +79,10 @@ ritual cache preload-all          # warm the Scryfall card cache + tags (bulk do
 ritual cache refresh-tags         # refresh only the oracle/art tags on cached cards
 \`\`\`
 
+Cache refreshes take an exclusive lock (\`cache/.ritual-cache-lock\`); a refresh
+started while another process is refreshing waits up to the configurable
+\`cacheLockTimeoutSeconds\` (default 300) instead of interleaving writes.
+
 ## Alternative: the MCP server
 
 For MCP-native agents, \`ritual mcp\` exposes the same deck/collection/wanted

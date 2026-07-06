@@ -71,6 +71,7 @@ describe('ritual config', () => {
       collectionsDir: './my-collections',
       wantedDir: './my-wanted',
       defaultCurrency: 'eur',
+      cacheLockTimeoutSeconds: 120,
       admin: {
         gitEnabled: true,
         gitAutoCommit: true,
@@ -128,6 +129,27 @@ describe('ritual config', () => {
     const config = await loadRitualConfig()
     expect(config.defaultCurrency).toBe('usd')
   })
+
+  test('cacheLockTimeoutSeconds defaults to 300 when absent', async () => {
+    await fs.writeFile(configPath, JSON.stringify({ decksDir: './d' }))
+    const config = await loadRitualConfig()
+    expect(config.cacheLockTimeoutSeconds).toBe(300)
+  })
+
+  test('cacheLockTimeoutSeconds loads a valid value', async () => {
+    await fs.writeFile(configPath, JSON.stringify({ cacheLockTimeoutSeconds: 60 }))
+    const config = await loadRitualConfig()
+    expect(config.cacheLockTimeoutSeconds).toBe(60)
+  })
+
+  test.each([['0'], ['-5'], ['2.5'], ['"fast"']])(
+    'cacheLockTimeoutSeconds falls back to 300 when %s',
+    async (raw) => {
+      await fs.writeFile(configPath, `{ "cacheLockTimeoutSeconds": ${raw} }`)
+      const config = await loadRitualConfig()
+      expect(config.cacheLockTimeoutSeconds).toBe(300)
+    },
+  )
 
   test('loadRitualConfig falls back to admin defaults when admin is absent', async () => {
     await fs.writeFile(configPath, JSON.stringify({ decksDir: './d' }))

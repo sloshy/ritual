@@ -38,6 +38,9 @@ test.describe('Settings Page', () => {
     await expect(main.locator('select[name="defaultCurrency"]')).toHaveValue(
       MOCK_CONFIG.defaultCurrency,
     )
+    await expect(main.locator('input[name="cacheLockTimeoutSeconds"]')).toHaveValue(
+      String(MOCK_CONFIG.cacheLockTimeoutSeconds),
+    )
   })
 
   test('save button triggers API call and shows success', async ({ page }) => {

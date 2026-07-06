@@ -30,6 +30,9 @@ import {
   parseTagBulk,
   parseTagIndex,
 } from './tags'
+import { type GzipJsonLinesProgress, readGzipJsonLines } from './jsonl'
+import { withCacheLock } from '../cache/lock'
+import { writeFileAtomic } from '../cache/atomic-write'
 
 const RATE_LIMIT_MS = 150
 const SCRYFALL_CARDS_PER_PAGE = 175
@@ -85,8 +88,8 @@ export type FetchNamedCardOptions = { fuzzy?: boolean; set?: string }
 type ScryfallErrorBody = { details: string }
 type ScryfallBulkMetadataEntry = {
   type: string
-  download_uri: string
-  size: number
+  /** URL of the gzipped-JSONL form of this bulk file (`*.jsonl.gz`). */
+  jsonl_download_uri: string
   updated_at?: string
 }
 
@@ -171,6 +174,21 @@ export interface ScryfallSymbol {
 interface ScryfallCollectionResponse {
   data: ScryfallCard[]
   not_found?: Array<{ name?: string }>
+}
+
+/**
+ * Check the minimum shape of a `default_cards` bulk line that
+ * {@link mapScryfallCard} dereferences unconditionally.
+ */
+function isBulkCardEntry(value: unknown): value is ScryfallCard {
+  if (!value || typeof value !== 'object') return false
+  const card = value as Record<string, unknown>
+  return (
+    typeof card['name'] === 'string' &&
+    typeof card['set'] === 'string' &&
+    typeof card['prices'] === 'object' &&
+    card['prices'] !== null
+  )
 }
 
 export class ScryfallClient implements PricingBackend {
@@ -739,7 +757,12 @@ export class ScryfallClient implements PricingBackend {
   private async fetchTagBulk(url: string): Promise<ScryfallTag[]> {
     const response = await this.http.fetch(url)
     if (!response.ok) throwHttpError(response, `Failed to fetch tag bulk ${url}`)
-    const parsed = parseTagBulk(await response.json())
+    if (!response.body) throw new Error(`Tag bulk response for ${url} has no body`)
+    const items: unknown[] = []
+    for await (const value of readGzipJsonLines(response.body)) {
+      items.push(value)
+    }
+    const parsed = parseTagBulk(items)
     if (typeof parsed === 'string') throw new Error(parsed)
     return parsed
   }
@@ -775,17 +798,17 @@ export class ScryfallClient implements PricingBackend {
 
       const oracleMeta = metadata.find((d) => d.type === 'oracle_tags')
       const artMeta = metadata.find((d) => d.type === 'art_tags')
-      if (!oracleMeta?.download_uri || !artMeta?.download_uri) {
+      if (!oracleMeta?.jsonl_download_uri || !artMeta?.jsonl_download_uri) {
         throw new Error('Could not find oracle_tags / art_tags bulk data URIs')
       }
 
       getLogger().info('Downloading oracle and art tags...')
-      const oracleTags = await this.fetchTagBulk(oracleMeta.download_uri)
-      const artTags = await this.fetchTagBulk(artMeta.download_uri)
+      const oracleTags = await this.fetchTagBulk(oracleMeta.jsonl_download_uri)
+      const artTags = await this.fetchTagBulk(artMeta.jsonl_download_uri)
 
       const index = buildTagIndex(oracleTags, artTags, Date.now())
       await this.fileSystem.mkdir(getCacheDir(), { recursive: true })
-      await this.fileSystem.writeFile(this.tagCachePath(), JSON.stringify(index))
+      await writeFileAtomic(this.fileSystem, this.tagCachePath(), JSON.stringify(index))
       this.tagIndex = index
       getLogger().info(
         `Indexed tags for ${Object.keys(index.oracle).length} oracle ids and ${Object.keys(index.illustration).length} illustrations.`,
@@ -819,116 +842,121 @@ export class ScryfallClient implements PricingBackend {
    * is supplied (e.g. by a caller that already downloaded it for its own use).
    */
   async refreshTags(prefetched?: TagIndex | null): Promise<void> {
-    const index = prefetched ?? (await this.downloadTagIndex())
-    if (!index) {
-      getLogger().error('Tag refresh aborted: could not download tags.')
-      return
-    }
+    await withCacheLock(this.fileSystem, 'tag refresh', async () => {
+      const index = prefetched ?? (await this.downloadTagIndex())
+      if (!index) {
+        getLogger().error('Tag refresh aborted: could not download tags.')
+        return
+      }
 
-    const names = await this.cardCache.keys()
-    getLogger().info(`Re-attaching tags to ${names.length} cached cards...`)
-    const entries: Record<string, ScryfallCard[]> = {}
-    for (const name of names) {
-      const printings = await this.cardCache.get(name)
-      if (!printings) continue
-      for (const card of printings) attachTags(card, index)
-      entries[name] = printings
-    }
+      const names = await this.cardCache.keys()
+      getLogger().info(`Re-attaching tags to ${names.length} cached cards...`)
+      const entries: Record<string, ScryfallCard[]> = {}
+      for (const name of names) {
+        const printings = await this.cardCache.get(name)
+        if (!printings) continue
+        for (const card of printings) attachTags(card, index)
+        entries[name] = printings
+      }
 
-    await this.flushCardEntries(entries)
-    getLogger().info('Done! Tags refreshed.')
+      await this.flushCardEntries(entries)
+      getLogger().info('Done! Tags refreshed.')
+    })
   }
 
   async preloadCache(): Promise<void> {
-    getLogger().info('Fetching bulk data metadata from Scryfall...')
-
     try {
-      const metadata = await this.fetchBulkMetadata()
-      const defaultData = metadata.find((d) => d.type === 'default_cards')
-
-      if (!defaultData?.download_uri) {
-        throw new Error('Could not find default_cards bulk data URI')
-      }
-
-      const BULK_URL = defaultData.download_uri
-      const totalBytes = defaultData.size
-      getLogger().info(`Bulk URL: ${BULK_URL}`)
-      getLogger().info(`Download size: ${(totalBytes / 1024 / 1024).toFixed(2)} MiB`)
-
-      const response = await this.http.fetch(BULK_URL)
-      if (!response.ok) throwHttpError(response, 'Failed to fetch bulk data')
-
-      const reader = response.body?.getReader()
-      if (!reader) throw new Error('Failed to get response reader')
-
-      let receivedLength = 0
-      const chunks: Uint8Array[] = []
-      let lastUpdate = 0
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        chunks.push(value)
-        receivedLength += value.length
-
-        // Progress update max every 100ms to avoid spamming stdout
-        const now = Date.now()
-        if (now - lastUpdate > 100 || receivedLength === totalBytes) {
-          lastUpdate = now
-          const percentage = Math.round((receivedLength / totalBytes) * 100)
-          const receivedMiB = (receivedLength / 1024 / 1024).toFixed(2)
-          const totalMiB = (totalBytes / 1024 / 1024).toFixed(2)
-          getLogger().progress(`\rDownloading: ${percentage}% (${receivedMiB}/${totalMiB} MiB)`)
-        }
-      }
-      getLogger().progress('\n')
-
-      getLogger().info('Parsing JSON...')
-      const chunksAll = new Uint8Array(receivedLength)
-      let position = 0
-      for (const chunk of chunks) {
-        chunksAll.set(chunk, position)
-        position += chunk.length
-      }
-
-      const text = new TextDecoder().decode(chunksAll)
-      const json: ScryfallCard[] = JSON.parse(text) as ScryfallCard[]
-
-      if (!Array.isArray(json)) {
-        throw new Error('Invalid JSON format: expected array')
-      }
-
-      // Download tags up front so they can be baked onto each card as we process it.
-      const tagIndex = await this.downloadTagIndex()
-
-      getLogger().info(`Processing ${json.length} cards...`)
-
-      const entries: Record<string, ScryfallCard[]> = {}
-      let filteredCount = 0
-      for (const item of json) {
-        // Filter out arena-only and token printings
-        if (isArenaOnly(item) || isToken(item)) {
-          filteredCount++
-          continue
-        }
-
-        const card = mapScryfallCard(item)
-        if (tagIndex) attachTags(card, tagIndex)
-        const newEntries = [...(entries[card.name] ?? []), card]
-        entries[card.name] = newEntries
-      }
-
-      if (filteredCount > 0) {
-        getLogger().info(`Filtered out ${filteredCount} arena-only or token printings.`)
-      }
-
-      getLogger().info('Saving to cache...')
-      await this.flushCardEntries(entries)
-
-      getLogger().info('Done! Card cache populated.')
+      await withCacheLock(this.fileSystem, 'bulk card cache download', () =>
+        this.downloadBulkCards(),
+      )
     } catch (e) {
       getLogger().error('\nFailed to preload all cards:', e)
     }
+  }
+
+  /**
+   * Download and ingest the `default_cards` gzipped-JSONL bulk file, streaming
+   * each line through filter → map → tag attachment without ever holding the
+   * whole file in memory. The caller must hold the cache-write lock.
+   */
+  private async downloadBulkCards(): Promise<void> {
+    getLogger().info('Fetching bulk data metadata from Scryfall...')
+    const metadata = await this.fetchBulkMetadata()
+    const defaultData = metadata.find((d) => d.type === 'default_cards')
+
+    if (!defaultData?.jsonl_download_uri) {
+      throw new Error('Could not find default_cards bulk data URI')
+    }
+
+    // Download tags up front so they can be baked onto each card as it streams in.
+    const tagIndex = await this.downloadTagIndex()
+
+    const bulkUrl = defaultData.jsonl_download_uri
+    getLogger().info(`Bulk URL: ${bulkUrl}`)
+
+    const response = await this.http.fetch(bulkUrl)
+    if (!response.ok) throwHttpError(response, 'Failed to fetch bulk data')
+    if (!response.body) throw new Error('Bulk data response has no body')
+
+    // The manifest's `size` describes the uncompressed data, so the compressed
+    // download total comes from the response itself (absent on chunked bodies).
+    const totalBytes = Number(response.headers.get('content-length') ?? 0)
+    const totalMiB = (totalBytes / 1024 / 1024).toFixed(2)
+    if (totalBytes > 0) {
+      getLogger().info(`Download size: ${totalMiB} MiB (compressed)`)
+    }
+
+    // Progress update max every 100ms to avoid spamming stdout
+    let lastUpdate = 0
+    const onProgress = ({ compressedBytes }: GzipJsonLinesProgress): void => {
+      const now = Date.now()
+      if (now - lastUpdate <= 100 && compressedBytes !== totalBytes) return
+      lastUpdate = now
+      const receivedMiB = (compressedBytes / 1024 / 1024).toFixed(2)
+      if (totalBytes > 0) {
+        const percentage = Math.round((compressedBytes / totalBytes) * 100)
+        getLogger().progress(`\rDownloading: ${percentage}% (${receivedMiB}/${totalMiB} MiB)`)
+      } else {
+        getLogger().progress(`\rDownloading: ${receivedMiB} MiB`)
+      }
+    }
+
+    const entries: Record<string, ScryfallCard[]> = {}
+    let cardCount = 0
+    let filteredCount = 0
+    let malformedCount = 0
+    for await (const item of readGzipJsonLines(response.body, onProgress)) {
+      // Guard the minimum shape mapScryfallCard dereferences, so one malformed
+      // line skips that entry instead of aborting the whole multi-GB ingestion.
+      if (!isBulkCardEntry(item)) {
+        malformedCount++
+        continue
+      }
+      const raw = item
+      // Filter out arena-only and token printings
+      if (isArenaOnly(raw) || isToken(raw)) {
+        filteredCount++
+        continue
+      }
+
+      const card = mapScryfallCard(raw)
+      if (tagIndex) attachTags(card, tagIndex)
+      ;(entries[card.name] ??= []).push(card)
+      cardCount++
+    }
+    getLogger().progress('\n')
+
+    if (malformedCount > 0) {
+      getLogger().warn(`Skipped ${malformedCount} malformed bulk card entries.`)
+    }
+    if (filteredCount > 0) {
+      getLogger().info(`Filtered out ${filteredCount} arena-only or token printings.`)
+    }
+    getLogger().info(`Processed ${cardCount} cards.`)
+
+    getLogger().info('Saving to cache...')
+    await this.flushCardEntries(entries)
+
+    getLogger().info('Done! Card cache populated.')
   }
 }

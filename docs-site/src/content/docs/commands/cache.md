@@ -84,3 +84,9 @@ Refresh just the tags on an already-populated cache:
 - Preloading a set fetches all cards and stores them locally
 - This speeds up subsequent operations that reference cards from that set
 - The cache is stored in the `cache/` directory
+- Bulk data is downloaded in Scryfall's gzipped JSONL format and processed as a
+  stream, so the full (multi-hundred-MB) file never needs to fit in memory
+- Cache refreshes take an exclusive lock (`cache/.ritual-cache-lock`) so
+  concurrent processes never interleave writes; a waiting process breaks the
+  lock when its holder has died, and otherwise gives up after the configurable
+  [`cacheLockTimeoutSeconds`](/configuration/#cache-lock-timeout) (default 5 minutes)

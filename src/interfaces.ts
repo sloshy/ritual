@@ -31,12 +31,26 @@ export interface CacheManager<T> {
   purgeExpiredBlocklist?(): Promise<void>
 }
 
+/** Outcome of an exclusive-create write: whether this caller created the file. */
+export type ExclusiveWriteResult = 'created' | 'exists'
+
+export type MkdirOptions = { recursive?: boolean }
+
 export interface FileSystemClient {
   readFile(path: string, encoding: BufferEncoding): Promise<string>
   writeFile(path: string, data: string | Uint8Array): Promise<void>
+  /**
+   * Atomically create `path` with `data`, failing softly when it already
+   * exists. Returns 'created' when this caller won the creation race.
+   */
+  writeFileExclusive(path: string, data: string | Uint8Array): Promise<ExclusiveWriteResult>
+  /** Atomically replace `destination` with `source` (POSIX rename semantics). */
+  rename(source: string, destination: string): Promise<void>
+  /** Delete a file; resolves even when it does not exist. */
+  unlink(path: string): Promise<void>
   access(path: string): Promise<void>
   copyFile(source: string, destination: string): Promise<void>
-  mkdir(path: string, options?: { recursive?: boolean }): Promise<void>
+  mkdir(path: string, options?: MkdirOptions): Promise<void>
 }
 
 /** Create a FileSystemClient backed by node:fs/promises. */
@@ -45,6 +59,23 @@ export function createDefaultFileSystemClient(): FileSystemClient {
     readFile: (filePath, encoding) => fs.readFile(filePath, encoding),
     writeFile: async (filePath, data) => {
       await fs.writeFile(filePath, data)
+    },
+    writeFileExclusive: async (filePath, data) => {
+      try {
+        await fs.writeFile(filePath, data, { flag: 'wx' })
+        return 'created'
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === 'EEXIST') return 'exists'
+        throw e
+      }
+    },
+    rename: (source, destination) => fs.rename(source, destination),
+    unlink: async (filePath) => {
+      try {
+        await fs.unlink(filePath)
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
+      }
     },
     access: (filePath) => fs.access(filePath),
     copyFile: (source, destination) => fs.copyFile(source, destination),
