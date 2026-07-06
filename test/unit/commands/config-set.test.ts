@@ -532,3 +532,57 @@ describe('applyConfigSet — defaultCurrency', () => {
     }
   })
 })
+
+describe('applyConfigSet — cacheSource', () => {
+  test('sets a valid source', () => {
+    const result = applyConfigSet(base, 'cacheSource', ['feed'], 'replace')
+    if ('error' in result) throw new Error(result.error)
+    expect(result.newValue).toBe('feed')
+    expect(result.updatedConfig.cacheSource).toBe('feed')
+  })
+
+  test('sets back to scryfall', () => {
+    const config = { ...base, cacheSource: 'feed' as const }
+    const result = applyConfigSet(config, 'cacheSource', ['scryfall'], 'replace')
+    if ('error' in result) throw new Error(result.error)
+    expect(result.newValue).toBe('scryfall')
+  })
+
+  test('rejects an unknown source', () => {
+    const result = applyConfigSet(base, 'cacheSource', ['torrent'], 'replace')
+    expect('error' in result).toBeTrue()
+    if ('error' in result) {
+      expect(result.error).toContain('scryfall, feed')
+    }
+  })
+})
+
+describe('applyConfigSet — cacheFeedUrl', () => {
+  test('sets a valid http(s) URL', () => {
+    const result = applyConfigSet(
+      base,
+      'cacheFeedUrl',
+      ['https://feed.example/feed.json'],
+      'replace',
+    )
+    if ('error' in result) throw new Error(result.error)
+    expect(result.newValue).toBe('https://feed.example/feed.json')
+    expect(result.updatedConfig.cacheFeedUrl).toBe('https://feed.example/feed.json')
+  })
+
+  test('rejects a non-http(s) URL', () => {
+    const result = applyConfigSet(base, 'cacheFeedUrl', ['ftp://feed.example/feed.json'], 'replace')
+    expect('error' in result).toBeTrue()
+    if ('error' in result) {
+      expect(result.error).toContain('http(s) URL')
+    }
+  })
+
+  test('rejects a non-URL string', () => {
+    const result = applyConfigSet(base, 'cacheFeedUrl', ['not a url'], 'replace')
+    expect('error' in result).toBeTrue()
+    if ('error' in result) {
+      expect(result.error).toContain('http(s) URL')
+    }
+  })
+})

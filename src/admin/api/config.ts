@@ -2,7 +2,9 @@ import {
   getRitualConfigPath,
   loadRitualConfig,
   normalizeBannedPrintings,
+  parseCacheFeedUrl,
   parseCacheLockTimeoutSeconds,
+  parseCacheSource,
   parseDefaultCurrency,
   reloadRitualConfig,
   saveRitualConfig,
@@ -66,6 +68,33 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
       updates.cacheLockTimeoutSeconds = parsed
     }
 
+    if (updates.cacheSource !== undefined) {
+      const parsed = parseCacheSource(updates.cacheSource)
+      if (typeof parsed !== 'string') {
+        return Response.json({ success: false, message: parsed.error }, { status: 400 })
+      }
+      updates.cacheSource = parsed
+    }
+
+    // An empty string clears the override (falls back to the built-in default);
+    // the key must be removed from the merged config, not just from the update.
+    let clearCacheFeedUrl = false
+    if (updates.cacheFeedUrl !== undefined) {
+      if (updates.cacheFeedUrl === '') {
+        clearCacheFeedUrl = true
+        delete updates.cacheFeedUrl
+      } else {
+        const parsed = parseCacheFeedUrl(updates.cacheFeedUrl)
+        if (typeof parsed !== 'string') {
+          return Response.json(
+            { success: false, message: parsed?.error ?? '"cacheFeedUrl" must be an http(s) URL' },
+            { status: 400 },
+          )
+        }
+        updates.cacheFeedUrl = parsed
+      }
+    }
+
     const current = await loadRitualConfig()
     // `admin` is nested, so a partial update must merge into it rather than
     // replace it wholesale (the top-level spread would otherwise drop omitted
@@ -74,6 +103,9 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
       ...current,
       ...updates,
       admin: updates.admin ? { ...current.admin, ...updates.admin } : current.admin,
+    }
+    if (clearCacheFeedUrl) {
+      delete merged.cacheFeedUrl
     }
     await saveRitualConfig(merged)
     await reloadRitualConfig()

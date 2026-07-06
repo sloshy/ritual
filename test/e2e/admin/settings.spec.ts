@@ -3,6 +3,8 @@ import { loginAsAdmin } from '../helpers/auth-helper'
 import { mockConfigApi, mockTotpApi, MOCK_CONFIG } from '../helpers/mock-data'
 
 type ConfigPutBody = {
+  cacheSource?: string
+  cacheFeedUrl?: string
   admin?: {
     gitEnabled?: boolean
     gitAutoCommit?: boolean
@@ -41,6 +43,8 @@ test.describe('Settings Page', () => {
     await expect(main.locator('input[name="cacheLockTimeoutSeconds"]')).toHaveValue(
       String(MOCK_CONFIG.cacheLockTimeoutSeconds),
     )
+    await expect(main.locator('select[name="cacheSource"]')).toHaveValue(MOCK_CONFIG.cacheSource)
+    await expect(main.locator('input[name="cacheFeedUrl"]')).toHaveValue('')
   })
 
   test('save button triggers API call and shows success', async ({ page }) => {
@@ -63,6 +67,60 @@ test.describe('Settings Page', () => {
     await expect(main.locator('textarea[name="excludeDecks"]')).toHaveValue('')
     await expect(main.locator('textarea[name="excludeCollections"]')).toHaveValue('')
     await expect(main.locator('textarea[name="excludeWantedLists"]')).toHaveValue('')
+  })
+
+  test('switching cache source to feed and setting a feed URL persists both', async ({ page }) => {
+    const main = page.locator('main')
+    await main.locator('select[name="cacheSource"]').selectOption('feed')
+    await main.locator('input[name="cacheFeedUrl"]').fill('https://feed.example.com/feed.json')
+
+    const requestPromise = page.waitForRequest(
+      (req) => req.url().includes('/api/config') && req.method() === 'PUT',
+    )
+    await main.locator('button:has-text("Save")').click()
+    const request = await requestPromise
+    const body = JSON.parse(request.postData() ?? '{}') as ConfigPutBody
+    expect(body.cacheSource).toBe('feed')
+    expect(body.cacheFeedUrl).toBe('https://feed.example.com/feed.json')
+  })
+
+  test('clearing an existing cache feed URL sends an empty string, not omitting the field', async ({
+    page,
+  }) => {
+    // Serve a config that already has a cacheFeedUrl set, so clearing it is a
+    // real state transition rather than a no-op on an already-empty field.
+    await page.route('**/api/config', async (route) => {
+      const config =
+        route.request().method() === 'GET'
+          ? { ...MOCK_CONFIG, cacheFeedUrl: 'https://feed.example.com/feed.json' }
+          : MOCK_CONFIG
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, config }),
+      })
+    })
+    await page.reload()
+    // A reload resets the hash-routed SPA to the dashboard; navigate back.
+    await page.locator('.admin-sidebar .admin-nav-item:has-text("Settings")').click()
+    await expect(page.locator('.section-heading')).toContainText('Settings')
+
+    const main = page.locator('main')
+    await expect(main.locator('input[name="cacheFeedUrl"]')).toHaveValue(
+      'https://feed.example.com/feed.json',
+    )
+    await main.locator('input[name="cacheFeedUrl"]').fill('')
+
+    const requestPromise = page.waitForRequest(
+      (req) => req.url().includes('/api/config') && req.method() === 'PUT',
+    )
+    await main.locator('button:has-text("Save")').click()
+    const request = await requestPromise
+    const body = JSON.parse(request.postData() ?? '{}') as ConfigPutBody
+    // The field must round-trip as an explicit empty string so the admin API's
+    // "empty clears cacheFeedUrl" branch actually fires — omitting the key
+    // entirely would silently keep the old value.
+    expect(body.cacheFeedUrl).toBe('')
   })
 
   test('toggling an admin setting persists under the nested admin key', async ({ page }) => {

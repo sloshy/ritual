@@ -2,7 +2,9 @@ import { Command } from 'commander'
 import {
   loadRitualConfig,
   parseBannedPrinting,
+  parseCacheFeedUrl,
   parseCacheLockTimeoutSeconds,
+  parseCacheSource,
   parseDefaultCurrency,
   saveRitualConfig,
   type AdminConfig,
@@ -66,6 +68,8 @@ export const SETTABLE_FIELDS: Record<string, ConfigFieldType> = {
   wantedDir: 'string',
   defaultCurrency: 'string',
   cacheLockTimeoutSeconds: 'number',
+  cacheSource: 'string',
+  cacheFeedUrl: 'string',
 } satisfies SettableFieldsMap
 
 // The admin settings, exposed as dotted `admin.<field>` paths handled through the
@@ -281,6 +285,24 @@ export function applyConfigSet(
     const parsed = parseDefaultCurrency(rawValue)
     if (typeof parsed !== 'string') {
       return parsed
+    }
+    newValue = parsed
+  }
+  // cacheSource and cacheFeedUrl are constrained strings; reject invalid values
+  // here rather than persisting something the loader silently resets.
+  if (property === 'cacheSource') {
+    const parsed = parseCacheSource(rawValue)
+    if (typeof parsed !== 'string') {
+      return parsed
+    }
+    newValue = parsed
+  }
+  if (property === 'cacheFeedUrl') {
+    const parsed = parseCacheFeedUrl(rawValue)
+    if (typeof parsed !== 'string') {
+      return {
+        error: parsed === undefined ? '"cacheFeedUrl" must be an http(s) URL' : parsed.error,
+      }
     }
     newValue = parsed
   }

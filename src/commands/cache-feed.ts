@@ -13,6 +13,17 @@ import type { RefreshCadence } from '../cache-server/types'
 import { CACHE_FEED_LOG_PREFIX, CacheFeedHost, DEFAULT_BULK_API_URL } from '../cache-feed/host'
 import { FeedSeeder } from '../cache-feed/seeder'
 import { FEED_FILENAME } from '../cache-feed/feed'
+import type { FeedSyncResult } from '../cache-feed/fetch'
+import { createCacheFeedClient, resolveFeedUrl } from '../cache/refresh-source'
+
+type CacheFeedFetchCommandOptions = {
+  url?: string
+  p2p: boolean
+  seed: boolean
+  torrentPort?: number
+  force: boolean
+  refresh?: RefreshCadence
+}
 
 type CacheFeedHostCommandOptions = {
   port: number
@@ -127,5 +138,83 @@ export function registerCacheFeedCommand(program: Command): void {
       if (!options.seed) {
         log('BitTorrent seeding disabled (--no-seed); serving over HTTP only.')
       }
+    })
+
+  cacheFeed
+    .command('fetch')
+    .description(
+      'Sync the card cache from a cache feed, then stay open seeding the ' +
+        'artifacts to other peers (Ctrl+C to stop)',
+    )
+    .option(
+      '--url <feedUrl>',
+      'Feed URL (defaults to the cacheFeedUrl config key, then the built-in default)',
+    )
+    .option('--no-p2p', 'Download over plain HTTP instead of BitTorrent')
+    .option('--no-seed', 'Exit after ingesting instead of staying open to seed')
+    .option('--torrent-port <number>', 'Fixed TCP port for incoming torrent peers', parsePort)
+    .option('--force', 'Re-download and re-ingest even when the feed is unchanged', false)
+    .option(
+      '--refresh <interval>',
+      "Re-check the feed while seeding (supported: 'daily', 'weekly', 'monthly'; " +
+        "falls back to RITUAL_CACHE_FEED_REFRESH, then 'daily')",
+      parseRefreshCadence,
+    )
+    .action(async (options: CacheFeedFetchCommandOptions) => {
+      const feedUrl = resolveFeedUrl(options.url)
+      const client = createCacheFeedClient({
+        url: feedUrl,
+        p2p: options.p2p,
+        ...(options.torrentPort !== undefined ? { torrentPort: options.torrentPort } : {}),
+      })
+
+      log(`Syncing from ${feedUrl}`)
+      let result: FeedSyncResult
+      try {
+        result = await client.sync({ force: options.force })
+      } catch (e) {
+        console.error(`${CACHE_FEED_LOG_PREFIX} Feed sync failed:`, getErrorMessage(e))
+        await client.stop()
+        process.exit(1)
+      }
+      log(
+        result.outcome === 'ingested'
+          ? 'Card cache updated from the feed.'
+          : 'Feed is unchanged; card cache is already current.',
+      )
+
+      if (!options.seed) {
+        await client.stop()
+        return
+      }
+
+      // Sharing is caring: stay open and serve the artifacts back to the swarm.
+      await client.seedAll(result.feed)
+      const port = client.torrentPortInUse()
+      log(
+        `Seeding ${result.feed.entries.length} artifacts${port ? ` on TCP port ${port}` : ''}. ` +
+          'Press Ctrl+C to stop.',
+      )
+
+      process.on('SIGINT', () => {
+        void (async () => {
+          log('Stopping seeding...')
+          await client.stop()
+          process.exit(0)
+        })()
+      })
+
+      const refreshMs = resolveRefreshMs(options.refresh, 'RITUAL_CACHE_FEED_REFRESH') ?? DAILY_MS
+      scheduleRecurringTask(
+        refreshMs,
+        async () => {
+          const next = await client.sync()
+          if (next.outcome === 'ingested') {
+            log('Feed changed; card cache updated.')
+            await client.seedAll(next.feed)
+          }
+        },
+        (error) => console.error(`${CACHE_FEED_LOG_PREFIX} Scheduled feed re-check failed:`, error),
+      )
     })
 }

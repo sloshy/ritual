@@ -91,6 +91,14 @@ export interface RitualConfig {
    * another process before failing. Always present, defaulting to 300 (5 minutes).
    */
   cacheLockTimeoutSeconds: number
+  /**
+   * Where card-cache refreshes download from: 'scryfall' hits Scryfall's bulk
+   * API directly; 'feed' syncs from a peer-to-peer cache feed (falling back to
+   * Scryfall when the feed is unreachable). Always present, defaulting to 'scryfall'.
+   */
+  cacheSource: CacheSource
+  /** Cache feed URL used when `cacheSource` is 'feed'; the built-in default when absent. */
+  cacheFeedUrl?: string
   /** Admin-server settings; always present, defaulting to {@link DEFAULT_ADMIN_CONFIG}. */
   admin: AdminConfig
   /** Present only when `ritual init-site` has been run; managed exclusively by that command. */
@@ -113,13 +121,18 @@ const DEFAULT_ADMIN_CONFIG = {
   failedAuthDelayMs: 3000,
 } satisfies AdminConfig
 
+export type CacheSource = 'scryfall' | 'feed'
+
+export const CACHE_SOURCES: readonly CacheSource[] = ['scryfall', 'feed']
+
 const DEFAULT_CONFIG = {
   decksDir: './decks',
   collectionsDir: './collections',
   wantedDir: './wanted',
   defaultCurrency: DEFAULT_CURRENCY,
   cacheLockTimeoutSeconds: DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS,
-} satisfies Omit<RitualConfig, 'admin' | 'site'>
+  cacheSource: 'scryfall',
+} satisfies Omit<RitualConfig, 'admin' | 'site' | 'cacheFeedUrl'>
 
 const CONFIG_FILENAME = 'ritual.config.json'
 
@@ -489,6 +502,39 @@ export function parseCacheLockTimeoutSeconds(value: unknown): number | string {
   return value
 }
 
+export type CacheSourceParseError = { error: string }
+
+/**
+ * Parse a `cacheSource` value. Returns the source when valid, the default
+ * when absent, or a structured error when malformed.
+ */
+export function parseCacheSource(value: unknown): CacheSource | CacheSourceParseError {
+  if (value === undefined) return 'scryfall'
+  if (typeof value === 'string' && (CACHE_SOURCES as readonly string[]).includes(value)) {
+    return value as CacheSource
+  }
+  return { error: `"cacheSource" must be one of: ${CACHE_SOURCES.join(', ')}` }
+}
+
+export type CacheFeedUrlParseError = { error: string }
+
+/**
+ * Parse a `cacheFeedUrl` value. Returns the URL when it is a valid http(s)
+ * URL, undefined when absent, or a structured error when malformed.
+ */
+export function parseCacheFeedUrl(value: unknown): string | undefined | CacheFeedUrlParseError {
+  if (value === undefined) return undefined
+  if (typeof value === 'string') {
+    try {
+      const url = new URL(value)
+      if (url.protocol === 'http:' || url.protocol === 'https:') return value
+    } catch {
+      // Fall through to the error below.
+    }
+  }
+  return { error: '"cacheFeedUrl" must be an http(s) URL' }
+}
+
 function applyDefaults(parsed: ParsedConfig): RitualConfig {
   const admin = parseAdminConfig(parsed.admin)
   if (typeof admin === 'string') {
@@ -504,6 +550,14 @@ function applyDefaults(parsed: ParsedConfig): RitualConfig {
       `ritual.config.json: ignoring invalid cacheLockTimeoutSeconds — ${cacheLockTimeoutSeconds}`,
     )
   }
+  const cacheSource = parseCacheSource(parsed.cacheSource)
+  if (typeof cacheSource !== 'string') {
+    console.warn(`ritual.config.json: ignoring invalid cacheSource — ${cacheSource.error}`)
+  }
+  const cacheFeedUrl = parseCacheFeedUrl(parsed.cacheFeedUrl)
+  if (cacheFeedUrl !== undefined && typeof cacheFeedUrl !== 'string') {
+    console.warn(`ritual.config.json: ignoring invalid cacheFeedUrl — ${cacheFeedUrl.error}`)
+  }
   const merged: RitualConfig = {
     decksDir: parsed.decksDir ?? DEFAULT_CONFIG.decksDir,
     collectionsDir: parsed.collectionsDir ?? DEFAULT_CONFIG.collectionsDir,
@@ -513,7 +567,11 @@ function applyDefaults(parsed: ParsedConfig): RitualConfig {
       typeof cacheLockTimeoutSeconds === 'number'
         ? cacheLockTimeoutSeconds
         : DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS,
+    cacheSource: typeof cacheSource === 'string' ? cacheSource : 'scryfall',
     admin: typeof admin === 'string' ? { ...DEFAULT_ADMIN_CONFIG } : admin,
+  }
+  if (typeof cacheFeedUrl === 'string') {
+    merged.cacheFeedUrl = cacheFeedUrl
   }
   if (parsed.site !== undefined) {
     const site = parseSiteConfig(parsed.site)
@@ -614,6 +672,16 @@ export function getDefaultCurrency(config: RitualConfig = getRitualConfig()): Pr
 /** How long to wait for the cache-write lock, in seconds (300 unless overridden). */
 export function getCacheLockTimeoutSeconds(config: RitualConfig = getRitualConfig()): number {
   return config.cacheLockTimeoutSeconds
+}
+
+/** Where card-cache refreshes download from ('scryfall' unless overridden). */
+export function getCacheSource(config: RitualConfig = getRitualConfig()): CacheSource {
+  return config.cacheSource
+}
+
+/** The configured cache feed URL, or undefined to use the built-in default. */
+export function getCacheFeedUrl(config: RitualConfig = getRitualConfig()): string | undefined {
+  return config.cacheFeedUrl
 }
 
 /**

@@ -1,3 +1,4 @@
+import { refreshCardCache } from '../cache/refresh-source'
 import { Command } from 'commander'
 import path from 'node:path'
 import fs from 'node:fs/promises'
@@ -12,7 +13,6 @@ import {
   computeRepresentativePrints,
   fetchSymbology,
   downloadSymbol,
-  preloadCache,
   downloadTagIndex,
   refreshTags,
   attachTags,
@@ -206,7 +206,7 @@ async function checkAndOfferBulkPriceRefresh(
   })
 
   if (shouldPreload) {
-    await preloadCache()
+    await refreshCardCache()
   }
 }
 

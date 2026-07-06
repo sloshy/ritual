@@ -72,6 +72,7 @@ const MOCK_CONFIG = {
   wantedDir: './wanted',
   defaultCurrency: 'eur',
   cacheLockTimeoutSeconds: 300,
+  cacheSource: 'scryfall',
   admin: {
     gitEnabled: false,
     gitAutoCommit: false,

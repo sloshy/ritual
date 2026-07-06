@@ -29,10 +29,14 @@ Set or update a value in `ritual.config.json`.
 | `wantedDir`               | `string` | `./wanted`      |
 | `defaultCurrency`         | `string` | `usd`           |
 | `cacheLockTimeoutSeconds` | `number` | `300`           |
+| `cacheSource`             | `string` | `scryfall`      |
+| `cacheFeedUrl`            | `string` | —               |
 
 `defaultCurrency` must be one of `usd`, `eur`, or `tix`; it sets the currency every price-touching command defaults to.
 
 `cacheLockTimeoutSeconds` is how long a cache-refreshing operation waits for another process's refresh to finish before failing — see [Configuration → Cache lock timeout](/configuration/#cache-lock-timeout).
+
+`cacheSource` must be `scryfall` or `feed`; `cacheFeedUrl` must be an http(s) URL. Together they route cache refreshes through a peer-to-peer [cache feed](/commands/cache-feed/) — see [Configuration → Cache source](/configuration/#cache-source).
 
 The nested `admin` keys — settings for the [admin server](/commands/admin/) — are set with dot notation:
 

@@ -130,6 +130,8 @@ Configure admin settings including:
 - **Collections Directory**: path to the collections folder (default: `./collections`)
 - **Default Price Currency**: the currency price-touching surfaces default to (default: `usd`; see [Configuration](/configuration/#default-currency))
 - **Cache Lock Timeout**: seconds a cache refresh waits for another process's cache-write lock before failing (default: `300`; see [Configuration](/configuration/#cache-lock-timeout))
+- **Cache Source**: where cache refreshes download from — Scryfall directly or a peer-to-peer cache feed (default: `scryfall`; see [Configuration](/configuration/#cache-source))
+- **Cache Feed URL**: the feed URL used when the cache source is the feed (empty = the built-in default)
 - **Git Integration**: enable/disable git auto-commit
 - **Two-Factor Authentication (TOTP)**: set up or disable TOTP 2FA
 - **Rate Limiting**: configure failed login attempt limits and lockout duration
@@ -151,6 +153,7 @@ Settings are stored in `ritual.config.json` in the base directory. The file is s
   "wantedDir": "./wanted",
   "defaultCurrency": "usd",
   "cacheLockTimeoutSeconds": 300,
+  "cacheSource": "scryfall",
   "admin": {
     "gitEnabled": false,
     "gitAutoCommit": false,
@@ -717,6 +720,7 @@ Returns the current application configuration.
     "wantedDir": "./wanted",
     "defaultCurrency": "usd",
     "cacheLockTimeoutSeconds": 300,
+    "cacheSource": "scryfall",
     "admin": {
       "gitEnabled": false,
       "gitAutoCommit": false,
@@ -740,6 +744,8 @@ Returns the current application configuration.
 
 Update the application configuration. Partial updates are supported — only the fields you include will be changed. The nested `admin` object is merged field-by-field, so you can send just the admin settings you want to change.
 
+`defaultCurrency`, `cacheLockTimeoutSeconds`, `cacheSource`, and `cacheFeedUrl` are validated the same way as [`config-set`](/commands/config-set/) and rejected with a `400` when malformed. `cacheFeedUrl` has one extra rule: sending it as an **empty string** explicitly clears a previously-set override (falling back to the built-in default) — omitting the field entirely, by contrast, leaves the current value untouched.
+
 **Request body:**
 
 ```json
@@ -762,6 +768,7 @@ Update the application configuration. Partial updates are supported — only the
     "wantedDir": "./wanted",
     "defaultCurrency": "usd",
     "cacheLockTimeoutSeconds": 300,
+    "cacheSource": "scryfall",
     "admin": {
       "gitEnabled": true,
       "gitAutoCommit": true,

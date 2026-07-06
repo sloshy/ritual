@@ -86,6 +86,10 @@ Refresh just the tags on an already-populated cache:
 - The cache is stored in the `cache/` directory
 - Bulk data is downloaded in Scryfall's gzipped JSONL format and processed as a
   stream, so the full (multi-hundred-MB) file never needs to fit in memory
+- With [`cacheSource: "feed"`](/configuration/#cache-source), `preload-all` (and
+  every other cache refresh) syncs from a peer-to-peer
+  [cache feed](/commands/cache-feed/) instead, falling back to Scryfall when
+  the feed is unreachable
 - Cache refreshes take an exclusive lock (`cache/.ritual-cache-lock`) so
   concurrent processes never interleave writes; a waiting process breaks the
   lock when its holder has died, and otherwise gives up after the configurable

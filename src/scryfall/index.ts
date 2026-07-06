@@ -20,7 +20,7 @@ export {
 import type { ScryfallCard, ScryfallList } from '../types'
 import { cardCache } from '../cache/instances'
 import { defaultHttpClient } from '../http'
-import { ScryfallClient } from './client'
+import { ScryfallClient, type BulkCacheFiles } from './client'
 import type {
   ScryfallSymbol,
   RepresentativePrintsResult,
@@ -77,6 +77,10 @@ export function getAllCardNames(filter?: CardNameFilter): Promise<string[]> {
 
 export function downloadImage(url: string, destPath: string): Promise<boolean> {
   return scryfallClient.downloadImage(url, destPath)
+}
+
+export function preloadCacheFromFiles(files: BulkCacheFiles): Promise<void> {
+  return scryfallClient.preloadCacheFromFiles(files)
 }
 
 export function preloadCache(): Promise<void> {

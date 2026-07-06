@@ -78,6 +78,8 @@ ritual config-set defaultCurrency eur  # currency price commands/displays defaul
 ritual cache preload-all          # warm the Scryfall card cache + tags (bulk download)
 ritual cache refresh-tags         # refresh only the oracle/art tags on cached cards
 ritual cache-feed host            # host a P2P feed of the raw Scryfall bulk files
+ritual cache-feed fetch           # sync the cache from a feed, then seed to peers
+ritual config-set cacheSource feed  # make all cache refreshes sync via the feed
 \`\`\`
 
 Cache refreshes take an exclusive lock (\`cache/.ritual-cache-lock\`); a refresh

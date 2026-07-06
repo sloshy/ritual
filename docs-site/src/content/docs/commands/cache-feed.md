@@ -30,6 +30,51 @@ current artifacts while seeding them to peers.
 | `--torrent-port <n>`   | Fixed TCP port for incoming torrent peers (random when omitted)                                                | random                  |
 | `-v, --verbose`        | Log every feed-server request                                                                                  | off                     |
 
+### fetch
+
+Sync the card cache from a cache feed, then stay open **seeding** the
+artifacts back to other peers — sharing is caring, and every seeder reduces
+the load on both Scryfall and the feed host. Press Ctrl+C to stop.
+
+```bash
+./ritual cache-feed fetch --url https://feed.example.com/feed.json
+```
+
+| Option                 | Description                                                                                     | Default                                          |
+| ---------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `--url <feedUrl>`      | Feed URL                                                                                        | `cacheFeedUrl` config, then the built-in default |
+| `--no-p2p`             | Download over plain HTTP (from the feed's file URLs) instead of BitTorrent                      | BitTorrent with web-seed fallback                |
+| `--no-seed`            | Exit after ingesting instead of staying open to seed                                            | seeding on                                       |
+| `--torrent-port <n>`   | Fixed TCP port for incoming torrent peers                                                       | random                                           |
+| `--force`              | Re-download and re-ingest even when the feed is unchanged                                       | off                                              |
+| `--refresh <interval>` | Re-check the feed while seeding (`daily`, `weekly`, `monthly`; env `RITUAL_CACHE_FEED_REFRESH`) | `daily`                                          |
+
+Behavior:
+
+- Downloaded artifacts are verified against the feed's per-file SHA-256 before
+  anything is ingested; a corrupted download is deleted and the sync fails.
+- What was last ingested is tracked in `cache/feed-client/state.json` by
+  torrent infohash. An unchanged feed is a cheap no-op — no bulk download, no
+  re-ingest.
+- Ingestion runs the exact same local pipeline as a direct Scryfall preload
+  (filtering, card mapping, tag baking), so a feed-synced cache is
+  indistinguishable from a Scryfall-synced one.
+- While seeding, the feed is re-checked on the `--refresh` cadence and new
+  artifacts are ingested and seeded automatically.
+
+To make feed syncing the default for **all** of ritual's cache refreshes (the
+`cache preload-all` command, stale-cache prompts, `build-site --allow-refresh`,
+price refreshes), set the [`cacheSource` config key](/configuration/#cache-source):
+
+```bash
+./ritual config-set cacheSource feed
+./ritual config-set cacheFeedUrl https://feed.example.com/feed.json
+```
+
+Refreshes then check the feed's infohashes instead of re-downloading from
+Scryfall, fall back to Scryfall with a warning when the feed is unreachable,
+and seed to peers for the duration of any download.
+
 ## HTTP endpoints
 
 | Path                           | Description                                                             |

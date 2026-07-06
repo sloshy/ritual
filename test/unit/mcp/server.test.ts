@@ -472,4 +472,59 @@ describe('Ritual MCP server (in-memory transport)', () => {
     })
     expect(result.isError).toBe(true)
   })
+
+  test('update_config accepts a valid cacheSource and get_config returns it', async () => {
+    const updated = await callTool(client, 'update_config', {
+      config: { cacheSource: 'feed' },
+    })
+    expect(updated.isError).toBeFalsy()
+
+    const got = toolJson(await callTool(client, 'get_config', {})) as {
+      config: { cacheSource?: string }
+    }
+    expect(got.config.cacheSource).toBe('feed')
+  })
+
+  test('update_config rejects an invalid cacheSource', async () => {
+    const result = await callTool(client, 'update_config', {
+      config: { cacheSource: 'torrent' },
+    })
+    expect(result.isError).toBe(true)
+  })
+
+  test('update_config accepts a valid cacheFeedUrl and get_config returns it', async () => {
+    const updated = await callTool(client, 'update_config', {
+      config: { cacheFeedUrl: 'https://feed.example/feed.json' },
+    })
+    expect(updated.isError).toBeFalsy()
+
+    const got = toolJson(await callTool(client, 'get_config', {})) as {
+      config: { cacheFeedUrl?: string }
+    }
+    expect(got.config.cacheFeedUrl).toBe('https://feed.example/feed.json')
+  })
+
+  test('update_config rejects a non-http(s) cacheFeedUrl', async () => {
+    const result = await callTool(client, 'update_config', {
+      config: { cacheFeedUrl: 'ftp://feed.example/feed.json' },
+    })
+    expect(result.isError).toBe(true)
+  })
+
+  test('update_config clears an existing cacheFeedUrl with an empty string', async () => {
+    const set = await callTool(client, 'update_config', {
+      config: { cacheFeedUrl: 'https://feed.example/feed.json' },
+    })
+    expect(set.isError).toBeFalsy()
+
+    const cleared = await callTool(client, 'update_config', {
+      config: { cacheFeedUrl: '' },
+    })
+    expect(cleared.isError).toBeFalsy()
+
+    const got = toolJson(await callTool(client, 'get_config', {})) as {
+      config: { cacheFeedUrl?: string }
+    }
+    expect(got.config.cacheFeedUrl).toBeUndefined()
+  })
 })

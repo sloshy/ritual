@@ -1,5 +1,5 @@
 import { type JSX, createSignal, onMount, Show } from 'solid-js'
-import type { AdminConfig, RitualConfig } from '../../../ritual-config'
+import type { AdminConfig, CacheSource, RitualConfig } from '../../../ritual-config'
 // Value imports here must stay browser-safe: ritual-config pulls in node:fs,
 // so only its types may be imported into the admin SPA bundle.
 import { DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS } from '../../../cache/constants'
@@ -167,6 +167,29 @@ export function Settings(): JSX.Element {
               <option value="eur">EUR (Cardmarket)</option>
               <option value="tix">TIX (MTGO)</option>
             </select>
+          </div>
+          <div>
+            <label class="form-label">Cache Source</label>
+            <select
+              class="form-input"
+              name="cacheSource"
+              value={config()!.cacheSource}
+              onChange={(e) => updateField('cacheSource', e.currentTarget.value as CacheSource)}
+            >
+              <option value="scryfall">Scryfall (direct bulk download)</option>
+              <option value="feed">Cache feed (peer-to-peer)</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Cache Feed URL</label>
+            <input
+              type="text"
+              class="form-input"
+              name="cacheFeedUrl"
+              placeholder="https://feed.example.com/feed.json (uses the built-in default when empty)"
+              value={config()!.cacheFeedUrl ?? ''}
+              onInput={(e) => updateField('cacheFeedUrl', e.currentTarget.value)}
+            />
           </div>
           <div>
             <label class="form-label">Cache Lock Timeout (seconds)</label>

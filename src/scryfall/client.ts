@@ -11,7 +11,7 @@ import type { PriceCurrency } from '../price-currency'
 import { getPriceField } from '../price-currency'
 import { getBannedPrintings } from '../ritual-config'
 import { getLogger } from '../logger'
-import { throwHttpError } from '../errors'
+import { getErrorMessage, throwHttpError } from '../errors'
 import path from 'node:path'
 import prompts from 'prompts'
 import {
@@ -752,13 +752,33 @@ export class ScryfallClient implements PricingBackend {
     const response = await this.http.fetch(url)
     if (!response.ok) throwHttpError(response, `Failed to fetch tag bulk ${url}`)
     if (!response.body) throw new Error(`Tag bulk response for ${url} has no body`)
+    return this.parseTagBulkStream(response.body)
+  }
+
+  /** Parse a gzipped-JSONL tag bulk (from HTTP or a local artifact) into tags. */
+  private async parseTagBulkStream(body: ReadableStream<Uint8Array>): Promise<ScryfallTag[]> {
     const items: unknown[] = []
-    for await (const value of readGzipJsonLines(response.body)) {
+    for await (const value of readGzipJsonLines(body)) {
       items.push(value)
     }
     const parsed = parseTagBulk(items)
     if (typeof parsed === 'string') throw new Error(parsed)
     return parsed
+  }
+
+  /** Build the {@link TagIndex} from parsed tag bulks and persist it to tags.json. */
+  private async persistTagIndex(
+    oracleTags: ScryfallTag[],
+    artTags: ScryfallTag[],
+  ): Promise<TagIndex> {
+    const index = buildTagIndex(oracleTags, artTags, Date.now())
+    await this.fileSystem.mkdir(getCacheDir(), { recursive: true })
+    await writeFileAtomic(this.fileSystem, this.tagCachePath(), JSON.stringify(index))
+    this.tagIndex = index
+    getLogger().info(
+      `Indexed tags for ${Object.keys(index.oracle).length} oracle ids and ${Object.keys(index.illustration).length} illustrations.`,
+    )
+    return index
   }
 
   /** Fetch the Scryfall bulk-data manifest listing each available bulk file. */
@@ -796,15 +816,7 @@ export class ScryfallClient implements PricingBackend {
       getLogger().info('Downloading oracle and art tags...')
       const oracleTags = await this.fetchTagBulk(oracleMeta.jsonl_download_uri)
       const artTags = await this.fetchTagBulk(artMeta.jsonl_download_uri)
-
-      const index = buildTagIndex(oracleTags, artTags, Date.now())
-      await this.fileSystem.mkdir(getCacheDir(), { recursive: true })
-      await writeFileAtomic(this.fileSystem, this.tagCachePath(), JSON.stringify(index))
-      this.tagIndex = index
-      getLogger().info(
-        `Indexed tags for ${Object.keys(index.oracle).length} oracle ids and ${Object.keys(index.illustration).length} illustrations.`,
-      )
-      return index
+      return await this.persistTagIndex(oracleTags, artTags)
     } catch (e) {
       getLogger().warn(`Failed to download tags: ${e instanceof Error ? e.message : String(e)}`)
       return null
@@ -897,6 +909,22 @@ export class ScryfallClient implements PricingBackend {
       getLogger().info(`Download size: ${totalMiB} MiB (compressed)`)
     }
 
+    await this.ingestCardStream(response.body, tagIndex, totalBytes)
+
+    getLogger().info('Done! Card cache populated.')
+  }
+
+  /**
+   * Stream a `default_cards` gzipped-JSONL body through filter → map → tag
+   * attachment into the card cache, without ever holding the whole file in
+   * memory. `totalBytes` (compressed) drives the progress percentage when known.
+   */
+  private async ingestCardStream(
+    body: ReadableStream<Uint8Array>,
+    tagIndex: TagIndex | null,
+    totalBytes: number,
+  ): Promise<void> {
+    const totalMiB = (totalBytes / 1024 / 1024).toFixed(2)
     // Progress update max every 100ms to avoid spamming stdout
     let lastUpdate = 0
     const onProgress = ({ compressedBytes }: GzipJsonLinesProgress): void => {
@@ -906,9 +934,9 @@ export class ScryfallClient implements PricingBackend {
       const receivedMiB = (compressedBytes / 1024 / 1024).toFixed(2)
       if (totalBytes > 0) {
         const percentage = Math.round((compressedBytes / totalBytes) * 100)
-        getLogger().progress(`\rDownloading: ${percentage}% (${receivedMiB}/${totalMiB} MiB)`)
+        getLogger().progress(`\rProcessing: ${percentage}% (${receivedMiB}/${totalMiB} MiB)`)
       } else {
-        getLogger().progress(`\rDownloading: ${receivedMiB} MiB`)
+        getLogger().progress(`\rProcessing: ${receivedMiB} MiB`)
       }
     }
 
@@ -916,7 +944,7 @@ export class ScryfallClient implements PricingBackend {
     let cardCount = 0
     let filteredCount = 0
     let malformedCount = 0
-    for await (const item of readGzipJsonLines(response.body, onProgress)) {
+    for await (const item of readGzipJsonLines(body, onProgress)) {
       // Guard the minimum shape mapScryfallCard dereferences, so one malformed
       // line skips that entry instead of aborting the whole multi-GB ingestion.
       if (!isBulkCardEntry(item)) {
@@ -947,7 +975,38 @@ export class ScryfallClient implements PricingBackend {
 
     getLogger().info('Saving to cache...')
     await this.flushCardEntries(entries)
-
-    getLogger().info('Done! Card cache populated.')
   }
+
+  /**
+   * Ingest previously downloaded bulk artifacts (e.g. fetched from a cache
+   * feed) into the card cache: build + persist the tag index from the local
+   * tag bulks, then stream the local `default_cards` file through the same
+   * pipeline as {@link preloadCache}. Unlike `preloadCache`, failures throw —
+   * feed callers decide how to handle them.
+   */
+  async preloadCacheFromFiles(files: BulkCacheFiles): Promise<void> {
+    await withCacheLock(this.fileSystem, 'bulk card cache ingest', async () => {
+      let tagIndex: TagIndex | null = null
+      try {
+        getLogger().info('Building tag index from downloaded tag bulks...')
+        const oracleTags = await this.parseTagBulkStream(Bun.file(files.oracleTags).stream())
+        const artTags = await this.parseTagBulkStream(Bun.file(files.artTags).stream())
+        tagIndex = await this.persistTagIndex(oracleTags, artTags)
+      } catch (e) {
+        // Tags are an enhancement — ingest cards without them rather than fail.
+        getLogger().warn(`Failed to build tags from downloaded bulks: ${getErrorMessage(e)}`)
+      }
+
+      const cardsFile = Bun.file(files.defaultCards)
+      await this.ingestCardStream(cardsFile.stream(), tagIndex, cardsFile.size)
+      getLogger().info('Done! Card cache populated from downloaded artifacts.')
+    })
+  }
+}
+
+/** Local paths of the three bulk artifacts {@link ScryfallClient.preloadCacheFromFiles} ingests. */
+export type BulkCacheFiles = {
+  defaultCards: string
+  oracleTags: string
+  artTags: string
 }

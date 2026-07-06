@@ -1,5 +1,5 @@
 import { cardCache } from './index'
-import { preloadCache } from '../scryfall'
+import { refreshCardCache } from './refresh-source'
 import { getLogger } from '../logger'
 import { BULK_CACHE_MAX_AGE_MS, BULK_FETCH_THRESHOLD } from './constants'
 import type { CacheManager } from '../interfaces'
@@ -38,7 +38,7 @@ export async function ensureCacheForCards(
   options?: EnsureCacheOptions,
 ): Promise<EnsureCacheResult> {
   const cache = deps?.cache ?? cardCache
-  const preload = deps?.preload ?? preloadCache
+  const preload = deps?.preload ?? refreshCardCache
 
   if (options?.allowBulk === false) return { refreshed: false }
 

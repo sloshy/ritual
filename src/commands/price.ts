@@ -29,7 +29,8 @@ import {
   type ListLocation,
 } from '../resolve-list'
 import { getBannedPrintings, getDefaultCurrency } from '../ritual-config'
-import { getCardPrintings, preloadCache } from '../scryfall'
+import { getCardPrintings } from '../scryfall'
+import { refreshCardCache } from '../cache/refresh-source'
 import {
   formatEntryChoiceTitle,
   formatListChoiceTitle,
@@ -355,7 +356,7 @@ export function registerPriceCommand(program: Command): void {
           currency,
           lastRefreshedAt: freshness.lastRefreshedAt,
           rebuild: (nextCurrency) => buildScoped(nextCurrency),
-          refreshPrices: preloadCache,
+          refreshPrices: refreshCardCache,
           getLastRefreshedAt: () => cardCache.getLastRefreshedAt(),
           openList,
         })

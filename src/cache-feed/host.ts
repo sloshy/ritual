@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { createHash } from 'node:crypto'
-import { mkdir, readdir, rename, unlink } from 'node:fs/promises'
+import { mkdir, readdir, unlink } from 'node:fs/promises'
 import { createDefaultFileSystemClient, type HttpClient } from '../interfaces'
 import { writeFileAtomic } from '../cache/atomic-write'
 import { throwHttpError } from '../errors'
@@ -20,6 +20,7 @@ import {
   type CacheFeedKind,
 } from './feed'
 import { createFileTorrent } from './torrents'
+import { streamToFile } from './download'
 
 export const DEFAULT_BULK_API_URL = SCRYFALL_BULK_API_URL
 export const CACHE_FEED_LOG_PREFIX = '[cache-feed]'
@@ -197,34 +198,12 @@ export class CacheFeedHost {
     if (!response.body) throw new Error(`Bulk download for ${kind} has no body`)
 
     const filePath = path.join(this.filesDir, fileName)
-    const partialPath = `${filePath}.partial`
     const hash = createHash('sha256')
     let length = 0
-
-    const writer = Bun.file(partialPath).writer()
-    const reader = response.body.getReader()
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        hash.update(value)
-        length += value.byteLength
-        await writer.write(value)
-      }
-      await writer.end()
-    } catch (e) {
-      // Best-effort cleanup; the original error is what must surface.
-      try {
-        await writer.end()
-      } catch {
-        // Ignore — the sink may already be closed or errored.
-      }
-      await unlink(partialPath).catch(() => {})
-      throw e
-    } finally {
-      await reader.cancel().catch(() => {})
-    }
-    await rename(partialPath, filePath)
+    await streamToFile(response.body, filePath, (chunk) => {
+      hash.update(chunk)
+      length += chunk.byteLength
+    })
 
     const fileUrl = `${this.publicUrl}/files/${encodeURIComponent(fileName)}`
     const torrent = await createFileTorrent(filePath, fileUrl, now)

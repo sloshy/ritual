@@ -1,5 +1,5 @@
 import { cardCache } from './index'
-import { preloadCache } from '../scryfall'
+import { refreshCardCache } from './refresh-source'
 import { BULK_CACHE_MAX_AGE_MS, PRICE_MAX_AGE_MS } from './constants'
 import { shouldBulkRefresh, type BulkRefreshPrompt, type RefreshMode } from '../refresh'
 import { formatDuration } from '../utils'
@@ -56,7 +56,7 @@ export async function ensureFreshCardCache(
     })
 
     if (shouldPreload) {
-      await preloadCache()
+      await refreshCardCache()
     } else {
       return { ready: false, cardCount: 0 }
     }
@@ -67,7 +67,7 @@ export async function ensureFreshCardCache(
       await promptStaleCacheRefresh(
         Date.now() - lastRefreshed,
         (prompt) => shouldBulkRefresh(mode, prompt),
-        preloadCache,
+        refreshCardCache,
       )
     }
   }
@@ -122,7 +122,7 @@ export async function refreshCardCacheForSession(
   deps: SessionCacheDeps = {},
 ): Promise<void> {
   const cache = deps.cache ?? cardCache
-  const preload = deps.preload ?? preloadCache
+  const preload = deps.preload ?? refreshCardCache
   const confirmStaleRefresh =
     deps.confirmStaleRefresh ?? ((prompt) => shouldBulkRefresh('ask', prompt))
 
@@ -167,7 +167,7 @@ export async function ensureFreshPriceData(
   deps: SessionCacheDeps = {},
 ): Promise<PriceFreshnessResult> {
   const cache = deps.cache ?? cardCache
-  const preload = deps.preload ?? preloadCache
+  const preload = deps.preload ?? refreshCardCache
   const confirmStaleRefresh =
     deps.confirmStaleRefresh ?? ((prompt) => shouldBulkRefresh('ask', prompt))
 

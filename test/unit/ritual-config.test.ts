@@ -72,6 +72,8 @@ describe('ritual config', () => {
       wantedDir: './my-wanted',
       defaultCurrency: 'eur',
       cacheLockTimeoutSeconds: 120,
+      cacheSource: 'feed',
+      cacheFeedUrl: 'https://feed.example/feed.json',
       admin: {
         gitEnabled: true,
         gitAutoCommit: true,
@@ -148,6 +150,46 @@ describe('ritual config', () => {
       await fs.writeFile(configPath, `{ "cacheLockTimeoutSeconds": ${raw} }`)
       const config = await loadRitualConfig()
       expect(config.cacheLockTimeoutSeconds).toBe(300)
+    },
+  )
+
+  test('cacheSource defaults to scryfall when absent', async () => {
+    await fs.writeFile(configPath, JSON.stringify({ decksDir: './d' }))
+    const config = await loadRitualConfig()
+    expect(config.cacheSource).toBe('scryfall')
+    expect(config.cacheFeedUrl).toBeUndefined()
+  })
+
+  test('cacheSource loads a valid value', async () => {
+    await fs.writeFile(configPath, JSON.stringify({ cacheSource: 'feed' }))
+    const config = await loadRitualConfig()
+    expect(config.cacheSource).toBe('feed')
+  })
+
+  test.each([['"torrent"'], ['5'], ['true']])(
+    'cacheSource falls back to scryfall when %s',
+    async (raw) => {
+      await fs.writeFile(configPath, `{ "cacheSource": ${raw} }`)
+      const config = await loadRitualConfig()
+      expect(config.cacheSource).toBe('scryfall')
+    },
+  )
+
+  test('cacheFeedUrl loads a valid http(s) URL', async () => {
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({ cacheFeedUrl: 'https://feed.example/feed.json' }),
+    )
+    const config = await loadRitualConfig()
+    expect(config.cacheFeedUrl).toBe('https://feed.example/feed.json')
+  })
+
+  test.each([['"not a url"'], ['"ftp://feed.example/feed.json"'], ['5']])(
+    'cacheFeedUrl is dropped when %s',
+    async (raw) => {
+      await fs.writeFile(configPath, `{ "cacheFeedUrl": ${raw} }`)
+      const config = await loadRitualConfig()
+      expect(config.cacheFeedUrl).toBeUndefined()
     },
   )
 

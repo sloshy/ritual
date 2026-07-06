@@ -4,7 +4,7 @@ import path from 'node:path'
 import { tmpdir } from 'node:os'
 import type { Subprocess } from 'bun'
 import WebTorrent from 'webtorrent'
-import { ensureBinary, binaryPath } from './helpers/cli'
+import { ensureBinary, binaryPath, runCli } from './helpers/cli'
 import { parseCacheFeed, type CacheFeedDocument } from '../../src/cache-feed/feed'
 import { gzipJsonLines } from '../test-utils'
 
@@ -14,8 +14,8 @@ const TORRENT_PORT = 4916
 
 const artifacts: Record<string, Uint8Array> = {
   'default-cards-e2e.jsonl.gz': gzipJsonLines([
-    { name: 'Sol Ring', set: 'cmr' },
-    { name: 'Lightning Bolt', set: 'lea' },
+    { name: 'Sol Ring', set: 'cmr', prices: {}, games: ['paper'] },
+    { name: 'Lightning Bolt', set: 'lea', prices: {}, games: ['paper'] },
   ]),
   'oracle-tags-e2e.jsonl.gz': gzipJsonLines([
     { object: 'tag', id: 't1', label: 'ramp', slug: 'ramp', type: 'oracle' },
@@ -111,6 +111,31 @@ describe('cache-feed host (e2e over the built binary)', () => {
       expect(hash).toBe(entry.sha256)
     }
   })
+
+  test('the fetch command syncs a fresh base dir from the feed and is then idempotent', async () => {
+    const fetchDir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-fetch-cwd-'))
+    try {
+      const feedUrl = `http://127.0.0.1:${FEED_PORT}/feed.json`
+      const first = await runCli(['cache-feed', 'fetch', '--url', feedUrl, '--no-seed'], fetchDir)
+      expect(first.exitCode).toBe(0)
+      expect(first.stdout).toContain('Card cache updated from the feed.')
+
+      // The cards from the synthetic bulk were ingested into this base dir's cache.
+      const cacheJson = await Bun.file(path.join(fetchDir, 'cache', 'cache.json')).text()
+      expect(cacheJson).toContain('Sol Ring')
+      expect(cacheJson).toContain('Lightning Bolt')
+      // And the sync state was recorded.
+      expect(
+        await Bun.file(path.join(fetchDir, 'cache', 'feed-client', 'state.json')).exists(),
+      ).toBeTrue()
+
+      const second = await runCli(['cache-feed', 'fetch', '--url', feedUrl, '--no-seed'], fetchDir)
+      expect(second.exitCode).toBe(0)
+      expect(second.stdout).toContain('Feed is unchanged')
+    } finally {
+      await fs.rm(fetchDir, { recursive: true, force: true })
+    }
+  }, 60_000)
 
   test('a torrent client downloads an artifact from the host over TCP', async () => {
     const entry = feed.entries.find((candidate) => candidate.kind === 'default-cards')!
