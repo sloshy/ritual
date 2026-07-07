@@ -3,8 +3,9 @@ FROM oven/bun:1.3.14-alpine AS builder
 
 WORKDIR /app
 
-# Copy dependency files
+# Copy dependency files (vendor/ holds the local webrtc-polyfill stub referenced by bun.lock)
 COPY package.json bun.lock ./
+COPY vendor ./vendor
 
 # Install dependencies
 RUN bun install --frozen-lockfile
