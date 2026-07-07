@@ -555,7 +555,7 @@ export function useQuickSwitchShortcut(toggle: () => void): void {
   onMount(() => {
     const handler = (e: KeyboardEvent): void => {
       if (e.key !== 'k' && e.key !== 'K') return
-      if (!(e.ctrlKey || e.metaKey)) return
+      if (!e.ctrlKey) return
       e.preventDefault()
       toggle()
     }
