@@ -4,8 +4,6 @@ import type { ViewMode, CardSize, SortBy, PriceGroupStrategy } from './card-sort
 import type { PriceCurrency } from '../price-currency'
 import { capitalize } from './utils'
 import { useStuck } from './useStuck'
-import { UpdatePricesButton } from './PriceControls'
-import type { PriceRefresh } from './usePriceRefresh'
 import { FilterMenu } from './FilterMenu'
 import type { CardFiltersControl } from './useCardFilters'
 import { useMobileLayout, usePointerCoarse } from '../ui/useMediaQuery'
@@ -52,8 +50,6 @@ interface ToolbarProps {
   /** Show the "Hide Extras" filter toggle (deck pages only). */
   showHideExtras?: boolean
   extraToggles?: ExtraToggle[]
-  /** When set, a right-aligned "Update Prices" button is shown (public list pages). */
-  priceRefresh?: PriceRefresh
   /** Bulk multi-select actions control; rendered only while cards are selected. */
   selectionMenu?: JSX.Element
 }
@@ -75,10 +71,11 @@ const CARD_SIZE_LABELS: Record<CardSize, string> = {
  * The list-page toolbar. Two layouts share one sticky container:
  *
  * - Desktop: every control inline — view mode, card size, group/sort selects,
- *   order toggles, filters, selection, prices.
+ *   order toggles, filters, selection. ("Update prices" lives in the page
+ *   header's button group instead, not in this toolbar.)
  * - Phone-width ({@link useMobileLayout}): a single compact row — view mode, a
  *   "Sort & Group" button opening a bottom sheet with the full grouping/sorting
- *   controls, filters (with its active-count badge), and a compact prices button.
+ *   controls, and filters (with its active-count badge).
  *
  * Independently of width, coarse-pointer devices get a "Select" toggle (touch
  * selection mode — taps select cards) and lose the overlap/stack view modes,
@@ -261,13 +258,6 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
               {selectModeToggle()}
               {filterMenu}
               {props.selectionMenu}
-              <Show when={props.priceRefresh}>
-                {(refresh) => (
-                  <div class="toolbar-price-refresh">
-                    <UpdatePricesButton prices={refresh()} compact />
-                  </div>
-                )}
-              </Show>
               <BottomSheet
                 open={sortSheetOpen()}
                 onClose={() => setSortSheetOpen(false)}
@@ -334,13 +324,6 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
           {selectModeToggle()}
           {filterMenu}
           {props.selectionMenu}
-          <Show when={props.priceRefresh}>
-            {(refresh) => (
-              <div class="toolbar-price-refresh">
-                <UpdatePricesButton prices={refresh()} />
-              </div>
-            )}
-          </Show>
         </Show>
       </div>
     </>

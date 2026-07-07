@@ -2,7 +2,7 @@ import type { Component } from 'solid-js'
 import { createSignal, createMemo, createEffect, onMount, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import { seedCards, seedPrintings, overlayCard, sessionCacheVersion } from './session-cache'
-import { usePublicPriceControls } from './PriceControls'
+import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { TagFilterWarning } from './TagFilterWarning'
 import type { Card, DeckData, ScryfallCard, Finish } from '../types'
@@ -589,7 +589,10 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         </div>
         <Show
           when={
-            props.onCombine || props.enableExport || (props.changelog && props.changelog.length > 0)
+            props.onCombine ||
+            props.enableExport ||
+            (props.changelog && props.changelog.length > 0) ||
+            props.enablePriceRefresh
           }
         >
           <div class="btn-group">
@@ -608,6 +611,9 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
             </Show>
             <Show when={props.enableExport}>
               <ExportMenu serialize={serializeDeck} name={props.deck.name} />
+            </Show>
+            <Show when={props.enablePriceRefresh}>
+              <UpdatePricesButton prices={prices} />
             </Show>
           </div>
         </Show>
@@ -656,7 +662,6 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
               ]
             : undefined
         }
-        priceRefresh={props.enablePriceRefresh ? prices : undefined}
         selectionMenu={
           <SelectionMenu
             selection={selection}

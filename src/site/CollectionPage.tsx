@@ -2,7 +2,7 @@ import type { Component } from 'solid-js'
 import { createSignal, createMemo, onMount, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import { seedCards, seedPrintings, overlayCard, sessionCacheVersion } from './session-cache'
-import { usePublicPriceControls } from './PriceControls'
+import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { TagFilterWarning } from './TagFilterWarning'
 import type { ScryfallCard } from '../types'
@@ -510,7 +510,10 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         </div>
         <Show
           when={
-            props.onCombine || props.enableExport || (props.changelog && props.changelog.length > 0)
+            props.onCombine ||
+            props.enableExport ||
+            (props.changelog && props.changelog.length > 0) ||
+            props.enablePriceRefresh
           }
         >
           <div class="btn-group">
@@ -529,6 +532,9 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
             </Show>
             <Show when={props.enableExport}>
               <ExportMenu serialize={serializeCollection} name={props.name} />
+            </Show>
+            <Show when={props.enablePriceRefresh}>
+              <UpdatePricesButton prices={prices} />
             </Show>
           </div>
         </Show>
@@ -572,7 +578,6 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
             onChange: () => setGroupDuplicates((prev) => !prev),
           },
         ]}
-        priceRefresh={props.enablePriceRefresh ? prices : undefined}
         selectionMenu={
           <SelectionMenu
             selection={selection}

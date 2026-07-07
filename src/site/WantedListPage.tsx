@@ -2,7 +2,7 @@ import type { Component } from 'solid-js'
 import { createSignal, createMemo, onMount, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import { seedCards, seedPrintings, sessionCacheVersion } from './session-cache'
-import { usePublicPriceControls } from './PriceControls'
+import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { TagFilterWarning } from './TagFilterWarning'
 import type { ScryfallCard, Finish } from '../types'
@@ -499,7 +499,10 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         </div>
         <Show
           when={
-            props.onCombine || props.enableExport || (props.changelog && props.changelog.length > 0)
+            props.onCombine ||
+            props.enableExport ||
+            (props.changelog && props.changelog.length > 0) ||
+            props.enablePriceRefresh
           }
         >
           <div class="btn-group">
@@ -518,6 +521,9 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
             </Show>
             <Show when={props.enableExport}>
               <ExportMenu serialize={serializeWanted} name={props.name} />
+            </Show>
+            <Show when={props.enablePriceRefresh}>
+              <UpdatePricesButton prices={prices} />
             </Show>
           </div>
         </Show>
@@ -554,7 +560,6 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         cardTypeOptions={cardTypeOptions()}
         oracleTagOptions={oracleTagOptions()}
         artTagOptions={artTagOptions()}
-        priceRefresh={props.enablePriceRefresh ? prices : undefined}
         selectionMenu={
           <SelectionMenu
             selection={selection}

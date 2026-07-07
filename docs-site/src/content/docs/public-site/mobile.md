@@ -18,9 +18,10 @@ While edit mode is on, the tab bar steps aside so the editor's bottom action bar
 List pages collapse the full desktop toolbar into a single compact row:
 
 - the **view toggle** (binder and list views — the overlap and stack views are omitted on touch devices, since their fan-out interaction requires a hover),
-- a **Sort** button that opens a _Sort & Group_ bottom sheet holding the full controls: grouping (and price brackets), sorting, the Reverse and Reverse Sections toggles, card size, and any page-specific extras,
-- the **Filters** button with its active-filter count badge, and
-- a compact **update prices** (↻) button on pages that support it.
+- a **Sort** button that opens a _Sort & Group_ bottom sheet holding the full controls: grouping (and price brackets), sorting, the Reverse and Reverse Sections toggles, card size, and any page-specific extras, and
+- the **Filters** button with its active-filter count badge.
+
+On pages that support it, the **Update prices** button lives in the button group above the toolbar (alongside actions like Combine and View Changes), the same as on desktop — see [Update Prices](/commands/build-site/#update-prices-per-page).
 
 ## Bottom sheets
 
