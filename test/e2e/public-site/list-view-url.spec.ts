@@ -152,8 +152,11 @@ test.describe('List view shareable URL', () => {
     await page.waitForSelector('[data-view]', { timeout: 15_000 })
     await expectVisibleCards(page, ['Golgari Lord', 'White Knight'])
     await openFilterMenu(page)
-    // The selected-tag chip shows the raw lowercase slug, never title-cased.
-    await expect(page.locator('.filter-tag').filter({ hasText: /^removal$/ })).toBeVisible()
+    // The selected-tag chip shows the raw lowercase slug, never title-cased. The chip
+    // span also holds its "×" remove button, so we assert on that button's accessible
+    // name ("Remove <slug>") with a case-sensitive regex — this catches title-casing
+    // without depending on the button glyph bleeding into the span's text content.
+    await expect(page.getByRole('button', { name: /^Remove removal$/ })).toBeVisible()
   })
 
   test('malformed parameters are ignored and fall back to defaults', async ({ page }) => {
