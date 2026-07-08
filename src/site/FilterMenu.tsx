@@ -1,5 +1,5 @@
 import type { Component, JSX } from 'solid-js'
-import { createEffect, createSignal, For, on, Show } from 'solid-js'
+import { batch, createEffect, createSignal, For, on, Show } from 'solid-js'
 import { AdaptiveMenu } from '../ui/AdaptiveMenu'
 import { useAnchoredToggle } from '../ui/useAnchoredToggle'
 import { parseSetCodesInput, scanSetCodesInput } from '../set-codes'
@@ -10,14 +10,42 @@ import {
   parsePriceFilter,
   toggleColorSelection,
   type NumericComparator,
+  type NumericFilterParse,
 } from './card-filters'
 import { type PriceCurrency, getCurrencySymbol } from '../price-currency'
 import { formatCardTypeForDisplay, parseCardTypesInput, scanCardTypeInput } from './card-types'
 import type { TagFilterMode, TagMatchLogic } from './card-tags'
 import { TagsInput } from './TagsInput'
 import type { CardFiltersControl } from './useCardFilters'
+import { useDebouncedInput, type DebouncedInput } from './useDebouncedInput'
 
 const PANEL_WIDTH = 320
+
+/** A numeric filter value as the string its input field shows ('' when unset). */
+function numericFieldText(value: number | null): string {
+  return value === null ? '' : String(value)
+}
+
+/**
+ * A debounced numeric filter field (Mana Value, Price, Copies): mirrors the store
+ * value as text, and on each debounced commit parses the draft, surfaces a validation
+ * error, and applies the parsed value only when it is valid.
+ */
+function useNumericFilterInput(
+  current: () => number | null,
+  parse: (raw: string) => NumericFilterParse,
+  setError: (error: string | null) => void,
+  apply: (value: number | null) => void,
+): DebouncedInput {
+  return useDebouncedInput(
+    () => numericFieldText(current()),
+    (raw) => {
+      const parsed = parse(raw)
+      setError(parsed.ok ? null : parsed.error)
+      if (parsed.ok) apply(parsed.value)
+    },
+  )
+}
 
 type ComparatorOption = { value: NumericComparator; label: string }
 
@@ -141,8 +169,11 @@ type NumericFilterRowProps = {
   ariaLabel: string
   op: NumericComparator
   onOp: (op: NumericComparator) => void
-  value: number | null
+  /** The raw draft text shown in the field (debounced from the store). */
+  value: string
   onValueInput: (raw: string) => void
+  /** Commit any pending value immediately when the field loses focus. */
+  onValueBlur: () => void
   error: string | null
   step: string
   inputMode: 'numeric' | 'decimal'
@@ -192,8 +223,9 @@ const NumericFilterRow: Component<NumericFilterRowProps> = (props) => {
           inputmode={props.inputMode}
           placeholder="Any"
           aria-invalid={props.error !== null}
-          value={props.value ?? ''}
+          value={props.value}
           onInput={(e) => props.onValueInput(e.currentTarget.value)}
+          onBlur={props.onValueBlur}
         />
       </div>
       <Show when={props.error}>{(error) => <span class="filter-error">{error()}</span>}</Show>
@@ -266,29 +298,49 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
     ),
   )
 
-  const handleManaValueInput = (raw: string) => {
-    const parsed = parseManaValueFilter(raw)
-    setManaValueError(parsed.ok ? null : parsed.error)
-    if (parsed.ok) props.filters.update({ manaValue: parsed.value })
-  }
+  // The free-text and numeric filters commit to the store 250ms after the user stops
+  // typing, so fast typing no longer triggers a filter+re-render pass per keystroke.
+  // The fields still echo keystrokes instantly via each input's `draft`.
+  const nameInput = useDebouncedInput(
+    () => props.filters.filters.name,
+    (name) => props.filters.update({ name }),
+  )
 
-  const handlePriceInput = (raw: string) => {
-    const parsed = parsePriceFilter(raw)
-    setPriceError(parsed.ok ? null : parsed.error)
-    if (parsed.ok) props.filters.update({ price: parsed.value })
-  }
+  const manaValueInput = useNumericFilterInput(
+    () => props.filters.filters.manaValue,
+    parseManaValueFilter,
+    setManaValueError,
+    (manaValue) => props.filters.update({ manaValue }),
+  )
 
-  const handleCopiesInput = (raw: string) => {
-    const parsed = parseCopiesFilter(raw)
-    setCopiesError(parsed.ok ? null : parsed.error)
-    if (parsed.ok) props.filters.update({ copies: parsed.value })
-  }
+  const priceInput = useNumericFilterInput(
+    () => props.filters.filters.price,
+    parsePriceFilter,
+    setPriceError,
+    (price) => props.filters.update({ price }),
+  )
+
+  const copiesInput = useNumericFilterInput(
+    () => props.filters.filters.copies,
+    parseCopiesFilter,
+    setCopiesError,
+    (copies) => props.filters.update({ copies }),
+  )
 
   const handleClearAll = () => {
-    props.filters.reset()
-    setManaValueError(null)
-    setPriceError(null)
-    setCopiesError(null)
+    // One reactive flush for the whole reset. Order matters: reset the store first so
+    // each input's `reset()` re-seeds its draft from the new defaults, and abandons any
+    // debounced value not yet committed so it can't re-apply after the reset.
+    batch(() => {
+      props.filters.reset()
+      nameInput.reset()
+      manaValueInput.reset()
+      priceInput.reset()
+      copiesInput.reset()
+      setManaValueError(null)
+      setPriceError(null)
+      setCopiesError(null)
+    })
   }
 
   return (
@@ -335,8 +387,9 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
           class="filter-input"
           type="text"
           placeholder="Search terms…"
-          value={props.filters.filters.name}
-          onInput={(e) => props.filters.update({ name: e.currentTarget.value })}
+          value={nameInput.draft()}
+          onInput={(e) => nameInput.onInput(e.currentTarget.value)}
+          onBlur={nameInput.flush}
         />
       </div>
       <div class="filter-row">
@@ -528,8 +581,9 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         ariaLabel="Mana value comparison"
         op={props.filters.filters.manaValueOp}
         onOp={(manaValueOp) => props.filters.update({ manaValueOp })}
-        value={props.filters.filters.manaValue}
-        onValueInput={handleManaValueInput}
+        value={manaValueInput.draft()}
+        onValueInput={manaValueInput.onInput}
+        onValueBlur={manaValueInput.flush}
         error={manaValueError()}
         step="1"
         inputMode="numeric"
@@ -542,8 +596,9 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         ariaLabel="Price comparison"
         op={props.filters.filters.priceOp}
         onOp={(priceOp) => props.filters.update({ priceOp })}
-        value={props.filters.filters.price}
-        onValueInput={handlePriceInput}
+        value={priceInput.draft()}
+        onValueInput={priceInput.onInput}
+        onValueBlur={priceInput.flush}
         error={priceError()}
         step="0.01"
         inputMode="decimal"
@@ -565,8 +620,9 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         ariaLabel="Copies comparison"
         op={props.filters.filters.copiesOp}
         onOp={(copiesOp) => props.filters.update({ copiesOp })}
-        value={props.filters.filters.copies}
-        onValueInput={handleCopiesInput}
+        value={copiesInput.draft()}
+        onValueInput={copiesInput.onInput}
+        onValueBlur={copiesInput.flush}
         error={copiesError()}
         step="1"
         inputMode="numeric"

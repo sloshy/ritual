@@ -2,7 +2,7 @@
 title: 'Filtering Cards'
 ---
 
-Every list view on the public site — decks, collections, wanted lists, and the [Combined List view](/public-site/combined-view/) — has a **Filters** button in the toolbar. It opens a dropdown of filters (a [bottom sheet on touch devices](/public-site/mobile/)) that narrow the cards shown without changing the underlying list. The button shows a badge with the number of active filters, and a **Clear all filters** action resets them. Filters are applied together: a card must pass every active filter to be shown.
+Every list view on the public site — decks, collections, wanted lists, and the [Combined List view](/public-site/combined-view/) — has a **Filters** button in the toolbar. It opens a dropdown of filters (a [bottom sheet on touch devices](/public-site/mobile/)) that narrow the cards shown without changing the underlying list. The button shows a badge with the number of active filters, and a **Clear all filters** action resets them. Filters are applied together: a card must pass every active filter to be shown. The typed filters (Name, Mana Value, Price, and Copies) apply a moment after you stop typing rather than on every keystroke, so fast typing stays smooth.
 
 ## Available filters
 

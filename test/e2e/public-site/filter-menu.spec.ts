@@ -218,7 +218,9 @@ test.describe('Toolbar Filters menu', () => {
     await openFilterMenu(page)
     // 'removal' is on White Knight and Golgari Lord.
     await page.locator('#filter-oracle-tags').fill('removal ')
-    await expect(page.locator('.filter-tag')).toHaveText(/Removal/)
+    // The chip renders the raw lowercase slug (never title-cased); its text also holds
+    // the "×" remove button, so match the case-sensitive lowercase slug as a substring.
+    await expect(page.locator('.filter-tag')).toHaveText(/removal/)
     await expectVisibleCards(page, ['Golgari Lord', 'White Knight'])
 
     await page
@@ -253,7 +255,9 @@ test.describe('Toolbar Filters menu', () => {
     await openFilterMenu(page)
     // 'dragon' art is only on Maybe Dragon.
     await page.locator('#filter-art-tags').fill('dragon ')
-    await expect(page.locator('.filter-tag')).toHaveText(/Dragon/)
+    // The chip renders the raw lowercase slug (never title-cased); its text also holds
+    // the "×" remove button, so match the case-sensitive lowercase slug as a substring.
+    await expect(page.locator('.filter-tag')).toHaveText(/dragon/)
     await expectVisibleCards(page, ['Maybe Dragon'])
 
     // Exclude inverts: every card except the dragon survives.
@@ -423,5 +427,39 @@ test.describe('Toolbar Filters menu', () => {
     await page.getByRole('button', { name: 'Clear all filters' }).click()
     await expect(page.locator('.filter-menu-badge')).not.toBeVisible()
     await expectVisibleCards(page, ALL_CARDS)
+  })
+
+  test('the name filter is debounced: it applies only after typing pauses', async ({ page }) => {
+    await openFilterMenu(page)
+    await expectVisibleCards(page, ALL_CARDS)
+
+    // Freeze time (after the menu is open) so the debounce window is fully under our
+    // control — the app's filter pass runs off a timer we now advance manually.
+    await page.clock.install()
+    await page.locator('#filter-name').fill('elf green')
+
+    // The field echoes the text instantly, but no filter pass has fired yet: with the
+    // clock frozen the debounce timer can't have elapsed, so every card is still shown.
+    await expect(page.locator('#filter-name')).toHaveValue('elf green')
+    expect((await page.locator('.list-name').allTextContents()).sort()).toEqual(
+      [...ALL_CARDS].sort(),
+    )
+
+    // Advancing past the debounce window fires the single deferred filter pass.
+    await page.clock.runFor(250)
+    await expectVisibleCards(page, ['Green Elf'])
+  })
+
+  test('a value typed just before closing the menu is flushed, not lost', async ({ page }) => {
+    await openFilterMenu(page)
+
+    // Freeze time so the debounce timer cannot fire on its own; the only way the filter
+    // can apply is the flush when the (unmounting) menu closes.
+    await page.clock.install()
+    await page.locator('#filter-name').fill('elf green')
+    await page.locator('.filter-menu > button').click()
+    await expect(page.locator('.filter-menu-panel')).not.toBeVisible()
+
+    await expectVisibleCards(page, ['Green Elf'])
   })
 })
