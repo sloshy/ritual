@@ -60,6 +60,12 @@ export function serializeChangeBundle(bundle: ChangeBundle): string {
   return JSON.stringify(bundle, null, 2)
 }
 
+/** Filename for a downloaded multi-list change bundle (every edited list). */
+export const CHANGE_BUNDLE_FILENAME = 'ritual-all-edits.json'
+
+/** Filename for a bundle scoped to the current combined view's member lists. */
+export const COMBINED_BUNDLE_FILENAME = 'ritual-combined-edits.json'
+
 /** Total change count across every list in a bundle. */
 export function bundleChangeCount(bundle: ChangeBundle): number {
   return bundle.lists.reduce((sum, list) => sum + list.changes.length, 0)

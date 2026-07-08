@@ -20,11 +20,13 @@ test.describe('Public deck editor', () => {
     await expect(editBtn).toBeVisible()
     await expect(editBtn).toBeEnabled()
 
-    // Arming edit mode off a list page shows a hint instead of editor controls.
+    // Arming edit mode off a list page shows a hint and an always-available Export
+    // button, but none of the single-list editor controls (no Original/Edited toggle).
     await editBtn.click()
     await expect(editBtn).toContainText('Done')
     await expect(page.locator('.edit-mode-hint')).toBeVisible()
-    await expect(page.locator('.edit-banner')).toHaveCount(0)
+    await expect(page.locator('.edit-banner .btn-export')).toBeVisible()
+    await expect(page.locator('.edit-banner-toggle')).toHaveCount(0)
 
     // Opening a list while armed drops straight into its editor — no second click.
     await page.evaluate(() => {
@@ -32,6 +34,7 @@ test.describe('Public deck editor', () => {
     })
     await expect(page.locator('.edit-banner')).toBeVisible()
     await expect(page.locator('.edit-mode-hint')).toHaveCount(0)
+    await expect(page.locator('.edit-banner-toggle')).toBeVisible()
 
     // Leaving edit mode from the list returns to the read-only view and clears the hint.
     await page.locator('.btn-edit', { hasText: 'Done' }).click()

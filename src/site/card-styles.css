@@ -2312,6 +2312,11 @@ h3 {
   font-weight: 600;
 }
 
+.export-panel-scope-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .export-panel-review-toggle {
   margin-bottom: 0.75rem;
 }

@@ -2,6 +2,7 @@ import { type JSX, Show, batch, createEffect, createSignal, onMount, onCleanup }
 import type { ChangeEvent } from '../../change-event'
 import {
   type ChangeBundleList,
+  CHANGE_BUNDLE_FILENAME,
   buildChangeBundle,
   serializeChangeBundle,
 } from '../../editor/change-bundle'
@@ -24,9 +25,6 @@ import {
   hasEditSession,
 } from './edit-session-storage'
 import { listEditSessions, rememberEditSession, recallEditSession } from './edit-session-memory'
-
-/** Filename for the multi-list bundle download; not tied to any one list's name. */
-const BUNDLE_FILENAME = 'ritual-all-edits.json'
 
 type EditViewFrameProps = {
   changeCount: number
@@ -217,7 +215,7 @@ export function EditViewFrame(props: EditViewFrameProps): JSX.Element {
         current={currentGroup()}
         allGroups={allEditedGroups}
         jsonFilename={props.jsonFilename}
-        bundleFilename={BUNDLE_FILENAME}
+        bundleFilename={CHANGE_BUNDLE_FILENAME}
         buildJson={buildJson}
         fileExports={props.fileExports}
         onSaveToBrowser={handleSaveToBrowser}

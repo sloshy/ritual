@@ -1,7 +1,9 @@
 import {
   type Component,
   For,
+  Match,
   Show,
+  Switch,
   createEffect,
   createMemo,
   createSignal,
@@ -31,23 +33,43 @@ export type ExportListGroup = {
   changes: ChangeEvent[]
 }
 
-/** Which edits an export covers: the open list only, or every edited list. */
-export type ExportScope = 'current' | 'all'
+/**
+ * Which edits an export covers: the open list only, the lists that make up the
+ * combined view currently being browsed, or every list edited this session.
+ */
+export type ExportScope = 'current' | 'combined' | 'all'
 
 type ExportPanelProps = {
   open: boolean
   onClose: () => void
-  /** The list currently open in the editor, with its live pending changes. */
-  current: ExportListGroup
+  /**
+   * The list currently open in the editor, with its live pending changes, or
+   * `null` when exporting off a list page (a combined view or a directory). When
+   * null, the "This list" scope is shown disabled and the default scope is "all".
+   */
+  current: ExportListGroup | null
   /**
    * Every list with pending edits this session (including the current one).
    * Read when the panel opens; edits cannot change while the modal is up.
    */
   allGroups: () => ExportListGroup[]
-  /** Filename for the downloaded change-list JSON (current-list scope). */
-  jsonFilename: string
+  /**
+   * When browsing a combined view, the edited member lists that make it up (the
+   * intersection of the combined selection with the lists edited this session).
+   * Returning `null`/`undefined` — i.e. not on a combined view — hides the
+   * "Current lists" scope. Read when the panel opens.
+   */
+  combinedGroups?: () => ExportListGroup[] | null
+  /**
+   * Filename for the downloaded change-list JSON (current-list scope). Optional
+   * because the "This list" scope is unreachable off a list page (no `current`);
+   * falls back to {@link bundleFilename} if omitted.
+   */
+  jsonFilename?: string
   /** Filename for the downloaded multi-list bundle JSON (all-lists scope). */
   bundleFilename: string
+  /** Filename for the downloaded combined-view bundle JSON (current-lists scope). */
+  combinedFilename?: string
   /** Built lazily so it reflects the latest edits when clicked. */
   buildJson: (scope: ExportScope) => string
   /** Optional "download updated file" actions specific to the list type. */
@@ -62,8 +84,9 @@ type ExportPanelProps = {
 
 /** The panel's point-in-time view of the session's edits, captured when it opens. */
 type ExportSnapshot = {
-  current: ExportListGroup
+  current: ExportListGroup | null
   all: ExportListGroup[]
+  combined: ExportListGroup[] | null
 }
 
 /**
@@ -84,29 +107,56 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
   // the counts, review list, and scope default from shifting under the visitor.
   const [snapshot, setSnapshot] = createSignal<ExportSnapshot | null>(null)
 
+  // Plain accessors projecting off the snapshot signal (which only changes on an
+  // open transition) — no createMemo needed for these trivial reads.
   const currentGroup = (): ExportListGroup | null => snapshot()?.current ?? null
+  const snapshotAllGroups = (): ExportListGroup[] => snapshot()?.all ?? []
+  const snapshotCombinedGroups = (): ExportListGroup[] | null => snapshot()?.combined ?? null
 
-  const otherGroups = createMemo((): ExportListGroup[] => {
-    const snap = snapshot()
-    if (!snap) return []
-    return snap.all.filter((g) => !(g.kind === snap.current.kind && g.slug === snap.current.slug))
-  })
+  const hasCurrent = (): boolean => currentGroup() != null
+  const isCombinedView = (): boolean => snapshotCombinedGroups() != null
 
-  const hasOtherEdits = (): boolean => otherGroups().length > 0
+  /** Whether any list other than the open one has edits (drives the scope picker). */
+  const otherListsExist = (): boolean => {
+    const c = currentGroup()
+    return snapshotAllGroups().some((g) => !(c && g.kind === c.kind && g.slug === c.slug))
+  }
 
   const currentCount = (): number => currentGroup()?.changes.length ?? 0
-  const allCount = (): number =>
-    otherGroups().reduce((sum, g) => sum + g.changes.length, currentCount())
-  const allListCount = (): number => otherGroups().length + (currentCount() > 0 ? 1 : 0)
+  const allCount = (): number => snapshotAllGroups().reduce((sum, g) => sum + g.changes.length, 0)
+  const allListCount = (): number => snapshotAllGroups().length
+  const combinedCount = (): number =>
+    (snapshotCombinedGroups() ?? []).reduce((sum, g) => sum + g.changes.length, 0)
+  const combinedListCount = (): number => (snapshotCombinedGroups() ?? []).length
 
-  const scopeCount = (): number => (scope() === 'current' ? currentCount() : allCount())
+  // The effective scope, guarding against a stale selection when the available
+  // scopes change (e.g. "current" with no open list falls back to "all").
+  const activeScope = createMemo((): ExportScope => {
+    const s = scope()
+    if (s === 'current' && !hasCurrent()) return 'all'
+    if (s === 'combined' && !isCombinedView()) return 'all'
+    return s
+  })
+
+  const scopeCount = (): number =>
+    activeScope() === 'current'
+      ? currentCount()
+      : activeScope() === 'combined'
+        ? combinedCount()
+        : allCount()
+
+  /** Whether to show the scope picker: off a list, or when there's an alternative. */
+  const showScope = (): boolean => !hasCurrent() || otherListsExist() || isCombinedView()
 
   /** The list groups covered by the active scope, for the review section. */
   const scopedGroups = createMemo((): ExportListGroup[] => {
-    const current = currentGroup()
-    const withCurrent = current && current.changes.length > 0 ? [current] : []
-    if (scope() === 'current') return withCurrent
-    return [...withCurrent, ...otherGroups()]
+    const active = activeScope()
+    if (active === 'current') {
+      const current = currentGroup()
+      return current && current.changes.length > 0 ? [current] : []
+    }
+    const groups = active === 'combined' ? (snapshotCombinedGroups() ?? []) : snapshotAllGroups()
+    return groups.filter((g) => g.changes.length > 0)
   })
 
   // Snapshot the edits and reset the transient state on each open transition (and
@@ -122,8 +172,16 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
         setCopied(false)
         setSaved(false)
         setReviewOpen(false)
-        setSnapshot({ current: props.current, all: props.allGroups() })
-        setScope(currentCount() === 0 && hasOtherEdits() ? 'all' : 'current')
+        setSnapshot({
+          current: props.current,
+          all: props.allGroups(),
+          combined: props.combinedGroups?.() ?? null,
+        })
+        // Off a list page there is no "this list" to export, so default to the
+        // broadest scope; on a list, default to it unless it has no edits of its own.
+        setScope(
+          !hasCurrent() ? 'all' : currentCount() === 0 && otherListsExist() ? 'all' : 'current',
+        )
       },
     ),
   )
@@ -139,13 +197,18 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
   })
 
   const downloadJson = () => {
-    const filename = scope() === 'current' ? props.jsonFilename : props.bundleFilename
-    downloadTextFile(filename, props.buildJson(scope()), 'application/json')
+    const filename =
+      activeScope() === 'current'
+        ? (props.jsonFilename ?? props.bundleFilename)
+        : activeScope() === 'combined'
+          ? (props.combinedFilename ?? props.bundleFilename)
+          : props.bundleFilename
+    downloadTextFile(filename, props.buildJson(activeScope()), 'application/json')
   }
 
   const copyJson = async (): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(props.buildJson(scope()))
+      await navigator.clipboard.writeText(props.buildJson(activeScope()))
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
@@ -174,22 +237,35 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
             </button>
           </div>
 
-          <Show when={hasOtherEdits()}>
+          <Show when={showScope()}>
             <div class="export-panel-scope" role="group" aria-label="Export scope">
               <button
                 type="button"
                 class="export-panel-scope-option"
-                data-active={scope() === 'current'}
-                aria-pressed={scope() === 'current'}
+                data-active={activeScope() === 'current'}
+                aria-pressed={activeScope() === 'current'}
+                disabled={!hasCurrent()}
+                title={hasCurrent() ? undefined : 'Open a single list to export just its changes'}
                 onClick={() => setScope('current')}
               >
                 This list ({countLabel(currentCount(), 'change')})
               </button>
+              <Show when={isCombinedView()}>
+                <button
+                  type="button"
+                  class="export-panel-scope-option"
+                  data-active={activeScope() === 'combined'}
+                  aria-pressed={activeScope() === 'combined'}
+                  onClick={() => setScope('combined')}
+                >
+                  Current lists ({countLabel(combinedCount(), 'change')})
+                </button>
+              </Show>
               <button
                 type="button"
                 class="export-panel-scope-option"
-                data-active={scope() === 'all'}
-                aria-pressed={scope() === 'all'}
+                data-active={activeScope() === 'all'}
+                aria-pressed={activeScope() === 'all'}
                 onClick={() => setScope('all')}
               >
                 All lists ({countLabel(allCount(), 'change')})
@@ -198,13 +274,16 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
           </Show>
 
           <p class="export-panel-count">
-            <Show
-              when={scope() === 'all'}
-              fallback={<>Exporting {countLabel(currentCount(), 'change')}</>}
-            >
-              Exporting {countLabel(allCount(), 'change')} across{' '}
-              {countLabel(allListCount(), 'list')}
-            </Show>
+            <Switch fallback={<>Exporting {countLabel(currentCount(), 'change')}</>}>
+              <Match when={activeScope() === 'all'}>
+                Exporting {countLabel(allCount(), 'change')} across{' '}
+                {countLabel(allListCount(), 'list')}
+              </Match>
+              <Match when={activeScope() === 'combined'}>
+                Exporting {countLabel(combinedCount(), 'change')} across{' '}
+                {countLabel(combinedListCount(), 'list')}
+              </Match>
+            </Switch>
           </p>
 
           <Show when={scopeCount() > 0}>
@@ -217,7 +296,7 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
               {reviewOpen() ? 'Hide changes' : 'Review changes'}
             </button>
             <Show when={reviewOpen()}>
-              <div class="export-panel-review" data-scope={scope()}>
+              <div class="export-panel-review" data-scope={activeScope()}>
                 <For each={scopedGroups()}>
                   {(group) => (
                     <div class="export-panel-review-group">

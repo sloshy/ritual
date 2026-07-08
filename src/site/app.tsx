@@ -36,6 +36,13 @@ import { FindPage } from './FindPage'
 import { SearchResultsPage } from './SearchResultsPage'
 import { EditChromeProvider, useEditChrome } from './editor/edit-chrome'
 import { EditControlsRow } from './editor/EditControlsRow'
+import { ExportPanel, type ExportListGroup, type ExportScope } from './editor/ExportPanel'
+import {
+  CHANGE_BUNDLE_FILENAME,
+  COMBINED_BUNDLE_FILENAME,
+  buildChangeBundle,
+  serializeChangeBundle,
+} from '../editor/change-bundle'
 import { QuickSwitch, useQuickSwitchShortcut } from './QuickSwitch'
 import { useRouting } from './useRouting'
 import { useSiteData } from './useSiteData'
@@ -46,7 +53,11 @@ import { SelectionMenu } from './SelectionMenu'
 import { SelectionModal, isSelectionViewOpen, closeSelectionView } from './SelectionModal'
 import { useAllSelections } from './useCardSelection'
 import { removeAllSelectedPublic, moveAllSelectedPublic } from './remove-selected'
-import { clearEditSessions, confirmDiscardOnExit } from './editor/edit-session-memory'
+import {
+  clearEditSessions,
+  confirmDiscardOnExit,
+  listEditSessions,
+} from './editor/edit-session-memory'
 import { pendingPrintingPrompt } from './printing-prompt'
 import { TradePrintingPicker } from './TradePrintingPicker'
 import { pendingMovePrompt, closeMovePrompt } from './move-prompt'
@@ -90,6 +101,11 @@ function App() {
   const [combineOpen, setCombineOpen] = createSignal(false)
   const openCombine = () => setCombineOpen(true)
 
+  // Off-list export panel: shown from the navbar edit row on combined views and
+  // directory pages, where no single-list editor is mounted. Reset on navigation
+  // alongside the other transient modals (see the route-change effect below).
+  const [offListExportOpen, setOffListExportOpen] = createSignal(false)
+
   // The editor publishes its controls here while editing; the navbar renders them.
   const editChrome = useEditChrome()
 
@@ -122,6 +138,7 @@ function App() {
         setModalCard(null)
         setQuickSwitchOpen(false)
         setCombineOpen(false)
+        setOffListExportOpen(false)
       },
       { defer: true },
     ),
@@ -186,6 +203,28 @@ function App() {
   const handleCombineView = (selection: CombinedSelection) => {
     setCombineOpen(false)
     window.location.hash = encodeCombinedHash(selection)
+  }
+
+  // Off-list export (see the offListExportOpen signal above): while edit mode is
+  // on but no single-list editor is mounted (a combined view or a directory page),
+  // the navbar still offers Export. It draws its data from the in-memory edit
+  // sessions rather than a live editor, defaults to the all-lists scope, and — on
+  // a combined view — offers a "current lists" scope covering just that view's
+  // member lists. The session snapshots are structurally an ExportListGroup, so
+  // they pass straight through.
+  const allEditedGroups = (): ExportListGroup[] => listEditSessions()
+
+  const combinedEditedGroups = (): ExportListGroup[] | null => {
+    if (route().page !== 'combined') return null
+    const members = combinedLists()
+    return allEditedGroups().filter((g) =>
+      members.some((m) => m.type === g.kind && m.slug === g.slug),
+    )
+  }
+
+  const buildOffListJson = (scope: ExportScope): string => {
+    const lists = scope === 'combined' ? (combinedEditedGroups() ?? []) : allEditedGroups()
+    return serializeChangeBundle(buildChangeBundle({ lists, exportedAt: new Date().toISOString() }))
   }
 
   const activeTab = createMemo(() => {
@@ -421,9 +460,25 @@ function App() {
           fallback={
             <Show when={editMode()}>
               <div class="site-header-edit-row">
-                <span class="edit-mode-hint">
-                  Edit mode is on — open a single deck, collection, or wanted list to edit.
-                </span>
+                <div class="edit-banner" role="status">
+                  <div class="edit-banner-label">
+                    <span class="edit-banner-icon" aria-hidden="true">
+                      ✎
+                    </span>
+                    <span class="edit-mode-hint">
+                      Edit mode is on — open a single deck, collection, or wanted list to edit.
+                    </span>
+                  </div>
+                  <div class="edit-banner-controls">
+                    <button
+                      type="button"
+                      class="btn btn-export"
+                      onClick={() => setOffListExportOpen(true)}
+                    >
+                      Export…
+                    </button>
+                  </div>
+                </div>
               </div>
             </Show>
           }
@@ -683,6 +738,19 @@ function App() {
         wantedLists={wantedListList() ?? []}
         currency={currency()}
         onView={handleCombineView}
+      />
+
+      {/* Off-list export: available in edit mode on combined views and directory
+          pages, where no single-list editor is mounted. */}
+      <ExportPanel
+        open={offListExportOpen()}
+        onClose={() => setOffListExportOpen(false)}
+        current={null}
+        allGroups={allEditedGroups}
+        combinedGroups={combinedEditedGroups}
+        bundleFilename={CHANGE_BUNDLE_FILENAME}
+        combinedFilename={COMBINED_BUNDLE_FILENAME}
+        buildJson={buildOffListJson}
       />
 
       {/* Cross-list "view all selections" modal. */}
