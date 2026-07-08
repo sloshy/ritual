@@ -131,6 +131,24 @@ describe('filterCards', () => {
     expect(filterCards([noSet], makeFilters({ setCodes: ['mkm'] }))).toHaveLength(0)
   })
 
+  test('set code exclude mode drops cards from the selected sets and keeps the rest', () => {
+    const a = makeCard({ name: 'A', setCode: 'mkm' })
+    const b = makeCard({ name: 'B', setCode: 'lea' })
+    const c = makeCard({ name: 'C', setCode: '2xm' })
+    const result = filterCards(
+      [a, b, c],
+      makeFilters({ setCodes: ['mkm', '2xm'], setCodeMode: 'exclude' }),
+    )
+    expect(result.map((card) => card.name)).toEqual(['B'])
+  })
+
+  test('set code exclude mode with no set code keeps the card (empty set never matches)', () => {
+    const noSet = makeCard({ setCode: '' })
+    expect(
+      filterCards([noSet], makeFilters({ setCodes: ['mkm'], setCodeMode: 'exclude' })),
+    ).toHaveLength(1)
+  })
+
   test('card type filter (OR include) keeps cards with any selected type or subtype', () => {
     const robot = makeCard({ name: 'Robot', type: 'Artifact Creature — Robot' })
     const elf = makeCard({ name: 'Elf', type: 'Creature — Elf Druid' })

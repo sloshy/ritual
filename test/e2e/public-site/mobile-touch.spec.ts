@@ -124,6 +124,27 @@ test.describe('Touch toolbar', () => {
     await expect(hideLands).toHaveClass(/active/)
     await expect(page.locator('.card-item[data-name="test forest"]')).toHaveCount(0)
   })
+
+  test('set code exclude toggle works inside the bottom sheet', async ({ page }) => {
+    await mockPublicSiteDeckForFilters(page)
+    await page.goto('#/deck/test-filter-deck')
+    await page.waitForSelector('.card-item', { timeout: 15_000 })
+    await expect(page.locator('.card-item[data-name="boring rock"]')).toBeVisible()
+
+    await page.locator('.filter-menu .toolbar-toggle', { hasText: 'Filters' }).click()
+    const sheet = page.locator('.sheet-shell[open]')
+    await expect(sheet.locator('.filter-menu-panel')).toBeVisible()
+
+    await sheet.locator('#filter-sets').fill('tsb ')
+    await expect(sheet.locator('.filter-tag')).toHaveText(/TSB/)
+    await expect(page.locator('.card-item[data-name="boring rock"]')).toBeVisible()
+
+    await sheet
+      .getByRole('group', { name: 'Set filter mode' })
+      .getByRole('button', { name: 'Exclude' })
+      .click()
+    await expect(page.locator('.card-item[data-name="boring rock"]')).toHaveCount(0)
+  })
 })
 
 test.describe('Touch selection mode', () => {

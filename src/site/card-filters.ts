@@ -12,6 +12,9 @@ import { matchesTags, type TagFilterMode, type TagMatchLogic } from './card-tags
 /** How selected colors are matched against a card's color identity. */
 export type ColorFilterMode = 'exclusive' | 'inclusive'
 
+/** Whether the selected set codes are kept ('include') or removed ('exclude'). */
+export type SetCodeFilterMode = 'include' | 'exclude'
+
 /** A numeric comparison operator shared by the mana value and price filters. */
 export type NumericComparator = '=' | '<' | '<=' | '>' | '>='
 
@@ -41,6 +44,8 @@ export interface CardFilters {
   colorMode: ColorFilterMode
   /** Lowercase set codes. Empty = no set filtering. */
   setCodes: string[]
+  /** 'include': keep cards from the selected sets. 'exclude': drop them. */
+  setCodeMode: SetCodeFilterMode
   /** Lowercase card type tags (types and subtypes). Empty = no type filtering. */
   cardTypes: string[]
   /** 'and': a card must have every selected type. 'or': at least one. */
@@ -80,6 +85,7 @@ export function createDefaultCardFilters(): CardFilters {
     colors: [],
     colorMode: 'exclusive',
     setCodes: [],
+    setCodeMode: 'include',
     cardTypes: [],
     cardTypeLogic: 'or',
     cardTypeMode: 'include',
@@ -140,7 +146,11 @@ export function filterCards<T extends CardData>(cards: T[], filters: CardFilters
     ) {
       return false
     }
-    if (setCodes.size > 0 && !setCodes.has(card.setCode.toLowerCase())) return false
+    if (setCodes.size > 0) {
+      const matches = setCodes.has(card.setCode.toLowerCase())
+      const shouldExclude = filters.setCodeMode === 'include' ? !matches : matches
+      if (shouldExclude) return false
+    }
     if (filters.cardTypes.length > 0) {
       const matches = matchesCardTypes(card.type, filters.cardTypes, filters.cardTypeLogic)
       const shouldExclude = filters.cardTypeMode === 'include' ? !matches : matches

@@ -10,6 +10,7 @@ import {
   type CardFilters,
   type ColorFilterMode,
   type NumericComparator,
+  type SetCodeFilterMode,
   createDefaultCardFilters,
   parseManaValueAmount,
   parsePriceAmount,
@@ -78,6 +79,7 @@ const SORT_BYS: readonly SortBy[] = [
 ]
 const PRICE_STRATEGIES: readonly PriceGroupStrategy[] = ['archidekt', 'five', 'ten']
 const COLOR_MODES: readonly ColorFilterMode[] = ['exclusive', 'inclusive']
+const SET_CODE_MODES: readonly SetCodeFilterMode[] = ['include', 'exclude']
 const NUMERIC_OPS: readonly NumericComparator[] = ['=', '<', '<=', '>', '>=']
 const TYPE_LOGICS: readonly CardTypeMatchLogic[] = ['and', 'or']
 const TYPE_MODES: readonly CardTypeFilterMode[] = ['include', 'exclude']
@@ -100,6 +102,7 @@ const KEYS = {
   colors: 'colors',
   colorMode: 'colorMode',
   setCodes: 'sets',
+  setCodeMode: 'setMode',
   cardTypes: 'types',
   cardTypeLogic: 'typeLogic',
   cardTypeMode: 'typeMode',
@@ -156,7 +159,13 @@ export function writeListViewParams(
   setOrDelete(params, KEYS.colors, hasColors ? f.colors.join('') : null)
   setOrDelete(params, KEYS.colorMode, hasColors && f.colorMode !== d.colorMode ? f.colorMode : null)
 
-  setOrDelete(params, KEYS.setCodes, f.setCodes.length > 0 ? f.setCodes.join(',') : null)
+  const hasSets = f.setCodes.length > 0
+  setOrDelete(params, KEYS.setCodes, hasSets ? f.setCodes.join(',') : null)
+  setOrDelete(
+    params,
+    KEYS.setCodeMode,
+    hasSets && f.setCodeMode !== d.setCodeMode ? f.setCodeMode : null,
+  )
 
   const hasTypes = f.cardTypes.length > 0
   setOrDelete(params, KEYS.cardTypes, hasTypes ? f.cardTypes.join(',') : null)
@@ -278,6 +287,8 @@ export function parseListViewParams(params: URLSearchParams): ListViewOverrides 
 
   const setCodes = parseCsv(get(KEYS.setCodes))
   if (setCodes) filters.setCodes = setCodes
+  const setCodeMode = oneOf(get(KEYS.setCodeMode), SET_CODE_MODES)
+  if (setCodeMode) filters.setCodeMode = setCodeMode
 
   const cardTypes = parseCsv(get(KEYS.cardTypes))
   if (cardTypes) filters.cardTypes = cardTypes

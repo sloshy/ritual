@@ -11,7 +11,7 @@ Every list view on the public site — decks, collections, wanted lists, and the
 - **Hide Extras** — _(deck pages only)_ hides the maybeboard and token sections.
 - **Name** — space-separated terms; every term must appear in the card name, case- and accent-insensitively, in any order.
 - **Color Identity** — pick any of the five colors. **Exclusive** matches cards whose identity is exactly the selected colors; **Inclusive** matches any card playable in a deck of those colors (its identity is a subset of the selection).
-- **Sets** — a tag input of set codes. Type a code and press space, comma, or Enter to add it; autocomplete suggests the set codes present in the current list. Cards are kept if their printing is from any selected set.
+- **Sets** — a tag input of set codes. Type a code and press space, comma, or Enter to add it; autocomplete suggests the set codes present in the current list. An **Include / Exclude** toggle controls how the selection is applied: **Include** (the default) keeps only cards from the selected sets; **Exclude** hides cards from the selected sets and keeps everything else.
 
 All tag inputs (Sets, Card Type, Oracle Tags, and Art Tags) share the same autocomplete behavior: as you type, a suggestion list appears. Use the **↑/↓ arrow keys** to move through it and **Enter** to add the highlighted suggestion; with nothing highlighted, Enter adds whatever you've typed. You can also click a suggestion, and **Backspace** on an empty input removes the last tag.
 

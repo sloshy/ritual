@@ -313,9 +313,31 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         </div>
       </div>
       <div class="filter-row">
-        <label class="filter-label" for="filter-sets">
-          Sets
-        </label>
+        <div class="filter-type-header">
+          <label class="filter-label" for="filter-sets">
+            Sets
+          </label>
+          <div class="filter-toggle-group" role="group" aria-label="Set filter mode">
+            <button
+              type="button"
+              classList={{ active: props.filters.filters.setCodeMode === 'include' }}
+              aria-pressed={props.filters.filters.setCodeMode === 'include'}
+              title="Show only cards from the selected sets"
+              onClick={() => props.filters.update({ setCodeMode: 'include' })}
+            >
+              Include
+            </button>
+            <button
+              type="button"
+              classList={{ active: props.filters.filters.setCodeMode === 'exclude' }}
+              aria-pressed={props.filters.filters.setCodeMode === 'exclude'}
+              title="Hide cards from the selected sets"
+              onClick={() => props.filters.update({ setCodeMode: 'exclude' })}
+            >
+              Exclude
+            </button>
+          </div>
+        </div>
         <TagsInput
           selected={props.filters.filters.setCodes}
           options={props.setCodeOptions}

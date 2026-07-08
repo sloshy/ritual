@@ -77,6 +77,26 @@ test.describe('Toolbar Filters menu', () => {
     await expectVisibleCards(page, ALL_CARDS)
   })
 
+  test('set code filter mode inverts to exclude the selected sets', async ({ page }) => {
+    await openFilterMenu(page)
+    await page.locator('#filter-sets').fill('tsb ')
+    await expect(page.locator('.filter-tag')).toHaveText(/TSB/)
+    await expectVisibleCards(page, ['Boring Rock', 'Green Elf'])
+
+    await page
+      .getByRole('group', { name: 'Set filter mode' })
+      .getByRole('button', { name: 'Exclude' })
+      .click()
+    await expectVisibleCards(
+      page,
+      ALL_CARDS.filter((c) => c !== 'Boring Rock' && c !== 'Green Elf'),
+    )
+
+    // Removing the tag clears the filter, even while Exclude is selected.
+    await page.getByRole('button', { name: 'Remove TSB' }).click()
+    await expectVisibleCards(page, ALL_CARDS)
+  })
+
   test('set code autocomplete suggests codes from the list and adds a tag on click', async ({
     page,
   }) => {

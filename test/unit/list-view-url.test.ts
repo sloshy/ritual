@@ -94,17 +94,20 @@ describe('writeListViewParams', () => {
   test('filter sub-options are written only when their parent filter is active', () => {
     const filters = createDefaultCardFilters()
     filters.colorMode = 'inclusive'
+    filters.setCodeMode = 'exclude'
     filters.cardTypeLogic = 'and'
     filters.cardTypeMode = 'exclude'
     filters.manaValueOp = '>='
-    // No colors / types / manaValue set, so the sub-options stay out of the URL.
+    // No colors / sets / types / manaValue set, so the sub-options stay out of the URL.
     expect(encode(defaultState({ filters })).toString()).toBe('')
 
     filters.colors = ['R']
+    filters.setCodes = ['mkm']
     filters.cardTypes = ['dragon']
     filters.manaValue = 5
     const params = encode(defaultState({ filters }))
     expect(params.get('colorMode')).toBe('inclusive')
+    expect(params.get('setMode')).toBe('exclude')
     expect(params.get('typeLogic')).toBe('and')
     expect(params.get('typeMode')).toBe('exclude')
     expect(params.get('mvOp')).toBe('>=')
@@ -113,10 +116,12 @@ describe('writeListViewParams', () => {
   test('sub-options at their default stay out of the URL even when the parent is active', () => {
     const filters = createDefaultCardFilters()
     filters.colors = ['R'] // colorMode left at default 'exclusive'
+    filters.setCodes = ['mkm'] // setCodeMode left at default 'include'
     filters.cardTypes = ['dragon'] // logic 'or' / mode 'include' left at default
     filters.manaValue = 5 // manaValueOp left at default '='
     const params = encode(defaultState({ filters }))
     expect(params.has('colorMode')).toBe(false)
+    expect(params.has('setMode')).toBe(false)
     expect(params.has('typeLogic')).toBe(false)
     expect(params.has('typeMode')).toBe(false)
     expect(params.has('mvOp')).toBe(false)
@@ -187,6 +192,7 @@ describe('parseListViewParams', () => {
     filters.colors = ['U', 'R']
     filters.colorMode = 'inclusive'
     filters.setCodes = ['mkm', 'lea']
+    filters.setCodeMode = 'exclude'
     filters.cardTypes = ['instant', 'goblin']
     filters.cardTypeLogic = 'and'
     filters.cardTypeMode = 'exclude'
@@ -226,6 +232,7 @@ describe('parseListViewParams', () => {
       colors: ['U', 'R'],
       colorMode: 'inclusive',
       setCodes: ['mkm', 'lea'],
+      setCodeMode: 'exclude',
       cardTypes: ['instant', 'goblin'],
       cardTypeLogic: 'and',
       cardTypeMode: 'exclude',
@@ -294,6 +301,14 @@ describe('parseListViewParams', () => {
     const parsed = parseListViewParams(new URLSearchParams('sets=MKM,,LEA&types=Instant, ,Goblin'))
     expect(parsed.filters?.setCodes).toEqual(['mkm', 'lea'])
     expect(parsed.filters?.cardTypes).toEqual(['instant', 'goblin'])
+  })
+
+  test('setMode parses to the selected mode; invalid values are ignored', () => {
+    const parsed = parseListViewParams(new URLSearchParams('sets=mkm&setMode=exclude'))
+    expect(parsed.filters?.setCodeMode).toBe('exclude')
+
+    const invalid = parseListViewParams(new URLSearchParams('sets=mkm&setMode=banana'))
+    expect(invalid.filters?.setCodeMode).toBeUndefined()
   })
 
   test('oracle and art tag params parse with their logic/mode sub-options', () => {
