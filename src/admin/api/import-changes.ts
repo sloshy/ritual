@@ -1,7 +1,15 @@
+import path from 'node:path'
 import type { ChangeEvent } from '../../change-event'
 import { replaySectionOrder } from '../../change-event'
 import type { DeckData } from '../../types'
 import type { ListType } from '../../list-type'
+import {
+  dirForType,
+  formatResolveListError,
+  isResolveListError,
+  resolveList,
+} from '../../resolve-list'
+import { isPathWithinDir } from '../../path-validation'
 import { allocateId, collectDeckCardIds, collectExistingIds, createIdPool } from '../../card-id'
 import {
   type ChangeBundle,
@@ -204,11 +212,39 @@ function applyByKind(kind: ListType, slug: string, changes: ChangeEvent[]): Prom
   }
 }
 
+/**
+ * Resolve a bundle list to the file basename the load/save handlers key on. Two
+ * export surfaces produce different slugs: the admin editor and MCP server use the
+ * file basename verbatim (e.g. `Red Binder`), while the public site slugifies the
+ * display name for its URLs (e.g. `red-binder`). A basename that exists on disk is
+ * used directly (admin/MCP round-trip); otherwise the bundle's display `name` is
+ * resolved against the on-disk files via the shared list resolver, which reverses
+ * the public site's slugging by matching case- and diacritic-insensitively.
+ */
+async function resolveListBasename(list: ChangeBundleList): Promise<ApiCallResult<string>> {
+  const dir = dirForType(list.kind)
+  const direct = path.join(dir, `${list.slug}.md`)
+  if (isPathWithinDir(direct, dir) && (await Bun.file(direct).exists())) {
+    return { ok: true, data: list.slug }
+  }
+
+  const resolved = await resolveList(list.name, list.kind)
+  if (isResolveListError(resolved)) return { ok: false, error: formatResolveListError(resolved) }
+  return { ok: true, data: resolved.name }
+}
+
 async function applyList(list: ChangeBundleList): Promise<ListImportResult> {
-  const base = { kind: list.kind, slug: list.slug, name: list.name }
+  const base: Pick<ListImportResult, 'kind' | 'slug' | 'name'> = {
+    kind: list.kind,
+    slug: list.slug,
+    name: list.name,
+  }
   if (list.changes.length === 0) return { ...base, applied: 0, conflicts: [] }
 
-  const outcome = await applyByKind(list.kind, list.slug, list.changes)
+  const resolved = await resolveListBasename(list)
+  if (!resolved.ok) return { ...base, applied: 0, conflicts: [], error: resolved.error }
+
+  const outcome = await applyByKind(list.kind, resolved.data, list.changes)
 
   return {
     ...base,

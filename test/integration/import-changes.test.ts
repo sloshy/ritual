@@ -120,9 +120,55 @@ describe('import-changes command (Integration)', () => {
       const result = await runCli(['import-changes', 'edits.json', '--yes'], dir)
 
       expect(result.exitCode).toBe(1)
-      expect(result.stderr).toContain("Collection 'no-such-collection' not found")
+      expect(result.stderr).toContain('No collections found')
       const wanted = await fs.readFile(path.join(dir, 'wanted', 'wishlist.md'), 'utf-8')
       expect(wanted).toContain('Brainstorm')
+    })
+  }, 60_000)
+
+  test('applies a public-site export whose slug is a slugified display name', async () => {
+    await withTempDir(async (dir) => {
+      await seedWorkspace(dir)
+      // A collection file named after its display name, as on disk.
+      await fs.mkdir(path.join(dir, 'collections'), { recursive: true })
+      await fs.writeFile(
+        path.join(dir, 'collections', 'Red Binder.md'),
+        '# Red Binder\n\n- Sol Ring (C21:263) [NM] &1\n',
+      )
+
+      // The public site exports the slug as a URL-slugified display name
+      // ("Red Binder" -> "red-binder"), which is not the file basename.
+      const bundle = {
+        ...BUNDLE,
+        lists: [
+          {
+            kind: 'collection',
+            slug: 'red-binder',
+            name: 'Red Binder',
+            changes: [
+              {
+                id: 'r1',
+                timestamp: 1,
+                action: 'remove',
+                cardName: 'Sol Ring',
+                cardId: 1,
+                set: 'c21',
+                collectorNumber: '263',
+              },
+            ],
+          },
+        ],
+      }
+      await fs.writeFile(path.join(dir, 'edits.json'), JSON.stringify(bundle))
+
+      const result = await runCli(['import-changes', 'edits.json', '--yes'], dir)
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stderr).not.toContain('not found')
+      expect(result.stdout).toContain('applied 1 change')
+
+      const collection = await fs.readFile(path.join(dir, 'collections', 'Red Binder.md'), 'utf-8')
+      expect(collection).not.toContain('Sol Ring')
     })
   }, 60_000)
 
