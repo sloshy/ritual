@@ -22,7 +22,40 @@ export type SortBy =
   | 'file-order'
   | 'set-code'
   | 'color-identity'
+/**
+ * One layer of an ordered, multi-level sort. Layers are applied in order: the
+ * first is the primary sort, and each subsequent layer breaks ties within the
+ * previous one. `reverse` flips just that layer's direction.
+ */
+export type SortLayer = { readonly sortBy: SortBy; readonly reverse: boolean }
 export type PriceGroupStrategy = 'archidekt' | 'five' | 'ten'
+
+/** A labeled option for a toolbar `<select>`, carrying its precise value type. */
+export type SelectOption<T extends string = string> = { value: T; label: string }
+
+/** Canonical display label for each sort field; the single source of truth for toolbar option labels. */
+export const SORT_BY_LABELS = {
+  name: 'Name',
+  cmc: 'Mana Value',
+  price: 'Price',
+  edhrec: 'EDHRec Rank',
+  'file-order': 'File Order',
+  'set-code': 'Set Code',
+  'color-identity': 'Color Identity',
+} as const satisfies Record<SortBy, string>
+
+/**
+ * Build the toolbar's sort dropdown options from an ordered list of sort fields,
+ * labeling each from {@link SORT_BY_LABELS}. Pages pass the subset and order they
+ * offer; `overrides` lets a page relabel a field in context (e.g. the combined
+ * view calls `file-order` "List Order").
+ */
+export function sortByOptions(
+  values: readonly SortBy[],
+  overrides?: Partial<Record<SortBy, string>>,
+): SelectOption<SortBy>[] {
+  return values.map((value) => ({ value, label: overrides?.[value] ?? SORT_BY_LABELS[value] }))
+}
 
 export interface CardData {
   name: string
@@ -199,30 +232,43 @@ export function groupTotalPrice(cards: CardData[]): number {
   return cards.reduce((sum, c) => sum + c.price * c.quantity, 0)
 }
 
-export function sortCards(a: CardData, b: CardData, sortBy: SortBy, reverse: boolean): number {
-  let result: number
+/**
+ * Compare two cards by a single field in ascending order, with no tiebreaker.
+ * Returns 0 when the field is equal, so callers can chain to the next sort layer.
+ */
+function compareByField(a: CardData, b: CardData, sortBy: SortBy): number {
   switch (sortBy) {
     case 'name':
-      result = a.name.localeCompare(b.name)
-      break
+      return a.name.localeCompare(b.name)
     case 'file-order':
-      result = a.fileOrder - b.fileOrder
-      break
+      return a.fileOrder - b.fileOrder
     case 'set-code':
-      result = a.setCode.localeCompare(b.setCode) || a.name.localeCompare(b.name)
-      break
+      return a.setCode.localeCompare(b.setCode)
     case 'color-identity':
-      result =
-        colorIdentitySortValue(a.colorIdentity) - colorIdentitySortValue(b.colorIdentity) ||
-        a.name.localeCompare(b.name)
-      break
-    default: {
-      const key = sortBy
-      result = a[key] - b[key]
-      break
-    }
+      return colorIdentitySortValue(a.colorIdentity) - colorIdentitySortValue(b.colorIdentity)
+    default:
+      return a[sortBy] - b[sortBy]
   }
-  return reverse ? -result : result
+}
+
+/**
+ * Compare two cards across an ordered list of sort layers. Each layer is applied
+ * in turn — the first layer that yields a non-zero comparison decides the order,
+ * so later layers act as tiebreakers within the previous ones. As a final,
+ * always-ascending tiebreaker (and to keep the overall sort stable), cards that
+ * compare equal on every layer fall back to their name. An empty layer list
+ * therefore sorts purely by name.
+ */
+export function compareBySortLayers(
+  a: CardData,
+  b: CardData,
+  layers: readonly SortLayer[],
+): number {
+  for (const layer of layers) {
+    const result = compareByField(a, b, layer.sortBy)
+    if (result !== 0) return layer.reverse ? -result : result
+  }
+  return a.name.localeCompare(b.name)
 }
 
 export function getCardTypeCategory(typeLine: string): string {
@@ -261,14 +307,13 @@ const PRINTING_ORDER = [PRINTING_SPECIFIC_KEY, PRINTING_ANY_KEY]
 export function groupAndSortCards<T extends CardData>(
   cards: T[],
   groupBy: GroupBy,
-  sortBy: SortBy,
-  reverse: boolean,
+  sortLayers: readonly SortLayer[],
   sectionOrder: string[],
   priceGroupStrategy?: PriceGroupStrategy,
   currency: PriceCurrency = 'usd',
   reverseGroups: boolean = false,
 ): CardGroup<T>[] {
-  const sortFn = (a: CardData, b: CardData) => sortCards(a, b, sortBy, reverse)
+  const sortFn = (a: CardData, b: CardData) => compareBySortLayers(a, b, sortLayers)
 
   const groups: Record<string, T[]> = {}
 

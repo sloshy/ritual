@@ -50,7 +50,7 @@ Tags appear only when the local cache includes them. If the cache has no tags wh
 How you've set up a list view is captured in the page URL, so you can copy the link from your browser and share it — whoever opens it sees the same view. This covers the whole toolbar:
 
 - the **grouping** (and the price-bracket size when grouping by price),
-- the **sorting**, including the **Reverse** and **Reverse Sections** toggles,
+- the **sorting** — every layer of it. You can stack multiple sort layers with the **+** button beside the sort dropdown: the first layer is the primary sort and each layer below it breaks ties within the one above (e.g. sort by name, then by price within cards of the same name). Each layer has its own **↑↓** reverse button joined to its dropdown, and a **−** button removes it once there is more than one. The **Reverse Sections** toggle (group order) is captured too,
 - the **view layout** (binder, overlap, stack, or list) and **card size**, and
 - every active **filter** from the Filters menu.
 

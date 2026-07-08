@@ -15,7 +15,9 @@ import {
   type CardData,
   type CardGroup,
   type GroupBy,
+  type SortBy,
   groupAndSortCards,
+  sortByOptions,
   CARD_SIZE_WIDTHS,
 } from './card-sorting'
 import { CardModal } from './CardModal'
@@ -49,6 +51,18 @@ import { collectionToText, collectionToMarkdown, collectionToCsv } from '../edit
 
 // Collections always have a specific printing, so 'printing' grouping does not apply.
 type CollectionGroupBy = Exclude<GroupBy, 'printing'>
+
+// The sort fields this page offers, in order — shared by the toolbar's dropdown
+// options and the URL sync's validation of incoming sort layers.
+const COLLECTION_SORT_BYS: readonly SortBy[] = [
+  'file-order',
+  'name',
+  'cmc',
+  'price',
+  'color-identity',
+  'set-code',
+  'edhrec',
+]
 type MetaEntry = { label: string; value: string }
 type GroupedEntry = { entry: CollectionCardEntry; count: number }
 
@@ -134,10 +148,8 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     setCardSize,
     groupBy,
     setGroupBy,
-    sortBy,
-    setSortBy,
-    reverse,
-    setReverse,
+    sortLayers,
+    setSortLayers,
     reverseGroups,
     setReverseGroups,
     priceGroupStrategy,
@@ -149,6 +161,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     filters: cardFilters,
     defaults: { groupBy: initialGroupBy, sortBy: 'file-order' },
     groupByValues: groupByOptions().map((o) => o.value as CollectionGroupBy),
+    sortByValues: COLLECTION_SORT_BYS,
     enabled: props.enableUrlState,
   })
   const [groupDuplicates, setGroupDuplicates] = createSignal(false)
@@ -312,8 +325,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     return groupAndSortCards(
       working,
       groupBy(),
-      sortBy(),
-      reverse(),
+      sortLayers(),
       sectionOrder(),
       priceGroupStrategy(),
       props.currency,
@@ -547,21 +559,11 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         groupBy={groupBy()}
         groupByOptions={groupByOptions()}
         onGroupByChange={(v) => setGroupBy(v as CollectionGroupBy)}
-        sortBy={sortBy()}
-        sortByOptions={[
-          { value: 'file-order', label: 'File Order' },
-          { value: 'name', label: 'Name' },
-          { value: 'cmc', label: 'Mana Value' },
-          { value: 'price', label: 'Price' },
-          { value: 'color-identity', label: 'Color Identity' },
-          { value: 'set-code', label: 'Set Code' },
-          { value: 'edhrec', label: 'EDHRec Rank' },
-        ]}
-        onSortByChange={setSortBy}
+        sortLayers={sortLayers()}
+        sortByOptions={sortByOptions(COLLECTION_SORT_BYS)}
+        onSortLayersChange={setSortLayers}
         priceGroupStrategy={priceGroupStrategy()}
         onPriceGroupStrategyChange={setPriceGroupStrategy}
-        reverse={reverse()}
-        onReverseChange={() => setReverse((prev) => !prev)}
         reverseGroups={reverseGroups()}
         onReverseGroupsChange={() => setReverseGroups((prev) => !prev)}
         filters={cardFilters}

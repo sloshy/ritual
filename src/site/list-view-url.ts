@@ -22,6 +22,7 @@ import {
   type GroupBy,
   type PriceGroupStrategy,
   type SortBy,
+  type SortLayer,
   type ViewMode,
   WUBRG,
 } from './card-sorting'
@@ -37,8 +38,7 @@ export type ListViewState = {
   viewMode: ViewMode
   cardSize: CardSize
   groupBy: GroupBy
-  sortBy: SortBy
-  reverse: boolean
+  sortLayers: readonly SortLayer[]
   reverseGroups: boolean
   priceGroupStrategy: PriceGroupStrategy
   filters: CardFilters
@@ -49,8 +49,7 @@ export type ListViewOverrides = {
   viewMode?: ViewMode
   cardSize?: CardSize
   groupBy?: GroupBy
-  sortBy?: SortBy
-  reverse?: boolean
+  sortLayers?: SortLayer[]
   reverseGroups?: boolean
   priceGroupStrategy?: PriceGroupStrategy
   filters?: Partial<CardFilters>
@@ -92,7 +91,6 @@ const KEYS = {
   size: 'size',
   group: 'group',
   sort: 'sort',
-  reverse: 'rev',
   reverseGroups: 'revSections',
   priceBracket: 'bracket',
   hideLands: 'noLands',
@@ -126,6 +124,33 @@ function setOrDelete(params: URLSearchParams, key: string, value: string | null)
 }
 
 /**
+ * Encode the ordered sort layers as a comma-separated list, each layer being its
+ * `sortBy` value with a leading `-` when reversed — e.g. `name,-price` sorts by
+ * name ascending, then price descending. The single default layer produces just
+ * the default `sortBy` (which the caller then omits from the URL).
+ */
+function encodeSortLayers(layers: readonly SortLayer[]): string {
+  return layers.map((l) => (l.reverse ? `-${l.sortBy}` : l.sortBy)).join(',')
+}
+
+/** Parse the `sort` param back into sort layers, dropping any unrecognized fields. */
+function parseSortLayers(value: string | null): SortLayer[] | undefined {
+  if (value === null) return undefined
+  const layers: SortLayer[] = []
+  const seen = new Set<SortBy>()
+  for (const raw of value.split(',')) {
+    const token = raw.trim()
+    if (token.length === 0) continue
+    const reverse = token.startsWith('-')
+    const sortBy = oneOf(reverse ? token.slice(1) : token, SORT_BYS)
+    if (!sortBy || seen.has(sortBy)) continue
+    seen.add(sortBy)
+    layers.push({ sortBy, reverse })
+  }
+  return layers.length > 0 ? layers : undefined
+}
+
+/**
  * Write the deviations of `state` from `defaults` onto `params`, deleting any keys
  * that have returned to their default. Mutates `params` in place so foreign keys
  * (e.g. the combined view's list selection) are preserved.
@@ -141,8 +166,10 @@ export function writeListViewParams(
   setOrDelete(params, KEYS.view, state.viewMode === 'binder' ? null : state.viewMode)
   setOrDelete(params, KEYS.size, state.cardSize === 'large' ? null : state.cardSize)
   setOrDelete(params, KEYS.group, state.groupBy === defaults.groupBy ? null : state.groupBy)
-  setOrDelete(params, KEYS.sort, state.sortBy === defaults.sortBy ? null : state.sortBy)
-  setOrDelete(params, KEYS.reverse, state.reverse ? '1' : null)
+  // The default is a single, non-reversed layer on `defaults.sortBy`, which encodes
+  // to exactly that value — so an untouched sort stays out of the URL.
+  const sort = encodeSortLayers(state.sortLayers)
+  setOrDelete(params, KEYS.sort, sort === defaults.sortBy ? null : sort)
   setOrDelete(params, KEYS.reverseGroups, state.reverseGroups ? '1' : null)
   setOrDelete(
     params,
@@ -272,9 +299,8 @@ export function parseListViewParams(params: URLSearchParams): ListViewOverrides 
   if (cardSize) overrides.cardSize = cardSize
   const groupBy = oneOf(get(KEYS.group), GROUP_BYS)
   if (groupBy) overrides.groupBy = groupBy
-  const sortBy = oneOf(get(KEYS.sort), SORT_BYS)
-  if (sortBy) overrides.sortBy = sortBy
-  if (get(KEYS.reverse) === '1') overrides.reverse = true
+  const sortLayers = parseSortLayers(get(KEYS.sort))
+  if (sortLayers) overrides.sortLayers = sortLayers
   if (get(KEYS.reverseGroups) === '1') overrides.reverseGroups = true
   const priceGroupStrategy = oneOf(get(KEYS.priceBracket), PRICE_STRATEGIES)
   if (priceGroupStrategy) overrides.priceGroupStrategy = priceGroupStrategy

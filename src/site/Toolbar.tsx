@@ -1,6 +1,13 @@
 import type { Component, JSX } from 'solid-js'
-import { Show, For, createSignal } from 'solid-js'
-import type { ViewMode, CardSize, SortBy, PriceGroupStrategy } from './card-sorting'
+import { Show, For, Index, createSignal } from 'solid-js'
+import type {
+  ViewMode,
+  CardSize,
+  SortBy,
+  SortLayer,
+  SelectOption,
+  PriceGroupStrategy,
+} from './card-sorting'
 import type { PriceCurrency } from '../price-currency'
 import { capitalize } from './utils'
 import { useStuck } from './useStuck'
@@ -9,8 +16,6 @@ import type { CardFiltersControl } from './useCardFilters'
 import { useMobileLayout, usePointerCoarse } from '../ui/useMediaQuery'
 import { BottomSheet } from '../ui/BottomSheet'
 import { selectionModeActive, toggleSelectionMode } from './selection-mode'
-
-type SelectOption = { value: string; label: string }
 
 type ExtraToggle = {
   label: string
@@ -26,13 +31,13 @@ interface ToolbarProps {
   groupBy: string
   groupByOptions: SelectOption[]
   onGroupByChange: (value: string) => void
-  sortBy: SortBy
-  sortByOptions: SelectOption[]
-  onSortByChange: (value: SortBy) => void
+  /** The ordered multi-level sort. Always non-empty. */
+  sortLayers: SortLayer[]
+  sortByOptions: SelectOption<SortBy>[]
+  /** Replace the entire sort-layer list (add/remove/reorder/edit a layer). */
+  onSortLayersChange: (layers: SortLayer[]) => void
   priceGroupStrategy: PriceGroupStrategy
   onPriceGroupStrategyChange: (value: PriceGroupStrategy) => void
-  reverse: boolean
-  onReverseChange: () => void
   reverseGroups: boolean
   onReverseGroupsChange: () => void
   filters: CardFiltersControl
@@ -179,28 +184,86 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
     </select>
   )
 
-  const sortSelect = () => (
-    <select
-      class="toolbar-select"
-      value={props.sortBy}
-      onChange={(e) => props.onSortByChange(e.currentTarget.value as SortBy)}
-    >
-      <For each={props.sortByOptions}>
-        {(opt) => <option value={opt.value}>{opt.label}</option>}
-      </For>
-    </select>
-  )
+  // A new layer defaults to the first sort field not already in use, so adding a
+  // layer never silently duplicates one; falls back to the first option if every
+  // field is somehow taken.
+  const firstUnusedSort = (): SortBy => {
+    const used = new Set(props.sortLayers.map((l) => l.sortBy))
+    const opt = props.sortByOptions.find((o) => !used.has(o.value))
+    return opt?.value ?? props.sortByOptions[0]?.value ?? 'name'
+  }
+  // The select's raw string value is validated back to a SortBy against the known
+  // options rather than asserted, so a stray value can never enter a sort layer.
+  const selectLayerField = (index: number, rawValue: string) => {
+    const opt = props.sortByOptions.find((o) => o.value === rawValue)
+    if (opt) setLayerField(index, opt.value)
+  }
+  const setLayerField = (index: number, sortBy: SortBy) =>
+    props.onSortLayersChange(props.sortLayers.map((l, i) => (i === index ? { ...l, sortBy } : l)))
+  const toggleLayerReverse = (index: number) =>
+    props.onSortLayersChange(
+      props.sortLayers.map((l, i) => (i === index ? { ...l, reverse: !l.reverse } : l)),
+    )
+  const addLayer = () =>
+    props.onSortLayersChange([...props.sortLayers, { sortBy: firstUnusedSort(), reverse: false }])
+  const removeLayer = (index: number) =>
+    props.onSortLayersChange(props.sortLayers.filter((_, i) => i !== index))
+  const canAddLayer = () => props.sortLayers.length < props.sortByOptions.length
 
-  const reverseToggle = () => (
-    <button
-      type="button"
-      class="toolbar-toggle"
-      classList={{ active: props.reverse }}
-      aria-pressed={props.reverse}
-      onClick={props.onReverseChange}
-    >
-      <span aria-hidden="true">↑↓</span> Reverse
-    </button>
+  const sortControls = () => (
+    <div class="toolbar-sort-layers">
+      {/* <Index> (index-keyed) not <For> (reference-keyed): layers are a positional
+          list whose values change in place, and every edit rebuilds the array, so
+          reference keying would needlessly recreate each row's <select> on any change. */}
+      <Index each={props.sortLayers}>
+        {(layer, index) => (
+          <div class="toolbar-sort-layer">
+            <select
+              class="toolbar-select"
+              value={layer().sortBy}
+              onChange={(e) => selectLayerField(index, e.currentTarget.value)}
+            >
+              <For each={props.sortByOptions}>
+                {(opt) => <option value={opt.value}>{opt.label}</option>}
+              </For>
+            </select>
+            <button
+              type="button"
+              class="toolbar-toggle toolbar-sort-reverse"
+              classList={{ active: layer().reverse }}
+              aria-pressed={layer().reverse}
+              title={layer().reverse ? 'Sorted descending' : 'Sorted ascending'}
+              aria-label="Reverse this sort"
+              onClick={() => toggleLayerReverse(index)}
+            >
+              <span aria-hidden="true">↑↓</span>
+            </button>
+            <Show when={props.sortLayers.length > 1}>
+              <button
+                type="button"
+                class="toolbar-toggle toolbar-sort-remove"
+                title="Remove this sort"
+                aria-label="Remove this sort"
+                onClick={() => removeLayer(index)}
+              >
+                <span aria-hidden="true">−</span>
+              </button>
+            </Show>
+          </div>
+        )}
+      </Index>
+      <Show when={canAddLayer()}>
+        <button
+          type="button"
+          class="toolbar-toggle toolbar-sort-add"
+          title="Add another sort"
+          aria-label="Add another sort"
+          onClick={addLayer}
+        >
+          <span aria-hidden="true">+</span>
+        </button>
+      </Show>
+    </div>
   )
 
   const reverseGroupsToggle = () => (
@@ -276,15 +339,14 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
                   </Show>
                   <div class="sheet-control">
                     <span class="sheet-control-label">Sort</span>
-                    {sortSelect()}
+                    {sortControls()}
                   </div>
-                  <div class="sheet-control">
-                    <span class="sheet-control-label">Order</span>
-                    <div class="sheet-control-group">
-                      {reverseToggle()}
-                      {reverseGroupsToggle()}
+                  <Show when={props.groupBy !== 'none'}>
+                    <div class="sheet-control">
+                      <span class="sheet-control-label">Order</span>
+                      <div class="sheet-control-group">{reverseGroupsToggle()}</div>
                     </div>
-                  </div>
+                  </Show>
                   <Show when={props.viewMode !== 'list'}>
                     <div class="sheet-control">
                       <span class="sheet-control-label">Card size</span>
@@ -316,9 +378,8 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
           </Show>
           <div class="toolbar-group">
             <label class="toolbar-label">Sort:</label>
-            {sortSelect()}
+            {sortControls()}
           </div>
-          {reverseToggle()}
           {reverseGroupsToggle()}
           {extraToggleButtons()}
           {selectModeToggle()}

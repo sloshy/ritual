@@ -1,6 +1,6 @@
 import { createSignal } from 'solid-js'
 import type { Accessor, Setter } from 'solid-js'
-import type { ViewMode, CardSize, SortBy, PriceGroupStrategy } from './card-sorting'
+import type { ViewMode, CardSize, SortBy, SortLayer, PriceGroupStrategy } from './card-sorting'
 import { usePointerCoarse } from '../ui/useMediaQuery'
 
 export type UseToolbarStateDefaults<G extends string> = {
@@ -15,10 +15,9 @@ export type UseToolbarStateResult<G extends string> = {
   setCardSize: Setter<CardSize>
   groupBy: Accessor<G>
   setGroupBy: Setter<G>
-  sortBy: Accessor<SortBy>
-  setSortBy: Setter<SortBy>
-  reverse: Accessor<boolean>
-  setReverse: Setter<boolean>
+  /** Ordered multi-level sort. Always has at least one layer. */
+  sortLayers: Accessor<SortLayer[]>
+  setSortLayers: Setter<SortLayer[]>
   reverseGroups: Accessor<boolean>
   setReverseGroups: Setter<boolean>
   priceGroupStrategy: Accessor<PriceGroupStrategy>
@@ -40,8 +39,9 @@ export function useToolbarState<G extends string>(
   }
   const [cardSize, setCardSize] = createSignal<CardSize>('large')
   const [groupBy, setGroupBy] = createSignal<G>((defaults?.groupBy ?? 'type') as G)
-  const [sortBy, setSortBy] = createSignal<SortBy>(defaults?.sortBy ?? 'name')
-  const [reverse, setReverse] = createSignal(false)
+  const [sortLayers, setSortLayers] = createSignal<SortLayer[]>([
+    { sortBy: defaults?.sortBy ?? 'name', reverse: false },
+  ])
   const [reverseGroups, setReverseGroups] = createSignal(false)
   const [priceGroupStrategy, setPriceGroupStrategy] = createSignal<PriceGroupStrategy>('archidekt')
 
@@ -52,10 +52,8 @@ export function useToolbarState<G extends string>(
     setCardSize,
     groupBy,
     setGroupBy,
-    sortBy,
-    setSortBy,
-    reverse,
-    setReverse,
+    sortLayers,
+    setSortLayers,
     reverseGroups,
     setReverseGroups,
     priceGroupStrategy,

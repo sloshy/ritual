@@ -15,8 +15,7 @@ function defaultState(overrides?: Partial<ListViewState>): ListViewState {
     viewMode: 'binder',
     cardSize: 'large',
     groupBy: 'type',
-    sortBy: 'name',
-    reverse: false,
+    sortLayers: [{ sortBy: 'name', reverse: false }],
     reverseGroups: false,
     priceGroupStrategy: 'archidekt',
     filters: createDefaultCardFilters(),
@@ -41,8 +40,7 @@ describe('writeListViewParams', () => {
         viewMode: 'list',
         cardSize: 'small',
         groupBy: 'cmc',
-        sortBy: 'price',
-        reverse: true,
+        sortLayers: [{ sortBy: 'price', reverse: true }],
         reverseGroups: true,
         priceGroupStrategy: 'ten',
       }),
@@ -50,14 +48,34 @@ describe('writeListViewParams', () => {
     expect(params.get('view')).toBe('list')
     expect(params.get('size')).toBe('small')
     expect(params.get('group')).toBe('cmc')
-    expect(params.get('sort')).toBe('price')
-    expect(params.get('rev')).toBe('1')
+    // A single reversed layer encodes as the field with a leading '-'.
+    expect(params.get('sort')).toBe('-price')
     expect(params.get('revSections')).toBe('1')
     expect(params.get('bracket')).toBe('ten')
   })
 
+  test('a reversed layer on the default field is still written (direction deviates)', () => {
+    // DEFAULTS.sortBy is 'name'; a single non-reversed 'name' layer is omitted, but
+    // reversing it deviates from the default and must survive as '-name'.
+    const params = encode(defaultState({ sortLayers: [{ sortBy: 'name', reverse: true }] }))
+    expect(params.get('sort')).toBe('-name')
+  })
+
+  test('multiple sort layers encode as a comma-separated list', () => {
+    const params = encode(
+      defaultState({
+        sortLayers: [
+          { sortBy: 'name', reverse: false },
+          { sortBy: 'price', reverse: true },
+          { sortBy: 'cmc', reverse: false },
+        ],
+      }),
+    )
+    expect(params.get('sort')).toBe('name,-price,cmc')
+  })
+
   test('group and sort matching the page defaults are omitted', () => {
-    const params = encode(defaultState({ groupBy: 'type', sortBy: 'name' }), {
+    const params = encode(defaultState({ groupBy: 'type' }), {
       groupBy: 'type',
       sortBy: 'name',
     })
@@ -234,8 +252,7 @@ describe('parseListViewParams', () => {
       viewMode: 'overlap',
       cardSize: 'medium',
       groupBy: 'price',
-      sortBy: 'edhrec',
-      reverse: true,
+      sortLayers: [{ sortBy: 'edhrec', reverse: true }],
       reverseGroups: true,
       priceGroupStrategy: 'five',
       filters,
@@ -245,8 +262,7 @@ describe('parseListViewParams', () => {
     expect(parsed.viewMode).toBe('overlap')
     expect(parsed.cardSize).toBe('medium')
     expect(parsed.groupBy).toBe('price')
-    expect(parsed.sortBy).toBe('edhrec')
-    expect(parsed.reverse).toBe(true)
+    expect(parsed.sortLayers).toEqual([{ sortBy: 'edhrec', reverse: true }])
     expect(parsed.reverseGroups).toBe(true)
     expect(parsed.priceGroupStrategy).toBe('five')
     expect(parsed.filters).toEqual({
@@ -284,6 +300,21 @@ describe('parseListViewParams', () => {
       'view=banana&group=spaghetti&sort=chaos&bracket=infinite&colorMode=maybe',
     )
     expect(parseListViewParams(params)).toEqual({})
+  })
+
+  test('a multi-layer sort round-trips, dropping unknown and duplicate fields', () => {
+    // `chaos` is not a sort field and the second `name` is a duplicate — both dropped.
+    const parsed = parseListViewParams(new URLSearchParams('sort=name,-price,chaos,name'))
+    expect(parsed.sortLayers).toEqual([
+      { sortBy: 'name', reverse: false },
+      { sortBy: 'price', reverse: true },
+    ])
+  })
+
+  test('a sort param with no recognized fields yields no sort override', () => {
+    expect(
+      parseListViewParams(new URLSearchParams('sort=chaos,-nonsense')).sortLayers,
+    ).toBeUndefined()
   })
 
   test('colors are normalized to canonical WUBRG order and deduped', () => {

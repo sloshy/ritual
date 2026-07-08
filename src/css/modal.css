@@ -233,6 +233,16 @@
   min-width: 55%;
 }
 
+/* Multi-layer sort inside the sheet: let the layers wrap and align to the right,
+   and don't force each layer's select to the lone-select 55% width. */
+.sheet-control .toolbar-sort-layers {
+  justify-content: flex-end;
+}
+
+.sheet-control .toolbar-sort-layers .toolbar-select {
+  min-width: 0;
+}
+
 .sheet-control-group {
   display: flex;
   flex-wrap: wrap;

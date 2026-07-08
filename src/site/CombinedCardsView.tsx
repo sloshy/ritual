@@ -5,9 +5,12 @@ import type { PriceCurrency } from '../price-currency'
 import { formatPrice, formatPriceOrNA } from '../price-currency'
 import {
   type GroupBy,
+  type SortBy,
   type CardGroup,
+  type SelectOption,
   groupAndSortCards,
   groupTotalPrice,
+  sortByOptions,
   CARD_SIZE_WIDTHS,
 } from './card-sorting'
 import { CardModal } from './CardModal'
@@ -30,7 +33,17 @@ import { SelectionMenu } from './SelectionMenu'
 import type { MetaEntry } from './meta-entry'
 import type { CombinedCardData } from './combined-list'
 
-type SelectOption = { value: string; label: string }
+// The sort fields the combined view offers, in order — shared by the toolbar's
+// dropdown options and the URL sync's validation of incoming sort layers.
+const COMBINED_SORT_BYS: readonly SortBy[] = [
+  'name',
+  'cmc',
+  'price',
+  'color-identity',
+  'set-code',
+  'edhrec',
+  'file-order',
+]
 
 interface CombinedCardsViewProps {
   /** The already-built combined cards to display (flattened across source lists). */
@@ -73,10 +86,8 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
     setCardSize,
     groupBy,
     setGroupBy,
-    sortBy,
-    setSortBy,
-    reverse,
-    setReverse,
+    sortLayers,
+    setSortLayers,
     reverseGroups,
     setReverseGroups,
     priceGroupStrategy,
@@ -122,6 +133,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
     filters: cardFilters,
     defaults: { groupBy: 'source', sortBy: 'name' },
     groupByValues: groupByOptions().map((o) => o.value as GroupBy),
+    sortByValues: COMBINED_SORT_BYS,
     enabled: props.enableUrlState,
   })
 
@@ -137,8 +149,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
     return groupAndSortCards(
       working,
       groupBy(),
-      sortBy(),
-      reverse(),
+      sortLayers(),
       sectionOrder(),
       priceGroupStrategy(),
       props.currency,
@@ -214,21 +225,11 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
         groupBy={groupBy()}
         groupByOptions={groupByOptions()}
         onGroupByChange={(v) => setGroupBy(v as GroupBy)}
-        sortBy={sortBy()}
-        sortByOptions={[
-          { value: 'name', label: 'Name' },
-          { value: 'cmc', label: 'Mana Value' },
-          { value: 'price', label: 'Price' },
-          { value: 'color-identity', label: 'Color Identity' },
-          { value: 'set-code', label: 'Set Code' },
-          { value: 'edhrec', label: 'EDHRec Rank' },
-          { value: 'file-order', label: 'List Order' },
-        ]}
-        onSortByChange={setSortBy}
+        sortLayers={sortLayers()}
+        sortByOptions={sortByOptions(COMBINED_SORT_BYS, { 'file-order': 'List Order' })}
+        onSortLayersChange={setSortLayers}
         priceGroupStrategy={priceGroupStrategy()}
         onPriceGroupStrategyChange={setPriceGroupStrategy}
-        reverse={reverse()}
-        onReverseChange={() => setReverse((prev) => !prev)}
         reverseGroups={reverseGroups()}
         onReverseGroupsChange={() => setReverseGroups((prev) => !prev)}
         filters={cardFilters}

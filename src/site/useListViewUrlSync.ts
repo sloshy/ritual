@@ -1,5 +1,5 @@
 import { createEffect } from 'solid-js'
-import type { GroupBy } from './card-sorting'
+import type { GroupBy, SortBy } from './card-sorting'
 import type { CardFiltersControl } from './useCardFilters'
 import type { UseToolbarStateResult } from './useToolbarState'
 import {
@@ -21,6 +21,13 @@ export type UseListViewUrlSyncConfig<G extends GroupBy> = {
    * than forced into a toolbar that has no such option.
    */
   groupByValues: readonly G[]
+  /**
+   * The sort-by fields this page actually offers. Layers from a URL whose field is
+   * outside this set (e.g. a collection link's `sort=set-code` pasted onto a deck,
+   * which has no set-code option) are dropped, keeping every layer's dropdown in
+   * sync with what is selectable — the sort itself handles every field regardless.
+   */
+  sortByValues: readonly SortBy[]
   /** When false, the hook is inert — used to limit URL sync to the public read view. */
   enabled?: boolean
 }
@@ -53,7 +60,7 @@ function syncStateToUrl(state: ListViewState, defaults: ListViewDefaults): void 
  */
 export function useListViewUrlSync<G extends GroupBy>(config: UseListViewUrlSyncConfig<G>): void {
   if (config.enabled === false || typeof window === 'undefined') return
-  const { toolbar, filters, defaults, groupByValues } = config
+  const { toolbar, filters, defaults, groupByValues, sortByValues } = config
 
   // Apply URL overrides once, at construction, before the first render.
   const initial = currentHashParams()
@@ -65,8 +72,11 @@ export function useListViewUrlSync<G extends GroupBy>(config: UseListViewUrlSync
       const groupBy = o.groupBy as G
       toolbar.setGroupBy(() => groupBy)
     }
-    if (o.sortBy) toolbar.setSortBy(o.sortBy)
-    if (o.reverse) toolbar.setReverse(true)
+    if (o.sortLayers) {
+      const offered = new Set<string>(sortByValues)
+      const layers = o.sortLayers.filter((l) => offered.has(l.sortBy))
+      if (layers.length > 0) toolbar.setSortLayers(layers)
+    }
     if (o.reverseGroups) toolbar.setReverseGroups(true)
     if (o.priceGroupStrategy) toolbar.setPriceGroupStrategy(o.priceGroupStrategy)
     if (o.filters) filters.update(o.filters)
@@ -81,8 +91,7 @@ export function useListViewUrlSync<G extends GroupBy>(config: UseListViewUrlSync
       viewMode: toolbar.viewMode(),
       cardSize: toolbar.cardSize(),
       groupBy: toolbar.groupBy(),
-      sortBy: toolbar.sortBy(),
-      reverse: toolbar.reverse(),
+      sortLayers: toolbar.sortLayers(),
       reverseGroups: toolbar.reverseGroups(),
       priceGroupStrategy: toolbar.priceGroupStrategy(),
       filters: { ...filters.filters },

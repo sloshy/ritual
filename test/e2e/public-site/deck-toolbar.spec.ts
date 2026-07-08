@@ -44,15 +44,39 @@ test.describe('Deck Toolbar', () => {
       .filter({ hasNotText: /Commander/ })
       .first()
     const namesBefore = await firstSection.locator('.card-list .list-name').allTextContents()
-    const reverseToggle = page.locator('.toolbar button.toolbar-toggle', {
-      hasText: /^↑↓ Reverse$/,
-    })
+    // The reverse control is joined to the (only) sort layer's dropdown.
+    const reverseToggle = page.locator('.toolbar .toolbar-sort-reverse').first()
     await expect(reverseToggle).not.toHaveClass(/active/)
     await reverseToggle.click()
     await expect(reverseToggle).toHaveClass(/active/)
     // Cards within the section should appear in reversed order
     const namesAfter = await firstSection.locator('.card-list .list-name').allTextContents()
     expect(namesAfter).toEqual([...namesBefore].reverse())
+  })
+
+  test('add and remove sort layers, persisting to the URL', async ({ page }) => {
+    const layers = page.locator('.toolbar-sort-layer')
+    const addBtn = page.locator('.toolbar .toolbar-sort-add')
+
+    // Starts as a single layer with no remove button (nothing to collapse to).
+    await expect(layers).toHaveCount(1)
+    await expect(page.locator('.toolbar .toolbar-sort-remove')).toHaveCount(0)
+
+    // Adding a layer reveals a second dropdown and a remove button on each.
+    await addBtn.click()
+    await expect(layers).toHaveCount(2)
+    await expect(page.locator('.toolbar .toolbar-sort-remove')).toHaveCount(2)
+
+    // Make the second layer sort by price; the URL captures both layers in order.
+    await layers.nth(1).locator('select').selectOption('price')
+    await expect(page).toHaveURL(/sort=name(%2C|,)price/)
+
+    // Removing the first (name) layer collapses to price as the primary sort.
+    await layers.nth(0).locator('.toolbar-sort-remove').click()
+    await expect(layers).toHaveCount(1)
+    await expect(page.locator('.toolbar .toolbar-sort-remove')).toHaveCount(0)
+    await expect(layers.nth(0).locator('select')).toHaveValue('price')
+    await expect(page).toHaveURL(/sort=price/)
   })
 
   // Hide Lands now lives in the toolbar's Filters menu; it is covered
@@ -124,9 +148,7 @@ test.describe('Deck Toolbar – Reverse Sections', () => {
     expect(cardsAfterReverseSections).toEqual(cardsBefore)
 
     // Also toggle Reverse (card sort) — section order stays reversed, card order within section reverses
-    const reverseToggle = page.locator('.toolbar button.toolbar-toggle', {
-      hasText: /^↑↓ Reverse$/,
-    })
+    const reverseToggle = page.locator('.toolbar .toolbar-sort-reverse').first()
     await reverseToggle.click()
 
     const sectionsAfterBoth = await page.locator('.section-divider').allTextContents()

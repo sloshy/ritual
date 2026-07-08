@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
-  sortCards,
+  compareBySortLayers,
   groupAndSortCards,
   getCardTypeCategory,
   colorIdentityKey,
@@ -8,7 +8,11 @@ import {
   colorIdentitySortValue,
   getPriceGroupKey,
   groupTotalPrice,
+  sortByOptions,
+  SORT_BY_LABELS,
   type CardData,
+  type SortBy,
+  type SortLayer,
 } from '../../../src/site/card-sorting'
 
 function makeCard(overrides: Partial<CardData> = {}): CardData {
@@ -31,55 +35,60 @@ function makeCard(overrides: Partial<CardData> = {}): CardData {
   }
 }
 
-describe('sortCards', () => {
+/** Build a single-layer sort, the common case in these tests. */
+function sl(sortBy: SortBy, reverse = false): SortLayer[] {
+  return [{ sortBy, reverse }]
+}
+
+describe('compareBySortLayers', () => {
   test('sorts by name ascending', () => {
     const a = makeCard({ name: 'Alpha' })
     const b = makeCard({ name: 'Beta' })
-    expect(sortCards(a, b, 'name', false)).toBeLessThan(0)
-    expect(sortCards(b, a, 'name', false)).toBeGreaterThan(0)
+    expect(compareBySortLayers(a, b, sl('name'))).toBeLessThan(0)
+    expect(compareBySortLayers(b, a, sl('name'))).toBeGreaterThan(0)
   })
 
   test('sorts by name descending when reversed', () => {
     const a = makeCard({ name: 'Alpha' })
     const b = makeCard({ name: 'Beta' })
-    expect(sortCards(a, b, 'name', true)).toBeGreaterThan(0)
+    expect(compareBySortLayers(a, b, sl('name', true))).toBeGreaterThan(0)
   })
 
   test('sorts by cmc', () => {
     const a = makeCard({ cmc: 2 })
     const b = makeCard({ cmc: 5 })
-    expect(sortCards(a, b, 'cmc', false)).toBeLessThan(0)
-    expect(sortCards(a, b, 'cmc', true)).toBeGreaterThan(0)
+    expect(compareBySortLayers(a, b, sl('cmc'))).toBeLessThan(0)
+    expect(compareBySortLayers(a, b, sl('cmc', true))).toBeGreaterThan(0)
   })
 
   test('sorts by price', () => {
     const a = makeCard({ price: 0.5 })
     const b = makeCard({ price: 10.0 })
-    expect(sortCards(a, b, 'price', false)).toBeLessThan(0)
+    expect(compareBySortLayers(a, b, sl('price'))).toBeLessThan(0)
   })
 
   test('sorts by file-order', () => {
     const a = makeCard({ fileOrder: 0 })
     const b = makeCard({ fileOrder: 5 })
-    expect(sortCards(a, b, 'file-order', false)).toBeLessThan(0)
-    expect(sortCards(a, b, 'file-order', true)).toBeGreaterThan(0)
+    expect(compareBySortLayers(a, b, sl('file-order'))).toBeLessThan(0)
+    expect(compareBySortLayers(a, b, sl('file-order', true))).toBeGreaterThan(0)
   })
 
-  test('sorts by set-code then name', () => {
+  test('sorts by set-code, breaking ties by name', () => {
     const a = makeCard({ setCode: 'AAA', name: 'Beta' })
     const b = makeCard({ setCode: 'BBB', name: 'Alpha' })
-    expect(sortCards(a, b, 'set-code', false)).toBeLessThan(0)
+    expect(compareBySortLayers(a, b, sl('set-code'))).toBeLessThan(0)
 
-    // Same set code, sort by name
+    // Same set code falls back to the always-ascending name tiebreaker.
     const c = makeCard({ setCode: 'AAA', name: 'Alpha' })
     const d = makeCard({ setCode: 'AAA', name: 'Beta' })
-    expect(sortCards(c, d, 'set-code', false)).toBeLessThan(0)
+    expect(compareBySortLayers(c, d, sl('set-code'))).toBeLessThan(0)
   })
 
   test('sorts by edhrec rank', () => {
     const a = makeCard({ edhrec: 100 })
     const b = makeCard({ edhrec: 5000 })
-    expect(sortCards(a, b, 'edhrec', false)).toBeLessThan(0)
+    expect(compareBySortLayers(a, b, sl('edhrec'))).toBeLessThan(0)
   })
 
   test('sorts by color identity in WUBRG order', () => {
@@ -90,11 +99,11 @@ describe('sortCards', () => {
     const green = makeCard({ name: 'Green Card', colorIdentity: ['G'] })
     const colorless = makeCard({ name: 'Colorless Card', colorIdentity: [] })
 
-    expect(sortCards(colorless, white, 'color-identity', false)).toBeLessThan(0)
-    expect(sortCards(white, blue, 'color-identity', false)).toBeLessThan(0)
-    expect(sortCards(blue, black, 'color-identity', false)).toBeLessThan(0)
-    expect(sortCards(black, red, 'color-identity', false)).toBeLessThan(0)
-    expect(sortCards(red, green, 'color-identity', false)).toBeLessThan(0)
+    expect(compareBySortLayers(colorless, white, sl('color-identity'))).toBeLessThan(0)
+    expect(compareBySortLayers(white, blue, sl('color-identity'))).toBeLessThan(0)
+    expect(compareBySortLayers(blue, black, sl('color-identity'))).toBeLessThan(0)
+    expect(compareBySortLayers(black, red, sl('color-identity'))).toBeLessThan(0)
+    expect(compareBySortLayers(red, green, sl('color-identity'))).toBeLessThan(0)
   })
 
   test('sorts multicolor by first then second color', () => {
@@ -102,21 +111,90 @@ describe('sortCards', () => {
     const wb = makeCard({ name: 'WB Card', colorIdentity: ['W', 'B'] })
     const ur = makeCard({ name: 'UR Card', colorIdentity: ['U', 'R'] })
 
-    expect(sortCards(wu, wb, 'color-identity', false)).toBeLessThan(0)
-    expect(sortCards(wb, ur, 'color-identity', false)).toBeLessThan(0)
+    expect(compareBySortLayers(wu, wb, sl('color-identity'))).toBeLessThan(0)
+    expect(compareBySortLayers(wb, ur, sl('color-identity'))).toBeLessThan(0)
   })
 
   test('sorts mono before multicolor', () => {
     const mono = makeCard({ name: 'Mono', colorIdentity: ['G'] })
     const multi = makeCard({ name: 'Multi', colorIdentity: ['W', 'U'] })
-    expect(sortCards(mono, multi, 'color-identity', false)).toBeLessThan(0)
+    expect(compareBySortLayers(mono, multi, sl('color-identity'))).toBeLessThan(0)
   })
 
   test('falls through to name tiebreaker when color identity is identical', () => {
     const a = makeCard({ name: 'Alpha', colorIdentity: ['W'] })
     const b = makeCard({ name: 'Beta', colorIdentity: ['W'] })
-    expect(sortCards(a, b, 'color-identity', false)).toBeLessThan(0)
-    expect(sortCards(b, a, 'color-identity', false)).toBeGreaterThan(0)
+    expect(compareBySortLayers(a, b, sl('color-identity'))).toBeLessThan(0)
+    expect(compareBySortLayers(b, a, sl('color-identity'))).toBeGreaterThan(0)
+  })
+
+  test('empty layer list sorts purely by name', () => {
+    const a = makeCard({ name: 'Alpha', price: 100 })
+    const b = makeCard({ name: 'Beta', price: 1 })
+    expect(compareBySortLayers(a, b, [])).toBeLessThan(0)
+  })
+
+  describe('multiple layers', () => {
+    test('later layers break ties within the earlier one', () => {
+      // Same name, different price → the second (price) layer decides.
+      const cheap = makeCard({ name: 'Forest', price: 0.1 })
+      const pricey = makeCard({ name: 'Forest', price: 20 })
+      const layers: SortLayer[] = [
+        { sortBy: 'name', reverse: false },
+        { sortBy: 'price', reverse: false },
+      ]
+      expect(compareBySortLayers(cheap, pricey, layers)).toBeLessThan(0)
+      expect(compareBySortLayers(pricey, cheap, layers)).toBeGreaterThan(0)
+    })
+
+    test('the primary layer wins when it is decisive', () => {
+      // Different names → the price layer never gets consulted.
+      const a = makeCard({ name: 'Alpha', price: 100 })
+      const b = makeCard({ name: 'Beta', price: 1 })
+      const layers: SortLayer[] = [
+        { sortBy: 'name', reverse: false },
+        { sortBy: 'price', reverse: false },
+      ]
+      expect(compareBySortLayers(a, b, layers)).toBeLessThan(0)
+    })
+
+    test('each layer honors its own reverse flag independently', () => {
+      // Sort by name ascending, then price descending within a name.
+      const cheap = makeCard({ name: 'Forest', price: 0.1 })
+      const pricey = makeCard({ name: 'Forest', price: 20 })
+      const layers: SortLayer[] = [
+        { sortBy: 'name', reverse: false },
+        { sortBy: 'price', reverse: true },
+      ]
+      expect(compareBySortLayers(pricey, cheap, layers)).toBeLessThan(0)
+    })
+
+    test('a reversed primary layer does not reverse the secondary layer', () => {
+      // set-code descending, then cmc ascending within the same set. The two cards
+      // share a set, so the primary layer ties and never applies its reverse — this
+      // guards against a naive implementation that reverses the whole accumulated
+      // result by the primary flag instead of reversing each layer independently.
+      const lowCmc = makeCard({ setCode: 'AAA', name: 'X', cmc: 1 })
+      const highCmc = makeCard({ setCode: 'AAA', name: 'Y', cmc: 5 })
+      const layers: SortLayer[] = [
+        { sortBy: 'set-code', reverse: true },
+        { sortBy: 'cmc', reverse: false },
+      ]
+      expect(compareBySortLayers(lowCmc, highCmc, layers)).toBeLessThan(0)
+    })
+
+    test('a third layer breaks ties the first two leave equal', () => {
+      // Same set and same cmc → only the third (price) layer decides.
+      const cheap = makeCard({ setCode: 'AAA', cmc: 2, price: 1, name: 'A' })
+      const pricey = makeCard({ setCode: 'AAA', cmc: 2, price: 9, name: 'A' })
+      const layers: SortLayer[] = [
+        { sortBy: 'set-code', reverse: false },
+        { sortBy: 'cmc', reverse: false },
+        { sortBy: 'price', reverse: false },
+      ]
+      expect(compareBySortLayers(cheap, pricey, layers)).toBeLessThan(0)
+      expect(compareBySortLayers(pricey, cheap, layers)).toBeGreaterThan(0)
+    })
   })
 })
 
@@ -148,14 +226,14 @@ describe('groupAndSortCards', () => {
   ]
 
   test('groups by none puts all in one group', () => {
-    const groups = groupAndSortCards(cards, 'none', 'name', false, [])
+    const groups = groupAndSortCards(cards, 'none', sl('name'), [])
     expect(groups).toHaveLength(1)
     expect(groups[0]!.key).toBe('All Cards')
     expect(groups[0]!.cards).toHaveLength(3)
   })
 
   test('groups by type', () => {
-    const groups = groupAndSortCards(cards, 'type', 'name', false, [])
+    const groups = groupAndSortCards(cards, 'type', sl('name'), [])
     const keys = groups.map((g) => g.key)
     expect(keys).toContain('Creature')
     expect(keys).toContain('Instant')
@@ -163,23 +241,38 @@ describe('groupAndSortCards', () => {
   })
 
   test('groups by cmc', () => {
-    const groups = groupAndSortCards(cards, 'cmc', 'name', false, [])
+    const groups = groupAndSortCards(cards, 'cmc', sl('name'), [])
     const keys = groups.map((g) => g.key)
     expect(keys).toContain('1')
     expect(keys).toContain('2')
   })
 
   test('sorts within groups', () => {
-    const groups = groupAndSortCards(cards, 'none', 'file-order', false, [])
+    const groups = groupAndSortCards(cards, 'none', sl('file-order'), [])
     expect(groups[0]!.cards[0]!.name).toBe('Sol Ring')
     expect(groups[0]!.cards[1]!.name).toBe('Grizzly Bears')
     expect(groups[0]!.cards[2]!.name).toBe('Bolt')
   })
 
   test('respects reverse flag', () => {
-    const groups = groupAndSortCards(cards, 'none', 'file-order', true, [])
+    const groups = groupAndSortCards(cards, 'none', sl('file-order', true), [])
     expect(groups[0]!.cards[0]!.name).toBe('Bolt')
     expect(groups[0]!.cards[2]!.name).toBe('Sol Ring')
+  })
+
+  test('sorts within groups by multiple layers', () => {
+    // Two cards share a name; the second (cmc) layer orders them.
+    const dupes = [
+      makeCard({ name: 'Ajani', cmc: 5, type: 'Planeswalker' }),
+      makeCard({ name: 'Ajani', cmc: 2, type: 'Planeswalker' }),
+      makeCard({ name: 'Bolt', cmc: 1, type: 'Planeswalker' }),
+    ]
+    const layers: SortLayer[] = [
+      { sortBy: 'name', reverse: false },
+      { sortBy: 'cmc', reverse: false },
+    ]
+    const groups = groupAndSortCards(dupes, 'none', layers, [])
+    expect(groups[0]!.cards.map((c) => c.cmc)).toEqual([2, 5, 1])
   })
 
   test('groups by section with section order', () => {
@@ -187,7 +280,7 @@ describe('groupAndSortCards', () => {
       makeCard({ name: 'A', section: 'Sideboard' }),
       makeCard({ name: 'B', section: 'Main' }),
     ]
-    const groups = groupAndSortCards(sectionCards, 'section', 'name', false, ['Main', 'Sideboard'])
+    const groups = groupAndSortCards(sectionCards, 'section', sl('name'), ['Main', 'Sideboard'])
     expect(groups[0]!.key).toBe('Main')
     expect(groups[1]!.key).toBe('Sideboard')
   })
@@ -199,7 +292,7 @@ describe('groupAndSortCards', () => {
       makeCard({ name: 'Azorius Card', colorIdentity: ['W', 'U'] }),
       makeCard({ name: 'Colorless Card', colorIdentity: [] }),
     ]
-    const groups = groupAndSortCards(colorCards, 'color-identity', 'name', false, [])
+    const groups = groupAndSortCards(colorCards, 'color-identity', sl('name'), [])
     const keys = groups.map((g) => g.key)
     expect(keys[0]).toBe('Colorless')
     expect(keys[1]).toBe('White')
@@ -213,7 +306,7 @@ describe('groupAndSortCards', () => {
       makeCard({ name: 'Specific A', hasPrinting: true }),
       makeCard({ name: 'Any B', hasPrinting: false }),
     ]
-    const groups = groupAndSortCards(printingCards, 'printing', 'name', false, [])
+    const groups = groupAndSortCards(printingCards, 'printing', sl('name'), [])
     expect(groups.map((g) => g.key)).toEqual(['Specific Printing', 'Any Printing'])
     expect(groups[0]!.cards.map((c) => c.name)).toEqual(['Specific A'])
     expect(groups[1]!.cards.map((c) => c.name)).toEqual(['Any A', 'Any B'])
@@ -224,7 +317,7 @@ describe('groupAndSortCards', () => {
       makeCard({ name: 'A', hasPrinting: true }),
       makeCard({ name: 'B', hasPrinting: true }),
     ]
-    const groups = groupAndSortCards(allSpecific, 'printing', 'name', false, [])
+    const groups = groupAndSortCards(allSpecific, 'printing', sl('name'), [])
     expect(groups.map((g) => g.key)).toEqual(['Specific Printing'])
   })
 })
@@ -237,8 +330,8 @@ describe('groupAndSortCards with reverseGroups', () => {
       makeCard({ name: 'C', type: 'Artifact', cmc: 1 }),
     ]
     // TYPE_ORDER canonical: Creature, Instant, Artifact (subset of the full WUBRG-style order).
-    const normal = groupAndSortCards(cards, 'type', 'name', false, [], undefined, 'usd', false)
-    const reversed = groupAndSortCards(cards, 'type', 'name', false, [], undefined, 'usd', true)
+    const normal = groupAndSortCards(cards, 'type', sl('name'), [], undefined, 'usd', false)
+    const reversed = groupAndSortCards(cards, 'type', sl('name'), [], undefined, 'usd', true)
     expect(normal.map((g) => g.key)).toEqual(['Creature', 'Instant', 'Artifact'])
     expect(reversed.map((g) => g.key)).toEqual(['Artifact', 'Instant', 'Creature'])
   })
@@ -248,7 +341,7 @@ describe('groupAndSortCards with reverseGroups', () => {
       makeCard({ name: 'A', hasPrinting: true }),
       makeCard({ name: 'B', hasPrinting: false }),
     ]
-    const reversed = groupAndSortCards(cards, 'printing', 'name', false, [], undefined, 'usd', true)
+    const reversed = groupAndSortCards(cards, 'printing', sl('name'), [], undefined, 'usd', true)
     expect(reversed.map((g) => g.key)).toEqual(['Any Printing', 'Specific Printing'])
   })
 
@@ -258,7 +351,7 @@ describe('groupAndSortCards with reverseGroups', () => {
       makeCard({ name: 'B', cmc: 3 }),
       makeCard({ name: 'C', cmc: 2 }),
     ]
-    const reversed = groupAndSortCards(cards, 'cmc', 'name', false, [], undefined, 'usd', true)
+    const reversed = groupAndSortCards(cards, 'cmc', sl('name'), [], undefined, 'usd', true)
     const keys = reversed.map((g) => g.key)
     expect(keys).toEqual(['3', '2', '1'])
   })
@@ -271,8 +364,7 @@ describe('groupAndSortCards with reverseGroups', () => {
     const reversed = groupAndSortCards(
       sectionCards,
       'section',
-      'name',
-      false,
+      sl('name'),
       ['Main', 'Sideboard'],
       undefined,
       'usd',
@@ -288,30 +380,29 @@ describe('groupAndSortCards with reverseGroups', () => {
       makeCard({ name: 'Alpha', type: 'Instant' }),
       makeCard({ name: 'Beta', type: 'Creature — Bear' }),
     ]
-    const reversed = groupAndSortCards(cards, 'type', 'name', false, [], undefined, 'usd', true)
+    const reversed = groupAndSortCards(cards, 'type', sl('name'), [], undefined, 'usd', true)
     const creatureGroup = reversed.find((g) => g.key === 'Creature')!
     expect(creatureGroup.cards[0]!.name).toBe('Beta')
     expect(creatureGroup.cards[1]!.name).toBe('Charlie')
   })
 
-  test('reverseGroups is independent of reverse (card sort) flag', () => {
+  test('reverseGroups is independent of the sort reverse flag', () => {
     const cards = [
       makeCard({ name: 'Charlie', type: 'Creature — Bear' }),
       makeCard({ name: 'Alpha', type: 'Instant' }),
       makeCard({ name: 'Beta', type: 'Creature — Bear' }),
     ]
-    const normalSections = groupAndSortCards(
+    const normalSections = groupAndSortCards(cards, 'type', sl('name'), [], undefined, 'usd', false)
+    // Both reversed: sections reversed, cards reversed within sections
+    const bothReversed = groupAndSortCards(
       cards,
       'type',
-      'name',
-      false,
+      sl('name', true),
       [],
       undefined,
       'usd',
-      false,
+      true,
     )
-    // Both reversed: sections reversed, cards reversed within sections
-    const bothReversed = groupAndSortCards(cards, 'type', 'name', true, [], undefined, 'usd', true)
 
     // Canonical type order is Creature, Instant; reversed is Instant, Creature.
     expect(normalSections.map((g) => g.key)).toEqual(['Creature', 'Instant'])
@@ -325,7 +416,7 @@ describe('groupAndSortCards with reverseGroups', () => {
 
   test('reverseGroups false leaves group order unchanged', () => {
     const cards = [makeCard({ name: 'A', cmc: 1 }), makeCard({ name: 'B', cmc: 2 })]
-    const normal = groupAndSortCards(cards, 'cmc', 'name', false, [], undefined, 'usd', false)
+    const normal = groupAndSortCards(cards, 'cmc', sl('name'), [], undefined, 'usd', false)
     const keys = normal.map((g) => g.key)
     expect(keys).toEqual(['1', '2'])
   })
@@ -456,7 +547,7 @@ describe('groupAndSortCards with price grouping', () => {
       makeCard({ name: 'Mid', price: 7.5 }),
       makeCard({ name: 'Expensive', price: 150 }),
     ]
-    const groups = groupAndSortCards(cards, 'price', 'name', false, [], 'archidekt')
+    const groups = groupAndSortCards(cards, 'price', sl('name'), [], 'archidekt')
     const keys = groups.map((g) => g.key)
     expect(keys).toContain('$0 – $0.50')
     expect(keys).toContain('$5 – $10')
@@ -469,7 +560,7 @@ describe('groupAndSortCards with price grouping', () => {
       makeCard({ name: 'Cheap', price: 0.25 }),
       makeCard({ name: 'Mid', price: 7.5 }),
     ]
-    const groups = groupAndSortCards(cards, 'price', 'name', false, [], 'archidekt')
+    const groups = groupAndSortCards(cards, 'price', sl('name'), [], 'archidekt')
     const keys = groups.map((g) => g.key)
     expect(keys.indexOf('$0 – $0.50')).toBeLessThan(keys.indexOf('$5 – $10'))
     expect(keys.indexOf('$5 – $10')).toBeLessThan(keys.indexOf('$100+'))
@@ -481,9 +572,40 @@ describe('groupAndSortCards with price grouping', () => {
       makeCard({ name: 'Cheap', price: 0.25 }),
       makeCard({ name: 'Expensive', price: 150 }),
     ]
-    const groups = groupAndSortCards(cards, 'price', 'name', false, [], 'archidekt')
+    const groups = groupAndSortCards(cards, 'price', sl('name'), [], 'archidekt')
     const keys = groups.map((g) => g.key)
     expect(keys[keys.length - 1]).toBe('No Price Data')
+  })
+})
+
+describe('sortByOptions', () => {
+  test('labels each field from SORT_BY_LABELS, preserving the given order', () => {
+    expect(sortByOptions(['price', 'name'])).toEqual([
+      { value: 'price', label: 'Price' },
+      { value: 'name', label: 'Name' },
+    ])
+  })
+
+  test('applies per-field label overrides', () => {
+    // The combined view relabels 'file-order' as "List Order".
+    expect(sortByOptions(['file-order'], { 'file-order': 'List Order' })).toEqual([
+      { value: 'file-order', label: 'List Order' },
+    ])
+  })
+
+  test('SORT_BY_LABELS covers every sort field', () => {
+    const allFields: SortBy[] = [
+      'name',
+      'cmc',
+      'price',
+      'edhrec',
+      'file-order',
+      'set-code',
+      'color-identity',
+    ]
+    for (const field of allFields) {
+      expect(SORT_BY_LABELS[field]).toBeTruthy()
+    }
   })
 })
 

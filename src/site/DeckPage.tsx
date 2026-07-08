@@ -14,10 +14,12 @@ import type { PriceCurrency } from '../price-currency'
 import { getCardPrice, formatPrice } from '../price-currency'
 import {
   type GroupBy,
+  type SortBy,
   type CardData,
   type CardGroup,
   groupAndSortCards,
   groupTotalPrice,
+  sortByOptions,
   CARD_SIZE_WIDTHS,
 } from './card-sorting'
 import { CardModal } from './CardModal'
@@ -62,6 +64,10 @@ const DECK_GROUP_BY_OPTIONS: DeckGroupByOption[] = [
   { value: 'printing', label: 'Printing' },
   { value: 'none', label: 'None' },
 ]
+
+// The sort fields this page offers, in order — shared by the toolbar's dropdown
+// options and the URL sync's validation of incoming sort layers.
+const DECK_SORT_BYS: readonly SortBy[] = ['name', 'cmc', 'price', 'color-identity', 'edhrec']
 
 /** Rebuild the deck hash for a primer toggle, preserving any shareable list-view query string. */
 const deckPrimerHash = (slug: string, primerOpen: boolean): string => {
@@ -143,10 +149,8 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     setCardSize,
     groupBy,
     setGroupBy,
-    sortBy,
-    setSortBy,
-    reverse,
-    setReverse,
+    sortLayers,
+    setSortLayers,
     reverseGroups,
     setReverseGroups,
     priceGroupStrategy,
@@ -158,6 +162,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     filters: cardFilters,
     defaults: { groupBy: 'type', sortBy: 'name' },
     groupByValues: DECK_GROUP_BY_OPTIONS.map((o) => o.value),
+    sortByValues: DECK_SORT_BYS,
     enabled: props.enableUrlState,
   })
   const [lowestPrice, setLowestPrice] = createSignal(false)
@@ -415,8 +420,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     return groupAndSortCards(
       working,
       groupBy(),
-      sortBy(),
-      reverse(),
+      sortLayers(),
       sectionOrder(),
       priceGroupStrategy(),
       props.currency,
@@ -628,19 +632,11 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         groupBy={groupBy()}
         groupByOptions={DECK_GROUP_BY_OPTIONS}
         onGroupByChange={(v) => setGroupBy(v as GroupBy)}
-        sortBy={sortBy()}
-        sortByOptions={[
-          { value: 'name', label: 'Name' },
-          { value: 'cmc', label: 'Mana Value' },
-          { value: 'price', label: 'Price' },
-          { value: 'color-identity', label: 'Color Identity' },
-          { value: 'edhrec', label: 'EDHRec Rank' },
-        ]}
-        onSortByChange={setSortBy}
+        sortLayers={sortLayers()}
+        sortByOptions={sortByOptions(DECK_SORT_BYS)}
+        onSortLayersChange={setSortLayers}
         priceGroupStrategy={priceGroupStrategy()}
         onPriceGroupStrategyChange={setPriceGroupStrategy}
-        reverse={reverse()}
-        onReverseChange={() => setReverse((prev) => !prev)}
         reverseGroups={reverseGroups()}
         onReverseGroupsChange={() => setReverseGroups((prev) => !prev)}
         filters={cardFilters}

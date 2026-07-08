@@ -117,6 +117,27 @@ test.describe('List view shareable URL', () => {
     await expect(page.locator('.filter-menu-badge')).toHaveText('1')
   })
 
+  test('a shared URL restores multiple sort layers with per-layer direction', async ({ page }) => {
+    // Primary sort by mana value ascending, secondary by price descending ('-' prefix);
+    // group=none flattens every card into one list so the tie-break is observable.
+    await page.goto('#/deck/test-filter-deck?view=list&group=none&sort=cmc,-price')
+    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+
+    const layers = page.locator('.toolbar-sort-layer')
+    await expect(layers).toHaveCount(2)
+    await expect(layers.nth(0).locator('select')).toHaveValue('cmc')
+    await expect(layers.nth(1).locator('select')).toHaveValue('price')
+    await expect(layers.nth(0).locator('.toolbar-sort-reverse')).not.toHaveClass(/active/)
+    await expect(layers.nth(1).locator('.toolbar-sort-reverse')).toHaveClass(/active/)
+
+    // The layers actually order the cards: mana value ascending puts Test Forest
+    // (cmc 0) first, and the cmc-2 tie (White Knight $5 vs Boring Rock, no price)
+    // is broken by the descending price layer, so White Knight precedes Boring Rock.
+    const names = await page.locator('.list-name').allTextContents()
+    expect(names[0]).toBe('Test Forest')
+    expect(names.indexOf('White Knight')).toBeLessThan(names.indexOf('Boring Rock'))
+  })
+
   test('an oracle tag selection is written to the URL and restored on load', async ({ page }) => {
     await page.goto('#/deck/test-filter-deck')
     await page.waitForSelector('[data-view]', { timeout: 15_000 })

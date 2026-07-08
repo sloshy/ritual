@@ -216,7 +216,7 @@ describe('source grouping over combined cards', () => {
       'usd',
       false,
     )
-    const groups = groupAndSortCards(cards, 'source', 'name', false, [])
+    const groups = groupAndSortCards(cards, 'source', [{ sortBy: 'name', reverse: false }], [])
     expect(groups.map((g) => g.key)).toEqual(['My Deck', 'My Box', 'My Wants'])
     expect(groups[0]!.cards).toHaveLength(2)
   })
