@@ -355,6 +355,16 @@
   width: 6rem;
 }
 
+.filter-copies {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.filter-input-copies {
+  width: 6rem;
+}
+
 .filter-clear {
   align-self: flex-start;
 }

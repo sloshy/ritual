@@ -1365,7 +1365,9 @@ const MOCK_FILTER_DECK = {
         name: 'Main',
         cards: MOCK_FILTER_CARDS.filter((card) => card !== MOCK_FILTER_CARD_DRAGON).map(
           (card, i) => ({
-            quantity: 1,
+            // Golgari Lord carries 2 copies so the Copies filter has a duplicate
+            // to distinguish from the other (true one-of) cards in this fixture.
+            quantity: card === MOCK_FILTER_CARD_LORD ? 2 : 1,
             name: card.name,
             set: card.set,
             collectorNumber: card.collector_number,

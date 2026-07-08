@@ -12,7 +12,7 @@ import {
   type NumericComparator,
   type SetCodeFilterMode,
   createDefaultCardFilters,
-  parseManaValueAmount,
+  parseNonNegativeInteger,
   parsePriceAmount,
 } from './card-filters'
 import type { CardTypeFilterMode, CardTypeMatchLogic } from './card-types'
@@ -116,6 +116,8 @@ const KEYS = {
   manaValueOp: 'mvOp',
   price: 'price',
   priceOp: 'priceOp',
+  copies: 'copies',
+  copiesOp: 'copiesOp',
 } as const
 
 function setOrDelete(params: URLSearchParams, key: string, value: string | null): void {
@@ -217,6 +219,10 @@ export function writeListViewParams(
   const hasPrice = f.price !== null
   setOrDelete(params, KEYS.price, hasPrice ? String(f.price) : null)
   setOrDelete(params, KEYS.priceOp, hasPrice && f.priceOp !== d.priceOp ? f.priceOp : null)
+
+  const hasCopies = f.copies !== null
+  setOrDelete(params, KEYS.copies, hasCopies ? String(f.copies) : null)
+  setOrDelete(params, KEYS.copiesOp, hasCopies && f.copiesOp !== d.copiesOp ? f.copiesOp : null)
 }
 
 /** True if any list-view parameter is present (used to decide whether to apply overrides). */
@@ -246,8 +252,9 @@ function parseColors(value: string | null): string[] | undefined {
   return colors.length > 0 ? colors : undefined
 }
 
-function parseManaValue(value: string | null): number | undefined {
-  return value === null ? undefined : parseManaValueAmount(value)
+/** Shared by mana value and copies, which are both plain non-negative integers. */
+function parseIntegerParam(value: string | null): number | undefined {
+  return value === null ? undefined : parseNonNegativeInteger(value)
 }
 
 function parsePrice(value: string | null): number | undefined {
@@ -311,7 +318,7 @@ export function parseListViewParams(params: URLSearchParams): ListViewOverrides 
   const artTagMode = oneOf(get(KEYS.artTagMode), TAG_MODES)
   if (artTagMode) filters.artTagMode = artTagMode
 
-  const manaValue = parseManaValue(get(KEYS.manaValue))
+  const manaValue = parseIntegerParam(get(KEYS.manaValue))
   if (manaValue !== undefined) {
     filters.manaValue = manaValue
     const manaValueOp = oneOf(get(KEYS.manaValueOp), NUMERIC_OPS)
@@ -323,6 +330,13 @@ export function parseListViewParams(params: URLSearchParams): ListViewOverrides 
     filters.price = price
     const priceOp = oneOf(get(KEYS.priceOp), NUMERIC_OPS)
     if (priceOp) filters.priceOp = priceOp
+  }
+
+  const copies = parseIntegerParam(get(KEYS.copies))
+  if (copies !== undefined) {
+    filters.copies = copies
+    const copiesOp = oneOf(get(KEYS.copiesOp), NUMERIC_OPS)
+    if (copiesOp) filters.copiesOp = copiesOp
   }
 
   if (Object.keys(filters).length > 0) overrides.filters = filters

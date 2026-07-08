@@ -8,8 +8,9 @@ import {
   createDefaultCardFilters,
   filterCards,
   isTagFilterActive,
-  parseManaValueAmount,
+  parseCopiesFilter,
   parseManaValueFilter,
+  parseNonNegativeInteger,
   parsePriceAmount,
   parsePriceFilter,
   toggleColorSelection,
@@ -284,6 +285,47 @@ describe('filterCards', () => {
     ).toEqual(['A'])
   })
 
+  test('copies filter compares total quantity summed across every entry sharing the name', () => {
+    const boltA = makeCard({ name: 'Lightning Bolt', setCode: 'lea', quantity: 1 })
+    const boltB = makeCard({ name: 'Lightning Bolt', setCode: 'm10', quantity: 1 })
+    const forest = makeCard({ name: 'Forest', quantity: 1 })
+    const cards = [boltA, boltB, forest]
+
+    // Both Bolt entries share a total of 2 copies; Forest is a true one-of.
+    expect(
+      filterCards(cards, makeFilters({ copies: 1, copiesOp: '=' })).map((c) => c.name),
+    ).toEqual(['Forest'])
+    expect(
+      filterCards(cards, makeFilters({ copies: 1, copiesOp: '>=' })).map((c) => c.name),
+    ).toEqual(['Lightning Bolt', 'Lightning Bolt', 'Forest'])
+    expect(
+      filterCards(cards, makeFilters({ copies: 2, copiesOp: '=' })).map((c) => c.name),
+    ).toEqual(['Lightning Bolt', 'Lightning Bolt'])
+  })
+
+  test('copies filter matching is case-insensitive and quantities on a single line count too', () => {
+    const stacked = makeCard({ name: 'Sol Ring', quantity: 2 })
+    const otherPrinting = makeCard({ name: 'sol ring', quantity: 1 })
+    expect(
+      filterCards([stacked, otherPrinting], makeFilters({ copies: 3, copiesOp: '=' })).map(
+        (c) => c.quantity,
+      ),
+    ).toEqual([2, 1])
+  })
+
+  test('copies filter groups a double-faced printing with its single-sided counterpart by front face', () => {
+    // A double-faced "Steam Vents // Steam Vents" is the same card as a
+    // single-sided "Steam Vents" printing — both should count toward the same total.
+    const dfc = makeCard({ name: 'Steam Vents // Steam Vents', quantity: 1 })
+    const singleSided = makeCard({ name: 'Steam Vents', quantity: 1 })
+    const unrelated = makeCard({ name: 'Forest', quantity: 1 })
+    const result = filterCards(
+      [dfc, singleSided, unrelated],
+      makeFilters({ copies: 2, copiesOp: '=' }),
+    )
+    expect(result.map((c) => c.name)).toEqual(['Steam Vents // Steam Vents', 'Steam Vents'])
+  })
+
   test('filters combine: every active filter must pass', () => {
     const match = makeCard({
       name: 'Green Elf',
@@ -332,6 +374,10 @@ describe('countActiveFilters', () => {
     expect(countActiveFilters(makeFilters({ price: 0 }))).toBe(1)
   })
 
+  test('copies 0 counts as active', () => {
+    expect(countActiveFilters(makeFilters({ copies: 0 }))).toBe(1)
+  })
+
   test('each filter contributes one to the count', () => {
     const filters = makeFilters({
       hideLands: true,
@@ -345,8 +391,9 @@ describe('countActiveFilters', () => {
       artTags: ['dragon'],
       manaValue: 1,
       price: 5,
+      copies: 2,
     })
-    expect(countActiveFilters(filters)).toBe(11)
+    expect(countActiveFilters(filters)).toBe(12)
   })
 
   test('card type logic/mode alone do not count as active', () => {
@@ -371,6 +418,7 @@ describe('countActiveFilters', () => {
   test('a non-default comparator alone does not count as active', () => {
     expect(countActiveFilters(makeFilters({ manaValueOp: '>=' }))).toBe(0)
     expect(countActiveFilters(makeFilters({ priceOp: '>=' }))).toBe(0)
+    expect(countActiveFilters(makeFilters({ copiesOp: '>=' }))).toBe(0)
   })
 })
 
@@ -409,19 +457,36 @@ describe('parsePriceFilter', () => {
   })
 })
 
+describe('parseCopiesFilter', () => {
+  test('empty input clears the filter', () => {
+    expect(parseCopiesFilter('')).toEqual({ ok: true, value: null })
+    expect(parseCopiesFilter('   ')).toEqual({ ok: true, value: null })
+  })
+
+  test('parses non-negative integers including 0', () => {
+    expect(parseCopiesFilter('0')).toEqual({ ok: true, value: 0 })
+    expect(parseCopiesFilter('4')).toEqual({ ok: true, value: 4 })
+  })
+
+  test.each(['-1', '1.5', 'abc', '1e3'])('rejects %p', (input) => {
+    expect(parseCopiesFilter(input).ok).toBe(false)
+  })
+})
+
 // The raw amount parsers are the single source of truth for the numeric formats,
 // shared by both the filter inputs above and the lenient URL-param parsers.
-describe('parseManaValueAmount / parsePriceAmount', () => {
+// parseNonNegativeInteger backs both the mana value and copies filters.
+describe('parseNonNegativeInteger / parsePriceAmount', () => {
   test('parse valid tokens, tolerating surrounding whitespace', () => {
-    expect(parseManaValueAmount(' 3 ')).toBe(3)
-    expect(parseManaValueAmount('0')).toBe(0)
+    expect(parseNonNegativeInteger(' 3 ')).toBe(3)
+    expect(parseNonNegativeInteger('0')).toBe(0)
     expect(parsePriceAmount(' 5.25 ')).toBe(5.25)
     expect(parsePriceAmount('0')).toBe(0)
   })
 
   test('return undefined for malformed or empty tokens', () => {
-    expect(parseManaValueAmount('')).toBeUndefined()
-    expect(parseManaValueAmount('2.5')).toBeUndefined()
+    expect(parseNonNegativeInteger('')).toBeUndefined()
+    expect(parseNonNegativeInteger('2.5')).toBeUndefined()
     expect(parsePriceAmount('')).toBeUndefined()
     expect(parsePriceAmount('1.234')).toBeUndefined()
   })

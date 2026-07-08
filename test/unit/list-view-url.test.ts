@@ -156,6 +156,29 @@ describe('writeListViewParams', () => {
     expect(encode(defaultState({ filters })).has('priceOp')).toBe(false)
   })
 
+  test('an active copies filter and its non-default operator are written', () => {
+    const filters = createDefaultCardFilters()
+    filters.copies = 2
+    filters.copiesOp = '>='
+    const params = encode(defaultState({ filters }))
+    expect(params.get('copies')).toBe('2')
+    expect(params.get('copiesOp')).toBe('>=')
+  })
+
+  test('copiesOp at its default stays out of the URL, and a copies of 0 is written', () => {
+    const filters = createDefaultCardFilters()
+    filters.copies = 0 // copiesOp left at default '='
+    const params = encode(defaultState({ filters }))
+    expect(params.get('copies')).toBe('0')
+    expect(params.has('copiesOp')).toBe(false)
+  })
+
+  test('copiesOp alone (no copies) stays out of the URL', () => {
+    const filters = createDefaultCardFilters()
+    filters.copiesOp = '>='
+    expect(encode(defaultState({ filters })).has('copiesOp')).toBe(false)
+  })
+
   test('oracle and art tag selections and their non-default sub-options are written', () => {
     const filters = createDefaultCardFilters()
     filters.oracleTags = ['ramp', 'mana-rock']
@@ -205,6 +228,8 @@ describe('parseListViewParams', () => {
     filters.manaValueOp = '<='
     filters.price = 5.25
     filters.priceOp = '>='
+    filters.copies = 2
+    filters.copiesOp = '>='
     const state = defaultState({
       viewMode: 'overlap',
       cardSize: 'medium',
@@ -244,6 +269,8 @@ describe('parseListViewParams', () => {
       manaValueOp: '<=',
       price: 5.25,
       priceOp: '>=',
+      copies: 2,
+      copiesOp: '>=',
     })
   })
 
@@ -295,6 +322,21 @@ describe('parseListViewParams', () => {
     expect(parseListViewParams(new URLSearchParams('priceOp=>=')).filters).toBeUndefined()
     const parsed = parseListViewParams(new URLSearchParams('price=5&priceOp=>='))
     expect(parsed.filters).toEqual({ price: 5, priceOp: '>=' })
+  })
+
+  test('a non-integer copies value is ignored', () => {
+    expect(parseListViewParams(new URLSearchParams('copies=abc')).filters).toBeUndefined()
+    expect(parseListViewParams(new URLSearchParams('copies=2.5')).filters).toBeUndefined()
+  })
+
+  test('copiesOp is only applied alongside a valid copies value', () => {
+    expect(parseListViewParams(new URLSearchParams('copiesOp=>=')).filters).toBeUndefined()
+    const parsed = parseListViewParams(new URLSearchParams('copies=2&copiesOp=>='))
+    expect(parsed.filters).toEqual({ copies: 2, copiesOp: '>=' })
+  })
+
+  test('a copies value of 0 parses to 0, not undefined', () => {
+    expect(parseListViewParams(new URLSearchParams('copies=0')).filters).toEqual({ copies: 0 })
   })
 
   test('set and type tokens are lowercased and blanks dropped', () => {

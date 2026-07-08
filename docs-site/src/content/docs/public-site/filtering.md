@@ -19,6 +19,7 @@ All tag inputs (Sets, Card Type, Oracle Tags, and Art Tags) share the same autoc
 - **Oracle Tags** / **Art Tags** — tag inputs backed by [Scryfall Tagger](https://tagger.scryfall.com/) data (see below).
 - **Mana Value** — pick a comparison operator (`=`, `<`, `≤`, `>`, `≥`) from the toggle buttons and type a value to compare against the card's mana value.
 - **Price** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against the card's price in the currency chosen by the header **Prices** selector. Pick the operator from the toggle buttons and type an amount (up to two decimals); the currency symbol next to the field shows which currency the threshold is in. Cards with no price in that currency never match. Because the threshold is currency-specific, switching the currency selector clears the field automatically.
+- **Copies** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against how many total copies of that card name you have in the list, added up across every entry that shares the name (including different printings). For example, searching **Copies = 1** finds cards you have exactly one of, while **Copies ≥ 2** finds every name you have duplicates of, regardless of how those copies are split across printings. A double-faced printing (stored as "Front // Back") is matched by its front face, so it groups correctly with a single-sided printing of the same card.
 
 ## Card Type filter
 

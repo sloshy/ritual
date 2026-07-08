@@ -334,6 +334,30 @@ test.describe('Toolbar Filters menu', () => {
     await expectVisibleCards(page, ALL_CARDS)
   })
 
+  test('copies filter compares the total quantity of cards sharing a name', async ({ page }) => {
+    // Golgari Lord is the only card with 2 copies; every other card is a one-of.
+    await openFilterMenu(page)
+    const comparator = page.getByRole('group', { name: 'Copies comparison' })
+    await page.locator('#filter-copies').fill('1')
+
+    // Default operator is '=': every one-of card, but not the 2-copy Golgari Lord.
+    await expectVisibleCards(
+      page,
+      ALL_CARDS.filter((c) => c !== 'Golgari Lord'),
+    )
+
+    // '>=' keeps everything, since every card has at least 1 copy.
+    await comparator.getByRole('button', { name: '≥', exact: true }).click()
+    await expectVisibleCards(page, ALL_CARDS)
+
+    await page.locator('#filter-copies').fill('2')
+    await expectVisibleCards(page, ['Golgari Lord'])
+
+    // Clearing the field removes the filter entirely.
+    await page.locator('#filter-copies').fill('')
+    await expectVisibleCards(page, ALL_CARDS)
+  })
+
   test('switching currency clears the price filter field', async ({ page }) => {
     await openFilterMenu(page)
     await page.locator('#filter-price').fill('5')

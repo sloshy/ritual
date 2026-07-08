@@ -1,6 +1,7 @@
 import type { CardData } from './card-sorting'
 import { WUBRG } from './card-sorting'
 import { matchesAllTerms } from '../term-match'
+import { getFrontFaceName } from '../scryfall/card-utils'
 import {
   extractCardTypeTags,
   matchesCardTypes,
@@ -15,7 +16,7 @@ export type ColorFilterMode = 'exclusive' | 'inclusive'
 /** Whether the selected set codes are kept ('include') or removed ('exclude'). */
 export type SetCodeFilterMode = 'include' | 'exclude'
 
-/** A numeric comparison operator shared by the mana value and price filters. */
+/** A numeric comparison operator shared by the mana value, price, and copies filters. */
 export type NumericComparator = '=' | '<' | '<=' | '>' | '>='
 
 /** Comparison applied between a card's mana value and the filter value. */
@@ -23,6 +24,9 @@ export type ManaValueComparator = NumericComparator
 
 /** Comparison applied between a card's price (in the active currency) and the filter value. */
 export type PriceComparator = NumericComparator
+
+/** Comparison applied between a card's total copy count and the filter value. */
+export type CopiesComparator = NumericComparator
 
 export interface CardFilters {
   hideLands: boolean
@@ -74,6 +78,13 @@ export interface CardFilters {
    */
   price: number | null
   priceOp: PriceComparator
+  /**
+   * Total quantity of cards sharing this card's name (case-insensitively, and
+   * by front face for double-faced cards), summed across every entry in the
+   * list, compared via `copiesOp`. Null = no copies filtering.
+   */
+  copies: number | null
+  copiesOp: CopiesComparator
 }
 
 export function createDefaultCardFilters(): CardFilters {
@@ -99,6 +110,8 @@ export function createDefaultCardFilters(): CardFilters {
     manaValueOp: '=',
     price: null,
     priceOp: '=',
+    copies: null,
+    copiesOp: '=',
   }
 }
 
@@ -132,10 +145,32 @@ function matchesColorIdentity(
   return identity.every((c) => selected.includes(c))
 }
 
+/**
+ * Normalize a card name for name-based grouping (the copies filter's match
+ * key). Double-faced cards are stored as "Front // Back" (Scryfall's own
+ * name), so a two-sided printing is reduced to its front face before
+ * comparing — otherwise a double-faced "Steam Vents // Steam Vents" would
+ * never group with a single-sided "Steam Vents" of the same card.
+ */
+function normalizeCardName(name: string): string {
+  return getFrontFaceName(name).toLowerCase()
+}
+
+/** Sum each card's quantity into a lowercase-name -> total-copies map, for the copies filter. */
+function countCopiesByName(cards: CardData[]): Map<string, number> {
+  const counts = new Map<string, number>()
+  for (const card of cards) {
+    const key = normalizeCardName(card.name)
+    counts.set(key, (counts.get(key) ?? 0) + card.quantity)
+  }
+  return counts
+}
+
 /** Apply every active filter to `cards`, returning the cards that pass all of them. */
 export function filterCards<T extends CardData>(cards: T[], filters: CardFilters): T[] {
   const nameQuery = filters.name.trim()
   const setCodes = new Set(filters.setCodes.map((code) => code.toLowerCase()))
+  const copyCounts = filters.copies !== null ? countCopiesByName(cards) : null
   return cards.filter((card) => {
     if (filters.hideLands && isLand(card)) return false
     if (filters.hideUnpriced && card.price <= 0) return false
@@ -177,6 +212,12 @@ export function filterCards<T extends CardData>(cards: T[], filters: CardFilters
       if (card.price <= 0) return false
       if (!compareNumeric(card.price, filters.priceOp, filters.price)) return false
     }
+    if (filters.copies !== null && copyCounts !== null) {
+      // copyCounts is built from this exact `cards` array with the same key, so
+      // every card here is guaranteed to already be a key in the map.
+      const total = copyCounts.get(normalizeCardName(card.name))!
+      if (!compareNumeric(total, filters.copiesOp, filters.copies)) return false
+    }
     return true
   })
 }
@@ -195,6 +236,7 @@ export function countActiveFilters(filters: CardFilters): number {
   if (filters.artTags.length > 0) count++
   if (filters.manaValue !== null) count++
   if (filters.price !== null) count++
+  if (filters.copies !== null) count++
   return count
 }
 
@@ -269,22 +311,15 @@ export function untaggedAddedCardNames(cards: CardData[], addedNames: readonly s
 export type NumericFilterParse = { ok: true; value: number | null } | { ok: false; error: string }
 
 /**
- * Parse a mana value token to a non-negative integer, or undefined if malformed.
- * The single source of truth for the mana value format, shared by the filter
- * input (below) and the lenient URL-param parser.
+ * Parse a non-negative integer token, or undefined if malformed. The single
+ * source of truth for the mana value and copies formats (both plain
+ * non-negative integers), shared by the filter inputs (below) and the lenient
+ * URL-param parser.
  */
-export function parseManaValueAmount(raw: string): number | undefined {
+export function parseNonNegativeInteger(raw: string): number | undefined {
   const trimmed = raw.trim()
   if (!/^\d+$/.test(trimmed)) return undefined
   return parseInt(trimmed, 10)
-}
-
-/** Parse the mana value filter input: empty clears the filter, otherwise a non-negative integer. */
-export function parseManaValueFilter(raw: string): NumericFilterParse {
-  if (raw.trim().length === 0) return { ok: true, value: null }
-  const value = parseManaValueAmount(raw)
-  if (value === undefined) return { ok: false, error: 'Mana value must be a non-negative integer' }
-  return { ok: true, value }
 }
 
 /**
@@ -299,15 +334,42 @@ export function parsePriceAmount(raw: string): number | undefined {
 }
 
 /**
+ * Build a numeric filter input parser: empty input clears the filter,
+ * otherwise `parseAmount` is applied and a failure reports `error`. The
+ * shared shape behind `parseManaValueFilter`/`parsePriceFilter`/`parseCopiesFilter`.
+ */
+function makeNumericFilterParser(
+  parseAmount: (raw: string) => number | undefined,
+  error: string,
+): (raw: string) => NumericFilterParse {
+  return (raw) => {
+    if (raw.trim().length === 0) return { ok: true, value: null }
+    const value = parseAmount(raw)
+    if (value === undefined) return { ok: false, error }
+    return { ok: true, value }
+  }
+}
+
+/** Parse the mana value filter input: empty clears the filter, otherwise a non-negative integer. */
+export const parseManaValueFilter = makeNumericFilterParser(
+  parseNonNegativeInteger,
+  'Mana value must be a non-negative integer',
+)
+
+/**
  * Parse the price filter input: empty clears the filter, otherwise a non-negative
  * amount with up to two decimal places (in the currently selected currency).
  */
-export function parsePriceFilter(raw: string): NumericFilterParse {
-  if (raw.trim().length === 0) return { ok: true, value: null }
-  const value = parsePriceAmount(raw)
-  if (value === undefined) return { ok: false, error: 'Price must be a non-negative number' }
-  return { ok: true, value }
-}
+export const parsePriceFilter = makeNumericFilterParser(
+  parsePriceAmount,
+  'Price must be a non-negative number',
+)
+
+/** Parse the copies filter input: empty clears the filter, otherwise a non-negative integer. */
+export const parseCopiesFilter = makeNumericFilterParser(
+  parseNonNegativeInteger,
+  'Copies must be a non-negative integer',
+)
 
 /** Toggle a color in a selection, keeping the result in canonical WUBRG order. */
 export function toggleColorSelection(selected: string[], color: string): string[] {
