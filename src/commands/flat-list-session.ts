@@ -73,6 +73,38 @@ function assignMissingIds<E extends FlatListEntry>(entries: E[]): CardIdPool {
   return pool
 }
 
+/**
+ * An empty session for a flat list that does not exist on disk yet. It starts
+ * dirty, so the list's creation is itself a pending change: saving the session
+ * writes the file, exiting without saving never creates it.
+ */
+export function newCollectionSession(filePath: string, title: string): CollectionSession {
+  return newFlatListSession(filePath, title, applyChangeToCollection, collectionToMarkdown)
+}
+
+/** An empty session for a wanted list that does not exist on disk yet. */
+export function newWantedSession(filePath: string, title: string): WantedSession {
+  return newFlatListSession(filePath, title, applyChangeToWantedList, wantedToMarkdown)
+}
+
+function newFlatListSession<E extends FlatListEntry>(
+  filePath: string,
+  title: string,
+  apply: (entries: E[], change: ChangeEvent) => E[],
+  serialize: (title: string, entries: E[], sectionOrder: string[]) => string,
+): FlatListSession<E> {
+  return {
+    filePath,
+    title,
+    entries: [],
+    sectionOrder: [],
+    pool: createIdPool([]),
+    dirty: true,
+    apply,
+    serialize,
+  }
+}
+
 /** Load a collection file into a session model, surfacing any parse warnings. */
 export async function loadCollectionSession(filePath: string): Promise<CollectionSession> {
   const content = await fs.readFile(filePath, 'utf-8')
@@ -157,10 +189,15 @@ export function applyFlatListChange<E extends FlatListEntry>(
   session.dirty = true
 }
 
-/** Write the session's in-memory entries back to its file in canonical form. */
+/**
+ * Write the session's in-memory entries back to its file in canonical form,
+ * creating the list directory when the session is a new one whose file has
+ * never existed.
+ */
 export async function persistFlatListSession<E extends FlatListEntry>(
   session: FlatListSession<E>,
 ): Promise<void> {
+  await fs.mkdir(path.dirname(session.filePath), { recursive: true })
   await writeFileWithHash(
     session.filePath,
     session.serialize(session.title, session.entries, session.sectionOrder),

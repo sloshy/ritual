@@ -72,12 +72,21 @@ ritual edit --refresh-prices                # redownload cache when prices are >
 \`\`\`
 
 The selection menu's first item, \`🗃️ All Lists\` (shown once there are two or more
-lists), edits every list at once. Adding a card asks **which list** to add it to and
-then runs that list's own prompts, so a deck may take a name-only card while the next
-card added to a collection still requires a specific printing. Edit mode autocompletes
-over every list's entries at once (each labelled with its list), so cards can be edited
-or removed across lists without switching. Save writes each list to its own file and
-changelog; there is no "save current list" item in this mode.
+lists), edits every list at once. Adding a card asks **which list** to add it to — an
+existing one, or a \`➕ New …\` item that creates one on the spot — and then runs that
+list's own prompts, so a deck may take a name-only card while the next card added to a
+collection still requires a specific printing. Edit mode autocompletes over every
+list's entries at once (each labelled with its list), so cards can be edited or removed
+across lists without switching. Save writes each list to its own file and changelog;
+there is no "save current list" item in this mode.
+
+Creating a list (from the selection menu or from All Lists mode) only creates it **in
+memory**: the file appears when you save the editor, and never if you exit without
+saving. A pending list shows a \`— new\` badge in the selection menu, and an empty one
+still saves (as an empty list file). The creation is listed in \`📋 View Session Changes\`
+as \`Created this deck\` (or collection / wanted list) ahead of that list's card changes;
+discarding it drops the whole list, and is blocked until the list's own card changes are
+discarded first.
 
 ## Move cards between lists
 

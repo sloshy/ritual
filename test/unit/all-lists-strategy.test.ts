@@ -1,10 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import prompts from 'prompts'
 import {
+  buildAddTargetChoices,
   createAllListsSession,
   createAllListsState,
   type AllListsSession,
+  type AllListsState,
 } from '../../src/commands/all-lists-strategy'
+import type { ListType } from '../../src/list-type'
 import {
   createCardSessionContext,
   saveCardSession,
@@ -39,7 +42,12 @@ type Calls = {
   saved: number
 }
 
-type FakeList = { open: OpenList; calls: Calls; setDirty: (dirty: boolean) => void }
+type FakeList = {
+  open: OpenList
+  calls: Calls
+  setDirty: (dirty: boolean) => void
+  setNew: (isNew: boolean) => void
+}
 
 const addInput = (cardName: string, isEditing = false): CardChoiceInput => ({
   cardName,
@@ -48,6 +56,13 @@ const addInput = (cardName: string, isEditing = false): CardChoiceInput => ({
   isEditing,
 })
 
+/** Answer the next "Add to which list?" prompt with an existing list. */
+const pickList = (open: OpenList): void => prompts.inject([{ kind: 'list', open }])
+/** Answer the next "Add to which list?" prompt with a create-new item. */
+const pickNewList = (type: ListType): void => prompts.inject([{ kind: 'new', type }])
+/** Escape the next prompt. */
+const cancelPrompt = (): void => prompts.inject([new Error('cancelled')])
+
 /**
  * A stand-in list whose strategy records which context it was handed. All Lists
  * must always pass a list its *own* context, never the engine's.
@@ -55,6 +70,7 @@ const addInput = (cardName: string, isEditing = false): CardChoiceInput => ({
 function fakeList(ref: UnifiedListRef, entries: EditableEntryItem[], changes: string[]): FakeList {
   const ctx = createCardSessionContext()
   let dirty = false
+  let isNew = false
   const calls: Calls = {
     edited: [],
     undone: 0,
@@ -111,16 +127,38 @@ function fakeList(ref: UnifiedListRef, entries: EditableEntryItem[], changes: st
     },
   }
   return {
-    open: { ref, strategy, ctx },
+    open: { ref, strategy, ctx, isNew: () => isNew },
     calls,
     setDirty: (next) => {
       dirty = next
+    },
+    setNew: (next) => {
+      isNew = next
     },
   }
 }
 
 const deckRef: UnifiedListRef = { type: 'deck', name: 'Winota', file: '/decks/winota.md' }
 const binderRef: UnifiedListRef = { type: 'collection', name: 'Binder', file: '/collections/b.md' }
+const wantedRef: UnifiedListRef = { type: 'wanted', name: 'To Buy', file: '/wanted/to-buy.md' }
+
+/** Overrides for {@link allLists}; the defaults suit every test that ignores them. */
+type SessionOverrides = {
+  state?: AllListsState
+  saveAll?: () => Promise<void>
+  createList?: (type: ListType) => Promise<OpenList | undefined>
+}
+
+/** `lists` is captured live, so a test's `createList` can push onto it. */
+function allLists(lists: OpenList[], overrides: SessionOverrides = {}): AllListsSession {
+  return createAllListsSession({
+    lists: () => lists,
+    createList: overrides.createList ?? (async () => undefined),
+    sessionConfig,
+    saveAll: overrides.saveAll ?? (async () => {}),
+    state: overrides.state ?? createAllListsState(),
+  })
+}
 
 type Fixture = { session: AllListsSession; deck: FakeList; binder: FakeList }
 
@@ -128,13 +166,7 @@ function fixture(): Fixture {
   // Both lists use card id 1, so only the synthetic keys can tell them apart.
   const deck = fakeList(deckRef, [{ label: '1 Sol Ring &1', cardId: 1 }], ['added Sol Ring'])
   const binder = fakeList(binderRef, [{ label: '- Mox Ruby &1', cardId: 1 }], [])
-  const session = createAllListsSession({
-    lists: [deck.open, binder.open],
-    sessionConfig,
-    saveAll: async () => {},
-    state: createAllListsState(),
-  })
-  return { session, deck, binder }
+  return { session: allLists([deck.open, binder.open]), deck, binder }
 }
 
 describe('All Lists edit mode', () => {
@@ -189,12 +221,7 @@ describe('All Lists session changes', () => {
   test('changes are pooled across lists and discarded against their owner', async () => {
     const deck = fakeList(deckRef, [], ['added Sol Ring', 'removed Mox Ruby'])
     const binder = fakeList(binderRef, [], ['added Black Lotus'])
-    const session = createAllListsSession({
-      lists: [deck.open, binder.open],
-      sessionConfig,
-      saveAll: async () => {},
-      state: createAllListsState(),
-    })
+    const session = allLists([deck.open, binder.open])
 
     expect(session.strategy.listSessionChanges().map((c) => c.label)).toEqual([
       '🎴 Winota: added Sol Ring',
@@ -224,7 +251,7 @@ describe('All Lists add mode', () => {
 
   test('adding a card asks for a list, then runs that list’s own add flow', async () => {
     const { session, deck, binder } = fixture()
-    prompts.inject([binder.open])
+    pickList(binder.open)
 
     const input = addInput('Sol Ring')
     await session.strategy.handleCard(createCardSessionContext(), input)
@@ -238,10 +265,10 @@ describe('All Lists add mode', () => {
 
   test('cancelling the list prompt skips the card and leaves the active list alone', async () => {
     const { session, deck, binder } = fixture()
-    prompts.inject([deck.open])
+    pickList(deck.open)
     await session.strategy.handleCard(createCardSessionContext(), addInput('Sol Ring'))
 
-    prompts.inject([new Error('cancelled')])
+    cancelPrompt()
     await session.strategy.handleCard(createCardSessionContext(), addInput('Mox Ruby'))
 
     expect(deck.calls.handled.map((i) => i.cardName)).toEqual(['Sol Ring'])
@@ -249,9 +276,59 @@ describe('All Lists add mode', () => {
     expect(session.ctx()).toBe(deck.open.ctx)
   })
 
+  test('the destination prompt offers every open list plus the create-new items', () => {
+    const { deck, binder } = fixture()
+    binder.setNew(true)
+    expect(buildAddTargetChoices([deck.open, binder.open]).map((c) => c.title)).toEqual([
+      '🎴 Winota',
+      // A list created this session is marked, since it has no file yet.
+      '📦 Binder (new)',
+      '➕ New Deck',
+      '➕ New Collection',
+      '➕ New Wanted List',
+    ])
+  })
+
+  test('picking a create-new item adds the card to the freshly created list', async () => {
+    const { deck, binder } = fixture()
+    const lists = [deck.open, binder.open]
+    const wanted = fakeList(wantedRef, [], [])
+    wanted.setNew(true)
+
+    const session = allLists(lists, {
+      createList: async (type) => {
+        expect(type).toBe('wanted')
+        lists.push(wanted.open)
+        return wanted.open
+      },
+    })
+
+    pickNewList('wanted')
+    const input = addInput('Mox Ruby')
+    await session.strategy.handleCard(createCardSessionContext(), input)
+
+    expect(wanted.calls.handled).toEqual([input])
+    expect(session.ctx()).toBe(wanted.open.ctx)
+    // The new list joins the session immediately, so edit mode sees it at once.
+    expect(session.strategy.hasUnsavedChanges()).toBe(false)
+    wanted.setDirty(true)
+    expect(session.strategy.hasUnsavedChanges()).toBe(true)
+  })
+
+  test('abandoning the create-new prompts skips the card without an active list', async () => {
+    const { session, deck, binder } = fixture()
+    pickNewList('deck')
+    await session.strategy.handleCard(createCardSessionContext(), addInput('Sol Ring'))
+
+    // createList defaults to returning undefined (the user escaped the name prompt).
+    expect(deck.calls.handled).toEqual([])
+    expect(binder.calls.handled).toEqual([])
+    expect(session.ctx().lastAdded).toBeNull()
+  })
+
   test('editing the previous card stays on its list without re-prompting', async () => {
     const { session, deck, binder } = fixture()
-    prompts.inject([deck.open])
+    pickList(deck.open)
     await session.strategy.handleCard(createCardSessionContext(), addInput('Sol Ring'))
 
     // No injected answer: a prompt here would throw rather than pick a list.
@@ -266,7 +343,7 @@ describe('All Lists add mode', () => {
     const { session, deck, binder } = fixture()
     expect(session.ctx()).not.toBe(binder.open.ctx)
 
-    prompts.inject([binder.open])
+    pickList(binder.open)
     await session.strategy.handleCard(createCardSessionContext(), addInput('Mox Ruby'))
 
     // The engine reads `lastAdded` and the change count off this context, so it
@@ -295,15 +372,9 @@ describe('All Lists add mode', () => {
   test('the active list survives leaving All Lists mode and coming back', async () => {
     const { deck, binder } = fixture()
     const state = createAllListsState()
-    const build = (): AllListsSession =>
-      createAllListsSession({
-        lists: [deck.open, binder.open],
-        sessionConfig,
-        saveAll: async () => {},
-        state,
-      })
+    const build = (): AllListsSession => allLists([deck.open, binder.open], { state })
 
-    prompts.inject([binder.open])
+    pickList(binder.open)
     await build().strategy.handleCard(createCardSessionContext(), addInput('Mox Ruby'))
 
     // A fresh session over the same state still points at the binder.
@@ -337,13 +408,10 @@ describe('All Lists saving', () => {
     const deck = fakeList(deckRef, [], [])
     const binder = fakeList(binderRef, [], [])
     let savedAll = 0
-    const session = createAllListsSession({
-      lists: [deck.open, binder.open],
-      sessionConfig,
+    const session = allLists([deck.open, binder.open], {
       saveAll: async () => {
         savedAll++
       },
-      state: createAllListsState(),
     })
     await session.strategy.persist()
     expect(savedAll).toBe(1)

@@ -54,15 +54,45 @@ On startup (and whenever you back out of a list) you pick what to edit next:
 
 - `🗃️ All Lists` — edit every list at once, without switching between them (see
   [All Lists Mode](#all-lists-mode)). Offered only when there are at least two lists to span.
-- Every **deck** (`🎴`, by display name), **collection** (`📦`), and **wanted list** (`🎯`) on disk.
-  Lists with unsaved changes show a `— N unsaved change(s)` badge. Decks are listed by their
+- Every **deck** (`🎴`, by display name), **collection** (`📦`), and **wanted list** (`🎯`) on disk,
+  plus any list created this session. Lists with unsaved changes show a `— N unsaved change(s)`
+  badge, and a list that does not exist on disk yet is badged `— new`. Decks are listed by their
   display name (the `name:` front matter field), not their slugified file name.
-- `➕ New Deck` / `➕ New Collection` / `➕ New Wanted List` — create a list and start editing it. A
-  new deck prompts for its [format](#deck-format) and is created with the same YAML front matter as
-  [`new-deck`](/commands/new-deck/) (display name preserved, file name slugified); new collections
-  and wanted lists get a `# Title` heading.
+- `➕ New Deck` / `➕ New Collection` / `➕ New Wanted List` — create a list and start editing it (see
+  [Creating Lists](#creating-lists)).
 - `🚪 Exit` — leave the editor (with unsaved changes anywhere, asks to save all, discard all, or
   cancel).
+
+## Creating Lists
+
+A new list is created **in memory only**: its file (and changelog) appear when you save the editor,
+and never if you exit without saving. Until then it behaves like any other open list — you can add
+cards to it, switch away and back, and see it in the selection menu badged `— new`.
+
+Because the creation is itself an unsaved change, a brand-new list with no cards still counts as
+unsaved: saving writes an empty list file, and discarding leaves nothing behind. It also appears in
+[`📋 View Session Changes`](#reviewing-session-changes) as `Created this deck` (or collection, or
+wanted list), ahead of any card change made to that list:
+
+```text
+? 2 change(s) this session — select one to discard it:
+❯   🎯 Scratch: Created this wanted list
+    🎯 Scratch: ➕ Added - Black Lotus &1
+```
+
+Discarding that entry takes the whole list back out of the session — so it is refused while the list
+still has card changes of its own (`Cannot discard this change yet — discard this wanted list's 1
+card change(s) first`). Discard those first, and the list can go. If you were editing that list
+directly, you are returned to the selection menu, since there is nothing left to edit. Saving
+commits the creation, and the entry disappears.
+
+A new deck prompts for its [format](#deck-format) and is written with the same YAML front matter as
+[`new-deck`](/commands/new-deck/) (display name preserved, file name slugified); new collections and
+wanted lists get a `# Title` heading. Creating a list whose file already exists is refused.
+
+Lists can be created from two places: the `➕ New …` items in the list selection menu, and the same
+items in the `Add to which list?` prompt of [All Lists Mode](#all-lists-mode) — where the card you
+were adding goes straight into the list you just created.
 
 ## Switching Lists
 
@@ -77,10 +107,11 @@ undo history, and all.
 to touch a card in a different one. It behaves like a normal list session, with two differences.
 
 **Adding a card asks where it goes.** After you pick a card name (or a collector number), a
-`Add to which list?` prompt appears. Whichever list you pick then runs **its own** add flow for the
-rest of that card's prompts, exactly as if you had opened that list directly. Adding to a deck may
-therefore leave the printing unspecified and ask for a target section, while adding the very next
-card to a collection still demands a specific printing — each list keeps its own rules:
+`Add to which list?` prompt appears, listing every list plus the three `➕ New …` items. Whichever
+list you pick then runs **its own** add flow for the rest of that card's prompts, exactly as if you
+had opened that list directly. Adding to a deck may therefore leave the printing unspecified and ask
+for a target section, while adding the very next card to a collection still demands a specific
+printing — each list keeps its own rules:
 
 ```text
 ? Enter card name to add › Sol Ring
@@ -88,6 +119,9 @@ card to a collection still demands a specific printing — each list keeps its o
 ? How specific for Sol Ring? › Name only (cheapest printing)
 Added: - Sol Ring &2
 ```
+
+Picking a `➕ New …` item [creates the list](#creating-lists) (in memory) and adds the card to it,
+without leaving All Lists mode.
 
 The last added card's shortcuts (`➕ Add Another Copy`, `📝 Add Note`, `✏️ Edit Previous Card`,
 `↩️ Undo Last Add`) all act on the list that card went into, so you are never asked twice.
@@ -255,9 +289,13 @@ reverting just it while keeping the rest of the session intact:
 - **Discarding an edit or removal** reverts that operation in place. When several changes touch the
   **same card**, they must be discarded newest-first — older ones are blocked until the newer
   change is discarded (the picker tells you which one).
+- **Discarding a list's creation** removes the whole list from the session (see
+  [Creating Lists](#creating-lists)). It leads that list's changes and is blocked until the list's
+  own card changes are discarded.
 
 Everything already saved is committed and no longer appears in the viewer. The viewer covers the
-**current list**; switch lists to review another list's changes.
+**current list**; switch lists to review another list's changes. In
+[All Lists Mode](#all-lists-mode) it covers every list at once, each entry labelled with its list.
 
 ## Decks
 

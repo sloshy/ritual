@@ -51,18 +51,30 @@ type DeckConfigAnswers = SessionConfigAnswers & { section?: string }
 type SectionNameResponse = { name?: string }
 
 /**
- * Ensure a deck file exists for `name`, creating it with YAML front matter when
- * missing (mirroring `new-deck`). Returns the resolved file path. The on-disk
- * file name is a slug of `name`; the display name is preserved in front matter.
- * `format` only applies to a newly created file — an existing deck keeps its own.
+ * The path a deck with this display name lives at. The on-disk file name is a
+ * slug of the name; the display name is preserved in front matter.
  */
-export async function ensureDeckFile(name: string, format: DeckFormatKey): Promise<string> {
+export function deckFilePath(name: string): string {
   const safeName = name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '')
+  return path.join(getDecksDir(), `${safeName}.md`)
+}
+
+/** The front matter a freshly created deck starts with (mirroring `new-deck`). */
+export function newDeckFrontMatter(name: string, format: DeckFormatKey): DeckFrontMatter {
+  return { name, format, created: new Date().toISOString(), tags: [] }
+}
+
+/**
+ * Ensure a deck file exists for `name`, creating it with YAML front matter when
+ * missing (mirroring `new-deck`). Returns the resolved file path.
+ * `format` only applies to a newly created file — an existing deck keeps its own.
+ */
+export async function ensureDeckFile(name: string, format: DeckFormatKey): Promise<string> {
   const content = `---\nname: "${name}"\nformat: "${format}"\ncreated: "${new Date().toISOString()}"\ntags: []\n---\n\n## Main\n`
-  return ensureListFile(getDecksDir(), `${safeName}.md`, content, 'deck')
+  return ensureListFile(getDecksDir(), path.basename(deckFilePath(name)), content, 'deck')
 }
 
 /**
@@ -100,12 +112,17 @@ export async function loadDeck(filePath: string): Promise<LoadedDeck> {
   return { deck, frontMatter }
 }
 
-/** Serialize a deck (assigning any missing card IDs) and write it back to disk with a fresh hash. */
+/**
+ * Serialize a deck (assigning any missing card IDs) and write it back to disk
+ * with a fresh hash, creating the decks directory when the deck is a new one
+ * whose file has never existed.
+ */
 export async function writeDeck(
   filePath: string,
   deck: DeckData,
   frontMatter: DeckFrontMatter,
 ): Promise<void> {
+  await fs.mkdir(path.dirname(filePath), { recursive: true })
   await writeFileWithHash(filePath, serializeDeckToMarkdown(deck, frontMatter))
 }
 

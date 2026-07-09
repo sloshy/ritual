@@ -226,6 +226,12 @@ export type CardSessionStrategy = {
   listSessionChanges: () => SessionChangeItem[]
   /** Discard the session change at `index` into {@link listSessionChanges}. */
   discardSessionChange: (ctx: CardSessionContext, index: number) => Promise<void>
+  /**
+   * The list itself was discarded (its creation was taken back from the session
+   * changes), so there is nothing left to edit. The session loop leaves for the
+   * list selection menu when this turns true.
+   */
+  discarded?: () => boolean
   /** The list's current entries, for the edit-mode picker. */
   listEntries: () => EditableEntryItem[]
   /** Run the edit flow (action menu and prompts) for the entry with `cardId`. */
@@ -986,6 +992,9 @@ async function viewSessionChanges(
     })) as ConfirmPromptResponse
     if (confirmResponse.confirm) {
       await strategy.discardSessionChange(ctx, response.index)
+      // Discarding a list's creation takes the list away with it: there is
+      // nothing left to render, let alone discard.
+      if (strategy.discarded?.()) return
     }
   }
 }
@@ -1219,6 +1228,11 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
 
     if (response.cardName === '__CHANGES__') {
       await viewSessionChanges(strategy, ctx)
+      // The session's own list was discarded, so back out to the selection menu.
+      if (strategy.discarded?.()) {
+        console.log('Returning to list selection.')
+        return { reason: 'switch', cardNames }
+      }
       continue
     }
 

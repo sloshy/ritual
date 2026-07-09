@@ -14,12 +14,13 @@ import {
   type MultiListSessionControls,
 } from './card-session'
 import { ask, suggestByTitleTerms } from './prompts-helpers'
-import { ensureCollectionFile } from './collection-helpers'
-import { ensureWantedListFile } from './wanted-helpers'
-import { ensureDeckFile, promptDeckFormat, type DeckSessionConfig } from './deck-helpers'
+import { promptDeckFormat, type DeckSessionConfig } from './deck-helpers'
 import {
   collectListRefs,
   hasUnsavedChanges,
+  newListFilePath,
+  newListSession,
+  NEW_LIST_TITLES,
   openListSession,
   type OpenList,
   type UnifiedListRef,
@@ -60,13 +61,20 @@ export type UnifiedSelection =
   | { kind: 'new'; type: ListType }
   | { kind: 'exit' }
 
-/** Pending-change counts for the selection menu badges, keyed by list file path. */
-export type PendingChangesByFile = Map<string, number>
+/** What an open list has pending: edits, and (for a list created this session) its own creation. */
+export type ListPendingState = { changes: number; isNew: boolean }
 
-const NEW_LIST_TITLES: Record<ListType, string> = {
-  deck: '➕ New Deck',
-  collection: '➕ New Collection',
-  wanted: '➕ New Wanted List',
+/** Pending state for the selection menu badges, keyed by list file path. */
+export type PendingChangesByFile = Map<string, ListPendingState>
+
+/** The `— …` badge trailing an open list's name in the selection menu. */
+function pendingBadge(pending: ListPendingState | undefined): string {
+  if (!pending) return ''
+  const parts = [
+    ...(pending.isNew ? ['new'] : []),
+    ...(pending.changes > 0 ? [`${pending.changes} unsaved change(s)`] : []),
+  ]
+  return parts.length > 0 ? ` — ${parts.join(', ')}` : ''
 }
 
 /**
@@ -82,14 +90,12 @@ export function buildListSelectionChoices(
   const listChoices = LIST_TYPES.flatMap((type) =>
     refs
       .filter((ref) => ref.type === type)
-      .map((ref): Choice => {
-        const count = pending.get(ref.file) ?? 0
-        const badge = count > 0 ? ` — ${count} unsaved change(s)` : ''
-        return {
-          title: `${LIST_TYPE_DISPLAY[type].icon} ${ref.name}${badge}`,
+      .map(
+        (ref): Choice => ({
+          title: `${LIST_TYPE_DISPLAY[type].icon} ${ref.name}${pendingBadge(pending.get(ref.file))}`,
           value: { kind: 'open', list: ref } satisfies UnifiedSelection,
-        }
-      }),
+        }),
+      ),
   )
   return [
     ...(refs.length > 1
@@ -135,22 +141,6 @@ async function promptNewListName(type: ListType): Promise<string | null> {
   return name ?? null
 }
 
-/**
- * Prompt for a new list's remaining details (a format, for decks), create its
- * file, and return its ref. Returns null when a prompt is cancelled. The format
- * only applies to a newly created deck file — an existing deck keeps its own.
- */
-async function createListRef(type: ListType, name: string): Promise<UnifiedListRef | null> {
-  if (type === 'deck') {
-    const format = await promptDeckFormat('commander')
-    if (!format) return null
-    return { type, name, file: await ensureDeckFile(name, format) }
-  }
-  const file =
-    type === 'collection' ? await ensureCollectionFile(name) : await ensureWantedListFile(name)
-  return { type, name, file }
-}
-
 export function registerEditCommand(program: Command): void {
   const editCommand = program
     .command('edit')
@@ -191,10 +181,40 @@ export function registerEditCommand(program: Command): void {
       return opened
     }
 
+    /**
+     * Create a list in memory: prompt for its name (and a deck's format), then
+     * open an empty session for it. Nothing is written — the list's file appears
+     * only when the editor saves, so backing out discards the creation too.
+     */
+    const createList = async (type: ListType): Promise<OpenList | undefined> => {
+      const name = await promptNewListName(type)
+      if (!name) return undefined
+      const file = newListFilePath(type, name)
+      if (openLists.has(file) || (await Bun.file(file).exists())) {
+        console.error(`A ${listTypeLabel(type)} already exists at ${file}.`)
+        return undefined
+      }
+      const format = type === 'deck' ? await promptDeckFormat('commander') : null
+      if (type === 'deck' && !format) return undefined
+      // Taking the creation back out of the session changes drops the whole list.
+      const created = newListSession(
+        { type, name, file },
+        format,
+        sessionConfig,
+        excludeDigitalOnly,
+        () => openLists.delete(file),
+      )
+      openLists.set(file, created)
+      console.log(`Created ${listTypeLabel(type)} "${name}" (saved when you save the editor).`)
+      return created
+    }
+
     const saveAll = async (): Promise<void> => {
       for (const open of unsavedLists()) {
-        console.log(`Saving ${listTypeLabel(open.ref.type)} "${open.ref.name}"...`)
+        const verb = open.isNew() ? 'Creating' : 'Saving'
+        console.log(`${verb} ${listTypeLabel(open.ref.type)} "${open.ref.name}"...`)
         await saveCardSession(open.strategy, open.ctx)
+        // Also clears the list's pending-creation change, now that it is on disk.
         resetCardSessionTracking(open.strategy, open.ctx)
       }
     }
@@ -211,9 +231,15 @@ export function registerEditCommand(program: Command): void {
     const allListsState = createAllListsState()
 
     while (true) {
-      const refs = await collectListRefs()
+      // Lists created this session have no file yet, so they are absent from the
+      // on-disk scan and must be folded back in to stay reachable and saveable.
+      const created = [...openLists.values()].filter((open) => open.isNew())
+      const refs = [...(await collectListRefs()), ...created.map((open) => open.ref)]
       const pending: PendingChangesByFile = new Map(
-        [...openLists.values()].map((open) => [open.ref.file, open.ctx.sessionChanges.length]),
+        [...openLists.values()].map((open) => [
+          open.ref.file,
+          { changes: open.ctx.sessionChanges.length, isNew: open.isNew() },
+        ]),
       )
       const selection = await promptListToEdit(buildListSelectionChoices(refs, pending))
 
@@ -226,10 +252,18 @@ export function registerEditCommand(program: Command): void {
         // Edit mode autocompletes over every list's entries, so they must all be
         // loaded up front — the engine builds that picker synchronously.
         console.log(`Opening ${refs.length} lists...`)
-        const lists: OpenList[] = []
-        for (const ref of refs) lists.push(await openList(ref))
+        const files: string[] = []
+        for (const ref of refs) files.push((await openList(ref)).ref.file)
         const session = createAllListsSession({
-          lists,
+          // Resolved against the open-list map on every read, so a list created
+          // from the "Add to which list?" prompt joins the session immediately,
+          // and one whose creation is discarded drops straight back out of it.
+          lists: () => files.flatMap((file) => openLists.get(file) ?? []),
+          createList: async (type) => {
+            const open = await createList(type)
+            if (open) files.push(open.ref.file)
+            return open
+          },
           sessionConfig,
           saveAll,
           state: allListsState,
@@ -247,18 +281,15 @@ export function registerEditCommand(program: Command): void {
         continue
       }
 
-      let ref: UnifiedListRef
+      let open: OpenList
       if (selection.kind === 'new') {
-        const name = await promptNewListName(selection.type)
-        if (!name) continue
-        const created = await createListRef(selection.type, name)
-        if (!created) continue
-        ref = created
+        const newList = await createList(selection.type)
+        if (!newList) continue
+        open = newList
       } else {
-        ref = selection.list
+        open = await openList(selection.list)
       }
 
-      const open = await openList(ref)
       const result = await runCardSession({
         strategy: open.strategy,
         cardNames,

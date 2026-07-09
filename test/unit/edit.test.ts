@@ -50,13 +50,24 @@ describe('buildListSelectionChoices', () => {
 
   test('open lists with pending changes get an unsaved badge', () => {
     const pending: PendingChangesByFile = new Map([
-      ['/decks/winota-stax.md', 2],
-      ['/wanted/to-buy.md', 0],
+      ['/decks/winota-stax.md', { changes: 2, isNew: false }],
+      ['/wanted/to-buy.md', { changes: 0, isNew: false }],
     ])
     const titles = buildListSelectionChoices(refs, pending).map((c) => c.title)
     expect(titles).toContain('🎴 Winota Stax — 2 unsaved change(s)')
     // A zero count (opened but fully saved) renders without a badge.
     expect(titles).toContain('🎯 To Buy')
+  })
+
+  test('a list created this session is badged as new until it is saved', () => {
+    const pending: PendingChangesByFile = new Map([
+      ['/collections/Main Binder.md', { changes: 0, isNew: true }],
+      ['/wanted/to-buy.md', { changes: 3, isNew: true }],
+    ])
+    const titles = buildListSelectionChoices(refs, pending).map((c) => c.title)
+    // A brand-new list has no card changes yet, but its creation is itself unsaved.
+    expect(titles).toContain('📦 Main Binder — new')
+    expect(titles).toContain('🎯 To Buy — new, 3 unsaved change(s)')
   })
 
   test('create-new and exit selections are typed actions', () => {

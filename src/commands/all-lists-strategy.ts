@@ -1,5 +1,6 @@
 import type { Choice } from 'prompts'
 import type { ChangeEvent } from '../change-event'
+import { LIST_TYPES, type ListType } from '../list-type'
 import {
   createCardSessionContext,
   promptSessionConfigUpdate,
@@ -11,7 +12,7 @@ import {
   type SessionChangeItem,
   type SessionConfig,
 } from './card-session'
-import { hasUnsavedChanges, listRefLabel, type OpenList } from './edit-lists'
+import { hasUnsavedChanges, listRefLabel, NEW_LIST_TITLES, type OpenList } from './edit-lists'
 import { ask, suggestByTitleTerms } from './prompts-helpers'
 
 /**
@@ -21,9 +22,10 @@ import { ask, suggestByTitleTerms } from './prompts-helpers'
  * strategies, always handing that list its own {@link CardSessionContext} so
  * pending changes, undo stacks, and changelogs stay attributed to the right file.
  *
- * Adding a card asks which list to add it to and then runs that list's normal
- * add flow, so e.g. a deck may take a name-only card while a collection still
- * demands a printing. Edit mode autocompletes over every list's entries at once.
+ * Adding a card asks which list to add it to — offering to create a new list
+ * too — and then runs that list's normal add flow, so e.g. a deck may take a
+ * name-only card while a collection still demands a printing. Edit mode
+ * autocompletes over every list's entries at once.
  */
 
 export const ALL_LISTS_LABEL = 'All Lists'
@@ -53,8 +55,17 @@ export type AllListsSession = {
 }
 
 export type AllListsStrategyArgs = {
-  /** Every list, already opened into a live session (edit mode enumerates them all). */
-  lists: OpenList[]
+  /**
+   * Every list, already opened into a live session (edit mode enumerates them
+   * all). Re-read on each use, so a list created mid-session joins immediately.
+   */
+  lists: () => OpenList[]
+  /**
+   * Create a list of `type` (prompting for its name and, for a deck, its
+   * format) and open it. Returns undefined when the user cancels. The list is
+   * held in memory only — its file appears when the editor is saved.
+   */
+  createList: (type: ListType) => Promise<OpenList | undefined>
   sessionConfig: SessionConfig
   /** Persist every open list, exactly as the Save item does. */
   saveAll: () => Promise<void>
@@ -66,26 +77,47 @@ type EntryTarget = { open: OpenList; cardId: number }
 /** Where a change shown in the cross-list session-changes picker actually lives. */
 type ChangeTarget = { open: OpenList; index: number }
 
+/** The destination picked for a card being added: an open list, or a list to create. */
+type AddTarget = { kind: 'list'; open: OpenList } | { kind: 'new'; type: ListType }
+
+/** Build the destination choices: every open list, then the three create-new items. */
+export function buildAddTargetChoices(lists: OpenList[]): Choice[] {
+  return [
+    ...lists.map(
+      (open): Choice => ({
+        title: `${listRefLabel(open.ref)}${open.isNew() ? ' (new)' : ''}`,
+        value: { kind: 'list', open } satisfies AddTarget,
+      }),
+    ),
+    ...LIST_TYPES.map(
+      (type): Choice => ({
+        title: NEW_LIST_TITLES[type],
+        value: { kind: 'new', type } satisfies AddTarget,
+      }),
+    ),
+  ]
+}
+
 /** Prompt for the list a card should be added to. Returns undefined when cancelled. */
-async function promptTargetList(lists: OpenList[]): Promise<OpenList | undefined> {
-  return ask<OpenList>({
+async function promptAddTarget(lists: OpenList[]): Promise<AddTarget | undefined> {
+  return ask<AddTarget>({
     type: 'autocomplete',
     message: 'Add to which list?',
-    choices: lists.map((open): Choice => ({ title: listRefLabel(open.ref), value: open })),
+    choices: buildAddTargetChoices(lists),
     limit: 12,
     suggest: suggestByTitleTerms,
   })
 }
 
 export function createAllListsSession(args: AllListsStrategyArgs): AllListsSession {
-  const { lists, sessionConfig, saveAll, state } = args
+  const { lists, createList, sessionConfig, saveAll, state } = args
 
   // Stands in for the active list's context until the first add. Nothing writes
   // to it: the engine only reads `lastAdded` and the change count off it.
   const scratchCtx = createCardSessionContext()
 
   const byFile = (file: string | null): OpenList | undefined =>
-    file === null ? undefined : lists.find((open) => open.ref.file === file)
+    file === null ? undefined : lists().find((open) => open.ref.file === file)
   const activeList = (): OpenList | undefined => byFile(state.activeFile)
   const lastEditList = (): OpenList | undefined => byFile(state.lastEditFile)
   const activeCtx = (): CardSessionContext => activeList()?.ctx ?? scratchCtx
@@ -112,9 +144,9 @@ export function createAllListsSession(args: AllListsStrategyArgs): AllListsSessi
     noteAdded: (note: string) => activeList()?.strategy.noteAdded?.(note),
 
     persist: saveAll,
-    hasUnsavedChanges: () => lists.some(hasUnsavedChanges),
+    hasUnsavedChanges: () => lists().some(hasUnsavedChanges),
     sessionSaved: () => {
-      for (const open of lists) open.strategy.sessionSaved()
+      for (const open of lists()) open.strategy.sessionSaved()
     },
 
     async handleCard(_ctx: CardSessionContext, input: CardChoiceInput): Promise<void> {
@@ -125,7 +157,8 @@ export function createAllListsSession(args: AllListsStrategyArgs): AllListsSessi
         if (open) await open.strategy.handleCard(open.ctx, input)
         return
       }
-      const open = await promptTargetList(lists)
+      const target = await promptAddTarget(lists())
+      const open = target?.kind === 'new' ? await createList(target.type) : target?.open
       if (!open) {
         console.log('No list selected. Skipping.')
         return
@@ -151,7 +184,7 @@ export function createAllListsSession(args: AllListsStrategyArgs): AllListsSessi
     listSessionChanges: (): SessionChangeItem[] => {
       changeTargets = []
       const items: SessionChangeItem[] = []
-      for (const open of lists) {
+      for (const open of lists()) {
         open.strategy.listSessionChanges().forEach((item, index) => {
           changeTargets.push({ open, index })
           items.push({ ...item, label: `${listRefLabel(open.ref)}: ${item.label}` })
@@ -169,7 +202,7 @@ export function createAllListsSession(args: AllListsStrategyArgs): AllListsSessi
     listEntries: (): EditableEntryItem[] => {
       entryTargets.clear()
       const items: EditableEntryItem[] = []
-      for (const open of lists) {
+      for (const open of lists()) {
         for (const entry of open.strategy.listEntries()) {
           // Card ids are only unique within a list, so the picker gets a synthetic
           // key that resolves back to the owning list.

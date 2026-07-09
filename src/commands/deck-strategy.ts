@@ -44,6 +44,11 @@ export type DeckStrategyArgs = {
   frontMatter: DeckFrontMatter
   sessionConfig: DeckSessionConfig
   excludeDigitalOnly: boolean
+  /**
+   * Start the session unsaved. Set for a deck that does not exist on disk yet,
+   * so its creation survives as a pending change until the session is saved.
+   */
+  initiallyDirty?: boolean
 }
 
 /** Build the deck half of a card session. Shared with the unified `edit` command. */
@@ -59,7 +64,7 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
     sessionLineIds: [],
     editUndo: [],
     originals: new Map(),
-    dirty: false,
+    dirty: args.initiallyDirty ?? false,
   }
   let lastSection: string | null = null
   let lastPrinting: PrintingTuple | null = null
