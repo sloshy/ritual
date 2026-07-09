@@ -174,6 +174,9 @@ export function trackListCreation(
     discardSessionChange: async (ctx: CardSessionContext, index: number): Promise<void> => {
       if (!isNew) return inner.discardSessionChange(ctx, index)
       if (index > 0) return inner.discardSessionChange(ctx, index - 1)
+      // The engine blocks this in the picker; enforce it here too, so the list
+      // can never be dropped out from under card changes that belong to it.
+      if (inner.listSessionChanges().length > 0) return
       discarded = true
       onDiscard()
       console.log(`Discarded ${listTypeLabel(ref.type)} "${ref.name}".`)

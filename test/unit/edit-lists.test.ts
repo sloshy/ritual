@@ -81,12 +81,17 @@ describe('a pending list creation in the session changes', () => {
     ])
   })
 
-  test('cannot be discarded while the list still has card changes', () => {
-    const { strategy } = tracked(['added Sol Ring'])
+  test('cannot be discarded while the list still has card changes', async () => {
+    const { strategy, dropped } = tracked(['added Sol Ring'])
     // Dropping the list here would strand the card change that belongs to it.
     expect(strategy.listSessionChanges()[0]?.blocked).toBe(
       "discard this wanted list's 1 card change(s) first",
     )
+
+    // The picker refuses it, and so does the wrapper if asked directly anyway.
+    await strategy.discardSessionChange(createCardSessionContext(), 0)
+    expect(dropped).toEqual([])
+    expect(strategy.discarded?.()).toBe(false)
   })
 
   test('offsets the indices of the card changes behind it', async () => {

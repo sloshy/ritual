@@ -19,7 +19,11 @@ import {
   type SessionChangeItem,
   type SessionConfig,
 } from '../../src/commands/card-session'
-import type { OpenList, UnifiedListRef } from '../../src/commands/edit-lists'
+import {
+  trackListCreation,
+  type OpenList,
+  type UnifiedListRef,
+} from '../../src/commands/edit-lists'
 import { createAddChange, type ChangeEvent } from '../../src/change-event'
 
 const sessionConfig: SessionConfig = {
@@ -233,6 +237,45 @@ describe('All Lists session changes', () => {
     await session.strategy.discardSessionChange(createCardSessionContext(), 2)
     expect(binder.calls.discardedChanges).toEqual([0])
     expect(deck.calls.discardedChanges).toEqual([])
+  })
+
+  test('a pending list creation is pooled, and discarding it drops that list', async () => {
+    const deck = fakeList(deckRef, [], ['added Sol Ring'])
+    const wanted = fakeList(wantedRef, [{ label: '- Mox Ruby &1', cardId: 1 }], [])
+    const lists = [deck.open, wanted.open]
+
+    // The real creation wrapper, over a list the editor has not written yet.
+    const tracked = trackListCreation(wanted.open.strategy, wantedRef, () => {
+      lists.splice(lists.indexOf(created), 1)
+    })
+    const created: OpenList = { ...wanted.open, strategy: tracked.strategy, isNew: tracked.isNew }
+    lists[1] = created
+
+    const session = allLists(lists)
+    expect(session.strategy.listSessionChanges().map((c) => c.label)).toEqual([
+      '🎴 Winota: added Sol Ring',
+      '🎯 To Buy: Created this wanted list',
+    ])
+
+    // Index 1 is the creation; discarding it removes the list from the session.
+    await session.strategy.discardSessionChange(createCardSessionContext(), 1)
+    expect(session.strategy.listSessionChanges().map((c) => c.label)).toEqual([
+      '🎴 Winota: added Sol Ring',
+    ])
+    expect(session.strategy.listEntries()).toEqual([])
+    // The aggregate itself is not discarded — the other lists are still editable.
+    expect(session.strategy.discarded).toBeUndefined()
+  })
+
+  test('a pending creation is blocked while its list still has card changes', () => {
+    const wanted = fakeList(wantedRef, [], ['added Mox Ruby'])
+    const { strategy } = trackListCreation(wanted.open.strategy, wantedRef, () => {})
+    const session = allLists([{ ...wanted.open, strategy }])
+
+    const [creation, card] = session.strategy.listSessionChanges()
+    expect(creation?.label).toBe('🎯 To Buy: Created this wanted list')
+    expect(creation?.blocked).toBe("discard this wanted list's 1 card change(s) first")
+    expect(card?.blocked).toBeUndefined()
   })
 })
 
