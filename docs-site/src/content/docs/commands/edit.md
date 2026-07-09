@@ -52,6 +52,8 @@ happens without prompting because you asked for it explicitly.
 
 On startup (and whenever you back out of a list) you pick what to edit next:
 
+- `🗃️ All Lists` — edit every list at once, without switching between them (see
+  [All Lists Mode](#all-lists-mode)). Offered only when there are at least two lists to span.
 - Every **deck** (`🎴`, by display name), **collection** (`📦`), and **wanted list** (`🎯`) on disk.
   Lists with unsaved changes show a `— N unsaved change(s)` badge. Decks are listed by their
   display name (the `name:` front matter field), not their slugified file name.
@@ -68,6 +70,47 @@ Inside a list session, `🔀 Switch List` backs out to the list selection menu, 
 unsaved changes in memory. Pressing <kbd>Esc</kbd>/<kbd>Ctrl-C</kbd> at the main card prompt does
 the same. Reopening a list you already edited resumes exactly where you left off — pending changes,
 undo history, and all.
+
+## All Lists Mode
+
+`🗃️ All Lists` opens **every** list at once in a single session, so you never have to switch lists
+to touch a card in a different one. It behaves like a normal list session, with two differences.
+
+**Adding a card asks where it goes.** After you pick a card name (or a collector number), a
+`Add to which list?` prompt appears. Whichever list you pick then runs **its own** add flow for the
+rest of that card's prompts, exactly as if you had opened that list directly. Adding to a deck may
+therefore leave the printing unspecified and ask for a target section, while adding the very next
+card to a collection still demands a specific printing — each list keeps its own rules:
+
+```text
+? Enter card name to add › Sol Ring
+? Add to which list? › 🎯 To Buy
+? How specific for Sol Ring? › Name only (cheapest printing)
+Added: - Sol Ring &2
+```
+
+The last added card's shortcuts (`➕ Add Another Copy`, `📝 Add Note`, `✏️ Edit Previous Card`,
+`↩️ Undo Last Add`) all act on the list that card went into, so you are never asked twice.
+
+**Edit mode spans every list.** `🛠️ Switch to Edit Mode` autocompletes over the entries of all
+lists at once, each labelled with the list it belongs to, and each entry offers the action menu of
+its own list type. Searching matches the list name too, so typing `binder` narrows to one list:
+
+```text
+? Search for a card to edit › o
+❯   🎴 Test Deck: 1 Sol Ring (LEA:161) — Commander &1
+    📦 Main Binder: - Lightning Bolt (LEA:161) [NM] &1
+    🎯 To Buy: - Mox Ruby &1
+```
+
+`📋 View Session Changes` likewise pools every list's changes, labelled by list, and discarding one
+affects only its own list. Because every list is the "current" list here, there is no
+`💾 Save current list changes` item — a single save item covers everything, whichever
+[label](#saving) it carries.
+
+Changes made in All Lists mode are the same in-memory per-list changes as anywhere else: switching
+to a single list and back keeps them, and each list is written to its own file with its own
+changelog entry on save.
 
 ## Menu Options
 
@@ -111,7 +154,9 @@ The save actions cover all open lists:
 The save-current item appears only when the list you are editing has anything unsaved **and** at
 least one other open list does too. When just one list has anything unsaved, saving all and saving
 the current list are the same thing, so a single `💾 Save N change(s) (keep editing)` item is
-shown — even when that one dirty list is not the one you are currently in.
+shown — even when that one dirty list is not the one you are currently in. In
+[All Lists Mode](#all-lists-mode) there is no current list to single out, so the save-current item
+is never shown.
 
 The counts track card changes. Pending work that is not a card change (currently only a changed
 [deck format](#deck-format)) still surfaces the save items, but is left out of the counts — a list

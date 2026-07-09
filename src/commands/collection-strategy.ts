@@ -130,8 +130,7 @@ export function createCollectionStrategy(
 
   return {
     managerLabel: 'collection manager',
-    filePath: session.filePath,
-    listName,
+    saveTarget: { filePath: session.filePath, listName },
     sessionConfig,
     updateConfig: (excludeDigital: boolean) =>
       promptSessionConfigUpdate(sessionConfig, true, excludeDigital),

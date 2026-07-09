@@ -112,11 +112,19 @@ type SetActionPromptResponse = { action?: SetAction }
  */
 export type SessionMode = 'add' | 'edit'
 
-/** An existing list entry offered in the edit-mode picker. */
+/**
+ * An existing list entry offered in the edit-mode picker. The engine treats
+ * `cardId` as opaque and hands it straight back to
+ * {@link CardSessionStrategy.editEntry} — All Lists mode exploits that to issue
+ * synthetic keys, since card ids are only unique within one list.
+ */
 export type EditableEntryItem = { label: string; cardId: number }
 
 /** The most recently added/edited card, tracked for the menu shortcuts. */
 export type LastAdded = { name: string; hasNote: boolean; cardId?: number }
+
+/** The list file a session writes, and the display name recorded in its changelog. */
+export type ListSaveTarget = { filePath: string; listName: string }
 
 /** Mutable per-session state owned by the engine and shared with the strategy. */
 export type CardSessionContext = {
@@ -182,10 +190,13 @@ export type CardChoiceInput = {
 export type CardSessionStrategy = {
   /** Used in exit messages, e.g. `collection manager`. */
   managerLabel: string
-  /** File the session edits; changelog entries are appended next to it. */
-  filePath: string
-  /** Display name recorded in the changelog. */
-  listName: string
+  /**
+   * Where {@link saveCardSession} writes this session, or null for a strategy
+   * that spans several lists (All Lists mode) and so has no file of its own —
+   * such a session is saved one open list at a time, through each list's own
+   * strategy.
+   */
+  saveTarget: ListSaveTarget | null
   sessionConfig: SessionConfig
   /** Extra menu entries inserted after the note shortcut in both modes (values must be in {@link MENU_SENTINELS}). */
   extraMenuItems?: () => Choice[]
@@ -607,6 +618,11 @@ export type MultiListMenuInfo = {
   totalChangeCount: number
   /** How many open lists have anything unsaved (pending events or a dirty model). */
   listsWithChanges: number
+  /**
+   * The session edits every list at once (All Lists mode), so there is no single
+   * "current list" to save on its own — Save always means save all.
+   */
+  allLists?: boolean
 }
 
 /** Inputs to {@link buildMenuChoices}. */
@@ -660,7 +676,7 @@ function buildSaveAndSwitchItems(input: MenuBuildInput): Choice[] {
         ? `${multiList.totalChangeCount} across ${multiList.listsWithChanges} lists`
         : `${multiList.listsWithChanges} lists`
     items.push({ title: `💾 Save all changes (${scope})`, value: '__SAVE__' })
-    if (currentUnsaved) {
+    if (currentUnsaved && !multiList.allLists) {
       items.push({
         title:
           changeCount > 0
@@ -873,13 +889,17 @@ export type CardSessionOptions = {
   cardNames: string[]
   excludeDigitalOnly: boolean
   /**
-   * Session context to resume. The unified editor owns one per open list so
-   * pending changes survive backing out to the list selection menu; when
-   * omitted, a fresh context is created (the single-list commands).
+   * The session context to work in, re-read at the top of every loop iteration.
+   * The unified editor owns one per open list, so pending changes survive
+   * backing out to the list selection menu; All Lists mode returns the context
+   * of whichever list the last card was added to, so the last-added shortcuts
+   * and the note action land there. Omitted, a fresh context is created.
    */
-  ctx?: CardSessionContext
+  ctx?: () => CardSessionContext
   /** Present when the session runs inside the unified multi-list editor. */
   multiList?: MultiListSessionControls
+  /** The strategy edits every open list at once (All Lists mode). */
+  allLists?: boolean
 }
 
 /**
@@ -894,12 +914,16 @@ export async function saveCardSession(
   strategy: CardSessionStrategy,
   ctx: CardSessionContext,
 ): Promise<void> {
+  const { saveTarget } = strategy
+  if (!saveTarget) {
+    throw new Error('A multi-list session must be saved one open list at a time.')
+  }
   if (strategy.hasUnsavedChanges()) {
     await strategy.persist()
     console.log('Changes saved.')
   }
   if (ctx.sessionChanges.length > 0) {
-    await appendChangelog(strategy.filePath, strategy.listName, ctx.sessionChanges, {
+    await appendChangelog(saveTarget.filePath, saveTarget.listName, ctx.sessionChanges, {
       continueSession: ctx.hasSavedChangelog,
     })
     ctx.hasSavedChangelog = true
@@ -982,9 +1006,11 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
   let cardNames = options.cardNames
   let sessionMode: SessionMode = 'add'
 
-  const ctx: CardSessionContext = options.ctx ?? createCardSessionContext()
+  const ownCtx = createCardSessionContext()
+  const currentCtx: () => CardSessionContext = options.ctx ?? (() => ownCtx)
 
   while (true) {
+    const ctx = currentCtx()
     let isExited = false
     let forcePrompts = false
     let isEditing = false
@@ -1023,6 +1049,7 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
         ? {
             totalChangeCount: multiList.totalChangeCount(),
             listsWithChanges: multiList.listsWithChanges(),
+            allLists: options.allLists === true,
           }
         : undefined,
     })

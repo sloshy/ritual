@@ -1,39 +1,35 @@
 import { Command } from 'commander'
-import path from 'node:path'
 import type { Choice } from 'prompts'
 import { LIST_TYPES, LIST_TYPE_DISPLAY, listTypeLabel, type ListType } from '../list-type'
-import { dirForType } from '../resolve-list'
-import { matchesAllTerms } from '../term-match'
 import { parseSetCodesInput } from '../set-codes'
 import {
   applyCacheRefreshOptions,
   buildInitialSessionConfig,
   confirmMultiListExit,
-  createCardSessionContext,
-  listMarkdownNames,
   prepareCardSessionCache,
   resetCardSessionTracking,
   runCardSession,
   saveCardSession,
   type CacheRefreshOptions,
-  type CardSessionContext,
-  type CardSessionStrategy,
   type MultiListSessionControls,
 } from './card-session'
-import { ask } from './prompts-helpers'
+import { ask, suggestByTitleTerms } from './prompts-helpers'
 import { ensureCollectionFile } from './collection-helpers'
 import { ensureWantedListFile } from './wanted-helpers'
+import { ensureDeckFile, promptDeckFormat, type DeckSessionConfig } from './deck-helpers'
 import {
-  ensureDeckFile,
-  listExistingDecks,
-  loadDeck,
-  promptDeckFormat,
-  type DeckSessionConfig,
-} from './deck-helpers'
-import { loadCollectionSession, loadWantedSession } from './flat-list-session'
-import { createCollectionStrategy } from './collection-strategy'
-import { createWantedStrategy } from './wanted-strategy'
-import { createDeckStrategy } from './deck-strategy'
+  collectListRefs,
+  hasUnsavedChanges,
+  openListSession,
+  type OpenList,
+  type UnifiedListRef,
+} from './edit-lists'
+import {
+  ALL_LISTS_ICON,
+  ALL_LISTS_LABEL,
+  createAllListsSession,
+  createAllListsState,
+} from './all-lists-strategy'
 
 /**
  * The unified `edit` command: one interactive editor over every list type. It
@@ -41,6 +37,9 @@ import { createDeckStrategy } from './deck-strategy'
  * and a per-type strategy for each opened list. Each opened list keeps its
  * in-memory session (pending changes included) when the user backs out to the
  * menu, so edits can span several lists before a single save.
+ *
+ * The menu's first item (with two or more lists) opens every list at once — see
+ * {@link createAllListsSession}.
  */
 
 type EditCommandOptions = CacheRefreshOptions & {
@@ -52,21 +51,14 @@ type EditCommandOptions = CacheRefreshOptions & {
   allowDigitalOnlyCards?: boolean
 }
 
-/** One list offered in the unified selection menu. `name` is its display name. */
-export type UnifiedListRef = { type: ListType; name: string; file: string }
+export type { UnifiedListRef } from './edit-lists'
 
-/** The unified selection menu resolves to a list, a create-new action, or exit. */
+/** The unified selection menu resolves to a list, every list, a create-new action, or exit. */
 export type UnifiedSelection =
   | { kind: 'open'; list: UnifiedListRef }
+  | { kind: 'all' }
   | { kind: 'new'; type: ListType }
   | { kind: 'exit' }
-
-/** An opened list's live editing state, kept while the user is in other lists. */
-type OpenList = {
-  ref: UnifiedListRef
-  strategy: CardSessionStrategy
-  ctx: CardSessionContext
-}
 
 /** Pending-change counts for the selection menu badges, keyed by list file path. */
 export type PendingChangesByFile = Map<string, number>
@@ -78,7 +70,8 @@ const NEW_LIST_TITLES: Record<ListType, string> = {
 }
 
 /**
- * Build the unified selection menu: every list grouped by type (each with its
+ * Build the unified selection menu: the All Lists item (only worth offering
+ * once there are two lists to span), every list grouped by type (each with its
  * type icon, plus an unsaved-changes badge for open lists), then the three
  * create-new items and Exit.
  */
@@ -99,6 +92,14 @@ export function buildListSelectionChoices(
       }),
   )
   return [
+    ...(refs.length > 1
+      ? [
+          {
+            title: `${ALL_LISTS_ICON} ${ALL_LISTS_LABEL}`,
+            value: { kind: 'all' } satisfies UnifiedSelection,
+          },
+        ]
+      : []),
     ...listChoices,
     ...LIST_TYPES.map(
       (type): Choice => ({
@@ -107,30 +108,6 @@ export function buildListSelectionChoices(
       }),
     ),
     { title: '🚪 Exit', value: { kind: 'exit' } satisfies UnifiedSelection },
-  ]
-}
-
-/** Enumerate every list on disk for the selection menu (decks by display name). */
-async function collectListRefs(): Promise<UnifiedListRef[]> {
-  const decks = await listExistingDecks()
-  const collections = await listMarkdownNames(dirForType('collection'))
-  const wanted = await listMarkdownNames(dirForType('wanted'))
-  return [
-    ...decks.map((d): UnifiedListRef => ({ type: 'deck', name: d.name, file: d.file })),
-    ...collections.map(
-      (name): UnifiedListRef => ({
-        type: 'collection',
-        name,
-        file: path.join(dirForType('collection'), `${name}.md`),
-      }),
-    ),
-    ...wanted.map(
-      (name): UnifiedListRef => ({
-        type: 'wanted',
-        name,
-        file: path.join(dirForType('wanted'), `${name}.md`),
-      }),
-    ),
   ]
 }
 
@@ -144,13 +121,7 @@ async function promptListToEdit(choices: Choice[]): Promise<UnifiedSelection | u
     message: 'Select a list to edit',
     choices,
     limit: 12,
-    // Term-match on the whole title: the default prefix filter would never
-    // match because every list title starts with its type icon.
-    suggest: async (rawInput, suggestChoices) => {
-      const input = String(rawInput)
-      if (!input) return suggestChoices
-      return suggestChoices.filter((choice) => matchesAllTerms(choice.title, input))
-    },
+    suggest: suggestByTitleTerms,
   })
 }
 
@@ -178,49 +149,6 @@ async function createListRef(type: ListType, name: string): Promise<UnifiedListR
   const file =
     type === 'collection' ? await ensureCollectionFile(name) : await ensureWantedListFile(name)
   return { type, name, file }
-}
-
-/** Load a list into a fresh session and build its type-specific strategy. */
-async function openListSession(
-  ref: UnifiedListRef,
-  sessionConfig: DeckSessionConfig,
-  excludeDigitalOnly: boolean,
-): Promise<OpenList> {
-  const ctx = createCardSessionContext()
-  if (ref.type === 'deck') {
-    const loaded = await loadDeck(ref.file)
-    return {
-      ref,
-      ctx,
-      strategy: createDeckStrategy({
-        deckFile: ref.file,
-        deckName: ref.name,
-        initialDeck: loaded.deck,
-        frontMatter: loaded.frontMatter,
-        sessionConfig,
-        excludeDigitalOnly,
-      }),
-    }
-  }
-  if (ref.type === 'collection') {
-    const session = await loadCollectionSession(ref.file)
-    return {
-      ref,
-      ctx,
-      strategy: createCollectionStrategy(session, sessionConfig, ref.name, excludeDigitalOnly),
-    }
-  }
-  const session = await loadWantedSession(ref.file)
-  return {
-    ref,
-    ctx,
-    strategy: createWantedStrategy(session, sessionConfig, ref.name, excludeDigitalOnly),
-  }
-}
-
-/** Whether an open list has anything unsaved (pending events or a dirty model). */
-function hasUnsavedChanges(open: OpenList): boolean {
-  return open.ctx.sessionChanges.length > 0 || open.strategy.hasUnsavedChanges()
 }
 
 export function registerEditCommand(program: Command): void {
@@ -255,19 +183,32 @@ export function registerEditCommand(program: Command): void {
     const openLists = new Map<string, OpenList>()
     const unsavedLists = (): OpenList[] => [...openLists.values()].filter(hasUnsavedChanges)
 
+    const openList = async (ref: UnifiedListRef): Promise<OpenList> => {
+      const existing = openLists.get(ref.file)
+      if (existing) return existing
+      const opened = await openListSession(ref, sessionConfig, excludeDigitalOnly)
+      openLists.set(ref.file, opened)
+      return opened
+    }
+
+    const saveAll = async (): Promise<void> => {
+      for (const open of unsavedLists()) {
+        console.log(`Saving ${listTypeLabel(open.ref.type)} "${open.ref.name}"...`)
+        await saveCardSession(open.strategy, open.ctx)
+        resetCardSessionTracking(open.strategy, open.ctx)
+      }
+    }
+
     const multiList: MultiListSessionControls = {
       totalChangeCount: () =>
         [...openLists.values()].reduce((sum, open) => sum + open.ctx.sessionChanges.length, 0),
       listsWithChanges: () => unsavedLists().length,
       hasAnyUnsaved: () => unsavedLists().length > 0,
-      saveAll: async (): Promise<void> => {
-        for (const open of unsavedLists()) {
-          console.log(`Saving ${listTypeLabel(open.ref.type)} "${open.ref.name}"...`)
-          await saveCardSession(open.strategy, open.ctx)
-          resetCardSessionTracking(open.strategy, open.ctx)
-        }
-      },
+      saveAll,
     }
+
+    // Which list All Lists mode adds to / last edited, kept across re-entry.
+    const allListsState = createAllListsState()
 
     while (true) {
       const refs = await collectListRefs()
@@ -281,6 +222,31 @@ export function registerEditCommand(program: Command): void {
         return
       }
 
+      if (selection.kind === 'all') {
+        // Edit mode autocompletes over every list's entries, so they must all be
+        // loaded up front — the engine builds that picker synchronously.
+        console.log(`Opening ${refs.length} lists...`)
+        const lists: OpenList[] = []
+        for (const ref of refs) lists.push(await openList(ref))
+        const session = createAllListsSession({
+          lists,
+          sessionConfig,
+          saveAll,
+          state: allListsState,
+        })
+        const result = await runCardSession({
+          strategy: session.strategy,
+          cardNames,
+          excludeDigitalOnly,
+          ctx: session.ctx,
+          multiList,
+          allLists: true,
+        })
+        cardNames = result.cardNames
+        if (result.reason === 'exit') return
+        continue
+      }
+
       let ref: UnifiedListRef
       if (selection.kind === 'new') {
         const name = await promptNewListName(selection.type)
@@ -292,17 +258,12 @@ export function registerEditCommand(program: Command): void {
         ref = selection.list
       }
 
-      let open = openLists.get(ref.file)
-      if (!open) {
-        open = await openListSession(ref, sessionConfig, excludeDigitalOnly)
-        openLists.set(ref.file, open)
-      }
-
+      const open = await openList(ref)
       const result = await runCardSession({
         strategy: open.strategy,
         cardNames,
         excludeDigitalOnly,
-        ctx: open.ctx,
+        ctx: () => open.ctx,
         multiList,
       })
       cardNames = result.cardNames

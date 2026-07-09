@@ -1,6 +1,29 @@
 import { describe, expect, test } from 'bun:test'
-import prompts from 'prompts'
-import { ask, promptExitMenu } from '../../src/commands/prompts-helpers'
+import prompts, { type Choice } from 'prompts'
+import { ask, promptExitMenu, suggestByTitleTerms } from '../../src/commands/prompts-helpers'
+
+describe('suggestByTitleTerms', () => {
+  const choices: Choice[] = [
+    { title: '🎴 Winota Stax', value: 'deck' },
+    { title: '📦 Main Binder', value: 'collection' },
+    { title: '🎯 To Buy', value: 'wanted' },
+  ]
+  const titles = async (input: unknown): Promise<string[]> =>
+    (await suggestByTitleTerms(input, choices)).map((c) => c.title)
+
+  test('empty input keeps every choice', async () => {
+    expect(await titles('')).toHaveLength(3)
+  })
+
+  test('matches terms anywhere in the title, past the leading icon', async () => {
+    expect(await titles('binder')).toEqual(['📦 Main Binder'])
+  })
+
+  test('every whitespace-separated term must match', async () => {
+    expect(await titles('winota stax')).toEqual(['🎴 Winota Stax'])
+    expect(await titles('winota binder')).toEqual([])
+  })
+})
 
 describe('ask', () => {
   test('returns the answered value', async () => {

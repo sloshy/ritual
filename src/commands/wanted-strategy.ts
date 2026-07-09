@@ -139,8 +139,7 @@ export function createWantedStrategy(
 
   return {
     managerLabel: 'wanted list manager',
-    filePath: session.filePath,
-    listName,
+    saveTarget: { filePath: session.filePath, listName },
     // The wanted list has no condition, but the shared engine config carries the
     // full shape; the condition field is simply never read by this strategy.
     sessionConfig,

@@ -1,8 +1,21 @@
-import prompts from 'prompts'
+import prompts, { type Choice } from 'prompts'
 import type { PromptState } from './prompts-types'
 import { LIST_TYPES, type ListType } from '../list-type'
+import { matchesAllTerms } from '../term-match'
 
 type PromptAnswer = { value?: unknown }
+
+/**
+ * The `suggest` callback for an autocomplete whose choices are titled with a
+ * leading icon (list pickers, menus): every whitespace-separated term of the
+ * input must appear somewhere in the title. The library's default filter is a
+ * prefix match, which such a title can never satisfy.
+ */
+export async function suggestByTitleTerms(rawInput: unknown, choices: Choice[]): Promise<Choice[]> {
+  const input = String(rawInput)
+  if (!input) return choices
+  return choices.filter((choice) => matchesAllTerms(choice.title, input))
+}
 
 /**
  * Run a single `prompts` question and return its answer, or `undefined` when

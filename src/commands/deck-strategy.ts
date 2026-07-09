@@ -131,8 +131,7 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
 
   return {
     managerLabel: 'deck manager',
-    filePath: deckFile,
-    listName: deckName,
+    saveTarget: { filePath: deckFile, listName: deckName },
     sessionConfig,
     extraMenuItems: (): Choice[] => [
       {

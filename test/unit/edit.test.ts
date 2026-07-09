@@ -21,6 +21,7 @@ describe('buildListSelectionChoices', () => {
   test('groups lists by type in canonical order, with type icons', () => {
     const titles = buildListSelectionChoices(refs, new Map()).map((c) => c.title)
     expect(titles).toEqual([
+      '🗃️ All Lists',
       '🎴 Winota Stax',
       '📦 Main Binder',
       '🎯 To Buy',
@@ -31,9 +32,17 @@ describe('buildListSelectionChoices', () => {
     ])
   })
 
+  test('All Lists leads the menu once two lists exist, but not before', () => {
+    const one = buildListSelectionChoices(refs.slice(0, 1), new Map())
+    expect(one.map((c) => selectionOf(c))).not.toContainEqual({ kind: 'all' })
+
+    const two = buildListSelectionChoices(refs.slice(0, 2), new Map())
+    expect(selectionOf(two[0]!)).toEqual({ kind: 'all' })
+  })
+
   test('list choices carry an open selection with the full ref', () => {
-    const first = buildListSelectionChoices(refs, new Map())[0]!
-    expect(selectionOf(first)).toEqual({
+    const deck = buildListSelectionChoices(refs, new Map())[1]!
+    expect(selectionOf(deck)).toEqual({
       kind: 'open',
       list: { type: 'deck', name: 'Winota Stax', file: '/decks/winota-stax.md' },
     })

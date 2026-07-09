@@ -71,6 +71,14 @@ ritual edit --no-cache-prompt               # skip the "cache is >1 week old?" p
 ritual edit --refresh-prices                # redownload cache when prices are >1 day old
 \`\`\`
 
+The selection menu's first item, \`🗃️ All Lists\` (shown once there are two or more
+lists), edits every list at once. Adding a card asks **which list** to add it to and
+then runs that list's own prompts, so a deck may take a name-only card while the next
+card added to a collection still requires a specific printing. Edit mode autocompletes
+over every list's entries at once (each labelled with its list), so cards can be edited
+or removed across lists without switching. Save writes each list to its own file and
+changelog; there is no "save current list" item in this mode.
+
 ## Move cards between lists
 
 \`ritual move\` is an interactive TUI (requires a terminal) for moving cards between

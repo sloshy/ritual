@@ -308,6 +308,18 @@ describe('buildMenuChoices', () => {
     expect(saveCurrent?.title).toBe('💾 Save current list changes')
   })
 
+  test('All Lists mode has no save-current item — Save always means save all', () => {
+    const choices = buildMenuChoices({
+      ...base,
+      changeCount: 2,
+      multiList: { totalChangeCount: 5, listsWithChanges: 3, allLists: true },
+    })
+    expect(choices.find((c) => c.value === '__SAVE__')?.title).toBe(
+      '💾 Save all changes (5 across 3 lists)',
+    )
+    expect(choices.map((c) => c.value)).not.toContain('__SAVE_CURRENT__')
+  })
+
   test('multi-list Save all drops the change count when every list is dirty-only', () => {
     // e.g. two decks that each only changed their format: "0 across 2 lists"
     // would misread as nothing to save.
