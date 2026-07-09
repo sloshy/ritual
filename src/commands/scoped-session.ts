@@ -1,6 +1,6 @@
 import type { Choice } from 'prompts'
 import type { ChangeEvent } from '../change-event'
-import { LIST_TYPES, type ListType } from '../list-type'
+import { LIST_TYPES, LIST_TYPE_DISPLAY, type ListType } from '../list-type'
 import {
   createCardSessionContext,
   promptSessionConfigUpdate,
@@ -12,52 +12,91 @@ import {
   type SessionChangeItem,
   type SessionConfig,
 } from './card-session'
-import { hasUnsavedChanges, listRefLabel, NEW_LIST_TITLES, type OpenList } from './edit-lists'
+import {
+  hasUnsavedChanges,
+  listRefLabel,
+  NEW_LIST_TITLES,
+  type OpenList,
+  type UnifiedListRef,
+} from './edit-lists'
 import { ask, suggestByTitleTerms } from './prompts-helpers'
 
 /**
- * The All Lists mode of the unified `edit` command: one card session spanning
- * every list at once. It is a {@link CardSessionStrategy} that owns no list of
- * its own and instead routes each operation to one of the open per-list
- * strategies, always handing that list its own {@link CardSessionContext} so
- * pending changes, undo stacks, and changelogs stay attributed to the right file.
+ * The multi-list modes of the unified `edit` command: one card session spanning
+ * every list at once (All Lists), or every list of one type (All Decks, All
+ * Collections, All Wanted Lists). Each is a {@link CardSessionStrategy} that
+ * owns no list of its own and instead routes each operation to one of the open
+ * per-list strategies, always handing that list its own {@link CardSessionContext}
+ * so pending changes, undo stacks, and changelogs stay attributed to the right file.
  *
  * Adding a card asks which list to add it to — offering to create a new list
  * too — and then runs that list's normal add flow, so e.g. a deck may take a
  * name-only card while a collection still demands a printing. Edit mode
- * autocompletes over every list's entries at once.
+ * autocompletes over every in-scope list's entries at once.
  */
 
-export const ALL_LISTS_LABEL = 'All Lists'
-export const ALL_LISTS_ICON = '🗃️'
+/** Which lists a multi-list session spans: every one, or every one of a type. */
+export type ListScope = 'all' | ListType
+
+/** Every scope, in the order the selection menu offers them. */
+export const LIST_SCOPES: readonly ListScope[] = ['all', ...LIST_TYPES]
+
+/** The scope's menu title, e.g. `🗃️ All Lists` or `🎴 All Decks`. */
+export function listScopeTitle(scope: ListScope): string {
+  if (scope === 'all') return '🗃️ All Lists'
+  const { icon, label } = LIST_TYPE_DISPLAY[scope]
+  return `${icon} All ${label}`
+}
+
+/** Whether a list belongs to a scope. Every list is in the `all` scope. */
+export function inListScope(scope: ListScope, type: ListType): boolean {
+  return scope === 'all' || scope === type
+}
+
+/**
+ * The lists a scope spans. A scoped session never filters for itself: it edits
+ * exactly the lists it is handed, so this is what decides that `All Decks` sees
+ * only decks.
+ */
+export function listsInScope(scope: ListScope, refs: UnifiedListRef[]): UnifiedListRef[] {
+  return refs.filter((ref) => inListScope(scope, ref.type))
+}
+
+/** The list types a new list may be created as, within a scope. */
+export function scopeCreatableTypes(scope: ListScope): readonly ListType[] {
+  return scope === 'all' ? LIST_TYPES : [scope]
+}
 
 /**
  * Which list the next add-mode shortcut acts on, and which list owns the most
  * recent edit-mode operation. Kept outside the strategy so the pointers survive
- * leaving All Lists mode for a single list and coming back.
+ * leaving a multi-list mode for a single list and coming back.
  */
-export type AllListsState = {
+export type ScopedSessionState = {
   /** File path of the list the last card was added to, or null before the first add. */
   activeFile: string | null
   /** File path of the list the last edit-mode operation ran against. */
   lastEditFile: string | null
 }
 
-export function createAllListsState(): AllListsState {
+export function createScopedSessionState(): ScopedSessionState {
   return { activeFile: null, lastEditFile: null }
 }
 
 /** A card session over every list, plus the context provider the engine re-reads. */
-export type AllListsSession = {
+export type ScopedSession = {
   strategy: CardSessionStrategy
   /** The active list's context, or a scratch one before the first add. */
   ctx: () => CardSessionContext
 }
 
-export type AllListsStrategyArgs = {
+export type ScopedSessionArgs = {
+  /** Which lists the session spans, and which types it can create. */
+  scope: ListScope
   /**
-   * Every list, already opened into a live session (edit mode enumerates them
-   * all). Re-read on each use, so a list created mid-session joins immediately.
+   * Every in-scope list, already opened into a live session (edit mode
+   * enumerates them all). Re-read on each use, so a list created mid-session
+   * joins immediately, and one whose creation is discarded drops back out.
    */
   lists: () => OpenList[]
   /**
@@ -69,7 +108,7 @@ export type AllListsStrategyArgs = {
   sessionConfig: SessionConfig
   /** Persist every open list, exactly as the Save item does. */
   saveAll: () => Promise<void>
-  state: AllListsState
+  state: ScopedSessionState
 }
 
 /** Where an entry offered in the cross-list edit picker actually lives. */
@@ -80,8 +119,12 @@ type ChangeTarget = { open: OpenList; index: number }
 /** The destination picked for a card being added: an open list, or a list to create. */
 type AddTarget = { kind: 'list'; open: OpenList } | { kind: 'new'; type: ListType }
 
-/** Build the destination choices: every open list, then the three create-new items. */
-export function buildAddTargetChoices(lists: OpenList[]): Choice[] {
+/**
+ * Build the destination choices: every in-scope list, then a create-new item per
+ * type the scope allows — just the one, in a single-type scope, since a list
+ * created there could only ever be of that type.
+ */
+export function buildAddTargetChoices(lists: OpenList[], scope: ListScope): Choice[] {
   return [
     ...lists.map(
       (open): Choice => ({
@@ -89,7 +132,7 @@ export function buildAddTargetChoices(lists: OpenList[]): Choice[] {
         value: { kind: 'list', open } satisfies AddTarget,
       }),
     ),
-    ...LIST_TYPES.map(
+    ...scopeCreatableTypes(scope).map(
       (type): Choice => ({
         title: NEW_LIST_TITLES[type],
         value: { kind: 'new', type } satisfies AddTarget,
@@ -99,18 +142,21 @@ export function buildAddTargetChoices(lists: OpenList[]): Choice[] {
 }
 
 /** Prompt for the list a card should be added to. Returns undefined when cancelled. */
-async function promptAddTarget(lists: OpenList[]): Promise<AddTarget | undefined> {
+async function promptAddTarget(
+  lists: OpenList[],
+  scope: ListScope,
+): Promise<AddTarget | undefined> {
   return ask<AddTarget>({
     type: 'autocomplete',
     message: 'Add to which list?',
-    choices: buildAddTargetChoices(lists),
+    choices: buildAddTargetChoices(lists, scope),
     limit: 12,
     suggest: suggestByTitleTerms,
   })
 }
 
-export function createAllListsSession(args: AllListsStrategyArgs): AllListsSession {
-  const { lists, createList, sessionConfig, saveAll, state } = args
+export function createScopedSession(args: ScopedSessionArgs): ScopedSession {
+  const { scope, lists, createList, sessionConfig, saveAll, state } = args
 
   // Stands in for the active list's context until the first add. Nothing writes
   // to it: the engine only reads `lastAdded` and the change count off it.
@@ -157,7 +203,7 @@ export function createAllListsSession(args: AllListsStrategyArgs): AllListsSessi
         if (open) await open.strategy.handleCard(open.ctx, input)
         return
       }
-      const target = await promptAddTarget(lists())
+      const target = await promptAddTarget(lists(), scope)
       const open = target?.kind === 'new' ? await createList(target.type) : target?.open
       if (!open) {
         console.log('No list selected. Skipping.')

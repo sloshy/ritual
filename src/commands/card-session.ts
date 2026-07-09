@@ -115,8 +115,8 @@ export type SessionMode = 'add' | 'edit'
 /**
  * An existing list entry offered in the edit-mode picker. The engine treats
  * `cardId` as opaque and hands it straight back to
- * {@link CardSessionStrategy.editEntry} — All Lists mode exploits that to issue
- * synthetic keys, since card ids are only unique within one list.
+ * {@link CardSessionStrategy.editEntry} — a multi-list scope exploits that to
+ * issue synthetic keys, since card ids are only unique within one list.
  */
 export type EditableEntryItem = { label: string; cardId: number }
 
@@ -192,7 +192,7 @@ export type CardSessionStrategy = {
   managerLabel: string
   /**
    * Where {@link saveCardSession} writes this session, or null for a strategy
-   * that spans several lists (All Lists mode) and so has no file of its own —
+   * that spans several lists (a multi-list scope) and so has no file of its own —
    * such a session is saved one open list at a time, through each list's own
    * strategy.
    */
@@ -625,10 +625,10 @@ export type MultiListMenuInfo = {
   /** How many open lists have anything unsaved (pending events or a dirty model). */
   listsWithChanges: number
   /**
-   * The session edits every list at once (All Lists mode), so there is no single
-   * "current list" to save on its own — Save always means save all.
+   * The session edits several lists at once (a multi-list scope), so there is no
+   * single "current list" to save on its own — Save always means save all.
    */
-  allLists?: boolean
+  scoped?: boolean
 }
 
 /** Inputs to {@link buildMenuChoices}. */
@@ -682,7 +682,7 @@ function buildSaveAndSwitchItems(input: MenuBuildInput): Choice[] {
         ? `${multiList.totalChangeCount} across ${multiList.listsWithChanges} lists`
         : `${multiList.listsWithChanges} lists`
     items.push({ title: `💾 Save all changes (${scope})`, value: '__SAVE__' })
-    if (currentUnsaved && !multiList.allLists) {
+    if (currentUnsaved && !multiList.scoped) {
       items.push({
         title:
           changeCount > 0
@@ -897,15 +897,15 @@ export type CardSessionOptions = {
   /**
    * The session context to work in, re-read at the top of every loop iteration.
    * The unified editor owns one per open list, so pending changes survive
-   * backing out to the list selection menu; All Lists mode returns the context
+   * backing out to the list selection menu; a multi-list scope returns the context
    * of whichever list the last card was added to, so the last-added shortcuts
    * and the note action land there. Omitted, a fresh context is created.
    */
   ctx?: () => CardSessionContext
   /** Present when the session runs inside the unified multi-list editor. */
   multiList?: MultiListSessionControls
-  /** The strategy edits every open list at once (All Lists mode). */
-  allLists?: boolean
+  /** The strategy spans several lists at once (a multi-list scope). */
+  scoped?: boolean
 }
 
 /**
@@ -1058,7 +1058,7 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
         ? {
             totalChangeCount: multiList.totalChangeCount(),
             listsWithChanges: multiList.listsWithChanges(),
-            allLists: options.allLists === true,
+            scoped: options.scoped === true,
           }
         : undefined,
     })

@@ -71,14 +71,16 @@ ritual edit --no-cache-prompt               # skip the "cache is >1 week old?" p
 ritual edit --refresh-prices                # redownload cache when prices are >1 day old
 \`\`\`
 
-The selection menu's first item, \`🗃️ All Lists\` (shown once there are two or more
-lists), edits every list at once. Adding a card asks **which list** to add it to — an
-existing one, or a \`➕ New …\` item that creates one on the spot — and then runs that
-list's own prompts, so a deck may take a name-only card while the next card added to a
-collection still requires a specific printing. Edit mode autocompletes over every
-list's entries at once (each labelled with its list), so cards can be edited or removed
-across lists without switching. Save writes each list to its own file and changelog;
-there is no "save current list" item in this mode.
+The selection menu leads with the **multi-list modes** — \`🗃️ All Lists\`, \`🎴 All Decks\`,
+\`📦 All Collections\`, \`🎯 All Wanted Lists\` — each shown only when it spans two or more
+lists (and \`All Lists\` is skipped when every list shares one type). They edit every list
+in scope at once. Adding a card asks **which list** to add it to — an existing one, or a
+\`➕ New …\` item that creates one on the spot — and then runs that list's own prompts, so
+a deck may take a name-only card while the next card added to a collection still requires
+a specific printing. A single-type mode offers only its own type's create item. Edit mode
+autocompletes over every in-scope list's entries at once (each labelled with its list), so
+cards can be edited or removed across lists without switching. Save writes each list to its
+own file and changelog; there is no "save current list" item in these modes.
 
 Creating a list (from the selection menu or from All Lists mode) only creates it **in
 memory**: the file appears when you save the editor, and never if you exit without

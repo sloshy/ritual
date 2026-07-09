@@ -28,8 +28,8 @@ import {
 import { createWantedStrategy } from './wanted-strategy'
 
 /**
- * The list inventory shared by the unified `edit` command and its All Lists
- * mode: enumerating every list on disk, and opening one into a live editing
+ * The list inventory shared by the unified `edit` command and its multi-list
+ * modes: enumerating every list on disk, and opening one into a live editing
  * session. Sessions are kept open (with their unsaved changes) for as long as
  * the editor runs, so edits can span several lists before a single save.
  */

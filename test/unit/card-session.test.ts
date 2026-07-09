@@ -308,11 +308,11 @@ describe('buildMenuChoices', () => {
     expect(saveCurrent?.title).toBe('💾 Save current list changes')
   })
 
-  test('All Lists mode has no save-current item — Save always means save all', () => {
+  test('a scoped session has no save-current item — Save always means save all', () => {
     const choices = buildMenuChoices({
       ...base,
       changeCount: 2,
-      multiList: { totalChangeCount: 5, listsWithChanges: 3, allLists: true },
+      multiList: { totalChangeCount: 5, listsWithChanges: 3, scoped: true },
     })
     expect(choices.find((c) => c.value === '__SAVE__')?.title).toBe(
       '💾 Save all changes (5 across 3 lists)',

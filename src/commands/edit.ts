@@ -26,11 +26,13 @@ import {
   type UnifiedListRef,
 } from './edit-lists'
 import {
-  ALL_LISTS_ICON,
-  ALL_LISTS_LABEL,
-  createAllListsSession,
-  createAllListsState,
-} from './all-lists-strategy'
+  createScopedSession,
+  createScopedSessionState,
+  LIST_SCOPES,
+  listScopeTitle,
+  listsInScope,
+  type ListScope,
+} from './scoped-session'
 
 /**
  * The unified `edit` command: one interactive editor over every list type. It
@@ -39,8 +41,8 @@ import {
  * in-memory session (pending changes included) when the user backs out to the
  * menu, so edits can span several lists before a single save.
  *
- * The menu's first item (with two or more lists) opens every list at once — see
- * {@link createAllListsSession}.
+ * The menu also leads with multi-list scopes (All Lists, All Decks, …), each of
+ * which edits several lists in one session — see {@link createScopedSession}.
  */
 
 type EditCommandOptions = CacheRefreshOptions & {
@@ -54,10 +56,10 @@ type EditCommandOptions = CacheRefreshOptions & {
 
 export type { UnifiedListRef } from './edit-lists'
 
-/** The unified selection menu resolves to a list, every list, a create-new action, or exit. */
+/** The unified selection menu resolves to a list, a multi-list scope, a create-new action, or exit. */
 export type UnifiedSelection =
   | { kind: 'open'; list: UnifiedListRef }
-  | { kind: 'all' }
+  | { kind: 'scope'; scope: ListScope }
   | { kind: 'new'; type: ListType }
   | { kind: 'exit' }
 
@@ -78,10 +80,22 @@ function pendingBadge(pending: ListPendingState | undefined): string {
 }
 
 /**
- * Build the unified selection menu: the All Lists item (only worth offering
- * once there are two lists to span), every list grouped by type (each with its
- * type icon, plus an unsaved-changes badge for open lists), then the three
- * create-new items and Exit.
+ * Whether a multi-list scope is worth offering: it must span at least two
+ * lists. `All Lists` is additionally hidden when every list shares one type,
+ * because it would then be the same session as that type's own scope.
+ */
+export function isScopeOffered(scope: ListScope, refs: UnifiedListRef[]): boolean {
+  const inScope = listsInScope(scope, refs)
+  if (inScope.length < 2) return false
+  if (scope !== 'all') return true
+  return new Set(inScope.map((ref) => ref.type)).size > 1
+}
+
+/**
+ * Build the unified selection menu: the multi-list scope items (All Lists, then
+ * All Decks / All Collections / All Wanted Lists, each only when it spans two
+ * or more lists), every list grouped by type (each with its type icon, plus an
+ * unsaved-changes badge for open lists), then the create-new items and Exit.
  */
 export function buildListSelectionChoices(
   refs: UnifiedListRef[],
@@ -98,14 +112,12 @@ export function buildListSelectionChoices(
       ),
   )
   return [
-    ...(refs.length > 1
-      ? [
-          {
-            title: `${ALL_LISTS_ICON} ${ALL_LISTS_LABEL}`,
-            value: { kind: 'all' } satisfies UnifiedSelection,
-          },
-        ]
-      : []),
+    ...LIST_SCOPES.filter((scope) => isScopeOffered(scope, refs)).map(
+      (scope): Choice => ({
+        title: listScopeTitle(scope),
+        value: { kind: 'scope', scope } satisfies UnifiedSelection,
+      }),
+    ),
     ...listChoices,
     ...LIST_TYPES.map(
       (type): Choice => ({
@@ -227,8 +239,8 @@ export function registerEditCommand(program: Command): void {
       saveAll,
     }
 
-    // Which list All Lists mode adds to / last edited, kept across re-entry.
-    const allListsState = createAllListsState()
+    // Which list a multi-list mode adds to / last edited, kept across re-entry.
+    const scopeState = createScopedSessionState()
 
     while (true) {
       // Lists created this session have no file yet, so they are absent from the
@@ -248,13 +260,16 @@ export function registerEditCommand(program: Command): void {
         return
       }
 
-      if (selection.kind === 'all') {
-        // Edit mode autocompletes over every list's entries, so they must all be
-        // loaded up front — the engine builds that picker synchronously.
-        console.log(`Opening ${refs.length} lists...`)
+      if (selection.kind === 'scope') {
+        const { scope } = selection
+        const inScope = listsInScope(scope, refs)
+        // Edit mode autocompletes over every in-scope list's entries, so they
+        // must all be loaded up front — the engine builds that picker synchronously.
+        console.log(`Opening ${inScope.length} lists...`)
         const files: string[] = []
-        for (const ref of refs) files.push((await openList(ref)).ref.file)
-        const session = createAllListsSession({
+        for (const ref of inScope) files.push((await openList(ref)).ref.file)
+        const session = createScopedSession({
+          scope,
           // Resolved against the open-list map on every read, so a list created
           // from the "Add to which list?" prompt joins the session immediately,
           // and one whose creation is discarded drops straight back out of it.
@@ -266,7 +281,7 @@ export function registerEditCommand(program: Command): void {
           },
           sessionConfig,
           saveAll,
-          state: allListsState,
+          state: scopeState,
         })
         const result = await runCardSession({
           strategy: session.strategy,
@@ -274,7 +289,7 @@ export function registerEditCommand(program: Command): void {
           excludeDigitalOnly,
           ctx: session.ctx,
           multiList,
-          allLists: true,
+          scoped: true,
         })
         cardNames = result.cardNames
         if (result.reason === 'exit') return

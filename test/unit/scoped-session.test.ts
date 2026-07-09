@@ -2,11 +2,14 @@ import { describe, expect, test } from 'bun:test'
 import prompts from 'prompts'
 import {
   buildAddTargetChoices,
-  createAllListsSession,
-  createAllListsState,
-  type AllListsSession,
-  type AllListsState,
-} from '../../src/commands/all-lists-strategy'
+  createScopedSession,
+  createScopedSessionState,
+  listScopeTitle,
+  listsInScope,
+  type ScopedSession,
+  type ScopedSessionState,
+  type ListScope,
+} from '../../src/commands/scoped-session'
 import type { ListType } from '../../src/list-type'
 import {
   createCardSessionContext,
@@ -68,8 +71,8 @@ const pickNewList = (type: ListType): void => prompts.inject([{ kind: 'new', typ
 const cancelPrompt = (): void => prompts.inject([new Error('cancelled')])
 
 /**
- * A stand-in list whose strategy records which context it was handed. All Lists
- * must always pass a list its *own* context, never the engine's.
+ * A stand-in list whose strategy records which context it was handed. A scoped
+ * session must always pass a list its *own* context, never the engine's.
  */
 function fakeList(ref: UnifiedListRef, entries: EditableEntryItem[], changes: string[]): FakeList {
   const ctx = createCardSessionContext()
@@ -146,34 +149,62 @@ const deckRef: UnifiedListRef = { type: 'deck', name: 'Winota', file: '/decks/wi
 const binderRef: UnifiedListRef = { type: 'collection', name: 'Binder', file: '/collections/b.md' }
 const wantedRef: UnifiedListRef = { type: 'wanted', name: 'To Buy', file: '/wanted/to-buy.md' }
 
-/** Overrides for {@link allLists}; the defaults suit every test that ignores them. */
+/** Overrides for {@link scoped}; the defaults suit every test that ignores them. */
 type SessionOverrides = {
-  state?: AllListsState
+  scope?: ListScope
+  state?: ScopedSessionState
   saveAll?: () => Promise<void>
   createList?: (type: ListType) => Promise<OpenList | undefined>
 }
 
 /** `lists` is captured live, so a test's `createList` can push onto it. */
-function allLists(lists: OpenList[], overrides: SessionOverrides = {}): AllListsSession {
-  return createAllListsSession({
+function scoped(lists: OpenList[], overrides: SessionOverrides = {}): ScopedSession {
+  return createScopedSession({
+    scope: overrides.scope ?? 'all',
     lists: () => lists,
     createList: overrides.createList ?? (async () => undefined),
     sessionConfig,
     saveAll: overrides.saveAll ?? (async () => {}),
-    state: overrides.state ?? createAllListsState(),
+    state: overrides.state ?? createScopedSessionState(),
   })
 }
 
-type Fixture = { session: AllListsSession; deck: FakeList; binder: FakeList }
+type Fixture = { session: ScopedSession; deck: FakeList; binder: FakeList }
 
 function fixture(): Fixture {
   // Both lists use card id 1, so only the synthetic keys can tell them apart.
   const deck = fakeList(deckRef, [{ label: '1 Sol Ring &1', cardId: 1 }], ['added Sol Ring'])
   const binder = fakeList(binderRef, [{ label: '- Mox Ruby &1', cardId: 1 }], [])
-  return { session: allLists([deck.open, binder.open]), deck, binder }
+  return { session: scoped([deck.open, binder.open]), deck, binder }
 }
 
-describe('All Lists edit mode', () => {
+describe('list scopes', () => {
+  test('each scope has its own titled menu entry', () => {
+    expect((['all', 'deck', 'collection', 'wanted'] as const).map(listScopeTitle)).toEqual([
+      '🗃️ All Lists',
+      '🎴 All Decks',
+      '📦 All Collections',
+      '🎯 All Wanted Lists',
+    ])
+  })
+
+  test('a scope spans only its own type, and `all` spans everything', () => {
+    // This is what makes All Decks see only decks: a scoped session never
+    // filters for itself, it edits exactly the lists it is handed.
+    const refs = [deckRef, binderRef, wantedRef]
+    expect(listsInScope('all', refs)).toEqual(refs)
+    expect(listsInScope('deck', refs)).toEqual([deckRef])
+    expect(listsInScope('collection', refs)).toEqual([binderRef])
+    expect(listsInScope('wanted', refs)).toEqual([wantedRef])
+  })
+
+  test('a scope with no lists of its type spans nothing', () => {
+    expect(listsInScope('deck', [binderRef, wantedRef])).toEqual([])
+    expect(listsInScope('all', [])).toEqual([])
+  })
+})
+
+describe('scoped session edit mode', () => {
   test('entries from every list are labelled with their list and routed by synthetic key', async () => {
     const { session, deck, binder } = fixture()
     const entries = session.strategy.listEntries()
@@ -221,11 +252,11 @@ describe('All Lists edit mode', () => {
   })
 })
 
-describe('All Lists session changes', () => {
+describe('scoped session changes', () => {
   test('changes are pooled across lists and discarded against their owner', async () => {
     const deck = fakeList(deckRef, [], ['added Sol Ring', 'removed Mox Ruby'])
     const binder = fakeList(binderRef, [], ['added Black Lotus'])
-    const session = allLists([deck.open, binder.open])
+    const session = scoped([deck.open, binder.open])
 
     expect(session.strategy.listSessionChanges().map((c) => c.label)).toEqual([
       '🎴 Winota: added Sol Ring',
@@ -251,7 +282,7 @@ describe('All Lists session changes', () => {
     const created: OpenList = { ...wanted.open, strategy: tracked.strategy, isNew: tracked.isNew }
     lists[1] = created
 
-    const session = allLists(lists)
+    const session = scoped(lists)
     expect(session.strategy.listSessionChanges().map((c) => c.label)).toEqual([
       '🎴 Winota: added Sol Ring',
       '🎯 To Buy: Created this wanted list',
@@ -270,7 +301,7 @@ describe('All Lists session changes', () => {
   test('a pending creation is blocked while its list still has card changes', () => {
     const wanted = fakeList(wantedRef, [], ['added Mox Ruby'])
     const { strategy } = trackListCreation(wanted.open.strategy, wantedRef, () => {})
-    const session = allLists([{ ...wanted.open, strategy }])
+    const session = scoped([{ ...wanted.open, strategy }])
 
     const [creation, card] = session.strategy.listSessionChanges()
     expect(creation?.label).toBe('🎯 To Buy: Created this wanted list')
@@ -279,7 +310,7 @@ describe('All Lists session changes', () => {
   })
 })
 
-describe('All Lists add mode', () => {
+describe('scoped session add mode', () => {
   test('before the first add there is no active list to act on', async () => {
     const { session, deck, binder } = fixture()
     expect(session.ctx().lastAdded).toBeNull()
@@ -322,7 +353,7 @@ describe('All Lists add mode', () => {
   test('the destination prompt offers every open list plus the create-new items', () => {
     const { deck, binder } = fixture()
     binder.setNew(true)
-    expect(buildAddTargetChoices([deck.open, binder.open]).map((c) => c.title)).toEqual([
+    expect(buildAddTargetChoices([deck.open, binder.open], 'all').map((c) => c.title)).toEqual([
       '🎴 Winota',
       // A list created this session is marked, since it has no file yet.
       '📦 Binder (new)',
@@ -332,13 +363,42 @@ describe('All Lists add mode', () => {
     ])
   })
 
+  test('a single-type scope can only create a list of that type', () => {
+    const { deck } = fixture()
+    // Nothing to choose between: a list created here could only be a deck.
+    expect(buildAddTargetChoices([deck.open], 'deck').map((c) => c.title)).toEqual([
+      '🎴 Winota',
+      '➕ New Deck',
+    ])
+    expect(buildAddTargetChoices([], 'wanted').map((c) => c.title)).toEqual(['➕ New Wanted List'])
+  })
+
+  test('a single-type scope creates the list without asking for a type', async () => {
+    const wanted = fakeList(wantedRef, [], [])
+    const requested: ListType[] = []
+    const lists: OpenList[] = []
+    const session = scoped(lists, {
+      scope: 'wanted',
+      createList: async (type) => {
+        requested.push(type)
+        lists.push(wanted.open)
+        return wanted.open
+      },
+    })
+
+    pickNewList('wanted')
+    await session.strategy.handleCard(createCardSessionContext(), addInput('Mox Ruby'))
+    expect(requested).toEqual(['wanted'])
+    expect(wanted.calls.handled.map((i) => i.cardName)).toEqual(['Mox Ruby'])
+  })
+
   test('picking a create-new item adds the card to the freshly created list', async () => {
     const { deck, binder } = fixture()
     const lists = [deck.open, binder.open]
     const wanted = fakeList(wantedRef, [], [])
     wanted.setNew(true)
 
-    const session = allLists(lists, {
+    const session = scoped(lists, {
       createList: async (type) => {
         expect(type).toBe('wanted')
         lists.push(wanted.open)
@@ -412,10 +472,10 @@ describe('All Lists add mode', () => {
     expect(deck.calls.discardedAdds).toEqual([])
   })
 
-  test('the active list survives leaving All Lists mode and coming back', async () => {
+  test('the active list survives leaving the scoped session and coming back', async () => {
     const { deck, binder } = fixture()
-    const state = createAllListsState()
-    const build = (): AllListsSession => allLists([deck.open, binder.open], { state })
+    const state = createScopedSessionState()
+    const build = (): ScopedSession => scoped([deck.open, binder.open], { state })
 
     pickList(binder.open)
     await build().strategy.handleCard(createCardSessionContext(), addInput('Mox Ruby'))
@@ -425,7 +485,7 @@ describe('All Lists add mode', () => {
   })
 })
 
-describe('All Lists saving', () => {
+describe('scoped session saving', () => {
   test('any list with pending changes or a dirty model makes the session unsaved', () => {
     const { session, deck, binder } = fixture()
     expect(session.strategy.hasUnsavedChanges()).toBe(false)
@@ -451,7 +511,7 @@ describe('All Lists saving', () => {
     const deck = fakeList(deckRef, [], [])
     const binder = fakeList(binderRef, [], [])
     let savedAll = 0
-    const session = allLists([deck.open, binder.open], {
+    const session = scoped([deck.open, binder.open], {
       saveAll: async () => {
         savedAll++
       },
