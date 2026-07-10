@@ -189,7 +189,8 @@ describe('generateReadme', () => {
     expect(readme).toContain('automatically builds and')
     expect(readme).toContain('Settings → Pages')
     expect(readme).toContain('GitHub Actions')
-    expect(readme).not.toContain('ritual build-site')
+    // The deploy flow is automated — no manual "Deploying" build/commit steps.
+    expect(readme).not.toContain('Commit the built')
     // distDir is not interpolated into the README in this mode.
     expect(readme).not.toContain('should-not-appear')
   })
@@ -210,6 +211,27 @@ describe('generateReadme', () => {
     expect(readme).toContain('ritual build-site')
     expect(readme).not.toContain('Settings → Pages')
     expect(readme).not.toContain('RITUAL_VERSION')
+  })
+
+  test.each([
+    ['publish-for-me', { ...baseConfig }],
+    ['local-build', { ...baseConfig, deployMode: 'local-build' as const }],
+    ['manual', { ciSystem: 'manual' as const }],
+  ])('%s mode documents the edit workflow and links the docs', (_name, config) => {
+    const readme = generateReadme(config)
+
+    // The interactive editor is the documented way to build every list type.
+    expect(readme).toContain('ritual edit')
+    expect(readme).toContain('`decks/`')
+    expect(readme).toContain('`collections/`')
+    expect(readme).toContain('`wanted/`')
+    // Link out to the full documentation site.
+    expect(readme).toContain('https://ritual.rpeters.dev/')
+    // Browser editor, local preview, and repo layout pointers.
+    expect(readme).toContain('ritual admin')
+    expect(readme).toContain('ritual serve')
+    expect(readme).toContain('http://localhost:3000')
+    expect(readme).toContain('ritual.config.json')
   })
 })
 

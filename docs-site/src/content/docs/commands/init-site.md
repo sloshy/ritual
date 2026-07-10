@@ -227,8 +227,10 @@ Initialize a new site project:
 mkdir my-decks && cd my-decks
 git init
 ritual init-site
-ritual new-deck "My Commander Deck"
+ritual edit
 ```
+
+The generated `README.md` walks new visitors through creating decks, collections, and wanted lists with [`ritual edit`](/commands/edit/), and links to this documentation site.
 
 After setup with GitHub Actions, enable GitHub Pages in your repo settings:
 

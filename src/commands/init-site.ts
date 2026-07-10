@@ -264,19 +264,57 @@ export function generateWorkflow(config: GitHubActionsSiteConfig): string {
   return generateLocalBuildWorkflow(config.distDir)
 }
 
+const GETTING_STARTED = `## Getting Started
+
+Ritual manages three kinds of card lists as Markdown files in your repository:
+
+- **Decks** in \`decks/\`
+- **Collections** in \`collections/\`
+- **Wanted lists** in \`wanted/\`
+
+The easiest way to build any of them is the interactive editor:
+
+\`\`\`sh
+ritual edit
+\`\`\`
+
+\`ritual edit\` opens a single session over every list. From the menu you can
+create a new deck, collection, or wanted list — or pick an existing one — and
+then add, remove, and update cards. Your changes are written to disk when you
+save on exit.
+
+Prefer a browser? Run \`ritual admin\` to manage your lists from a local web
+interface instead.
+
+## Previewing Locally
+
+Build the site and serve it on your machine before you deploy:
+
+\`\`\`sh
+ritual build-site
+ritual serve
+\`\`\`
+
+Then open <http://localhost:3000> to preview it.
+
+## Project Layout
+
+- \`decks/\`, \`collections/\`, \`wanted/\` — your card lists as Markdown files
+- \`ritual.config.json\` — site and pricing settings
+- \`cache/\`, \`dist/\`, and \`all-cards.md\` — generated artifacts (gitignored)
+
+## Documentation
+
+For the full list of commands and features, see the
+[Ritual documentation](https://ritual.rpeters.dev/).`
+
 export function generateReadme(config: InitSiteConfig): string {
   if (config.ciSystem === 'manual') {
     return `# My Ritual Site
 
 A Magic: The Gathering deck site built with [Ritual](https://github.com/sloshy/ritual).
 
-## Getting Started
-
-Add your decks to the \`decks/\` directory as Markdown files. For example:
-
-\`\`\`sh
-ritual new-deck "My Commander Deck"
-\`\`\`
+${GETTING_STARTED}
 
 ## Building
 
@@ -325,13 +363,7 @@ included GitHub Action deploys it to GitHub Pages automatically.`
 
 A Magic: The Gathering deck site built with [Ritual](https://github.com/sloshy/ritual).
 
-## Getting Started
-
-Add your decks to the \`decks/\` directory as Markdown files. For example:
-
-\`\`\`sh
-ritual new-deck "My Commander Deck"
-\`\`\`
+${GETTING_STARTED}
 
 ${buildInstructions}
 
