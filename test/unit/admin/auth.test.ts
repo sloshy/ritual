@@ -50,9 +50,14 @@ describe('admin auth', () => {
   })
 
   test('createAdminUser rejects password shorter than 8 characters', async () => {
-    expect(createAdminUser('admin', 'short')).rejects.toThrow(
+    expect(createAdminUser('admin', 'seven77')).rejects.toThrow(
       'Password must be at least 8 characters',
     )
+  })
+
+  test('createAdminUser accepts a password of exactly 8 characters', async () => {
+    await createAdminUser('admin', 'eight888')
+    expect(await verifyAdminUser('admin', 'eight888')).toBe(true)
   })
 
   test('createAdminUser rejects creating a second admin', async () => {

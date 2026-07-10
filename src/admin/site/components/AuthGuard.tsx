@@ -1,6 +1,7 @@
 import type { Component } from 'solid-js'
 import { createSignal, Show } from 'solid-js'
 import { FlameIcon } from '../../../site/FlameIcon'
+import { MIN_PASSWORD_LENGTH } from '../../validation'
 
 interface AuthGuardSetupProps {
   onSetupComplete: () => void
@@ -39,8 +40,8 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
       return
     }
 
-    if (!props.isLogin && password().length < 4) {
-      setError('Password must be at least 4 characters')
+    if (!props.isLogin && password().length < MIN_PASSWORD_LENGTH) {
+      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`)
       return
     }
 
@@ -169,7 +170,9 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
             </div>
           </Show>
           <Show when={!props.isLogin}>
-            <p class="form-hint auth-hint">Password must be at least 4 characters.</p>
+            <p class="form-hint auth-hint">
+              Password must be at least {MIN_PASSWORD_LENGTH} characters.
+            </p>
           </Show>
           <button type="submit" class="btn btn-primary btn-full" disabled={loading()}>
             {loading() ? 'Please wait...' : props.isLogin ? 'Sign In' : 'Create Account'}
