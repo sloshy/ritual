@@ -179,19 +179,19 @@ describe('FileCacheManager - disk persistence and expiry', () => {
   })
 
   test('should expire items', async () => {
-    // Short expiration
-    const shortCache = new FileCacheManager(cachePath, 'prices', 10) // 10ms
+    // Inject a controllable clock so expiry is deterministic and does not
+    // race real wall-clock timers under parallel test execution.
+    let clockMs = 1_000
+    const shortCache = new FileCacheManager(cachePath, 'prices', 10, () => clockMs) // 10ms TTL
     const data: PriceData = { latest: 100, min: 50, max: 150 }
 
     await shortCache.set('Expired Card', data)
 
-    // Validate immediate read
+    // Immediate read is within the TTL.
     expect(await shortCache.get('Expired Card')).toEqual(data)
 
-    // Wait for expiration
-    await new Promise((r) => setTimeout(r, 20))
-
-    // Read again
+    // Advance the clock past the TTL.
+    clockMs += 20
     const result = await shortCache.get('Expired Card')
     expect(result).toBeNull()
   })

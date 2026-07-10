@@ -6,6 +6,7 @@
     "moduleDetection": "force",
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
+    "incremental": true,
     "allowJs": true,
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,

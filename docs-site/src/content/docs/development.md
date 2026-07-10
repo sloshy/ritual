@@ -80,17 +80,34 @@ bun run build
 
 This produces a `ritual` executable in the project root.
 
+To (re)generate just the bundled front-end assets and license file that the
+type check reads — without the slower `--compile` binary step — run:
+
+```bash
+bun run build:assets
+```
+
+The local check suite (`bun run test`) and the verification suite use this
+lighter build; only `test:it` / `test:e2e`, which actually exercise the binary,
+build the full executable.
+
 ## Testing
 
 This project uses `bun test` for testing.
 
-### Unit Tests
+### Local check suite
 
-Run unit tests for quick feedback:
+`bun run test` runs the whole-repo checks you want before pushing a change —
+**type check, lint, and unit tests** — concurrently, with an assets-only build:
 
 ```bash
 bun run test
 ```
+
+Unit tests run with `--parallel` (one worker per core), the type check is
+incremental, and lint uses `--concurrency auto` plus `--cache`, so repeat runs
+are fast (typically a few seconds). It does **not** check formatting — use
+`bun run check-format` or `bun run verify` for that.
 
 ### Integration Tests
 
@@ -142,10 +159,18 @@ bun run precommit     # Hook: lint/format STAGED files; build + typecheck + unit
 bun run verify        # Full: lint/format the ENTIRE repo (use before pushing / in CI)
 ```
 
-Both commands run the checks concurrently. The build runs alongside the
-build-independent checks (lint, unit tests, and staged-scoped format), and only
-the checks that read build-generated assets — the type check, and the whole-repo
-format check in `verify` — wait for the build to finish.
+Both commands — and `bun run test` — share one orchestrator
+(`scripts/precommit.ts`) that runs the checks concurrently. The assets-only
+build runs alongside the build-independent checks (lint, unit tests, and
+staged-scoped format), and only the checks that read build-generated assets —
+the type check, and the whole-repo format check in `verify` — wait for the
+build to finish. Unit tests run with `--parallel`, the type check is
+incremental, and lint is multithreaded (`--concurrency auto`).
+
+`bun run precommit` and `bun run test` add `--cache` to lint for a fast local
+loop. `bun run verify` deliberately runs lint **cold**: the type-aware rules can
+otherwise return a stale pass for a file whose type dependencies changed but
+whose own contents did not, so the pre-push / CI gate re-checks everything.
 
 `bun run precommit` scopes **lint** and **format** to the staged files: it
 verifies exactly what you're committing, which keeps the hook fast. The build,

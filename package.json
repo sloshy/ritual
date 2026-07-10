@@ -11,15 +11,16 @@
   "license": "AGPL-3.0-only",
   "scripts": {
     "build": "sh scripts/build.sh",
+    "build:assets": "sh scripts/bundle-assets.sh && bun run scripts/generate-licenses.ts",
     "dev": "bun scripts/dev.ts",
     "version:sync": "bun run scripts/sync-version.ts",
     "serve": "bun run index.ts build-site && bun run index.ts serve",
     "format": "prettier --write .",
     "check-format": "prettier --check .",
-    "lint": "eslint .",
+    "lint": "eslint . --concurrency auto",
     "precommit": "bun run scripts/precommit.ts",
     "verify": "bun run scripts/precommit.ts --full",
-    "test": "bun run build && bunx tsc --noEmit && bun run lint && bun test test/unit",
+    "test": "bun run scripts/precommit.ts --test",
     "test:it": "bun run build && bunx tsc --noEmit && RITUAL_IT_PREBUILT=1 bun test test/integration",
     "test:e2e": "sh scripts/bundle-assets.sh && bunx playwright test",
     "prepare": "husky"

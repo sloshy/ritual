@@ -1,24 +1,40 @@
 #!/usr/bin/env bun
 /**
- * Verification orchestrator (used by the Husky pre-commit hook and `bun run verify`).
+ * Verification orchestrator (used by the Husky pre-commit hook, `bun run test`,
+ * and `bun run verify`).
  *
- * Two modes:
+ * Three modes:
  *   - staged (default): lint/format only the staged files. Fast, and the right
  *     scope for a commit — it verifies exactly what you're committing. Build,
  *     type check, and unit tests still run over the whole project (those can't
  *     be meaningfully scoped to a subset of files).
+ *   - --test: type check, lint, and unit-test the entire repo (no format check).
+ *     The frequent local command, exposed as `bun run test`. Lint runs with
+ *     `--cache` for a fast edit loop.
  *   - --full: lint/format the entire repo. Full effectiveness; use before a
- *     push or in CI. Exposed as `bun run verify`.
+ *     push or in CI. Exposed as `bun run verify`. Lint runs cold (no cache) so
+ *     the type-aware rules can't return a stale pass on a file whose type
+ *     dependencies changed.
  *
- * Scheduling: `build` writes the generated assets (`src/generated/*.ts`,
+ * All modes build assets only (`build:assets`) rather than the full
+ * `--compile` binary — type checking and format checking read the bundled
+ * CSS/JS and generated licenses, but never the compiled executable. The binary
+ * is built only by `test:it` / `test:e2e`, which actually exercise it.
+ *
+ * Scheduling: `build:assets` writes the generated assets (`src/generated/*.ts`,
  * `*.compiled.js`, `*.compiled.css`). Only checks that READ those assets must
  * wait for it — flagged with `needsBuild`. Everything else (lint always ignores
  * the generated assets; unit tests don't touch them; staged-scoped format only
  * sees staged files, which never include the git-ignored generated assets) runs
  * concurrently with the build.
+ *
+ * Speed flags: unit tests run with `--parallel` (worker-per-core), tsc is
+ * incremental (`"incremental": true` in tsconfig, dependency-graph aware so it
+ * is safe everywhere), and lint uses `--concurrency auto` (multithreaded) plus
+ * `--cache` in the local-loop modes.
  */
 
-type Mode = 'staged' | 'full'
+type Mode = 'staged' | 'full' | 'test'
 
 type Check = {
   name: string
@@ -54,50 +70,74 @@ async function getStagedFiles(): Promise<string[]> {
 }
 
 async function planChecks(mode: Mode): Promise<Plan> {
-  if (mode === 'full') {
-    return {
-      runBuild: true,
-      checks: [
-        { name: 'typecheck', cmd: ['bunx', 'tsc', '--noEmit'], needsBuild: true },
-        { name: 'lint', cmd: ['bun', 'run', 'lint'], needsBuild: false },
-        { name: 'test:unit', cmd: ['bun', 'test', 'test/unit'], needsBuild: false },
-        // Whole-repo prettier reads `app.compiled.js` / admin compiled CSS,
-        // which are not in `.prettierignore`, so it must wait for the build.
-        { name: 'format', cmd: ['bun', 'run', 'check-format'], needsBuild: true },
-      ],
+  // A `switch` with no `default` makes this exhaustive: `noImplicitReturns`
+  // turns a newly-added `Mode` variant into a compile error here (mirroring the
+  // guarantee the `Record<Mode, string>` summary label already provides).
+  switch (mode) {
+    case 'full':
+      return {
+        runBuild: true,
+        checks: [
+          { name: 'typecheck', cmd: ['bunx', 'tsc', '--noEmit'], needsBuild: true },
+          // Cold (no --cache): type-aware rules can otherwise return a stale pass
+          // for a file whose type dependencies changed but whose own bytes did not.
+          { name: 'lint', cmd: ['bun', 'run', 'lint'], needsBuild: false },
+          { name: 'test:unit', cmd: ['bun', 'test', 'test/unit', '--parallel'], needsBuild: false },
+          // Whole-repo prettier reads `app.compiled.js` / admin compiled CSS,
+          // which are not in `.prettierignore`, so it must wait for the build.
+          { name: 'format', cmd: ['bun', 'run', 'check-format'], needsBuild: true },
+        ],
+      }
+
+    case 'test':
+      return {
+        runBuild: true,
+        checks: [
+          { name: 'typecheck', cmd: ['bunx', 'tsc', '--noEmit'], needsBuild: true },
+          // Local edit loop: --cache turns repeat runs from ~16s into <1s. The
+          // stale-pass risk it carries for type-aware rules is acceptable here;
+          // `verify` (full mode) runs cold as the correctness gate.
+          { name: 'lint', cmd: ['bun', 'run', 'lint', '--cache'], needsBuild: false },
+          { name: 'test:unit', cmd: ['bun', 'test', 'test/unit', '--parallel'], needsBuild: false },
+        ],
+      }
+
+    case 'staged': {
+      const staged = await getStagedFiles()
+      const codeFiles = staged.filter((file) => CODE_FILE_PATTERN.test(file))
+      const checks: Check[] = []
+
+      if (staged.length > 0) {
+        checks.push({
+          name: 'format',
+          cmd: ['bunx', 'prettier', '--check', '--ignore-unknown', ...staged],
+          needsBuild: false,
+        })
+      }
+      if (codeFiles.length > 0) {
+        checks.push(
+          {
+            name: 'lint',
+            cmd: [
+              'bunx',
+              'eslint',
+              '--cache',
+              '--concurrency',
+              'auto',
+              '--no-warn-ignored',
+              '--no-error-on-unmatched-pattern',
+              ...codeFiles,
+            ],
+            needsBuild: false,
+          },
+          { name: 'typecheck', cmd: ['bunx', 'tsc', '--noEmit'], needsBuild: true },
+          { name: 'test:unit', cmd: ['bun', 'test', 'test/unit', '--parallel'], needsBuild: false },
+        )
+      }
+
+      return { runBuild: codeFiles.length > 0, checks }
     }
   }
-
-  const staged = await getStagedFiles()
-  const codeFiles = staged.filter((file) => CODE_FILE_PATTERN.test(file))
-  const checks: Check[] = []
-
-  if (staged.length > 0) {
-    checks.push({
-      name: 'format',
-      cmd: ['bunx', 'prettier', '--check', '--ignore-unknown', ...staged],
-      needsBuild: false,
-    })
-  }
-  if (codeFiles.length > 0) {
-    checks.push(
-      {
-        name: 'lint',
-        cmd: [
-          'bunx',
-          'eslint',
-          '--no-warn-ignored',
-          '--no-error-on-unmatched-pattern',
-          ...codeFiles,
-        ],
-        needsBuild: false,
-      },
-      { name: 'typecheck', cmd: ['bunx', 'tsc', '--noEmit'], needsBuild: true },
-      { name: 'test:unit', cmd: ['bun', 'test', 'test/unit'], needsBuild: false },
-    )
-  }
-
-  return { runBuild: codeFiles.length > 0, checks }
 }
 
 async function runCheck(check: Check): Promise<CheckResult> {
@@ -127,7 +167,8 @@ function printResult(result: CheckResult): void {
 
 async function main(): Promise<void> {
   const start = performance.now()
-  const mode: Mode = process.argv.slice(2).includes('--full') ? 'full' : 'staged'
+  const args = process.argv.slice(2)
+  const mode: Mode = args.includes('--full') ? 'full' : args.includes('--test') ? 'test' : 'staged'
   const { runBuild, checks } = await planChecks(mode)
 
   if (checks.length === 0) {
@@ -141,7 +182,7 @@ async function main(): Promise<void> {
   // Build (if needed) runs alongside the build-independent checks. The
   // build-dependent checks start only once the build has succeeded.
   const buildPromise: Promise<CheckResult | null> = runBuild
-    ? runCheck({ name: 'build', cmd: ['bun', 'run', 'build'], needsBuild: false })
+    ? runCheck({ name: 'build', cmd: ['bun', 'run', 'build:assets'], needsBuild: false })
     : Promise.resolve(null)
 
   const dependentPromise: Promise<CheckResult[]> = buildPromise.then((build) =>
@@ -174,9 +215,8 @@ async function main(): Promise<void> {
     console.error('\n(skipped type check / format check because the build failed)')
   }
 
-  console.log(
-    `\n${mode === 'full' ? 'verify' : 'pre-commit'} total: ${formatSeconds(performance.now() - start)}`,
-  )
+  const label: Record<Mode, string> = { full: 'verify', test: 'test', staged: 'pre-commit' }
+  console.log(`\n${label[mode]} total: ${formatSeconds(performance.now() - start)}`)
   if (failed.length > 0) {
     process.exit(1)
   }

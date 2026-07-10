@@ -67,15 +67,18 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
   private section: K
   private memoryCache: CacheSchema | null = null
   private expirationMs: number
+  private now: () => number
 
   constructor(
     filePath: string | (() => string),
     section: K,
     expirationMs: number = DEFAULT_EXPIRATION_MS,
+    now: () => number = Date.now,
   ) {
     this.filePathGetter = typeof filePath === 'function' ? filePath : () => filePath
     this.section = section
     this.expirationMs = expirationMs
+    this.now = now
   }
 
   private async load(): Promise<CacheSchema> {
@@ -139,7 +142,7 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
 
     if (!entry) return null
 
-    const age = Date.now() - entry.timestamp
+    const age = this.now() - entry.timestamp
 
     if (this.expirationMs > 0 && age > this.expirationMs) {
       await this.delete(key)
@@ -185,7 +188,7 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
     const sectionData = cache[this.section] as Record<string, CachedItem<DataType<K>>>
 
     const item: CachedItem<DataType<K>> = {
-      timestamp: Date.now(),
+      timestamp: this.now(),
       data: value,
     }
     if (this.section === 'cards') {
@@ -204,7 +207,7 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
     }
     const sectionData = cache[this.section] as Record<string, CachedItem<DataType<K>>>
 
-    const now = Date.now()
+    const now = this.now()
     if (this.section === 'cards') {
       cache.cardNameIndex = cache.cardNameIndex ?? {}
     }
@@ -267,7 +270,7 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
 
   async addToBlocklist(name: string): Promise<void> {
     const normalized = name.toLowerCase()
-    const expiry = Date.now() + BLOCKLIST_EXPIRY_MS
+    const expiry = this.now() + BLOCKLIST_EXPIRY_MS
     const cache = await this.load()
     cache.cardBlocklist = cache.cardBlocklist ?? {}
     cache.cardBlocklist[normalized] = expiry
@@ -280,13 +283,13 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
     const cache = await this.load()
     const expiry = cache.cardBlocklist?.[normalized]
     if (expiry === undefined) return false
-    return expiry > Date.now()
+    return expiry > this.now()
   }
 
   async purgeExpiredBlocklist(): Promise<void> {
     const cache = await this.load()
     if (!cache.cardBlocklist) return
-    const now = Date.now()
+    const now = this.now()
     let changed = false
     for (const [name, expiry] of Object.entries(cache.cardBlocklist)) {
       if (expiry <= now) {
