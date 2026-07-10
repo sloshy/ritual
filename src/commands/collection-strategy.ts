@@ -95,8 +95,9 @@ export function createCollectionStrategy(
   const list: FlatListStrategyContext<CollectionCardEntry> = {
     session,
     state,
-    // Collection entries always carry a condition (a "don't care" pick is stored as
-    // NM, matching the admin editor), so render the same default the file will show.
+    // A "don't care" condition pick defaults to NM (matching the admin editor);
+    // formatCollectionLine omits the default NM token, so the rendered line matches
+    // what the file will show.
     renderLine: (name, snapshot, cardId) =>
       formatCollectionLine(
         name,

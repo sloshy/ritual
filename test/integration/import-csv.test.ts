@@ -70,9 +70,9 @@ describe('import-csv', () => {
         '# Binder',
         '',
         '## Main',
-        '- Sol Ring (C19:221) [NM] {keeper} &1',
-        '- Lightning Bolt (LEA:161) [foil] [NM] &2',
-        '- Lightning Bolt (LEA:161) [foil] [NM] &3',
+        '- Sol Ring (C19:221) {keeper} &1',
+        '- Lightning Bolt (LEA:161) [foil] &2',
+        '- Lightning Bolt (LEA:161) [foil] &3',
         '',
       ].join('\n'),
     )

@@ -413,9 +413,9 @@ tags: []
 const COLLECTION_TEST_BINDER = `# Test Binder
 
 ## Main
-- Serra Angel (FDN:35) [NM] &1
-- Lightning Bolt (LEA:161) [foil] [NM] &2
-- Sol Ring (C21:263) [NM] &3
+- Serra Angel (FDN:35) &1
+- Lightning Bolt (LEA:161) [foil] &2
+- Sol Ring (C21:263) &3
 `
 
 const WANTED_TEST_WANTS = `# Test Wants

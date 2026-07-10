@@ -144,7 +144,7 @@ describe('buildMenuChoices', () => {
 
   test('edit mode pares the menu down to mode switch, save/exit, and cards', () => {
     const entryChoice = {
-      title: '- Sol Ring (C19:221) [NM] &1',
+      title: '- Sol Ring (C19:221) &1',
       value: { type: 'entry', cardId: 1 },
     }
     const choices = buildMenuChoices({
@@ -327,8 +327,8 @@ describe('buildMenuChoices', () => {
 describe('suggestEditMode', () => {
   const choices: Choice[] = [
     { title: '🚪 Exit', value: '__EXIT__' },
-    { title: '- Sol Ring (C19:221) [NM] &1', value: { type: 'entry', cardId: 1 } },
-    { title: '- Lightning Bolt (LEA:161) [NM] &2', value: { type: 'entry', cardId: 2 } },
+    { title: '- Sol Ring (C19:221) &1', value: { type: 'entry', cardId: 1 } },
+    { title: '- Lightning Bolt (LEA:161) &2', value: { type: 'entry', cardId: 2 } },
   ]
 
   test('empty input shows only menu items', () => {

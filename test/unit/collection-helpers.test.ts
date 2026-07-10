@@ -52,8 +52,14 @@ describe('formatCollectionLine', () => {
 
   test('includes both finish and condition', () => {
     const card = makeCard('lea', '232')
+    const line = formatCollectionLine('Sol Ring', card.set, card.collectorNumber, 'foil', 'LP')
+    expect(line).toBe('- Sol Ring (LEA:232) [foil] [LP]\n')
+  })
+
+  test('omits the default NM condition', () => {
+    const card = makeCard('lea', '232')
     const line = formatCollectionLine('Sol Ring', card.set, card.collectorNumber, 'foil', 'NM')
-    expect(line).toBe('- Sol Ring (LEA:232) [foil] [NM]\n')
+    expect(line).toBe('- Sol Ring (LEA:232) [foil]\n')
   })
 
   test('includes optional note', () => {
@@ -63,10 +69,10 @@ describe('formatCollectionLine', () => {
       card.set,
       card.collectorNumber,
       'foil',
-      'NM',
+      'LP',
       'signed',
     )
-    expect(line).toBe('- Sol Ring (LEA:232) [foil] [NM] {signed}\n')
+    expect(line).toBe('- Sol Ring (LEA:232) [foil] [LP] {signed}\n')
   })
 
   test('includes card ID suffix', () => {
@@ -76,11 +82,11 @@ describe('formatCollectionLine', () => {
       card.set,
       card.collectorNumber,
       'foil',
-      'NM',
+      'LP',
       undefined,
       5,
     )
-    expect(line).toBe('- Sol Ring (LEA:232) [foil] [NM] &5\n')
+    expect(line).toBe('- Sol Ring (LEA:232) [foil] [LP] &5\n')
   })
 
   test('includes both note and card ID', () => {
@@ -90,11 +96,11 @@ describe('formatCollectionLine', () => {
       card.set,
       card.collectorNumber,
       'foil',
-      'NM',
+      'LP',
       'signed',
       42,
     )
-    expect(line).toBe('- Sol Ring (LEA:232) [foil] [NM] {signed} &42\n')
+    expect(line).toBe('- Sol Ring (LEA:232) [foil] [LP] {signed} &42\n')
   })
 
   test('card ID without note', () => {

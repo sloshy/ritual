@@ -43,12 +43,12 @@ Deck card lines start with a quantity; collection and wanted lines start with \`
 
 \`\`\`
 # My Collection
-- Black Lotus (LEA:232) [foil] [NM] {first edition} &7
+- Black Lotus (LEA:232) [foil] [LP] {first edition} &7
 - Counterspell
 \`\`\`
 
 - \`(SET:CollectorNumber)\` pins a printing. Set codes are written **UPPERCASE** in files.
-- \`[foil]\`/\`[etched]\` is the finish, \`[NM]\`/\`[LP]\`/\`[MP]\`/\`[HP]\`/\`[DMG]\` the condition, \`{...}\` a note.
+- \`[foil]\`/\`[etched]\` is the finish, \`[LP]\`/\`[MP]\`/\`[HP]\`/\`[DMG]\` the condition (the default \`NM\` is not written), \`{...}\` a note.
 - \`&N\` is a **stable internal card ID**. Never hand-author or renumber these — the tools manage them.
 
 **Prefer the CLI (or the web admin / MCP server) over hand-editing files**, so the

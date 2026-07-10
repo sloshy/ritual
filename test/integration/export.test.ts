@@ -41,12 +41,13 @@ async function seedWorkspace(dir: string): Promise<void> {
   await writeCollectionFile(dir, 'binder', {
     title: 'Binder',
     entries: [
+      // No condition: an NM condition is the default and is never written to the
+      // file, so it would not survive the round trip anyway.
       {
         name: 'Sol Ring',
         set: 'c21',
         collectorNumber: '263',
         finish: 'foil',
-        condition: 'NM',
         cardId: 1,
       },
       { name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', condition: 'LP', cardId: 2 },
@@ -139,7 +140,7 @@ describe('export command (Integration)', () => {
       expect(result.exitCode).toBe(0)
       const [header, first] = result.stdout.split('\n')
       expect(header).toBe('Name,Set,Collector Number,Finish,Condition,Quantity')
-      expect(first).toBe('Sol Ring,C21,263,foil,NM,1')
+      expect(first).toBe('Sol Ring,C21,263,foil,,1')
     })
   }, 60_000)
 

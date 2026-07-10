@@ -67,10 +67,11 @@ describe('flat-list session models', () => {
       await persistFlatListSession(session)
       expect(session.dirty).toBe(false)
 
-      // Like an admin save, re-serialization normalizes condition-less entries to [NM].
+      // Like an admin save, re-serialization drops the default NM condition token
+      // (the explicit [NM] on the original Sol Ring line normalizes away).
       const content = await fs.readFile(filePath, 'utf-8')
       expect(content).toBe(
-        '# My Binder\n\n## Trade\n- Sol Ring (C19:221) [foil] [NM] &1\n\n## Keep\n- Lightning Bolt (LEA:161) [NM] &3\n- Mana Crypt (2XM:270) [foil] [NM] &2\n',
+        '# My Binder\n\n## Trade\n- Sol Ring (C19:221) [foil] &1\n\n## Keep\n- Lightning Bolt (LEA:161) &3\n- Mana Crypt (2XM:270) [foil] &2\n',
       )
     })
 
@@ -97,7 +98,7 @@ describe('flat-list session models', () => {
 
       const content = await fs.readFile(filePath, 'utf-8')
       expect(content).toContain('- Sol Ring (LTC:284) [foil] [LP] {signed} &1\n')
-      expect(content).toContain('- Lightning Bolt (LEA:161) [NM] &2\n')
+      expect(content).toContain('- Lightning Bolt (LEA:161) &2\n')
     })
 
     test('a malformed entry is skipped with a warning, not silently mangled', async () => {
@@ -127,8 +128,8 @@ describe('flat-list session models', () => {
       )
       await persistFlatListSession(session)
       const content = await fs.readFile(filePath, 'utf-8')
-      expect(content).toContain('- Sol Ring (C19:221) [NM] &1\n')
-      expect(content).toContain('- Lightning Bolt (LEA:161) [NM] &2\n')
+      expect(content).toContain('- Sol Ring (C19:221) &1\n')
+      expect(content).toContain('- Lightning Bolt (LEA:161) &2\n')
     })
   })
 

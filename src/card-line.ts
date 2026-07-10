@@ -18,8 +18,10 @@ export function printingSuffix(
 
 /**
  * Format a single collection card line in the canonical markdown format, e.g.
- * `- Sol Ring (LTC:284) [foil] [LP] {note} &12`. Pure string formatting shared by
- * the CLI, the admin save handlers, and the public editor's export.
+ * `- Sol Ring (LTC:284) [foil] [LP] {note} &12`. The default NM condition is
+ * omitted (matching deck lines) — only non-NM conditions are written. Pure
+ * string formatting shared by the CLI, the admin save handlers, and the public
+ * editor's export.
  */
 export function formatCollectionLine(
   cardName: string,
@@ -32,7 +34,7 @@ export function formatCollectionLine(
 ): string {
   let line = `- ${cardName} (${set.toUpperCase()}:${collectorNumber})`
   if (finish !== 'nonfoil') line += ` [${finish}]`
-  if (condition) line += ` [${condition}]`
+  if (condition && condition !== 'NM') line += ` [${condition}]`
   if (note) line += ` {${note}}`
   if (cardId !== undefined) line += ` &${cardId}`
   return line + '\n'

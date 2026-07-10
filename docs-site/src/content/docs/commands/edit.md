@@ -153,7 +153,7 @@ of its own list type. Searching matches the list name too, so typing `binder` na
 ```text
 ? Search for a card to edit › o
 ❯   🎴 Test Deck: 1 Sol Ring (LEA:161) — Commander &1
-    📦 Main Binder: - Lightning Bolt (LEA:161) [NM] &1
+    📦 Main Binder: - Lightning Bolt (LEA:161) &1
     🎯 To Buy: - Mox Ruby &1
 ```
 
@@ -378,13 +378,13 @@ Each card entry is written to a markdown collection file in the `collections/` d
 For example:
 
 ```
-- Sol Ring (C19:221) [foil] [NM] &1
-- Lightning Bolt (LEA:161) [NM] &2
-- Mana Crypt (2XM:270) [foil] [NM] {Japanese language, ignore pricing} &3
+- Sol Ring (C19:221) [foil] &1
+- Lightning Bolt (LEA:161) [LP] &2
+- Mana Crypt (2XM:270) [foil] {Japanese language, ignore pricing} &3
 ```
 
-Non-foil finish is omitted for brevity; the condition is always written (a "Don't Care" choice is
-stored as `[NM]`, matching the admin Collection Editor). The note is optional and can be added
+Non-foil finish and the default `NM` condition are omitted for brevity, matching deck lines (a
+"Don't Care" condition choice is treated as `NM` and therefore not written). The note is optional and can be added
 after entry via the `📝 Add Note` menu option. Notes are displayed in the card detail modal on the
 generated site. The `&N` suffix is a persistent card ID used internally for change tracking and is
 auto-assigned.
@@ -420,7 +420,7 @@ For example:
 - Sol Ring &1
 - Lightning Bolt (LEA:161) &2
 - Mana Crypt (2XM:270) [foil] &3
-- Black Lotus (LEB:233) [nonfoil] {birthday present to self} &4
+- Black Lotus (LEB:233) {birthday present to self} &4
 ```
 
 Any combination of set/collector number and finish can be omitted depending on the desired
@@ -438,7 +438,7 @@ out explicitly the next time the file is saved.
 # My Binder
 
 ## Trade Binder
-- Sol Ring (C19:221) [foil] [NM] &1
+- Sol Ring (C19:221) [foil] &1
 
 ## Keep
 - Lightning Bolt (LEA:161) &2
