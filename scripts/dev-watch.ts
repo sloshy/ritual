@@ -7,7 +7,7 @@
 import path from 'node:path'
 
 /** Hand-edited source file types whose changes should restart the child. */
-export function isWatchedSource(filename: string): boolean {
+function isWatchedSource(filename: string): boolean {
   return (
     filename.endsWith('.ts') ||
     filename.endsWith('.tsx') ||
@@ -22,7 +22,7 @@ export function isWatchedSource(filename: string): boolean {
  * unfiltered, any `bun run build` (e.g. from `bun run precommit`) would look
  * like a flurry of source edits and trigger spurious restarts.
  */
-export function isGeneratedAsset(filename: string): boolean {
+function isGeneratedAsset(filename: string): boolean {
   const normalized = filename.split(path.sep).join('/')
   return (
     normalized.endsWith('.compiled.css') ||
