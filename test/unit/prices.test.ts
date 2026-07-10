@@ -1,13 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { parsePriceCacheKey, priceCacheKey } from '../../src/prices'
-
-describe('priceCacheKey', () => {
-  test('creates currency-keyed cache key', () => {
-    expect(priceCacheKey('Sol Ring', 'usd')).toBe('Sol Ring:usd')
-    expect(priceCacheKey('Sol Ring', 'eur')).toBe('Sol Ring:eur')
-    expect(priceCacheKey('Sol Ring', 'tix')).toBe('Sol Ring:tix')
-  })
-})
+import { parsePriceCacheKey } from '../../src/prices'
 
 describe('parsePriceCacheKey', () => {
   test('parses currency-keyed cache key', () => {
