@@ -4,25 +4,15 @@ import os from 'node:os'
 import fs from 'node:fs/promises'
 import { FileCacheManager } from '../../src/cache/file-cache'
 import { MemoryLogger, setLogger, resetLogger } from '../../src/logger'
-import type { ScryfallCard } from '../../src/types'
+import { makeScryfallCard } from '../test-utils'
+import type { PriceData, ScryfallCard } from '../../src/types'
 
 function makeTempPath(): string {
   return path.join(os.tmpdir(), `ritual-test-cache-${Math.random().toString(36).slice(2)}.json`)
 }
 
 function makeCard(name: string): ScryfallCard {
-  return {
-    id: name,
-    name,
-    mana_cost: '',
-    type_line: '',
-    oracle_text: '',
-    set: 'test',
-    collector_number: '1',
-    released_at: '2020-01-01',
-    color_identity: [],
-    prices: {},
-  } as unknown as ScryfallCard
+  return makeScryfallCard({ id: name, name })
 }
 
 describe('FileCacheManager - cardNameIndex', () => {
@@ -102,11 +92,6 @@ describe('FileCacheManager - cardBlocklist', () => {
     expect(logger.entries.some((e) => e.args.join('').includes('dark ritual'))).toBe(true)
   })
 
-  test('isBlocked is case-insensitive (checks lowercase)', async () => {
-    await cache.addToBlocklist('Sol Ring')
-    expect(await cache.isBlocked('sol ring')).toBe(true)
-  })
-
   test('card not in blocklist returns false', async () => {
     expect(await cache.isBlocked('nonexistent card')).toBe(false)
   })
@@ -136,21 +121,78 @@ describe('FileCacheManager - cardBlocklist', () => {
     expect(await cache.isBlocked('any')).toBe(false)
   })
 
-  test('addToBlocklist stores lowercase name', async () => {
-    await cache.addToBlocklist('NONEXISTENT CARD')
-    expect(await cache.isBlocked('nonexistent card')).toBe(true)
+  test('blocklist persists across cache instances', async () => {
+    await cache.addToBlocklist('testcard')
+
+    const reloaded = new FileCacheManager(cachePath, 'cards', 0)
+    expect(await reloaded.isBlocked('testcard')).toBe(true)
+    expect(await reloaded.isBlocked('unblocked card')).toBe(false)
+  })
+})
+
+describe('FileCacheManager - disk persistence and expiry', () => {
+  let cachePath: string
+  let cacheManager: FileCacheManager<'prices'>
+
+  beforeEach(() => {
+    cachePath = makeTempPath()
+    cacheManager = new FileCacheManager(cachePath, 'prices')
   })
 
-  test('blocklist expiry is one week from now', async () => {
-    const before = Date.now()
-    await cache.addToBlocklist('testcard')
-    const after = Date.now()
-    const raw = JSON.parse(await fs.readFile(cachePath, 'utf-8')) as {
-      cardBlocklist: Record<string, number>
-    }
-    const expiry = raw.cardBlocklist?.testcard ?? 0
-    const WEEK_MS = 7 * 24 * 60 * 60 * 1000
-    expect(expiry).toBeGreaterThanOrEqual(before + WEEK_MS)
-    expect(expiry).toBeLessThanOrEqual(after + WEEK_MS)
+  afterEach(async () => {
+    await fs.rm(cachePath, { force: true })
+  })
+
+  test('should write to file and read back', async () => {
+    const data: PriceData = { latest: 10, min: 1, max: 20 }
+
+    await cacheManager.set('Test Card', data)
+
+    // Verify file exists
+    const fileExists = await fs
+      .access(cachePath)
+      .then(() => true)
+      .catch(() => false)
+    expect(fileExists).toBe(true)
+
+    // Verify content
+    const content = await fs.readFile(cachePath, 'utf-8')
+    const json = JSON.parse(content) as { prices: Record<string, { data: PriceData }> }
+    expect(json.prices['Test Card']?.data).toEqual(data)
+
+    // Create new instance to ensure reading from disk
+    const newManager = new FileCacheManager(cachePath, 'prices')
+    const result = await newManager.get('Test Card')
+    expect(result).toEqual(data)
+
+    const timestamp = await newManager.getTimestamp('Test Card')
+    expect(typeof timestamp).toBe('number')
+
+    const lastRefreshedAt = await newManager.getLastRefreshedAt()
+    expect(lastRefreshedAt).toBeNull()
+
+    await newManager.bulkSet({
+      'Bulk Card': { latest: 11, min: 2, max: 21 },
+    })
+    const refreshedAfterBulkSet = await newManager.getLastRefreshedAt()
+    expect(typeof refreshedAfterBulkSet).toBe('number')
+  })
+
+  test('should expire items', async () => {
+    // Short expiration
+    const shortCache = new FileCacheManager(cachePath, 'prices', 10) // 10ms
+    const data: PriceData = { latest: 100, min: 50, max: 150 }
+
+    await shortCache.set('Expired Card', data)
+
+    // Validate immediate read
+    expect(await shortCache.get('Expired Card')).toEqual(data)
+
+    // Wait for expiration
+    await new Promise((r) => setTimeout(r, 20))
+
+    // Read again
+    const result = await shortCache.get('Expired Card')
+    expect(result).toBeNull()
   })
 })

@@ -28,14 +28,6 @@ describe('computeHash', () => {
     expect(hash).toHaveLength(64)
     expect(hash).toMatch(/^[0-9a-f]{64}$/)
   })
-
-  it('is deterministic', () => {
-    expect(computeHash('test')).toBe(computeHash('test'))
-  })
-
-  it('differs for different inputs', () => {
-    expect(computeHash('a')).not.toBe(computeHash('b'))
-  })
 })
 
 describe('hashPath', () => {

@@ -1,5 +1,6 @@
-import { test, expect, type Page } from '@playwright/test'
-import { mockPublicSiteDeckWithMultipleSections } from '../helpers/mock-data'
+import { test, expect } from '@playwright/test'
+import { enterEditMode, openSelectionMenu, selectCard } from '../helpers/list-ui'
+import { mockPublicSiteDeckWithMultipleSections } from '../helpers/mock-public-site'
 
 /**
  * Bulk edit actions on the multi-select menu, available only while a list is open
@@ -9,29 +10,12 @@ import { mockPublicSiteDeckWithMultipleSections } from '../helpers/mock-data'
  * changes — add/remove copies, full removal, move to section, and commander.
  */
 
-async function enterEditMode(page: Page): Promise<void> {
-  await page.locator('.btn-edit').click()
-  await expect(page.locator('.edit-banner')).toBeVisible()
-  await expect(page.locator('.btn-add')).toBeVisible()
-}
-
-async function selectCard(page: Page, index: number): Promise<void> {
-  const card = page.locator('.card-item').nth(index)
-  await card.locator('.card-binder').hover()
-  await card.locator('.card-select-checkbox').click()
-}
-
-async function openSelectionMenu(page: Page) {
-  await page.locator('.selection-menu-btn').click()
-  return page.locator('.selection-menu-panel')
-}
-
 test.describe('Multi-select bulk edit actions', () => {
   test.beforeEach(async ({ page }) => {
     await mockPublicSiteDeckWithMultipleSections(page)
-    await page.goto('#/deck/test-multi-section-deck')
-    await page.waitForSelector('.card-item', { timeout: 15_000 })
-    await enterEditMode(page)
+    await enterEditMode(page, '#/deck/test-multi-section-deck')
+    // Wait for the edit action bar too, so tests drive a fully mounted editor.
+    await expect(page.locator('.btn-add')).toBeVisible()
   })
 
   test('the edit actions appear only in edit mode', async ({ page }) => {

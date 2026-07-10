@@ -1,52 +1,19 @@
-import { test, expect } from '@playwright/test'
-import { loginAsAdmin } from '../helpers/auth-helper'
+import { test, expect, type Route } from '@playwright/test'
+import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor } from '../helpers/editor-nav'
+import { fulfillJson } from '../helpers/fulfill'
+import { makeMockScryfallCard } from '../helpers/mock-cards'
 
-const MOCK_SOL_RING = {
+const MOCK_SOL_RING = makeMockScryfallCard({
   id: 'sol-ring-id',
   name: 'Sol Ring',
   cmc: 1,
   type_line: 'Artifact',
-  image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
-  prices: { usd: '2.00', usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
-  finishes: ['nonfoil'],
-  games: ['paper'],
+  prices: { usd: '2.00' },
   set: 'c21',
   set_name: 'Commander 2021',
   collector_number: '167',
   rarity: 'uncommon',
-  color_identity: [],
-}
-
-test.describe('Collection Editor Page', () => {
-  test.beforeEach(async ({ page }) => {
-    await loginAsAdmin(page)
-    await openListEditor(page, 'collection')
-  })
-
-  test('collection selector is populated with collections', async ({ page }) => {
-    const select = page.locator('select').first()
-    await page.waitForFunction(() => (document.querySelector('select')?.options.length ?? 0) > 1, {
-      timeout: 10_000,
-    })
-    const options = select.locator('option')
-    expect(await options.count()).toBeGreaterThan(1)
-  })
-
-  test('selecting a collection loads its content into the editor', async ({ page }) => {
-    const select = page.locator('select').first()
-    await page.waitForFunction(() => (document.querySelector('select')?.options.length ?? 0) > 1, {
-      timeout: 10_000,
-    })
-    const options = select.locator('option')
-    const value = await options.nth(1).getAttribute('value')
-    expect(value).toBeTruthy()
-    await select.selectOption(value)
-    // Editor should populate with the collection's cards.
-    const firstCard = page.locator('.card-item').first()
-    await expect(firstCard).toBeVisible({ timeout: 10_000 })
-    expect((await firstCard.textContent())?.trim().length ?? 0).toBeGreaterThan(0)
-  })
 })
 
 test.describe('Collection Editor sections', () => {
@@ -54,56 +21,41 @@ test.describe('Collection Editor sections', () => {
 
   test.beforeEach(async ({ page }) => {
     savedBody = null
-    await loginAsAdmin(page)
+    await gotoAdminDashboard(page)
 
-    await page.route('**/api/collections', async (route) => {
-      if (route.request().method() === 'GET') {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ collections: [{ slug: 'test-sections', name: 'Test Sections' }] }),
-        })
-      } else {
-        await route.continue()
-      }
+    await fulfillJson(
+      page,
+      '**/api/collections',
+      { collections: [{ slug: 'test-sections', name: 'Test Sections' }] },
+      { method: 'GET' },
+    )
+
+    await fulfillJson(page, '**/api/collection/test-sections', {
+      success: true,
+      slug: 'test-sections',
+      entries: [
+        {
+          name: 'Sol Ring',
+          set: 'c21',
+          collectorNumber: '167',
+          finish: 'nonfoil',
+          condition: 'NM',
+          price: 0,
+          fileOrder: 0,
+          section: 'Main',
+          cardId: 1,
+        },
+      ],
+      sectionOrder: ['Main'],
+      cards: { 'c21:167': MOCK_SOL_RING, 'Sol Ring': MOCK_SOL_RING },
+      printings: { 'Sol Ring': [MOCK_SOL_RING] },
+      symbolMap: {},
+      contentHash: 'hash-1',
     })
 
-    await page.route('**/api/collection/test-sections', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          success: true,
-          slug: 'test-sections',
-          entries: [
-            {
-              name: 'Sol Ring',
-              set: 'c21',
-              collectorNumber: '167',
-              finish: 'nonfoil',
-              condition: 'NM',
-              price: 0,
-              fileOrder: 0,
-              section: 'Main',
-              cardId: 1,
-            },
-          ],
-          sectionOrder: ['Main'],
-          cards: { 'c21:167': MOCK_SOL_RING, 'Sol Ring': MOCK_SOL_RING },
-          printings: { 'Sol Ring': [MOCK_SOL_RING] },
-          symbolMap: {},
-          contentHash: 'hash-1',
-        }),
-      })
-    })
-
-    await page.route('**/api/collection/test-sections/save', async (route) => {
+    await fulfillJson(page, '**/api/collection/test-sections/save', (route: Route) => {
       savedBody = JSON.parse(route.request().postData() ?? '{}')
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, message: 'Saved', contentHash: 'hash-2' }),
-      })
+      return { success: true, message: 'Saved', contentHash: 'hash-2' }
     })
 
     await openListEditor(page, 'collection')

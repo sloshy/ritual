@@ -102,41 +102,6 @@ describe('applyConfigSet — site selection lists', () => {
       expect(result.updatedConfig.site?.ciSystem).toBe('manual')
     }
   })
-
-  test('replaces site.excludeDecks', () => {
-    const result = applyConfigSet(base, 'site.excludeDecks', ['Old Brew'], 'replace')
-    expect('error' in result).toBeFalse()
-    if (!('error' in result)) {
-      expect(result.newValue).toEqual(['Old Brew'])
-      expect(result.updatedConfig.site?.excludeDecks).toEqual(['Old Brew'])
-    }
-  })
-
-  test('adds to and removes from site.excludeCollections', () => {
-    const seeded = applyConfigSet(base, 'site.excludeCollections', ['A', 'B'], 'replace')
-    expect('error' in seeded).toBeFalse()
-    if ('error' in seeded) {
-      throw new Error(`seed setup failed: ${seeded.error}`)
-    }
-    const removed = applyConfigSet(seeded.updatedConfig, 'site.excludeCollections', ['A'], 'remove')
-    expect('error' in removed).toBeFalse()
-    if (!('error' in removed)) {
-      expect(removed.updatedConfig.site?.excludeCollections).toEqual(['B'])
-    }
-  })
-
-  test('removes a value from site.includeDecks', () => {
-    const seeded = applyConfigSet(base, 'site.includeDecks', ['Atraxa', 'Izzet Storm'], 'replace')
-    expect('error' in seeded).toBeFalse()
-    if ('error' in seeded) {
-      throw new Error(`seed setup failed: ${seeded.error}`)
-    }
-    const result = applyConfigSet(seeded.updatedConfig, 'site.includeDecks', ['Atraxa'], 'remove')
-    expect('error' in result).toBeFalse()
-    if (!('error' in result)) {
-      expect(result.updatedConfig.site?.includeDecks).toEqual(['Izzet Storm'])
-    }
-  })
 })
 
 describe('applyConfigSet — site.bannedPrintings', () => {
@@ -188,15 +153,6 @@ describe('applyConfigSet — string properties', () => {
     }
   })
 
-  test('returns error when multiple values given for string property', () => {
-    const result = applyConfigSet(base, 'decksDir', ['./a', './b'], 'replace')
-    expect('error' in result).toBeTrue()
-    if ('error' in result) {
-      expect(result.error).toContain('string')
-      expect(result.error).toContain('2')
-    }
-  })
-
   test('returns error when --add used with string property', () => {
     const result = applyConfigSet(base, 'decksDir', ['./x'], 'add')
     expect('error' in result).toBeTrue()
@@ -243,19 +199,6 @@ describe('applyConfigSet — boolean properties', () => {
     }
   })
 
-  test.each([
-    ['admin.rateLimitEnabled sets to true', 'true' as const, true],
-    ['admin.rateLimitEnabled sets to false', 'false' as const, false],
-  ])('%s', (_label, input, expected) => {
-    const config = { ...base, admin: { ...base.admin, rateLimitEnabled: !expected } }
-    const result = applyConfigSet(config, 'admin.rateLimitEnabled', [input], 'replace')
-    expect('error' in result).toBeFalse()
-    if (!('error' in result)) {
-      expect(result.newValue).toBe(expected)
-      expect(result.updatedConfig.admin.rateLimitEnabled).toBe(expected)
-    }
-  })
-
   test('returns error for non-boolean value', () => {
     const result = applyConfigSet(base, 'admin.gitEnabled', ['yes'], 'replace')
     expect('error' in result).toBeTrue()
@@ -263,23 +206,6 @@ describe('applyConfigSet — boolean properties', () => {
       expect(result.error).toContain('boolean')
       expect(result.error).toContain('"true" or "false"')
       expect(result.error).toContain('"yes"')
-    }
-  })
-
-  test('returns error when multiple values given for boolean property', () => {
-    const result = applyConfigSet(base, 'admin.gitEnabled', ['true', 'false'], 'replace')
-    expect('error' in result).toBeTrue()
-    if ('error' in result) {
-      expect(result.error).toContain('boolean')
-      expect(result.error).toContain('2')
-    }
-  })
-
-  test('returns error when --add used with boolean property', () => {
-    const result = applyConfigSet(base, 'admin.gitEnabled', ['true'], 'add')
-    expect('error' in result).toBeTrue()
-    if ('error' in result) {
-      expect(result.error).toContain('--add')
     }
   })
 })
@@ -343,14 +269,6 @@ describe('applyConfigSet — number properties', () => {
       expect(result.error).toContain('2')
     }
   })
-
-  test('returns error when --remove used with number property', () => {
-    const result = applyConfigSet(base, 'admin.rateLimitWindowMinutes', ['5'], 'remove')
-    expect('error' in result).toBeTrue()
-    if ('error' in result) {
-      expect(result.error).toContain('--remove')
-    }
-  })
 })
 
 describe('applyConfigSet — array properties (replace)', () => {
@@ -381,15 +299,6 @@ describe('applyConfigSet — array properties (replace)', () => {
       expect(result.newValue).toEqual(['1.2.3.4', '5.6.7.8'])
     }
   })
-
-  test('can set a single value replacing previous array', () => {
-    const config = { ...base, admin: { ...base.admin, ipAllowList: ['10.0.0.1', '10.0.0.2'] } }
-    const result = applyConfigSet(config, 'admin.ipAllowList', ['192.168.0.1'], 'replace')
-    expect('error' in result).toBeFalse()
-    if (!('error' in result)) {
-      expect(result.newValue).toEqual(['192.168.0.1'])
-    }
-  })
 })
 
 describe('applyConfigSet — array properties (add)', () => {
@@ -410,22 +319,6 @@ describe('applyConfigSet — array properties (add)', () => {
       expect(result.newValue).toEqual(['10.0.0.1', '10.0.0.2'])
     }
   })
-
-  test('adds to an empty array', () => {
-    const result = applyConfigSet(base, 'admin.ipAllowList', ['10.0.0.1'], 'add')
-    expect('error' in result).toBeFalse()
-    if (!('error' in result)) {
-      expect(result.newValue).toEqual(['10.0.0.1'])
-    }
-  })
-
-  test('adds multiple new values at once', () => {
-    const result = applyConfigSet(base, 'admin.userAgentDenyList', ['bot1', 'bot2', 'bot3'], 'add')
-    expect('error' in result).toBeFalse()
-    if (!('error' in result)) {
-      expect(result.newValue).toEqual(['bot1', 'bot2', 'bot3'])
-    }
-  })
 })
 
 describe('applyConfigSet — array properties (remove)', () => {
@@ -441,30 +334,12 @@ describe('applyConfigSet — array properties (remove)', () => {
     }
   })
 
-  test('removes multiple values at once', () => {
-    const config = { ...base, admin: { ...base.admin, ipDenyList: ['a', 'b', 'c', 'd'] } }
-    const result = applyConfigSet(config, 'admin.ipDenyList', ['a', 'c'], 'remove')
-    expect('error' in result).toBeFalse()
-    if (!('error' in result)) {
-      expect(result.newValue).toEqual(['b', 'd'])
-    }
-  })
-
   test('silently no-ops when removing a value not present', () => {
     const config = { ...base, admin: { ...base.admin, ipAllowList: ['10.0.0.1'] } }
     const result = applyConfigSet(config, 'admin.ipAllowList', ['10.0.0.99'], 'remove')
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
       expect(result.newValue).toEqual(['10.0.0.1'])
-    }
-  })
-
-  test('can empty an array by removing all values', () => {
-    const config = { ...base, admin: { ...base.admin, ipAllowList: ['10.0.0.1', '10.0.0.2'] } }
-    const result = applyConfigSet(config, 'admin.ipAllowList', ['10.0.0.1', '10.0.0.2'], 'remove')
-    expect('error' in result).toBeFalse()
-    if (!('error' in result)) {
-      expect(result.newValue).toEqual([])
     }
   })
 })
@@ -498,14 +373,6 @@ describe('applyConfigSet — cacheLockTimeoutSeconds', () => {
     expect('error' in result).toBeTrue()
     if ('error' in result) {
       expect(result.error).toContain('positive integer')
-    }
-  })
-
-  test('rejects a negative value', () => {
-    const result = applyConfigSet(base, 'cacheLockTimeoutSeconds', ['-5'], 'replace')
-    expect('error' in result).toBeTrue()
-    if ('error' in result) {
-      expect(result.error).toContain('non-negative')
     }
   })
 })

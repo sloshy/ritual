@@ -6,19 +6,10 @@ const entry = (name: string): Entry => ({ name })
 const nameOf = (e: Entry): string => e.name
 
 describe('includesAllLists', () => {
-  test('treats the default ["*"] as include-all', () => {
+  test('a selection is include-all exactly when it contains the wildcard', () => {
     expect(includesAllLists(['*'])).toBe(true)
-  })
-
-  test('treats a wildcard mixed with names as include-all', () => {
     expect(includesAllLists(['Izzet Storm', '*'])).toBe(true)
-  })
-
-  test('an explicit list of names is not include-all', () => {
     expect(includesAllLists(['Izzet Storm', 'Black Panther'])).toBe(false)
-  })
-
-  test('an empty list is not include-all', () => {
     expect(includesAllLists([])).toBe(false)
   })
 })

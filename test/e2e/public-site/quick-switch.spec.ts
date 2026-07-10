@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mockPublicSiteForQuickSwitch } from '../helpers/mock-data'
+import { mockPublicSiteForQuickSwitch } from '../helpers/mock-public-site'
 
 test.describe('Quick Switch', () => {
   test.beforeEach(async ({ page }) => {

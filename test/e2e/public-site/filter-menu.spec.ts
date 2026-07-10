@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { mockPublicSiteDeckForFilters } from '../helpers/mock-data'
+import { mockPublicSiteDeckForFilters } from '../helpers/mock-public-site'
 import { openFilterMenu } from '../helpers/filter-menu'
 
 // 'Maybe Dragon' lives in the Maybeboard (extras) section; the rest are mainboard.
@@ -285,33 +285,26 @@ test.describe('Toolbar Filters menu', () => {
     await expectVisibleCards(page, ['Golgari Lord', 'White Knight'])
   })
 
-  test('mana value filter matches the exact value, including 0', async ({ page }) => {
-    await openFilterMenu(page)
-    await page.locator('#filter-mana-value').fill('0')
-    await expectVisibleCards(page, ['Test Forest'])
-
-    await page.locator('#filter-mana-value').fill('2')
-    await expectVisibleCards(page, ['Boring Rock', 'White Knight'])
-
-    await page.locator('#filter-mana-value').fill('')
-    await expectVisibleCards(page, ALL_CARDS)
-  })
-
-  test('mana value comparator supports less-than and greater-than-or-equal matching', async ({
+  test('mana value filter matches the exact value, including 0, and honors the comparator', async ({
     page,
   }) => {
     await openFilterMenu(page)
-    const comparator = page.getByRole('group', { name: 'Mana value comparison' })
-    await page.locator('#filter-mana-value').fill('2')
+    // Default operator is '=': matches the exact value, including 0.
+    await page.locator('#filter-mana-value').fill('0')
+    await expectVisibleCards(page, ['Test Forest'])
 
-    await comparator.getByRole('button', { name: '≥', exact: true }).click()
+    // One non-default comparator click proves the operator wiring; the full
+    // operator table is unit-tested in card-filters.test.ts.
+    await page.locator('#filter-mana-value').fill('2')
+    await page
+      .getByRole('group', { name: 'Mana value comparison' })
+      .getByRole('button', { name: '≥', exact: true })
+      .click()
     await expectVisibleCards(page, ['Boring Rock', 'Golgari Lord', 'Maybe Dragon', 'White Knight'])
 
-    await comparator.getByRole('button', { name: '<', exact: true }).click()
-    await expectVisibleCards(page, ['Green Elf', 'Test Forest'])
-
-    await comparator.getByRole('button', { name: '≤', exact: true }).click()
-    await expectVisibleCards(page, ['Boring Rock', 'Green Elf', 'Test Forest', 'White Knight'])
+    // Clearing the field removes the filter entirely.
+    await page.locator('#filter-mana-value').fill('')
+    await expectVisibleCards(page, ALL_CARDS)
   })
 
   test('price filter compares against the active currency and excludes unpriced cards', async ({
@@ -320,18 +313,18 @@ test.describe('Toolbar Filters menu', () => {
     // Prices (USD): Green Elf 0.50, Test Forest 0.25, White Knight 5, Golgari Lord 10,
     // Maybe Dragon 25; Boring Rock has no price.
     await openFilterMenu(page)
-    const comparator = page.getByRole('group', { name: 'Price comparison' })
     await page.locator('#filter-price').fill('5')
 
     // Default operator is '=': only the card priced at exactly 5.
     await expectVisibleCards(page, ['White Knight'])
 
     // '<' keeps the cheaper cards; the unpriced Boring Rock is never matched.
-    await comparator.getByRole('button', { name: '<', exact: true }).click()
+    // (Full operator semantics are unit-tested in card-filters.test.ts.)
+    await page
+      .getByRole('group', { name: 'Price comparison' })
+      .getByRole('button', { name: '<', exact: true })
+      .click()
     await expectVisibleCards(page, ['Green Elf', 'Test Forest'])
-
-    await comparator.getByRole('button', { name: '≥', exact: true }).click()
-    await expectVisibleCards(page, ['Golgari Lord', 'Maybe Dragon', 'White Knight'])
 
     // Clearing the field removes the filter entirely.
     await page.locator('#filter-price').fill('')
@@ -341,7 +334,6 @@ test.describe('Toolbar Filters menu', () => {
   test('copies filter compares the total quantity of cards sharing a name', async ({ page }) => {
     // Golgari Lord is the only card with 2 copies; every other card is a one-of.
     await openFilterMenu(page)
-    const comparator = page.getByRole('group', { name: 'Copies comparison' })
     await page.locator('#filter-copies').fill('1')
 
     // Default operator is '=': every one-of card, but not the 2-copy Golgari Lord.
@@ -350,11 +342,12 @@ test.describe('Toolbar Filters menu', () => {
       ALL_CARDS.filter((c) => c !== 'Golgari Lord'),
     )
 
-    // '>=' keeps everything, since every card has at least 1 copy.
-    await comparator.getByRole('button', { name: '≥', exact: true }).click()
-    await expectVisibleCards(page, ALL_CARDS)
-
-    await page.locator('#filter-copies').fill('2')
+    // One non-default comparator click proves the operator wiring: '> 1' keeps
+    // only the 2-copy Golgari Lord. (Full semantics are unit-tested.)
+    await page
+      .getByRole('group', { name: 'Copies comparison' })
+      .getByRole('button', { name: '>', exact: true })
+      .click()
     await expectVisibleCards(page, ['Golgari Lord'])
 
     // Clearing the field removes the filter entirely.

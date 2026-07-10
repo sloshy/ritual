@@ -1,9 +1,8 @@
 import { describe, expect, test } from 'bun:test'
-import fs from 'node:fs/promises'
-import path from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { binaryPath, ensureBinary, withTempDir } from './helpers/cli'
+import { writeDeckFile } from './helpers/workspace'
 
 type ToolText = { content: { type: string; text?: string }[] }
 type DeckList = { decks: { slug: string }[] }
@@ -21,11 +20,10 @@ describe('ritual mcp (stdio)', () => {
   test('serves the MCP protocol over stdio against a temp base dir', async () => {
     await ensureBinary()
     await withTempDir(async (dir) => {
-      await fs.mkdir(path.join(dir, 'decks'), { recursive: true })
-      await fs.writeFile(
-        path.join(dir, 'decks', 'starter.md'),
-        '---\nname: "Starter"\n---\n\n# Starter\n\n1 Sol Ring &1\n',
-      )
+      await writeDeckFile(dir, 'starter', {
+        frontMatter: { name: 'Starter' },
+        cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
+      })
 
       const transport = new StdioClientTransport({
         command: binaryPath,

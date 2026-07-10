@@ -30,18 +30,23 @@ function menuTitles(frontMatter: Record<string, unknown>): string[] {
   return (strategy.extraMenuItems?.() ?? []).map((c) => c.title)
 }
 
+function changeFormatTitle(frontMatter: Record<string, unknown>): string | undefined {
+  return menuTitles(frontMatter).find((t) => t.includes('Change Format'))
+}
+
 describe('deck strategy extra menu items', () => {
   test('shows Change Format with the current format label', () => {
-    const titles = menuTitles({ format: 'commander' })
-    expect(titles).toContain('🏷️  Change Format (Commander)')
+    expect(changeFormatTitle({ format: 'commander' })).toContain('Change Format (Commander)')
   })
 
   test('shows a raw unknown format string as-is', () => {
-    expect(menuTitles({ format: 'kitchen-table' })).toContain('🏷️  Change Format (kitchen-table)')
+    expect(changeFormatTitle({ format: 'kitchen-table' })).toContain(
+      'Change Format (kitchen-table)',
+    )
   })
 
   test('shows "not set" when the front matter has no format', () => {
-    expect(menuTitles({})).toContain('🏷️  Change Format (not set)')
+    expect(changeFormatTitle({})).toContain('Change Format (not set)')
   })
 })
 

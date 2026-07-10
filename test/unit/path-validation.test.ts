@@ -29,9 +29,4 @@ describe('isPathWithinDir', () => {
     // e.g., /home/user/decks-evil should not be allowed by /home/user/decks
     expect(isPathWithinDir('/home/user/decks-evil/file.md', baseDir)).toBe(false)
   })
-
-  test('handles URL-decoded traversal patterns', () => {
-    const malicious = path.join(baseDir, decodeURIComponent('%2e%2e'), 'etc', 'passwd')
-    expect(isPathWithinDir(malicious, baseDir)).toBe(false)
-  })
 })

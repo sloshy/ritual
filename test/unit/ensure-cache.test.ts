@@ -1,7 +1,13 @@
 import { describe, expect, test, beforeEach, afterEach } from 'bun:test'
 import { ensureCacheForCards } from '../../src/cache/ensure-cards'
 import { BULK_FETCH_THRESHOLD, BULK_CACHE_MAX_AGE_MS } from '../../src/cache/constants'
-import { InMemoryCacheManager, MemoryLogger, setLogger, resetLogger } from '../test-utils'
+import {
+  InMemoryCacheManager,
+  MemoryLogger,
+  makeScryfallCard,
+  setLogger,
+  resetLogger,
+} from '../test-utils'
 import type { ScryfallCard } from '../../src/types'
 
 type CardCache = InMemoryCacheManager<ScryfallCard[]> & {
@@ -14,21 +20,6 @@ function createCardCache(): CardCache {
   cache._lastRefreshedAt = null
   cache.getLastRefreshedAt = async () => cache._lastRefreshedAt
   return cache
-}
-
-function makeCard(name: string): ScryfallCard {
-  return {
-    id: name,
-    name,
-    mana_cost: '',
-    type_line: '',
-    oracle_text: '',
-    set: 'test',
-    collector_number: '1',
-    released_at: '2020-01-01',
-    color_identity: [],
-    prices: {},
-  } as unknown as ScryfallCard
 }
 
 function makeCardNames(count: number): Set<string> {
@@ -112,7 +103,7 @@ describe('ensureCacheForCards', () => {
   test('does not preload when cache is fresh and all cards are cached', async () => {
     const cache = createCardCache()
     cache._lastRefreshedAt = Date.now()
-    await cache.set('Sol Ring', [makeCard('Sol Ring')])
+    await cache.set('Sol Ring', [makeScryfallCard({ name: 'Sol Ring' })])
     let preloadCalled = false
 
     await ensureCacheForCards(new Set(['Sol Ring']), {
@@ -140,23 +131,6 @@ describe('ensureCacheForCards', () => {
     })
 
     // Over BULK_FETCH_THRESHOLD are missing, should preload
-    expect(preloadCalled).toBe(true)
-  })
-
-  test('triggers preload when more than threshold cards are missing', async () => {
-    const cache = createCardCache()
-    cache._lastRefreshedAt = Date.now()
-    const names = makeCardNames(BULK_FETCH_THRESHOLD + 2)
-    // Leave all uncached
-    let preloadCalled = false
-
-    await ensureCacheForCards(names, {
-      cache,
-      preload: async () => {
-        preloadCalled = true
-      },
-    })
-
     expect(preloadCalled).toBe(true)
     expect(hasLogMessage(logger, `Over ${BULK_FETCH_THRESHOLD} cards not found`)).toBe(true)
   })

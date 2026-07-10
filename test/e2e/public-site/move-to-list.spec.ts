@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
-import { mockPublicSiteMultiSelectLists } from '../helpers/mock-data'
+import { enterEditMode, selectCard } from '../helpers/list-ui'
+import { mockPublicSiteMultiSelectLists } from '../helpers/mock-public-site'
 
 /**
  * Moving a card to another list while editing on the public site. The fixture has
@@ -10,17 +11,8 @@ import { mockPublicSiteMultiSelectLists } from '../helpers/mock-data'
 test.describe('Move to list (public editor)', () => {
   test.beforeEach(async ({ page }) => {
     await mockPublicSiteMultiSelectLists(page)
-    await page.goto('#/deck/ms-a')
-    await page.waitForSelector('.card-item', { timeout: 15_000 })
-    await page.locator('.btn-edit').click()
-    await expect(page.locator('.edit-banner')).toBeVisible()
+    await enterEditMode(page, '#/deck/ms-a')
   })
-
-  const selectCard = async (page: import('@playwright/test').Page, index: number) => {
-    const card = page.locator('.card-item').nth(index)
-    await card.locator('.card-binder').hover()
-    await card.locator('.card-select-checkbox').click()
-  }
 
   test('per-list Selected menu moves a card out of the edited list', async ({ page }) => {
     const before = await page.locator('.card-item').count()

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mockPublicSiteForFind } from '../helpers/mock-data'
+import { mockPublicSiteForFind } from '../helpers/mock-public-site'
 
 /**
  * The Find page: paste a list of card names, search every list by name, and see
@@ -16,15 +16,14 @@ test.describe('Find page', () => {
     await page.waitForSelector('.find-input', { timeout: 15_000 })
   })
 
-  test('the Find link sits next to Trade in the navbar', async ({ page }) => {
-    const findLink = page.getByRole('link', { name: 'Find', exact: true })
-    await expect(findLink).toBeVisible()
-    await expect(findLink).toHaveClass(/site-nav-link-active/)
-  })
-
   test('searches names across lists, as a list view grouped by source, front-face only', async ({
     page,
   }) => {
+    // Smoke: the Find link appears in the header nav and is marked active on #/find.
+    const findLink = page.getByRole('link', { name: 'Find', exact: true })
+    await expect(findLink).toBeVisible()
+    await expect(findLink).toHaveClass(/site-nav-link-active/)
+
     await page
       .locator('.find-input')
       .fill('Lightning Bolt\nSol Ring\nBruce Banner\nSteam Vents\nBlack Lotus')

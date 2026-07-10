@@ -1,5 +1,9 @@
 import { describe, test, expect, mock } from 'bun:test'
-import { ArchidektClient, getArchidektFormat } from '../../../src/clients/ArchidektClient'
+import { ArchidektClient } from '../../../src/clients/ArchidektClient'
+import {
+  type ArchidektDeckResponse,
+  parseArchidektDeckResponse,
+} from '../../../src/importers/archidekt-types'
 
 describe('ArchidektClient', () => {
   test('should fetch public decks', async () => {
@@ -70,14 +74,8 @@ describe('ArchidektClient', () => {
     expect(client.fetchPublicDecks('bad')).rejects.toThrow('Failed to fetch public decks')
   })
 
-  test('should map format IDs to strings', () => {
-    expect(getArchidektFormat(1)).toBe('Standard')
-    expect(getArchidektFormat(3)).toBe('Commander / EDH')
-    expect(getArchidektFormat(999)).toBe('Unknown')
-  })
-
-  test('should fetch deck details', async () => {
-    const mockFetch = mock(async (_url) => {
+  test('should fall back to the Main section for unknown category IDs', async () => {
+    const mockFetch = mock(async () => {
       return new Response(
         JSON.stringify({
           id: 1,
@@ -86,23 +84,25 @@ describe('ArchidektClient', () => {
             {
               quantity: 1,
               card: { oracleCard: { name: 'Card A' } },
-              categories: [{ id: 1, name: 'Main' }],
+              categories: [99],
             },
           ],
-          categories: [{ id: 1, name: 'Main' }],
+          categories: [{ id: 1, name: 'Commander' }],
         }),
       )
     })
     const client = new ArchidektClient({ fetch: mockFetch })
     const deck = await client.fetchDeck('1')
-    expect(mockFetch).toHaveBeenCalled()
-    expect(deck.name).toBe('Test Deck')
-    expect(deck.sections).toHaveLength(1)
-    expect(deck.sections[0]?.name).toBe('Main')
+    const main = deck.sections.find((s) => s.name === 'Main')
+    expect(main).toBeDefined()
+    expect(main?.cards).toEqual([{ name: 'Card A', quantity: 1 }])
   })
 
   test('should parse categories and description from deck response', async () => {
-    const mockFetch = mock(async () => {
+    const mockFetch = mock(async (_url: string | URL | Request, opts?: any) => {
+      if (opts?.headers?.Authorization !== 'JWT mytoken') {
+        return new Response('Unauthorized', { status: 401 })
+      }
       return new Response(
         JSON.stringify({
           id: 12345,
@@ -129,7 +129,7 @@ describe('ArchidektClient', () => {
     })
 
     const client = new ArchidektClient({ fetch: mockFetch })
-    const deck = await client.fetchDeck('12345')
+    const deck = await client.fetchDeck('12345', 'mytoken')
 
     expect(deck.name).toBe('Test Deck')
     expect(deck.sourceId).toBe('12345')
@@ -148,22 +148,9 @@ describe('ArchidektClient', () => {
     expect(main?.cards[0]?.quantity).toBe(10)
   })
 
-  test('should fetch deck details with token', async () => {
-    const mockFetch = mock(async (_url: any, opts: any) => {
-      if (opts.headers.Authorization !== 'JWT token') {
-        return new Response('Unauthorized', { status: 401 })
-      }
-      return new Response(
-        JSON.stringify({
-          id: 1,
-          name: 'Private Deck',
-          cards: [],
-        }),
-      )
-    })
-    const client = new ArchidektClient({ fetch: mockFetch })
-    const deck = await client.fetchDeck('1', 'token')
-    expect(deck.name).toBe('Private Deck')
+  test('should parse a response with no categories and no cards', () => {
+    const response: ArchidektDeckResponse = { name: 'X', cards: [] }
+    expect(parseArchidektDeckResponse(response, '1').sections).toHaveLength(0)
   })
 
   test('should throw error when fetchDeck fails', async () => {

@@ -1,28 +1,9 @@
 import { test, expect } from '@playwright/test'
-import { loginAsAdmin } from '../helpers/auth-helper'
+import { gotoAdminDashboard } from '../helpers/auth-helper'
 
 test.describe('Layout & Navigation', () => {
   test.beforeEach(async ({ page }) => {
-    await loginAsAdmin(page)
-  })
-
-  test('sidebar nav items have expected labels', async ({ page }) => {
-    const labels = [
-      'Dashboard',
-      'Edit Lists',
-      'Manage Lists',
-      'Import Deck',
-      'Build Site',
-      'Refresh Cache',
-      'Archidekt Login',
-      'Audit Log',
-      'Settings',
-    ]
-    for (const label of labels) {
-      await expect(
-        page.locator(`.admin-sidebar .admin-nav-item:has-text("${label}")`),
-      ).toBeVisible()
-    }
+    await gotoAdminDashboard(page)
   })
 
   test('clicking nav item changes page and active state', async ({ page }) => {
@@ -30,6 +11,11 @@ test.describe('Layout & Navigation', () => {
     await expect(page.locator('.section-heading')).toContainText('Settings')
     const settingsNav = page.locator('.admin-sidebar .admin-nav-item:has-text("Settings")')
     await expect(settingsNav).toHaveAttribute('data-active', 'true')
+  })
+
+  test('clicking a dashboard card navigates to its page', async ({ page }) => {
+    await page.locator('.admin-card:has-text("Build Site")').click()
+    await expect(page.locator('.section-heading')).toContainText('Build Site')
   })
 
   test('mobile hamburger menu opens sidebar overlay', async ({ page }) => {

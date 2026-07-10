@@ -5,7 +5,11 @@ import { tmpdir } from 'node:os'
 import type { Subprocess } from 'bun'
 import WebTorrent from 'webtorrent'
 import { ensureBinary, binaryPath, runCli } from './helpers/cli'
-import { parseCacheFeed, type CacheFeedDocument } from '../../src/cache-feed/feed'
+import {
+  parseCacheFeed,
+  type CacheFeedDocument,
+  type CacheFeedEntry,
+} from '../../src/cache-feed/feed'
 import { gzipJsonLines } from '../test-utils'
 
 // Fixed ports for the spawned host; chosen away from the other suites' ports.
@@ -39,6 +43,44 @@ async function waitForFeed(url: string, timeoutMs: number): Promise<CacheFeedDoc
     }
     if (Date.now() - start > timeoutMs) throw new Error(`Timed out waiting for ${url}`)
     await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+}
+
+// Leech the entry's artifact from a TCP peer and verify its sha256 hash.
+async function leechAndVerify(entry: CacheFeedEntry, peerPort: number): Promise<void> {
+  const torrentBuf = new Uint8Array(await (await fetch(entry.torrentUrl)).arrayBuffer())
+  const downloadDir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-leech-'))
+  const leecher = new WebTorrent({
+    dht: false,
+    tracker: false,
+    lsd: false,
+    utp: false,
+    webSeeds: false,
+    natUpnp: false,
+    natPmp: false,
+  })
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`Leech from 127.0.0.1:${peerPort} timed out`)),
+        30_000,
+      )
+      const torrent = leecher.add(torrentBuf, { path: downloadDir })
+      torrent.on('error', (err) => reject(err instanceof Error ? err : new Error(String(err))))
+      torrent.on('infoHash', () => torrent.addPeer(`127.0.0.1:${peerPort}`))
+      torrent.on('done', () => {
+        clearTimeout(timer)
+        resolve()
+      })
+    })
+    const downloaded = new Uint8Array(
+      await Bun.file(path.join(downloadDir, entry.fileName)).arrayBuffer(),
+    )
+    const hash = new Bun.CryptoHasher('sha256').update(downloaded).digest('hex')
+    expect(hash).toBe(entry.sha256)
+  } finally {
+    await new Promise<void>((resolve) => leecher.destroy(() => resolve()))
+    await fs.rm(downloadDir, { recursive: true, force: true })
   }
 }
 
@@ -178,40 +220,7 @@ describe('cache-feed host (e2e over the built binary)', () => {
 
       // And the server seeds: leech the default-cards artifact from it over TCP.
       const entry = feed.entries.find((candidate) => candidate.kind === 'default-cards')!
-      const torrentBuf = new Uint8Array(await (await fetch(entry.torrentUrl)).arrayBuffer())
-      const downloadDir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-server-leech-'))
-      const leecher = new WebTorrent({
-        dht: false,
-        tracker: false,
-        lsd: false,
-        utp: false,
-        webSeeds: false,
-        natUpnp: false,
-        natPmp: false,
-      })
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const timer = setTimeout(
-            () => reject(new Error('Leech from cache-server timed out')),
-            30_000,
-          )
-          const torrent = leecher.add(torrentBuf, { path: downloadDir })
-          torrent.on('error', (err) => reject(err instanceof Error ? err : new Error(String(err))))
-          torrent.on('infoHash', () => torrent.addPeer(`127.0.0.1:${CACHE_SERVER_TORRENT_PORT}`))
-          torrent.on('done', () => {
-            clearTimeout(timer)
-            resolve()
-          })
-        })
-        const downloaded = new Uint8Array(
-          await Bun.file(path.join(downloadDir, entry.fileName)).arrayBuffer(),
-        )
-        const hash = new Bun.CryptoHasher('sha256').update(downloaded).digest('hex')
-        expect(hash).toBe(entry.sha256)
-      } finally {
-        await new Promise<void>((resolve) => leecher.destroy(() => resolve()))
-        await fs.rm(downloadDir, { recursive: true, force: true })
-      }
+      await leechAndVerify(entry, CACHE_SERVER_TORRENT_PORT)
       // The server's own log must attribute the ingest to the feed — a silent
       // fallback to a live Scryfall download would otherwise mask a broken
       // feed path (the synthetic cards share names with real ones).
@@ -280,38 +289,6 @@ describe('cache-feed host (e2e over the built binary)', () => {
 
   test('a torrent client downloads an artifact from the host over TCP', async () => {
     const entry = feed.entries.find((candidate) => candidate.kind === 'default-cards')!
-    const torrentBuf = new Uint8Array(await (await fetch(entry.torrentUrl)).arrayBuffer())
-
-    const downloadDir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-leech-'))
-    const leecher = new WebTorrent({
-      dht: false,
-      tracker: false,
-      lsd: false,
-      utp: false,
-      webSeeds: false,
-      natUpnp: false,
-      natPmp: false,
-    })
-    try {
-      await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error('Leech timed out')), 30_000)
-        const torrent = leecher.add(torrentBuf, { path: downloadDir })
-        torrent.on('error', (err) => reject(err instanceof Error ? err : new Error(String(err))))
-        torrent.on('infoHash', () => torrent.addPeer(`127.0.0.1:${TORRENT_PORT}`))
-        torrent.on('done', () => {
-          clearTimeout(timer)
-          resolve()
-        })
-      })
-
-      const downloaded = new Uint8Array(
-        await Bun.file(path.join(downloadDir, entry.fileName)).arrayBuffer(),
-      )
-      const hash = new Bun.CryptoHasher('sha256').update(downloaded).digest('hex')
-      expect(hash).toBe(entry.sha256)
-    } finally {
-      await new Promise<void>((resolve) => leecher.destroy(() => resolve()))
-      await fs.rm(downloadDir, { recursive: true, force: true })
-    }
+    await leechAndVerify(entry, TORRENT_PORT)
   }, 60_000)
 })

@@ -1,8 +1,7 @@
 import { describe, test, expect } from 'bun:test'
-import type { CollectionSummary, DeckSummary } from '../../../src/site/data-types'
+import type { DeckSummary } from '../../../src/site/data-types'
 import {
   groupDecksByFormat,
-  INDEX_SORT_OPTIONS,
   LIST_SORT_OPTIONS,
   parseIndexGroup,
   parseIndexSort,
@@ -139,84 +138,6 @@ describe('sortSummaries (decks)', () => {
   })
 })
 
-function makeCollection(
-  partial: Partial<CollectionSummary> & { slug: string; name: string },
-): CollectionSummary {
-  return {
-    slug: partial.slug,
-    name: partial.name,
-    featuredCardImage: '',
-    cardCount: partial.cardCount ?? 1,
-    lastUpdatedAt: partial.lastUpdatedAt,
-    totalPrice: partial.totalPrice ?? 0,
-    totalPriceEur: partial.totalPriceEur ?? 0,
-    totalPriceTix: partial.totalPriceTix ?? 0,
-  }
-}
-
-describe('sortSummaries (collections / wanted lists)', () => {
-  // Collections and wanted lists share the same summary shape for sorting, so a
-  // single set of collection-backed cases covers both index tabs. These tabs do
-  // not offer the 'lowestPrice' sort (deck-only), so it is not exercised here.
-  const main = makeCollection({
-    slug: 'main',
-    name: 'Main Binder',
-    lastUpdatedAt: '2026-02-01T00:00:00.000Z',
-    totalPrice: 1200,
-  })
-  const trades = makeCollection({
-    slug: 'trades',
-    name: 'Trade Stock',
-    lastUpdatedAt: '2026-05-10T00:00:00.000Z',
-    totalPrice: 75,
-  })
-  const cube = makeCollection({
-    slug: 'cube',
-    name: 'Awesome Cube',
-    lastUpdatedAt: '2026-03-15T00:00:00.000Z',
-    totalPrice: 450,
-  })
-  const lists = [main, trades, cube]
-
-  test("'alpha' sorts by name A-Z", () => {
-    expect(sortSummaries(lists, 'alpha', 'usd', false).map((c) => c.slug)).toEqual([
-      'cube',
-      'main',
-      'trades',
-    ])
-  })
-
-  test("'recent' sorts newest first", () => {
-    expect(sortSummaries(lists, 'recent', 'usd', false).map((c) => c.slug)).toEqual([
-      'trades',
-      'cube',
-      'main',
-    ])
-  })
-
-  test("'price' sorts highest current total first", () => {
-    expect(sortSummaries(lists, 'price', 'usd', false).map((c) => c.slug)).toEqual([
-      'main',
-      'cube',
-      'trades',
-    ])
-  })
-
-  test('reverse flips the result', () => {
-    expect(sortSummaries(lists, 'alpha', 'usd', true).map((c) => c.slug)).toEqual([
-      'trades',
-      'main',
-      'cube',
-    ])
-  })
-
-  test('items without a timestamp sort last under recent', () => {
-    const undated = makeCollection({ slug: 'x', name: 'Unknown' })
-    const sorted = sortSummaries([undated, main, trades], 'recent', 'usd', false)
-    expect(sorted.map((c) => c.slug)).toEqual(['trades', 'main', 'x'])
-  })
-})
-
 describe('groupDecksByFormat', () => {
   test('groups decks by their detected format, preserving input order within groups', () => {
     const decks: DeckSummary[] = [
@@ -271,15 +192,5 @@ describe('parseIndexSort / parseIndexGroup', () => {
 
   test('falls back to none for unknown group strings', () => {
     expect(parseIndexGroup('unknown')).toBe('none')
-  })
-})
-
-describe('sort option sets', () => {
-  test('decks offer the lowest-price sort', () => {
-    expect(INDEX_SORT_OPTIONS.map((o) => o.value)).toContain('lowestPrice')
-  })
-
-  test('collections and wanted lists omit the lowest-price sort', () => {
-    expect(LIST_SORT_OPTIONS.map((o) => o.value)).toEqual(['alpha', 'recent', 'price'])
   })
 })

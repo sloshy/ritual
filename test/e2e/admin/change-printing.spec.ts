@@ -1,33 +1,30 @@
 import { test, expect } from '@playwright/test'
-import { loginAsAdmin } from '../helpers/auth-helper'
+import type { ScryfallCard } from '../../../src/types'
+import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor } from '../helpers/editor-nav'
+import { fulfillJson } from '../helpers/fulfill'
+import { makeMockScryfallCard } from '../helpers/mock-cards'
 import { disableSearchDebounce } from '../helpers/search-modal'
 
 /** Build a synthetic Scryfall printing for Lightning Bolt with a given USD price. */
-function boltPrinting(set: string, setName: string, collectorNumber: string, usd: string) {
-  return {
+function boltPrinting(
+  set: string,
+  setName: string,
+  collectorNumber: string,
+  usd: string,
+): ScryfallCard {
+  return makeMockScryfallCard({
     id: `bolt-${set}`,
     name: 'Lightning Bolt',
     cmc: 1,
     type_line: 'Instant',
     oracle_text: 'Lightning Bolt deals 3 damage to any target.',
-    image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
-    prices: {
-      usd,
-      usd_foil: null,
-      usd_etched: null,
-      eur: '0.80',
-      eur_foil: null,
-      tix: null,
-    },
-    finishes: ['nonfoil'],
-    games: ['paper'],
+    prices: { usd, eur: '0.80' },
     set,
     set_name: setName,
     collector_number: collectorNumber,
-    rarity: 'common',
     color_identity: ['R'],
-  }
+  })
 }
 
 // Distinct prices so we can assert the rendered card reflects the chosen printing.
@@ -37,64 +34,48 @@ const M10_BOLT = boltPrinting('m10', 'Magic 2010', '146', '2.50')
 test.describe('Deck Editor — change printing', () => {
   test.beforeEach(async ({ page }) => {
     await disableSearchDebounce(page)
-    await loginAsAdmin(page)
+    await gotoAdminDashboard(page)
 
-    await page.route('**/api/decks', async (route) => {
-      if (route.request().method() === 'GET') {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            decks: [{ slug: 'test-change-printing', name: 'Change Printing Deck' }],
-          }),
-        })
-      } else {
-        await route.continue()
-      }
-    })
+    await fulfillJson(
+      page,
+      '**/api/decks',
+      { decks: [{ slug: 'test-change-printing', name: 'Change Printing Deck' }] },
+      { method: 'GET' },
+    )
 
-    await page.route('**/api/deck/test-change-printing', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          success: true,
-          slug: 'test-change-printing',
-          contentHash: 'hash-1',
-          deck: {
-            name: 'Change Printing Deck',
-            sections: [
+    await fulfillJson(page, '**/api/deck/test-change-printing', {
+      success: true,
+      slug: 'test-change-printing',
+      contentHash: 'hash-1',
+      deck: {
+        name: 'Change Printing Deck',
+        sections: [
+          {
+            name: 'Main',
+            cards: [
               {
-                name: 'Main',
-                cards: [
-                  {
-                    quantity: 4,
-                    name: 'Lightning Bolt',
-                    set: 'lea',
-                    collectorNumber: '161',
-                    cardId: 5,
-                  },
-                ],
+                quantity: 4,
+                name: 'Lightning Bolt',
+                set: 'lea',
+                collectorNumber: '161',
+                cardId: 5,
               },
             ],
           },
-          cards: { 'Lightning Bolt': LEA_BOLT },
-          printings: { 'Lightning Bolt': [LEA_BOLT, M10_BOLT] },
-          lowestPriceCards: { 'Lightning Bolt': LEA_BOLT },
-          lowestPriceCardsEur: { 'Lightning Bolt': LEA_BOLT },
-          lowestPriceCardsTix: {},
-          symbolMap: {},
-          frontMatter: {},
-        }),
-      })
+        ],
+      },
+      cards: { 'Lightning Bolt': LEA_BOLT },
+      printings: { 'Lightning Bolt': [LEA_BOLT, M10_BOLT] },
+      lowestPriceCards: { 'Lightning Bolt': LEA_BOLT },
+      lowestPriceCardsEur: { 'Lightning Bolt': LEA_BOLT },
+      lowestPriceCardsTix: {},
+      symbolMap: {},
+      frontMatter: {},
     })
 
-    await page.route('**/api/card-printings*', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, printings: [LEA_BOLT, M10_BOLT] }),
-      })
+    await fulfillJson(page, '**/api/card-printings*', {
+      success: true,
+      printings: [LEA_BOLT, M10_BOLT],
     })
 
     await openListEditor(page, 'deck')

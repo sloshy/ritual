@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { test, expect, type Page } from '@playwright/test'
-import { mockPublicSiteMultiSelectLists } from '../helpers/mock-data'
+import { gotoList } from '../helpers/list-ui'
+import { mockPublicSiteMultiSelectLists } from '../helpers/mock-public-site'
 
 type ExportedBundle = {
   format: string
@@ -22,8 +23,7 @@ async function removeFirstCard(page: Page): Promise<void> {
 test.describe('Public editor multi-list export', () => {
   test.beforeEach(async ({ page }) => {
     await mockPublicSiteMultiSelectLists(page)
-    await page.goto('#/deck/ms-a')
-    await page.waitForSelector('.card-item', { timeout: 15_000 })
+    await gotoList(page, '#/deck/ms-a')
   })
 
   test('scope toggle appears with cross-list edits, shows counts, reviews, and downloads a bundle', async ({

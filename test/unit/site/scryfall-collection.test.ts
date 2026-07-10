@@ -1,27 +1,12 @@
 import { describe, expect, test, mock, afterEach } from 'bun:test'
 import { batchFetchScryfall } from '../../../src/site/scryfall-collection'
+import { makeScryfallCard } from '../../test-utils'
 import type { ScryfallCard } from '../../../src/types'
 
 type CollectionRequest = { identifiers: { id: string }[] }
 
 function makeCard(id: string, usd: string): ScryfallCard {
-  return {
-    id,
-    name: id,
-    cmc: 0,
-    type_line: '',
-    oracle_text: '',
-    image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
-    prices: { usd, usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
-    finishes: ['nonfoil'],
-    games: ['paper'],
-    set: 'tst',
-    set_name: 'Test',
-    collector_number: '1',
-    rarity: 'common',
-    color_identity: [],
-    released_at: '2025-01-01',
-  }
+  return makeScryfallCard({ id, name: id, prices: { usd } })
 }
 
 const originalFetch = globalThis.fetch

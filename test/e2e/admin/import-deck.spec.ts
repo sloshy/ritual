@@ -1,12 +1,13 @@
 import { test, expect } from '@playwright/test'
-import { loginAsAdmin } from '../helpers/auth-helper'
-import { mockImportDeckApi } from '../helpers/mock-data'
+import { gotoAdminDashboard } from '../helpers/auth-helper'
+import { fulfillJson } from '../helpers/fulfill'
+import { mockImportDeckApi } from '../helpers/mock-admin'
 
 type ImportPayload = { mode?: string; url?: string; content?: string; name?: string }
 
 test.describe('Import Deck Page', () => {
   test.beforeEach(async ({ page }) => {
-    await loginAsAdmin(page)
+    await gotoAdminDashboard(page)
     await page.locator('.admin-sidebar .admin-nav-item:has-text("Import Deck")').click()
     await expect(page.locator('.section-heading')).toContainText('Import Deck')
   })
@@ -71,13 +72,12 @@ test.describe('Import Deck Page', () => {
   })
 
   test('a failed import shows an error and no success alert', async ({ page }) => {
-    await page.route('**/api/import-deck', async (route) => {
-      await route.fulfill({
-        status: 400,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: false, message: 'URL not supported.' }),
-      })
-    })
+    await fulfillJson(
+      page,
+      '**/api/import-deck',
+      { success: false, message: 'URL not supported.' },
+      { status: 400 },
+    )
     const main = page.locator('main')
     await main.locator('input.form-input').fill('https://example.com/decks/1')
     await main.locator('button:has-text("Import Deck")').click()

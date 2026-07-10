@@ -17,28 +17,7 @@ import {
   untaggedAddedCardNames,
   type CardFilters,
 } from '../../../src/site/card-filters'
-import { matchesAllTerms } from '../../../src/term-match'
-import type { CardData } from '../../../src/site/card-sorting'
-
-function makeCard(overrides: Partial<CardData> = {}): CardData {
-  return {
-    name: 'Test Card',
-    quantity: 1,
-    cmc: 3,
-    edhrec: 1000,
-    price: 1.5,
-    type: 'Creature — Human',
-    section: 'Main',
-    fileOrder: 0,
-    setCode: 'tst',
-    colorIdentity: [],
-    hasPrinting: true,
-    oracleTags: [],
-    artTags: [],
-    card: null,
-    ...overrides,
-  }
-}
+import { makeCardData as makeCard } from '../../test-utils'
 
 function makeFilters(overrides: Partial<CardFilters> = {}): CardFilters {
   return { ...createDefaultCardFilters(), ...overrides }
@@ -55,11 +34,6 @@ describe('filterCards', () => {
     const spell = makeCard({ name: 'Bolt', cmc: 1, type: 'Instant' })
     const result = filterCards([land, spell], makeFilters({ hideLands: true }))
     expect(result.map((c) => c.name)).toEqual(['Bolt'])
-  })
-
-  test('hideLands matches the Basic branch of the type line check', () => {
-    const basic = makeCard({ name: 'Snow Plains', cmc: 0, type: 'Basic Snow Plains' })
-    expect(filterCards([basic], makeFilters({ hideLands: true }))).toHaveLength(0)
   })
 
   test('hideLands keeps nonzero-cmc cards that mention Land in the type line', () => {
@@ -343,20 +317,6 @@ describe('filterCards', () => {
   })
 })
 
-describe('matchesAllTerms', () => {
-  test('terms can appear in any order', () => {
-    expect(matchesAllTerms('Black Market Connections', 'connections black')).toBe(true)
-  })
-
-  test('empty query matches everything', () => {
-    expect(matchesAllTerms('Anything', '')).toBe(true)
-  })
-
-  test('fails when any term is missing', () => {
-    expect(matchesAllTerms('Black Lotus', 'black market')).toBe(false)
-  })
-})
-
 describe('countActiveFilters', () => {
   test('defaults count as zero', () => {
     expect(countActiveFilters(createDefaultCardFilters())).toBe(0)
@@ -422,20 +382,24 @@ describe('countActiveFilters', () => {
   })
 })
 
-describe('parseManaValueFilter', () => {
+// parseManaValueFilter and parseCopiesFilter are the same non-negative-integer
+// filter parser (differing only in error message), so one table covers both.
+describe.each([
+  ['parseManaValueFilter', parseManaValueFilter],
+  ['parseCopiesFilter', parseCopiesFilter],
+])('%s', (_name, parse) => {
   test('empty input clears the filter', () => {
-    expect(parseManaValueFilter('')).toEqual({ ok: true, value: null })
-    expect(parseManaValueFilter('   ')).toEqual({ ok: true, value: null })
+    expect(parse('')).toEqual({ ok: true, value: null })
+    expect(parse('   ')).toEqual({ ok: true, value: null })
   })
 
   test('parses non-negative integers including 0', () => {
-    expect(parseManaValueFilter('0')).toEqual({ ok: true, value: 0 })
-    expect(parseManaValueFilter('12')).toEqual({ ok: true, value: 12 })
+    expect(parse('0')).toEqual({ ok: true, value: 0 })
+    expect(parse('12')).toEqual({ ok: true, value: 12 })
   })
 
   test.each(['-1', '1.5', 'abc', '1e3'])('rejects %p', (input) => {
-    const result = parseManaValueFilter(input)
-    expect(result.ok).toBe(false)
+    expect(parse(input).ok).toBe(false)
   })
 })
 
@@ -454,22 +418,6 @@ describe('parsePriceFilter', () => {
 
   test.each(['-1', '1.234', 'abc', '1e3', '.5', '5.'])('rejects %p', (input) => {
     expect(parsePriceFilter(input).ok).toBe(false)
-  })
-})
-
-describe('parseCopiesFilter', () => {
-  test('empty input clears the filter', () => {
-    expect(parseCopiesFilter('')).toEqual({ ok: true, value: null })
-    expect(parseCopiesFilter('   ')).toEqual({ ok: true, value: null })
-  })
-
-  test('parses non-negative integers including 0', () => {
-    expect(parseCopiesFilter('0')).toEqual({ ok: true, value: 0 })
-    expect(parseCopiesFilter('4')).toEqual({ ok: true, value: 4 })
-  })
-
-  test.each(['-1', '1.5', 'abc', '1e3'])('rejects %p', (input) => {
-    expect(parseCopiesFilter(input).ok).toBe(false)
   })
 })
 

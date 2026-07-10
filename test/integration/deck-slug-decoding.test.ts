@@ -1,11 +1,8 @@
 import { describe, expect, test, beforeAll, afterAll } from 'bun:test'
-import fs from 'node:fs/promises'
 import path from 'node:path'
-import os from 'node:os'
-import { getBaseDir, setBaseDir } from '../../src/base-dir'
-import { initRitualConfig } from '../../src/ritual-config'
 import { handleDeckLoad } from '../../src/admin/api/deck-load'
 import { handleDeckRename } from '../../src/admin/api/deck-rename'
+import { bindWorkspace, writeDeckFile, type BoundWorkspace } from './helpers/workspace'
 
 type DeckApiResult = { success: boolean; message?: string }
 
@@ -20,34 +17,20 @@ type DeckApiResult = { success: boolean; message?: string }
  * path for load and a pure file rename.
  */
 describe('admin deck API slug decoding', () => {
+  let ws: BoundWorkspace
   let tmpDir: string
-  let originalBaseDir: string
 
   beforeAll(async () => {
-    originalBaseDir = getBaseDir()
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-deck-slug-'))
-    await fs.mkdir(path.join(tmpDir, 'decks'), { recursive: true })
-    await fs.writeFile(
-      path.join(tmpDir, 'ritual.config.json'),
-      JSON.stringify({
-        decksDir: './decks',
-        collectionsDir: './collections',
-        wantedDir: './wanted',
-      }),
-    )
+    ws = await bindWorkspace({ dirs: ['decks'], init: true })
+    tmpDir = ws.dir
     // A deck whose name (and thus slug/filename) contains spaces.
-    await fs.writeFile(
-      path.join(tmpDir, 'decks', 'My Test Deck.md'),
-      '---\nname: My Test Deck\nformat: commander\n---\n\n# My Test Deck\n',
-    )
-    setBaseDir(tmpDir)
-    await initRitualConfig()
+    await writeDeckFile(tmpDir, 'My Test Deck', {
+      frontMatter: { name: 'My Test Deck', format: 'commander' },
+    })
   })
 
   afterAll(async () => {
-    setBaseDir(originalBaseDir)
-    await initRitualConfig()
-    await fs.rm(tmpDir, { recursive: true, force: true })
+    await ws.dispose()
   })
 
   test('decodes a percent-encoded slug on the load path', async () => {

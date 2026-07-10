@@ -1,9 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import { execSync } from 'node:child_process'
 import * as fs from 'node:fs/promises'
-import * as os from 'node:os'
 import * as path from 'node:path'
-import { setBaseDir, getBaseDir } from '../../src/base-dir'
 import { resetRitualConfigCache, getDefaultRitualConfig } from '../../src/ritual-config'
 import {
   handleHistoryLists,
@@ -11,6 +9,15 @@ import {
   handleHistorySave,
 } from '../../src/admin/api/history'
 import type { ChangeSet } from '../../src/changelog-blocks'
+import {
+  bindWorkspace,
+  collectionMarkdown,
+  initGitRepo,
+  writeConfig,
+  writeDeckFile,
+  writeWantedFile,
+  type BoundWorkspace,
+} from './helpers/workspace'
 
 /**
  * End-to-end coverage for the admin change-history endpoints: enumerating lists,
@@ -22,11 +29,19 @@ import type { ChangeSet } from '../../src/changelog-blocks'
 type ListsResponse = { success: true; lists: { type: string; slug: string; name: string }[] }
 type LoadResponse = { success: true; header: string; sets: ChangeSet[]; defaultLines: string[] }
 type SaveResponse = { success: boolean; message?: string; setCount?: number }
+type InvalidSetsCase = { description: string; sets: unknown }
 
+let ws: BoundWorkspace
 let tmpDir: string
-let originalBase: string
 
-const BINDER_MD = '# Binder\n\n- Sol Ring (C21:240) &1\n- Mana Crypt (2XM:270) &2\n'
+const BINDER_MD = collectionMarkdown({
+  title: 'Binder',
+  entries: [
+    { name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 1 },
+    { name: 'Mana Crypt', set: '2xm', collectorNumber: '270', cardId: 2 },
+  ],
+})
+// The changelog format itself is the input under test, so it stays literal.
 const BINDER_CHANGES = [
   '# Changelog for Binder',
   '',
@@ -41,19 +56,12 @@ const BINDER_CHANGES = [
 ].join('\n')
 
 beforeEach(async () => {
-  originalBase = getBaseDir()
-  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'history-api-'))
-  await fs.mkdir(path.join(tmpDir, 'decks'), { recursive: true })
-  await fs.mkdir(path.join(tmpDir, 'collections'), { recursive: true })
-  await fs.mkdir(path.join(tmpDir, 'wanted'), { recursive: true })
-  setBaseDir(tmpDir)
-  resetRitualConfigCache()
+  ws = await bindWorkspace({ config: false })
+  tmpDir = ws.dir
 })
 
 afterEach(async () => {
-  setBaseDir(originalBase)
-  resetRitualConfigCache()
-  await fs.rm(tmpDir, { recursive: true, force: true })
+  await ws.dispose()
 })
 
 async function writeBinder(): Promise<void> {
@@ -84,10 +92,10 @@ async function save(
 describe('history API', () => {
   test('lists every list across the three types', async () => {
     await writeBinder()
-    await fs.writeFile(
-      path.join(tmpDir, 'wanted', 'wishlist.md'),
-      '# Wishlist\n\n- Mana Crypt &1\n',
-    )
+    await writeWantedFile(tmpDir, 'wishlist', {
+      title: 'Wishlist',
+      entries: [{ name: 'Mana Crypt', cardId: 1 }],
+    })
 
     const resp = await handleHistoryLists()
     const data = (await resp.json()) as ListsResponse
@@ -140,7 +148,10 @@ describe('history API', () => {
   })
 
   test('creates a changelog for a list that had none', async () => {
-    await fs.writeFile(path.join(tmpDir, 'decks', 'mydeck.md'), '# My Deck\n\n1 Sol Ring &1\n')
+    await writeDeckFile(tmpDir, 'mydeck', {
+      frontMatter: { name: 'My Deck' },
+      cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
+    })
     const sets: ChangeSet[] = [
       { timestamp: '2026-04-01T00:00:00.000Z', lines: ['- Added "Sol Ring" &1'] },
     ]
@@ -152,43 +163,33 @@ describe('history API', () => {
     expect(changes).toContain('## 2026-04-01T00:00:00.000Z')
   })
 
-  test('rejects a non-array sets field', async () => {
-    await writeBinder()
-    const { status } = await save('collection', 'binder', { not: 'an array' })
-    expect(status).toBe(400)
-  })
+  const invalidSetsCases: InvalidSetsCase[] = [
+    { description: 'a non-array sets field', sets: { not: 'an array' } },
+    {
+      description: 'a set with an invalid timestamp',
+      sets: [{ timestamp: 'not-a-date', lines: ['- Added "Sol Ring" &1'] }],
+    },
+    {
+      description: 'a change line that is not a "- " entry',
+      sets: [{ timestamp: '2026-03-01T00:00:00.000Z', lines: ['Added Sol Ring'] }],
+    },
+    {
+      description: 'a set with no change lines',
+      sets: [{ timestamp: '2026-03-01T00:00:00.000Z', lines: [] }],
+    },
+    {
+      description: 'a set missing the lines field',
+      sets: [{ timestamp: '2026-03-01T00:00:00.000Z' }],
+    },
+  ]
 
-  test('rejects a set with an invalid timestamp', async () => {
-    await writeBinder()
-    const { status } = await save('collection', 'binder', [
-      { timestamp: 'not-a-date', lines: ['- Added "Sol Ring" &1'] },
-    ])
-    expect(status).toBe(400)
-  })
-
-  test('rejects a change line that is not a "- " entry', async () => {
-    await writeBinder()
-    const { status } = await save('collection', 'binder', [
-      { timestamp: '2026-03-01T00:00:00.000Z', lines: ['Added Sol Ring'] },
-    ])
-    expect(status).toBe(400)
-  })
-
-  test('rejects a set with no change lines', async () => {
-    await writeBinder()
-    const { status } = await save('collection', 'binder', [
-      { timestamp: '2026-03-01T00:00:00.000Z', lines: [] },
-    ])
-    expect(status).toBe(400)
-  })
-
-  test('rejects a set missing the lines field', async () => {
-    await writeBinder()
-    const { status } = await save('collection', 'binder', [
-      { timestamp: '2026-03-01T00:00:00.000Z' },
-    ])
-    expect(status).toBe(400)
-  })
+  for (const { description, sets } of invalidSetsCases) {
+    test(`rejects ${description}`, async () => {
+      await writeBinder()
+      const { status } = await save('collection', 'binder', sets)
+      expect(status).toBe(400)
+    })
+  }
 
   test('rejects an invalid list type in the path', async () => {
     const { status } = await load('bogus', 'binder')
@@ -203,21 +204,13 @@ describe('history API', () => {
   })
 
   test('auto-commits only the changelog when git auto-commit is enabled', async () => {
-    execSync('git init -q', { cwd: tmpDir })
-    execSync('git config user.email test@example.com', { cwd: tmpDir })
-    execSync('git config user.name "Ritual Test"', { cwd: tmpDir })
+    initGitRepo(tmpDir)
     await writeBinder()
 
     const base = getDefaultRitualConfig()
-    await fs.writeFile(
-      path.join(tmpDir, 'ritual.config.json'),
-      JSON.stringify({
-        decksDir: './decks',
-        collectionsDir: './collections',
-        wantedDir: './wanted',
-        admin: { ...base.admin, gitEnabled: true, gitAutoCommit: true, gitAutoPush: false },
-      }),
-    )
+    await writeConfig(tmpDir, {
+      admin: { ...base.admin, gitEnabled: true, gitAutoCommit: true, gitAutoPush: false },
+    })
     resetRitualConfigCache()
 
     const { status } = await save('collection', 'binder', [

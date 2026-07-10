@@ -1,22 +1,11 @@
 import { test, expect } from '@playwright/test'
-import { mockPublicSiteWantedList } from '../helpers/mock-data'
+import { mockPublicSiteWantedList } from '../helpers/mock-public-site'
 
 test.describe('Wanted List Page', () => {
   test.beforeEach(async ({ page }) => {
     await mockPublicSiteWantedList(page)
     await page.goto('#/wanted/test-wanted-list')
     await page.waitForSelector('.card-item', { timeout: 15_000 })
-  })
-
-  test('displays entries in all three states', async ({ page }) => {
-    const items = page.locator('.card-item')
-    expect(await items.count()).toBe(3)
-  })
-
-  test('shows card count and price', async ({ page }) => {
-    const bodyText = await page.textContent('body')
-    expect(bodyText).toMatch(/3\s*cards?/i)
-    expect(bodyText).toMatch(/\$[\d.]+/)
   })
 
   test('clicking a card opens the card detail modal', async ({ page }) => {
@@ -27,6 +16,12 @@ test.describe('Wanted List Page', () => {
   })
 
   test('grouping by printing splits specific and any-printing entries', async ({ page }) => {
+    // All three mocked entries render, with the card count and price shown.
+    expect(await page.locator('.card-item').count()).toBe(3)
+    const bodyText = await page.textContent('body')
+    expect(bodyText).toMatch(/3\s*cards?/i)
+    expect(bodyText).toMatch(/\$[\d.]+/)
+
     // Switch to list view so card names render as text within each section.
     await page.locator('[data-view="list"]').click()
 

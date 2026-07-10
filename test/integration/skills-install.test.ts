@@ -240,36 +240,25 @@ describe('init-site refreshSkillsOnUpgrade (Integration)', () => {
     })
   })
 
-  test('--skills installs the full set even if none were installed', async () => {
+  test('--skills force-installs the full set, overwriting stale skills and adding missing ones', async () => {
     await withTempDir(async (dir) => {
       setBaseDir(dir)
       const skillsDir = path.join(dir, '.claude', 'skills')
+      const installed = SKILLS[0]!
+
+      // Pre-install one skill and tamper with it; leave the rest uninstalled.
+      const installedPath = path.join(skillsDir, installed.name, 'SKILL.md')
+      await installSkills([installed], skillsDir, { force: false })
+      await fs.writeFile(installedPath, 'stale content', 'utf-8')
 
       await refreshSkillsOnUpgrade({ skills: true })
 
+      // The tampered skill is force-overwritten with current rendered content...
+      expect(await fs.readFile(installedPath, 'utf-8')).toBe(renderSkillFile(installed))
+      // ...and the full set is installed, including skills never present before.
       for (const skill of SKILLS) {
         expect(await fileExists(path.join(skillsDir, skill.name, 'SKILL.md'))).toBe(true)
       }
-      // Spot-check content fidelity through the full-install path.
-      const first = SKILLS[0]!
-      expect(await fs.readFile(path.join(skillsDir, first.name, 'SKILL.md'), 'utf-8')).toBe(
-        renderSkillFile(first),
-      )
-    })
-  })
-
-  test('--skills overwrites a stale installed skill (force wiring)', async () => {
-    await withTempDir(async (dir) => {
-      setBaseDir(dir)
-      const skillsDir = path.join(dir, '.claude', 'skills')
-      const skill = SKILLS[0]!
-      const filePath = path.join(skillsDir, skill.name, 'SKILL.md')
-
-      await installSkills([skill], skillsDir, { force: false })
-      await fs.writeFile(filePath, 'stale content', 'utf-8')
-
-      await refreshSkillsOnUpgrade({ skills: true })
-      expect(await fs.readFile(filePath, 'utf-8')).toBe(renderSkillFile(skill))
     })
   })
 })

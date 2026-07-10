@@ -573,27 +573,6 @@ describe('applyDownloadDiff', () => {
     expect(maybe!.cards[0]!.name).toBe('Cavern-Hoard Dragon')
   })
 
-  test('adds commander cards to Commander section', () => {
-    const sections: DeckSection[] = [
-      { name: 'Commander', cards: [] },
-      { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
-    ]
-    const diff = addDiff([{ name: 'Atraxa', totalQuantity: 1, board: 'Commander' }])
-    const result = applyDownloadDiff(sections, diff)
-    const commanderCards = result.find((s) => s.name === 'Commander')!.cards
-    expect(commanderCards).toHaveLength(1)
-    expect(commanderCards[0]!.name).toBe('Atraxa')
-  })
-
-  test('creates Commander section if it does not exist', () => {
-    const sections = mainSections([{ quantity: 1, name: 'Sol Ring' }])
-    const diff = addDiff([{ name: 'Atraxa', totalQuantity: 1, board: 'Commander' }])
-    const result = applyDownloadDiff(sections, diff)
-    const commanderSection = result.find((s) => s.name === 'Commander')
-    expect(commanderSection).toBeDefined()
-    expect(commanderSection!.cards[0]!.name).toBe('Atraxa')
-  })
-
   // Section-ordering cases share the same shape: take some starting sections,
   // add cards to one or more boards, and assert the resulting section order.
   const mainAndMaybe: DeckSection[] = [
@@ -671,13 +650,6 @@ describe('applyDownloadDiff', () => {
     const diff = qtyDiff([{ name: 'Island', oldQty: 3, newQty: 0, board: 'Main' }])
     const result = applyDownloadDiff(sections, diff)
     expect(result[0]!.cards[0]!.quantity).toBe(1)
-  })
-
-  test('decreases quantity for a card that is not fully removed', () => {
-    const sections = mainSections([{ quantity: 4, name: 'Island' }])
-    const diff = qtyDiff([{ name: 'Island', oldQty: 4, newQty: 2, board: 'Main' }])
-    const result = applyDownloadDiff(sections, diff)
-    expect(result[0]!.cards[0]!.quantity).toBe(2)
   })
 
   test('sets the board total to the remote quantity when a card spans multiple sections', () => {

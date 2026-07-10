@@ -1,11 +1,11 @@
 import { describe, expect, test, beforeEach, afterEach } from 'bun:test'
-import { tmpdir } from 'node:os'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { saveDeck } from '../../src/commands/import'
 import { sanitizeDeckFileName } from '../../src/utils'
 import { type DeckData } from '../../src/types'
 import { MemoryLogger, resetLogger, setLogger } from '../test-utils'
+import { withTempDir } from './helpers/cli'
 
 /** The path saveDeck writes a deck to, mirroring its filename derivation. */
 function deckPath(dir: string, name: string): string {
@@ -24,16 +24,6 @@ const deckWithPrimer: DeckData = {
   primer: '## Overview\n\nThis is a great deck.',
 }
 
-async function withTempDir(run: (dir: string) => Promise<void>): Promise<void> {
-  const dir = path.join(tmpdir(), `ritual-save-deck-${crypto.randomUUID()}`)
-  await fs.mkdir(dir, { recursive: true })
-  try {
-    await run(dir)
-  } finally {
-    await fs.rm(dir, { recursive: true, force: true })
-  }
-}
-
 describe('saveDeck (Integration)', () => {
   let logger: MemoryLogger
 
@@ -46,37 +36,21 @@ describe('saveDeck (Integration)', () => {
     resetLogger()
   })
 
-  test('dry-run does not write any files', async () => {
-    await withTempDir(async (dir) => {
-      await saveDeck(sampleDeck, dir, { dryRun: true, nonInteractive: true })
-
-      const files = await fs.readdir(dir)
-      expect(files).toHaveLength(0)
-      expect(
-        logger.entries.some(
-          (entry) =>
-            entry.level === 'info' &&
-            typeof entry.args[0] === 'string' &&
-            entry.args[0].includes('[dry-run] Would save deck to:'),
-        ),
-      ).toBeTrue()
-    })
-  })
-
-  test('dry-run with primer logs primer sidecar path but writes nothing', async () => {
+  test('dry-run writes nothing and logs the deck and primer sidecar paths', async () => {
     await withTempDir(async (dir) => {
       await saveDeck(deckWithPrimer, dir, { dryRun: true, nonInteractive: true })
 
       const files = await fs.readdir(dir)
       expect(files).toHaveLength(0)
-      expect(
+      const loggedInfo = (text: string): boolean =>
         logger.entries.some(
           (entry) =>
             entry.level === 'info' &&
             typeof entry.args[0] === 'string' &&
-            entry.args[0].includes('[dry-run] Would save primer to:'),
-        ),
-      ).toBeTrue()
+            entry.args[0].includes(text),
+        )
+      expect(loggedInfo('[dry-run] Would save deck to:')).toBeTrue()
+      expect(loggedInfo('[dry-run] Would save primer to:')).toBeTrue()
     })
   })
 
@@ -112,16 +86,7 @@ describe('saveDeck (Integration)', () => {
     return fs.readFile(path.join(dir, deckFile), 'utf-8')
   }
 
-  test('writes a stable &N id on every card line', async () => {
-    await withTempDir(async (dir) => {
-      await saveDeck(sampleDeck, dir, { nonInteractive: true })
-
-      const content = await readWrittenDeck(dir)
-      expect(content).toContain('1 Sol Ring &1')
-    })
-  })
-
-  test('preserves printing metadata captured by the importer', async () => {
+  test('writes a stable &N id and keeps importer printing metadata on the card line', async () => {
     await withTempDir(async (dir) => {
       const deckWithPrinting: DeckData = {
         name: 'Printing Deck',

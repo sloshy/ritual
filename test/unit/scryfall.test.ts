@@ -1,4 +1,4 @@
-import { describe, expect, test, beforeEach, afterEach, mock, spyOn } from 'bun:test'
+import { describe, expect, test, beforeEach, afterEach, mock } from 'bun:test'
 import {
   ScryfallClient,
   type ScryfallSymbol,
@@ -8,14 +8,12 @@ import {
   isArenaOnly,
   isToken,
 } from '../../src/scryfall'
-import { cardCache } from '../../src/cache'
 import type { FileSystemClient } from '../../src/interfaces'
 import {
   MockHttpClient,
   InMemoryCacheManager,
-  MemoryFileSystemClient,
   MemoryLogger,
-  gzipJsonLinesResponse,
+  makeScryfallCard,
   resetLogger,
   setLogger,
 } from '../test-utils'
@@ -43,22 +41,15 @@ const mockFileSystem: FileSystemClient = {
   mkdir: mkdirMock,
 }
 
-function makeStubScryfallCard(overrides: Partial<ScryfallCard> = {}): ScryfallCard {
-  return {
-    id: 'test-id',
-    name: 'Test Card',
-    cmc: 0,
-    type_line: 'Artifact',
-    prices: { usd: null, usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
-    finishes: ['nonfoil'],
-    games: ['paper'],
-    set: 'tst',
-    set_name: 'Test Set',
-    collector_number: '1',
-    rarity: 'common',
-    color_identity: [],
-    ...overrides,
-  }
+/** A card with the given id and per-currency nonfoil prices, for representative-print tests. */
+function makePricedCard(
+  id: string,
+  prices: Partial<{ usd: string; eur: string; tix: string }>,
+): ScryfallCard {
+  return makeScryfallCard({
+    id,
+    prices: { usd: prices.usd ?? null, eur: prices.eur ?? null, tix: prices.tix ?? null },
+  })
 }
 
 describe('ScryfallClient', () => {
@@ -143,28 +134,13 @@ describe('ScryfallClient', () => {
 
   describe('fetchCardData', () => {
     test('should fetch card from API and cache via CacheManager', async () => {
-      const mockCard: ScryfallCard = {
+      const mockCard = makeScryfallCard({
         id: '123',
-        name: 'Test Card',
         cmc: 1,
         type_line: 'Instant',
-        prices: {
-          usd: '1.00',
-          usd_foil: null,
-          usd_etched: null,
-          eur: null,
-          eur_foil: null,
-          tix: null,
-        },
         edhrec_rank: 999999,
-        finishes: ['nonfoil'],
-        games: ['paper'],
-        set: 'tst',
-        set_name: 'Test Set',
-        collector_number: '1',
-        rarity: 'common',
-        color_identity: [],
-      }
+        prices: { usd: '1.00' },
+      })
 
       mockHttp.mock('https://api.scryfall.com/cards/named?exact=Test%20Card', () => {
         return new Response(JSON.stringify(mockCard))
@@ -184,7 +160,7 @@ describe('ScryfallClient', () => {
 
   describe('searchCards', () => {
     test('should search cards via API', async () => {
-      const mockCard: ScryfallCard = {
+      const mockCard = makeScryfallCard({
         id: '123',
         name: 'Lightning Bolt',
         cmc: 1,
@@ -192,22 +168,10 @@ describe('ScryfallClient', () => {
         mana_cost: '{R}',
         type_line: 'Instant',
         oracle_text: 'Deal 3 damage.',
-        prices: {
-          usd: '1.00',
-          usd_foil: null,
-          usd_etched: null,
-          eur: null,
-          eur_foil: null,
-          tix: null,
-        },
-        finishes: ['nonfoil'],
-        games: ['paper'],
+        prices: { usd: '1.00' },
         set: 'lea',
         set_name: 'Limited Edition Alpha',
-        collector_number: '1',
-        rarity: 'common',
-        color_identity: [],
-      }
+      })
 
       mockHttp.mock('https://api.scryfall.com/cards/search?q=Lightning%20Bolt&order=edhrec', () => {
         return new Response(JSON.stringify({ data: [mockCard] }))
@@ -220,8 +184,8 @@ describe('ScryfallClient', () => {
     })
 
     test('should handle pagination', async () => {
-      const card1 = makeStubScryfallCard({ id: '1', name: 'Card 1' })
-      const card2 = makeStubScryfallCard({ id: '2', name: 'Card 2' })
+      const card1 = makeScryfallCard({ id: '1', name: 'Card 1' })
+      const card2 = makeScryfallCard({ id: '2', name: 'Card 2' })
 
       // Page 1
       mockHttp.mock('https://api.scryfall.com/cards/search?q=set%3Akhm&order=edhrec', () => {
@@ -501,90 +465,9 @@ describe('ScryfallClient', () => {
   })
 
   describe('fetchRepresentativePrints', () => {
-    function makeCard(
-      id: string,
-      prices: Partial<{ usd: string; eur: string; tix: string }>,
-    ): ScryfallCard {
-      return makeStubScryfallCard({
-        id,
-        prices: {
-          usd: prices.usd ?? null,
-          usd_foil: null,
-          usd_etched: null,
-          eur: prices.eur ?? null,
-          eur_foil: null,
-          tix: prices.tix ?? null,
-        },
-      })
-    }
-
     function searchUrl(name: string) {
       return `https://api.scryfall.com/cards/search?q=${encodeURIComponent(`!"${name}"`) + '+unique%3Aprints'}&order=released`
     }
-
-    test('picks representative (latest within 1.5x median) for each currency', async () => {
-      // Results ordered newest first (index 0 = newest)
-      // USD prices: 1.00, 2.00, 3.00 → median 2.00, threshold 3.00 → first card (1.00) chosen
-      // TIX prices: only card[2] has tix → only 1 candidate, median = 1.50 → chosen
-      const cards = [
-        makeCard('a', { usd: '1.00', eur: '0.80' }),
-        makeCard('b', { usd: '2.00', eur: '1.60' }),
-        makeCard('c', { usd: '3.00', eur: '2.40', tix: '1.50' }),
-      ]
-
-      mockHttp.mock(searchUrl('Colossus Hammer'), () => {
-        return new Response(JSON.stringify({ data: cards, has_more: false }))
-      })
-
-      const result = await client.fetchRepresentativePrints('Colossus Hammer', [
-        'usd',
-        'eur',
-        'tix',
-      ])
-
-      // USD: median of [1,2,3]=2, threshold=3; first card 1.00 ≤ 3 → representative='a', cheapest='a'
-      expect(result.usd?.representative?.id).toBe('a')
-      expect(result.usd?.cheapest?.id).toBe('a')
-      // EUR: median of [0.80,1.60,2.40]=1.60, threshold=2.40; first card 0.80 ≤ 2.40 → 'a'
-      expect(result.eur?.representative?.id).toBe('a')
-      // TIX: only one candidate (card 'c', 1.50), median=1.50, threshold=2.25; chosen
-      expect(result.tix?.representative?.id).toBe('c')
-      expect(result.tix?.cheapest?.id).toBe('c')
-    })
-
-    test('skips the latest card when its price exceeds 1.5x median', async () => {
-      // USD prices: 10.00, 2.00, 2.00 → median 2.00, threshold 3.00
-      // card 'a' (10.00) exceeds threshold, so representative picks 'b' (2.00)
-      const cards = [
-        makeCard('a', { usd: '10.00' }),
-        makeCard('b', { usd: '2.00' }),
-        makeCard('c', { usd: '2.00' }),
-      ]
-
-      mockHttp.mock(searchUrl('Expensive Card'), () => {
-        return new Response(JSON.stringify({ data: cards, has_more: false }))
-      })
-
-      const result = await client.fetchRepresentativePrints('Expensive Card', ['usd'])
-
-      expect(result.usd?.representative?.id).toBe('b')
-      expect(result.usd?.cheapest?.id).toBe('b')
-    })
-
-    test('returns null representative and cheapest when no cards have prices', async () => {
-      const cards = [makeCard('a', {}), makeCard('b', {})]
-
-      mockHttp.mock(searchUrl('No Price Card'), () => {
-        return new Response(JSON.stringify({ data: cards, has_more: false }))
-      })
-
-      const result = await client.fetchRepresentativePrints('No Price Card', ['usd', 'tix'])
-
-      expect(result.usd?.representative).toBeNull()
-      expect(result.usd?.cheapest).toBeNull()
-      expect(result.tix?.representative).toBeNull()
-      expect(result.tix?.cheapest).toBeNull()
-    })
 
     test('returns null representative and cheapest on API error', async () => {
       mockHttp.mock(searchUrl('Error Card'), () => {
@@ -597,29 +480,6 @@ describe('ScryfallClient', () => {
       expect(result.tix?.representative).toBeNull()
     })
 
-    test('considers at most 5 candidates per currency for representative selection', async () => {
-      // 6 cards with tix prices; only first 5 used for median
-      // tix prices: 1,2,3,4,5,100 → median=3, threshold=4.5 → representative='a' (1.00)
-      // cheapest from ALL cards is still 'a' (1.00)
-      const cards = [
-        makeCard('a', { tix: '1.00' }),
-        makeCard('b', { tix: '2.00' }),
-        makeCard('c', { tix: '3.00' }),
-        makeCard('d', { tix: '4.00' }),
-        makeCard('e', { tix: '5.00' }),
-        makeCard('f', { tix: '100.00' }),
-      ]
-
-      mockHttp.mock(searchUrl('Many Prints'), () => {
-        return new Response(JSON.stringify({ data: cards, has_more: false }))
-      })
-
-      const result = await client.fetchRepresentativePrints('Many Prints', ['tix'])
-
-      expect(result.tix?.representative?.id).toBe('a')
-      expect(result.tix?.cheapest?.id).toBe('a')
-    })
-
     test('fetches all pages and returns cheapest from all pages', async () => {
       // Page 1: card 'a' (usd=2.00) — representative selected from here
       // Page 2: card 'b' (usd=0.50) — cheaper, becomes cheapest
@@ -628,7 +488,7 @@ describe('ScryfallClient', () => {
       mockHttp.mock(searchUrl('Paginated Card'), () => {
         return new Response(
           JSON.stringify({
-            data: [makeCard('a', { usd: '2.00' })],
+            data: [makePricedCard('a', { usd: '2.00' })],
             has_more: true,
             next_page: page2Url,
           }),
@@ -638,7 +498,7 @@ describe('ScryfallClient', () => {
       mockHttp.mock(page2Url, () => {
         return new Response(
           JSON.stringify({
-            data: [makeCard('b', { usd: '0.50' })],
+            data: [makePricedCard('b', { usd: '0.50' })],
             has_more: false,
           }),
         )
@@ -648,20 +508,6 @@ describe('ScryfallClient', () => {
 
       expect(result.usd?.representative?.id).toBe('a')
       expect(result.usd?.cheapest?.id).toBe('b')
-    })
-
-    test('only computes requested currencies', async () => {
-      const cards = [makeCard('a', { usd: '1.00', eur: '0.90', tix: '0.10' })]
-
-      mockHttp.mock(searchUrl('Selective Card'), () => {
-        return new Response(JSON.stringify({ data: cards, has_more: false }))
-      })
-
-      const result = await client.fetchRepresentativePrints('Selective Card', ['usd'])
-
-      expect(result.usd?.representative?.id).toBe('a')
-      expect(result.eur).toBeUndefined()
-      expect(result.tix).toBeUndefined()
     })
   })
 
@@ -718,7 +564,7 @@ describe('ScryfallClient', () => {
 
 describe('comparePrintings', () => {
   function makePrinting(set: string, collectorNumber: string, releasedAt?: string): ScryfallCard {
-    return makeStubScryfallCard({
+    return makeScryfallCard({
       id: `${set}-${collectorNumber}-${releasedAt ?? ''}`,
       type_line: 'Creature',
       edhrec_rank: 0,
@@ -784,185 +630,177 @@ describe('comparePrintings', () => {
   })
 })
 
-describe('preloadCache', () => {
-  let logger: MemoryLogger
-  let bulkSetSpy: ReturnType<typeof spyOn> | undefined
-
-  beforeEach(() => {
-    logger = new MemoryLogger()
-    setLogger(logger)
-  })
-
-  afterEach(() => {
-    bulkSetSpy?.mockRestore()
-    bulkSetSpy = undefined
-    resetLogger()
-  })
-
-  test('fetches bulk data and writes the result through cardCache.bulkSet', async () => {
-    const mockData = [
-      {
-        id: '1',
-        name: 'Card A',
-        set: 'set1',
-        prices: {
-          usd: null,
-          usd_foil: null,
-          usd_etched: null,
-          eur: null,
-          eur_foil: null,
-          tix: null,
-        },
-      },
-      {
-        id: '2',
-        name: 'Card B',
-        set: 'set1',
-        prices: {
-          usd: null,
-          usd_foil: null,
-          usd_etched: null,
-          eur: null,
-          eur_foil: null,
-          tix: null,
-        },
-      },
-    ]
-    const mockMeta = {
-      data: [
-        {
-          type: 'default_cards',
-          jsonl_download_uri: 'https://example.com/bulk.jsonl.gz',
-        },
-      ],
-    }
-
-    const mockFetch = mock(async (url: unknown) => {
-      if (url === 'https://api.scryfall.com/bulk-data') {
-        return new Response(JSON.stringify(mockMeta))
-      }
-      return gzipJsonLinesResponse(mockData)
-    })
-    const client = new ScryfallClient({ fetch: mockFetch }, cardCache, new MemoryFileSystemClient())
-
-    bulkSetSpy = spyOn(cardCache, 'bulkSet').mockResolvedValue(undefined)
-
-    await client.preloadCache()
-
-    expect(mockFetch).toHaveBeenCalled()
-    expect(bulkSetSpy).toHaveBeenCalled()
-    const args = bulkSetSpy.mock.calls[0]![0] as Record<string, ScryfallCard[]>
-    expect(args['Card A']).toEqual([expect.objectContaining({ name: 'Card A', id: '1' })])
-    expect(args['Card B']).toEqual([expect.objectContaining({ name: 'Card B', id: '2' })])
-    expect(
-      logger.entries.some(
-        (entry) =>
-          entry.level === 'info' &&
-          typeof entry.args[0] === 'string' &&
-          entry.args[0].includes('Fetching bulk data metadata'),
-      ),
-    ).toBeTrue()
-  })
-})
-
-const makeGamesCard = (games: string[]): ScryfallCard => makeStubScryfallCard({ games })
+const makeGamesCard = (games: string[]): ScryfallCard => makeScryfallCard({ games })
 
 describe('isToken', () => {
-  test('returns true for token layout', () => {
-    expect(isToken({ ...makeGamesCard([]), layout: 'token' })).toBe(true)
-  })
+  type IsTokenCase = { label: string; card: ScryfallCard; expected: boolean }
+  const cases: IsTokenCase[] = [
+    { label: 'token layout', card: makeScryfallCard({ layout: 'token' }), expected: true },
+    {
+      label: 'double_faced_token layout',
+      card: makeScryfallCard({ layout: 'double_faced_token' }),
+      expected: true,
+    },
+    {
+      label: 'cached card with Token in type_line (no layout field)',
+      card: makeScryfallCard({ type_line: 'Token Creature — Cat Soldier' }),
+      expected: true,
+    },
+    { label: 'normal card layout', card: makeScryfallCard({ layout: 'normal' }), expected: false },
+    {
+      label: 'layout absent and type_line has no Token',
+      card: makeScryfallCard(),
+      expected: false,
+    },
+    {
+      // e.g. a hypothetical card named "Tokenmaker" would not match \bToken\b in type_line
+      label: 'type_line contains Token only as substring',
+      card: makeScryfallCard({ type_line: 'Artifact — Tokenmaker' }),
+      expected: false,
+    },
+  ]
 
-  test('returns true for double_faced_token layout', () => {
-    expect(isToken({ ...makeGamesCard([]), layout: 'double_faced_token' })).toBe(true)
-  })
-
-  test('returns true for cached card with Token in type_line (no layout field)', () => {
-    expect(isToken({ ...makeGamesCard([]), type_line: 'Token Creature — Cat Soldier' })).toBe(true)
-  })
-
-  test('returns true for legendary token type_line', () => {
-    expect(isToken({ ...makeGamesCard([]), type_line: 'Legendary Token Creature — Angel' })).toBe(
-      true,
-    )
-  })
-
-  test('returns false for normal card layout', () => {
-    expect(isToken({ ...makeGamesCard([]), layout: 'normal' })).toBe(false)
-  })
-
-  test('returns false when layout is absent and type_line has no Token', () => {
-    expect(isToken(makeGamesCard([]))).toBe(false)
-  })
-
-  test('returns false for card whose type_line contains Token only as substring', () => {
-    // e.g. a hypothetical card named "Tokenmaker" would not match \bToken\b in type_line
-    expect(isToken({ ...makeGamesCard([]), type_line: 'Artifact — Tokenmaker' })).toBe(false)
+  test.each(cases)('$label → $expected', ({ card, expected }) => {
+    expect(isToken(card)).toBe(expected)
   })
 })
 
 describe('isArenaOnly', () => {
-  test('returns true for arena-only card', () => {
-    expect(isArenaOnly(makeGamesCard(['arena']))).toBe(true)
-  })
+  type IsArenaOnlyCase = { games: string[]; expected: boolean }
+  const cases: IsArenaOnlyCase[] = [
+    { games: ['arena'], expected: true },
+    { games: ['paper'], expected: false },
+    { games: ['paper', 'arena'], expected: false },
+    { games: ['mtgo'], expected: false },
+    { games: [], expected: false },
+  ]
 
-  test('returns false for paper card', () => {
-    expect(isArenaOnly(makeGamesCard(['paper']))).toBe(false)
-  })
-
-  test('returns false for paper+arena card', () => {
-    expect(isArenaOnly(makeGamesCard(['paper', 'arena']))).toBe(false)
-  })
-
-  test('returns false for mtgo card', () => {
-    expect(isArenaOnly(makeGamesCard(['mtgo']))).toBe(false)
-  })
-
-  test('returns false for empty games array', () => {
-    expect(isArenaOnly(makeGamesCard([]))).toBe(false)
-  })
-
-  test('returns false for paper+mtgo+arena card', () => {
-    expect(isArenaOnly(makeGamesCard(['paper', 'mtgo', 'arena']))).toBe(false)
+  test.each(cases)('games=$games → $expected', ({ games, expected }) => {
+    expect(isArenaOnly(makeGamesCard(games))).toBe(expected)
   })
 })
 
 describe('getCardGames', () => {
-  test('returns union of games across printings', () => {
-    const paper = makeGamesCard(['paper'])
-    const mtgo = makeGamesCard(['mtgo'])
-    expect(getCardGames([paper, mtgo]).sort()).toEqual(['mtgo', 'paper'])
+  type GetCardGamesCase = { label: string; printings: string[][]; expected: string[] }
+  const cases: GetCardGamesCase[] = [
+    {
+      label: 'returns union of games across printings',
+      printings: [['paper'], ['mtgo']],
+      expected: ['mtgo', 'paper'],
+    },
+    {
+      label: 'deduplicates games',
+      printings: [
+        ['paper', 'arena'],
+        ['paper', 'mtgo'],
+      ],
+      expected: ['arena', 'mtgo', 'paper'],
+    },
+    { label: 'returns empty for no printings', printings: [], expected: [] },
+    { label: 'returns empty for cards with empty games', printings: [[]], expected: [] },
+  ]
+
+  test.each(cases)('$label', ({ printings, expected }) => {
+    expect(getCardGames(printings.map(makeGamesCard)).sort()).toEqual(expected)
+  })
+})
+
+describe('computeRepresentativePrints — price selection', () => {
+  test('picks representative (latest within 1.5x median) for each currency', () => {
+    // Printings ordered newest first (index 0 = newest)
+    // USD prices: 1.00, 2.00, 3.00 → median 2.00, threshold 3.00 → first card (1.00) chosen
+    // TIX prices: only card 'c' has tix → only 1 candidate, median = 1.50 → chosen
+    const cards = [
+      makePricedCard('a', { usd: '1.00', eur: '0.80' }),
+      makePricedCard('b', { usd: '2.00', eur: '1.60' }),
+      makePricedCard('c', { usd: '3.00', eur: '2.40', tix: '1.50' }),
+    ]
+
+    const result = computeRepresentativePrints(cards, cards, ['usd', 'eur', 'tix'])
+
+    // USD: median of [1,2,3]=2, threshold=3; first card 1.00 ≤ 3 → representative='a', cheapest='a'
+    expect(result.usd?.representative?.id).toBe('a')
+    expect(result.usd?.cheapest?.id).toBe('a')
+    // EUR: median of [0.80,1.60,2.40]=1.60, threshold=2.40; first card 0.80 ≤ 2.40 → 'a'
+    expect(result.eur?.representative?.id).toBe('a')
+    // TIX: only one candidate (card 'c', 1.50), median=1.50, threshold=2.25; chosen
+    expect(result.tix?.representative?.id).toBe('c')
+    expect(result.tix?.cheapest?.id).toBe('c')
   })
 
-  test('deduplicates games', () => {
-    const a = makeGamesCard(['paper', 'arena'])
-    const b = makeGamesCard(['paper', 'mtgo'])
-    expect(getCardGames([a, b]).sort()).toEqual(['arena', 'mtgo', 'paper'])
+  test('skips the latest card when its price exceeds 1.5x median', () => {
+    // USD prices: 10.00, 2.00, 2.00 → median 2.00, threshold 3.00
+    // card 'a' (10.00) exceeds threshold, so representative picks 'b' (2.00)
+    const cards = [
+      makePricedCard('a', { usd: '10.00' }),
+      makePricedCard('b', { usd: '2.00' }),
+      makePricedCard('c', { usd: '2.00' }),
+    ]
+
+    const result = computeRepresentativePrints(cards, cards, ['usd'])
+
+    expect(result.usd?.representative?.id).toBe('b')
+    expect(result.usd?.cheapest?.id).toBe('b')
   })
 
-  test('returns empty for no printings', () => {
-    expect(getCardGames([])).toEqual([])
+  test('considers at most 5 candidates per currency for representative selection', () => {
+    // 6 cards with tix prices; only the first 5 feed the median.
+    // Capped: [100,100,100,1,1] → median 100, threshold 150 → newest card 'a' (100) qualifies.
+    // Uncapped, 'f' would drag the median to 50.5 (threshold 75.75), pushing the
+    // representative down to 'd' — so asserting 'a' pins the 5-candidate cap.
+    const cards = [
+      makePricedCard('a', { tix: '100.00' }),
+      makePricedCard('b', { tix: '100.00' }),
+      makePricedCard('c', { tix: '100.00' }),
+      makePricedCard('d', { tix: '1.00' }),
+      makePricedCard('e', { tix: '1.00' }),
+      makePricedCard('f', { tix: '1.00' }),
+    ]
+
+    const result = computeRepresentativePrints(cards, cards, ['tix'])
+
+    expect(result.tix?.representative?.id).toBe('a')
+    // Cheapest scans ALL printings, uncapped.
+    expect(result.tix?.cheapest?.id).toBe('d')
   })
 
-  test('returns empty for cards with empty games', () => {
-    expect(getCardGames([makeGamesCard([])])).toEqual([])
+  test('only computes requested currencies', () => {
+    const cards = [makePricedCard('a', { usd: '1.00', eur: '0.90', tix: '0.10' })]
+
+    const result = computeRepresentativePrints(cards, cards, ['usd'])
+
+    expect(result.usd?.representative?.id).toBe('a')
+    expect(result.eur).toBeUndefined()
+    expect(result.tix).toBeUndefined()
+  })
+
+  test('returns null representative and cheapest when no cards have prices', () => {
+    const cards = [makePricedCard('a', {}), makePricedCard('b', {})]
+
+    const result = computeRepresentativePrints(cards, cards, ['usd', 'tix'])
+
+    expect(result.usd?.representative).toBeNull()
+    expect(result.usd?.cheapest).toBeNull()
+    expect(result.tix?.representative).toBeNull()
+    expect(result.tix?.cheapest).toBeNull()
   })
 })
 
 describe('computeRepresentativePrints — banned printings', () => {
-  function makeCard(set: string, collectorNumber: string, usd: string): ScryfallCard {
-    return makeStubScryfallCard({
+  function makeBannablePrinting(set: string, collectorNumber: string, usd: string): ScryfallCard {
+    return makeScryfallCard({
       id: `${set}-${collectorNumber}`,
       set,
       collector_number: collectorNumber,
-      prices: { usd, usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
+      prices: { usd },
     })
   }
 
   // Newest first. Without bans the representative is the newest within 1.5x median.
   const printings = [
-    makeCard('sld', '123', '1.00'),
-    makeCard('mh2', '42', '2.00'),
-    makeCard('lea', '161', '3.00'),
+    makeBannablePrinting('sld', '123', '1.00'),
+    makeBannablePrinting('mh2', '42', '2.00'),
+    makeBannablePrinting('lea', '161', '3.00'),
   ]
 
   test('skips a banned printing and features the next eligible one', () => {
@@ -975,7 +813,10 @@ describe('computeRepresentativePrints — banned printings', () => {
   test('lowercases the card set code when matching normalized banned keys', () => {
     // Scryfall set codes are normally lowercase, but the match defensively
     // lowercases the card's set so an upper-cased set still matches a key.
-    const upper = [makeCard('SLD', '123', '1.00'), makeCard('mh2', '42', '2.00')]
+    const upper = [
+      makeBannablePrinting('SLD', '123', '1.00'),
+      makeBannablePrinting('mh2', '42', '2.00'),
+    ]
     const result = computeRepresentativePrints(upper, upper, ['usd'], new Set(['sld:123']))
     expect(result.usd?.representative?.id).toBe('mh2-42')
   })

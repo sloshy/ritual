@@ -26,62 +26,69 @@ describe('saveEditorChanges', () => {
     }
   })
 
-  it('calls saveStart then saveSuccess on success', async () => {
+  it('calls saveStart then saveSuccess on success and returns the response data', async () => {
     globalThis.fetch = (async () =>
       ({
-        json: async () => ({ success: true }),
+        json: async () => ({ success: true, contentHash: 'abc123' }),
       }) as Response) as any
 
-    await saveEditorChanges('/api/test/save', { data: 'test' }, statusActions, discardAll)
+    const result = await saveEditorChanges(
+      '/api/test/save',
+      { data: 'test' },
+      statusActions,
+      discardAll,
+    )
 
     expect(calls).toEqual([
       { method: 'saveStart', args: [] },
       { method: 'saveSuccess', args: ['Changes saved successfully'] },
     ])
     expect(discardCalled).toBe(true)
+    expect(result).toEqual({ success: true, contentHash: 'abc123' })
   })
 
-  it('calls saveError when response has success=false', async () => {
-    globalThis.fetch = (async () =>
-      ({
-        json: async () => ({ success: false, error: 'Conflict' }),
-      }) as Response) as any
+  it('resolves saveError message via error ?? message ?? fallback on failure responses', async () => {
+    type SaveErrorCase = {
+      response: { success: boolean; error?: string; message?: string }
+      expected: string
+    }
+    const cases: SaveErrorCase[] = [
+      { response: { success: false, error: 'Conflict' }, expected: 'Conflict' },
+      { response: { success: false, message: 'Bad request data' }, expected: 'Bad request data' },
+      { response: { success: false }, expected: 'Save failed' },
+    ]
 
-    await saveEditorChanges('/api/test/save', { data: 'test' }, statusActions, discardAll)
+    for (const { response, expected } of cases) {
+      calls = []
+      discardCalled = false
+      globalThis.fetch = (async () =>
+        ({
+          json: async () => response,
+        }) as Response) as any
 
-    expect(calls).toEqual([
-      { method: 'saveStart', args: [] },
-      { method: 'saveError', args: ['Conflict'] },
-    ])
-    expect(discardCalled).toBe(false)
+      await saveEditorChanges('/api/test/save', {}, statusActions, discardAll)
+
+      expect(calls).toEqual([
+        { method: 'saveStart', args: [] },
+        { method: 'saveError', args: [expected] },
+      ])
+      expect(discardCalled).toBe(false)
+    }
   })
 
-  it('calls saveError with fallback message when no error provided', async () => {
-    globalThis.fetch = (async () =>
-      ({
-        json: async () => ({ success: false }),
-      }) as Response) as any
-
-    await saveEditorChanges('/api/test/save', {}, statusActions, discardAll)
-
-    expect(calls).toEqual([
-      { method: 'saveStart', args: [] },
-      { method: 'saveError', args: ['Save failed'] },
-    ])
-  })
-
-  it('calls saveError on network failure', async () => {
+  it('calls saveError on network failure and returns undefined', async () => {
     globalThis.fetch = (async () => {
       throw new Error('Network error')
     }) as any
 
-    await saveEditorChanges('/api/test/save', {}, statusActions, discardAll)
+    const result = await saveEditorChanges('/api/test/save', {}, statusActions, discardAll)
 
     expect(calls).toEqual([
       { method: 'saveStart', args: [] },
       { method: 'saveError', args: ['Failed to save changes'] },
     ])
     expect(discardCalled).toBe(false)
+    expect(result).toBeUndefined()
   })
 
   it('sends correct request configuration', async () => {
@@ -104,27 +111,6 @@ describe('saveEditorChanges', () => {
     expect(capturedInit.headers).toEqual({ 'Content-Type': 'application/json' })
     expect(capturedInit.credentials).toBe('same-origin')
     expect(capturedInit.body).toBe(JSON.stringify(body))
-  })
-
-  it('returns data on success', async () => {
-    globalThis.fetch = (async () =>
-      ({
-        json: async () => ({ success: true, contentHash: 'abc123' }),
-      }) as Response) as any
-
-    const result = await saveEditorChanges('/api/test/save', {}, statusActions, discardAll)
-
-    expect(result).toEqual({ success: true, contentHash: 'abc123' })
-  })
-
-  it('returns undefined on network failure', async () => {
-    globalThis.fetch = (async () => {
-      throw new Error('Network error')
-    }) as any
-
-    const result = await saveEditorChanges('/api/test/save', {}, statusActions, discardAll)
-
-    expect(result).toBeUndefined()
   })
 
   it('handles 409 conflict response', async () => {
@@ -172,20 +158,5 @@ describe('saveEditorChanges', () => {
       },
     ])
     expect(result?.conflict).toBe(true)
-  })
-
-  it('uses message field as fallback when error is absent', async () => {
-    globalThis.fetch = (async () =>
-      ({
-        status: 400,
-        json: async () => ({ success: false, message: 'Bad request data' }),
-      }) as Response) as any
-
-    await saveEditorChanges('/api/test/save', {}, statusActions, discardAll)
-
-    expect(calls).toEqual([
-      { method: 'saveStart', args: [] },
-      { method: 'saveError', args: ['Bad request data'] },
-    ])
   })
 })

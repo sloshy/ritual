@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { mockPublicSiteDeckForFilters } from '../helpers/mock-data'
+import { mockPublicSiteDeckForFilters } from '../helpers/mock-public-site'
 import { openFilterMenu } from '../helpers/filter-menu'
 
 const ALL_CARDS = [

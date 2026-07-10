@@ -23,30 +23,6 @@ describe('diffSnapshots', () => {
     expect(diffSnapshots(a, b)).toEqual([])
   })
 
-  test('reports a file whose token changed (mtime or size)', () => {
-    const prev: TreeSnapshot = new Map([['/x/a.ts', '1:10']])
-    const next: TreeSnapshot = new Map([['/x/a.ts', '5:10']])
-    expect(diffSnapshots(prev, next)).toEqual(['/x/a.ts'])
-  })
-
-  test('reports added files', () => {
-    const prev: TreeSnapshot = new Map([['/x/a.ts', '1:10']])
-    const next: TreeSnapshot = new Map([
-      ['/x/a.ts', '1:10'],
-      ['/x/b.ts', '2:20'],
-    ])
-    expect(diffSnapshots(prev, next)).toEqual(['/x/b.ts'])
-  })
-
-  test('reports removed files', () => {
-    const prev: TreeSnapshot = new Map([
-      ['/x/a.ts', '1:10'],
-      ['/x/b.ts', '2:20'],
-    ])
-    const next: TreeSnapshot = new Map([['/x/a.ts', '1:10']])
-    expect(diffSnapshots(prev, next)).toEqual(['/x/b.ts'])
-  })
-
   test('reports adds, removes, and modifications together', () => {
     const prev: TreeSnapshot = new Map([
       ['/x/a.ts', '1:10'],

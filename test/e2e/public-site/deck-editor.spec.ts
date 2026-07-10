@@ -1,11 +1,12 @@
 import { test, expect } from '@playwright/test'
-import { mockPublicSiteDeckWithMultipleSections } from '../helpers/mock-data'
+import { fulfillJson } from '../helpers/fulfill'
+import { enterEditMode, gotoList } from '../helpers/list-ui'
+import { mockPublicSiteDeckWithMultipleSections } from '../helpers/mock-public-site'
 
 test.describe('Public deck editor', () => {
   test.beforeEach(async ({ page }) => {
     await mockPublicSiteDeckWithMultipleSections(page)
-    await page.goto('#/deck/test-multi-section-deck')
-    await page.waitForSelector('.card-item', { timeout: 15_000 })
+    await gotoList(page, '#/deck/test-multi-section-deck')
   })
 
   test('the global Edit toggle arms edit mode on non-list pages, hinting until a list is opened', async ({
@@ -53,8 +54,7 @@ test.describe('Public deck editor', () => {
     const quickSwitchYBefore = (await page.locator('.quick-switch-trigger').boundingBox())!.y
 
     // Enter edit mode.
-    await page.locator('.btn-edit').click()
-    await expect(page.locator('.edit-banner')).toBeVisible()
+    await enterEditMode(page)
     await expect(page.locator('.btn-add')).toBeVisible() // action bar present
 
     const quickSwitchYAfter = (await page.locator('.quick-switch-trigger').boundingBox())!.y
@@ -196,13 +196,12 @@ test.describe('Public deck editor', () => {
     // Cards added in the editor come from Scryfall search, which returns no Tagger
     // tags — so a tag filter can't match them. Stub all Scryfall calls offline so the
     // imported add's backfill never hits the network; the card stays tag-free.
-    await page.route('**/api.scryfall.com/**', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ object: 'list', total_cards: 0, has_more: false, data: [] }),
-      }),
-    )
+    await fulfillJson(page, '**/api.scryfall.com/**', {
+      object: 'list',
+      total_cards: 0,
+      has_more: false,
+      data: [],
+    })
 
     await page.locator('.btn-edit').click()
 

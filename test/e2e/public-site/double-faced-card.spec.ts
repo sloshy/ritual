@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mockPublicSiteDeckWithDoubleFacedCard } from '../helpers/mock-data'
+import { mockPublicSiteDeckWithDoubleFacedCard } from '../helpers/mock-public-site'
 
 // The synthetic deck has a double-faced card ("Werewolf Front // Werewolf Back",
 // a Creature front with a Land back) and a plain land ("Test Wastes").

@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test'
-import { loginAsAdmin } from '../helpers/auth-helper'
-import { mockChangeHistoryApi } from '../helpers/mock-data'
+import { gotoAdminDashboard } from '../helpers/auth-helper'
+import { mockChangeHistoryApi } from '../helpers/mock-admin'
 
 type SaveBody = { sets: { timestamp: string; lines: string[] }[] }
 
 test.describe('Change History page', () => {
   test.beforeEach(async ({ page }) => {
-    await loginAsAdmin(page)
+    await gotoAdminDashboard(page)
   })
 
   async function openDeckHistory(page: import('@playwright/test').Page): Promise<void> {

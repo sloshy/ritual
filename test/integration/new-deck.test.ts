@@ -1,17 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { runCli, withTempDir } from './helpers/cli'
-
-async function setupFixture(dir: string): Promise<void> {
-  await fs.mkdir(path.join(dir, 'decks'), { recursive: true })
-  await fs.writeFile(path.join(dir, 'ritual.config.json'), JSON.stringify({ decksDir: './decks' }))
-}
+import { runCli } from './helpers/cli'
+import { withWorkspace } from './helpers/workspace'
 
 describe('new-deck CLI (Integration)', () => {
   test('creates a deck file with a slug derived from the name and default commander format', async () => {
-    await withTempDir(async (dir) => {
-      await setupFixture(dir)
+    await withWorkspace(async (dir) => {
       const result = await runCli(['new-deck', 'My Cool Deck'], dir)
       expect(result.exitCode).toBe(0)
 
@@ -26,8 +21,7 @@ describe('new-deck CLI (Integration)', () => {
   })
 
   test('slugifies punctuation-heavy names into kebab-case', async () => {
-    await withTempDir(async (dir) => {
-      await setupFixture(dir)
+    await withWorkspace(async (dir) => {
       const result = await runCli(['new-deck', "Atraxa's Praetorian!! ++Stax++"], dir)
       expect(result.exitCode).toBe(0)
 
@@ -42,8 +36,7 @@ describe('new-deck CLI (Integration)', () => {
   })
 
   test('--format overrides the default', async () => {
-    await withTempDir(async (dir) => {
-      await setupFixture(dir)
+    await withWorkspace(async (dir) => {
       const result = await runCli(['new-deck', 'Stompy', '--format', 'modern'], dir)
       expect(result.exitCode).toBe(0)
 
@@ -53,8 +46,7 @@ describe('new-deck CLI (Integration)', () => {
   })
 
   test('refuses to overwrite an existing deck file', async () => {
-    await withTempDir(async (dir) => {
-      await setupFixture(dir)
+    await withWorkspace(async (dir) => {
       const filePath = path.join(dir, 'decks', 'existing.md')
       const original = '---\nname: "Existing"\n---\n\nDo not touch.\n'
       await fs.writeFile(filePath, original)

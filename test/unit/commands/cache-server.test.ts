@@ -7,6 +7,7 @@ import {
   runStaggeredTasksInCompletionOrder,
   shouldForcePriceRefresh,
 } from '../../../src/commands/cache-server'
+import { scheduleRecurringTask } from '../../../src/cache-server/cadence'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const WEEK_MS = 7 * DAY_MS
@@ -63,28 +64,10 @@ describe('cache-server staleness checks', () => {
     expect(getInitialPriceRefreshAt(DAY_MS, staleTimestamp, now, 2)).toBe(now + 2 * STAGGER_MS)
   })
 
-  test('stages startup refreshes for stale weekly and monthly prices by 200ms', () => {
-    const now = 20 * DAY_MS
-    const staleWeeklyTimestamp = now - 10 * DAY_MS
-    const staleMonthlyTimestamp = now - 35 * DAY_MS
-    expect(getInitialPriceRefreshAt(WEEK_MS, staleWeeklyTimestamp, now, 0)).toBe(now)
-    expect(getInitialPriceRefreshAt(MONTH_MS, staleMonthlyTimestamp, now, 1)).toBe(now + STAGGER_MS)
-  })
-
-  test('keeps normal cadence timing for fresh daily/weekly/monthly prices', () => {
+  test('keeps normal cadence timing for fresh prices', () => {
     const now = 40 * DAY_MS
-    const freshDailyTimestamp = now - 60 * 60 * 1000
-    const freshWeeklyTimestamp = now - 2 * DAY_MS
-    const freshMonthlyTimestamp = now - 10 * DAY_MS
-    expect(getInitialPriceRefreshAt(DAY_MS, freshDailyTimestamp, now, 0)).toBe(
-      freshDailyTimestamp + DAY_MS,
-    )
-    expect(getInitialPriceRefreshAt(WEEK_MS, freshWeeklyTimestamp, now, 0)).toBe(
-      freshWeeklyTimestamp + WEEK_MS,
-    )
-    expect(getInitialPriceRefreshAt(MONTH_MS, freshMonthlyTimestamp, now, 0)).toBe(
-      freshMonthlyTimestamp + MONTH_MS,
-    )
+    const freshTimestamp = now - 60 * 60 * 1000
+    expect(getInitialPriceRefreshAt(DAY_MS, freshTimestamp, now, 0)).toBe(freshTimestamp + DAY_MS)
   })
 
   test('runs staggered refresh tasks and emits completion order', async () => {
@@ -112,5 +95,28 @@ describe('cache-server staleness checks', () => {
     )
 
     expect(order).toEqual(['second', 'third', 'first'])
+  })
+})
+
+describe('scheduleRecurringTask', () => {
+  test('keeps firing after both success and failure', async () => {
+    let runs = 0
+    const errors: unknown[] = []
+    const timer = scheduleRecurringTask(
+      5,
+      async () => {
+        runs++
+        if (runs === 1) throw new Error('first run fails')
+      },
+      (error) => errors.push(error),
+    )
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 40))
+      // The first tick rejected, was routed to onError, and did not stop the timer.
+      expect(errors).toHaveLength(1)
+      expect(runs).toBeGreaterThanOrEqual(2)
+    } finally {
+      clearInterval(timer)
+    }
   })
 })

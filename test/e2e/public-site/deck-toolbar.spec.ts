@@ -1,9 +1,13 @@
 import { test, expect } from '@playwright/test'
-import { mockPublicSiteDeckWithMultipleSections } from '../helpers/mock-data'
+import {
+  mockPublicSiteDeckWithMultipleSections,
+  mockPublicSiteDeckWithSidewaysCard,
+} from '../helpers/mock-public-site'
 
 test.describe('Deck Toolbar', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('#/deck/black-panther')
+    await mockPublicSiteDeckWithMultipleSections(page)
+    await page.goto('#/deck/test-multi-section-deck')
     await page.waitForSelector('[data-view]', { timeout: 15_000 })
   })
 
@@ -35,25 +39,6 @@ test.describe('Deck Toolbar', () => {
     await expect(page.locator('.card-binder').first()).not.toBeVisible()
   })
 
-  test('reverse toggle reverses sort order', async ({ page }) => {
-    // Switch to list view so card names are visible as text
-    await page.locator('[data-view="list"]').click()
-    // Grab card names within the first non-commander section before toggling
-    const firstSection = page
-      .locator('[data-section]')
-      .filter({ hasNotText: /Commander/ })
-      .first()
-    const namesBefore = await firstSection.locator('.card-list .list-name').allTextContents()
-    // The reverse control is joined to the (only) sort layer's dropdown.
-    const reverseToggle = page.locator('.toolbar .toolbar-sort-reverse').first()
-    await expect(reverseToggle).not.toHaveClass(/active/)
-    await reverseToggle.click()
-    await expect(reverseToggle).toHaveClass(/active/)
-    // Cards within the section should appear in reversed order
-    const namesAfter = await firstSection.locator('.card-list .list-name').allTextContents()
-    expect(namesAfter).toEqual([...namesBefore].reverse())
-  })
-
   test('add and remove sort layers, persisting to the URL', async ({ page }) => {
     const layers = page.locator('.toolbar-sort-layer')
     const addBtn = page.locator('.toolbar .toolbar-sort-add')
@@ -83,22 +68,11 @@ test.describe('Deck Toolbar', () => {
   // deterministically with synthetic data in filter-menu.spec.ts.
 
   test('card size buttons are visible in binder view and hidden in list view', async ({ page }) => {
-    // In binder view (default), size buttons should be visible
-    const sizeToggle = page.locator('.view-toggle').nth(1)
-    await expect(sizeToggle).toBeVisible()
-    // Switch to list view — size buttons should disappear
+    // In binder view (default) the size buttons render as a second .view-toggle group.
+    await expect(page.locator('.view-toggle')).toHaveCount(2)
+    // List view has no card images to size, so switching removes the size group.
     await page.locator('[data-view="list"]').click()
-    await page.waitForTimeout(300)
-    const sizeToggles = page.locator('.view-toggle')
-    expect(await sizeToggles.count()).toBeLessThanOrEqual(1)
-  })
-})
-
-test.describe('Deck Toolbar – Reverse Sections', () => {
-  test.beforeEach(async ({ page }) => {
-    await mockPublicSiteDeckWithMultipleSections(page)
-    await page.goto('#/deck/test-multi-section-deck')
-    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    await expect(page.locator('.view-toggle')).toHaveCount(1)
   })
 
   test('Reverse Sections toggle reverses section order independently of card order', async ({
@@ -156,5 +130,22 @@ test.describe('Deck Toolbar – Reverse Sections', () => {
 
     const cardsAfterBoth = await creatureSection.locator('.card-list .list-name').allTextContents()
     expect(cardsAfterBoth).toEqual([...cardsBefore].reverse())
+  })
+})
+
+test.describe('Deck list view tooltip', () => {
+  test('hovering a card row shows the image tooltip', async ({ page }) => {
+    // Uses the sideways-card deck because its cards carry image URLs (served from
+    // a routed local SVG) — the list tooltip only appears for cards that have a
+    // resolvable front image, and the multi-section fixture has none.
+    await mockPublicSiteDeckWithSidewaysCard(page)
+    await page.goto('#/deck/test-sideways-deck')
+    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+
+    await page.locator('[data-view="list"]').click()
+    const row = page.locator('.card-list').first()
+    await expect(row).toBeVisible()
+    await row.hover()
+    await expect(page.locator('.list-tooltip.visible')).toBeVisible()
   })
 })

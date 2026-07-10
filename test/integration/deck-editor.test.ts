@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
-import { setBaseDir } from '../../src/base-dir'
-import { resetRitualConfigCache } from '../../src/ritual-config'
 import {
   ensureDeckFile,
   loadDeck,
@@ -16,19 +13,18 @@ import { applyChangeToDeck } from '../../src/editor/deck-changes'
 import { assignMissingDeckCardIds } from '../../src/card-id'
 import { createAddChange } from '../../src/change-event'
 import type { DeckData } from '../../src/types'
+import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 
+let ws: BoundWorkspace
 let dir: string
 
 beforeEach(async () => {
-  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-deck-editor-'))
-  await fs.mkdir(path.join(dir, 'decks'), { recursive: true })
-  await fs.writeFile(path.join(dir, 'ritual.config.json'), JSON.stringify({ decksDir: './decks' }))
-  setBaseDir(dir)
-  resetRitualConfigCache()
+  ws = await bindWorkspace()
+  dir = ws.dir
 })
 
 afterEach(async () => {
-  await fs.rm(dir, { recursive: true, force: true })
+  await ws.dispose()
 })
 
 /** Reproduces the command's per-card mutation: apply an add, reassign IDs, persist. */
@@ -120,35 +116,6 @@ describe('deck editor helpers (Integration)', () => {
     expect(goblins[0]?.quantity).toBe(2)
     // Incrementing quantity preserves the original card ID rather than allocating a new one.
     expect(goblins[0]?.cardId).toBe(firstId)
-  })
-
-  test('re-adding the same printing merges into the existing entry regardless of target section', async () => {
-    const filePath = await ensureDeckFile('Toolbox', 'commander')
-    const { deck: loadedDeck, frontMatter } = await loadDeck(filePath)
-    const deck = await addCardToDeck(
-      filePath,
-      loadedDeck,
-      frontMatter,
-      'Swords to Plowshares',
-      'Main',
-      {
-        set: 'lea',
-        collectorNumber: '37',
-      },
-    )
-    // Targeting a different section with the same printing increments the existing
-    // entry (the deck reducer merges by name+printing, matching the admin editor).
-    await addCardToDeck(filePath, deck, frontMatter, 'Swords to Plowshares', 'Sideboard', {
-      set: 'lea',
-      collectorNumber: '37',
-    })
-
-    const reloaded = await loadDeck(filePath)
-    const swords = reloaded.deck.sections
-      .flatMap((s) => s.cards)
-      .filter((c) => c.name === 'Swords to Plowshares')
-    expect(swords).toHaveLength(1)
-    expect(swords[0]?.quantity).toBe(2)
   })
 
   test('listExistingDecks reports display names (not file slugs), sorted by name', async () => {

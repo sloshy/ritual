@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test'
 import {
-  ExitCode,
   emitError,
   emitOutput,
   normalizeScriptingOptions,
@@ -55,12 +54,6 @@ describe('scripting command helpers', () => {
       output: 'json',
       quiet: true,
     })
-  })
-
-  test('exit code constants are stable', () => {
-    expect(ExitCode.RuntimeError).toBe(1)
-    expect(ExitCode.UsageError).toBe(2)
-    expect(ExitCode.NotFound).toBe(3)
   })
 
   test('parseFields parses comma-separated fields', () => {

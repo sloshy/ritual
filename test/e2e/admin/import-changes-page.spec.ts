@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
-import { loginAsAdmin } from '../helpers/auth-helper'
-import { mockImportChangesApi } from '../helpers/mock-data'
+import { gotoAdminDashboard } from '../helpers/auth-helper'
+import { mockImportChangesApi } from '../helpers/mock-admin'
 
 const BUNDLE = {
   format: 'ritual-change-bundle',
@@ -27,7 +27,7 @@ const BUNDLE = {
 
 test.describe('Import Changes Page', () => {
   test.beforeEach(async ({ page }) => {
-    await loginAsAdmin(page)
+    await gotoAdminDashboard(page)
     await page.locator('.admin-sidebar .admin-nav-item:has-text("Import Changes")').click()
     await expect(page.locator('.section-heading')).toContainText('Import Changes')
   })
@@ -135,30 +135,5 @@ test.describe('Import Changes Page', () => {
 
     await expect(main.locator('.alert-error')).toContainText('Invalid change bundle')
     await expect(main.locator('button', { hasText: 'Apply' })).toHaveCount(0)
-  })
-
-  test('accepts a one-list bundle as a single-list preview', async ({ page }) => {
-    const bundle = {
-      format: 'ritual-change-bundle',
-      version: 1,
-      exportedAt: '2026-06-04T00:00:00.000Z',
-      lists: [
-        {
-          kind: 'wanted',
-          slug: 'wish',
-          name: 'Wish List',
-          changes: [{ id: 'a1', timestamp: 1, action: 'add', cardName: 'Brainstorm' }],
-        },
-      ],
-    }
-    const main = page.locator('main')
-    await main.locator('.segmented-option:has-text("Paste Text")').click()
-    await main.locator('textarea.form-textarea').fill(JSON.stringify(bundle))
-
-    await expect(main.getByText('1 change across 1 list')).toBeVisible()
-    await expect(main.locator('.import-changes-preview-group')).toContainText(
-      "Wish List (wanted list 'wish') — 1 change",
-    )
-    await expect(main.locator('button', { hasText: 'Apply 1 change to 1 list' })).toBeVisible()
   })
 })

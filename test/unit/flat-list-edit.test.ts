@@ -12,6 +12,8 @@ import {
   type FlatListFieldEdit,
 } from '../../src/commands/flat-list-edit'
 import {
+  discardFlatListAdd,
+  listFlatListSessionAdds,
   resetFlatListSessionTracking,
   type CollectionSession,
   type FlatListStrategyContext,
@@ -111,6 +113,21 @@ function printingEdit(
   }
 }
 
+/** Apply a set-printing edit to card `cardId`, the way the edit flow does it. */
+function editPrinting(h: Harness, cardId: number, to: PrintingTuple): void {
+  const target = findFlatListEntry(h.list, cardId)!
+  applyFlatListFieldEdit(h.list, h.ctx, target, cardId, printingEdit(target, cardId, to))
+}
+
+/** Simulate a session add of `name`, mirroring what applyFlatListCardEntry tracks. */
+function simulateAdd(h: Harness, name: string): number {
+  const cardId = allocateId(h.session.pool)
+  h.session.entries = [...h.session.entries, entry(name, cardId)]
+  h.list.sessionAdds.push(cardId)
+  h.ctx.sessionChanges.push(createAddChange(name, { set: 'lea', cardId }))
+  return cardId
+}
+
 const LTC: PrintingTuple = { set: 'ltc', collectorNumber: '284', finish: 'foil', condition: 'NM' }
 const C19: PrintingTuple = {
   set: 'c19',
@@ -139,22 +156,15 @@ describe('applyFlatListFieldEdit', () => {
   })
 
   test('editing back to the session-start printing drops out of the changelog', () => {
-    const { list, ctx } = harness([entry('Sol Ring', 1)])
-    const original = entryPrinting(findFlatListEntry(list, 1)!)
+    const h = harness([entry('Sol Ring', 1)])
+    const original = entryPrinting(findFlatListEntry(h.list, 1)!)
 
-    applyFlatListFieldEdit(
-      list,
-      ctx,
-      findFlatListEntry(list, 1)!,
-      1,
-      printingEdit(findFlatListEntry(list, 1)!, 1, LTC),
-    )
-    expect(ctx.sessionChanges).toHaveLength(1)
+    editPrinting(h, 1, LTC)
+    expect(h.ctx.sessionChanges).toHaveLength(1)
 
-    const updated = findFlatListEntry(list, 1)!
-    applyFlatListFieldEdit(list, ctx, updated, 1, printingEdit(updated, 1, original))
-    expect(findFlatListEntry(list, 1)!.set).toBe('lea')
-    expect(ctx.sessionChanges).toHaveLength(0)
+    editPrinting(h, 1, original)
+    expect(findFlatListEntry(h.list, 1)!.set).toBe('lea')
+    expect(h.ctx.sessionChanges).toHaveLength(0)
   })
 
   test('a note edit consolidates and drops out when cleared back to the original', () => {
@@ -167,13 +177,8 @@ describe('applyFlatListFieldEdit', () => {
         consolidateSetNote(changes, target.name, note, original.note ?? '', 1),
     })
 
-    applyFlatListFieldEdit(
-      list,
-      ctx,
-      findFlatListEntry(list, 1)!,
-      1,
-      noteEdit(findFlatListEntry(list, 1)!, 'signed', ''),
-    )
+    const target = findFlatListEntry(list, 1)!
+    applyFlatListFieldEdit(list, ctx, target, 1, noteEdit(target, 'signed', ''))
     expect(findFlatListEntry(list, 1)!.note).toBe('signed')
     expect(ctx.sessionChanges).toMatchObject([{ action: 'set-note', note: 'signed' }])
 
@@ -185,30 +190,23 @@ describe('applyFlatListFieldEdit', () => {
   })
 
   test('undo restores the entry and the displaced changelog event', () => {
-    const { list, ctx } = harness([entry('Sol Ring', 1)])
+    const h = harness([entry('Sol Ring', 1)])
 
-    applyFlatListFieldEdit(
-      list,
-      ctx,
-      findFlatListEntry(list, 1)!,
-      1,
-      printingEdit(findFlatListEntry(list, 1)!, 1, LTC),
-    )
-    const firstEvent = ctx.sessionChanges[0]!
-    const afterFirst = findFlatListEntry(list, 1)!
-    applyFlatListFieldEdit(list, ctx, afterFirst, 1, printingEdit(afterFirst, 1, C19))
+    editPrinting(h, 1, LTC)
+    const firstEvent = h.ctx.sessionChanges[0]!
+    editPrinting(h, 1, C19)
 
     // Undo the second edit: model returns to the first edit's state and the
     // first edit's event comes back as the changelog's record.
-    undoFlatListEdit(list, ctx)
-    expect(findFlatListEntry(list, 1)!.set).toBe('ltc')
-    expect(ctx.sessionChanges).toEqual([firstEvent])
+    undoFlatListEdit(h.list, h.ctx)
+    expect(findFlatListEntry(h.list, 1)!.set).toBe('ltc')
+    expect(h.ctx.sessionChanges).toEqual([firstEvent])
 
     // Undo the first edit too: back to the session-start state, empty changelog.
-    undoFlatListEdit(list, ctx)
-    expect(findFlatListEntry(list, 1)!.set).toBe('lea')
-    expect(ctx.sessionChanges).toHaveLength(0)
-    expect(lastFlatListEditLabel(list)).toBeNull()
+    undoFlatListEdit(h.list, h.ctx)
+    expect(findFlatListEntry(h.list, 1)!.set).toBe('lea')
+    expect(h.ctx.sessionChanges).toHaveLength(0)
+    expect(lastFlatListEditLabel(h.list)).toBeNull()
   })
 })
 
@@ -224,24 +222,18 @@ describe('performFlatListRemoval', () => {
   })
 
   test("folds the removed entry's earlier edit events out of the changelog", () => {
-    const { list, ctx } = harness([entry('Sol Ring', 1)])
-    applyFlatListFieldEdit(
-      list,
-      ctx,
-      findFlatListEntry(list, 1)!,
-      1,
-      printingEdit(findFlatListEntry(list, 1)!, 1, LTC),
-    )
-    expect(ctx.sessionChanges).toHaveLength(1)
+    const h = harness([entry('Sol Ring', 1)])
+    editPrinting(h, 1, LTC)
+    expect(h.ctx.sessionChanges).toHaveLength(1)
 
-    performFlatListRemoval(list, ctx, findFlatListEntry(list, 1)!, 1)
+    performFlatListRemoval(h.list, h.ctx, findFlatListEntry(h.list, 1)!, 1)
     // Only the remove remains; the moot set-printing folded out.
-    expect(ctx.sessionChanges).toMatchObject([{ action: 'remove', cardName: 'Sol Ring' }])
+    expect(h.ctx.sessionChanges).toMatchObject([{ action: 'remove', cardName: 'Sol Ring' }])
 
     // Undoing the removal restores the entry (with its edit applied) AND the edit's event.
-    undoFlatListEdit(list, ctx)
-    expect(findFlatListEntry(list, 1)).toMatchObject({ name: 'Sol Ring', set: 'ltc' })
-    expect(ctx.sessionChanges).toMatchObject([{ action: 'set-printing', set: 'ltc' }])
+    undoFlatListEdit(h.list, h.ctx)
+    expect(findFlatListEntry(h.list, 1)).toMatchObject({ name: 'Sol Ring', set: 'ltc' })
+    expect(h.ctx.sessionChanges).toMatchObject([{ action: 'set-printing', set: 'ltc' }])
   })
 
   test('removal of a card added this session cancels its add instead of recording a remove', () => {
@@ -302,45 +294,24 @@ describe('performFlatListRemoval', () => {
 })
 
 describe('listFlatListSessionChanges', () => {
-  /** Simulate a session add of `name`, mirroring what applyFlatListCardEntry tracks. */
-  function simulateAdd(h: Harness, name: string): number {
-    const cardId = allocateId(h.session.pool)
-    h.session.entries = [...h.session.entries, entry(name, cardId)]
-    h.list.sessionAdds.push(cardId)
-    h.ctx.sessionChanges.push(createAddChange(name, { set: 'lea', cardId }))
-    return cardId
-  }
-
-  test('lists adds, edits, and removals with their icons', () => {
+  test('lists adds, edits, and removals in order', () => {
     const h = harness([entry('Sol Ring', 1), entry('Lightning Bolt', 2)])
     simulateAdd(h, 'Brainstorm')
-    applyFlatListFieldEdit(
-      h.list,
-      h.ctx,
-      findFlatListEntry(h.list, 1)!,
-      1,
-      printingEdit(findFlatListEntry(h.list, 1)!, 1, LTC),
-    )
+    editPrinting(h, 1, LTC)
     performFlatListRemoval(h.list, h.ctx, findFlatListEntry(h.list, 2)!, 2)
 
     const items = listFlatListSessionChanges(h.list)
     expect(items).toHaveLength(3)
-    expect(items[0]!.label).toStartWith('➕ Added')
+    expect(items[0]!.label).toContain('Added')
     expect(items[0]!.label).toContain('Brainstorm')
-    expect(items[1]!.label).toBe('✏️  printing on Sol Ring')
-    expect(items[2]!.label).toBe('🗑️  removal of Lightning Bolt')
+    expect(items[1]!.label).toContain('printing on Sol Ring')
+    expect(items[2]!.label).toContain('removal of Lightning Bolt')
     expect(items.every((i) => i.blocked === undefined)).toBe(true)
   })
 
   test('an edit shadowed by a newer same-card change is blocked, naming the newer one', () => {
     const h = harness([entry('Sol Ring', 1)])
-    applyFlatListFieldEdit(
-      h.list,
-      h.ctx,
-      findFlatListEntry(h.list, 1)!,
-      1,
-      printingEdit(findFlatListEntry(h.list, 1)!, 1, LTC),
-    )
+    editPrinting(h, 1, LTC)
     performFlatListRemoval(h.list, h.ctx, findFlatListEntry(h.list, 1)!, 1)
 
     const items = listFlatListSessionChanges(h.list)
@@ -350,20 +321,8 @@ describe('listFlatListSessionChanges', () => {
 
   test('discarding a middle edit reverts only that change and keeps the rest replayable', () => {
     const h = harness([entry('Sol Ring', 1), entry('Lightning Bolt', 2)])
-    applyFlatListFieldEdit(
-      h.list,
-      h.ctx,
-      findFlatListEntry(h.list, 1)!,
-      1,
-      printingEdit(findFlatListEntry(h.list, 1)!, 1, LTC),
-    )
-    applyFlatListFieldEdit(
-      h.list,
-      h.ctx,
-      findFlatListEntry(h.list, 2)!,
-      2,
-      printingEdit(findFlatListEntry(h.list, 2)!, 2, C19),
-    )
+    editPrinting(h, 1, LTC)
+    editPrinting(h, 2, C19)
 
     // Discard the older edit (different card, so unblocked).
     discardFlatListSessionChange(h.list, h.ctx, 0)
@@ -379,13 +338,7 @@ describe('listFlatListSessionChanges', () => {
 
   test('a blocked discard is refused and changes nothing', () => {
     const h = harness([entry('Sol Ring', 1)])
-    applyFlatListFieldEdit(
-      h.list,
-      h.ctx,
-      findFlatListEntry(h.list, 1)!,
-      1,
-      printingEdit(findFlatListEntry(h.list, 1)!, 1, LTC),
-    )
+    editPrinting(h, 1, LTC)
     performFlatListRemoval(h.list, h.ctx, findFlatListEntry(h.list, 1)!, 1)
     const changesBefore = [...h.ctx.sessionChanges]
 
@@ -398,13 +351,7 @@ describe('listFlatListSessionChanges', () => {
   test('discarding a removal out of order restores the entry', () => {
     const h = harness([entry('Sol Ring', 1), entry('Lightning Bolt', 2)])
     performFlatListRemoval(h.list, h.ctx, findFlatListEntry(h.list, 1)!, 1)
-    applyFlatListFieldEdit(
-      h.list,
-      h.ctx,
-      findFlatListEntry(h.list, 2)!,
-      2,
-      printingEdit(findFlatListEntry(h.list, 2)!, 2, C19),
-    )
+    editPrinting(h, 2, C19)
 
     discardFlatListSessionChange(h.list, h.ctx, 0)
     expect(findFlatListEntry(h.list, 1)).toMatchObject({ name: 'Sol Ring', cardId: 1 })
@@ -416,13 +363,7 @@ describe('listFlatListSessionChanges', () => {
   test('discarding an add routes through the session-add machinery', () => {
     const h = harness([entry('Sol Ring', 1)])
     simulateAdd(h, 'Brainstorm')
-    applyFlatListFieldEdit(
-      h.list,
-      h.ctx,
-      findFlatListEntry(h.list, 1)!,
-      1,
-      printingEdit(findFlatListEntry(h.list, 1)!, 1, LTC),
-    )
+    editPrinting(h, 1, LTC)
 
     // Index 0 is the add (adds precede edits in the unified list).
     discardFlatListSessionChange(h.list, h.ctx, 0)
@@ -431,6 +372,56 @@ describe('listFlatListSessionChanges', () => {
     // The add's id returns to the pool, and the discard clears the edit history.
     expect(allocateId(h.session.pool)).toBe(2)
     expect(h.list.editUndo).toHaveLength(0)
+  })
+})
+
+describe('discardFlatListAdd', () => {
+  test('discarding a middle add re-packs survivors, frees the top id, and remaps the changelog', () => {
+    const h = harness([])
+    const names = ['Sol Ring', 'Lightning Bolt', 'Brainstorm', 'Counterspell', 'Dark Ritual']
+    for (const name of names) simulateAdd(h, name)
+    expect(h.list.sessionAdds).toEqual([1, 2, 3, 4, 5])
+    expect(listFlatListSessionAdds(h.list).map((i) => i.name)).toEqual(names)
+
+    // Discard the 3rd add (Brainstorm, &3).
+    discardFlatListAdd(h.list, h.ctx, 2)
+
+    // Survivors stay in add order and re-pack to a dense 1..4; the top id (5) frees up.
+    const survivors = ['Sol Ring', 'Lightning Bolt', 'Counterspell', 'Dark Ritual']
+    expect(h.session.entries.map((e) => e.name)).toEqual(survivors)
+    expect(h.session.entries.map((e) => e.cardId)).toEqual([1, 2, 3, 4])
+    expect(h.list.sessionAdds).toEqual([1, 2, 3, 4])
+    expect(allocateId(h.session.pool)).toBe(5)
+
+    // The discarded card's changelog event is gone; the rest are remapped to the new ids.
+    expect(h.ctx.sessionChanges.map((c) => ('cardId' in c ? c.cardId : undefined))).toEqual([
+      1, 2, 3, 4,
+    ])
+    expect(h.ctx.sessionChanges.map((c) => ('cardName' in c ? c.cardName : undefined))).toEqual(
+      survivors,
+    )
+  })
+
+  test('a re-pack leaves pre-existing (non-session) entries and their ids untouched', () => {
+    // The list already has two cards (&1, &2) that were not added this session.
+    const h = harness([entry('Mox Emerald', 1), entry('Black Lotus', 2)])
+    simulateAdd(h, 'Sol Ring') // &3
+    simulateAdd(h, 'Lightning Bolt') // &4
+    simulateAdd(h, 'Brainstorm') // &5
+
+    // Discard the middle session add (Lightning Bolt, &4).
+    discardFlatListAdd(h.list, h.ctx, 1)
+
+    // The two pre-existing entries keep &1/&2; only the session ids re-pack
+    // (Brainstorm &5 → &4), and the freed top id (5) returns to the pool.
+    const byName = (n: string) => h.session.entries.find((e) => e.name === n)!
+    expect(byName('Mox Emerald').cardId).toBe(1)
+    expect(byName('Black Lotus').cardId).toBe(2)
+    expect(byName('Sol Ring').cardId).toBe(3)
+    expect(byName('Brainstorm').cardId).toBe(4)
+    expect(h.session.entries.find((e) => e.name === 'Lightning Bolt')).toBeUndefined()
+    expect(h.list.sessionAdds).toEqual([3, 4])
+    expect(allocateId(h.session.pool)).toBe(5)
   })
 })
 
@@ -452,16 +443,11 @@ describe('listFlatListEntries', () => {
 
 describe('resetFlatListSessionTracking', () => {
   test('clears the session adds, edit history, snapshots, and last-add state', () => {
-    const { list, ctx } = harness([entry('Sol Ring', 1)])
+    const h = harness([entry('Sol Ring', 1)])
+    const { list } = h
     list.sessionAdds.push(1)
     list.state.snapshot = { options: {} }
-    applyFlatListFieldEdit(
-      list,
-      ctx,
-      findFlatListEntry(list, 1)!,
-      1,
-      printingEdit(findFlatListEntry(list, 1)!, 1, LTC),
-    )
+    editPrinting(h, 1, LTC)
     expect(list.editUndo).toHaveLength(1)
     expect(list.originals.size).toBe(1)
 

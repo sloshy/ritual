@@ -1,45 +1,29 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { E2E_STATE_FILE, killProcess, readE2eState } from './workspace'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
+async function globalTeardown(): Promise<void> {
+  const state = readE2eState()
+  if (!state) return
 
-const PID_FILE = path.join(__dirname, '.server-pids.json')
-
-type ServerPids = {
-  serve?: number
-  admin?: number
-}
-
-function killProcess(pid: number) {
-  try {
-    // Kill the process group (negative PID) since we used detached: true
-    process.kill(-pid, 'SIGTERM')
-  } catch {
-    try {
-      process.kill(pid, 'SIGTERM')
-    } catch {
-      // Process already gone
-    }
+  if (state.servePid) {
+    console.log(`[global-teardown] Stopping public site server (PID ${state.servePid})`)
+    killProcess(state.servePid)
   }
-}
-
-async function globalTeardown() {
-  if (!fs.existsSync(PID_FILE)) return
-
-  const pids: ServerPids = JSON.parse(fs.readFileSync(PID_FILE, 'utf-8'))
-
-  if (pids.serve) {
-    console.log(`[global-teardown] Stopping public site server (PID ${pids.serve})`)
-    killProcess(pids.serve)
-  }
-  if (pids.admin) {
-    console.log(`[global-teardown] Stopping admin server (PID ${pids.admin})`)
-    killProcess(pids.admin)
+  if (state.adminPid) {
+    console.log(`[global-teardown] Stopping admin server (PID ${state.adminPid})`)
+    killProcess(state.adminPid)
   }
 
-  fs.unlinkSync(PID_FILE)
+  // Remove the synthetic workspace. Guard against a corrupt state file ever
+  // pointing the recursive delete somewhere unexpected.
+  if (state.workspaceDir && state.workspaceDir.startsWith(path.join(os.tmpdir(), 'ritual-e2e-'))) {
+    fs.rmSync(state.workspaceDir, { recursive: true, force: true })
+    console.log(`[global-teardown] Removed workspace ${state.workspaceDir}`)
+  }
+
+  fs.unlinkSync(E2E_STATE_FILE)
   console.log('[global-teardown] Servers stopped.')
 }
 

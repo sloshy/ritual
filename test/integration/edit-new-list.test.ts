@@ -1,14 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
-import { setBaseDir } from '../../src/base-dir'
-import { resetRitualConfigCache } from '../../src/ritual-config'
 import { createAddChange } from '../../src/change-event'
 import { resetCardSessionTracking, saveCardSession } from '../../src/commands/card-session'
 import { newListFilePath, newListSession, type OpenList } from '../../src/commands/edit-lists'
 import type { DeckSessionConfig } from '../../src/commands/deck-helpers'
 import type { ListType } from '../../src/list-type'
+import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 
 /**
  * A list created in the `edit` command exists in memory only: its file and
@@ -16,6 +14,7 @@ import type { ListType } from '../../src/list-type'
  * discarded. These tests drive that promise against a real filesystem.
  */
 
+let ws: BoundWorkspace
 let dir: string
 
 const sessionConfig: DeckSessionConfig = {
@@ -27,17 +26,13 @@ const sessionConfig: DeckSessionConfig = {
 }
 
 beforeEach(async () => {
-  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-edit-new-list-'))
-  await fs.writeFile(
-    path.join(dir, 'ritual.config.json'),
-    JSON.stringify({ decksDir: './decks', collectionsDir: './collections', wantedDir: './wanted' }),
-  )
-  setBaseDir(dir)
-  resetRitualConfigCache()
+  // No list subdirectories: these tests assert that nothing exists until save.
+  ws = await bindWorkspace({ dirs: [] })
+  dir = ws.dir
 })
 
 afterEach(async () => {
-  await fs.rm(dir, { recursive: true, force: true })
+  await ws.dispose()
 })
 
 const exists = (file: string): Promise<boolean> => Bun.file(file).exists()
@@ -129,17 +124,6 @@ describe('creating a list in the edit command (Integration)', () => {
 })
 
 describe('a pending list creation as a session change (Integration)', () => {
-  // The wrapper's own blocking/offset rules are unit-tested against a fake
-  // strategy (test/unit/edit-lists.test.ts); these cover the real ones.
-  test.each(['deck', 'collection', 'wanted'] as const)(
-    'a new %s reports its creation as its first session change',
-    (type) => {
-      const open = createList(type, 'Something New')
-      expect(open.strategy.listSessionChanges()).toHaveLength(1)
-      expect(open.strategy.listSessionChanges()[0]?.label).toStartWith('Created this ')
-    },
-  )
-
   test('discarding the creation drops the list, and its file is never written', async () => {
     const dropped: string[] = []
     const file = newListFilePath('collection', 'New Binder')

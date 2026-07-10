@@ -13,6 +13,7 @@ import {
   type PrintingsLookup,
 } from '../../src/price-report'
 import type { ScryfallCard } from '../../src/types'
+import { makeScryfallCard } from '../test-utils'
 
 type PriceOverrides = Partial<ScryfallCard['prices']>
 
@@ -20,30 +21,15 @@ function makeCard(
   overrides: Partial<ScryfallCard> = {},
   prices: PriceOverrides = {},
 ): ScryfallCard {
-  return {
-    id: 'test-id',
-    name: 'Test Card',
+  return makeScryfallCard({
     cmc: 2,
-    type_line: 'Artifact',
-    prices: {
-      usd: '1.00',
-      usd_foil: null,
-      usd_etched: null,
-      eur: null,
-      eur_foil: null,
-      tix: null,
-      ...prices,
-    },
-    finishes: ['nonfoil'],
-    games: ['paper'],
     set: 'aaa',
     set_name: 'Set AAA',
-    collector_number: '1',
     rarity: 'rare',
-    color_identity: [],
     released_at: '2020-01-01',
+    prices: { usd: '1.00', ...prices },
     ...overrides,
-  }
+  })
 }
 
 function lookupFor(printings: Record<string, ScryfallCard[]>): PrintingsLookup {

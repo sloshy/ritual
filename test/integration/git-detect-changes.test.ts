@@ -1,41 +1,37 @@
 import { describe, test, expect, afterEach } from 'bun:test'
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
-import { setBaseDir } from '../../src/base-dir'
-import { initRitualConfig, resetRitualConfigCache } from '../../src/ritual-config'
 import { cleanGitEnv } from '../../src/git-diff'
 import { computeHash, loadHash, writeFileWithHash } from '../../src/content-hash'
 import { detectChanges, applyDetectedChanges } from '../../src/commands/git-detect-changes'
+import { bindWorkspace, deckMarkdown, type BoundWorkspace } from './helpers/workspace'
 
 // ── Test fixtures ────────────────────────────────────────────────────
 
-const DECK_BEFORE = `---
-name: "Test Deck"
-format: "commander"
----
-
-# Test Deck
-
-## Mainboard
-
-1 Sol Ring (C21:263) &1
-1 Lightning Bolt (2X2:117) &2
-`
+const DECK_BEFORE = deckMarkdown({
+  frontMatter: { name: 'Test Deck', format: 'commander' },
+  sections: [
+    {
+      name: 'Mainboard',
+      cards: [
+        { quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 },
+        { quantity: 1, name: 'Lightning Bolt', set: '2x2', collectorNumber: '117', cardId: 2 },
+      ],
+    },
+  ],
+})
 
 // Lightning Bolt removed.
-const DECK_AFTER = `---
-name: "Test Deck"
-format: "commander"
----
-
-# Test Deck
-
-## Mainboard
-
-1 Sol Ring (C21:263) &1
-`
+const DECK_AFTER = deckMarkdown({
+  frontMatter: { name: 'Test Deck', format: 'commander' },
+  sections: [
+    {
+      name: 'Mainboard',
+      cards: [{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 }],
+    },
+  ],
+})
 
 // ── Git helpers ──────────────────────────────────────────────────────
 
@@ -63,7 +59,7 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
-type Repo = { dir: string; deckPath: string; before: string }
+type Repo = { ws: BoundWorkspace; dir: string; deckPath: string; before: string }
 
 /**
  * Create a fresh git repo with a committed deck (and its `.sha256` sidecar)
@@ -71,10 +67,8 @@ type Repo = { dir: string; deckPath: string; before: string }
  * of that initial state to diff against.
  */
 async function setupRepo(): Promise<Repo> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-detect-test-'))
-  setBaseDir(dir)
-  resetRitualConfigCache()
-  await initRitualConfig()
+  const ws = await bindWorkspace({ dirs: [], config: false, init: true })
+  const dir = ws.dir
 
   git(dir, 'init')
   git(dir, 'config', 'user.name', 'Test')
@@ -87,20 +81,17 @@ async function setupRepo(): Promise<Repo> {
   await writeFileWithHash(deckPath, DECK_BEFORE)
 
   const before = commitAll(dir, 'initial deck')
-  return { dir, deckPath, before }
+  return { ws, dir, deckPath, before }
 }
 
 // ── Tests ────────────────────────────────────────────────────────────
 
 describe('git-detect-changes hash-aware detection', () => {
-  const originalCwd = process.cwd()
   let repo: Repo | null = null
 
   afterEach(async () => {
-    setBaseDir(originalCwd)
-    resetRitualConfigCache()
     if (repo) {
-      await fs.rm(repo.dir, { recursive: true, force: true })
+      await repo.ws.dispose()
       repo = null
     }
   })

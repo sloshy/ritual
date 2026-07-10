@@ -4,7 +4,7 @@ import {
   mockPublicSiteCollection,
   mockPublicSiteDeckWithMultipleSections,
   mockPublicSiteWantedList,
-} from '../helpers/mock-data'
+} from '../helpers/mock-public-site'
 
 // The page-header export menu (Copy / Download with TXT / MD / CSV) is shared by
 // the deck, collection, and wanted-list read views. These cover the end-to-end

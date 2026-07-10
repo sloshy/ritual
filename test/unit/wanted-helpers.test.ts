@@ -9,6 +9,8 @@ describe('parseWantedListFile', () => {
     expect(entries[0]!.set).toBeUndefined()
     expect(entries[0]!.collectorNumber).toBeUndefined()
     expect(entries[0]!.finish).toBeUndefined()
+    expect(entries[0]!.note).toBeUndefined()
+    expect(entries[0]!.cardId).toBeUndefined()
     expect(warnings).toHaveLength(0)
   })
 
@@ -51,17 +53,6 @@ describe('parseWantedListFile', () => {
     const { entries } = parseWantedListFile('- Sol Ring {Must be foil}\n')
     expect(entries[0]).toMatchObject({ name: 'Sol Ring', note: 'Must be foil' })
     expect(entries[0]!.set).toBeUndefined()
-  })
-
-  test('entry without a note has undefined note field', () => {
-    const { entries } = parseWantedListFile('- Lightning Bolt\n')
-    expect(entries[0]!.note).toBeUndefined()
-  })
-
-  test('parses multiple entries', () => {
-    const content = '- Lightning Bolt\n- Sol Ring [foil]\n- Black Lotus (LEA:232)\n'
-    const { entries } = parseWantedListFile(content)
-    expect(entries).toHaveLength(3)
   })
 
   test('parses all three states in one file', () => {
@@ -127,11 +118,6 @@ describe('parseWantedListFile', () => {
     const { entries } = parseWantedListFile('- Mana Crypt (2XM:270) [foil] {JP} &12\n')
     expect(entries[0]).toMatchObject({ note: 'JP', cardId: 12 })
   })
-
-  test('entry without card ID has undefined cardId', () => {
-    const { entries } = parseWantedListFile('- Lightning Bolt\n')
-    expect(entries[0]!.cardId).toBeUndefined()
-  })
 })
 
 describe('formatWantedListLine', () => {
@@ -162,12 +148,6 @@ describe('formatWantedListLine', () => {
   test('includes a note', () => {
     expect(formatWantedListLine('Sol Ring', undefined, undefined, 'signed')).toBe(
       '- Sol Ring {signed}\n',
-    )
-  })
-
-  test('set code is uppercased', () => {
-    expect(formatWantedListLine('Dragon', { set: 'mh2', collectorNumber: '100' })).toContain(
-      '(MH2:100)',
     )
   })
 

@@ -1,13 +1,13 @@
-import { afterEach, describe, expect, test } from 'bun:test'
+import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
+import { setBaseDir } from '../../src/base-dir'
 import { defaultCache } from '../../src/cache'
 import {
   clearCacheServerAddressOverride,
   setCacheServerAddressOverride,
 } from '../../src/cache/config'
-import { PriceService } from '../../src/prices'
 import { type PriceData, type ScryfallCard } from '../../src/types'
 import { binaryPath, ensureBinary } from './helpers/cli'
 
@@ -176,6 +176,22 @@ async function stopServer(server: RunningServer): Promise<StopServerOutput> {
 describe('cache-server command (Integration)', () => {
   const runningServers: RunningServer[] = []
 
+  // defaultCache resolves its cache file relative to the process base dir; pin
+  // it to a temp dir so these tests never read or write the repo's real cache/.
+  const originalBaseDir = process.cwd()
+  let testBaseDir: string
+
+  beforeAll(async () => {
+    testBaseDir = path.join(tmpdir(), `ritual-cache-server-base-${crypto.randomUUID()}`)
+    await fs.mkdir(path.join(testBaseDir, 'cache'), { recursive: true })
+    setBaseDir(testBaseDir)
+  })
+
+  afterAll(async () => {
+    setBaseDir(originalBaseDir)
+    await fs.rm(testBaseDir, { recursive: true, force: true })
+  })
+
   afterEach(async () => {
     clearCacheServerAddressOverride()
     while (runningServers.length > 0) {
@@ -216,24 +232,17 @@ describe('cache-server command (Integration)', () => {
     expect(body.value).toEqual({ latest: 2, min: 1, max: 3 })
   }, 20000)
 
-  test('verbose mode logs every request', async () => {
-    const server = await startServer({ verbose: true })
+  test('logs verbose requests, cache updates, and scheduled refreshes', async () => {
+    const server = await startServer({
+      verbose: true,
+      cardsRefresh: 'monthly',
+      pricesRefresh: 'weekly',
+    })
 
-    const health = await fetch(`http://127.0.0.1:${server.port}/health`)
-    expect(health.status).toBe(200)
-
-    const read = await fetch(
+    const readResponse = await fetch(
       `http://127.0.0.1:${server.port}/cache/cards/${encodeURIComponent('Sol Ring')}`,
     )
-    expect(read.status).toBe(200)
-
-    const logs = await stopServer(server)
-    expect(logs.stdout).toContain('[cache-server] GET /health -> 200')
-    expect(logs.stdout).toContain('[cache-server] GET /cache/cards/Sol%20Ring -> 200')
-  }, 20000)
-
-  test('logs cache updates for write operations', async () => {
-    const server = await startServer()
+    expect(readResponse.status).toBe(200)
 
     const setResponse = await fetch(
       `http://127.0.0.1:${server.port}/cache/prices/${encodeURIComponent('Arcane Signet')}`,
@@ -254,8 +263,11 @@ describe('cache-server command (Integration)', () => {
     expect(deleteResponse.status).toBe(204)
 
     const logs = await stopServer(server)
+    expect(logs.stdout).toContain('[cache-server] GET /cache/cards/Sol%20Ring -> 200')
     expect(logs.stdout).toContain("cache update: section=prices action=set key='Arcane Signet'")
     expect(logs.stdout).toContain("cache update: section=prices action=delete key='Arcane Signet'")
+    expect(logs.stdout).toContain('Scheduled cards cache refresh enabled: monthly')
+    expect(logs.stdout).toContain('Scheduled prices cache refresh enabled: weekly')
   }, 20000)
 
   test('returns cache timestamps for keys and sections', async () => {
@@ -309,42 +321,5 @@ describe('cache-server command (Integration)', () => {
     expect(values['Sol Ring']).toEqual(testPrice)
     expect(values['Arcane Signet']).toEqual(testPrice2)
     expect(streamed).toEqual(['Sol Ring', 'Arcane Signet'])
-  }, 20000)
-
-  test('accepts distinct cards and prices refresh options', async () => {
-    const server = await startServer({ cardsRefresh: 'monthly', pricesRefresh: 'weekly' })
-    const logs = await stopServer(server)
-    expect(logs.stdout).toContain('Scheduled cards cache refresh enabled: monthly')
-    expect(logs.stdout).toContain('Scheduled prices cache refresh enabled: weekly')
-  }, 20000)
-
-  test('deck pricing defaults to stream endpoint with cache server', async () => {
-    const server = await startServer({ verbose: true })
-
-    setCacheServerAddressOverride(`127.0.0.1:${server.port}`)
-    const mockCardCache = {
-      get: async () => null,
-      set: async () => {},
-      delete: async () => {},
-      keys: async () => [],
-    } as unknown as import('../../src/interfaces').CacheManager<ScryfallCard[]>
-    const service = new PriceService(
-      {
-        fetchLatestPrices: async () => new Map(),
-        fetchMinMaxPrice: async () => ({ min: 0, max: 0 }),
-      },
-      defaultCache,
-      mockCardCache,
-    )
-
-    await service.getDeckPricing([
-      { name: 'Sol Ring', quantity: 1 },
-      { name: 'Arcane Signet', quantity: 1 },
-    ])
-
-    const logs = await stopServer(server)
-    expect(logs.stdout).toContain('[cache-server] POST /cache/prices/stream -> 200')
-    expect(logs.stdout).not.toContain('[cache-server] GET /cache/prices/Sol%20Ring -> 200')
-    expect(logs.stdout).not.toContain('[cache-server] GET /cache/prices/Arcane%20Signet -> 200')
   }, 20000)
 })

@@ -4,7 +4,6 @@ import {
   buildAddTargetChoices,
   createScopedSession,
   createScopedSessionState,
-  listScopeTitle,
   listsInScope,
   type ScopedSession,
   type ScopedSessionState,
@@ -179,15 +178,6 @@ function fixture(): Fixture {
 }
 
 describe('list scopes', () => {
-  test('each scope has its own titled menu entry', () => {
-    expect((['all', 'deck', 'collection', 'wanted'] as const).map(listScopeTitle)).toEqual([
-      '🗃️ All Lists',
-      '🎴 All Decks',
-      '📦 All Collections',
-      '🎯 All Wanted Lists',
-    ])
-  })
-
   test('a scope spans only its own type, and `all` spans everything', () => {
     // This is what makes All Decks see only decks: a scoped session never
     // filters for itself, it edits exactly the lists it is handed.
@@ -208,10 +198,9 @@ describe('scoped session edit mode', () => {
   test('entries from every list are labelled with their list and routed by synthetic key', async () => {
     const { session, deck, binder } = fixture()
     const entries = session.strategy.listEntries()
-    expect(entries.map((e) => e.label)).toEqual([
-      '🎴 Winota: 1 Sol Ring &1',
-      '📦 Binder: - Mox Ruby &1',
-    ])
+    expect(entries).toHaveLength(2)
+    expect(entries[0]!.label).toContain('Winota: 1 Sol Ring &1')
+    expect(entries[1]!.label).toContain('Binder: - Mox Ruby &1')
     // Same underlying card id in both lists — distinct keys in the picker.
     expect(entries[0]!.cardId).not.toBe(entries[1]!.cardId)
 
@@ -236,7 +225,7 @@ describe('scoped session edit mode', () => {
 
     const entries = session.strategy.listEntries()
     await session.strategy.editEntry(createCardSessionContext(), entries[0]!.cardId)
-    expect(session.strategy.lastEditUndoLabel()).toBe('🎴 Winota: undo added Sol Ring')
+    expect(session.strategy.lastEditUndoLabel()).toContain('Winota: undo added Sol Ring')
 
     await session.strategy.undoLastEdit(createCardSessionContext())
     expect(deck.calls.undone).toBe(1)
@@ -258,11 +247,11 @@ describe('scoped session changes', () => {
     const binder = fakeList(binderRef, [], ['added Black Lotus'])
     const session = scoped([deck.open, binder.open])
 
-    expect(session.strategy.listSessionChanges().map((c) => c.label)).toEqual([
-      '🎴 Winota: added Sol Ring',
-      '🎴 Winota: removed Mox Ruby',
-      '📦 Binder: added Black Lotus',
-    ])
+    const labels = session.strategy.listSessionChanges().map((c) => c.label)
+    expect(labels).toHaveLength(3)
+    expect(labels[0]).toContain('Winota: added Sol Ring')
+    expect(labels[1]).toContain('Winota: removed Mox Ruby')
+    expect(labels[2]).toContain('Binder: added Black Lotus')
 
     // Index 2 is the binder's first change, not the deck's third.
     await session.strategy.discardSessionChange(createCardSessionContext(), 2)
@@ -283,16 +272,16 @@ describe('scoped session changes', () => {
     lists[1] = created
 
     const session = scoped(lists)
-    expect(session.strategy.listSessionChanges().map((c) => c.label)).toEqual([
-      '🎴 Winota: added Sol Ring',
-      '🎯 To Buy: Created this wanted list',
-    ])
+    const labels = session.strategy.listSessionChanges().map((c) => c.label)
+    expect(labels).toHaveLength(2)
+    expect(labels[0]).toContain('Winota: added Sol Ring')
+    expect(labels[1]).toContain('To Buy: Created this wanted list')
 
     // Index 1 is the creation; discarding it removes the list from the session.
     await session.strategy.discardSessionChange(createCardSessionContext(), 1)
-    expect(session.strategy.listSessionChanges().map((c) => c.label)).toEqual([
-      '🎴 Winota: added Sol Ring',
-    ])
+    const remaining = session.strategy.listSessionChanges().map((c) => c.label)
+    expect(remaining).toHaveLength(1)
+    expect(remaining[0]).toContain('Winota: added Sol Ring')
     expect(session.strategy.listEntries()).toEqual([])
     // The aggregate itself is not discarded — the other lists are still editable.
     expect(session.strategy.discarded).toBeUndefined()
@@ -304,7 +293,7 @@ describe('scoped session changes', () => {
     const session = scoped([{ ...wanted.open, strategy }])
 
     const [creation, card] = session.strategy.listSessionChanges()
-    expect(creation?.label).toBe('🎯 To Buy: Created this wanted list')
+    expect(creation?.label).toContain('To Buy: Created this wanted list')
     expect(creation?.blocked).toBe("discard this wanted list's 1 card change(s) first")
     expect(card?.blocked).toBeUndefined()
   })
@@ -353,24 +342,28 @@ describe('scoped session add mode', () => {
   test('the destination prompt offers every open list plus the create-new items', () => {
     const { deck, binder } = fixture()
     binder.setNew(true)
-    expect(buildAddTargetChoices([deck.open, binder.open], 'all').map((c) => c.title)).toEqual([
-      '🎴 Winota',
-      // A list created this session is marked, since it has no file yet.
-      '📦 Binder (new)',
-      '➕ New Deck',
-      '➕ New Collection',
-      '➕ New Wanted List',
+    const choices = buildAddTargetChoices([deck.open, binder.open], 'all')
+    expect(choices).toHaveLength(5)
+    expect(choices[0]!.title).toContain('Winota')
+    // A list created this session is marked, since it has no file yet.
+    expect(choices[1]!.title).toContain('Binder (new)')
+    expect(choices.slice(2).map((c) => c.value)).toEqual([
+      { kind: 'new', type: 'deck' },
+      { kind: 'new', type: 'collection' },
+      { kind: 'new', type: 'wanted' },
     ])
   })
 
   test('a single-type scope can only create a list of that type', () => {
     const { deck } = fixture()
     // Nothing to choose between: a list created here could only be a deck.
-    expect(buildAddTargetChoices([deck.open], 'deck').map((c) => c.title)).toEqual([
-      '🎴 Winota',
-      '➕ New Deck',
+    const choices = buildAddTargetChoices([deck.open], 'deck')
+    expect(choices).toHaveLength(2)
+    expect(choices[0]!.title).toContain('Winota')
+    expect(choices[1]!.value).toEqual({ kind: 'new', type: 'deck' })
+    expect(buildAddTargetChoices([], 'wanted').map((c) => c.value)).toEqual([
+      { kind: 'new', type: 'wanted' },
     ])
-    expect(buildAddTargetChoices([], 'wanted').map((c) => c.title)).toEqual(['➕ New Wanted List'])
   })
 
   test('a single-type scope creates the list without asking for a type', async () => {

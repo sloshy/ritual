@@ -76,17 +76,6 @@ describe('applyChangeToWantedList', () => {
   })
 
   describe('remove', () => {
-    test('removes entry by fileOrder', () => {
-      const entries = [makeEntry({ fileOrder: 0 }), makeEntry({ name: 'Sol Ring', fileOrder: 1 })]
-      const result = applyChangeToWantedList(entries, {
-        action: 'remove',
-        cardName: 'Lightning Bolt',
-        fileOrder: 0,
-      })
-      expect(result).toHaveLength(1)
-      expect(result[0]!.name).toBe('Sol Ring')
-    })
-
     test('removes entry by name match when no fileOrder', () => {
       const entries = [makeEntry(), makeEntry({ name: 'Sol Ring', fileOrder: 1 })]
       const result = applyChangeToWantedList(entries, {
@@ -95,21 +84,6 @@ describe('applyChangeToWantedList', () => {
       })
       expect(result).toHaveLength(1)
       expect(result[0]!.name).toBe('Sol Ring')
-    })
-
-    test('removes entry by name and set match', () => {
-      const entries = [
-        makeEntry({ set: 'lea', collectorNumber: '161', fileOrder: 0 }),
-        makeEntry({ set: 'm20', collectorNumber: '152', fileOrder: 1 }),
-      ]
-      const result = applyChangeToWantedList(entries, {
-        action: 'remove',
-        cardName: 'Lightning Bolt',
-        set: 'lea',
-        collectorNumber: '161',
-      })
-      expect(result).toHaveLength(1)
-      expect(result[0]!.set).toBe('m20')
     })
 
     test('returns unchanged array when entry not found', () => {

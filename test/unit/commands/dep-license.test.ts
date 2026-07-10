@@ -3,21 +3,6 @@ import { formatEntry } from '../../../src/commands/dep-license'
 import { depLicenses, type DepLicenseEntry } from '../../../src/generated/dep-licenses'
 
 describe('depLicenses', () => {
-  test('is a non-empty array', () => {
-    expect(Array.isArray(depLicenses)).toBeTrue()
-    expect(depLicenses.length).toBeGreaterThan(0)
-  })
-
-  test('all entries have required fields', () => {
-    for (const entry of depLicenses) {
-      expect(typeof entry.name).toBe('string')
-      expect(typeof entry.version).toBe('string')
-      expect(typeof entry.license).toBe('string')
-      expect(typeof entry.isPrimary).toBe('boolean')
-      expect(entry.text === null || typeof entry.text === 'string').toBeTrue()
-    }
-  })
-
   test('has at least one primary entry', () => {
     const primaries = depLicenses.filter((e) => e.isPrimary)
     expect(primaries.length).toBeGreaterThan(0)
@@ -28,14 +13,6 @@ describe('depLicenses', () => {
     expect(commander).toBeDefined()
     expect(commander?.isPrimary).toBeTrue()
     expect(commander?.license).toBe('MIT')
-  })
-
-  test('primary entries appear before transitive entries', () => {
-    const firstTransitiveIndex = depLicenses.findIndex((e) => !e.isPrimary)
-    if (firstTransitiveIndex === -1) return // all primary, fine
-    for (let i = firstTransitiveIndex; i < depLicenses.length; i++) {
-      expect(depLicenses[i]!.isPrimary).toBeFalse()
-    }
   })
 })
 

@@ -9,36 +9,16 @@ import {
   type LoadedListDetail,
 } from '../../../src/site/combined-list'
 import { groupAndSortCards } from '../../../src/site/card-sorting'
-import type { ScryfallCard } from '../../../src/types'
 import type { DeckDetail, CollectionDetail, WantedListDetail } from '../../../src/site/data-types'
+import { makeScryfallCard } from '../../test-utils'
 
-function makeCard(overrides: Partial<ScryfallCard> = {}): ScryfallCard {
-  return {
-    id: 'card-id-1',
-    name: 'Test Card',
-    cmc: 1,
-    type_line: 'Artifact',
-    prices: {
-      usd: '2.00',
-      usd_foil: '5.00',
-      usd_etched: '20.00',
-      eur: '1.50',
-      eur_foil: '4.50',
-      tix: '0.05',
-    },
-    finishes: ['nonfoil', 'foil'],
-    games: ['paper'],
-    set: 'c21',
-    set_name: 'Commander 2021',
-    collector_number: '263',
-    rarity: 'uncommon',
-    color_identity: [],
-    ...overrides,
-  }
-}
-
-const solRing = makeCard({ id: 'sol', name: 'Sol Ring', set: 'c21', collector_number: '263' })
-const bolt = makeCard({
+const solRing = makeScryfallCard({
+  id: 'sol',
+  name: 'Sol Ring',
+  set: 'c21',
+  collector_number: '263',
+})
+const bolt = makeScryfallCard({
   id: 'bolt',
   name: 'Lightning Bolt',
   type_line: 'Instant',

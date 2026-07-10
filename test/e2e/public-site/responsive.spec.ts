@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { SYNTHETIC_DECK_SLUG } from '../helpers/synthetic-workspace'
 
 type ViewportConfig = {
   name: string
@@ -27,7 +28,7 @@ test.describe('Responsive Layout', () => {
 
   test('deck page is usable on mobile', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 })
-    await page.goto('#/deck/black-panther')
+    await page.goto(`#/deck/${SYNTHETIC_DECK_SLUG}`)
     await page.waitForSelector('[data-view]', { timeout: 15_000 })
     // Verify toolbar is interactive
     await expect(page.locator('.view-toggle').first()).toBeVisible()

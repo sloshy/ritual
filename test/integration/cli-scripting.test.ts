@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { runCli, withTempDir } from './helpers/cli'
+import { writeDeckFile } from './helpers/workspace'
 
 describe('CLI scripting behavior (Integration)', () => {
   test('price returns structured json error with not-found exit code', async () => {
@@ -21,8 +22,10 @@ describe('CLI scripting behavior (Integration)', () => {
 
   test('price with an empty cache reports a structured runtime error', async () => {
     await withTempDir(async (dir) => {
-      await fs.mkdir(path.join(dir, 'decks'), { recursive: true })
-      await fs.writeFile(path.join(dir, 'decks', 'sample.md'), '# sample\n\n1 Sol Ring &1\n')
+      await writeDeckFile(dir, 'sample', {
+        frontMatter: { name: 'sample' },
+        cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
+      })
       const result = await runCli(['price', '--summary', '--output', 'json'], dir)
 
       expect(result.exitCode).toBe(1)
@@ -101,37 +104,6 @@ name: "Conflict Deck"
       const content = await fs.readFile(path.join(dir, 'wanted', 'wants.md'), 'utf-8')
       expect(content).toContain('- Lightning Bolt (LEA:161) &1')
       expect(content).toContain('- Lightning Bolt (LEA:161) &2')
-    })
-  })
-
-  test('import text file with --type collection writes a collection', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'binder.txt')
-      await Bun.write(sourcePath, '1 Sol Ring (C19:221)\n')
-
-      const result = await runCli(
-        ['import', sourcePath, '--type', 'collection', '--non-interactive'],
-        dir,
-      )
-
-      expect(result.exitCode).toBe(0)
-      const content = await fs.readFile(path.join(dir, 'collections', 'binder.md'), 'utf-8')
-      expect(content).toContain('- Sol Ring (C19:221) &1')
-    })
-  })
-
-  test('import text file without printings as collection returns runtime exit code', async () => {
-    await withTempDir(async (dir) => {
-      const sourcePath = path.join(dir, 'binder.txt')
-      await Bun.write(sourcePath, '1 Arcane Signet\n')
-
-      const result = await runCli(
-        ['import', sourcePath, '--type', 'collection', '--non-interactive'],
-        dir,
-      )
-
-      expect(result.exitCode).toBe(1)
-      expect(result.stderr).toContain('no printing')
     })
   })
 

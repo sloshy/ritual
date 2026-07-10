@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { resolveCardImageSources } from '../../../src/site/image-sources'
 import type { ScryfallCard } from '../../../src/types'
+import { makeScryfallCard } from '../../test-utils'
 
 type CardImageUris = NonNullable<ScryfallCard['image_uris']>
 
@@ -15,34 +16,10 @@ function makeImageUris(normal: string): CardImageUris {
   }
 }
 
-function makeBaseCard(): ScryfallCard {
-  return {
-    id: 'card-id',
-    name: 'Test Card',
-    cmc: 1,
-    type_line: 'Artifact',
-    prices: {
-      usd: '1.00',
-      usd_foil: null,
-      usd_etched: null,
-      eur: null,
-      eur_foil: null,
-      tix: null,
-    },
-    finishes: [],
-    games: ['paper'],
-    set: 'set',
-    set_name: 'Set Name',
-    collector_number: '1',
-    rarity: 'common',
-    color_identity: [],
-  }
-}
-
 describe('site image source helpers', () => {
   test('returns local dist image path for single-faced cards in default mode', () => {
     const card: ScryfallCard = {
-      ...makeBaseCard(),
+      ...makeScryfallCard(),
       id: 'sol-ring',
       image_uris: makeImageUris('https://cards.scryfall.io/normal/front/sol-ring.jpg'),
     }
@@ -55,7 +32,7 @@ describe('site image source helpers', () => {
 
   test('returns Scryfall image URL for single-faced cards in URL mode', () => {
     const card: ScryfallCard = {
-      ...makeBaseCard(),
+      ...makeScryfallCard(),
       id: 'arcane-signet',
       image_uris: makeImageUris('https://cards.scryfall.io/normal/front/arcane-signet.jpg'),
     }
@@ -68,7 +45,7 @@ describe('site image source helpers', () => {
 
   test('returns local front and back paths for double-faced cards in default mode', () => {
     const card: ScryfallCard = {
-      ...makeBaseCard(),
+      ...makeScryfallCard(),
       id: 'dfc-card',
       card_faces: [
         {
@@ -96,7 +73,7 @@ describe('site image source helpers', () => {
 
   test('returns Scryfall front and back URLs for double-faced cards in URL mode', () => {
     const card: ScryfallCard = {
-      ...makeBaseCard(),
+      ...makeScryfallCard(),
       id: 'dfc-url-card',
       card_faces: [
         {

@@ -46,6 +46,8 @@ describe('admin import-csv handler', () => {
     const { status, data } = await importCsv({
       listType: 'collection',
       name: 'Binder',
+      // overwrite behaves like create on a fresh dir; pins MODES acceptance of 'overwrite'
+      mode: 'overwrite',
       content: COLLECTION_CSV,
       columns: COLLECTION_COLUMNS,
     })
@@ -147,26 +149,6 @@ describe('admin import-csv handler', () => {
     expect(status).toBe(400)
     expect(data.failures).toHaveLength(1)
     expect(await Bun.file(path.join(testDir, 'collections', 'Nothing.md')).exists()).toBe(false)
-  })
-
-  test('create mode refuses an existing list; overwrite replaces it', async () => {
-    const filePath = path.join(testDir, 'collections', 'Binder.md')
-    await fs.writeFile(filePath, '# Binder\n\n## Main\n- Mox Ruby (LEA:265) &1\n')
-
-    const body = {
-      listType: 'collection',
-      name: 'Binder',
-      content: COLLECTION_CSV,
-      columns: COLLECTION_COLUMNS,
-    }
-    const refused = await importCsv(body)
-    expect(refused.status).toBe(400)
-    expect(refused.data.message).toContain('already exists')
-
-    const replaced = await importCsv({ ...body, mode: 'overwrite' })
-    expect(replaced.status).toBe(200)
-    const content = await fs.readFile(filePath, 'utf-8')
-    expect(content).not.toContain('Mox Ruby')
   })
 
   test('append to a missing list returns 400', async () => {

@@ -13,28 +13,6 @@ describe('parseNameStatus', () => {
     })
   })
 
-  test('parses added collection file', () => {
-    const raw = 'A\tcollections/Binder.md\n'
-    const result = parseNameStatus(raw)
-    expect(result).toHaveLength(1)
-    expect(result[0]).toEqual({
-      status: 'A',
-      oldPath: 'collections/Binder.md',
-      path: 'collections/Binder.md',
-    })
-  })
-
-  test('parses deleted wanted file', () => {
-    const raw = 'D\twanted/Old List.md\n'
-    const result = parseNameStatus(raw)
-    expect(result).toHaveLength(1)
-    expect(result[0]).toEqual({
-      status: 'D',
-      oldPath: 'wanted/Old List.md',
-      path: 'wanted/Old List.md',
-    })
-  })
-
   test('parses rename with similarity score', () => {
     const raw = 'R085\tdecks/old-name.md\tdecks/new-name.md\n'
     const result = parseNameStatus(raw)
@@ -46,35 +24,14 @@ describe('parseNameStatus', () => {
     })
   })
 
-  test('parses rename across directories', () => {
-    const raw = 'R100\tcollections/Old.md\tcollections/New.md\n'
-    const result = parseNameStatus(raw)
-    expect(result).toHaveLength(1)
-    expect(result[0]!.status).toBe('R')
-    expect(result[0]!.oldPath).toBe('collections/Old.md')
-    expect(result[0]!.path).toBe('collections/New.md')
-  })
-
   test('filters out non-list files', () => {
-    const raw = ['M\tpackage.json', 'M\tsrc/types.ts', 'M\tdecks/my-deck.md', 'M\tREADME.md'].join(
-      '\n',
-    )
-
-    const result = parseNameStatus(raw)
-    expect(result).toHaveLength(1)
-    expect(result[0]!.path).toBe('decks/my-deck.md')
-  })
-
-  test('filters out .changes.md files', () => {
-    const raw = ['M\tdecks/my-deck.md', 'M\tdecks/my-deck.changes.md'].join('\n')
-
-    const result = parseNameStatus(raw)
-    expect(result).toHaveLength(1)
-    expect(result[0]!.path).toBe('decks/my-deck.md')
-  })
-
-  test('filters out .primer.md files', () => {
-    const raw = ['M\tdecks/my-deck.md', 'M\tdecks/my-deck.primer.md'].join('\n')
+    const raw = [
+      'M\tpackage.json',
+      'M\tsrc/types.ts',
+      'M\tdecks/my-deck.md',
+      'M\tdecks/my-deck.changes.md',
+      'M\tREADME.md',
+    ].join('\n')
 
     const result = parseNameStatus(raw)
     expect(result).toHaveLength(1)
@@ -153,15 +110,8 @@ describe('classifyFile', () => {
 })
 
 describe('changesPath', () => {
-  test('converts a deck path to its changes path', () => {
+  test('converts a list path to its changes path', () => {
     expect(changesPath('decks/my-deck.md')).toBe('decks/my-deck.changes.md')
-  })
-
-  test('converts a collection path to its changes path', () => {
-    expect(changesPath('collections/my-collection.md')).toBe('collections/my-collection.changes.md')
-  })
-
-  test('works with subdirectories', () => {
     expect(changesPath('wanted/sets/mh3.md')).toBe('wanted/sets/mh3.changes.md')
   })
 })

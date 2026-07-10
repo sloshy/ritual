@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { loginAsAdmin } from '../helpers/auth-helper'
+import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor } from '../helpers/editor-nav'
 
 /** A change bundle as the public site would export it: a set-finish on an existing card plus a new add. */
@@ -31,7 +31,7 @@ const CHANGE_BUNDLE = JSON.stringify({
 
 test.describe('Import changes (admin)', () => {
   test.beforeEach(async ({ page }) => {
-    await loginAsAdmin(page)
+    await gotoAdminDashboard(page)
     await openListEditor(page, 'deck')
     const select = page.locator('select').first()
     await page.waitForFunction(() => (document.querySelector('select')?.options.length ?? 0) > 1, {
@@ -57,15 +57,35 @@ test.describe('Import changes (admin)', () => {
     await expect(page.locator('.changes-badge')).toHaveText('2')
   })
 
-  test('rejects a change bundle for the wrong list kind', async ({ page }) => {
+  test('rejects bundles that do not match this list', async ({ page }) => {
     await page.locator('.btn-import').click()
     const dialog = page.locator('.import-dialog')
-    const bundle = JSON.parse(CHANGE_BUNDLE) as { lists: { kind: string }[] }
-    bundle.lists[0]!.kind = 'collection'
-    await dialog.locator('.import-dialog-textarea').fill(JSON.stringify(bundle))
-    await dialog.getByRole('button', { name: 'Import', exact: true }).click()
 
+    // A bundle whose only list is the wrong kind.
+    const wrongKind = JSON.parse(CHANGE_BUNDLE) as { lists: { kind: string }[] }
+    wrongKind.lists[0]!.kind = 'collection'
+    await dialog.locator('.import-dialog-textarea').fill(JSON.stringify(wrongKind))
+    await dialog.getByRole('button', { name: 'Import', exact: true }).click()
     await expect(dialog).toContainText('no changes for a deck (it targets: collection)')
+
+    // A bundle whose same-kind lists all target other slugs.
+    const deckList = (slug: string) => ({
+      kind: 'deck',
+      slug,
+      name: slug,
+      changes: [{ id: slug, timestamp: 1, action: 'add', cardName: 'Sol Ring' }],
+    })
+    await dialog.locator('.import-dialog-textarea').fill(
+      JSON.stringify({
+        format: 'ritual-change-bundle',
+        version: 1,
+        exportedAt: '2026-06-04T00:00:00.000Z',
+        lists: [deckList('some-other-deck'), deckList('yet-another-deck')],
+      }),
+    )
+    await dialog.getByRole('button', { name: 'Import', exact: true }).click()
+    await expect(dialog).toContainText('none match this list')
+
     await expect(page.locator('.changes-badge')).toHaveCount(0)
   })
 
@@ -99,28 +119,5 @@ test.describe('Import changes (admin)', () => {
     await expect(dialog).toContainText('Loaded 1 change')
     await dialog.getByRole('button', { name: 'Done' }).click()
     await expect(page.locator('.changes-badge')).toHaveText('1')
-  })
-
-  test('rejects a bundle whose same-kind lists all target other slugs', async ({ page }) => {
-    await page.locator('.btn-import').click()
-    const dialog = page.locator('.import-dialog')
-    const deckList = (slug: string) => ({
-      kind: 'deck',
-      slug,
-      name: slug,
-      changes: [{ id: slug, timestamp: 1, action: 'add', cardName: 'Sol Ring' }],
-    })
-    await dialog.locator('.import-dialog-textarea').fill(
-      JSON.stringify({
-        format: 'ritual-change-bundle',
-        version: 1,
-        exportedAt: '2026-06-04T00:00:00.000Z',
-        lists: [deckList('some-other-deck'), deckList('yet-another-deck')],
-      }),
-    )
-    await dialog.getByRole('button', { name: 'Import', exact: true }).click()
-
-    await expect(dialog).toContainText('none match this list')
-    await expect(page.locator('.changes-badge')).toHaveCount(0)
   })
 })

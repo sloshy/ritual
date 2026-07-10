@@ -6,6 +6,62 @@ import {
 } from '../src/interfaces'
 import { streamFromBatchResults } from '../src/cache'
 import { MemoryLogger, resetLogger, setLogger } from '../src/logger'
+import type { ScryfallCard } from '../src/types'
+import type { CardData } from '../src/site/card-sorting'
+
+/** Overrides for {@link makeScryfallCard}. `prices` may be partial; it is merged over all-null defaults. */
+export type ScryfallCardOverrides = Partial<Omit<ScryfallCard, 'prices'>> & {
+  prices?: Partial<ScryfallCard['prices']>
+}
+
+/** A minimal valid ScryfallCard with neutral defaults. Override any field; partial `prices` are merged. */
+export function makeScryfallCard(overrides: ScryfallCardOverrides = {}): ScryfallCard {
+  const { prices, ...rest } = overrides
+  return {
+    id: 'test-id',
+    name: 'Test Card',
+    cmc: 0,
+    type_line: 'Artifact',
+    finishes: ['nonfoil'],
+    games: ['paper'],
+    set: 'tst',
+    set_name: 'Test Set',
+    collector_number: '1',
+    rarity: 'common',
+    color_identity: [],
+    ...rest,
+    prices: {
+      usd: null,
+      usd_foil: null,
+      usd_etched: null,
+      eur: null,
+      eur_foil: null,
+      tix: null,
+      ...prices,
+    },
+  }
+}
+
+/** A CardData tile with neutral defaults for site sorting/filtering tests. */
+export function makeCardData(overrides: Partial<CardData> = {}): CardData {
+  return {
+    name: 'Test Card',
+    quantity: 1,
+    cmc: 3,
+    edhrec: 1000,
+    price: 1.5,
+    type: 'Creature — Human',
+    section: 'Main',
+    fileOrder: 0,
+    setCode: 'tst',
+    colorIdentity: [],
+    hasPrinting: true,
+    oracleTags: [],
+    artTags: [],
+    card: null,
+    ...overrides,
+  }
+}
 
 /** In-memory FileSystemClient for tests that must not touch the real filesystem. */
 export class MemoryFileSystemClient implements FileSystemClient {
@@ -74,13 +130,16 @@ export function gzipJsonLinesResponse(values: unknown[]): Response {
   )
 }
 
-export class MockHttpClient implements HttpClient {
-  private handlers: Map<string, (init?: RequestInit) => Response | Promise<Response>> = new Map()
-  private defaultHandler:
-    | ((url: string, init?: RequestInit) => Response | Promise<Response>)
-    | null = null
+/** Computes the mocked Response for one request to a specific mocked URL. */
+type HttpResponder = (init?: RequestInit) => Response | Promise<Response>
+/** Fallback responder for requests to URLs without a dedicated mock. */
+type HttpDefaultResponder = (url: string, init?: RequestInit) => Response | Promise<Response>
 
-  mock(url: string, response: Response | ((init?: RequestInit) => Response | Promise<Response>)) {
+export class MockHttpClient implements HttpClient {
+  private handlers: Map<string, HttpResponder> = new Map()
+  private defaultHandler: HttpDefaultResponder | null = null
+
+  mock(url: string, response: Response | HttpResponder): void {
     if (typeof response === 'function') {
       this.handlers.set(url, response)
     } else {
@@ -88,7 +147,7 @@ export class MockHttpClient implements HttpClient {
     }
   }
 
-  mockDefault(handler: (url: string, init?: RequestInit) => Response | Promise<Response>) {
+  mockDefault(handler: HttpDefaultResponder): void {
     this.defaultHandler = handler
   }
 

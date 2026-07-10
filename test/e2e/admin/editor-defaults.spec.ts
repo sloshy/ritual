@@ -1,31 +1,23 @@
 import { test, expect } from '@playwright/test'
-import { loginAsAdmin } from '../helpers/auth-helper'
+import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor } from '../helpers/editor-nav'
+import { fulfillJson } from '../helpers/fulfill'
+import { makeMockScryfallCard } from '../helpers/mock-cards'
 import { disableSearchDebounce } from '../helpers/search-modal'
 
-const FOIL_BOLT = {
+const FOIL_BOLT = makeMockScryfallCard({
   id: 'bolt-foil',
   name: 'Lightning Bolt',
   cmc: 1,
   type_line: 'Instant',
   oracle_text: 'Lightning Bolt deals 3 damage to any target.',
-  image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
-  prices: {
-    usd: '1.00',
-    usd_foil: '5.00',
-    usd_etched: null,
-    eur: '0.80',
-    eur_foil: null,
-    tix: null,
-  },
+  prices: { usd: '1.00', usd_foil: '5.00', eur: '0.80' },
   finishes: ['nonfoil', 'foil'],
-  games: ['paper'],
   set: 'lea',
   set_name: 'Limited Edition Alpha',
   collector_number: '161',
-  rarity: 'common',
   color_identity: ['R'],
-}
+})
 
 const FOIL_BOLT_FDN = {
   ...FOIL_BOLT,
@@ -38,7 +30,7 @@ const FOIL_BOLT_FDN = {
 test.describe('Admin Editor — Add Card Defaults', () => {
   test.beforeEach(async ({ page }) => {
     await disableSearchDebounce(page)
-    await loginAsAdmin(page)
+    await gotoAdminDashboard(page)
 
     // Clear any previously persisted defaults so each test starts fresh.
     // Note: this runs once on the already-loaded admin page rather than via
@@ -50,76 +42,48 @@ test.describe('Admin Editor — Add Card Defaults', () => {
       window.localStorage.removeItem('ritual:admin:defaults:wanted')
     })
 
-    await page.route('**/api/decks', async (route) => {
-      if (route.request().method() === 'GET') {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ decks: [{ slug: 'test-defaults-deck', name: 'Defaults Deck' }] }),
-        })
-      } else {
-        await route.continue()
-      }
-    })
+    await fulfillJson(
+      page,
+      '**/api/decks',
+      { decks: [{ slug: 'test-defaults-deck', name: 'Defaults Deck' }] },
+      { method: 'GET' },
+    )
 
-    await page.route('**/api/deck/test-defaults-deck', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          success: true,
-          slug: 'test-defaults-deck',
-          deck: {
-            name: 'Defaults Deck',
-            sections: [
-              {
-                name: 'Main',
-                cards: [
-                  { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' },
-                ],
-              },
-            ],
+    await fulfillJson(page, '**/api/deck/test-defaults-deck', {
+      success: true,
+      slug: 'test-defaults-deck',
+      deck: {
+        name: 'Defaults Deck',
+        sections: [
+          {
+            name: 'Main',
+            cards: [{ quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' }],
           },
-          cards: { 'Lightning Bolt': FOIL_BOLT },
-          printings: { 'Lightning Bolt': [FOIL_BOLT, FOIL_BOLT_FDN] },
-          lowestPriceCards: { 'Lightning Bolt': FOIL_BOLT },
-          lowestPriceCardsEur: { 'Lightning Bolt': FOIL_BOLT },
-          lowestPriceCardsTix: {},
-          symbolMap: {},
-          frontMatter: {},
-        }),
-      })
+        ],
+      },
+      cards: { 'Lightning Bolt': FOIL_BOLT },
+      printings: { 'Lightning Bolt': [FOIL_BOLT, FOIL_BOLT_FDN] },
+      lowestPriceCards: { 'Lightning Bolt': FOIL_BOLT },
+      lowestPriceCardsEur: { 'Lightning Bolt': FOIL_BOLT },
+      lowestPriceCardsTix: {},
+      symbolMap: {},
+      frontMatter: {},
     })
 
-    await page.route('**/api/autocomplete*', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, names: ['Lightning Bolt'] }),
-      })
+    await fulfillJson(page, '**/api/autocomplete*', { success: true, names: ['Lightning Bolt'] })
+
+    await fulfillJson(page, '**/api/card-printings*', {
+      success: true,
+      printings: [FOIL_BOLT, FOIL_BOLT_FDN],
     })
 
-    await page.route('**/api/card-printings*', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, printings: [FOIL_BOLT, FOIL_BOLT_FDN] }),
-      })
-    })
-
-    await page.route('**/api/card-price*', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          success: true,
-          printings: [FOIL_BOLT],
-          representative: FOIL_BOLT,
-          lowestPriceCard: FOIL_BOLT,
-          lowestPriceCardEur: FOIL_BOLT,
-          lowestPriceCardTix: null,
-        }),
-      })
+    await fulfillJson(page, '**/api/card-price*', {
+      success: true,
+      printings: [FOIL_BOLT],
+      representative: FOIL_BOLT,
+      lowestPriceCard: FOIL_BOLT,
+      lowestPriceCardEur: FOIL_BOLT,
+      lowestPriceCardTix: null,
     })
 
     await openListEditor(page, 'deck')

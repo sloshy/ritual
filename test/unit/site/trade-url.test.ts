@@ -1,10 +1,15 @@
 import { describe, expect, test, mock, beforeAll, afterAll } from 'bun:test'
 import { defaultFinishForCard, resolveTradeFinish } from '../../../src/site/trade-finish'
 import { encodeTradeToParams, hasTradeParams } from '../../../src/site/trade-url-encode'
-import { decodeTradeFromParams, type TradeParamEntries } from '../../../src/site/trade-url-decode'
+import {
+  decodeTradeFromParams,
+  type TradeDecodeWarning,
+  type TradeParamEntries,
+} from '../../../src/site/trade-url-decode'
 import type { TradeCardEntry } from '../../../src/site/data-types'
 import type { TradeSearchEntry } from '../../../src/site/useTradeData'
-import type { ScryfallCard } from '../../../src/types'
+import type { Finish, ScryfallCard } from '../../../src/types'
+import { makeScryfallCard } from '../../test-utils'
 
 const noEntries: TradeParamEntries = {
   collectionEntries: [],
@@ -37,11 +42,8 @@ afterAll(() => {
 })
 
 function makeCard(overrides: Partial<ScryfallCard> = {}): ScryfallCard {
-  return {
+  return makeScryfallCard({
     id: 'card-id-1',
-    name: 'Test Card',
-    cmc: 0,
-    type_line: 'Artifact',
     prices: {
       usd: '1.00',
       usd_foil: '5.00',
@@ -51,14 +53,11 @@ function makeCard(overrides: Partial<ScryfallCard> = {}): ScryfallCard {
       tix: '0.05',
     },
     finishes: ['nonfoil', 'foil'],
-    games: ['paper'],
     set: 'lea',
     set_name: 'Limited Edition Alpha',
-    collector_number: '1',
     rarity: 'rare',
-    color_identity: [],
     ...overrides,
-  }
+  })
 }
 
 function makeSearchEntry(overrides: Partial<TradeSearchEntry> = {}): TradeSearchEntry {
@@ -188,38 +187,29 @@ describe('encodeTradeToParams', () => {
     expect(encodeTradeToParams(left, []).has('leftSideColIds')).toBe(false)
   })
 
-  test('omits :finish when finish equals the card default (nonfoil)', () => {
-    const card = makeCard({ finishes: ['nonfoil', 'foil'] })
-    const left: TradeCardEntry[] = [
-      {
-        name: 'A',
-        scryfallCard: card,
-        finish: 'nonfoil',
-        source: 'deck',
-        sourceName: 'Deck',
-        qty: 1,
-        editable: true,
-        sourceCardIds: [5],
-      },
-    ]
-    expect(encodeTradeToParams(left, []).get('leftSideDeckIds')).toBe(`Deck:5x1@${card.id}`)
-  })
+  test('omits finish suffix when finish equals the printing default', () => {
+    // Which finish counts as the default is pinned by the `defaultFinishForCard`
+    // describe — here both a nonfoil-default and a foil-only (foil-default)
+    // printing must encode without a `:finish` suffix.
+    const entryFor = (card: ScryfallCard, finish: Finish): TradeCardEntry => ({
+      name: 'A',
+      scryfallCard: card,
+      finish,
+      source: 'deck',
+      sourceName: 'Deck',
+      qty: 1,
+      editable: true,
+      sourceCardIds: [5],
+    })
+    const nonfoilDefault = makeCard({ finishes: ['nonfoil', 'foil'] })
+    expect(
+      encodeTradeToParams([entryFor(nonfoilDefault, 'nonfoil')], []).get('leftSideDeckIds'),
+    ).toBe(`Deck:5x1@${nonfoilDefault.id}`)
 
-  test('omits :foil when foil is the only finish (default for foil-only printings)', () => {
-    const card = makeCard({ id: 'foil-only', finishes: ['foil'] })
-    const left: TradeCardEntry[] = [
-      {
-        name: 'A',
-        scryfallCard: card,
-        finish: 'foil',
-        source: 'deck',
-        sourceName: 'Deck',
-        qty: 1,
-        editable: true,
-        sourceCardIds: [5],
-      },
-    ]
-    expect(encodeTradeToParams(left, []).get('leftSideDeckIds')).toBe('Deck:5x1@foil-only')
+    const foilOnly = makeCard({ id: 'foil-only', finishes: ['foil'] })
+    expect(encodeTradeToParams([entryFor(foilOnly, 'foil')], []).get('leftSideDeckIds')).toBe(
+      'Deck:5x1@foil-only',
+    )
   })
 
   test('includes :finish when finish is non-default', () => {
@@ -456,14 +446,6 @@ describe('decodeTradeFromParams — URL-decode race / stale-entry coverage', () 
   // run against not-yet-loaded entries — these tests pin down the
   // currently-relied-upon silent-skip behavior so a regression is visible.
 
-  test('deck params with empty deckEntries produces an empty deck side (premature decode)', async () => {
-    const params = new URLSearchParams()
-    params.set('leftSideDeckIds', 'Mono-W:11x1@some-sf-id')
-    const decoded = await decodeTradeFromParams(params, noEntries, 'usd')
-    expect(decoded.left).toHaveLength(0)
-    expect(decoded.right).toHaveLength(0)
-  })
-
   test('collection + deck on left side: only collection decoded when deckEntries unloaded', async () => {
     const card = makeCard()
     const collectionEntry = makeSearchEntry({
@@ -523,30 +505,6 @@ describe('decodeTradeFromParams — URL-decode race / stale-entry coverage', () 
     })
   })
 
-  test('card ID in URL not present in source pool surfaces unknown-card-ids warning', async () => {
-    const entry = makeSearchEntry({
-      sourceName: 'My Binder',
-      sourceKind: 'collection',
-      maxQty: 1,
-      cardIds: [3], // pool contains 3 only
-    })
-    const params = new URLSearchParams()
-    params.set('leftSideColIds', 'My%20Binder:999') // URL references id 999, no longer in pool
-
-    const decoded = await decodeTradeFromParams(
-      params,
-      { ...noEntries, collectionEntries: [entry] },
-      'usd',
-    )
-    expect(decoded.left).toHaveLength(0)
-    expect(decoded.warnings).toContainEqual({
-      kind: 'unknown-card-ids',
-      sourceKind: 'collection',
-      sourceName: 'My Binder',
-      ids: [999],
-    })
-  })
-
   test('partially valid URL: known IDs decode, unknown IDs in same source emit warning', async () => {
     const card = makeCard()
     const entry = makeSearchEntry({
@@ -597,23 +555,6 @@ describe('decodeTradeFromParams — URL-decode race / stale-entry coverage', () 
     expect(decoded.warnings).toEqual([])
   })
 
-  test('malformed scryfall token is reported but does not abort decode', async () => {
-    const params = new URLSearchParams()
-    params.set('rightSideScryfall', 'not-a-token')
-
-    const decoded = await decodeTradeFromParams(params, noEntries, 'usd')
-    expect(decoded.right).toHaveLength(0)
-    expect(decoded.warnings).toContainEqual({ kind: 'malformed-token', token: 'not-a-token' })
-  })
-
-  test('hasTradeParams is entry-independent (stays true regardless of loaded entries)', () => {
-    // The gating effect uses hasTradeParams + decksReady to know when it's safe to decode.
-    // A URL with deck params should report hasTradeParams=true based on the URL alone —
-    // that signal must not depend on what entries are loaded.
-    const params = new URLSearchParams('leftSideDeckIds=Mono-W:11x1@some-sf-id')
-    expect(hasTradeParams(params)).toBe(true)
-  })
-
   test('two-phase decode: same params yield empty result pre-load, populated result post-load', async () => {
     const params = new URLSearchParams('leftSideDeckIds=Mono-W:11x1@some-sf-id')
 
@@ -635,160 +576,179 @@ describe('decodeTradeFromParams — URL-decode race / stale-entry coverage', () 
     expect(ready.left[0]).toMatchObject({ source: 'deck', sourceName: 'Mono-W' })
   })
 
-  test('deck source: card ID in URL not present in source pool surfaces unknown-card-ids warning', async () => {
-    const card = makeCard({ id: 'deck-sf-id' })
-    const entry = makeSearchEntry({
-      sourceName: 'Mono-W',
-      sourceKind: 'deck',
-      maxQty: 1,
-      cardIds: [11], // pool contains 11 only
-      scryfallCard: card,
+  // Every warning case shares one skeleton: set a single param, decode against
+  // the given entries, and expect the structured warning (plus an empty side
+  // where the bad token drops the row). Each row exercises a distinct branch in
+  // decodeCollectionParam/decodeDeckParam/decodeWantedParam/decodeScryfallParam
+  // — structured parser errors are a project invariant, so every case is kept.
+  type DecodeWarningCase = {
+    name: string
+    paramKey: 'leftSideColIds' | 'leftSideDeckIds' | 'rightSideWantedIds' | 'rightSideScryfall'
+    paramValue: string
+    entries: TradeParamEntries
+    expectedWarning: TradeDecodeWarning
+    /** Side asserted to decode to zero rows; null when the case only pins the warning. */
+    emptySide: 'left' | 'right' | null
+  }
+
+  const warningCases: DecodeWarningCase[] = [
+    {
+      name: 'malformed scryfall token is reported but does not abort decode',
+      paramKey: 'rightSideScryfall',
+      paramValue: 'not-a-token',
+      entries: noEntries,
+      expectedWarning: { kind: 'malformed-token', token: 'not-a-token' },
+      emptySide: 'right',
+    },
+    {
+      // URL references id 999 (no longer in the pool) with a valid scryfall suffix
+      name: 'deck source: card ID in URL not present in source pool surfaces unknown-card-ids warning',
+      paramKey: 'leftSideDeckIds',
+      paramValue: 'Mono-W:999x1@deck-sf-id',
+      entries: {
+        ...noEntries,
+        deckEntries: [
+          makeSearchEntry({
+            sourceName: 'Mono-W',
+            sourceKind: 'deck',
+            maxQty: 1,
+            cardIds: [11], // pool contains 11 only
+            scryfallCard: makeCard({ id: 'deck-sf-id' }),
+          }),
+        ],
+      },
+      expectedWarning: {
+        kind: 'unknown-card-ids',
+        sourceKind: 'deck',
+        sourceName: 'Mono-W',
+        ids: [999],
+      },
+      emptySide: 'left',
+    },
+    {
+      // URL references id 999 (no longer in the pool) with a valid scryfall suffix
+      name: 'wanted source: card ID in URL not present in source pool surfaces unknown-card-ids warning',
+      paramKey: 'rightSideWantedIds',
+      paramValue: 'Wishlist:999@wanted-sf-id',
+      entries: {
+        ...noEntries,
+        wantedEntries: [
+          makeSearchEntry({
+            sourceName: 'Wishlist',
+            sourceKind: 'wanted',
+            maxQty: 1,
+            cardIds: [40], // pool contains 40 only
+            scryfallCard: makeCard({ id: 'wanted-sf-id' }),
+          }),
+        ],
+      },
+      expectedWarning: {
+        kind: 'unknown-card-ids',
+        sourceKind: 'wanted',
+        sourceName: 'Wishlist',
+        ids: [999],
+      },
+      emptySide: 'right',
+    },
+    {
+      // The id exists in the local pool, but the @sfId suffix points to a printing
+      // that is not present in any entry and not returned by the (mocked) fetch.
+      name: "deck token referencing a scryfall id the fetch stub can't resolve surfaces unknown-scryfall-id",
+      paramKey: 'leftSideDeckIds',
+      paramValue: 'Mono-W:11x1@nonexistent-id',
+      entries: {
+        ...noEntries,
+        deckEntries: [
+          makeSearchEntry({
+            sourceName: 'Mono-W',
+            sourceKind: 'deck',
+            maxQty: 1,
+            cardIds: [11],
+            scryfallCard: null,
+          }),
+        ],
+      },
+      expectedWarning: { kind: 'unknown-scryfall-id', sfId: 'nonexistent-id' },
+      emptySide: null,
+    },
+    {
+      name: 'scryfall-only param referencing an unresolvable id surfaces unknown-scryfall-id',
+      paramKey: 'rightSideScryfall',
+      paramValue: 'x1@nonexistent-id',
+      entries: noEntries,
+      expectedWarning: { kind: 'unknown-scryfall-id', sfId: 'nonexistent-id' },
+      emptySide: 'right',
+    },
+    {
+      // `decodeWantedParam` shares the `@sfId` lookup with the deck/scryfall paths
+      // through `parseSfPart`, but is decoded by a different branch — pin the
+      // warning here independently so a regression in the wanted branch isn't
+      // hidden by the deck/scryfall coverage above. Wanted is decoded only from
+      // the right-side param, and the wanted-token base is a bare `<id>` (not
+      // `<id>x<qty>` like deck tokens).
+      name: "wanted token referencing a scryfall id the fetch stub can't resolve surfaces unknown-scryfall-id",
+      paramKey: 'rightSideWantedIds',
+      paramValue: 'Wishlist:22@nonexistent-id',
+      entries: {
+        ...noEntries,
+        wantedEntries: [
+          makeSearchEntry({
+            sourceName: 'Wishlist',
+            sourceKind: 'wanted',
+            maxQty: 1,
+            cardIds: [22],
+            scryfallCard: null,
+          }),
+        ],
+      },
+      expectedWarning: { kind: 'unknown-scryfall-id', sfId: 'nonexistent-id' },
+      emptySide: null,
+    },
+    {
+      // `badtoken` is missing the required `<id>x<qty>` separator
+      name: 'deck grouped param with a malformed token surfaces malformed-token warning',
+      paramKey: 'leftSideDeckIds',
+      paramValue: 'Mono-W:badtoken',
+      entries: {
+        ...noEntries,
+        deckEntries: [
+          makeSearchEntry({ sourceName: 'Mono-W', sourceKind: 'deck', maxQty: 1, cardIds: [11] }),
+        ],
+      },
+      expectedWarning: { kind: 'malformed-token', token: 'badtoken' },
+      emptySide: 'left',
+    },
+    {
+      // `badtoken` is not a valid numeric ID
+      name: 'collection grouped param with a malformed token surfaces malformed-token warning',
+      paramKey: 'leftSideColIds',
+      paramValue: 'My%20Binder:badtoken',
+      entries: {
+        ...noEntries,
+        collectionEntries: [
+          makeSearchEntry({
+            sourceName: 'My Binder',
+            sourceKind: 'collection',
+            maxQty: 1,
+            cardIds: [3],
+          }),
+        ],
+      },
+      expectedWarning: { kind: 'malformed-token', token: 'badtoken' },
+      emptySide: 'left',
+    },
+  ]
+
+  for (const warningCase of warningCases) {
+    test(warningCase.name, async () => {
+      const params = new URLSearchParams()
+      params.set(warningCase.paramKey, warningCase.paramValue)
+
+      const decoded = await decodeTradeFromParams(params, warningCase.entries, 'usd')
+      if (warningCase.emptySide) {
+        expect(decoded[warningCase.emptySide]).toHaveLength(0)
+      }
+      expect(decoded.warnings).toContainEqual(warningCase.expectedWarning)
     })
-    const params = new URLSearchParams()
-    // URL references id 999 (no longer in the pool) with a valid scryfall suffix
-    params.set('leftSideDeckIds', 'Mono-W:999x1@deck-sf-id')
-
-    const decoded = await decodeTradeFromParams(
-      params,
-      { ...noEntries, deckEntries: [entry] },
-      'usd',
-    )
-    expect(decoded.left).toHaveLength(0)
-    expect(decoded.warnings).toContainEqual({
-      kind: 'unknown-card-ids',
-      sourceKind: 'deck',
-      sourceName: 'Mono-W',
-      ids: [999],
-    })
-  })
-
-  test('wanted source: card ID in URL not present in source pool surfaces unknown-card-ids warning', async () => {
-    const card = makeCard({ id: 'wanted-sf-id' })
-    const entry = makeSearchEntry({
-      sourceName: 'Wishlist',
-      sourceKind: 'wanted',
-      maxQty: 1,
-      cardIds: [40], // pool contains 40 only
-      scryfallCard: card,
-    })
-    const params = new URLSearchParams()
-    // URL references id 999 (no longer in the pool) with a valid scryfall suffix
-    params.set('rightSideWantedIds', 'Wishlist:999@wanted-sf-id')
-
-    const decoded = await decodeTradeFromParams(
-      params,
-      { ...noEntries, wantedEntries: [entry] },
-      'usd',
-    )
-    expect(decoded.right).toHaveLength(0)
-    expect(decoded.warnings).toContainEqual({
-      kind: 'unknown-card-ids',
-      sourceKind: 'wanted',
-      sourceName: 'Wishlist',
-      ids: [999],
-    })
-  })
-
-  test("deck token referencing a scryfall id the fetch stub can't resolve surfaces unknown-scryfall-id", async () => {
-    // The id exists in the local pool, but the @sfId suffix points to a printing
-    // that is not present in any entry and not returned by the (mocked) fetch.
-    const entry = makeSearchEntry({
-      sourceName: 'Mono-W',
-      sourceKind: 'deck',
-      maxQty: 1,
-      cardIds: [11],
-      scryfallCard: null,
-    })
-    const params = new URLSearchParams()
-    params.set('leftSideDeckIds', 'Mono-W:11x1@nonexistent-id')
-
-    const decoded = await decodeTradeFromParams(
-      params,
-      { ...noEntries, deckEntries: [entry] },
-      'usd',
-    )
-    expect(decoded.warnings).toContainEqual({
-      kind: 'unknown-scryfall-id',
-      sfId: 'nonexistent-id',
-    })
-  })
-
-  test('scryfall-only param referencing an unresolvable id surfaces unknown-scryfall-id', async () => {
-    const params = new URLSearchParams('rightSideScryfall=x1@nonexistent-id')
-
-    const decoded = await decodeTradeFromParams(params, noEntries, 'usd')
-    expect(decoded.right).toHaveLength(0)
-    expect(decoded.warnings).toContainEqual({
-      kind: 'unknown-scryfall-id',
-      sfId: 'nonexistent-id',
-    })
-  })
-
-  test("wanted token referencing a scryfall id the fetch stub can't resolve surfaces unknown-scryfall-id", async () => {
-    // `decodeWantedParam` shares the `@sfId` lookup with the deck/scryfall paths
-    // through `parseSfPart`, but is decoded by a different branch — pin the
-    // warning here independently so a regression in the wanted branch isn't
-    // hidden by the deck/scryfall coverage above.
-    const entry = makeSearchEntry({
-      sourceName: 'Wishlist',
-      sourceKind: 'wanted',
-      maxQty: 1,
-      cardIds: [22],
-      scryfallCard: null,
-    })
-    const params = new URLSearchParams()
-    // Wanted is decoded only from the right-side param, and the wanted-token base
-    // is a bare `<id>` (not `<id>x<qty>` like deck tokens).
-    params.set('rightSideWantedIds', 'Wishlist:22@nonexistent-id')
-
-    const decoded = await decodeTradeFromParams(
-      params,
-      { ...noEntries, wantedEntries: [entry] },
-      'usd',
-    )
-    expect(decoded.warnings).toContainEqual({
-      kind: 'unknown-scryfall-id',
-      sfId: 'nonexistent-id',
-    })
-  })
-
-  test('deck grouped param with a malformed token surfaces malformed-token warning', async () => {
-    const entry = makeSearchEntry({
-      sourceName: 'Mono-W',
-      sourceKind: 'deck',
-      maxQty: 1,
-      cardIds: [11],
-    })
-    // `badtoken` is missing the required `<id>x<qty>` separator
-    const params = new URLSearchParams()
-    params.set('leftSideDeckIds', 'Mono-W:badtoken')
-
-    const decoded = await decodeTradeFromParams(
-      params,
-      { ...noEntries, deckEntries: [entry] },
-      'usd',
-    )
-    expect(decoded.left).toHaveLength(0)
-    expect(decoded.warnings).toContainEqual({ kind: 'malformed-token', token: 'badtoken' })
-  })
-
-  test('collection grouped param with a malformed token surfaces malformed-token warning', async () => {
-    const entry = makeSearchEntry({
-      sourceName: 'My Binder',
-      sourceKind: 'collection',
-      maxQty: 1,
-      cardIds: [3],
-    })
-    // `badtoken` is not a valid numeric ID
-    const params = new URLSearchParams()
-    params.set('leftSideColIds', 'My%20Binder:badtoken')
-
-    const decoded = await decodeTradeFromParams(
-      params,
-      { ...noEntries, collectionEntries: [entry] },
-      'usd',
-    )
-    expect(decoded.left).toHaveLength(0)
-    expect(decoded.warnings).toContainEqual({ kind: 'malformed-token', token: 'badtoken' })
-  })
+  }
 })

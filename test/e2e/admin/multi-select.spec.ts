@@ -1,6 +1,8 @@
-import { test, expect } from '@playwright/test'
-import { loginAsAdmin } from '../helpers/auth-helper'
+import { test, expect, type Route } from '@playwright/test'
+import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor } from '../helpers/editor-nav'
+import { fulfillJson } from '../helpers/fulfill'
+import { selectCard } from '../helpers/list-ui'
 
 /**
  * Multi-select on the admin list editors. The selection checkbox and
@@ -10,7 +12,7 @@ import { openListEditor } from '../helpers/editor-nav'
  */
 test.describe('Admin list multi-select', () => {
   test.beforeEach(async ({ page }) => {
-    await loginAsAdmin(page)
+    await gotoAdminDashboard(page)
     await openListEditor(page, 'deck')
     const select = page.locator('select').first()
     await page.waitForFunction(() => (document.querySelector('select')?.options.length ?? 0) > 1, {
@@ -26,9 +28,7 @@ test.describe('Admin list multi-select', () => {
   }) => {
     await expect(page.locator('.selection-menu-btn')).toHaveCount(0)
 
-    const first = page.locator('.card-item').first()
-    await first.locator('.card-binder').hover()
-    await first.locator('.card-select-checkbox').click()
+    await selectCard(page, 0)
 
     const btn = page.locator('.selection-menu-btn')
     await expect(btn).toHaveText(/Selected \(1\)/)
@@ -47,25 +47,13 @@ test.describe('Admin list multi-select', () => {
     // Capture the request to the atomic remove endpoint and stub a success response
     // so the test never mutates real list files.
     let removeBody: { removes?: unknown[] } | null = null
-    await page.route('**/api/remove/commit', async (route) => {
+    await fulfillJson(page, '**/api/remove/commit', (route: Route) => {
       removeBody = JSON.parse(route.request().postData() ?? '{}')
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          success: true,
-          removed: 1,
-          requested: 1,
-          skipped: 0,
-          message: 'ok',
-        }),
-      })
+      return { success: true, removed: 1, requested: 1, skipped: 0, message: 'ok' }
     })
     page.on('dialog', (dialog) => void dialog.accept())
 
-    const first = page.locator('.card-item').first()
-    await first.locator('.card-binder').hover()
-    await first.locator('.card-select-checkbox').click()
+    await selectCard(page, 0)
 
     // The navbar "All Selected" menu spans every list and carries the remove action.
     const navbar = page.locator('.selection-menu-btn--navbar')

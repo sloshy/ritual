@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test'
+import { ADMIN_STORAGE_STATE } from './test/e2e/helpers/auth-helper'
 
 export default defineConfig({
   testDir: './test/e2e',
@@ -39,6 +40,11 @@ export default defineConfig({
       use: {
         baseURL: 'http://localhost:8456',
         browserName: 'chromium',
+        // Session cookie captured by auth-setup.spec.ts (admin-auth project),
+        // so admin specs start already authenticated instead of logging in
+        // per test. Specs that exercise the login flow itself opt out with
+        // `test.use({ storageState: { cookies: [], origins: [] } })`.
+        storageState: ADMIN_STORAGE_STATE,
       },
     },
   ],

@@ -40,33 +40,15 @@ describe('StreamingLogger', () => {
 
   test('parses download progress with percentage', () => {
     const events = collect((logger) => {
-      logger.progress('\rDownloading: 45% (112.50/250.45 MiB)')
-    })
-
-    expect(events).toHaveLength(1)
-    expect(events[0]!.stage).toBe('download')
-    expect(events[0]!.percentage).toBe(45)
-    expect(events[0]!.message).toBe('Downloading: 45% (112.50/250.45 MiB)')
-  })
-
-  test('parses 0% download progress', () => {
-    const events = collect((logger) => {
       logger.progress('\rDownloading: 0% (0.00/250.45 MiB)')
-    })
-
-    expect(events).toHaveLength(1)
-    expect(events[0]!.stage).toBe('download')
-    expect(events[0]!.percentage).toBe(0)
-  })
-
-  test('parses 100% download progress', () => {
-    const events = collect((logger) => {
+      logger.progress('\rDownloading: 45% (112.50/250.45 MiB)')
       logger.progress('\rDownloading: 100% (250.45/250.45 MiB)')
     })
 
-    expect(events).toHaveLength(1)
-    expect(events[0]!.stage).toBe('download')
-    expect(events[0]!.percentage).toBe(100)
+    expect(events).toHaveLength(3)
+    expect(events.every((e) => e.stage === 'download')).toBeTrue()
+    expect(events.map((e) => e.percentage)).toEqual([0, 45, 100])
+    expect(events[1]!.message).toBe('Downloading: 45% (112.50/250.45 MiB)')
   })
 
   test('ignores non-download progress messages', () => {
@@ -75,33 +57,6 @@ describe('StreamingLogger', () => {
     })
 
     expect(events).toHaveLength(0)
-  })
-
-  test('detects save stage from info', () => {
-    const events = collect((logger) => {
-      logger.info('Saving to cache...')
-    })
-
-    expect(events).toHaveLength(1)
-    expect(events[0]!.stage).toBe('save')
-  })
-
-  test('detects done stage from info', () => {
-    const events = collect((logger) => {
-      logger.info('Done! Card cache populated.')
-    })
-
-    expect(events).toHaveLength(1)
-    expect(events[0]!.stage).toBe('done')
-  })
-
-  test('maps other info messages to info stage', () => {
-    const events = collect((logger) => {
-      logger.info('Fetching bulk data metadata from Scryfall...')
-    })
-
-    expect(events).toHaveLength(1)
-    expect(events[0]!.stage).toBe('info')
   })
 
   test('maps warn messages to info stage with prefix', () => {

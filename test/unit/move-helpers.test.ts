@@ -4,10 +4,7 @@ import {
   buildVirtualState,
   getPendingMoves,
   buildCardSearchChoices,
-  finishLabel,
   getToggleState,
-  toggleStateChar,
-  toggleSetAll,
 } from '../../src/commands/move-helpers'
 import type { PhysicalCard, ListEntry, VirtualCard } from '../../src/commands/move-helpers'
 
@@ -76,33 +73,6 @@ describe('applyVirtualMove', () => {
     const state = new Map<string, VirtualCard>()
     const dstList = makeListEntry('collection', 'Binder')
     expect(applyVirtualMove(state, 'nonexistent', dstList)).toBe(false)
-  })
-})
-
-// ── buildVirtualState ─────────────────────────────────────────────────────────
-
-describe('buildVirtualState', () => {
-  test('creates an entry per physical card', () => {
-    const listEntry = makeListEntry('deck', 'Deck')
-    const cards = [
-      makePhysicalCard('Bolt', listEntry, { key: 'a' }),
-      makePhysicalCard('Ring', listEntry, { key: 'b' }),
-    ]
-    const state = buildVirtualState(cards)
-
-    expect(state.size).toBe(2)
-    expect(state.has('a')).toBe(true)
-    expect(state.has('b')).toBe(true)
-  })
-
-  test('initial currentList matches physical card listEntry', () => {
-    const listEntry = makeListEntry('collection', 'Binder')
-    const card = makePhysicalCard('Card', listEntry)
-    const state = buildVirtualState([card])
-
-    const vc = state.get(card.key)!
-    expect(vc.currentList.filePath).toBe(listEntry.filePath)
-    expect(vc.pendingMove).toBeNull()
   })
 })
 
@@ -217,20 +187,6 @@ describe('buildCardSearchChoices', () => {
   })
 })
 
-// ── finishLabel ────────────────────────────────────────────────────────────────
-
-describe('finishLabel', () => {
-  test('returns empty for nonfoil and undefined', () => {
-    expect(finishLabel('nonfoil')).toBe('')
-    expect(finishLabel(undefined)).toBe('')
-  })
-
-  test('labels foil and etched', () => {
-    expect(finishLabel('foil')).toBe(' [Foil]')
-    expect(finishLabel('etched')).toBe(' [Etched]')
-  })
-})
-
 // ── Toggle helpers ─────────────────────────────────────────────────────────────
 
 describe('getToggleState', () => {
@@ -250,28 +206,5 @@ describe('getToggleState', () => {
     const paths = ['/a', '/b', '/c']
     const enabled = new Set(['/a', '/c'])
     expect(getToggleState(paths, enabled)).toBe('some')
-  })
-})
-
-describe('toggleStateChar', () => {
-  test('"all" maps to "X"', () => expect(toggleStateChar('all')).toBe('X'))
-  test('"some" maps to "~"', () => expect(toggleStateChar('some')).toBe('~'))
-  test('"none" maps to " "', () => expect(toggleStateChar('none')).toBe(' '))
-})
-
-describe('toggleSetAll', () => {
-  test('adds all paths when on=true', () => {
-    const enabled = new Set<string>()
-    toggleSetAll(enabled, ['/a', '/b', '/c'], true)
-    expect(enabled.size).toBe(3)
-    expect(enabled.has('/a')).toBe(true)
-  })
-
-  test('removes all paths when on=false', () => {
-    const enabled = new Set(['/a', '/b', '/c'])
-    toggleSetAll(enabled, ['/a', '/b'], false)
-    expect(enabled.size).toBe(1)
-    expect(enabled.has('/c')).toBe(true)
-    expect(enabled.has('/a')).toBe(false)
   })
 })

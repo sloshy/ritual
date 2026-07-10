@@ -20,7 +20,7 @@
     "precommit": "bun run scripts/precommit.ts",
     "verify": "bun run scripts/precommit.ts --full",
     "test": "bun run build && bunx tsc --noEmit && bun run lint && bun test test/unit",
-    "test:it": "rm -rf cache && mkdir -p cache && bun run build && bunx tsc --noEmit && bun test test/integration",
+    "test:it": "bun run build && bunx tsc --noEmit && RITUAL_IT_PREBUILT=1 bun test test/integration",
     "test:e2e": "sh scripts/bundle-assets.sh && bunx playwright test",
     "prepare": "husky"
   },

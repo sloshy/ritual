@@ -1,9 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
-import { setBaseDir } from '../../src/base-dir'
-import { resetRitualConfigCache } from '../../src/ritual-config'
 import { ensureDeckFile, loadDeck } from '../../src/commands/deck-helpers'
 import { applyChangeToDeck } from '../../src/editor/deck-changes'
 import { assignMissingDeckCardIds } from '../../src/card-id'
@@ -12,19 +8,16 @@ import { computeHash } from '../../src/content-hash'
 import { handleDeckSave } from '../../src/admin/api/deck-save'
 import type { DeckData } from '../../src/types'
 import type { ChangeEvent } from '../../src/change-event'
+import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 
-let dir: string
+let ws: BoundWorkspace
 
 beforeEach(async () => {
-  dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-changelog-session-'))
-  await fs.mkdir(path.join(dir, 'decks'), { recursive: true })
-  await fs.writeFile(path.join(dir, 'ritual.config.json'), JSON.stringify({ decksDir: './decks' }))
-  setBaseDir(dir)
-  resetRitualConfigCache()
+  ws = await bindWorkspace()
 })
 
 afterEach(async () => {
-  await fs.rm(dir, { recursive: true, force: true })
+  await ws.dispose()
 })
 
 type SaveResult = { contentHash?: string; success: boolean }

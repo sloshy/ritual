@@ -1,67 +1,69 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
-import fs from 'node:fs/promises'
-import path from 'node:path'
 import { collectAllCards, formatAllCardsFile } from '../../src/commands/list-all-cards'
-import { setBaseDir } from '../../src/base-dir'
-import { initRitualConfig, resetRitualConfigCache } from '../../src/ritual-config'
-
-const testDir = path.join(import.meta.dir, '../.test-list-all-cards')
-
-const deckMd = `---
-name: "Sample Deck"
-format: "commander"
----
-
-# Sample Deck
-
-## Commander
-
-1 Sol Ring (LEA:161)
-1 Lightning Bolt (LEA:161)
-
-## Mainboard
-
-3 Counterspell (LEA:55)
-1 Sol Ring (LEA:161)
-`
-
-const collectionMd = `# My Collection
-
-- Sol Ring (CMR:1)
-- Counterspell (LEA:55)
-- Black Lotus (LEA:232) [foil] [NM] {first edition} &7
-`
-
-const wantedMd = `# Wishlist
-
-- Mox Ruby (LEA:265)
-- Lightning Bolt
-- Black Lotus (LEA:232)
-`
+import {
+  bindWorkspace,
+  writeCollectionFile,
+  writeDeckFile,
+  writeWantedFile,
+  type BoundWorkspace,
+} from './helpers/workspace'
 
 describe('list-all-cards', () => {
-  const originalCwd = process.cwd()
+  let ws: BoundWorkspace
 
   beforeEach(async () => {
-    await fs.mkdir(testDir, { recursive: true })
-    setBaseDir(testDir)
-    resetRitualConfigCache()
-    await initRitualConfig()
+    // No list subdirectories up front: the last test needs them absent.
+    ws = await bindWorkspace({ dirs: [], config: false, init: true })
   })
 
   afterEach(async () => {
-    setBaseDir(originalCwd)
-    resetRitualConfigCache()
-    await fs.rm(testDir, { recursive: true, force: true })
+    await ws.dispose()
   })
 
   test('dedupes cards across decks, collections, and wanted lists', async () => {
-    await fs.mkdir(path.join(testDir, 'decks'), { recursive: true })
-    await fs.mkdir(path.join(testDir, 'collections'), { recursive: true })
-    await fs.mkdir(path.join(testDir, 'wanted'), { recursive: true })
-    await fs.writeFile(path.join(testDir, 'decks', 'sample.md'), deckMd)
-    await fs.writeFile(path.join(testDir, 'collections', 'main.md'), collectionMd)
-    await fs.writeFile(path.join(testDir, 'wanted', 'wishlist.md'), wantedMd)
+    await writeDeckFile(ws.dir, 'sample', {
+      frontMatter: { name: 'Sample Deck', format: 'commander' },
+      sections: [
+        {
+          name: 'Commander',
+          cards: [
+            { quantity: 1, name: 'Sol Ring', set: 'lea', collectorNumber: '161' },
+            { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' },
+          ],
+        },
+        {
+          name: 'Mainboard',
+          cards: [
+            { quantity: 3, name: 'Counterspell', set: 'lea', collectorNumber: '55' },
+            { quantity: 1, name: 'Sol Ring', set: 'lea', collectorNumber: '161' },
+          ],
+        },
+      ],
+    })
+    await writeCollectionFile(ws.dir, 'main', {
+      title: 'My Collection',
+      entries: [
+        { name: 'Sol Ring', set: 'cmr', collectorNumber: '1' },
+        { name: 'Counterspell', set: 'lea', collectorNumber: '55' },
+        {
+          name: 'Black Lotus',
+          set: 'lea',
+          collectorNumber: '232',
+          finish: 'foil',
+          condition: 'NM',
+          note: 'first edition',
+          cardId: 7,
+        },
+      ],
+    })
+    await writeWantedFile(ws.dir, 'wishlist', {
+      title: 'Wishlist',
+      entries: [
+        { name: 'Mox Ruby', set: 'lea', collectorNumber: '265' },
+        { name: 'Lightning Bolt' },
+        { name: 'Black Lotus', set: 'lea', collectorNumber: '232' },
+      ],
+    })
 
     const entries = await collectAllCards()
     const keys = entries.map((e) => `${e.name}|${e.set ?? ''}|${e.collectorNumber ?? ''}`)
@@ -81,11 +83,15 @@ describe('list-all-cards', () => {
   })
 
   test('sorts entries alphabetically by name, then by set, then by collector number', async () => {
-    await fs.mkdir(path.join(testDir, 'decks'), { recursive: true })
-    await fs.writeFile(
-      path.join(testDir, 'decks', 'sample.md'),
-      `---\nname: "S"\n---\n\n# S\n\n## Main\n\n1 Sol Ring (CMR:1)\n1 Lightning Bolt (LEA:161)\n1 Sol Ring (LEA:161)\n1 Black Lotus (LEA:232)\n`,
-    )
+    await writeDeckFile(ws.dir, 'sample', {
+      frontMatter: { name: 'S' },
+      cards: [
+        { quantity: 1, name: 'Sol Ring', set: 'cmr', collectorNumber: '1' },
+        { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' },
+        { quantity: 1, name: 'Sol Ring', set: 'lea', collectorNumber: '161' },
+        { quantity: 1, name: 'Black Lotus', set: 'lea', collectorNumber: '232' },
+      ],
+    })
 
     const entries = await collectAllCards()
     expect(entries.map((e) => e.name)).toEqual([
@@ -120,36 +126,5 @@ describe('list-all-cards', () => {
     const entries = await collectAllCards()
     expect(entries).toEqual([])
     expect(formatAllCardsFile(entries)).toBe('# All cards\n\n')
-  })
-
-  test('hash of the output is stable across reorderings of input cards', async () => {
-    await fs.mkdir(path.join(testDir, 'decks'), { recursive: true })
-    await fs.writeFile(
-      path.join(testDir, 'decks', 'a.md'),
-      `---\nname: "A"\n---\n# A\n\n## Main\n\n1 Sol Ring (LEA:161)\n1 Lightning Bolt (LEA:161)\n`,
-    )
-    const first = formatAllCardsFile(await collectAllCards())
-
-    await fs.writeFile(
-      path.join(testDir, 'decks', 'a.md'),
-      `---\nname: "A"\n---\n# A\n\n## Main\n\n1 Lightning Bolt (LEA:161)\n1 Sol Ring (LEA:161)\n`,
-    )
-    const second = formatAllCardsFile(await collectAllCards())
-
-    expect(first).toBe(second)
-  })
-
-  test('hash of the output ignores finish, condition, notes, and quantity', async () => {
-    await fs.mkdir(path.join(testDir, 'collections'), { recursive: true })
-    await fs.writeFile(path.join(testDir, 'collections', 'a.md'), `# A\n\n- Sol Ring (LEA:161)\n`)
-    const before = formatAllCardsFile(await collectAllCards())
-
-    await fs.writeFile(
-      path.join(testDir, 'collections', 'a.md'),
-      `# A\n\n- Sol Ring (LEA:161) [foil] [NM] {extra notes} &42\n`,
-    )
-    const after = formatAllCardsFile(await collectAllCards())
-
-    expect(before).toBe(after)
   })
 })

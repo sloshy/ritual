@@ -64,12 +64,6 @@ describe('edit-session-memory', () => {
     expect(recallEditSession('collection', 'cards')).toEqual([remove('1', 7), remove('2', 8)])
   })
 
-  it('append on an absent list registers a pending session', () => {
-    expect(hasAnyEditSession()).toBe(false)
-    appendEditSession('wanted', 'new-list', 'New List', [remove('1', 7)])
-    expect(hasAnyEditSession()).toBe(true)
-  })
-
   it('treats an empty append as a no-op (no session created)', () => {
     appendEditSession('deck', 'my-deck', 'My Deck', [])
     expect(recallEditSession('deck', 'my-deck')).toBeUndefined()

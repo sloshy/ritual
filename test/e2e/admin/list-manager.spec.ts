@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test'
-import { loginAsAdmin } from '../helpers/auth-helper'
+import { gotoAdminDashboard } from '../helpers/auth-helper'
+import { fulfillJsonRoute } from '../helpers/fulfill'
 
 type ListItem = { slug: string; name: string }
 
@@ -19,14 +20,6 @@ type SiteState = {
 }
 
 type ConfigPutBody = { site?: Partial<SiteState> }
-
-function jsonResponse(route: Route, body: unknown, status = 200): Promise<void> {
-  return route.fulfill({
-    status,
-    contentType: 'application/json',
-    body: JSON.stringify(body),
-  })
-}
 
 function freshSite(): SiteState {
   return {
@@ -55,13 +48,13 @@ async function installConfigMock(page: Page, site: SiteState): Promise<void> {
   await page.route('**/api/config', async (route) => {
     const method = route.request().method()
     if (method === 'GET') {
-      await jsonResponse(route, { success: true, config: config() })
+      await fulfillJsonRoute(route, { success: true, config: config() })
       return
     }
     if (method === 'PUT') {
       const body = JSON.parse(route.request().postData() ?? '{}') as ConfigPutBody
       if (body.site) Object.assign(site, body.site)
-      await jsonResponse(route, { success: true, config: config() })
+      await fulfillJsonRoute(route, { success: true, config: config() })
       return
     }
     await route.fallback()
@@ -76,17 +69,17 @@ async function installConfigMock(page: Page, site: SiteState): Promise<void> {
 async function installManagerMocks(page: Page, state: ManagerState): Promise<void> {
   await page.route('**/api/decks', async (route) => {
     if (route.request().method() !== 'GET') return route.fallback()
-    await jsonResponse(route, { decks: state.decks })
+    await fulfillJsonRoute(route, { decks: state.decks })
   })
 
   await page.route('**/api/collections', async (route) => {
     if (route.request().method() !== 'GET') return route.fallback()
-    await jsonResponse(route, { collections: state.collections })
+    await fulfillJsonRoute(route, { collections: state.collections })
   })
 
   await page.route('**/api/wanted', async (route) => {
     if (route.request().method() !== 'GET') return route.fallback()
-    await jsonResponse(route, { wantedLists: state.wantedLists })
+    await fulfillJsonRoute(route, { wantedLists: state.wantedLists })
   })
 
   const handleCreate = async (route: Route, key: keyof ManagerState) => {
@@ -94,11 +87,11 @@ async function installManagerMocks(page: Page, state: ManagerState): Promise<voi
     const { name } = JSON.parse(route.request().postData() ?? '{}') as { name?: string }
     const trimmed = (name ?? '').trim()
     if (!trimmed) {
-      await jsonResponse(route, { success: false, message: 'name required' }, 400)
+      await fulfillJsonRoute(route, { success: false, message: 'name required' }, 400)
       return
     }
     state[key].push({ slug: trimmed, name: trimmed })
-    await jsonResponse(route, { success: true, message: `Created ${trimmed}`, slug: trimmed })
+    await fulfillJsonRoute(route, { success: true, message: `Created ${trimmed}`, slug: trimmed })
   }
 
   await page.route('**/api/deck/create', (route) => handleCreate(route, 'decks'))
@@ -112,17 +105,17 @@ async function installManagerMocks(page: Page, state: ManagerState): Promise<voi
       const trimmed = (newName ?? '').trim()
       const idx = state[key].findIndex((it) => it.slug === slug)
       if (idx === -1) {
-        await jsonResponse(route, { success: false, message: 'not found' }, 404)
+        await fulfillJsonRoute(route, { success: false, message: 'not found' }, 404)
         return
       }
       state[key][idx] = { slug: trimmed, name: trimmed }
-      await jsonResponse(route, { success: true, message: 'renamed', newSlug: trimmed })
+      await fulfillJsonRoute(route, { success: true, message: 'renamed', newSlug: trimmed })
       return
     }
     if (method === 'DELETE') {
       const idx = state[key].findIndex((it) => it.slug === slug)
       if (idx !== -1) state[key].splice(idx, 1)
-      await jsonResponse(route, { success: true, message: 'deleted' })
+      await fulfillJsonRoute(route, { success: true, message: 'deleted' })
       return
     }
     await route.fallback()
@@ -177,7 +170,7 @@ test.describe('List Manager', () => {
     site = freshSite()
     await installManagerMocks(page, state)
     await installConfigMock(page, site)
-    await loginAsAdmin(page)
+    await gotoAdminDashboard(page)
     await page.locator('.admin-nav-item:has-text("Manage Lists")').click()
     await expect(page.locator('.section-heading')).toContainText('Manage Lists')
   })
@@ -204,14 +197,6 @@ test.describe('List Manager', () => {
     await page.locator('.form-input').first().fill('Brand New Collection')
     await page.locator('.btn-primary:has-text("Create Collection")').click()
     await expect(page.locator('.deck-list-item:has-text("Brand New Collection")')).toBeVisible()
-  })
-
-  test('creates a new wanted list and shows it in the list', async ({ page }) => {
-    await page.locator('.list-type-tab:has-text("Wanted Lists")').click()
-    await page.locator('.btn-primary:has-text("New Wanted List")').click()
-    await page.locator('.form-input').first().fill('Holiday Wishlist')
-    await page.locator('.btn-primary:has-text("Create Wanted List")').click()
-    await expect(page.locator('.deck-list-item:has-text("Holiday Wishlist")')).toBeVisible()
   })
 
   test('format dropdown only appears on the Decks tab', async ({ page }) => {
@@ -295,7 +280,7 @@ test.describe('List Manager', () => {
     // the editor mounts and its selector reflects the deep-linked slug.
     await page.route('**/api/deck/*', async (route) => {
       if (route.request().method() !== 'GET') return route.fallback()
-      await jsonResponse(route, {
+      await fulfillJsonRoute(route, {
         success: true,
         deck: { name: 'Existing Deck', format: 'commander', sections: [] },
         cards: {},
@@ -325,7 +310,7 @@ test.describe('List Manager', () => {
   }) => {
     await page.route('**/api/collection/*', async (route) => {
       if (route.request().method() !== 'GET') return route.fallback()
-      await jsonResponse(route, {
+      await fulfillJsonRoute(route, {
         success: true,
         entries: [],
         cards: {},

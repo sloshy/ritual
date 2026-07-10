@@ -1,28 +1,26 @@
 import { describe, expect, test, beforeEach, afterEach } from 'bun:test'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import * as os from 'node:os'
 import { saveFlatList } from '../../src/commands/import'
 import { importFromTextFile } from '../../src/importers/text-file'
-import { setBaseDir } from '../../src/base-dir'
 import { MemoryLogger, resetLogger, setLogger } from '../test-utils'
+import { bindWorkspace, writeWantedFile, type BoundWorkspace } from './helpers/workspace'
 
 describe('import text file into flat lists (Integration)', () => {
-  const originalCwd = process.cwd()
+  let ws: BoundWorkspace
   let tmpDir: string
   let logger: MemoryLogger
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-import-flat-'))
-    setBaseDir(tmpDir)
+    ws = await bindWorkspace({ dirs: [], config: false })
+    tmpDir = ws.dir
     logger = new MemoryLogger()
     setLogger(logger)
   })
 
   afterEach(async () => {
-    setBaseDir(originalCwd)
     resetLogger()
-    await fs.rm(tmpDir, { recursive: true, force: true })
+    await ws.dispose()
   })
 
   async function writeSource(fileName: string, content: string): Promise<string> {
@@ -106,9 +104,10 @@ describe('import text file into flat lists (Integration)', () => {
   })
 
   test('non-interactive conflict throws instead of prompting', async () => {
-    const wantedDir = path.join(tmpDir, 'wanted')
-    await fs.mkdir(wantedDir, { recursive: true })
-    await fs.writeFile(path.join(wantedDir, 'wants.md'), '# wants\n\n## Main\n- Mox Ruby &1\n')
+    const wantsPath = await writeWantedFile(tmpDir, 'wants', {
+      entries: [{ name: 'Mox Ruby', cardId: 1 }],
+    })
+    const original = await fs.readFile(wantsPath, 'utf-8')
 
     const source = await writeSource('wants.txt', '1 Black Lotus\n')
     const deckData = await importFromTextFile(source)
@@ -119,20 +118,20 @@ describe('import text file into flat lists (Integration)', () => {
     )
 
     // The pre-existing list must be untouched by the failed import.
-    const content = await fs.readFile(path.join(wantedDir, 'wants.md'), 'utf-8')
-    expect(content).toBe('# wants\n\n## Main\n- Mox Ruby &1\n')
+    const content = await fs.readFile(wantsPath, 'utf-8')
+    expect(content).toBe(original)
   })
 
   test('overwrite flag replaces an existing list', async () => {
-    const wantedDir = path.join(tmpDir, 'wanted')
-    await fs.mkdir(wantedDir, { recursive: true })
-    await fs.writeFile(path.join(wantedDir, 'wants.md'), '# wants\n\n## Main\n- Mox Ruby &1\n')
+    const wantsPath = await writeWantedFile(tmpDir, 'wants', {
+      entries: [{ name: 'Mox Ruby', cardId: 1 }],
+    })
 
     const source = await writeSource('wants.txt', '1 Black Lotus\n')
     const deckData = await importFromTextFile(source)
     await saveFlatList(deckData, 'wanted', { nonInteractive: true, forceOverwrite: true })
 
-    const content = await fs.readFile(path.join(wantedDir, 'wants.md'), 'utf-8')
+    const content = await fs.readFile(wantsPath, 'utf-8')
     expect(content).toBe('# wants\n\n## Main\n- Black Lotus &1\n')
   })
 

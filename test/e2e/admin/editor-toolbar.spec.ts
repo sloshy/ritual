@@ -1,106 +1,70 @@
 import { test, expect } from '@playwright/test'
-import { loginAsAdmin } from '../helpers/auth-helper'
+import type { ScryfallCard } from '../../../src/types'
+import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor } from '../helpers/editor-nav'
-
-type MockCard = {
-  id: string
-  name: string
-  cmc: number
-  type_line: string
-  oracle_text: string
-  image_uris: Record<string, string>
-  prices: Record<string, string | null>
-  finishes: string[]
-  games: string[]
-  set: string
-  set_name: string
-  collector_number: string
-  rarity: string
-  color_identity: string[]
-}
+import { fulfillJson } from '../helpers/fulfill'
+import { makeMockScryfallCard } from '../helpers/mock-cards'
 
 // A deck large enough to make the editor page scroll, so the filter toolbar
 // reaches its pinned (`is-stuck`) state.
 const CARD_COUNT = 50
 
-function makeCard(i: number): MockCard {
-  return {
+function makeCard(i: number): ScryfallCard {
+  return makeMockScryfallCard({
     id: `card-${i}`,
     name: `Test Card ${i}`,
     cmc: 1,
     type_line: 'Creature — Test',
     oracle_text: 'A synthetic test card.',
-    image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
-    prices: {
-      usd: '1.00',
-      usd_foil: null,
-      usd_etched: null,
-      eur: '0.80',
-      eur_foil: null,
-      tix: null,
-    },
-    finishes: ['nonfoil'],
-    games: ['paper'],
+    prices: { usd: '1.00', eur: '0.80' },
     set: 'fdn',
     set_name: 'Foundations',
     collector_number: String(100 + i),
-    rarity: 'common',
     color_identity: ['G'],
-  }
+  })
 }
 
 const CARDS = Array.from({ length: CARD_COUNT }, (_, i) => makeCard(i + 1))
 
-function mapByName<T>(value: (c: MockCard) => T): Record<string, T> {
+function mapByName<T>(value: (c: ScryfallCard) => T): Record<string, T> {
   return Object.fromEntries(CARDS.map((c) => [c.name, value(c)]))
 }
 
 test.describe('Admin Editor — pinned toolbar layout', () => {
   test.beforeEach(async ({ page }) => {
-    await loginAsAdmin(page)
+    await gotoAdminDashboard(page)
 
-    await page.route('**/api/decks', async (route) => {
-      if (route.request().method() === 'GET') {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ decks: [{ slug: 'test-big-deck', name: 'Big Deck' }] }),
-        })
-      } else {
-        await route.continue()
-      }
-    })
+    await fulfillJson(
+      page,
+      '**/api/decks',
+      { decks: [{ slug: 'test-big-deck', name: 'Big Deck' }] },
+      { method: 'GET' },
+    )
 
-    await page.route('**/api/deck/test-big-deck', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          success: true,
-          slug: 'test-big-deck',
-          deck: {
-            name: 'Big Deck',
-            sections: [
-              {
-                name: 'Main',
-                cards: CARDS.map((c) => ({
-                  quantity: 1,
-                  name: c.name,
-                  set: c.set,
-                  collectorNumber: c.collector_number,
-                })),
-              },
-            ],
+    await fulfillJson(page, '**/api/deck/test-big-deck', {
+      success: true,
+      slug: 'test-big-deck',
+      deck: {
+        name: 'Big Deck',
+        sections: [
+          {
+            name: 'Main',
+            cards: CARDS.map((c) => ({
+              quantity: 1,
+              name: c.name,
+              set: c.set,
+              collectorNumber: c.collector_number,
+            })),
           },
-          cards: mapByName((c) => c),
-          printings: mapByName((c) => [c]),
-          lowestPriceCards: mapByName((c) => c),
-          lowestPriceCardsEur: mapByName((c) => c),
-          lowestPriceCardsTix: {},
-          symbolMap: {},
-          frontMatter: {},
-        }),
-      })
+        ],
+      },
+      cards: mapByName((c) => c),
+      printings: mapByName((c) => [c]),
+      lowestPriceCards: mapByName((c) => c),
+      lowestPriceCardsEur: mapByName((c) => c),
+      lowestPriceCardsTix: {},
+      symbolMap: {},
+      frontMatter: {},
     })
   })
 

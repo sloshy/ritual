@@ -1,9 +1,10 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page, type Route } from '@playwright/test'
+import { fulfillJson } from '../helpers/fulfill'
 import {
   MOCK_TRADE_COLLECTION_CARD_BOLT,
   PICKER_BASE_PRINTING,
   mockPublicSiteForTrade,
-} from '../helpers/mock-data'
+} from '../helpers/mock-public-site'
 
 /**
  * Type a query into the left column's search input, wait for the suggestion
@@ -19,17 +20,40 @@ async function addToLeft(page: Page, query: string): Promise<void> {
 }
 
 /**
- * Right-column equivalent of {@link addToLeft} for Scryfall mode: toggles the
- * search-mode switch, types the query, and clicks the first suggestion. Caller
- * is responsible for handling the printing-picker modal that opens afterward.
+ * Right-column (wanted-list mode) equivalent of {@link addToLeft}. When
+ * `expectSuggestion` is given, asserts the first suggestion's text before
+ * clicking it.
  */
-async function scryfallAddToRight(page: Page, query: string): Promise<void> {
+async function addToRight(page: Page, query: string, expectSuggestion?: string): Promise<void> {
+  const rightSearch = page.locator('.trade-col[data-side="right"] .search-input')
+  await rightSearch.fill(query)
+  const suggest = page.locator('.trade-col[data-side="right"] .search-suggest')
+  await expect(suggest).toBeVisible()
+  const firstRow = suggest.locator('.search-suggest-row').first()
+  if (expectSuggestion) await expect(firstRow).toContainText(expectSuggestion)
+  await firstRow.click({ force: true })
+}
+
+/**
+ * Right-column equivalent of {@link addToLeft} for Scryfall mode: toggles the
+ * search-mode switch, types the query, and clicks the first suggestion. When
+ * `expectSuggestion` is given, asserts the first suggestion's text before
+ * clicking it. Caller is responsible for handling the printing-picker modal
+ * that opens afterward.
+ */
+async function scryfallAddToRight(
+  page: Page,
+  query: string,
+  expectSuggestion?: string,
+): Promise<void> {
   const rightColumn = page.locator('.trade-col[data-side="right"]')
   await rightColumn.locator('.search-mode-toggle').click()
   await rightColumn.locator('.search-input').fill(query)
   const suggest = rightColumn.locator('.search-suggest')
   await expect(suggest).toBeVisible({ timeout: 2000 })
-  await suggest.locator('.search-suggest-row').first().click({ force: true })
+  const firstRow = suggest.locator('.search-suggest-row').first()
+  if (expectSuggestion) await expect(firstRow).toContainText(expectSuggestion)
+  await firstRow.click({ force: true })
 }
 
 test.describe('Trade Page', () => {
@@ -43,12 +67,6 @@ test.describe('Trade Page', () => {
     await expect(tradeLink).toBeVisible()
     await tradeLink.click()
     await expect(page.locator('h1')).toContainText('Trade Editor')
-  })
-
-  test('navigating to #/trade shows the two-column layout', async ({ page }) => {
-    await page.goto('#/trade')
-    await expect(page.locator('.trade-col[data-side="left"]')).toBeVisible()
-    await expect(page.locator('.trade-col[data-side="right"]')).toBeVisible()
   })
 
   test('left column: searching and adding a card from the collection', async ({ page }) => {
@@ -101,12 +119,11 @@ test.describe('Trade Page', () => {
     const rightTotal = page.locator('.trade-col[data-side="right"] .trade-col-foot-total')
     await expect(rightTotal).toContainText('—')
 
-    const rightSearch = page.locator('.trade-col[data-side="right"] .search-input')
-    await rightSearch.fill('Mana')
-    const suggest = page.locator('.trade-col[data-side="right"] .search-suggest')
-    await expect(suggest).toBeVisible()
-    await suggest.locator('.search-suggest-row').first().click({ force: true })
+    await addToRight(page, 'Mana', 'Mana Crypt')
 
+    await expect(page.locator('.trade-col[data-side="right"] .trade-row-name-text')).toContainText(
+      'Mana Crypt',
+    )
     // Mocked Mana Crypt price is $175.00 (see MOCK_TRADE_WANTED_CARD_CRYPT).
     await expect(rightTotal).toContainText('$175.00')
   })
@@ -143,72 +160,16 @@ test.describe('Trade Page', () => {
     await expect(rows.nth(1)).toContainText('Sol Ring')
   })
 
-  test('right column: searching and adding a card from the wanted list', async ({ page }) => {
-    await page.goto('#/trade')
-
-    const rightSearch = page.locator('.trade-col[data-side="right"] .search-input')
-    await rightSearch.fill('Mana')
-
-    const suggest = page.locator('.trade-col[data-side="right"] .search-suggest')
-    await expect(suggest).toBeVisible()
-    const firstRow = suggest.locator('.search-suggest-row').first()
-    await expect(firstRow).toContainText('Mana Crypt')
-
-    await firstRow.click({ force: true })
-
-    await expect(page.locator('.trade-col[data-side="right"] .trade-row-name-text')).toContainText(
-      'Mana Crypt',
-    )
-  })
-
-  test('right column: toggling Scryfall mode changes the placeholder', async ({ page }) => {
-    await page.goto('#/trade')
-
-    const rightColumn = page.locator('.trade-col[data-side="right"]')
-    const searchInput = rightColumn.locator('.search-input')
-
-    await expect(searchInput).toHaveAttribute('placeholder', /wanted/i)
-
-    await rightColumn.locator('.search-mode-toggle').click()
-
-    await expect(searchInput).toHaveAttribute('placeholder', /scryfall/i)
-  })
-
-  test('right column: Scryfall mode shows autocomplete from Scryfall API', async ({ page }) => {
-    await page.goto('#/trade')
-
-    const rightColumn = page.locator('.trade-col[data-side="right"]')
-
-    await rightColumn.locator('.search-mode-toggle').click()
-
-    const searchInput = rightColumn.locator('.search-input')
-    await searchInput.fill('Mana')
-
-    const suggest = rightColumn.locator('.search-suggest')
-    await expect(suggest).toBeVisible({ timeout: 2000 })
-    await expect(suggest.locator('.search-suggest-row').first()).toContainText('Mana Crypt')
-  })
-
-  test('right column: Scryfall mode opens printing picker on card name select', async ({
-    page,
-  }) => {
-    await page.goto('#/trade')
-
-    await scryfallAddToRight(page, 'Mana')
-
-    await expect(page.locator('.trade-picker-modal')).toBeVisible()
-    await expect(page.locator('.trade-picker-title')).toContainText('Mana Crypt')
-  })
-
   test('printing picker: selecting a printing and clicking Add adds to right column', async ({
     page,
   }) => {
     await page.goto('#/trade')
 
-    await scryfallAddToRight(page, 'Mana')
+    await scryfallAddToRight(page, 'Mana', 'Mana Crypt')
 
     const modal = page.locator('.trade-picker-modal')
     await expect(modal).toBeVisible()
+    await expect(modal.locator('.trade-picker-title')).toContainText('Mana Crypt')
     await modal.locator('.trade-picker-item').first().click()
 
     await modal.locator('button', { hasText: 'Add to Trade' }).click()
@@ -239,7 +200,7 @@ test.describe('Trade Page', () => {
     await expect(row.locator('.qty-val-fixed')).toContainText('1')
   })
 
-  test('left column: stepper caps at collection maxQty', async ({ page }) => {
+  test('left column: stepper caps at maxQty and decrements back down', async ({ page }) => {
     await page.goto('#/trade')
 
     const leftSearch = page.locator('.trade-col[data-side="left"] .search-input')
@@ -252,6 +213,7 @@ test.describe('Trade Page', () => {
 
     const row = page.locator('.trade-col[data-side="left"] .trade-row').first()
     const inc = row.locator('.qty-stepper button', { hasText: '+' })
+    const dec = row.locator('.qty-stepper button', { hasText: '-' })
     const qty = row.locator('.qty-val')
 
     await expect(qty).toContainText('1')
@@ -263,22 +225,9 @@ test.describe('Trade Page', () => {
     await expect(inc).toBeDisabled()
     await inc.click({ force: true }).catch(() => {})
     await expect(qty).toContainText('3')
-  })
 
-  test('left column: stepper decrements quantity back down', async ({ page }) => {
-    await page.goto('#/trade')
-
-    // Bolt has maxQty=3 in the mocked collection. Bump to 2, then decrement.
-    await addToLeft(page, 'Lightning')
-
-    const row = page.locator('.trade-col[data-side="left"] .trade-row').first()
-    const inc = row.locator('.qty-stepper button', { hasText: '+' })
-    const dec = row.locator('.qty-stepper button', { hasText: '-' })
-    const qty = row.locator('.qty-val')
-
-    await inc.click()
+    await dec.click()
     await expect(qty).toContainText('2')
-
     await dec.click()
     await expect(qty).toContainText('1')
     // At qty 1 the decrement button is disabled — further decrease must use
@@ -375,12 +324,11 @@ test.describe('Trade Page', () => {
       { ...PICKER_BASE_PRINTING, id: 'b', set: 'mkm' },
       { ...PICKER_BASE_PRINTING, id: 'c', set: 'lea' },
     ]
-    await page.route('**/api.scryfall.com/cards/search**', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ object: 'list', total_cards: 3, has_more: false, data: printings }),
-      })
+    await fulfillJson(page, '**/api.scryfall.com/cards/search**', {
+      object: 'list',
+      total_cards: 3,
+      has_more: false,
+      data: printings,
     })
 
     await page.goto('#/trade')
@@ -397,34 +345,6 @@ test.describe('Trade Page', () => {
     await modal.locator('.trade-picker-filter').fill('xx')
     await expect(modal.locator('.trade-picker-item')).toHaveCount(0)
     await expect(modal).toContainText('No printings match')
-  })
-
-  test('Copy Link encodes current trade state into the URL', async ({ page }) => {
-    await page.goto('#/trade')
-
-    // Add Lightning Bolt (qty 2 out of 3) from left collection
-    await addToLeft(page, 'Lightning')
-    // Increment qty to 2
-    const leftRow = page.locator('.trade-col[data-side="left"] .trade-row').first()
-    await leftRow.locator('.qty-stepper button', { hasText: '+' }).click()
-
-    // Add Mana Crypt from right wanted list
-    const rightSearch = page.locator('.trade-col[data-side="right"] .search-input')
-    await rightSearch.fill('Mana')
-    const rightSuggest = page.locator('.trade-col[data-side="right"] .search-suggest')
-    await expect(rightSuggest).toBeVisible()
-    await rightSuggest.locator('.search-suggest-row').first().click({ force: true })
-
-    await page.locator('.primary-toolbar button', { hasText: 'Copy Link' }).click()
-
-    const hash = new URL(page.url()).hash
-    const tradeParams = new URLSearchParams(hash.slice(hash.indexOf('?') + 1))
-    // Collection: cardIds 1 and 2 (first two Lightning Bolt IDs, qty=2)
-    expect(tradeParams.get('leftSideColIds')).toContain('Trade%20Collection:1,2')
-    // Wanted: cardId 1 + scryfall ID for Mana Crypt
-    expect(tradeParams.get('rightSideWantedIds')).toContain(
-      'Trade%20Wanted%20List:1@trade-crypt-id',
-    )
   })
 
   test('navigating to a trade URL restores left and right cards', async ({ page }) => {
@@ -497,47 +417,41 @@ test.describe('Trade Page', () => {
     // follow-up assertion here that the URL is cleaned.
   })
 
-  test('navigating to a deck URL restores the deck card by numeric ID', async ({ page }) => {
-    // Sol Ring in the deck has cardId 2 (mainboard) and 3 (sideboard), aggregated as one entry.
-    // The URL uses numeric ID 2 to identify it.
+  test('navigating to a deck URL restores plain and picker-selected cards', async ({ page }) => {
+    // Sol Ring in the deck has cardId 2 (mainboard) and 3 (sideboard), aggregated as one
+    // entry — restored by plain numeric ID. Counterspell has cardId 1 with no
+    // set/collectorNumber in the deck data — the @sfId override selects its printing.
+    // Both tokens share one comma-separated leftSideDeckIds group.
     const params = new URLSearchParams()
-    params.set('leftSideDeckIds', 'Trade Deck:2x1')
+    params.set('leftSideDeckIds', 'Trade Deck:2x1,1x1@trade-counterspell-id')
     await page.goto(`/#/trade?${params.toString()}`)
 
-    await expect(page.locator('.trade-col[data-side="left"] .trade-row-name-text')).toContainText(
-      'Sol Ring',
-    )
-  })
-
-  test('navigating to a deck URL restores a picker-selected card by numeric ID and scryfall override', async ({
-    page,
-  }) => {
-    // Counterspell has cardId:1, no set/collectorNumber in the deck data.
-    // The sfId selects the printing when restoring.
-    const params = new URLSearchParams()
-    params.set('leftSideDeckIds', 'Trade Deck:1x1@trade-counterspell-id')
-    await page.goto(`/#/trade?${params.toString()}`)
-
-    await expect(page.locator('.trade-col[data-side="left"] .trade-row-name-text')).toContainText(
-      'Counterspell',
-    )
+    const rows = page.locator('.trade-col[data-side="left"] .trade-row-name-text')
+    await expect(rows).toHaveCount(2)
+    await expect(rows.filter({ hasText: 'Sol Ring' })).toHaveCount(1)
+    await expect(rows.filter({ hasText: 'Counterspell' })).toHaveCount(1)
   })
 
   test('Copy Link then reload preserves the full trade state', async ({ page }) => {
     await page.goto('#/trade')
 
     await addToLeft(page, 'Sol')
+    await addToRight(page, 'Mana')
 
     await page.locator('.primary-toolbar button', { hasText: 'Copy Link' }).click()
 
     const tradeUrl = page.url()
     expect(new URL(tradeUrl).hash).toContain('leftSideColIds=')
+    expect(new URL(tradeUrl).hash).toContain('rightSideWantedIds=')
 
     // Navigate to the copied URL fresh
     await page.goto(tradeUrl)
 
     await expect(page.locator('.trade-col[data-side="left"] .trade-row-name-text')).toContainText(
       'Sol Ring',
+    )
+    await expect(page.locator('.trade-col[data-side="right"] .trade-row-name-text')).toContainText(
+      'Mana Crypt',
     )
   })
 
@@ -588,23 +502,19 @@ test.describe('Trade Page', () => {
     // so the rest of the card shape stays in sync with what the page expects.
     let collectionRequests = 0
     let requestedIds: string[] = []
-    await page.route('**/api.scryfall.com/cards/collection', async (route) => {
+    await fulfillJson(page, '**/api.scryfall.com/cards/collection', (route: Route) => {
       collectionRequests++
       const body = route.request().postDataJSON() as { identifiers: { id: string }[] }
       requestedIds = body.identifiers.map((i) => i.id)
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          data: [
-            {
-              ...MOCK_TRADE_COLLECTION_CARD_BOLT,
-              prices: { ...MOCK_TRADE_COLLECTION_CARD_BOLT.prices, usd: '99.99' },
-            },
-          ],
-          not_found: [],
-        }),
-      })
+      return {
+        data: [
+          {
+            ...MOCK_TRADE_COLLECTION_CARD_BOLT,
+            prices: { ...MOCK_TRADE_COLLECTION_CARD_BOLT.prices, usd: '99.99' },
+          },
+        ],
+        not_found: [],
+      }
     })
 
     await page.locator('.primary-toolbar button', { hasText: 'Update prices' }).click()
@@ -620,13 +530,9 @@ test.describe('Trade Page', () => {
     await page.goto('#/trade')
 
     let collectionRequests = 0
-    await page.route('**/api.scryfall.com/cards/collection', async (route) => {
+    await fulfillJson(page, '**/api.scryfall.com/cards/collection', () => {
       collectionRequests++
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ data: [], not_found: [] }),
-      })
+      return { data: [], not_found: [] }
     })
 
     await page.locator('.primary-toolbar button', { hasText: 'Update prices' }).click()
@@ -641,17 +547,11 @@ test.describe('Trade Page', () => {
       id: `crypt-${i}`,
       collector_number: `${i + 1}`,
     }))
-    await page.route('**/api.scryfall.com/cards/search**', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          object: 'list',
-          total_cards: 10,
-          has_more: false,
-          data: tenPrintings,
-        }),
-      })
+    await fulfillJson(page, '**/api.scryfall.com/cards/search**', {
+      object: 'list',
+      total_cards: 10,
+      has_more: false,
+      data: tenPrintings,
     })
 
     await page.goto('#/trade')

@@ -3,7 +3,7 @@ import {
   mockPublicSiteDeckForFilters,
   mockPublicSiteDeckWithMultipleSections,
   mockPublicSiteDeckWithSidewaysCard,
-} from '../helpers/mock-data'
+} from '../helpers/mock-public-site'
 
 test.describe('Card detail modal', () => {
   test.beforeEach(async ({ page }) => {

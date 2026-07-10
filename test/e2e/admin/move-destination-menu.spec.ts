@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
-import { loginAsAdmin } from '../helpers/auth-helper'
-import { mockMoveCardsApi } from '../helpers/mock-data'
+import { gotoAdminDashboard } from '../helpers/auth-helper'
+import { fulfillJson } from '../helpers/fulfill'
+import { mockMoveCardsApi } from '../helpers/mock-admin'
 
 // 30 destination decks → a tall "Move To…" destination menu, so it exceeds the
 // space below the anchor. Regression guard for the shared anchored-menu positioning
@@ -15,35 +16,29 @@ const DEST_DECKS = Array.from({ length: 30 }, (_, i) => ({
 }))
 
 test('tall move-destination menu stays within the viewport', async ({ page }) => {
-  await loginAsAdmin(page)
+  await gotoAdminDashboard(page)
   await mockMoveCardsApi(page)
 
   // Override the move index with one card in a binder plus many destination decks.
   // Must be registered AFTER mockMoveCardsApi — Playwright stacks routes last-wins,
   // so this override has to come second to actually serve the 30-deck payload.
-  await page.route('**/api/move', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        success: true,
-        lists: [{ type: 'collection', slug: 'move-binder', name: 'Move Binder' }, ...DEST_DECKS],
-        cards: [
-          {
-            key: 'collection:move-binder:1:0',
-            listType: 'collection',
-            listSlug: 'move-binder',
-            name: 'Lightning Bolt',
-            set: 'lea',
-            collectorNumber: '161',
-            finish: 'nonfoil',
-            condition: 'NM',
-            cardId: 1,
-            copyIndex: 0,
-          },
-        ],
-      }),
-    })
+  await fulfillJson(page, '**/api/move', {
+    success: true,
+    lists: [{ type: 'collection', slug: 'move-binder', name: 'Move Binder' }, ...DEST_DECKS],
+    cards: [
+      {
+        key: 'collection:move-binder:1:0',
+        listType: 'collection',
+        listSlug: 'move-binder',
+        name: 'Lightning Bolt',
+        set: 'lea',
+        collectorNumber: '161',
+        finish: 'nonfoil',
+        condition: 'NM',
+        cardId: 1,
+        copyIndex: 0,
+      },
+    ],
   })
 
   await page.locator('.admin-nav-item:has-text("Move Cards")').click()

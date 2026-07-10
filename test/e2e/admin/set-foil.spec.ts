@@ -1,85 +1,66 @@
 import { test, expect } from '@playwright/test'
 import type { ScryfallCard } from '../../../src/types'
-import { loginAsAdmin } from '../helpers/auth-helper'
+import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor } from '../helpers/editor-nav'
+import { fulfillJson } from '../helpers/fulfill'
+import { makeMockScryfallCard } from '../helpers/mock-cards'
 import { disableSearchDebounce } from '../helpers/search-modal'
 
 /** A Lightning Bolt printing that supports both nonfoil and foil finishes. */
-const BOLT: ScryfallCard = {
+const BOLT: ScryfallCard = makeMockScryfallCard({
   id: 'bolt-lea',
   name: 'Lightning Bolt',
   cmc: 1,
   type_line: 'Instant',
   oracle_text: 'Lightning Bolt deals 3 damage to any target.',
-  image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
-  prices: {
-    usd: '1.00',
-    usd_foil: '3.00',
-    usd_etched: null,
-    eur: '0.80',
-    eur_foil: null,
-    tix: null,
-  },
+  prices: { usd: '1.00', usd_foil: '3.00', eur: '0.80' },
   finishes: ['nonfoil', 'foil'],
-  games: ['paper'],
   set: 'lea',
   set_name: 'Limited Edition Alpha',
   collector_number: '161',
-  rarity: 'common',
   color_identity: ['R'],
-}
+})
 
 test.describe('Deck Editor — set as foil', () => {
   test.beforeEach(async ({ page }) => {
     await disableSearchDebounce(page)
-    await loginAsAdmin(page)
+    await gotoAdminDashboard(page)
 
-    await page.route('**/api/decks', async (route) => {
-      if (route.request().method() === 'GET') {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ decks: [{ slug: 'test-set-foil', name: 'Set Foil Deck' }] }),
-        })
-      } else {
-        await route.continue()
-      }
-    })
+    await fulfillJson(
+      page,
+      '**/api/decks',
+      { decks: [{ slug: 'test-set-foil', name: 'Set Foil Deck' }] },
+      { method: 'GET' },
+    )
 
-    await page.route('**/api/deck/test-set-foil', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          success: true,
-          slug: 'test-set-foil',
-          contentHash: 'hash-1',
-          deck: {
-            name: 'Set Foil Deck',
-            sections: [
+    await fulfillJson(page, '**/api/deck/test-set-foil', {
+      success: true,
+      slug: 'test-set-foil',
+      contentHash: 'hash-1',
+      deck: {
+        name: 'Set Foil Deck',
+        sections: [
+          {
+            name: 'Main',
+            cards: [
               {
-                name: 'Main',
-                cards: [
-                  {
-                    quantity: 1,
-                    name: 'Lightning Bolt',
-                    set: 'lea',
-                    collectorNumber: '161',
-                    cardId: 5,
-                  },
-                ],
+                quantity: 1,
+                name: 'Lightning Bolt',
+                set: 'lea',
+                collectorNumber: '161',
+                cardId: 5,
               },
             ],
           },
-          cards: { 'Lightning Bolt': BOLT },
-          printings: { 'Lightning Bolt': [BOLT] },
-          lowestPriceCards: { 'Lightning Bolt': BOLT },
-          lowestPriceCardsEur: { 'Lightning Bolt': BOLT },
-          lowestPriceCardsTix: {},
-          symbolMap: {},
-          frontMatter: {},
-        }),
-      })
+        ],
+      },
+      cards: { 'Lightning Bolt': BOLT },
+      printings: { 'Lightning Bolt': [BOLT] },
+      lowestPriceCards: { 'Lightning Bolt': BOLT },
+      lowestPriceCardsEur: { 'Lightning Bolt': BOLT },
+      lowestPriceCardsTix: {},
+      symbolMap: {},
+      frontMatter: {},
     })
 
     await openListEditor(page, 'deck')

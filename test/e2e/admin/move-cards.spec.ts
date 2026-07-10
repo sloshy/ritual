@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
-import { loginAsAdmin } from '../helpers/auth-helper'
-import { mockMoveCardsApi } from '../helpers/mock-data'
+import { gotoAdminDashboard } from '../helpers/auth-helper'
+import { mockMoveCardsApi } from '../helpers/mock-admin'
 
 type CommitBody = { moves: { cardKey: string; toType: string; toSlug: string }[] }
 
@@ -8,7 +8,7 @@ const BINDER_CARD_KEY = 'collection:move-binder:1:0'
 
 test.describe('Move Cards page', () => {
   test.beforeEach(async ({ page }) => {
-    await loginAsAdmin(page)
+    await gotoAdminDashboard(page)
   })
 
   test('queues a move across lists and commits it', async ({ page }) => {

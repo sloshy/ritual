@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mockPublicSiteCombinedLists } from '../helpers/mock-data'
+import { mockPublicSiteCombinedLists } from '../helpers/mock-public-site'
 
 /**
  * The combined list view: from a single list, "Combine with list" opens a modal of

@@ -1,11 +1,12 @@
 import { test, expect } from '@playwright/test'
+import { enterEditMode, gotoList } from '../helpers/list-ui'
 import {
   mockPublicSiteDeckForFilters,
   mockPublicSiteDeckForMultiSelect,
   mockPublicSiteDeckWithMultipleSections,
   mockPublicSiteDeckWithSidewaysCard,
   mockPublicSiteIndexLists,
-} from '../helpers/mock-data'
+} from '../helpers/mock-public-site'
 
 /**
  * Touch / phone-layout behaviors: the bottom tab bar, the compact toolbar with
@@ -39,8 +40,7 @@ test.describe('Mobile tab bar', () => {
 
   test('yields the bottom edge to the editor dock in edit mode', async ({ page }) => {
     await mockPublicSiteDeckWithMultipleSections(page)
-    await page.goto('#/deck/test-multi-section-deck')
-    await page.waitForSelector('.card-item', { timeout: 15_000 })
+    await gotoList(page, '#/deck/test-multi-section-deck')
     await expect(page.locator('.mobile-tabbar')).toBeVisible()
 
     await page.locator('.btn-edit').click()
@@ -55,8 +55,7 @@ test.describe('Mobile tab bar', () => {
 test.describe('Touch toolbar', () => {
   test.beforeEach(async ({ page }) => {
     await mockPublicSiteDeckWithMultipleSections(page)
-    await page.goto('#/deck/test-multi-section-deck')
-    await page.waitForSelector('.card-item', { timeout: 15_000 })
+    await gotoList(page, '#/deck/test-multi-section-deck')
   })
 
   test('collapses to one row whose Sort & Group sheet holds the full controls', async ({
@@ -110,8 +109,7 @@ test.describe('Touch toolbar', () => {
   }) => {
     // A deck with a land in it, so Hide Lands has something to remove.
     await mockPublicSiteDeckForFilters(page)
-    await page.goto('#/deck/test-filter-deck')
-    await page.waitForSelector('.card-item', { timeout: 15_000 })
+    await gotoList(page, '#/deck/test-filter-deck')
     await expect(page.locator('.card-item[data-name="test forest"]')).toBeVisible()
 
     await page.locator('.filter-menu .toolbar-toggle', { hasText: 'Filters' }).click()
@@ -124,34 +122,12 @@ test.describe('Touch toolbar', () => {
     await expect(hideLands).toHaveClass(/active/)
     await expect(page.locator('.card-item[data-name="test forest"]')).toHaveCount(0)
   })
-
-  test('set code exclude toggle works inside the bottom sheet', async ({ page }) => {
-    await mockPublicSiteDeckForFilters(page)
-    await page.goto('#/deck/test-filter-deck')
-    await page.waitForSelector('.card-item', { timeout: 15_000 })
-    await expect(page.locator('.card-item[data-name="boring rock"]')).toBeVisible()
-
-    await page.locator('.filter-menu .toolbar-toggle', { hasText: 'Filters' }).click()
-    const sheet = page.locator('.sheet-shell[open]')
-    await expect(sheet.locator('.filter-menu-panel')).toBeVisible()
-
-    await sheet.locator('#filter-sets').fill('tsb ')
-    await expect(sheet.locator('.filter-tag')).toHaveText(/TSB/)
-    await expect(page.locator('.card-item[data-name="boring rock"]')).toBeVisible()
-
-    await sheet
-      .getByRole('group', { name: 'Set filter mode' })
-      .getByRole('button', { name: 'Exclude' })
-      .click()
-    await expect(page.locator('.card-item[data-name="boring rock"]')).toHaveCount(0)
-  })
 })
 
 test.describe('Touch selection mode', () => {
   test.beforeEach(async ({ page }) => {
     await mockPublicSiteDeckForMultiSelect(page)
-    await page.goto('#/deck/test-multi-select')
-    await page.waitForSelector('.card-item', { timeout: 15_000 })
+    await gotoList(page, '#/deck/test-multi-select')
   })
 
   test('Select toggle turns taps into selection and shows the bottom action bar', async ({
@@ -194,10 +170,7 @@ test.describe('Touch selection mode', () => {
 test.describe('Touch editing', () => {
   test.beforeEach(async ({ page }) => {
     await mockPublicSiteDeckWithMultipleSections(page)
-    await page.goto('#/deck/test-multi-section-deck')
-    await page.waitForSelector('.card-item', { timeout: 15_000 })
-    await page.locator('.btn-edit').click()
-    await expect(page.locator('.edit-banner')).toBeVisible()
+    await enterEditMode(page, '#/deck/test-multi-section-deck')
   })
 
   test('per-card edit controls are visible and tappable without hover', async ({ page }) => {
@@ -222,8 +195,7 @@ test.describe('Full-screen card modal', () => {
     // genuine intrinsic size — the containment assertion below would actually
     // fail if the image overflowed the panel (the pre-fix behavior).
     await mockPublicSiteDeckWithSidewaysCard(page)
-    await page.goto('#/deck/test-sideways-deck')
-    await page.waitForSelector('.card-item', { timeout: 15_000 })
+    await gotoList(page, '#/deck/test-sideways-deck')
 
     await page.locator('.card-item[data-name="test creature"] .card-binder').click()
     const modal = page.locator('.modal-panel.card-modal')

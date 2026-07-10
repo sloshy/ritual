@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
-import { loginAsAdmin } from '../helpers/auth-helper'
-import { mockImportCsvApi } from '../helpers/mock-data'
+import { gotoAdminDashboard } from '../helpers/auth-helper'
+import { fulfillJson } from '../helpers/fulfill'
+import { mockImportCsvApi } from '../helpers/mock-admin'
 
 type ImportCsvPayload = {
   listType?: string
@@ -16,7 +17,7 @@ const CSV_TEXT = 'Name,Set,Collector Number,Quantity\nSol Ring,C19,221,2\nArcane
 
 test.describe('Import CSV Page', () => {
   test.beforeEach(async ({ page }) => {
-    await loginAsAdmin(page)
+    await gotoAdminDashboard(page)
     await page.locator('.admin-sidebar .admin-nav-item:has-text("Import CSV")').click()
     await expect(page.locator('.section-heading')).toContainText('Import CSV')
   })
@@ -54,14 +55,8 @@ test.describe('Import CSV Page', () => {
   test('append mode lists existing collections and sends mode=append', async ({ page }) => {
     let captured: ImportCsvPayload | undefined
     await mockImportCsvApi(page, (b) => (captured = b as ImportCsvPayload))
-    await page.route('**/api/collections', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          collections: [{ slug: 'main-binder', name: 'Main Binder' }],
-        }),
-      })
+    await fulfillJson(page, '**/api/collections', {
+      collections: [{ slug: 'main-binder', name: 'Main Binder' }],
     })
     const main = page.locator('main')
 

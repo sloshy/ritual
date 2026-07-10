@@ -11,6 +11,7 @@ import {
   formatTotalsSegment,
   suggestBrowserChoices,
   visibleBrowserEntries,
+  type CardBrowserSelection,
   type PriceMainSelection,
 } from '../../src/commands/price-browser'
 import {
@@ -20,6 +21,7 @@ import {
   type PriceReport,
 } from '../../src/price-report'
 import type { ScryfallCard } from '../../src/types'
+import { makeScryfallCard } from '../test-utils'
 
 function entry(overrides: Partial<PricedEntry> = {}): PricedEntry {
   return {
@@ -123,14 +125,15 @@ describe('buildMainMenuChoices', () => {
         summary({ type: 'deck', name: 'My Deck' }),
       ],
     })
-    const titles = buildMainMenuChoices(outOfOrder).map((choice) => choice.title)
+    const choices = buildMainMenuChoices(outOfOrder)
+    const titles = choices.map((choice) => choice.title)
     expect(titles[0]).toContain('My Deck')
     expect(titles[1]).toContain('Wanted')
-    expect(titles.slice(2)).toEqual([
-      '🔎 Search all cards',
-      '🔄 Refresh prices',
-      '💱 Change currency',
-      '🚪 Exit',
+    expect(choices.slice(2).map((choice) => choice.value as PriceMainSelection)).toEqual([
+      { kind: 'search' },
+      { kind: 'refresh' },
+      { kind: 'currency' },
+      { kind: 'exit' },
     ])
   })
 
@@ -142,9 +145,9 @@ describe('buildMainMenuChoices', () => {
 })
 
 describe('formatListChoiceTitle', () => {
-  test('includes icon, totals, unpriced badge, and card count', () => {
+  test('includes totals, unpriced badge, and card count', () => {
     const title = formatListChoiceTitle(summary({ unpricedCount: 3 }), 'usd')
-    expect(title).toBe('🎴 My Deck — Total $250.00 · Lowest $200.00 · 3 unpriced · 100 cards')
+    expect(title).toContain('My Deck — Total $250.00 · Lowest $200.00 · 3 unpriced · 100 cards')
   })
 })
 
@@ -162,7 +165,8 @@ describe('formatEntryChoiceTitle', () => {
       'usd',
       true,
     )
-    expect(title).toBe('2x Sol Ring (C19:221) [foil] — $6.00 · lowest $2.00 · 🎴 My Deck')
+    expect(title).toStartWith('2x Sol Ring (C19:221) [foil] — $6.00 · lowest $2.00')
+    expect(title).toEndWith('My Deck')
   })
 
   test('renders unpriced entries as N/A', () => {
@@ -175,15 +179,20 @@ describe('formatEntryChoiceTitle', () => {
 describe('buildCardBrowserChoices', () => {
   test('leads with sort/filter controls and Back, then entries', () => {
     const state = createDefaultBrowserState()
-    const titles = buildCardBrowserChoices([entry()], state, 'usd', {
+    const choices = buildCardBrowserChoices([entry()], state, 'usd', {
       showSource: false,
       withTypeFilter: false,
-    }).map((choice) => choice.title)
-    expect(titles[0]).toBe('↕️ Sort: Name (ascending)')
-    expect(titles[1]).toBe('🔤 Set code filter: all')
-    expect(titles[2]).toBe('#️⃣ Collector number filter: all')
-    expect(titles[3]).toBe('← Back')
-    expect(titles[4]).toContain('Sol Ring')
+    })
+    expect(choices.slice(0, 4).map((choice) => choice.value as CardBrowserSelection)).toEqual([
+      { kind: 'sort' },
+      { kind: 'filter-set' },
+      { kind: 'filter-collector' },
+      { kind: 'back' },
+    ])
+    expect(choices[0]!.title).toContain('Sort: Name (ascending)')
+    expect(choices[1]!.title).toContain('Set code filter: all')
+    expect(choices[2]!.title).toContain('Collector number filter: all')
+    expect(choices[4]!.title).toContain('Sol Ring')
   })
 
   test('adds the list-type filter only for the global search', () => {
@@ -193,8 +202,8 @@ describe('buildCardBrowserChoices', () => {
       showSource: true,
       withTypeFilter: true,
     }).map((choice) => choice.title)
-    expect(titles).toContain('🗂️ List type filter: all')
-    expect(titles).toContain('🔤 Set code filter: NEO')
+    expect(titles.find((t) => t.includes('List type filter'))).toContain('List type filter: all')
+    expect(titles.find((t) => t.includes('Set code filter'))).toContain('Set code filter: NEO')
   })
 })
 
@@ -251,7 +260,7 @@ describe('formatEntryDetailLines', () => {
       'usd',
     )
     expect(lines[0]).toBe('Sol Ring (C19:221)')
-    expect(lines).toContain('  List: 🎴 My Deck (Main)')
+    expect(lines.find((line) => line.includes('List:'))).toContain('My Deck (Main)')
     expect(lines).toContain('  Price: $3.00 · $6.00 for 2')
     expect(lines).toContain('  Lowest: $1.00 (CM2:189) [nonfoil]')
     expect(lines).toContain('  Artifact · Mana value 1 · EDHREC #4')
@@ -276,50 +285,24 @@ describe('formatEntryDetailLines', () => {
 describe('formatPrintingPriceLines', () => {
   test('sorts newest first and lists per-finish prices', () => {
     const printings: ScryfallCard[] = [
-      {
+      makeScryfallCard({
         id: '1',
         name: 'Sol Ring',
-        cmc: 1,
-        type_line: 'Artifact',
-        prices: {
-          usd: '1.00',
-          usd_foil: '3.00',
-          usd_etched: null,
-          eur: null,
-          eur_foil: null,
-          tix: null,
-        },
+        prices: { usd: '1.00', usd_foil: '3.00' },
         finishes: ['nonfoil', 'foil'],
-        games: ['paper'],
         set: 'old',
         set_name: 'Old Set',
         collector_number: '9',
-        rarity: 'rare',
-        color_identity: [],
         released_at: '2015-01-01',
-      },
-      {
+      }),
+      makeScryfallCard({
         id: '2',
         name: 'Sol Ring',
-        cmc: 1,
-        type_line: 'Artifact',
-        prices: {
-          usd: null,
-          usd_foil: null,
-          usd_etched: null,
-          eur: null,
-          eur_foil: null,
-          tix: null,
-        },
-        finishes: ['nonfoil'],
-        games: ['paper'],
         set: 'new',
         set_name: 'New Set',
         collector_number: '2',
-        rarity: 'rare',
-        color_identity: [],
         released_at: '2024-01-01',
-      },
+      }),
     ]
     const lines = formatPrintingPriceLines(printings, 'usd')
     expect(lines[0]).toBe('  NEW:2 (New Set) — N/A nonfoil')

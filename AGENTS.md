@@ -141,6 +141,17 @@ Test locations:
 - Unit and non-side-effecting tests: `test/unit/`
 - Integration tests that hit APIs or write files: `test/integration/`
 
+### Test Layering Policy
+
+Most features are reachable through several surfaces (engine module, CLI command, admin API handler, admin/public UI, MCP tool). Test each property at exactly one layer — the lowest one that can express it:
+
+- **Engine semantics** (parsing, diffing, apply logic, formatting) belong in unit tests against the engine module.
+- **Integration tests** cover one representative path through the CLI or admin handler per feature — flag wiring, exit codes, file side effects — not a re-run of the engine's cases.
+- **Playwright tests** cover UI state transitions (the UI reflects and mutates state correctly), not engine behavior that happens to be reachable through the page.
+- **MCP tool tests** cover wiring only: the tool is registered, its schema rejects bad input, the result shape is right, and one happy path per tool. The MCP server reuses the admin handlers in-process, so anything beyond wiring re-tests a layer that already has coverage.
+
+When adding a test, check whether the property is already pinned at a lower layer; if it is, assert only what the new layer adds (wiring, transport, presentation).
+
 After writing tests, run them and fix compiler or linting issues before finishing.
 
 ### Testing Strategy

@@ -94,7 +94,7 @@ describe('ensureWantedIdsInContent', () => {
     expect(content).toContain('- Counterspell &10')
   })
 
-  test('skips list items that are not card lines', () => {
+  test('assigns IDs to every bare-name list item, even non-card prose', () => {
     const input = ['# Want', '- See related: my other list', '- Sol Ring'].join('\n')
     const { content } = ensureWantedIdsInContent(input)
     // Both lines look like list items, but the first has no card-printing-style structure.

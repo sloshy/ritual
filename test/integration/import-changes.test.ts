@@ -8,19 +8,7 @@ import '../../src/scryfall'
 import { cardCache } from '../../src/cache'
 import { getBaseDir, setBaseDir } from '../../src/base-dir'
 import { runCli, withTempDir } from './helpers/cli'
-
-const TEST_DECK = `---
-name: "Test Deck"
-format: "commander"
----
-
-# Test Deck
-
-## Main
-
-1 Lightning Bolt &1
-1 Sol Ring &2
-`
+import { writeCollectionFile, writeDeckFile, writeWantedFile } from './helpers/workspace'
 
 const BUNDLE = {
   format: 'ritual-change-bundle',
@@ -52,10 +40,14 @@ const BUNDLE = {
  * Scryfall instead of triggering a full bulk download.
  */
 async function seedWorkspace(dir: string): Promise<void> {
-  await fs.mkdir(path.join(dir, 'decks'), { recursive: true })
-  await fs.mkdir(path.join(dir, 'wanted'), { recursive: true })
-  await fs.writeFile(path.join(dir, 'decks', 'test-deck.md'), TEST_DECK)
-  await fs.writeFile(path.join(dir, 'wanted', 'wishlist.md'), '# Wishlist\n\n')
+  await writeDeckFile(dir, 'test-deck', {
+    frontMatter: { name: 'Test Deck', format: 'commander' },
+    cards: [
+      { quantity: 1, name: 'Lightning Bolt', cardId: 1 },
+      { quantity: 1, name: 'Sol Ring', cardId: 2 },
+    ],
+  })
+  await writeWantedFile(dir, 'wishlist', { title: 'Wishlist', entries: [] })
 
   const originalBase = getBaseDir()
   setBaseDir(dir)
@@ -130,11 +122,11 @@ describe('import-changes command (Integration)', () => {
     await withTempDir(async (dir) => {
       await seedWorkspace(dir)
       // A collection file named after its display name, as on disk.
-      await fs.mkdir(path.join(dir, 'collections'), { recursive: true })
-      await fs.writeFile(
-        path.join(dir, 'collections', 'Red Binder.md'),
-        '# Red Binder\n\n- Sol Ring (C21:263) [NM] &1\n',
-      )
+      await writeCollectionFile(dir, 'Red Binder', {
+        entries: [
+          { name: 'Sol Ring', set: 'c21', collectorNumber: '263', condition: 'NM', cardId: 1 },
+        ],
+      })
 
       // The public site exports the slug as a URL-slugified display name
       // ("Red Binder" -> "red-binder"), which is not the file basename.

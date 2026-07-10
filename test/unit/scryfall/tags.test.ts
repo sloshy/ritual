@@ -8,25 +8,7 @@ import {
   parseTagIndex,
 } from '../../../src/scryfall/tags'
 import { mapScryfallCard } from '../../../src/scryfall/card-utils'
-import type { ScryfallCard } from '../../../src/types'
-
-function makeCard(overrides: Partial<ScryfallCard> = {}): ScryfallCard {
-  return {
-    id: 'card-id',
-    name: 'Test Card',
-    cmc: 0,
-    type_line: 'Artifact',
-    prices: { usd: null, usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
-    finishes: ['nonfoil'],
-    games: ['paper'],
-    set: 'tst',
-    set_name: 'Test Set',
-    collector_number: '1',
-    rarity: 'common',
-    color_identity: [],
-    ...overrides,
-  }
-}
+import { makeScryfallCard } from '../../test-utils'
 
 const oracleTag = (slug: string, oracleIds: string[]): ScryfallTag => ({
   object: 'tag',
@@ -121,11 +103,11 @@ describe('buildTagIndex', () => {
 
 describe('getIllustrationIds', () => {
   test('returns the top-level illustration id for single-faced cards', () => {
-    expect(getIllustrationIds(makeCard({ illustration_id: 'i1' }))).toEqual(['i1'])
+    expect(getIllustrationIds(makeScryfallCard({ illustration_id: 'i1' }))).toEqual(['i1'])
   })
 
   test('collects every face illustration id for double-faced cards', () => {
-    const dfc = makeCard({
+    const dfc = makeScryfallCard({
       card_faces: [
         { name: 'Front', mana_cost: '', type_line: '', oracle_text: '', illustration_id: 'if1' },
         { name: 'Back', mana_cost: '', type_line: '', oracle_text: '', illustration_id: 'if2' },
@@ -135,7 +117,7 @@ describe('getIllustrationIds', () => {
   })
 
   test('unions top-level and per-face illustration ids, deduped', () => {
-    const card = makeCard({
+    const card = makeScryfallCard({
       illustration_id: 'i-top',
       card_faces: [
         { name: 'Front', mana_cost: '', type_line: '', oracle_text: '', illustration_id: 'if1' },
@@ -148,20 +130,20 @@ describe('getIllustrationIds', () => {
   })
 
   test('returns an empty array when no illustration ids are present', () => {
-    expect(getIllustrationIds(makeCard())).toEqual([])
+    expect(getIllustrationIds(makeScryfallCard())).toEqual([])
   })
 })
 
 describe('mapScryfallCard tag round-trip', () => {
   test('preserves already-attached oracleTags and artTags', () => {
-    const enriched = makeCard({ oracleTags: ['ramp'], artTags: ['machine'] })
+    const enriched = makeScryfallCard({ oracleTags: ['ramp'], artTags: ['machine'] })
     const mapped = mapScryfallCard(enriched)
     expect(mapped.oracleTags).toEqual(['ramp'])
     expect(mapped.artTags).toEqual(['machine'])
   })
 
   test('leaves tag fields undefined for raw cards without tags', () => {
-    const mapped = mapScryfallCard(makeCard())
+    const mapped = mapScryfallCard(makeScryfallCard())
     expect(mapped.oracleTags).toBeUndefined()
     expect(mapped.artTags).toBeUndefined()
   })
@@ -175,14 +157,14 @@ describe('attachTags', () => {
   )
 
   test('attaches oracle and art tags to a single-faced card', () => {
-    const card = makeCard({ oracle_id: 'o1', illustration_id: 'i1' })
+    const card = makeScryfallCard({ oracle_id: 'o1', illustration_id: 'i1' })
     attachTags(card, index)
     expect(card.oracleTags).toEqual(['artifact', 'ramp'])
     expect(card.artTags).toEqual(['machine'])
   })
 
   test('unions art tags across all faces of a double-faced card', () => {
-    const card = makeCard({
+    const card = makeScryfallCard({
       oracle_id: 'o2',
       card_faces: [
         { name: 'Front', mana_cost: '', type_line: '', oracle_text: '', illustration_id: 'if1' },
@@ -195,14 +177,14 @@ describe('attachTags', () => {
   })
 
   test('leaves tag fields unset when there are no matches', () => {
-    const card = makeCard({ oracle_id: 'unknown', illustration_id: 'unknown' })
+    const card = makeScryfallCard({ oracle_id: 'unknown', illustration_id: 'unknown' })
     attachTags(card, index)
     expect(card.oracleTags).toBeUndefined()
     expect(card.artTags).toBeUndefined()
   })
 
   test('clears stale tags when re-attached against an index with no matches', () => {
-    const card = makeCard({
+    const card = makeScryfallCard({
       oracle_id: 'gone',
       illustration_id: 'gone',
       oracleTags: ['stale'],

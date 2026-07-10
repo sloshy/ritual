@@ -1,7 +1,7 @@
 import { describe, expect, test, beforeEach } from 'bun:test'
-import { ScryfallClient } from '../../src/scryfall'
-import type { TagIndex } from '../../src/scryfall/tags'
-import type { ScryfallCard } from '../../src/types'
+import { ScryfallClient } from '../../../src/scryfall'
+import type { TagIndex } from '../../../src/scryfall/tags'
+import type { ScryfallCard } from '../../../src/types'
 import {
   MockHttpClient,
   InMemoryCacheManager,
@@ -10,7 +10,7 @@ import {
   MemoryLogger,
   gzipJsonLinesResponse,
   setLogger,
-} from '../test-utils'
+} from '../../test-utils'
 
 /** InMemoryCacheManager that also implements the optional bulkSet fast path. */
 class BulkSetCacheManager<T> extends InMemoryCacheManager<T> {

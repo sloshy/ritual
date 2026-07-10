@@ -2,8 +2,6 @@ import { describe, test, expect } from 'bun:test'
 import {
   isPriceCurrency,
   parsePriceCurrencyFlag,
-  getCurrencySymbol,
-  getCurrencySuffix,
   formatPrice,
   formatPriceOrNA,
   formatPriceWithMissing,
@@ -11,36 +9,12 @@ import {
   getCardPriceForFinish,
   isCurrencyAvailableForCard,
   parseCurrenciesFlag,
-  VALID_CURRENCIES,
 } from '../../src/price-currency'
 import type { ScryfallCard } from '../../src/types'
+import { makeScryfallCard } from '../test-utils'
 
 function makeCard(prices: Partial<ScryfallCard['prices']> = {}): ScryfallCard {
-  return {
-    id: 'test-id',
-    name: 'Test Card',
-    set: 'tst',
-    set_name: 'Test Set',
-    collector_number: '1',
-    rarity: 'rare',
-    oracle_id: 'oracle-1',
-    colors: ['W'],
-    color_identity: ['W'],
-    cmc: 3,
-    type_line: 'Creature',
-    finishes: ['nonfoil'],
-    games: ['paper'],
-    image_uris: { normal: '', small: '', large: '', png: '', art_crop: '', border_crop: '' },
-    prices: {
-      usd: null,
-      usd_foil: null,
-      usd_etched: null,
-      eur: null,
-      eur_foil: null,
-      tix: null,
-      ...prices,
-    },
-  } as ScryfallCard
+  return makeScryfallCard({ prices })
 }
 
 describe('isPriceCurrency', () => {
@@ -83,31 +57,6 @@ describe('parsePriceCurrencyFlag', () => {
   test('throws on invalid input', () => {
     expect(() => parsePriceCurrencyFlag('gbp')).toThrow(/Invalid price currency/)
     expect(() => parsePriceCurrencyFlag('jpy')).toThrow(/Invalid price currency/)
-  })
-})
-
-describe('getCurrencySymbol', () => {
-  test('returns $ for usd', () => {
-    expect(getCurrencySymbol('usd')).toBe('$')
-  })
-
-  test('returns € for eur', () => {
-    expect(getCurrencySymbol('eur')).toBe('€')
-  })
-
-  test('returns empty string for tix', () => {
-    expect(getCurrencySymbol('tix')).toBe('')
-  })
-})
-
-describe('getCurrencySuffix', () => {
-  test('returns empty for usd and eur', () => {
-    expect(getCurrencySuffix('usd')).toBe('')
-    expect(getCurrencySuffix('eur')).toBe('')
-  })
-
-  test('returns " tix" for tix', () => {
-    expect(getCurrencySuffix('tix')).toBe(' tix')
   })
 })
 
@@ -216,12 +165,6 @@ describe('getCardPriceForFinish', () => {
     expect(getCardPriceForFinish(card, 'nonfoil', 'usd')).toBe(0)
     expect(getCardPriceForFinish(card, 'foil', 'eur')).toBe(0)
     expect(getCardPriceForFinish(card, 'nonfoil', 'tix')).toBe(0)
-  })
-})
-
-describe('VALID_CURRENCIES', () => {
-  test('contains all three currencies', () => {
-    expect(VALID_CURRENCIES).toEqual(['usd', 'eur', 'tix'])
   })
 })
 

@@ -1,6 +1,7 @@
-import { test, expect } from '@playwright/test'
-import { loginAsAdmin } from '../helpers/auth-helper'
-import { mockConfigApi, mockTotpApi, MOCK_CONFIG } from '../helpers/mock-data'
+import { test, expect, type Route } from '@playwright/test'
+import { gotoAdminDashboard } from '../helpers/auth-helper'
+import { fulfillJson } from '../helpers/fulfill'
+import { mockConfigApi, mockTotpApi, MOCK_CONFIG } from '../helpers/mock-admin'
 
 type ConfigPutBody = {
   cacheSource?: string
@@ -24,7 +25,7 @@ test.describe('Settings Page', () => {
   test.beforeEach(async ({ page }) => {
     await mockConfigApi(page)
     await mockTotpApi(page)
-    await loginAsAdmin(page)
+    await gotoAdminDashboard(page)
     await page.locator('.admin-sidebar .admin-nav-item:has-text("Settings")').click()
     await expect(page.locator('.section-heading')).toContainText('Settings')
   })
@@ -45,16 +46,6 @@ test.describe('Settings Page', () => {
     )
     await expect(main.locator('select[name="cacheSource"]')).toHaveValue(MOCK_CONFIG.cacheSource)
     await expect(main.locator('input[name="cacheFeedUrl"]')).toHaveValue('')
-  })
-
-  test('save button triggers API call and shows success', async ({ page }) => {
-    const main = page.locator('main')
-    const responsePromise = page.waitForResponse(
-      (resp) => resp.url().includes('/api/config') && resp.request().method() === 'PUT',
-    )
-    await main.locator('button:has-text("Save")').click()
-    await responsePromise
-    await expect(main.locator('.alert-success')).toBeVisible({ timeout: 5000 })
   })
 
   test('public-site include lists default to the wildcard and exclude lists are empty', async ({
@@ -89,17 +80,13 @@ test.describe('Settings Page', () => {
   }) => {
     // Serve a config that already has a cacheFeedUrl set, so clearing it is a
     // real state transition rather than a no-op on an already-empty field.
-    await page.route('**/api/config', async (route) => {
-      const config =
+    await fulfillJson(page, '**/api/config', (route: Route) => ({
+      success: true,
+      config:
         route.request().method() === 'GET'
           ? { ...MOCK_CONFIG, cacheFeedUrl: 'https://feed.example.com/feed.json' }
-          : MOCK_CONFIG
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, config }),
-      })
-    })
+          : MOCK_CONFIG,
+    }))
     await page.reload()
     // A reload resets the hash-routed SPA to the dashboard; navigate back.
     await page.locator('.admin-sidebar .admin-nav-item:has-text("Settings")').click()
@@ -136,26 +123,11 @@ test.describe('Settings Page', () => {
     expect(body.admin?.gitEnabled).toBe(true)
   })
 
-  test('editing a public-site include list persists to the config', async ({ page }) => {
+  test('editing public-site include and exclude lists persists to the config and shows success', async ({
+    page,
+  }) => {
     const main = page.locator('main')
     await main.locator('textarea[name="includeDecks"]').fill('Izzet Storm\nBlack Panther')
-
-    const requestPromise = page.waitForRequest(
-      (req) => req.url().includes('/api/config') && req.method() === 'PUT',
-    )
-    await main.locator('button:has-text("Save")').click()
-    const request = await requestPromise
-    const body = JSON.parse(request.postData() ?? '{}') as ConfigPutBody
-    expect(body.site?.includeDecks).toEqual(['Izzet Storm', 'Black Panther'])
-    // Untouched lists keep the wildcard default.
-    expect(body.site?.includeCollections).toEqual(['*'])
-    expect(body.site?.includeWantedLists).toEqual(['*'])
-    // Untouched exclude lists stay empty.
-    expect(body.site?.excludeDecks).toEqual([])
-  })
-
-  test('editing a public-site exclude list persists to the config', async ({ page }) => {
-    const main = page.locator('main')
     await main.locator('textarea[name="excludeDecks"]').fill('Old Brew')
 
     const requestPromise = page.waitForRequest(
@@ -164,9 +136,15 @@ test.describe('Settings Page', () => {
     await main.locator('button:has-text("Save")').click()
     const request = await requestPromise
     const body = JSON.parse(request.postData() ?? '{}') as ConfigPutBody
+    expect(body.site?.includeDecks).toEqual(['Izzet Storm', 'Black Panther'])
     expect(body.site?.excludeDecks).toEqual(['Old Brew'])
-    // Include lists keep the wildcard default.
-    expect(body.site?.includeDecks).toEqual(['*'])
+    // Untouched include lists keep the wildcard default.
+    expect(body.site?.includeCollections).toEqual(['*'])
+    expect(body.site?.includeWantedLists).toEqual(['*'])
+    // Untouched exclude lists stay empty.
+    expect(body.site?.excludeCollections).toEqual([])
+    // A successful PUT surfaces the success alert.
+    await expect(main.locator('.alert-success')).toBeVisible({ timeout: 5000 })
   })
 
   test('editing banned default printings persists to the config', async ({ page }) => {
@@ -187,19 +165,15 @@ test.describe('Settings Page — banned printings prefill', () => {
   test.beforeEach(async ({ page }) => {
     // Serve a config that already has a stored (lowercase) banned printing so the
     // prefill path is exercised. PUTs echo the plain mock config back.
-    await page.route('**/api/config', async (route) => {
-      const config =
+    await fulfillJson(page, '**/api/config', (route: Route) => ({
+      success: true,
+      config:
         route.request().method() === 'GET'
           ? { ...MOCK_CONFIG, site: { bannedPrintings: ['sld:123'] } }
-          : MOCK_CONFIG
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, config }),
-      })
-    })
+          : MOCK_CONFIG,
+    }))
     await mockTotpApi(page)
-    await loginAsAdmin(page)
+    await gotoAdminDashboard(page)
     await page.locator('.admin-sidebar .admin-nav-item:has-text("Settings")').click()
     await expect(page.locator('.section-heading')).toContainText('Settings')
   })

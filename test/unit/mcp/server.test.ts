@@ -53,6 +53,26 @@ const EXPECTED_TOOLS = [
   'refresh_cache',
 ]
 
+type ConfigView = {
+  site?: { bannedPrintings?: string[] }
+  defaultCurrency?: string
+  cacheLockTimeoutSeconds?: number
+  cacheSource?: string
+  cacheFeedUrl?: string
+}
+
+type AcceptedConfigUpdate = {
+  label: string
+  update: Record<string, unknown>
+  read: (config: ConfigView) => unknown
+  expected: unknown
+}
+
+type RejectedConfigUpdate = {
+  label: string
+  update: Record<string, unknown>
+}
+
 function firstText(result: CallToolResult): string {
   const block = result.content[0]
   return block && block.type === 'text' ? block.text : ''
@@ -231,6 +251,8 @@ describe('Ritual MCP server (in-memory transport)', () => {
   })
 
   test('import_csv creates a new list by default', async () => {
+    // CSV parsing/append/failure semantics are owned by the admin handler tests
+    // in test/unit/admin/import-csv.test.ts; this pins the MCP wiring.
     const result = await callTool(client, 'import_csv', {
       listType: 'wanted',
       name: 'csv-wants',
@@ -246,35 +268,11 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(onDisk).toContain('- Brainstorm &1')
   })
 
-  test('import_csv appends CSV rows to an existing collection', async () => {
-    const result = await callTool(client, 'import_csv', {
-      listType: 'collection',
-      name: 'shoebox',
-      mode: 'append',
-      content: 'Name,Set,Collector Number,Quantity\nSol Ring,c19,221,2',
-      columns: 'name=1,set=2,collector-number=3,quantity=4',
-    })
-    expect(result.isError).toBeFalsy()
-    const data = toolJson(result) as { success: boolean; cardCount: number }
-    expect(data.success).toBe(true)
-    expect(data.cardCount).toBe(2)
-
-    const onDisk = await fs.readFile(path.join(env.dir, 'collections', 'shoebox.md'), 'utf-8')
-    expect(onDisk).toContain('- Sol Ring (C19:221) &1')
-    expect(onDisk).toContain('- Sol Ring (C19:221) &2')
-  })
-
-  test('import_csv surfaces row failures as an error when nothing imports', async () => {
-    const result = await callTool(client, 'import_csv', {
-      listType: 'collection',
-      name: 'csv-binder',
-      content: 'Name,Set,Collector Number\nNo Printing,,',
-      columns: 'name=1,set=2,collector-number=3',
-    })
-    expect(result.isError).toBe(true)
-  })
-
-  test('import_changes applies a multi-list bundle across list files', async () => {
+  test('import_changes applies a change bundle to the target lists', async () => {
+    // Apply semantics (retargeting, conflicts, partial failures) are owned by
+    // test/unit/import-changes.test.ts and test/integration/import-changes.test.ts,
+    // which exercise the same applyChangeBundle engine; this pins the MCP wiring
+    // and the per-list result shape.
     const bundle = {
       format: 'ritual-change-bundle',
       version: 1,
@@ -284,85 +282,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
           kind: 'deck',
           slug: 'test-deck',
           name: 'Test Deck',
-          changes: [
-            { id: 'a1', timestamp: 1, action: 'add', cardName: 'Counterspell' },
-            { id: 'r1', timestamp: 2, action: 'remove', cardName: 'Lightning Bolt', cardId: 2 },
-          ],
-        },
-        {
-          kind: 'wanted',
-          slug: 'wishlist',
-          name: 'Wishlist',
-          changes: [{ id: 'a2', timestamp: 3, action: 'add', cardName: 'Brainstorm' }],
-        },
-        // A list with no changes must be reported as applied: 0 without touching its file.
-        { kind: 'collection', slug: 'shoebox', name: 'Shoebox', changes: [] },
-      ],
-    }
-    const collectionBefore = await fs.readFile(
-      path.join(env.dir, 'collections', 'shoebox.md'),
-      'utf-8',
-    )
-    const result = await callTool(client, 'import_changes', { json: JSON.stringify(bundle) })
-    expect(result.isError).toBeFalsy()
-    const data = toolJson(result) as {
-      success: boolean
-      lists: { slug: string; applied: number; conflicts: unknown[] }[]
-    }
-    expect(data.success).toBe(true)
-    expect(data.lists.map((l) => l.applied)).toEqual([2, 1, 0])
-
-    const deckOnDisk = await fs.readFile(path.join(env.dir, 'decks', 'test-deck.md'), 'utf-8')
-    expect(deckOnDisk).toMatch(/Counterspell &\d+/)
-    expect(deckOnDisk).not.toContain('Lightning Bolt')
-    const wantedOnDisk = await fs.readFile(path.join(env.dir, 'wanted', 'wishlist.md'), 'utf-8')
-    expect(wantedOnDisk).toMatch(/Brainstorm &\d+/)
-    const collectionAfter = await fs.readFile(
-      path.join(env.dir, 'collections', 'shoebox.md'),
-      'utf-8',
-    )
-    expect(collectionAfter).toBe(collectionBefore)
-  })
-
-  test('import_changes reports unresolvable changes as skipped conflicts', async () => {
-    const bundle = {
-      format: 'ritual-change-bundle',
-      version: 1,
-      exportedAt: '2026-06-04T00:00:00.000Z',
-      lists: [
-        {
-          kind: 'deck',
-          slug: 'test-deck',
-          name: 'Test Deck',
-          changes: [
-            { id: 'a1', timestamp: 1, action: 'add', cardName: 'Counterspell' },
-            { id: 'r1', timestamp: 2, action: 'remove', cardName: 'Not In Deck', cardId: 99 },
-          ],
-        },
-      ],
-    }
-    const result = await callTool(client, 'import_changes', { json: JSON.stringify(bundle) })
-    expect(result.isError).toBeFalsy()
-    const data = toolJson(result) as {
-      success: boolean
-      lists: { applied: number; conflicts: { change: { cardName: string } }[] }[]
-    }
-    expect(data.success).toBe(true)
-    expect(data.lists[0]?.applied).toBe(1)
-    expect(data.lists[0]?.conflicts.map((c) => c.change.cardName)).toEqual(['Not In Deck'])
-  })
-
-  test('import_changes reports a missing list without failing the rest of the bundle', async () => {
-    const bundle = {
-      format: 'ritual-change-bundle',
-      version: 1,
-      exportedAt: '2026-06-04T00:00:00.000Z',
-      lists: [
-        {
-          kind: 'collection',
-          slug: 'no-such-collection',
-          name: 'Ghost',
-          changes: [{ id: 'a1', timestamp: 1, action: 'add', cardName: 'Sol Ring' }],
+          changes: [{ id: 'a1', timestamp: 1, action: 'add', cardName: 'Counterspell' }],
         },
         {
           kind: 'wanted',
@@ -372,15 +292,22 @@ describe('Ritual MCP server (in-memory transport)', () => {
         },
       ],
     }
-    // The bundle partially fails, so the tool surfaces an error result — but the
-    // valid list must still have been applied on disk.
     const result = await callTool(client, 'import_changes', { json: JSON.stringify(bundle) })
-    expect(result.isError).toBe(true)
-    const wantedOnDisk = await fs.readFile(path.join(env.dir, 'wanted', 'wishlist.md'), 'utf-8')
-    expect(wantedOnDisk).toContain('Brainstorm')
+    expect(result.isError).toBeFalsy()
+    const data = toolJson(result) as {
+      success: boolean
+      lists: { slug: string; applied: number }[]
+    }
+    expect(data.success).toBe(true)
+    expect(data.lists.map((l) => l.applied)).toEqual([1, 1])
+
+    const deckOnDisk = await fs.readFile(path.join(env.dir, 'decks', 'test-deck.md'), 'utf-8')
+    expect(deckOnDisk).toMatch(/Counterspell &\d+/)
   })
 
   test('import_changes rejects malformed JSON with a clear error', async () => {
+    // Pins the tool's local pre-validation branch (bundle parse failures are
+    // covered in test/unit/change-bundle.test.ts; the isError mapping is not).
     const result = await callTool(client, 'import_changes', { json: '{"format":"other"}' })
     expect(result.isError).toBe(true)
     expect(firstText(result)).toContain('Invalid change bundle')
@@ -441,100 +368,70 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(decks.decks.map((d) => d.slug)).not.toContain('test-deck')
   })
 
-  test('update_config normalizes bannedPrintings and get_config returns them', async () => {
-    const updated = await callTool(client, 'update_config', {
-      config: { site: { bannedPrintings: ['SLD:123', 'mh2:42'] } },
-    })
-    expect(updated.isError).toBeFalsy()
+  test('update_config accepts valid values and get_config returns them normalized', async () => {
+    // Per-key validation semantics are owned by the ritual-config/config-set unit
+    // tests; this pins the MCP wiring (handler dispatch + persisted round-trip).
+    const cases: AcceptedConfigUpdate[] = [
+      {
+        label: 'bannedPrintings (set codes lowercased)',
+        update: { site: { bannedPrintings: ['SLD:123', 'mh2:42'] } },
+        read: (config) => config.site?.bannedPrintings,
+        expected: ['sld:123', 'mh2:42'],
+      },
+      {
+        label: 'defaultCurrency (case normalized)',
+        update: { defaultCurrency: 'EUR' },
+        read: (config) => config.defaultCurrency,
+        expected: 'eur',
+      },
+      {
+        label: 'cacheLockTimeoutSeconds',
+        update: { cacheLockTimeoutSeconds: 120 },
+        read: (config) => config.cacheLockTimeoutSeconds,
+        expected: 120,
+      },
+      {
+        label: 'cacheSource',
+        update: { cacheSource: 'feed' },
+        read: (config) => config.cacheSource,
+        expected: 'feed',
+      },
+      {
+        label: 'cacheFeedUrl',
+        update: { cacheFeedUrl: 'https://feed.example/feed.json' },
+        read: (config) => config.cacheFeedUrl,
+        expected: 'https://feed.example/feed.json',
+      },
+    ]
 
-    const got = toolJson(await callTool(client, 'get_config', {})) as {
-      config: { site?: { bannedPrintings?: string[] } }
+    for (const { label, update, read, expected } of cases) {
+      const updated = await callTool(client, 'update_config', { config: update })
+      expect({ label, isError: updated.isError ?? false }).toEqual({ label, isError: false })
+
+      const got = toolJson(await callTool(client, 'get_config', {})) as { config: ConfigView }
+      expect({ label, value: read(got.config) }).toEqual({ label, value: expected })
     }
-    // The admin handler normalizes set codes to lowercase before persisting.
-    expect(got.config.site?.bannedPrintings).toEqual(['sld:123', 'mh2:42'])
   })
 
-  test('update_config rejects a malformed bannedPrintings entry', async () => {
-    const result = await callTool(client, 'update_config', {
-      config: { site: { bannedPrintings: ['not-a-printing'] } },
-    })
-    expect(result.isError).toBe(true)
-  })
+  test('update_config rejects invalid values with an isError result', async () => {
+    const cases: RejectedConfigUpdate[] = [
+      {
+        label: 'malformed bannedPrintings entry',
+        update: { site: { bannedPrintings: ['not-a-printing'] } },
+      },
+      { label: 'invalid defaultCurrency', update: { defaultCurrency: 'gbp' } },
+      { label: 'non-positive cacheLockTimeoutSeconds', update: { cacheLockTimeoutSeconds: 0 } },
+      { label: 'invalid cacheSource', update: { cacheSource: 'torrent' } },
+      {
+        label: 'non-http(s) cacheFeedUrl',
+        update: { cacheFeedUrl: 'ftp://feed.example/feed.json' },
+      },
+    ]
 
-  test('update_config normalizes defaultCurrency case and get_config returns it', async () => {
-    const updated = await callTool(client, 'update_config', {
-      config: { defaultCurrency: 'EUR' },
-    })
-    expect(updated.isError).toBeFalsy()
-
-    const got = toolJson(await callTool(client, 'get_config', {})) as {
-      config: { defaultCurrency?: string }
+    for (const { label, update } of cases) {
+      const result = await callTool(client, 'update_config', { config: update })
+      expect({ label, isError: result.isError }).toEqual({ label, isError: true })
     }
-    expect(got.config.defaultCurrency).toBe('eur')
-  })
-
-  test('update_config rejects an invalid defaultCurrency', async () => {
-    const result = await callTool(client, 'update_config', {
-      config: { defaultCurrency: 'gbp' },
-    })
-    expect(result.isError).toBe(true)
-  })
-
-  test('update_config accepts a valid cacheLockTimeoutSeconds and get_config returns it', async () => {
-    const updated = await callTool(client, 'update_config', {
-      config: { cacheLockTimeoutSeconds: 120 },
-    })
-    expect(updated.isError).toBeFalsy()
-
-    const got = toolJson(await callTool(client, 'get_config', {})) as {
-      config: { cacheLockTimeoutSeconds?: number }
-    }
-    expect(got.config.cacheLockTimeoutSeconds).toBe(120)
-  })
-
-  test('update_config rejects a non-positive cacheLockTimeoutSeconds', async () => {
-    const result = await callTool(client, 'update_config', {
-      config: { cacheLockTimeoutSeconds: 0 },
-    })
-    expect(result.isError).toBe(true)
-  })
-
-  test('update_config accepts a valid cacheSource and get_config returns it', async () => {
-    const updated = await callTool(client, 'update_config', {
-      config: { cacheSource: 'feed' },
-    })
-    expect(updated.isError).toBeFalsy()
-
-    const got = toolJson(await callTool(client, 'get_config', {})) as {
-      config: { cacheSource?: string }
-    }
-    expect(got.config.cacheSource).toBe('feed')
-  })
-
-  test('update_config rejects an invalid cacheSource', async () => {
-    const result = await callTool(client, 'update_config', {
-      config: { cacheSource: 'torrent' },
-    })
-    expect(result.isError).toBe(true)
-  })
-
-  test('update_config accepts a valid cacheFeedUrl and get_config returns it', async () => {
-    const updated = await callTool(client, 'update_config', {
-      config: { cacheFeedUrl: 'https://feed.example/feed.json' },
-    })
-    expect(updated.isError).toBeFalsy()
-
-    const got = toolJson(await callTool(client, 'get_config', {})) as {
-      config: { cacheFeedUrl?: string }
-    }
-    expect(got.config.cacheFeedUrl).toBe('https://feed.example/feed.json')
-  })
-
-  test('update_config rejects a non-http(s) cacheFeedUrl', async () => {
-    const result = await callTool(client, 'update_config', {
-      config: { cacheFeedUrl: 'ftp://feed.example/feed.json' },
-    })
-    expect(result.isError).toBe(true)
   })
 
   test('update_config clears an existing cacheFeedUrl with an empty string', async () => {

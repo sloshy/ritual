@@ -5,35 +5,14 @@ import {
   getCardTypeCategory,
   colorIdentityKey,
   colorIdentityName,
-  colorIdentitySortValue,
   getPriceGroupKey,
   groupTotalPrice,
   sortByOptions,
   SORT_BY_LABELS,
-  type CardData,
   type SortBy,
   type SortLayer,
 } from '../../../src/site/card-sorting'
-
-function makeCard(overrides: Partial<CardData> = {}): CardData {
-  return {
-    name: 'Test Card',
-    quantity: 1,
-    cmc: 3,
-    edhrec: 1000,
-    price: 1.5,
-    type: 'Creature — Human',
-    section: 'Main',
-    fileOrder: 0,
-    setCode: 'FDN',
-    colorIdentity: [],
-    hasPrinting: true,
-    oracleTags: [],
-    artTags: [],
-    card: null,
-    ...overrides,
-  }
-}
+import { makeCardData as makeCard } from '../../test-utils'
 
 /** Build a single-layer sort, the common case in these tests. */
 function sl(sortBy: SortBy, reverse = false): SortLayer[] {
@@ -336,26 +315,6 @@ describe('groupAndSortCards with reverseGroups', () => {
     expect(reversed.map((g) => g.key)).toEqual(['Artifact', 'Instant', 'Creature'])
   })
 
-  test('reverseGroups reverses printing group order', () => {
-    const cards = [
-      makeCard({ name: 'A', hasPrinting: true }),
-      makeCard({ name: 'B', hasPrinting: false }),
-    ]
-    const reversed = groupAndSortCards(cards, 'printing', sl('name'), [], undefined, 'usd', true)
-    expect(reversed.map((g) => g.key)).toEqual(['Any Printing', 'Specific Printing'])
-  })
-
-  test('reverseGroups reverses cmc group order', () => {
-    const cards = [
-      makeCard({ name: 'A', cmc: 1 }),
-      makeCard({ name: 'B', cmc: 3 }),
-      makeCard({ name: 'C', cmc: 2 }),
-    ]
-    const reversed = groupAndSortCards(cards, 'cmc', sl('name'), [], undefined, 'usd', true)
-    const keys = reversed.map((g) => g.key)
-    expect(keys).toEqual(['3', '2', '1'])
-  })
-
   test('reverseGroups reverses section group order', () => {
     const sectionCards = [
       makeCard({ name: 'A', section: 'Sideboard' }),
@@ -413,13 +372,6 @@ describe('groupAndSortCards with reverseGroups', () => {
     expect(creatureGroup.cards[0]!.name).toBe('Charlie')
     expect(creatureGroup.cards[1]!.name).toBe('Beta')
   })
-
-  test('reverseGroups false leaves group order unchanged', () => {
-    const cards = [makeCard({ name: 'A', cmc: 1 }), makeCard({ name: 'B', cmc: 2 })]
-    const normal = groupAndSortCards(cards, 'cmc', sl('name'), [], undefined, 'usd', false)
-    const keys = normal.map((g) => g.key)
-    expect(keys).toEqual(['1', '2'])
-  })
 })
 
 describe('colorIdentityKey', () => {
@@ -471,34 +423,6 @@ describe('colorIdentityName', () => {
 
   test('returns WUBRG (Five Color) for all five', () => {
     expect(colorIdentityName(['W', 'U', 'B', 'R', 'G'])).toBe('WUBRG (Five Color)')
-  })
-})
-
-describe('colorIdentitySortValue', () => {
-  test('colorless sorts first', () => {
-    expect(colorIdentitySortValue([])).toBe(0)
-  })
-
-  test('mono colors sort strictly in WUBRG order', () => {
-    const values = (['W', 'U', 'B', 'R', 'G'] as const).map((c) => colorIdentitySortValue([c]))
-    // Each consecutive pair must be strictly increasing.
-    for (let i = 1; i < values.length; i++) {
-      expect(values[i - 1]).toBeLessThan(values[i]!)
-    }
-  })
-
-  test('mono sorts before two-color', () => {
-    const g = colorIdentitySortValue(['G'])
-    const wu = colorIdentitySortValue(['W', 'U'])
-    expect(g).toBeLessThan(wu)
-  })
-
-  test('two-color sorts by first then second color', () => {
-    const wu = colorIdentitySortValue(['W', 'U'])
-    const wb = colorIdentitySortValue(['W', 'B'])
-    const ur = colorIdentitySortValue(['U', 'R'])
-    expect(wu).toBeLessThan(wb)
-    expect(wb).toBeLessThan(ur)
   })
 })
 

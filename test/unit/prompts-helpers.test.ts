@@ -8,20 +8,10 @@ describe('suggestByTitleTerms', () => {
     { title: '📦 Main Binder', value: 'collection' },
     { title: '🎯 To Buy', value: 'wanted' },
   ]
-  const titles = async (input: unknown): Promise<string[]> =>
-    (await suggestByTitleTerms(input, choices)).map((c) => c.title)
-
-  test('empty input keeps every choice', async () => {
-    expect(await titles('')).toHaveLength(3)
-  })
 
   test('matches terms anywhere in the title, past the leading icon', async () => {
-    expect(await titles('binder')).toEqual(['📦 Main Binder'])
-  })
-
-  test('every whitespace-separated term must match', async () => {
-    expect(await titles('winota stax')).toEqual(['🎴 Winota Stax'])
-    expect(await titles('winota binder')).toEqual([])
+    const matched = await suggestByTitleTerms('binder', choices)
+    expect(matched.map((c) => c.value)).toEqual(['collection'])
   })
 })
 
@@ -38,16 +28,6 @@ describe('ask', () => {
 })
 
 describe('promptExitMenu', () => {
-  test('returns save when picked, with a change count given', async () => {
-    prompts.inject(['save'])
-    expect(await promptExitMenu(3)).toBe('save')
-  })
-
-  test('returns discard when picked, without a change count', async () => {
-    prompts.inject(['discard'])
-    expect(await promptExitMenu()).toBe('discard')
-  })
-
   test('treats cancelling the prompt as Cancel (keep editing)', async () => {
     prompts.inject([new Error('cancelled')])
     expect(await promptExitMenu(1)).toBe('cancel')

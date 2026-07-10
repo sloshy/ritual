@@ -1,8 +1,33 @@
 import { type Page, type BrowserContext, request } from '@playwright/test'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const ADMIN_URL = 'http://localhost:8456'
 const TEST_USER = 'testadmin'
 const TEST_PASS = 'testpass123'
+
+/** Shape of the admin server's `/api/status` response the helpers rely on. */
+type AdminStatusResponse = { setupRequired: boolean }
+
+/**
+ * Saved Playwright storage state for an authenticated admin session.
+ * Captured once by auth-setup.spec.ts (admin-auth project) and loaded by the
+ * `admin` project via `use.storageState`, so admin specs skip the login flow.
+ */
+export const ADMIN_STORAGE_STATE = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../.auth/admin.json',
+)
+
+/**
+ * Navigate to the admin dashboard, assuming the browser context is already
+ * authenticated. Tests in the `admin` project start from the saved storage
+ * state (see ADMIN_STORAGE_STATE), so this replaces a full login flow.
+ */
+export async function gotoAdminDashboard(page: Page): Promise<void> {
+  await page.goto(ADMIN_URL)
+  await page.locator('.admin-sidebar').waitFor({ timeout: 10_000 })
+}
 
 /**
  * Perform initial admin setup (create account) if needed,
@@ -50,7 +75,7 @@ export async function setupAdminViaApi(baseURL: string): Promise<void> {
   const ctx = await request.newContext({ baseURL })
   try {
     const statusResp = await ctx.get('/api/status')
-    const status = (await statusResp.json()) as { setupRequired: boolean }
+    const status = (await statusResp.json()) as AdminStatusResponse
 
     if (status.setupRequired) {
       await ctx.post('/api/setup', {
@@ -76,12 +101,15 @@ export async function loginViaApi(context: BrowserContext, baseURL: string): Pro
     const setCookie = headers['set-cookie']
     if (setCookie) {
       const url = new URL(baseURL)
-      const [nameValue] = setCookie.trim().split(';')
-      const [name, value] = nameValue!.split('=')
+      const nameValue = setCookie.trim().split(';')[0] ?? ''
+      const separator = nameValue.indexOf('=')
+      if (separator === -1) {
+        throw new Error(`Malformed Set-Cookie header (no name=value pair): ${setCookie}`)
+      }
       await context.addCookies([
         {
-          name: name!.trim(),
-          value: value!.trim(),
+          name: nameValue.slice(0, separator).trim(),
+          value: nameValue.slice(separator + 1).trim(),
           domain: url.hostname,
           path: '/',
         },

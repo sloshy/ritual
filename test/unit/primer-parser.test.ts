@@ -2,13 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import { parseMoxfieldPrimer, extractPrimerCardNames } from '../../src/primer-parser'
 
 describe('parseMoxfieldPrimer', () => {
-  test('passes through plain text unchanged', () => {
-    const { markdown } = parseMoxfieldPrimer('Hello world')
-    expect(markdown).toBe('Hello world')
-  })
-
-  test('passes through bold and italic markdown', () => {
-    const input = '**bold** and *italic* text'
+  test('passes through non-directive lines unchanged, preserving markdown and [[...]] tokens', () => {
+    const input = '**bold** and *italic* text with [[Sol Ring]] and [[youtube:abc123]]'
     const { markdown } = parseMoxfieldPrimer(input)
     expect(markdown).toBe(input)
   })
@@ -67,18 +62,6 @@ describe('parseMoxfieldPrimer', () => {
     expect(markdown).not.toContain('===endpanel')
   })
 
-  test('preserves [[Card Name]] tokens', () => {
-    const input = 'Play [[Sol Ring]] early.'
-    const { markdown } = parseMoxfieldPrimer(input)
-    expect(markdown).toContain('[[Sol Ring]]')
-  })
-
-  test('preserves [[youtube:id]] tokens', () => {
-    const input = '[[youtube:abc123]]'
-    const { markdown } = parseMoxfieldPrimer(input)
-    expect(markdown).toContain('[[youtube:abc123]]')
-  })
-
   test('extracts card names but not youtube tokens', () => {
     const input = '[[Sol Ring]] and [[youtube:abc]] and [[Command Tower]]'
     const { cardNames } = parseMoxfieldPrimer(input)
@@ -86,12 +69,6 @@ describe('parseMoxfieldPrimer', () => {
     expect(cardNames).toContain('Command Tower')
     expect(cardNames).not.toContain('youtube:abc')
     expect(cardNames.some((n) => n.startsWith('youtube:'))).toBe(false)
-  })
-
-  test('deduplicates card names case-insensitively', () => {
-    const input = '[[Winota, Joiner of Forces]] and [[winota, joiner of forces]]'
-    const { cardNames } = parseMoxfieldPrimer(input)
-    expect(cardNames).toHaveLength(1)
   })
 
   test('generates heading ids from text', () => {

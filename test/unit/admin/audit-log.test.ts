@@ -2,25 +2,21 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { appendAuditLog, createAuditEntry, readAuditLog } from '../../../src/admin/audit-log'
-import { getBaseDir } from '../../../src/base-dir'
+import { setBaseDir } from '../../../src/base-dir'
+
+const testDir = path.join(import.meta.dir, '../../.test-admin-audit-log')
 
 describe('audit log', () => {
-  const logPath = () => path.join(getBaseDir(), '.logins', 'admin-audit.log')
+  const originalCwd = process.cwd()
 
   beforeEach(async () => {
-    try {
-      await fs.unlink(logPath())
-    } catch {
-      // ignore
-    }
+    await fs.mkdir(testDir, { recursive: true })
+    setBaseDir(testDir)
   })
 
   afterEach(async () => {
-    try {
-      await fs.unlink(logPath())
-    } catch {
-      // ignore
-    }
+    setBaseDir(originalCwd)
+    await fs.rm(testDir, { recursive: true, force: true })
   })
 
   test('createAuditEntry creates a well-formed entry', () => {

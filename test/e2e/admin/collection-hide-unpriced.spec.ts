@@ -1,7 +1,11 @@
 import { test, expect } from '@playwright/test'
-import { loginAsAdmin } from '../helpers/auth-helper'
+import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor } from '../helpers/editor-nav'
-import { mockAdminCollectionLoadApi, mockCollectionsApi, mockConfigApi } from '../helpers/mock-data'
+import {
+  mockAdminCollectionLoadApi,
+  mockCollectionsApi,
+  mockConfigApi,
+} from '../helpers/mock-admin'
 import { openFilterMenu } from '../helpers/filter-menu'
 
 test.describe('Collection Editor – Hide Unpriced', () => {
@@ -9,7 +13,7 @@ test.describe('Collection Editor – Hide Unpriced', () => {
     await mockCollectionsApi(page)
     await mockAdminCollectionLoadApi(page)
 
-    await loginAsAdmin(page)
+    await gotoAdminDashboard(page)
     await openListEditor(page, 'collection')
 
     // Wait for the collection selector to be populated
@@ -29,12 +33,6 @@ test.describe('Collection Editor – Hide Unpriced', () => {
     await page.waitForSelector('.card-list', { timeout: 10_000 })
   })
 
-  test('both priced and unpriced cards are visible by default', async ({ page }) => {
-    const cardNames = await page.locator('.list-name').allTextContents()
-    expect(cardNames).toContain('Priced Card')
-    expect(cardNames).toContain('Unpriced Card')
-  })
-
   test('unpriced cards render "N/A" in the price column, priced cards render a price', async ({
     page,
   }) => {
@@ -47,6 +45,7 @@ test.describe('Collection Editor – Hide Unpriced', () => {
       .locator('.card-list')
       .filter({ has: page.getByText('Priced Card', { exact: true }) })
     await expect(pricedRow.locator('.list-price')).toHaveText('$3.50')
+    await expect(pricedRow.locator('.list-printing')).toHaveText('(TST:10 · NM)')
   })
 
   test('prices render in the configured default currency', async ({ page }) => {
@@ -69,32 +68,6 @@ test.describe('Collection Editor – Hide Unpriced', () => {
     await expect(pricedRow.locator('.list-price')).toHaveText('€2.75')
   })
 
-  test('printing info renders next to the card name in parentheses', async ({ page }) => {
-    const pricedRow = page
-      .locator('.card-list')
-      .filter({ has: page.getByText('Priced Card', { exact: true }) })
-    await expect(pricedRow.locator('.list-printing')).toHaveText('(TST:10 · NM)')
-  })
-
-  test('Hide Unpriced toggle is present in the Filters menu', async ({ page }) => {
-    await openFilterMenu(page)
-    const toggle = page.getByRole('button', { name: 'Hide Unpriced' })
-    await expect(toggle).toBeVisible()
-    await expect(toggle).toHaveAttribute('aria-pressed', 'false')
-  })
-
-  test('enabling Hide Unpriced removes unpriced cards and keeps priced cards', async ({ page }) => {
-    await openFilterMenu(page)
-    const toggle = page.getByRole('button', { name: 'Hide Unpriced' })
-
-    await toggle.click()
-    await expect(toggle).toHaveAttribute('aria-pressed', 'true')
-
-    const cardNames = await page.locator('.list-name').allTextContents()
-    expect(cardNames).toContain('Priced Card')
-    expect(cardNames).not.toContain('Unpriced Card')
-  })
-
   test('disabling Hide Unpriced restores unpriced cards', async ({ page }) => {
     await openFilterMenu(page)
     const toggle = page.getByRole('button', { name: 'Hide Unpriced' })
@@ -102,6 +75,7 @@ test.describe('Collection Editor – Hide Unpriced', () => {
     await toggle.click()
     await expect(toggle).toHaveAttribute('aria-pressed', 'true')
     let cardNames = await page.locator('.list-name').allTextContents()
+    expect(cardNames).toContain('Priced Card')
     expect(cardNames).not.toContain('Unpriced Card')
 
     await toggle.click()

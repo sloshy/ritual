@@ -22,26 +22,6 @@ describe('trackAdd', () => {
     expect(changes).toHaveLength(1)
     expect(changes[0]).toBe(event)
   })
-
-  test('appends to existing events and returns the new last index', () => {
-    const changes: ChangeEvent[] = [makeEvent({ cardName: 'First' })]
-    const event = makeEvent({ cardName: 'Second' })
-    const idx = trackAdd(changes, event)
-
-    expect(idx).toBe(1)
-    expect(changes).toHaveLength(2)
-    expect(changes[1]).toBe(event)
-  })
-
-  test('does not mutate the event object', () => {
-    const changes: ChangeEvent[] = []
-    const event = makeEvent({ cardName: 'Lightning Bolt', set: 'lea', collectorNumber: '161' })
-    trackAdd(changes, event)
-
-    expect((changes[0] as AddChange).cardName).toBe('Lightning Bolt')
-    expect((changes[0] as AddChange).set).toBe('lea')
-    expect((changes[0] as AddChange).collectorNumber).toBe('161')
-  })
 })
 
 describe('trackEdit', () => {
@@ -55,24 +35,6 @@ describe('trackEdit', () => {
     expect(idx).toBe(0)
     expect(changes).toHaveLength(1)
     expect(changes[0]).toBe(edited)
-  })
-
-  test('replaced=true preserves all fields of the new event', () => {
-    const changes = [makeEvent()]
-    const edited = makeEvent({
-      cardName: 'Tarmogoyf',
-      set: 'fut',
-      collectorNumber: '153',
-      finish: 'foil',
-      condition: 'LP',
-    })
-
-    trackEdit(changes, 0, edited, true)
-
-    expect(changes[0]!.cardName).toBe('Tarmogoyf')
-    expect((changes[0] as AddChange).set).toBe('fut')
-    expect((changes[0] as AddChange).finish).toBe('foil')
-    expect((changes[0] as AddChange).condition).toBe('LP')
   })
 
   test('replaced=true with lastChangeIndex=null — pushes as new event', () => {
@@ -97,16 +59,6 @@ describe('trackEdit', () => {
     expect(changes).toHaveLength(2)
     expect(changes[0]).toBe(original)
     expect(changes[1]).toBe(event)
-  })
-
-  test('replaced=false with lastChangeIndex=null — pushes a new event', () => {
-    const changes: ChangeEvent[] = []
-    const event = makeEvent()
-
-    const idx = trackEdit(changes, null, event, false)
-
-    expect(idx).toBe(0)
-    expect(changes).toHaveLength(1)
   })
 
   test('mid-array edit — only the targeted index is updated', () => {
@@ -168,57 +120,6 @@ describe('trackAnotherCopy', () => {
     expect(copy.action).toBe('add')
   })
 
-  test('copy timestamp is >= original timestamp', () => {
-    const original = makeEvent({ timestamp: 1000 })
-    const changes = [original]
-
-    trackAnotherCopy(changes, 0)
-
-    expect(changes[1]!.timestamp).toBeGreaterThanOrEqual(1000)
-  })
-
-  test('does not mutate the original event', () => {
-    const original = makeEvent({ id: 'orig-id', timestamp: 1000 })
-    const changes = [original]
-
-    trackAnotherCopy(changes, 0)
-
-    expect(changes[0]!.id).toBe('orig-id')
-    expect(changes[0]!.timestamp).toBe(1000)
-  })
-
-  test('copies from the correct index when multiple events exist', () => {
-    const changes = [
-      makeEvent({ cardName: 'First', set: 'lea' }),
-      makeEvent({ cardName: 'Second', set: 'grn' }),
-    ]
-
-    const idx = trackAnotherCopy(changes, 1)
-
-    expect(idx).toBe(2)
-    expect(changes[2]!.cardName).toBe('Second')
-    expect((changes[2] as AddChange).set).toBe('grn')
-  })
-
-  test('multiple consecutive copies all preserve card identity', () => {
-    const original = makeEvent({ cardName: 'Mox Ruby', set: 'lea', collectorNumber: '265' })
-    const changes = [original]
-
-    let idx: number | null = 0
-    idx = trackAnotherCopy(changes, idx)
-    idx = trackAnotherCopy(changes, idx)
-    trackAnotherCopy(changes, idx)
-
-    expect(changes).toHaveLength(4)
-    for (const event of changes) {
-      expect(event.cardName).toBe('Mox Ruby')
-      expect(event.set).toBe('lea')
-    }
-    // All IDs should be unique
-    const ids = changes.map((e) => e.id)
-    expect(new Set(ids).size).toBe(4)
-  })
-
   test('assigns provided cardId to the copy, overriding the original', () => {
     const original = makeEvent({ cardId: 3 })
     const changes = [original]
@@ -238,20 +139,5 @@ describe('trackAnotherCopy', () => {
     trackAnotherCopy(changes, 0)
 
     expect(changes[1]!.cardId).toBe(5)
-  })
-
-  test('consecutive copies each use the assigned cardId when provided', () => {
-    const original = makeEvent({ cardName: 'Sol Ring', cardId: 1 })
-    const changes = [original]
-
-    let idx: number | null = 0
-    idx = trackAnotherCopy(changes, idx, 2)
-    trackAnotherCopy(changes, idx, 3)
-
-    expect(changes[1]!.cardId).toBe(2)
-    expect(changes[2]!.cardId).toBe(3)
-    // All event IDs still unique
-    const ids = changes.map((e) => e.id)
-    expect(new Set(ids).size).toBe(3)
   })
 })

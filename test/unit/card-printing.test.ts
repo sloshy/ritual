@@ -1,22 +1,16 @@
 import { describe, test, expect } from 'bun:test'
 import { findPrinting, hasSpecificPrinting } from '../../src/card-printing'
 import type { ScryfallCard } from '../../src/types'
+import { makeScryfallCard } from '../test-utils'
 
 function printing(set: string, collectorNumber: string): ScryfallCard {
-  return {
+  return makeScryfallCard({
     id: `${set}-${collectorNumber}`,
     name: 'Lightning Bolt',
     set,
     set_name: set.toUpperCase(),
     collector_number: collectorNumber,
-    cmc: 1,
-    type_line: 'Instant',
-    rarity: 'common',
-    prices: { usd: null, usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
-    finishes: ['nonfoil'],
-    games: ['paper'],
-    color_identity: ['R'],
-  }
+  })
 }
 
 const LEA = printing('lea', '161')

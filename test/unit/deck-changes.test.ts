@@ -37,157 +37,159 @@ function makeChange(overrides: MakeChangeOverrides): ChangeEvent {
   } as ChangeEvent
 }
 
+type OppositeChangesCase = [
+  description: string,
+  a: MakeChangeOverrides,
+  b: MakeChangeOverrides,
+  expected: boolean,
+]
+
 describe('areOppositeChanges', () => {
-  test('add + remove of same card returns true', () => {
-    const a = makeChange({ action: 'add', cardName: 'Sol Ring' })
-    const b = makeChange({ action: 'remove', cardName: 'Sol Ring' })
-    expect(areOppositeChanges(a, b)).toBe(true)
-  })
+  const cases: OppositeChangesCase[] = [
+    [
+      'add + remove of same card returns true',
+      { action: 'add', cardName: 'Sol Ring' },
+      { action: 'remove', cardName: 'Sol Ring' },
+      true,
+    ],
+    [
+      'remove + add of same card returns true',
+      { action: 'remove', cardName: 'Sol Ring' },
+      { action: 'add', cardName: 'Sol Ring' },
+      true,
+    ],
+    [
+      'add + remove of different cards returns false',
+      { action: 'add', cardName: 'Sol Ring' },
+      { action: 'remove', cardName: 'Mana Crypt' },
+      false,
+    ],
+    [
+      'add + remove same card but different set returns false',
+      { action: 'add', cardName: 'Sol Ring', set: '2XM' },
+      { action: 'remove', cardName: 'Sol Ring', set: 'C21' },
+      false,
+    ],
+    [
+      'add + remove same card but different finish returns false',
+      { action: 'add', cardName: 'Sol Ring', finish: 'foil' },
+      { action: 'remove', cardName: 'Sol Ring', finish: 'nonfoil' },
+      false,
+    ],
+    [
+      'add + remove same card but different condition returns false',
+      { action: 'add', cardName: 'Sol Ring', condition: 'NM' },
+      { action: 'remove', cardName: 'Sol Ring', condition: 'LP' },
+      false,
+    ],
+    [
+      'add + add same card returns false (same action)',
+      { action: 'add', cardName: 'Sol Ring' },
+      { action: 'add', cardName: 'Sol Ring' },
+      false,
+    ],
+    [
+      'remove + remove same card returns false',
+      { action: 'remove', cardName: 'Sol Ring' },
+      { action: 'remove', cardName: 'Sol Ring' },
+      false,
+    ],
+    [
+      'set-commander + remove returns false (different action types)',
+      { action: 'set-commander', cardName: 'Sol Ring' },
+      { action: 'remove', cardName: 'Sol Ring' },
+      false,
+    ],
+    [
+      'set-commander + unset-commander of same card returns true',
+      { action: 'set-commander', cardName: 'Sol Ring' },
+      { action: 'unset-commander', cardName: 'Sol Ring' },
+      true,
+    ],
+    [
+      'unset-commander + set-commander of same card returns true',
+      { action: 'unset-commander', cardName: 'Sol Ring' },
+      { action: 'set-commander', cardName: 'Sol Ring' },
+      true,
+    ],
+    [
+      'set-commander + unset-commander of different cards returns false',
+      { action: 'set-commander', cardName: 'Sol Ring' },
+      { action: 'unset-commander', cardName: 'Mana Crypt' },
+      false,
+    ],
+    [
+      'set-commander + set-commander same card returns false (same action)',
+      { action: 'set-commander', cardName: 'Sol Ring' },
+      { action: 'set-commander', cardName: 'Sol Ring' },
+      false,
+    ],
+    [
+      'both with matching set/CN/finish/condition returns true',
+      {
+        action: 'add',
+        cardName: 'Mana Crypt',
+        set: '2XM',
+        collectorNumber: '1',
+        finish: 'foil',
+        condition: 'LP',
+      },
+      {
+        action: 'remove',
+        cardName: 'Mana Crypt',
+        set: '2XM',
+        collectorNumber: '1',
+        finish: 'foil',
+        condition: 'LP',
+      },
+      true,
+    ],
+    [
+      'one with set, other without returns false',
+      { action: 'add', cardName: 'Sol Ring', set: '2XM', collectorNumber: '1' },
+      { action: 'remove', cardName: 'Sol Ring' },
+      false,
+    ],
+    [
+      'same card with matching cardId cancels',
+      { action: 'add', cardName: 'Sol Ring', cardId: 5 },
+      { action: 'remove', cardName: 'Sol Ring', cardId: 5 },
+      true,
+    ],
+    [
+      'same card with different cardIds does not cancel',
+      { action: 'add', cardName: 'Sol Ring', cardId: 5 },
+      { action: 'remove', cardName: 'Sol Ring', cardId: 7 },
+      false,
+    ],
+    [
+      'one with cardId and one without still cancel (backwards compat)',
+      { action: 'add', cardName: 'Sol Ring', cardId: 5 },
+      { action: 'remove', cardName: 'Sol Ring' },
+      true,
+    ],
+    [
+      'commander changes with matching cardIds cancel',
+      { action: 'set-commander', cardName: 'Kenrith', cardId: 1 },
+      { action: 'unset-commander', cardName: 'Kenrith', cardId: 1 },
+      true,
+    ],
+    [
+      'commander changes with different cardIds do not cancel',
+      { action: 'set-commander', cardName: 'Kenrith', cardId: 1 },
+      { action: 'unset-commander', cardName: 'Kenrith', cardId: 2 },
+      false,
+    ],
+    [
+      'add to Sideboard + remove from Main (default) does not cancel',
+      { action: 'add', cardName: 'Sol Ring', board: 'Sideboard' },
+      { action: 'remove', cardName: 'Sol Ring' },
+      false,
+    ],
+  ]
 
-  test('remove + add of same card returns true', () => {
-    const a = makeChange({ action: 'remove', cardName: 'Sol Ring' })
-    const b = makeChange({ action: 'add', cardName: 'Sol Ring' })
-    expect(areOppositeChanges(a, b)).toBe(true)
-  })
-
-  test('add + remove of different cards returns false', () => {
-    const a = makeChange({ action: 'add', cardName: 'Sol Ring' })
-    const b = makeChange({ action: 'remove', cardName: 'Mana Crypt' })
-    expect(areOppositeChanges(a, b)).toBe(false)
-  })
-
-  test('add + remove same card but different set returns false', () => {
-    const a = makeChange({ action: 'add', cardName: 'Sol Ring', set: '2XM' })
-    const b = makeChange({ action: 'remove', cardName: 'Sol Ring', set: 'C21' })
-    expect(areOppositeChanges(a, b)).toBe(false)
-  })
-
-  test('add + remove same card but different finish returns false', () => {
-    const a = makeChange({ action: 'add', cardName: 'Sol Ring', finish: 'foil' })
-    const b = makeChange({ action: 'remove', cardName: 'Sol Ring', finish: 'nonfoil' })
-    expect(areOppositeChanges(a, b)).toBe(false)
-  })
-
-  test('add + remove same card but different condition returns false', () => {
-    const a = makeChange({ action: 'add', cardName: 'Sol Ring', condition: 'NM' })
-    const b = makeChange({ action: 'remove', cardName: 'Sol Ring', condition: 'LP' })
-    expect(areOppositeChanges(a, b)).toBe(false)
-  })
-
-  test('add + add same card returns false (same action)', () => {
-    const a = makeChange({ action: 'add', cardName: 'Sol Ring' })
-    const b = makeChange({ action: 'add', cardName: 'Sol Ring' })
-    expect(areOppositeChanges(a, b)).toBe(false)
-  })
-
-  test('remove + remove same card returns false', () => {
-    const a = makeChange({ action: 'remove', cardName: 'Sol Ring' })
-    const b = makeChange({ action: 'remove', cardName: 'Sol Ring' })
-    expect(areOppositeChanges(a, b)).toBe(false)
-  })
-
-  test('set-commander + remove returns false (different action types)', () => {
-    const a = makeChange({ action: 'set-commander', cardName: 'Sol Ring' })
-    const b = makeChange({ action: 'remove', cardName: 'Sol Ring' })
-    expect(areOppositeChanges(a, b)).toBe(false)
-  })
-
-  test('set-commander + unset-commander of same card returns true', () => {
-    const a = makeChange({ action: 'set-commander', cardName: 'Sol Ring' })
-    const b = makeChange({ action: 'unset-commander', cardName: 'Sol Ring' })
-    expect(areOppositeChanges(a, b)).toBe(true)
-  })
-
-  test('unset-commander + set-commander of same card returns true', () => {
-    const a = makeChange({ action: 'unset-commander', cardName: 'Sol Ring' })
-    const b = makeChange({ action: 'set-commander', cardName: 'Sol Ring' })
-    expect(areOppositeChanges(a, b)).toBe(true)
-  })
-
-  test('set-commander + unset-commander of different cards returns false', () => {
-    const a = makeChange({ action: 'set-commander', cardName: 'Sol Ring' })
-    const b = makeChange({ action: 'unset-commander', cardName: 'Mana Crypt' })
-    expect(areOppositeChanges(a, b)).toBe(false)
-  })
-
-  test('set-commander + set-commander same card returns false (same action)', () => {
-    const a = makeChange({ action: 'set-commander', cardName: 'Sol Ring' })
-    const b = makeChange({ action: 'set-commander', cardName: 'Sol Ring' })
-    expect(areOppositeChanges(a, b)).toBe(false)
-  })
-
-  test('both with matching set/CN/finish/condition returns true', () => {
-    const a = makeChange({
-      action: 'add',
-      cardName: 'Mana Crypt',
-      set: '2XM',
-      collectorNumber: '1',
-      finish: 'foil',
-      condition: 'LP',
-    })
-    const b = makeChange({
-      action: 'remove',
-      cardName: 'Mana Crypt',
-      set: '2XM',
-      collectorNumber: '1',
-      finish: 'foil',
-      condition: 'LP',
-    })
-    expect(areOppositeChanges(a, b)).toBe(true)
-  })
-
-  test('both with undefined set/CN match (both undefined)', () => {
-    const a = makeChange({ action: 'add', cardName: 'Sol Ring' })
-    const b = makeChange({ action: 'remove', cardName: 'Sol Ring' })
-    expect(areOppositeChanges(a, b)).toBe(true)
-  })
-
-  test('one with set, other without returns false', () => {
-    const a = makeChange({ action: 'add', cardName: 'Sol Ring', set: '2XM', collectorNumber: '1' })
-    const b = makeChange({ action: 'remove', cardName: 'Sol Ring' })
-    expect(areOppositeChanges(a, b)).toBe(false)
-  })
-
-  test('same card with matching cardId cancels', () => {
-    const a = makeChange({ action: 'add', cardName: 'Sol Ring', cardId: 5 })
-    const b = makeChange({ action: 'remove', cardName: 'Sol Ring', cardId: 5 })
-    expect(areOppositeChanges(a, b)).toBe(true)
-  })
-
-  test('same card with different cardIds does not cancel', () => {
-    const a = makeChange({ action: 'add', cardName: 'Sol Ring', cardId: 5 })
-    const b = makeChange({ action: 'remove', cardName: 'Sol Ring', cardId: 7 })
-    expect(areOppositeChanges(a, b)).toBe(false)
-  })
-
-  test('both undefined cardIds still cancel', () => {
-    const a = makeChange({ action: 'add', cardName: 'Sol Ring' })
-    const b = makeChange({ action: 'remove', cardName: 'Sol Ring' })
-    expect(areOppositeChanges(a, b)).toBe(true)
-  })
-
-  test('one with cardId and one without still cancel (backwards compat)', () => {
-    const a = makeChange({ action: 'add', cardName: 'Sol Ring', cardId: 5 })
-    const b = makeChange({ action: 'remove', cardName: 'Sol Ring' })
-    expect(areOppositeChanges(a, b)).toBe(true)
-  })
-
-  test('commander changes with matching cardIds cancel', () => {
-    const a = makeChange({ action: 'set-commander', cardName: 'Kenrith', cardId: 1 })
-    const b = makeChange({ action: 'unset-commander', cardName: 'Kenrith', cardId: 1 })
-    expect(areOppositeChanges(a, b)).toBe(true)
-  })
-
-  test('commander changes with different cardIds do not cancel', () => {
-    const a = makeChange({ action: 'set-commander', cardName: 'Kenrith', cardId: 1 })
-    const b = makeChange({ action: 'unset-commander', cardName: 'Kenrith', cardId: 2 })
-    expect(areOppositeChanges(a, b)).toBe(false)
-  })
-
-  test('add to Sideboard + remove from Main (default) does not cancel', () => {
-    const a = makeChange({ action: 'add', cardName: 'Sol Ring', board: 'Sideboard' })
-    const b = makeChange({ action: 'remove', cardName: 'Sol Ring' })
-    expect(areOppositeChanges(a, b)).toBe(false)
+  test.each(cases)('%s', (_description, a, b, expected) => {
+    expect(areOppositeChanges(makeChange(a), makeChange(b))).toBe(expected)
   })
 })
 
@@ -282,17 +284,6 @@ describe('consolidateSetFinish', () => {
     )
     expect(changes).toHaveLength(0)
     expect(cancelledChange).toBe(existing)
-  })
-
-  test('returns no-op (both null) when finish equals original and no existing change', () => {
-    const { addedChange, cancelledChange } = consolidateSetFinish(
-      [],
-      'Sol Ring',
-      'nonfoil',
-      'nonfoil',
-    )
-    expect(addedChange).toBeNull()
-    expect(cancelledChange).toBeNull()
   })
 })
 
@@ -408,111 +399,99 @@ describe('createChangeId', () => {
     const ids = new Set(Array.from({ length: 100 }, () => createChangeId()))
     expect(ids.size).toBe(100)
   })
-
-  test('matches expected format (timestamp-random)', () => {
-    const id = createChangeId()
-    expect(id).toMatch(/^\d+-[a-z0-9]+$/)
-  })
 })
 
+type FormatChangeCase = [description: string, change: MakeChangeOverrides, expected: string]
+
 describe('formatChange', () => {
-  test('includes card ID in add format', () => {
-    const change = makeChange({ action: 'add', cardName: 'Sol Ring', cardId: 5 })
-    expect(formatChange(change)).toBe('Add Sol Ring &5')
-  })
-
-  test('includes card ID with printing info', () => {
-    const change = makeChange({
-      action: 'add',
-      cardName: 'Mana Crypt',
-      set: '2xm',
-      collectorNumber: '1',
-      finish: 'foil',
-      cardId: 42,
-    })
-    expect(formatChange(change)).toBe('Add Mana Crypt (2XM:1) [foil] &42')
-  })
-
-  test('includes card ID for remove', () => {
-    const change = makeChange({ action: 'remove', cardName: 'Sol Ring', cardId: 3 })
-    expect(formatChange(change)).toBe('Remove Sol Ring &3')
-  })
-
-  test('includes card ID for set-commander', () => {
-    const change = makeChange({ action: 'set-commander', cardName: 'Kenrith', cardId: 1 })
-    expect(formatChange(change)).toBe('Set Kenrith as commander &1')
-  })
-
-  test('includes card ID for set-finish', () => {
-    const change = makeChange({
-      action: 'set-finish',
-      cardName: 'Sol Ring',
-      finish: 'foil',
-      cardId: 7,
-    })
-    expect(formatChange(change)).toBe('Set Sol Ring finish to foil &7')
-  })
-
-  test('omits card ID when undefined', () => {
-    const change = makeChange({ action: 'add', cardName: 'Sol Ring' })
-    expect(formatChange(change)).toBe('Add Sol Ring')
-  })
-
-  test('formats set-note with the note text', () => {
-    const change = makeChange({
-      action: 'set-note',
-      cardName: 'Sol Ring',
-      note: 'starts the engine',
-      cardId: 5,
-    })
-    expect(formatChange(change)).toBe('Set note on Sol Ring &5 to "starts the engine"')
-  })
-
-  test('formats empty set-note as a clear', () => {
-    const change = makeChange({ action: 'set-note', cardName: 'Sol Ring', note: '', cardId: 5 })
-    expect(formatChange(change)).toBe('Clear note on Sol Ring &5')
-  })
-
-  test('formats set-printing with set, collector number and finish', () => {
-    const change = makeChange({
-      action: 'set-printing',
-      cardName: 'Lightning Bolt',
-      set: 'm10',
-      collectorNumber: '146',
-      finish: 'foil',
-      cardId: 5,
-    })
-    expect(formatChange(change)).toBe('Set Lightning Bolt printing to M10:146 [foil] &5')
-  })
-
-  test('formats set-printing with no specific printing', () => {
-    const change = makeChange({ action: 'set-printing', cardName: 'Lightning Bolt', cardId: 5 })
-    expect(formatChange(change)).toBe('Set Lightning Bolt printing to no specific printing &5')
-  })
-
-  test('formats move-from with destination list label', () => {
-    const change = makeChange({
-      action: 'move-from',
-      cardName: 'Sol Ring',
-      cardId: 5,
-      to: { type: 'collection', name: 'Main' },
-    })
-    expect(formatChange(change)).toBe("Move Sol Ring &5 to Collection 'Main'")
-  })
-
-  test('formats move-to with origin list label and printing annotation', () => {
-    const change = makeChange({
-      action: 'move-to',
-      cardName: 'Lightning Bolt',
-      set: 'm10',
-      collectorNumber: '146',
-      finish: 'foil',
-      cardId: 7,
-      from: { type: 'wanted', name: 'Burn' },
-    })
-    expect(formatChange(change)).toBe(
+  const cases: FormatChangeCase[] = [
+    [
+      'includes card ID in add format',
+      { action: 'add', cardName: 'Sol Ring', cardId: 5 },
+      'Add Sol Ring &5',
+    ],
+    [
+      'includes card ID with printing info',
+      {
+        action: 'add',
+        cardName: 'Mana Crypt',
+        set: '2xm',
+        collectorNumber: '1',
+        finish: 'foil',
+        cardId: 42,
+      },
+      'Add Mana Crypt (2XM:1) [foil] &42',
+    ],
+    [
+      'includes card ID for remove',
+      { action: 'remove', cardName: 'Sol Ring', cardId: 3 },
+      'Remove Sol Ring &3',
+    ],
+    [
+      'includes card ID for set-commander',
+      { action: 'set-commander', cardName: 'Kenrith', cardId: 1 },
+      'Set Kenrith as commander &1',
+    ],
+    [
+      'includes card ID for set-finish',
+      { action: 'set-finish', cardName: 'Sol Ring', finish: 'foil', cardId: 7 },
+      'Set Sol Ring finish to foil &7',
+    ],
+    ['omits card ID when undefined', { action: 'add', cardName: 'Sol Ring' }, 'Add Sol Ring'],
+    [
+      'formats set-note with the note text',
+      { action: 'set-note', cardName: 'Sol Ring', note: 'starts the engine', cardId: 5 },
+      'Set note on Sol Ring &5 to "starts the engine"',
+    ],
+    [
+      'formats empty set-note as a clear',
+      { action: 'set-note', cardName: 'Sol Ring', note: '', cardId: 5 },
+      'Clear note on Sol Ring &5',
+    ],
+    [
+      'formats set-printing with set, collector number and finish',
+      {
+        action: 'set-printing',
+        cardName: 'Lightning Bolt',
+        set: 'm10',
+        collectorNumber: '146',
+        finish: 'foil',
+        cardId: 5,
+      },
+      'Set Lightning Bolt printing to M10:146 [foil] &5',
+    ],
+    [
+      'formats set-printing with no specific printing',
+      { action: 'set-printing', cardName: 'Lightning Bolt', cardId: 5 },
+      'Set Lightning Bolt printing to no specific printing &5',
+    ],
+    [
+      'formats move-from with destination list label',
+      {
+        action: 'move-from',
+        cardName: 'Sol Ring',
+        cardId: 5,
+        to: { type: 'collection', name: 'Main' },
+      },
+      "Move Sol Ring &5 to Collection 'Main'",
+    ],
+    [
+      'formats move-to with origin list label and printing annotation',
+      {
+        action: 'move-to',
+        cardName: 'Lightning Bolt',
+        set: 'm10',
+        collectorNumber: '146',
+        finish: 'foil',
+        cardId: 7,
+        from: { type: 'wanted', name: 'Burn' },
+      },
       "Move Lightning Bolt (M10:146) [foil] &7 from Wanted list 'Burn'",
-    )
+    ],
+  ]
+
+  test.each(cases)('%s', (_description, overrides, expected) => {
+    expect(formatChange(makeChange(overrides))).toBe(expected)
   })
 })
 
@@ -697,6 +676,25 @@ describe('applyChangeToDeck — change-printing support', () => {
       finish: 'nonfoil',
       cardId: 99,
     })
+    const cards = result.sections[0]!.cards
+    expect(cards).toHaveLength(1)
+    expect(cards[0]!.quantity).toBe(5)
+  })
+
+  test('re-adding the same printing merges into the existing entry regardless of target section', () => {
+    const deck = makeDeck()
+    // findCardForAdd scans every section for a same-printing entry before consulting
+    // change.section, so a Sideboard-targeted add merges into the Main entry.
+    const result = applyChangeToDeck(deck, {
+      action: 'add',
+      cardName: 'Lightning Bolt',
+      set: 'lea',
+      collectorNumber: '161',
+      finish: 'nonfoil',
+      cardId: 99,
+      section: 'Sideboard',
+    })
+    expect(result.sections.map((s) => s.name)).toEqual(['Main'])
     const cards = result.sections[0]!.cards
     expect(cards).toHaveLength(1)
     expect(cards[0]!.quantity).toBe(5)

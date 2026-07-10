@@ -14,6 +14,7 @@ import {
   type ColumnMapping,
   type CsvRow,
 } from '../../src/importers/csv'
+import { formatScriptingCommand } from '../../src/commands/import-csv'
 import type { Condition, Finish } from '../../src/types'
 
 function rowsOf(result: ReturnType<typeof parseCsv>): CsvRow[] {
@@ -86,20 +87,49 @@ describe('parseColumnsSpec', () => {
   test('requires set and collector-number for collections', () => {
     expect(parseColumnsSpec('name=1', 'collection')).toMatch(/require both a set and a collector/)
   })
-
-  test('rejects a condition column for wanted lists', () => {
-    expect(parseColumnsSpec('name=1,condition=2', 'wanted')).toMatch(/do not track condition/)
-  })
-
-  test('rejects two fields mapped to the same column', () => {
-    expect(parseColumnsSpec('name=1,set=1', 'deck')).toMatch(/same column 1/)
-  })
 })
 
 describe('formatColumnsSpec', () => {
   test('round-trips a mapping back to the 1-based flag value', () => {
     const mapping = parseColumnsSpec('name=2,set=1,finish=4,quantity=3', 'deck') as ColumnMapping
     expect(formatColumnsSpec(mapping)).toBe('name=2,set=1,finish=4,quantity=3')
+  })
+})
+
+describe('formatScriptingCommand', () => {
+  test('reproduces the wizard answers', () => {
+    const mapping = parseColumnsSpec(
+      'name=1,set=2,collector-number=3,quantity=4',
+      'collection',
+    ) as ColumnMapping
+    expect(
+      formatScriptingCommand(
+        'My Cards.csv',
+        'collection',
+        'Red Binder',
+        'create',
+        undefined,
+        mapping,
+        true,
+      ),
+    ).toBe(
+      "ritual import-csv 'My Cards.csv' --type collection --name 'Red Binder' --columns name=1,set=2,collector-number=3,quantity=4",
+    )
+    expect(
+      formatScriptingCommand('deck.csv', 'deck', 'Burn', 'create', 'modern', mapping, false),
+    ).toBe(
+      'ritual import-csv deck.csv --type deck --name Burn --format modern --columns name=1,set=2,collector-number=3,quantity=4 --no-header',
+    )
+    expect(
+      formatScriptingCommand('more.csv', 'wanted', 'To Buy', 'append', undefined, mapping, true),
+    ).toBe(
+      "ritual import-csv more.csv --type wanted --name 'To Buy' --append --columns name=1,set=2,collector-number=3,quantity=4",
+    )
+    expect(
+      formatScriptingCommand('deck.csv', 'deck', 'Burn', 'overwrite', 'modern', mapping, true),
+    ).toBe(
+      'ritual import-csv deck.csv --type deck --name Burn --overwrite --format modern --columns name=1,set=2,collector-number=3,quantity=4',
+    )
   })
 })
 

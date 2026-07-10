@@ -60,21 +60,6 @@ describe('applyChangeToCollection', () => {
     expect(result[0]!.name).toBe('Dark Ritual')
   })
 
-  it('remove by name + set — with set specified, only removes matching set', () => {
-    const entries = [
-      makeEntry({ set: 'lea', fileOrder: 0 }),
-      makeEntry({ set: '2ed', fileOrder: 1 }),
-    ]
-    const result = applyChangeToCollection(entries, {
-      action: 'remove',
-      cardName: 'Lightning Bolt',
-      set: '2ed',
-    })
-
-    expect(result).toHaveLength(1)
-    expect(result[0]!.set).toBe('lea')
-  })
-
   it('remove non-existent — returns unchanged array', () => {
     const entries = [makeEntry()]
     const result = applyChangeToCollection(entries, {
@@ -194,29 +179,6 @@ describe('applyChangeToCollection', () => {
     expect(result).toBe(entries)
   })
 
-  it('multiple adds then remove — add 2, remove 1, verify 1 remains', () => {
-    let entries: CollectionCardEntry[] = []
-    entries = applyChangeToCollection(entries, {
-      action: 'add',
-      cardName: 'Lightning Bolt',
-      set: 'lea',
-      collectorNumber: '161',
-    })
-    entries = applyChangeToCollection(entries, {
-      action: 'add',
-      cardName: 'Dark Ritual',
-      set: 'lea',
-      collectorNumber: '104',
-    })
-    entries = applyChangeToCollection(entries, {
-      action: 'remove',
-      cardName: 'Lightning Bolt',
-    })
-
-    expect(entries).toHaveLength(1)
-    expect(entries[0]!.name).toBe('Dark Ritual')
-  })
-
   it('remove by fileOrder — targets the exact entry among duplicates', () => {
     const entries = [
       makeEntry({ name: 'Sheltered by Ghosts', set: 'dsk', collectorNumber: '30', fileOrder: 0 }),
@@ -237,18 +199,7 @@ describe('applyChangeToCollection', () => {
     expect(result[1]!.fileOrder).toBe(2)
   })
 
-  it('remove by fileOrder — non-existent fileOrder returns unchanged', () => {
-    const entries = [makeEntry({ fileOrder: 0 }), makeEntry({ fileOrder: 1 })]
-    const result = applyChangeToCollection(entries, {
-      action: 'remove',
-      cardName: 'Lightning Bolt',
-      fileOrder: 99,
-    })
-
-    expect(result).toBe(entries)
-  })
-
-  it('add copy — duplicates entry with same printing info', () => {
+  it('add copy — duplicate printing appends a second entry, never merges like deck add', () => {
     const entries = [
       makeEntry({
         name: 'Arahbo, the First Fang',

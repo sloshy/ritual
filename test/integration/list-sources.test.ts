@@ -45,22 +45,9 @@ describe('resolveDeckSources', () => {
     expect(await resolveDeckSources(dir, [], [])).toEqual([])
   })
 
-  test('include names that match nothing are ignored', async () => {
-    expect(await resolveDeckSources(dir, ['Mono Red Aggro'], [])).toEqual([])
-  })
-
   test('exclude drops a deck from a wildcard include', async () => {
     const sources = await resolveDeckSources(dir, ['*'], ['Black Panther'])
     expect(sources.sort()).toEqual(['atraxa', 'izzet-storm'])
-  })
-
-  test('exclude wins over an explicit include of the same deck', async () => {
-    const sources = await resolveDeckSources(
-      dir,
-      ['Izzet Storm', 'Black Panther'],
-      ['Black Panther'],
-    )
-    expect(sources).toEqual(['izzet-storm'])
   })
 })
 
@@ -84,10 +71,6 @@ describe('resolveListSources', () => {
 
   test('falls back to file base name when no H1 title', async () => {
     expect(await resolveListSources(dir, ['untitled'], [])).toEqual(['untitled'])
-  })
-
-  test('an empty selection includes no lists', async () => {
-    expect(await resolveListSources(dir, [], [])).toEqual([])
   })
 
   test('exclude drops a list from a wildcard include by H1 title', async () => {

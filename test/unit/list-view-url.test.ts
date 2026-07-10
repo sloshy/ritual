@@ -6,7 +6,7 @@ import {
   parseListViewParams,
   writeListViewParams,
 } from '../../src/site/list-view-url'
-import { createDefaultCardFilters } from '../../src/site/card-filters'
+import { type CardFilters, createDefaultCardFilters } from '../../src/site/card-filters'
 
 const DEFAULTS: ListViewDefaults = { groupBy: 'type', sortBy: 'name' }
 
@@ -28,6 +28,22 @@ function encode(state: ListViewState, defaults: ListViewDefaults = DEFAULTS): UR
   writeListViewParams(params, state, defaults)
   return params
 }
+
+/** One row per numeric filter (mana value, price, copies); they share identical gating. */
+type NumericFilterCase = {
+  key: 'manaValue' | 'price' | 'copies'
+  opKey: 'manaValueOp' | 'priceOp' | 'copiesOp'
+  param: string
+  opParam: string
+  /** Representative non-zero value (also used as the URL token). */
+  value: number
+}
+
+const NUMERIC_FILTERS: NumericFilterCase[] = [
+  { key: 'manaValue', opKey: 'manaValueOp', param: 'mv', opParam: 'mvOp', value: 3 },
+  { key: 'price', opKey: 'priceOp', param: 'price', opParam: 'priceOp', value: 5.25 },
+  { key: 'copies', opKey: 'copiesOp', param: 'copies', opParam: 'copiesOp', value: 2 },
+]
 
 describe('writeListViewParams', () => {
   test('a fully default state writes no parameters', () => {
@@ -145,57 +161,33 @@ describe('writeListViewParams', () => {
     expect(params.has('mvOp')).toBe(false)
   })
 
-  test('a mana value of 0 is written (it is a meaningful filter, not "unset")', () => {
-    const filters = createDefaultCardFilters()
-    filters.manaValue = 0
-    expect(encode(defaultState({ filters })).get('mv')).toBe('0')
-  })
+  // Mana value, price, and copies share the same write gating: the value is
+  // written whenever set (including 0 — a meaningful filter, not "unset"), and
+  // the operator only alongside a value and only when non-default.
+  for (const { key, opKey, param, opParam, value } of NUMERIC_FILTERS) {
+    test(`an active ${param} filter and its non-default operator are written`, () => {
+      const filters = createDefaultCardFilters()
+      filters[key] = value
+      filters[opKey] = '>='
+      const params = encode(defaultState({ filters }))
+      expect(params.get(param)).toBe(String(value))
+      expect(params.get(opParam)).toBe('>=')
+    })
 
-  test('an active price filter and its non-default operator are written', () => {
-    const filters = createDefaultCardFilters()
-    filters.price = 5.25
-    filters.priceOp = '<='
-    const params = encode(defaultState({ filters }))
-    expect(params.get('price')).toBe('5.25')
-    expect(params.get('priceOp')).toBe('<=')
-  })
+    test(`${opParam} at its default stays out of the URL, and a ${param} of 0 is written`, () => {
+      const filters = createDefaultCardFilters()
+      filters[key] = 0 // operator left at default '='
+      const params = encode(defaultState({ filters }))
+      expect(params.get(param)).toBe('0')
+      expect(params.has(opParam)).toBe(false)
+    })
 
-  test('priceOp at its default stays out of the URL, and a price of 0 is written', () => {
-    const filters = createDefaultCardFilters()
-    filters.price = 0 // priceOp left at default '='
-    const params = encode(defaultState({ filters }))
-    expect(params.get('price')).toBe('0')
-    expect(params.has('priceOp')).toBe(false)
-  })
-
-  test('priceOp alone (no price) stays out of the URL', () => {
-    const filters = createDefaultCardFilters()
-    filters.priceOp = '>='
-    expect(encode(defaultState({ filters })).has('priceOp')).toBe(false)
-  })
-
-  test('an active copies filter and its non-default operator are written', () => {
-    const filters = createDefaultCardFilters()
-    filters.copies = 2
-    filters.copiesOp = '>='
-    const params = encode(defaultState({ filters }))
-    expect(params.get('copies')).toBe('2')
-    expect(params.get('copiesOp')).toBe('>=')
-  })
-
-  test('copiesOp at its default stays out of the URL, and a copies of 0 is written', () => {
-    const filters = createDefaultCardFilters()
-    filters.copies = 0 // copiesOp left at default '='
-    const params = encode(defaultState({ filters }))
-    expect(params.get('copies')).toBe('0')
-    expect(params.has('copiesOp')).toBe(false)
-  })
-
-  test('copiesOp alone (no copies) stays out of the URL', () => {
-    const filters = createDefaultCardFilters()
-    filters.copiesOp = '>='
-    expect(encode(defaultState({ filters })).has('copiesOp')).toBe(false)
-  })
+    test(`${opParam} alone (no ${param}) stays out of the URL`, () => {
+      const filters = createDefaultCardFilters()
+      filters[opKey] = '>='
+      expect(encode(defaultState({ filters })).has(opParam)).toBe(false)
+    })
+  }
 
   test('oracle and art tag selections and their non-default sub-options are written', () => {
     const filters = createDefaultCardFilters()
@@ -327,15 +319,11 @@ describe('parseListViewParams', () => {
     expect(parsed.filters?.colors).toEqual(['W', 'U'])
   })
 
+  // Mana value and copies share one integer parser (parseIntegerParam), so its
+  // rejection and zero handling are pinned once via mv rather than re-run per filter.
   test('a non-integer mana value is ignored', () => {
     expect(parseListViewParams(new URLSearchParams('mv=abc')).filters).toBeUndefined()
     expect(parseListViewParams(new URLSearchParams('mv=2.5')).filters).toBeUndefined()
-  })
-
-  test('mvOp is only applied alongside a valid mana value', () => {
-    expect(parseListViewParams(new URLSearchParams('mvOp=>=')).filters).toBeUndefined()
-    const parsed = parseListViewParams(new URLSearchParams('mv=3&mvOp=>='))
-    expect(parsed.filters).toEqual({ manaValue: 3, manaValueOp: '>=' })
   })
 
   test('a mana value of 0 parses to 0, not undefined', () => {
@@ -349,26 +337,17 @@ describe('parseListViewParams', () => {
     expect(parseListViewParams(new URLSearchParams('price=abc')).filters).toBeUndefined()
   })
 
-  test('priceOp is only applied alongside a valid price', () => {
-    expect(parseListViewParams(new URLSearchParams('priceOp=>=')).filters).toBeUndefined()
-    const parsed = parseListViewParams(new URLSearchParams('price=5&priceOp=>='))
-    expect(parsed.filters).toEqual({ price: 5, priceOp: '>=' })
-  })
-
-  test('a non-integer copies value is ignored', () => {
-    expect(parseListViewParams(new URLSearchParams('copies=abc')).filters).toBeUndefined()
-    expect(parseListViewParams(new URLSearchParams('copies=2.5')).filters).toBeUndefined()
-  })
-
-  test('copiesOp is only applied alongside a valid copies value', () => {
-    expect(parseListViewParams(new URLSearchParams('copiesOp=>=')).filters).toBeUndefined()
-    const parsed = parseListViewParams(new URLSearchParams('copies=2&copiesOp=>='))
-    expect(parsed.filters).toEqual({ copies: 2, copiesOp: '>=' })
-  })
-
-  test('a copies value of 0 parses to 0, not undefined', () => {
-    expect(parseListViewParams(new URLSearchParams('copies=0')).filters).toEqual({ copies: 0 })
-  })
+  // Each numeric filter applies its operator only when the value itself parsed.
+  for (const { key, opKey, param, opParam, value } of NUMERIC_FILTERS) {
+    test(`${opParam} is only applied alongside a valid ${param} value`, () => {
+      expect(parseListViewParams(new URLSearchParams(`${opParam}=>=`)).filters).toBeUndefined()
+      const result = parseListViewParams(new URLSearchParams(`${param}=${value}&${opParam}=>=`))
+      const expected: Partial<CardFilters> = {}
+      expected[key] = value
+      expected[opKey] = '>='
+      expect(result.filters).toEqual(expected)
+    })
+  }
 
   test('set and type tokens are lowercased and blanks dropped', () => {
     const parsed = parseListViewParams(new URLSearchParams('sets=MKM,,LEA&types=Instant, ,Goblin'))

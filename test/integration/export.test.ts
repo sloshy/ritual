@@ -8,7 +8,11 @@ import '../../src/scryfall'
 import { cardCache } from '../../src/cache'
 import { getBaseDir, setBaseDir } from '../../src/base-dir'
 import { runCli, withTempDir } from './helpers/cli'
+import { writeCollectionFile, writeWantedFile } from './helpers/workspace'
 
+// Kept as a literal on purpose: the `[NM]` on a deck line is non-canonical (the
+// deck serializer omits an NM condition), and the condition-filter case below
+// depends on that hand-written token being parsed into the entry.
 const BURN_DECK = `---
 name: "Burn"
 ---
@@ -25,18 +29,6 @@ name: "Burn"
 1 Price of Progress &3
 `
 
-const BINDER = `# Binder
-
-- Sol Ring (C21:263) [foil] [NM] &1
-- Lightning Bolt (LEA:161) [LP] &2
-`
-
-const WISHLIST = `# Wishlist
-
-- Brainstorm &1
-- Sol Ring (LTC:284) [etched] &2
-`
-
 type ExportedRecord = Record<string, string | number>
 
 /**
@@ -45,11 +37,28 @@ type ExportedRecord = Record<string, string | number>
  */
 async function seedWorkspace(dir: string): Promise<void> {
   await fs.mkdir(path.join(dir, 'decks'), { recursive: true })
-  await fs.mkdir(path.join(dir, 'collections'), { recursive: true })
-  await fs.mkdir(path.join(dir, 'wanted'), { recursive: true })
   await fs.writeFile(path.join(dir, 'decks', 'burn.md'), BURN_DECK)
-  await fs.writeFile(path.join(dir, 'collections', 'binder.md'), BINDER)
-  await fs.writeFile(path.join(dir, 'wanted', 'wishlist.md'), WISHLIST)
+  await writeCollectionFile(dir, 'binder', {
+    title: 'Binder',
+    entries: [
+      {
+        name: 'Sol Ring',
+        set: 'c21',
+        collectorNumber: '263',
+        finish: 'foil',
+        condition: 'NM',
+        cardId: 1,
+      },
+      { name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', condition: 'LP', cardId: 2 },
+    ],
+  })
+  await writeWantedFile(dir, 'wishlist', {
+    title: 'Wishlist',
+    entries: [
+      { name: 'Brainstorm', cardId: 1 },
+      { name: 'Sol Ring', set: 'ltc', collectorNumber: '284', finish: 'etched', cardId: 2 },
+    ],
+  })
 
   const originalBase = getBaseDir()
   setBaseDir(dir)
@@ -140,17 +149,13 @@ describe('export command (Integration)', () => {
       ['Lightning Bolt', 'Lightning Bolt'],
     ],
     [['--finish', 'etched'], ['Sol Ring']],
-    // An explicit grade matches only entries with it marked.
-    [
-      ['--condition', 'NM'],
-      ['Lightning Bolt', 'Sol Ring'],
-    ],
+    // Condition semantics are pinned by the filterExportEntries unit tests; this
+    // case proves the flag's comma-splitting and wiring into the filter engine.
     // 'none' adds unmarked deck/collection entries; wanted entries never match.
     [
       ['--condition', 'NM,none'],
       ['Lightning Bolt', 'Fireblast', 'Price of Progress', 'Sol Ring'],
     ],
-    [['--condition', 'LP'], ['Lightning Bolt']],
     [
       ['--name', 'sol ring'],
       ['Sol Ring', 'Sol Ring'],
@@ -275,7 +280,7 @@ describe('export command (Integration)', () => {
   test('ambiguous bare names exit as a usage error', async () => {
     await withTempDir(async (dir) => {
       await seedWorkspace(dir)
-      await fs.writeFile(path.join(dir, 'collections', 'burn.md'), '# Burn\n\n')
+      await writeCollectionFile(dir, 'burn', { title: 'Burn', entries: [] })
 
       const result = await runCli(['export', 'burn'], dir)
 

@@ -24,7 +24,7 @@ const BLOCKLIST_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
 const fileSystem = createDefaultFileSystemClient()
 
-interface CachedItem<T> {
+export interface CachedItem<T> {
   timestamp: number
   data: T
   lowercaseName?: string
@@ -32,7 +32,7 @@ interface CachedItem<T> {
 
 export type CacheSection = 'prices' | 'cards'
 
-interface CacheSchema {
+export interface CacheSchema {
   prices: Record<string, CachedItem<PriceData>>
   cards?: Record<string, CachedItem<ScryfallCard[]>>
   cardNameIndex?: Record<string, string>

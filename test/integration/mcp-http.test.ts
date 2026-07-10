@@ -1,18 +1,13 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import fs from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
 import type { Server } from 'node:http'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import { getBaseDir, setBaseDir } from '../../src/base-dir'
-import { initRitualConfig, resetRitualConfigCache } from '../../src/ritual-config'
 import { runHttpServer } from '../../src/mcp/run'
+import { bindWorkspace, writeDeckFile, type BoundWorkspace } from './helpers/workspace'
 
 const TOKEN = 'integration-secret'
 
 type ToolText = { content: { type: string; text?: string }[] }
-type Workspace = { dir: string; originalBase: string }
 
 function text(result: unknown): string {
   return (result as ToolText).content[0]?.text ?? ''
@@ -31,30 +26,23 @@ function endpoint(server: Server): URL {
 // No Scryfall fetch stub on purpose: these tests exercise the HTTP transport (the
 // real client uses global fetch to reach the loopback server) and only call tools
 // that don't load card data, so no network is hit.
-async function makeWorkspace(): Promise<Workspace> {
-  const originalBase = getBaseDir()
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-mcp-http-'))
-  await fs.mkdir(path.join(dir, 'decks'), { recursive: true })
-  await fs.writeFile(
-    path.join(dir, 'decks', 'starter.md'),
-    '---\nname: "Starter"\n---\n\n# Starter\n\n1 Sol Ring &1\n',
-  )
-  setBaseDir(dir)
-  resetRitualConfigCache()
-  await initRitualConfig()
-  return { dir, originalBase }
+async function makeWorkspace(): Promise<BoundWorkspace> {
+  const ws = await bindWorkspace({ dirs: ['decks'], config: false, init: true })
+  await writeDeckFile(ws.dir, 'starter', {
+    frontMatter: { name: 'Starter' },
+    cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
+  })
+  return ws
 }
 
-async function teardown(ws: Workspace, server: Server): Promise<void> {
+async function teardown(ws: BoundWorkspace, server: Server): Promise<void> {
   server.closeAllConnections?.()
   await new Promise<void>((resolve) => server.close(() => resolve()))
-  setBaseDir(ws.originalBase)
-  resetRitualConfigCache()
-  await fs.rm(ws.dir, { recursive: true, force: true })
+  await ws.dispose()
 }
 
 describe('ritual mcp HTTP — bearer auth', () => {
-  let ws: Workspace
+  let ws: BoundWorkspace
   let server: Server
 
   beforeEach(async () => {
@@ -84,29 +72,29 @@ describe('ritual mcp HTTP — bearer auth', () => {
     }
   })
 
-  test('returns 401 for a request without the bearer token', async () => {
-    const res = await fetch(endpoint(server), {
+  test('returns 401 for a request with a missing or wrong bearer token', async () => {
+    const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })
+
+    const missing = await fetch(endpoint(server), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json, text/event-stream',
       },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }),
+      body,
     })
-    expect(res.status).toBe(401)
-  })
+    expect(missing.status).toBe(401)
 
-  test('returns 401 for a request with the wrong bearer token', async () => {
-    const res = await fetch(endpoint(server), {
+    const wrong = await fetch(endpoint(server), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json, text/event-stream',
         Authorization: 'Bearer wrong-token',
       },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }),
+      body,
     })
-    expect(res.status).toBe(401)
+    expect(wrong.status).toBe(401)
   })
 
   test('returns 400 for a POST without a session before initialize', async () => {
@@ -131,7 +119,7 @@ describe('ritual mcp HTTP — bearer auth', () => {
 })
 
 describe('ritual mcp HTTP — no auth', () => {
-  let ws: Workspace
+  let ws: BoundWorkspace
   let server: Server
 
   beforeEach(async () => {

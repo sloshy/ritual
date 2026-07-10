@@ -1,24 +1,22 @@
 import { test, expect } from '@playwright/test'
-import { loginAsAdmin } from '../helpers/auth-helper'
+import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor } from '../helpers/editor-nav'
+import { fulfillJson } from '../helpers/fulfill'
+import { makeMockScryfallCard } from '../helpers/mock-cards'
 
 /** Synthetic Lightning Bolt printing shared across the mocked decks. */
-const BOLT = {
+const BOLT = makeMockScryfallCard({
   id: 'bolt-lea',
   name: 'Lightning Bolt',
   cmc: 1,
   type_line: 'Instant',
   oracle_text: 'Lightning Bolt deals 3 damage to any target.',
-  image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
-  prices: { usd: '1.00', usd_foil: null, usd_etched: null, eur: '0.80', eur_foil: null, tix: null },
-  finishes: ['nonfoil'],
-  games: ['paper'],
+  prices: { usd: '1.00', eur: '0.80' },
   set: 'lea',
   set_name: 'Limited Edition Alpha',
   collector_number: '161',
-  rarity: 'common',
   color_identity: ['R'],
-}
+})
 
 /** Build a one-card deck payload for the data endpoint. */
 function deckPayload(slug: string, name: string) {
@@ -51,54 +49,25 @@ const DISCARD_DIALOG = '.modal-shell[open]'
 
 test.describe('Editor — discard guard on navigation', () => {
   test.beforeEach(async ({ page }) => {
-    await loginAsAdmin(page)
+    await gotoAdminDashboard(page)
 
-    await page.route('**/api/decks', async (route) => {
-      if (route.request().method() === 'GET') {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            decks: [
-              { slug: 'deck-a', name: 'Deck A' },
-              { slug: 'deck-b', name: 'Deck B' },
-            ],
-          }),
-        })
-      } else {
-        await route.continue()
-      }
-    })
-    await page.route('**/api/deck/deck-a', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(deckPayload('deck-a', 'Deck A')),
-      })
-    })
-    await page.route('**/api/deck/deck-b', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(deckPayload('deck-b', 'Deck B')),
-      })
-    })
+    await fulfillJson(
+      page,
+      '**/api/decks',
+      {
+        decks: [
+          { slug: 'deck-a', name: 'Deck A' },
+          { slug: 'deck-b', name: 'Deck B' },
+        ],
+      },
+      { method: 'GET' },
+    )
+    await fulfillJson(page, '**/api/deck/deck-a', deckPayload('deck-a', 'Deck A'))
+    await fulfillJson(page, '**/api/deck/deck-b', deckPayload('deck-b', 'Deck B'))
     // Collections list, for the tab-switch case.
-    await page.route('**/api/collections', async (route) => {
-      if (route.request().method() === 'GET') {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ collections: [] }),
-        })
-      } else {
-        await route.continue()
-      }
-    })
+    await fulfillJson(page, '**/api/collections', { collections: [] }, { method: 'GET' })
     // Logout, for the logout-guard case.
-    await page.route('**/api/logout', async (route) => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
-    })
+    await fulfillJson(page, '**/api/logout', {})
 
     await openListEditor(page, 'deck')
     const select = page.locator('#deck-select')

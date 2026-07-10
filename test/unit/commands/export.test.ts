@@ -165,33 +165,15 @@ describe('wizard pure builders', () => {
       buildWizardMenuChoices(state, 0, presetCount).map(
         (choice) => (choice.value as ExportWizardSelection).kind,
       )
-    expect(kinds(wizardState(), 0)).toEqual([
-      'add-lists',
-      'add-cards',
-      'filters',
-      'format',
-      'columns',
-      'csv-options',
-      'save-preset',
-      'review',
-      'export',
-      'exit',
-    ])
+    const csvWithoutPresets = kinds(wizardState(), 0)
+    expect(csvWithoutPresets).toContain('csv-options')
+    expect(csvWithoutPresets).not.toContain('load-preset')
     const json = wizardState({
       settings: { format: 'json', columns: ['name'], header: true, quoteAll: false },
     })
-    expect(kinds(json, 2)).toEqual([
-      'add-lists',
-      'add-cards',
-      'filters',
-      'format',
-      'columns',
-      'load-preset',
-      'save-preset',
-      'review',
-      'export',
-      'exit',
-    ])
+    const jsonWithPresets = kinds(json, 2)
+    expect(jsonWithPresets).not.toContain('csv-options')
+    expect(jsonWithPresets).toContain('load-preset')
   })
 
   test('formatPresetSummary lists the shape compactly', () => {

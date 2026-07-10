@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
-import { mockPublicSiteMultiSelectLists } from '../helpers/mock-data'
+import { enterEditMode, gotoList, selectCard } from '../helpers/list-ui'
+import { mockPublicSiteMultiSelectLists } from '../helpers/mock-public-site'
 
 /**
  * Cross-list selection: selections are held globally, so they survive navigating
@@ -15,8 +16,7 @@ test.describe('Cross-list multi-select', () => {
   test('navbar all-lists button is always visible and persists across navigation', async ({
     page,
   }) => {
-    await page.goto('#/deck/ms-a')
-    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    await gotoList(page, '#/deck/ms-a', '[data-view]')
 
     // Selecting a card shows the navbar button immediately — even though the only
     // selection is on the list currently in view.
@@ -66,8 +66,7 @@ test.describe('Cross-list multi-select', () => {
   test('the All Selected menu opens a modal to view, regroup, remove, and clear', async ({
     page,
   }) => {
-    await page.goto('#/deck/ms-a')
-    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    await gotoList(page, '#/deck/ms-a', '[data-view]')
 
     // Select both cards on deck A.
     await page
@@ -144,8 +143,7 @@ test.describe('Cross-list multi-select', () => {
   test('the cross-list "Remove all selected" action appears only in edit mode', async ({
     page,
   }) => {
-    await page.goto('#/deck/ms-a')
-    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    await gotoList(page, '#/deck/ms-a', '[data-view]')
 
     // Select a card while NOT in edit mode; the navbar all-lists button appears.
     await page
@@ -177,15 +175,11 @@ test.describe('Cross-list multi-select', () => {
   test('edit mode persists across lists and in-flight edits survive navigating away and back', async ({
     page,
   }) => {
-    await page.goto('#/deck/ms-a')
-    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    await gotoList(page, '#/deck/ms-a', '[data-view]')
 
     // Enter edit mode and add a copy of the first card via the selection menu.
-    await page.locator('.btn-edit').click()
-    await expect(page.locator('.edit-banner')).toBeVisible()
-    const card = page.locator('.card-item').nth(0)
-    await card.locator('.card-binder').hover()
-    await card.locator('.card-select-checkbox').click()
+    await enterEditMode(page)
+    await selectCard(page, 0)
     await page.locator('.toolbar .selection-menu-btn').click()
     await page.locator('.selection-menu-item', { hasText: 'Add a copy' }).click()
     await expect(page.locator('.changes-badge')).toHaveText('1')
@@ -217,42 +211,21 @@ test.describe('Cross-list multi-select', () => {
     await expect(page.locator('.card-item .qty-badge', { hasText: '2x' })).toHaveCount(0)
   })
 
-  test('"Remove a copy" is offered for a multi-copy deck group but not a single copy', async ({
-    page,
-  }) => {
+  test('"Remove a copy" is offered for a multi-copy deck group', async ({ page }) => {
     // ms-qty holds a 4× Lightning Bolt: decrementing one copy differs from removing it.
-    await page.goto('#/deck/ms-qty')
-    await page.waitForSelector('[data-view]', { timeout: 15_000 })
-    await page.locator('.btn-edit').click()
-    await expect(page.locator('.edit-banner')).toBeVisible()
+    // (That the option is hidden for a single copy is covered in multi-select-edit.spec.ts.)
+    await gotoList(page, '#/deck/ms-qty', '[data-view]')
+    await enterEditMode(page)
 
-    const playset = page.locator('.card-item').first()
-    await playset.locator('.card-binder').hover()
-    await playset.locator('.card-select-checkbox').click()
+    await selectCard(page, 0)
     await page.locator('.selection-menu-btn').click()
     await expect(
       page.locator('.selection-menu-panel .selection-menu-item', { hasText: 'Remove a copy' }),
     ).toBeVisible()
-    await page.locator('.selection-menu-item', { hasText: 'Clear selection' }).click()
-
-    // ms-a holds single copies — edit mode persists across the navigation, and the
-    // option is absent there.
-    await page.evaluate(() => {
-      window.location.hash = '#/deck/ms-a'
-    })
-    await expect(page.locator('.page-title')).toHaveText('MS Deck A')
-    const single = page.locator('.card-item').first()
-    await single.locator('.card-binder').hover()
-    await single.locator('.card-select-checkbox').click()
-    await page.locator('.selection-menu-btn').click()
-    const panel = page.locator('.selection-menu-panel')
-    await expect(panel.locator('.selection-menu-item', { hasText: 'Add a copy' })).toBeVisible()
-    await expect(panel.locator('.selection-menu-item', { hasText: 'Remove a copy' })).toHaveCount(0)
   })
 
   test('a quantity group selects every copy and supports per-copy removal', async ({ page }) => {
-    await page.goto('#/deck/ms-qty')
-    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    await gotoList(page, '#/deck/ms-qty', '[data-view]')
 
     const card = page.locator('.card-item').first()
     await expect(card).toContainText('Lightning Bolt')
@@ -281,8 +254,7 @@ test.describe('Cross-list multi-select', () => {
   })
 
   test('bulk Add to Trade prompts for a printing on a name-only card', async ({ page }) => {
-    await page.goto('#/deck/ms-b')
-    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    await gotoList(page, '#/deck/ms-b', '[data-view]')
 
     const card = page.locator('.card-item').nth(0)
     await expect(card).toContainText('Mana Crypt')

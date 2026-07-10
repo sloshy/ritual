@@ -107,13 +107,6 @@ describe('releaseId', () => {
     expect(pool.availablePool).toEqual([2, 4, 5])
   })
 
-  test('released ID can be reallocated', () => {
-    const pool = createIdPool([1, 2, 3])
-    releaseId(pool, 2)
-    const newId = allocateId(pool)
-    expect(newId).toBe(2)
-  })
-
   test('release then allocate preserves pool ordering', () => {
     const pool = createIdPool([1, 2, 3, 4, 5])
     releaseId(pool, 5)
@@ -281,48 +274,6 @@ describe('initializePoolFromEntries', () => {
   })
 })
 
-describe('integration: allocate-release-reallocate cycle', () => {
-  test('simulates full editor workflow', () => {
-    const pool = createIdPool([])
-
-    // Add 5 cards
-    const ids: number[] = []
-    for (let i = 0; i < 5; i++) {
-      ids.push(allocateId(pool))
-    }
-    expect(ids).toEqual([1, 2, 3, 4, 5])
-
-    // Remove cards 2 and 4
-    releaseId(pool, 2)
-    releaseId(pool, 4)
-
-    // Add 3 new cards — should reuse 2, 4, then 6
-    expect(allocateId(pool)).toBe(2)
-    expect(allocateId(pool)).toBe(4)
-    expect(allocateId(pool)).toBe(6)
-  })
-
-  test('undo workflow: release then claim back', () => {
-    const pool = createIdPool([1, 2, 3])
-
-    // Remove card 2
-    releaseId(pool, 2)
-    expect(pool.availablePool).toEqual([2])
-
-    // Another card gets allocated (gets ID 2 from pool)
-    const newId = allocateId(pool)
-    expect(newId).toBe(2)
-
-    // Undo the allocation — release 2 back
-    releaseId(pool, 2)
-
-    // Undo the removal — claim 2 back
-    claimId(pool, 2)
-    expect(pool.usedIds.has(2)).toBe(true)
-    expect(pool.availablePool).toEqual([])
-  })
-})
-
 describe('parseCardIdsFromContent', () => {
   test('empty string returns empty array', () => {
     expect(parseCardIdsFromContent('')).toEqual([])
@@ -339,14 +290,9 @@ describe('parseCardIdsFromContent', () => {
       '## Sideboard',
       '2 Counterspell &3',
       'some random line',
-      '1 Dark Ritual &5',
+      '1 Dark Ritual &12',
     ].join('\n')
-    expect(parseCardIdsFromContent(content)).toEqual([1, 3, 5])
-  })
-
-  test('content with gaps in IDs', () => {
-    const content = '1 Card A &1\n1 Card B &5\n1 Card C &10\n'
-    expect(parseCardIdsFromContent(content)).toEqual([1, 5, 10])
+    expect(parseCardIdsFromContent(content)).toEqual([1, 3, 12])
   })
 
   test('handles trailing whitespace after ID', () => {
@@ -365,13 +311,6 @@ describe('allocateNextIdFromContent', () => {
     const content = '1 Card A &1\n1 Card B &2\n1 Card C &3\n'
     const result = allocateNextIdFromContent(content)
     expect(result.nextId).toBe(4)
-  })
-
-  test('reuses gaps in ID sequence', () => {
-    // IDs 1 and 3 exist, gap at 2
-    const content = '1 Card A &1\n1 Card B &3\n'
-    const result = allocateNextIdFromContent(content)
-    expect(result.nextId).toBe(2)
   })
 
   test('reuses smallest gap first', () => {

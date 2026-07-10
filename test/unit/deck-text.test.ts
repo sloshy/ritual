@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test'
-import type { DeckData } from '../../src/types'
+import type { Card, DeckData } from '../../src/types'
 import { deckToExportText, deckToMarkdown, serializeCardLine } from '../../src/deck-text'
 
 const deck = (sections: DeckData['sections']): DeckData => ({ name: 'Test', sections })
@@ -80,7 +80,63 @@ describe('deckToMarkdown', () => {
   })
 })
 
+type CardLineCase = { label: string; card: Card; expected: string }
+
 describe('serializeCardLine', () => {
+  const cases: CardLineCase[] = [
+    {
+      label: 'basic card with no metadata (and no &N suffix without a cardId)',
+      card: { quantity: 1, name: 'Sol Ring' },
+      expected: '1 Sol Ring',
+    },
+    {
+      label: 'set and collector number render as an uppercased printing suffix',
+      card: { quantity: 2, name: 'Lightning Bolt', set: '2xm', collectorNumber: '157' },
+      expected: '2 Lightning Bolt (2XM:157)',
+    },
+    {
+      label: 'set without collector number is not serialized',
+      card: { quantity: 1, name: 'Sol Ring', set: '2xm' },
+      expected: '1 Sol Ring',
+    },
+    {
+      label: 'foil finish is included',
+      card: { quantity: 1, name: 'Mana Crypt', set: '2xm', collectorNumber: '1', finish: 'foil' },
+      expected: '1 Mana Crypt (2XM:1) [foil]',
+    },
+    {
+      label: 'etched finish is included',
+      card: { quantity: 1, name: 'Ancient Tomb', finish: 'etched' },
+      expected: '1 Ancient Tomb [etched]',
+    },
+    {
+      label: 'non-NM condition is included',
+      card: { quantity: 3, name: 'Island', set: 'sld', collectorNumber: '63', condition: 'LP' },
+      expected: '3 Island (SLD:63) [LP]',
+    },
+    {
+      label: 'note is wrapped in braces',
+      card: { quantity: 2, name: 'Sol Ring', note: 'starts the engine', cardId: 1 },
+      expected: '2 Sol Ring {starts the engine} &1',
+    },
+    {
+      label: 'empty note is omitted',
+      card: { quantity: 1, name: 'Sol Ring', note: '' },
+      expected: '1 Sol Ring',
+    },
+    {
+      label: 'cardId appends the &N suffix',
+      card: { quantity: 1, name: 'Sol Ring', cardId: 5 },
+      expected: '1 Sol Ring &5',
+    },
+  ]
+
+  for (const { label, card, expected } of cases) {
+    it(label, () => {
+      expect(serializeCardLine(card)).toBe(expected)
+    })
+  }
+
   it('uppercases the set code and appends finish, condition, note, and id', () => {
     expect(
       serializeCardLine({

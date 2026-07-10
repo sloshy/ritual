@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
-import { loginAsAdmin } from '../helpers/auth-helper'
+import { gotoAdminDashboard } from '../helpers/auth-helper'
+import { fulfillJsonRoute } from '../helpers/fulfill'
 import type { ArchidektLoginStatus } from '../../../src/auth/interfaces'
 
 const NOT_LOGGED_IN: ArchidektLoginStatus = {
@@ -40,20 +41,16 @@ async function mockArchidekt(
 ): Promise<void> {
   await page.route('**/api/login/archidekt', async (route) => {
     if (route.request().method() === 'GET') {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(status),
-      })
+      await fulfillJsonRoute(route, status)
     } else {
-      await route.fulfill({
-        status: loginSuccess ? 200 : 401,
-        contentType: 'application/json',
-        body: JSON.stringify({
+      await fulfillJsonRoute(
+        route,
+        {
           success: loginSuccess,
           message: loginSuccess ? 'Logged in to Archidekt' : 'Login failed',
-        }),
-      })
+        },
+        loginSuccess ? 200 : 401,
+      )
     }
   })
 }
@@ -65,7 +62,7 @@ async function gotoArchidekt(page: Page): Promise<void> {
 
 test.describe('Archidekt Login Page', () => {
   test.beforeEach(async ({ page }) => {
-    await loginAsAdmin(page)
+    await gotoAdminDashboard(page)
   })
 
   test('login button enables only when both fields are filled', async ({ page }) => {

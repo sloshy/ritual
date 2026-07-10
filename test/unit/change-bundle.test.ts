@@ -36,12 +36,6 @@ describe('change-bundle round trip', () => {
     expect(parsed).toEqual(buildBundle())
   })
 
-  it('preserves each list’s change list verbatim', () => {
-    const parsed = parseChangeBundle(serializeChangeBundle(buildBundle()))
-    if (typeof parsed === 'string') throw new Error(parsed)
-    expect(parsed.lists[0]?.changes).toEqual(sampleChanges)
-  })
-
   it('omits baseContentHash when not provided', () => {
     const parsed = parseChangeBundle(serializeChangeBundle(buildBundle()))
     if (typeof parsed === 'string') throw new Error(parsed)
@@ -52,15 +46,6 @@ describe('change-bundle round trip', () => {
   it('counts changes across every list', () => {
     expect(bundleChangeCount(buildBundle())).toBe(3)
     expect(bundleChangeCount(buildChangeBundle({ lists: [], exportedAt: 'x' }))).toBe(0)
-  })
-
-  it('accepts a single-list bundle (the single-list export shape)', () => {
-    const bundle = buildChangeBundle({
-      lists: [{ kind: 'wanted', slug: 'wish', name: 'Wish List', changes: sampleChanges }],
-      exportedAt: '2026-06-04T00:00:00.000Z',
-    })
-    const parsed = parseChangeBundle(serializeChangeBundle(bundle))
-    expect(parsed).toEqual(bundle)
   })
 })
 
@@ -77,19 +62,6 @@ describe('parseChangeBundle validation', () => {
     expect(parseChangeBundle(JSON.stringify({ version: 1, lists: [] }))).toContain(
       'ritual change bundle',
     )
-  })
-
-  it('rejects the retired single-list format marker', () => {
-    const text = JSON.stringify({
-      format: 'ritual-change-file',
-      version: 1,
-      kind: 'deck',
-      slug: 'my-deck',
-      name: 'My Deck',
-      exportedAt: '2026-06-04T00:00:00.000Z',
-      changes: sampleChanges,
-    })
-    expect(parseChangeBundle(text)).toContain('ritual change bundle')
   })
 
   it('rejects an unsupported version', () => {

@@ -21,19 +21,12 @@ describe('scoreMatch', () => {
     expect(scoreMatch('Klauth, Unrivaled Ancient', 'karl')).toBe(-1)
   })
 
-  test('strict substring: "karl" must NOT match "O\'aka, Traveling Merchant"', () => {
-    expect(scoreMatch("O'aka, Traveling Merchant", 'karl')).toBe(-1)
-  })
-
   test('strict substring: "karl" matches "Karlach"', () => {
     expect(scoreMatch('Karlach', 'karl')).toBeGreaterThan(0)
   })
 
-  test('case-insensitive matching', () => {
-    expect(scoreMatch('LIGHTNING BOLT', 'lightning')).toBeGreaterThan(0)
-    expect(scoreMatch('lightning bolt', 'LIGHTNING')).toBeGreaterThan(0)
-  })
-
+  // Casing/diacritic folding itself is normalizeForSearch's job (pinned in
+  // term-match.test.ts); this proves scoreMatch normalizes both name and query.
   test('diacritic-insensitive matching', () => {
     expect(scoreMatch('Téferi, Hero of Dominaria', 'teferi')).toBeGreaterThan(0)
     expect(scoreMatch('Teferi, Hero of Dominaria', 'téferi')).toBeGreaterThan(0)
@@ -57,10 +50,7 @@ describe('scoreMatch', () => {
     expect(scoreMatch('Lightning Bolt', '  lightning   bolt  ')).toBeGreaterThan(0)
   })
 
-  test('term that contains a space-equivalent is treated as one substring when not space-split', () => {
-    // "lightning bolt" matches because "lightning" and "bolt" both appear
-    expect(scoreMatch('Lightning Bolt', 'lightning bolt')).toBeGreaterThan(0)
-    // But a single quoted-like term with a hyphen still matches as a literal substring
+  test('hyphenated query term is not split and matches as a literal substring', () => {
     expect(scoreMatch('Mind-Numbing Terror', 'mind-numbing')).toBeGreaterThan(0)
   })
 })

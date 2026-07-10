@@ -1,8 +1,53 @@
 import { test, expect } from '@playwright/test'
-import { mockPublicSiteIndexLists } from '../helpers/mock-data'
+import { mockPublicSiteIndexLists } from '../helpers/mock-public-site'
 
 const NAME = '.deck-cover .cover-info h2'
 const REVERSE = '.toolbar button.toolbar-toggle'
+
+test.describe('Deck index toolbar', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockPublicSiteIndexLists(page)
+    await page.goto('/')
+    await expect(page.locator('h1')).toContainText('My Decks')
+    await expect(page.locator('.deck-cover').first()).toBeVisible()
+  })
+
+  test('sorts alphabetically, reverses, and groups by format', async ({ page }) => {
+    const toolbar = page.locator('.toolbar').first()
+    const groupSelect = toolbar.locator('select').first()
+
+    // Defaults to alphabetical.
+    expect(await page.locator(NAME).allTextContents()).toEqual([
+      'Aggro Alpha',
+      'Midrange Mike',
+      'Zoo Zebra',
+    ])
+
+    // Reverse flips the current order.
+    const reverse = page.locator(REVERSE, { hasText: /^↑↓ Reverse$/ })
+    await reverse.click()
+    expect(await page.locator(NAME).allTextContents()).toEqual([
+      'Zoo Zebra',
+      'Midrange Mike',
+      'Aggro Alpha',
+    ])
+    await reverse.click()
+
+    // Grouping by format renders one titled section per format, in order of
+    // first appearance, with each deck filed under its own format.
+    await groupSelect.selectOption('format')
+    expect(await page.locator('.deck-index-group-title').allTextContents()).toEqual([
+      'Modern',
+      'Commander',
+    ])
+    const groups = page.locator('.deck-index-group')
+    expect(await groups.nth(0).locator(NAME).allTextContents()).toEqual([
+      'Aggro Alpha',
+      'Zoo Zebra',
+    ])
+    expect(await groups.nth(1).locator(NAME).allTextContents()).toEqual(['Midrange Mike'])
+  })
+})
 
 test.describe('Collection index toolbar', () => {
   test.beforeEach(async ({ page }) => {

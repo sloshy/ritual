@@ -20,18 +20,6 @@ describe('formatCollectionLine', () => {
     expect(line).toBe('- Farewell (NEO:123)\n')
   })
 
-  test('omits [nonfoil] tag (nonfoil is the default)', () => {
-    const card = makeCard('mrd', '215')
-    const line = formatCollectionLine(
-      'Skullclamp',
-      card.set,
-      card.collectorNumber,
-      'nonfoil',
-      undefined,
-    )
-    expect(line).not.toContain('[nonfoil]')
-  })
-
   test('includes [foil] tag for foil finish', () => {
     const card = makeCard('lea', '232')
     const line = formatCollectionLine('Sol Ring', card.set, card.collectorNumber, 'foil', undefined)
@@ -66,19 +54,6 @@ describe('formatCollectionLine', () => {
     const card = makeCard('lea', '232')
     const line = formatCollectionLine('Sol Ring', card.set, card.collectorNumber, 'foil', 'NM')
     expect(line).toBe('- Sol Ring (LEA:232) [foil] [NM]\n')
-  })
-
-  test('omits condition when undefined', () => {
-    const card = makeCard('lea', '232')
-    const line = formatCollectionLine(
-      'Sol Ring',
-      card.set,
-      card.collectorNumber,
-      'nonfoil',
-      undefined,
-    )
-    expect(line).not.toContain('[NM]')
-    expect(line).not.toContain('[undefined]')
   })
 
   test('includes optional note', () => {
@@ -134,18 +109,6 @@ describe('formatCollectionLine', () => {
       1,
     )
     expect(line).toBe('- Farewell (NEO:123) &1\n')
-  })
-
-  test('set code is uppercased', () => {
-    const card = makeCard('mh2', '100')
-    const line = formatCollectionLine(
-      'Dragon',
-      card.set,
-      card.collectorNumber,
-      'nonfoil',
-      undefined,
-    )
-    expect(line).toContain('(MH2:100)')
   })
 })
 

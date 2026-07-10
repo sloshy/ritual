@@ -9,6 +9,9 @@ const deckResponse = {
   publicId: '12345',
   name: 'Moxfield Deck',
   description: 'A description',
+  // The v3 API returns hasPrimer: null even for decks that do have primers,
+  // so the importer must always attempt the primer fetch regardless of it.
+  hasPrimer: null,
   boards: {
     mainboard: {
       cards: {
@@ -84,33 +87,6 @@ describe('Moxfield Importer', () => {
     const deck = await fetchMoxfieldDeck('12345', client)
 
     expect(deck.primer).toBe('Inline primer')
-  })
-
-  test('always attempts primer fetch regardless of hasPrimer field value', async () => {
-    // hasPrimer: null is what the v3 API returns even for decks that do have primers
-    let primerCalled = false
-    const deckNullHasPrimer = { ...deckResponse, hasPrimer: null }
-    const http: HttpClient = {
-      fetch: async (url: string | URL) => {
-        const urlStr = String(url)
-        if (urlStr.includes('/primer')) {
-          primerCalled = true
-          return new Response(JSON.stringify(primerResponse), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          })
-        }
-        return new Response(JSON.stringify(deckNullHasPrimer), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      },
-    }
-    const client = new MoxfieldClient(http)
-    const deck = await fetchMoxfieldDeck('12345', client)
-
-    expect(primerCalled).toBe(true)
-    expect(deck.primer).toBe('A primer')
   })
 
   test('does not attempt primer fetch when deck has no id', async () => {

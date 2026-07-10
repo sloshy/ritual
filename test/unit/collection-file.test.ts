@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { parseCollectionFile, resolveFinish, type CollectionEntry } from '../../src/collection-file'
-import type { ScryfallCard } from '../../src/types'
+import { makeScryfallCard } from '../test-utils'
 
 describe('parseCollectionFile', () => {
   test('parses card with set and collector number', () => {
@@ -11,6 +11,8 @@ describe('parseCollectionFile', () => {
     expect(entries[0]!.set).toBe('ecc')
     expect(entries[0]!.collectorNumber).toBe('55')
     expect(entries[0]!.quantity).toBe(1)
+    expect(entries[0]!.note).toBeUndefined()
+    expect(entries[0]!.cardId).toBeUndefined()
     expect(warnings).toHaveLength(0)
   })
 
@@ -103,13 +105,6 @@ describe('parseCollectionFile', () => {
     expect(entries[0]!.note).toBe('Signed by artist')
   })
 
-  test('card without note has undefined note field', () => {
-    const content = `- Arcane Signet (ECC:55)\n`
-    const { entries } = parseCollectionFile(content)
-    expect(entries).toHaveLength(1)
-    expect(entries[0]!.note).toBeUndefined()
-  })
-
   test('parses card ID suffix', () => {
     const content = `- Sol Ring (C19:221) [foil] [NM] &5\n`
     const { entries } = parseCollectionFile(content)
@@ -132,39 +127,7 @@ describe('parseCollectionFile', () => {
     expect(entries).toHaveLength(1)
     expect(entries[0]!.cardId).toBe(1)
   })
-
-  test('entry without card ID has undefined cardId', () => {
-    const content = `- Arcane Signet (ECC:55)\n`
-    const { entries } = parseCollectionFile(content)
-    expect(entries[0]!.cardId).toBeUndefined()
-  })
 })
-
-function makeCard(overrides: Partial<ScryfallCard> = {}): ScryfallCard {
-  return {
-    id: 'test-id',
-    name: 'Test Card',
-    cmc: 3,
-    mana_cost: '{2}{W}',
-    type_line: 'Creature — Human',
-    prices: {
-      usd: '2.50',
-      usd_foil: '5.00',
-      usd_etched: '8.00',
-      eur: null,
-      eur_foil: null,
-      tix: null,
-    },
-    finishes: ['nonfoil', 'foil'],
-    games: ['paper'],
-    set: 'FDN',
-    set_name: 'Foundation',
-    collector_number: '1',
-    rarity: 'rare',
-    color_identity: [],
-    ...overrides,
-  }
-}
 
 function makeEntry(overrides: Partial<CollectionEntry> = {}): CollectionEntry {
   return {
@@ -179,14 +142,16 @@ function makeEntry(overrides: Partial<CollectionEntry> = {}): CollectionEntry {
 
 describe('resolveFinish', () => {
   test('uses entry finish if specified', () => {
-    expect(resolveFinish(makeEntry({ finish: 'foil' }), makeCard())).toBe('foil')
+    expect(resolveFinish(makeEntry({ finish: 'foil' }), makeScryfallCard())).toBe('foil')
   })
 
   test('defaults to nonfoil if card supports it', () => {
-    expect(resolveFinish(makeEntry(), makeCard({ finishes: ['nonfoil', 'foil'] }))).toBe('nonfoil')
+    expect(resolveFinish(makeEntry(), makeScryfallCard({ finishes: ['nonfoil', 'foil'] }))).toBe(
+      'nonfoil',
+    )
   })
 
   test('defaults to first finish if nonfoil not available', () => {
-    expect(resolveFinish(makeEntry(), makeCard({ finishes: ['foil'] }))).toBe('foil')
+    expect(resolveFinish(makeEntry(), makeScryfallCard({ finishes: ['foil'] }))).toBe('foil')
   })
 })

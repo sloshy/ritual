@@ -19,6 +19,11 @@ let binaryReady = false
  */
 export async function ensureBinary(): Promise<void> {
   if (binaryReady) return
+  // The test:it script already ran a build; don't pay for a second one.
+  if (process.env.RITUAL_IT_PREBUILT === '1' && (await Bun.file(binaryPath).exists())) {
+    binaryReady = true
+    return
+  }
   const build = Bun.spawn(['bun', 'run', 'build'], {
     cwd: repoRoot,
     stdout: 'pipe',

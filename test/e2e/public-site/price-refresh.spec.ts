@@ -1,26 +1,26 @@
-import { test, expect, type Route } from '@playwright/test'
-import { mockPublicSiteDeckWithMultipleSections } from '../helpers/mock-data'
+import { test, expect } from '@playwright/test'
+import type { ScryfallCard } from '../../../src/types'
+import { fulfillJson } from '../helpers/fulfill'
+import { makeMockScryfallCard } from '../helpers/mock-cards'
+import { mockPublicSiteDeckWithMultipleSections } from '../helpers/mock-public-site'
 
 /** A Scryfall card shape sufficient for the deck page's price + display reads. */
-function scryfallCard(id: string, name: string, usd: string, collectorNumber: string) {
-  return {
+function scryfallCard(
+  id: string,
+  name: string,
+  usd: string,
+  collectorNumber: string,
+): ScryfallCard {
+  return makeMockScryfallCard({
     id,
     name,
     cmc: 2,
     type_line: 'Creature',
-    oracle_text: '',
     mana_cost: '{1}',
-    image_uris: { small: '', normal: '', large: '', png: '', art_crop: '', border_crop: '' },
-    prices: { usd, usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
-    finishes: ['nonfoil'],
-    games: ['paper'],
-    set: 'tst',
-    set_name: 'Test Set',
+    prices: { usd },
     collector_number: collectorNumber,
-    rarity: 'common',
-    color_identity: [],
     edhrec_rank: 1000,
-  }
+  })
 }
 
 test.describe('Public price refresh', () => {
@@ -32,7 +32,7 @@ test.describe('Public price refresh', () => {
     includeArtifact = false
     await mockPublicSiteDeckWithMultipleSections(page)
 
-    await page.route('**/cards/collection', async (route: Route) => {
+    await fulfillJson(page, '**/cards/collection', () => {
       const data = [
         scryfallCard('creature-id', 'Test Creature', '10.00', '1'),
         scryfallCard('creature-b-id', 'Alpha Creature', '0.75', '4'),
@@ -41,11 +41,7 @@ test.describe('Public price refresh', () => {
       const notFound: { id: string }[] = []
       if (includeArtifact) data.push(scryfallCard('artifact-id', 'Test Artifact', '2.00', '3'))
       else notFound.push({ id: 'artifact-id' })
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ data, not_found: notFound }),
-      })
+      return { data, not_found: notFound }
     })
 
     await page.goto('#/deck/test-multi-section-deck')

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mockPublicSiteCollection } from '../helpers/mock-data'
+import { mockPublicSiteCollection } from '../helpers/mock-public-site'
 import { openFilterMenu } from '../helpers/filter-menu'
 
 test.describe('Collection Toolbar – Hide Unpriced', () => {
@@ -12,40 +12,23 @@ test.describe('Collection Toolbar – Hide Unpriced', () => {
     await page.waitForSelector('.card-list', { timeout: 10_000 })
   })
 
-  test('both priced and unpriced cards are visible by default', async ({ page }) => {
-    const cardNames = await page.locator('.list-name').allTextContents()
+  test('Hide Unpriced hides unpriced cards and restores them when disabled', async ({ page }) => {
+    // Both priced and unpriced cards are visible by default.
+    let cardNames = await page.locator('.list-name').allTextContents()
     expect(cardNames).toContain('Priced Card')
     expect(cardNames).toContain('Unpriced Card')
-  })
 
-  test('Hide Unpriced toggle is present in the Filters menu', async ({ page }) => {
+    // Enabling the toggle removes unpriced cards and keeps priced ones.
     await openFilterMenu(page)
     const toggle = page.getByRole('button', { name: 'Hide Unpriced' })
-    await expect(toggle).toBeVisible()
     await expect(toggle).toHaveAttribute('aria-pressed', 'false')
-  })
-
-  test('enabling Hide Unpriced removes unpriced cards and keeps priced cards', async ({ page }) => {
-    await openFilterMenu(page)
-    const toggle = page.getByRole('button', { name: 'Hide Unpriced' })
-
     await toggle.click()
     await expect(toggle).toHaveAttribute('aria-pressed', 'true')
-
-    const cardNames = await page.locator('.list-name').allTextContents()
+    cardNames = await page.locator('.list-name').allTextContents()
     expect(cardNames).toContain('Priced Card')
     expect(cardNames).not.toContain('Unpriced Card')
-  })
 
-  test('disabling Hide Unpriced restores unpriced cards', async ({ page }) => {
-    await openFilterMenu(page)
-    const toggle = page.getByRole('button', { name: 'Hide Unpriced' })
-
-    await toggle.click()
-    await expect(toggle).toHaveAttribute('aria-pressed', 'true')
-    let cardNames = await page.locator('.list-name').allTextContents()
-    expect(cardNames).not.toContain('Unpriced Card')
-
+    // Disabling restores the unpriced cards.
     await toggle.click()
     await expect(toggle).toHaveAttribute('aria-pressed', 'false')
     cardNames = await page.locator('.list-name').allTextContents()

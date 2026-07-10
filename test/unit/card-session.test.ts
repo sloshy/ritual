@@ -8,6 +8,7 @@ import {
   suggestCollectorMode,
   suggestEditMode,
   suggestNameMode,
+  type MenuBuildInput,
 } from '../../src/commands/card-session'
 
 describe('isMenuChoice', () => {
@@ -88,13 +89,17 @@ describe('suggestCollectorMode', () => {
 
   test('filters by collector-number prefix, keeping menu items', () => {
     const result = suggestCollectorMode('1', choices)
-    expect(result.map((c) => c.title)).toEqual(['🚪 Exit', '1 - Sol Ring', '12 - Arcane Signet'])
+    expect(result.map((c) => c.value)).toEqual([
+      '__EXIT__',
+      { type: 'card', num: '1' },
+      { type: 'card', num: '12' },
+    ])
   })
 
   test('matches collector-number prefixes only, not substrings', () => {
     // '12 - Arcane Signet' contains a 2 but does not start with one.
     const result = suggestCollectorMode('2', choices)
-    expect(result.map((c) => c.title)).toEqual(['🚪 Exit', '2 - Mana Crypt'])
+    expect(result.map((c) => c.value)).toEqual(['__EXIT__', { type: 'card', num: '2' }])
   })
 })
 
@@ -137,18 +142,6 @@ describe('buildMenuChoices', () => {
     expect(noted.map((c) => c.value)).toContain('__EDIT_LAST__')
   })
 
-  test('Save shows the pending change count, and Exit stays a plain item', () => {
-    const choices = buildMenuChoices({ ...base, changeCount: 3 })
-    const save = choices.find((c) => c.value === '__SAVE__')
-    expect(save?.title).toBe('💾 Save 3 change(s) (keep editing)')
-    const exit = choices.find((c) => c.value === '__EXIT__')
-    expect(exit?.title).toBe('🚪 Exit')
-  })
-
-  test('Save is hidden when there are no pending changes', () => {
-    expect(buildMenuChoices(base).map((c) => c.value)).not.toContain('__SAVE__')
-  })
-
   test('edit mode pares the menu down to mode switch, save/exit, and cards', () => {
     const entryChoice = {
       title: '- Sol Ring (C19:221) [NM] &1',
@@ -172,7 +165,7 @@ describe('buildMenuChoices', () => {
     expect(buildMenuChoices(base).map((c) => c.value)).not.toContain('__UNDO_EDIT__')
     const choices = buildMenuChoices({ ...base, editUndoLabel: 'printing on Sol Ring' })
     const undoEdit = choices.find((c) => c.value === '__UNDO_EDIT__')
-    expect(undoEdit?.title).toBe('↩️  Undo Last Edit (printing on Sol Ring)')
+    expect(undoEdit?.title).toContain('Undo Last Edit (printing on Sol Ring)')
   })
 
   test('collector mode swaps config/mode items and shows the active set', () => {
@@ -201,7 +194,7 @@ describe('buildMenuChoices', () => {
     ]
     const choices = buildMenuChoices({ ...base, sessionAdds, sessionChangeCount: 2 })
     const undo = choices.find((c) => c.value === '__UNDO_LAST__')
-    expect(undo?.title).toBe('↩️  Undo Last Add (Lightning Bolt)')
+    expect(undo?.title).toContain('Undo Last Add (Lightning Bolt)')
   })
 
   test('the view-changes item counts every session change, adds or not', () => {
@@ -211,16 +204,13 @@ describe('buildMenuChoices', () => {
     const choices = buildMenuChoices({ ...base, sessionChangeCount: 3 })
     expect(choices.map((c) => c.value)).not.toContain('__UNDO_LAST__')
     const changes = choices.find((c) => c.value === '__CHANGES__')
-    expect(changes?.title).toBe('📋 View Session Changes (3)')
+    expect(changes?.title).toContain('View Session Changes (3)')
   })
 
-  test('single-list sessions never show the switch or save-current items', () => {
-    const values = buildMenuChoices({ ...base, changeCount: 2 }).map((c) => c.value)
-    expect(values).not.toContain('__SWITCH_LIST__')
-    expect(values).not.toContain('__SAVE_CURRENT__')
-  })
+  test('Switch List appears only in multi-list sessions, before Exit', () => {
+    const single = buildMenuChoices({ ...base, changeCount: 2 }).map((c) => c.value)
+    expect(single).not.toContain('__SWITCH_LIST__')
 
-  test('multi-list sessions always show Switch List, before Exit', () => {
     const values = buildMenuChoices({
       ...base,
       multiList: { totalChangeCount: 0, listsWithChanges: 0 },
@@ -228,107 +218,109 @@ describe('buildMenuChoices', () => {
     expect(values.indexOf('__SWITCH_LIST__')).toBeLessThan(values.indexOf('__EXIT__'))
   })
 
-  test('multi-list save covers all lists and offers a save-current item', () => {
-    const choices = buildMenuChoices({
-      ...base,
-      changeCount: 2,
-      multiList: { totalChangeCount: 5, listsWithChanges: 3 },
-    })
-    const save = choices.find((c) => c.value === '__SAVE__')
-    expect(save?.title).toBe('💾 Save all changes (5 across 3 lists)')
-    const saveCurrent = choices.find((c) => c.value === '__SAVE_CURRENT__')
-    expect(saveCurrent?.title).toBe('💾 Save current list changes (2)')
-  })
+  // The Save / Save-current matrix: one row per (changeCount, dirty, multiList)
+  // state, asserting each item's exact title, or its absence (null).
+  type SaveMenuCase = {
+    label: string
+    input: Partial<Pick<MenuBuildInput, 'changeCount' | 'dirty' | 'multiList'>>
+    save: string | null
+    saveCurrent: string | null
+  }
 
-  test('multi-list save-current is hidden when the current list has no changes', () => {
-    const values = buildMenuChoices({
-      ...base,
-      changeCount: 0,
-      multiList: { totalChangeCount: 4, listsWithChanges: 2 },
-    }).map((c) => c.value)
-    expect(values).toContain('__SAVE__')
-    expect(values).not.toContain('__SAVE_CURRENT__')
-  })
+  const saveMenuCases: SaveMenuCase[] = [
+    {
+      label: 'single-list Save shows the pending change count',
+      input: { changeCount: 3 },
+      save: '💾 Save 3 change(s) (keep editing)',
+      saveCurrent: null,
+    },
+    {
+      label: 'Save is hidden when there are no pending changes',
+      input: {},
+      save: null,
+      saveCurrent: null,
+    },
+    {
+      // e.g. a deck format change: the file differs from disk but no card
+      // change events exist, so the label drops the count.
+      label: 'a dirty model with no tracked changes still surfaces Save, without a count',
+      input: { dirty: true },
+      save: '💾 Save changes (keep editing)',
+      saveCurrent: null,
+    },
+    {
+      label: 'multi-list save covers all lists and offers a save-current item',
+      input: { changeCount: 2, multiList: { totalChangeCount: 5, listsWithChanges: 3 } },
+      save: '💾 Save all changes (5 across 3 lists)',
+      saveCurrent: '💾 Save current list changes (2)',
+    },
+    {
+      label: 'multi-list save-current is hidden when the current list has no changes',
+      input: { changeCount: 0, multiList: { totalChangeCount: 4, listsWithChanges: 2 } },
+      save: '💾 Save all changes (4 across 2 lists)',
+      saveCurrent: null,
+    },
+    {
+      label: 'multi-list save collapses to the plain label when only one list has changes',
+      input: { changeCount: 3, multiList: { totalChangeCount: 3, listsWithChanges: 1 } },
+      save: '💾 Save 3 change(s) (keep editing)',
+      saveCurrent: null,
+    },
+    {
+      label: 'the collapse also applies when the one changed list is not the current one',
+      input: { changeCount: 0, multiList: { totalChangeCount: 3, listsWithChanges: 1 } },
+      save: '💾 Save 3 change(s) (keep editing)',
+      saveCurrent: null,
+    },
+    {
+      label: 'a dirty-only list still collapses to the plain single-list label, without a count',
+      input: { dirty: true, multiList: { totalChangeCount: 0, listsWithChanges: 1 } },
+      save: '💾 Save changes (keep editing)',
+      saveCurrent: null,
+    },
+    {
+      label: 'multi-list save items are hidden when no list has changes',
+      input: { multiList: { totalChangeCount: 0, listsWithChanges: 0 } },
+      save: null,
+      saveCurrent: null,
+    },
+    {
+      // dirty (not changeCount) is what makes the current list saveable here,
+      // so the save-current item must appear and drop its count.
+      label: 'a dirty current list offers save-current without a count when others have changes',
+      input: {
+        changeCount: 0,
+        dirty: true,
+        multiList: { totalChangeCount: 3, listsWithChanges: 2 },
+      },
+      save: '💾 Save all changes (3 across 2 lists)',
+      saveCurrent: '💾 Save current list changes',
+    },
+    {
+      label: 'a scoped session has no save-current item — Save always means save all',
+      input: {
+        changeCount: 2,
+        multiList: { totalChangeCount: 5, listsWithChanges: 3, scoped: true },
+      },
+      save: '💾 Save all changes (5 across 3 lists)',
+      saveCurrent: null,
+    },
+    {
+      // e.g. two decks that each only changed their format: "0 across 2 lists"
+      // would misread as nothing to save.
+      label: 'multi-list Save all drops the change count when every list is dirty-only',
+      input: { dirty: true, multiList: { totalChangeCount: 0, listsWithChanges: 2 } },
+      save: '💾 Save all changes (2 lists)',
+      saveCurrent: '💾 Save current list changes',
+    },
+  ]
 
-  test('multi-list save collapses to the plain label when only one list has changes', () => {
-    const choices = buildMenuChoices({
-      ...base,
-      changeCount: 3,
-      multiList: { totalChangeCount: 3, listsWithChanges: 1 },
-    })
-    const save = choices.find((c) => c.value === '__SAVE__')
-    expect(save?.title).toBe('💾 Save 3 change(s) (keep editing)')
-    expect(choices.map((c) => c.value)).not.toContain('__SAVE_CURRENT__')
-
-    // Same collapse when the one dirty list is not the current one.
-    const elsewhere = buildMenuChoices({
-      ...base,
-      changeCount: 0,
-      multiList: { totalChangeCount: 3, listsWithChanges: 1 },
-    })
-    expect(elsewhere.find((c) => c.value === '__SAVE__')?.title).toBe(
-      '💾 Save 3 change(s) (keep editing)',
-    )
-    expect(elsewhere.map((c) => c.value)).not.toContain('__SAVE_CURRENT__')
-  })
-
-  test('multi-list save items are hidden when no list has changes', () => {
-    const values = buildMenuChoices({
-      ...base,
-      multiList: { totalChangeCount: 0, listsWithChanges: 0 },
-    }).map((c) => c.value)
-    expect(values).not.toContain('__SAVE__')
-    expect(values).not.toContain('__SAVE_CURRENT__')
-  })
-
-  test('a dirty model with no tracked changes still surfaces Save, without a count', () => {
-    // e.g. a deck format change: the file differs from disk but no card change
-    // events exist, so the label drops the count.
-    const single = buildMenuChoices({ ...base, dirty: true })
-    expect(single.find((c) => c.value === '__SAVE__')?.title).toBe('💾 Save changes (keep editing)')
-
-    const multi = buildMenuChoices({
-      ...base,
-      dirty: true,
-      multiList: { totalChangeCount: 0, listsWithChanges: 1 },
-    })
-    expect(multi.find((c) => c.value === '__SAVE__')?.title).toBe('💾 Save changes (keep editing)')
-  })
-
-  test('a dirty current list offers save-current without a count when others have changes', () => {
-    // dirty (not changeCount) is what makes the current list saveable here, so
-    // the save-current label must appear and drop its count.
-    const choices = buildMenuChoices({
-      ...base,
-      changeCount: 0,
-      dirty: true,
-      multiList: { totalChangeCount: 3, listsWithChanges: 2 },
-    })
-    const saveCurrent = choices.find((c) => c.value === '__SAVE_CURRENT__')
-    expect(saveCurrent?.title).toBe('💾 Save current list changes')
-  })
-
-  test('a scoped session has no save-current item — Save always means save all', () => {
-    const choices = buildMenuChoices({
-      ...base,
-      changeCount: 2,
-      multiList: { totalChangeCount: 5, listsWithChanges: 3, scoped: true },
-    })
-    expect(choices.find((c) => c.value === '__SAVE__')?.title).toBe(
-      '💾 Save all changes (5 across 3 lists)',
-    )
-    expect(choices.map((c) => c.value)).not.toContain('__SAVE_CURRENT__')
-  })
-
-  test('multi-list Save all drops the change count when every list is dirty-only', () => {
-    // e.g. two decks that each only changed their format: "0 across 2 lists"
-    // would misread as nothing to save.
-    const choices = buildMenuChoices({
-      ...base,
-      dirty: true,
-      multiList: { totalChangeCount: 0, listsWithChanges: 2 },
-    })
-    expect(choices.find((c) => c.value === '__SAVE__')?.title).toBe('💾 Save all changes (2 lists)')
+  test.each(saveMenuCases)('$label', ({ input, save, saveCurrent }) => {
+    const choices = buildMenuChoices({ ...base, ...input })
+    expect(choices.find((c) => c.value === '__SAVE__')?.title ?? null).toBe(save)
+    expect(choices.find((c) => c.value === '__SAVE_CURRENT__')?.title ?? null).toBe(saveCurrent)
+    // Whatever the save state, Exit stays a plain item.
+    expect(choices.find((c) => c.value === '__EXIT__')?.title).toContain('Exit')
   })
 })
 

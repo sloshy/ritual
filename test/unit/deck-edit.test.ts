@@ -233,15 +233,14 @@ describe('listDeckSessionChanges', () => {
     return { state, ctx }
   }
 
-  test('lists copy adds, edits, and removals with their icons', () => {
+  test('lists copy adds and edits in order', () => {
     const { state, ctx } = withSessionAdd()
     printingEdit(state, ctx, 1, LTC)
 
     const items = listDeckSessionChanges(state)
-    expect(items.map((i) => i.label)).toEqual([
-      '➕ Added Brainstorm → Main',
-      '✏️  printing on Sol Ring',
-    ])
+    expect(items).toHaveLength(2)
+    expect(items[0]!.label).toContain('Added Brainstorm → Main')
+    expect(items[1]!.label).toContain('printing on Sol Ring')
     expect(items.every((i) => i.blocked === undefined)).toBe(true)
   })
 

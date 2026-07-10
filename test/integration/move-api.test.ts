@@ -1,12 +1,17 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import { execSync } from 'node:child_process'
 import * as fs from 'node:fs/promises'
-import * as os from 'node:os'
-import * as path from 'node:path'
-import { setBaseDir, getBaseDir } from '../../src/base-dir'
-import { resetRitualConfigCache, getDefaultRitualConfig } from '../../src/ritual-config'
+import { getDefaultRitualConfig } from '../../src/ritual-config'
 import { handleMoveData, handleMoveCommit } from '../../src/admin/api/move'
 import type { MoveDataResponse, MovePhysicalCard } from '../../src/admin/api/move'
+import {
+  bindWorkspace,
+  initGitRepo,
+  writeCollectionFile,
+  writeConfig,
+  writeWantedFile,
+  type BoundWorkspace,
+} from './helpers/workspace'
 
 /**
  * End-to-end coverage for the admin move endpoints. Exercises the slug-based key
@@ -14,23 +19,16 @@ import type { MoveDataResponse, MovePhysicalCard } from '../../src/admin/api/mov
  * from disk) and the destination printing override used for collection moves.
  */
 
+let ws: BoundWorkspace
 let tmpDir: string
-let originalBase: string
 
 beforeEach(async () => {
-  originalBase = getBaseDir()
-  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'move-api-'))
-  await fs.mkdir(path.join(tmpDir, 'decks'), { recursive: true })
-  await fs.mkdir(path.join(tmpDir, 'collections'), { recursive: true })
-  await fs.mkdir(path.join(tmpDir, 'wanted'), { recursive: true })
-  setBaseDir(tmpDir)
-  resetRitualConfigCache()
+  ws = await bindWorkspace({ config: false })
+  tmpDir = ws.dir
 })
 
 afterEach(async () => {
-  setBaseDir(originalBase)
-  resetRitualConfigCache()
-  await fs.rm(tmpDir, { recursive: true, force: true })
+  await ws.dispose()
 })
 
 async function loadData(): Promise<MoveDataResponse> {
@@ -58,14 +56,14 @@ async function commit(
 
 describe('move API', () => {
   test('lists every list and card across the three list types', async () => {
-    await fs.writeFile(
-      path.join(tmpDir, 'collections', 'binder.md'),
-      '# Binder\n\n- Lightning Bolt (LEA:161) &1\n',
-    )
-    await fs.writeFile(
-      path.join(tmpDir, 'wanted', 'wishlist.md'),
-      '# Wishlist\n\n- Mana Crypt &1\n',
-    )
+    await writeCollectionFile(tmpDir, 'binder', {
+      title: 'Binder',
+      entries: [{ name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 }],
+    })
+    await writeWantedFile(tmpDir, 'wishlist', {
+      title: 'Wishlist',
+      entries: [{ name: 'Mana Crypt', cardId: 1 }],
+    })
 
     const data = await loadData()
     expect(data.success).toBe(true)
@@ -77,10 +75,13 @@ describe('move API', () => {
   })
 
   test('commits a move using the key issued by the load endpoint', async () => {
-    const srcPath = path.join(tmpDir, 'collections', 'src.md')
-    const dstPath = path.join(tmpDir, 'collections', 'dst.md')
-    await fs.writeFile(srcPath, '# Source\n\n- Lightning Bolt (LEA:161) [foil] &1\n')
-    await fs.writeFile(dstPath, '# Dest\n\n')
+    const srcPath = await writeCollectionFile(tmpDir, 'src', {
+      title: 'Source',
+      entries: [
+        { name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', finish: 'foil', cardId: 1 },
+      ],
+    })
+    const dstPath = await writeCollectionFile(tmpDir, 'dst', { title: 'Dest', entries: [] })
 
     const data = await loadData()
     const card = findCard(data, 'Lightning Bolt')
@@ -95,12 +96,14 @@ describe('move API', () => {
   })
 
   test('applies a destination printing override for a name-only card into a collection', async () => {
-    await fs.writeFile(
-      path.join(tmpDir, 'wanted', 'wishlist.md'),
-      '# Wishlist\n\n- Mana Crypt &1\n',
-    )
-    const binderPath = path.join(tmpDir, 'collections', 'binder.md')
-    await fs.writeFile(binderPath, '# Binder\n\n')
+    await writeWantedFile(tmpDir, 'wishlist', {
+      title: 'Wishlist',
+      entries: [{ name: 'Mana Crypt', cardId: 1 }],
+    })
+    const binderPath = await writeCollectionFile(tmpDir, 'binder', {
+      title: 'Binder',
+      entries: [],
+    })
 
     const data = await loadData()
     const card = findCard(data, 'Mana Crypt')
@@ -125,11 +128,11 @@ describe('move API', () => {
   })
 
   test('skips a move whose card key no longer resolves', async () => {
-    await fs.writeFile(
-      path.join(tmpDir, 'collections', 'src.md'),
-      '# Source\n\n- Sol Ring (C21:240) &1\n',
-    )
-    await fs.writeFile(path.join(tmpDir, 'collections', 'dst.md'), '# Dest\n\n')
+    await writeCollectionFile(tmpDir, 'src', {
+      title: 'Source',
+      entries: [{ name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 1 }],
+    })
+    await writeCollectionFile(tmpDir, 'dst', { title: 'Dest', entries: [] })
 
     const result = await commit([
       { cardKey: 'collection:src:999:0', toType: 'collection', toSlug: 'dst' },
@@ -140,27 +143,19 @@ describe('move API', () => {
   })
 
   test('auto-commits the written files when git auto-commit is enabled', async () => {
-    execSync('git init -q', { cwd: tmpDir })
-    execSync('git config user.email test@example.com', { cwd: tmpDir })
-    execSync('git config user.name "Ritual Test"', { cwd: tmpDir })
+    initGitRepo(tmpDir)
 
-    await fs.writeFile(
-      path.join(tmpDir, 'collections', 'src.md'),
-      '# Source\n\n- Sol Ring (C21:240) &1\n',
-    )
-    await fs.writeFile(path.join(tmpDir, 'collections', 'dst.md'), '# Dest\n\n')
+    await writeCollectionFile(tmpDir, 'src', {
+      title: 'Source',
+      entries: [{ name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 1 }],
+    })
+    await writeCollectionFile(tmpDir, 'dst', { title: 'Dest', entries: [] })
 
     // A full, valid admin config with git auto-commit enabled (so loadRitualConfig keeps it).
     const base = getDefaultRitualConfig()
-    await fs.writeFile(
-      path.join(tmpDir, 'ritual.config.json'),
-      JSON.stringify({
-        decksDir: './decks',
-        collectionsDir: './collections',
-        wantedDir: './wanted',
-        admin: { ...base.admin, gitEnabled: true, gitAutoCommit: true, gitAutoPush: false },
-      }),
-    )
+    await writeConfig(tmpDir, {
+      admin: { ...base.admin, gitEnabled: true, gitAutoCommit: true, gitAutoPush: false },
+    })
 
     const data = await loadData()
     const card = findCard(data, 'Sol Ring')

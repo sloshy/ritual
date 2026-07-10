@@ -1,9 +1,10 @@
 import { test, expect, type Page } from '@playwright/test'
+import { enterEditMode, gotoList, openSelectionMenu, selectCard } from '../helpers/list-ui'
 import {
   mockPublicSiteCollection,
   mockPublicSiteCollectionWithDuplicates,
   mockPublicSiteWantedList,
-} from '../helpers/mock-data'
+} from '../helpers/mock-public-site'
 
 /**
  * The public collection and wanted-list editors share the flat-list editor with
@@ -12,30 +13,17 @@ import {
  */
 
 async function enterEditAndRemoveOne(page: Page): Promise<void> {
-  await page.locator('.btn-edit').click()
-  await expect(page.locator('.edit-banner')).toBeVisible()
+  await enterEditMode(page)
   const firstCard = page.locator('.card-item').first()
   await firstCard.hover()
   await firstCard.locator('.edit-btn-decrement').click()
   await expect(page.locator('.changes-badge')).toHaveText('1')
 }
 
-async function selectFirstCard(page: Page): Promise<void> {
-  const card = page.locator('.card-item').first()
-  await card.locator('.card-binder').hover()
-  await card.locator('.card-select-checkbox').click()
-}
-
-async function openSelectionMenu(page: Page) {
-  await page.locator('.selection-menu-btn').click()
-  return page.locator('.selection-menu-panel')
-}
-
 test.describe('Public collection editor', () => {
   test.beforeEach(async ({ page }) => {
     await mockPublicSiteCollection(page)
-    await page.goto('#/collection/test-collection')
-    await page.waitForSelector('.card-item', { timeout: 15_000 })
+    await gotoList(page, '#/collection/test-collection')
   })
 
   test('edits, preserves edits across the original/edited toggle, and exports', async ({
@@ -58,21 +46,13 @@ test.describe('Public collection editor', () => {
     ).toBeEnabled()
   })
 
-  test('discard reverts pending changes', async ({ page }) => {
-    await enterEditAndRemoveOne(page)
-    await page.locator('.edit-banner button', { hasText: 'Discard' }).click()
-    await page.locator('.modal-shell .btn-danger').click()
-    await expect(page.locator('.changes-badge')).toHaveCount(0)
-  })
-
   test('"Remove a copy" stays hidden for single copies even with grouping on', async ({ page }) => {
-    await page.locator('.btn-edit').click()
-    await expect(page.locator('.edit-banner')).toBeVisible()
+    await enterEditMode(page)
 
     // Ungrouped: each tile is one copy, so only whole-entry removal is offered.
     const groupToggle = page.locator('.toolbar-toggle', { hasText: 'Group Duplicates' })
     await expect(groupToggle).toHaveAttribute('aria-pressed', 'false')
-    await selectFirstCard(page)
+    await selectCard(page, 0)
     let panel = await openSelectionMenu(page)
     await expect(panel.locator('.selection-menu-item', { hasText: 'Add a copy' })).toBeVisible()
     await expect(panel.locator('.selection-menu-item', { hasText: 'Remove a copy' })).toHaveCount(0)
@@ -86,7 +66,7 @@ test.describe('Public collection editor', () => {
     // leaves every tile a single copy — "Remove a copy" remains hidden. The gate is the
     // actual group size, not the toggle.
     await groupToggle.click()
-    await selectFirstCard(page)
+    await selectCard(page, 0)
     panel = await openSelectionMenu(page)
     await expect(panel.locator('.selection-menu-item', { hasText: 'Remove a copy' })).toHaveCount(0)
   })
@@ -95,16 +75,14 @@ test.describe('Public collection editor', () => {
 test.describe('Public collection editor — duplicate grouping', () => {
   test.beforeEach(async ({ page }) => {
     await mockPublicSiteCollectionWithDuplicates(page)
-    await page.goto('#/collection/dup-collection')
-    await page.waitForSelector('.card-item', { timeout: 15_000 })
+    await gotoList(page, '#/collection/dup-collection')
   })
 
   test('"Remove a copy" appears once duplicates merge into a quantity group', async ({ page }) => {
-    await page.locator('.btn-edit').click()
-    await expect(page.locator('.edit-banner')).toBeVisible()
+    await enterEditMode(page)
 
     // Ungrouped: the two copies are separate single-copy tiles, so no per-copy decrement.
-    await selectFirstCard(page)
+    await selectCard(page, 0)
     let panel = await openSelectionMenu(page)
     await expect(panel.locator('.selection-menu-item', { hasText: 'Remove a copy' })).toHaveCount(0)
     await panel.locator('.selection-menu-item', { hasText: 'Clear selection' }).click()
@@ -113,7 +91,7 @@ test.describe('Public collection editor — duplicate grouping', () => {
     // Grouping the two identical copies makes one quantity-2 tile, so "Remove a copy"
     // (decrement to one) becomes a distinct, meaningful action.
     await page.locator('.toolbar-toggle', { hasText: 'Group Duplicates' }).click()
-    await selectFirstCard(page)
+    await selectCard(page, 0)
     panel = await openSelectionMenu(page)
     await expect(panel.locator('.selection-menu-item', { hasText: 'Remove a copy' })).toBeVisible()
   })
@@ -122,12 +100,19 @@ test.describe('Public collection editor — duplicate grouping', () => {
 test.describe('Public wanted-list editor', () => {
   test.beforeEach(async ({ page }) => {
     await mockPublicSiteWantedList(page)
-    await page.goto('#/wanted/test-wanted-list')
-    await page.waitForSelector('.card-item', { timeout: 15_000 })
+    await gotoList(page, '#/wanted/test-wanted-list')
   })
 
   test('edits a local copy and exports a change list', async ({ page }) => {
     await enterEditAndRemoveOne(page)
+
+    // The wanted page's selection menu is wired to the editor: it offers the
+    // "Add a copy" edit action while a card is selected.
+    await selectCard(page, 0)
+    const panel = await openSelectionMenu(page)
+    await expect(panel.locator('.selection-menu-item', { hasText: 'Add a copy' })).toBeVisible()
+    await panel.locator('.selection-menu-item', { hasText: 'Clear selection' }).click()
+    await expect(page.locator('.selection-menu-btn')).toHaveCount(0)
 
     await page.locator('.edit-banner .btn-export').click()
     await expect(page.locator('.export-panel')).toContainText('1 change')
@@ -137,15 +122,5 @@ test.describe('Public wanted-list editor', () => {
     await expect(
       page.locator('.export-panel button', { hasText: 'updated wanted list' }),
     ).toBeEnabled()
-  })
-
-  test('"Remove a copy" is never offered (wanted entries are single)', async ({ page }) => {
-    await page.locator('.btn-edit').click()
-    await expect(page.locator('.edit-banner')).toBeVisible()
-
-    await selectFirstCard(page)
-    const panel = await openSelectionMenu(page)
-    await expect(panel.locator('.selection-menu-item', { hasText: 'Add a copy' })).toBeVisible()
-    await expect(panel.locator('.selection-menu-item', { hasText: 'Remove a copy' })).toHaveCount(0)
   })
 })

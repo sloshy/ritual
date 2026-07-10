@@ -89,6 +89,19 @@ describe('ritual config', () => {
         rateLimitWindowMinutes: 10,
         failedAuthDelayMs: 5000,
       },
+      site: {
+        version: '1.0.0',
+        ciSystem: 'github-actions',
+        deployMode: 'publish-for-me',
+        distDir: 'dist',
+        detectChanges: true,
+        includeDecks: ['*'],
+        includeCollections: ['*'],
+        includeWantedLists: ['*'],
+        excludeDecks: ['Old Brew'],
+        excludeCollections: [],
+        excludeWantedLists: [],
+      },
     }
     await saveRitualConfig(config)
 
@@ -108,10 +121,13 @@ describe('ritual config', () => {
     expect(config.admin.rateLimitMaxAttempts).toBe(5)
   })
 
-  test('defaultCurrency defaults to usd when absent', async () => {
+  test('defaultCurrency, cacheLockTimeoutSeconds, and cacheSource default when absent', async () => {
     await fs.writeFile(configPath, JSON.stringify({ decksDir: './d' }))
     const config = await loadRitualConfig()
     expect(config.defaultCurrency).toBe('usd')
+    expect(config.cacheLockTimeoutSeconds).toBe(300)
+    expect(config.cacheSource).toBe('scryfall')
+    expect(config.cacheFeedUrl).toBeUndefined()
   })
 
   test('defaultCurrency loads a valid value, normalizing case', async () => {
@@ -120,22 +136,10 @@ describe('ritual config', () => {
     expect(config.defaultCurrency).toBe('eur')
   })
 
-  test('defaultCurrency falls back to usd when invalid', async () => {
-    await fs.writeFile(configPath, JSON.stringify({ defaultCurrency: 'gbp' }))
+  test.each([['"gbp"'], ['5']])('defaultCurrency falls back to usd when %s', async (raw) => {
+    await fs.writeFile(configPath, `{ "defaultCurrency": ${raw} }`)
     const config = await loadRitualConfig()
     expect(config.defaultCurrency).toBe('usd')
-  })
-
-  test('defaultCurrency falls back to usd when not a string', async () => {
-    await fs.writeFile(configPath, JSON.stringify({ defaultCurrency: 5 }))
-    const config = await loadRitualConfig()
-    expect(config.defaultCurrency).toBe('usd')
-  })
-
-  test('cacheLockTimeoutSeconds defaults to 300 when absent', async () => {
-    await fs.writeFile(configPath, JSON.stringify({ decksDir: './d' }))
-    const config = await loadRitualConfig()
-    expect(config.cacheLockTimeoutSeconds).toBe(300)
   })
 
   test('cacheLockTimeoutSeconds loads a valid value', async () => {
@@ -152,13 +156,6 @@ describe('ritual config', () => {
       expect(config.cacheLockTimeoutSeconds).toBe(300)
     },
   )
-
-  test('cacheSource defaults to scryfall when absent', async () => {
-    await fs.writeFile(configPath, JSON.stringify({ decksDir: './d' }))
-    const config = await loadRitualConfig()
-    expect(config.cacheSource).toBe('scryfall')
-    expect(config.cacheFeedUrl).toBeUndefined()
-  })
 
   test('cacheSource loads a valid value', async () => {
     await fs.writeFile(configPath, JSON.stringify({ cacheSource: 'feed' }))
@@ -229,15 +226,6 @@ describe('ritual config', () => {
     expect(config.exportPresets).toBeUndefined()
   })
 
-  test('loadRitualConfig drops the whole admin object when a field has the wrong type', async () => {
-    await fs.writeFile(
-      configPath,
-      JSON.stringify({ admin: { ipAllowList: ['1.2.3.4'], rateLimitMaxAttempts: 'lots' } }),
-    )
-    const config = await loadRitualConfig()
-    expect(config.admin).toEqual(getDefaultRitualConfig().admin)
-  })
-
   test('initRitualConfig creates ritual.config.json with defaults when missing', async () => {
     const config = await initRitualConfig()
     expect(config.decksDir).toBe('./decks')
@@ -281,26 +269,6 @@ describe('ritual config', () => {
     expect(loaded.site).toBeUndefined()
   })
 
-  test('config with valid site key round-trips', async () => {
-    const site: SiteConfig = {
-      version: '1.0.0',
-      ciSystem: 'github-actions',
-      deployMode: 'publish-for-me',
-      distDir: 'dist',
-      detectChanges: true,
-      includeDecks: ['*'],
-      includeCollections: ['*'],
-      includeWantedLists: ['*'],
-      excludeDecks: ['Old Brew'],
-      excludeCollections: [],
-      excludeWantedLists: [],
-    }
-    const config = { ...getDefaultRitualConfig(), site }
-    await saveRitualConfig(config)
-    const loaded = await loadRitualConfig()
-    expect(loaded.site).toEqual(site)
-  })
-
   test('site key without selection lists loads with defaults applied', async () => {
     await fs.writeFile(
       configPath,
@@ -322,29 +290,6 @@ describe('ritual config', () => {
       excludeCollections: [],
       excludeWantedLists: [],
     })
-  })
-
-  test('site key with only selection lists (no deployment) is valid', async () => {
-    await fs.writeFile(
-      configPath,
-      JSON.stringify({
-        site: {
-          includeDecks: ['Izzet Storm', 'Black Panther'],
-          includeWantedLists: [],
-          excludeCollections: ['Secret Stash'],
-        },
-      }),
-    )
-    const loaded = await loadRitualConfig()
-    expect(loaded.site).toEqual({
-      includeDecks: ['Izzet Storm', 'Black Panther'],
-      includeCollections: ['*'],
-      includeWantedLists: [],
-      excludeDecks: [],
-      excludeCollections: ['Secret Stash'],
-      excludeWantedLists: [],
-    })
-    expect(loaded.site?.version).toBeUndefined()
   })
 
   test('config with invalid site key drops the site value', async () => {

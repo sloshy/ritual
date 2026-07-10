@@ -59,38 +59,14 @@ describe('buildRawCardIndex', () => {
     expect(index.get('lightning bolt')?.entry.id).toBe(22)
   })
 
-  test('duplicate names sum quantities and keep the first entry', () => {
-    // The "keep first" invariant matters for uploads: the kept entry's deckRelationId
-    // and modifier are passed back to Archidekt's modifyCards API. If the test breaks
-    // because someone switched to "keep last", uploads could target the wrong row.
-    const index = buildRawCardIndex(
-      makeRawDeck([
-        { name: 'Forest', quantity: 5, relationId: 1 },
-        { name: 'Forest', quantity: 3, relationId: 2 },
-        { name: 'Forest', quantity: 2, relationId: 3 },
-      ]),
-    )
-
-    expect(index.size).toBe(1)
-    const forest = index.get('forest')
-    expect(forest?.totalQty).toBe(10)
-    expect(forest?.entry.id).toBe(1)
-  })
-
-  test('name lookup is case-insensitive on the original entry casing', () => {
-    const index = buildRawCardIndex(
-      makeRawDeck([{ name: 'Birds of Paradise', quantity: 1, relationId: 7 }]),
-    )
-
-    expect(index.get('birds of paradise')?.entry.card.oracleCard.name).toBe('Birds of Paradise')
-    expect(index.get('Birds of Paradise')).toBeUndefined()
-  })
-
   test('different casings of the same name are deduplicated and summed', () => {
     // Locks in the intersection of the case-insensitivity and dedup invariants:
     // "Forest" and "forest" must collapse to one entry, with quantities summed
     // and the first entry preserved. Without case-folding on the index key,
     // each variant would become its own row and uploads would target the wrong one.
+    // The "keep first" invariant matters for uploads: the kept entry's deckRelationId
+    // and modifier are passed back to Archidekt's modifyCards API. If the test breaks
+    // because someone switched to "keep last", uploads could target the wrong row.
     const index = buildRawCardIndex(
       makeRawDeck([
         { name: 'Forest', quantity: 3, relationId: 1 },
@@ -103,10 +79,7 @@ describe('buildRawCardIndex', () => {
     expect(forest?.totalQty).toBe(5)
     expect(forest?.entry.id).toBe(1)
     expect(forest?.entry.card.oracleCard.name).toBe('Forest')
-  })
-
-  test('empty deck produces an empty index', () => {
-    const index = buildRawCardIndex(makeRawDeck([]))
-    expect(index.size).toBe(0)
+    // Keys are lowercased: the original casing is not a valid lookup key.
+    expect(index.get('Forest')).toBeUndefined()
   })
 })

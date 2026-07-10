@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
-import { mockPublicSiteDeckForMultiSelect } from '../helpers/mock-data'
+import { gotoList, selectCard } from '../helpers/list-ui'
+import { mockPublicSiteDeckForMultiSelect } from '../helpers/mock-public-site'
 
 /**
  * Multi-select on the list pages: a per-card checkbox feeds a "Selected (N)"
@@ -7,13 +8,12 @@ import { mockPublicSiteDeckForMultiSelect } from '../helpers/mock-data'
  * whole selection. These tests drive the deck page (which shares the CardItem /
  * SelectionMenu wiring used by every list type) against a synthetic two-card
  * deck, and assert the state transitions: the count, view-switch persistence,
- * clearing, and trade hand-off.
+ * and trade hand-off.
  */
 test.describe('List multi-select', () => {
   test.beforeEach(async ({ page }) => {
     await mockPublicSiteDeckForMultiSelect(page)
-    await page.goto('#/deck/test-multi-select')
-    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    await gotoList(page, '#/deck/test-multi-select', '[data-view]')
   })
 
   test('selecting cards reveals the "Selected (N)" menu and counts up', async ({ page }) => {
@@ -21,22 +21,17 @@ test.describe('List multi-select', () => {
     await expect(page.locator('.selection-menu-btn')).toHaveCount(0)
 
     const cards = page.locator('.card-item')
-    const first = cards.nth(0)
-    await first.locator('.card-binder').hover()
-    await first.locator('.card-select-checkbox').click()
-    await expect(first.locator('.card-select-checkbox.selected')).toBeVisible()
+    await selectCard(page, 0)
+    await expect(cards.nth(0).locator('.card-select-checkbox.selected')).toBeVisible()
 
     const btn = page.locator('.selection-menu-btn')
     await expect(btn).toHaveText(/Selected \(1\)/)
 
-    const second = cards.nth(1)
-    await second.locator('.card-binder').hover()
-    await second.locator('.card-select-checkbox').click()
+    await selectCard(page, 1)
     await expect(btn).toHaveText(/Selected \(2\)/)
 
-    // Toggling the first card off decrements the count.
-    await first.locator('.card-binder').hover()
-    await first.locator('.card-select-checkbox').click()
+    // Toggling the first card off (the checkbox is a toggle) decrements the count.
+    await selectCard(page, 0)
     await expect(btn).toHaveText(/Selected \(1\)/)
   })
 
@@ -54,21 +49,8 @@ test.describe('List multi-select', () => {
     await expect(page.locator('.selection-menu-btn')).toHaveCount(0)
   })
 
-  test('clear selection empties and hides the menu', async ({ page }) => {
-    const first = page.locator('.card-item').nth(0)
-    await first.locator('.card-binder').hover()
-    await first.locator('.card-select-checkbox').click()
-
-    await page.locator('.selection-menu-btn').click()
-    await page.locator('.selection-menu-item', { hasText: 'Clear selection' }).click()
-
-    await expect(page.locator('.selection-menu-btn')).toHaveCount(0)
-  })
-
   test('selection persists when switching to list view', async ({ page }) => {
-    const first = page.locator('.card-item').nth(0)
-    await first.locator('.card-binder').hover()
-    await first.locator('.card-select-checkbox').click()
+    await selectCard(page, 0)
     await expect(page.locator('.selection-menu-btn')).toHaveText(/Selected \(1\)/)
 
     await page.locator('[data-view="list"]').click()
@@ -83,10 +65,8 @@ test.describe('List multi-select', () => {
   test('Add to Trade hands the selected card to the trade board', async ({ page }) => {
     // The deck groups by type with Instant before Artifact, so the first card is
     // Lightning Bolt.
-    const first = page.locator('.card-item').nth(0)
-    await expect(first).toContainText('Lightning Bolt')
-    await first.locator('.card-binder').hover()
-    await first.locator('.card-select-checkbox').click()
+    await expect(page.locator('.card-item').nth(0)).toContainText('Lightning Bolt')
+    await selectCard(page, 0)
 
     await page.locator('.selection-menu-btn').click()
     await page.locator('.selection-menu-item', { hasText: 'Add to Trade' }).click()

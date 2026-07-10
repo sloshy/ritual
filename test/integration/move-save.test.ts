@@ -1,51 +1,35 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import * as fs from 'node:fs/promises'
-import * as os from 'node:os'
 import * as path from 'node:path'
-import { setBaseDir, getBaseDir } from '../../src/base-dir'
-import { resetRitualConfigCache } from '../../src/ritual-config'
-import { serializeDeckToMarkdown } from '../../src/deck-file'
 import { createMoveFromChange } from '../../src/change-event'
 import { applyOutgoingMoves } from '../../src/admin/api/move-save'
 import { handleSelectedMove } from '../../src/admin/api/move'
 import { handleLists } from '../../src/admin/api/lists'
-import type { DeckData } from '../../src/types'
+import {
+  bindWorkspace,
+  writeCollectionFile,
+  writeDeckFile,
+  type BoundWorkspace,
+} from './helpers/workspace'
 
+let ws: BoundWorkspace
 let tmpDir: string
-let originalBase: string
-
-const deck: DeckData = {
-  name: 'My Deck',
-  sections: [
-    {
-      name: 'Main',
-      cards: [{ quantity: 1, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }],
-    },
-  ],
-}
 
 beforeEach(async () => {
-  originalBase = getBaseDir()
-  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'move-save-'))
-  await fs.mkdir(path.join(tmpDir, 'decks'), { recursive: true })
-  await fs.mkdir(path.join(tmpDir, 'collections'), { recursive: true })
-  await fs.mkdir(path.join(tmpDir, 'wanted'), { recursive: true })
-  setBaseDir(tmpDir)
-  resetRitualConfigCache()
-  await fs.writeFile(
-    path.join(tmpDir, 'decks', 'my-deck.md'),
-    serializeDeckToMarkdown(deck, { name: 'My Deck' }),
-  )
-  await fs.writeFile(
-    path.join(tmpDir, 'collections', 'binder.md'),
-    '# Binder\n\n- Lightning Bolt (LEA:161) &1\n',
-  )
+  ws = await bindWorkspace({ config: false })
+  tmpDir = ws.dir
+  await writeDeckFile(tmpDir, 'my-deck', {
+    frontMatter: { name: 'My Deck' },
+    cards: [{ quantity: 1, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }],
+  })
+  await writeCollectionFile(tmpDir, 'binder', {
+    title: 'Binder',
+    entries: [{ name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 }],
+  })
 })
 
 afterEach(async () => {
-  setBaseDir(originalBase)
-  resetRitualConfigCache()
-  await fs.rm(tmpDir, { recursive: true, force: true })
+  await ws.dispose()
 })
 
 describe('applyOutgoingMoves', () => {

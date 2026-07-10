@@ -3,7 +3,6 @@ import {
   useCardSelection,
   useAllSelections,
   clearAllSelections,
-  totalSelectedCount,
   groupSelectionsBySource,
   type SelectedCard,
   type SelectionListId,
@@ -122,12 +121,6 @@ describe('cross-list selection', () => {
     expect(all.count()).toBe(3)
     all.clear()
     expect(all.count()).toBe(0)
-  })
-
-  test('totalSelectedCount sums copies across every list', () => {
-    useCardSelection(DECK).toggle(card(DECK, 'a', { quantity: 4, groupSize: 4 }))
-    useCardSelection(COLLECTION).toggle(card(COLLECTION, 'a'))
-    expect(totalSelectedCount()).toBe(5)
   })
 })
 

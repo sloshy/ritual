@@ -114,14 +114,10 @@ describe('formatChangeText', () => {
 })
 
 describe('isAdditiveAction', () => {
-  const additive: ChangelogAction[] = [
-    'Added',
-    'Set as commander',
-    'Set finish',
-    'Set printing',
-    'Set note',
-  ]
-  const destructive: ChangelogAction[] = ['Removed', 'Unset as commander', 'Cleared note']
+  // 'Set as commander', 'Unset as commander', and 'Cleared note' are pinned end-to-end by
+  // test/e2e/public-site/view-changes.spec.ts via changelog-change-item--remove class assertions.
+  const additive: ChangelogAction[] = ['Added', 'Set finish', 'Set printing', 'Set note']
+  const destructive: ChangelogAction[] = ['Removed']
 
   for (const action of additive) {
     test(`${action} is additive`, () => {
