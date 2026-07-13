@@ -1,23 +1,10 @@
 import { createSignal, onCleanup } from 'solid-js'
 import type { Accessor } from 'solid-js'
 import type { ScryfallCard } from '../types'
-import { getPrintingsByName, putFetchedPrintings } from './session-cache'
-import { promoteFullNameMatches } from '../term-match'
+import { autocompleteCardNames, fetchCardPrintings, isAbortError } from './scryfall-search'
 
-const SCRYFALL_API = 'https://api.scryfall.com'
-
-export type ScryfallAutocompleteResponse = {
-  object: string
-  total_values: number
-  data: string[]
-}
-
-export type ScryfallListResponse = {
-  object: string
-  total_cards: number
-  has_more: boolean
-  data: ScryfallCard[]
-}
+const AUTOCOMPLETE_DEBOUNCE_MS = 300
+const MIN_AUTOCOMPLETE_LENGTH = 2
 
 export type UseScryfallBrowserSearchResult = {
   autocompleteResults: Accessor<string[]>
@@ -30,6 +17,12 @@ export type UseScryfallBrowserSearchResult = {
   clearPrintings: () => void
 }
 
+/**
+ * Trade-page card search: the browser Scryfall client (see `./scryfall-search`)
+ * wrapped in the reactive state the search box needs — debounced autocomplete,
+ * loading flags, and an abort of the in-flight request whenever a newer one
+ * starts or the page goes away.
+ */
 export function useScryfallBrowserSearch(): UseScryfallBrowserSearchResult {
   const [autocompleteResults, setAutocompleteResults] = createSignal<string[]>([])
   const [autocompleteLoading, setAutocompleteLoading] = createSignal(false)
@@ -48,93 +41,61 @@ export function useScryfallBrowserSearch(): UseScryfallBrowserSearchResult {
 
   const fetchAutocomplete = (query: string): void => {
     if (debounceTimer) clearTimeout(debounceTimer)
-    if (query.length < 2) {
-      if (autocompleteController) autocompleteController.abort()
+    if (query.length < MIN_AUTOCOMPLETE_LENGTH) {
+      autocompleteController?.abort()
       setAutocompleteResults([])
       return
     }
 
     debounceTimer = setTimeout(() => {
       void (async () => {
-        if (autocompleteController) autocompleteController.abort()
-        autocompleteController = new AbortController()
+        autocompleteController?.abort()
+        const controller = new AbortController()
+        autocompleteController = controller
         setAutocompleteLoading(true)
 
         try {
-          const url = `${SCRYFALL_API}/cards/autocomplete?q=${encodeURIComponent(query)}`
-          const resp = await fetch(url, { signal: autocompleteController.signal })
-          if (!resp.ok) return
-          const data = (await resp.json()) as ScryfallAutocompleteResponse
-          setAutocompleteResults(promoteFullNameMatches(data.data ?? [], query, (name) => name))
+          const names = await autocompleteCardNames(query, { signal: controller.signal })
+          if (autocompleteController === controller) setAutocompleteResults(names)
         } catch (e) {
-          if ((e as Error).name === 'AbortError') return
+          if (isAbortError(e)) return
           console.warn('Scryfall autocomplete failed:', e)
         } finally {
-          setAutocompleteLoading(false)
+          // A superseded request must not clear the loading flag out from under
+          // the newer one that replaced it.
+          if (autocompleteController === controller) setAutocompleteLoading(false)
         }
       })()
-    }, 300)
+    }, AUTOCOMPLETE_DEBOUNCE_MS)
   }
 
   const fetchPrintings = async (cardName: string): Promise<void> => {
-    if (printingsController) printingsController.abort()
-    printingsController = new AbortController()
-    const { signal } = printingsController
-
-    // Reuse printings already shipped with the site or fetched earlier this session.
-    const cached = getPrintingsByName(cardName)
-    if (cached) {
-      setPrintings(cached)
-      setPrintingsLoading(false)
-      return
-    }
+    printingsController?.abort()
+    const controller = new AbortController()
+    printingsController = controller
 
     setPrintings([])
     setPrintingsLoading(true)
     try {
-      const query = `!"${cardName}"`
-      const url = `${SCRYFALL_API}/cards/search?q=${encodeURIComponent(query)}&unique=prints&order=released&dir=desc`
-      let searchFailed = false
-      try {
-        const resp = await fetch(url, { signal })
-        if (!resp.ok) {
-          searchFailed = true
-        } else {
-          const data = (await resp.json()) as ScryfallListResponse
-          const results = data.data ?? []
-          setPrintings(results)
-          putFetchedPrintings(cardName, results, Date.now())
-        }
-      } catch (e) {
-        if ((e as Error).name === 'AbortError') return
-        searchFailed = true
-      }
-      if (searchFailed) {
-        const namedUrl = `${SCRYFALL_API}/cards/named?fuzzy=${encodeURIComponent(cardName)}`
-        const namedResp = await fetch(namedUrl, { signal })
-        if (namedResp.ok) {
-          const card = (await namedResp.json()) as ScryfallCard
-          setPrintings([card])
-          putFetchedPrintings(cardName, [card], Date.now())
-        }
-      }
+      const results = await fetchCardPrintings(cardName, { signal: controller.signal })
+      if (printingsController === controller) setPrintings(results)
     } catch (e) {
-      if ((e as Error).name === 'AbortError') return
+      if (isAbortError(e)) return
       console.warn('Scryfall printings fetch failed:', e)
     } finally {
-      setPrintingsLoading(false)
+      if (printingsController === controller) setPrintingsLoading(false)
     }
   }
 
   const clearAutocomplete = (): void => {
     if (debounceTimer) clearTimeout(debounceTimer)
-    if (autocompleteController) autocompleteController.abort()
+    autocompleteController?.abort()
     setAutocompleteResults([])
     setAutocompleteLoading(false)
   }
 
   const clearPrintings = (): void => {
-    if (printingsController) printingsController.abort()
+    printingsController?.abort()
     setPrintings([])
     setPrintingsLoading(false)
   }
