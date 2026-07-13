@@ -169,14 +169,18 @@ its own changelog entry on save.
 
 ## Menu Options
 
-The following options are available in the session menu when no search text is typed:
+The following options are available in the session menu when no search text is typed, listed in the
+order they appear. The card you just added comes first, so its shortcuts are always the nearest ones
+to reach; the session-wide settings follow, and `🚪 Exit` sits at the very bottom where you cannot
+land on it by overshooting.
 
 | Option                                   | Description                                                                    |
 | ---------------------------------------- | ------------------------------------------------------------------------------ |
-| `💾 Save all changes (N across M lists)` | Write every open list's file and changelog, keep editing                       |
-| `💾 Save current list changes (N)`       | Write only the list you are editing, keep the rest in memory                   |
-| `🔀 Switch List`                         | Back to the list selection menu, keeping unsaved changes in memory             |
-| `🚪 Exit`                                | Leave the editor (asks to save all, discard all, or cancel when unsaved)       |
+| `➕ Add Another Copy`                    | Add another copy of the last added card                                        |
+| `📝 Add Note`                            | Attach a note to the last added card                                           |
+| `✏️ Edit Previous Card`                  | Re-enter the last added card with forced prompts                               |
+| `↩️ Undo Last Add`                       | Take back the most recently added card                                         |
+| `↩️ Undo Last Edit`                      | Revert the most recent [edit-mode](#edit-mode) operation                       |
 | `🗂️ Set Target Section`                  | Pin a deck section, create a new one, or prompt for each card (decks)          |
 | `🏷️ Change Format`                       | Change the deck's [format](#deck-format) (decks)                               |
 | `⚙️ Configure Session Filters`           | Adjust default sets, finish, condition, and (decks) target section (name mode) |
@@ -184,16 +188,18 @@ The following options are available in the session menu when no search text is t
 | `📦 Manage Set Codes`                    | Add, remove, or switch active sets (collector mode)                            |
 | `🔤 Switch to Name Mode`                 | Switch back to name entry mode (collector mode)                                |
 | `🛠️ Switch to Edit Mode`                 | Browse and edit the list's existing entries (see [Edit Mode](#edit-mode))      |
-| `➕ Add Another Copy`                    | Add another copy of the last added card                                        |
-| `📝 Add Note`                            | Attach a note to the last added card                                           |
-| `✏️ Edit Previous Card`                  | Re-enter the last added card with forced prompts                               |
-| `↩️ Undo Last Add`                       | Take back the most recently added card                                         |
-| `↩️ Undo Last Edit`                      | Revert the most recent [edit-mode](#edit-mode) operation                       |
 | `📋 View Session Changes (N)`            | Review every change this session and optionally discard individual ones        |
+| `💾 Save all changes (N across M lists)` | Write every open list's file and changelog, keep editing                       |
+| `💾 Save current list changes (N)`       | Write only the list you are editing, keep the rest in memory                   |
+| `🔀 Switch List`                         | Back to the list selection menu, keeping unsaved changes in memory             |
+| `🚪 Exit`                                | Leave the editor (asks to save all, discard all, or cancel when unsaved)       |
 
 The `↩️ Undo Last Add` option appears only after you have added at least one card this session, and
 `📋 View Session Changes` once the session has any change to show (see
 [Reviewing Session Changes](#reviewing-session-changes)).
+
+[Edit mode](#edit-mode) pares this down: the undo shortcuts lead, followed by `➕ Switch to Add Mode`,
+then the review, save, and exit items.
 
 ## Saving
 

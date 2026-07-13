@@ -699,7 +699,15 @@ function buildSaveAndSwitchItems(input: MenuBuildInput): Choice[] {
   return items
 }
 
-/** Build the full autocomplete choice list (menu shortcuts first, then cards). */
+/**
+ * Build the full autocomplete choice list (menu shortcuts first, then cards).
+ *
+ * The menu is ordered by how likely the user is to want an item right now:
+ * everything about the card they just touched comes first (add a copy, note it,
+ * edit it, take it back), then the undo shortcuts, then the session-wide
+ * settings, then reviewing and saving, and finally Exit — a destination nobody
+ * should hit by overshooting.
+ */
 export function buildMenuChoices(input: MenuBuildInput): Choice[] {
   const {
     sessionMode,
@@ -726,30 +734,7 @@ export function buildMenuChoices(input: MenuBuildInput): Choice[] {
           { title: '🔤 Switch to Name Mode', value: '__NAME_MODE__' },
         ]
 
-  // Edit mode pares the menu down to mode switching, save/exit, and undo — the
-  // add-mode shortcuts (copies, notes, filters) only make sense while adding.
-  const topItems: Choice[] =
-    sessionMode === 'edit'
-      ? [{ title: '➕ Switch to Add Mode', value: '__ADD_MODE__' }]
-      : [
-          ...(lastAdded
-            ? [{ title: `➕ Add Another Copy (${lastAdded.name})`, value: '__ADD_ANOTHER__' }]
-            : []),
-          ...(lastAdded && !lastAdded.hasNote
-            ? [{ title: `📝 Add Note (${lastAdded.name})`, value: '__ADD_NOTE__' }]
-            : []),
-          ...extraItems,
-          ...modeItems,
-          { title: '🛠️  Switch to Edit Mode (edit existing cards)', value: '__EDIT_MODE__' },
-        ]
-
-  return [
-    ...topItems,
-    ...buildSaveAndSwitchItems(input),
-    { title: '🚪 Exit', value: '__EXIT__' },
-    ...(sessionMode === 'add' && lastAdded
-      ? [{ title: `✏️  Edit Previous Card (${lastAdded.name})`, value: '__EDIT_LAST__' }]
-      : []),
+  const undoItems: Choice[] = [
     ...(sessionAdds.length > 0
       ? [
           {
@@ -761,9 +746,36 @@ export function buildMenuChoices(input: MenuBuildInput): Choice[] {
     ...(editUndoLabel !== null
       ? [{ title: `↩️  Undo Last Edit (${editUndoLabel})`, value: '__UNDO_EDIT__' }]
       : []),
+  ]
+
+  // Edit mode pares the menu down to undo, mode switching, and save/exit — the
+  // add-mode shortcuts (copies, notes, filters) only make sense while adding.
+  const actionItems: Choice[] =
+    sessionMode === 'edit'
+      ? [...undoItems, { title: '➕ Switch to Add Mode', value: '__ADD_MODE__' }]
+      : [
+          ...(lastAdded
+            ? [
+                { title: `➕ Add Another Copy (${lastAdded.name})`, value: '__ADD_ANOTHER__' },
+                ...(!lastAdded.hasNote
+                  ? [{ title: `📝 Add Note (${lastAdded.name})`, value: '__ADD_NOTE__' }]
+                  : []),
+                { title: `✏️  Edit Previous Card (${lastAdded.name})`, value: '__EDIT_LAST__' },
+              ]
+            : []),
+          ...undoItems,
+          ...extraItems,
+          ...modeItems,
+          { title: '🛠️  Switch to Edit Mode (edit existing cards)', value: '__EDIT_MODE__' },
+        ]
+
+  return [
+    ...actionItems,
     ...(sessionChangeCount > 0
       ? [{ title: `📋 View Session Changes (${sessionChangeCount})`, value: '__CHANGES__' }]
       : []),
+    ...buildSaveAndSwitchItems(input),
+    { title: '🚪 Exit', value: '__EXIT__' },
     ...cardChoices,
   ]
 }

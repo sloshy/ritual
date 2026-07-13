@@ -128,21 +128,44 @@ describe('buildMenuChoices', () => {
     ])
   })
 
-  test('with a last added card, copy and edit appear; note only when it has none', () => {
-    const lastAdded = { name: 'Sol Ring', hasNote: false, cardId: 3 }
+  test('the note shortcut drops out once the last added card has a note', () => {
+    const lastAdded = { name: 'Sol Ring', hasNote: true, cardId: 3 }
     const values = buildMenuChoices({ ...base, lastAdded }).map((c) => c.value)
-    expect(values).toContain('__ADD_ANOTHER__')
-    expect(values).toContain('__ADD_NOTE__')
-    expect(values).toContain('__EDIT_LAST__')
-
-    const noted = buildMenuChoices({ ...base, lastAdded: { ...lastAdded, hasNote: true } })
-    expect(noted.map((c) => c.value)).not.toContain('__ADD_NOTE__')
+    expect(values).not.toContain('__ADD_NOTE__')
     // The copy/edit shortcuts stay available regardless of the note state.
-    expect(noted.map((c) => c.value)).toContain('__ADD_ANOTHER__')
-    expect(noted.map((c) => c.value)).toContain('__EDIT_LAST__')
+    expect(values.slice(0, 2)).toEqual(['__ADD_ANOTHER__', '__EDIT_LAST__'])
   })
 
-  test('edit mode pares the menu down to mode switch, save/exit, and cards', () => {
+  test('add mode leads with the last-added shortcuts and ends with Exit', () => {
+    const values = buildMenuChoices({
+      ...base,
+      lastAdded: { name: 'Sol Ring', hasNote: false, cardId: 3 },
+      changeCount: 2,
+      sessionAdds: [{ label: 'Sol Ring (LEA:269) &3', name: 'Sol Ring' }],
+      editUndoLabel: 'printing on Lightning Bolt',
+      sessionChangeCount: 2,
+      extraItems: [{ title: '🗂️  Set Target Section', value: '__SECTION__' }],
+    }).map((c) => c.value)
+    expect(values).toEqual([
+      // Everything about the card just added, then the undo shortcuts...
+      '__ADD_ANOTHER__',
+      '__ADD_NOTE__',
+      '__EDIT_LAST__',
+      '__UNDO_LAST__',
+      '__UNDO_EDIT__',
+      // ...then session-wide settings, review, save, and finally Exit.
+      '__SECTION__',
+      '__CONFIG__',
+      '__COLLECTOR_MODE__',
+      '__EDIT_MODE__',
+      '__CHANGES__',
+      '__SAVE__',
+      '__EXIT__',
+      'Sol Ring',
+    ])
+  })
+
+  test('edit mode pares the menu down to undo, mode switch, save/exit, and cards', () => {
     const entryChoice = {
       title: '- Sol Ring (C19:221) &1',
       value: { type: 'entry', cardId: 1 },
@@ -151,10 +174,20 @@ describe('buildMenuChoices', () => {
       ...base,
       sessionMode: 'edit',
       lastAdded: { name: 'Sol Ring', hasNote: false, cardId: 1 },
+      editUndoLabel: 'printing on Sol Ring',
+      changeCount: 1,
+      sessionChangeCount: 1,
       cardChoices: [entryChoice],
     })
     const values = choices.map((c) => c.value)
-    expect(values).toEqual(['__ADD_MODE__', '__EXIT__', entryChoice.value])
+    expect(values).toEqual([
+      '__UNDO_EDIT__',
+      '__ADD_MODE__',
+      '__CHANGES__',
+      '__SAVE__',
+      '__EXIT__',
+      entryChoice.value,
+    ])
     // The add-mode shortcuts must not leak into edit mode, even with a last added card.
     expect(values).not.toContain('__ADD_ANOTHER__')
     expect(values).not.toContain('__EDIT_LAST__')
