@@ -59,7 +59,12 @@ Decks must have been imported from Archidekt (i.e., they have `sourceUrl` and `s
    quoted, and changes that target a non-main board are annotated with the
    destination, e.g. `Added "Cavern-Hoard Dragon" to Maybeboard` or
    `Removed "Lightning Bolt" from Sideboard`
-5. Sets `lastSynced` timestamp in front matter
+5. Adopts the deck's Archidekt format, mapped onto Ritual's format keys (Archidekt's
+   "Commander / EDH" becomes `commander`, "Dual Commander" becomes `duel-commander`,
+   and so on). A format Ritual does not model — Custom, Frontier, Future Standard —
+   leaves the local format untouched. A format change alone is enough to make the
+   deck sync; it is not recorded in the changelog, which tracks cards only
+6. Sets `lastSynced` timestamp in front matter
 
 ### Upload Changes (`--upload-changes`)
 
@@ -78,6 +83,9 @@ Decks must have been imported from Archidekt (i.e., they have `sourceUrl` and `s
 Sync compares **card names** and **quantities**. Downloads additionally respect the
 **board** a card lives in (Main, Commander, Sideboard, Maybeboard), so cards land in
 the right section locally.
+
+Downloads also adopt the deck's format from Archidekt. Uploads do not push the local
+format back.
 
 The following are intentionally ignored at this time:
 
@@ -99,11 +107,15 @@ After a successful sync, a `lastSynced` field is added or updated in the deck's 
 ```yaml
 ---
 name: 'My Deck'
+format: commander
 sourceId: '12345'
 sourceUrl: 'https://archidekt.com/decks/12345'
 lastSynced: '2026-04-02T12:00:00.000Z'
 ---
 ```
+
+`format` is written on every save, whether it came from Archidekt or was inferred
+from the deck's sections. See [new-deck](/commands/new-deck/#deck-format).
 
 ## Examples
 

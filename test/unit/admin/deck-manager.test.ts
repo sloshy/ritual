@@ -4,6 +4,7 @@ import path from 'node:path'
 import { handleDeckCreate } from '../../../src/admin/api/deck-create'
 import { handleDeckRename } from '../../../src/admin/api/deck-rename'
 import { handleDeckDelete } from '../../../src/admin/api/deck-delete'
+import { parseDeckFrontMatter, type DeckFrontMatter } from '../../../src/deck-file'
 import { setBaseDir } from '../../../src/base-dir'
 
 const testDir = path.join(import.meta.dir, '../../.test-deck-manager')
@@ -16,6 +17,16 @@ function makeRequest(method: string, urlPath: string, body?: unknown): Request {
     headers: body ? { 'Content-Type': 'application/json' } : {},
     body: body ? JSON.stringify(body) : undefined,
   })
+}
+
+type CreatedDeck = { frontMatter: DeckFrontMatter; content: string }
+
+async function readCreatedDeck(slug: string): Promise<CreatedDeck> {
+  const filePath = path.join(decksDir, `${slug}.md`)
+  return {
+    frontMatter: await parseDeckFrontMatter(filePath),
+    content: await fs.readFile(filePath, 'utf-8'),
+  }
 }
 
 describe('deck-create handler', () => {
@@ -43,10 +54,10 @@ describe('deck-create handler', () => {
     expect(data.success).toBe(true)
     expect(data.slug).toBe('My Test Deck')
 
-    const fileContent = await fs.readFile(path.join(decksDir, 'My Test Deck.md'), 'utf-8')
-    expect(fileContent).toContain('name: "My Test Deck"')
-    expect(fileContent).toContain('format: "commander"')
-    expect(fileContent).toContain('# My Test Deck')
+    const { frontMatter, content } = await readCreatedDeck('My Test Deck')
+    expect(frontMatter.name).toBe('My Test Deck')
+    expect(frontMatter.format).toBe('commander')
+    expect(content).toContain('## Main')
   })
 
   test('generates slug from name with special characters', async () => {
@@ -64,8 +75,28 @@ describe('deck-create handler', () => {
     const data = (await resp.json()) as { success: boolean }
 
     expect(data.success).toBe(true)
-    const fileContent = await fs.readFile(path.join(decksDir, 'No Format Deck.md'), 'utf-8')
-    expect(fileContent).toContain('format: "commander"')
+    const { frontMatter } = await readCreatedDeck('No Format Deck')
+    expect(frontMatter.format).toBe('commander')
+  })
+
+  test('normalizes a non-canonical format spelling', async () => {
+    const req = makeRequest('POST', '/api/deck/create', { name: 'EDH Deck', format: 'EDH' })
+    const resp = await handleDeckCreate(req)
+
+    expect(resp.status).toBe(200)
+    const { frontMatter } = await readCreatedDeck('EDH Deck')
+    expect(frontMatter.format).toBe('commander')
+  })
+
+  test('returns 400 for an unknown format', async () => {
+    const req = makeRequest('POST', '/api/deck/create', { name: 'Cube Deck', format: 'cube' })
+    const resp = await handleDeckCreate(req)
+    const data = (await resp.json()) as { success: boolean; message: string }
+
+    expect(resp.status).toBe(400)
+    expect(data.success).toBe(false)
+    expect(data.message).toContain("Invalid deck format 'cube'")
+    expect(await fs.exists(path.join(decksDir, 'Cube Deck.md'))).toBe(false)
   })
 
   test('returns 400 for missing name', async () => {

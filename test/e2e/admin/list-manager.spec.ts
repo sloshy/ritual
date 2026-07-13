@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Route } from '@playwright/test'
+import { DECK_FORMAT_KEYS } from '../../../src/deck-format'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { fulfillJsonRoute } from '../helpers/fulfill'
 
@@ -207,6 +208,18 @@ test.describe('List Manager', () => {
     await page.locator('.list-type-tab:has-text("Collections")').click()
     await page.locator('.btn-primary:has-text("New Collection")').click()
     await expect(page.locator('select.form-input')).toHaveCount(0)
+  })
+
+  test('format dropdown offers exactly the canonical deck formats', async ({ page }) => {
+    await page.locator('.btn-primary:has-text("New Deck")').click()
+
+    // The options are generated from DECK_FORMAT_KEYS, so the dropdown cannot offer
+    // a format the API would reject (it once listed "cube", "draft", and "other").
+    const values = await page
+      .locator('select.form-input option')
+      .evaluateAll((options) => options.map((o) => (o as HTMLOptionElement).value))
+    expect(values).toEqual(DECK_FORMAT_KEYS)
+    await expect(page.locator('select.form-input')).toHaveValue('commander')
   })
 
   test('renames a collection', async ({ page }) => {

@@ -2,7 +2,11 @@ import { Command } from 'commander'
 import path from 'node:path'
 import * as fs from 'node:fs/promises'
 import { writeFileWithHash } from '../content-hash'
+import { newDeckMarkdown } from '../deck-file'
+import { invalidDeckFormatMessage, parseDeckFormat } from '../deck-format'
 import { getDecksDir } from '../ritual-config'
+
+type NewDeckOptions = { format: string }
 
 export function registerNewDeckCommand(program: Command): void {
   program
@@ -10,8 +14,14 @@ export function registerNewDeckCommand(program: Command): void {
     .description('Create a new deck file')
     .argument('<name>', 'Name of the deck')
     .option('-f, --format <format>', 'Deck format (e.g., standard, commander)', 'commander')
-    .action(async (name, options) => {
+    .action(async (name: string, options: NewDeckOptions) => {
       const decksDir = getDecksDir()
+      const format = parseDeckFormat(options.format)
+      if (!format) {
+        console.error(invalidDeckFormatMessage(options.format))
+        process.exit(1)
+      }
+
       const safeName = name
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
@@ -19,18 +29,7 @@ export function registerNewDeckCommand(program: Command): void {
       const fileName = `${safeName}.md`
       const filePath = path.join(decksDir, fileName)
 
-      // Frontmatter template
-      const content = `---
-name: "${name}"
-format: "${options.format}"
-created: "${new Date().toISOString()}"
-tags: []
----
-
-# ${name}
-
-// Add your cards here
-`
+      const content = newDeckMarkdown(name, format)
 
       try {
         await fs.mkdir(decksDir, { recursive: true })

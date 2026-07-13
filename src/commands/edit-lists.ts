@@ -12,13 +12,8 @@ import {
 } from './card-session'
 import { createCollectionStrategy } from './collection-strategy'
 import { createDeckStrategy } from './deck-strategy'
-import {
-  deckFilePath,
-  listExistingDecks,
-  loadDeck,
-  newDeckFrontMatter,
-  type DeckSessionConfig,
-} from './deck-helpers'
+import { deckFilePath, listExistingDecks, loadDeck, type DeckSessionConfig } from './deck-helpers'
+import { newDeckFrontMatter } from '../deck-file'
 import {
   loadCollectionSession,
   loadWantedSession,

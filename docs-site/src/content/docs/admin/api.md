@@ -28,6 +28,10 @@ Create a new deck file. The slug is auto-generated from the name.
 | `name`   | Deck name (used to generate the slug) | Yes      |
 | `format` | Deck format (default: `"commander"`)  | No       |
 
+`format` must be one of the canonical deck format keys — see
+[Deck Format](/commands/new-deck/#deck-format) for the full list. An unrecognized value
+returns `400` and the deck is not created.
+
 **Response:**
 
 ```json
@@ -713,6 +717,9 @@ Import cards from CSV text into a deck, collection, or wanted list. Used by the 
 | `content`   | Raw CSV text                                                                     | Yes      |
 | `columns`   | 1-based column mapping spec, e.g. `name=1,set=2,collector-number=3`              | Yes      |
 | `hasHeader` | Whether the first row is a header row (default `true`)                           | No       |
+
+`format`, when given, must be one of the canonical deck format keys — see
+[Deck Format](/commands/new-deck/#deck-format). An unrecognized value returns `400`.
 
 **Response:**
 

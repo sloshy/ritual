@@ -1,10 +1,11 @@
 import { describe, test, expect } from 'bun:test'
 import type { DeckData } from '../../src/types'
 import {
-  detectDeckFormat,
   getDeckCountLabel,
   getMainDeckSize,
   isMainDeckSection,
+  parseDeckFormat,
+  resolveDeckFormat,
 } from '../../src/deck-format'
 
 function makeDeck(partial: Partial<DeckData> = {}): DeckData {
@@ -15,30 +16,65 @@ function makeDeck(partial: Partial<DeckData> = {}): DeckData {
   }
 }
 
-describe('detectDeckFormat', () => {
-  test('reads format from frontmatter', () => {
-    expect(detectDeckFormat(makeDeck({ format: 'modern' }))).toBe('modern')
-    expect(detectDeckFormat(makeDeck({ format: 'Standard' }))).toBe('standard')
-    expect(detectDeckFormat(makeDeck({ format: ' VINTAGE ' }))).toBe('vintage')
+const COMMANDER_SECTIONS: DeckData['sections'] = [
+  { name: 'Commander', cards: [{ quantity: 1, name: 'Atraxa' }] },
+  { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
+]
+
+describe('parseDeckFormat', () => {
+  test('accepts canonical keys regardless of case and padding', () => {
+    expect(parseDeckFormat('modern')).toBe('modern')
+    expect(parseDeckFormat('Standard')).toBe('standard')
+    expect(parseDeckFormat(' VINTAGE ')).toBe('vintage')
   })
 
-  test('normalizes spaces and underscores in frontmatter', () => {
-    expect(detectDeckFormat(makeDeck({ format: 'duel commander' }))).toBe('duel-commander')
-    expect(detectDeckFormat(makeDeck({ format: 'duel_commander' }))).toBe('duel-commander')
-    expect(detectDeckFormat(makeDeck({ format: 'pre-modern' }))).toBe('pre-modern')
+  test('normalizes separators to the canonical dashed key', () => {
+    expect(parseDeckFormat('duel commander')).toBe('duel-commander')
+    expect(parseDeckFormat('duel_commander')).toBe('duel-commander')
+    expect(parseDeckFormat('Penny Dreadful')).toBe('penny-dreadful')
   })
 
-  test('falls back to commander when a Commander section exists', () => {
-    const deck = makeDeck({
-      sections: [
-        { name: 'Commander', cards: [{ quantity: 1, name: 'Atraxa' }] },
-        { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
-      ],
-    })
-    expect(detectDeckFormat(deck)).toBe('commander')
+  test('splits camelCase, as Moxfield format slugs use it', () => {
+    expect(parseDeckFormat('duelCommander')).toBe('duel-commander')
+    expect(parseDeckFormat('historicBrawl')).toBe('historic-brawl')
+    expect(parseDeckFormat('pauperCommander')).toBe('pauper-commander')
   })
 
-  test('detects oathbreaker via section name', () => {
+  test('resolves known aliases', () => {
+    expect(parseDeckFormat('EDH')).toBe('commander')
+    expect(parseDeckFormat('Commander / EDH')).toBe('commander')
+    expect(parseDeckFormat('1v1 Commander')).toBe('duel-commander')
+    expect(parseDeckFormat('penny')).toBe('penny-dreadful')
+    expect(parseDeckFormat('premodern')).toBe('pre-modern')
+    expect(parseDeckFormat('predh')).toBe('pre-dh')
+    expect(parseDeckFormat('pdh')).toBe('pauper-commander')
+    expect(parseDeckFormat('draft')).toBe('limited')
+  })
+
+  test('returns null for unmodelled formats and non-strings', () => {
+    expect(parseDeckFormat('Custom')).toBeNull()
+    expect(parseDeckFormat('Future Standard')).toBeNull()
+    expect(parseDeckFormat('')).toBeNull()
+    expect(parseDeckFormat('   ')).toBeNull()
+    expect(parseDeckFormat(undefined)).toBeNull()
+    expect(parseDeckFormat(7)).toBeNull()
+  })
+})
+
+describe('resolveDeckFormat', () => {
+  test('prefers the deck’s declared format', () => {
+    expect(resolveDeckFormat(makeDeck({ format: 'modern' }))).toBe('modern')
+  })
+
+  test('falls back to the front matter value when the deck declares none', () => {
+    expect(resolveDeckFormat(makeDeck(), 'duel commander')).toBe('duel-commander')
+  })
+
+  test('infers commander from a Commander section', () => {
+    expect(resolveDeckFormat(makeDeck({ sections: COMMANDER_SECTIONS }))).toBe('commander')
+  })
+
+  test('infers oathbreaker from an Oathbreaker or Signature Spell section', () => {
     const deck = makeDeck({
       sections: [
         { name: 'Oathbreaker', cards: [{ quantity: 1, name: 'Teferi' }] },
@@ -46,32 +82,23 @@ describe('detectDeckFormat', () => {
         { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
       ],
     })
-    expect(detectDeckFormat(deck)).toBe('oathbreaker')
+    expect(resolveDeckFormat(deck)).toBe('oathbreaker')
   })
 
-  test('frontmatter overrides section heuristics', () => {
-    // A "Commander" section is still considered a Commander deck via heuristic,
-    // but an explicit `format` in frontmatter wins.
-    const deck = makeDeck({
-      format: 'standard',
-      sections: [{ name: 'Commander', cards: [{ quantity: 1, name: 'Atraxa' }] }],
-    })
-    expect(detectDeckFormat(deck)).toBe('standard')
+  test('a declared format beats the section heuristic', () => {
+    const deck = makeDeck({ format: 'standard', sections: COMMANDER_SECTIONS })
+    expect(resolveDeckFormat(deck)).toBe('standard')
   })
 
-  test('returns null when no signal is present', () => {
+  test('an unparseable front matter value falls through to the heuristic', () => {
+    expect(resolveDeckFormat(makeDeck({ sections: COMMANDER_SECTIONS }), 'cube')).toBe('commander')
+  })
+
+  test('returns null when nothing declares or implies a format', () => {
     const deck = makeDeck({
       sections: [{ name: 'Main', cards: [{ quantity: 4, name: 'Lightning Bolt' }] }],
     })
-    expect(detectDeckFormat(deck)).toBeNull()
-  })
-
-  test('unknown format string falls through to section heuristics', () => {
-    const deck = makeDeck({
-      format: 'unknown-format',
-      sections: [{ name: 'Commander', cards: [{ quantity: 1, name: 'Atraxa' }] }],
-    })
-    expect(detectDeckFormat(deck)).toBe('commander')
+    expect(resolveDeckFormat(deck)).toBeNull()
   })
 })
 

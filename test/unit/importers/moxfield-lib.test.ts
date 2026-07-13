@@ -81,6 +81,22 @@ describe('Moxfield Importer', () => {
     expect(sb?.cards[0]?.name).toBe('Island')
   })
 
+  test('maps the Moxfield format slug onto a canonical format key', async () => {
+    const client = new MoxfieldClient(
+      makeMockHttpClient({ ...deckResponse, format: 'duelCommander' }),
+    )
+    const deck = await fetchMoxfieldDeck('12345', client)
+
+    expect(deck.format).toBe('duel-commander')
+  })
+
+  test('leaves the format unset for a format Ritual does not model', async () => {
+    const client = new MoxfieldClient(makeMockHttpClient({ ...deckResponse, format: 'none' }))
+    const deck = await fetchMoxfieldDeck('12345', client)
+
+    expect(deck.format).toBeUndefined()
+  })
+
   test('falls back to inline deck.primer when primer endpoint returns 404', async () => {
     const deckWithInlinePrimer = { ...deckResponse, primer: 'Inline primer' }
     const client = new MoxfieldClient(makeMockHttpClient(deckWithInlinePrimer, null))
@@ -119,6 +135,9 @@ describe('Moxfield Importer', () => {
       fetch: async () => new Response('Not found', { status: 404, statusText: 'Not Found' }),
     }
     const client = new MoxfieldClient(http)
-    expect(fetchMoxfieldDeck('bad-id', client)).rejects.toThrow('Failed to fetch Moxfield deck')
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
+    await expect(fetchMoxfieldDeck('bad-id', client)).rejects.toThrow(
+      'Failed to fetch Moxfield deck',
+    )
   })
 })

@@ -17,6 +17,7 @@ import {
   collectorNumberField,
   conditionField,
   conditionSchema,
+  deckFormatSchema,
   finishField,
   finishSchema,
   listTypeSchema,
@@ -53,7 +54,7 @@ export function registerWriteTools(server: McpServer): void {
       description: 'Create a new, empty deck.',
       inputSchema: {
         name: z.string().min(1).describe('Display name.'),
-        format: z.string().optional().describe('Deck format; defaults to commander.'),
+        format: deckFormatSchema.optional().describe('Deck format; defaults to commander.'),
       },
     },
     async ({ name, format }) =>
@@ -120,8 +121,7 @@ export function registerWriteTools(server: McpServer): void {
           .enum(['create', 'overwrite', 'append'])
           .optional()
           .describe('Defaults to "create", which fails if the list already exists.'),
-        format: z
-          .string()
+        format: deckFormatSchema
           .optional()
           .describe('Deck format; required when creating or overwriting a deck.'),
         content: z.string().min(1).describe('Raw CSV text.'),

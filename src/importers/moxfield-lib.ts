@@ -1,5 +1,6 @@
 import { MoxfieldClient } from './moxfield-client'
 import { type DeckData, type DeckSection } from '../types'
+import { parseDeckFormat } from '../deck-format'
 import { getLogger } from '../logger'
 
 type ImportedCard = { quantity: number; name: string }
@@ -56,6 +57,9 @@ export async function fetchMoxfieldDeck(
 
     return {
       name: deck.name,
+      // Moxfield reports a format slug (`commander`, `duelCommander`, ...); an
+      // unmodelled one (`custom`, `none`) resolves to null and is left unset.
+      format: parseDeckFormat(deck.format) ?? undefined,
       sourceId: deckId,
       sourceUrl: `https://moxfield.com/decks/${deckId}`,
       description: deck.description || undefined,

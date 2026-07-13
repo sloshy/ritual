@@ -1,4 +1,5 @@
 import { BOARDS, type DeckData, type DeckSection } from '../types'
+import { getDeckFormatLabel, parseDeckFormat, type DeckFormatKey } from '../deck-format'
 
 export interface ArchidektCategory {
   id: number
@@ -17,6 +18,8 @@ export interface ArchidektCardEntry {
 export interface ArchidektDeckResponse {
   name?: string
   description?: string
+  /** Archidekt's numeric format id; see `ARCHIDEKT_FORMATS`. */
+  deckFormat?: number
   categories?: ArchidektCategory[]
   cards?: ArchidektCardEntry[]
 }
@@ -53,8 +56,21 @@ export const ARCHIDEKT_FORMATS: Record<number, string> = {
   19: 'Timeless',
 }
 
+/**
+ * Map an Archidekt format id onto a canonical {@link DeckFormatKey}. Returns null
+ * for an unknown id and for the Archidekt-only formats Ritual does not model
+ * (Custom, Frontier, Future Standard) — such a deck is imported with no declared
+ * format and falls back to section-name detection.
+ */
+export function archidektDeckFormat(formatId: number | undefined): DeckFormatKey | null {
+  if (formatId === undefined) return null
+  return parseDeckFormat(ARCHIDEKT_FORMATS[formatId])
+}
+
+/** An Archidekt format id as a human-readable label, for listing remote decks. */
 export function getArchidektFormat(formatId: number): string {
-  return ARCHIDEKT_FORMATS[formatId] || 'Unknown'
+  const key = archidektDeckFormat(formatId)
+  return key ? getDeckFormatLabel(key) : (ARCHIDEKT_FORMATS[formatId] ?? 'Unknown')
 }
 
 export type ArchidektCardModifier = 'Normal' | 'Foil' | 'Etched'
@@ -196,6 +212,7 @@ export function parseArchidektDeckResponse(json: ArchidektDeckResponse, deckId: 
 
   return {
     name: json.name || `Archidekt Deck ${deckId}`,
+    format: archidektDeckFormat(json.deckFormat) ?? undefined,
     sourceId: deckId.toString(),
     sourceUrl: `https://archidekt.com/decks/${deckId}`,
     description: parseArchidektDescription(json.description),

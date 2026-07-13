@@ -9,6 +9,12 @@ import {
   For,
 } from 'solid-js'
 import type { NavigateFn } from '../types'
+import {
+  DECK_FORMAT_KEYS,
+  getDeckFormatLabel,
+  parseDeckFormat,
+  type DeckFormatKey,
+} from '../../../deck-format'
 import { type ListType, LIST_TYPE_DISPLAY } from '../../../list-type'
 import type { RitualConfig, SiteConfig } from '../../../ritual-config'
 import { type SiteSelectionConfig, defaultSiteSelection } from '../../../site/list-selection'
@@ -19,7 +25,7 @@ import { useApiAction } from '../hooks/useApiAction'
 type Category = 'decks' | 'collections' | 'wanted'
 type ViewState = 'list' | 'create' | 'rename' | 'delete'
 type ListItem = { slug: string; name: string }
-type CreateBody = { name: string; format?: string }
+type CreateBody = { name: string; format?: DeckFormatKey }
 /** The `site` selection keys that hold an exclude list — never the include lists. */
 type ExcludeKey = Extract<keyof SiteSelectionConfig, `exclude${string}`>
 
@@ -93,7 +99,7 @@ export function ListManager(props: ListManagerProps): JSX.Element {
   const [selected, setSelected] = createSignal<ListItem | null>(null)
 
   const [newName, setNewName] = createSignal('')
-  const [newFormat, setNewFormat] = createSignal('commander')
+  const [newFormat, setNewFormat] = createSignal<DeckFormatKey>('commander')
   const [renameName, setRenameName] = createSignal('')
   const [deleteConfirm, setDeleteConfirm] = createSignal('')
   const [config, setConfig] = createSignal<RitualConfig | null>(null)
@@ -390,18 +396,13 @@ export function ListManager(props: ListManagerProps): JSX.Element {
                 <select
                   class="form-input"
                   value={newFormat()}
-                  onChange={(e) => setNewFormat(e.currentTarget.value)}
+                  onChange={(e) =>
+                    setNewFormat(parseDeckFormat(e.currentTarget.value) ?? 'commander')
+                  }
                 >
-                  <option value="commander">Commander</option>
-                  <option value="standard">Standard</option>
-                  <option value="pioneer">Pioneer</option>
-                  <option value="modern">Modern</option>
-                  <option value="legacy">Legacy</option>
-                  <option value="vintage">Vintage</option>
-                  <option value="pauper">Pauper</option>
-                  <option value="draft">Draft</option>
-                  <option value="cube">Cube</option>
-                  <option value="other">Other</option>
+                  <For each={DECK_FORMAT_KEYS}>
+                    {(key) => <option value={key}>{getDeckFormatLabel(key)}</option>}
+                  </For>
                 </select>
               </div>
             </Show>

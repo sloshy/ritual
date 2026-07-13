@@ -11,7 +11,7 @@ import {
   resolveTargetSection,
   writeDeck,
 } from './deck-helpers'
-import { getDeckFormatLabel, normalizeFormatKey } from '../deck-format'
+import { getDeckFormatLabel, resolveDeckFormat, type DeckFormatKey } from '../deck-format'
 import type { DeckFrontMatter } from '../deck-file'
 import {
   applyDeckChange,
@@ -69,12 +69,18 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
   let lastSection: string | null = null
   let lastPrinting: PrintingTuple | null = null
 
-  /** The deck's format as shown in the menu: its label, the raw string, or "not set". */
+  /**
+   * The deck's format, resolved the same way the site resolves it — declared in
+   * front matter, else inferred from the sections — so a deck the site shows as
+   * "Commander" never reads as "not set" here.
+   */
+  const currentFormat = (): DeckFormatKey | null =>
+    resolveDeckFormat(state.deck, frontMatter.format)
+
+  /** The deck's format as shown in the menu: its label, or "not set". */
   const formatDisplay = (): string => {
-    const raw = frontMatter.format ?? ''
-    const known = normalizeFormatKey(raw)
-    if (known) return getDeckFormatLabel(known)
-    return raw || 'not set'
+    const format = currentFormat()
+    return format ? getDeckFormatLabel(format) : 'not set'
   }
 
   /**
@@ -83,8 +89,9 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
    * session dirty (persisted by the next save) without a changelog entry.
    */
   const changeFormat = async (): Promise<void> => {
-    const next = await promptDeckFormat(normalizeFormatKey(frontMatter.format ?? ''))
-    if (!next || next === normalizeFormatKey(frontMatter.format ?? '')) return
+    const current = currentFormat()
+    const next = await promptDeckFormat(current)
+    if (!next || next === current) return
     frontMatter.format = next
     state.deck.format = next
     state.dirty = true

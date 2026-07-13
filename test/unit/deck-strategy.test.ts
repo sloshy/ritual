@@ -14,15 +14,15 @@ function makeSessionConfig(): DeckSessionConfig {
   }
 }
 
-function makeDeck(): DeckData {
-  return { name: 'Test Deck', sections: [] }
+function makeDeck(sections: DeckData['sections'] = []): DeckData {
+  return { name: 'Test Deck', sections }
 }
 
-function menuTitles(frontMatter: Record<string, unknown>): string[] {
+function menuTitles(frontMatter: Record<string, unknown>, deck: DeckData = makeDeck()): string[] {
   const strategy = createDeckStrategy({
     deckFile: '/decks/test-deck.md',
     deckName: 'Test Deck',
-    initialDeck: makeDeck(),
+    initialDeck: deck,
     frontMatter,
     sessionConfig: makeSessionConfig(),
     excludeDigitalOnly: true,
@@ -30,8 +30,11 @@ function menuTitles(frontMatter: Record<string, unknown>): string[] {
   return (strategy.extraMenuItems?.() ?? []).map((c) => c.title)
 }
 
-function changeFormatTitle(frontMatter: Record<string, unknown>): string | undefined {
-  return menuTitles(frontMatter).find((t) => t.includes('Change Format'))
+function changeFormatTitle(
+  frontMatter: Record<string, unknown>,
+  deck?: DeckData,
+): string | undefined {
+  return menuTitles(frontMatter, deck).find((t) => t.includes('Change Format'))
 }
 
 describe('deck strategy extra menu items', () => {
@@ -39,14 +42,16 @@ describe('deck strategy extra menu items', () => {
     expect(changeFormatTitle({ format: 'commander' })).toContain('Change Format (Commander)')
   })
 
-  test('shows a raw unknown format string as-is', () => {
-    expect(changeFormatTitle({ format: 'kitchen-table' })).toContain(
-      'Change Format (kitchen-table)',
-    )
+  test('infers the format from the sections when the front matter declares none', () => {
+    // The public site infers "Commander" from the section; the editor menu must
+    // agree rather than reporting "not set".
+    const deck = makeDeck([{ name: 'Commander', cards: [{ quantity: 1, name: 'Atraxa' }] }])
+    expect(changeFormatTitle({}, deck)).toContain('Change Format (Commander)')
   })
 
-  test('shows "not set" when the front matter has no format', () => {
+  test('shows "not set" when nothing declares or implies a format', () => {
     expect(changeFormatTitle({})).toContain('Change Format (not set)')
+    expect(changeFormatTitle({ format: 'kitchen-table' })).toContain('Change Format (not set)')
   })
 })
 

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { DECK_FORMAT_KEYS } from '../deck-format'
 import { VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
 
 /**
@@ -10,6 +11,8 @@ import { VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
 export const listTypeSchema = z.enum(['deck', 'collection', 'wanted'])
 export const finishSchema = z.enum(VALID_FINISHES)
 export const conditionSchema = z.enum(VALID_CONDITIONS)
+/** Derived from the canonical format list, so the tool schema cannot drift from it. */
+export const deckFormatSchema = z.enum(DECK_FORMAT_KEYS)
 
 export const slugField = z
   .string()

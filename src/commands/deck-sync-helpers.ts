@@ -1,6 +1,12 @@
 import { createAddChange, createRemoveChange, type CardChange } from '../change-event'
-import { BOARDS, type Board, type DeckSection } from '../types'
-import { isCommanderSection, isSideboardSection, isExtraSection } from '../deck-format'
+import { BOARDS, type Board, type DeckData, type DeckSection } from '../types'
+import {
+  isCommanderSection,
+  isSideboardSection,
+  isExtraSection,
+  resolveDeckFormat,
+  type DeckFormatKey,
+} from '../deck-format'
 
 export type { Board }
 
@@ -197,6 +203,34 @@ export function diffToChangeEvents(diff: NameDiff, resolveCardId?: CardIdResolve
 /** Check whether a NameDiff contains any changes. */
 export function isDiffEmpty(diff: NameDiff): boolean {
   return diff.added.length === 0 && diff.removed.length === 0 && diff.quantityChanged.length === 0
+}
+
+export type FormatSync = {
+  /** The format the local deck should be saved with; null leaves it unset. */
+  format: DeckFormatKey | null
+  /** The format the local deck reads as today, for the log line. */
+  localFormat: DeckFormatKey | null
+  /** True when the remote format differs — on its own, reason enough to save. */
+  changed: boolean
+}
+
+/**
+ * Reconcile the local deck's format against the one the source service reports.
+ *
+ * The remote format wins, the same as the remote card list does. A remote format
+ * Ritual does not model (Archidekt's Custom, Frontier, Future Standard) arrives as
+ * null and leaves the local format — declared or inferred from the sections —
+ * alone.
+ */
+export function syncDeckFormat(
+  localDeck: DeckData,
+  localFrontMatterFormat: unknown,
+  remoteDeck: DeckData,
+): FormatSync {
+  const localFormat = resolveDeckFormat(localDeck, localFrontMatterFormat)
+  const remoteFormat = remoteDeck.format ?? null
+  if (remoteFormat === null) return { format: localFormat, localFormat, changed: false }
+  return { format: remoteFormat, localFormat, changed: remoteFormat !== localFormat }
 }
 
 /**

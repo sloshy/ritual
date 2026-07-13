@@ -355,6 +355,12 @@ menu item shows the current format, and the change is written on the next save l
 pending edit (it counts as unsaved work, but is not a card change, so it does not appear in the
 changelog or the session-changes viewer).
 
+A deck with no `format:` — an older file, or one imported from a source that reports no format —
+is not formatless: it is read as Commander when it has a `## Commander` section (Oathbreaker for a
+`## Oathbreaker` or `## Signature Spell` section), which is what the menu shows and what the site
+displays. Saving the deck writes that resolved format into the file, so the guess only has to be
+made once. See [new-deck](/commands/new-deck/#deck-format) for the full list of formats.
+
 ### Deck Files
 
 Cards are written to a markdown deck file in the `decks/` directory under their section headers:

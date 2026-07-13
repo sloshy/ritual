@@ -11,8 +11,7 @@ import {
   type ImportCardEntry,
 } from '../importers/csv-apply'
 import { type DeckData } from '../types'
-import { serializeCardLine } from '../deck-file'
-import { assignMissingDeckCardIds } from '../card-id'
+import { serializeDeckToMarkdown, type DeckFrontMatter } from '../deck-file'
 import { parseMoxfieldPrimer } from '../primer-parser'
 import { ExitCode } from './scripting'
 import { getLogger } from '../logger'
@@ -175,39 +174,20 @@ export async function saveDeck(
     }
   }
 
-  const sourceIdLine = deckData.sourceId ? `sourceId: "${deckData.sourceId}"\n` : ''
-  const sourceUrlLine = deckData.sourceUrl ? `sourceUrl: "${deckData.sourceUrl}"\n` : ''
-
-  const descriptionLine = deckData.description
-    ? `description: "${deckData.description.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"\n`
-    : ''
-
-  const fileHeader = `---
-name: "${deckData.name}"
-source: "${deckData.sourceUrl || ''}"
-${sourceIdLine}${sourceUrlLine}${descriptionLine}created: "${new Date().toISOString()}"
-tags: []
----
-
-# ${deckData.name}
-
-`
-
-  // Assign IDs up front so every imported card line is written with a stable
-  // `&N` rather than relying on a later command to backfill it. serializeCardLine
-  // also preserves any printing metadata the importer captured.
-  const idedDeck = assignMissingDeckCardIds(deckData)
-
-  let cardList = ''
-  for (const section of idedDeck.sections) {
-    if (section.cards.length > 0) {
-      cardList += `## ${section.name}\n`
-      cardList += section.cards.map(serializeCardLine).join('\n')
-      cardList += '\n\n'
-    }
+  // Written through the shared serializer, so an imported deck comes out with the
+  // same front matter (including a canonical `format:`, resolved from the source
+  // service or the deck's sections) and the same `&N` card ids as a deck saved by
+  // any other surface.
+  const frontMatter: DeckFrontMatter = {
+    name: deckData.name,
+    format: deckData.format,
+    sourceId: deckData.sourceId,
+    sourceUrl: deckData.sourceUrl,
+    description: deckData.description,
+    created: new Date().toISOString(),
+    tags: [],
   }
-
-  const fileContent = fileHeader + cardList
+  const fileContent = serializeDeckToMarkdown(deckData, frontMatter)
 
   // Derive primer sidecar path from the deck file path
   const primerPath = filePath.replace(/\.md$/, '.primer.md')

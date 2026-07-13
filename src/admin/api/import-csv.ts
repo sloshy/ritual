@@ -1,6 +1,6 @@
 import { hashPath } from '../../content-hash'
 import { isListType, LIST_TYPES, type ListType } from '../../list-type'
-import { DECK_FORMAT_KEYS, normalizeFormatKey, type DeckFormatKey } from '../../deck-format'
+import { invalidDeckFormatMessage, parseDeckFormat, type DeckFormatKey } from '../../deck-format'
 import { convertCsvRows, parseColumnsSpec, parseCsv, type CsvRowFailure } from '../../importers/csv'
 import { applyCsvImport, type CsvImportMode } from '../../importers/csv-apply'
 import { dirForType } from '../../resolve-list'
@@ -77,11 +77,9 @@ export function handleImportCsv(req: Request): Promise<Response> {
 
     let format: DeckFormatKey | undefined
     if (body.format !== undefined) {
-      const normalized = normalizeFormatKey(body.format)
+      const normalized = parseDeckFormat(body.format)
       if (normalized === null) {
-        return badRequest(
-          `Invalid deck format '${body.format}'. Valid formats: ${DECK_FORMAT_KEYS.join(', ')}`,
-        )
+        return badRequest(invalidDeckFormatMessage(body.format))
       }
       format = normalized
     }

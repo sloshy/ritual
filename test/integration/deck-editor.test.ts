@@ -47,8 +47,9 @@ describe('deck editor helpers (Integration)', () => {
   test('ensureDeckFile creates a slugged file with display name front matter', async () => {
     const filePath = await ensureDeckFile('My Cool Deck', 'commander')
     expect(filePath).toBe(path.join(dir, 'decks', 'my-cool-deck.md'))
-    const content = await fs.readFile(filePath, 'utf-8')
-    expect(content).toContain('name: "My Cool Deck"')
+    const { frontMatter } = await loadDeck(filePath)
+    expect(frontMatter.name).toBe('My Cool Deck')
+    expect(frontMatter.format).toBe('commander')
   })
 
   test('ensureDeckFile is idempotent and does not clobber an existing deck', async () => {

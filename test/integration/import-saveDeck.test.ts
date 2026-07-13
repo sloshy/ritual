@@ -2,6 +2,7 @@ import { describe, expect, test, beforeEach, afterEach } from 'bun:test'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { saveDeck } from '../../src/commands/import'
+import { parseDeckFrontMatter } from '../../src/deck-file'
 import { sanitizeDeckFileName } from '../../src/utils'
 import { type DeckData } from '../../src/types'
 import { MemoryLogger, resetLogger, setLogger } from '../test-utils'
@@ -72,9 +73,39 @@ describe('saveDeck (Integration)', () => {
 
       await saveDeck(sampleDeck, dir, { nonInteractive: true, assumeYes: true })
 
-      const updated = await Bun.file(conflictPath).text()
-      expect(updated).toContain('# Integration Deck')
-      expect(updated).toContain('1 Sol Ring')
+      const frontMatter = await parseDeckFrontMatter(conflictPath)
+      expect(frontMatter.name).toBe('Integration Deck')
+      expect(frontMatter.sourceId).toBe('source-123')
+      expect(await Bun.file(conflictPath).text()).toContain('1 Sol Ring')
+    })
+  })
+
+  test('persists the format the source service reported', async () => {
+    await withTempDir(async (dir) => {
+      const deck: DeckData = { ...sampleDeck, format: 'modern' }
+      await saveDeck(deck, dir, { nonInteractive: true })
+
+      const frontMatter = await parseDeckFrontMatter(deckPath(dir, deck.name))
+      expect(frontMatter.format).toBe('modern')
+    })
+  })
+
+  test('persists a format inferred from the sections when the source reported none', async () => {
+    // An Archidekt/Moxfield deck whose format Ritual cannot map still has a
+    // Commander section; the site infers "Commander" from it, and the import must
+    // write that down so every other surface reads the same format.
+    await withTempDir(async (dir) => {
+      const deck: DeckData = {
+        name: 'Commander Import',
+        sections: [
+          { name: 'Commander', cards: [{ quantity: 1, name: 'Atraxa' }] },
+          { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
+        ],
+      }
+      await saveDeck(deck, dir, { nonInteractive: true })
+
+      const frontMatter = await parseDeckFrontMatter(deckPath(dir, deck.name))
+      expect(frontMatter.format).toBe('commander')
     })
   })
 

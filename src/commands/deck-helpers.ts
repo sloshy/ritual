@@ -13,7 +13,12 @@ import { getDecksDir } from '../ritual-config'
 import { DECK_FORMAT_KEYS, getDeckFormatLabel, type DeckFormatKey } from '../deck-format'
 import { ask } from './prompts-helpers'
 import { writeFileWithHash } from '../content-hash'
-import { parseDeckFrontMatter, serializeDeckToMarkdown, type DeckFrontMatter } from '../deck-file'
+import {
+  newDeckMarkdown,
+  parseDeckFrontMatter,
+  serializeDeckToMarkdown,
+  type DeckFrontMatter,
+} from '../deck-file'
 import { importFromTextFile, listDeckFiles, readDeckName } from '../importers/text-file'
 import { assignMissingDeckCardIds, repackSessionIds } from '../card-id'
 import { applyChangeToDeck } from '../editor/deck-changes'
@@ -62,18 +67,13 @@ export function deckFilePath(name: string): string {
   return path.join(getDecksDir(), `${safeName}.md`)
 }
 
-/** The front matter a freshly created deck starts with (mirroring `new-deck`). */
-export function newDeckFrontMatter(name: string, format: DeckFormatKey): DeckFrontMatter {
-  return { name, format, created: new Date().toISOString(), tags: [] }
-}
-
 /**
  * Ensure a deck file exists for `name`, creating it with YAML front matter when
  * missing (mirroring `new-deck`). Returns the resolved file path.
  * `format` only applies to a newly created file — an existing deck keeps its own.
  */
 export async function ensureDeckFile(name: string, format: DeckFormatKey): Promise<string> {
-  const content = `---\nname: "${name}"\nformat: "${format}"\ncreated: "${new Date().toISOString()}"\ntags: []\n---\n\n## Main\n`
+  const content = newDeckMarkdown(name, format)
   return ensureListFile(getDecksDir(), path.basename(deckFilePath(name)), content, 'deck')
 }
 

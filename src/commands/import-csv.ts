@@ -6,7 +6,8 @@ import { isListType, listTypeLabel, LIST_TYPES, type ListType } from '../list-ty
 import {
   DECK_FORMAT_KEYS,
   getDeckFormatLabel,
-  normalizeFormatKey,
+  invalidDeckFormatMessage,
+  parseDeckFormat,
   type DeckFormatKey,
 } from '../deck-format'
 import {
@@ -224,11 +225,9 @@ export function registerImportCsvCommand(program: Command): void {
 
       let format: DeckFormatKey | undefined
       if (options.format !== undefined) {
-        const normalized = normalizeFormatKey(options.format)
+        const normalized = parseDeckFormat(options.format)
         if (normalized === null) {
-          logger.error(
-            `Invalid deck format '${options.format}'. Valid formats: ${DECK_FORMAT_KEYS.join(', ')}`,
-          )
+          logger.error(invalidDeckFormatMessage(options.format))
           process.exitCode = ExitCode.UsageError
           return
         }

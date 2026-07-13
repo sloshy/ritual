@@ -41,6 +41,16 @@ supported.
 | MTGGoldfish | `https://www.mtggoldfish.com/deck/12345` |
 | Local File  | `./my-deck.txt`                          |
 
+## Deck Format
+
+An imported deck is written with a `format:` in its front matter. Archidekt and
+Moxfield report the deck's format, and it is mapped onto Ritual's format keys
+(Archidekt's "Commander / EDH" and Moxfield's `commander` both become `commander`).
+When the source reports a format Ritual does not model, or reports none at all — as
+MTGGoldfish and plain text files do — the format is inferred from the deck's
+sections: a `## Commander` section means Commander. See
+[new-deck](/commands/new-deck/#deck-format) for the full list.
+
 ## Examples
 
 Import a deck from Archidekt:

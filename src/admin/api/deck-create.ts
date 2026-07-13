@@ -1,4 +1,6 @@
 import path from 'node:path'
+import { newDeckMarkdown } from '../../deck-file'
+import { invalidDeckFormatMessage, parseDeckFormat } from '../../deck-format'
 import { loadRitualConfig } from '../../ritual-config'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { getErrorMessage } from '../../errors'
@@ -26,10 +28,19 @@ export async function handleDeckCreate(req: Request): Promise<Response> {
       return Response.json({ success: false, message: 'Request body too large' }, { status: 413 })
     }
     const body = (await req.json()) as DeckCreateRequest
-    const { name, format = 'commander' } = body
+    const { name, format: rawFormat = 'commander' } = body
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       const resp: DeckCreateResponse = { success: false, message: 'Deck name is required' }
+      return Response.json(resp, { status: 400 })
+    }
+
+    const format = parseDeckFormat(rawFormat)
+    if (!format) {
+      const resp: DeckCreateResponse = {
+        success: false,
+        message: invalidDeckFormatMessage(rawFormat),
+      }
       return Response.json(resp, { status: 400 })
     }
 
@@ -60,19 +71,7 @@ export async function handleDeckCreate(req: Request): Promise<Response> {
       return Response.json(resp, { status: 409 })
     }
 
-    const content = `---
-name: "${trimmedName}"
-format: "${format}"
-created: "${new Date().toISOString()}"
-tags: []
----
-
-# ${trimmedName}
-
-// Add your cards here
-`
-
-    await writeFileWithHash(filePath, content)
+    await writeFileWithHash(filePath, newDeckMarkdown(trimmedName, format))
 
     const config = await loadRitualConfig()
     if (shouldAutoCommit(config, decksDir)) {

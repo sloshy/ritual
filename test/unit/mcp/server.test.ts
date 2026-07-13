@@ -335,6 +335,12 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(firstText(result).toLowerCase()).toContain('validation')
   })
 
+  test('create_deck rejects a format outside the canonical set', async () => {
+    const result = await callTool(client, 'create_deck', { name: 'Cube Deck', format: 'cube' })
+    expect(result.isError).toBe(true)
+    expect(firstText(result).toLowerCase()).toContain('validation')
+  })
+
   test('exposes lists as readable resources', async () => {
     const { resources } = await client.listResources()
     const uris = resources.map((r) => r.uri)

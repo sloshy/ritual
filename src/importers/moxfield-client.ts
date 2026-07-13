@@ -18,6 +18,8 @@ export type MoxfieldDeckResponse = {
   publicId: string
   name: string
   description: string
+  /** Moxfield's format slug, e.g. `commander`, `duelCommander`, `premodern`. */
+  format?: string
   hasPrimer?: boolean | null
   /** Primer content if included inline in the deck response. */
   primer?: string

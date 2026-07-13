@@ -6,6 +6,7 @@ import {
   buildCardIdResolver,
   applyDownloadDiff,
   normalizeBoard,
+  syncDeckFormat,
   type NameDiff,
   type CardIdResolver,
   type CardSummary,
@@ -677,5 +678,64 @@ describe('applyDownloadDiff', () => {
     const result = applyDownloadDiff(sections, diff)
     const total = result.flatMap((s) => s.cards).reduce((sum, c) => sum + c.quantity, 0)
     expect(total).toBe(5)
+  })
+})
+
+// ── syncDeckFormat ────────────────────────────────────────────────────
+
+describe('syncDeckFormat', () => {
+  const commanderSections: DeckSection[] = [
+    { name: 'Commander', cards: [{ quantity: 1, name: 'Atraxa' }] },
+    { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
+  ]
+
+  function deck(partial: Partial<DeckData> = {}): DeckData {
+    return { name: 'Test Deck', sections: [], ...partial }
+  }
+
+  test('adopts the remote format when it differs from the local one', () => {
+    const result = syncDeckFormat(
+      deck({ format: 'commander' }),
+      'commander',
+      deck({ format: 'modern' }),
+    )
+    expect(result).toEqual({ format: 'modern', localFormat: 'commander', changed: true })
+  })
+
+  test('reports no change when the remote format matches', () => {
+    const result = syncDeckFormat(deck({ format: 'modern' }), 'modern', deck({ format: 'modern' }))
+    expect(result.changed).toBe(false)
+    expect(result.format).toBe('modern')
+  })
+
+  test('is a change when the local deck only ever inferred a different format', () => {
+    // No `format:` locally — the sections imply Commander, and Archidekt says
+    // Duel Commander. The deck must be re-saved to record the remote's answer.
+    const local = deck({ sections: commanderSections })
+    const result = syncDeckFormat(local, undefined, deck({ format: 'duel-commander' }))
+    expect(result).toEqual({
+      format: 'duel-commander',
+      localFormat: 'commander',
+      changed: true,
+    })
+  })
+
+  test('is not a change when the inferred local format already matches the remote', () => {
+    const local = deck({ sections: commanderSections })
+    const result = syncDeckFormat(local, undefined, deck({ format: 'commander' }))
+    expect(result.changed).toBe(false)
+  })
+
+  test('keeps the local format when the remote reports one Ritual does not model', () => {
+    // Archidekt's Custom/Frontier/Future Standard arrive with no format at all.
+    const local = deck({ format: 'legacy' })
+    const result = syncDeckFormat(local, 'legacy', deck())
+    expect(result).toEqual({ format: 'legacy', localFormat: 'legacy', changed: false })
+  })
+
+  test('leaves the format unset when neither side has one', () => {
+    const local = deck({ sections: [{ name: 'Main', cards: [{ quantity: 4, name: 'Bolt' }] }] })
+    const result = syncDeckFormat(local, undefined, deck())
+    expect(result).toEqual({ format: null, localFormat: null, changed: false })
   })
 })

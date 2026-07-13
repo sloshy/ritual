@@ -24,7 +24,7 @@ import { findPrinting } from '../card-printing'
 import { extractPrimerCardNames } from '../primer-parser'
 import { parseChangelog, extractChangelogCardNames } from '../changelog-parser'
 import type { ChangelogPage } from '../changelog-parser'
-import { detectDeckFormat, getMainDeckSize } from '../deck-format'
+import { resolveDeckFormat, getMainDeckSize } from '../deck-format'
 import { getBaseDir } from '../base-dir'
 import {
   getBannedPrintings,
@@ -838,7 +838,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     // the main deck (commander/oathbreaker + mainboard) so format checks like
     // "100 for Commander" or "60 for Modern" line up with the expected size.
     const cardCount = getMainDeckSize(deckData.sections)
-    const format = detectDeckFormat(deckData)
+    const format = resolveDeckFormat(deckData)
     const latestChangelog = changelog[0]?.timestamp
     const lastUpdatedAt = latestChangelog ?? fileMtime
     const featuredImage = featured

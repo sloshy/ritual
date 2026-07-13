@@ -1,3 +1,5 @@
+import type { DeckFormatKey } from './deck-format'
+
 export type Finish = 'nonfoil' | 'foil' | 'etched'
 export type Condition = 'NM' | 'LP' | 'MP' | 'HP' | 'DMG'
 export type ErrorCode = 'not_found' | 'usage_error' | 'runtime_error'
@@ -37,8 +39,8 @@ export interface DeckSection {
 
 export interface DeckData {
   name: string
-  /** Usually a `DeckFormatKey`; free text is tolerated for unrecognized/legacy values. */
-  format?: string
+  /** Canonical format key; set only from `parseDeckFormat`, never raw text. */
+  format?: DeckFormatKey
   sourceId?: string
   sourceUrl?: string
   description?: string

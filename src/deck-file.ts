@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import matter from 'gray-matter'
-import { type Card, type DeckData } from './types'
+import { DEFAULT_SECTION, type Card, type DeckData } from './types'
+import { parseDeckFormat, resolveDeckFormat, type DeckFormatKey } from './deck-format'
 import { listDeckFiles } from './importers/text-file'
 import { isPathWithinDir } from './path-validation'
 import { allocateNextIdFromContent, assignMissingDeckCardIds } from './card-id'
@@ -49,12 +50,15 @@ export async function resolveDeckFilePath(
  */
 export type DeckFrontMatter = {
   name?: string
-  /** Usually a `DeckFormatKey`; free text is tolerated for unrecognized/legacy values. */
-  format?: string
+  /** Canonical format key. Normalized on every write by `serializeDeckToMarkdown`. */
+  format?: DeckFormatKey
   created?: string
   tags?: string[]
+  description?: string
   sourceId?: string
   sourceUrl?: string
+  /** Set by `deck-sync` after a successful sync with the source service. */
+  lastSynced?: string
 } & Record<string, unknown>
 
 /** Serialize a full deck back to markdown with YAML front matter */
@@ -70,14 +74,60 @@ export function serializeDeckToMarkdown(deck: DeckData, frontMatter: DeckFrontMa
   })
 
   const content = '\n' + sectionBlocks.join('\n\n') + '\n'
-  return matter.stringify(content, frontMatter)
+  return matter.stringify(content, canonicalFrontMatter(deck, frontMatter))
 }
 
-/** Parse the front matter from a deck file */
+/**
+ * The front matter a deck is actually written with.
+ *
+ * Stamps the deck's resolved format, so a format that was only ever inferred
+ * (from a `## Commander` section, say) becomes explicit on the deck's first save
+ * and every reader agrees thereafter. An unresolvable value is dropped rather
+ * than persisted as-is: `format` is a closed vocabulary, and leaving unparseable
+ * text in the file is what let the site and the editors disagree in the first
+ * place.
+ *
+ * Keys with an `undefined` value are also dropped — a caller that builds front
+ * matter from optional `DeckData` fields would otherwise fail the YAML dump.
+ */
+function canonicalFrontMatter(deck: DeckData, frontMatter: DeckFrontMatter): DeckFrontMatter {
+  const next: DeckFrontMatter = {}
+  for (const [key, value] of Object.entries(frontMatter)) {
+    if (value !== undefined) next[key] = value
+  }
+  const format = resolveDeckFormat(deck, frontMatter.format)
+  if (format) next.format = format
+  else delete next.format
+  return next
+}
+
+/**
+ * The front matter a freshly created deck starts with. Shared by every way a deck
+ * can be created — `new-deck`, the editors, the admin site — so they cannot drift.
+ */
+export function newDeckFrontMatter(name: string, format: DeckFormatKey): DeckFrontMatter {
+  return { name, format, created: new Date().toISOString(), tags: [] }
+}
+
+/** The markdown a freshly created, empty deck file starts with. */
+export function newDeckMarkdown(name: string, format: DeckFormatKey): string {
+  const deck: DeckData = { name, format, sections: [{ name: DEFAULT_SECTION, cards: [] }] }
+  return serializeDeckToMarkdown(deck, newDeckFrontMatter(name, format))
+}
+
+/**
+ * Parse the front matter from a deck file. `format` is validated against the
+ * canonical key set, so an unrecognized value is dropped rather than handed on as
+ * a format key; the deck then falls back to section detection. Every other key is
+ * taken as YAML found it, so unknown and user-authored keys round-trip untouched.
+ */
 export async function parseDeckFrontMatter(filePath: string): Promise<DeckFrontMatter> {
   const content = await fs.readFile(filePath, 'utf-8')
-  const parsed = matter(content)
-  return parsed.data
+  const frontMatter = matter(content).data as DeckFrontMatter
+  const format = parseDeckFormat(frontMatter.format)
+  if (format) frontMatter.format = format
+  else delete frontMatter.format
+  return frontMatter
 }
 
 /**

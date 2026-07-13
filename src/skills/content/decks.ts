@@ -16,6 +16,20 @@ ritual new-deck "Winota Stax"                 # defaults to commander
 ritual new-deck "Mono-Red Aggro" -f standard  # -f / --format
 \`\`\`
 
+### Deck format
+
+\`--format\` takes one of: \`commander\`, \`oathbreaker\`, \`standard\`, \`modern\`,
+\`pioneer\`, \`legacy\`, \`vintage\`, \`pauper\`, \`historic\`, \`alchemy\`, \`explorer\`,
+\`timeless\`, \`penny-dreadful\`, \`brawl\`, \`historic-brawl\`, \`duel-commander\`,
+\`pauper-commander\`, \`pre-dh\`, \`pre-modern\`, \`limited\`. Common aliases are accepted
+and normalized (\`EDH\` → \`commander\`, \`premodern\` → \`pre-modern\`); anything else is
+an error.
+
+The format is stored as \`format:\` in the deck's front matter. A deck that declares
+none is treated as Commander when it has a \`## Commander\` section, and that
+inference is written into the file on its next save — so do not add a \`format:\` by
+hand to "fix" a deck that displays correctly.
+
 ## Add cards (non-interactive — best for agents)
 
 Use \`add-card\` (covered by the **ritual-edit** skill) to add a single card to an
@@ -126,6 +140,9 @@ ritual deck-sync winota-stax              # one deck
 ritual deck-sync --download-changes       # pull remote changes only
 ritual deck-sync --upload-changes         # push local changes only
 \`\`\`
+
+A download also adopts the deck's Archidekt format (mapped onto Ritual's format
+keys). An upload does not push the local format back.
 
 ## Primer
 

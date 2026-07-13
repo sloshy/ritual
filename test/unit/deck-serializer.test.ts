@@ -33,6 +33,50 @@ describe('serializeDeckToMarkdown', () => {
   })
 })
 
+describe('serializeDeckToMarkdown: canonical format', () => {
+  const commanderDeck: DeckData = {
+    name: 'Test Deck',
+    sections: [
+      { name: 'Commander', cards: [{ quantity: 1, name: 'Atraxa' }] },
+      { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
+    ],
+  }
+
+  test('writes a format that was only inferred from the sections', () => {
+    // The site infers "Commander" from the section; saving makes that explicit so
+    // every other reader (the editors, the CLI menu) agrees without re-inferring.
+    const result = serializeDeckToMarkdown(commanderDeck, { name: 'Test Deck' })
+    expect(result).toContain('format: commander')
+    expect(parseDeckText(result, 'Fallback').format).toBe('commander')
+  })
+
+  // The admin deck-save handler passes the front matter straight from the request
+  // body, so raw, unvalidated values do reach the serializer.
+  test('rewrites a declared format into its canonical key', () => {
+    const untrusted: Record<string, unknown> = { name: 'Test Deck', format: 'Duel Commander' }
+    const result = serializeDeckToMarkdown({ name: 'Test Deck', sections: [] }, untrusted)
+    expect(result).toContain('format: duel-commander')
+  })
+
+  test('drops an unparseable format rather than persisting it', () => {
+    const untrusted: Record<string, unknown> = { name: 'Test Deck', format: 'cube' }
+    const deck: DeckData = { name: 'Test Deck', sections: [{ name: 'Main', cards: [] }] }
+    expect(serializeDeckToMarkdown(deck, untrusted)).not.toContain('format:')
+  })
+
+  test('omits front matter keys with no value', () => {
+    // saveDeck builds front matter straight from optional DeckData fields; an
+    // undefined value would otherwise fail the YAML dump.
+    const result = serializeDeckToMarkdown(commanderDeck, {
+      name: 'Test Deck',
+      sourceId: undefined,
+      description: undefined,
+    })
+    expect(result).not.toContain('sourceId')
+    expect(result).not.toContain('description')
+  })
+})
+
 describe('round-trip: parse → serialize → parse', () => {
   test('deck with card IDs round-trips correctly', () => {
     const original = [

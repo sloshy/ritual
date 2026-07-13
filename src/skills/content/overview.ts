@@ -51,6 +51,10 @@ Deck card lines start with a quantity; collection and wanted lines start with \`
 - \`[foil]\`/\`[etched]\` is the finish, \`[LP]\`/\`[MP]\`/\`[HP]\`/\`[DMG]\` the condition (the default \`NM\` is not written), \`{...}\` a note.
 - \`&N\` is a **stable internal card ID**. Never hand-author or renumber these — the tools manage them.
 
+A deck's YAML front matter carries its \`format:\` (a fixed set of keys — see the
+**ritual-decks** skill). A deck with no \`format:\` is treated as Commander when it
+has a \`## Commander\` section, and the tools write that down on the next save.
+
 **Prefer the CLI (or the web admin / MCP server) over hand-editing files**, so the
 \`&N\` IDs and \`.changes.md\` changelog stay correct. Reading files directly for
 inspection is fine.

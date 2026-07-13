@@ -1,5 +1,11 @@
 import type { DeckData, DeckSection } from './types'
 
+/**
+ * The canonical deck formats. This is the *only* vocabulary a deck's `format`
+ * may take: every surface that reads a format (file front matter, CLI flag,
+ * admin form, Archidekt, Moxfield) runs its input through {@link parseDeckFormat}
+ * first, and every surface that writes a deck persists the key it returns.
+ */
 export type DeckFormatKey =
   | 'commander'
   | 'oathbreaker'
@@ -10,8 +16,15 @@ export type DeckFormatKey =
   | 'vintage'
   | 'pauper'
   | 'historic'
+  | 'alchemy'
+  | 'explorer'
+  | 'timeless'
+  | 'penny-dreadful'
   | 'brawl'
+  | 'historic-brawl'
   | 'duel-commander'
+  | 'pauper-commander'
+  | 'pre-dh'
   | 'pre-modern'
   | 'limited'
 
@@ -35,10 +48,39 @@ const FORMAT_INFO: Record<DeckFormatKey, FormatInfo> = {
   vintage: { label: 'Vintage', expectedMainboardSize: 60 },
   pauper: { label: 'Pauper', expectedMainboardSize: 60 },
   historic: { label: 'Historic', expectedMainboardSize: 60 },
+  alchemy: { label: 'Alchemy', expectedMainboardSize: 60 },
+  explorer: { label: 'Explorer', expectedMainboardSize: 60 },
+  timeless: { label: 'Timeless', expectedMainboardSize: 60 },
+  'penny-dreadful': { label: 'Penny Dreadful', expectedMainboardSize: 60 },
   brawl: { label: 'Brawl', expectedMainboardSize: 60 },
+  'historic-brawl': { label: 'Historic Brawl', expectedMainboardSize: 100 },
   'duel-commander': { label: 'Duel Commander', expectedMainboardSize: 100 },
+  'pauper-commander': { label: 'Pauper Commander', expectedMainboardSize: 100 },
+  'pre-dh': { label: 'PreDH', expectedMainboardSize: 100 },
   'pre-modern': { label: 'Pre-Modern', expectedMainboardSize: 60 },
   limited: { label: 'Limited', expectedMainboardSize: 40 },
+}
+
+/**
+ * Alternate spellings that resolve to a canonical key. Covers the names external
+ * services use (Archidekt's "Commander / EDH" and "Dual Commander", Moxfield's
+ * "duelCommander", "penny", "predh") as well as the shorthand a user is likely
+ * to type. Keys here are already slugified by {@link parseDeckFormat}.
+ */
+const FORMAT_ALIASES: Record<string, DeckFormatKey> = {
+  edh: 'commander',
+  'commander-edh': 'commander',
+  'edh-commander': 'commander',
+  '1v1-commander': 'duel-commander',
+  'commander-1v1': 'duel-commander',
+  'dual-commander': 'duel-commander',
+  penny: 'penny-dreadful',
+  pdh: 'pauper-commander',
+  'pauper-edh': 'pauper-commander',
+  predh: 'pre-dh',
+  premodern: 'pre-modern',
+  draft: 'limited',
+  sealed: 'limited',
 }
 
 export function getDeckFormatLabel(format: DeckFormatKey): string {
@@ -86,29 +128,63 @@ export function getMainDeckSize(sections: DeckSection[]): number {
   return total
 }
 
-const FORMAT_KEYS = new Set<string>(Object.keys(FORMAT_INFO))
-
 /** Every legal deck format key, in declaration order. */
 export const DECK_FORMAT_KEYS = Object.keys(FORMAT_INFO) as DeckFormatKey[]
 
-export function normalizeFormatKey(raw: string): DeckFormatKey | null {
-  const normalized = raw
-    .trim()
-    .toLowerCase()
-    .replace(/[_\s]+/g, '-')
-  return FORMAT_KEYS.has(normalized) ? (normalized as DeckFormatKey) : null
+function isDeckFormatKey(value: string): value is DeckFormatKey {
+  return value in FORMAT_INFO
 }
 
 /**
- * Determine the deck's format from its `format` frontmatter field if present,
- * falling back to heuristic detection from section names. Returns null when no
- * format can be inferred.
+ * Parse an untrusted format value — a front matter field, a CLI flag, an admin
+ * form value, an Archidekt label, a Moxfield slug — into a canonical
+ * {@link DeckFormatKey}. Returns null when the value is absent, not a string, or
+ * names a format Ritual does not model (e.g. Archidekt's "Custom").
+ *
+ * This is the single entry point for turning outside text into a format; no
+ * other module should compare or lowercase format strings itself.
  */
-export function detectDeckFormat(deck: DeckData): DeckFormatKey | null {
-  if (deck.format) {
-    const fromFrontMatter = normalizeFormatKey(deck.format)
-    if (fromFrontMatter) return fromFrontMatter
-  }
+export function parseDeckFormat(raw: unknown): DeckFormatKey | null {
+  if (typeof raw !== 'string') return null
+  const slug = raw
+    .trim()
+    // Split camelCase so Moxfield's `duelCommander` slugs to `duel-commander`.
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .toLowerCase()
+    // Collapse every other separator (spaces, underscores, slashes) to a dash.
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  if (!slug) return null
+  if (isDeckFormatKey(slug)) return slug
+  return FORMAT_ALIASES[slug] ?? null
+}
+
+/**
+ * The message shown when {@link parseDeckFormat} rejects a user-supplied format.
+ * Lives here so the CLI, the admin API, and any other caller reject a bad format
+ * in the same words, listing the same keys.
+ */
+export function invalidDeckFormatMessage(raw: unknown): string {
+  return `Invalid deck format '${String(raw)}'. Valid formats: ${DECK_FORMAT_KEYS.join(', ')}`
+}
+
+/**
+ * Resolve the format a deck should be treated as: its declared format when it
+ * has (and can parse) one, otherwise a heuristic read of its section names.
+ * `frontMatterFormat` is the raw front matter value, for callers that hold the
+ * front matter separately from the parsed {@link DeckData}. Returns null when no
+ * format can be determined.
+ *
+ * Every surface — the site, the editors, the CLI menus — resolves through this,
+ * and `serializeDeckToMarkdown` persists what it returns, so a deck's format
+ * reads the same everywhere and stops being a guess after its first save.
+ */
+export function resolveDeckFormat(
+  deck: DeckData,
+  frontMatterFormat?: unknown,
+): DeckFormatKey | null {
+  const declared = parseDeckFormat(deck.format ?? frontMatterFormat)
+  if (declared) return declared
   if (deck.sections.some((s) => isOathbreakerSection(s.name))) return 'oathbreaker'
   if (deck.sections.some((s) => isCommanderSection(s.name))) return 'commander'
   return null

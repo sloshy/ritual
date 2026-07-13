@@ -85,7 +85,7 @@ there (since the admin binds `0.0.0.0` by default) and is independent of the bro
 
 | Tool                                                               | Description                                                                                       |
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| `create_deck`, `create_collection`, `create_wanted`                | Create a new, empty list.                                                                         |
+| `create_deck`, `create_collection`, `create_wanted`                | Create a new, empty list. `create_deck` takes a `format` from the fixed set of deck formats.      |
 | `import_deck`                                                      | Import a deck from a URL or pasted decklist text.                                                 |
 | `import_csv`                                                       | Import CSV text into a new or existing list (create/overwrite/append) with a column-mapping spec. |
 | `import_changes`                                                   | Apply a change bundle exported from the site editor to the underlying lists.                      |

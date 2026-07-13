@@ -71,7 +71,8 @@ describe('ArchidektClient', () => {
     const mockFetch = mock(async () => new Response('Error', { status: 500 }))
     const client = new ArchidektClient({ fetch: mockFetch })
 
-    expect(client.fetchPublicDecks('bad')).rejects.toThrow('Failed to fetch public decks')
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
+    await expect(client.fetchPublicDecks('bad')).rejects.toThrow('Failed to fetch public decks')
   })
 
   test('should fall back to the Main section for unknown category IDs', async () => {
@@ -153,11 +154,28 @@ describe('ArchidektClient', () => {
     expect(parseArchidektDeckResponse(response, '1').sections).toHaveLength(0)
   })
 
+  test('maps the Archidekt format id onto a canonical format key', () => {
+    const commander: ArchidektDeckResponse = { name: 'X', deckFormat: 3, cards: [] }
+    expect(parseArchidektDeckResponse(commander, '1').format).toBe('commander')
+
+    const oathbreaker: ArchidektDeckResponse = { name: 'X', deckFormat: 15, cards: [] }
+    expect(parseArchidektDeckResponse(oathbreaker, '1').format).toBe('oathbreaker')
+  })
+
+  test('leaves the format unset for an Archidekt-only or missing format', () => {
+    const custom: ArchidektDeckResponse = { name: 'X', deckFormat: 7, cards: [] }
+    expect(parseArchidektDeckResponse(custom, '1').format).toBeUndefined()
+
+    const none: ArchidektDeckResponse = { name: 'X', cards: [] }
+    expect(parseArchidektDeckResponse(none, '1').format).toBeUndefined()
+  })
+
   test('should throw error when fetchDeck fails', async () => {
     const mockFetch = mock(
       async () => new Response('Not Found', { status: 404, statusText: 'Not Found' }),
     )
     const client = new ArchidektClient({ fetch: mockFetch })
-    expect(client.fetchDeck('bad-id')).rejects.toThrow(/Failed to fetch deck/)
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
+    await expect(client.fetchDeck('bad-id')).rejects.toThrow(/Failed to fetch deck/)
   })
 })

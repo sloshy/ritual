@@ -59,7 +59,9 @@ current list" item saves just one), and each saved list gets one changelog entry
 session. Sessions support name/collector entry modes, per-type edit modes over
 existing entries, and undo. Creating a deck prompts for its format, and deck sessions
 have a \`🏷️ Change Format\` menu action that rewrites the \`format:\` front matter on the
-next save. Not suitable for non-interactive agents — use
+next save. A deck with no \`format:\` is read as Commander when it has a \`## Commander\`
+section, and saving writes that inferred format into the file (see the **ritual-decks**
+skill). Not suitable for non-interactive agents — use
 \`add-card\`/\`add-note\`/\`clear-note\` instead:
 
 \`\`\`bash

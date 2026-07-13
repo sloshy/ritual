@@ -4,7 +4,8 @@ import { ArchidektClient } from '../clients/ArchidektClient'
 import { FileTokenStore } from '../auth/FileTokenStore'
 import { ArchidektAuth } from '../auth/ArchidektAuth'
 import { importFromTextFile, listDeckFiles } from '../importers/text-file'
-import { parseDeckFrontMatter, serializeDeckToMarkdown } from '../deck-file'
+import { parseDeckFrontMatter, serializeDeckToMarkdown, type DeckFrontMatter } from '../deck-file'
+import { getDeckFormatLabel } from '../deck-format'
 import { formatResolveListError, isResolveListError, resolveList } from '../resolve-list'
 import { appendChangelog } from '../changelog-writer'
 import { getLogger } from '../logger'
@@ -21,6 +22,7 @@ import {
   buildCardIdResolver,
   isDiffEmpty,
   applyDownloadDiff,
+  syncDeckFormat,
   type NameDiff,
 } from './deck-sync-helpers'
 import { assignMissingDeckCardIds } from '../card-id'
@@ -181,7 +183,7 @@ function extractSourceId(frontMatter: Record<string, unknown>): string | undefin
 
 type DeckTarget = {
   filePath: string
-  frontMatter: Record<string, unknown>
+  frontMatter: DeckFrontMatter
   deck: DeckData
   sourceId: string
 }
@@ -316,21 +318,29 @@ async function downloadChanges(
     }
 
     const diff = diffByCardName(target.deck.sections, remoteDeck.sections)
+    const formatSync = syncDeckFormat(target.deck, target.frontMatter.format, remoteDeck)
 
-    if (isDiffEmpty(diff)) {
+    if (isDiffEmpty(diff) && !formatSync.changed) {
       logger.info(`  No changes detected.`)
       continue
     }
 
-    logger.info(
-      `  Changes: +${diff.added.length} added, -${diff.removed.length} removed, ~${diff.quantityChanged.length} quantity changed`,
-    )
+    if (!isDiffEmpty(diff)) {
+      logger.info(
+        `  Changes: +${diff.added.length} added, -${diff.removed.length} removed, ~${diff.quantityChanged.length} quantity changed`,
+      )
+    }
+    if (formatSync.changed && formatSync.format) {
+      const was = formatSync.localFormat ? getDeckFormatLabel(formatSync.localFormat) : 'not set'
+      logger.info(`  Format: ${was} → ${getDeckFormatLabel(formatSync.format)}`)
+    }
 
     // Apply changes to local sections, assigning IDs to any newly added cards so
     // they are persisted with a stable `&N` rather than being backfilled later.
     const updatedSections = applyDownloadDiff(target.deck.sections, diff)
     const updatedDeck: DeckData = assignMissingDeckCardIds({
       ...target.deck,
+      format: formatSync.format ?? undefined,
       sections: updatedSections,
     })
 

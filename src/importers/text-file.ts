@@ -3,6 +3,7 @@ import path from 'node:path'
 import { readdir } from 'node:fs/promises'
 import matter from 'gray-matter'
 import { isFinish, isCondition } from '../commands/collection-helpers'
+import { parseDeckFormat } from '../deck-format'
 
 export function isDeckFile(filename: string): boolean {
   return (
@@ -68,7 +69,10 @@ export function parseDeckText(rawText: string, fallbackName: string, primer?: st
   const description = getString(parsed.data.description)
   const sourceUrl = getString(parsed.data.sourceUrl)
   const sourceId = getString(parsed.data.sourceId)
-  const format = getString(parsed.data.format)
+  // An unrecognized `format:` is dropped, not carried: the deck then falls back
+  // to section-name detection, and the next save rewrites the file with the
+  // canonical key.
+  const format = parseDeckFormat(parsed.data.format) ?? undefined
 
   const sections: DeckSection[] = []
   let currentSection: DeckSection = { name: 'Main', cards: [] }
