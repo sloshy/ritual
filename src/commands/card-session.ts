@@ -700,6 +700,15 @@ function buildSaveAndSwitchItems(input: MenuBuildInput): Choice[] {
 }
 
 /**
+ * How many rows the card prompt shows at once. It must be at least as tall as
+ * the longest menu {@link buildMenuChoices} can build (a deck session showing
+ * every shortcut), or Save and Exit — the items at its foot — would sit below
+ * the fold. A new conditional menu item therefore has to be raised here and in
+ * the maximal input of the "tallest possible menu" test that guards it.
+ */
+export const SESSION_MENU_LIMIT = 15
+
+/**
  * Build the full autocomplete choice list (menu shortcuts first, then cards).
  *
  * The menu is ordered by how likely the user is to want an item right now:
@@ -1104,7 +1113,7 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
       name: 'cardName',
       message: promptMessage,
       choices,
-      limit: 10,
+      limit: SESSION_MENU_LIMIT,
       suggest: async (rawInput, suggestChoices) =>
         sessionMode === 'edit'
           ? suggestEditMode(String(rawInput), suggestChoices)

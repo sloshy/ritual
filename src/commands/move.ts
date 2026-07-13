@@ -22,6 +22,39 @@ import {
 /** The main move-session prompt resolves to a menu sentinel or a physical-card key. */
 type MoveSelectionResponse = { selection?: string }
 
+/**
+ * The move menu's sentinel values. Matched by exact membership rather than a
+ * `__` prefix check, since a card choice's value is a physical-card key and must
+ * never be mistaken for a menu item.
+ */
+const MOVE_MENU_SENTINELS: ReadonlySet<string> = new Set([
+  '__VIEW_PENDING__',
+  '__CONFIG__',
+  '__EXIT__',
+])
+
+/** A choice is a menu item (vs. a card) when its value is exactly a known sentinel. */
+export const isMoveMenuChoice = (choice: Choice): boolean =>
+  typeof choice.value === 'string' && MOVE_MENU_SENTINELS.has(choice.value)
+
+/**
+ * The move session's menu items, which sit above the card choices. The moves
+ * queued so far lead it — they are what the last search actually produced —
+ * while the source/destination filters are a once-per-session setup step, and
+ * Exit sits at the foot where it cannot be reached by overshooting.
+ */
+export function buildMoveMenuChoices(pendingCount: number): Choice[] {
+  return [
+    {
+      title:
+        pendingCount > 0 ? `📋 View Pending Changes (${pendingCount})` : '📋 View Pending Changes',
+      value: '__VIEW_PENDING__',
+    },
+    { title: '⚙️  Configure Session Filters', value: '__CONFIG__' },
+    { title: '🚪 Exit', value: '__EXIT__' },
+  ]
+}
+
 /** The session's lists, bucketed by list type for the toggle menus. */
 type ListsByType = Record<ListRef['type'], ListEntry[]>
 
@@ -60,17 +93,7 @@ export function registerMoveCommand(program: Command): void {
         const pending = getPendingMoves(virtualState)
         const cardChoices = buildCardSearchChoices(virtualState, config.enabledSources)
 
-        const menuChoices: Choice[] = [
-          { title: '⚙️  Configure Session Filters', value: '__CONFIG__' },
-          {
-            title:
-              pending.length > 0
-                ? `📋 View Pending Changes (${pending.length})`
-                : '📋 View Pending Changes',
-            value: '__VIEW_PENDING__',
-          },
-          { title: '🚪 Exit', value: '__EXIT__' },
-        ]
+        const menuChoices: Choice[] = buildMoveMenuChoices(pending.length)
 
         const allChoices: Choice[] = [
           ...menuChoices,
@@ -85,12 +108,12 @@ export function registerMoveCommand(program: Command): void {
           limit: 12,
           suggest: async (rawInput, choices) => {
             const input = String(rawInput).toLowerCase().trim()
-            if (!input) return choices.filter((c) => menuChoices.some((m) => m.value === c.value))
+            if (!input) return choices.filter(isMoveMenuChoice)
 
             const terms = input.split(/\s+/).filter(Boolean)
             return choices.filter((choice) => {
               // Always show menu items when filtering
-              if (menuChoices.some((m) => m.value === choice.value)) return true
+              if (isMoveMenuChoice(choice)) return true
               const title = choice.title.toLowerCase()
               return terms.every((term) => title.includes(term))
             })

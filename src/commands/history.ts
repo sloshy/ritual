@@ -152,7 +152,7 @@ async function resolveLocation(
   return locations[Number(choice)] ?? null
 }
 
-type EditorState = {
+export type EditorState = {
   readonly header: string
   sets: ChangeSet[]
   readonly originalSerialized: string
@@ -220,20 +220,24 @@ const MAIN_ACTION_VALUES: ReadonlySet<string> = new Set([
   '__exit__',
 ])
 
-function buildMainChoices(state: EditorState): prompts.Choice[] {
+export function buildMainChoices(state: EditorState): prompts.Choice[] {
   const setChoices: prompts.Choice[] = state.sets.map((s, i) => ({
     title: `${s.timestamp}  (${s.lines.length} change${s.lines.length === 1 ? '' : 's'})`,
     value: `set:${i}`,
   }))
 
-  const actions: prompts.Choice[] = [
-    { title: '🔄 Rewrite all change sets with defaults', value: '__rewrite__' },
-    { title: '🔍 Preview changes to be saved', value: '__preview__' },
-  ]
+  // Undo first (it takes back whatever you just did), then the safe review
+  // action, and only then the one item that rewrites every set — a destructive
+  // action must never sit above the harmless ones.
+  const actions: prompts.Choice[] = []
   if (state.undoStack.length > 0) {
     actions.push({ title: `↩️  Undo last change (${state.undoStack.length})`, value: '__undo__' })
   }
-  actions.push({ title: '🚪 Exit', value: '__exit__' })
+  actions.push(
+    { title: '🔍 Preview changes to be saved', value: '__preview__' },
+    { title: '🔄 Rewrite all change sets with defaults', value: '__rewrite__' },
+    { title: '🚪 Exit', value: '__exit__' },
+  )
 
   return [...setChoices, ...actions]
 }

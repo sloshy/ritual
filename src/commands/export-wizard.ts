@@ -142,7 +142,13 @@ export function formatWizardHeaderLines(state: ExportWizardState, entryCount: nu
   return lines
 }
 
-/** The wizard main menu, reflecting the current state. */
+/**
+ * The wizard main menu, reflecting the current state. It reads as the pipeline
+ * it is: pick what to export, narrow it, shape the output, then review and
+ * export. `📂 Load preset` heads the output-shaping block because that is what
+ * it overwrites — a preset carries the format, columns, and CSV options, so
+ * offering it below them would invite setting them by hand only to lose them.
+ */
 export function buildWizardMenuChoices(
   state: ExportWizardState,
   entryCount: number,
@@ -161,6 +167,14 @@ export function buildWizardMenuChoices(
       title: `🔍 Filters: ${formatFiltersSegment(state.filters)}`,
       value: { kind: 'filters' } satisfies ExportWizardSelection,
     },
+  ]
+  if (presetCount > 0) {
+    choices.push({
+      title: `📂 Load preset (${presetCount} saved)`,
+      value: { kind: 'load-preset' } satisfies ExportWizardSelection,
+    })
+  }
+  choices.push(
     {
       title: `📄 Format: ${state.settings.format.toUpperCase()}`,
       value: { kind: 'format' } satisfies ExportWizardSelection,
@@ -169,19 +183,13 @@ export function buildWizardMenuChoices(
       title: `🧱 Columns (${state.settings.columns.length})`,
       value: { kind: 'columns' } satisfies ExportWizardSelection,
     },
-  ]
+  )
   if (state.settings.format === 'csv') {
     choices.push({
       title: `⚙️ CSV options: header ${state.settings.header ? 'on' : 'off'} · ${
         state.settings.quoteAll ? 'quote all' : 'minimal quoting'
       }`,
       value: { kind: 'csv-options' } satisfies ExportWizardSelection,
-    })
-  }
-  if (presetCount > 0) {
-    choices.push({
-      title: `📂 Load preset (${presetCount} saved)`,
-      value: { kind: 'load-preset' } satisfies ExportWizardSelection,
     })
   }
   choices.push(

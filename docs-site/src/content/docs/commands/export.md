@@ -89,8 +89,9 @@ A bare `ritual export` in a terminal opens the wizard. From its main menu you ca
 - **Add lists** — an autocomplete over every deck, collection, and wanted list.
 - **Add individual cards** — an autocomplete over every card entry across all your lists; type to search by name, set, or list.
 - **Filters** — the same name/set/finish/condition filters as the flags.
+- **Load preset** — apply a saved output shape. It is offered above the three items it overwrites, so you never set the format and columns by hand only to lose them to a preset. Shown once you have saved at least one.
 - **Format, Columns, CSV options** — pick `csv`/`json`, then pick columns _in output order_ (each pick appends; `Done` finishes, `Reset to default` restores the standard columns), and toggle the header row and quoting mode.
-- **Load / save presets** — apply a saved output shape or save the current one.
+- **Save current settings as a preset** — store the current output shape under a name.
 - **Review** — print the assembled cards before exporting.
 - **Export** — prompts for the output path (defaults to `export.csv` / `export.json`).
 

@@ -46,11 +46,14 @@ The main menu lists each change set (newest first) as a collapsed row — its ti
 
 ### Global actions
 
+These appear below the change sets, in the order listed — undo first, since it takes back whatever
+you just did, and the destructive rewrite below the harmless preview rather than above it.
+
 | Action                          | Effect                                                                                                                                                                          |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Rewrite with defaults**       | Replaces **all** change sets with a single new set (timestamped now) describing the list exactly as it stands now — every card, plus sections, commander, notes, and printings. |
+| **Undo last change**            | Reverts the most recent edit. All edits are kept on an in-memory stack, so you can undo repeatedly back to the loaded state. Offered only once you have made an edit.           |
 | **Preview changes to be saved** | Summarizes how the saved file will differ: change-set and change-line counts before/after, and the resulting list of sets.                                                      |
-| **Undo last change**            | Reverts the most recent edit. All edits are kept on an in-memory stack, so you can undo repeatedly back to the loaded state.                                                    |
+| **Rewrite with defaults**       | Replaces **all** change sets with a single new set (timestamped now) describing the list exactly as it stands now — every card, plus sections, commander, notes, and printings. |
 | **Exit**                        | If there are unsaved changes, prompts: **Save and exit**, **Exit without saving**, or **Cancel** (keep editing). Nothing is written to disk until you choose _Save and exit_.   |
 
 ## Behavior

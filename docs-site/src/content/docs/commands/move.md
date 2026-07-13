@@ -28,8 +28,8 @@ When launched, the tool shows an autocomplete search field. You can type a card 
 
 | Option                         | Description                                                       |
 | ------------------------------ | ----------------------------------------------------------------- |
-| `⚙️ Configure Session Filters` | Restrict which lists are eligible as sources or destinations      |
 | `📋 View Pending Changes (N)`  | Preview queued moves before committing                            |
+| `⚙️ Configure Session Filters` | Restrict which lists are eligible as sources or destinations      |
 | `🚪 Exit`                      | Leave the session (asks to save, discard, or cancel when pending) |
 
 After searching, select a card and choose a destination (or confirm the single available one). The destination prompt is also an autocomplete field — type to filter the list of destinations instead of scrolling with the arrow keys. The move is queued as a pending change. You can queue multiple moves before committing.

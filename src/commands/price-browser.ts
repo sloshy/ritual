@@ -383,10 +383,11 @@ async function showEntryDetail(
   console.log('')
 
   const printings = printingsByName.get(entry.name) ?? []
-  const choices: Choice[] = [{ title: '← Back', value: 'back' }]
+  const choices: Choice[] = []
   if (printings.length > 0) {
     choices.push({ title: `📜 All printings & prices (${printings.length})`, value: 'printings' })
   }
+  choices.push({ title: '← Back', value: 'back' })
   const action = await ask<'back' | 'printings'>({ type: 'select', message: entry.name, choices })
   if (action === 'printings') {
     console.log('')

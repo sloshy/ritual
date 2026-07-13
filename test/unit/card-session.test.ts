@@ -5,6 +5,7 @@ import {
   buildCollectorChoices,
   buildMenuChoices,
   isMenuChoice,
+  SESSION_MENU_LIMIT,
   suggestCollectorMode,
   suggestEditMode,
   suggestNameMode,
@@ -212,6 +213,29 @@ describe('buildMenuChoices', () => {
       '__EXIT__',
       'Sol Ring',
     ])
+  })
+
+  test('the tallest possible menu still fits the prompt window', () => {
+    // Save and Exit sit at the foot of the menu, so the prompt must be tall
+    // enough to show every item at once — otherwise the busiest session (a deck
+    // in a multi-list editor, with every shortcut showing) pushes them below the
+    // fold and they can only be reached by scrolling.
+    const tallest = buildMenuChoices({
+      ...base,
+      lastAdded: { name: 'Sol Ring', hasNote: false, cardId: 3 },
+      changeCount: 2,
+      sessionAdds: [{ label: 'Sol Ring (LEA:269) &3', name: 'Sol Ring' }],
+      editUndoLabel: 'printing on Lightning Bolt',
+      sessionChangeCount: 2,
+      extraItems: [
+        { title: '🗂️  Set Target Section', value: '__SECTION__' },
+        { title: '🏷️  Change Format', value: '__FORMAT__' },
+      ],
+      multiList: { totalChangeCount: 5, listsWithChanges: 2 },
+      cardChoices: [],
+    })
+    expect(tallest.length).toBeLessThanOrEqual(SESSION_MENU_LIMIT)
+    expect(tallest.at(-1)?.value).toBe('__EXIT__')
   })
 
   test('edit mode pares the menu down to undo, mode switch, save/exit, and cards', () => {

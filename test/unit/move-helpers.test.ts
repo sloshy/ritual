@@ -6,6 +6,7 @@ import {
   buildCardSearchChoices,
   getToggleState,
 } from '../../src/commands/move-helpers'
+import { buildMoveMenuChoices, isMoveMenuChoice } from '../../src/commands/move'
 import type { PhysicalCard, ListEntry, VirtualCard } from '../../src/commands/move-helpers'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -206,5 +207,27 @@ describe('getToggleState', () => {
     const paths = ['/a', '/b', '/c']
     const enabled = new Set(['/a', '/c'])
     expect(getToggleState(paths, enabled)).toBe('some')
+  })
+})
+
+describe('buildMoveMenuChoices', () => {
+  test('the queued moves lead the menu and Exit sits at its foot', () => {
+    const choices = buildMoveMenuChoices(3)
+    expect(choices.map((c) => c.value)).toEqual(['__VIEW_PENDING__', '__CONFIG__', '__EXIT__'])
+    expect(choices[0]!.title).toContain('View Pending Changes (3)')
+  })
+
+  test('the pending item stays in place, uncounted, before the first move', () => {
+    const choices = buildMoveMenuChoices(0)
+    expect(choices.map((c) => c.value)).toEqual(['__VIEW_PENDING__', '__CONFIG__', '__EXIT__'])
+    expect(choices[0]!.title).toBe('📋 View Pending Changes')
+  })
+
+  test('every menu item is recognized as one, and card keys are not', () => {
+    // The menu items stay visible while the search filters the cards, so they
+    // must be told apart by exact sentinel membership — a physical-card key
+    // must never be mistaken for one.
+    expect(buildMoveMenuChoices(1).every(isMoveMenuChoice)).toBe(true)
+    expect(isMoveMenuChoice({ title: 'Sol Ring', value: 'decks/burn.md:5:0' })).toBe(false)
   })
 })

@@ -160,20 +160,40 @@ describe('wizard pure builders', () => {
     expect(jsonLines.some((line) => line.startsWith('CSV:'))).toBe(false)
   })
 
+  const menuKinds = (state: ExportWizardState, presetCount: number): string[] =>
+    buildWizardMenuChoices(state, 0, presetCount).map(
+      (choice) => (choice.value as ExportWizardSelection).kind,
+    )
+
   test('buildWizardMenuChoices hides CSV options for json and load-preset without presets', () => {
-    const kinds = (state: ExportWizardState, presetCount: number): string[] =>
-      buildWizardMenuChoices(state, 0, presetCount).map(
-        (choice) => (choice.value as ExportWizardSelection).kind,
-      )
-    const csvWithoutPresets = kinds(wizardState(), 0)
+    const csvWithoutPresets = menuKinds(wizardState(), 0)
     expect(csvWithoutPresets).toContain('csv-options')
     expect(csvWithoutPresets).not.toContain('load-preset')
     const json = wizardState({
       settings: { format: 'json', columns: ['name'], header: true, quoteAll: false },
     })
-    const jsonWithPresets = kinds(json, 2)
+    const jsonWithPresets = menuKinds(json, 2)
     expect(jsonWithPresets).not.toContain('csv-options')
     expect(jsonWithPresets).toContain('load-preset')
+  })
+
+  test('the menu reads as the export pipeline, with load-preset above what it overwrites', () => {
+    // A preset carries the format, columns, and CSV options, so it must be
+    // offered before them — not after, where it would silently discard settings
+    // the user had just made by hand.
+    expect(menuKinds(wizardState(), 2)).toEqual([
+      'add-lists',
+      'add-cards',
+      'filters',
+      'load-preset',
+      'format',
+      'columns',
+      'csv-options',
+      'save-preset',
+      'review',
+      'export',
+      'exit',
+    ])
   })
 
   test('formatPresetSummary lists the shape compactly', () => {
