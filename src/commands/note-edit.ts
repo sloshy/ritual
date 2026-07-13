@@ -16,7 +16,7 @@ import { parseWantedListFile, formatWantedListLine, WANTED_CARD_LINE_RE } from '
 import { formatCollectionLine } from './collection-helpers'
 import { writeFileWithHash } from '../content-hash'
 import { ExitCode } from './scripting'
-import { normalizeCardName } from './add-card'
+import { normalizeCardName } from '../term-match'
 import { type ListType } from '../list-type'
 import {
   formatResolveListError,

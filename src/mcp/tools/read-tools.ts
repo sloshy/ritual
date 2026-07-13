@@ -149,7 +149,9 @@ export function registerReadTools(server: McpServer): void {
     'search_cards',
     {
       title: 'Search cards',
-      description: 'Search Scryfall for card names matching a query (up to 20 names).',
+      description:
+        'Search Scryfall for card names matching a query (up to 20 names), most popular first. ' +
+        'A query that spells out a card name in full is returned first.',
       inputSchema: { query: z.string().min(1).describe('Search text.') },
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
@@ -161,7 +163,8 @@ export function registerReadTools(server: McpServer): void {
     {
       title: 'Autocomplete card name',
       description:
-        'Autocomplete card names by prefix/substring, case- and accent-insensitive (up to 20).',
+        'Autocomplete card names by prefix/substring, ignoring case, accents, and punctuation ' +
+        '(up to 20). A query that spells out a card name in full is returned first.',
       inputSchema: { query: z.string().min(1).describe('Partial card name.') },
       annotations: { readOnlyHint: true, openWorldHint: true },
     },

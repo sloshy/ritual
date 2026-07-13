@@ -73,6 +73,55 @@ describe('suggestNameMode', () => {
     expect(result).toHaveLength(2)
     expect(result.every((c) => String(c.value).endsWith('__FORCE__'))).toBe(true)
   })
+
+  // Card choices arrive in EDHRec-popularity order, so an unpopular card whose
+  // name is a substring of popular ones ("The End") sits at the bottom until the
+  // query spells it out in full.
+  function popularityOrderedChoices(): Choice[] {
+    return [
+      { title: '🚪 Exit', value: '__EXIT__' },
+      { title: 'The Enduring Renown', value: 'The Enduring Renown' },
+      { title: 'The Endless Swarm', value: 'The Endless Swarm' },
+      { title: 'The End', value: 'The End' },
+    ]
+  }
+
+  test('a fully typed card name jumps ahead of more popular partial matches', () => {
+    const result = suggestNameMode('The End', popularityOrderedChoices())
+    expect(result.map((c) => c.value)).toEqual([
+      'The End',
+      'The Enduring Renown',
+      'The Endless Swarm',
+    ])
+  })
+
+  test('a partially typed name keeps the popularity order', () => {
+    const result = suggestNameMode('The En', popularityOrderedChoices())
+    expect(result.map((c) => c.value)).toEqual([
+      'The Enduring Renown',
+      'The Endless Swarm',
+      'The End',
+    ])
+  })
+
+  test('menu items stay ahead of a promoted card match', () => {
+    // A card name that also term-matches a menu item must not displace the menu.
+    const choices: Choice[] = [
+      { title: '🚪 Exit', value: '__EXIT__' },
+      { title: 'Exit Through the Gift Shop', value: 'Exit Through the Gift Shop' },
+      { title: 'Exit', value: 'Exit' },
+    ]
+    expect(suggestNameMode('exit', choices).map((c) => c.value)).toEqual([
+      '__EXIT__',
+      'Exit',
+      'Exit Through the Gift Shop',
+    ])
+  })
+
+  test('promotion applies to a forced (!) selection too', () => {
+    const result = suggestNameMode('the end!', popularityOrderedChoices())
+    expect(result[0]!.value).toBe('The End__FORCE__')
+  })
 })
 
 describe('suggestCollectorMode', () => {
@@ -374,10 +423,13 @@ describe('suggestEditMode', () => {
     expect(result[0]!.title).toContain('Lightning Bolt')
   })
 
-  test('a trailing ! is treated as a literal character, never a force marker', () => {
-    // Edit-mode entry values are objects; a force suffix would corrupt them.
+  test('a trailing ! never becomes a force marker', () => {
+    // Name mode reads a trailing `!` as "force the prompts"; edit mode must not,
+    // because its entry values are objects that a __FORCE__ suffix would corrupt.
+    // Punctuation is ignored when matching, so the entry is still found.
     const result = suggestEditMode('bolt!', choices)
-    expect(result).toHaveLength(0)
+    expect(result).toHaveLength(1)
+    expect(result[0]!.value).toEqual({ type: 'entry', cardId: 2 })
   })
 })
 

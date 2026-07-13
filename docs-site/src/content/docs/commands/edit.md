@@ -240,6 +240,12 @@ Two entry modes are available while adding cards, toggleable at any time:
 
 Autocomplete-driven card name entry. Type a card name and select from suggestions.
 
+Suggestions are ordered by EDHRec popularity, except that a card whose **whole name** you have typed
+is offered first, ahead of more popular cards that merely contain what you typed. Searching `The En`
+lists the popular cards first; finishing the name as `The End` puts the card named "The End" at the
+top. Case, accents, and punctuation don't have to match (`jaces archivist` finds "Jace's Archivist"),
+and typing the front face of a double-faced card counts as its whole name.
+
 - **Session Filters** — Configure default set codes, finish, condition, and (for decks) the target
   section via `⚙️ Configure Session Filters`. When set, these defaults are applied automatically
   to each card without prompting.

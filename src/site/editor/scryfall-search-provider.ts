@@ -5,6 +5,7 @@ import type {
   ScryfallListResponse,
 } from '../useScryfallBrowserSearch'
 import { getPrintingsByName, putFetchedPrintings } from '../session-cache'
+import { promoteFullNameMatches } from '../../term-match'
 
 const SCRYFALL_API = 'https://api.scryfall.com'
 
@@ -24,7 +25,9 @@ export function createScryfallSearchProvider(): SearchProvider {
       const resp = await fetch(`${SCRYFALL_API}/cards/autocomplete?q=${encodeURIComponent(query)}`)
       if (!resp.ok) return []
       const data = (await resp.json()) as ScryfallAutocompleteResponse
-      return data.data ?? []
+      // Scryfall ranks suggestions by popularity, so promote a name the query
+      // already spells out in full (see promoteFullNameMatches).
+      return promoteFullNameMatches(data.data ?? [], query, (name) => name)
     },
     printings: async (cardName) => {
       const cached = getPrintingsByName(cardName)

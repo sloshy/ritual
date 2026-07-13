@@ -13,7 +13,7 @@ import { appendChangelog } from '../changelog-writer'
 import { createSetNoteChange, type ChangeEvent } from '../change-event'
 import { writeFileWithHash } from '../content-hash'
 import { formatSetCodesForDisplay, parseSetCodesInput } from '../set-codes'
-import { matchesAllTerms } from '../term-match'
+import { matchesAllNameTerms, promoteFullNameMatches } from '../term-match'
 import { promptExitMenu } from './prompts-helpers'
 
 /**
@@ -800,13 +800,26 @@ export function buildCollectorChoices(setCardMap: Map<string, ScryfallCard>): Ch
 
 /** Filter choices so every space-separated term of `input` appears in the title. */
 function filterByTerms(input: string, choices: Choice[]): Choice[] {
-  return choices.filter((choice) => matchesAllTerms(choice.title, input))
+  return choices.filter((choice) => matchesAllNameTerms(choice.title, input))
+}
+
+/**
+ * Float cards whose whole name the input spells out to the top of the card list,
+ * leaving the menu shortcuts where they are (they always lead the prompt) and
+ * leaving the rest in their EDHRec-popularity order.
+ */
+function promoteNameMatches(input: string, matches: Choice[]): Choice[] {
+  const menuItems = matches.filter(isMenuChoice)
+  const cardItems = matches.filter((choice) => !isMenuChoice(choice))
+  return [...menuItems, ...promoteFullNameMatches(cardItems, input, (choice) => choice.title)]
 }
 
 /**
  * Name-mode suggestion filter: empty input shows the menu shortcuts; otherwise
- * all space-separated terms must appear in a title. A trailing `!` marks the
- * selection to force the finish/condition prompts past any session defaults.
+ * all space-separated terms must appear in a title, and cards whose full name is
+ * spelled out come first (see {@link promoteFullNameMatches}). A trailing `!`
+ * marks the selection to force the finish/condition prompts past any session
+ * defaults.
  */
 export function suggestNameMode(input: string, choices: Choice[]): Choice[] {
   const isForce = input.endsWith('!')
@@ -814,7 +827,7 @@ export function suggestNameMode(input: string, choices: Choice[]): Choice[] {
 
   if (!cleanInput) return choices.filter(isMenuChoice)
 
-  const matches = filterByTerms(cleanInput, choices)
+  const matches = promoteNameMatches(cleanInput, filterByTerms(cleanInput, choices))
 
   if (isForce) {
     return matches.map((m) =>

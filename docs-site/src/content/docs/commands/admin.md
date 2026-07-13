@@ -447,7 +447,7 @@ Move a batch of selected cards across lists atomically — the server side of th
 
 **Auth required:** Yes
 
-Search for cards by name using the Scryfall API. Returns up to 20 results.
+Search for cards by name using the Scryfall API. Returns up to 20 results, most popular (by EDHRec rank) first — except that a card whose whole name the query spells out is returned first.
 
 **Request body:**
 

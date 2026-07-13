@@ -1,5 +1,6 @@
 import { searchCards } from '../../scryfall'
 import { getErrorMessage } from '../../errors'
+import { promoteFullNameMatches } from '../../term-match'
 
 interface SearchCardsRequest {
   query: string
@@ -25,8 +26,10 @@ export async function handleSearchCards(req: Request): Promise<Response> {
       return Response.json(resp, { status: 400 })
     }
 
-    const results = await searchCards(query)
-    const cards = results.slice(0, 20).map((c) => ({ name: c.name }))
+    // Scryfall returns these in EDHRec order, which buries an unpopular card even
+    // when the query is its exact name — promote whole-name matches before the cut.
+    const results = promoteFullNameMatches(await searchCards(query), query, (c) => c.name)
+    const cards: CardResult[] = results.slice(0, 20).map((c) => ({ name: c.name }))
     const resp: SearchCardsResponse = { success: true, cards }
     return Response.json(resp)
   } catch (error) {

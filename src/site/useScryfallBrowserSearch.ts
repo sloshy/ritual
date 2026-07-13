@@ -2,6 +2,7 @@ import { createSignal, onCleanup } from 'solid-js'
 import type { Accessor } from 'solid-js'
 import type { ScryfallCard } from '../types'
 import { getPrintingsByName, putFetchedPrintings } from './session-cache'
+import { promoteFullNameMatches } from '../term-match'
 
 const SCRYFALL_API = 'https://api.scryfall.com'
 
@@ -64,7 +65,7 @@ export function useScryfallBrowserSearch(): UseScryfallBrowserSearchResult {
           const resp = await fetch(url, { signal: autocompleteController.signal })
           if (!resp.ok) return
           const data = (await resp.json()) as ScryfallAutocompleteResponse
-          setAutocompleteResults(data.data ?? [])
+          setAutocompleteResults(promoteFullNameMatches(data.data ?? [], query, (name) => name))
         } catch (e) {
           if ((e as Error).name === 'AbortError') return
           console.warn('Scryfall autocomplete failed:', e)

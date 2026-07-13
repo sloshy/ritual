@@ -85,6 +85,8 @@ A missing **collection** or **wanted list** is created automatically, but only w
 
 The card name you provide is used to filter the local card cache. An autocomplete prompt lets you type to narrow down the list and select the correct card.
 
+Suggestions are ordered by EDHRec popularity, except that a card whose **whole name** you have typed is offered first, ahead of more popular cards that merely contain what you typed — typing `The End` puts the card named "The End" at the top rather than burying it below every popular card containing those letters. Case, accents, and punctuation don't have to match, and typing the front face of a double-faced card counts as its whole name.
+
 When `--exact` is used, the input name is normalized (case and accents folded, punctuation stripped) and compared against all cached card names. If exactly one card matches, it is selected automatically with a confirmation message. If no exact match is found, the command exits with an error indicating how many cards contain the input as a substring (counted up to 100, reported as "100+" if the limit is reached).
 
 ### Cache Freshness

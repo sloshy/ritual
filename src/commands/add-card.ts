@@ -28,7 +28,7 @@ import {
 } from '../price-currency'
 import { getDefaultCurrency } from '../ritual-config'
 import type { ListType } from '../list-type'
-import { normalizeForSearch } from '../term-match'
+import { matchesAllNameTerms, normalizeCardName, promoteFullNameMatches } from '../term-match'
 import {
   formatResolveListError,
   isResolveListError,
@@ -93,19 +93,6 @@ async function resolveAddCardTarget(
 }
 
 /**
- * Normalize a card name for exact matching by folding case and diacritics
- * (so `Téferi` matches `teferi`), then stripping punctuation. Diacritics are
- * folded to their base letters *before* punctuation removal so accented letters
- * survive as their plain forms rather than being dropped entirely.
- */
-export function normalizeCardName(name: string): string {
-  return normalizeForSearch(name)
-    .replace(/[^a-z0-9 ]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-/**
  * Attempt an exact match against cached card names.
  * Returns the canonical card name if exactly one match is found, null otherwise.
  */
@@ -154,6 +141,8 @@ async function selectCardAutocomplete(
     console.log(
       `Found ${filteredNames.length} card${filteredNames.length !== 1 ? 's' : ''} matching '${initialSearch}'.`,
     )
+
+    filteredNames = promoteFullNameMatches(filteredNames, initialSearch, (name) => name)
   }
 
   const choices = filteredNames.map((name) => ({ title: name, value: name }))
@@ -169,11 +158,8 @@ async function selectCardAutocomplete(
       const input = String(rawInput)
       if (!input) return choices.slice(0, 15)
 
-      const terms = input.toLowerCase().split(/\s+/).filter(Boolean)
-      return choices.filter((choice) => {
-        const title = choice.title.toLowerCase()
-        return terms.every((term) => title.includes(term))
-      })
+      const matches = choices.filter((choice) => matchesAllNameTerms(choice.title, input))
+      return promoteFullNameMatches(matches, input, (choice) => choice.title)
     },
     onState: (state: PromptState) => {
       if (state.exited) isExited = true
