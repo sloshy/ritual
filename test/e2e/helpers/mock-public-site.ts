@@ -658,6 +658,22 @@ const MOCK_TRADE_COLLECTION_CARD_RING = makeMockScryfallCard({
   released_at: '2019-08-23',
 })
 
+/** An accented name, so trade search can be tested for diacritic-insensitivity. */
+const MOCK_TRADE_COLLECTION_CARD_JOTUN = makeMockScryfallCard({
+  id: 'trade-jotun-id',
+  name: 'Jötun Grunt',
+  cmc: 2,
+  type_line: 'Creature — Giant Soldier',
+  oracle_text:
+    'Cumulative upkeep—Put two cards from a single graveyard on the bottom of its owner’s library.',
+  prices: { usd: '1.00', eur: '0.80' },
+  set: 'csp',
+  set_name: 'Coldsnap',
+  collector_number: '14',
+  rarity: 'uncommon',
+  released_at: '2006-07-21',
+})
+
 const MOCK_TRADE_WANTED_CARD_CRYPT = makeMockScryfallCard({
   id: 'trade-crypt-id',
   name: 'Mana Crypt',
@@ -721,18 +737,31 @@ const MOCK_TRADE_COLLECTION_DETAIL = {
       section: 'Main',
       cardId: 4,
     },
+    {
+      name: 'Jötun Grunt',
+      set: 'csp',
+      collectorNumber: '14',
+      finish: 'nonfoil',
+      condition: 'NM',
+      price: 1.0,
+      fileOrder: 4,
+      section: 'Main',
+      cardId: 5,
+    },
   ],
   cards: {
     'lea:161': MOCK_TRADE_COLLECTION_CARD_BOLT,
     'c19:221': MOCK_TRADE_COLLECTION_CARD_RING,
+    'csp:14': MOCK_TRADE_COLLECTION_CARD_JOTUN,
   },
   printings: {
     'Lightning Bolt': [MOCK_TRADE_COLLECTION_CARD_BOLT],
     'Sol Ring': [MOCK_TRADE_COLLECTION_CARD_RING],
+    'Jötun Grunt': [MOCK_TRADE_COLLECTION_CARD_JOTUN],
   },
   symbolMap: {},
   useScryfallImgUrls: false,
-  totalPrice: 5.5,
+  totalPrice: 6.5,
   defaultCurrency: 'usd',
 } satisfies CollectionDetail
 

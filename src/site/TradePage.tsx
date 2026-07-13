@@ -2,6 +2,7 @@ import type { Accessor, Component } from 'solid-js'
 import { createSignal, createMemo, For, Show, onCleanup, createEffect, onMount } from 'solid-js'
 import type { ScryfallCard, Finish } from '../types'
 import type { PriceCurrency } from '../price-currency'
+import { normalizeCardName } from '../term-match'
 import { formatPrice, getCardPriceForFinish } from '../price-currency'
 import type {
   TradeCardEntry,
@@ -242,7 +243,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
       // Route through addEntry so the card-ID-based deduplication cap is enforced.
       const searchEntry: TradeSearchEntry = {
         name: printing.name,
-        nameLower: printing.name.toLowerCase(),
+        nameKey: normalizeCardName(printing.name),
         set: printing.set.toLowerCase(),
         collectorNumber: printing.collector_number,
         finish,

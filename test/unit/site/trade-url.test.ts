@@ -1,6 +1,7 @@
 import { describe, expect, test, mock, beforeAll, afterAll } from 'bun:test'
 import { defaultFinishForCard, resolveTradeFinish } from '../../../src/site/trade-finish'
 import { encodeTradeToParams, hasTradeParams } from '../../../src/site/trade-url-encode'
+import { normalizeCardName } from '../../../src/term-match'
 import {
   decodeTradeFromParams,
   type TradeDecodeWarning,
@@ -65,7 +66,7 @@ function makeSearchEntry(overrides: Partial<TradeSearchEntry> = {}): TradeSearch
   const name = scryfallCard?.name ?? 'Test Card'
   return {
     name,
-    nameLower: name.toLowerCase(),
+    nameKey: normalizeCardName(name),
     scryfallCard,
     sourceName: 'Source',
     sourceKind: 'collection',

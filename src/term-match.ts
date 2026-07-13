@@ -22,7 +22,9 @@ export function normalizeForSearch(s: string): string {
  * query matches everything.
  */
 export function matchesAllTerms(text: string, query: string): boolean {
-  return matchesTerms(text, query, normalizeForSearch)
+  const normalized = normalizeForSearch(text)
+  const terms = normalizeForSearch(query).split(/\s+/).filter(Boolean)
+  return terms.every((term) => normalized.includes(term))
 }
 
 /**
@@ -33,13 +35,22 @@ export function matchesAllTerms(text: string, query: string): boolean {
  * filtered out before it can be promoted.
  */
 export function matchesAllNameTerms(text: string, query: string): boolean {
-  return matchesTerms(text, query, normalizeCardName)
+  return matchesNameTerms(normalizeCardName(text), splitNameTerms(query))
 }
 
-function matchesTerms(text: string, query: string, normalize: (s: string) => string): boolean {
-  const normalized = normalize(text)
-  const terms = normalize(query).split(/\s+/).filter(Boolean)
-  return terms.every((term) => normalized.includes(term))
+/**
+ * The two halves of {@link matchesAllNameTerms}, for searches hot enough to
+ * normalize each side only once: the trade page keeps a normalized key per card
+ * entry and re-matches every entry on each keystroke, so it splits the query into
+ * terms once and matches them against keys it never has to re-normalize.
+ */
+export function splitNameTerms(query: string): string[] {
+  return normalizeCardName(query).split(' ').filter(Boolean)
+}
+
+/** Whether an already-{@link normalizeCardName}d name contains every one of `terms`. */
+export function matchesNameTerms(normalizedName: string, terms: string[]): boolean {
+  return terms.every((term) => normalizedName.includes(term))
 }
 
 /**

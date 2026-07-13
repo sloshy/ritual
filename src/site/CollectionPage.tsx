@@ -2,6 +2,7 @@ import type { Component } from 'solid-js'
 import { createSignal, createMemo, onMount, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import { seedCards, seedPrintings, overlayCard, sessionCacheVersion } from './session-cache'
+import { normalizeCardName } from '../term-match'
 import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { TagFilterWarning } from './TagFilterWarning'
@@ -189,7 +190,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     const maxQty = entry.note ? 1 : (collectionQtyMap().get(groupKey) ?? 1)
     return {
       name: entry.name,
-      nameLower: entry.name.toLowerCase(),
+      nameKey: normalizeCardName(entry.name),
       set: entry.set.toLowerCase(),
       collectorNumber: entry.collectorNumber,
       finish: entry.finish,

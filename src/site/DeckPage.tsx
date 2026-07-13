@@ -2,6 +2,7 @@ import type { Component } from 'solid-js'
 import { createSignal, createMemo, createEffect, onMount, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import { seedCards, seedPrintings, overlayCard, sessionCacheVersion } from './session-cache'
+import { normalizeCardName } from '../term-match'
 import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { TagFilterWarning } from './TagFilterWarning'
@@ -202,7 +203,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     maxQty: number,
   ): TradeSearchEntry => ({
     name: cardName,
-    nameLower: cardName.toLowerCase(),
+    nameKey: normalizeCardName(cardName),
     set: entry.set?.toLowerCase(),
     collectorNumber: entry.collectorNumber,
     finish: entry.finish,
@@ -237,7 +238,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     if (!picker) return
     const searchEntry: TradeSearchEntry = {
       name: printing.name,
-      nameLower: printing.name.toLowerCase(),
+      nameKey: normalizeCardName(printing.name),
       set: printing.set.toLowerCase(),
       collectorNumber: printing.collector_number,
       finish,

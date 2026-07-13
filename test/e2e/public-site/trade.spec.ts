@@ -87,6 +87,16 @@ test.describe('Trade Page', () => {
     )
   })
 
+  test('left column: an accent-free query finds and adds the accented card', async ({ page }) => {
+    await page.goto('#/trade')
+
+    await addToLeft(page, 'jotun grunt')
+
+    await expect(page.locator('.trade-col[data-side="left"] .trade-row-name-text')).toContainText(
+      'Jötun Grunt',
+    )
+  })
+
   test('left column: removing a card removes it from the list', async ({ page }) => {
     await page.goto('#/trade')
 

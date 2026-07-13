@@ -2,6 +2,7 @@ import type { ScryfallCard } from '../types'
 import type { PriceCurrency } from '../price-currency'
 import type { SelectedCard } from './useCardSelection'
 import type { TradeSearchEntry } from './useTradeData'
+import { normalizeCardName } from '../term-match'
 import { addEntryToLeft, addEntryToRight, showTradeToast } from './useTradeState'
 import { resolveCardThumbnailUrl } from './image-sources'
 import { promptForPrinting } from './printing-prompt'
@@ -22,7 +23,7 @@ const cardHasPrinting = (card: SelectedCard): boolean => Boolean(card.set && car
 function baseEntry(card: SelectedCard): TradeSearchEntry {
   return {
     name: card.name,
-    nameLower: card.name.toLowerCase(),
+    nameKey: normalizeCardName(card.name),
     set: card.set,
     collectorNumber: card.collectorNumber,
     finish: card.finish,

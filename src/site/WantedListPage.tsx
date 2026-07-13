@@ -2,6 +2,7 @@ import type { Component } from 'solid-js'
 import { createSignal, createMemo, onMount, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import { seedCards, seedPrintings, sessionCacheVersion } from './session-cache'
+import { normalizeCardName } from '../term-match'
 import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { TagFilterWarning } from './TagFilterWarning'
@@ -182,7 +183,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     scryfallCard: ScryfallCard | null,
   ): TradeSearchEntry => ({
     name: entry.name,
-    nameLower: entry.name.toLowerCase(),
+    nameKey: normalizeCardName(entry.name),
     set: entry.set?.toLowerCase(),
     collectorNumber: entry.collectorNumber,
     finish: entry.finish,
@@ -221,7 +222,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     if (!picker) return
     const searchEntry: TradeSearchEntry = {
       name: printing.name,
-      nameLower: printing.name.toLowerCase(),
+      nameKey: normalizeCardName(printing.name),
       set: printing.set.toLowerCase(),
       collectorNumber: printing.collector_number,
       finish,

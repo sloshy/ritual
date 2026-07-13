@@ -8,13 +8,14 @@ import {
   setRightCards,
 } from '../../../src/site/useTradeState'
 import type { TradeSearchEntry } from '../../../src/site/useTradeData'
+import { normalizeCardName } from '../../../src/term-match'
 import { makeScryfallCard } from '../../test-utils'
 
 function makeEntry(overrides: Partial<TradeSearchEntry> = {}): TradeSearchEntry {
   const card = makeScryfallCard()
   return {
     name: card.name,
-    nameLower: card.name.toLowerCase(),
+    nameKey: normalizeCardName(card.name),
     set: card.set,
     collectorNumber: card.collector_number,
     finish: 'nonfoil',
@@ -68,7 +69,7 @@ describe('isAlreadyInLeftList', () => {
 
   test('returns false for an entry with no overlapping card IDs', () => {
     const entry = makeEntry({ cardIds: [1] })
-    const other = makeEntry({ name: 'Counterspell', nameLower: 'counterspell', cardIds: [2] })
+    const other = makeEntry({ name: 'Counterspell', nameKey: 'counterspell', cardIds: [2] })
     addEntryToLeft(entry, 'usd')
     expect(isAlreadyInLeftList(other)).toBe(false)
   })

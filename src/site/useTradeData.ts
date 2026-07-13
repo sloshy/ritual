@@ -10,13 +10,23 @@ import type {
   WantedListSummary,
 } from './data-types'
 import { fetchJson } from './useFetchJson'
+import {
+  matchesNameTerms,
+  normalizeCardName,
+  promoteFullNameMatches,
+  splitNameTerms,
+} from '../term-match'
 import type { SelectionSourceKind } from './useCardSelection'
 
 /** A single searchable card entry derived from a collection, deck, or wanted list. */
 export interface TradeSearchEntry {
   name: string
-  /** Cached lowercase of `name` to avoid re-lowercasing on every keystroke during search. */
-  nameLower: string
+  /**
+   * `name` run through {@link normalizeCardName}, cached so a keystroke doesn't
+   * re-normalize every entry. This is what trade search matches against, which is
+   * why `Jotun` finds `Jötun Grunt` and `jaces archivist` finds `Jace's Archivist`.
+   */
+  nameKey: string
   set?: string
   collectorNumber?: string
   finish?: Finish
@@ -54,6 +64,37 @@ export type UseTradeDataResult = {
 
 async function fetchOrNull<T>(url: string, signal: AbortSignal): Promise<T | null> {
   return fetchJson<T>(url, signal).catch(() => null)
+}
+
+/** How many suggestions the trade search box shows. */
+const MAX_SEARCH_RESULTS = 20
+
+/** A query shorter than this matches too much of any list to be worth searching. */
+const MIN_QUERY_LENGTH = 2
+
+/**
+ * Search the cards you own (or want) by name, across one or more of the loaded
+ * lists. Every space-separated term must appear in the name, ignoring case,
+ * accents, and punctuation — the same matching the rest of the site's card search
+ * uses. A card whose whole name the query spells out is offered first, so it
+ * can't be cut by the result cap in favour of longer names that merely contain
+ * what was typed.
+ */
+export function searchTradeEntries(
+  query: string,
+  entryLists: TradeSearchEntry[][],
+): TradeSearchEntry[] {
+  if (query.length < MIN_QUERY_LENGTH) return []
+  const terms = splitNameTerms(query)
+  if (terms.length === 0) return []
+
+  const results: TradeSearchEntry[] = []
+  for (const entries of entryLists) {
+    for (const entry of entries) {
+      if (matchesNameTerms(entry.nameKey, terms)) results.push(entry)
+    }
+  }
+  return promoteFullNameMatches(results, query, (entry) => entry.name).slice(0, MAX_SEARCH_RESULTS)
 }
 
 export type UseTradeDataParams = {
@@ -116,7 +157,7 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
             const scryfallCard = detail.cards[cardKey] ?? null
             const mapped: TradeSearchEntry = {
               name: entry.name,
-              nameLower: entry.name.toLowerCase(),
+              nameKey: normalizeCardName(entry.name),
               set: setLower,
               collectorNumber: entry.collectorNumber,
               finish: entry.finish,
@@ -170,7 +211,7 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
             const scryfallCard = detail.cards[cardKey] ?? detail.cards[entry.name] ?? null
             const mapped: TradeSearchEntry = {
               name: entry.name,
-              nameLower: entry.name.toLowerCase(),
+              nameKey: normalizeCardName(entry.name),
               set: setLower,
               collectorNumber: entry.collectorNumber,
               finish: entry.finish,
@@ -233,7 +274,7 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
             } else {
               groups.set(groupKey, {
                 name: card.name,
-                nameLower: card.name.toLowerCase(),
+                nameKey: normalizeCardName(card.name),
                 set: setLower,
                 collectorNumber: card.collectorNumber,
                 finish: card.finish,
@@ -277,30 +318,14 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
     }
   })
 
-  const searchLeft = (query: string, includeDecks: boolean): TradeSearchEntry[] => {
-    if (query.length < 2) return []
-    const q = query.toLowerCase()
-    const results: TradeSearchEntry[] = []
-    for (const entry of collectionEntries()) {
-      if (entry.nameLower.includes(q)) results.push(entry)
-    }
-    if (includeDecks) {
-      for (const entry of deckEntries()) {
-        if (entry.nameLower.includes(q)) results.push(entry)
-      }
-    }
-    return results.slice(0, 20)
-  }
+  const searchLeft = (query: string, includeDecks: boolean): TradeSearchEntry[] =>
+    searchTradeEntries(
+      query,
+      includeDecks ? [collectionEntries(), deckEntries()] : [collectionEntries()],
+    )
 
-  const searchWanted = (query: string): TradeSearchEntry[] => {
-    if (query.length < 2) return []
-    const q = query.toLowerCase()
-    const results: TradeSearchEntry[] = []
-    for (const entry of wantedEntries()) {
-      if (entry.nameLower.includes(q)) results.push(entry)
-    }
-    return results.slice(0, 20)
-  }
+  const searchWanted = (query: string): TradeSearchEntry[] =>
+    searchTradeEntries(query, [wantedEntries()])
 
   return {
     collectionEntries,
