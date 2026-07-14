@@ -3,7 +3,8 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { createAddChange } from '../../src/change-event'
 import { resetCardSessionTracking, saveCardSession } from '../../src/commands/card-session'
-import { newListFilePath, newListSession, type OpenList } from '../../src/commands/edit-lists'
+import { newListSession, type OpenList } from '../../src/commands/edit-lists'
+import { listFilePath } from '../../src/resolve-list'
 import type { DeckSessionConfig } from '../../src/commands/deck-helpers'
 import type { ListType } from '../../src/list-type'
 import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
@@ -39,7 +40,7 @@ const exists = (file: string): Promise<boolean> => Bun.file(file).exists()
 
 /** Build the in-memory session the `➕ New …` menu items create. */
 function createList(type: ListType, name: string): OpenList {
-  const file = newListFilePath(type, name)
+  const file = listFilePath(type, name)!
   return newListSession(
     { type, name, file },
     type === 'deck' ? 'commander' : null,
@@ -72,9 +73,11 @@ describe('creating a list in the edit command (Integration)', () => {
     expect(await exists(open.ref.file.replace(/\.md$/, '.changes.md'))).toBe(false)
   })
 
-  test('a new deck is written at its slugged path with display-name front matter', async () => {
+  test('a new deck is written at a path named as the deck is, with matching front matter', async () => {
+    // A deck is named the same way a collection or wanted list is — see the
+    // flat-list test below, which expects the same shape under its own directory.
     const open = createList('deck', 'Fresh Brew')
-    expect(open.ref.file).toBe(path.join(dir, 'decks', 'fresh-brew.md'))
+    expect(open.ref.file).toBe(path.join(dir, 'decks', 'Fresh Brew.md'))
 
     await saveCardSession(open.strategy, open.ctx)
     const content = await fs.readFile(open.ref.file, 'utf-8')
@@ -126,7 +129,7 @@ describe('creating a list in the edit command (Integration)', () => {
 describe('a pending list creation as a session change (Integration)', () => {
   test('discarding the creation drops the list, and its file is never written', async () => {
     const dropped: string[] = []
-    const file = newListFilePath('collection', 'New Binder')
+    const file = listFilePath('collection', 'New Binder')!
     const open = newListSession(
       { type: 'collection', name: 'New Binder', file },
       null,

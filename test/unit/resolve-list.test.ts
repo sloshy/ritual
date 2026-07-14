@@ -45,6 +45,25 @@ describe('matchList', () => {
     expect(matchList([plain], 'Café Standard')).toBe(plain)
   })
 
+  it('folds hyphens and underscores to spaces, in both directions', () => {
+    // A list file is named as its list is named, but a name may be typed the way
+    // it reads — and a file left over from when deck files were kebab-cased must
+    // still be found by its display name.
+    const spaced = loc('deck', 'Winota Stax')
+    expect(matchList([spaced], 'winota-stax')).toBe(spaced)
+    expect(matchList([spaced], 'winota_stax')).toBe(spaced)
+
+    const kebab = loc('deck', 'black-panther')
+    expect(matchList([kebab], 'Black Panther')).toBe(kebab)
+  })
+
+  it('reports a hyphen/space collision as ambiguous rather than guessing', () => {
+    const spaced = loc('deck', 'Mono Red')
+    const kebab = loc('deck', 'mono-red')
+    const result = matchList([spaced, kebab], 'mono red')
+    expect(isResolveListError(result) && result.kind).toBe('ambiguous')
+  })
+
   it('prefers an exact match over a substring match', () => {
     const burn = loc('deck', 'Burn')
     const burnIncremental = loc('deck', 'Burn Incremental')

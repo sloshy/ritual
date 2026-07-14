@@ -1,7 +1,8 @@
 import { Command } from 'commander'
 import path from 'node:path'
 import * as fs from 'node:fs/promises'
-import { promptUser, sanitizeDeckFileName } from '../utils'
+import { promptUser } from '../utils'
+import { listFileName, unusableFileNameMessage } from '../list-file-name'
 import { importFromTextFile, listDeckFiles } from '../importers/text-file'
 import { fetchDeckFromUrl } from '../importers/url-dispatch'
 import {
@@ -16,8 +17,9 @@ import { parseMoxfieldPrimer } from '../primer-parser'
 import { ExitCode } from './scripting'
 import { getLogger } from '../logger'
 import { writeFileWithHash } from '../content-hash'
+import { isPathWithinDir } from '../path-validation'
 import { getDecksDir } from '../ritual-config'
-import { dirForType } from '../resolve-list'
+import { listFilePath } from '../resolve-list'
 import { isListType, listTypeLabel, LIST_TYPES, type ListType } from '../list-type'
 import { promptListType } from './prompts-helpers'
 
@@ -88,9 +90,13 @@ export async function saveDeck(
   options?: SaveListOptions | boolean,
 ): Promise<void> {
   const resolvedOptions = normalizeSaveListOptions(options)
-  // Determine Target Filename
-  const safeName = sanitizeDeckFileName(deckData.name)
-  let fileName = `${safeName}.md`
+  // Determine Target Filename. An imported deck's name comes from the source
+  // service, so it can be anything — a name with nothing usable left is an error,
+  // not a file called `.md`.
+  let fileName = listFileName(deckData.name)
+  if (fileName === null) {
+    throw new Error(unusableFileNameMessage(deckData.name))
+  }
 
   // Scan Existing Decks for ID Conflict
   let conflictFile: string | null = null
@@ -157,10 +163,17 @@ export async function saveDeck(
       getLogger().info('Import cancelled.')
       return
     } else if (resolution.action === 'rename') {
-      fileName = resolution.newName.endsWith('.md')
-        ? resolution.newName
-        : `${resolution.newName}.md`
+      // The typed-in name goes through the same naming rule as any other list, so
+      // a prompt answer can neither escape the decks directory nor name a file `.md`.
+      const renamed = listFileName(resolution.newName.replace(/\.md$/i, ''))
+      if (renamed === null) {
+        throw new Error(unusableFileNameMessage(resolution.newName))
+      }
+      fileName = renamed
       filePath = path.join(decksDir, fileName)
+      if (!isPathWithinDir(filePath, decksDir)) {
+        throw new Error(`Name '${resolution.newName}' is not a valid deck file name`)
+      }
 
       // Double check new filename
       if (await Bun.file(filePath).exists()) {
@@ -262,11 +275,17 @@ export async function saveFlatList(
   let name = deckData.name
   let mode: CsvImportMode = 'create'
 
-  const targetPathFor = (listName: string): string =>
-    path.join(dirForType(listType), `${sanitizeDeckFileName(listName)}.md`)
+  /** The list's path, rejecting a name with nothing usable left rather than naming a file `.md`. */
+  const targetPathFor = (listName: string): string => {
+    const target = listFilePath(listType, listName)
+    if (target === null) {
+      throw new Error(unusableFileNameMessage(listName))
+    }
+    return target
+  }
 
   let filePath = targetPathFor(name)
-  const exists = sanitizeDeckFileName(name) !== '' && (await Bun.file(filePath).exists())
+  const exists = await Bun.file(filePath).exists()
   const shouldOverwrite = resolvedOptions.forceOverwrite || resolvedOptions.assumeYes
 
   if (exists && shouldOverwrite) {

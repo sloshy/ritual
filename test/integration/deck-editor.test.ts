@@ -44,9 +44,9 @@ async function addCardToDeck(
 }
 
 describe('deck editor helpers (Integration)', () => {
-  test('ensureDeckFile creates a slugged file with display name front matter', async () => {
+  test('ensureDeckFile names the file as the deck is named', async () => {
     const filePath = await ensureDeckFile('My Cool Deck', 'commander')
-    expect(filePath).toBe(path.join(dir, 'decks', 'my-cool-deck.md'))
+    expect(filePath).toBe(path.join(dir, 'decks', 'My Cool Deck.md'))
     const { frontMatter } = await loadDeck(filePath)
     expect(frontMatter.name).toBe('My Cool Deck')
     expect(frontMatter.format).toBe('commander')
@@ -119,16 +119,20 @@ describe('deck editor helpers (Integration)', () => {
     expect(goblins[0]?.cardId).toBe(firstId)
   })
 
-  test('listExistingDecks reports display names (not file slugs), sorted by name', async () => {
-    // Slugged file names diverge from their front-matter display names.
+  test('listExistingDecks reports front-matter display names, sorted by name', async () => {
     await ensureDeckFile('Zephyr Tempo', 'commander')
-    await ensureDeckFile('Atraxa Superfriends', 'commander')
+    // A file whose name differs from its front-matter display name (as any deck
+    // renamed by hand, or created before the naming rule, would be).
+    await fs.writeFile(
+      path.join(dir, 'decks', 'atraxa-superfriends.md'),
+      '---\nname: Atraxa Superfriends\n---\n\n## Main\n',
+    )
     // A deck file with no `name:` front matter falls back to its file base name.
     await fs.writeFile(path.join(dir, 'decks', 'orphan-deck.md'), '## Main\n')
 
     const decks = await listExistingDecks()
     expect(decks.map((d) => d.name)).toEqual(['Atraxa Superfriends', 'orphan-deck', 'Zephyr Tempo'])
-    // The paired file path resolves to the slugged file, not the display name.
+    // The display name is reported, but the paired path is the file's real one.
     const atraxa = decks.find((d) => d.name === 'Atraxa Superfriends')
     expect(atraxa?.file).toBe(path.join(dir, 'decks', 'atraxa-superfriends.md'))
   })

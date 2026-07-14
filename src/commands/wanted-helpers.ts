@@ -5,6 +5,7 @@ import { matchSectionHeader } from '../section-format'
 import { capitalize } from '../utils'
 import { isFinish } from './collection-helpers'
 import { getWantedDir } from '../ritual-config'
+import { listFileName, unusableFileNameMessage } from '../list-file-name'
 import { ensureListFile, type SessionConfig } from './card-session'
 
 export type WantedListEntry = {
@@ -85,7 +86,11 @@ export function parseWantedListFile(content: string): WantedListParseResult {
 }
 
 export async function ensureWantedListFile(name: string): Promise<string> {
-  return ensureListFile(getWantedDir(), `${name}.md`, `# ${name}\n\n`, 'wanted list')
+  const fileName = listFileName(name)
+  if (fileName === null) {
+    throw new Error(unusableFileNameMessage(name))
+  }
+  return ensureListFile(getWantedDir(), fileName, `# ${name}\n\n`, 'wanted list')
 }
 
 export type WantedListSessionConfig = Omit<SessionConfig, 'condition'>

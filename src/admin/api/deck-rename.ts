@@ -7,7 +7,7 @@ import { getErrorMessage } from '../../errors'
 import { MAX_BODY_SIZE } from '../validation'
 import { getDecksDir } from '../../ritual-config'
 import { writeFileWithHash, hashPath } from '../../content-hash'
-import { sanitizeDeckFileName } from '../../utils'
+import { sanitizeListFileName, unusableFileNameMessage } from '../../list-file-name'
 
 interface DeckRenameRequest {
   newName: string
@@ -44,12 +44,12 @@ export async function handleDeckRename(req: Request): Promise<Response> {
     }
 
     const trimmedName = newName.trim()
-    const newSlug = sanitizeDeckFileName(trimmedName)
+    const newSlug = sanitizeListFileName(trimmedName)
 
     if (!newSlug) {
       const resp: DeckRenameResponse = {
         success: false,
-        message: 'New name must contain at least one valid character',
+        message: unusableFileNameMessage(trimmedName),
       }
       return Response.json(resp, { status: 400 })
     }

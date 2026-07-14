@@ -49,7 +49,22 @@ Create a Standard deck:
 
 ## Output
 
-Creates a new Markdown file in the `decks/` directory with the deck name as the filename.
+Creates a new Markdown file in the `decks/` directory, named as the deck is named.
+
+## List file names
+
+A list's file is named exactly as you name the list — `ritual new-deck "Winota Stax"` writes
+`decks/Winota Stax.md`. Case, spaces, and punctuation are preserved; the name is not
+lowercased or hyphenated.
+
+Only the characters that file systems reject are removed: `/ \ : * ? " < > |`, the null
+byte, and leading, trailing, or repeated dots (which would otherwise hide the file or
+escape the directory). So `Atraxa: Praetors' Voice` is stored as
+`decks/Atraxa Praetors' Voice.md`, while the `name:` front matter keeps the colon. A name
+left with nothing usable (`"???"`) is an error, and no file is written.
+
+Decks, collections, and wanted lists are all named this way, by every surface that creates
+one — the CLI, the editors, imports, and the admin site.
 
 ## Deck format
 

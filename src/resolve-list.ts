@@ -3,7 +3,8 @@
  * wanted-list file. This is the single source of truth for how the CLI turns a bare
  * name into a file, so every command that loads a list by name behaves identically:
  *
- * - Matching is case- and diacritic-insensitive (so `cafe` matches `Café`).
+ * - Matching ignores case, diacritics, and separators (so `cafe` matches `Café`, and
+ *   `winota-stax` matches `Winota Stax`).
  * - An exact (normalized) name match wins outright.
  * - Failing that, a single normalized substring match is accepted.
  * - **Any** ambiguity at the chosen tier is an error — the caller must disambiguate
@@ -23,6 +24,7 @@ import path from 'node:path'
 import { listDeckFiles } from './importers/text-file'
 import { getCollectionsDir, getDecksDir, getWantedDir } from './ritual-config'
 import { isPathWithinDir } from './path-validation'
+import { listFileName } from './list-file-name'
 import { LIST_TYPES, LIST_TYPE_DISPLAY, type ListType } from './list-type'
 import { normalizeForSearch } from './term-match'
 
@@ -55,6 +57,18 @@ export function dirForType(type: ListType): string {
   if (type === 'deck') return getDecksDir()
   if (type === 'collection') return getCollectionsDir()
   return getWantedDir()
+}
+
+/**
+ * The path a list with this display name lives at — the same path for every
+ * surface that creates one, since they all name the file through
+ * {@link listFileName}. Returns null when the name has no usable filename
+ * characters; the caller reports that rather than writing a nameless file.
+ */
+export function listFilePath(type: ListType, name: string): string | null {
+  const fileName = listFileName(name)
+  if (fileName === null) return null
+  return path.join(dirForType(type), fileName)
 }
 
 async function locationsForType(type: ListType): Promise<ListLocation[]> {
@@ -107,17 +121,30 @@ export function matchList(
   if (candidates.length === 0) return { kind: 'no-lists', type }
 
   const cleaned = query.replace(/\.md$/i, '').trim()
-  const normalized = normalizeForSearch(cleaned)
+  const normalized = normalizeListName(cleaned)
 
-  const exact = candidates.filter((c) => normalizeForSearch(c.name) === normalized)
+  const exact = candidates.filter((c) => normalizeListName(c.name) === normalized)
   if (exact.length === 1) return exact[0]!
   if (exact.length > 1) return { kind: 'ambiguous', query: cleaned, matches: exact }
 
-  const substring = candidates.filter((c) => normalizeForSearch(c.name).includes(normalized))
+  const substring = candidates.filter((c) => normalizeListName(c.name).includes(normalized))
   if (substring.length === 1) return substring[0]!
   if (substring.length > 1) return { kind: 'ambiguous', query: cleaned, matches: substring }
 
   return { kind: 'not-found', query: cleaned, type }
+}
+
+/**
+ * The form a list name is matched in: case- and diacritic-insensitive (see
+ * {@link normalizeForSearch}), with hyphens and underscores folded to spaces.
+ *
+ * The separator folding is what lets a name be typed the way it reads regardless
+ * of how its file happens to be punctuated — `winota-stax` finds `Winota Stax.md`,
+ * and `Black Panther` finds a `black-panther.md` left over from before list files
+ * were named as entered.
+ */
+function normalizeListName(name: string): string {
+  return normalizeForSearch(name).replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
 }
 
 /**

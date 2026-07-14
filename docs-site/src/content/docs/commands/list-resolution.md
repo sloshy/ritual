@@ -8,13 +8,18 @@ Every command that loads a deck, collection, or wanted list by name resolves tha
 
 Given a name, the resolver searches existing list files and applies these rules in order:
 
-1. **Case- and accent-insensitive exact match.** A list whose file name equals the input (ignoring case and diacritics, and ignoring a trailing `.md`) wins outright.
-2. **Unique substring match.** If nothing matches exactly, a list whose name _contains_ the input (again ignoring case and diacritics) is accepted — but only if exactly one does.
+1. **Exact match**, ignoring case, diacritics, separators, and a trailing `.md`. A list whose file name equals the input under those rules wins outright.
+2. **Unique substring match.** If nothing matches exactly, a list whose name _contains_ the input (under the same rules) is accepted — but only if exactly one does.
 3. **Otherwise it is an error.** No match is a "not found" error; more than one match at the winning tier is an "ambiguous" error.
 
 Matching is performed against the **file name** (without the `.md` extension), not the human-facing title in front matter or the markdown heading.
 
-Accented letters are folded to their plain forms before matching, so `cafe` resolves a list named `Café` and vice versa.
+Before matching:
+
+- Accented letters are folded to their plain forms, so `cafe` resolves a list named `Café` and vice versa.
+- Hyphens and underscores are treated as spaces, so a list is found whichever way its name is punctuated: `winota-stax` resolves `Winota Stax.md`, and `Black Panther` resolves a `black-panther.md` left over from before list files were [named as entered](/commands/new-deck/#list-file-names).
+
+Two lists whose names differ only in punctuation (`Mono Red` and `mono-red`) are reported as ambiguous rather than silently picked between.
 
 ## Type flags and disambiguation
 

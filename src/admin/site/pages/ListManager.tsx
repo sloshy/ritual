@@ -15,6 +15,7 @@ import {
   parseDeckFormat,
   type DeckFormatKey,
 } from '../../../deck-format'
+import { listFileName } from '../../../list-file-name'
 import { type ListType, LIST_TYPE_DISPLAY } from '../../../list-type'
 import type { RitualConfig, SiteConfig } from '../../../ritual-config'
 import { type SiteSelectionConfig, defaultSiteSelection } from '../../../site/list-selection'
@@ -108,6 +109,12 @@ export function ListManager(props: ListManagerProps): JSX.Element {
 
   const meta = createMemo((): CategoryMeta => CATEGORY_META[category()])
 
+  // The file each form would write, or null when the typed name has no characters
+  // usable in one. Single source of truth for the preview, the submit button, and
+  // the submit handlers, so the Enter key cannot bypass what the button blocks.
+  const newFile = createMemo((): string | null => listFileName(newName()))
+  const renameFile = createMemo((): string | null => listFileName(renameName()))
+
   // The exclude list gating the current category's public visibility. A list is
   // public unless its display name appears here; toggling visibility edits only
   // this list (never the include list).
@@ -192,7 +199,7 @@ export function ListManager(props: ListManagerProps): JSX.Element {
   const handleCreate = async () => {
     const m = meta()
     const trimmed = newName().trim()
-    if (!trimmed) return
+    if (!trimmed || !newFile()) return
     const body: CreateBody = { name: trimmed }
     if (m.hasFormat) body.format = newFormat()
     const ok = await run(
@@ -217,7 +224,7 @@ export function ListManager(props: ListManagerProps): JSX.Element {
     const item = selected()
     if (!item) return
     const trimmed = renameName().trim()
-    if (!trimmed || trimmed === item.name) return
+    if (!trimmed || !renameFile() || trimmed === item.name) return
     const ok = await run(
       m.renameUrl(item.slug),
       {
@@ -385,9 +392,20 @@ export function ListManager(props: ListManagerProps): JSX.Element {
                 autofocus
               />
               <Show when={newName().trim()}>
-                <p class="form-hint form-hint-top">
-                  File name: <code>{slugify(newName())}.md</code>
-                </p>
+                <Show
+                  when={newFile()}
+                  fallback={
+                    <p class="form-hint form-hint-top text-danger">
+                      This name has no characters that can be used in a file name.
+                    </p>
+                  }
+                >
+                  {(fileName) => (
+                    <p class="form-hint form-hint-top">
+                      File name: <code>{fileName()}</code>
+                    </p>
+                  )}
+                </Show>
               </Show>
             </div>
             <Show when={meta().hasFormat}>
@@ -410,7 +428,7 @@ export function ListManager(props: ListManagerProps): JSX.Element {
               <button
                 class="btn btn-primary"
                 onClick={() => void handleCreate()}
-                disabled={loading() || !newName().trim()}
+                disabled={loading() || !newFile()}
               >
                 {loading() ? 'Creating...' : `Create ${capitalize(meta().singular)}`}
               </button>
@@ -442,16 +460,27 @@ export function ListManager(props: ListManagerProps): JSX.Element {
                     autofocus
                   />
                   <Show when={renameName().trim()}>
-                    <p class="form-hint form-hint-top">
-                      New file name: <code>{slugify(renameName())}.md</code>
-                    </p>
+                    <Show
+                      when={renameFile()}
+                      fallback={
+                        <p class="form-hint form-hint-top text-danger">
+                          This name has no characters that can be used in a file name.
+                        </p>
+                      }
+                    >
+                      {(fileName) => (
+                        <p class="form-hint form-hint-top">
+                          New file name: <code>{fileName()}</code>
+                        </p>
+                      )}
+                    </Show>
                   </Show>
                 </div>
                 <div class="form-actions">
                   <button
                     class="btn btn-primary"
                     onClick={() => void handleRename()}
-                    disabled={loading() || !renameName().trim() || renameName() === item().name}
+                    disabled={loading() || !renameFile() || renameName() === item().name}
                   >
                     {loading() ? 'Renaming...' : 'Rename'}
                   </button>
@@ -528,16 +557,4 @@ function createPlaceholder(category: Category): string {
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
-}
-
-function slugify(name: string): string {
-  return (
-    name
-      .trim()
-      // eslint-disable-next-line no-control-regex -- null byte is intentional: strips filename-illegal chars.
-      .replace(/[/\\:*?"<>|\x00]/g, '')
-      .replace(/\.{2,}/g, '.')
-      .replace(/^\.+|\.+$/g, '')
-      .trim()
-  )
 }

@@ -16,6 +16,7 @@ import {
   type FinishConditionConfig,
 } from './collection-helpers'
 import { ensureWantedListFile, formatWantedListLine, promptWantedFinish } from './wanted-helpers'
+import { isUsableFileName, unusableFileNameMessage } from '../list-file-name'
 import { ensureFreshCardCache } from '../cache/freshness'
 import { appendChangelog } from '../changelog-writer'
 import { createAddChange } from '../change-event'
@@ -83,6 +84,11 @@ async function resolveAddCardTarget(
   if (resolved.kind === 'not-found' && type) {
     if (type === 'deck') {
       return { error: `No deck named '${name}' found. Create it first with 'new-deck'.`, code: 3 }
+    }
+    // The list is about to be created, so its name has to be usable as a file name.
+    // Reported as a usage error rather than thrown, like every other failure here.
+    if (!isUsableFileName(name)) {
+      return { error: unusableFileNameMessage(name), code: 1 }
     }
     const filePath =
       type === 'collection' ? await ensureCollectionFile(name) : await ensureWantedListFile(name)

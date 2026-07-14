@@ -6,14 +6,14 @@ import { runCli } from './helpers/cli'
 import { withWorkspace } from './helpers/workspace'
 
 describe('new-deck CLI (Integration)', () => {
-  test('creates a deck file with a slug derived from the name and default commander format', async () => {
+  test('names the file as the deck is named, with the default commander format', async () => {
     await withWorkspace(async (dir) => {
       const result = await runCli(['new-deck', 'My Cool Deck'], dir)
       expect(result.exitCode).toBe(0)
 
-      const filePath = path.join(dir, 'decks', 'my-cool-deck.md')
-      // Frontmatter preserves the original display name verbatim while the file
-      // name is the slugified form. Default format is commander.
+      // The file is named exactly as entered — case and spaces preserved, not
+      // lowercased or kebab-cased.
+      const filePath = path.join(dir, 'decks', 'My Cool Deck.md')
       const frontMatter = await parseDeckFrontMatter(filePath)
       expect(frontMatter.name).toBe('My Cool Deck')
       expect(frontMatter.format).toBe('commander')
@@ -21,18 +21,26 @@ describe('new-deck CLI (Integration)', () => {
     })
   })
 
-  test('slugifies punctuation-heavy names into kebab-case', async () => {
+  test('keeps punctuation, stripping only filename-illegal characters', async () => {
     await withWorkspace(async (dir) => {
-      const result = await runCli(['new-deck', "Atraxa's Praetorian!! ++Stax++"], dir)
+      const result = await runCli(['new-deck', "Atraxa: Praetors' Voice? <Stax>"], dir)
       expect(result.exitCode).toBe(0)
 
-      // Non-alphanumerics collapse to single hyphens and leading/trailing hyphens are
-      // stripped. The test fixes the slug shape so the rule changes are obvious.
-      const filePath = path.join(dir, 'decks', 'atraxa-s-praetorian-stax.md')
-      // The slug rewrite must not leak into the frontmatter — the display name
-      // is preserved verbatim, punctuation and all.
+      // `: ? < >` are illegal on Windows and are dropped; the apostrophe and the
+      // spaces survive. The display name keeps every character.
+      const filePath = path.join(dir, 'decks', "Atraxa Praetors' Voice Stax.md")
       const frontMatter = await parseDeckFrontMatter(filePath)
-      expect(frontMatter.name).toBe("Atraxa's Praetorian!! ++Stax++")
+      expect(frontMatter.name).toBe("Atraxa: Praetors' Voice? <Stax>")
+    })
+  })
+
+  test('rejects a name with no usable filename characters', async () => {
+    await withWorkspace(async (dir) => {
+      const result = await runCli(['new-deck', '???'], dir)
+      expect(result.exitCode).not.toBe(0)
+      expect(result.stderr).toContain('no characters usable in a file name')
+
+      expect(await fs.readdir(path.join(dir, 'decks'))).toEqual([])
     })
   })
 
@@ -41,7 +49,7 @@ describe('new-deck CLI (Integration)', () => {
       const result = await runCli(['new-deck', 'Stompy', '--format', 'modern'], dir)
       expect(result.exitCode).toBe(0)
 
-      const frontMatter = await parseDeckFrontMatter(path.join(dir, 'decks', 'stompy.md'))
+      const frontMatter = await parseDeckFrontMatter(path.join(dir, 'decks', 'Stompy.md'))
       expect(frontMatter.format).toBe('modern')
     })
   })
@@ -51,7 +59,7 @@ describe('new-deck CLI (Integration)', () => {
       const result = await runCli(['new-deck', 'Kenrith', '--format', 'EDH'], dir)
       expect(result.exitCode).toBe(0)
 
-      const frontMatter = await parseDeckFrontMatter(path.join(dir, 'decks', 'kenrith.md'))
+      const frontMatter = await parseDeckFrontMatter(path.join(dir, 'decks', 'Kenrith.md'))
       expect(frontMatter.format).toBe('commander')
     })
   })
@@ -62,13 +70,13 @@ describe('new-deck CLI (Integration)', () => {
       expect(result.exitCode).not.toBe(0)
       expect(result.stderr).toContain("Invalid deck format 'cube'")
 
-      expect(await fs.exists(path.join(dir, 'decks', 'cube.md'))).toBe(false)
+      expect(await fs.exists(path.join(dir, 'decks', 'Cube.md'))).toBe(false)
     })
   })
 
   test('refuses to overwrite an existing deck file', async () => {
     await withWorkspace(async (dir) => {
-      const filePath = path.join(dir, 'decks', 'existing.md')
+      const filePath = path.join(dir, 'decks', 'Existing.md')
       const original = '---\nname: "Existing"\n---\n\nDo not touch.\n'
       await fs.writeFile(filePath, original)
 

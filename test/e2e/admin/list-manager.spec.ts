@@ -200,6 +200,33 @@ test.describe('List Manager', () => {
     await expect(page.locator('.deck-list-item:has-text("Brand New Collection")')).toBeVisible()
   })
 
+  test('previews the file name as entered, and blocks a name that cannot be one', async ({
+    page,
+  }) => {
+    await page.locator('.btn-primary:has-text("New Deck")').click()
+    const nameInput = page.locator('input.form-input').first()
+    const create = page.locator('.btn-primary:has-text("Create Deck")')
+
+    // The preview shows the exact file the server will write: case and spaces kept,
+    // filename-illegal characters (`:` `?`) dropped.
+    await nameInput.fill('Atraxa: Praetors? Voice')
+    await expect(page.locator('.form-hint code')).toHaveText('Atraxa Praetors Voice.md')
+    await expect(create).toBeEnabled()
+
+    // A name with nothing usable left can't name a file, so creation is refused
+    // in the form rather than round-tripping to a 400.
+    await nameInput.fill('???')
+    await expect(page.locator('.form-hint code')).toHaveCount(0)
+    await expect(page.locator('.form-hint.text-danger')).toBeVisible()
+    await expect(create).toBeDisabled()
+
+    // Enter must be blocked too, not just the button — the handler applies the
+    // same check, so pressing it cannot submit what the button refuses.
+    await nameInput.press('Enter')
+    await expect(page.locator('.form-container')).toBeVisible()
+    await expect(page.locator('.alert-success')).toHaveCount(0)
+  })
+
   test('format dropdown only appears on the Decks tab', async ({ page }) => {
     await page.locator('.btn-primary:has-text("New Deck")').click()
     await expect(page.locator('select.form-input')).toBeVisible()

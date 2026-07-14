@@ -27,8 +27,8 @@ import {
   type CsvRowFailure,
 } from '../importers/csv'
 import { applyCsvImport, type CsvImportMode } from '../importers/csv-apply'
-import { dirForType } from '../resolve-list'
-import { sanitizeDeckFileName } from '../utils'
+import { listFilePath } from '../resolve-list'
+
 import { ExitCode } from './scripting'
 import { getLogger } from '../logger'
 
@@ -292,9 +292,8 @@ export function registerImportCsvCommand(program: Command): void {
       if (flagMode !== undefined) {
         mode = flagMode
       } else {
-        const safeName = sanitizeDeckFileName(name)
-        const targetPath = path.join(dirForType(listType), `${safeName}.md`)
-        const exists = safeName !== '' && (await Bun.file(targetPath).exists())
+        const targetPath = listFilePath(listType, name)
+        const exists = targetPath !== null && (await Bun.file(targetPath).exists())
         if (!exists) {
           mode = 'create'
         } else if (scripted) {

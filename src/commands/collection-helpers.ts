@@ -11,6 +11,7 @@ import {
   isCondition,
 } from '../finish-condition'
 import { getCollectionsDir } from '../ritual-config'
+import { listFileName, unusableFileNameMessage } from '../list-file-name'
 import { ensureListFile } from './card-session'
 
 export { VALID_FINISHES, VALID_CONDITIONS, CONDITION_LABELS, isFinish, isCondition }
@@ -24,12 +25,11 @@ type ConditionPromptResponse = { condition?: string }
  * Returns the resolved file path.
  */
 export async function ensureCollectionFile(collectionName: string): Promise<string> {
-  return ensureListFile(
-    getCollectionsDir(),
-    `${collectionName}.md`,
-    `# ${collectionName}\n\n`,
-    'collection',
-  )
+  const fileName = listFileName(collectionName)
+  if (fileName === null) {
+    throw new Error(unusableFileNameMessage(collectionName))
+  }
+  return ensureListFile(getCollectionsDir(), fileName, `# ${collectionName}\n\n`, 'collection')
 }
 
 /** Minimal config used when filtering card printings by set. */

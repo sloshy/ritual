@@ -4,6 +4,7 @@ import matter from 'gray-matter'
 import { DEFAULT_SECTION, type Card, type DeckData } from './types'
 import { parseDeckFormat, resolveDeckFormat, type DeckFormatKey } from './deck-format'
 import { listDeckFiles } from './importers/text-file'
+import { isResolveListError, matchList, type ListLocation } from './resolve-list'
 import { isPathWithinDir } from './path-validation'
 import { allocateNextIdFromContent, assignMissingDeckCardIds } from './card-id'
 import { writeFileWithHash } from './content-hash'
@@ -15,9 +16,11 @@ import { serializeCardLine } from './deck-text'
 export { serializeCardLine }
 
 /**
- * Resolve a deck name to its file path. Tries exact match first,
- * then tries with .md extension, then case-insensitive match.
- * Returns null if not found or if the resolved path escapes the decks directory.
+ * Resolve a deck name (or slug) to its file path, by the same rules the CLI
+ * resolves a list name: an exact hit on the literal file wins, otherwise the name
+ * is matched ignoring case, diacritics, and separators. Returns null when nothing
+ * matches, when the name is ambiguous, or when the path escapes the decks
+ * directory.
  */
 export async function resolveDeckFilePath(
   decksDir: string,
@@ -34,13 +37,16 @@ export async function resolveDeckFilePath(
     return deckFilePath
   }
 
-  const files = await listDeckFiles(decksDir)
-  const deckFileNameLower = deckFileName.toLowerCase()
-  const exactMatch = files.find((f) => f.toLowerCase() === deckFileNameLower)
-  if (exactMatch) return path.join(decksDir, exactMatch)
-
-  const match = files.find((f) => f.toLowerCase().includes(deckName.toLowerCase()))
-  return match ? path.join(decksDir, match) : null
+  // Fall back to the shared resolver, so an admin request for `winota-stax`
+  // finds `Winota Stax.md` exactly as `ritual price winota-stax` does — and an
+  // ambiguous name is refused here too, rather than silently taking the first hit.
+  const candidates: ListLocation[] = (await listDeckFiles(decksDir)).map((file) => ({
+    type: 'deck',
+    name: path.basename(file, '.md'),
+    filePath: path.join(decksDir, file),
+  }))
+  const matched = matchList(candidates, deckName, 'deck')
+  return isResolveListError(matched) ? null : matched.filePath
 }
 
 /**

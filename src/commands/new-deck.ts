@@ -4,6 +4,7 @@ import * as fs from 'node:fs/promises'
 import { writeFileWithHash } from '../content-hash'
 import { newDeckMarkdown } from '../deck-file'
 import { invalidDeckFormatMessage, parseDeckFormat } from '../deck-format'
+import { listFileName, unusableFileNameMessage } from '../list-file-name'
 import { getDecksDir } from '../ritual-config'
 
 type NewDeckOptions = { format: string }
@@ -22,11 +23,11 @@ export function registerNewDeckCommand(program: Command): void {
         process.exit(1)
       }
 
-      const safeName = name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '')
-      const fileName = `${safeName}.md`
+      const fileName = listFileName(name)
+      if (fileName === null) {
+        console.error(unusableFileNameMessage(name))
+        process.exit(1)
+      }
       const filePath = path.join(decksDir, fileName)
 
       const content = newDeckMarkdown(name, format)

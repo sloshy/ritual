@@ -18,13 +18,14 @@ import { promptDeckFormat, type DeckSessionConfig } from './deck-helpers'
 import {
   collectListRefs,
   hasUnsavedChanges,
-  newListFilePath,
   newListSession,
   NEW_LIST_TITLES,
   openListSession,
   type OpenList,
   type UnifiedListRef,
 } from './edit-lists'
+import { isUsableFileName, unusableFileNameMessage } from '../list-file-name'
+import { listFilePath } from '../resolve-list'
 import {
   createScopedSession,
   createScopedSessionState,
@@ -143,12 +144,20 @@ async function promptListToEdit(choices: Choice[]): Promise<UnifiedSelection | u
   })
 }
 
-/** Prompt for a new list's name. Returns null when cancelled or empty. */
+/**
+ * Prompt for a new list's name. The list's file is named as the name is entered,
+ * so a name left with nothing usable once filename-illegal characters are stripped
+ * is rejected here rather than at save time. Returns null when cancelled.
+ */
 async function promptNewListName(type: ListType): Promise<string | null> {
   const name = await ask<string>({
     type: 'text',
     message: `Enter name for new ${listTypeLabel(type)}:`,
-    validate: (value: string) => (value.length > 0 ? true : 'Name cannot be empty'),
+    validate: (value: string) => {
+      if (value.trim().length === 0) return 'Name cannot be empty'
+      if (!isUsableFileName(value)) return unusableFileNameMessage(value)
+      return true
+    },
   })
   return name ?? null
 }
@@ -201,7 +210,9 @@ export function registerEditCommand(program: Command): void {
     const createList = async (type: ListType): Promise<OpenList | undefined> => {
       const name = await promptNewListName(type)
       if (!name) return undefined
-      const file = newListFilePath(type, name)
+      // The prompt already rejected a name with no usable filename characters.
+      const file = listFilePath(type, name)
+      if (!file) return undefined
       if (openLists.has(file) || (await Bun.file(file).exists())) {
         console.error(`A ${listTypeLabel(type)} already exists at ${file}.`)
         return undefined

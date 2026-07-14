@@ -33,7 +33,7 @@ The file is a **`ritual-change-bundle`** JSON covering one or more lists — the
 Before anything is applied, the command prints every pending change grouped by its target list:
 
 ```text
-🎴 Winota Stax (deck 'winota-stax') — 2 changes
+🎴 Winota Stax (deck 'Winota Stax') — 2 changes
   • Add Counterspell
   • Remove Lightning Bolt (LEA:161) &2
 

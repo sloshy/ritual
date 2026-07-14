@@ -26,10 +26,17 @@ workspace if it contains \`decks/\`, \`collections/\`, or \`wanted/\` folders, o
 - \`ritual.config.json\` — configuration
 
 A list is addressed by its **name** = the file basename without \`.md\`
-(e.g. \`decks/winota-stax.md\` → \`winota-stax\`). Most commands resolve a name
-case- and accent-insensitively across all three types (so \`cafe\` matches a list
-named \`Café\`); when a name is ambiguous, pass a type
+(e.g. \`decks/Winota Stax.md\` → \`Winota Stax\`). Most commands resolve a name across
+all three types, ignoring case, accents, and separators (so \`cafe\` matches \`Café\`,
+and \`winota-stax\` matches \`Winota Stax\`); when a name is ambiguous, pass a type
 flag (\`--deck\`, \`--collection\`, \`--wanted\`).
+
+**File naming:** creating a list names its file exactly as the list is named — case,
+spaces, and punctuation are kept (\`ritual new-deck "Winota Stax"\` → \`decks/Winota Stax.md\`,
+not \`winota-stax.md\`). Only characters file systems reject (\`/ \\ : * ? " < > |\`, leading or
+repeated dots) are stripped, and a name with nothing usable left is an error. Older lists may
+still have hyphenated file names; they resolve by name as normal, and their display name comes
+from the deck's \`name:\` front matter (or the file name, for collections and wanted lists).
 
 ## File format
 

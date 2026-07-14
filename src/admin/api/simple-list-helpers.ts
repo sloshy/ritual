@@ -3,7 +3,8 @@ import fs from 'node:fs/promises'
 import { writeFileWithHash, hashPath } from '../../content-hash'
 import { getErrorMessage } from '../../errors'
 import { isPathWithinDir } from '../../path-validation'
-import { sanitizeDeckFileName, capitalize } from '../../utils'
+import { capitalize } from '../../utils'
+import { sanitizeListFileName, unusableFileNameMessage } from '../../list-file-name'
 import { parseTitleFromContent } from '../../section-format'
 import { autoCommitAndPush, validateBodySize } from './save-helpers'
 
@@ -68,12 +69,12 @@ export async function handleSimpleListCreate(
     }
 
     const trimmedName = name.trim()
-    const slug = sanitizeDeckFileName(trimmedName)
+    const slug = sanitizeListFileName(trimmedName)
 
     if (!slug) {
       const resp: SimpleListResponse = {
         success: false,
-        message: `${capitalize(cfg.label)} name must contain at least one valid character`,
+        message: unusableFileNameMessage(trimmedName),
       }
       return Response.json(resp, { status: 400 })
     }
@@ -148,12 +149,12 @@ export async function handleSimpleListRename(
     }
 
     const trimmedName = newName.trim()
-    const newSlug = sanitizeDeckFileName(trimmedName)
+    const newSlug = sanitizeListFileName(trimmedName)
 
     if (!newSlug) {
       const resp: SimpleListResponse = {
         success: false,
-        message: 'New name must contain at least one valid character',
+        message: unusableFileNameMessage(trimmedName),
       }
       return Response.json(resp, { status: 400 })
     }

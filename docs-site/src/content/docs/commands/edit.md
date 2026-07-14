@@ -59,7 +59,8 @@ On startup (and whenever you back out of a list) you pick what to edit next:
 - Every **deck** (`🎴`, by display name), **collection** (`📦`), and **wanted list** (`🎯`) on disk,
   plus any list created this session. Lists with unsaved changes show a `— N unsaved change(s)`
   badge, and a list that does not exist on disk yet is badged `— new`. Decks are listed by their
-  display name (the `name:` front matter field), not their slugified file name.
+  display name (the `name:` front matter field), which is what an older or hand-renamed deck's
+  file name may differ from.
 - `➕ New Deck` / `➕ New Collection` / `➕ New Wanted List` — create a list and start editing it (see
   [Creating Lists](#creating-lists)).
 - `🚪 Exit` — leave the editor (with unsaved changes anywhere, asks to save all, discard all, or
@@ -89,8 +90,10 @@ directly, you are returned to the selection menu, since there is nothing left to
 commits the creation, and the entry disappears.
 
 A new deck prompts for its [format](#deck-format) and is written with the same YAML front matter as
-[`new-deck`](/commands/new-deck/) (display name preserved, file name slugified); new collections and
-wanted lists get a `# Title` heading. Creating a list whose file already exists is refused.
+[`new-deck`](/commands/new-deck/); new collections and wanted lists get a `# Title` heading. Every
+list type's file is named as the list is named — see
+[List file names](/commands/new-deck/#list-file-names). A name with no usable file-name characters
+is rejected at the prompt, and creating a list whose file already exists is refused.
 
 Lists can be created from two places: the `➕ New …` items in the list selection menu, and the same
 items in the `Add to which list?` prompt of a [multi-list mode](#multi-list-modes) — where the card you

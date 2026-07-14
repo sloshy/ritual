@@ -12,7 +12,9 @@ For general admin API endpoints (authentication, config, audit log, etc.), see t
 POST /api/deck/create
 ```
 
-Create a new deck file. The slug is auto-generated from the name.
+Create a new deck file, named as the deck is named — see
+[List file names](/commands/new-deck/#list-file-names). A name left with no usable file-name
+characters returns `400`.
 
 **Request Body:**
 
@@ -298,7 +300,8 @@ Save collection changes. Writes the updated collection file and creates a change
 POST /api/collection/create
 ```
 
-Create a new collection file. The slug is derived from the name.
+Create a new collection file, named as the collection is named — see
+[List file names](/commands/new-deck/#list-file-names).
 
 **Request Body:**
 
@@ -440,7 +443,8 @@ Save wanted list changes. Writes the updated wanted list file and appends to the
 POST /api/wanted/create
 ```
 
-Create a new wanted list file.
+Create a new wanted list file, named as the wanted list is named — see
+[List file names](/commands/new-deck/#list-file-names).
 
 **Request Body:**
 
@@ -758,7 +762,7 @@ Apply a change bundle exported from the site editor to the underlying lists. Use
   "lists": [
     {
       "kind": "deck",
-      "slug": "winota-stax",
+      "slug": "Winota Stax",
       "name": "Winota Stax",
       "changes": [{ "id": "a1", "timestamp": 1, "action": "add", "cardName": "Counterspell" }]
     }
@@ -775,7 +779,7 @@ Apply a change bundle exported from the site editor to the underlying lists. Use
   "lists": [
     {
       "kind": "deck",
-      "slug": "winota-stax",
+      "slug": "Winota Stax",
       "name": "Winota Stax",
       "applied": 1,
       "conflicts": []
@@ -798,7 +802,7 @@ Render a CSV or JSON export of cards from decks, collections, and wanted lists. 
 
 ```json
 {
-  "lists": [{ "type": "deck", "name": "winota-stax" }],
+  "lists": [{ "type": "deck", "name": "Winota Stax" }],
   "cards": ["sol ring"],
   "filters": { "name": "sol", "set": "c21", "finish": "foil", "conditions": ["NM", "none"] },
   "format": "csv",

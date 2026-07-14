@@ -48,7 +48,7 @@ function countBlocks(content: string): number {
 describe('changelog session grouping (admin save, Integration)', () => {
   test('a second save with continueSession folds into the same changelog block', async () => {
     const filePath = await ensureDeckFile('Session Deck', 'commander')
-    const slug = 'session-deck'
+    const slug = 'Session Deck'
     const loaded = await loadDeck(filePath)
 
     // First save: add Sol Ring, opening a new changelog block.
@@ -79,7 +79,7 @@ describe('changelog session grouping (admin save, Integration)', () => {
 
   test('a second save without continueSession opens a new changelog block', async () => {
     const filePath = await ensureDeckFile('Session Deck', 'commander')
-    const slug = 'session-deck'
+    const slug = 'Session Deck'
     const loaded = await loadDeck(filePath)
 
     const change1 = createAddChange('Sol Ring', { section: 'Main' })

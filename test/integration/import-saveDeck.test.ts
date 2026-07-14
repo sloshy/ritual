@@ -3,14 +3,14 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import { saveDeck } from '../../src/commands/import'
 import { parseDeckFrontMatter } from '../../src/deck-file'
-import { sanitizeDeckFileName } from '../../src/utils'
+import { sanitizeListFileName } from '../../src/list-file-name'
 import { type DeckData } from '../../src/types'
 import { MemoryLogger, resetLogger, setLogger } from '../test-utils'
 import { withTempDir } from './helpers/cli'
 
 /** The path saveDeck writes a deck to, mirroring its filename derivation. */
 function deckPath(dir: string, name: string): string {
-  return path.join(dir, `${sanitizeDeckFileName(name)}.md`)
+  return path.join(dir, `${sanitizeListFileName(name)}.md`)
 }
 
 const sampleDeck: DeckData = {
@@ -52,6 +52,20 @@ describe('saveDeck (Integration)', () => {
         )
       expect(loggedInfo('[dry-run] Would save deck to:')).toBeTrue()
       expect(loggedInfo('[dry-run] Would save primer to:')).toBeTrue()
+    })
+  })
+
+  test('refuses a deck name with no usable filename characters, writing nothing', async () => {
+    // The name comes from the source service, so it is not trusted: before, this
+    // wrote a file literally called `.md`.
+    await withTempDir(async (dir) => {
+      const deck: DeckData = { ...sampleDeck, name: '???' }
+
+      // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
+      await expect(saveDeck(deck, dir, { nonInteractive: true })).rejects.toThrow(
+        'no characters usable in a file name',
+      )
+      expect(await fs.readdir(dir)).toEqual([])
     })
   })
 

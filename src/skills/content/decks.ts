@@ -36,8 +36,8 @@ Use \`add-card\` (covered by the **ritual-edit** skill) to add a single card to 
 existing deck without a TUI:
 
 \`\`\`bash
-ritual add-card winota-stax "Sol Ring" --deck
-ritual add-card winota-stax "Lightning Bolt" --deck -q 4   # -q quantity
+ritual add-card "Winota Stax" "Sol Ring" --deck
+ritual add-card "Winota Stax" "Lightning Bolt" --deck -q 4   # -q quantity
 \`\`\`
 
 ## Build interactively
@@ -136,7 +136,7 @@ ritual import-account --all               # use the logged-in account
 
 \`\`\`bash
 ritual deck-sync                          # sync all linked decks
-ritual deck-sync winota-stax              # one deck
+ritual deck-sync "Winota Stax"            # one deck
 ritual deck-sync --download-changes       # pull remote changes only
 ritual deck-sync --upload-changes         # push local changes only
 \`\`\`
@@ -147,7 +147,7 @@ keys). An upload does not push the local format back.
 ## Primer
 
 \`\`\`bash
-ritual get-primer winota-stax             # print a local deck's primer as Markdown
+ritual get-primer "Winota Stax"           # print a local deck's primer as Markdown
 ritual get-primer <moxfield-url>          # fetch a primer from Moxfield
 \`\`\`
 
@@ -159,9 +159,9 @@ An interactive browser opens on a TTY — for agents, always pass a non-interact
 
 \`\`\`bash
 ritual price --deck --summary                       # every deck's totals
-ritual price winota-stax --no-interactive           # one deck's cards + totals
-ritual price winota-stax --output json --quiet
-ritual price winota-stax --prices eur               # usd | eur | tix (defaults to config defaultCurrency)
+ritual price "Winota Stax" --no-interactive         # one deck's cards + totals
+ritual price "Winota Stax" --output json --quiet
+ritual price "Winota Stax" --prices eur             # usd | eur | tix (defaults to config defaultCurrency)
 \`\`\`
 
 Deck totals cover every section except extras (maybeboard/token). Each deck also

@@ -20,10 +20,10 @@ ritual init-site --upgrade       # upgrade tracked workflows to this version
 ## Build the static site
 
 \`\`\`bash
-ritual build-site                                  # build the configured selection into dist/
-ritual build-site --decks winota-stax other-deck   # specific decks
-ritual build-site --collections main-binder        # specific collections
-ritual build-site --wanted-lists to-buy            # specific wanted lists
+ritual build-site                                          # build the configured selection into dist/
+ritual build-site --decks "Winota Stax" "Mono-Red Aggro"   # specific decks
+ritual build-site --collections "Main Binder"              # specific collections
+ritual build-site --wanted-lists "To Buy"                  # specific wanted lists
 ritual build-site --currencies usd,eur             # currencies to include (first is default)
 ritual build-site --theme izzet                    # initial theme baked into the HTML
 ritual build-site --no-refresh                     # build from cached data as-is

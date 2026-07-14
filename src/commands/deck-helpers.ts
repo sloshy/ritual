@@ -10,6 +10,8 @@ import {
   type PrintingTuple,
 } from '../change-event'
 import { getDecksDir } from '../ritual-config'
+import { listFilePath } from '../resolve-list'
+import { unusableFileNameMessage } from '../list-file-name'
 import { DECK_FORMAT_KEYS, getDeckFormatLabel, type DeckFormatKey } from '../deck-format'
 import { ask } from './prompts-helpers'
 import { writeFileWithHash } from '../content-hash'
@@ -56,15 +58,14 @@ type DeckConfigAnswers = SessionConfigAnswers & { section?: string }
 type SectionNameResponse = { name?: string }
 
 /**
- * The path a deck with this display name lives at. The on-disk file name is a
- * slug of the name; the display name is preserved in front matter.
+ * The path a deck with this display name lives at. The file is named as the deck
+ * is — see `listFilePath`. Throws when the name has no usable filename
+ * characters; callers that take a name from the user validate it first.
  */
 export function deckFilePath(name: string): string {
-  const safeName = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '')
-  return path.join(getDecksDir(), `${safeName}.md`)
+  const filePath = listFilePath('deck', name)
+  if (!filePath) throw new Error(unusableFileNameMessage(name))
+  return filePath
 }
 
 /**

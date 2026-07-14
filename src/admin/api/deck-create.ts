@@ -8,7 +8,7 @@ import { isPathWithinDir } from '../../path-validation'
 import { MAX_BODY_SIZE } from '../validation'
 import { getDecksDir } from '../../ritual-config'
 import { writeFileWithHash, hashPath } from '../../content-hash'
-import { sanitizeDeckFileName } from '../../utils'
+import { sanitizeListFileName, unusableFileNameMessage } from '../../list-file-name'
 
 interface DeckCreateRequest {
   name: string
@@ -45,12 +45,12 @@ export async function handleDeckCreate(req: Request): Promise<Response> {
     }
 
     const trimmedName = name.trim()
-    const slug = sanitizeDeckFileName(trimmedName)
+    const slug = sanitizeListFileName(trimmedName)
 
     if (!slug) {
       const resp: DeckCreateResponse = {
         success: false,
-        message: 'Deck name must contain at least one valid character',
+        message: unusableFileNameMessage(trimmedName),
       }
       return Response.json(resp, { status: 400 })
     }

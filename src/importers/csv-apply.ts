@@ -1,5 +1,4 @@
 import * as fs from 'node:fs/promises'
-import path from 'node:path'
 import matter from 'gray-matter'
 import {
   BOARDS,
@@ -27,15 +26,16 @@ import {
   type CardIdPool,
 } from '../card-id'
 import { writeFileWithHash } from '../content-hash'
+import { unusableFileNameMessage } from '../list-file-name'
 import { createAddChange, isSamePrinting, type ChangeEvent } from '../change-event'
 import { appendChangelog } from '../changelog-writer'
 import {
   dirForType,
+  listFilePath,
   formatResolveListError,
   isResolveListError,
   resolveList,
 } from '../resolve-list'
-import { sanitizeDeckFileName } from '../utils'
 
 /**
  * Applies converted card entries to a list on disk: creating a new list file,
@@ -193,12 +193,11 @@ async function createList(
   target: CsvImportTarget,
   entries: ImportCardEntry[],
 ): Promise<CsvImportOutcome> {
-  const safeName = sanitizeDeckFileName(target.name)
-  if (safeName === '') {
-    return { error: `List name '${target.name}' contains no usable filename characters` }
-  }
   const targetDir = dirForType(target.listType)
-  const filePath = path.join(targetDir, `${safeName}.md`)
+  const filePath = listFilePath(target.listType, target.name)
+  if (filePath === null) {
+    return { error: unusableFileNameMessage(target.name) }
+  }
 
   if (target.mode === 'create' && (await Bun.file(filePath).exists())) {
     return {

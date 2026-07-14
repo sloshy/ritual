@@ -67,7 +67,7 @@ describe('CLI scripting behavior (Integration)', () => {
     await withTempDir(async (dir) => {
       const decksDir = path.join(dir, 'decks')
       await fs.mkdir(decksDir, { recursive: true })
-      // sanitizeDeckFileName preserves case and spaces, so the pre-existing file
+      // sanitizeListFileName preserves case and spaces, so the pre-existing file
       // must match the source's `name:` frontmatter verbatim (plus `.md`) for the
       // conflict check to fire.
       await Bun.write(path.join(decksDir, 'Conflict Deck.md'), '# Existing deck\n')

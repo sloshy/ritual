@@ -1,8 +1,7 @@
-import path from 'node:path'
 import { parseDeckText } from '../../importers/text-file'
 import { fetchDeckFromUrl } from '../../importers/url-dispatch'
 import { saveDeck } from '../../commands/import'
-import { sanitizeDeckFileName } from '../../utils'
+import { listFilePath } from '../../resolve-list'
 import { autoCommitAndPush } from './save-helpers'
 import { apiHandler } from '../utils'
 import type { DeckData } from '../../types'
@@ -69,8 +68,10 @@ export function handleImportDeck(req: Request): Promise<Response> {
       assumeYes: overwrite,
     })
 
-    const safeName = sanitizeDeckFileName(deckData.name)
-    const filePath = path.join(decksDir, `${safeName}.md`)
+    // saveDeck has already rejected a name with no usable characters, so the path
+    // it wrote to is the one this resolves to.
+    const filePath = listFilePath('deck', deckData.name)
+    if (filePath === null) return badRequest(`Deck name '${deckData.name}' cannot be a file name`)
 
     await autoCommitAndPush(decksDir, [filePath], `Import deck: ${deckData.name}`)
 

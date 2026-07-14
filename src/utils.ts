@@ -11,20 +11,6 @@ export async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
-// Sanitize a deck name for use as a filename by removing characters that are
-// problematic on common file systems, while preserving case and spacing.
-export function sanitizeDeckFileName(name: string): string {
-  return (
-    name
-      .trim()
-      // eslint-disable-next-line no-control-regex -- null byte is intentional: strips filename-illegal chars.
-      .replace(/[/\\:*?"<>|\x00]/g, '')
-      .replace(/\.{2,}/g, '.')
-      .replace(/^\.+|\.+$/g, '')
-      .trim()
-  )
-}
-
 /** Render a millisecond duration as e.g. "2 days, 3 hours" or "45 minutes". */
 export function formatDuration(ms: number): string {
   const totalMinutes = Math.floor(ms / 60000)

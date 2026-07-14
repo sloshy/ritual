@@ -12,7 +12,7 @@ import {
 } from './card-session'
 import { createCollectionStrategy } from './collection-strategy'
 import { createDeckStrategy } from './deck-strategy'
-import { deckFilePath, listExistingDecks, loadDeck, type DeckSessionConfig } from './deck-helpers'
+import { listExistingDecks, loadDeck, type DeckSessionConfig } from './deck-helpers'
 import { newDeckFrontMatter } from '../deck-file'
 import {
   loadCollectionSession,
@@ -44,11 +44,6 @@ export type OpenList = {
    * everything else.
    */
   isNew: () => boolean
-}
-
-/** The path a new list of `type` named `name` would be created at. */
-export function newListFilePath(type: ListType, name: string): string {
-  return type === 'deck' ? deckFilePath(name) : path.join(dirForType(type), `${name}.md`)
 }
 
 /** A list's icon and name, as shown wherever lists are mixed together. */
