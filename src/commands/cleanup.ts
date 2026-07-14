@@ -6,7 +6,12 @@ import { hashPath, writeFileWithHash } from '../content-hash'
 import { listFileName, unusableFileNameMessage } from '../list-file-name'
 import { listLocations, type ListLocation } from '../resolve-list'
 import type { ListType } from '../list-type'
-import { resolveDeckFormat, type DeckFormatKey } from '../deck-format'
+import {
+  deckFormatKeysForSignal,
+  detectDeckFormatSignal,
+  type DeckFormatKey,
+  type DeckFormatSignal,
+} from '../deck-format'
 import { parseDeckFrontMatter, serializeDeckToMarkdown } from '../deck-file'
 import { parseDeckText } from '../importers/text-file'
 import { moveListSidecars } from '../list-sidecars'
@@ -18,8 +23,9 @@ import { readCollectionFile, readWantedFile } from './flat-list-session'
  * The `ritual cleanup` command: one pass over every deck, collection, and wanted
  * list that brings each file up to the current conventions —
  *
- * 1. every deck gets an explicit `format:` (inferred from its sections when
- *    possible, otherwise chosen via {@link CleanupOptions.chooseFormat});
+ * 1. every deck gets an explicit `format:`, chosen by the user via
+ *    {@link CleanupOptions.chooseFormat} — the deck's shape (command zone, card
+ *    count) only orders the offered formats, it never decides;
  * 2. every file is re-emitted through the canonical serializers, so older
  *    formatting variants converge on what a fresh save would write;
  * 3. every file is named exactly as its list is named (a deck's `name:` front
@@ -35,11 +41,12 @@ export type CleanupOptions = {
   /** Report what would change without writing anything. */
   dryRun?: boolean
   /**
-   * Choose a format for a deck that has none and whose sections don't imply one.
-   * Return null to leave the deck without a format. Omitted (e.g. under
-   * `--dry-run`) every such deck is left unset and reported.
+   * Choose a format for a deck whose front matter declares none. `signal` is
+   * what the deck's card list suggests, for ordering the offered formats.
+   * Return null to leave the deck alone. Omitted (e.g. under `--dry-run`),
+   * every such deck is left unset and reported.
    */
-  chooseFormat?: (deckName: string) => Promise<DeckFormatKey | null>
+  chooseFormat?: (deckName: string, signal: DeckFormatSignal) => Promise<DeckFormatKey | null>
 }
 
 /** What cleanup did (or, under dry-run, would do) to one list file. */
@@ -98,13 +105,27 @@ async function readDeckDocument(
   const frontMatter = { ...(await parseDeckFrontMatter(location.filePath)) }
   let formatSet: DeckFormatKey | undefined
   let missingFormat: boolean | undefined
-  if (!resolveDeckFormat(deck, frontMatter.format)) {
-    const chosen = options.chooseFormat ? await options.chooseFormat(deck.name) : null
+  // A declared format stands; anything less — including a format the sections
+  // merely imply — is the user's call. The deck's shape orders the choices.
+  if (!(deck.format ?? frontMatter.format)) {
+    const chosen = options.chooseFormat
+      ? await options.chooseFormat(deck.name, detectDeckFormatSignal(deck))
+      : null
     if (chosen) {
       frontMatter.format = chosen
       formatSet = chosen
     } else {
+      // Not chosen (cancelled, or dry-run). Leave the file's content entirely
+      // alone: re-emitting would stamp the section-inferred format the user
+      // just declined to confirm (`serializeDeckToMarkdown` persists it).
       missingFormat = true
+      return {
+        displayName: deck.name,
+        original,
+        canonical: original,
+        parseWarnings: warnings,
+        missingFormat,
+      }
     }
   }
   return {
@@ -247,6 +268,21 @@ function describeActions(result: CleanupResult, dryRun: boolean): string[] {
   return actions
 }
 
+/** The line printed above the format prompt, explaining what the deck's shape suggests. */
+function formatSignalNote(deckName: string, signal: DeckFormatSignal): string {
+  const lead = `Deck '${deckName}' has no format`
+  switch (signal.kind) {
+    case 'command-zone':
+      return `${lead} — a commander was detected, so command-zone formats are listed first.`
+    case 'constructed-60':
+      return `${lead} — ${signal.mainDeckSize} cards with no commander, so 60-card constructed formats are listed first.`
+    case 'limited':
+      return `${lead} — ${signal.mainDeckSize} cards with no commander suggests Limited (sealed or draft).`
+    case 'none':
+      return `${lead}.`
+  }
+}
+
 async function runCleanup(options: CleanupCommandOptions): Promise<void> {
   const dryRun = options.dryRun ?? false
   const baseDir = getBaseDir()
@@ -254,9 +290,9 @@ async function runCleanup(options: CleanupCommandOptions): Promise<void> {
 
   const chooseFormat = dryRun
     ? undefined
-    : async (deckName: string): Promise<DeckFormatKey | null> => {
-        console.log(`Deck '${deckName}' has no format and its sections don't imply one.`)
-        return promptDeckFormat(null)
+    : async (deckName: string, signal: DeckFormatSignal): Promise<DeckFormatKey | null> => {
+        console.log(formatSignalNote(deckName, signal))
+        return promptDeckFormat({ keys: deckFormatKeysForSignal(signal.kind) })
       }
 
   const results = await cleanupAllLists({ dryRun, chooseFormat })

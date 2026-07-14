@@ -79,14 +79,25 @@ export async function ensureDeckFile(name: string, format: DeckFormatKey): Promi
 }
 
 /**
- * The deck-format select choices: every known format in declaration order,
- * with a "(current)" marker on the deck's present format.
+ * The deck-format select choices, in `keys` order (declaration order by
+ * default), with a "(current)" marker on the deck's present format.
  */
-export function deckFormatChoices(current: DeckFormatKey | null): prompts.Choice[] {
-  return DECK_FORMAT_KEYS.map((key) => ({
+export function deckFormatChoices(
+  current: DeckFormatKey | null,
+  keys: readonly DeckFormatKey[] = DECK_FORMAT_KEYS,
+): prompts.Choice[] {
+  return keys.map((key) => ({
     title: key === current ? `${getDeckFormatLabel(key)} (current)` : getDeckFormatLabel(key),
     value: key,
   }))
+}
+
+/** How a deck-format prompt presents its choices. */
+export type DeckFormatPromptOptions = {
+  /** The deck's present format: marked "(current)" and given the initial cursor. */
+  current?: DeckFormatKey | null
+  /** Choice order — e.g. `deckFormatKeysForSignal(...)`. Declaration order by default. */
+  keys?: readonly DeckFormatKey[]
 }
 
 /**
@@ -94,14 +105,16 @@ export function deckFormatChoices(current: DeckFormatKey | null): prompts.Choice
  * Returns null when the prompt is cancelled.
  */
 export async function promptDeckFormat(
-  current: DeckFormatKey | null,
+  options: DeckFormatPromptOptions = {},
 ): Promise<DeckFormatKey | null> {
-  const choices = deckFormatChoices(current)
+  const keys = options.keys ?? DECK_FORMAT_KEYS
+  const current = options.current ?? null
+  const choices = deckFormatChoices(current, keys)
   const format = await ask<DeckFormatKey>({
     type: 'select',
     message: 'Deck format:',
     choices,
-    initial: current ? DECK_FORMAT_KEYS.indexOf(current) : 0,
+    initial: current ? Math.max(0, keys.indexOf(current)) : 0,
   })
   return format ?? null
 }

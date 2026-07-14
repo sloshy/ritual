@@ -217,7 +217,7 @@ export function registerEditCommand(program: Command): void {
         console.error(`A ${listTypeLabel(type)} already exists at ${file}.`)
         return undefined
       }
-      const format = type === 'deck' ? await promptDeckFormat('commander') : null
+      const format = type === 'deck' ? await promptDeckFormat({ current: 'commander' }) : null
       if (type === 'deck' && !format) return undefined
       // Taking the creation back out of the session changes drops the whole list.
       const created = newListSession(

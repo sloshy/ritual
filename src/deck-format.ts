@@ -36,29 +36,35 @@ interface FormatInfo {
    * maybeboard, tokens, and other extras excluded).
    */
   expectedMainboardSize: number
+  /** Whether decks of this format have a command zone (commander / oathbreaker / signature spell). */
+  hasCommandZone: boolean
 }
 
 const FORMAT_INFO: Record<DeckFormatKey, FormatInfo> = {
-  commander: { label: 'Commander', expectedMainboardSize: 100 },
-  oathbreaker: { label: 'Oathbreaker', expectedMainboardSize: 60 },
-  standard: { label: 'Standard', expectedMainboardSize: 60 },
-  modern: { label: 'Modern', expectedMainboardSize: 60 },
-  pioneer: { label: 'Pioneer', expectedMainboardSize: 60 },
-  legacy: { label: 'Legacy', expectedMainboardSize: 60 },
-  vintage: { label: 'Vintage', expectedMainboardSize: 60 },
-  pauper: { label: 'Pauper', expectedMainboardSize: 60 },
-  historic: { label: 'Historic', expectedMainboardSize: 60 },
-  alchemy: { label: 'Alchemy', expectedMainboardSize: 60 },
-  explorer: { label: 'Explorer', expectedMainboardSize: 60 },
-  timeless: { label: 'Timeless', expectedMainboardSize: 60 },
-  'penny-dreadful': { label: 'Penny Dreadful', expectedMainboardSize: 60 },
-  brawl: { label: 'Brawl', expectedMainboardSize: 60 },
-  'historic-brawl': { label: 'Historic Brawl', expectedMainboardSize: 100 },
-  'duel-commander': { label: 'Duel Commander', expectedMainboardSize: 100 },
-  'pauper-commander': { label: 'Pauper Commander', expectedMainboardSize: 100 },
-  'pre-dh': { label: 'PreDH', expectedMainboardSize: 100 },
-  'pre-modern': { label: 'Pre-Modern', expectedMainboardSize: 60 },
-  limited: { label: 'Limited', expectedMainboardSize: 40 },
+  commander: { label: 'Commander', expectedMainboardSize: 100, hasCommandZone: true },
+  oathbreaker: { label: 'Oathbreaker', expectedMainboardSize: 60, hasCommandZone: true },
+  standard: { label: 'Standard', expectedMainboardSize: 60, hasCommandZone: false },
+  modern: { label: 'Modern', expectedMainboardSize: 60, hasCommandZone: false },
+  pioneer: { label: 'Pioneer', expectedMainboardSize: 60, hasCommandZone: false },
+  legacy: { label: 'Legacy', expectedMainboardSize: 60, hasCommandZone: false },
+  vintage: { label: 'Vintage', expectedMainboardSize: 60, hasCommandZone: false },
+  pauper: { label: 'Pauper', expectedMainboardSize: 60, hasCommandZone: false },
+  historic: { label: 'Historic', expectedMainboardSize: 60, hasCommandZone: false },
+  alchemy: { label: 'Alchemy', expectedMainboardSize: 60, hasCommandZone: false },
+  explorer: { label: 'Explorer', expectedMainboardSize: 60, hasCommandZone: false },
+  timeless: { label: 'Timeless', expectedMainboardSize: 60, hasCommandZone: false },
+  'penny-dreadful': { label: 'Penny Dreadful', expectedMainboardSize: 60, hasCommandZone: false },
+  brawl: { label: 'Brawl', expectedMainboardSize: 60, hasCommandZone: true },
+  'historic-brawl': { label: 'Historic Brawl', expectedMainboardSize: 100, hasCommandZone: true },
+  'duel-commander': { label: 'Duel Commander', expectedMainboardSize: 100, hasCommandZone: true },
+  'pauper-commander': {
+    label: 'Pauper Commander',
+    expectedMainboardSize: 100,
+    hasCommandZone: true,
+  },
+  'pre-dh': { label: 'PreDH', expectedMainboardSize: 100, hasCommandZone: true },
+  'pre-modern': { label: 'Pre-Modern', expectedMainboardSize: 60, hasCommandZone: false },
+  limited: { label: 'Limited', expectedMainboardSize: 40, hasCommandZone: false },
 }
 
 /**
@@ -85,6 +91,11 @@ const FORMAT_ALIASES: Record<string, DeckFormatKey> = {
 
 export function getDeckFormatLabel(format: DeckFormatKey): string {
   return FORMAT_INFO[format].label
+}
+
+/** Whether decks of this format have a command zone. */
+export function formatHasCommandZone(format: DeckFormatKey): boolean {
+  return FORMAT_INFO[format].hasCommandZone
 }
 
 export function isCommanderSection(name: string): boolean {
@@ -186,8 +197,66 @@ export function resolveDeckFormat(
   const declared = parseDeckFormat(deck.format ?? frontMatterFormat)
   if (declared) return declared
   if (deck.sections.some((s) => isOathbreakerSection(s.name))) return 'oathbreaker'
-  if (deck.sections.some((s) => isCommanderSection(s.name))) return 'commander'
+  if (deckHasCommandZoneSection(deck)) return 'commander'
   return null
+}
+
+/** True when any of the deck's sections is a command zone (commander / oathbreaker / signature spell). */
+function deckHasCommandZoneSection(deck: DeckData): boolean {
+  return deck.sections.some((s) => isCommanderSection(s.name) || isOathbreakerSection(s.name))
+}
+
+/** What a deck's card list structurally suggests about its format. */
+export type DeckFormatSignalKind =
+  /** A command-zone section (commander / oathbreaker / signature spell) is present. */
+  | 'command-zone'
+  /** No command zone, 60+ main deck cards — a 60-card constructed format. */
+  | 'constructed-60'
+  /** No command zone, 40–59 main deck cards — likely a limited (sealed/draft) deck. */
+  | 'limited'
+  /** Too few cards to suggest anything. */
+  | 'none'
+
+/** A deck's structural format hint together with the size it was derived from. */
+export type DeckFormatSignal = { kind: DeckFormatSignalKind; mainDeckSize: number }
+
+/**
+ * Read what a deck's card list suggests about its format, for prompts that ask
+ * the user to pick one: the signal orders (never decides) the offered formats.
+ */
+export function detectDeckFormatSignal(deck: DeckData): DeckFormatSignal {
+  const mainDeckSize = getMainDeckSize(deck.sections)
+  if (deckHasCommandZoneSection(deck)) return { kind: 'command-zone', mainDeckSize }
+  // Thresholds come from the formats' own expected sizes, so they cannot drift.
+  if (mainDeckSize >= FORMAT_INFO.standard.expectedMainboardSize) {
+    return { kind: 'constructed-60', mainDeckSize }
+  }
+  if (mainDeckSize >= FORMAT_INFO.limited.expectedMainboardSize) {
+    return { kind: 'limited', mainDeckSize }
+  }
+  return { kind: 'none', mainDeckSize }
+}
+
+/**
+ * Every format key, reordered so the ones matching the signal come first (each
+ * group in declaration order): command-zone formats for a `command-zone` signal,
+ * the 60-card constructed formats for `constructed-60`, Limited for `limited`.
+ * A `none` signal keeps plain declaration order.
+ */
+export function deckFormatKeysForSignal(signal: DeckFormatSignalKind): DeckFormatKey[] {
+  const preferred = (key: DeckFormatKey): boolean => {
+    switch (signal) {
+      case 'command-zone':
+        return formatHasCommandZone(key)
+      case 'constructed-60':
+        return !formatHasCommandZone(key) && key !== 'limited'
+      case 'limited':
+        return key === 'limited'
+      case 'none':
+        return false
+    }
+  }
+  return [...DECK_FORMAT_KEYS.filter(preferred), ...DECK_FORMAT_KEYS.filter((k) => !preferred(k))]
 }
 
 export interface DeckCountLabel {

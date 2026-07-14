@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { cleanupAllLists, type CleanupResult } from '../../src/commands/cleanup'
 import { parseDeckFrontMatter } from '../../src/deck-file'
+import type { DeckFormatSignal } from '../../src/deck-format'
 import { hashPath } from '../../src/content-hash'
 import { runCli } from './helpers/cli'
 import {
@@ -101,34 +102,55 @@ describe('cleanup (Integration)', () => {
     expect(await Bun.file(path.join(dir(), 'collections', 'Trade Binder.md')).exists()).toBeTrue()
   })
 
-  test('stamps a format inferred from a Commander section without prompting', async () => {
+  test('prompts for a commander deck instead of silently inferring its format', async () => {
     const filePath = path.join(dir(), 'decks', 'Kenrith.md')
     await fs.writeFile(
       filePath,
       '## Commander\n1 Kenrith, the Returned King &1\n\n## Main\n1 Sol Ring &2\n',
     )
 
-    let prompted = false
+    const signals: DeckFormatSignal[] = []
     const results = await cleanupAllLists({
-      chooseFormat: async () => {
-        prompted = true
+      chooseFormat: async (_deckName, signal) => {
+        signals.push(signal)
+        return 'commander'
+      },
+    })
+
+    // The real detector ran (signal boundary math is pinned by unit tests).
+    expect(signals.map((s) => s.kind)).toEqual(['command-zone'])
+    expect(resultFor(results, 'Kenrith.md')).toMatchObject({
+      formatSet: 'commander',
+      rewritten: true,
+    })
+    expect((await parseDeckFrontMatter(filePath)).format).toBe('commander')
+  })
+
+  test('each deck in one pass gets its own signal', async () => {
+    await fs.writeFile(path.join(dir(), 'decks', 'Big.md'), '## Main\n75 Island &1\n')
+    await fs.writeFile(path.join(dir(), 'decks', 'Small.md'), '## Main\n45 Island &1\n')
+
+    const signals = new Map<string, DeckFormatSignal['kind']>()
+    await cleanupAllLists({
+      chooseFormat: async (deckName, signal) => {
+        signals.set(deckName, signal.kind)
         return null
       },
     })
 
-    expect(prompted).toBeFalse()
-    expect(resultFor(results, 'Kenrith.md')).toMatchObject({ rewritten: true })
-    expect((await parseDeckFrontMatter(filePath)).format).toBe('commander')
+    expect(signals.get('Big')).toBe('constructed-60')
+    expect(signals.get('Small')).toBe('limited')
   })
 
-  test('asks for a format when none can be resolved, and persists the answer', async () => {
+  test('asks for a format when none is declared, and persists the answer', async () => {
     const filePath = path.join(dir(), 'decks', 'Jank.md')
     await fs.writeFile(filePath, '---\nname: Jank\n---\n\n## Main\n1 Sol Ring &1\n')
 
     const asked: string[] = []
     const results = await cleanupAllLists({
-      chooseFormat: async (deckName) => {
+      chooseFormat: async (deckName, signal) => {
         asked.push(deckName)
+        expect(signal.kind).toBe('none')
         return 'modern'
       },
     })
@@ -138,14 +160,20 @@ describe('cleanup (Integration)', () => {
     expect((await parseDeckFrontMatter(filePath)).format).toBe('modern')
   })
 
-  test('reports a deck left without a format when no answer is given', async () => {
-    const filePath = path.join(dir(), 'decks', 'Jank.md')
-    await fs.writeFile(filePath, '---\nname: Jank\n---\n\n## Main\n1 Sol Ring &1\n')
+  test('a declined prompt leaves the deck file untouched — no inferred format stamped', async () => {
+    // Re-emitting this deck would stamp `format: commander` (section inference
+    // runs on every serialize), so a declined prompt must skip the rewrite.
+    const filePath = path.join(dir(), 'decks', 'Kenrith.md')
+    const content = '## Commander\n1 Kenrith, the Returned King &1\n\n## Main\n1 Sol Ring &2\n'
+    await fs.writeFile(filePath, content)
 
     const results = await cleanupAllLists({ chooseFormat: async () => null })
 
-    expect(resultFor(results, 'Jank.md')).toMatchObject({ missingFormat: true })
-    expect((await parseDeckFrontMatter(filePath)).format).toBeUndefined()
+    expect(resultFor(results, 'Kenrith.md')).toMatchObject({
+      missingFormat: true,
+      rewritten: false,
+    })
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(content)
   })
 
   test('dry-run reports everything but writes nothing', async () => {
@@ -223,7 +251,8 @@ describe('cleanup (Integration)', () => {
 
   test('does not rewrite a deck whose parse skipped lines', async () => {
     const filePath = path.join(dir(), 'decks', 'Scraps.md')
-    const content = '## Main\n1 Sol Ring &1\nsideboard ideas: maybe a counterspell\n'
+    const content =
+      '---\nformat: modern\n---\n\n## Main\n1 Sol Ring &1\nsideboard ideas: maybe a counterspell\n'
     await fs.writeFile(filePath, content)
 
     const results = await cleanupAllLists()

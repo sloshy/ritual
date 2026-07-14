@@ -90,7 +90,7 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
    */
   const changeFormat = async (): Promise<void> => {
     const current = currentFormat()
-    const next = await promptDeckFormat(current)
+    const next = await promptDeckFormat({ current })
     if (!next || next === current) return
     frontMatter.format = next
     state.deck.format = next
