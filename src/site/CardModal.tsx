@@ -7,6 +7,7 @@ import { ManaCost, OracleText } from './symbols'
 import type { PriceCurrency } from '../price-currency'
 import { getCardPrice, getCardPriceForFinish, formatPrice } from '../price-currency'
 import { capitalize } from './utils'
+import { findPrintingsAvailable, openFindPrintings } from './find-printings'
 
 type PrintingsSortField = 'released_at' | 'set_name' | 'price'
 
@@ -316,6 +317,26 @@ export const CardModal: Component<CardModalProps> = (props) => {
                   <button onClick={() => setShowPrintings(true)}>
                     Other Printings ({props.printings.length})
                   </button>
+                </Show>
+                {/* Cross-list printing lookup; hidden where no FindPrintingsModal
+                    is mounted (the admin app). */}
+                <Show
+                  when={
+                    findPrintingsAvailable()
+                      ? (props.card?.name ?? props.cardName ?? undefined)
+                      : undefined
+                  }
+                >
+                  {(name) => (
+                    <button
+                      onClick={() => {
+                        openFindPrintings(name())
+                        props.onClose()
+                      }}
+                    >
+                      Find in Lists
+                    </button>
+                  )}
                 </Show>
                 <Show when={props.card}>
                   <button aria-expanded={showTags()} onClick={() => setShowTags((prev) => !prev)}>

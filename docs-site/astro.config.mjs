@@ -108,6 +108,7 @@ export default defineConfig({
             'public-site/filtering',
             'public-site/combined-view',
             'public-site/find',
+            'public-site/find-printings',
             'public-site/mobile',
           ],
         },

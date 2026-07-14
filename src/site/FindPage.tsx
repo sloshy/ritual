@@ -8,6 +8,7 @@ import { CardItem } from './CardItem'
 import { CardModal } from './CardModal'
 import { capitalize } from './utils'
 import { seedCards, seedPrintings, sessionCacheVersion } from './session-cache'
+import { TooltipOverlay } from './TooltipOverlay'
 import { useTooltip } from './useTooltip'
 import { CARD_SIZE_WIDTHS, groupTotalPrice } from './card-sorting'
 import { addSelectionToTrade } from './useSelectionTrade'
@@ -24,7 +25,7 @@ import {
   mergePrintingMaps,
   mergeSymbolMaps,
 } from './combined-list'
-import { findMatchKey, parseSearchLines, partitionSearch } from './find-search'
+import { cardMatchKey, findMatchKey, parseSearchLines, partitionSearch } from './find-search'
 import { setSearchResultsData } from './search-results-state'
 
 /** Whether a search replaces the current results or merges into them. */
@@ -51,11 +52,6 @@ const PLACEHOLDER = `Paste card names, one per line, e.g.
 Lightning Bolt
 Sol Ring
 Bruce Banner`
-
-/** The match key for a built card, preferring the resolved Scryfall name over the entry name. */
-function cardMatchKey(c: CombinedCardData): string {
-  return findMatchKey(c.card?.name ?? c.name)
-}
 
 /** "1 card" / "3 cards" — count plus a regular-plural noun. */
 function plural(count: number, noun: string): string {
@@ -422,15 +418,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
       </Show>
 
       {/* List-view hover tooltip */}
-      <div
-        ref={tooltipRef}
-        class={`list-tooltip ${tooltip() ? 'visible' : ''} ${tooltip()?.sideways ? 'list-tooltip-sideways' : ''}`}
-        style={`left:${tooltipPos().left}px;top:${tooltipPos().top}px;`}
-      >
-        <Show when={tooltip()}>
-          <img src={tooltip()!.src} alt="" class={tooltip()!.sideways ? 'tooltip-rotated' : ''} />
-        </Show>
-      </div>
+      <TooltipOverlay tooltip={tooltip()} pos={tooltipPos()} tooltipRef={tooltipRef} />
 
       <CardModal
         open={Boolean(modalTile())}

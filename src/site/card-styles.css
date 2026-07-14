@@ -2013,6 +2013,157 @@ h3 {
   z-index: 600;
 }
 
+/* ===== FIND OTHER PRINTINGS MODAL ===== */
+
+/* Fixed height so toggling binder/list or paging through cards never resizes
+   the panel; the results area scrolls inside it. */
+.find-printings-modal {
+  height: min(85vh, 900px);
+}
+
+.find-printings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-separator);
+}
+
+.find-printings-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.find-printings-title {
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.find-printings-card-name {
+  color: var(--text-accent);
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.find-printings-close {
+  padding: 0.2rem;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.find-printings-close:hover {
+  color: var(--text-primary);
+}
+
+.find-printings-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--border-separator);
+}
+
+.find-printings-summary {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.find-printings-results {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem 1rem 1rem;
+}
+
+.find-printings-group-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0 0 0.4rem;
+  margin-bottom: 0.6rem;
+  border-bottom: 1px solid var(--border-separator);
+}
+
+.find-printings-group-kind {
+  font-size: 0.8rem;
+}
+
+.find-printings-group-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-accent);
+}
+
+.find-printings-group-current {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+  white-space: nowrap;
+}
+
+.find-printings-group-count {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.find-printings-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* Hover preview sits above the modal content (the modal overlay's stacking context). */
+.find-printings-tooltip {
+  z-index: 600;
+}
+
+/* ===== CROSS-LIST CARD NAVIGATION HIGHLIGHT ===== */
+
+/* Flash pulse on the tile a cross-list navigation landed on (see card-nav.ts).
+   Applied to the visible representation so it follows the active view mode. */
+.card-nav-highlight .card-binder,
+.card-nav-highlight .card-list,
+.card-nav-highlight .card-overlap {
+  animation: card-nav-pulse 2.4s ease-out;
+}
+
+@keyframes card-nav-pulse {
+  0%,
+  55% {
+    box-shadow:
+      0 0 0 3px var(--accent),
+      0 0 18px var(--accent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-nav-highlight .card-binder,
+  .card-nav-highlight .card-list,
+  .card-nav-highlight .card-overlap {
+    animation: none;
+    box-shadow: 0 0 0 3px var(--accent);
+  }
+}
+
 /* ===== MOVE-TARGET PICKER ===== */
 
 /* Sits above the selection modal (z 500) so it can be opened from within it. */

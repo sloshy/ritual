@@ -1,8 +1,8 @@
 import { createSignal, onMount, onCleanup } from 'solid-js'
 import type { Accessor, Setter } from 'solid-js'
 
-type TooltipInfo = { src: string; sideways: boolean }
-type TooltipPos = { left: number; top: number }
+export type TooltipInfo = { src: string; sideways: boolean }
+export type TooltipPos = { left: number; top: number }
 
 export type UseTooltipResult = {
   tooltip: Accessor<TooltipInfo | null>

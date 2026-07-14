@@ -6,6 +6,7 @@ import type { CardSelectionControl, SelectedCard } from './useCardSelection'
 import { groupSelectionsBySource } from './useCardSelection'
 import { useSelectionCopy } from './useSelectionCopy'
 import { promptListMove } from './move-prompt'
+import { TooltipOverlay } from './TooltipOverlay'
 import { useTooltip } from './useTooltip'
 import { capitalize } from './utils'
 
@@ -83,17 +84,12 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
       aria-label="Selected cards"
       panelClass="selection-modal"
       overlay={
-        <div
-          ref={tooltipRef}
-          class={`list-tooltip selection-modal-tooltip ${tooltip() ? 'visible' : ''} ${
-            tooltip()?.sideways ? 'list-tooltip-sideways' : ''
-          }`}
-          style={`left:${tooltipPos().left}px;top:${tooltipPos().top}px;`}
-        >
-          <Show when={tooltip()}>
-            {(t) => <img src={t().src} alt="" class={t().sideways ? 'tooltip-rotated' : ''} />}
-          </Show>
-        </div>
+        <TooltipOverlay
+          tooltip={tooltip()}
+          pos={tooltipPos()}
+          tooltipRef={tooltipRef}
+          class="selection-modal-tooltip"
+        />
       }
     >
       <div class="selection-modal-header">

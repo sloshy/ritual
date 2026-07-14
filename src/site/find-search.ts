@@ -11,6 +11,7 @@
  */
 
 import { normalizeForSearch } from '../term-match'
+import type { CombinedCardData } from './combined-list'
 
 /** The front face of a possibly double-faced name: text before the first `//`, trimmed. */
 export function frontFaceName(name: string): string {
@@ -24,6 +25,15 @@ export function frontFaceName(name: string): string {
  */
 export function findMatchKey(name: string): string {
   return normalizeForSearch(frontFaceName(name))
+}
+
+/**
+ * The match key for a built combined card, preferring the resolved Scryfall
+ * name over the entry name — entry names may differ in punctuation or omit the
+ * back face of a double-faced card.
+ */
+export function cardMatchKey(c: CombinedCardData): string {
+  return findMatchKey(c.card?.name ?? c.name)
 }
 
 /** Split textarea input into trimmed, non-empty query lines, preserving order. */

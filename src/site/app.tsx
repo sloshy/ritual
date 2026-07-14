@@ -60,6 +60,8 @@ import {
 } from './editor/edit-session-memory'
 import { pendingPrintingPrompt } from './printing-prompt'
 import { TradePrintingPicker } from './TradePrintingPicker'
+import { closeFindPrintings } from './find-printings'
+import { FindPrintingsModal } from './FindPrintingsModal'
 import { pendingMovePrompt, closeMovePrompt } from './move-prompt'
 import { MoveTargetPicker } from './MoveTargetPicker'
 import { createThemeStore, ThemeProvider, useTheme } from './useTheme'
@@ -139,6 +141,7 @@ function App() {
         setQuickSwitchOpen(false)
         setCombineOpen(false)
         setOffListExportOpen(false)
+        closeFindPrintings()
       },
       { defer: true },
     ),
@@ -761,6 +764,15 @@ function App() {
         onRemoveAll={editMode() ? handleRemoveAll : undefined}
         onMoveAll={editMode() ? handleMoveAll : undefined}
         moveAllTargets={editMode() ? moveAllTargets : undefined}
+      />
+
+      {/* Cross-list "Find Other Printings" lookup, opened from the card modal or
+          the editor context menu. Mounting it also flags the entry points on. */}
+      <FindPrintingsModal
+        lists={allNamedLists}
+        current={currentListRef}
+        currency={currency()}
+        useScryfallImgUrls={useScryfallImgUrls()}
       />
 
       {/* Shared picker for choosing a move destination (section or list). */}

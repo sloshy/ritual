@@ -1702,3 +1702,111 @@ export async function mockPublicSiteForFind(page: Page): Promise<void> {
   await fulfillJson(page, '**/collections/find-box.json', FIND_COLLECTION)
   await fulfillJson(page, '**/wanted/find-wanted.json', FIND_WANTED)
 }
+
+// ----- Find Other Printings modal -----
+// A deck with a 2x line (expanded copies), a collection holding a foil
+// double-art printing (`Steam Vents // Steam Vents`) plus a nonfoil copy, and
+// an unrelated wanted list that must never appear in the results. Cards carry
+// loadable images so the list view's hover preview works.
+const PRINT_STEAM = withImage(FIND_STEAM)
+const PRINT_STEAM_DOUBLE_ART = withImage(FIND_STEAM_DOUBLE_ART)
+const PRINT_BOLT = withImage(FIND_BOLT)
+const PRINT_RING = withImage(FIND_RING)
+
+const PRINT_DECK = {
+  deck: {
+    name: 'Print Deck',
+    sections: [
+      {
+        name: 'Main',
+        cards: [
+          { quantity: 2, name: 'Steam Vents', set: 'gpt', collectorNumber: '233', cardId: 1 },
+          { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 2 },
+        ],
+      },
+    ],
+  },
+  cards: { 'Steam Vents': PRINT_STEAM, 'Lightning Bolt': PRINT_BOLT },
+  printings: {
+    'Steam Vents': [PRINT_STEAM, PRINT_STEAM_DOUBLE_ART],
+    'Lightning Bolt': [PRINT_BOLT],
+  },
+  symbolMap: {},
+  useScryfallImgUrls: true,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+  missingCards: { usd: [], eur: [], tix: [] },
+} satisfies DeckDetail
+
+const PRINT_BINDER = {
+  name: 'Print Binder',
+  entries: [
+    {
+      name: 'Steam Vents // Steam Vents',
+      set: 'sld',
+      collectorNumber: '1234',
+      finish: 'foil',
+      condition: 'NM',
+      price: 30,
+      fileOrder: 0,
+      section: 'Main',
+      cardId: 1,
+    },
+    {
+      name: 'Steam Vents',
+      set: 'gpt',
+      collectorNumber: '233',
+      finish: 'nonfoil',
+      condition: 'LP',
+      price: 12,
+      fileOrder: 1,
+      section: 'Main',
+      cardId: 2,
+    },
+    {
+      name: 'Sol Ring',
+      set: 'c19',
+      collectorNumber: '221',
+      finish: 'nonfoil',
+      condition: 'NM',
+      price: 3,
+      fileOrder: 2,
+      section: 'Main',
+      cardId: 3,
+    },
+  ],
+  cards: {
+    'sld:1234': PRINT_STEAM_DOUBLE_ART,
+    'gpt:233': PRINT_STEAM,
+    'c19:221': PRINT_RING,
+  },
+  printings: {
+    'Steam Vents': [PRINT_STEAM, PRINT_STEAM_DOUBLE_ART],
+    'Sol Ring': [PRINT_RING],
+  },
+  symbolMap: {},
+  useScryfallImgUrls: true,
+  totalPrice: 45,
+  defaultCurrency: 'usd',
+} satisfies CollectionDetail
+
+const PRINT_WANTED: WantedListDetail = { ...FIND_WANTED, name: 'Print Wanted' }
+
+const PRINT_INDEX = makeSiteIndex({
+  decks: [
+    makeDeckSummary({ slug: 'print-deck', name: 'Print Deck', cardCount: 3, totalPrice: 10 }),
+  ],
+  collections: [
+    makeCollectionSummary({ slug: 'print-binder', name: 'Print Binder', cardCount: 3 }),
+  ],
+  wantedLists: [makeWantedListSummary({ slug: 'print-wanted', name: 'Print Wanted' })],
+  useScryfallImgUrls: true,
+})
+
+/** Serve a deck + collection + wanted list for the "Find Other Printings" modal tests. */
+export async function mockPublicSiteForFindPrintings(page: Page): Promise<void> {
+  await fulfillJson(page, '**/index.json', PRINT_INDEX)
+  await fulfillJson(page, '**/decks/print-deck.json', PRINT_DECK)
+  await fulfillJson(page, '**/collections/print-binder.json', PRINT_BINDER)
+  await fulfillJson(page, '**/wanted/print-wanted.json', PRINT_WANTED)
+}

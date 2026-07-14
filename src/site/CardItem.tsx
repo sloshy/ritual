@@ -19,6 +19,8 @@ type CardDataAttrs = {
   'data-edhrec': number
   'data-price': number
   'data-type': string
+  /** The entry's persistent card ID, for cross-list navigation (see card-nav.ts). */
+  'data-card-id'?: number
 }
 
 /** Wraps a callback with stopPropagation so click events don't bubble to the card container. */
@@ -53,6 +55,8 @@ export interface CardItemProps {
   collectionSetCN?: string
   collectionPrice?: number
   currency?: PriceCurrency
+  /** The entry's persistent card ID, exposed as `data-card-id` for cross-list navigation. */
+  cardId?: number
   editMode?: boolean
   onIncrement?: () => void
   onDecrement?: () => void
@@ -176,7 +180,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
     <Show
       when={props.card}
       fallback={
-        <div class="card-item">
+        <div class="card-item" data-name={props.name.toLowerCase()} data-card-id={props.cardId}>
           <Show when={props.viewMode === 'binder'}>
             <div class="card-binder card-binder--empty">
               <span class="card-empty-label">{props.name}</span>
@@ -233,6 +237,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
           'data-edhrec': card().edhrec_rank ?? 999999,
           'data-price': price(),
           'data-type': card().type_line,
+          'data-card-id': props.cardId,
         })
 
         const isFoil = () =>

@@ -23,6 +23,8 @@ import {
 } from './card-sorting'
 import { CardModal } from './CardModal'
 import { ChangelogModal } from './ChangelogModal'
+import { useCardNavScroll } from './card-nav'
+import { TooltipOverlay } from './TooltipOverlay'
 import { capitalize } from './utils'
 import { useTooltip } from './useTooltip'
 import { Toolbar } from './Toolbar'
@@ -310,6 +312,13 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   // Price refresh is wired for every render but only shown when `enablePriceRefresh`.
   const prices = usePublicPriceControls({ cards: allCards, pricesDate: props.pricesDate })
 
+  // Scroll to a cross-list navigation target (e.g. from "Find Other Printings")
+  // once the collection's cards are rendered.
+  useCardNavScroll(
+    () => (props.slug ? { type: 'collection', slug: props.slug } : null),
+    () => allCards().length > 0,
+  )
+
   const setCodeOptions = createMemo(() => collectSetCodes(allCards()))
   const cardTypeOptions = createMemo(() => collectCardTypes(allCards()))
   const oracleTagOptions = createMemo(() => collectOracleTags(allCards()))
@@ -447,6 +456,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         collectionSetCN={entry ? `${entry.set.toUpperCase()}:${entry.collectorNumber}` : undefined}
         collectionPrice={entry?.price}
         currency={props.currency}
+        cardId={entry?.cardId}
         editMode={props.editMode}
         onIncrement={props.editMode && entry ? () => props.onCardIncrement?.(entry) : undefined}
         onDecrement={props.editMode && entry ? () => props.onCardDecrement?.(entry) : undefined}
@@ -616,15 +626,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       </div>
 
       {/* List-view hover tooltip */}
-      <div
-        ref={tooltipRef}
-        class={`list-tooltip ${tooltip() ? 'visible' : ''} ${tooltip()?.sideways ? 'list-tooltip-sideways' : ''}`}
-        style={`left:${tooltipPos().left}px;top:${tooltipPos().top}px;`}
-      >
-        <Show when={tooltip()}>
-          <img src={tooltip()!.src} alt="" class={tooltip()!.sideways ? 'tooltip-rotated' : ''} />
-        </Show>
-      </div>
+      <TooltipOverlay tooltip={tooltip()} pos={tooltipPos()} tooltipRef={tooltipRef} />
 
       {/* Card detail modal */}
       <CardModal

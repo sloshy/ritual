@@ -2,6 +2,7 @@ import { type Component, createMemo, Show } from 'solid-js'
 import type { Finish, ScryfallCard } from '../../types'
 import type { ListRef } from '../../change-event'
 import { useAnchoredMenu } from '../../ui/useAnchoredMenu'
+import { findPrintingsAvailable, openFindPrintings } from '../../site/find-printings'
 
 const MENU_WIDTH = 180
 
@@ -100,6 +101,21 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
       <Show when={props.onMoveToList && (props.moveTargets?.length ?? 0) > 0}>
         <button class="card-context-menu-item" onClick={() => props.onMoveToList!()}>
           Move to list…
+        </button>
+      </Show>
+      {/* Cross-list printing lookup; hidden where no FindPrintingsModal is
+          mounted (the admin app). */}
+      <Show when={findPrintingsAvailable()}>
+        <button
+          class="card-context-menu-item"
+          onClick={() => {
+            // Read the name before onClose unmounts the menu (and its props).
+            const name = props.card?.name ?? props.cardName
+            props.onClose()
+            openFindPrintings(name)
+          }}
+        >
+          Find other printings
         </button>
       </Show>
     </div>
