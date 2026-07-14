@@ -106,6 +106,8 @@ describe('buildFindPrintingsGroups', () => {
   test('groups every copy by source list, matching double-sided names by front face', () => {
     const groups = buildFindPrintingsGroups(allCards(), 'Steam Vents')
     expect(groups.map((g) => `${g.kind}:${g.slug}`)).toEqual(['deck:izzet', 'collection:binder'])
+    // No current list given: nothing is flagged and load order is kept.
+    expect(groups.every((g) => !g.isCurrent)).toBe(true)
 
     const [deck, binder] = groups
     // The 2x deck line expands to two side-by-side copies of the same tile.
@@ -130,6 +132,15 @@ describe('buildFindPrintingsGroups', () => {
     const groups = buildFindPrintingsGroups(allCards(), 'Lightning Bolt')
     expect(groups.map((g) => g.slug)).toEqual(['izzet', 'wants'])
     expect(countFindPrintingsCopies(groups)).toBe(2)
+  })
+
+  test('the current list sorts first and is flagged', () => {
+    const groups = buildFindPrintingsGroups(allCards(), 'Steam Vents', {
+      type: 'collection',
+      slug: 'binder',
+    })
+    expect(groups.map((g) => g.slug)).toEqual(['binder', 'izzet'])
+    expect(groups.map((g) => g.isCurrent)).toEqual([true, false])
   })
 
   test('returns nothing for a blank name', () => {

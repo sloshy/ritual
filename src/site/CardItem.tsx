@@ -308,29 +308,39 @@ export const CardItem: Component<CardItemProps> = (props) => {
                 <Show when={!props.hideCount && props.quantity > 1}>
                   <span class="qty-badge">{props.quantity}x</span>
                 </Show>
-                <Show when={props.editMode}>
+                {/* The ⋯ menu is offered whenever a handler is wired — read mode
+                    included — while the quantity steppers stay edit-only. Unlike
+                    its sibling buttons, the ⋯ onClick reads props.onContextMenu
+                    at click time: its handler identity differs between read and
+                    edit mode while the surrounding Show can stay truthy across
+                    both, so an eager capture could go stale. */}
+                <Show when={props.editMode || props.onContextMenu}>
                   <div class="edit-overlay">
-                    <button
-                      class="edit-btn edit-btn-increment"
-                      onClick={stopPropAnd(props.onIncrement)}
-                      title="Add copy"
-                    >
-                      +
-                    </button>
-                    <button
-                      class="edit-btn edit-btn-decrement"
-                      onClick={stopPropAnd(props.onDecrement)}
-                      title="Remove copy"
-                    >
-                      −
-                    </button>
-                    <button
-                      class="edit-btn edit-btn-context"
-                      onClick={stopPropAndRect(props.onContextMenu)}
-                      title="More options"
-                    >
-                      ⋯
-                    </button>
+                    <Show when={props.editMode}>
+                      <button
+                        class="edit-btn edit-btn-increment"
+                        onClick={stopPropAnd(props.onIncrement)}
+                        title="Add copy"
+                      >
+                        +
+                      </button>
+                      <button
+                        class="edit-btn edit-btn-decrement"
+                        onClick={stopPropAnd(props.onDecrement)}
+                        title="Remove copy"
+                      >
+                        −
+                      </button>
+                    </Show>
+                    <Show when={props.onContextMenu}>
+                      <button
+                        class="edit-btn edit-btn-context"
+                        onClick={(e) => stopPropAndRect(props.onContextMenu)(e)}
+                        title="More options"
+                      >
+                        ⋯
+                      </button>
+                    </Show>
                   </div>
                 </Show>
                 <Show when={props.onMove}>
@@ -402,29 +412,33 @@ export const CardItem: Component<CardItemProps> = (props) => {
                 <span class="list-mana">
                   <ManaCost card={card()} isDFC={isDFC()} symbolMap={props.symbolMap} />
                 </span>
-                <Show when={props.editMode}>
+                <Show when={props.editMode || props.onContextMenu}>
                   <span class="edit-controls-list">
-                    <button
-                      class="edit-btn-list"
-                      onClick={stopPropAnd(props.onIncrement)}
-                      title="Add copy"
-                    >
-                      +
-                    </button>
-                    <button
-                      class="edit-btn-list"
-                      onClick={stopPropAnd(props.onDecrement)}
-                      title="Remove copy"
-                    >
-                      −
-                    </button>
-                    <button
-                      class="edit-btn-list"
-                      onClick={stopPropAndRect(props.onContextMenu)}
-                      title="More options"
-                    >
-                      ⋯
-                    </button>
+                    <Show when={props.editMode}>
+                      <button
+                        class="edit-btn-list"
+                        onClick={stopPropAnd(props.onIncrement)}
+                        title="Add copy"
+                      >
+                        +
+                      </button>
+                      <button
+                        class="edit-btn-list"
+                        onClick={stopPropAnd(props.onDecrement)}
+                        title="Remove copy"
+                      >
+                        −
+                      </button>
+                    </Show>
+                    <Show when={props.onContextMenu}>
+                      <button
+                        class="edit-btn-list"
+                        onClick={(e) => stopPropAndRect(props.onContextMenu)(e)}
+                        title="More options"
+                      >
+                        ⋯
+                      </button>
+                    </Show>
                   </span>
                 </Show>
                 <Show when={props.onMove}>
@@ -479,29 +493,33 @@ export const CardItem: Component<CardItemProps> = (props) => {
                 <Show when={!props.hideCount && props.quantity > 1}>
                   <span class="qty-badge">{props.quantity}x</span>
                 </Show>
-                <Show when={props.editMode}>
+                <Show when={props.editMode || props.onContextMenu}>
                   <div class="edit-overlay">
-                    <button
-                      class="edit-btn edit-btn-increment"
-                      onClick={stopPropAnd(props.onIncrement)}
-                      title="Add copy"
-                    >
-                      +
-                    </button>
-                    <button
-                      class="edit-btn edit-btn-decrement"
-                      onClick={stopPropAnd(props.onDecrement)}
-                      title="Remove copy"
-                    >
-                      −
-                    </button>
-                    <button
-                      class="edit-btn edit-btn-context"
-                      onClick={stopPropAndRect(props.onContextMenu)}
-                      title="More options"
-                    >
-                      ⋯
-                    </button>
+                    <Show when={props.editMode}>
+                      <button
+                        class="edit-btn edit-btn-increment"
+                        onClick={stopPropAnd(props.onIncrement)}
+                        title="Add copy"
+                      >
+                        +
+                      </button>
+                      <button
+                        class="edit-btn edit-btn-decrement"
+                        onClick={stopPropAnd(props.onDecrement)}
+                        title="Remove copy"
+                      >
+                        −
+                      </button>
+                    </Show>
+                    <Show when={props.onContextMenu}>
+                      <button
+                        class="edit-btn edit-btn-context"
+                        onClick={(e) => stopPropAndRect(props.onContextMenu)(e)}
+                        title="More options"
+                      >
+                        ⋯
+                      </button>
+                    </Show>
                   </div>
                 </Show>
                 <Show when={props.onMove}>

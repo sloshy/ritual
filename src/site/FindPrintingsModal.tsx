@@ -109,15 +109,10 @@ export const FindPrintingsModal: Component<FindPrintingsModalProps> = (props) =>
   const groups = createMemo<FindPrintingsGroup[]>(() => {
     const req = findPrintingsRequest()
     if (!req) return []
-    return buildFindPrintingsGroups(allCards(), req.cardName)
+    return buildFindPrintingsGroups(allCards(), req.cardName, props.current())
   })
 
   const copyCount = createMemo(() => countFindPrintingsCopies(groups()))
-
-  const isCurrentList = (group: FindPrintingsGroup): boolean => {
-    const cur = props.current()
-    return cur !== undefined && cur.type === group.kind && cur.slug === group.slug
-  }
 
   // Hover preview for the list view, rendered in the Modal's overlay slot so it
   // escapes the panel's overflow clipping (same pattern as SelectionModal).
@@ -136,7 +131,7 @@ export const FindPrintingsModal: Component<FindPrintingsModalProps> = (props) =>
     })
     closeFindPrintings()
     // Already viewing the list: the pending nav is consumed in place.
-    if (!isCurrentList(group)) window.location.hash = listHref(group.kind, group.slug)
+    if (!group.isCurrent) window.location.hash = listHref(group.kind, group.slug)
   }
 
   return (
@@ -214,10 +209,12 @@ export const FindPrintingsModal: Component<FindPrintingsModalProps> = (props) =>
                   <span class="find-printings-group-kind" aria-hidden="true">
                     {LIST_TYPE_DISPLAY[group.kind].icon}
                   </span>
-                  <span class="find-printings-group-name">{group.name}</span>
-                  <Show when={isCurrentList(group)}>
-                    <span class="find-printings-group-current">current list</span>
-                  </Show>
+                  <span class="find-printings-group-name">
+                    <Show when={group.isCurrent}>
+                      <span class="find-printings-group-current">Current List — </span>
+                    </Show>
+                    {group.name}
+                  </span>
                   <span class="find-printings-group-count">{group.copies.length}</span>
                 </div>
                 <div class="binder-grid">

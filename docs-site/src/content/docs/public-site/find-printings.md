@@ -10,14 +10,14 @@ Like [Find Cards](/public-site/find/), this is a public-site browsing feature on
 
 There are two entry points, both scoped to one card:
 
-- **From the card detail modal** (read view): click any card to open its detail modal, then press **Find in Lists**.
-- **From the editor context menu** (edit mode): hover a card, open its **⋯** menu, and choose **Find other printings**.
+- **From the card ⋯ menu**: hover a card, open its **⋯** menu, and choose **Find other printings**. The ⋯ menu is available on every list page — outside edit mode it carries just this lookup, while in edit mode it sits alongside the usual edit actions.
+- **From the card detail modal**: click any card to open its detail modal, then press **Find in Lists**.
 
 ## What it shows
 
 Every copy of the card across every list, matched by **front-face name** — the same rule the Find page uses — so double-sided printings count: a lookup on `Steam Vents` includes a double-art `Steam Vents // Steam Vents`, and vice versa.
 
-Copies are **not merged**: a `3x` deck line appears as three side-by-side cards, and each physical collection entry stands alone with its own printing, finish, and condition. Results are grouped by list, with the list you're currently viewing tagged **current list**.
+Copies are **not merged**: a `3x` deck line appears as three side-by-side cards, and each physical collection entry stands alone with its own printing, finish, and condition. Results are grouped by list; the list you're currently viewing is always shown first, titled **Current List — _\<list name\>_**.
 
 Two display modes, toggled at the top of the dialog (the choice is remembered for the session):
 

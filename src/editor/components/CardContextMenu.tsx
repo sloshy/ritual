@@ -11,10 +11,11 @@ interface CardContextMenuProps {
   card: ScryfallCard | null
   anchorRect: DOMRect
   currentFinish?: Finish
-  onSetFoil: () => void
+  /** Toggle the card's foil finish. Absent on read-only pages, hiding the item. */
+  onSetFoil?: () => void
   onChangePrinting?: () => void
   onSetCommander?: () => void
-  onUnsetCommander: () => void
+  onUnsetCommander?: () => void
   onClose: () => void
   isCommander?: boolean
   hideCommander?: boolean
@@ -57,15 +58,19 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
       role="menu"
       aria-label={`Options for ${props.cardName}`}
     >
-      <button
-        class={`card-context-menu-item${foilButtonDisabled() ? ' card-context-menu-item--disabled' : ''}`}
-        onClick={() => {
-          if (!foilButtonDisabled()) props.onSetFoil()
-        }}
-        disabled={foilButtonDisabled()}
-      >
-        {foilButtonLabel()}
-      </button>
+      <Show when={props.onSetFoil}>
+        {(setFoil) => (
+          <button
+            class={`card-context-menu-item${foilButtonDisabled() ? ' card-context-menu-item--disabled' : ''}`}
+            onClick={() => {
+              if (!foilButtonDisabled()) setFoil()()
+            }}
+            disabled={foilButtonDisabled()}
+          >
+            {foilButtonLabel()}
+          </button>
+        )}
+      </Show>
       <Show when={props.onChangePrinting}>
         {(changePrinting) => (
           <button class="card-context-menu-item" onClick={() => changePrinting()()}>
@@ -86,9 +91,13 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
             </Show>
           }
         >
-          <button class="card-context-menu-item" onClick={props.onUnsetCommander}>
-            Unset as Commander
-          </button>
+          <Show when={props.onUnsetCommander}>
+            {(unsetCommander) => (
+              <button class="card-context-menu-item" onClick={() => unsetCommander()()}>
+                Unset as Commander
+              </button>
+            )}
+          </Show>
         </Show>
       </Show>
       <Show when={props.onMoveToSection}>

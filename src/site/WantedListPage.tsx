@@ -25,6 +25,7 @@ import { CardModal } from './CardModal'
 import { ChangelogModal } from './ChangelogModal'
 import { useCardNavScroll } from './card-nav'
 import { TooltipOverlay } from './TooltipOverlay'
+import { useReadCardMenu } from './useReadCardMenu'
 import { capitalize } from './utils'
 import { useTooltip } from './useTooltip'
 import { Toolbar } from './Toolbar'
@@ -177,6 +178,9 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
   const [showChangelog, setShowChangelog] = createSignal(false)
 
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
+
+  // Read-mode ⋯ menu (cross-list lookups only); edit mode uses the editor's own menu.
+  const readMenu = useReadCardMenu()
 
   const [wantedTradePicker, setWantedTradePicker] = createSignal<WantedTradePicker | null>(null)
 
@@ -444,7 +448,11 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         onIncrement={props.editMode && entry ? () => props.onCardIncrement?.(entry) : undefined}
         onDecrement={props.editMode && entry ? () => props.onCardDecrement?.(entry) : undefined}
         onContextMenu={
-          props.editMode ? (rect) => props.onCardContextMenu?.(contextInfo(), rect) : undefined
+          props.editMode
+            ? (rect) => props.onCardContextMenu?.(contextInfo(), rect)
+            : !props.onCardMove && readMenu.enabled()
+              ? (rect) => readMenu.open(contextInfo(), rect)
+              : undefined
         }
         onMove={props.onCardMove ? (rect) => props.onCardMove!(contextInfo(), rect) : undefined}
         onAddToTrade={showTrade ? () => handleWantedAddToTrade(entry, c.card) : undefined}
@@ -609,6 +617,9 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
 
       {/* List-view hover tooltip */}
       <TooltipOverlay tooltip={tooltip()} pos={tooltipPos()} tooltipRef={tooltipRef} />
+
+      {/* Read-mode card ⋯ menu */}
+      {readMenu.element()}
 
       {/* Card detail modal */}
       <CardModal

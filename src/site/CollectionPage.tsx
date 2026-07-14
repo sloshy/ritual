@@ -25,6 +25,7 @@ import { CardModal } from './CardModal'
 import { ChangelogModal } from './ChangelogModal'
 import { useCardNavScroll } from './card-nav'
 import { TooltipOverlay } from './TooltipOverlay'
+import { useReadCardMenu } from './useReadCardMenu'
 import { capitalize } from './utils'
 import { useTooltip } from './useTooltip'
 import { Toolbar } from './Toolbar'
@@ -171,6 +172,9 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   const [showChangelog, setShowChangelog] = createSignal(false)
 
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
+
+  // Read-mode ⋯ menu (cross-list lookups only); edit mode uses the editor's own menu.
+  const readMenu = useReadCardMenu()
 
   // Aggregate copy counts per card variant for correct trade maxQty.
   // Mirrors the groupKey logic in useTradeData to ensure consistent deduplication.
@@ -461,7 +465,11 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         onIncrement={props.editMode && entry ? () => props.onCardIncrement?.(entry) : undefined}
         onDecrement={props.editMode && entry ? () => props.onCardDecrement?.(entry) : undefined}
         onContextMenu={
-          props.editMode ? (rect) => props.onCardContextMenu?.(contextInfo(), rect) : undefined
+          props.editMode
+            ? (rect) => props.onCardContextMenu?.(contextInfo(), rect)
+            : !props.onCardMove && readMenu.enabled()
+              ? (rect) => readMenu.open(contextInfo(), rect)
+              : undefined
         }
         onMove={props.onCardMove ? (rect) => props.onCardMove!(contextInfo(), rect) : undefined}
         onAddToTrade={showTrade ? () => handleCollectionAddToTrade(entry) : undefined}
@@ -627,6 +635,9 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
 
       {/* List-view hover tooltip */}
       <TooltipOverlay tooltip={tooltip()} pos={tooltipPos()} tooltipRef={tooltipRef} />
+
+      {/* Read-mode card ⋯ menu */}
+      {readMenu.element()}
 
       {/* Card detail modal */}
       <CardModal

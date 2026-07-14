@@ -15,7 +15,7 @@
 
 import { createSignal, type Accessor } from 'solid-js'
 import type { ListType } from '../list-type'
-import type { CombinedCardData } from './combined-list'
+import type { CombinedCardData, ListRef } from './combined-list'
 import { cardMatchKey, findMatchKey } from './find-search'
 
 export interface FindPrintingsRequest {
@@ -64,18 +64,22 @@ export interface FindPrintingsGroup {
   kind: ListType
   slug: string
   name: string
+  /** Whether this is the list the lookup was opened from. */
+  isCurrent: boolean
   copies: FindPrintingsCopy[]
 }
 
 /**
  * Collect every copy of `cardName` (matched by normalized front-face name)
- * from the combined cards of all lists, grouped by source list in the order
- * the lists were loaded. Copies are expanded one-per-physical-card rather than
- * merged, so identical printings sit side by side.
+ * from the combined cards of all lists, grouped by source list. The list the
+ * lookup was opened from (`currentList`) always sorts first; the rest keep the
+ * order the lists were loaded in. Copies are expanded one-per-physical-card
+ * rather than merged, so identical printings sit side by side.
  */
 export function buildFindPrintingsGroups(
   cards: CombinedCardData[],
   cardName: string,
+  currentList?: ListRef,
 ): FindPrintingsGroup[] {
   const key = findMatchKey(cardName)
   if (!key) return []
@@ -86,13 +90,19 @@ export function buildFindPrintingsGroups(
     const groupKey = `${c.sourceKind}:${c.sourceSlug}`
     let group = index.get(groupKey)
     if (!group) {
-      group = { kind: c.sourceKind, slug: c.sourceSlug, name: c.sourceName, copies: [] }
+      group = {
+        kind: c.sourceKind,
+        slug: c.sourceSlug,
+        name: c.sourceName,
+        isCurrent: currentList?.type === c.sourceKind && currentList.slug === c.sourceSlug,
+        copies: [],
+      }
       index.set(groupKey, group)
       out.push(group)
     }
     for (let copy = 0; copy < c.quantity; copy++) group.copies.push({ tile: c, copy })
   }
-  return out
+  return [...out.filter((g) => g.isCurrent), ...out.filter((g) => !g.isCurrent)]
 }
 
 /** Total copy count across every group. */

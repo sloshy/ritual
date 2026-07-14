@@ -6,9 +6,10 @@ import { mockPublicSiteForFindPrintings } from '../helpers/mock-public-site'
  * The "Find Other Printings" modal: every copy of one card across every list
  * (matched by front-face name, so the foil `Steam Vents // Steam Vents`
  * double-art counts), grouped by list with copies expanded side by side.
- * Covers both entry points (card modal + editor context menu), the binder/list
- * view toggle with foil sheen and hover preview, and click-through navigation
- * to the copy's list — cross-list and within the current list.
+ * Covers every entry point (card modal, editor context menu, and the read-mode
+ * ⋯ menu), the binder/list view toggle with foil sheen and hover preview, and
+ * click-through navigation to the copy's list — cross-list and within the
+ * current list.
  */
 
 /** Open the modal for Steam Vents from the deck page's card detail modal. */
@@ -45,9 +46,11 @@ test.describe('Find Other Printings modal', () => {
     await expect(groups.nth(1)).toContainText('Print Binder')
     await expect(groups.nth(1).locator('.card-item')).toHaveCount(2)
 
-    // The deck currently in view is flagged.
-    await expect(groups.nth(0).locator('.find-printings-group-current')).toBeVisible()
-    await expect(groups.nth(1).locator('.find-printings-group-current')).toHaveCount(0)
+    // The deck currently in view is titled as such; the other list is not.
+    await expect(groups.nth(0).locator('.find-printings-group-name')).toHaveText(
+      'Current List — Print Deck',
+    )
+    await expect(groups.nth(1).locator('.find-printings-group-name')).toHaveText('Print Binder')
 
     // The binder's foil double-art copy renders with the foil sheen.
     await expect(groups.nth(1).locator('.card-binder.foil-card')).toHaveCount(1)
@@ -76,6 +79,16 @@ test.describe('Find Other Printings modal', () => {
     await expect(modal).not.toBeVisible()
     await openFromCardModal(page)
     await expect(modal.locator('.find-printings-results')).toHaveClass(/view-list/)
+  })
+
+  test('the current list is pinned to the top of the results', async ({ page }) => {
+    // Opened from the collection, whose lists load after the deck: it still leads.
+    await gotoList(page, '#/collection/print-binder')
+    await openFromCardModal(page)
+
+    const names = page.locator('.find-printings-group .find-printings-group-name')
+    await expect(names.nth(0)).toHaveText('Current List — Print Binder')
+    await expect(names.nth(1)).toHaveText('Print Deck')
   })
 
   test('clicking a copy in another list navigates there and highlights it', async ({ page }) => {
@@ -121,8 +134,34 @@ test.describe('Find Other Printings modal', () => {
 
     const menu = page.locator('.card-context-menu')
     await expect(menu).toBeVisible()
+    // Edit mode keeps the edit actions alongside the lookup.
+    await expect(
+      menu.locator('.card-context-menu-item', { hasText: 'Change Printing' }),
+    ).toBeVisible()
+    await expect(
+      menu.locator('.card-context-menu-item', { hasText: 'Move to section' }),
+    ).toBeVisible()
     await menu.locator('.card-context-menu-item', { hasText: 'Find other printings' }).click()
 
+    const modal = page.locator('.find-printings-modal')
+    await expect(modal).toBeVisible()
+    await expect(modal.locator('.find-printings-summary')).toHaveText('4 copies across 2 lists')
+  })
+
+  test('the read-mode ⋯ menu offers only "Find other printings"', async ({ page }) => {
+    // No edit mode: the tile still offers the ⋯ menu, but without edit actions.
+    const tile = page.locator('.card-item[data-name="steam vents"]')
+    await tile.locator('.card-binder').hover()
+    await expect(tile.locator('.edit-btn-increment')).toHaveCount(0)
+    await tile.locator('.edit-btn-context').click()
+
+    const menu = page.locator('.card-context-menu')
+    await expect(menu).toBeVisible()
+    const items = menu.locator('.card-context-menu-item')
+    await expect(items).toHaveCount(1)
+    await expect(items).toHaveText('Find other printings')
+
+    await items.click()
     const modal = page.locator('.find-printings-modal')
     await expect(modal).toBeVisible()
     await expect(modal.locator('.find-printings-summary')).toHaveText('4 copies across 2 lists')
