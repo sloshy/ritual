@@ -31,8 +31,8 @@ import {
 } from '../price-currency'
 import { getDefaultCurrency } from '../ritual-config'
 import { trackAdd, trackAnotherCopy, trackEdit } from '../session-changelog'
-import { parseCollectionFile } from '../collection-file'
-import { parseWantedListFile } from './wanted-helpers'
+import { parseCollectionFile, type CollectionEntry } from '../collection-file'
+import { parseWantedListFile, type WantedListEntry } from './wanted-helpers'
 import type { CardSessionContext, SessionAddItem } from './card-session'
 import type { EditUndoEntry } from './edit-undo'
 
@@ -105,12 +105,13 @@ function newFlatListSession<E extends FlatListEntry>(
   }
 }
 
-/** Load a collection file into a session model, surfacing any parse warnings. */
-export async function loadCollectionSession(filePath: string): Promise<CollectionSession> {
-  const content = await fs.readFile(filePath, 'utf-8')
-  const parsed = parseCollectionFile(content)
-  for (const warning of parsed.warnings) console.warn(warning)
-  const entries: CollectionCardEntry[] = parsed.entries.map((e, i) => ({
+/**
+ * Map parsed collection entries to the editor entry shape the serializers work
+ * with, defaulting the fields the file format leaves implicit (finish, condition)
+ * and fields the CLI doesn't price (price, fileOrder).
+ */
+function collectionEntriesFromParse(entries: CollectionEntry[]): CollectionCardEntry[] {
+  return entries.map((e, i) => ({
     name: e.name,
     set: e.set,
     collectorNumber: e.collectorNumber,
@@ -122,24 +123,11 @@ export async function loadCollectionSession(filePath: string): Promise<Collectio
     note: e.note,
     cardId: e.cardId,
   }))
-  return {
-    filePath,
-    title: parseTitleFromContent(content) ?? path.basename(filePath, '.md'),
-    entries,
-    sectionOrder: parsed.sectionOrder,
-    pool: assignMissingIds(entries),
-    dirty: false,
-    apply: applyChangeToCollection,
-    serialize: collectionToMarkdown,
-  }
 }
 
-/** Load a wanted-list file into a session model, surfacing any parse warnings. */
-export async function loadWantedSession(filePath: string): Promise<WantedSession> {
-  const content = await fs.readFile(filePath, 'utf-8')
-  const parsed = parseWantedListFile(content)
-  for (const warning of parsed.warnings) console.warn(warning)
-  const entries: WantedListCardEntry[] = parsed.entries.map((e, i) => ({
+/** Map parsed wanted-list entries to the editor entry shape, deriving each entry's state. */
+function wantedEntriesFromParse(entries: WantedListEntry[]): WantedListCardEntry[] {
+  return entries.map((e, i) => ({
     name: e.name,
     set: e.set,
     collectorNumber: e.collectorNumber,
@@ -151,12 +139,86 @@ export async function loadWantedSession(filePath: string): Promise<WantedSession
     state: !e.set || !e.collectorNumber ? 'name-only' : e.finish ? 'fully-specified' : 'printing',
     cardId: e.cardId,
   }))
+}
+
+/**
+ * A flat-list file read from disk: its raw content, its title (the `# Title` H1,
+ * falling back to the file's basename), its entries in the editor entry shape
+ * with missing IDs assigned, and the parser's skipped-line warnings.
+ */
+export type ParsedFlatListFile<E extends FlatListEntry> = {
+  content: string
+  title: string
+  entries: E[]
+  sectionOrder: string[]
+  warnings: string[]
+  pool: CardIdPool
+}
+
+/** What a flat-list parser produces, structurally common to collections and wanted lists. */
+type FlatListParse<Raw> = { entries: Raw[]; sectionOrder: string[]; warnings: string[] }
+
+/**
+ * The shared read→parse→map→assign-IDs→title prelude behind every consumer of a
+ * collection or wanted-list file (the edit sessions here, the `cleanup` command),
+ * so the two can never disagree about how a file's entries and title are derived.
+ */
+async function readFlatListFile<Raw, E extends FlatListEntry>(
+  filePath: string,
+  parse: (content: string) => FlatListParse<Raw>,
+  entriesFromParse: (entries: Raw[]) => E[],
+): Promise<ParsedFlatListFile<E>> {
+  const content = await fs.readFile(filePath, 'utf-8')
+  const parsed = parse(content)
+  const entries = entriesFromParse(parsed.entries)
   return {
-    filePath,
+    content,
     title: parseTitleFromContent(content) ?? path.basename(filePath, '.md'),
     entries,
     sectionOrder: parsed.sectionOrder,
+    warnings: parsed.warnings,
     pool: assignMissingIds(entries),
+  }
+}
+
+/** Read and parse a collection file into editor-shaped entries. */
+export function readCollectionFile(
+  filePath: string,
+): Promise<ParsedFlatListFile<CollectionCardEntry>> {
+  return readFlatListFile(filePath, parseCollectionFile, collectionEntriesFromParse)
+}
+
+/** Read and parse a wanted-list file into editor-shaped entries. */
+export function readWantedFile(filePath: string): Promise<ParsedFlatListFile<WantedListCardEntry>> {
+  return readFlatListFile(filePath, parseWantedListFile, wantedEntriesFromParse)
+}
+
+/** Load a collection file into a session model, surfacing any parse warnings. */
+export async function loadCollectionSession(filePath: string): Promise<CollectionSession> {
+  const file = await readCollectionFile(filePath)
+  for (const warning of file.warnings) console.warn(warning)
+  return {
+    filePath,
+    title: file.title,
+    entries: file.entries,
+    sectionOrder: file.sectionOrder,
+    pool: file.pool,
+    dirty: false,
+    apply: applyChangeToCollection,
+    serialize: collectionToMarkdown,
+  }
+}
+
+/** Load a wanted-list file into a session model, surfacing any parse warnings. */
+export async function loadWantedSession(filePath: string): Promise<WantedSession> {
+  const file = await readWantedFile(filePath)
+  for (const warning of file.warnings) console.warn(warning)
+  return {
+    filePath,
+    title: file.title,
+    entries: file.entries,
+    sectionOrder: file.sectionOrder,
+    pool: file.pool,
     dirty: false,
     apply: applyChangeToWantedList,
     serialize: wantedToMarkdown,

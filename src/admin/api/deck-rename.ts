@@ -7,6 +7,7 @@ import { getErrorMessage } from '../../errors'
 import { MAX_BODY_SIZE } from '../validation'
 import { getDecksDir } from '../../ritual-config'
 import { writeFileWithHash, hashPath } from '../../content-hash'
+import { moveListSidecars } from '../../list-sidecars'
 import { sanitizeListFileName, unusableFileNameMessage } from '../../list-file-name'
 
 interface DeckRenameRequest {
@@ -99,24 +100,8 @@ export async function handleDeckRename(req: Request): Promise<Response> {
       await fs.unlink(hashPath(filePath)).catch(() => undefined)
       filesToCommit.push(filePath, hashPath(filePath), newFilePath, hashPath(newFilePath))
 
-      // Handle changelog file
-      const oldChangelogPath = filePath.replace(/\.md$/, '.changes.md')
-      const newChangelogPath = newFilePath.replace(/\.md$/, '.changes.md')
-      if (await Bun.file(oldChangelogPath).exists()) {
-        const changelogContent = await fs.readFile(oldChangelogPath, 'utf-8')
-        await Bun.write(newChangelogPath, changelogContent)
-        await fs.unlink(oldChangelogPath)
-        filesToCommit.push(oldChangelogPath, newChangelogPath)
-      }
-
-      // Handle primer file
-      const oldPrimerPath = filePath.replace(/\.md$/, '.primer.md')
-      const newPrimerPath = newFilePath.replace(/\.md$/, '.primer.md')
-      if (await Bun.file(oldPrimerPath).exists()) {
-        const primerContent = await fs.readFile(oldPrimerPath, 'utf-8')
-        await Bun.write(newPrimerPath, primerContent)
-        await fs.unlink(oldPrimerPath)
-        filesToCommit.push(oldPrimerPath, newPrimerPath)
+      for (const { from, to } of await moveListSidecars(filePath, newFilePath)) {
+        filesToCommit.push(from, to)
       }
     } else {
       // Same slug, just update name in file

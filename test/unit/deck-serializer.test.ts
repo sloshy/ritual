@@ -47,7 +47,7 @@ describe('serializeDeckToMarkdown: canonical format', () => {
     // every other reader (the editors, the CLI menu) agrees without re-inferring.
     const result = serializeDeckToMarkdown(commanderDeck, { name: 'Test Deck' })
     expect(result).toContain('format: commander')
-    expect(parseDeckText(result, 'Fallback').format).toBe('commander')
+    expect(parseDeckText(result, 'Fallback').deck.format).toBe('commander')
   })
 
   // The admin deck-save handler passes the front matter straight from the request
@@ -95,14 +95,14 @@ describe('round-trip: parse → serialize → parse', () => {
       '',
     ].join('\n')
 
-    const deck1 = parseDeckText(original, 'Fallback')
+    const { deck: deck1 } = parseDeckText(original, 'Fallback')
 
     const serialized = serializeDeckToMarkdown(deck1, {
       name: deck1.name,
       description: deck1.description,
     })
 
-    const deck2 = parseDeckText(serialized, 'Fallback')
+    const { deck: deck2 } = parseDeckText(serialized, 'Fallback')
 
     expect(deck2.name).toBe(deck1.name)
     expect(deck2.description).toBe(deck1.description)

@@ -37,6 +37,7 @@ not \`winota-stax.md\`). Only characters file systems reject (\`/ \\ : * ? " < >
 repeated dots) are stripped, and a name with nothing usable left is an error. Older lists may
 still have hyphenated file names; they resolve by name as normal, and their display name comes
 from the deck's \`name:\` front matter (or the file name, for collections and wanted lists).
+\`ritual cleanup\` renames such files to match their list names in one pass.
 
 ## File format
 
@@ -64,7 +65,9 @@ has a \`## Commander\` section, and the tools write that down on the next save.
 
 **Prefer the CLI (or the web admin / MCP server) over hand-editing files**, so the
 \`&N\` IDs and \`.changes.md\` changelog stay correct. Reading files directly for
-inspection is fine.
+inspection is fine. To normalize a whole workspace — canonical formatting, file
+names that match list names, a \`format:\` on every deck — run \`ritual cleanup\`
+(\`--dry-run\` to preview).
 
 ## The ritual-* skills
 

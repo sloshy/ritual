@@ -50,6 +50,9 @@ export async function readDeckName(filePath: string): Promise<string> {
 export const DECK_CARD_LINE_RE =
   /^(\d+)[xX]?\s+(.+?)(?:\s+\(([A-Za-z0-9_]+):([^)]+)\))?(?:\s+\[(nonfoil|foil|etched)\])?(?:\s+\[(NM|LP|MP|HP|DMG)\])?(?:\s+\{(.*)\})?(?:\s+&(\d+))?$/
 
+/** A parsed deck plus a warning for every body line the parser had to skip. */
+export type DeckParseResult = { deck: DeckData; warnings: string[] }
+
 /**
  * Parse a deck's markdown/decklist text into structured {@link DeckData}.
  *
@@ -58,10 +61,19 @@ export const DECK_CARD_LINE_RE =
  * only when no frontmatter `name:` is present (e.g. an uploaded file's base name
  * or a name entered in the admin UI). `primer` is an optional markdown sidecar.
  *
+ * A non-blank body line that is neither a section header nor a card line is
+ * skipped and reported in `warnings` — imports of loose third-party decklists
+ * may ignore these, but a caller about to re-serialize a Ritual deck file must
+ * not, since re-emitting would drop the skipped lines.
+ *
  * This is the shared core used both by {@link importFromTextFile} (reading from
  * disk) and by the admin import API (pasted text / uploaded file content).
  */
-export function parseDeckText(rawText: string, fallbackName: string, primer?: string): DeckData {
+export function parseDeckText(
+  rawText: string,
+  fallbackName: string,
+  primer?: string,
+): DeckParseResult {
   const parsed = matter(rawText)
 
   const name = resolveDeckName(parsed.data.name, fallbackName)
@@ -79,6 +91,7 @@ export function parseDeckText(rawText: string, fallbackName: string, primer?: st
   sections.push(currentSection)
 
   const lines = parsed.content.split(/\r?\n/)
+  const warnings: string[] = []
 
   for (const line of lines) {
     const trimmed = line.trim()
@@ -109,12 +122,15 @@ export function parseDeckText(rawText: string, fallbackName: string, primer?: st
         note: quantityMatch[7],
         cardId: quantityMatch[8] ? Number.parseInt(quantityMatch[8], 10) : undefined,
       })
+      continue
     }
+
+    warnings.push(`Skipped malformed line: ${trimmed}`)
   }
 
   const validSections = sections.filter((s) => s.cards.length > 0)
 
-  return {
+  const deck: DeckData = {
     name,
     format,
     description,
@@ -123,8 +139,15 @@ export function parseDeckText(rawText: string, fallbackName: string, primer?: st
     sourceId,
     sections: validSections,
   }
+  return { deck, warnings }
 }
 
+/**
+ * Read a deck file (and its primer sidecar) into {@link DeckData}. Skipped-line
+ * warnings are dropped here — callers that re-serialize the file and therefore
+ * must not lose skipped lines (e.g. `cleanup`) go through {@link parseDeckText}
+ * directly.
+ */
 export async function importFromTextFile(filePath: string): Promise<DeckData> {
   const file = Bun.file(filePath)
   if (!(await file.exists())) {
@@ -139,5 +162,5 @@ export async function importFromTextFile(filePath: string): Promise<DeckData> {
     ? (await primerFile.text()).trim() || undefined
     : undefined
 
-  return parseDeckText(rawText, path.basename(filePath, path.extname(filePath)), primer)
+  return parseDeckText(rawText, path.basename(filePath, path.extname(filePath)), primer).deck
 }

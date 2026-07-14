@@ -55,7 +55,7 @@ export function handleImportDeck(req: Request): Promise<Response> {
       const content = body.content.trim()
       if (!content) return badRequest('content is required')
       const fallbackName = body.name?.trim() || 'Imported Deck'
-      deckData = parseDeckText(content, fallbackName)
+      deckData = parseDeckText(content, fallbackName).deck
       if (deckData.sections.length === 0) {
         return badRequest('No valid card lines found in the provided text.')
       }

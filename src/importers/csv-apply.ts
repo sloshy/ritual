@@ -232,7 +232,7 @@ function appendToDeck(
   fallbackName: string,
   entries: ImportCardEntry[],
 ): AppendResult {
-  const deck = parseDeckText(content, fallbackName)
+  const { deck } = parseDeckText(content, fallbackName)
   const frontMatter = matter(content).data
   const pool = createIdPool(collectDeckCardIds(deck))
   const changes: ChangeEvent[] = []

@@ -4,6 +4,7 @@ import { writeFileWithHash, hashPath } from '../../content-hash'
 import { getErrorMessage } from '../../errors'
 import { isPathWithinDir } from '../../path-validation'
 import { capitalize } from '../../utils'
+import { moveListSidecars, changelogSidecarPath } from '../../list-sidecars'
 import { sanitizeListFileName, unusableFileNameMessage } from '../../list-file-name'
 import { parseTitleFromContent } from '../../section-format'
 import { autoCommitAndPush, validateBodySize } from './save-helpers'
@@ -200,13 +201,8 @@ export async function handleSimpleListRename(
       await fs.unlink(hashPath(filePath)).catch(() => undefined)
       filesToCommit.push(filePath, hashPath(filePath), newFilePath, hashPath(newFilePath))
 
-      const oldChangelogPath = filePath.replace(/\.md$/, '.changes.md')
-      const newChangelogPath = newFilePath.replace(/\.md$/, '.changes.md')
-      if (await Bun.file(oldChangelogPath).exists()) {
-        const changelogContent = await fs.readFile(oldChangelogPath, 'utf-8')
-        await Bun.write(newChangelogPath, changelogContent)
-        await fs.unlink(oldChangelogPath)
-        filesToCommit.push(oldChangelogPath, newChangelogPath)
+      for (const { from, to } of await moveListSidecars(filePath, newFilePath)) {
+        filesToCommit.push(from, to)
       }
     } else {
       await writeFileWithHash(filePath, updatedContent)
@@ -283,7 +279,7 @@ export async function handleSimpleListDelete(
     }
 
     const filesToCommit: string[] = [filePath, hashPath(filePath)]
-    const changelogPath = filePath.replace(/\.md$/, '.changes.md')
+    const changelogPath = changelogSidecarPath(filePath)
     if (await Bun.file(changelogPath).exists()) {
       filesToCommit.push(changelogPath)
     }

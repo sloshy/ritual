@@ -36,6 +36,7 @@ import { registerEditCommand } from './src/commands/edit'
 import { registerMoveCommand } from './src/commands/move'
 import { registerHistoryCommand } from './src/commands/history'
 import { registerExportCommand } from './src/commands/export'
+import { registerCleanupCommand } from './src/commands/cleanup'
 import { registerConfigSetCommand } from './src/commands/config-set'
 import { registerHashCommand } from './src/commands/hash'
 import { registerListAllCardsCommand } from './src/commands/list-all-cards'
@@ -147,6 +148,7 @@ registerCacheServerCommand(program)
 registerCacheFeedCommand(program)
 
 program.commandsGroup('Utilities')
+registerCleanupCommand(program)
 registerGitDetectChangesCommand(program)
 registerHashCommand(program)
 registerListAllCardsCommand(program)

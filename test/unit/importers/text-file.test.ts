@@ -24,7 +24,7 @@ afterAll(async () => {
 
 describe('parseDeckText', () => {
   test('uses the fallback name when the text has no frontmatter name', () => {
-    const deck = parseDeckText('2 Lightning Bolt\n1 Sol Ring', 'Pasted Deck')
+    const { deck } = parseDeckText('2 Lightning Bolt\n1 Sol Ring', 'Pasted Deck')
     expect(deck.name).toBe('Pasted Deck')
     expect(deck.sections).toHaveLength(1)
     expect(deck.sections[0]?.name).toBe('Main')
@@ -35,7 +35,7 @@ describe('parseDeckText', () => {
   })
 
   test('frontmatter name overrides the fallback name', () => {
-    const deck = parseDeckText(
+    const { deck } = parseDeckText(
       '---\nname: Frontmatter Deck\nformat: modern\n---\n4 Opt',
       'Fallback',
     )
@@ -44,12 +44,12 @@ describe('parseDeckText', () => {
   })
 
   test('format is undefined when not in frontmatter', () => {
-    expect(parseDeckText('---\nname: Test\n---\n1 Sol Ring', 'X').format).toBeUndefined()
+    expect(parseDeckText('---\nname: Test\n---\n1 Sol Ring', 'X').deck.format).toBeUndefined()
   })
 
   test('parses an empty {} note as empty string (does not bleed into name)', () => {
     // A hand-edited file with `{}` should not corrupt the parsed card name.
-    const deck = parseDeckText('1 Sol Ring {} &1', 'X')
+    const { deck } = parseDeckText('1 Sol Ring {} &1', 'X')
     const card = deck.sections[0]!.cards[0]!
     expect(card.name).toBe('Sol Ring')
     expect(card.note).toBe('')
@@ -57,7 +57,7 @@ describe('parseDeckText', () => {
   })
 
   test('parses printing details and lowercases the set code', () => {
-    const deck = parseDeckText('1 Lightning Bolt (LEA:161) [foil] [NM] {nice} &7', 'X')
+    const { deck } = parseDeckText('1 Lightning Bolt (LEA:161) [foil] [NM] {nice} &7', 'X')
     expect(deck.sections[0]?.cards[0]).toEqual({
       quantity: 1,
       name: 'Lightning Bolt',
@@ -71,13 +71,13 @@ describe('parseDeckText', () => {
   })
 
   test('splits sections on markdown headers and drops empty ones', () => {
-    const deck = parseDeckText('1 Sol Ring\n\n## Sideboard\n2 Pyroblast\n\n## Empty', 'X')
+    const { deck } = parseDeckText('1 Sol Ring\n\n## Sideboard\n2 Pyroblast\n\n## Empty', 'X')
     expect(deck.sections.map((s) => s.name)).toEqual(['Main', 'Sideboard'])
     expect(deck.sections[1]?.cards[0]?.name).toBe('Pyroblast')
   })
 
   test('renames the default Main section when a header precedes any cards', () => {
-    const deck = parseDeckText('# Commander\n1 Atraxa, Praetors Voice\n1 Sol Ring', 'X')
+    const { deck } = parseDeckText('# Commander\n1 Atraxa, Praetors Voice\n1 Sol Ring', 'X')
     expect(deck.sections).toHaveLength(1)
     expect(deck.sections[0]?.name).toBe('Commander')
     expect(deck.sections[0]?.cards.map((c) => c.name)).toEqual([
@@ -87,8 +87,22 @@ describe('parseDeckText', () => {
   })
 
   test('yields no sections when the text contains no card lines', () => {
-    const deck = parseDeckText('just some prose\nwith no quantities', 'X')
+    const { deck } = parseDeckText('just some prose\nwith no quantities', 'X')
     expect(deck.sections).toHaveLength(0)
+  })
+
+  test('reports a warning for every skipped body line', () => {
+    const { deck, warnings } = parseDeckText('## Main\n1 Sol Ring &1\nnot a card line', 'X')
+    expect(deck.sections[0]?.cards).toHaveLength(1)
+    expect(warnings).toEqual(['Skipped malformed line: not a card line'])
+  })
+
+  test('reports no warnings for a fully parseable deck', () => {
+    const { warnings } = parseDeckText(
+      '---\nname: Clean\n---\n\n## Main\n1 Sol Ring (LTC:284) &1\n',
+      'X',
+    )
+    expect(warnings).toEqual([])
   })
 })
 
