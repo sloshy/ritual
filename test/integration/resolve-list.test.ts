@@ -10,7 +10,7 @@ import {
 
 /**
  * End-to-end coverage for the shared cross-type list resolver, exercised through
- * `add-note` (a type-agnostic command). Verifies flagless cross-type resolution,
+ * `note` (a type-agnostic command). Verifies flagless cross-type resolution,
  * ambiguity failure + flag disambiguation, and conflicting-flag rejection.
  * Matching-tier semantics (case-insensitivity, substring fallback) are covered
  * by test/unit/resolve-list.test.ts.
@@ -30,7 +30,7 @@ describe('cross-type list resolution (Integration)', () => {
     await withWorkspace(async (dir) => {
       await writeDeckFile(dir, 'goblins', DECK)
       const result = await runCli(
-        ['add-note', 'goblins', 'Sol', 'Ring', '--note', 'ramp', '--output', 'json'],
+        ['note', 'goblins', 'Sol', 'Ring', '--note', 'ramp', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(0)
@@ -45,7 +45,7 @@ describe('cross-type list resolution (Integration)', () => {
       await writeDeckFile(dir, 'staples', DECK)
       await writeCollectionFile(dir, 'staples', COLLECTION)
       const result = await runCli(
-        ['add-note', 'staples', 'Sol', 'Ring', '--note', 'x', '--output', 'json'],
+        ['note', 'staples', 'Sol', 'Ring', '--note', 'x', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(2)
@@ -61,7 +61,7 @@ describe('cross-type list resolution (Integration)', () => {
       await writeDeckFile(dir, 'staples', DECK)
       await writeCollectionFile(dir, 'staples', COLLECTION)
       const result = await runCli(
-        ['add-note', '--collection', 'staples', 'Sol', 'Ring', '--note', 'x', '--output', 'json'],
+        ['note', '--collection', 'staples', 'Sol', 'Ring', '--note', 'x', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(0)
@@ -75,7 +75,7 @@ describe('cross-type list resolution (Integration)', () => {
       await writeDeckFile(dir, 'staples', DECK)
       const result = await runCli(
         [
-          'add-note',
+          'note',
           '--deck',
           '--collection',
           'staples',

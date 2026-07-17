@@ -68,6 +68,27 @@ export function normalizeCardName(name: string): string {
 }
 
 /**
+ * Two-tier name matching shared by the one-shot card commands and scripted
+ * moves: items whose {@link normalizeCardName}d name equals the normalized
+ * query win outright; only when none do does the match widen to items whose
+ * name contains the query as a substring. An empty (or punctuation-only) query
+ * matches nothing. Exactness beating containment is what lets a card literally
+ * named `Bolt` be selected even though `Bolt` is a substring of every
+ * `Lightning Bolt` in the same list.
+ */
+export function matchByNormalizedName<T>(
+  items: T[],
+  query: string,
+  nameOf: (item: T) => string,
+): T[] {
+  const normalized = normalizeCardName(query)
+  if (!normalized) return []
+  const exact = items.filter((item) => normalizeCardName(nameOf(item)) === normalized)
+  if (exact.length > 0) return exact
+  return items.filter((item) => normalizeCardName(nameOf(item)).includes(normalized))
+}
+
+/**
  * Reorder search results so that cards whose *whole* name the query spells out
  * come first, without otherwise disturbing the incoming order (which is EDHRec
  * popularity nearly everywhere card search happens).

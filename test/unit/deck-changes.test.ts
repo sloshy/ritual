@@ -795,6 +795,24 @@ describe('applyChangeToDeck — additional action coverage', () => {
     expect(main.cards[0]!.cardId).toBe(1)
   })
 
+  test('set-section moves the card to the named section, creating it when missing', () => {
+    const deck = makeDeck()
+    const result = applyChangeToDeck(deck, {
+      action: 'set-section',
+      cardName: 'Lightning Bolt',
+      cardId: 5,
+      section: 'Sideboard',
+    })
+    const main = result.sections.find((s) => s.name === 'Main')!
+    const sideboard = result.sections.find((s) => s.name === 'Sideboard')!
+    expect(main.cards).toHaveLength(0)
+    expect(sideboard.cards).toHaveLength(1)
+    expect(sideboard.cards[0]!.cardId).toBe(5)
+    // The moved entry keeps its full line (quantity and printing travel with it).
+    expect(sideboard.cards[0]!.quantity).toBe(4)
+    expect(sideboard.cards[0]!.set).toBe('lea')
+  })
+
   test('set-finish mutates the matching card finish in place', () => {
     const deck = makeDeck()
     const result = applyChangeToDeck(deck, {

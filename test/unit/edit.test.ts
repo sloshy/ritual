@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import type { Choice } from 'prompts'
 import {
   buildListSelectionChoices,
+  parseDirectListArgument,
   type PendingChangesByFile,
   type UnifiedListRef,
   type UnifiedSelection,
@@ -131,5 +132,37 @@ describe('buildListSelectionChoices', () => {
       { kind: 'new', type: 'wanted' },
       { kind: 'exit' },
     ])
+  })
+})
+
+describe('parseDirectListArgument', () => {
+  test('a bare name with no flag type resolves across all types', () => {
+    expect(parseDirectListArgument('Burn', undefined)).toEqual({ name: 'Burn', type: undefined })
+  })
+
+  test('a resolved type flag narrows the search', () => {
+    expect(parseDirectListArgument('Burn', 'deck')).toEqual({ name: 'Burn', type: 'deck' })
+    expect(parseDirectListArgument('Binder', 'collection')).toEqual({
+      name: 'Binder',
+      type: 'collection',
+    })
+  })
+
+  test('a list-type prefix on the name overrides the type flag', () => {
+    expect(parseDirectListArgument('collection:Binder', 'deck')).toEqual({
+      name: 'Binder',
+      type: 'collection',
+    })
+    expect(parseDirectListArgument('wanted:To Buy', undefined)).toEqual({
+      name: 'To Buy',
+      type: 'wanted',
+    })
+  })
+
+  test('an unknown prefix is kept as part of the literal name', () => {
+    expect(parseDirectListArgument('misc:Notes', undefined)).toEqual({
+      name: 'misc:Notes',
+      type: undefined,
+    })
   })
 })

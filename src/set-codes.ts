@@ -17,6 +17,22 @@ export function parseSetCodesInput(value: string): string[] {
   return result
 }
 
+/** A single parsed set code (normalized lowercase), or a user-facing error. */
+export type SetCodeParseResult = { ok: true; code: string } | { ok: false; error: string }
+
+/**
+ * Parse a single user-supplied set code: trimmed, lowercased, and required to
+ * be plain alphanumeric (`mkm`, `2xm`, ...). The canonical validation for every
+ * `--set`-style flag, so all surfaces reject the same malformed input.
+ */
+export function parseSetCode(raw: string): SetCodeParseResult {
+  const code = raw.trim().toLowerCase()
+  if (!/^[a-z0-9]+$/.test(code)) {
+    return { ok: false, error: `Invalid set code '${raw}'.` }
+  }
+  return { ok: true, code }
+}
+
 /**
  * Format an array of set codes for display in a text input — uppercase, comma-separated.
  */

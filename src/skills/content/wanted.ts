@@ -3,21 +3,39 @@ import type { RitualSkill } from '../types'
 export const wantedSkill: RitualSkill = {
   name: 'ritual-wanted',
   description:
-    'Manage and price a Magic: The Gathering wanted list (cards to acquire) with Ritual. Use when the user wants to track cards they want to buy, add cards to a wishlist, import a wanted list from a CSV or text file, or price a wanted list.',
+    'Manage and price a Magic: The Gathering wanted list (cards to acquire) with Ritual. Use when the user wants to track cards they want to buy, add cards to a wishlist, record a purchase by moving a wanted card into a collection, import a wanted list from a CSV or text file, or price a wanted list.',
   body: `# Managing wanted lists with Ritual
 
 Wanted lists (cards to acquire) live in \`wanted/<name>.md\`. Entries may be
 name-only — no printing required. See the **ritual** skill for the file format.
 
-## Add cards (non-interactive — best for agents)
+## One-shot edits (non-interactive — best for agents)
 
-Use \`add-card\` (covered by the **ritual-edit** skill). It works on wanted lists and
-creates the list if it does not exist yet:
+Use the one-shot commands (covered in full by the **ritual-edit** skill). \`add-card\`
+works on wanted lists and creates the list if it does not exist yet. Every wanted add
+chooses a specificity: \`--name-only\` (any copy) or a specific printing via
+\`--set\`/\`--collector-number\` (a terminal prompts when neither is given; a
+non-interactive run without one exits 2):
 
 \`\`\`bash
-ritual add-card "To Buy" "Mox Ruby" --wanted
-ritual add-card "To Buy" "Lightning Bolt" --wanted          # name-only is fine
-ritual add-card "To Buy" "Ragavan" --wanted -f foil         # -f finish (optional)
+ritual add-card "To Buy" "Mox Ruby" --wanted --name-only
+ritual add-card "To Buy" "Lightning Bolt" --wanted --name-only -f foil   # -f finish (optional)
+ritual add-card "To Buy" "Demonic Tutor" --wanted --set sta --collector-number 90
+ritual remove-card "To Buy" "Mox Ruby" --wanted              # one entry
+ritual set-card "To Buy" "Lightning Bolt" --wanted --finish foil
+ritual note "To Buy" "Mox Ruby" --wanted -n "budget copy only"
+\`\`\`
+
+## Bought a card? Move it to a collection
+
+\`ritual move\` with \`--from\`/\`--to\` records a purchase in one command: the entry
+leaves the wanted list and lands in the collection. Collections need a concrete
+printing, so a name-only entry takes it from \`--set\`/\`--collector-number\` (or its
+single known printing); already-pinned entries move as-is:
+
+\`\`\`bash
+ritual move "Demonic Tutor" --from "wanted:To Buy" --to "collection:Main Binder" \\
+  --set sta --collector-number 90
 \`\`\`
 
 ## Interactive management
@@ -25,10 +43,11 @@ ritual add-card "To Buy" "Ragavan" --wanted -f foil         # -f finish (optiona
 \`ritual edit\` opens the interactive editor (covered in full by the **ritual-edit**
 skill); pick a wanted list (or \`➕ New Wanted List\`) from its list selection menu. It
 **requires a terminal**, so it is not suitable for non-interactive agents — use
-\`add-card\` instead.
+the one-shot commands instead.
 
 \`\`\`bash
 ritual edit
+ritual edit "wanted:To Buy"          # open one list directly (matches the file basename)
 ritual edit --sets "FDN,SPG"         # restrict to these set codes
 ritual edit --finish foil
 ritual edit --collector              # enter cards by collector number

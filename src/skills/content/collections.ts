@@ -9,27 +9,35 @@ export const collectionsSkill: RitualSkill = {
 Collections of owned cards live in \`collections/<name>.md\`. See the **ritual**
 skill for the file format.
 
-## Add cards (non-interactive — best for agents)
+## One-shot edits (non-interactive — best for agents)
 
-Use \`add-card\` (covered by the **ritual-edit** skill). It works on collections and
-creates the collection if it does not exist yet:
+Use the one-shot commands (covered in full by the **ritual-edit** skill). \`add-card\`
+works on collections and creates the collection if it does not exist yet:
 
 \`\`\`bash
-ritual add-card "Main Binder" "Sol Ring" --collection
-ritual add-card "Main Binder" "Black Lotus" --collection -f foil -c NM
+ritual add-card "Main Binder" "Sol Ring" --collection --set c21 --collector-number 263
+ritual add-card "Main Binder" "Black Lotus" --collection --set lea --collector-number 232 -c LP
+ritual remove-card "Main Binder" "Sol Ring" --collection             # one entry
+ritual set-card "Main Binder" "Sol Ring" --collection --finish foil --condition NM
+ritual note "Main Binder" "Black Lotus" --collection -n "graded"     # or --clear
+ritual move "Sol Ring" --from "collection:Main Binder" --to deck:burn
 \`\`\`
 
-\`-f\` finish (nonfoil/foil/etched), \`-c\` condition (NM/LP/MP/HP/DMG).
+\`-f\` finish (nonfoil/foil/etched), \`-c\` condition (NM/LP/MP/HP/DMG, or \`NONE\` to
+record no condition). Collections track specific physical printings, so pin one
+with \`--set\` + \`--collector-number\` — a non-interactive add without a pin only
+succeeds when the card has a single paper printing.
 
 ## Interactive management
 
 \`ritual edit\` opens the interactive editor (covered in full by the **ritual-edit**
 skill); pick a collection (or \`➕ New Collection\`) from its list selection menu to
 bulk-add cards. It **requires a terminal**, so it is not suitable for non-interactive
-agents — use \`add-card\` instead.
+agents — use the one-shot commands instead.
 
 \`\`\`bash
 ritual edit
+ritual edit "Main Binder"            # open one collection directly (matches the file basename)
 ritual edit --sets "FDN,SPG"         # restrict to these set codes
 ritual edit --finish foil --condition NM
 ritual edit --collector              # enter cards by collector number

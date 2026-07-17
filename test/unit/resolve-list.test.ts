@@ -4,6 +4,7 @@ import {
   listTypeFromFlags,
   formatResolveListError,
   isResolveListError,
+  parseListArgument,
   type ListLocation,
   type ResolveListError,
 } from '../../src/resolve-list'
@@ -149,5 +150,20 @@ describe('formatResolveListError', () => {
     expect(message).toContain('Deck: Staples')
     expect(message).toContain('Collection: Staples')
     expect(message).toContain('--deck, --collection, or --wanted')
+  })
+})
+
+describe('parseListArgument', () => {
+  it('splits a type prefix off', () => {
+    expect(parseListArgument('deck:Burn')).toEqual({ type: 'deck', name: 'Burn' })
+    expect(parseListArgument('wanted:High Priority')).toEqual({
+      type: 'wanted',
+      name: 'High Priority',
+    })
+  })
+
+  it('leaves unprefixed names and unknown prefixes alone', () => {
+    expect(parseListArgument('Burn')).toEqual({ name: 'Burn' })
+    expect(parseListArgument('binder:Trades')).toEqual({ name: 'binder:Trades' })
   })
 })

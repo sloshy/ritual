@@ -1,20 +1,18 @@
-import { Command } from 'commander'
+import { Command, InvalidArgumentError, Option } from 'commander'
 import prompts from 'prompts'
 import type { PromptState } from './prompts-types'
 import path from 'node:path'
 import * as fs from 'node:fs/promises'
-import { getAllCardNames, getCardPrintings } from '../scryfall'
+import { getAllCardNames, getCardPrintings, isDigitalOnlySet } from '../scryfall'
 import { addCardToDeckFile } from '../deck-file'
 import {
   resolveCardPrinting,
   promptFinishAndCondition,
   formatCollectionLine,
   ensureCollectionFile,
-  isFinish,
-  isCondition,
-  type PrintingFilterConfig,
-  type FinishConditionConfig,
 } from './collection-helpers'
+import { isCondition, isFinish, normalizeFinishValue, VALID_CONDITIONS } from '../finish-condition'
+import { parseSetCode } from '../set-codes'
 import { ensureWantedListFile, formatWantedListLine, promptWantedFinish } from './wanted-helpers'
 import { isUsableFileName, unusableFileNameMessage } from '../list-file-name'
 import { ensureFreshCardCache } from '../cache/freshness'
@@ -28,16 +26,34 @@ import {
   formatCheapestPrintingDisplay,
 } from '../price-currency'
 import { getDefaultCurrency } from '../ritual-config'
+import type { Card, Condition, Finish, ScryfallCard } from '../types'
 import type { ListType } from '../list-type'
 import { matchesAllNameTerms, normalizeCardName, promoteFullNameMatches } from '../term-match'
 import {
   formatResolveListError,
   isResolveListError,
-  listTypeFromFlags,
+  parseListArgument,
   resolveList,
   type ListTypeFlags,
 } from '../resolve-list'
-import { ExitCode, type ExitCodeValue } from './scripting'
+import {
+  CardCommandError,
+  ensureFinishAvailable,
+  parsePositiveInteger,
+  resolveListTypeFlag,
+  resolvePinnedPrinting,
+  type PrintingPin,
+} from './card-target'
+import {
+  addScriptingOptions,
+  emitError,
+  emitOutput,
+  ExitCode,
+  normalizeScriptingOptions,
+  type ScriptingOptions,
+} from './scripting'
+import { divertConsoleLogToStderr } from '../mcp/stdout-guard'
+import { getErrorMessage } from '../errors'
 
 /** Parse existing &N IDs from a file and allocate the next available ID. */
 async function allocateNextIdFromFile(filePath: string): Promise<number> {
@@ -52,16 +68,278 @@ async function allocateNextIdFromFile(filePath: string): Promise<number> {
 }
 
 type AddCardOptions = {
-  quantity: string
-  finish?: string
-  condition?: string
+  quantity: number
+  finish?: Finish
+  condition?: Condition | 'NONE'
   exact?: boolean
-} & ListTypeFlags
+  set?: string
+  collectorNumber?: string
+  nameOnly?: boolean
+  specific?: boolean
+} & ListTypeFlags &
+  Partial<ScriptingOptions>
 
 /** A resolved (or freshly created) target list for `add-card`. */
 type AddCardTarget = { type: ListType; filePath: string; name: string }
-/** A resolution failure carrying a user-facing message and process exit code. */
-type AddCardTargetError = { error: string; code: ExitCodeValue }
+
+/** The JSON/NDJSON success payload. Set codes are lowercase (internal form). */
+type AddCardSuccess = {
+  type: ListType
+  list: string
+  cardName: string
+  set?: string
+  collectorNumber?: string
+  finish?: Finish
+  condition?: Condition
+  quantity?: number
+  cardId: number
+}
+
+// ── Flag argParsers (reject invalid values at parse time, exit code 2) ────────
+
+function parseFinishFlag(value: string): Finish {
+  const result = normalizeFinishValue(value)
+  if (!isFinish(result)) {
+    throw new InvalidArgumentError(result)
+  }
+  return result
+}
+
+function parseConditionFlag(value: string): Condition | 'NONE' {
+  const normalized = value.toUpperCase()
+  if (normalized === 'NONE') return 'NONE'
+  if (!isCondition(normalized)) {
+    throw new InvalidArgumentError(
+      `Invalid condition '${value}'. Use one of: ${VALID_CONDITIONS.join(', ')}, or NONE to record no condition.`,
+    )
+  }
+  return normalized
+}
+
+function parseQuantityFlag(value: string): number {
+  const parsed = parsePositiveInteger(value.trim())
+  if (parsed === undefined) {
+    throw new InvalidArgumentError('Quantity must be a positive integer.')
+  }
+  return parsed
+}
+
+function parseSetFlag(value: string): string {
+  const result = parseSetCode(value)
+  if (!result.ok) {
+    throw new InvalidArgumentError(result.error)
+  }
+  return result.code
+}
+
+function parseCollectorNumberFlag(value: string): string {
+  const normalized = value.trim()
+  if (normalized === '') {
+    throw new InvalidArgumentError('Collector number cannot be empty.')
+  }
+  return normalized
+}
+
+// ── Command registration ──────────────────────────────────────────────────────
+
+export function registerAddCardCommand(program: Command): void {
+  const command = program
+    .command('add-card')
+    .description('Add a card to a deck, collection, or wanted list by name')
+    .argument(
+      '<targetName>',
+      'Name of the deck, collection, or wanted list (resolved across all types unless a type flag is given)',
+    )
+    .argument('<cardName...>', 'Name of the card to search for')
+    .option('--deck', 'Resolve the name as a deck')
+    .option('--collection', 'Resolve the name as a collection (created if missing)')
+    .option('--wanted', 'Resolve the name as a wanted list (created if missing)')
+    .option('-q, --quantity <number>', 'Number of copies to add (deck only)', parseQuantityFlag, 1)
+    .option(
+      '-f, --finish <finish>',
+      'Card finish: nonfoil, foil, etched (collection/wanted only)',
+      parseFinishFlag,
+    )
+    .option(
+      '-c, --condition <condition>',
+      'Card condition: NM, LP, MP, HP, DMG, or NONE to record no condition (collection only)',
+      parseConditionFlag,
+    )
+    .option('-e, --exact', 'Use exact matching (skip interactive selection if name matches)', false)
+    .option(
+      '--set <code>',
+      'Pin an exact printing by set code (requires --collector-number)',
+      parseSetFlag,
+    )
+    .option(
+      '--collector-number <number>',
+      'Pin an exact printing by collector number (requires --set)',
+      parseCollectorNumberFlag,
+    )
+  command.addOption(
+    new Option(
+      '--name-only',
+      'Wanted lists: add the card by name without choosing a printing',
+    ).conflicts(['specific', 'set', 'collectorNumber']),
+  )
+  command.addOption(
+    new Option(
+      '--specific',
+      'Wanted lists: record a specific printing (via --set/--collector-number or interactive selection)',
+    ),
+  )
+  addScriptingOptions(command).action(
+    async (targetName: string, cardNameParts: string[], options: AddCardOptions) => {
+      const scripting = normalizeScriptingOptions(options, 'text')
+      if (scripting.output !== 'text') {
+        // Machine output must stay clean: informational logging from shared
+        // helpers (cache freshness prompts, Scryfall client) goes to stderr.
+        divertConsoleLogToStderr()
+      }
+      const type = resolveListTypeFlag(options, scripting)
+      if (type === 'conflict') return
+      try {
+        await runAddCard(
+          { targetName, cardNameInput: cardNameParts.join(' '), type, options },
+          scripting,
+        )
+      } catch (err) {
+        if (err instanceof CardCommandError) {
+          emitError(err.code, err.message, scripting, err.details)
+          process.exitCode = err.exitCode
+          return
+        }
+        throw err
+      }
+    },
+  )
+}
+
+type RunInput = {
+  targetName: string
+  cardNameInput: string
+  type: ListType | undefined
+  options: AddCardOptions
+}
+
+async function runAddCard(input: RunInput, scripting: ScriptingOptions): Promise<void> {
+  const { options } = input
+  const pin = resolvePrintingPinFlags(options.set, options.collectorNumber)
+
+  // Same list-addressing convention as the sibling one-shot commands: an
+  // optional `deck:`/`collection:`/`wanted:` prefix overrides the type flag.
+  const listArg = parseListArgument(input.targetName)
+  const type = listArg.type ?? input.type
+
+  // With a known target type, validate before the resolver auto-creates a
+  // missing collection/wanted file for a doomed run.
+  if (type !== undefined) validateTargetFlags(type, pin, options)
+  const target = await resolveAddCardTarget(listArg.name, type)
+  if (type === undefined) validateTargetFlags(target.type, pin, options)
+
+  const cacheResult = await ensureFreshCardCache()
+  if (!cacheResult.ready) {
+    throw new CardCommandError(
+      'runtime_error',
+      'Card cache is not available. Cannot proceed without cached card data.',
+      ExitCode.RuntimeError,
+    )
+  }
+  info(`Loaded ${cacheResult.cardCount} cards from cache.`, scripting)
+
+  const cardNames = await getAllCardNames()
+  const selectedName = await resolveCardName(
+    input.cardNameInput,
+    options.exact ?? false,
+    cardNames,
+    scripting,
+  )
+
+  switch (target.type) {
+    case 'deck':
+      await addToDeck(target, selectedName, pin, options, scripting)
+      break
+    case 'collection':
+      await addToCollection(target, selectedName, pin, options, scripting)
+      break
+    case 'wanted':
+      await addToWanted(target, selectedName, pin, options, scripting)
+      break
+  }
+}
+
+// ── Flag validation ───────────────────────────────────────────────────────────
+
+/** `--set` and `--collector-number` only pin a printing together. */
+function resolvePrintingPinFlags(
+  set: string | undefined,
+  collectorNumber: string | undefined,
+): PrintingPin | undefined {
+  if (set === undefined && collectorNumber === undefined) return undefined
+  if (set === undefined || collectorNumber === undefined) {
+    throw new CardCommandError(
+      'usage_error',
+      '--set and --collector-number must be given together.',
+      ExitCode.UsageError,
+    )
+  }
+  return { set, collectorNumber }
+}
+
+/**
+ * Reject flags that don't apply to the resolved target type (instead of
+ * silently ignoring them), and require an explicit specificity choice for
+ * wanted-list adds when there is no terminal to ask on.
+ */
+function validateTargetFlags(
+  type: ListType,
+  pin: PrintingPin | undefined,
+  options: AddCardOptions,
+): void {
+  if (type !== 'wanted' && (options.nameOnly || options.specific)) {
+    throw new CardCommandError(
+      'usage_error',
+      '--name-only and --specific apply only to wanted list targets.',
+      ExitCode.UsageError,
+    )
+  }
+  if (type === 'deck' && options.finish !== undefined) {
+    throw new CardCommandError(
+      'usage_error',
+      '--finish applies only to collection and wanted list targets.',
+      ExitCode.UsageError,
+    )
+  }
+  if (type !== 'collection' && options.condition !== undefined) {
+    throw new CardCommandError(
+      'usage_error',
+      '--condition applies only to collection targets.',
+      ExitCode.UsageError,
+    )
+  }
+  if (type !== 'deck' && options.quantity !== 1) {
+    throw new CardCommandError(
+      'usage_error',
+      '--quantity applies only to deck targets (collection and wanted entries are one physical card per line).',
+      ExitCode.UsageError,
+    )
+  }
+  if (
+    type === 'wanted' &&
+    !options.nameOnly &&
+    !options.specific &&
+    pin === undefined &&
+    !process.stdin.isTTY
+  ) {
+    throw new CardCommandError(
+      'usage_error',
+      'Wanted-list adds are interactive by default. Pass --name-only, --specific, or --set/--collector-number when stdin is not a terminal.',
+      ExitCode.UsageError,
+    )
+  }
+}
+
+// ── Target list resolution ────────────────────────────────────────────────────
 
 /**
  * Resolve `name` to an existing deck / collection / wanted list (via the shared
@@ -71,12 +349,13 @@ type AddCardTargetError = { error: string; code: ExitCodeValue }
 async function resolveAddCardTarget(
   name: string,
   type: ListType | undefined,
-): Promise<AddCardTarget | AddCardTargetError> {
+): Promise<AddCardTarget> {
   if (name.endsWith('.changes') || name.endsWith('.changes.md')) {
-    return {
-      error: `'${name}' is a changelog file and cannot be used as a list.`,
-      code: ExitCode.UsageError,
-    }
+    throw new CardCommandError(
+      'usage_error',
+      `'${name}' is a changelog file and cannot be used as a list.`,
+      ExitCode.UsageError,
+    )
   }
 
   const resolved = await resolveList(name, type)
@@ -87,26 +366,29 @@ async function resolveAddCardTarget(
   // Auto-create only when the type is known and the list simply doesn't exist yet.
   if (resolved.kind === 'not-found' && type) {
     if (type === 'deck') {
-      return {
-        error: `No deck named '${name}' found. Create it first with 'new-deck'.`,
-        code: ExitCode.NotFound,
-      }
+      throw new CardCommandError(
+        'not_found',
+        `No deck named '${name}' found. Create it first with 'new-deck'.`,
+        ExitCode.NotFound,
+      )
     }
     // The list is about to be created, so its name has to be usable as a file name.
-    // Reported as a usage error rather than thrown, like every other failure here.
     if (!isUsableFileName(name)) {
-      return { error: unusableFileNameMessage(name), code: ExitCode.UsageError }
+      throw new CardCommandError('usage_error', unusableFileNameMessage(name), ExitCode.UsageError)
     }
     const filePath =
       type === 'collection' ? await ensureCollectionFile(name) : await ensureWantedListFile(name)
     return { type, filePath, name: path.basename(filePath, '.md') }
   }
 
-  return {
-    error: formatResolveListError(resolved),
-    code: resolved.kind === 'ambiguous' ? ExitCode.UsageError : ExitCode.NotFound,
-  }
+  throw new CardCommandError(
+    resolved.kind === 'ambiguous' ? 'usage_error' : 'not_found',
+    formatResolveListError(resolved),
+    resolved.kind === 'ambiguous' ? ExitCode.UsageError : ExitCode.NotFound,
+  )
 }
+
+// ── Card name resolution ──────────────────────────────────────────────────────
 
 /**
  * Attempt an exact match against cached card names.
@@ -135,6 +417,53 @@ function countSubstringMatches(inputName: string, cardNames: string[], limit: nu
   return count
 }
 
+async function resolveCardName(
+  cardNameInput: string,
+  exact: boolean,
+  cardNames: string[],
+  scripting: ScriptingOptions,
+): Promise<string> {
+  if (exact) {
+    const match = findExactMatch(cardNameInput, cardNames)
+    if (!match) {
+      const matchCount = countSubstringMatches(cardNameInput, cardNames, 100)
+      const countLabel = matchCount >= 100 ? '100+' : String(matchCount)
+      throw new CardCommandError(
+        'not_found',
+        `No exact match for '${cardNameInput}'. ${countLabel} card${matchCount !== 1 ? 's' : ''} contain that name.`,
+        ExitCode.NotFound,
+      )
+    }
+    info(`Exact match found: ${match}`, scripting)
+    return match
+  }
+
+  if (!process.stdin.isTTY) {
+    // The autocomplete prompt would silently auto-answer with its first
+    // suggestion when stdin is not a terminal — accept only an exact name.
+    const match = findExactMatch(cardNameInput, cardNames)
+    if (match) return match
+    if (countSubstringMatches(cardNameInput, cardNames, 1) === 0) {
+      throw new CardCommandError(
+        'not_found',
+        `No cards found matching '${cardNameInput}'.`,
+        ExitCode.NotFound,
+      )
+    }
+    throw new CardCommandError(
+      'usage_error',
+      `Interactive card selection needs a terminal, and '${cardNameInput}' does not exactly match a cached card name. Pass the full card name.`,
+      ExitCode.UsageError,
+    )
+  }
+
+  const selected = await selectCardAutocomplete(cardNames, cardNameInput)
+  if (!selected) {
+    throw new CardCommandError('usage_error', 'Cancelled.', ExitCode.UsageError)
+  }
+  return selected
+}
+
 /**
  * Select a card name using an autocomplete prompt backed by the card cache.
  * When initialSearch is provided, pre-sorts matching cards to the top.
@@ -150,8 +479,11 @@ async function selectCardAutocomplete(
     filteredNames = cardNames.filter((name) => normalizeCardName(name).includes(normalizedSearch))
 
     if (filteredNames.length === 0) {
-      console.log(`No cards found matching '${initialSearch}'.`)
-      return null
+      throw new CardCommandError(
+        'not_found',
+        `No cards found matching '${initialSearch}'.`,
+        ExitCode.NotFound,
+      )
     }
 
     console.log(
@@ -186,193 +518,248 @@ async function selectCardAutocomplete(
   return response.cardName as string
 }
 
-export function registerAddCardCommand(program: Command): void {
-  program
-    .command('add-card')
-    .description('Add a card to a deck, collection, or wanted list by name')
-    .argument(
-      '<targetName>',
-      'Name of the deck, collection, or wanted list (resolved across all types unless a type flag is given)',
-    )
-    .argument('<cardName...>', 'Name of the card to search for')
-    .option('--deck', 'Resolve the name as a deck')
-    .option('--collection', 'Resolve the name as a collection (created if missing)')
-    .option('--wanted', 'Resolve the name as a wanted list (created if missing)')
-    .option('-q, --quantity <number>', 'Number of copies to add (deck only)', '1')
-    .option('-f, --finish <finish>', 'Card finish: nonfoil, foil, etched (collection/wanted only)')
-    .option('-c, --condition <condition>', 'Card condition: NM, LP, MP, HP, DMG (collection only)')
-    .option('-e, --exact', 'Use exact matching (skip interactive selection if name matches)', false)
-    .action(async (targetName: string, cardNameParts: string[], options: AddCardOptions) => {
-      const type = listTypeFromFlags(options)
-      if (type === 'conflict') {
-        console.error('Specify only one of --deck, --collection, or --wanted.')
-        process.exitCode = ExitCode.UsageError
-        return
-      }
+// ── Per-type add flows ────────────────────────────────────────────────────────
 
-      const target = await resolveAddCardTarget(targetName, type)
-      if ('error' in target) {
-        console.error(target.error)
-        process.exitCode = target.code
-        return
-      }
-
-      const cardNameInput = cardNameParts.join(' ')
-
-      // Ensure card cache is available and fresh
-      const cacheResult = await ensureFreshCardCache()
-      if (!cacheResult.ready) {
-        console.error('Card cache is not available. Cannot proceed without cached card data.')
-        process.exitCode = ExitCode.RuntimeError
-        return
-      }
-
-      console.log(`Loaded ${cacheResult.cardCount} cards from cache.`)
-
-      const cardNames = await getAllCardNames()
-
-      // Resolve the card name (exact match or autocomplete)
-      let selectedName: string | null
-
-      if (options.exact) {
-        selectedName = findExactMatch(cardNameInput, cardNames)
-        if (selectedName) {
-          console.log(`Exact match found: ${selectedName}`)
-        } else {
-          const matchCount = countSubstringMatches(cardNameInput, cardNames, 100)
-          const countLabel = matchCount >= 100 ? '100+' : String(matchCount)
-          console.error(
-            `No exact match for '${cardNameInput}'. ${countLabel} card${matchCount !== 1 ? 's' : ''} contain that name.`,
-          )
-          process.exitCode = ExitCode.NotFound
-          return
-        }
-      } else {
-        selectedName = await selectCardAutocomplete(cardNames, cardNameInput)
-      }
-
-      if (!selectedName) {
-        console.error('Cancelled.')
-        process.exitCode = ExitCode.UsageError
-        return
-      }
-
-      switch (target.type) {
-        case 'deck':
-          await handleDeckAddCard(target.filePath, target.name, selectedName, options)
-          break
-        case 'collection':
-          await handleCollectionAddCard(target.filePath, target.name, selectedName, options)
-          break
-        case 'wanted':
-          await handleWantedAddCard(target.filePath, target.name, selectedName, options)
-          break
-      }
-    })
-}
-
-async function handleDeckAddCard(
-  deckFilePath: string,
-  deckName: string,
+async function addToDeck(
+  target: AddCardTarget,
   selectedName: string,
+  pin: PrintingPin | undefined,
   options: AddCardOptions,
+  scripting: ScriptingOptions,
 ): Promise<void> {
-  const quantity = Number.parseInt(options.quantity, 10)
-  if (Number.isNaN(quantity) || quantity <= 0) {
-    console.error('Quantity must be a positive integer')
-    process.exitCode = ExitCode.UsageError
-    return
+  const pinned = pin ? await resolvePinnedPrinting(selectedName, pin) : undefined
+  const card: Card = {
+    quantity: options.quantity,
+    name: selectedName,
+    set: pinned?.set.toLowerCase(),
+    collectorNumber: pinned?.collector_number,
   }
 
-  const deckFileName = path.basename(deckFilePath)
-
+  let cardId: number
   try {
-    await addCardToDeckFile(deckFilePath, { quantity, name: selectedName })
-    console.log(`Added '${quantity} ${selectedName}' to ${deckFileName}`)
+    cardId = await addCardToDeckFile(target.filePath, card)
   } catch (e) {
-    console.error('Failed to update deck file:', e)
-    process.exitCode = ExitCode.RuntimeError
-    return
+    throw new CardCommandError(
+      'runtime_error',
+      `Failed to update deck file: ${getErrorMessage(e)}`,
+      ExitCode.RuntimeError,
+    )
   }
 
-  // Note: addCardToDeckFile allocates the cardId internally.
-  // The changelog records the change without the ID since it was assigned during file write.
-  const change = createAddChange(selectedName)
-  await appendChangelog(deckFilePath, deckName, [change])
+  await appendChangelog(target.filePath, target.name, [
+    createAddChange(selectedName, {
+      set: card.set,
+      collectorNumber: card.collectorNumber,
+      cardId,
+    }),
+  ])
+
+  const printingLabel = pinned ? ` (${pinned.set.toUpperCase()}:${pinned.collector_number})` : ''
+  emitSuccess(
+    {
+      type: 'deck',
+      list: target.name,
+      cardName: selectedName,
+      set: card.set,
+      collectorNumber: card.collectorNumber,
+      quantity: options.quantity,
+      cardId,
+    },
+    `Added '${options.quantity} ${selectedName}${printingLabel}' to ${path.basename(target.filePath)}`,
+    scripting,
+  )
 }
 
-async function handleCollectionAddCard(
-  collectionFilePath: string,
-  collectionName: string,
+async function addToCollection(
+  target: AddCardTarget,
   selectedName: string,
+  pin: PrintingPin | undefined,
   options: AddCardOptions,
+  scripting: ScriptingOptions,
 ): Promise<void> {
-  const normalizedCondition = options.condition?.toUpperCase()
-  const printingConfig: PrintingFilterConfig = {}
-  const finishConditionConfig: FinishConditionConfig = {
-    finish: options.finish && isFinish(options.finish) ? options.finish : undefined,
-    condition:
-      normalizedCondition && isCondition(normalizedCondition) ? normalizedCondition : undefined,
-  }
+  const printing = pin
+    ? await resolvePinnedPrinting(selectedName, pin)
+    : await promptCollectionPrinting(selectedName)
 
-  const printingResult = await resolveCardPrinting(selectedName, printingConfig, true)
-  if (!printingResult) {
-    console.error('No printing selected.')
-    process.exitCode = ExitCode.RuntimeError
-    return
-  }
+  if (options.finish !== undefined) ensureFinishAvailable(selectedName, printing, options.finish)
 
   const finishAndCondition = await promptFinishAndCondition(
-    printingResult.printing,
-    finishConditionConfig,
+    printing,
+    { finish: options.finish, condition: options.condition },
     false,
   )
   if (!finishAndCondition) {
-    console.error('Cancelled.')
-    process.exitCode = ExitCode.UsageError
-    return
+    throw new CardCommandError('usage_error', 'Cancelled.', ExitCode.UsageError)
   }
 
-  // Parse existing IDs to allocate the next one
-  const cardId = await allocateNextIdFromFile(collectionFilePath)
-
+  const cardId = await allocateNextIdFromFile(target.filePath)
   const line = formatCollectionLine(
     selectedName,
-    printingResult.printing.set,
-    printingResult.printing.collector_number,
+    printing.set,
+    printing.collector_number,
     finishAndCondition.finish,
     finishAndCondition.condition,
     undefined,
     cardId,
   )
+  await appendFileWithHash(target.filePath, line)
 
-  await appendFileWithHash(collectionFilePath, line)
-  console.log(`Added: ${line.trim()}`)
-  console.log(
-    formatSpecificPrintingPrice(
-      printingResult.printing,
-      finishAndCondition.finish,
-      getDefaultCurrency(),
-    ),
+  await appendChangelog(target.filePath, target.name, [
+    createAddChange(selectedName, {
+      set: printing.set.toLowerCase(),
+      collectorNumber: printing.collector_number,
+      finish: finishAndCondition.finish,
+      condition: finishAndCondition.condition,
+      cardId,
+    }),
+  ])
+
+  emitSuccess(
+    {
+      type: 'collection',
+      list: target.name,
+      cardName: selectedName,
+      set: printing.set.toLowerCase(),
+      collectorNumber: printing.collector_number,
+      finish: finishAndCondition.finish,
+      condition: finishAndCondition.condition,
+      cardId,
+    },
+    `Added: ${line.trim()}`,
+    scripting,
   )
-
-  const change = createAddChange(selectedName, {
-    set: printingResult.printing.set.toLowerCase(),
-    collectorNumber: printingResult.printing.collector_number,
-    finish: finishAndCondition.finish,
-    condition: finishAndCondition.condition,
-    cardId,
-  })
-  await appendChangelog(collectionFilePath, collectionName, [change])
+  info(
+    formatSpecificPrintingPrice(printing, finishAndCondition.finish, getDefaultCurrency()),
+    scripting,
+  )
 }
 
-async function handleWantedAddCard(
-  listFile: string,
-  wantedListName: string,
+/**
+ * Resolve a printing when no strict pin was given. Interactively this is the
+ * shared printing picker; without a terminal the picker would silently
+ * auto-answer with its first suggestion, so non-interactive runs only accept a
+ * card with a single (paper) printing and otherwise fail with `makeFailure()`.
+ */
+async function resolveInteractivePrinting(
+  cardName: string,
+  makeFailure: () => CardCommandError,
+): Promise<ScryfallCard> {
+  if (!process.stdin.isTTY) {
+    const printings = (await getCardPrintings(cardName)).filter((p) => !isDigitalOnlySet(p.set))
+    if (printings.length === 1) return printings[0]!
+    throw makeFailure()
+  }
+  const result = await resolveCardPrinting(cardName, {}, true)
+  if (!result) throw makeFailure()
+  return result.printing
+}
+
+/** Interactive printing selection for a collection add (no strict pin given). */
+async function promptCollectionPrinting(cardName: string): Promise<ScryfallCard> {
+  return resolveInteractivePrinting(
+    cardName,
+    () =>
+      new CardCommandError(
+        'runtime_error',
+        `No printing selected for '${cardName}'. Pass --set and --collector-number to pin one.`,
+        ExitCode.RuntimeError,
+      ),
+  )
+}
+
+type WantedAddMode = 'name-only' | 'specific'
+
+async function addToWanted(
+  target: AddCardTarget,
   selectedName: string,
+  pin: PrintingPin | undefined,
   options: AddCardOptions,
+  scripting: ScriptingOptions,
 ): Promise<void> {
-  const userFinish = options.finish && isFinish(options.finish) ? options.finish : undefined
+  const mode = await resolveWantedMode(selectedName, pin, options)
+
+  if (mode === 'name-only') {
+    const cardId = await allocateNextIdFromFile(target.filePath)
+    const line = formatWantedListLine(selectedName, undefined, options.finish, undefined, cardId)
+    await appendFileWithHash(target.filePath, line)
+    await appendChangelog(target.filePath, target.name, [
+      createAddChange(selectedName, { finish: options.finish, cardId }),
+    ])
+    emitSuccess(
+      {
+        type: 'wanted',
+        list: target.name,
+        cardName: selectedName,
+        finish: options.finish,
+        cardId,
+      },
+      `Added: ${line.trim()}`,
+      scripting,
+    )
+    await printCheapestPrinting(selectedName, scripting)
+    return
+  }
+
+  // Specific printing flow
+  const printing = pin
+    ? await resolvePinnedPrinting(selectedName, pin)
+    : await resolveWantedPrinting(selectedName)
+
+  if (options.finish !== undefined) ensureFinishAvailable(selectedName, printing, options.finish)
+
+  const finishResult = await promptWantedFinish(printing, options.finish)
+  if (finishResult === 'cancelled') {
+    throw new CardCommandError('usage_error', 'Cancelled.', ExitCode.UsageError)
+  }
+  const finish = finishResult === 'nopreference' ? undefined : finishResult
+
+  const cardId = await allocateNextIdFromFile(target.filePath)
+  const line = formatWantedListLine(
+    selectedName,
+    { set: printing.set, collectorNumber: printing.collector_number },
+    finish,
+    undefined,
+    cardId,
+  )
+  await appendFileWithHash(target.filePath, line)
+
+  await appendChangelog(target.filePath, target.name, [
+    createAddChange(selectedName, {
+      set: printing.set.toLowerCase(),
+      collectorNumber: printing.collector_number,
+      finish,
+      cardId,
+    }),
+  ])
+
+  emitSuccess(
+    {
+      type: 'wanted',
+      list: target.name,
+      cardName: selectedName,
+      set: printing.set.toLowerCase(),
+      collectorNumber: printing.collector_number,
+      finish,
+      cardId,
+    },
+    `Added: ${line.trim()}`,
+    scripting,
+  )
+  info(formatSpecificPrintingPrice(printing, finish, getDefaultCurrency()), scripting)
+}
+
+/**
+ * Decide the wanted-list specificity: `--name-only` wins, `--specific` or a
+ * printing pin selects the specific flow, and with neither the user is asked
+ * interactively (non-TTY runs were already rejected by `validateTargetFlags`).
+ */
+async function resolveWantedMode(
+  selectedName: string,
+  pin: PrintingPin | undefined,
+  options: AddCardOptions,
+): Promise<WantedAddMode> {
+  if (options.nameOnly) return 'name-only'
+  if (options.specific || pin !== undefined) return 'specific'
 
   const specificityResponse = await prompts({
     type: 'select',
@@ -385,73 +772,50 @@ async function handleWantedAddCard(
   })
 
   if (!specificityResponse.specificity) {
-    console.error('Cancelled.')
-    process.exitCode = ExitCode.UsageError
-    return
+    throw new CardCommandError('usage_error', 'Cancelled.', ExitCode.UsageError)
   }
+  return specificityResponse.specificity as WantedAddMode
+}
 
-  if (specificityResponse.specificity === 'name-only') {
-    const cardId = await allocateNextIdFromFile(listFile)
-    const line = formatWantedListLine(selectedName, undefined, userFinish, undefined, cardId)
-    await appendFileWithHash(listFile, line)
-    console.log(`Added: ${line.trim()}`)
-    const allPrintings = await getCardPrintings(selectedName)
-    const currency = getDefaultCurrency()
-    console.log(
-      formatCheapestPrintingDisplay(findCheapestPrinting(allPrintings, currency), currency),
-    )
-    const change = createAddChange(selectedName, { finish: userFinish, cardId })
-    await appendChangelog(listFile, wantedListName, [change])
-    return
-  }
-
-  // Specific printing flow
-  const printingResult = await resolveCardPrinting(selectedName, {}, true)
-  if (!printingResult) {
-    console.log('No printing selected. Adding name only.')
-    const cardId = await allocateNextIdFromFile(listFile)
-    const line = formatWantedListLine(selectedName, undefined, userFinish, undefined, cardId)
-    await appendFileWithHash(listFile, line)
-    console.log(`Added: ${line.trim()}`)
-    const allPrintings = await getCardPrintings(selectedName)
-    const currency = getDefaultCurrency()
-    console.log(
-      formatCheapestPrintingDisplay(findCheapestPrinting(allPrintings, currency), currency),
-    )
-    const change = createAddChange(selectedName, { finish: userFinish, cardId })
-    await appendChangelog(listFile, wantedListName, [change])
-    return
-  }
-
-  const finishResult = await promptWantedFinish(printingResult.printing, userFinish)
-  if (finishResult === 'cancelled') {
-    console.error('Cancelled.')
-    process.exitCode = ExitCode.UsageError
-    return
-  }
-
-  const finish = finishResult === 'nopreference' ? undefined : finishResult
-  const cardId = await allocateNextIdFromFile(listFile)
-  const line = formatWantedListLine(
-    selectedName,
-    {
-      set: printingResult.printing.set,
-      collectorNumber: printingResult.printing.collector_number,
-    },
-    finish,
-    undefined,
-    cardId,
+/**
+ * Printing selection for the wanted 'specific' flow. A failed resolution (no
+ * printings, prompt cancelled, or several candidates with no terminal to ask
+ * on) is an explicit error rather than a silent fallback to a name-only entry.
+ */
+async function resolveWantedPrinting(cardName: string): Promise<ScryfallCard> {
+  return resolveInteractivePrinting(
+    cardName,
+    () =>
+      new CardCommandError(
+        'runtime_error',
+        `Could not resolve a printing for '${cardName}'. Pass --set and --collector-number, or use --name-only.`,
+        ExitCode.RuntimeError,
+      ),
   )
+}
 
-  await appendFileWithHash(listFile, line)
-  console.log(`Added: ${line.trim()}`)
-  console.log(formatSpecificPrintingPrice(printingResult.printing, finish, getDefaultCurrency()))
+// ── Output ────────────────────────────────────────────────────────────────────
 
-  const change = createAddChange(selectedName, {
-    set: printingResult.printing.set.toLowerCase(),
-    collectorNumber: printingResult.printing.collector_number,
-    finish: finish,
-    cardId,
-  })
-  await appendChangelog(listFile, wantedListName, [change])
+/**
+ * Informational chatter (cache counts, price lines): printed in text mode
+ * unless `--quiet`; dropped entirely for machine output formats.
+ */
+function info(message: string, scripting: ScriptingOptions): void {
+  if (scripting.output === 'text' && !scripting.quiet) console.log(message)
+}
+
+function emitSuccess(payload: AddCardSuccess, textLine: string, scripting: ScriptingOptions): void {
+  if (scripting.output === 'text') {
+    if (!scripting.quiet) emitOutput(textLine, scripting)
+    return
+  }
+  emitOutput(payload, scripting)
+}
+
+/** Text-mode price hint for a name-only wanted add: the cheapest printing. */
+async function printCheapestPrinting(cardName: string, scripting: ScriptingOptions): Promise<void> {
+  if (scripting.output !== 'text' || scripting.quiet) return
+  const currency = getDefaultCurrency()
+  const allPrintings = await getCardPrintings(cardName)
+  console.log(formatCheapestPrintingDisplay(findCheapestPrinting(allPrintings, currency), currency))
 }

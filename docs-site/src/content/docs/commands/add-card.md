@@ -4,7 +4,7 @@ title: 'add-card'
 
 Add a card to a deck, collection, or wanted list by name.
 
-Uses the local card cache for fast autocomplete-based card selection. If the cache is empty or older than 7 days, you will be prompted to update it.
+Uses the local card cache for fast autocomplete-based card selection. If the cache is empty or older than 7 days, you will be prompted to update it. Fully scriptable: every prompt can be preempted with a flag, and `--output json` emits a machine-readable result.
 
 ## Usage
 
@@ -12,7 +12,7 @@ Uses the local card cache for fast autocomplete-based card selection. If the cac
 ./ritual add-card <targetName> <cardName...> [options]
 ```
 
-The target list is resolved from `<targetName>` across all three list types (see [List Resolution](/commands/list-resolution/)). Pass a `--deck`, `--collection`, or `--wanted` flag to pin the type — required when the name is ambiguous, and required to **create** a missing collection or wanted list.
+The target list is resolved from `<targetName>` across all three list types (see [List Resolution](/commands/list-resolution/)). Pass a `--deck`, `--collection`, or `--wanted` flag to pin the type — required when the name is ambiguous, and required to **create** a missing collection or wanted list. A `deck:`/`collection:`/`wanted:` prefix on the name (e.g. `collection:Main Binder`) works too and overrides the type flag.
 
 ## Arguments
 
@@ -23,17 +23,23 @@ The target list is resolved from `<targetName>` across all three list types (see
 
 ## Options
 
-| Option                   | Description                                            | Default | Applies To         |
-| ------------------------ | ------------------------------------------------------ | ------- | ------------------ |
-| `--deck`                 | Resolve the name as a deck                             |         |                    |
-| `--collection`           | Resolve the name as a collection (created if missing)  |         |                    |
-| `--wanted`               | Resolve the name as a wanted list (created if missing) |         |                    |
-| `-q, --quantity <num>`   | Number of copies to add                                | `1`     | Deck only          |
-| `-f, --finish <finish>`  | Card finish: `nonfoil`, `foil`, `etched`               |         | Collection, Wanted |
-| `-c, --condition <cond>` | Card condition: `NM`, `LP`, `MP`, `HP`, `DMG`          |         | Collection only    |
-| `-e, --exact`            | Use exact matching (skip selection if name matches)    | `false` |                    |
+| Option                     | Description                                                                                                                          | Default | Applies To         |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------- | ------------------ |
+| `--deck`                   | Resolve the name as a deck                                                                                                           |         |                    |
+| `--collection`             | Resolve the name as a collection (created if missing)                                                                                |         |                    |
+| `--wanted`                 | Resolve the name as a wanted list (created if missing)                                                                               |         |                    |
+| `-q, --quantity <num>`     | Number of copies to add (must be a positive integer); passing a value other than 1 to a collection or wanted target is a usage error | `1`     | Deck only          |
+| `-f, --finish <finish>`    | Card finish: `nonfoil`, `foil`, `etched`                                                                                             |         | Collection, Wanted |
+| `-c, --condition <cond>`   | Card condition: `NM`, `LP`, `MP`, `HP`, `DMG`, or `NONE` to record no condition                                                      |         | Collection only    |
+| `-e, --exact`              | Use exact matching (skip selection if name matches)                                                                                  | `false` |                    |
+| `--set <code>`             | Pin an exact printing by set code (requires `--collector-number`)                                                                    |         |                    |
+| `--collector-number <num>` | Pin an exact printing by collector number (requires `--set`)                                                                         |         |                    |
+| `--name-only`              | Add the card by name without choosing a printing                                                                                     |         | Wanted only        |
+| `--specific`               | Record a specific printing (via `--set`/`--collector-number` or interactive picker)                                                  |         | Wanted only        |
+| `--output <format>`        | Output format: `text`, `json`, or `ndjson`                                                                                           | `text`  |                    |
+| `--quiet`                  | Suppress non-essential output                                                                                                        | `false` |                    |
 
-`--deck`, `--collection`, and `--wanted` are mutually exclusive.
+`--deck`, `--collection`, and `--wanted` are mutually exclusive, as are `--name-only` and `--specific`. Flags that don't apply to the resolved target type (for example `--condition` on a wanted list, or `--name-only` on a deck) are rejected with a usage error rather than silently ignored. Invalid `--finish`, `--condition`, and `--quantity` values are rejected at parse time.
 
 ## Examples
 
@@ -49,28 +55,36 @@ Pin the type explicitly when a name could be ambiguous:
 ./ritual add-card --deck "My Deck" Lightning Bolt -q 4
 ```
 
-Add a card to a collection (prompts for printing selection and finish/condition):
+Pin an exact printing onto a deck line:
 
 ```bash
-./ritual add-card --collection "Main Collection" Black Lotus
+./ritual add-card --deck "My Deck" Sol Ring --exact --set C21 --collector-number 263
 ```
 
-Pre-fill finish and condition for a collection card:
+Fully scripted collection add — no prompts, machine-readable result:
 
 ```bash
-./ritual add-card --collection "Main Collection" Force of Will -f foil -c NM
+./ritual add-card --collection "Main" Lightning Bolt --exact \
+  --set STA --collector-number 42 --finish etched --condition LP --output json
 ```
 
-Add a card to a wanted list:
+Record no condition without being asked for one:
 
 ```bash
-./ritual add-card --wanted "My Wants" Demonic Tutor
+./ritual add-card --collection "Main" Sol Ring --exact \
+  --set LEA --collector-number 270 --condition NONE
 ```
 
-Add a card with exact matching (no interactive prompt if the name matches):
+Add a name-only wanted entry with a finish preference:
 
 ```bash
-./ritual add-card --deck "My Deck" Sol Ring --exact
+./ritual add-card --wanted "My Wants" Demonic Tutor --exact --name-only --finish foil
+```
+
+Add a wanted entry pinned to a printing (the pin implies `--specific`):
+
+```bash
+./ritual add-card --wanted "My Wants" Lightning Bolt --exact --set STA --collector-number 42
 ```
 
 ## Behavior
@@ -89,6 +103,26 @@ Suggestions are ordered by EDHRec popularity, except that a card whose **whole n
 
 When `--exact` is used, the input name is normalized (case and accents folded, punctuation stripped) and compared against all cached card names. If exactly one card matches, it is selected automatically with a confirmation message. If no exact match is found, the command exits with an error indicating how many cards contain the input as a substring (counted up to 100, reported as "100+" if the limit is reached).
 
+When stdin is **not a terminal**, the autocomplete prompt cannot run — an input that exactly matches a cached card name is accepted as if `--exact` were passed, and anything else is a usage error rather than a silent first-suggestion pick.
+
+### Printing Pins
+
+`--set` and `--collector-number` (always together) pin the add to one exact printing:
+
+- **Deck**: the printing is written onto the deck line (`3 Sol Ring (C21:263) &7`).
+- **Collection**: skips the interactive printing picker.
+- **Wanted**: skips the printing picker and implies the specific-printing flow.
+
+The pair is validated strictly against the card's known printings — a set/collector-number combination that doesn't exist fails with a usage error listing up to 10 available printings (also carried as `details.available` in JSON error output). There is no fuzzy or fallback matching.
+
+Without a pin, a non-interactive run (stdin not a terminal) only succeeds when the card has a single paper printing; several candidates fail with an error instead of guessing.
+
+### Finish and Condition
+
+`--finish` values are validated twice: the flag itself must be `nonfoil`, `foil`, or `etched` (rejected at parse time otherwise), and once a printing is resolved, a finish that printing isn't offered in fails with a usage error listing the finishes that do exist (also `details.availableFinishes` in JSON).
+
+`--condition` accepts the usual grades plus `NONE`, which explicitly records **no** condition and skips the condition prompt — the scripting equivalent of answering "Don't Care".
+
 ### Cache Freshness
 
 Before displaying the autocomplete prompt, the command checks the card cache:
@@ -99,28 +133,56 @@ Before displaying the autocomplete prompt, the command checks the card cache:
 
 ### Change Tracking
 
-Every card added through this command creates a change event that is recorded in a `.changes.md` changelog file alongside the target file. This changelog is displayed in the site's change history view.
+Every card added through this command creates a change event that is recorded in a `.changes.md` changelog file alongside the target file, including the `&N` card ID allocated for the new line. This changelog is displayed in the site's change history view.
 
 ### Deck Mode
 
-1. Card is selected via autocomplete from the cache.
-2. The card is added under the `## Main` section of the deck file.
+1. Card is selected via autocomplete from the cache (or `--exact`).
+2. The card is added under the `## Main` section of the deck file, with the pinned printing when `--set`/`--collector-number` are given.
 
-Deck entries record only the card name and quantity. Set code, collector number, and condition are all optional when building a deck list.
+Deck entries record the card name and quantity, plus the set code and collector number when pinned.
 
 ### Collection Mode
 
-1. Card is selected via autocomplete from the cache.
-2. You are prompted to select a specific printing (set + collector number).
-3. You are prompted for finish (`nonfoil`, `foil`, `etched`) and condition.
+1. Card is selected via autocomplete from the cache (or `--exact`).
+2. The printing comes from the `--set`/`--collector-number` pin, or you are prompted to select one.
+3. Finish and condition come from `--finish`/`--condition`, or you are prompted.
 4. The entry is appended to the collection file in `collections/`.
 
 Collection entries always record the specific printing (set code and collector number), since collection cards have monetary value tied to the exact printing. Condition defaults to unknown ("Don't Care") if not specified.
 
 ### Wanted List Mode
 
-1. Card is selected via autocomplete from the cache.
-2. You are prompted for specificity: **Name only (any copy)** appends just the card name, while **Choose specific printing** enters the printing selection flow followed by a finish prompt.
+1. Card is selected via autocomplete from the cache (or `--exact`).
+2. Specificity comes from `--name-only`, `--specific`, or a printing pin; with none of them you are prompted: **Name only (any copy)** appends just the card name, while **Choose specific printing** enters the printing selection flow followed by a finish prompt. When stdin is not a terminal, one of the flags is required — instead of prompting, the command exits with code `2`.
 3. The entry is appended to the wanted list file in `wanted/`.
 
-Wanted list entries require only the card name; the printing and finish are optional (see the [card states](/commands/edit/#card-states)). A default finish can be specified with `-f`.
+In the specific flow, a printing that cannot be resolved (no pin and no way to ask) is an **error** — the command never silently degrades a specific request to a name-only entry. Wanted list entries require only the card name; the printing and finish are optional (see the [card states](/commands/edit/#card-states)). A default finish can be specified with `-f`.
+
+## Output
+
+With `--output json` (or `ndjson`), a successful add prints exactly one machine-readable record — informational chatter (cache counts, price lines) never appears on stdout:
+
+```json
+{
+  "type": "collection",
+  "list": "main",
+  "cardName": "Lightning Bolt",
+  "set": "sta",
+  "collectorNumber": "42",
+  "finish": "etched",
+  "condition": "LP",
+  "cardId": 7
+}
+```
+
+Deck adds include `quantity`; wanted adds omit the fields that weren't recorded. Set codes are lowercase in JSON output (the internal representation). Errors raised after argument parsing (usage, not-found, and runtime errors) are emitted on stderr as `{ "error": { "code", "message", "details" } }`. Invalid flag _values_ and flag conflicts (e.g. `--name-only` with `--set`) are rejected by argument parsing itself and printed as plain text on stderr regardless of `--output` — the exit code is still 2. In text mode, `--quiet` suppresses all non-essential output.
+
+## Exit Codes
+
+| Code | Meaning                                                                                                                                                      |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `0`  | Card added                                                                                                                                                   |
+| `1`  | Runtime error (card cache unavailable, printing unresolvable in the specific flow, file write failure)                                                       |
+| `2`  | Usage error (invalid or conflicting flags, unknown printing pin, unavailable finish, cancelled prompt, missing wanted-specificity flag when stdin is no TTY) |
+| `3`  | Not found (missing deck, no exact card-name match, no cards matching the search)                                                                             |

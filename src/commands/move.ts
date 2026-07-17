@@ -4,7 +4,7 @@ import type { PromptState } from './prompts-types'
 import { promptExitMenu } from './prompts-helpers'
 import { resolveCardPrinting } from './collection-helpers'
 import { listRefLabel, type ListRef } from '../change-event'
-import type { ListEntry, MoveSessionConfig, VirtualCard } from './move-helpers'
+import type { ListEntry, MoveSessionConfig, PhysicalCard, VirtualCard } from './move-helpers'
 import {
   loadAllLists,
   loadPhysicalCards,
@@ -18,6 +18,28 @@ import {
   toggleSetAll,
   finishLabel,
 } from './move-helpers'
+import {
+  addScriptingOptions,
+  emitError,
+  emitOutput,
+  emitResolveListError,
+  ExitCode,
+  normalizeScriptingOptions,
+  type ScriptingOptions,
+} from './scripting'
+import {
+  CardCommandError,
+  describeEntry,
+  parseCardIdFlag,
+  parsePositiveInteger,
+} from './card-target'
+import { isResolveListError, parseListArgument, resolveList } from '../resolve-list'
+import { matchByNormalizedName } from '../term-match'
+import { getCardPrintings } from '../scryfall'
+import { isFinish, normalizeFinishValue, VALID_FINISHES } from '../finish-condition'
+import { parseSetCode } from '../set-codes'
+import type { Finish } from '../types'
+import type { ListType } from '../list-type'
 
 /** The main move-session prompt resolves to a menu sentinel or a physical-card key. */
 type MoveSelectionResponse = { selection?: string }
@@ -58,100 +80,625 @@ export function buildMoveMenuChoices(pendingCount: number): Choice[] {
 /** The session's lists, bucketed by list type for the toggle menus. */
 type ListsByType = Record<ListRef['type'], ListEntry[]>
 
+/** Raw commander option values for `move`; validated in the action. */
+type MoveCliOptions = {
+  from?: string
+  to?: string
+  quantity?: string
+  cardId?: string
+  set?: string
+  collectorNumber?: string
+  finish?: string
+} & Partial<ScriptingOptions>
+
 export function registerMoveCommand(program: Command): void {
-  program
-    .command('move')
-    .description('Interactively move cards between decks, collections, and wanted lists')
-    .action(async () => {
-      console.log('Loading all lists...')
-      const allLists = await loadAllLists()
+  addScriptingOptions(
+    program
+      .command('move')
+      .description(
+        'Move cards between decks, collections, and wanted lists — interactively, or scripted with --from/--to',
+      )
+      .argument('[cardName...]', 'Card to move (fuzzy match; requires --from and --to)')
+      .option(
+        '--from <list>',
+        "Source list; accepts a 'deck:'/'collection:'/'wanted:' prefix. Alone, launches the interactive session filtered to this source",
+      )
+      .option(
+        '--to <list>',
+        'Destination list (same prefix convention). Together with --from, moves without prompts',
+      )
+      .option('-q, --quantity <n>', 'Number of copies to move (default 1)')
+      .option('--card-id <id>', 'Select the source card by ID (the &N suffix in list files)')
+      .option(
+        '--set <code>',
+        'Narrow the match to this set code, or assign the printing when the card has none',
+      )
+      .option(
+        '--collector-number <cn>',
+        'Narrow the match to this collector number, or assign the printing when the card has none',
+      )
+      .option('--finish <finish>', `Narrow the match to this finish: ${VALID_FINISHES.join(', ')}`),
+  ).action(async (cardNameParts: string[], options: MoveCliOptions) => {
+    const scripting = normalizeScriptingOptions(options, 'text')
+    const cardName = cardNameParts.join(' ').trim() || undefined
 
-      if (allLists.length === 0) {
-        console.log('No list files found. Create a deck, collection, or wanted list first.')
+    try {
+      if (options.to !== undefined && options.from === undefined) {
+        throw new CardCommandError(
+          'usage_error',
+          '--to requires --from. Pass both to script a move.',
+          ExitCode.UsageError,
+        )
+      }
+
+      if (options.from !== undefined && options.to !== undefined) {
+        await runHeadlessMove(
+          {
+            fromRaw: options.from,
+            toRaw: options.to,
+            cardName,
+            cardIdRaw: options.cardId,
+            quantityRaw: options.quantity,
+            setRaw: options.set,
+            collectorNumber: options.collectorNumber,
+            finishRaw: options.finish,
+          },
+          scripting,
+        )
         return
       }
 
-      console.log('Loading cards...')
-      const physicalCards = await loadPhysicalCards(allLists)
+      if (
+        cardName !== undefined ||
+        options.cardId !== undefined ||
+        options.quantity !== undefined ||
+        options.set !== undefined ||
+        options.collectorNumber !== undefined ||
+        options.finish !== undefined
+      ) {
+        throw new CardCommandError(
+          'usage_error',
+          'Scripted moves need both --from and --to. Run `ritual move` without card arguments for the interactive session.',
+          ExitCode.UsageError,
+        )
+      }
 
-      if (physicalCards.length === 0) {
-        console.log('No cards found in any list.')
+      if (options.from !== undefined) {
+        const arg = parseListArgument(options.from)
+        const resolved = await resolveList(arg.name, arg.type)
+        if (isResolveListError(resolved)) {
+          emitResolveListError(resolved, scripting)
+          return
+        }
+        await runInteractiveMove(resolved.filePath)
         return
       }
 
-      const virtualState = buildVirtualState(physicalCards)
-      const config: MoveSessionConfig = {
-        enabledSources: new Set(allLists.map((l) => l.filePath)),
-        enabledDestinations: new Set(allLists.map((l) => l.filePath)),
-        allLists,
+      await runInteractiveMove(undefined)
+    } catch (err) {
+      if (err instanceof CardCommandError) {
+        emitError(err.code, err.message, scripting, err.details)
+        process.exitCode = err.exitCode
+        return
       }
+      throw err
+    }
+  })
+}
 
-      console.log(`Ready. ${physicalCards.length} card(s) across ${allLists.length} list(s).`)
+// ── Interactive session ───────────────────────────────────────────────────────
 
-      while (true) {
-        let isExited = false
-        const pending = getPendingMoves(virtualState)
-        const cardChoices = buildCardSearchChoices(virtualState, config.enabledSources)
+/**
+ * The interactive move session. When `sourceFilterPath` is given (from `--from`
+ * without `--to`), the session starts with only that list enabled as a source —
+ * the same set the Session Filters screen edits, so the user can widen it again
+ * mid-session.
+ */
+async function runInteractiveMove(sourceFilterPath: string | undefined): Promise<void> {
+  console.log('Loading all lists...')
+  const allLists = await loadAllLists()
 
-        const menuChoices: Choice[] = buildMoveMenuChoices(pending.length)
+  if (allLists.length === 0) {
+    console.log('No list files found. Create a deck, collection, or wanted list first.')
+    return
+  }
 
-        const allChoices: Choice[] = [
-          ...menuChoices,
-          ...cardChoices.map((c) => ({ title: c.title, value: c.value })),
-        ]
+  let sourceFilter: ListEntry | undefined
+  if (sourceFilterPath !== undefined) {
+    sourceFilter = allLists.find((l) => l.filePath === sourceFilterPath)
+    if (!sourceFilter) {
+      console.log('Source list not found among loaded lists.')
+      process.exitCode = ExitCode.NotFound
+      return
+    }
+  }
 
-        const response = (await prompts({
-          type: 'autocomplete',
-          name: 'selection',
-          message: 'Search for a card to move, or choose an option:',
-          choices: allChoices,
-          limit: 12,
-          suggest: async (rawInput, choices) => {
-            const input = String(rawInput).toLowerCase().trim()
-            if (!input) return choices.filter(isMoveMenuChoice)
+  console.log('Loading cards...')
+  const physicalCards = await loadPhysicalCards(allLists)
 
-            const terms = input.split(/\s+/).filter(Boolean)
-            return choices.filter((choice) => {
-              // Always show menu items when filtering
-              if (isMoveMenuChoice(choice)) return true
-              const title = choice.title.toLowerCase()
-              return terms.every((term) => title.includes(term))
-            })
-          },
-          onState: (state: PromptState) => {
-            if (state.exited) isExited = true
-          },
-        })) as MoveSelectionResponse
+  if (physicalCards.length === 0) {
+    console.log('No cards found in any list.')
+    return
+  }
 
-        if (isExited || response.selection === undefined || response.selection === '__EXIT__') {
-          const pendingNow = getPendingMoves(virtualState)
-          if (pendingNow.length > 0) {
-            const choice = await promptExitMenu(pendingNow.length)
-            if (choice === 'cancel') continue
-            if (choice === 'save') await savePendingMoves(virtualState)
-          }
-          break
-        }
+  const virtualState = buildVirtualState(physicalCards)
+  const config: MoveSessionConfig = {
+    enabledSources: new Set(
+      sourceFilter ? [sourceFilter.filePath] : allLists.map((l) => l.filePath),
+    ),
+    enabledDestinations: new Set(allLists.map((l) => l.filePath)),
+    allLists,
+  }
 
-        const selection: string = response.selection
+  if (sourceFilter) {
+    console.log(
+      `Source filter: ${listRefLabel(sourceFilter.ref)} (widen it under Session Filters).`,
+    )
+  }
 
-        if (selection === '__CONFIG__') {
-          await handleConfig(config)
-          continue
-        }
+  console.log(`Ready. ${physicalCards.length} card(s) across ${allLists.length} list(s).`)
 
-        if (selection === '__VIEW_PENDING__') {
-          handleViewPending(virtualState)
-          continue
-        }
+  while (true) {
+    let isExited = false
+    const pending = getPendingMoves(virtualState)
+    const cardChoices = buildCardSearchChoices(virtualState, config.enabledSources)
 
-        // Card selection
-        const vc = virtualState.get(selection)
-        if (!vc) continue
+    const menuChoices: Choice[] = buildMoveMenuChoices(pending.length)
 
-        await handleCardMove(vc, config, virtualState)
+    const allChoices: Choice[] = [
+      ...menuChoices,
+      ...cardChoices.map((c) => ({ title: c.title, value: c.value })),
+    ]
+
+    const response = (await prompts({
+      type: 'autocomplete',
+      name: 'selection',
+      message: 'Search for a card to move, or choose an option:',
+      choices: allChoices,
+      limit: 12,
+      suggest: async (rawInput, choices) => {
+        const input = String(rawInput).toLowerCase().trim()
+        if (!input) return choices.filter(isMoveMenuChoice)
+
+        const terms = input.split(/\s+/).filter(Boolean)
+        return choices.filter((choice) => {
+          // Always show menu items when filtering
+          if (isMoveMenuChoice(choice)) return true
+          const title = choice.title.toLowerCase()
+          return terms.every((term) => title.includes(term))
+        })
+      },
+      onState: (state: PromptState) => {
+        if (state.exited) isExited = true
+      },
+    })) as MoveSelectionResponse
+
+    if (isExited || response.selection === undefined || response.selection === '__EXIT__') {
+      const pendingNow = getPendingMoves(virtualState)
+      if (pendingNow.length > 0) {
+        const choice = await promptExitMenu(pendingNow.length)
+        if (choice === 'cancel') continue
+        if (choice === 'save') await savePendingMoves(virtualState)
       }
-    })
+      break
+    }
+
+    const selection: string = response.selection
+
+    if (selection === '__CONFIG__') {
+      await handleConfig(config)
+      continue
+    }
+
+    if (selection === '__VIEW_PENDING__') {
+      handleViewPending(virtualState)
+      continue
+    }
+
+    // Card selection
+    const vc = virtualState.get(selection)
+    if (!vc) continue
+
+    await handleCardMove(vc, config, virtualState)
+  }
+}
+
+// ── Headless (scripted) mode ──────────────────────────────────────────────────
+
+/** Raw inputs to a scripted move, before validation. */
+type HeadlessMoveArgs = {
+  fromRaw: string
+  toRaw: string
+  cardName: string | undefined
+  cardIdRaw: string | undefined
+  quantityRaw: string | undefined
+  setRaw: string | undefined
+  collectorNumber: string | undefined
+  finishRaw: string | undefined
+}
+
+/** Validated card-selection criteria for a scripted move. */
+type HeadlessSelection = {
+  cardName: string | undefined
+  cardId: number | undefined
+  quantity: number
+  /** Set code, lowercased. */
+  set: string | undefined
+  collectorNumber: string | undefined
+  finish: Finish | undefined
+}
+
+/** The card the move applied to, as reported in JSON output. */
+type MovedCardSummary = {
+  name: string
+  set?: string
+  collectorNumber?: string
+  finish?: Finish
+  /** The card's ID in the source list (destination lists assign fresh IDs). */
+  cardId?: number
+}
+
+/** A list endpoint of the move, as reported in JSON output. */
+type MoveListRefOutput = {
+  type: ListType
+  name: string
+}
+
+/** JSON success payload for a scripted move. */
+type MoveSuccessOutput = {
+  moved: number
+  card: MovedCardSummary
+  from: MoveListRefOutput
+  to: MoveListRefOutput
+}
+
+function parseQuantityFlag(raw: string): number {
+  const parsed = parsePositiveInteger(raw)
+  if (parsed === undefined) {
+    throw new CardCommandError(
+      'usage_error',
+      `--quantity must be a positive integer (got '${raw}').`,
+      ExitCode.UsageError,
+    )
+  }
+  return parsed
+}
+
+function parseFinishFlag(raw: string): Finish {
+  const result = normalizeFinishValue(raw)
+  if (!isFinish(result)) {
+    throw new CardCommandError('usage_error', result, ExitCode.UsageError)
+  }
+  return result
+}
+
+/** Validate `--set`: a normalized (lowercase alphanumeric) set code. */
+function parseSetFlag(raw: string): string {
+  const result = parseSetCode(raw)
+  if (!result.ok) {
+    throw new CardCommandError('usage_error', result.error, ExitCode.UsageError)
+  }
+  return result.code
+}
+
+/**
+ * Scripted move: resolve both lists, pick the requested copies out of the source
+ * list, resolve a printing when the destination is a collection, and commit
+ * through the same engine the interactive session uses.
+ */
+async function runHeadlessMove(args: HeadlessMoveArgs, scripting: ScriptingOptions): Promise<void> {
+  const cardId = args.cardIdRaw !== undefined ? parseCardIdFlag(args.cardIdRaw) : undefined
+  if (args.cardName === undefined && cardId === undefined) {
+    throw new CardCommandError(
+      'usage_error',
+      'Provide a card name or --card-id to select the card to move.',
+      ExitCode.UsageError,
+    )
+  }
+
+  const selection: HeadlessSelection = {
+    cardName: args.cardName,
+    cardId,
+    quantity: args.quantityRaw !== undefined ? parseQuantityFlag(args.quantityRaw) : 1,
+    set: args.setRaw !== undefined ? parseSetFlag(args.setRaw) : undefined,
+    collectorNumber: args.collectorNumber,
+    finish: args.finishRaw !== undefined ? parseFinishFlag(args.finishRaw) : undefined,
+  }
+
+  const fromArg = parseListArgument(args.fromRaw)
+  const fromResolved = await resolveList(fromArg.name, fromArg.type)
+  if (isResolveListError(fromResolved)) {
+    emitResolveListError(fromResolved, scripting)
+    return
+  }
+  const toArg = parseListArgument(args.toRaw)
+  const toResolved = await resolveList(toArg.name, toArg.type)
+  if (isResolveListError(toResolved)) {
+    emitResolveListError(toResolved, scripting)
+    return
+  }
+  if (fromResolved.filePath === toResolved.filePath) {
+    throw new CardCommandError(
+      'usage_error',
+      'Source and destination are the same list.',
+      ExitCode.UsageError,
+    )
+  }
+
+  const allLists = await loadAllLists()
+  const fromEntry = allLists.find((l) => l.filePath === fromResolved.filePath)
+  const toEntry = allLists.find((l) => l.filePath === toResolved.filePath)
+  if (!fromEntry || !toEntry) {
+    throw new CardCommandError(
+      'runtime_error',
+      'A resolved list could not be loaded.',
+      ExitCode.RuntimeError,
+    )
+  }
+
+  const state = buildVirtualState(await loadPhysicalCards([fromEntry]))
+  const selected = selectCopies(state, fromEntry, selection)
+
+  // Collection destinations require a concrete printing. Resolve it BEFORE any
+  // virtual move so a failure here leaves nothing half-applied.
+  const sample = selected[0]!
+  if (toEntry.ref.type === 'collection' && (!sample.card.set || !sample.card.collectorNumber)) {
+    const printing = await resolvePrintingForCollection(sample.card.name, selection)
+    for (const vc of selected) {
+      vc.card = { ...vc.card, set: printing.set, collectorNumber: printing.collectorNumber }
+    }
+  }
+
+  for (const vc of selected) {
+    applyVirtualMove(state, vc.physicalKey, toEntry)
+  }
+  const { moved } = await commitAllMoves(state)
+
+  if (moved < selection.quantity) {
+    throw new CardCommandError(
+      'runtime_error',
+      `Moved only ${moved} of ${selection.quantity} requested cop${selection.quantity === 1 ? 'y' : 'ies'}.`,
+      ExitCode.RuntimeError,
+      { moved, requested: selection.quantity },
+    )
+  }
+
+  emitMoveSuccess(selected[0]!.card, moved, fromEntry, toEntry, scripting)
+}
+
+/**
+ * Pick the copies a scripted move applies to: by `--card-id`, or by normalized
+ * name (exact tier first, then substring), narrowed by any printing flags.
+ * A selection that still spans more than one distinct printing is rejected —
+ * moving an arbitrary mix would be unpredictable for scripts.
+ */
+function selectCopies(
+  state: Map<string, VirtualCard>,
+  fromEntry: ListEntry,
+  selection: HeadlessSelection,
+): VirtualCard[] {
+  const label = listRefLabel(fromEntry.ref)
+  const all = [...state.values()]
+
+  let matches: VirtualCard[]
+  if (selection.cardId !== undefined) {
+    matches = all.filter((vc) => vc.card.cardId === selection.cardId)
+    if (matches.length === 0) {
+      throw new CardCommandError(
+        'not_found',
+        `No card with id ${selection.cardId} found in ${label}.`,
+        ExitCode.NotFound,
+      )
+    }
+  } else {
+    matches = matchByNormalizedName(all, selection.cardName!, (vc) => vc.card.name)
+    if (matches.length === 0) {
+      throw new CardCommandError(
+        'not_found',
+        `No card matching '${selection.cardName}' found in ${label}.`,
+        ExitCode.NotFound,
+      )
+    }
+  }
+
+  const hasNarrowing =
+    selection.set !== undefined ||
+    selection.collectorNumber !== undefined ||
+    selection.finish !== undefined
+  if (hasNarrowing) {
+    // Strict tier: the printing flags match the entry's own printing. Fallback
+    // tier: entries with no printing of their own (e.g. name-only wanted cards)
+    // are compatible with any --set/--collector-number, which is what lets the
+    // wanted → collection purchase flow both select and assign in one command.
+    const strict = matches.filter((vc) => printingMatches(vc.card, selection, 'strict'))
+    const narrowed =
+      strict.length > 0
+        ? strict
+        : matches.filter((vc) => printingMatches(vc.card, selection, 'compatible'))
+    if (narrowed.length === 0) {
+      throw new CardCommandError(
+        'not_found',
+        `No copies of '${matches[0]!.card.name}' matching ${describeNarrowing(selection)} found in ${label}.`,
+        ExitCode.NotFound,
+      )
+    }
+    matches = narrowed
+  }
+
+  const combos = new Map<string, PhysicalCard>()
+  for (const vc of matches) {
+    combos.set(printingComboKey(vc.card), vc.card)
+  }
+  if (combos.size > 1) {
+    const distinct = [...combos.values()]
+    const lines = distinct
+      .slice(0, 10)
+      .map((c) => `  - ${describeEntry(c)}`)
+      .join('\n')
+    const suffix = distinct.length > 10 ? `\n  ... and ${distinct.length - 10} more` : ''
+    throw new CardCommandError(
+      'usage_error',
+      `Multiple printings match in ${label}. Narrow with --set, --collector-number, --finish, or --card-id:\n${lines}${suffix}`,
+      ExitCode.UsageError,
+      {
+        matches: distinct.map((c) => ({
+          name: c.name,
+          cardId: c.cardId,
+          set: c.set,
+          collectorNumber: c.collectorNumber,
+          finish: c.finish,
+        })),
+      },
+    )
+  }
+
+  if (matches.length < selection.quantity) {
+    throw new CardCommandError(
+      'not_found',
+      `Only ${matches.length} cop${matches.length === 1 ? 'y' : 'ies'} of '${matches[0]!.card.name}' in ${label} (requested ${selection.quantity}).`,
+      ExitCode.NotFound,
+      { available: matches.length, requested: selection.quantity },
+    )
+  }
+
+  return matches.slice(0, selection.quantity)
+}
+
+/**
+ * Whether a card's printing satisfies the narrowing flags. In `strict` mode the
+ * card must carry the flagged set/collector number itself; in `compatible` mode
+ * a card with *no* printing also passes (it can become that printing). A missing
+ * finish always means nonfoil — there is no "unassigned" finish.
+ */
+function printingMatches(
+  card: PhysicalCard,
+  selection: HeadlessSelection,
+  mode: 'strict' | 'compatible',
+): boolean {
+  if (selection.set !== undefined) {
+    if (card.set === undefined) {
+      if (mode === 'strict') return false
+    } else if (card.set.toLowerCase() !== selection.set) {
+      return false
+    }
+  }
+  if (selection.collectorNumber !== undefined) {
+    if (card.collectorNumber === undefined) {
+      if (mode === 'strict') return false
+    } else if (card.collectorNumber !== selection.collectorNumber) {
+      return false
+    }
+  }
+  if (selection.finish !== undefined && (card.finish ?? 'nonfoil') !== selection.finish) {
+    return false
+  }
+  return true
+}
+
+function printingComboKey(card: PhysicalCard): string {
+  return `${card.set?.toLowerCase() ?? ''}|${card.collectorNumber ?? ''}|${card.finish ?? 'nonfoil'}`
+}
+
+function describeNarrowing(selection: HeadlessSelection): string {
+  const parts: string[] = []
+  if (selection.set !== undefined) parts.push(`set ${selection.set.toUpperCase()}`)
+  if (selection.collectorNumber !== undefined) {
+    parts.push(`collector number ${selection.collectorNumber}`)
+  }
+  if (selection.finish !== undefined) parts.push(`finish ${selection.finish}`)
+  return parts.join(', ')
+}
+
+/** The printing assigned to a name-only card headed for a collection. */
+type AssignedPrinting = {
+  /** Set code, lowercase. */
+  set: string
+  collectorNumber: string
+}
+
+/**
+ * Resolve the printing a name-only card lands with in a collection: the
+ * `--set`/`--collector-number` flags when given, else the card's single known
+ * printing from the local Scryfall cache. Anything ambiguous (or unknown) is a
+ * usage error — the headless path never prompts.
+ */
+async function resolvePrintingForCollection(
+  cardName: string,
+  selection: HeadlessSelection,
+): Promise<AssignedPrinting> {
+  if (selection.set !== undefined && selection.collectorNumber !== undefined) {
+    return { set: selection.set, collectorNumber: selection.collectorNumber }
+  }
+  if (selection.set !== undefined || selection.collectorNumber !== undefined) {
+    throw new CardCommandError(
+      'usage_error',
+      `'${cardName}' has no printing; pass both --set and --collector-number to assign one for the collection destination.`,
+      ExitCode.UsageError,
+    )
+  }
+
+  const printings = await getCardPrintings(cardName)
+  if (printings.length === 1) {
+    const p = printings[0]!
+    return { set: p.set.toLowerCase(), collectorNumber: p.collector_number }
+  }
+  if (printings.length === 0) {
+    throw new CardCommandError(
+      'usage_error',
+      `No printings of '${cardName}' found in the card cache. Pass --set and --collector-number to assign one for the collection destination.`,
+      ExitCode.UsageError,
+    )
+  }
+  const lines = printings
+    .slice(0, 10)
+    .map((p) => `  - ${p.set_name} (${p.set.toUpperCase()}:${p.collector_number})`)
+    .join('\n')
+  const suffix = printings.length > 10 ? `\n  ... and ${printings.length - 10} more` : ''
+  throw new CardCommandError(
+    'usage_error',
+    `'${cardName}' has multiple printings. Pick one with --set and --collector-number:\n${lines}${suffix}`,
+    ExitCode.UsageError,
+    {
+      printings: printings.map((p) => ({
+        set: p.set.toLowerCase(),
+        collectorNumber: p.collector_number,
+        setName: p.set_name,
+      })),
+    },
+  )
+}
+
+function emitMoveSuccess(
+  card: PhysicalCard,
+  moved: number,
+  from: ListEntry,
+  to: ListEntry,
+  scripting: ScriptingOptions,
+): void {
+  if (scripting.output === 'text') {
+    if (scripting.quiet) return
+    const printingPart =
+      card.set && card.collectorNumber ? ` (${card.set.toUpperCase()}:${card.collectorNumber})` : ''
+    emitOutput(
+      `Moved ${moved} x ${card.name}${printingPart}${finishLabel(card.finish)} from ${listRefLabel(from.ref)} to ${listRefLabel(to.ref)}`,
+      scripting,
+    )
+    return
+  }
+
+  const payload: MoveSuccessOutput = {
+    moved,
+    card: {
+      name: card.name,
+      set: card.set,
+      collectorNumber: card.collectorNumber,
+      finish: card.finish,
+      cardId: card.cardId,
+    },
+    from: { type: from.ref.type, name: from.ref.name },
+    to: { type: to.ref.type, name: to.ref.name },
+  }
+  emitOutput(payload, scripting)
 }
 
 async function savePendingMoves(virtualState: Map<string, VirtualCard>): Promise<void> {

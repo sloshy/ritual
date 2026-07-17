@@ -14,13 +14,20 @@ or mirror a change across two lists, all in one session with one save at the end
 ## Usage
 
 ```bash
-./ritual edit [options]
+./ritual edit [listName] [options]
 ```
+
+With no arguments, the editor starts at the [list selection menu](#the-list-selection-menu). Pass
+a `[listName]` to skip the menu and open that list's session directly — see
+[Opening a List Directly](#opening-a-list-directly).
 
 ### Options
 
 | Flag                          | Description                                                 |
 | ----------------------------- | ----------------------------------------------------------- |
+| `--deck`                      | Resolve `[listName]` as a deck                              |
+| `--collection`                | Resolve `[listName]` as a collection                        |
+| `--wanted`                    | Resolve `[listName]` as a wanted list                       |
 | `-s, --sets <codes>`          | Filter by set codes (comma-separated, e.g., `"FDN, SPG"`)   |
 | `-f, --finish <finish>`       | Default finish: `nonfoil`, `foil`, or `etched`              |
 | `-c, --condition <condition>` | Default condition: `NM`, `LP`, `MP`, `HP`, or `DMG`         |
@@ -32,7 +39,37 @@ or mirror a change across two lists, all in one session with one save at the end
 
 Digital-only sets (Alchemy sets, plus `OM1`) are filtered out by default since they have no paper
 printings. Options can be combined; when `--collector` is used with `--sets`, the set card data is
-pre-loaded automatically.
+pre-loaded automatically. The type flags only matter together with `[listName]`; without it they
+are ignored, since the selection menu already covers every type.
+
+## Opening a List Directly
+
+`./ritual edit <listName>` opens that list's editing session immediately, skipping the selection
+menu. The name is resolved across all three list types with the shared
+[list resolution](/commands/list-resolution/) rules (case- and accent-insensitive, exact match
+first, then a unique substring). Narrow the search with a type flag, or with a
+`deck:` / `collection:` / `wanted:` prefix on the name itself — the prefix wins over the flag:
+
+```bash
+./ritual edit Burn                # any list named Burn
+./ritual edit "To Buy" --wanted   # only wanted lists are searched
+./ritual edit collection:Binder   # prefix form of the same idea
+```
+
+Once open, the session behaves exactly as if you had picked the list from the menu: the same
+session filters apply, and `🔀 Switch List` (or <kbd>Esc</kbd>) backs out to the normal selection
+menu rather than quitting, so a direct open can still grow into a multi-list session.
+
+A name that matches nothing (or more than one list) fails with an error before the editor starts —
+see [Exit Codes](#exit-codes).
+
+:::note
+The name is matched against the list's **file name** (without `.md`), like every other command. The
+selection menu, by contrast, shows decks by their **display name** (the `name:` front matter
+field) — so a deck whose title differs from its file name is addressed here by the file name. A
+deck at `decks/old-burn.md` titled `Modern Burn` opens with `./ritual edit old-burn`, not
+`./ritual edit "Modern Burn"`.
+:::
 
 The session filters (sets, finish, condition, entry mode, and the deck target section) are shared
 across every list you open, so they carry over when you switch lists. The condition applies to
@@ -472,10 +509,17 @@ and **Section** appears as a grouping option in the toolbar. Sections are manage
 
 ## Examples
 
-Start the editor:
+Start the editor at the list selection menu:
 
 ```bash
 ./ritual edit
+```
+
+Jump straight into a list — a deck by file name, or any list with a type prefix:
+
+```bash
+./ritual edit Burn
+./ritual edit collection:Binder
 ```
 
 Cataloging session with defaults, hopping between a collection and a wanted list:
@@ -495,3 +539,14 @@ Collector-number entry with sets pre-loaded:
 ```bash
 ./ritual edit --collector --sets "FDN, SPG"
 ```
+
+## Exit Codes
+
+The failure codes apply only to [opening a list directly](#opening-a-list-directly); the
+interactive editor itself always exits `0`.
+
+| Code | Meaning                                                                           |
+| ---- | --------------------------------------------------------------------------------- |
+| `0`  | Editor exited normally                                                            |
+| `2`  | Usage error (conflicting type flags, or `[listName]` matched more than one list)  |
+| `3`  | Not found (`[listName]` matched nothing, or no lists exist in the searched scope) |

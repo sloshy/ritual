@@ -3,6 +3,7 @@ import type { PromptState } from './prompts-types'
 import { getCardPrintings, isDigitalOnlySet } from '../scryfall'
 import type { ScryfallCard, Finish, Condition } from '../types'
 import { capitalize } from '../utils'
+import { findPrinting } from '../card-printing'
 import {
   VALID_FINISHES,
   VALID_CONDITIONS,
@@ -118,6 +119,93 @@ export async function resolveCardPrinting(
   }
 
   return { cardName, printing: selectedPrinting }
+}
+
+/** A printing surfaced in a strict-pin error, as a `set`/`collectorNumber` pair. */
+export type AvailablePrinting = { set: string; collectorNumber: string }
+
+/**
+ * Result of matching a strict `--set`/`--collector-number` printing pin against
+ * a card's known printings. A failed match carries a user-facing message that
+ * lists (up to {@link MAX_LISTED_PRINTINGS}) available printings, plus the same
+ * list as structured data for machine output.
+ */
+export type PrintingPinMatch =
+  | { ok: true; printing: ScryfallCard }
+  | { ok: false; message: string; available: AvailablePrinting[]; totalPrintings: number }
+
+const MAX_LISTED_PRINTINGS = 10
+
+/**
+ * Match a strict printing pin. Unlike {@link resolveCardPrinting}'s soft set
+ * filter (which falls back to all printings when nothing matches), a pin that
+ * doesn't correspond to a real printing is an error. Set codes are compared
+ * case-insensitively; collector numbers must match exactly.
+ */
+export function matchPrintingPin(
+  cardName: string,
+  printings: ScryfallCard[],
+  set: string,
+  collectorNumber: string,
+): PrintingPinMatch {
+  const printing = findPrinting(printings, set, collectorNumber)
+  if (printing) return { ok: true, printing }
+
+  const available: AvailablePrinting[] = printings.slice(0, MAX_LISTED_PRINTINGS).map((p) => ({
+    set: p.set.toLowerCase(),
+    collectorNumber: p.collector_number,
+  }))
+  if (printings.length === 0) {
+    return {
+      ok: false,
+      message: `No printings of '${cardName}' found in the card cache.`,
+      available,
+      totalPrintings: 0,
+    }
+  }
+  const listed = available.map((p) => `${p.set.toUpperCase()}:${p.collectorNumber}`).join(', ')
+  const more =
+    printings.length > MAX_LISTED_PRINTINGS
+      ? `, and ${printings.length - MAX_LISTED_PRINTINGS} more`
+      : ''
+  return {
+    ok: false,
+    message: `No printing ${set.toUpperCase()}:${collectorNumber} of '${cardName}'. Available printings: ${listed}${more}.`,
+    available,
+    totalPrintings: printings.length,
+  }
+}
+
+/**
+ * The finishes a printing is actually offered in. Cache entries that carry no
+ * usable finish data are treated as plain nonfoil, matching the default
+ * {@link promptFinishAndCondition} falls back to.
+ */
+export function printingFinishes(printing: ScryfallCard): Finish[] {
+  const available = (printing.finishes ?? []).filter(isFinish)
+  return available.length > 0 ? available : ['nonfoil']
+}
+
+/** Result of validating a requested finish against a resolved printing. */
+export type FinishPinMatch = { ok: true } | { ok: false; message: string; available: Finish[] }
+
+/**
+ * Validate that `finish` is one the printing is offered in. A valid-but-
+ * unavailable finish is an error listing the finishes that do exist, rather
+ * than a silent fallback to a prompt.
+ */
+export function matchFinishPin(
+  cardName: string,
+  printing: ScryfallCard,
+  finish: Finish,
+): FinishPinMatch {
+  const available = printingFinishes(printing)
+  if (available.includes(finish)) return { ok: true }
+  return {
+    ok: false,
+    message: `Printing ${printing.set.toUpperCase()}:${printing.collector_number} of '${cardName}' is not available in ${finish}. Available finishes: ${available.join(', ')}.`,
+    available,
+  }
 }
 
 type FinishAndConditionResult = {

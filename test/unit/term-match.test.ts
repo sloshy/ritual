@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  matchByNormalizedName,
   matchesAllNameTerms,
   matchesAllTerms,
   normalizeCardName,
@@ -82,6 +83,47 @@ const normalizeCardNameCases: NormalizeCase[] = [
 describe('normalizeCardName', () => {
   test.each(normalizeCardNameCases)('%s', (_label, input, expected) => {
     expect(normalizeCardName(input)).toBe(expected)
+  })
+})
+
+describe('matchByNormalizedName', () => {
+  type Entry = { name: string }
+  const nameOf = (e: Entry) => e.name
+  const entries: Entry[] = [
+    { name: 'Bolt' },
+    { name: 'Lightning Bolt' },
+    { name: 'Lightning Bolt' },
+    { name: 'Sol Ring' },
+  ]
+
+  test('an exact normalized match wins over substring matches', () => {
+    // 'Bolt' is a substring of both Lightning Bolts, but the exact tier
+    // resolves it to the card literally named 'Bolt'.
+    expect(matchByNormalizedName(entries, 'Bolt', nameOf)).toEqual([{ name: 'Bolt' }])
+  })
+
+  test('falls back to substring matches when nothing matches exactly', () => {
+    expect(matchByNormalizedName(entries, 'Lightning', nameOf)).toEqual([
+      { name: 'Lightning Bolt' },
+      { name: 'Lightning Bolt' },
+    ])
+  })
+
+  test('an empty or punctuation-only query matches nothing', () => {
+    expect(matchByNormalizedName(entries, '', nameOf)).toEqual([])
+    expect(matchByNormalizedName(entries, '  !!  ', nameOf)).toEqual([])
+  })
+
+  test('no matches yields an empty array', () => {
+    expect(matchByNormalizedName(entries, 'Black Lotus', nameOf)).toEqual([])
+  })
+
+  test('matching ignores case, punctuation, and diacritics', () => {
+    const fancy: Entry[] = [{ name: "Jace's Archivist" }, { name: 'Séance' }]
+    expect(matchByNormalizedName(fancy, 'jaces archivist', nameOf)).toEqual([
+      { name: "Jace's Archivist" },
+    ])
+    expect(matchByNormalizedName(fancy, 'seance', nameOf)).toEqual([{ name: 'Séance' }])
   })
 })
 

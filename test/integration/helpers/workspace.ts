@@ -246,6 +246,65 @@ export async function writeWantedFile(
   return writeListFile(filePath, wantedMarkdown({ ...fixture, title: fixture.title ?? fileName }))
 }
 
+/** Options for {@link seedCardTargetWorkspace}: the small deltas between the card-command suites. */
+export type CardTargetWorkspaceOptions = {
+  /** Attach the note fixtures the `note` suite reads and clears (deck 'reprint', collection 'first edition', wanted 'old shtick'). */
+  withNotes?: boolean
+  /** Finish for the LEA:161 Lightning Bolt deck entry (the `set-card` suite pins a foil to test finish preservation). */
+  leaBoltFinish?: Finish
+}
+
+/**
+ * Seed the shared fixture used by the one-shot card-command suites (`note`,
+ * `remove-card`, `set-card`): deck `test` with an ambiguous Lightning Bolt
+ * printing pair, collection `main`, and wanted list `needs`.
+ */
+export async function seedCardTargetWorkspace(
+  dir: string,
+  options: CardTargetWorkspaceOptions = {},
+): Promise<void> {
+  await writeDeckFile(dir, 'test', {
+    frontMatter: { name: 'Test Deck' },
+    cards: [
+      { quantity: 2, name: 'Sol Ring', cardId: 1 },
+      {
+        quantity: 1,
+        name: 'Lightning Bolt',
+        set: 'lea',
+        collectorNumber: '161',
+        ...(options.leaBoltFinish ? { finish: options.leaBoltFinish } : {}),
+        cardId: 2,
+      },
+      {
+        quantity: 1,
+        name: 'Lightning Bolt',
+        set: '2xm',
+        collectorNumber: '157',
+        ...(options.withNotes ? { note: 'reprint' } : {}),
+        cardId: 3,
+      },
+    ],
+  })
+  await writeCollectionFile(dir, 'main', {
+    entries: [
+      {
+        name: 'Sol Ring',
+        set: 'c21',
+        collectorNumber: '240',
+        ...(options.withNotes ? { note: 'first edition' } : {}),
+        cardId: 1,
+      },
+      { name: 'Mana Crypt', set: '2xm', collectorNumber: '1', finish: 'foil', cardId: 2 },
+    ],
+  })
+  await writeWantedFile(dir, 'needs', {
+    entries: [
+      { name: 'Demonic Tutor', ...(options.withNotes ? { note: 'old shtick' } : {}), cardId: 1 },
+      { name: 'Underground Sea', set: 'leb', collectorNumber: '286', cardId: 2 },
+    ],
+  })
+}
+
 /** An entry with its section defaulted, ready for the sectioned-list serializer. */
 type SectionedEntry<E> = E & { section: string }
 

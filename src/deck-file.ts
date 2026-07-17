@@ -139,8 +139,10 @@ export async function parseDeckFrontMatter(filePath: string): Promise<DeckFrontM
 /**
  * Add a card entry under the ## Main section of a deck file.
  * Creates the section if it doesn't exist.
+ * Returns the card ID allocated for the new line, so callers can record it
+ * (e.g. in a changelog entry) without re-parsing the file.
  */
-export async function addCardToDeckFile(filePath: string, card: Card): Promise<void> {
+export async function addCardToDeckFile(filePath: string, card: Card): Promise<number> {
   const fileContent = await fs.readFile(filePath, 'utf-8')
   const lines = fileContent.split('\n')
 
@@ -156,4 +158,5 @@ export async function addCardToDeckFile(filePath: string, card: Card): Promise<v
   lines.splice(mainIndex + 1, 0, serializeCardLine({ ...card, cardId }))
   const content = lines.join('\n')
   await writeFileWithHash(filePath, content.endsWith('\n') ? content : content + '\n')
+  return cardId
 }

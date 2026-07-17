@@ -30,14 +30,19 @@ none is treated as Commander when it has a \`## Commander\` section, and that
 inference is written into the file on its next save — so do not add a \`format:\` by
 hand to "fix" a deck that displays correctly.
 
-## Add cards (non-interactive — best for agents)
+## One-shot edits (non-interactive — best for agents)
 
-Use \`add-card\` (covered by the **ritual-edit** skill) to add a single card to an
+Use the one-shot commands (covered in full by the **ritual-edit** skill) to edit an
 existing deck without a TUI:
 
 \`\`\`bash
 ritual add-card "Winota Stax" "Sol Ring" --deck
-ritual add-card "Winota Stax" "Lightning Bolt" --deck -q 4   # -q quantity
+ritual add-card "Winota Stax" "Lightning Bolt" --deck -q 4         # -q quantity
+ritual remove-card "Winota Stax" "Lightning Bolt" --deck -q 2      # or --all-copies
+ritual set-card "Winota Stax" "Sol Ring" --deck --section Sideboard
+ritual set-card "Winota Stax" "Winota, Joiner of Forces" --deck --commander
+ritual note "Winota Stax" "Sol Ring" --deck -n "fast mana"         # or --clear
+ritual move "Lightning Bolt" --from "deck:Winota Stax" --to deck:burn
 \`\`\`
 
 ## Build interactively
@@ -47,10 +52,11 @@ skill); pick a deck (or \`➕ New Deck\`, which prompts for a format) from its l
 selection menu, then add cards to named \`## Section\` headers with name/collector entry
 modes and session filters (\`-s/--sets\`, \`-f/--finish\`, \`-c/--condition\`) plus section
 targeting and a \`🏷️ Change Format\` action. It **requires a terminal**, so it is not
-suitable for non-interactive agents — use \`add-card\` instead.
+suitable for non-interactive agents — use the one-shot commands instead.
 
 \`\`\`bash
 ritual edit                                   # pick a deck, prompt for a section per card
+ritual edit "Winota Stax"                     # open one deck directly (matches the file basename)
 ritual edit --section Sideboard               # add every deck card to one section
 ritual edit --collector --sets "FDN, SPG"     # collector-number entry, sets preloaded
 ritual edit --no-cache-prompt                 # skip the "cache is >1 week old, update?" prompt

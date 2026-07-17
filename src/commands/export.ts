@@ -4,7 +4,7 @@ import type { Command } from 'commander'
 import { getErrorMessage } from '../errors'
 import { countLabel } from '../editor/change-bundle'
 import { isFinish, VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
-import { isListType, type ListType } from '../list-type'
+import { type ListType } from '../list-type'
 import {
   buildExportSelection,
   hasActiveExportFilters,
@@ -24,6 +24,7 @@ import {
   isResolveListError,
   listLocations,
   listTypeFromFlags,
+  parseListArgument,
   resolveList,
   type ListLocation,
 } from '../resolve-list'
@@ -90,19 +91,6 @@ export function shouldRunExportInteractive(
   if (flags.out || flags.savePreset) return false
   if (hasActiveExportFilters(flags.filters)) return false
   return true
-}
-
-/** A list argument with an optional `deck:` / `collection:` / `wanted:` type prefix. */
-export type ListArgument = { type?: ListType; name: string }
-
-/** Split an optional list-type prefix off a `[lists...]` argument. */
-export function parseListArgument(raw: string): ListArgument {
-  const match = raw.match(/^([a-z]+):(.+)$/)
-  const prefix = match?.[1]
-  if (match && prefix !== undefined && isListType(prefix)) {
-    return { type: prefix, name: match[2]! }
-  }
-  return { name: raw }
 }
 
 const textOptions: ScriptingOptions = { output: 'text', quiet: false }

@@ -80,7 +80,12 @@ export default defineConfig({
             },
             {
               label: 'Scripting',
-              items: ['commands/add-card', 'commands/add-note', 'commands/clear-note'],
+              items: [
+                'commands/add-card',
+                'commands/remove-card',
+                'commands/set-card',
+                'commands/note',
+              ],
             },
             {
               label: 'Utilities',

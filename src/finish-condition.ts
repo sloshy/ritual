@@ -22,6 +22,20 @@ export function isFinish(value: string | undefined): value is Finish {
   return value !== undefined && (VALID_FINISHES as readonly string[]).includes(value)
 }
 
+/**
+ * Parse a raw `--finish` flag value: case-insensitive, must be one of
+ * {@link VALID_FINISHES}. Returns the normalized finish, or an error message
+ * string (discriminate with {@link isFinish}) — callers wrap it in their own
+ * error type (commander's `InvalidArgumentError` vs `CardCommandError`).
+ */
+export function normalizeFinishValue(raw: string): Finish | string {
+  const normalized = raw.toLowerCase()
+  if (!isFinish(normalized)) {
+    return `Invalid finish '${raw}'. Use one of: ${VALID_FINISHES.join(', ')}.`
+  }
+  return normalized
+}
+
 export function isCondition(value: string | undefined): value is Condition {
   return value !== undefined && (VALID_CONDITIONS as readonly string[]).includes(value)
 }

@@ -3,51 +3,145 @@ import type { RitualSkill } from '../types'
 export const editSkill: RitualSkill = {
   name: 'ritual-edit',
   description:
-    'Edit cards in any Ritual deck, collection, or wanted list — non-interactive commands for agents and scripts, plus the interactive editor TUI. Use when the user wants to add or remove a card, set or clear a card note, edit lists interactively, move cards between lists, apply a change bundle exported from the site editor, export cards as CSV or JSON, or compact a change history.',
-  body: `# Editing cards in any Ritual list (non-interactive)
+    'Edit cards in any Ritual deck, collection, or wanted list — one-shot non-interactive commands for agents and scripts (add-card, remove-card, set-card, note, scripted move), plus the interactive editor TUI. Use when the user wants to add, remove, or update a card, set or clear a card note, move cards between lists, edit lists interactively, apply a change bundle exported from the site editor, export cards as CSV or JSON, or compact a change history.',
+  body: `# Editing cards in any Ritual list
 
-These commands edit a deck, collection, or wanted list **without an interactive
-TUI**, so they are the right tools for agents and scripts. They keep the \`&N\` card
+The **one-shot commands** — \`add-card\`, \`remove-card\`, \`set-card\`, \`note\`, and the
+scripted form of \`move\` — are how agents and scripts edit decks, collections, and
+wanted lists: each is a single non-interactive invocation. They keep the \`&N\` card
 IDs and the \`.changes.md\` changelog correct — prefer them over hand-editing files.
+The interactive editor TUI (\`ritual edit\`, below) is the alternative when a human
+is driving.
 
-The first argument is the list **name** (file basename). It is resolved across all
-three types unless you pass \`--deck\`, \`--collection\`, or \`--wanted\`. When a name is
-ambiguous across types, a type flag is required.
+Conventions shared by every one-shot command:
+
+- The first argument is the list **name** (file basename, no \`.md\`). It is resolved
+  across all three types unless you pass \`--deck\`, \`--collection\`, or \`--wanted\`
+  (or prefix the name: \`deck:burn\`, \`collection:Main Binder\`, \`wanted:To Buy\`).
+  An ambiguous name is an error.
+- The card is matched by name (case-, accent-, and punctuation-insensitive). When
+  several entries match, disambiguate with \`--card-id <N>\` (the \`&N\` suffix in
+  the file).
+- \`--output json\` (or \`ndjson\`) emits a machine-readable result; \`--quiet\`
+  suppresses non-essential text.
+- Nothing blocks on a prompt in a script: when stdin is not a terminal, a missing
+  argument or flag fails fast with exit code 2 (\`Input required: ...\`) instead of
+  opening a picker. Exit codes: 1 runtime error, 2 usage error, 3 not found.
 
 ## Add a card
 
 \`\`\`bash
 ritual add-card "Winota Stax" "Sol Ring"                 # resolve across all types
 ritual add-card "Winota Stax" "Sol Ring" --deck -q 2     # 2 copies (deck only)
-ritual add-card "Main Binder" "Black Lotus" --collection -f foil -c NM
-ritual add-card "To Buy" "Mox Ruby" --wanted
-ritual add-card "Winota Stax" "Lightning Bolt" --exact   # skip the interactive name picker
+ritual add-card "Main Binder" "Black Lotus" --collection --set lea --collector-number 232 -c LP
+ritual add-card "To Buy" "Mox Ruby" --wanted --name-only # any copy
+ritual add-card "To Buy" "Demonic Tutor" --wanted --set sta --collector-number 90
+ritual add-card "Winota Stax" "Lightning Bolt" --exact --output json
 \`\`\`
 
 - \`--collection\` / \`--wanted\` create the list if it does not exist (\`--deck\` does not — use \`new-deck\`).
-- \`-q\` quantity (deck only), \`-f\` finish (nonfoil/foil/etched), \`-c\` condition (NM/LP/MP/HP/DMG).
-- \`-e\`/\`--exact\` matches the card name exactly so no prompt is shown.
+- \`--set <code>\` + \`--collector-number <cn>\` (always together) pin an exact printing;
+  the pair is validated against the card's real printings, and \`-f\` against the
+  finishes that printing offers.
+- \`-q\` quantity (deck only), \`-f\` finish (nonfoil/foil/etched — collection and wanted
+  only), \`-c\` condition (NM/LP/MP/HP/DMG, or \`NONE\` to record no condition —
+  collection only). A flag the target type does not support is an error.
+- Wanted adds must choose a specificity: \`--name-only\` (any copy), a printing pin via
+  \`--set\`/\`--collector-number\`, or \`--specific\` (interactive picker). Non-interactive
+  runs without one exit 2.
+- \`-e\`/\`--exact\` requires the card name to match exactly (no picker). Without a
+  terminal the name must match exactly anyway, and a collection add without a
+  printing pin succeeds only when the card has a single paper printing — pass
+  \`--set\`/\`--collector-number\` to be safe.
 
-## Add or replace a note
-
-\`\`\`bash
-ritual add-note "Winota Stax" "Sol Ring" -n "fast mana"
-ritual add-note "Winota Stax" "Sol Ring" -n "ramp" --overwrite   # replace an existing note
-ritual add-note "Winota Stax" "Sol Ring" --card-id 5 -n "..."    # disambiguate by &N
-ritual add-note "Winota Stax" "Sol Ring" -n "..." --output json --quiet
-\`\`\`
-
-Omit \`-n\` to be prompted for the text (interactive). Use \`--card-id <N>\` (the \`&N\`
-suffix in the file) when the same card name appears more than once. Without
-\`--overwrite\`, adding a note to a card that already has one fails.
-
-## Clear a note
+## Remove a card
 
 \`\`\`bash
-ritual clear-note "Winota Stax" "Sol Ring"
-ritual clear-note "Winota Stax" "Sol Ring" --card-id 5
-ritual clear-note "Winota Stax" "Sol Ring" --output json --quiet
+ritual remove-card "Winota Stax" "Lightning Bolt"            # one copy
+ritual remove-card "Winota Stax" "Lightning Bolt" -q 2       # 2 copies (decks only)
+ritual remove-card "Winota Stax" "Lightning Bolt" --all-copies
+ritual remove-card "Main Binder" "Sol Ring" --card-id 5 --output json
 \`\`\`
+
+- Deck lines carry quantities: \`-q <n>\` removes that many copies (more than the line
+  holds is an error) and \`--all-copies\` drops the whole line. Collection and wanted
+  entries are one physical card each, so those flags do not apply there — remove
+  copies one at a time, disambiguating with \`--card-id\`.
+- JSON output: \`{type, list, cardName, cardId, removed, remaining}\`.
+
+## Update a card in place
+
+\`set-card\` changes a card's fields on its existing line — the \`&N\` id is kept:
+
+\`\`\`bash
+ritual set-card "Main Binder" "Lightning Bolt" --set 2xm --collector-number 157
+ritual set-card "Main Binder" "Sol Ring" --finish foil --condition LP
+ritual set-card "Winota Stax" "Lightning Bolt" --section Sideboard
+ritual set-card "Winota Stax" "Winota, Joiner of Forces" --commander
+ritual set-card "To Buy" "Demonic Tutor" --wanted --finish foil --output json
+\`\`\`
+
+- At least one change flag is required.
+- \`--set\` + \`--collector-number\` (always together) change the printing; the pair is
+  validated against the card's real printings (an unknown pair is a usage error
+  listing what exists). Without \`--finish\` alongside, the current finish is kept.
+- \`--finish nonfoil|foil|etched\` — validated against the chosen printing's finishes
+  when changing the printing too.
+- \`--condition NM|LP|MP|HP|DMG\` — decks and collections only (wanted entries carry
+  no condition).
+- Decks only: \`--section <name>\` moves the line to that section (created if
+  missing); \`--commander\` / \`--no-commander\` move it into / out of the
+  \`## Commander\` section.
+
+## Set or clear a note
+
+\`\`\`bash
+ritual note "Winota Stax" "Sol Ring" -n "fast mana"        # set or replace
+ritual note "Winota Stax" "Sol Ring" --clear               # remove
+ritual note "Winota Stax" "Sol Ring" --card-id 5 -n "..." --output json --quiet
+\`\`\`
+
+- \`-n/--note\` **replaces unconditionally** — there is no overwrite guard; the
+  previous text comes back as \`previousNote\` in JSON output.
+- \`--clear\` is idempotent: clearing a card with no note succeeds without touching
+  the file (JSON reports \`cleared: false\`).
+- Omitting both \`-n\` and \`--clear\` prompts for the text on a terminal, and exits 2
+  without one.
+
+## Move cards between lists
+
+The scripted form (\`--from\` + \`--to\`) moves without prompts. Both flags take a plain
+list name or a \`deck:\`/\`collection:\`/\`wanted:\` prefix:
+
+\`\`\`bash
+ritual move "Lightning Bolt" --from deck:burn --to deck:storm
+ritual move "Lightning Bolt" --from burn --to "collection:Main Binder" -q 2
+ritual move "Demonic Tutor" --from "wanted:To Buy" --to "collection:Main Binder" \\
+  --set sta --collector-number 90     # purchase flow: assign the printing on arrival
+ritual move --card-id 7 --from "wanted:To Buy" --to deck:storm --output json
+\`\`\`
+
+- Select the card by name (fuzzy) or \`--card-id\`. When the name matches several
+  distinct printings, the command refuses to pick one arbitrarily and lists them —
+  narrow with \`--set\`, \`--collector-number\`, \`--finish\`, or \`--card-id\`.
+- Moving into a **collection** requires a concrete printing: a card without one (a
+  name-only wanted entry) takes it from \`--set\`/\`--collector-number\`, or from its
+  single known printing; otherwise the command errors listing the cached printings.
+- Deck sources decrement quantity, notes travel with the card, both lists get
+  changelog entries, and \`-q <n>\` moves n copies of the same printing. JSON output:
+  \`{moved, card, from, to}\`.
+
+Interactively, \`ritual move\` (requires a terminal) opens a TUI session across all
+lists; \`--from <list>\` alone starts it with only that list enabled as a source
+(widen it under Session Filters).
+
+You can also move a card **while editing a list** (in the admin or public in-browser
+editor) instead of using the dedicated batch tool: a **Move to list…** item appears in
+the per-card menu, the per-list **Selected** menu, and the cross-list **All Selected**
+navbar menu, opening a picker of destination lists. The card leaves the list you're
+editing, and on save **both** lists are
+written — removed from the source, added to the destination, with a changelog entry on
+each. Moving a printing-less card into a collection prompts for a specific printing first.
 
 ## Interactive editor
 
@@ -61,17 +155,22 @@ existing entries, and undo. Creating a deck prompts for its format, and deck ses
 have a \`🏷️ Change Format\` menu action that rewrites the \`format:\` front matter on the
 next save. A deck with no \`format:\` is read as Commander when it has a \`## Commander\`
 section, and saving writes that inferred format into the file (see the **ritual-decks**
-skill). Not suitable for non-interactive agents — use
-\`add-card\`/\`add-note\`/\`clear-note\` instead:
+skill). Not suitable for non-interactive agents — use the one-shot commands above
+instead:
 
 \`\`\`bash
 ritual edit
+ritual edit "Winota Stax"                   # open one list directly, skipping the menu
+ritual edit "wanted:To Buy"                 # deck:/collection:/wanted: prefixes and type flags work
 ritual edit --sets "FDN,SPG" --finish foil --condition NM   # session filter defaults
 ritual edit --section Sideboard             # pin the deck target section
 ritual edit --collector --sets "FDN, SPG"   # collector-number entry, sets preloaded
 ritual edit --no-cache-prompt               # skip the "cache is >1 week old?" prompt
 ritual edit --refresh-prices                # redownload cache when prices are >1 day old
 \`\`\`
+
+The \`[listName]\` argument matches the list's **file basename** (like every other
+command), not a deck's display title from its front matter.
 
 The selection menu leads with the **multi-list modes** — \`🗃️ All Lists\`, \`🎴 All Decks\`,
 \`📦 All Collections\`, \`🎯 All Wanted Lists\` — each shown only when it spans two or more
@@ -91,26 +190,6 @@ still saves (as an empty list file). The creation is listed in \`📋 View Sessi
 as \`Created this deck\` (or collection / wanted list) ahead of that list's card changes;
 discarding it drops the whole list, and is blocked until the list's own card changes are
 discarded first.
-
-## Move cards between lists
-
-\`ritual move\` is an interactive TUI (requires a terminal) for moving cards between
-decks, collections, and wanted lists:
-
-\`\`\`bash
-ritual move
-\`\`\`
-
-For **non-interactive** moves, use the web admin's HTTP API or the MCP \`move_cards\`
-tool (see the **ritual-site** skill).
-
-You can also move a card **while editing a list** (in the admin or public in-browser
-editor) instead of using the dedicated batch tool: a **Move to list…** item appears in
-the per-card menu, the per-list **Selected** menu, and the cross-list **All Selected**
-navbar menu, opening a picker of destination lists. The card leaves the list you're
-editing, and on save **both** lists are
-written — removed from the source, added to the destination, with a changelog entry on
-each. Moving a printing-less card into a collection prompts for a specific printing first.
 
 ## Apply exported changes
 

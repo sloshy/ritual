@@ -2,17 +2,111 @@
 title: 'move'
 ---
 
-Interactively move cards between decks, collections, and wanted lists.
+Move cards between decks, collections, and wanted lists — interactively by default, or as a single scripted command with `--from` and `--to`.
 
 ## Usage
 
 ```bash
+# Interactive session across all lists
 ./ritual move
+
+# Interactive session, pre-filtered to one source list
+./ritual move --from <list>
+
+# Scripted (headless) move — no prompts
+./ritual move [cardName...] --from <list> --to <list> [options]
 ```
 
-## Overview
+`<list>` accepts an optional `deck:`, `collection:`, or `wanted:` prefix (e.g. `wanted:needs`). The prefix pins the list type; without it, the name is resolved across all three types and an ambiguous name is an error (see [List Resolution](/commands/list-resolution/)).
 
-The `move` command launches an interactive session that lets you search across all your lists, select cards to relocate, and commit the changes in a batch. Changes are recorded in the source and destination changelog files, and only written to disk when you confirm.
+## Arguments
+
+| Argument        | Description                                                   | Required                                      |
+| --------------- | ------------------------------------------------------------- | --------------------------------------------- |
+| `[cardName...]` | Card to move, fuzzy-matched against the source list's entries | In scripted mode, unless `--card-id` is given |
+
+## Options
+
+| Option                    | Description                                                                                                      | Default |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------- |
+| `--from <list>`           | Source list. Alone, launches the interactive session filtered to this source; with `--to`, moves without prompts |         |
+| `--to <list>`             | Destination list. Requires `--from`                                                                              |         |
+| `-q, --quantity <n>`      | Number of copies to move                                                                                         | `1`     |
+| `--card-id <id>`          | Select the source card by ID (the `&N` suffix in list files)                                                     |         |
+| `--set <code>`            | Narrow the match to this set code — or assign the printing when the card has none                                |         |
+| `--collector-number <cn>` | Narrow the match to this collector number — or assign the printing when the card has none                        |         |
+| `--finish <finish>`       | Narrow the match to this finish: `nonfoil`, `foil`, `etched`                                                     |         |
+| `--output <format>`       | Output format: `text`, `json`, or `ndjson`                                                                       | `text`  |
+| `--quiet`                 | Suppress non-essential output                                                                                    | `false` |
+
+## Scripted Moves
+
+When both `--from` and `--to` are given, the move runs headlessly — no prompts, ever — making it safe for scripts and agents. A card selector is required: a card name argument or `--card-id`. Passing any scripting flag (a card name, `--quantity`, `--card-id`, `--set`, `--collector-number`, `--finish`) without both `--from` and `--to` is a usage error (exit code 2) — it never silently falls back to the interactive session.
+
+The scripted path uses the exact same engine as the interactive session, so all its behaviors apply: deck sources decrement quantity, notes travel with the card, both lists get changelog entries, and destination lists assign fresh `&N` IDs.
+
+### Examples
+
+Record a purchase — a wanted card arrived and goes into the collection with its printing assigned in the same command:
+
+```bash
+./ritual move "Demonic Tutor" --from wanted:needs --to collection:binder \
+  --set sta --collector-number 90
+```
+
+Move a card between decks:
+
+```bash
+./ritual move "Lightning Bolt" --from deck:burn --to deck:storm
+```
+
+Move two copies at once:
+
+```bash
+./ritual move "Lightning Bolt" --from deck:burn --to collection:binder -q 2
+```
+
+Disambiguate between printings with `--set` (or `--card-id`):
+
+```bash
+./ritual move "Lightning Bolt" --from deck:burn --to deck:storm --set lea
+```
+
+Select by card ID and emit a JSON record for scripting:
+
+```bash
+./ritual move --card-id 7 --from wanted:needs --to deck:storm --output json
+```
+
+```json
+{
+  "moved": 1,
+  "card": { "name": "Demonic Tutor", "cardId": 7 },
+  "from": { "type": "wanted", "name": "needs" },
+  "to": { "type": "deck", "name": "Storm" }
+}
+```
+
+### Card Selection
+
+- **By name**: punctuation-, case-, and accent-insensitive; an exact name match wins, otherwise substring matches are used.
+- **By card ID**: `--card-id <N>` targets an entry by its persistent `&N` suffix in the source list.
+- **Narrowing**: when the name matches several distinct printings (set / collector number / finish), the command refuses to pick one arbitrarily — it exits with a usage error listing the printings. Narrow with `--set`, `--collector-number`, `--finish`, or `--card-id`.
+- **Quantity**: `-q` moves that many copies of the _same_ printing. Requesting more copies than the source list holds is an error, and nothing is moved.
+
+### Printings for Collection Destinations
+
+Collections require a concrete printing. When the selected card already has one, nothing changes. When it does not (a name-only wanted entry), the printing is resolved in this order:
+
+1. `--set` + `--collector-number`, when given (both are required together).
+2. The card's **single** known printing in the local Scryfall cache, auto-accepted.
+3. Otherwise the command exits with a usage error listing the cached printings to pick from.
+
+The resolution happens before anything is written — a failure here leaves both lists untouched.
+
+## Interactive Session
+
+Run without `--to` to launch the interactive session. With `--from <list>`, the session starts with only that list enabled as a source — the same setting the Session Filters screen edits, so it can be widened mid-session.
 
 Key behaviors:
 
@@ -22,7 +116,7 @@ Key behaviors:
 - **Single destination**: If only one valid destination is configured, the destination prompt is skipped and the card is queued immediately.
 - **Change tracking**: Source files receive a `Moved … to …` changelog entry. Destination files receive a `Moved … from …` changelog entry.
 
-## Interactive Flow
+### Interactive Flow
 
 When launched, the tool shows an autocomplete search field. You can type a card name to search, or select from the menu:
 
@@ -40,7 +134,7 @@ Nothing is written until you exit and choose to save. `🚪 Exit` (or pressing E
 session immediately when nothing is pending; with pending moves it opens a menu to **Save and
 exit** (commit all pending moves), **Exit without saving**, or **Cancel** (keep editing).
 
-## Session Filters
+### Session Filters
 
 Select **Configure Session Filters** to open the filter dialog. You can independently configure:
 
@@ -66,7 +160,7 @@ The bracket indicator shows:
 
 At least one destination must remain enabled at all times.
 
-## Chained Moves
+### Chained Moves
 
 If you move a card and then try to move the same card again (e.g., from B to C after already queuing A → B), the tool updates the pending move to reflect the final destination. Only the original source and the final destination are written to; intermediate lists are never touched.
 
@@ -93,3 +187,14 @@ Destination list changelog:
 ```
 - Moved "Lightning Bolt" (LEA:161) [foil] &5 from Deck 'Ghyrson Starn Spellslinger'
 ```
+
+## Exit Codes
+
+Scripted (`--from` + `--to`) invocations follow the standard exit-code contract:
+
+| Code | Meaning                                                                                                                                        |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | The requested copies were moved                                                                                                                |
+| `1`  | Runtime error, or fewer copies were moved than requested                                                                                       |
+| `2`  | Usage error: `--to` without `--from`, missing card selector, ambiguous list or printing, unresolvable collection printing, invalid flag values |
+| `3`  | Not found: unknown source or destination list, no matching card, or fewer copies available than requested                                      |

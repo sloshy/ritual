@@ -12,8 +12,9 @@ import { registerBuildSiteCommand } from './src/commands/build-site'
 import { registerServeCommand } from './src/commands/serve'
 import { registerServeSiteCommand } from './src/commands/serve-site'
 import { registerAddCardCommand } from './src/commands/add-card'
-import { registerAddNoteCommand } from './src/commands/add-note'
-import { registerClearNoteCommand } from './src/commands/clear-note'
+import { registerNoteCommand } from './src/commands/note'
+import { registerRemoveCardCommand } from './src/commands/remove-card'
+import { registerSetCardCommand } from './src/commands/set-card'
 import { registerCacheCommand } from './src/commands/cache'
 import { registerCacheServerCommand } from './src/commands/cache-server'
 import { registerCacheFeedCommand } from './src/commands/cache-feed'
@@ -114,8 +115,9 @@ registerLoginCommand(program)
 
 program.commandsGroup('Scripting')
 registerAddCardCommand(program)
-registerAddNoteCommand(program)
-registerClearNoteCommand(program)
+registerRemoveCardCommand(program)
+registerSetCardCommand(program)
+registerNoteCommand(program)
 
 program.commandsGroup('Deck Management')
 registerNewDeckCommand(program)

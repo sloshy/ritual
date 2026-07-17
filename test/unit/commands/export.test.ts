@@ -1,9 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import {
-  parseListArgument,
-  shouldRunExportInteractive,
-  type ParsedExportFlags,
-} from '../../../src/commands/export'
+import { shouldRunExportInteractive, type ParsedExportFlags } from '../../../src/commands/export'
 import { assembleExportEntries } from '../../../src/export/entries'
 import {
   assembledWizardEntries,
@@ -77,21 +73,6 @@ describe('shouldRunExportInteractive', () => {
     ['--no-interactive', flags({ interactive: false }), [], true],
   ])('flag mode when %s is present', (_label, input, listArgs, isTTY) => {
     expect(shouldRunExportInteractive(input, listArgs, isTTY)).toBe(false)
-  })
-})
-
-describe('parseListArgument', () => {
-  test('splits a type prefix off', () => {
-    expect(parseListArgument('deck:Burn')).toEqual({ type: 'deck', name: 'Burn' })
-    expect(parseListArgument('wanted:High Priority')).toEqual({
-      type: 'wanted',
-      name: 'High Priority',
-    })
-  })
-
-  test('leaves unprefixed names and unknown prefixes alone', () => {
-    expect(parseListArgument('Burn')).toEqual({ name: 'Burn' })
-    expect(parseListArgument('binder:Trades')).toEqual({ name: 'binder:Trades' })
   })
 })
 

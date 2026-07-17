@@ -25,7 +25,17 @@ import {
   type UnifiedListRef,
 } from './edit-lists'
 import { isUsableFileName, unusableFileNameMessage } from '../list-file-name'
-import { listFilePath } from '../resolve-list'
+import {
+  isResolveListError,
+  listFilePath,
+  parseListArgument,
+  resolveList,
+  type ListLocation,
+  type ListTypeFlags,
+} from '../resolve-list'
+import { resolveListTypeFlag } from './card-target'
+import { readDeckName } from '../importers/text-file'
+import { emitResolveListError, type ScriptingOptions } from './scripting'
 import {
   createScopedSession,
   createScopedSessionState,
@@ -46,14 +56,15 @@ import {
  * which edits several lists in one session — see {@link createScopedSession}.
  */
 
-type EditCommandOptions = CacheRefreshOptions & {
-  sets?: string
-  finish?: string
-  condition?: string
-  section?: string
-  collector?: boolean
-  allowDigitalOnlyCards?: boolean
-}
+type EditCommandOptions = CacheRefreshOptions &
+  ListTypeFlags & {
+    sets?: string
+    finish?: string
+    condition?: string
+    section?: string
+    collector?: boolean
+    allowDigitalOnlyCards?: boolean
+  }
 
 export type { UnifiedListRef } from './edit-lists'
 
@@ -162,10 +173,47 @@ async function promptNewListName(type: ListType): Promise<string | null> {
   return name ?? null
 }
 
+/** A direct-open request: the list name to resolve plus the type to restrict to. */
+export type DirectListQuery = { name: string; type?: ListType }
+
+/**
+ * Interpret the optional `[listName]` argument against the already-resolved
+ * type flag. A recognized `deck:` / `collection:` / `wanted:` prefix on the
+ * name overrides the flag. Conflicting type flags are rejected up front by
+ * {@link resolveListTypeFlag}, before this runs.
+ */
+export function parseDirectListArgument(
+  raw: string,
+  flagType: ListType | undefined,
+): DirectListQuery {
+  const parsed = parseListArgument(raw)
+  return { name: parsed.name, type: parsed.type ?? flagType }
+}
+
+/**
+ * The unified-list ref for a directly-opened list. A deck is displayed by its
+ * front-matter name (matching the selection menu), even though the argument
+ * matched the file's basename.
+ */
+async function directOpenRef(location: ListLocation): Promise<UnifiedListRef> {
+  const name = location.type === 'deck' ? await readDeckName(location.filePath) : location.name
+  return { type: location.type, name, file: location.filePath }
+}
+
+/** The edit command has no --output flag; resolution errors go to stderr as plain text. */
+const PLAIN_TEXT_OUTPUT: ScriptingOptions = { output: 'text', quiet: false }
+
 export function registerEditCommand(program: Command): void {
   const editCommand = program
     .command('edit')
     .description('Edit any deck, collection, or wanted list in one interactive session')
+    .argument(
+      '[listName]',
+      'Open this list directly, skipping the selection menu (optionally with a deck:/collection:/wanted: prefix)',
+    )
+    .option('--deck', 'Resolve the list name as a deck')
+    .option('--collection', 'Resolve the list name as a collection')
+    .option('--wanted', 'Resolve the list name as a wanted list')
     .option('-s, --sets <codes>', 'Filter by set codes (comma-separated, e.g., "FDN, SPG")')
     .option('-f, --finish <finish>', 'Default finish (nonfoil, foil, etched)')
     .option('-c, --condition <condition>', 'Default condition (NM, LP, MP, HP, DMG)')
@@ -173,7 +221,25 @@ export function registerEditCommand(program: Command): void {
     .option('--collector', 'Start in collector number mode')
     .option('--allow-digital-only-cards', 'Include digital-only sets (e.g., Alchemy)')
   applyCacheRefreshOptions(editCommand)
-  editCommand.action(async (options: EditCommandOptions) => {
+  editCommand.action(async (listNameArg: string | undefined, options: EditCommandOptions) => {
+    // Conflicting type flags are a usage error with or without a [listName] —
+    // `ritual edit --deck --collection` must not silently open the menu.
+    const flagType = resolveListTypeFlag(options, PLAIN_TEXT_OUTPUT)
+    if (flagType === 'conflict') return
+
+    // Resolve the direct-open argument before any cache work, so a bad list
+    // name fails fast instead of after a potential cache download prompt.
+    let directRef: UnifiedListRef | undefined
+    if (listNameArg !== undefined) {
+      const query = parseDirectListArgument(listNameArg, flagType)
+      const resolved = await resolveList(query.name, query.type)
+      if (isResolveListError(resolved)) {
+        emitResolveListError(resolved, PLAIN_TEXT_OUTPUT)
+        return
+      }
+      directRef = await directOpenRef(resolved)
+    }
+
     const parsedSets = options.sets ? parseSetCodesInput(options.sets) : undefined
     const excludeDigitalOnly = !options.allowDigitalOnlyCards
 
@@ -252,6 +318,22 @@ export function registerEditCommand(program: Command): void {
 
     // Which list a multi-list mode adds to / last edited, kept across re-entry.
     const scopeState = createScopedSessionState()
+
+    // A list named on the command line opens straight into its session. Backing
+    // out (Switch List / Esc) falls through to the normal selection menu; the
+    // engine already ran the exit menu (save-all / discard / cancel) on 'exit'.
+    if (directRef) {
+      const open = await openList(directRef)
+      const result = await runCardSession({
+        strategy: open.strategy,
+        cardNames,
+        excludeDigitalOnly,
+        ctx: () => open.ctx,
+        multiList,
+      })
+      cardNames = result.cardNames
+      if (result.reason === 'exit') return
+    }
 
     while (true) {
       // Lists created this session have no file yet, so they are absent from the

@@ -23,7 +23,7 @@ Two lists whose names differ only in punctuation (`Mono Red` and `mono-red`) are
 
 ## Type flags and disambiguation
 
-Type-agnostic commands (`add-card`, `add-note`, `clear-note`, `history`, `price`) search **all three** list types at once. A name that exists in more than one type — say a deck _and_ a collection both called `staples` — is ambiguous. Resolve it with a type flag:
+Type-agnostic commands (`add-card`, `remove-card`, `set-card`, `note`, `edit`, `history`, `price`) search **all three** list types at once. A name that exists in more than one type — say a deck _and_ a collection both called `staples` — is ambiguous. Resolve it with a type flag:
 
 | Flag           | Restricts the search to |
 | -------------- | ----------------------- |
@@ -43,12 +43,12 @@ The flags are mutually exclusive. Single-type commands (`deck-sync`, `get-primer
 ./ritual price burn --deck
 
 # Ambiguous across types — fails, asking you to disambiguate
-./ritual add-note staples "Sol Ring" --note ramp
+./ritual note staples "Sol Ring" --note ramp
 #   'staples' is ambiguous — it matches multiple lists:
 #     - Deck: staples
 #     - Collection: staples
 #   Disambiguate with --deck, --collection, or --wanted.
 
 # Disambiguated with a flag
-./ritual add-note --collection staples "Sol Ring" --note ramp
+./ritual note --collection staples "Sol Ring" --note ramp
 ```

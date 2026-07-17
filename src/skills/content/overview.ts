@@ -74,7 +74,7 @@ names that match list names, a \`format:\` on every deck — run \`ritual cleanu
 - **ritual-decks** — create, import, sync, and price decks
 - **ritual-collections** — manage and price collections
 - **ritual-wanted** — manage and price wanted lists
-- **ritual-edit** — card edits across any list: non-interactive commands (add/remove cards, notes), the unified interactive editor, and CSV/JSON exports
+- **ritual-edit** — card edits across any list: one-shot non-interactive commands (\`add-card\`, \`remove-card\`, \`set-card\`, \`note\`, scripted \`move\`), the unified interactive editor, and CSV/JSON exports
 - **ritual-cards** — look up cards and run Scryfall searches
 - **ritual-site** — build, serve, and administer the published site (and the MCP server)
 

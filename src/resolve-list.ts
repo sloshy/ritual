@@ -25,7 +25,7 @@ import { listDeckFiles } from './importers/text-file'
 import { getCollectionsDir, getDecksDir, getWantedDir } from './ritual-config'
 import { isPathWithinDir } from './path-validation'
 import { listFileName } from './list-file-name'
-import { LIST_TYPES, LIST_TYPE_DISPLAY, type ListType } from './list-type'
+import { LIST_TYPES, LIST_TYPE_DISPLAY, isListType, type ListType } from './list-type'
 import { normalizeForSearch } from './term-match'
 
 /** A concrete list file on disk. */
@@ -50,6 +50,23 @@ export type ResolveListResult = ListLocation | ResolveListError
 /** Type guard: a resolution result that is an error rather than a located list. */
 export function isResolveListError(result: ResolveListResult): result is ResolveListError {
   return 'kind' in result
+}
+
+/** A list argument with an optional `deck:` / `collection:` / `wanted:` type prefix. */
+export type ListArgument = { type?: ListType; name: string }
+
+/**
+ * Split an optional list-type prefix off a list-name argument. A recognized
+ * prefix overrides any `--deck`/`--collection`/`--wanted` flag; unknown
+ * prefixes are kept as part of the literal name.
+ */
+export function parseListArgument(raw: string): ListArgument {
+  const match = raw.match(/^([a-z]+):(.+)$/)
+  const prefix = match?.[1]
+  if (match && prefix !== undefined && isListType(prefix)) {
+    return { type: prefix, name: match[2]! }
+  }
+  return { name: raw }
 }
 
 /** The configured directory that holds list files of the given type. */
