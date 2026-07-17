@@ -134,11 +134,12 @@ ritual import-account --all               # use the logged-in account
 
 ## Sync with Archidekt
 
+One of \`--download-changes\` or \`--upload-changes\` is always required (omitting
+both, or passing both, exits with code 2):
+
 \`\`\`bash
-ritual deck-sync                          # sync all linked decks
-ritual deck-sync "Winota Stax"            # one deck
-ritual deck-sync --download-changes       # pull remote changes only
-ritual deck-sync --upload-changes         # push local changes only
+ritual deck-sync --download-changes                 # pull remote changes for all linked decks
+ritual deck-sync "Winota Stax" --upload-changes     # push local changes for one deck
 \`\`\`
 
 A download also adopts the deck's Archidekt format (mapped onto Ritual's format

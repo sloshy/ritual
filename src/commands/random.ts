@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { scryfallClient } from '../scryfall'
+import { classifyFetchCard, scryfallClient } from '../scryfall'
 import {
   addScriptingOptions,
   emitError,
@@ -36,17 +36,30 @@ export function registerRandomCommand(program: Command): void {
       process.exitCode = ExitCode.UsageError
       return
     }
-    const card = await scryfallClient.fetchRandomCard(options.filter)
+    const outcome = classifyFetchCard(await scryfallClient.fetchRandomCard(options.filter))
 
-    if (card) {
-      if (scriptingOptions.output === 'text') {
-        emitOutput(`${card.name} (${card.set.toUpperCase()})`, scriptingOptions)
-        return
-      }
-      emitOutput(projectFields(card, options.fields), scriptingOptions)
-    } else {
+    if (outcome.kind === 'failed') {
+      emitError(
+        'runtime_error',
+        `Failed to fetch random card: ${outcome.message}`,
+        scriptingOptions,
+      )
+      process.exitCode = ExitCode.RuntimeError
+      return
+    }
+
+    if (outcome.kind === 'not-found') {
       emitError('not_found', 'No card found for the supplied random filter.', scriptingOptions)
       process.exitCode = ExitCode.NotFound
+      return
     }
+
+    const card = outcome.card
+
+    if (scriptingOptions.output === 'text') {
+      emitOutput(`${card.name} (${card.set.toUpperCase()})`, scriptingOptions)
+      return
+    }
+    emitOutput(projectFields(card, options.fields), scriptingOptions)
   })
 }

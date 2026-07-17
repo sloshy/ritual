@@ -26,7 +26,15 @@ Each name is matched case- and accent-insensitively with a unique-substring fall
 | `--download-changes` | Pull remote changes from Archidekt into local deck files |
 | `--upload-changes`   | Push local changes to Archidekt                          |
 
-One of `--download-changes` or `--upload-changes` is required. They cannot be used together.
+One of `--download-changes` or `--upload-changes` is required. They cannot be used together. Violating either rule exits with code 2.
+
+## Failure Behavior
+
+Per-deck failures (a failed Archidekt fetch or push, or cards that could not be
+translated into upload entries) are reported as they happen, and the sync continues
+with the remaining decks. If any deck failed, a summary such as `2 of 5 decks failed`
+is printed to stderr and the command exits with code 1; it exits 0 only when every
+deck synced cleanly.
 
 ## How It Works
 

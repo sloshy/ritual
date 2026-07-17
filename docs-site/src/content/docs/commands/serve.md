@@ -12,9 +12,9 @@ Serve the generated static site locally.
 
 ## Options
 
-| Option                | Description      | Default |
-| --------------------- | ---------------- | ------- |
-| `-p, --port <number>` | Port to serve on | `3000`  |
+| Option                | Description                                                                              | Default |
+| --------------------- | ---------------------------------------------------------------------------------------- | ------- |
+| `-p, --port <number>` | Port to serve on. Validated at parse time (1–65535); an invalid value exits with code 2. | `3000`  |
 
 ## Examples
 

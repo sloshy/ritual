@@ -68,7 +68,7 @@ bun run dev serve-site --allow-refresh-no-bulk  # refresh prices per-card, no bu
 bun run dev serve-site --no-refresh             # use the existing cache as-is
 ```
 
-The same applies to `bun run dev admin`. The flags are forwarded straight to the underlying [`serve-site`](/commands/serve-site/) / [`admin`](/commands/admin/) command, so they behave exactly as documented there — including suppressing the automatic bulk download for the two non-`--allow-refresh` options. For day-to-day dev `--no-refresh` is usually what you want; if you need to refresh the Scryfall cache, use `--allow-refresh` on the next restart or run `ritual cache preload-all` separately.
+The same applies to `bun run dev admin`, except that `admin` only takes `--allow-refresh` and `--no-refresh` (it has no per-card refresh mode). The flags are forwarded straight to the underlying [`serve-site`](/commands/serve-site/) / [`admin`](/commands/admin/) command, so they behave exactly as documented there. For day-to-day dev `--no-refresh` is usually what you want; if you need to refresh the Scryfall cache, use `--allow-refresh` on the next restart or run `ritual cache preload-all` separately.
 
 ## Building
 

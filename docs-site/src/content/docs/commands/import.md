@@ -15,6 +15,14 @@ collection, or a wanted list (pass `--type` to skip the prompt). URL imports
 always create decks — importing a collection or wanted list from a URL is not
 supported.
 
+The scheme is optional for supported deck sites: `archidekt.com/decks/12345`
+is treated as `https://archidekt.com/decks/12345`. A source with an explicit
+scheme (`https://`, `http://`, etc.) is always treated as a URL — an
+unsupported host fails with an "URL not supported" usage error (exit code 2)
+rather than falling back to a file lookup. Only scheme-less input falls back
+to a local file path, so relative paths and file names containing dots keep
+working.
+
 ## Arguments
 
 | Argument   | Description                                             | Required |

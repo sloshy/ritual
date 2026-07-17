@@ -37,6 +37,7 @@ import {
   resolveList,
   type ListTypeFlags,
 } from '../resolve-list'
+import { ExitCode, type ExitCodeValue } from './scripting'
 
 /** Parse existing &N IDs from a file and allocate the next available ID. */
 async function allocateNextIdFromFile(filePath: string): Promise<number> {
@@ -60,7 +61,7 @@ type AddCardOptions = {
 /** A resolved (or freshly created) target list for `add-card`. */
 type AddCardTarget = { type: ListType; filePath: string; name: string }
 /** A resolution failure carrying a user-facing message and process exit code. */
-type AddCardTargetError = { error: string; code: number }
+type AddCardTargetError = { error: string; code: ExitCodeValue }
 
 /**
  * Resolve `name` to an existing deck / collection / wanted list (via the shared
@@ -72,7 +73,10 @@ async function resolveAddCardTarget(
   type: ListType | undefined,
 ): Promise<AddCardTarget | AddCardTargetError> {
   if (name.endsWith('.changes') || name.endsWith('.changes.md')) {
-    return { error: `'${name}' is a changelog file and cannot be used as a list.`, code: 1 }
+    return {
+      error: `'${name}' is a changelog file and cannot be used as a list.`,
+      code: ExitCode.UsageError,
+    }
   }
 
   const resolved = await resolveList(name, type)
@@ -83,19 +87,25 @@ async function resolveAddCardTarget(
   // Auto-create only when the type is known and the list simply doesn't exist yet.
   if (resolved.kind === 'not-found' && type) {
     if (type === 'deck') {
-      return { error: `No deck named '${name}' found. Create it first with 'new-deck'.`, code: 3 }
+      return {
+        error: `No deck named '${name}' found. Create it first with 'new-deck'.`,
+        code: ExitCode.NotFound,
+      }
     }
     // The list is about to be created, so its name has to be usable as a file name.
     // Reported as a usage error rather than thrown, like every other failure here.
     if (!isUsableFileName(name)) {
-      return { error: unusableFileNameMessage(name), code: 1 }
+      return { error: unusableFileNameMessage(name), code: ExitCode.UsageError }
     }
     const filePath =
       type === 'collection' ? await ensureCollectionFile(name) : await ensureWantedListFile(name)
     return { type, filePath, name: path.basename(filePath, '.md') }
   }
 
-  return { error: formatResolveListError(resolved), code: resolved.kind === 'ambiguous' ? 2 : 3 }
+  return {
+    error: formatResolveListError(resolved),
+    code: resolved.kind === 'ambiguous' ? ExitCode.UsageError : ExitCode.NotFound,
+  }
 }
 
 /**
@@ -196,13 +206,15 @@ export function registerAddCardCommand(program: Command): void {
       const type = listTypeFromFlags(options)
       if (type === 'conflict') {
         console.error('Specify only one of --deck, --collection, or --wanted.')
-        process.exit(2)
+        process.exitCode = ExitCode.UsageError
+        return
       }
 
       const target = await resolveAddCardTarget(targetName, type)
       if ('error' in target) {
         console.error(target.error)
-        process.exit(target.code)
+        process.exitCode = target.code
+        return
       }
 
       const cardNameInput = cardNameParts.join(' ')
@@ -211,7 +223,8 @@ export function registerAddCardCommand(program: Command): void {
       const cacheResult = await ensureFreshCardCache()
       if (!cacheResult.ready) {
         console.error('Card cache is not available. Cannot proceed without cached card data.')
-        process.exit(1)
+        process.exitCode = ExitCode.RuntimeError
+        return
       }
 
       console.log(`Loaded ${cacheResult.cardCount} cards from cache.`)
@@ -231,15 +244,17 @@ export function registerAddCardCommand(program: Command): void {
           console.error(
             `No exact match for '${cardNameInput}'. ${countLabel} card${matchCount !== 1 ? 's' : ''} contain that name.`,
           )
-          process.exit(1)
+          process.exitCode = ExitCode.NotFound
+          return
         }
       } else {
         selectedName = await selectCardAutocomplete(cardNames, cardNameInput)
       }
 
       if (!selectedName) {
-        console.log('Cancelled.')
-        process.exit(0)
+        console.error('Cancelled.')
+        process.exitCode = ExitCode.UsageError
+        return
       }
 
       switch (target.type) {
@@ -265,7 +280,8 @@ async function handleDeckAddCard(
   const quantity = Number.parseInt(options.quantity, 10)
   if (Number.isNaN(quantity) || quantity <= 0) {
     console.error('Quantity must be a positive integer')
-    process.exit(1)
+    process.exitCode = ExitCode.UsageError
+    return
   }
 
   const deckFileName = path.basename(deckFilePath)
@@ -275,7 +291,8 @@ async function handleDeckAddCard(
     console.log(`Added '${quantity} ${selectedName}' to ${deckFileName}`)
   } catch (e) {
     console.error('Failed to update deck file:', e)
-    process.exit(1)
+    process.exitCode = ExitCode.RuntimeError
+    return
   }
 
   // Note: addCardToDeckFile allocates the cardId internally.
@@ -301,7 +318,8 @@ async function handleCollectionAddCard(
   const printingResult = await resolveCardPrinting(selectedName, printingConfig, true)
   if (!printingResult) {
     console.error('No printing selected.')
-    process.exit(1)
+    process.exitCode = ExitCode.RuntimeError
+    return
   }
 
   const finishAndCondition = await promptFinishAndCondition(
@@ -310,8 +328,9 @@ async function handleCollectionAddCard(
     false,
   )
   if (!finishAndCondition) {
-    console.log('Cancelled.')
-    process.exit(0)
+    console.error('Cancelled.')
+    process.exitCode = ExitCode.UsageError
+    return
   }
 
   // Parse existing IDs to allocate the next one
@@ -366,8 +385,9 @@ async function handleWantedAddCard(
   })
 
   if (!specificityResponse.specificity) {
-    console.log('Cancelled.')
-    process.exit(0)
+    console.error('Cancelled.')
+    process.exitCode = ExitCode.UsageError
+    return
   }
 
   if (specificityResponse.specificity === 'name-only') {
@@ -405,8 +425,9 @@ async function handleWantedAddCard(
 
   const finishResult = await promptWantedFinish(printingResult.printing, userFinish)
   if (finishResult === 'cancelled') {
-    console.log('Cancelled.')
-    process.exit(0)
+    console.error('Cancelled.')
+    process.exitCode = ExitCode.UsageError
+    return
   }
 
   const finish = finishResult === 'nopreference' ? undefined : finishResult

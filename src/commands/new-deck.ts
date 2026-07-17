@@ -6,6 +6,7 @@ import { newDeckMarkdown } from '../deck-file'
 import { invalidDeckFormatMessage, parseDeckFormat } from '../deck-format'
 import { listFileName, unusableFileNameMessage } from '../list-file-name'
 import { getDecksDir } from '../ritual-config'
+import { ExitCode } from './scripting'
 
 type NewDeckOptions = { format: string }
 
@@ -20,13 +21,15 @@ export function registerNewDeckCommand(program: Command): void {
       const format = parseDeckFormat(options.format)
       if (!format) {
         console.error(invalidDeckFormatMessage(options.format))
-        process.exit(1)
+        process.exitCode = ExitCode.UsageError
+        return
       }
 
       const fileName = listFileName(name)
       if (fileName === null) {
         console.error(unusableFileNameMessage(name))
-        process.exit(1)
+        process.exitCode = ExitCode.UsageError
+        return
       }
       const filePath = path.join(decksDir, fileName)
 
@@ -39,14 +42,16 @@ export function registerNewDeckCommand(program: Command): void {
         const fileExists = await Bun.file(filePath).exists()
         if (fileExists) {
           console.error(`Error: Deck file '${fileName}' already exists.`)
-          process.exit(1)
+          process.exitCode = ExitCode.UsageError
+          return
         }
 
         await writeFileWithHash(filePath, content)
         console.log(`Created new deck: ${filePath}`)
       } catch (error) {
         console.error('Failed to create deck:', error)
-        process.exit(1)
+        process.exitCode = ExitCode.RuntimeError
+        return
       }
     })
 }

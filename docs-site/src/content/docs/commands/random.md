@@ -44,3 +44,12 @@ Get text output for shell scripts:
 ```bash
 ./ritual random --output text
 ```
+
+## Exit Codes
+
+| Code | Meaning                                                    |
+| ---- | ---------------------------------------------------------- |
+| `0`  | A card was fetched and printed                             |
+| `1`  | Request failure (network error or a Scryfall server error) |
+| `2`  | Usage error (`--fields` without `json`/`ndjson` output)    |
+| `3`  | No card matched the `--filter` query                       |

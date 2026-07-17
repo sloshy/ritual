@@ -42,7 +42,7 @@ const passthrough = rawArgs.slice(1)
 
 // The orchestrator owns the TTY, so the child can't answer interactive
 // prompts. Require the prompt answers up front and bail before spawning.
-if (PROMPTING_SUBCOMMANDS.includes(subcommand) && !hasAnswerFlag(passthrough)) {
+if (PROMPTING_SUBCOMMANDS.includes(subcommand) && !hasAnswerFlag(subcommand, passthrough)) {
   console.error(answerFlagRequiredMessage(subcommand))
   process.exit(1)
 }

@@ -11,6 +11,7 @@ import {
 } from '../editor/change-bundle'
 import { type BundleImportResult, applyChangeBundle } from '../admin/api/import-changes'
 import { ask } from './prompts-helpers'
+import { classifyFileReadError, ExitCode } from './scripting'
 
 type ImportChangesOptions = {
   yes?: boolean
@@ -58,37 +59,50 @@ export function registerImportChangesCommand(program: Command): void {
         text = await fs.readFile(file, 'utf-8')
       } catch (error) {
         console.error(`Cannot read '${file}': ${error instanceof Error ? error.message : error}`)
-        process.exit(1)
+        process.exitCode = classifyFileReadError(error).exitCode
+        return
       }
 
       const bundle = parseChangeBundle(text)
       if (typeof bundle === 'string') {
         console.error(`Invalid change bundle: ${bundle}`)
-        process.exit(1)
+        process.exitCode = ExitCode.UsageError
+        return
       }
 
       const total = bundleChangeCount(bundle)
       if (total === 0) {
-        console.log('The file contains no changes to apply.')
-        process.exit(0)
+        console.error('The file contains no changes to apply.')
+        process.exitCode = ExitCode.NotFound
+        return
       }
 
       printPreview(bundle)
 
       if (!options.yes) {
+        // The confirm prompt cannot be answered without a terminal; without
+        // this guard a piped stdin would silently resolve false or hang.
+        if (!process.stdin.isTTY) {
+          console.error('Confirmation required: pass --yes to apply changes non-interactively.')
+          process.exitCode = ExitCode.UsageError
+          return
+        }
         const confirmed = await ask<boolean>({
           type: 'confirm',
           message: `Apply ${countLabel(total, 'change')} to ${countLabel(bundle.lists.length, 'list')}?`,
           initial: false,
         })
         if (!confirmed) {
-          console.log('Cancelled.')
-          process.exit(0)
+          console.error('Cancelled.')
+          process.exitCode = ExitCode.UsageError
+          return
         }
       }
 
       const result = await applyChangeBundle(bundle)
       printResults(result)
-      process.exit(result.success ? 0 : 1)
+      if (!result.success) {
+        process.exitCode = ExitCode.RuntimeError
+      }
     })
 }

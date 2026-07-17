@@ -1,5 +1,6 @@
 import type { ScryfallCard, ErrorCode } from './types'
 import { getErrorMessage } from './errors'
+import type { ExitCodeValue } from './commands/scripting'
 
 export type PriceCurrency = 'usd' | 'eur' | 'tix'
 
@@ -129,7 +130,7 @@ export function parseCurrencyFlagOrError<T>(
   input: string | undefined,
   emitError: (code: ErrorCode, message: string, options: T) => void,
   scriptingOptions: T,
-  exitCode: number,
+  exitCode: ExitCodeValue,
   fallback: PriceCurrency = DEFAULT_CURRENCY,
 ): PriceCurrency | null {
   try {

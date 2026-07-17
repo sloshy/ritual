@@ -25,6 +25,7 @@ import { fileExists } from '../utils'
 import { version as ritualVersion } from '../version'
 import { SKILLS } from '../skills/catalog'
 import { installSkills, refreshInstalledSkills, resolveSkillsDir } from '../skills/install'
+import { ExitCode } from './scripting'
 
 export function generatePublishForMeWorkflow(config?: GitHubActionsSiteConfig): string {
   if (config?.detectChanges) {
@@ -586,11 +587,21 @@ export function registerInitSiteCommand(program: Command): void {
       // --force: ignore saved state, prompt fresh, overwrite everything
       if (options.force) {
         const config = await promptForConfig()
-        if (!config) return
+        if (!config) {
+          process.exitCode = ExitCode.UsageError
+          return
+        }
         const defaultCurrency = await promptDefaultCurrency()
-        if (!defaultCurrency) return
+        if (!defaultCurrency) {
+          console.error('Cancelled.')
+          process.exitCode = ExitCode.UsageError
+          return
+        }
         await writeInitFiles(config, { force: true })
-        await persistSiteConfigOrExit({ ...config, version: ritualVersion }, defaultCurrency)
+        if (!(await persistSiteConfig({ ...config, version: ritualVersion }, defaultCurrency))) {
+          process.exitCode = ExitCode.RuntimeError
+          return
+        }
         await maybeInstallSkills(options, true)
         printNextSteps(config)
         return
@@ -602,7 +613,8 @@ export function registerInitSiteCommand(program: Command): void {
         const cmp = compareVersions(ritualVersion, loaded.version)
 
         if (cmp === 0) {
-          console.log(`Already initialized with the current version (${ritualVersion}).`)
+          console.error(`Already initialized with the current version (${ritualVersion}).`)
+          process.exitCode = ExitCode.UsageError
           return
         }
 
@@ -615,6 +627,7 @@ export function registerInitSiteCommand(program: Command): void {
             'Use --force to re-initialize with current settings, or remove the "site" key from ' +
               'ritual.config.json if you want to use this older version.',
           )
+          process.exitCode = ExitCode.RuntimeError
           return
         }
 
@@ -635,7 +648,8 @@ export function registerInitSiteCommand(program: Command): void {
             },
           )
           if (cancelled || !response.confirm) {
-            console.log('Skipped.')
+            console.error('Cancelled.')
+            process.exitCode = ExitCode.UsageError
             return
           }
         }
@@ -656,7 +670,10 @@ export function registerInitSiteCommand(program: Command): void {
         }
 
         const updatedSite: SiteDeployConfig = { ...config, version: ritualVersion }
-        await persistSiteConfigOrExit(updatedSite)
+        if (!(await persistSiteConfig(updatedSite))) {
+          process.exitCode = ExitCode.RuntimeError
+          return
+        }
         console.log(`✓ ritual.config.json site section updated to ${ritualVersion}`)
 
         // Refresh any already-installed agent skills so they track the new version.
@@ -666,20 +683,31 @@ export function registerInitSiteCommand(program: Command): void {
 
       // Fresh init (no site config yet)
       const config = await promptForConfig()
-      if (!config) return
+      if (!config) {
+        process.exitCode = ExitCode.UsageError
+        return
+      }
       const defaultCurrency = await promptDefaultCurrency()
-      if (!defaultCurrency) return
+      if (!defaultCurrency) {
+        console.error('Cancelled.')
+        process.exitCode = ExitCode.UsageError
+        return
+      }
       await writeInitFiles(config, { force: false })
-      await persistSiteConfigOrExit({ ...config, version: ritualVersion }, defaultCurrency)
+      if (!(await persistSiteConfig({ ...config, version: ritualVersion }, defaultCurrency))) {
+        process.exitCode = ExitCode.RuntimeError
+        return
+      }
       await maybeInstallSkills(options, false)
       printNextSteps(config)
     })
 }
 
-async function persistSiteConfigOrExit(
+/** Write the site deploy config; on failure, print the error and return false. */
+async function persistSiteConfig(
   deploy: SiteDeployConfig,
   defaultCurrency?: PriceCurrency,
-): Promise<void> {
+): Promise<boolean> {
   try {
     const config = await loadRitualConfig()
     // Preserve any existing public-site selection settings (or seed the `['*']`
@@ -689,11 +717,12 @@ async function persistSiteConfigOrExit(
     if (defaultCurrency !== undefined) config.defaultCurrency = defaultCurrency
     await saveRitualConfig(config)
     await reloadRitualConfig()
+    return true
   } catch (err) {
     console.error(
       `Error: Failed to write ritual.config.json: ${err instanceof Error ? err.message : String(err)}`,
     )
-    process.exit(1)
+    return false
   }
 }
 
@@ -767,7 +796,7 @@ async function promptForConfig(): Promise<InitSiteConfig | null> {
   )
 
   if (cancelled || ciResponse.ciSystem === undefined) {
-    console.log('Cancelled.')
+    console.error('Cancelled.')
     return null
   }
 
@@ -801,7 +830,7 @@ async function promptForConfig(): Promise<InitSiteConfig | null> {
   )
 
   if (cancelled || modeResponse.deployMode === undefined) {
-    console.log('Cancelled.')
+    console.error('Cancelled.')
     return null
   }
 
@@ -820,7 +849,7 @@ async function promptForConfig(): Promise<InitSiteConfig | null> {
     )
 
     if (cancelled || dirResponse.distDir === undefined) {
-      console.log('Cancelled.')
+      console.error('Cancelled.')
       return null
     }
 
@@ -840,7 +869,7 @@ async function promptForConfig(): Promise<InitSiteConfig | null> {
     )
 
     if (cancelled) {
-      console.log('Cancelled.')
+      console.error('Cancelled.')
       return null
     }
 

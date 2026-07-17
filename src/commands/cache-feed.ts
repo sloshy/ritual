@@ -5,11 +5,11 @@ import { defaultHttpClient } from '../http'
 import { getErrorMessage } from '../errors'
 import {
   parseFeedUrlFlag,
-  parsePort,
   parseRefreshCadence,
   resolveRefreshMs,
   scheduleRecurringTask,
 } from '../cache-server/cadence'
+import { ExitCode, parsePort } from './scripting'
 import type { RefreshCadence } from '../cache-server/types'
 import { CACHE_FEED_LOG_PREFIX, CacheFeedHost, DEFAULT_BULK_API_URL } from '../cache-feed/host'
 import { FeedSeeder } from '../cache-feed/seeder'
@@ -90,7 +90,8 @@ export function registerCacheFeedCommand(program: Command): void {
       } catch (e) {
         if (!host.currentFeed()) {
           console.error(`${CACHE_FEED_LOG_PREFIX} Initial feed generation failed:`, e)
-          process.exit(1)
+          process.exitCode = ExitCode.RuntimeError
+          return
         }
         log(`Refresh failed (${getErrorMessage(e)}); serving the existing feed.`)
       }
@@ -101,10 +102,45 @@ export function registerCacheFeedCommand(program: Command): void {
           filesDir: host.filesDir,
           ...(options.torrentPort !== undefined ? { torrentPort: options.torrentPort } : {}),
         })
-        await seeder.start()
-        await seeder.sync(await host.torrentFiles())
+        try {
+          await seeder.start()
+          await seeder.sync(await host.torrentFiles())
+        } catch (e) {
+          console.error(`${CACHE_FEED_LOG_PREFIX} Failed to start seeding:`, getErrorMessage(e))
+          // Destroy the torrent client so no live handle keeps the process open.
+          await seeder.stop()
+          process.exitCode = ExitCode.RuntimeError
+          return
+        }
         const port = seeder.port()
         log(`Seeding ${seeder.stats().torrents} torrents${port ? ` on TCP port ${port}` : ''}.`)
+      }
+
+      try {
+        Bun.serve({
+          hostname: options.host,
+          port: options.port,
+          idleTimeout: 120,
+          fetch: async (req) => {
+            const started = Date.now()
+            const response = await host.handleRequest(req)
+            if (options.verbose) {
+              const { pathname } = new URL(req.url)
+              log(`${req.method} ${pathname} ${response.status} ${Date.now() - started}ms`)
+            }
+            return response
+          },
+        })
+      } catch (e) {
+        // Most likely the port is already in use. Stop the seeder so its
+        // torrent client doesn't keep the failed process alive.
+        console.error(
+          `${CACHE_FEED_LOG_PREFIX} Failed to start the feed server:`,
+          getErrorMessage(e),
+        )
+        if (seeder) await seeder.stop()
+        process.exitCode = ExitCode.RuntimeError
+        return
       }
 
       const refreshMs = resolveRefreshMs(options.refresh, 'RITUAL_CACHE_FEED_REFRESH') ?? DAILY_MS
@@ -118,21 +154,6 @@ export function registerCacheFeedCommand(program: Command): void {
         },
         (error) => console.error(`${CACHE_FEED_LOG_PREFIX} Scheduled feed refresh failed:`, error),
       )
-
-      Bun.serve({
-        hostname: options.host,
-        port: options.port,
-        idleTimeout: 120,
-        fetch: async (req) => {
-          const started = Date.now()
-          const response = await host.handleRequest(req)
-          if (options.verbose) {
-            const { pathname } = new URL(req.url)
-            log(`${req.method} ${pathname} ${response.status} ${Date.now() - started}ms`)
-          }
-          return response
-        },
-      })
 
       log(`Feed server listening on http://${options.host}:${options.port}/${FEED_FILENAME}`)
       log(`Public URL: ${publicUrl}`)
@@ -177,7 +198,8 @@ export function registerCacheFeedCommand(program: Command): void {
       } catch (e) {
         console.error(`${CACHE_FEED_LOG_PREFIX} Feed sync failed:`, getErrorMessage(e))
         await client.stop()
-        process.exit(1)
+        process.exitCode = ExitCode.RuntimeError
+        return
       }
       log(
         result.outcome === 'ingested'
@@ -191,23 +213,22 @@ export function registerCacheFeedCommand(program: Command): void {
       }
 
       // Sharing is caring: stay open and serve the artifacts back to the swarm.
-      await client.seedAll(result.feed)
+      try {
+        await client.seedAll(result.feed)
+      } catch (e) {
+        console.error(`${CACHE_FEED_LOG_PREFIX} Failed to start seeding:`, getErrorMessage(e))
+        await client.stop()
+        process.exitCode = ExitCode.RuntimeError
+        return
+      }
       const port = client.torrentPortInUse()
       log(
         `Seeding ${result.feed.entries.length} artifacts${port ? ` on TCP port ${port}` : ''}. ` +
           'Press Ctrl+C to stop.',
       )
 
-      process.on('SIGINT', () => {
-        void (async () => {
-          log('Stopping seeding...')
-          await client.stop()
-          process.exit(0)
-        })()
-      })
-
       const refreshMs = resolveRefreshMs(options.refresh, 'RITUAL_CACHE_FEED_REFRESH') ?? DAILY_MS
-      scheduleRecurringTask(
+      const refreshTimer = scheduleRecurringTask(
         refreshMs,
         async () => {
           const next = await client.sync()
@@ -218,5 +239,17 @@ export function registerCacheFeedCommand(program: Command): void {
         },
         (error) => console.error(`${CACHE_FEED_LOG_PREFIX} Scheduled feed re-check failed:`, error),
       )
+
+      // Clearing the refresh timer and destroying the torrent client releases
+      // every live handle, so the process exits naturally with code 0 — no
+      // process.exit needed. `once` restores the default handler afterward, so
+      // a second Ctrl+C force-quits if shutdown ever wedges.
+      process.once('SIGINT', () => {
+        void (async () => {
+          log('Stopping seeding...')
+          clearInterval(refreshTimer)
+          await client.stop()
+        })()
+      })
     })
 }

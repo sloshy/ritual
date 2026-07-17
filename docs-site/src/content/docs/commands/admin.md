@@ -23,11 +23,11 @@ ritual admin [options]
 | `--mcp-port <number>`  | Port for the embedded MCP server (only with `--mcp`)                                                                                                                                           | `8765`    |
 | `--mcp-token <secret>` | Bearer token required on the embedded MCP endpoint (with `--mcp`)                                                                                                                              |           |
 
-On startup, `admin` checks whether the Scryfall card cache is missing or stale and prompts to refresh it. Pass `--allow-refresh` or `--no-refresh` to answer that prompt non-interactively — this is required when running under `bun run dev admin` (see [Development → Dev Workflow](/development/#dev-workflow)). (`--allow-refresh-no-bulk` is also accepted for parity with `serve-site`; since the admin cache is only populated by bulk download, it behaves the same as `--no-refresh` here.)
+On startup, `admin` checks whether the Scryfall card cache is missing or stale and prompts to refresh it. Pass `--allow-refresh` or `--no-refresh` to answer that prompt non-interactively — this is required when running under `bun run dev admin` (see [Development → Dev Workflow](/development/#dev-workflow)).
 
 ## Embedded MCP Server
 
-Passing `--mcp` starts an [MCP](/commands/mcp/) (Model Context Protocol) endpoint in the **same process** as the web admin, on a separate port (`--mcp-port`, default `8765`):
+Passing `--mcp` starts an [MCP](/commands/mcp/) (Model Context Protocol) endpoint in the **same process** as the web admin, on a separate port (`--mcp-port`, default `8765`). Both `--port` and `--mcp-port` are validated at parse time (1–65535), and `--mcp-port` must differ from `--port`; violating either exits with code 2 before the server starts:
 
 ```bash
 ritual admin --mcp --mcp-token "$MCP_TOKEN"

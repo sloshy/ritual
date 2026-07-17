@@ -134,6 +134,14 @@ against what they last ingested — content identity, not timestamps.
   last good feed keeps being served (and seeded).
 - The feed directory holds `feed.json`, `files/`, and `torrents/`.
 
+## Exit Codes
+
+| Code | Meaning                                                                                                                                                            |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `0`  | Success — `fetch --no-seed` synced the cache; a long-running `host` or seeding `fetch` was stopped with Ctrl+C                                                     |
+| `1`  | Startup or sync failure — initial feed generation failed with no previous feed, seeding could not start, the feed port could not be bound, or the feed sync failed |
+| `2`  | Usage error (invalid option value, e.g. a bad `--port`, `--torrent-port`, `--refresh`, or `--url`)                                                                 |
+
 ## Serving publicly
 
 Bind to localhost and put a TLS reverse proxy in front for the HTTP side, with

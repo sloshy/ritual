@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  classifyFileReadError,
   emitError,
   emitOutput,
+  ExitCode,
   normalizeScriptingOptions,
   parseFields,
   parseOutputFormat,
@@ -107,5 +109,25 @@ describe('scripting command helpers', () => {
     expect(parsed.error.code).toBe('not_found')
     expect(parsed.error.message).toBe('No results found.')
     expect(parsed.error.details.page).toBe(1)
+  })
+
+  test('classifyFileReadError maps a missing file to not-found', () => {
+    const enoent = Object.assign(new Error('no such file'), { code: 'ENOENT' })
+    expect(classifyFileReadError(enoent)).toEqual({
+      errorCode: 'not_found',
+      exitCode: ExitCode.NotFound,
+    })
+  })
+
+  test('classifyFileReadError maps any other failure to a runtime error', () => {
+    const eacces = Object.assign(new Error('permission denied'), { code: 'EACCES' })
+    expect(classifyFileReadError(eacces)).toEqual({
+      errorCode: 'runtime_error',
+      exitCode: ExitCode.RuntimeError,
+    })
+    expect(classifyFileReadError(new Error('plain'))).toEqual({
+      errorCode: 'runtime_error',
+      exitCode: ExitCode.RuntimeError,
+    })
   })
 })

@@ -10,6 +10,7 @@ import { refreshMode } from '../refresh'
 import { isRunningFromSource } from '../runtime'
 import {
   generateAllThemesCss,
+  isThemeName,
   resolveThemeName,
   themeBootstrapScript,
   themeFlameStops,
@@ -17,17 +18,23 @@ import {
   type ThemeName,
 } from '../themes'
 import { buildFlameSvg } from '../flame'
+import { ExitCode, parsePort } from './scripting'
 
 type AdminCommandOptions = {
-  port: string
+  port: number
   host: string
   theme?: string
   allowRefresh?: boolean
-  allowRefreshNoBulk?: boolean
   refresh?: boolean
   mcp?: boolean
-  mcpPort: string
+  mcpPort: number
   mcpToken?: string
+}
+
+/** Validated settings for the embedded MCP endpoint (`--mcp`). */
+type EmbeddedMcpConfig = {
+  port: number
+  token: string
 }
 
 function buildIndexHtml(initialTheme: ThemeName): string {
@@ -89,7 +96,7 @@ export function registerAdminCommand(program: Command): void {
   program
     .command('admin')
     .description('Start the web admin interface')
-    .option('-p, --port <number>', 'Port to serve on', '8080')
+    .option('-p, --port <number>', 'Port to serve on', parsePort, 8080)
     .option('--host <address>', 'Host address to bind to', '0.0.0.0')
     .option(
       '--theme <name>',
@@ -97,26 +104,47 @@ export function registerAdminCommand(program: Command): void {
       'default',
     )
     .option('--allow-refresh', 'Refresh the card cache on startup without asking (bulk download)')
-    .option(
-      '--allow-refresh-no-bulk',
-      'Accepted for parity with serve-site; admin only refreshes via bulk, so this skips it',
-    )
     .option('--no-refresh', 'Skip the card cache refresh on startup; use cached data as-is')
     .option(
       '--mcp',
       'Also serve an MCP (Model Context Protocol) endpoint in this process (requires --mcp-token)',
     )
-    .option('--mcp-port <number>', 'Port for the embedded MCP server (with --mcp)', '8765')
+    .option('--mcp-port <number>', 'Port for the embedded MCP server (with --mcp)', parsePort, 8765)
     .option(
       '--mcp-token <secret>',
       'Bearer token required on the embedded MCP endpoint (with --mcp; or set RITUAL_MCP_TOKEN)',
     )
     .action(async (options: AdminCommandOptions) => {
-      const port = parseInt(options.port, 10)
+      const port = options.port
       const host = options.host
       const adminDistDir = path.join(getBaseDir(), '.admin-dist')
 
       const themeName = resolveThemeName(options.theme)
+      if (!isThemeName(themeName)) {
+        console.error(themeName)
+        process.exitCode = ExitCode.UsageError
+        return
+      }
+
+      // Validate the embedded-MCP flags before any server starts listening, so
+      // a bad combination never leaves a half-started admin server behind.
+      let embeddedMcp: EmbeddedMcpConfig | undefined
+      if (options.mcp) {
+        const mcpToken = resolveMcpToken(options.mcpToken)
+        if (!mcpToken) {
+          console.error(
+            '--mcp requires a bearer token: pass --mcp-token <secret> or set RITUAL_MCP_TOKEN.',
+          )
+          process.exitCode = ExitCode.UsageError
+          return
+        }
+        if (options.mcpPort === port) {
+          console.error('--mcp-port must differ from the admin --port.')
+          process.exitCode = ExitCode.UsageError
+          return
+        }
+        embeddedMcp = { port: options.mcpPort, token: mcpToken }
+      }
 
       console.log('Preparing admin interface...')
 
@@ -152,23 +180,13 @@ export function registerAdminCommand(program: Command): void {
 
       await startAdminServer({ port, host, distDir: adminDistDir })
 
-      if (options.mcp) {
-        const mcpToken = resolveMcpToken(options.mcpToken)
-        if (!mcpToken) {
-          console.error(
-            '--mcp requires a bearer token: pass --mcp-token <secret> or set RITUAL_MCP_TOKEN.',
-          )
-          process.exitCode = 1
-          return
-        }
-        const mcpPort = parseInt(options.mcpPort, 10)
-        if (mcpPort === port) {
-          console.error('--mcp-port must differ from the admin --port.')
-          process.exitCode = 1
-          return
-        }
+      if (embeddedMcp) {
         // Same process, separate port; bearer-token auth like standalone `ritual mcp`.
-        await runHttpServer({ port: mcpPort, host, auth: { kind: 'bearer', token: mcpToken } })
+        await runHttpServer({
+          port: embeddedMcp.port,
+          host,
+          auth: { kind: 'bearer', token: embeddedMcp.token },
+        })
       }
     })
 }

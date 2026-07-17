@@ -1,4 +1,4 @@
-import { describe, test, expect, mock } from 'bun:test'
+import { describe, test, expect } from 'bun:test'
 import {
   generateAllThemesCss,
   generateCustomThemeCss,
@@ -79,27 +79,17 @@ describe('resolveThemeName', () => {
     expect(resolveThemeName(undefined)).toBe('default')
   })
 
-  test('exits with an error when the theme is unknown', () => {
-    const exitMock = mock((_code?: number): never => {
-      throw new Error('process.exit called')
-    })
-    const errorMock = mock(() => {})
-    const originalExit = process.exit
-    const originalError = console.error
-    process.exit = exitMock
-    console.error = errorMock
-    try {
-      expect(() => resolveThemeName('not-a-theme')).toThrow('process.exit called')
-      expect(exitMock).toHaveBeenCalledWith(1)
-      expect(errorMock).toHaveBeenCalledTimes(1)
-      const firstCall = errorMock.mock.calls[0] as unknown as unknown[]
-      const message = String(firstCall[0])
-      expect(message).toContain("'not-a-theme'")
-      expect(message).toContain('default')
-    } finally {
-      process.exit = originalExit
-      console.error = originalError
-    }
+  test('returns an error message when the theme is unknown', () => {
+    const result = resolveThemeName('not-a-theme')
+    expect(isThemeName(result)).toBe(false)
+    expect(result).toContain("'not-a-theme'")
+    expect(result).toContain('default')
+  })
+
+  test('the error message preserves the raw input casing', () => {
+    const result = resolveThemeName('NOT-A-Theme')
+    expect(isThemeName(result)).toBe(false)
+    expect(result).toContain("'NOT-A-Theme'")
   })
 })
 

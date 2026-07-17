@@ -2,7 +2,8 @@ import { Command } from 'commander'
 
 import { ArchidektAuth } from '../auth/ArchidektAuth'
 import { FileTokenStore } from '../auth/FileTokenStore'
-import { promptForLogin } from '../auth/login-helper'
+import { promptForLoginOutcome } from '../auth/login-helper'
+import { ExitCode } from './scripting'
 
 export function registerLoginCommand(program: Command): void {
   const loginCommand = program.command('login').description('Login to a supported website')
@@ -31,6 +32,14 @@ export function registerLoginCommand(program: Command): void {
         }
       }
 
-      await promptForLogin(auth)
+      const outcome = await promptForLoginOutcome(auth)
+      if (outcome === 'cancelled') {
+        process.exitCode = ExitCode.UsageError
+        return
+      }
+      if (outcome === 'failed') {
+        process.exitCode = ExitCode.RuntimeError
+        return
+      }
     })
 }

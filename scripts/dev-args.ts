@@ -9,26 +9,34 @@
  */
 
 /** Flags that pre-answer the underlying command's cache refresh prompt. */
-export const ANSWER_FLAGS: readonly string[] = [
-  '--allow-refresh',
-  '--allow-refresh-no-bulk',
-  '--no-refresh',
-]
+export function answerFlagsFor(subcommand: string): readonly string[] {
+  // `admin` has no per-card refresh mode, so it doesn't take the no-bulk flag.
+  if (subcommand === 'admin') return ['--allow-refresh', '--no-refresh']
+  return ['--allow-refresh', '--allow-refresh-no-bulk', '--no-refresh']
+}
 
 /** Whether the passthrough args contain an explicit refresh answer. */
-export function hasAnswerFlag(args: readonly string[]): boolean {
-  return args.some((arg) => ANSWER_FLAGS.includes(arg))
+export function hasAnswerFlag(subcommand: string, args: readonly string[]): boolean {
+  const flags = answerFlagsFor(subcommand)
+  return args.some((arg) => flags.includes(arg))
 }
 
 /** The error shown when a prompting subcommand is run without an answer flag. */
 export function answerFlagRequiredMessage(subcommand: string): string {
-  return [
+  const lines = [
     `[dev] '${subcommand}' can prompt to refresh the Scryfall card cache, but the dev`,
     `      tool owns the terminal so the child can't read your answer. Re-run with an`,
     `      explicit refresh choice:`,
     ``,
     `        bun run dev ${subcommand} --allow-refresh          # refresh, bulk download allowed`,
-    `        bun run dev ${subcommand} --allow-refresh-no-bulk  # refresh per-card, no bulk download`,
+  ]
+  if (answerFlagsFor(subcommand).includes('--allow-refresh-no-bulk')) {
+    lines.push(
+      `        bun run dev ${subcommand} --allow-refresh-no-bulk  # refresh per-card, no bulk download`,
+    )
+  }
+  lines.push(
     `        bun run dev ${subcommand} --no-refresh             # don't refresh; use existing cache`,
-  ].join('\n')
+  )
+  return lines.join('\n')
 }

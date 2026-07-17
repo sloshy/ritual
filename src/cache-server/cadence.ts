@@ -3,14 +3,6 @@ import { DAY_REFRESH_MS, MONTHLY_REFRESH_MS, WEEKLY_REFRESH_MS } from './constan
 import { parseCacheFeedUrl } from '../ritual-config'
 import { type RefreshCadence } from './types'
 
-export function parsePort(value: string): number {
-  const port = Number.parseInt(value, 10)
-  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
-    throw new InvalidArgumentError('Port must be an integer between 1 and 65535.')
-  }
-  return port
-}
-
 export function parseRefreshCadence(value: string): RefreshCadence {
   const normalized = value.trim().toLowerCase()
   if (normalized === 'daily' || normalized === 'weekly' || normalized === 'monthly') {

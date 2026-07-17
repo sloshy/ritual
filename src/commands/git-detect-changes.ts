@@ -18,6 +18,7 @@ import { appendChangelog } from '../changelog-writer'
 import { formatChange, type ChangeEvent } from '../change-event'
 import { getBaseDir } from '../base-dir'
 import { computeHash, isHashCurrent, loadHash, saveHash } from '../content-hash'
+import { ExitCode } from './scripting'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -277,7 +278,7 @@ export function registerGitDetectChangesCommand(program: Command): void {
         console.error(
           `Failed to detect changes: ${err instanceof Error ? err.message : String(err)}`,
         )
-        process.exitCode = 1
+        process.exitCode = ExitCode.RuntimeError
         return
       }
 

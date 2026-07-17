@@ -18,15 +18,13 @@ The build options mirror [`build-site`](/commands/build-site/); two additional o
 
 | Option                      | Description                                                                                                                           | Default   |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| `-p, --port <number>`       | Port to serve on                                                                                                                      | `3000`    |
+| `-p, --port <number>`       | Port to serve on. Validated at parse time (1–65535); an invalid value exits with code 2.                                              | `3000`    |
 | `--host <address>`          | Host address to bind to                                                                                                               | `0.0.0.0` |
 | `-v, --verbose`             | Show list of cards being fetched from Scryfall                                                                                        |           |
 | `--cache-images`            | Download and use local deck card images in `dist/images` instead of URLs                                                              |           |
 | `--decks [names...]`        | Deck names or URLs to include in the site (default: all in `decks/`)                                                                  |           |
 | `--collections [names...]`  | Collection names to include in the site (default: all in `collections/`)                                                              |           |
 | `--wanted-lists [names...]` | Wanted list names to include in the site (default: all in `wanted/`)                                                                  |           |
-| `--collection-sort <field>` | Default sort order for collection pages (`file-order`, `name`, `price`, `set-code`, `type`, `cmc`, `color-identity`)                  |           |
-| `--deck-sort <field>`       | Default sort order for deck pages (`name`, `cmc`, `price`, `type`, `edhrec`, `color-identity`)                                        |           |
 | `--currencies <list>`       | Comma-separated currencies to include on the site: `usd`, `eur`, `tix` (default: all three; first listed is default)                  |           |
 | `--allow-refresh`           | Refresh the card cache when stale, including the Scryfall bulk download (see [build-site](/commands/build-site/#card-cache-refresh)). |           |
 | `--allow-refresh-no-bulk`   | Refresh stale prices per-card but never trigger a bulk download.                                                                      |           |

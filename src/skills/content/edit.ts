@@ -125,6 +125,9 @@ ritual import-changes edits.json          # preview, then confirm interactively
 ritual import-changes edits.json --yes    # apply without the confirmation prompt
 \`\`\`
 
+Agents and scripts must always pass \`--yes\`: when stdin is not a terminal the
+command refuses with exit code 2 instead of prompting.
+
 Changes are re-targeted to each list's current \`&N\` card IDs (by ID when it still
 exists, else by card name); changes whose target card no longer exists are skipped
 and reported. Each list gets a changelog entry, and a failed list (e.g. one that no

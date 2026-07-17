@@ -21,8 +21,6 @@ By default, deck card images use Scryfall URLs from card data. This can be overr
 | `--decks [names...]`        | Deck names or URLs to include in the site (default: the `site.includeDecks` config selection)                            |
 | `--collections [names...]`  | Collection names to include in the site (default: the `site.includeCollections` config selection)                        |
 | `--wanted-lists [names...]` | Wanted list names to include in the site (default: the `site.includeWantedLists` config selection)                       |
-| `--collection-sort <field>` | Default sort order for collection pages (`file-order`, `name`, `price`, `set-code`, `type`, `cmc`, `color-identity`)     |
-| `--deck-sort <field>`       | Default sort order for deck pages (`name`, `cmc`, `price`, `type`, `edhrec`, `color-identity`)                           |
 | `--currencies <list>`       | Comma-separated currencies to include on the site: `usd`, `eur`, `tix` (default: all three)                              |
 | `--allow-refresh`           | Refresh the card cache when stale, including the fast Scryfall bulk download (answers the prompt for you)                |
 | `--allow-refresh-no-bulk`   | Refresh stale prices per-card but never trigger a bulk download                                                          |
@@ -72,12 +70,6 @@ Build with specific wanted lists:
 
 ```bash
 ./ritual build-site --wanted-lists "High Priority" "Trade Targets"
-```
-
-Build with custom collection sort order:
-
-```bash
-./ritual build-site --collections --collection-sort price
 ```
 
 Build with EUR as the default price currency:

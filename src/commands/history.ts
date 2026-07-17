@@ -24,6 +24,7 @@ import {
   type ChangeSet,
 } from '../changelog-blocks'
 import { buildDefaultChangeLines, changesPathFor, loadListSnapshot } from './history-helpers'
+import { ExitCode } from './scripting'
 import { promptExitMenu } from './prompts-helpers'
 
 type HistoryOptions = ListTypeFlags
@@ -100,7 +101,7 @@ export function registerHistoryCommand(program: Command): void {
       const type = listTypeFromFlags(options)
       if (type === 'conflict') {
         console.error('Specify only one of --deck, --collection, or --wanted.')
-        process.exitCode = 2
+        process.exitCode = ExitCode.UsageError
         return
       }
 
@@ -124,7 +125,7 @@ async function resolveLocation(
     const resolved = await resolveList(listName, type)
     if (isResolveListError(resolved)) {
       console.error(formatResolveListError(resolved))
-      process.exitCode = resolved.kind === 'ambiguous' ? 2 : 3
+      process.exitCode = resolved.kind === 'ambiguous' ? ExitCode.UsageError : ExitCode.NotFound
       return null
     }
     return resolved
@@ -137,7 +138,7 @@ async function resolveLocation(
         ? `No ${listTypeLabel(type).toLowerCase()} lists found.`
         : 'No decks, collections, or wanted lists found.',
     )
-    process.exitCode = 3
+    process.exitCode = ExitCode.NotFound
     return null
   }
 

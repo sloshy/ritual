@@ -3,10 +3,11 @@ import path from 'node:path'
 import { getBaseDir } from '../base-dir'
 import { getErrorMessage } from '../errors'
 import { applyBuildSiteOptions, runBuildSite, type BuildSiteOptions } from './build-site'
+import { ExitCode, parsePort } from './scripting'
 import { serveStaticSite } from './serve-helpers'
 
 type ServeSiteCliOptions = BuildSiteOptions & {
-  port: string
+  port: number
   host: string
 }
 
@@ -14,11 +15,11 @@ export function registerServeSiteCommand(program: Command): void {
   const command = program
     .command('serve-site')
     .description('Build the static site and serve it')
-    .option('-p, --port <number>', 'Port to serve on', '3000')
+    .option('-p, --port <number>', 'Port to serve on', parsePort, 3000)
     .option('--host <address>', 'Host address to bind to', '0.0.0.0')
 
   applyBuildSiteOptions(command).action(async (options: ServeSiteCliOptions) => {
-    const port = parseInt(options.port, 10)
+    const port = options.port
     const hostname = options.host
 
     const buildOptions: BuildSiteOptions = {
@@ -27,8 +28,6 @@ export function registerServeSiteCommand(program: Command): void {
       decks: options.decks,
       collections: options.collections,
       wantedLists: options.wantedLists,
-      collectionSort: options.collectionSort,
-      deckSort: options.deckSort,
       currencies: options.currencies,
       allowRefresh: options.allowRefresh,
       allowRefreshNoBulk: options.allowRefreshNoBulk,
@@ -42,7 +41,13 @@ export function registerServeSiteCommand(program: Command): void {
       await runBuildSite(buildOptions)
     } catch (err) {
       console.error('Initial build failed:', getErrorMessage(err))
-      process.exit(1)
+      process.exitCode = ExitCode.RuntimeError
+      return
+    }
+    // The build reports its own failures by setting the exit code; don't start
+    // the server on a failed build.
+    if (typeof process.exitCode === 'number' && process.exitCode !== 0) {
+      return
     }
 
     const distDir = path.join(getBaseDir(), 'dist')

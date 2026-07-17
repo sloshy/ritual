@@ -191,7 +191,7 @@ ritual init-site --upgrade
 
 ### Downgrade warning
 
-If the current Ritual build is older than the version recorded in the `site` config, the command warns you and exits without making changes:
+If the current Ritual build is older than the version recorded in the `site` config, the command warns you and exits with a failure status without making changes:
 
 ```
 Warning: The current Ritual build (0.1.0) is older than the version last used
@@ -207,6 +207,14 @@ Use `--force` (or `-f`) to bypass all version checks and re-run the full interac
 ```bash
 ritual init-site --force
 ```
+
+## Exit Codes
+
+| Code | Meaning                                                                                                              |
+| ---- | -------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Files generated, or the upgrade was applied                                                                          |
+| `1`  | Failed to write `ritual.config.json`, or the current build is older than the version that initialized the repository |
+| `2`  | A prompt was cancelled or declined, or the repository is already initialized with the current version                |
 
 ## Customizing the Ritual Version (GitHub Actions)
 

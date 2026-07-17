@@ -16,6 +16,7 @@ import type {
   ModifyCardEntry,
   ModifyCardModifications,
 } from '../importers/archidekt-types'
+import { ExitCode } from './scripting'
 import {
   diffByCardName,
   diffToChangeEvents,
@@ -262,12 +263,14 @@ export function registerDeckSyncCommand(program: Command): void {
 
       if (options.uploadChanges && options.downloadChanges) {
         logger.error('Cannot use both --upload-changes and --download-changes at the same time')
-        process.exit(1)
+        process.exitCode = ExitCode.UsageError
+        return
       }
 
       if (!options.uploadChanges && !options.downloadChanges) {
         logger.error('Specify either --upload-changes or --download-changes')
-        process.exit(1)
+        process.exitCode = ExitCode.UsageError
+        return
       }
 
       const tokenStore = new FileTokenStore()
@@ -278,7 +281,8 @@ export function registerDeckSyncCommand(program: Command): void {
       const token = await auth.getToken()
       if (!token) {
         logger.error('Not signed into Archidekt. Run "ritual login archidekt" first.')
-        process.exit(1)
+        process.exitCode = ExitCode.RuntimeError
+        return
       }
 
       const decksDir = getDecksDir()
@@ -289,13 +293,20 @@ export function registerDeckSyncCommand(program: Command): void {
         return
       }
 
-      if (options.downloadChanges) {
-        await downloadChanges(targets, client, token, logger)
-      } else {
-        await uploadChanges(targets, client, token, logger)
+      const result = options.downloadChanges
+        ? await downloadChanges(targets, client, token, logger)
+        : await uploadChanges(targets, client, token, logger)
+
+      if (result.failedCount > 0) {
+        logger.error(`${result.failedCount} of ${result.totalCount} decks failed`)
+        process.exitCode = ExitCode.RuntimeError
       }
     })
 }
+
+// ── Sync outcome ──────────────────────────────────────────────────────
+
+type SyncOutcome = { failedCount: number; totalCount: number }
 
 // ── Download flow ─────────────────────────────────────────────────────
 
@@ -304,7 +315,8 @@ async function downloadChanges(
   client: ArchidektClient,
   token: string,
   logger: ReturnType<typeof getLogger>,
-): Promise<void> {
+): Promise<SyncOutcome> {
+  let failedCount = 0
   for (const target of targets) {
     logger.info(`Syncing "${target.deck.name}" (download)...`)
 
@@ -314,6 +326,7 @@ async function downloadChanges(
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
       logger.error(`Failed to fetch Archidekt deck ${target.sourceId}: ${message}`)
+      failedCount++
       continue
     }
 
@@ -357,6 +370,7 @@ async function downloadChanges(
     await saveDeckWithSyncTimestamp(target, updatedDeck)
     logger.info(`  Saved.`)
   }
+  return { failedCount, totalCount: targets.length }
 }
 
 // ── Upload flow ───────────────────────────────────────────────────────
@@ -366,7 +380,7 @@ async function uploadChanges(
   client: ArchidektClient,
   token: string,
   logger: ReturnType<typeof getLogger>,
-): Promise<void> {
+): Promise<SyncOutcome> {
   // Fetch owned deck IDs for ownership check
   let ownedDeckIds: Set<string>
   try {
@@ -375,9 +389,11 @@ async function uploadChanges(
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
     logger.error(`Failed to fetch owned decks: ${message}`)
-    return
+    // No deck could be synced without the ownership list — all failed.
+    return { failedCount: targets.length, totalCount: targets.length }
   }
 
+  let failedCount = 0
   for (const target of targets) {
     logger.info(`Syncing "${target.deck.name}" (upload)...`)
 
@@ -392,6 +408,7 @@ async function uploadChanges(
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
       logger.error(`  Failed to fetch Archidekt deck ${target.sourceId}: ${message}`)
+      failedCount++
       continue
     }
 
@@ -414,6 +431,9 @@ async function uploadChanges(
     const rawIndex = buildRawCardIndex(rawDeck)
     const plan = await buildUploadPlan(diff, target.deck.sections, rawIndex, client, token)
 
+    // Plan errors are partial failures: some cards could not be turned into
+    // upload entries, so the deck did not fully sync even if the rest pushes.
+    const deckFailed = plan.errors.length > 0
     if (plan.errors.length > 0) {
       for (const err of plan.errors) {
         logger.warn(`  ${err}`)
@@ -427,12 +447,16 @@ async function uploadChanges(
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error)
         logger.error(`  Failed to push changes: ${message}`)
+        failedCount++
         continue
       }
     }
+
+    if (deckFailed) failedCount++
 
     // Update lastSynced in front matter
     await saveDeckWithSyncTimestamp(target, target.deck)
     logger.info(`  Updated lastSynced.`)
   }
+  return { failedCount, totalCount: targets.length }
 }

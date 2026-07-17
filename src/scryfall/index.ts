@@ -11,10 +11,14 @@ export {
 
 export {
   ScryfallClient,
+  classifyFetchCard,
   computeRepresentativePrints,
+  type FetchCardOutcome,
   type ScryfallSymbol,
   type CurrencyPrint,
   type RepresentativePrintsResult,
+  type ScryfallFetchError,
+  type FetchCardResult,
 } from './client'
 
 import type { ScryfallCard, ScryfallList } from '../types'
@@ -26,6 +30,7 @@ import type {
   RepresentativePrintsResult,
   FetchCardDataOptions,
   FetchNamedCardOptions,
+  FetchCardResult,
 } from './client'
 import { comparePrintings, type CardNameFilter } from './card-utils'
 import type { PriceCurrency } from '../price-currency'
@@ -103,11 +108,11 @@ export async function getCardPrintings(name: string): Promise<ScryfallCard[]> {
 export function fetchNamedCard(
   name: string,
   options?: FetchNamedCardOptions,
-): Promise<ScryfallCard | null> {
+): Promise<FetchCardResult> {
   return scryfallClient.fetchNamedCard(name, options)
 }
 
-export function fetchRandomCard(filter?: string): Promise<ScryfallCard | null> {
+export function fetchRandomCard(filter?: string): Promise<FetchCardResult> {
   return scryfallClient.fetchRandomCard(filter)
 }
 

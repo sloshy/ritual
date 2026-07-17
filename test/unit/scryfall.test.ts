@@ -2,6 +2,7 @@ import { describe, expect, test, beforeEach, afterEach, mock } from 'bun:test'
 import {
   ScryfallClient,
   type ScryfallSymbol,
+  classifyFetchCard,
   comparePrintings,
   computeRepresentativePrints,
   getCardGames,
@@ -292,8 +293,8 @@ describe('ScryfallClient', () => {
 
       const result = await client.fetchNamedCard('Lightning Bolt', { set: 'lea' })
 
-      expect(result).not.toBeNull()
-      expect(result!.set).toBe('lea')
+      if (result === null || 'error' in result) throw new Error('expected a card result')
+      expect(result.set).toBe('lea')
     })
 
     test('should return null on 404', async () => {
@@ -312,6 +313,41 @@ describe('ScryfallClient', () => {
       const result = await client.fetchNamedCard('Not A Real Card')
 
       expect(result).toBeNull()
+    })
+
+    test('should surface a fetch error with Scryfall details on a non-404 HTTP failure', async () => {
+      mockHttp.mock(
+        'https://api.scryfall.com/cards/named?exact=Lightning+Bolt',
+        () =>
+          new Response(JSON.stringify({ object: 'error', details: 'Scryfall is on fire' }), {
+            status: 503,
+          }),
+      )
+
+      const result = await client.fetchNamedCard('Lightning Bolt')
+
+      expect(result).toEqual({ error: 'Scryfall is on fire' })
+    })
+
+    test('should fall back to the HTTP status when the error body has no details', async () => {
+      mockHttp.mock(
+        'https://api.scryfall.com/cards/named?exact=Lightning+Bolt',
+        () => new Response('not json', { status: 500, statusText: 'Internal Server Error' }),
+      )
+
+      const result = await client.fetchNamedCard('Lightning Bolt')
+
+      expect(result).toEqual({ error: '500 Internal Server Error' })
+    })
+
+    test('should surface a fetch error when the request throws', async () => {
+      mockHttp.mock('https://api.scryfall.com/cards/named?exact=Lightning+Bolt', () => {
+        throw new Error('network down')
+      })
+
+      const result = await client.fetchNamedCard('Lightning Bolt')
+
+      expect(result).toEqual({ error: 'network down' })
     })
   })
 
@@ -347,7 +383,7 @@ describe('ScryfallClient', () => {
       expect(result).toEqual(mockCard)
     })
 
-    test('should return null on error', async () => {
+    test('should return null on 404 (no cards match the filter)', async () => {
       mockHttp.mock(
         'https://api.scryfall.com/cards/random?q=impossible%3Aquery',
         () =>
@@ -359,6 +395,30 @@ describe('ScryfallClient', () => {
       const result = await client.fetchRandomCard('impossible:query')
 
       expect(result).toBeNull()
+    })
+
+    test('should surface a fetch error on a non-404 HTTP failure', async () => {
+      mockHttp.mock(
+        'https://api.scryfall.com/cards/random',
+        () =>
+          new Response(JSON.stringify({ object: 'error', details: 'Rate limited' }), {
+            status: 429,
+          }),
+      )
+
+      const result = await client.fetchRandomCard()
+
+      expect(result).toEqual({ error: 'Rate limited' })
+    })
+
+    test('should surface a fetch error when the request throws', async () => {
+      mockHttp.mock('https://api.scryfall.com/cards/random', () => {
+        throw new Error('connection reset')
+      })
+
+      const result = await client.fetchRandomCard()
+
+      expect(result).toEqual({ error: 'connection reset' })
     })
   })
 
@@ -559,6 +619,24 @@ describe('ScryfallClient', () => {
       expect(result).toBeTrue()
       expect(writeFileMock).toHaveBeenCalledTimes(2)
     })
+  })
+})
+
+describe('classifyFetchCard', () => {
+  test('classifies null as not-found', () => {
+    expect(classifyFetchCard(null)).toEqual({ kind: 'not-found' })
+  })
+
+  test('classifies a fetch error as failed with its message', () => {
+    expect(classifyFetchCard({ error: 'Scryfall is down' })).toEqual({
+      kind: 'failed',
+      message: 'Scryfall is down',
+    })
+  })
+
+  test('classifies a card as the card outcome', () => {
+    const card = makeScryfallCard({ name: 'Lightning Bolt' })
+    expect(classifyFetchCard(card)).toEqual({ kind: 'card', card })
   })
 })
 

@@ -2,6 +2,7 @@ import { Command } from 'commander'
 import path from 'node:path'
 import { SKILLS, selectSkills } from '../skills/catalog'
 import { installSkills, resolveSkillsDir } from '../skills/install'
+import { ExitCode } from './scripting'
 
 type SkillsInstallOptions = {
   global?: boolean
@@ -42,7 +43,7 @@ export function registerSkillsCommand(program: Command): void {
       const selected = selectSkills(names)
       if (typeof selected === 'string') {
         console.error(selected)
-        process.exitCode = 1
+        process.exitCode = ExitCode.UsageError
         return
       }
 

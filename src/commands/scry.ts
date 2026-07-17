@@ -1,4 +1,4 @@
-import { Command } from 'commander'
+import { Command, InvalidArgumentError } from 'commander'
 import { fetchSearchPage } from '../scryfall'
 import prompts from 'prompts'
 import {
@@ -29,7 +29,7 @@ export function registerScryCommand(program: Command): void {
       .description('Run a raw Scryfall card search')
       .argument('<query>', 'Scryfall search query')
       .option('--csv', 'Output as CSV', false)
-      .option('--pages <number>', 'Number of pages to output (default 1 for non-TTY)', parseInt)
+      .option('--pages <number>', 'Number of pages to output (default 1 for non-TTY)', parsePages)
       .option('--non-interactive', 'Disable pagination prompts')
       .option('-y, --yes', 'Automatically fetch additional pages in TTY mode')
       .option('--fields <list>', 'Comma-separated fields for json/ndjson output', parseFields),
@@ -139,8 +139,11 @@ export function registerScryCommand(program: Command): void {
   })
 }
 
-function parseInt(value: string) {
-  const parsed = Number.parseInt(value, 10)
-  if (isNaN(parsed)) return undefined
-  return parsed
+/** Commander argParser for --pages: reject non-numeric and non-positive values at parse time. */
+function parsePages(value: string): number {
+  const pages = Number.parseInt(value, 10)
+  if (!Number.isInteger(pages) || pages <= 0) {
+    throw new InvalidArgumentError('Pages must be a positive integer.')
+  }
+  return pages
 }

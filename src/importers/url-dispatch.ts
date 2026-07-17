@@ -27,6 +27,42 @@ export function matchDeckUrl(url: string): DeckUrlMatch | undefined {
   return undefined
 }
 
+/** Matches an explicit URL scheme prefix, e.g. `https://`, `http://`, `ftp://`. */
+const SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//i
+
+/** Hostnames of the deck services matchDeckUrl recognizes, for scheme-less detection. */
+const SERVICE_HOSTNAME_PATTERN = /(^|\.)(archidekt|moxfield|mtggoldfish)\.com$/i
+
+/**
+ * Decide whether an `import <source>` argument is URL-shaped, and if so return
+ * the URL to dispatch (normalizing a missing scheme to `https://`). Returns
+ * `undefined` when the source should be treated as a local file path.
+ *
+ * Anything with an explicit scheme is URL-shaped even if no importer supports
+ * it — that routes it to the unsupported-URL error instead of a file lookup.
+ * Scheme-less sources are only URL-shaped when their hostname is a supported
+ * deck service (e.g. `archidekt.com/decks/123`), so file names that merely
+ * contain a service domain (`my-mtggoldfish.com-export.txt`) stay file paths.
+ */
+export function resolveImportSourceUrl(source: string): string | undefined {
+  if (SCHEME_PATTERN.test(source)) {
+    return source
+  }
+
+  const candidate = `https://${source}`
+  let hostname: string
+  try {
+    hostname = new URL(candidate).hostname
+  } catch {
+    return undefined
+  }
+
+  if (SERVICE_HOSTNAME_PATTERN.test(hostname) && matchDeckUrl(candidate) !== undefined) {
+    return candidate
+  }
+  return undefined
+}
+
 /**
  * Resolve the Moxfield user-agent from an explicit value (e.g. a CLI flag),
  * falling back to the `MOXFIELD_USER_AGENT` environment variable. Trims and

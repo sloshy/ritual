@@ -10,7 +10,7 @@ import { ArchidektAuth } from '../auth/ArchidektAuth'
 import { saveDeck } from './import'
 import { ExitCode } from './scripting'
 import { getErrorMessage } from '../errors'
-import { promptForLogin } from '../auth/login-helper'
+import { promptForLoginOutcome } from '../auth/login-helper'
 import { getDecksDir } from '../ritual-config'
 
 type ImportAccountOptions = {
@@ -61,8 +61,8 @@ export function registerImportAccountCommand(program: Command): void {
               return undefined
             }
             console.log('Session expired or invalid. Please login again.')
-            const success = await promptForLogin(auth)
-            if (success) {
+            const outcome = await promptForLoginOutcome(auth)
+            if (outcome === 'success') {
               token = (await auth.getToken()) ?? undefined
             }
           }

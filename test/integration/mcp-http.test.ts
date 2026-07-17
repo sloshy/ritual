@@ -4,6 +4,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { runHttpServer } from '../../src/mcp/run'
 import { bindWorkspace, writeDeckFile, type BoundWorkspace } from './helpers/workspace'
+import { runCli, withTempDir } from './helpers/cli'
 
 const TOKEN = 'integration-secret'
 
@@ -138,5 +139,32 @@ describe('ritual mcp HTTP — no auth', () => {
     } finally {
       await client.close()
     }
+  })
+})
+
+describe('ritual mcp CLI flag gate', () => {
+  test('refuses tokenless HTTP on a non-loopback host with exit code 2', async () => {
+    await withTempDir(async (dir) => {
+      const result = await runCli(['mcp', '--transport', 'http', '--host', '0.0.0.0'], dir, {
+        RITUAL_MCP_TOKEN: undefined,
+      })
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain('Refusing to serve MCP without authentication')
+    })
+  })
+
+  test('--allow-unauthenticated is accepted by the option parser', async () => {
+    await withTempDir(async (dir) => {
+      // An invalid port keeps the command from actually binding a server; the
+      // parse error proves --allow-unauthenticated itself was not rejected.
+      const result = await runCli(
+        ['mcp', '--transport', 'http', '--host', '0.0.0.0', '--allow-unauthenticated', '-p', '0'],
+        dir,
+        { RITUAL_MCP_TOKEN: undefined },
+      )
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).not.toContain('Refusing to serve MCP')
+      expect(result.stderr).toContain('Port must be an integer between 1 and 65535')
+    })
   })
 })

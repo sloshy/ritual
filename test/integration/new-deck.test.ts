@@ -37,7 +37,7 @@ describe('new-deck CLI (Integration)', () => {
   test('rejects a name with no usable filename characters', async () => {
     await withWorkspace(async (dir) => {
       const result = await runCli(['new-deck', '???'], dir)
-      expect(result.exitCode).not.toBe(0)
+      expect(result.exitCode).toBe(2)
       expect(result.stderr).toContain('no characters usable in a file name')
 
       expect(await fs.readdir(path.join(dir, 'decks'))).toEqual([])
@@ -67,7 +67,8 @@ describe('new-deck CLI (Integration)', () => {
   test('rejects an unknown --format without writing a file', async () => {
     await withWorkspace(async (dir) => {
       const result = await runCli(['new-deck', 'Cube', '--format', 'cube'], dir)
-      expect(result.exitCode).not.toBe(0)
+      // Invalid user input is a usage error (exit code 2).
+      expect(result.exitCode).toBe(2)
       expect(result.stderr).toContain("Invalid deck format 'cube'")
 
       expect(await fs.exists(path.join(dir, 'decks', 'Cube.md'))).toBe(false)
@@ -81,7 +82,7 @@ describe('new-deck CLI (Integration)', () => {
       await fs.writeFile(filePath, original)
 
       const result = await runCli(['new-deck', 'Existing'], dir)
-      expect(result.exitCode).not.toBe(0)
+      expect(result.exitCode).toBe(2)
       expect(result.stderr).toContain('already exists')
 
       // The pre-existing file must remain untouched on the refusal path.

@@ -20,12 +20,13 @@ ritual mcp [options]
 
 ## Options
 
-| Option                | Description                                     | Default     |
-| --------------------- | ----------------------------------------------- | ----------- |
-| `--transport <type>`  | Transport to use: `stdio` or `http`             | `stdio`     |
-| `-p, --port <number>` | Port for the HTTP transport                     | `8765`      |
-| `--host <address>`    | Host to bind for the HTTP transport             | `127.0.0.1` |
-| `--token <secret>`    | Require this bearer token on the HTTP transport |             |
+| Option                    | Description                                                            | Default     |
+| ------------------------- | ---------------------------------------------------------------------- | ----------- |
+| `--transport <type>`      | Transport to use: `stdio` or `http`                                    | `stdio`     |
+| `-p, --port <number>`     | Port for the HTTP transport                                            | `8765`      |
+| `--host <address>`        | Host to bind for the HTTP transport                                    | `127.0.0.1` |
+| `--token <secret>`        | Require this bearer token on the HTTP transport                        |             |
+| `--allow-unauthenticated` | Serve the HTTP transport without a bearer token on a non-loopback host |             |
 
 `--token` may also be supplied via the `RITUAL_MCP_TOKEN` environment variable (the flag takes
 precedence); this keeps the secret out of the process list. The global `--base-dir <path>` option
@@ -52,10 +53,19 @@ ritual mcp --transport http --port 8765 --token "$MCP_TOKEN"
 ```
 
 Serves the MCP [Streamable HTTP](https://modelcontextprotocol.io) transport at `http://<host>:<port>/mcp`
-for remote/networked clients. It binds to `127.0.0.1` by default. **If you expose it beyond localhost,
+for remote/networked clients. It binds to `127.0.0.1` by default. `--port` is validated at parse
+time (1–65535); an invalid value exits with code 2. **If you expose it beyond localhost,
 set a token (`--token` or `RITUAL_MCP_TOKEN`) so every request must send `Authorization: Bearer <token>`**
 — there is no other authentication layer. Each client session is tracked by the `Mcp-Session-Id` header
 negotiated during initialization.
+
+Without a token, the command **refuses to bind a non-loopback `--host`** (exit code `2`) unless you
+explicitly pass `--allow-unauthenticated` — an unauthenticated MCP endpoint exposed beyond the local
+machine would let anyone on the network edit your lists. Tokenless binds to a loopback host
+(`127.0.0.1`, `localhost`, `::1`) are allowed and print a one-line notice on stderr.
+
+The HTTP-only flags (`--port`, `--host`, `--token`, `--allow-unauthenticated`) have no effect under the
+default stdio transport; passing them there prints a warning on stderr and they are ignored.
 
 ### Embedding in a running admin server
 

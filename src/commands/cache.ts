@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 import { searchCards, refreshTags } from '../scryfall'
 import { refreshCardCache } from '../cache/refresh-source'
+import { ExitCode } from './scripting'
 
 export function registerCacheCommand(program: Command): void {
   const cache = program.command('cache').description('Manage card cache')
@@ -19,7 +20,8 @@ export function registerCacheCommand(program: Command): void {
           `Successfully cached ${cards.length} cards for set '${normalizedSetCode.toUpperCase()}'`,
         )
       } catch (e) {
-        console.error('Failed to preload set:', e)
+        console.error('Failed to preload set:', e instanceof Error ? e.message : e)
+        process.exitCode = ExitCode.RuntimeError
       }
     })
 

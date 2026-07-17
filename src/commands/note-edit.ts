@@ -15,7 +15,7 @@ import { parseCollectionFile, COLLECTION_CARD_LINE_RE } from '../collection-file
 import { parseWantedListFile, formatWantedListLine, WANTED_CARD_LINE_RE } from './wanted-helpers'
 import { formatCollectionLine } from './collection-helpers'
 import { writeFileWithHash } from '../content-hash'
-import { ExitCode } from './scripting'
+import { ExitCode, type ExitCodeValue } from './scripting'
 import { normalizeCardName } from '../term-match'
 import { type ListType } from '../list-type'
 import {
@@ -44,9 +44,9 @@ export type EntryRef = {
  * `instanceof`-check this to convert it into an `emitError` call. */
 export class NoteCommandError extends Error {
   readonly code: ErrorCode
-  readonly exitCode: number
+  readonly exitCode: ExitCodeValue
   readonly details?: unknown
-  constructor(code: ErrorCode, message: string, exitCode: number, details?: unknown) {
+  constructor(code: ErrorCode, message: string, exitCode: ExitCodeValue, details?: unknown) {
     super(message)
     this.code = code
     this.exitCode = exitCode

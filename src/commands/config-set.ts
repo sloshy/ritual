@@ -12,6 +12,7 @@ import {
   type SiteConfig,
   type SiteSelectionConfig,
 } from '../ritual-config'
+import { ExitCode } from './scripting'
 
 type ConfigFieldType = 'string' | 'boolean' | 'number' | 'string[]'
 
@@ -327,7 +328,8 @@ export function registerConfigSetCommand(program: Command): void {
     .action(async (property: string, values: string[], options: ConfigSetOptions) => {
       if (options.add && options.remove) {
         console.error('Error: --add and --remove cannot be used together.')
-        process.exit(1)
+        process.exitCode = ExitCode.UsageError
+        return
       }
 
       const mode: ArrayMode = options.add ? 'add' : options.remove ? 'remove' : 'replace'
@@ -336,7 +338,8 @@ export function registerConfigSetCommand(program: Command): void {
 
       if ('error' in outcome) {
         console.error(`Error: ${outcome.error}`)
-        process.exit(1)
+        process.exitCode = ExitCode.UsageError
+        return
       }
 
       await saveRitualConfig(outcome.updatedConfig)

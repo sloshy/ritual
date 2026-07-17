@@ -59,3 +59,14 @@ Batch lookup from stdin as NDJSON:
 ```bash
 printf "Sol Ring\nArcane Signet\n" | ./ritual card --stdin --output ndjson
 ```
+
+## Exit Codes
+
+| Code | Meaning                                                                        |
+| ---- | ------------------------------------------------------------------------------ |
+| `0`  | All requested cards were found and printed                                     |
+| `1`  | Request failure (network error or a Scryfall server error)                     |
+| `2`  | Usage error (missing card name, `--stdin` with `--from-file`, invalid fields)  |
+| `3`  | Not found (a card does not exist, or the `--from-file` file could not be read) |
+
+In batch mode each failure is reported individually; if both a request failure and a not-found occur, the exit code is `1`.

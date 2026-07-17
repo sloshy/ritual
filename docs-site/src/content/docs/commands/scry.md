@@ -84,3 +84,14 @@ This command uses [Scryfall's search syntax](https://scryfall.com/docs/syntax). 
 | `c:`     | `c:blue`          | Filter by color           |
 | `legal:` | `legal:commander` | Filter by format legality |
 | `usd<`   | `usd<10`          | Filter by price           |
+
+## Exit Codes
+
+| Code | Meaning                                                                       |
+| ---- | ----------------------------------------------------------------------------- |
+| `0`  | Results printed                                                               |
+| `1`  | Request failure while fetching a page                                         |
+| `2`  | Usage error (invalid `--pages` value, `--fields` with `--csv` or text output) |
+| `3`  | No results found                                                              |
+
+`--pages` must be a positive integer; any other value is rejected with a usage error.

@@ -133,7 +133,7 @@ describe('ritual skills command (Integration)', () => {
   test('install rejects an unknown skill name', async () => {
     await withTempDir(async (dir) => {
       const result = await runCli(['skills', 'install', 'ritual-bogus'], dir)
-      expect(result.exitCode).toBe(1)
+      expect(result.exitCode).toBe(2)
       expect(result.stderr).toContain('Unknown skill')
     })
   })

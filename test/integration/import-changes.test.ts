@@ -164,30 +164,45 @@ describe('import-changes command (Integration)', () => {
     })
   }, 60_000)
 
-  test('rejects a file that is not a change bundle', async () => {
+  test('rejects a file that is not a change bundle with a usage error', async () => {
     await withTempDir(async (dir) => {
       await fs.writeFile(path.join(dir, 'nope.json'), '{"format":"other"}')
       const result = await runCli(['import-changes', 'nope.json', '--yes'], dir)
-      expect(result.exitCode).toBe(1)
+      expect(result.exitCode).toBe(2)
       expect(result.stderr).toContain('Invalid change bundle')
     })
   })
 
-  test('reports a missing file with a readable error', async () => {
+  test('reports a missing file with a readable error and exit code 3', async () => {
     await withTempDir(async (dir) => {
       const result = await runCli(['import-changes', 'absent.json', '--yes'], dir)
-      expect(result.exitCode).toBe(1)
+      expect(result.exitCode).toBe(3)
       expect(result.stderr).toContain("Cannot read 'absent.json'")
     })
   })
 
-  test('treats an export with no changes as a no-op', async () => {
+  test('exits 3 when the bundle contains no changes to apply', async () => {
     await withTempDir(async (dir) => {
       const empty = { ...BUNDLE, lists: [] }
       await fs.writeFile(path.join(dir, 'empty.json'), JSON.stringify(empty))
       const result = await runCli(['import-changes', 'empty.json'], dir)
-      expect(result.exitCode).toBe(0)
-      expect(result.stdout).toContain('no changes to apply')
+      expect(result.exitCode).toBe(3)
+      expect(result.stderr).toContain('no changes to apply')
+    })
+  })
+
+  test('requires --yes when stdin is not a TTY instead of prompting', async () => {
+    await withTempDir(async (dir) => {
+      // runCli spawns the binary without a terminal on stdin, so the confirm
+      // prompt cannot run; the command must refuse rather than hang or no-op.
+      await fs.writeFile(path.join(dir, 'edits.json'), JSON.stringify(BUNDLE))
+      const result = await runCli(['import-changes', 'edits.json'], dir)
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain(
+        'Confirmation required: pass --yes to apply changes non-interactively.',
+      )
+      // Nothing was applied: the target deck file was never created.
+      expect(await Bun.file(path.join(dir, 'decks', 'test-deck.md')).exists()).toBeFalse()
     })
   })
 })

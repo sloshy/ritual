@@ -4,7 +4,7 @@ import { version } from './src/version'
 // Apply global fetch patch immediately
 setupGlobalFetch()
 
-import { Command } from 'commander'
+import { Command, CommanderError } from 'commander'
 import { registerNewDeckCommand } from './src/commands/new-deck'
 import { registerImportCommand } from './src/commands/import'
 import { registerPriceCommand } from './src/commands/price'
@@ -51,8 +51,15 @@ import {
 import { setBaseDir } from './src/base-dir'
 import { ensureCardIdsForAllLists } from './src/ensure-card-ids'
 import { initRitualConfig } from './src/ritual-config'
+import { ExitCode } from './src/commands/scripting'
+import { getErrorMessage } from './src/errors'
 
 const program = new Command()
+// Subcommands created after this inherit the override, so commander throws
+// CommanderError instead of calling process.exit — letting the catch below map
+// usage errors to ExitCode.UsageError and async action rejections to
+// ExitCode.RuntimeError instead of an unhandled-rejection stack trace.
+program.exitOverride()
 
 program.name('ritual').description('Ritual, a Magic: The Gathering toolkit').version(version)
 program.option(
@@ -158,4 +165,20 @@ program.commandsGroup('Legal')
 registerLicenseCommand(program)
 registerDepLicenseCommand(program)
 
-program.parse()
+// Wrapped in a function because the compiled binary (bun build --bytecode)
+// does not support top-level await.
+async function main(): Promise<void> {
+  try {
+    await program.parseAsync()
+  } catch (error) {
+    if (error instanceof CommanderError) {
+      // Commander already printed its message (usage error, help, or version).
+      process.exitCode = error.exitCode === 0 ? 0 : ExitCode.UsageError
+    } else {
+      process.stderr.write(`${getErrorMessage(error)}\n`)
+      if (!process.exitCode) process.exitCode = ExitCode.RuntimeError
+    }
+  }
+}
+
+void main()

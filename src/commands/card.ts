@@ -1,8 +1,10 @@
 import { Command } from 'commander'
 import fs from 'node:fs/promises'
-import { scryfallClient } from '../scryfall'
+import { classifyFetchCard, scryfallClient } from '../scryfall'
+import { getErrorMessage } from '../errors'
 import {
   addScriptingOptions,
+  classifyFileReadError,
   emitError,
   emitOutput,
   ExitCode,
@@ -74,7 +76,19 @@ export function registerCardCommand(program: Command): void {
     if (options.stdin) {
       names = await readLinesFromStdin()
     } else if (options.fromFile) {
-      const fileContent = await fs.readFile(options.fromFile, 'utf-8')
+      let fileContent: string
+      try {
+        fileContent = await fs.readFile(options.fromFile, 'utf-8')
+      } catch (e) {
+        const failure = classifyFileReadError(e)
+        emitError(
+          failure.errorCode,
+          `Could not read file '${options.fromFile}': ${getErrorMessage(e)}`,
+          scriptingOptions,
+        )
+        process.exitCode = failure.exitCode
+        return
+      }
       names = parseInputNames(fileContent)
     } else if (name) {
       names = [name]
@@ -99,18 +113,33 @@ export function registerCardCommand(program: Command): void {
           : scriptingOptions.output,
     }
     let hadMissing = false
+    let hadFailure = false
 
     for (const cardName of names) {
-      const card = await scryfallClient.fetchNamedCard(cardName, {
-        fuzzy: options.fuzzy,
-        set: options.set?.toLowerCase(),
-      })
+      const outcome = classifyFetchCard(
+        await scryfallClient.fetchNamedCard(cardName, {
+          fuzzy: options.fuzzy,
+          set: options.set?.toLowerCase(),
+        }),
+      )
 
-      if (!card) {
+      if (outcome.kind === 'failed') {
+        emitError(
+          'runtime_error',
+          `Failed to fetch card '${cardName}': ${outcome.message}`,
+          effectiveOptions,
+        )
+        hadFailure = true
+        continue
+      }
+
+      if (outcome.kind === 'not-found') {
         emitError('not_found', `Card '${cardName}' not found.`, effectiveOptions)
         hadMissing = true
         continue
       }
+
+      const card = outcome.card
 
       if (effectiveOptions.output === 'text') {
         emitOutput(`${card.name} (${card.set.toUpperCase()})`, effectiveOptions)
@@ -120,7 +149,10 @@ export function registerCardCommand(program: Command): void {
       emitOutput(projectFields(card, options.fields), effectiveOptions)
     }
 
-    if (hadMissing) {
+    // A request failure outranks a genuine not-found when both occur in one batch.
+    if (hadFailure) {
+      process.exitCode = ExitCode.RuntimeError
+    } else if (hadMissing) {
       process.exitCode = ExitCode.NotFound
     }
   })

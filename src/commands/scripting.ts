@@ -10,6 +10,8 @@ export const ExitCode = {
   NotFound: 3,
 } as const
 
+export type ExitCodeValue = (typeof ExitCode)[keyof typeof ExitCode]
+
 export interface ScriptingOptions {
   output: OutputFormat
   quiet: boolean
@@ -106,6 +108,28 @@ export function emitResolveListError(error: ResolveListError, options: Scripting
       process.exitCode = ExitCode.NotFound
       return
   }
+}
+
+export type FileReadFailure = { errorCode: ErrorCode; exitCode: ExitCodeValue }
+
+/**
+ * Classify a failed read of a user-supplied file path: a missing file is a
+ * not-found, anything else (permissions, directory, IO) is a runtime error.
+ */
+export function classifyFileReadError(error: unknown): FileReadFailure {
+  const missing = (error as NodeJS.ErrnoException).code === 'ENOENT'
+  return missing
+    ? { errorCode: 'not_found', exitCode: ExitCode.NotFound }
+    : { errorCode: 'runtime_error', exitCode: ExitCode.RuntimeError }
+}
+
+/** Commander argParser for port options: reject non-numeric and out-of-range values at parse time. */
+export function parsePort(value: string): number {
+  const port = Number.parseInt(value, 10)
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    throw new InvalidArgumentError('Port must be an integer between 1 and 65535.')
+  }
+  return port
 }
 
 export function parseFields(value: string): string[] {

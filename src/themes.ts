@@ -550,13 +550,11 @@ export const themeBootstrapScript = `
 // ---------------------------------------------------------------------------
 
 // Resolves a raw CLI `--theme` value to a validated `ThemeName`. Falls back to
-// `default` when omitted; logs an error and exits when the value is unknown.
-// Centralised here so `build-site` and `admin` share identical handling.
-//
-// NOTE: uses `process.exit` — CLI-only. Do not call from SPA code.
-export function resolveThemeName(raw: string | undefined): ThemeName {
+// `default` when omitted; returns an error message string when the value is
+// unknown (callers report it as a usage error). Centralised here so
+// `build-site` and `admin` share identical handling.
+export function resolveThemeName(raw: string | undefined): ThemeName | string {
   const normalized = (raw ?? 'default').toLowerCase()
   if (isThemeName(normalized)) return normalized
-  console.error(`Unknown theme '${raw}'. Choose one of: ${themeNames.join(', ')}.`)
-  process.exit(1)
+  return `Unknown theme '${raw}'. Choose one of: ${themeNames.join(', ')}.`
 }

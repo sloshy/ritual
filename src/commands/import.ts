@@ -4,7 +4,7 @@ import * as fs from 'node:fs/promises'
 import { promptUser } from '../utils'
 import { listFileName, unusableFileNameMessage } from '../list-file-name'
 import { importFromTextFile, listDeckFiles } from '../importers/text-file'
-import { fetchDeckFromUrl } from '../importers/url-dispatch'
+import { fetchDeckFromUrl, resolveImportSourceUrl } from '../importers/url-dispatch'
 import {
   applyCsvImport,
   type CsvImportMode,
@@ -384,7 +384,11 @@ export function registerImportCommand(program: Command): void {
         typeFlag = normalized
       }
 
-      const isUrl = source.startsWith('https://')
+      // URL-shaped sources (explicit scheme, or a scheme-less supported deck
+      // URL like `archidekt.com/decks/123`) go through URL dispatch; everything
+      // else is a local file path.
+      const sourceUrl = resolveImportSourceUrl(source)
+      const isUrl = sourceUrl !== undefined
       if (isUrl && typeFlag !== undefined && typeFlag !== 'deck') {
         logger.error(
           `URL imports only support decks; importing a ${listTypeLabel(typeFlag)} from a URL is not supported.`,
@@ -402,8 +406,8 @@ export function registerImportCommand(program: Command): void {
       }
 
       try {
-        if (isUrl) {
-          const result = await fetchDeckFromUrl(source, {
+        if (sourceUrl !== undefined) {
+          const result = await fetchDeckFromUrl(sourceUrl, {
             moxfieldUserAgent: options.moxfieldUserAgent,
             onProgress: (message) => logger.info(message),
           })
@@ -413,6 +417,12 @@ export function registerImportCommand(program: Command): void {
             return
           }
           await saveDeck(result, getDecksDir(), saveOptions)
+          return
+        }
+
+        if (!(await Bun.file(source).exists())) {
+          logger.error(`File not found: ${source}`)
+          process.exitCode = ExitCode.NotFound
           return
         }
 

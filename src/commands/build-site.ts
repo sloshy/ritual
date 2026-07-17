@@ -60,12 +60,14 @@ import { PRICE_MAX_AGE_MS, BULK_FETCH_THRESHOLD } from '../cache/constants'
 import {
   generateAllThemesCss,
   generateCustomThemeCss,
+  isThemeName,
   parseCustomTheme,
   resolveThemeName,
   themeBootstrapScript,
   themeNames,
   type CustomTheme,
 } from '../themes'
+import { ExitCode } from './scripting'
 import {
   bulkAllowed,
   refreshMode,
@@ -80,8 +82,6 @@ export interface BuildSiteOptions {
   decks?: string[]
   collections?: string[]
   wantedLists?: string[]
-  collectionSort?: string
-  deckSort?: string
   currencies?: string
   allowRefresh?: boolean
   allowRefreshNoBulk?: boolean
@@ -142,27 +142,25 @@ async function buildSiteSpaFromSource(): Promise<SiteSpaAssets> {
   return { appSvg, stylesSourceCss, appJs }
 }
 
-async function loadCustomThemes(paths: readonly string[]): Promise<CustomTheme[]> {
+/** Loads every `--theme-file` JSON; returns an error message string on the first failure. */
+async function loadCustomThemes(paths: readonly string[]): Promise<CustomTheme[] | string> {
   const themes: CustomTheme[] = []
   for (const filePath of paths) {
     let raw: string
     try {
       raw = await fs.readFile(filePath, 'utf-8')
     } catch (err) {
-      console.error(`Failed to read --theme-file '${filePath}': ${getErrorMessage(err)}`)
-      process.exit(1)
+      return `Failed to read --theme-file '${filePath}': ${getErrorMessage(err)}`
     }
     let parsed: unknown
     try {
       parsed = JSON.parse(raw)
     } catch (err) {
-      console.error(`--theme-file '${filePath}' is not valid JSON: ${getErrorMessage(err)}`)
-      process.exit(1)
+      return `--theme-file '${filePath}' is not valid JSON: ${getErrorMessage(err)}`
     }
     const result = parseCustomTheme(parsed)
     if (typeof result === 'string') {
-      console.error(`--theme-file '${filePath}': ${result}`)
-      process.exit(1)
+      return `--theme-file '${filePath}': ${result}`
     }
     themes.push(result)
   }
@@ -216,6 +214,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     availableCurrencies = parseCurrenciesFlag(options.currencies)
   } catch (e) {
     console.error(getErrorMessage(e))
+    process.exitCode = ExitCode.UsageError
     return
   }
   // The site opens in the configured default currency when it's built at all,
@@ -225,15 +224,31 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     ? configuredCurrency
     : availableCurrencies[0]!
 
-  const customThemes = await loadCustomThemes(options.themeFile ?? [])
+  const customThemesResult = await loadCustomThemes(options.themeFile ?? [])
+  if (typeof customThemesResult === 'string') {
+    console.error(customThemesResult)
+    process.exitCode = ExitCode.RuntimeError
+    return
+  }
+  const customThemes = customThemesResult
   const customNames = new Set(customThemes.map((t) => t.name))
   // Open-ended type: either a built-in `ThemeName` or a custom name from
-  // `--theme-file`. Both are validated upstream.
-  const initialThemeName: string = (() => {
-    const raw = (options.theme ?? 'default').toLowerCase()
-    if (customNames.has(raw)) return raw
-    return resolveThemeName(options.theme)
-  })()
+  // `--theme-file`. Both are validated here before use.
+  let initialThemeName: string
+  const rawTheme = (options.theme ?? 'default').toLowerCase()
+  if (customNames.has(rawTheme)) {
+    initialThemeName = rawTheme
+  } else {
+    // `resolveThemeName` returns an error message string for unknown names;
+    // `isThemeName` is the runtime discriminator since both are strings.
+    const resolved = resolveThemeName(options.theme)
+    if (!isThemeName(resolved)) {
+      console.error(resolved)
+      process.exitCode = ExitCode.UsageError
+      return
+    }
+    initialThemeName = resolved
+  }
 
   const distDir = path.join(getBaseDir(), 'dist')
   const imagesDir = path.join(distDir, 'images')
@@ -284,7 +299,8 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
         console.log(`Found ${deckSources.length} decks: ${deckSources.join(', ')}`)
       }
     } catch (e) {
-      console.error('Failed to read decks directory:', e)
+      console.error('Failed to read decks directory:', getErrorMessage(e))
+      process.exitCode = ExitCode.RuntimeError
       return
     }
   }
@@ -1489,16 +1505,6 @@ export function applyBuildSiteOptions(command: Command): Command {
     .option(
       '--wanted-lists [names...]',
       'Wanted list names to build (default: the site.includeWantedLists config selection)',
-    )
-    .option(
-      '--collection-sort <field>',
-      'Default sort order for collections (file-order, name, price, set-code, type, cmc, color-identity)',
-      'file-order',
-    )
-    .option(
-      '--deck-sort <field>',
-      'Default sort order for decks (name, cmc, price, type, edhrec, color-identity)',
-      'name',
     )
     .option(
       '--currencies <list>',

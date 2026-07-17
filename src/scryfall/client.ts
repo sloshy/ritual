@@ -87,6 +87,41 @@ export type MinMaxPrice = {
 export type FetchCardDataOptions = { silent?: boolean }
 export type FetchNamedCardOptions = { fuzzy?: boolean; set?: string }
 type ScryfallErrorBody = { details: string }
+
+/** Request-level failure from a card fetch: a network error or a non-404 HTTP response. */
+export type ScryfallFetchError = { error: string }
+
+/**
+ * Result of a single-card fetch: the card, `null` when Scryfall reports that no
+ * such card exists (HTTP 404), or a {@link ScryfallFetchError} when the request
+ * itself failed and existence could not be determined.
+ */
+export type FetchCardResult = ScryfallCard | ScryfallFetchError | null
+
+/** A {@link FetchCardResult} classified into its three outcomes for exhaustive handling. */
+export type FetchCardOutcome =
+  | { kind: 'card'; card: ScryfallCard }
+  | { kind: 'not-found' }
+  | { kind: 'failed'; message: string }
+
+/**
+ * Classify a {@link FetchCardResult} so callers share one discrimination of the
+ * union instead of re-deriving the `'error' in`/null checks (and their exit-code
+ * mapping) at every call site.
+ */
+export function classifyFetchCard(result: FetchCardResult): FetchCardOutcome {
+  if (result === null) return { kind: 'not-found' }
+  if ('error' in result) return { kind: 'failed', message: result.error }
+  return { kind: 'card', card: result }
+}
+
+/** Extract the human-readable `details` from a Scryfall error body, falling back to the HTTP status. */
+async function readScryfallErrorDetails(response: Response): Promise<string> {
+  const errorBody = await response.json().catch(() => null)
+  return errorBody && typeof errorBody === 'object' && 'details' in errorBody
+    ? (errorBody as ScryfallErrorBody).details
+    : `${response.status} ${response.statusText}`
+}
 export type SearchPageResult = {
   data: ScryfallList<ScryfallCard> | null
   raw: string
@@ -408,10 +443,7 @@ export class ScryfallClient implements PricingBackend {
     return null
   }
 
-  async fetchNamedCard(
-    name: string,
-    options?: FetchNamedCardOptions,
-  ): Promise<ScryfallCard | null> {
+  async fetchNamedCard(name: string, options?: FetchNamedCardOptions): Promise<FetchCardResult> {
     const mode = options?.fuzzy ? 'fuzzy' : 'exact'
     const params = new URLSearchParams({ [mode]: name })
     if (options?.set) {
@@ -419,31 +451,10 @@ export class ScryfallClient implements PricingBackend {
     }
 
     const url = `https://api.scryfall.com/cards/named?${params.toString()}`
-
-    try {
-      const response = await this.http.fetch(url)
-
-      if (response.ok) {
-        const json = (await response.json()) as ScryfallCard
-        await Bun.sleep(RATE_LIMIT_MS)
-        return json
-      } else {
-        const errorBody = await response.json().catch(() => null)
-        const details =
-          errorBody && typeof errorBody === 'object' && 'details' in errorBody
-            ? (errorBody as ScryfallErrorBody).details
-            : `${response.status} ${response.statusText}`
-        getLogger().error(`Card not found: ${details}`)
-      }
-    } catch (e) {
-      getLogger().error(`Error fetching card '${name}':`, e)
-    }
-
-    await Bun.sleep(RATE_LIMIT_MS)
-    return null
+    return this.fetchSingleCard(url)
   }
 
-  async fetchRandomCard(filter?: string): Promise<ScryfallCard | null> {
+  async fetchRandomCard(filter?: string): Promise<FetchCardResult> {
     const params = new URLSearchParams()
     if (filter) {
       params.set('q', filter)
@@ -451,28 +462,32 @@ export class ScryfallClient implements PricingBackend {
 
     const qs = params.toString()
     const url = `https://api.scryfall.com/cards/random${qs ? `?${qs}` : ''}`
+    return this.fetchSingleCard(url)
+  }
 
+  /**
+   * Fetch one card from a Scryfall endpoint that returns a single card object.
+   * A 404 is `null` (the card genuinely does not exist / nothing matched);
+   * any other failure is surfaced as a {@link ScryfallFetchError} so callers
+   * can distinguish "not found" from "request failed".
+   */
+  private async fetchSingleCard(url: string): Promise<FetchCardResult> {
+    let result: FetchCardResult
     try {
       const response = await this.http.fetch(url)
-
       if (response.ok) {
-        const json = (await response.json()) as ScryfallCard
-        await Bun.sleep(RATE_LIMIT_MS)
-        return json
+        result = (await response.json()) as ScryfallCard
+      } else if (response.status === 404) {
+        result = null
       } else {
-        const errorBody = await response.json().catch(() => null)
-        const details =
-          errorBody && typeof errorBody === 'object' && 'details' in errorBody
-            ? (errorBody as ScryfallErrorBody).details
-            : `${response.status} ${response.statusText}`
-        getLogger().error(`No cards found: ${details}`)
+        result = { error: await readScryfallErrorDetails(response) }
       }
     } catch (e) {
-      getLogger().error('Error fetching random card:', e)
+      result = { error: getErrorMessage(e) }
     }
 
     await Bun.sleep(RATE_LIMIT_MS)
-    return null
+    return result
   }
 
   async fetchLatestPrices(

@@ -29,7 +29,7 @@ import {
 import { applyCsvImport, type CsvImportMode } from '../importers/csv-apply'
 import { listFilePath } from '../resolve-list'
 
-import { ExitCode } from './scripting'
+import { classifyFileReadError, ExitCode } from './scripting'
 import { getLogger } from '../logger'
 
 type ImportCsvCommandOptions = {
@@ -185,9 +185,9 @@ export function registerImportCsvCommand(program: Command): void {
       let content: string
       try {
         content = await fs.readFile(file, 'utf-8')
-      } catch {
+      } catch (error) {
         logger.error(`Could not read CSV file: ${file}`)
-        process.exitCode = ExitCode.RuntimeError
+        process.exitCode = classifyFileReadError(error).exitCode
         return
       }
 

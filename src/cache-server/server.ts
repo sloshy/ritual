@@ -11,12 +11,12 @@ import { type PriceData, type ScryfallCard } from '../types'
 import { getErrorMessage } from '../errors'
 import {
   parseFeedUrlFlag,
-  parsePort,
   parseRefreshCadence,
   resolveRefreshCadence,
   resolveRefreshMs,
   scheduleRecurringTask,
 } from './cadence'
+import { parsePort } from '../commands/scripting'
 import { CACHE_SERVER_LOG_PREFIX, PRICE_REFRESH_STAGGER_MS, WEEKLY_REFRESH_MS } from './constants'
 import {
   createFileSystemClient,
