@@ -6,7 +6,8 @@ import type { PriceListDetailPayload, PriceSummaryPayload } from '../../price-re
 import { loadAndBuildPriceReport } from '../../price-runtime'
 import type { ListLocation } from '../../resolve-list'
 import { getDefaultCurrency } from '../../ritual-config'
-import { listSlug, resolveListFile } from './list-info'
+import { resolveListFile } from './list-info'
+import { listSlug } from '../../list-info'
 import { parseListTarget } from './target'
 
 /** GET /api/price/summary body — the CLI summary payload plus parser warnings. */

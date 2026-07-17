@@ -59,7 +59,7 @@ export type SiteConfig = SiteSelectionConfig & {
 /**
  * Settings primarily configured through, and for, the admin server: git
  * integration for admin file changes, network access control, and login rate
- * limiting. Configured via the admin Settings page or `config-set admin.<field>`.
+ * limiting. Configured via the admin Settings page or `config set admin.<field>`.
  */
 export interface AdminConfig {
   gitEnabled: boolean
@@ -268,7 +268,7 @@ export function parseSiteConfig(value: unknown): SiteConfig | string {
   const banned = bannedPrintings !== undefined ? { bannedPrintings } : {}
 
   // Deployment settings are written only by `init-site`. Detect their presence
-  // so a site object carrying just selection settings (set via config-set or the
+  // so a site object carrying just selection settings (set via `config set` or the
   // admin UI before init-site has run) is still valid.
   const hasDeploy =
     obj.version !== undefined ||
@@ -619,9 +619,24 @@ export async function loadRitualConfig(): Promise<RitualConfig> {
   return fromDisk ?? getDefaultRitualConfig()
 }
 
-export async function saveRitualConfig(config: RitualConfig): Promise<void> {
+async function writeRitualConfigFile(config: Partial<RitualConfig>): Promise<void> {
   await fs.writeFile(getRitualConfigPath(), JSON.stringify(config, null, 2) + '\n', 'utf-8')
+}
+
+export async function saveRitualConfig(config: RitualConfig): Promise<void> {
+  await writeRitualConfigFile(config)
   cachedConfig = { ...config }
+}
+
+/**
+ * Persist a config object that may omit defaulted keys — the `config unset`
+ * path. The omitted keys stay absent in the file (so the loader's defaulting
+ * pass re-materializes them on every load), and the in-process cache is
+ * refreshed from disk so the sync getters never observe a partial config.
+ */
+export async function savePartialRitualConfig(config: Partial<RitualConfig>): Promise<void> {
+  await writeRitualConfigFile(config)
+  await reloadRitualConfig()
 }
 
 /**

@@ -13,8 +13,7 @@ import type { Finish, Condition } from '../types'
 import { listDeckFiles, importFromTextFile } from '../importers/text-file'
 import { parseCollectionFile } from '../collection-file'
 import { parseWantedListFile } from './wanted-helpers'
-import { parseDeckFrontMatter } from '../deck-file'
-import { extractMarkdownTitle } from '../markdown-utils'
+import { listDisplayName } from '../list-lifecycle'
 import {
   loadStagedFile,
   applyRemoveFromStaged,
@@ -89,8 +88,10 @@ export async function loadAllLists(): Promise<ListEntry[]> {
     const deckFiles = await listDeckFiles(decksDir)
     for (const fileName of deckFiles) {
       const filePath = path.join(decksDir, fileName)
-      const fm = await parseDeckFrontMatter(filePath).catch((): Record<string, unknown> => ({}))
-      const name = typeof fm.name === 'string' ? fm.name : path.basename(fileName, '.md')
+      // Per-file tolerance: an unparsable deck still appears, named by its slug.
+      const name = await listDisplayName('deck', filePath).catch(() =>
+        path.basename(fileName, '.md'),
+      )
       lists.push({ ref: { type: 'deck', name }, filePath })
     }
   } catch {
@@ -102,8 +103,7 @@ export async function loadAllLists(): Promise<ListEntry[]> {
     const files = await fs.readdir(collectionsDir)
     for (const fileName of files.filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))) {
       const filePath = path.join(collectionsDir, fileName)
-      const content = await fs.readFile(filePath, 'utf-8')
-      const name = extractMarkdownTitle(content) ?? path.basename(fileName, '.md')
+      const name = await listDisplayName('collection', filePath)
       lists.push({ ref: { type: 'collection', name }, filePath })
     }
   } catch {
@@ -115,8 +115,7 @@ export async function loadAllLists(): Promise<ListEntry[]> {
     const files = await fs.readdir(wantedDir)
     for (const fileName of files.filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))) {
       const filePath = path.join(wantedDir, fileName)
-      const content = await fs.readFile(filePath, 'utf-8')
-      const name = extractMarkdownTitle(content) ?? path.basename(fileName, '.md')
+      const name = await listDisplayName('wanted', filePath)
       lists.push({ ref: { type: 'wanted', name }, filePath })
     }
   } catch {

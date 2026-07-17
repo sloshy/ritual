@@ -20,7 +20,7 @@ import { streamToFile } from './download'
 /**
  * Default feed URL consulted when neither `--url` nor the `cacheFeedUrl`
  * config key is set. Placeholder until an official community feed is hosted —
- * point your own host's URL at it via `config-set cacheFeedUrl <url>`.
+ * point your own host's URL at it via `config set cacheFeedUrl <url>`.
  */
 export const DEFAULT_FEED_URL = 'https://feed.ritual-mtg.example/feed.json'
 

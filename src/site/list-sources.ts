@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { extractMarkdownTitle } from '../markdown-utils'
+import { parseTitleFromContent } from '../section-format'
 import { listDeckFiles, readDeckName } from '../importers/text-file'
 import { filterBySelection, includesAllLists } from './list-selection'
 
@@ -71,6 +71,6 @@ export async function resolveListSources(
   const basenames = await discoverMarkdownBasenames(dir)
   return keepIncluded(dir, basenames, include, exclude, async (filePath, basename) => {
     const content = await fs.readFile(filePath, 'utf-8')
-    return extractMarkdownTitle(content) ?? basename
+    return parseTitleFromContent(content) ?? basename
   })
 }

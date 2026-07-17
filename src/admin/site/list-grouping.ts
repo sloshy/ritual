@@ -1,5 +1,5 @@
 import { type ListType, LIST_TYPES, LIST_TYPE_DISPLAY } from '../../list-type'
-import type { ListInfo } from '../api/list-info'
+import type { ListInfo } from '../../list-info'
 
 /** Opaque `${type}:${slug}` identifier for a list in the admin UI. */
 export type ListId = string

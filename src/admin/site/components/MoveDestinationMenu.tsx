@@ -1,5 +1,5 @@
 import { type Component, For, Show, createMemo } from 'solid-js'
-import type { ListInfo } from '../../api/list-info'
+import type { ListInfo } from '../../../list-info'
 import { groupListsByType } from '../list-grouping'
 import { useAnchoredMenu } from '../../../ui/useAnchoredMenu'
 

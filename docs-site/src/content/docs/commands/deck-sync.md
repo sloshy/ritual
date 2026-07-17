@@ -123,7 +123,7 @@ lastSynced: '2026-04-02T12:00:00.000Z'
 ```
 
 `format` is written on every save, whether it came from Archidekt or was inferred
-from the deck's sections. See [new-deck](/commands/new-deck/#deck-format).
+from the deck's sections. See [new](/commands/new/#deck-format).
 
 ## Examples
 

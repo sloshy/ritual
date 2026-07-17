@@ -7,7 +7,6 @@ import { createSetNoteChange } from '../change-event'
 import { applyChangesToListFile } from '../list-mutate'
 import {
   addScriptingOptions,
-  emitError,
   emitOutput,
   ExitCode,
   normalizeScriptingOptions,
@@ -21,6 +20,7 @@ import {
   resolveListSelection,
   resolveListTypeFlag,
   resolveTarget,
+  runCommandAction,
   type CardCommandResultBase,
   type EntryRef,
 } from './card-target'
@@ -63,8 +63,8 @@ export function registerNoteCommand(program: Command): void {
       const scripting = normalizeScriptingOptions(options, 'text')
       const type = resolveListTypeFlag(options, scripting)
       if (type === 'conflict') return
-      try {
-        await runNote(
+      await runCommandAction(scripting, () =>
+        runNote(
           {
             type,
             listName: listNameArg,
@@ -74,15 +74,8 @@ export function registerNoteCommand(program: Command): void {
             cardId: options.cardId,
           },
           scripting,
-        )
-      } catch (err) {
-        if (err instanceof CardCommandError) {
-          emitError(err.code, err.message, scripting, err.details)
-          process.exitCode = err.exitCode
-          return
-        }
-        throw err
-      }
+        ),
+      )
     },
   )
 }

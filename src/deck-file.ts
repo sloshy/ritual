@@ -109,7 +109,7 @@ function canonicalFrontMatter(deck: DeckData, frontMatter: DeckFrontMatter): Dec
 
 /**
  * The front matter a freshly created deck starts with. Shared by every way a deck
- * can be created — `new-deck`, the editors, the admin site — so they cannot drift.
+ * can be created — `ritual new deck`, the editors, the admin site — so they cannot drift.
  */
 export function newDeckFrontMatter(name: string, format: DeckFormatKey): DeckFrontMatter {
   return { name, format, created: new Date().toISOString(), tags: [] }

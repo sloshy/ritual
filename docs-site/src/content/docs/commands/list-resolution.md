@@ -17,13 +17,13 @@ Matching is performed against the **file name** (without the `.md` extension), n
 Before matching:
 
 - Accented letters are folded to their plain forms, so `cafe` resolves a list named `Café` and vice versa.
-- Hyphens and underscores are treated as spaces, so a list is found whichever way its name is punctuated: `winota-stax` resolves `Winota Stax.md`, and `Black Panther` resolves a `black-panther.md` left over from before list files were [named as entered](/commands/new-deck/#list-file-names).
+- Hyphens and underscores are treated as spaces, so a list is found whichever way its name is punctuated: `winota-stax` resolves `Winota Stax.md`, and `Black Panther` resolves a `black-panther.md` left over from before list files were [named as entered](/commands/new/#list-file-names).
 
 Two lists whose names differ only in punctuation (`Mono Red` and `mono-red`) are reported as ambiguous rather than silently picked between.
 
 ## Type flags and disambiguation
 
-Type-agnostic commands (`add-card`, `remove-card`, `set-card`, `note`, `edit`, `history`, `price`) search **all three** list types at once. A name that exists in more than one type — say a deck _and_ a collection both called `staples` — is ambiguous. Resolve it with a type flag:
+Type-agnostic commands (`add-card`, `remove-card`, `set-card`, `note`, `edit`, `history`, `price`, `rename`, `delete`) search **all three** list types at once. A name that exists in more than one type — say a deck _and_ a collection both called `staples` — is ambiguous. Resolve it with a type flag:
 
 | Flag           | Restricts the search to |
 | -------------- | ----------------------- |
@@ -31,7 +31,9 @@ Type-agnostic commands (`add-card`, `remove-card`, `set-card`, `note`, `edit`, `
 | `--collection` | Collections             |
 | `--wanted`     | Wanted lists            |
 
-The flags are mutually exclusive. Single-type commands (`deck-sync`, `get-primer`) already know their type, so they never need a flag — but they match names by the same case- and accent-insensitive, substring, ambiguity-aware rules.
+The flags are mutually exclusive. A `deck:`/`collection:`/`wanted:` prefix on the name itself (e.g. `collection:staples`) pins the type too, and overrides the flag. [`diff`](/commands/diff/) takes **two** list arguments, so a single type flag can't disambiguate one side — use the prefix there. [`lists`](/commands/lists/) doesn't resolve a name at all, but accepts the same three flags to filter which types it enumerates.
+
+Single-type commands (`deck-sync`, `get-primer`) already know their type, so they never need a flag — but they match names by the same case- and accent-insensitive, substring, ambiguity-aware rules.
 
 ## Examples
 

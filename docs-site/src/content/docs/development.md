@@ -25,7 +25,7 @@ You can run commands directly without building:
 
 ```bash
 bun run index.ts --help
-bun run index.ts new-deck "Test Deck"
+bun run index.ts new deck "Test Deck"
 ```
 
 When invoked this way (i.e. via `bun` rather than the compiled `ritual` binary), both [`admin`](/commands/admin/) and [`serve-site`](/commands/serve-site/) rebuild their SPA bundles from `src/` on startup. No flag is needed — the source-tree path is selected automatically. The compiled binary serves the pre-bundled assets baked into it.

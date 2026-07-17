@@ -27,3 +27,15 @@ export function parseListTarget(req: Request): ListTarget | Response {
   if (/[/\\\0]/.test(slug)) return targetError('Invalid list slug')
   return { type: rawType, slug }
 }
+
+/**
+ * Decode the `:slug` path segment of a `/api/<area>/:slug` route (path
+ * segment 3), shared by the deck/collection/wanted rename and delete
+ * handlers. Returns null when the segment is missing — the caller owns the
+ * error response.
+ */
+export function slugFromUrl(req: Request): string | null {
+  const raw = new URL(req.url).pathname.split('/')[3]
+  if (!raw) return null
+  return decodeURIComponent(raw)
+}

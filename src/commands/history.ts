@@ -1,4 +1,4 @@
-import { Command } from 'commander'
+import { Command, InvalidArgumentError } from 'commander'
 import prompts from 'prompts'
 import * as fs from 'node:fs/promises'
 import type { PromptState } from './prompts-types'
@@ -24,10 +24,31 @@ import {
   type ChangeSet,
 } from '../changelog-blocks'
 import { buildDefaultChangeLines, changesPathFor, loadListSnapshot } from './history-helpers'
-import { ExitCode } from './scripting'
+import {
+  addScriptingOptions,
+  emitError,
+  emitOutput,
+  ExitCode,
+  normalizeScriptingOptions,
+  type ScriptingOptions,
+} from './scripting'
 import { promptExitMenu } from './prompts-helpers'
+import { CardCommandError, parsePositiveInteger, requireInteractive } from './card-target'
 
-type HistoryOptions = ListTypeFlags
+type HistoryOptions = ListTypeFlags &
+  Partial<ScriptingOptions> & {
+    show?: boolean
+    limit?: number
+  }
+
+/** Commander argParser for `--limit`: positive integers only. */
+function parseLimitFlag(value: string): number {
+  const parsed = parsePositiveInteger(value)
+  if (parsed === undefined) {
+    throw new InvalidArgumentError(`--limit must be a positive integer (got '${value}').`)
+  }
+  return parsed
+}
 
 function listTypeLabel(type: ListType): string {
   return LIST_TYPE_DISPLAY[type].label.replace(/s$/, '')
@@ -87,29 +108,113 @@ async function autocompleteMenu(
 }
 
 export function registerHistoryCommand(program: Command): void {
-  program
-    .command('history')
-    .description('Compact and rewrite the change history for a deck, collection, or wanted list')
-    .argument(
-      '[listName]',
-      'Name of the deck, collection, or wanted list (resolved across all types unless a type flag is given)',
-    )
-    .option('--deck', 'Resolve the name as a deck')
-    .option('--collection', 'Resolve the name as a collection')
-    .option('--wanted', 'Resolve the name as a wanted list')
-    .action(async (listNameArg: string | undefined, options: HistoryOptions) => {
-      const type = listTypeFromFlags(options)
-      if (type === 'conflict') {
-        console.error('Specify only one of --deck, --collection, or --wanted.')
-        process.exitCode = ExitCode.UsageError
-        return
+  addScriptingOptions(
+    program
+      .command('history')
+      .description('Compact and rewrite the change history for a deck, collection, or wanted list')
+      .argument(
+        '[listName]',
+        'Name of the deck, collection, or wanted list (resolved across all types unless a type flag is given)',
+      )
+      .option('--deck', 'Resolve the name as a deck')
+      .option('--collection', 'Resolve the name as a collection')
+      .option('--wanted', 'Resolve the name as a wanted list')
+      .option('--show', 'Print the change history and exit instead of opening the editor', false)
+      .option('--limit <n>', 'With --show: print only the newest <n> change sets', parseLimitFlag),
+    'text',
+  ).action(async (listNameArg: string | undefined, options: HistoryOptions) => {
+    const scripting = normalizeScriptingOptions(options, 'text')
+    const type = listTypeFromFlags(options)
+    if (type === 'conflict') {
+      emitError('usage_error', 'Specify only one of --deck, --collection, or --wanted.', scripting)
+      process.exitCode = ExitCode.UsageError
+      return
+    }
+
+    if (options.limit !== undefined && !options.show) {
+      emitError('usage_error', '--limit requires --show.', scripting)
+      process.exitCode = ExitCode.UsageError
+      return
+    }
+
+    // A --show run without a list name needs a terminal for the list picker —
+    // never let an interactive prompt run into machine-readable output.
+    if (options.show && listNameArg === undefined) {
+      try {
+        requireInteractive('a list name')
+      } catch (err) {
+        if (err instanceof CardCommandError) {
+          emitError(err.code, err.message, scripting, err.details)
+          process.exitCode = err.exitCode
+          return
+        }
+        throw err
       }
+    }
 
-      const location = await resolveLocation(listNameArg, type)
-      if (!location) return
+    const location = await resolveLocation(listNameArg, type)
+    if (!location) return
 
-      await runHistoryEditor(location)
-    })
+    if (options.show) {
+      await runHistoryShow(location, options.limit, scripting)
+      return
+    }
+
+    await runHistoryEditor(location)
+  })
+}
+
+/**
+ * The `--show` JSON payload. Deliberately the same shape as the admin
+ * `GET /api/history/:type/:slug` response (`HistoryLoadResponse` in
+ * `src/admin/api/history.ts`) minus its `success` and `defaultLines` fields.
+ */
+type HistoryShowResult = {
+  /** Everything before the first change set (e.g. `# Changelog for My Deck`). */
+  header: string
+  /** Change sets, newest first (truncated to `--limit` when given). */
+  sets: ChangeSet[]
+}
+
+/** The read-only `--show` fork: print the change history and return. */
+async function runHistoryShow(
+  location: ListLocation,
+  limit: number | undefined,
+  scripting: ScriptingOptions,
+): Promise<void> {
+  const changesPath = changesPathFor(location.filePath)
+  let content = ''
+  try {
+    content = await fs.readFile(changesPath, 'utf-8')
+  } catch {
+    // No changelog yet — an empty history.
+  }
+  const parsed = parseChangeSets(content, location.name)
+  const allSets = sortNewestFirst(parsed.sets)
+  const sets = limit === undefined ? allSets : allSets.slice(0, limit)
+
+  if (scripting.output !== 'text') {
+    const result: HistoryShowResult = { header: parsed.header, sets }
+    emitOutput(result, scripting)
+    return
+  }
+
+  if (allSets.length === 0) {
+    emitOutput('No change history recorded.', scripting)
+    return
+  }
+
+  const lines: string[] = [
+    `Change history for ${listTypeLabel(location.type)} '${location.name}' — ${allSets.length} change set(s).`,
+  ]
+  for (const set of sets) {
+    lines.push(
+      '',
+      `${set.timestamp}  (${set.lines.length} change${set.lines.length === 1 ? '' : 's'}):`,
+    )
+    for (const line of set.lines) lines.push(`  ${line}`)
+  }
+  emitOutput(lines.join('\n'), scripting)
 }
 
 /**

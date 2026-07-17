@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import fs from 'node:fs/promises'
 import { runCli } from './helpers/cli'
 import {
   withWorkspace,
@@ -6,7 +7,12 @@ import {
   writeDeckFile,
   writeWantedFile,
 } from './helpers/workspace'
-import { buildDefaultChangeLines, loadListSnapshot } from '../../src/commands/history-helpers'
+import {
+  buildDefaultChangeLines,
+  changesPathFor,
+  loadListSnapshot,
+} from '../../src/commands/history-helpers'
+import type { ChangeSet } from '../../src/changelog-blocks'
 
 describe('loadListSnapshot + buildDefaultChangeLines (Integration)', () => {
   test('reconstructs a deck snapshot with sections, commander, note, and quantities', async () => {
@@ -84,6 +90,91 @@ describe('loadListSnapshot + buildDefaultChangeLines (Integration)', () => {
         '- Added "Sol Ring" (C21:240) &1',
         '- Added "Mana Crypt" (2XM:1) [foil] &2',
       ])
+    })
+  })
+})
+
+describe('history --show (Integration)', () => {
+  const OLDER_TS = '2026-01-01T10:00:00.000Z'
+  const NEWER_TS = '2026-02-01T10:00:00.000Z'
+  // On-disk changelogs are oldest-first; --show must re-sort newest-first.
+  const CHANGELOG = [
+    '# Changelog for test',
+    '',
+    `## ${OLDER_TS}`,
+    '',
+    '- Added "Sol Ring" &1',
+    '- Added "Lightning Bolt" (LEA:161) &2',
+    '',
+    `## ${NEWER_TS}`,
+    '',
+    '- Removed "Lightning Bolt" (LEA:161) &2',
+    '',
+  ].join('\n')
+
+  async function seedDeck(dir: string, changelog?: string): Promise<void> {
+    const filePath = await writeDeckFile(dir, 'test', {
+      frontMatter: { name: 'Test' },
+      cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
+    })
+    if (changelog !== undefined) await fs.writeFile(changesPathFor(filePath), changelog)
+  }
+
+  test('prints the change sets newest first with verbatim lines', async () => {
+    await withWorkspace(async (dir) => {
+      await seedDeck(dir, CHANGELOG)
+      const result = await runCli(['history', 'test', '--show'], dir)
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("Change history for Deck 'test' — 2 change set(s).")
+      expect(result.stdout).toContain(`${NEWER_TS}  (1 change):`)
+      expect(result.stdout).toContain(`${OLDER_TS}  (2 changes):`)
+      expect(result.stdout.indexOf(NEWER_TS)).toBeLessThan(result.stdout.indexOf(OLDER_TS))
+      // Raw lines verbatim — leading '- ' and '&N' intact — indented two spaces.
+      expect(result.stdout).toContain('  - Added "Sol Ring" &1')
+      expect(result.stdout).toContain('  - Removed "Lightning Bolt" (LEA:161) &2')
+    })
+  })
+
+  test('--output json --limit 1 emits only the newest set in the admin payload shape', async () => {
+    await withWorkspace(async (dir) => {
+      await seedDeck(dir, CHANGELOG)
+      const result = await runCli(
+        ['history', 'test', '--show', '--output', 'json', '--limit', '1'],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+      const payload = JSON.parse(result.stdout) as { header: string; sets: ChangeSet[] }
+      expect(payload.header).toBe('# Changelog for test')
+      expect(payload.sets).toEqual([
+        { timestamp: NEWER_TS, lines: ['- Removed "Lightning Bolt" (LEA:161) &2'] },
+      ])
+    })
+  })
+
+  test('a list with no changelog reports an empty history with exit 0', async () => {
+    await withWorkspace(async (dir) => {
+      await seedDeck(dir)
+      const result = await runCli(['history', 'test', '--show'], dir)
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain('No change history recorded.')
+    })
+  })
+
+  test('--show without a list name on a non-TTY is a usage error', async () => {
+    await withWorkspace(async (dir) => {
+      await seedDeck(dir, CHANGELOG)
+      const result = await runCli(['history', '--show'], dir)
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain('Input required')
+    })
+  })
+
+  test('--limit without --show is a usage error', async () => {
+    await withWorkspace(async (dir) => {
+      await seedDeck(dir, CHANGELOG)
+      const result = await runCli(['history', 'test', '--limit', '2'], dir)
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain('--limit requires --show')
     })
   })
 })

@@ -1,14 +1,9 @@
-import path from 'node:path'
-import fs from 'node:fs/promises'
-import { resolveDeckFilePath, parseDeckFrontMatter } from '../../deck-file'
-import { loadRitualConfig } from '../../ritual-config'
-import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
-import { getErrorMessage } from '../../errors'
-import { MAX_BODY_SIZE } from '../validation'
+import { resolveDeckFilePath } from '../../deck-file'
 import { getDecksDir } from '../../ritual-config'
-import { writeFileWithHash, hashPath } from '../../content-hash'
-import { moveListSidecars } from '../../list-sidecars'
-import { sanitizeListFileName, unusableFileNameMessage } from '../../list-file-name'
+import { isListLifecycleError, listLifecycleErrorStatus, renameList } from '../../list-lifecycle'
+import { apiHandler } from '../utils'
+import { autoCommitAndPush, validateBodySize } from './save-helpers'
+import { slugFromUrl } from './target'
 
 interface DeckRenameRequest {
   newName: string
@@ -20,38 +15,22 @@ interface DeckRenameResponse {
   newSlug?: string
 }
 
-export async function handleDeckRename(req: Request): Promise<Response> {
-  try {
-    const url = new URL(req.url)
-    const pathParts = url.pathname.split('/')
-    const rawSlug = pathParts[3]
-
-    if (!rawSlug) {
+export function handleDeckRename(req: Request): Promise<Response> {
+  return apiHandler(async () => {
+    const slug = slugFromUrl(req)
+    if (!slug) {
       const resp: DeckRenameResponse = { success: false, message: 'Deck slug is required' }
       return Response.json(resp, { status: 400 })
     }
 
-    const slug = decodeURIComponent(rawSlug)
-    const contentLength = Number(req.headers.get('Content-Length') ?? '0')
-    if (contentLength > MAX_BODY_SIZE) {
-      return Response.json({ success: false, message: 'Request body too large' }, { status: 413 })
-    }
+    const tooLarge = validateBodySize(req)
+    if (tooLarge) return tooLarge
+
     const body = (await req.json()) as DeckRenameRequest
     const { newName } = body
 
     if (!newName || typeof newName !== 'string' || newName.trim().length === 0) {
       const resp: DeckRenameResponse = { success: false, message: 'New deck name is required' }
-      return Response.json(resp, { status: 400 })
-    }
-
-    const trimmedName = newName.trim()
-    const newSlug = sanitizeListFileName(trimmedName)
-
-    if (!newSlug) {
-      const resp: DeckRenameResponse = {
-        success: false,
-        message: unusableFileNameMessage(trimmedName),
-      }
       return Response.json(resp, { status: 400 })
     }
 
@@ -66,69 +45,25 @@ export async function handleDeckRename(req: Request): Promise<Response> {
       return Response.json(resp, { status: 404 })
     }
 
-    const newFilePath = path.join(decksDir, `${newSlug}.md`)
-
-    if (newFilePath !== filePath && (await Bun.file(newFilePath).exists())) {
-      const resp: DeckRenameResponse = {
-        success: false,
-        message: `A deck with slug '${newSlug}' already exists`,
-      }
-      return Response.json(resp, { status: 409 })
+    const trimmedName = newName.trim()
+    const result = await renameList('deck', filePath, trimmedName)
+    if (isListLifecycleError(result)) {
+      const { status, message } = listLifecycleErrorStatus(result)
+      const resp: DeckRenameResponse = { success: false, message }
+      return Response.json(resp, { status })
     }
 
-    // Load existing content and old name before making changes
-    const existingContent = await fs.readFile(filePath, 'utf-8')
-    const frontMatter = await parseDeckFrontMatter(filePath)
-    const oldName = typeof frontMatter['name'] === 'string' ? frontMatter['name'] : slug
-
-    // Replace the frontmatter name field in the file content
-    const updatedContent = existingContent.replace(
-      /^(---[\s\S]*?)name:\s*["']?[^"'\n]*["']?([\s\S]*?---)/m,
-      (_, before, after) => `${before}name: "${trimmedName}"${after}`,
+    await autoCommitAndPush(
+      decksDir,
+      result.touchedFiles,
+      `Rename deck: ${result.oldName} → ${trimmedName}`,
     )
-    const finalContent = updatedContent.replace(
-      new RegExp(`^# ${escapeRegex(oldName)}$`, 'm'),
-      `# ${trimmedName}`,
-    )
-
-    const filesToCommit: string[] = []
-
-    if (newFilePath !== filePath) {
-      // Write new file with updated content, then remove old file and its sidecar
-      await writeFileWithHash(newFilePath, finalContent)
-      await fs.unlink(filePath)
-      await fs.unlink(hashPath(filePath)).catch(() => undefined)
-      filesToCommit.push(filePath, hashPath(filePath), newFilePath, hashPath(newFilePath))
-
-      for (const { from, to } of await moveListSidecars(filePath, newFilePath)) {
-        filesToCommit.push(from, to)
-      }
-    } else {
-      // Same slug, just update name in file
-      await writeFileWithHash(filePath, finalContent)
-      filesToCommit.push(filePath, hashPath(filePath))
-    }
-
-    const config = await loadRitualConfig()
-    if (shouldAutoCommit(config, decksDir)) {
-      commitFiles(filesToCommit, `Rename deck: ${oldName} → ${trimmedName}`)
-      if (shouldAutoPush(config, decksDir)) {
-        pushChanges(decksDir)
-      }
-    }
 
     const resp: DeckRenameResponse = {
       success: true,
       message: `Renamed deck to '${trimmedName}'`,
-      newSlug,
+      newSlug: result.newSlug,
     }
     return Response.json(resp)
-  } catch (error) {
-    const resp: DeckRenameResponse = { success: false, message: getErrorMessage(error) }
-    return Response.json(resp, { status: 500 })
-  }
-}
-
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  })
 }

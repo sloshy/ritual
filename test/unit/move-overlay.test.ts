@@ -16,7 +16,7 @@ import {
 } from '../../src/admin/site/move-overlay'
 import { listId, listInfoId } from '../../src/admin/site/list-grouping'
 import type { MovePhysicalCard } from '../../src/admin/api/move'
-import type { ListInfo } from '../../src/admin/api/list-info'
+import type { ListInfo } from '../../src/list-info'
 import type { DeckData } from '../../src/types'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../src/site/data-types'
 

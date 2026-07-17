@@ -29,10 +29,22 @@ A list is addressed by its **name** = the file basename without \`.md\`
 (e.g. \`decks/Winota Stax.md\` → \`Winota Stax\`). Most commands resolve a name across
 all three types, ignoring case, accents, and separators (so \`cafe\` matches \`Café\`,
 and \`winota-stax\` matches \`Winota Stax\`); when a name is ambiguous, pass a type
-flag (\`--deck\`, \`--collection\`, \`--wanted\`).
+flag (\`--deck\`, \`--collection\`, \`--wanted\`) or prefix the name (\`deck:staples\`).
+
+**Discovering lists:** \`ritual lists\` is the discovery primitive — it enumerates
+every deck, collection, and wanted list as \`type slug name\` rows. Filter with
+\`--deck\`/\`--collection\`/\`--wanted\`, and pass \`--output json\` for machine-readable
+\`{type, slug, name}\` objects. Prefer it over globbing the workspace folders.
+
+**List lifecycle:** \`ritual new <deck|collection|wanted> "<name>"\` creates a list
+(\`-f/--format\` for decks), \`ritual rename <list> "<new name>"\` renames one (file,
+sidecars, and front matter together), and \`ritual delete <list> --confirm "<name>"\`
+deletes one (\`--confirm\` must repeat the display name; without it a terminal
+prompts). \`ritual diff <listA> <listB>\` compares any two lists by card name
+(\`--by printing\` for exact printings).
 
 **File naming:** creating a list names its file exactly as the list is named — case,
-spaces, and punctuation are kept (\`ritual new-deck "Winota Stax"\` → \`decks/Winota Stax.md\`,
+spaces, and punctuation are kept (\`ritual new deck "Winota Stax"\` → \`decks/Winota Stax.md\`,
 not \`winota-stax.md\`). Only characters file systems reject (\`/ \\ : * ? " < > |\`, leading or
 repeated dots) are stripped, and a name with nothing usable left is an error. Older lists may
 still have hyphenated file names; they resolve by name as normal, and their display name comes
@@ -87,13 +99,17 @@ names that match list names, a \`format:\` on every deck — run \`ritual cleanu
 
 \`\`\`bash
 ritual login archidekt            # log in to Archidekt (for imports/sync)
-ritual config-set <prop> <value>  # set a config value (dot notation for nested keys)
-ritual config-set defaultCurrency eur  # currency price commands/displays default to (usd | eur | tix)
+ritual config set <prop> <value>  # set a config value (dot notation for nested keys)
+ritual config set defaultCurrency eur  # currency price commands/displays default to (usd | eur | tix)
+ritual config get <prop>          # read one value (exit 3 when unset)
+ritual config list                # print the full effective config (defaults marked)
+ritual config unset <prop>        # revert a value to its default
+ritual cache status               # report cache size/freshness/source without refreshing
 ritual cache preload-all          # warm the Scryfall card cache + tags (bulk download)
 ritual cache refresh-tags         # refresh only the oracle/art tags on cached cards
 ritual cache-feed host            # host a P2P feed of the raw Scryfall bulk files
 ritual cache-feed fetch           # sync the cache from a feed, then seed to peers
-ritual config-set cacheSource feed  # make all cache refreshes sync via the feed
+ritual config set cacheSource feed  # make all cache refreshes sync via the feed
 \`\`\`
 
 Cache refreshes take an exclusive lock (\`cache/.ritual-cache-lock\`); a refresh

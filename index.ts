@@ -5,7 +5,11 @@ import { version } from './src/version'
 setupGlobalFetch()
 
 import { Command, CommanderError } from 'commander'
-import { registerNewDeckCommand } from './src/commands/new-deck'
+import { registerNewCommand } from './src/commands/new'
+import { registerRenameCommand } from './src/commands/rename'
+import { registerDeleteCommand } from './src/commands/delete'
+import { registerListsCommand } from './src/commands/lists'
+import { registerDiffCommand } from './src/commands/diff'
 import { registerImportCommand } from './src/commands/import'
 import { registerPriceCommand } from './src/commands/price'
 import { registerBuildSiteCommand } from './src/commands/build-site'
@@ -38,7 +42,7 @@ import { registerMoveCommand } from './src/commands/move'
 import { registerHistoryCommand } from './src/commands/history'
 import { registerExportCommand } from './src/commands/export'
 import { registerCleanupCommand } from './src/commands/cleanup'
-import { registerConfigSetCommand } from './src/commands/config-set'
+import { registerConfigCommand } from './src/commands/config'
 import { registerHashCommand } from './src/commands/hash'
 import { registerListAllCardsCommand } from './src/commands/list-all-cards'
 import { registerMcpCommand } from './src/commands/mcp'
@@ -79,8 +83,16 @@ const COMMANDS_WITHOUT_LIST_IDS = new Set([
   'license',
   'dep-license',
   'git-detect-changes',
-  'config-set',
+  'config',
   'skills',
+  // Read-only list commands must not trigger the file-writing ID backfill.
+  'lists',
+  'diff',
+  // Admin account subcommands never touch list files (leaf names; bare
+  // 'admin' still backfills, which suits the server).
+  'setup',
+  'reset-password',
+  'disable-totp',
 ])
 
 program.hook('preAction', async (command) => {
@@ -114,13 +126,16 @@ program.commandsGroup('Account & Auth')
 registerLoginCommand(program)
 
 program.commandsGroup('Scripting')
+registerListsCommand(program)
 registerAddCardCommand(program)
 registerRemoveCardCommand(program)
 registerSetCardCommand(program)
 registerNoteCommand(program)
 
 program.commandsGroup('Deck Management')
-registerNewDeckCommand(program)
+registerNewCommand(program)
+registerRenameCommand(program)
+registerDeleteCommand(program)
 registerImportCommand(program)
 registerImportAccountCommand(program)
 registerGetPrimerCommand(program)
@@ -134,6 +149,7 @@ registerHistoryCommand(program)
 registerImportCsvCommand(program)
 registerImportChangesCommand(program)
 registerExportCommand(program)
+registerDiffCommand(program)
 
 program.commandsGroup('Card Lookup')
 registerCardCommand(program)
@@ -161,7 +177,7 @@ registerCleanupCommand(program)
 registerGitDetectChangesCommand(program)
 registerHashCommand(program)
 registerListAllCardsCommand(program)
-registerConfigSetCommand(program)
+registerConfigCommand(program)
 
 program.commandsGroup('Legal')
 registerLicenseCommand(program)

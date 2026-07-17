@@ -8,7 +8,12 @@ Start the web admin interface for managing Ritual from a browser.
 
 ```bash
 ritual admin [options]
+ritual admin setup --username <username> [--password-stdin]
+ritual admin reset-password [--username <username>] [--password-stdin]
+ritual admin disable-totp
 ```
+
+Run bare, `ritual admin` starts the web admin server. The `setup`, `reset-password`, and `disable-totp` subcommands manage the admin account headlessly, without starting a server — see [Account Recovery](#account-recovery).
 
 ## Options
 
@@ -44,9 +49,83 @@ The standalone [`ritual mcp`](/commands/mcp/) command is still the way to run MC
 When you first start the admin interface, navigate to the displayed URL in your browser. You will be prompted to create an admin account:
 
 - **Username**: any username of your choice
-- **Password**: must be at least 4 characters (no other restrictions)
+- **Password**: must be 8–128 characters
 
 Credentials are hashed with bcrypt and stored in `.logins/admin-auth.json`. Subsequent visits require signing in with these credentials via HTTP Basic Auth.
+
+The account can also be created ahead of time from the terminal with `ritual admin setup` — see [Account Recovery](#account-recovery).
+
+## Account Recovery
+
+Three subcommands manage the admin account **headlessly** — they read and write `.logins/admin-auth.json` directly, without starting (or requiring) a running admin server. They exist for scripted provisioning and for recovering access when you are locked out. All three support the standard scripting options (`--output text|json|ndjson`, `--quiet`) and append an entry to the audit log (`.logins/admin-audit.log`).
+
+### `ritual admin setup`
+
+Create the admin account before ever opening the browser:
+
+```bash
+# Interactive password prompt
+ritual admin setup --username ops
+
+# Scripted: password piped on stdin (exactly one trailing newline is stripped)
+printf '%s\n' "$ADMIN_PASSWORD" | ritual admin setup --username ops --password-stdin --output json
+# → { "username": "ops", "created": true }
+```
+
+| Option                  | Description                                   |
+| ----------------------- | --------------------------------------------- |
+| `--username <username>` | Username for the new admin account (required) |
+| `--password-stdin`      | Read the password from stdin (for scripting)  |
+
+Fails with exit code `1` if an admin user already exists, and exit code `2` for validation problems (missing username, password too short/too long) or when a password prompt would be needed but stdin is not a terminal.
+
+### `ritual admin reset-password`
+
+Replace the stored password hash (and optionally the username) for the existing account:
+
+```bash
+printf '%s\n' "$NEW_PASSWORD" | ritual admin reset-password --password-stdin
+# Also replace the username:
+printf '%s\n' "$NEW_PASSWORD" | ritual admin reset-password --username root --password-stdin
+```
+
+| Option                  | Description                                |
+| ----------------------- | ------------------------------------------ |
+| `--username <username>` | Also replace the admin username (optional) |
+| `--password-stdin`      | Read the new password from stdin           |
+
+Everything else in the credentials file — most importantly a TOTP secret, including a pending enrollment — is preserved verbatim. Fails with exit code `3` when no admin user exists yet (run `ritual admin setup` instead).
+
+### `ritual admin disable-totp`
+
+Remove the TOTP secret from the account so login only needs the password again:
+
+```bash
+ritual admin disable-totp --output json
+# → { "totpDisabled": true }
+```
+
+This clears **both** an active TOTP secret and a stuck `pending:` enrollment — an enrollment you started in the browser but never verified is exactly the kind of lockout this command recovers from. Fails with exit code `1` when no TOTP secret is stored, and `3` when no admin user exists.
+
+### Recovery runbook
+
+**Lost password** (with or without TOTP still working):
+
+1. On the machine hosting Ritual, run `ritual admin reset-password` (interactive) or pipe the new password with `--password-stdin`.
+2. Restart the admin server (see the caveat below).
+3. Sign in with the new password.
+
+**Lost TOTP device** (or a broken half-finished TOTP enrollment):
+
+1. Run `ritual admin disable-totp`.
+2. Restart the admin server.
+3. Sign in with username + password only, then re-enroll TOTP from Settings → Two-Factor Authentication if desired.
+
+**Lost everything / no account state worth keeping**: delete `.logins/admin-auth.json` and run `ritual admin setup` (or open the browser for first-time setup) to start fresh.
+
+:::caution
+Live browser sessions are held **in memory inside the running admin server process** — recovering credentials on disk does not invalidate or refresh them. After any credential recovery, **restart the admin server** so stale sessions are dropped and logins are checked against the new credentials.
+:::
 
 ## Available Actions
 
@@ -170,7 +249,7 @@ Settings are stored in `ritual.config.json` in the base directory. The file is s
 }
 ```
 
-All admin-server settings live under the nested `admin` key. Set them from the **Settings** page, with [`config-set admin.<field>`](/commands/config-set/), or by hand.
+All admin-server settings live under the nested `admin` key. Set them from the **Settings** page, with [`config set admin.<field>`](/commands/config/), or by hand.
 
 ## Git Integration
 
@@ -744,7 +823,7 @@ Returns the current application configuration.
 
 Update the application configuration. Partial updates are supported — only the fields you include will be changed. The nested `admin` object is merged field-by-field, so you can send just the admin settings you want to change.
 
-`defaultCurrency`, `cacheLockTimeoutSeconds`, `cacheSource`, and `cacheFeedUrl` are validated the same way as [`config-set`](/commands/config-set/) and rejected with a `400` when malformed. `cacheFeedUrl` has one extra rule: sending it as an **empty string** explicitly clears a previously-set override (falling back to the built-in default) — omitting the field entirely, by contrast, leaves the current value untouched.
+`defaultCurrency`, `cacheLockTimeoutSeconds`, `cacheSource`, and `cacheFeedUrl` are validated the same way as [`config set`](/commands/config/) and rejected with a `400` when malformed. `cacheFeedUrl` has one extra rule: sending it as an **empty string** explicitly clears a previously-set override (falling back to the built-in default) — omitting the field entirely, by contrast, leaves the current value untouched.
 
 **Request body:**
 

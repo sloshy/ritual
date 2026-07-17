@@ -45,6 +45,7 @@ import {
   handleSelectedMove,
 } from './api/move'
 import { handleLists } from './api/lists'
+import { handleDiff } from './api/diff'
 import { handleHistoryLoad, handleHistorySave } from './api/history'
 import { handlePriceSummary, handlePriceList } from './api/price'
 import {
@@ -220,6 +221,7 @@ export const routes: Route[] = [
     requiresAuth: true,
   },
   { method: 'GET', path: '/api/lists', handler: handleLists, requiresAuth: true },
+  { method: 'GET', path: '/api/diff', handler: handleDiff, requiresAuth: true },
   { method: 'GET', path: '/api/move', handler: handleMoveData, requiresAuth: true },
   { method: 'POST', path: '/api/move/commit', handler: handleMoveCommit, requiresAuth: true },
   { method: 'POST', path: '/api/move/selected', handler: handleSelectedMove, requiresAuth: true },

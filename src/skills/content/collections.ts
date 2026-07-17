@@ -50,6 +50,17 @@ When the card cache was last fully downloaded more than a week ago, the session 
 
 Within the session, changes accumulate **in memory**: \`💾 Save\` writes the file and changelog without exiting (saving repeatedly in one session folds the later changes into that session's existing changelog entry and bumps its timestamp, so one editing session is always one changelog entry), and \`🚪 Exit\` (or Esc) opens an exit menu when changes are unsaved — save and exit, exit without saving (discards everything unsaved), or cancel to keep editing. \`🛠️ Switch to Edit Mode\` turns the search prompt into a picker over the collection's existing entries — change a card's printing, finish, condition, or note, or remove it — and \`↩️ Undo Last Edit\` reverts the latest edit. \`↩️ Undo Last Add\` removes the most recent card and \`📋 View Session Changes\` opens a picker over every change made this session — adds, edits, and removals — where selecting one offers to discard just that change (same-card changes must be discarded newest-first). Discarding an add frees that card's \`&N\` id and keeps the remaining session ids dense (each later card slides down one).
 
+## Compare with another list
+
+\`ritual diff\` compares any two lists — e.g. which wanted cards a collection already
+covers, or what two collections share. \`--by name\` (the default) matches card names;
+\`--by printing\` requires the exact set/collector-number/finish to match:
+
+\`\`\`bash
+ritual diff wanted:to-buy "collection:Main Binder"          # overlap = already owned
+ritual diff "Main Binder" trade-binder --by printing --output json
+\`\`\`
+
 ## Import from a text file
 
 \`import\` turns a decklist-style text file into a new collection (quantities expand

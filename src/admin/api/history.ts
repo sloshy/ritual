@@ -12,7 +12,8 @@ import {
   changesPathFor,
   loadListSnapshot,
 } from '../../commands/history-helpers'
-import { listSlug, resolveListFile } from './list-info'
+import { resolveListFile } from './list-info'
+import { listSlug } from '../../list-info'
 import { validateBodySize, autoCommitAndPush } from './save-helpers'
 import { parseListTarget } from './target'
 

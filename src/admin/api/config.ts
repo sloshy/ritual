@@ -37,7 +37,7 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
 
     // Validate and normalize banned printings before persisting so the stored
     // config always holds canonical `set:collectorNumber` keys (set codes
-    // lowercased), matching what config-set writes.
+    // lowercased), matching what `config set` writes.
     if (updates.site?.bannedPrintings !== undefined) {
       const normalized = normalizeBannedPrintings(updates.site.bannedPrintings)
       if (typeof normalized === 'string') {
@@ -47,7 +47,7 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
     }
 
     // Validate and normalize the default currency before persisting, matching
-    // what config-set does — an unvalidated write here would otherwise persist
+    // what `config set` does — an unvalidated write here would otherwise persist
     // an invalid value that only gets caught (and silently reset to the
     // default) the next time the config is loaded, with no feedback to the caller.
     if (updates.defaultCurrency !== undefined) {

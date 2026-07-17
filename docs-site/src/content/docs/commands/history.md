@@ -6,6 +6,8 @@ Interactively compact and rewrite the change history (`.changes.md`) for a deck,
 
 Sometimes a list's change log gets noisy — many small sessions before a commit, mistimed entries, or sets you'd rather merge. `history` is a menu-driven editor for the change log **only**. It never touches the list's own `.md` file: every action operates on the change sets, and nothing is written until you explicitly choose to save.
 
+For scripts (or a quick look), `--show` prints the history read-only and exits without opening the editor — see [Read-only output with --show](#read-only-output-with---show).
+
 The admin site offers the same editor in the browser — see the [Change History](/admin/history/) page.
 
 ## Usage
@@ -24,13 +26,50 @@ The admin site offers the same editor in the browser — see the [Change History
 
 ## Options
 
-| Option         | Description                       |
-| -------------- | --------------------------------- |
-| `--deck`       | Resolve the name as a deck        |
-| `--collection` | Resolve the name as a collection  |
-| `--wanted`     | Resolve the name as a wanted list |
+| Option              | Description                                                               |
+| ------------------- | ------------------------------------------------------------------------- |
+| `--deck`            | Resolve the name as a deck                                                |
+| `--collection`      | Resolve the name as a collection                                          |
+| `--wanted`          | Resolve the name as a wanted list                                         |
+| `--show`            | Print the change history and exit instead of opening the editor           |
+| `--limit <n>`       | With `--show`: print only the newest `<n>` change sets (positive integer) |
+| `--output <format>` | Output format for `--show`: `text` (default), `json`, or `ndjson`         |
+| `--quiet`           | Suppress non-essential output                                             |
 
-`--deck`, `--collection`, and `--wanted` are mutually exclusive.
+`--deck`, `--collection`, and `--wanted` are mutually exclusive. `--limit` requires `--show`.
+
+## Read-only output with --show
+
+`--show` skips the editor entirely and prints the change history newest-first, then exits. Nothing is ever written.
+
+```bash
+./ritual history my-deck --show
+./ritual history my-deck --show --limit 3
+./ritual history my-deck --show --output json
+```
+
+Text output starts with a header line — `Change history for Deck 'my-deck' — 4 change set(s).` (the count is the full history, before any `--limit` truncation) — followed by each printed set: its timestamp and line count, then its raw change lines indented two spaces **verbatim**, including the leading `- ` and the `&N` card IDs. A list with no recorded history prints `No change history recorded.` and still exits `0`.
+
+`--limit <n>` keeps only the newest `n` sets, applied after the newest-first sort.
+
+With `--output json`, the payload is deliberately the same shape as the admin site's `GET /api/history/:type/:slug` response, minus its `success` and `defaultLines` fields:
+
+```json
+{
+  "header": "# Changelog for my-deck",
+  "sets": [
+    {
+      "timestamp": "2026-02-01T10:00:00.000Z",
+      "lines": ["- Removed \"Lightning Bolt\" (LEA:161) &2"]
+    }
+  ]
+}
+```
+
+- `header` — everything before the first change set in the `.changes.md` file.
+- `sets` — the change sets newest first (truncated to `--limit`), each `{ timestamp, lines }` with the raw `- ` lines verbatim. An empty history emits `"sets": []`.
+
+Because `--show` output is meant for scripts, invoking it without a `[listName]` when stdin is not a terminal is a usage error (exit `2`) rather than a hang — the interactive list picker only runs on a TTY.
 
 ## The editor
 
@@ -76,8 +115,8 @@ Every action edits the `.changes.md` file alongside the list. The list's own `.m
 
 ## Exit Codes
 
-| Code | Meaning                                                   |
-| ---- | --------------------------------------------------------- |
-| `0`  | Success (saved, discarded, or nothing to save)            |
-| `2`  | Usage error (conflicting type flags, ambiguous list name) |
-| `3`  | Not found (no matching list, or no lists at all)          |
+| Code | Meaning                                                                                                                          |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Success (saved, discarded, or nothing to save; with `--show`, printed — even an empty history)                                   |
+| `2`  | Usage error (conflicting type flags, ambiguous list name, `--limit` without `--show`, `--show` without a list name on a non-TTY) |
+| `3`  | Not found (no matching list, or no lists at all)                                                                                 |

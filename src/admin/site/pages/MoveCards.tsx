@@ -5,7 +5,7 @@ import type { CardContextInfo } from '../../../site/card-context'
 import { DeckPage } from '../../../site/DeckPage'
 import { CollectionPage } from '../../../site/CollectionPage'
 import { WantedListPage } from '../../../site/WantedListPage'
-import type { ListInfo } from '../../api/list-info'
+import type { ListInfo } from '../../../list-info'
 import {
   type TileTarget,
   type MoveDestPrinting,

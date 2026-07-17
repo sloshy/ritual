@@ -21,7 +21,6 @@ import {
 } from './move-helpers'
 import {
   addScriptingOptions,
-  emitError,
   emitOutput,
   emitResolveListError,
   ExitCode,
@@ -33,6 +32,7 @@ import {
   describeEntry,
   parseCardIdFlag,
   parsePositiveInteger,
+  runCommandAction,
 } from './card-target'
 import { isResolveListError, parseListArgument, resolveList } from '../resolve-list'
 import { matchByNormalizedName } from '../term-match'
@@ -128,7 +128,7 @@ export function registerMoveCommand(program: Command): void {
     const scripting = normalizeScriptingOptions(options, 'text')
     const cardName = cardNameParts.join(' ').trim() || undefined
 
-    try {
+    await runCommandAction(scripting, async () => {
       if (options.to !== undefined && options.from === undefined) {
         throw new CardCommandError(
           'usage_error',
@@ -183,14 +183,7 @@ export function registerMoveCommand(program: Command): void {
       }
 
       await runInteractiveMove(undefined)
-    } catch (err) {
-      if (err instanceof CardCommandError) {
-        emitError(err.code, err.message, scripting, err.details)
-        process.exitCode = err.exitCode
-        return
-      }
-      throw err
-    }
+    })
   })
 }
 

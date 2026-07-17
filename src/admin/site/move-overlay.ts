@@ -6,7 +6,7 @@ import { isSamePrinting } from '../../change-event'
 import { applyChangeToDeck } from '../../editor/deck-changes'
 import { applyChangeToCollection } from '../../editor/collection-changes'
 import { applyChangeToWantedList } from '../../editor/wanted-changes'
-import type { ListInfo } from '../api/list-info'
+import type { ListInfo } from '../../list-info'
 import type { MovePhysicalCard } from '../api/move'
 import { type ListId, listId, listInfoId } from './list-grouping'
 

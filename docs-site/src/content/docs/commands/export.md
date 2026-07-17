@@ -99,7 +99,7 @@ A bare `ritual export` in a terminal opens the wizard. From its main menu you ca
 
 ## Presets
 
-Presets capture the **output shape** — format, columns and their order, and the CSV toggles — not sources or filters. They live under `exportPresets` in [`ritual.config.json`](/configuration/) and are managed with `--save-preset`, the wizard, or by editing the file directly (`config-set` does not manage them):
+Presets capture the **output shape** — format, columns and their order, and the CSV toggles — not sources or filters. They live under `exportPresets` in [`ritual.config.json`](/configuration/) and are managed with `--save-preset`, the wizard, or by editing the file directly (`config set` does not manage them):
 
 ```json
 {

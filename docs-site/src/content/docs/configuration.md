@@ -55,7 +55,7 @@ You can use absolute paths (`"/srv/mtg/decks"`) or paths that step outside the b
 
 | Field             | Default | Description                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | ----------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `defaultCurrency` | `usd`   | The currency price-touching surfaces default to: `usd`, `eur`, or `tix`. Used by the [price](/commands/price/) command, the price lines shown when adding cards in the CLI editor, the [admin site](/commands/admin/)'s editor and move-cards price displays, and as the public site's initial currency (when that currency is built). [init-site](/commands/init-site/) prompts for it; change it later with `config-set defaultCurrency eur`. |
+| `defaultCurrency` | `usd`   | The currency price-touching surfaces default to: `usd`, `eur`, or `tix`. Used by the [price](/commands/price/) command, the price lines shown when adding cards in the CLI editor, the [admin site](/commands/admin/)'s editor and move-cards price displays, and as the public site's initial currency (when that currency is built). [init-site](/commands/init-site/) prompts for it; change it later with `config set defaultCurrency eur`. |
 
 ## Cache lock timeout
 
@@ -76,7 +76,7 @@ A waiting process breaks the lock immediately when its holder is provably no lon
 
 | Field           | Default | Description                                                                                                                                                                                                                                                                                                                                             |
 | --------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `exportPresets` | —       | Named output shapes for the [export](/commands/export/) command: each preset holds a `format` (`csv`/`json`), a `columns` array (in output order), and the CSV toggles `header` and `quoteAll`. Managed with `export --save-preset`, the export wizard, or by hand — `config-set` does not manage this key. Present only after a preset has been saved. |
+| `exportPresets` | —       | Named output shapes for the [export](/commands/export/) command: each preset holds a `format` (`csv`/`json`), a `columns` array (in output order), and the CSV toggles `header` and `quoteAll`. Managed with `export --save-preset`, the export wizard, or by hand — `config set` does not manage this key. Present only after a preset has been saved. |
 
 ```json
 {
@@ -93,7 +93,7 @@ A waiting process breaks the lock immediately when its holder is provably no lon
 
 ## Admin options (`admin` key)
 
-The `admin` key holds settings that are configured through, and for, the [admin server](/commands/admin/): git integration for admin file changes, network access control, and login rate limiting. Set them from the admin **Settings** page, with [`config-set admin.<field>`](/commands/config-set/), or by hand. The key is always present and each field falls back to its default when omitted.
+The `admin` key holds settings that are configured through, and for, the [admin server](/commands/admin/): git integration for admin file changes, network access control, and login rate limiting. Set them from the admin **Settings** page, with [`config set admin.<field>`](/commands/config/), or by hand. The key is always present and each field falls back to its default when omitted.
 
 ### Git integration
 
@@ -118,7 +118,7 @@ See [Admin → Configuration File](/commands/admin/#configuration-file) for the 
 The `site` key holds public-site settings. It has two parts:
 
 - **Deployment settings** (`version`, `ciSystem`, `deployMode`, `distDir`, `detectChanges`) are managed by `ritual init-site` and present only after you run it. Don't edit them by hand.
-- **Publish lists** (`includeDecks`, `includeCollections`, `includeWantedLists` and their `exclude*` counterparts) are user-editable and decide which lists `build-site` publishes. You can set them from the admin **Settings** page, the per-list visibility toggles on the admin **Manage Lists** page, with [`config-set`](/commands/config-set/), or by hand.
+- **Publish lists** (`includeDecks`, `includeCollections`, `includeWantedLists` and their `exclude*` counterparts) are user-editable and decide which lists `build-site` publishes. You can set them from the admin **Settings** page, the per-list visibility toggles on the admin **Manage Lists** page, with [`config set`](/commands/config/), or by hand.
 
 ```json
 {
@@ -170,6 +170,6 @@ The corresponding `build-site` flags (`--decks`, `--collections`, `--wanted-list
 
 You can edit the directory keys and the nested `admin` settings in `ritual.config.json` by hand, or — when running the admin server — use the **Settings** page in the web UI. Saving via the UI also refreshes the in-memory config so any later admin or CLI command picks up the change immediately.
 
-The deployment portion of the `site` key is owned by `ritual init-site`; let that command manage it. The publish lists (`site.includeDecks`, `site.includeCollections`, `site.includeWantedLists` and their `site.exclude*` counterparts) are the exception — they are user settings you can edit from the admin **Settings** page, the **Manage Lists** visibility toggles, or with `config-set`.
+The deployment portion of the `site` key is owned by `ritual init-site`; let that command manage it. The publish lists (`site.includeDecks`, `site.includeCollections`, `site.includeWantedLists` and their `site.exclude*` counterparts) are the exception — they are user settings you can edit from the admin **Settings** page, the **Manage Lists** visibility toggles, or with `config set`.
 
 If a field is missing from the file, Ritual falls back to the default for that field.

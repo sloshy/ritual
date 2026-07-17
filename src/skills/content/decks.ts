@@ -12,8 +12,8 @@ the **ritual-edit** skill for adding/removing individual cards.
 ## Create
 
 \`\`\`bash
-ritual new-deck "Winota Stax"                 # defaults to commander
-ritual new-deck "Mono-Red Aggro" -f standard  # -f / --format
+ritual new deck "Winota Stax"                 # defaults to commander
+ritual new deck "Mono-Red Aggro" -f standard  # -f / --format
 \`\`\`
 
 ### Deck format

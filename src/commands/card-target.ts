@@ -60,6 +60,28 @@ export class CardCommandError extends Error {
   }
 }
 
+/**
+ * Run a one-shot command's action body, mapping a thrown
+ * {@link CardCommandError} to the scripting error channel and process exit
+ * code — the standard action-handler shell shared by every one-shot command.
+ * Anything else propagates untouched.
+ */
+export async function runCommandAction(
+  scripting: ScriptingOptions,
+  run: () => Promise<void>,
+): Promise<void> {
+  try {
+    await run()
+  } catch (err) {
+    if (err instanceof CardCommandError) {
+      emitError(err.code, err.message, scripting, err.details)
+      process.exitCode = err.exitCode
+      return
+    }
+    throw err
+  }
+}
+
 export type ResolveTargetInput = {
   cardId: number | undefined
   cardName: string | undefined
@@ -307,7 +329,7 @@ export function describeEntry(entry: EntryRef): string {
  * (closed stdin: the prompt never resolves and the event loop drains) or
  * blocks — never an acceptable one-shot contract.
  */
-function requireInteractive(what: string): void {
+export function requireInteractive(what: string): void {
   if (!process.stdin.isTTY) {
     throw new CardCommandError(
       'usage_error',

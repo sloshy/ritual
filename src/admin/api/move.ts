@@ -14,7 +14,7 @@ import {
   type ListEntry,
 } from '../../commands/move-helpers'
 import type { DroppedNote } from '../../commands/move-io'
-import { listSlug, type ListInfo } from './list-info'
+import { listSlug, type ListInfo } from '../../list-info'
 import { validateBodySize, autoCommitAndPush } from './save-helpers'
 
 /** Error body every move/remove endpoint returns on validation failure or a thrown error. */

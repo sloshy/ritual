@@ -1,0 +1,183 @@
+---
+title: 'config'
+---
+
+Inspect and modify `ritual.config.json` from the command line. The `config` group has four subcommands:
+
+```bash
+./ritual config set <property> <value...>   # set or update a value
+./ritual config get <property>              # print one effective value
+./ritual config list                        # print the full effective configuration
+./ritual config unset <property>            # remove a value, reverting to its default
+```
+
+All subcommands accept the standard scripting options:
+
+| Option              | Description                                | Default |
+| ------------------- | ------------------------------------------ | ------- |
+| `--output <format>` | Output format: `text`, `json`, or `ndjson` | `text`  |
+| `--quiet`           | Suppress non-essential output              | `false` |
+
+## Properties
+
+| Property                  | Type     | Default         |
+| ------------------------- | -------- | --------------- |
+| `decksDir`                | `string` | `./decks`       |
+| `collectionsDir`          | `string` | `./collections` |
+| `wantedDir`               | `string` | `./wanted`      |
+| `defaultCurrency`         | `string` | `usd`           |
+| `cacheLockTimeoutSeconds` | `number` | `300`           |
+| `cacheSource`             | `string` | `scryfall`      |
+| `cacheFeedUrl`            | `string` | —               |
+
+`defaultCurrency` must be one of `usd`, `eur`, or `tix`; it sets the currency every price-touching command defaults to.
+
+`cacheLockTimeoutSeconds` is how long a cache-refreshing operation waits for another process's refresh to finish before failing — see [Configuration → Cache lock timeout](/configuration/#cache-lock-timeout).
+
+`cacheSource` must be `scryfall` or `feed`; `cacheFeedUrl` must be an http(s) URL. Together they route cache refreshes through a peer-to-peer [cache feed](/commands/cache-feed/) — see [Configuration → Cache source](/configuration/#cache-source).
+
+The nested `admin` keys — settings for the [admin server](/commands/admin/) — use dot notation:
+
+| Property                       | Type       | Default |
+| ------------------------------ | ---------- | ------- |
+| `admin.gitEnabled`             | `boolean`  | `false` |
+| `admin.gitAutoCommit`          | `boolean`  | `false` |
+| `admin.gitAutoPush`            | `boolean`  | `false` |
+| `admin.trustProxy`             | `boolean`  | `false` |
+| `admin.secureCookies`          | `boolean`  | `false` |
+| `admin.ipAllowList`            | `string[]` | `[]`    |
+| `admin.ipDenyList`             | `string[]` | `[]`    |
+| `admin.userAgentAllowList`     | `string[]` | `[]`    |
+| `admin.userAgentDenyList`      | `string[]` | `[]`    |
+| `admin.rateLimitEnabled`       | `boolean`  | `true`  |
+| `admin.rateLimitMaxAttempts`   | `number`   | `5`     |
+| `admin.rateLimitWindowMinutes` | `number`   | `5`     |
+| `admin.failedAuthDelayMs`      | `number`   | `3000`  |
+
+The following nested `site` keys — the [public-site publish lists](/commands/build-site/#choosing-which-lists-to-build) — are also settable:
+
+| Property                  | Type       | Default |
+| ------------------------- | ---------- | ------- |
+| `site.includeDecks`       | `string[]` | `["*"]` |
+| `site.includeCollections` | `string[]` | `["*"]` |
+| `site.includeWantedLists` | `string[]` | `["*"]` |
+| `site.excludeDecks`       | `string[]` | `[]`    |
+| `site.excludeCollections` | `string[]` | `[]`    |
+| `site.excludeWantedLists` | `string[]` | `[]`    |
+| `site.bannedPrintings`    | `string[]` | `[]`    |
+
+Each `exclude*` list drops lists by display name even when the matching `include*` list selects them; exclusion always wins. The exclude lists have no wildcard and default to empty. The admin **Manage Lists** page edits them through per-list [visibility toggles](/admin/manage-lists/#publishing-visibility).
+
+`site.bannedPrintings` blocks specific printings from being chosen as a card's **default (featured) printing** when no printing is otherwise specified. Each entry is a `SET:COLLECTOR` pair (e.g. `SLD:123`). Ritual normally features the most recent non-outlier printing among a card's five newest priced printings; when that printing is banned, it skips to the next eligible one. A banned printing can still be viewed and entered manually — it is only barred from automatic selection. Set codes are stored lowercase; the value you pass may use either case.
+
+The rest of the `site` key (the deployment settings) is managed exclusively by `ritual init-site` and cannot be set or unset with this command. `exportPresets` is managed by [`ritual export --save-preset`](/commands/export/) — it can be read with `config get exportPresets` but not written here.
+
+## config set
+
+```bash
+./ritual config set [options] <property> <value...>
+```
+
+| Argument     | Description                                     | Required |
+| ------------ | ----------------------------------------------- | -------- |
+| `<property>` | The config key to set (dot notation for nested) | Yes      |
+| `<value...>` | One or more values to set                       | Yes      |
+
+| Option     | Description                                          |
+| ---------- | ---------------------------------------------------- |
+| `--add`    | Append value(s) to an array property (no duplicates) |
+| `--remove` | Remove value(s) from an array property               |
+
+`--add` and `--remove` are mutually exclusive, and only apply to `string[]` properties.
+
+### Value types
+
+- **`string`** — passed as-is.
+- **`boolean`** — must be `true` or `false` (case-insensitive).
+- **`number`** — must be a non-negative integer.
+- **`string[]`** — one or more values. By default the whole array is replaced. Use `--add` or `--remove` to modify individual entries. Arrays are treated as sets; duplicate values are ignored.
+
+### Examples
+
+```bash
+./ritual config set admin.gitEnabled true
+./ritual config set decksDir ./my-decks
+./ritual config set admin.ipAllowList "192.168.1.0/24" "10.0.0.1"   # replaces the whole list
+./ritual config set --add admin.ipAllowList "10.0.0.2"
+./ritual config set --remove admin.ipAllowList "10.0.0.1"
+./ritual config set site.includeDecks "Izzet Storm" "Atraxa Superfriends"
+./ritual config set site.includeCollections "*"                     # back to "everything"
+./ritual config set --add site.excludeDecks "Untuned Brew"
+./ritual config set --add site.bannedPrintings "SLD:123"
+```
+
+## config get
+
+```bash
+./ritual config get <property>
+```
+
+Prints the effective value of a single property — the value the rest of Ritual actually uses, whether it came from the file or a built-in default. Text output is the bare value (arrays and objects as JSON); `--output json` emits the value as JSON.
+
+```bash
+$ ./ritual config get decksDir
+./decks
+$ ./ritual config get admin.ipAllowList --output json
+["192.168.1.0/24"]
+```
+
+Genuinely optional keys that have never been set — `cacheFeedUrl`, `exportPresets`, `site.bannedPrintings`, and the `site.*` selection lists before a `site` object exists — exit with `not_found` (code `3`). An unknown property is a usage error (code `2`) that lists the available keys.
+
+## config list
+
+```bash
+./ritual config list
+```
+
+Prints the full effective configuration as flat `key = value` lines (dot notation for nested keys), one per settable property:
+
+```text
+decksDir = ./my-decks
+collectionsDir = ./collections (default)
+...
+cacheFeedUrl = (unset)
+admin.gitEnabled = false (default)
+```
+
+`(default)` marks keys whose value **equals** the built-in default; `(unset)` marks optional keys with no value. The marker is computed by comparing values against the built-in defaults, not by checking whether the key is present in `ritual.config.json` — any write to the config file materializes the defaulted keys onto disk, so file presence says nothing about whether you customized a value. For the `site.*` selection lists the comparison uses their documented effective defaults (`["*"]` for include lists, `[]` for exclude lists).
+
+`--output json` emits the effective config as one JSON object — the same payload the admin server's `GET /api/config` (and the MCP `get_config` tool) reports.
+
+## config unset
+
+```bash
+./ritual config unset <property>
+```
+
+Removes a property from `ritual.config.json`:
+
+- For keys with a built-in default the value reverts to that default: `Reset decksDir to default (./decks)`.
+- For genuinely optional keys the value is simply removed: `Unset cacheFeedUrl`.
+
+Unsetting a key that is already at its default (or was never set) succeeds with the same message — the command is idempotent. Nested parents that become empty are pruned from the file. The `site` deployment keys are owned by `ritual init-site` and cannot be unset here.
+
+```bash
+./ritual config unset decksDir
+./ritual config unset cacheFeedUrl
+./ritual config unset site.includeDecks    # back to ["*"] (publish everything)
+```
+
+## Exit Codes
+
+| Code | Meaning                                                                                         |
+| ---- | ----------------------------------------------------------------------------------------------- |
+| `0`  | Success (including idempotent `unset` of an already-default key)                                |
+| `2`  | Usage error (unknown property, invalid value, `--add`/`--remove` misuse, init-site-managed key) |
+| `3`  | Not found (`get` on an optional key that is not set)                                            |
+| `1`  | Runtime error                                                                                   |
+
+## Notes
+
+- Changes are written to `ritual.config.json` immediately.
+- A running admin server picks up config changes on its next request; it does not need to be restarted.
+- Use `--base-dir` to target a config file in a directory other than the current working directory.

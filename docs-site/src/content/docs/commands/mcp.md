@@ -92,6 +92,13 @@ Every tool that addresses a list takes the same two fields: `listType` (`deck` |
 | `load_history`                      | A list's change history.                                                                                                          |
 | `get_config`, `get_audit_log`       | Configuration and admin activity.                                                                                                 |
 | `export_cards`                      | Render a CSV/JSON [export](/commands/export/) of lists and/or card picks, with filters and column selection.                      |
+| `diff_lists`                        | Compare two lists by card name or exact printing — the [`diff`](/commands/diff/) command as a tool.                               |
+
+`diff_lists` takes two sides (`a` and `b`, each `{ listType?, name }` — names resolve like CLI list
+arguments, with `listType` pinning an ambiguous name) plus an optional `by` (`name`, the default, or
+`printing`) and returns `{ a, b, by, matches, onlyInA, onlyInB, warnings }` with quantities summed
+across all sections. See [`diff`](/commands/diff/) for the identity rules (nonfoil folding, the
+no-printing bucket).
 
 `price_report` takes both `listType` and `slug` (one list's summary plus its priced card entries),
 `listType` alone (per-list totals across every list of that type, like the CLI's `price --deck

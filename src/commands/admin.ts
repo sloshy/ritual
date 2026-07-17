@@ -1,7 +1,18 @@
 import { Command } from 'commander'
 import path from 'node:path'
 import fs from 'node:fs/promises'
+import prompts from 'prompts'
 import { startAdminServer } from '../admin/server'
+import {
+  adminUserExists,
+  createAdminUser,
+  getAdminUsername,
+  getTotpSecret,
+  resetAdminPassword,
+  setTotpSecret,
+} from '../admin/auth'
+import { appendAuditLog, createAuditEntry } from '../admin/audit-log'
+import { MAX_PASSWORD_LENGTH, MAX_USERNAME_LENGTH, MIN_PASSWORD_LENGTH } from '../admin/validation'
 import { runHttpServer } from '../mcp/run'
 import { resolveMcpToken } from '../mcp/token'
 import { getBaseDir } from '../base-dir'
@@ -18,7 +29,15 @@ import {
   type ThemeName,
 } from '../themes'
 import { buildFlameSvg } from '../flame'
-import { ExitCode, parsePort } from './scripting'
+import { CardCommandError, requireInteractive, runCommandAction } from './card-target'
+import {
+  addScriptingOptions,
+  emitOutput,
+  ExitCode,
+  normalizeScriptingOptions,
+  parsePort,
+  type ScriptingOptions,
+} from './scripting'
 
 type AdminCommandOptions = {
   port: number
@@ -93,7 +112,7 @@ async function buildAdminCss(srcDir: string, adminDistDir: string): Promise<void
 }
 
 export function registerAdminCommand(program: Command): void {
-  program
+  const admin = program
     .command('admin')
     .description('Start the web admin interface')
     .option('-p, --port <number>', 'Port to serve on', parsePort, 8080)
@@ -189,4 +208,222 @@ export function registerAdminCommand(program: Command): void {
         })
       }
     })
+
+  registerSetupSubcommand(admin)
+  registerResetPasswordSubcommand(admin)
+  registerDisableTotpSubcommand(admin)
+}
+
+// ---------------------------------------------------------------------------
+// Headless account subcommands (`admin setup`, `admin reset-password`,
+// `admin disable-totp`) — credential recovery without a running server.
+// ---------------------------------------------------------------------------
+
+type AccountSubcommandOptions = {
+  username?: string
+  passwordStdin?: boolean
+} & Partial<ScriptingOptions>
+
+type AdminSetupResult = {
+  username: string
+  created: boolean
+}
+
+type AdminResetPasswordResult = {
+  username: string
+  passwordReset: boolean
+}
+
+type AdminDisableTotpResult = {
+  totpDisabled: boolean
+}
+
+/**
+ * Read the password from stdin, draining it fully and stripping exactly one
+ * trailing newline (`\r?\n`). Deliberately NOT `readLinesFromStdin` from
+ * card.ts — that helper trims and filters lines, which would corrupt
+ * passwords containing leading/trailing whitespace.
+ */
+async function readPasswordFromStdin(): Promise<string> {
+  const chunks: Uint8Array[] = []
+  for await (const chunk of process.stdin as AsyncIterable<Uint8Array>) {
+    chunks.push(chunk)
+  }
+  return Buffer.concat(chunks)
+    .toString('utf-8')
+    .replace(/\r?\n$/, '')
+}
+
+async function promptForPassword(): Promise<string> {
+  const response = await prompts({
+    type: 'password',
+    name: 'password',
+    message: 'Password',
+  })
+  if (typeof response.password !== 'string') {
+    throw new CardCommandError('usage_error', 'Password entry cancelled.', ExitCode.UsageError)
+  }
+  return response.password
+}
+
+/**
+ * Resolve the password for an account subcommand: `--password-stdin` drains
+ * stdin; otherwise an interactive prompt is used, which refuses (usage error)
+ * when stdin is not a terminal.
+ */
+async function resolvePassword(options: AccountSubcommandOptions): Promise<string> {
+  if (options.passwordStdin) {
+    return readPasswordFromStdin()
+  }
+  requireInteractive('--password-stdin')
+  return promptForPassword()
+}
+
+/** Validate an optional username against the same limits as the HTTP setup handler. */
+function validateUsername(username: string): void {
+  if (username.length > MAX_USERNAME_LENGTH) {
+    throw new CardCommandError('usage_error', 'Username is too long', ExitCode.UsageError)
+  }
+}
+
+/** Validate password length against the same limits as the HTTP setup handler. */
+function validatePassword(password: string): void {
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    throw new CardCommandError('usage_error', 'Password is too long', ExitCode.UsageError)
+  }
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    throw new CardCommandError(
+      'usage_error',
+      `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+      ExitCode.UsageError,
+    )
+  }
+}
+
+/** Append an admin-account event to the same audit log the login endpoint writes. */
+async function auditAccountEvent(username: string, reason: string): Promise<void> {
+  await appendAuditLog(createAuditEntry('cli', username, true, reason, 'ritual-cli'))
+}
+
+/** Fail with a not-found unless the admin credentials file exists. */
+async function requireAdminUser(): Promise<void> {
+  if (!(await adminUserExists())) {
+    throw new CardCommandError(
+      'not_found',
+      "No admin user exists. Run 'ritual admin setup' to create one.",
+      ExitCode.NotFound,
+    )
+  }
+}
+
+function registerSetupSubcommand(admin: Command): void {
+  addScriptingOptions(
+    admin
+      .command('setup')
+      .description('Create the admin account without starting the server')
+      .option('--username <username>', 'Username for the new admin account')
+      .option('--password-stdin', 'Read the password from stdin (for scripting)', false),
+    'text',
+  ).action(async (options: AccountSubcommandOptions) => {
+    const scripting = normalizeScriptingOptions(options, 'text')
+    await runCommandAction(scripting, async () => {
+      const username = options.username
+      if (!username) {
+        throw new CardCommandError('usage_error', '--username is required.', ExitCode.UsageError)
+      }
+      validateUsername(username)
+
+      if (await adminUserExists()) {
+        throw new CardCommandError(
+          'runtime_error',
+          'Admin user already exists',
+          ExitCode.RuntimeError,
+        )
+      }
+
+      const password = await resolvePassword(options)
+      validatePassword(password)
+
+      await createAdminUser(username, password)
+      await auditAccountEvent(username, 'Admin account created via CLI')
+
+      if (scripting.output === 'text') {
+        if (!scripting.quiet) {
+          emitOutput(`Admin user '${username}' created.`, scripting)
+        }
+        return
+      }
+      const result: AdminSetupResult = { username, created: true }
+      emitOutput(result, scripting)
+    })
+  })
+}
+
+function registerResetPasswordSubcommand(admin: Command): void {
+  addScriptingOptions(
+    admin
+      .command('reset-password')
+      .description('Reset the admin password (and optionally replace the username)')
+      .option('--username <username>', 'Also replace the admin username')
+      .option('--password-stdin', 'Read the new password from stdin (for scripting)', false),
+    'text',
+  ).action(async (options: AccountSubcommandOptions) => {
+    const scripting = normalizeScriptingOptions(options, 'text')
+    await runCommandAction(scripting, async () => {
+      await requireAdminUser()
+      if (options.username !== undefined) {
+        validateUsername(options.username)
+      }
+
+      const password = await resolvePassword(options)
+      validatePassword(password)
+
+      const username = await resetAdminPassword(password, options.username)
+      await auditAccountEvent(username, 'Admin password reset via CLI')
+
+      if (scripting.output === 'text') {
+        if (!scripting.quiet) {
+          emitOutput(`Password reset for admin user '${username}'.`, scripting)
+        }
+        return
+      }
+      const result: AdminResetPasswordResult = { username, passwordReset: true }
+      emitOutput(result, scripting)
+    })
+  })
+}
+
+function registerDisableTotpSubcommand(admin: Command): void {
+  addScriptingOptions(
+    admin
+      .command('disable-totp')
+      .description('Disable TOTP two-factor auth (clears active and pending enrollment)'),
+    'text',
+  ).action(async (options: Partial<ScriptingOptions>) => {
+    const scripting = normalizeScriptingOptions(options, 'text')
+    await runCommandAction(scripting, async () => {
+      await requireAdminUser()
+
+      // Gate on the raw secret, not isTotpEnabled(): a stuck `pending:`
+      // enrollment is exactly the lockout this command recovers from, so
+      // both active and pending secrets must be clearable.
+      const secret = await getTotpSecret()
+      if (secret === null) {
+        throw new CardCommandError('runtime_error', 'TOTP is not enabled', ExitCode.RuntimeError)
+      }
+
+      await setTotpSecret(null)
+      const username = (await getAdminUsername()) ?? 'admin'
+      await auditAccountEvent(username, 'TOTP disabled via CLI')
+
+      if (scripting.output === 'text') {
+        if (!scripting.quiet) {
+          emitOutput('TOTP disabled.', scripting)
+        }
+        return
+      }
+      const result: AdminDisableTotpResult = { totpDisabled: true }
+      emitOutput(result, scripting)
+    })
+  })
 }

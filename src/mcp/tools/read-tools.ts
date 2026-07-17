@@ -6,6 +6,7 @@ import { jsonResult } from '../result'
 import { currencySchema, finishSchema, listTypeSchema, slugField } from '../schemas'
 import { EXPORT_PROPERTIES } from '../../export/render'
 import { VALID_CONDITIONS } from '../../finish-condition'
+import { DIFF_BY_MODES } from '../../list-diff'
 import type { ListType } from '../../list-type'
 import type { ScryfallCard } from '../../types'
 import type { ListsResponse, PrintingSummary } from '../types'
@@ -39,6 +40,22 @@ interface ListSummaryResult {
 /** `list_lists` result: every (optionally type-filtered) list as a summary. */
 interface ListListsResult {
   lists: ListSummaryResult[]
+}
+
+/** One side of `diff_lists`: a list name resolved like CLI list arguments. */
+const diffSideSchema = z.object({
+  listType: listTypeSchema.optional().describe('Pin the list type of an ambiguous name.'),
+  name: z
+    .string()
+    .min(1)
+    .describe('List name (matched like CLI list arguments; a slug/file basename also works).'),
+})
+
+type DiffSideInput = z.infer<typeof diffSideSchema>
+
+/** The `[type:]name` query value the admin diff route expects for one side. */
+function diffSideParam(side: DiffSideInput): string {
+  return side.listType === undefined ? side.name : `${side.listType}:${side.name}`
 }
 
 /** Project a full Scryfall card to the compact fields agents need, dropping image URLs etc. */
@@ -247,6 +264,32 @@ export function registerReadTools(server: McpServer): void {
     async ({ limit }) => {
       const query = limit === undefined ? '' : `?limit=${limit}`
       return jsonResult(await callApi('GET', `/api/audit-log${query}`))
+    },
+  )
+
+  server.registerTool(
+    'diff_lists',
+    {
+      title: 'Diff lists',
+      description:
+        'Compare two lists (any mix of deck/collection/wanted). by "name" (default) matches on ' +
+        'the card name, aggregating printings per side; by "printing" matches on name + set + ' +
+        'collector number + finish (a missing finish counts as nonfoil, and lines with no ' +
+        'printing form their own bucket). Returns { a, b, by, matches, onlyInA, onlyInB, ' +
+        'warnings } with quantities summed across all sections.',
+      inputSchema: {
+        a: diffSideSchema.describe('First list.'),
+        b: diffSideSchema.describe('Second list.'),
+        by: z.enum(DIFF_BY_MODES).optional().describe('Identity to compare by (default "name").'),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ a, b, by }) => {
+      const params = new URLSearchParams()
+      params.set('a', diffSideParam(a))
+      params.set('b', diffSideParam(b))
+      if (by !== undefined) params.set('by', by)
+      return jsonResult(await callApi('GET', `/api/diff?${params}`))
     },
   )
 

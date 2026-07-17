@@ -102,7 +102,7 @@ Setting a list to specific **display names** publishes only those lists and filt
 
 Each category also has an `exclude*` list (`site.excludeDecks`, `site.excludeCollections`, `site.excludeWantedLists`) that drops lists by display name even when the `include*` list selects them — exclusion always wins. The exclude lists default to empty and have no wildcard. For example, `"includeDecks": ["*"]` with `"excludeDecks": ["Untuned Brew"]` publishes every deck except "Untuned Brew". The admin **Manage Lists** page toggles these per list; see [publishing visibility](/admin/manage-lists/#publishing-visibility).
 
-You can edit these lists from the admin **Settings** page, with [`config-set`](/commands/config-set/), or by hand.
+You can edit these lists from the admin **Settings** page, with [`config set`](/commands/config/), or by hand.
 
 ## Themes
 

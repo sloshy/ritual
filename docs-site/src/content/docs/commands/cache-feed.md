@@ -67,8 +67,8 @@ To make feed syncing the default for **all** of ritual's cache refreshes (the
 price refreshes), set the [`cacheSource` config key](/configuration/#cache-source):
 
 ```bash
-./ritual config-set cacheSource feed
-./ritual config-set cacheFeedUrl https://feed.example.com/feed.json
+./ritual config set cacheSource feed
+./ritual config set cacheFeedUrl https://feed.example.com/feed.json
 ```
 
 Refreshes then check the feed's infohashes instead of re-downloading from

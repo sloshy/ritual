@@ -93,7 +93,7 @@ Add a wanted entry pinned to a printing (the pin implies `--specific`):
 
 `<targetName>` is matched case- and accent-insensitively against existing list files — an exact name wins, otherwise a unique substring match is accepted, and any ambiguity is an error. A `--deck`/`--collection`/`--wanted` flag restricts the search to that type. See [List Resolution](/commands/list-resolution/) for the full rules.
 
-A missing **collection** or **wanted list** is created automatically, but only when the type is pinned with a flag (the command can't know which kind of list to create otherwise). Decks are never auto-created — create them first with [`new-deck`](/commands/new-deck/).
+A missing **collection** or **wanted list** is created automatically, but only when the type is pinned with a flag (the command can't know which kind of list to create otherwise). Decks are never auto-created — create them first with [`new deck`](/commands/new/).
 
 ### Card Selection
 

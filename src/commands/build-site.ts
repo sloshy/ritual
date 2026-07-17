@@ -2,7 +2,7 @@ import { refreshCardCache } from '../cache/refresh-source'
 import { Command } from 'commander'
 import path from 'node:path'
 import fs from 'node:fs/promises'
-import { extractMarkdownTitle } from '../markdown-utils'
+import { parseTitleFromContent } from '../section-format'
 import { importFromTextFile } from '../importers/text-file'
 import { resolveDeckSources, resolveListSources } from '../site/list-sources'
 import {
@@ -976,7 +976,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       continue
     }
 
-    const displayName = extractMarkdownTitle(content) ?? colName
+    const displayName = parseTitleFromContent(content) ?? colName
 
     // Load changelog if it exists
     let collectionChangelog: ChangelogPage[] = []
@@ -1189,7 +1189,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       continue
     }
 
-    const displayName = extractMarkdownTitle(content) ?? wlName
+    const displayName = parseTitleFromContent(content) ?? wlName
 
     // Load changelog if it exists
     let wlChangelog: ChangelogPage[] = []

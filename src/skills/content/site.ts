@@ -40,8 +40,8 @@ being featured, list them as \`SET:COLLECTOR\` keys; the next eligible printing 
 Banned printings can still be viewed and entered manually.
 
 \`\`\`bash
-ritual config-set --add site.bannedPrintings "SLD:123"     # ban one printing
-ritual config-set --remove site.bannedPrintings "SLD:123"  # un-ban it
+ritual config set --add site.bannedPrintings "SLD:123"     # ban one printing
+ritual config set --remove site.bannedPrintings "SLD:123"  # un-ban it
 \`\`\`
 
 ## Serve
@@ -72,6 +72,19 @@ It can also expose an MCP endpoint in the same process:
 
 \`\`\`bash
 ritual admin --mcp --mcp-token "$RITUAL_MCP_TOKEN"
+\`\`\`
+
+**Account setup and recovery** (headless — no server started): \`ritual admin setup\`
+creates the admin account ahead of the first browser visit, \`ritual admin
+reset-password\` resets a lost password (\`--username <name>\` also replaces the
+username; the TOTP enrollment is preserved), and \`ritual admin disable-totp\` clears
+TOTP two-factor auth when the authenticator is lost. On a terminal they prompt for
+the password; in scripts pipe it with \`--password-stdin\`:
+
+\`\`\`bash
+ritual admin setup --username ops --password-stdin < password.txt
+printf '%s\\n' "$NEW_PASSWORD" | ritual admin reset-password --password-stdin
+ritual admin disable-totp --output json
 \`\`\`
 
 ## MCP server (for AI agents)

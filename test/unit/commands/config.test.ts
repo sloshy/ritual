@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import { applyConfigSet } from '../../../src/commands/config-set'
+import {
+  applyConfigGet,
+  applyConfigSet,
+  applyConfigUnset,
+  deleteAtPath,
+  listConfigEntries,
+} from '../../../src/config-fields'
 import { getDefaultRitualConfig } from '../../../src/ritual-config'
 
 const base = getDefaultRitualConfig()
@@ -451,5 +457,187 @@ describe('applyConfigSet — cacheFeedUrl', () => {
     if ('error' in result) {
       expect(result.error).toContain('http(s) URL')
     }
+  })
+})
+
+describe('deleteAtPath', () => {
+  test('removes a top-level key', () => {
+    const result = deleteAtPath({ a: 1, b: 2 }, ['a'])
+    expect(result).toEqual({ b: 2 })
+  })
+
+  test('removes a nested key while keeping siblings', () => {
+    const result = deleteAtPath({ parent: { a: 1, b: 2 }, other: 3 }, ['parent', 'a'])
+    expect(result).toEqual({ parent: { b: 2 }, other: 3 })
+  })
+
+  test('prunes a parent object that becomes empty', () => {
+    const result = deleteAtPath({ parent: { only: 1 }, other: 3 }, ['parent', 'only'])
+    expect(result).toEqual({ other: 3 })
+    expect('parent' in result).toBeFalse()
+  })
+
+  test('prunes empty parents recursively', () => {
+    const result = deleteAtPath({ a: { b: { c: 1 } }, keep: true }, ['a', 'b', 'c'])
+    expect(result).toEqual({ keep: true })
+  })
+
+  test('returns the object unchanged when the key is missing', () => {
+    const input = { a: 1 }
+    const result = deleteAtPath(input, ['missing'])
+    expect(result).toBe(input)
+  })
+
+  test('returns the object unchanged when a nested key is missing', () => {
+    const input = { parent: { a: 1 } }
+    const result = deleteAtPath(input, ['parent', 'missing'])
+    expect(result).toBe(input)
+  })
+
+  test('does not mutate the input object', () => {
+    const input = { parent: { a: 1, b: 2 } }
+    deleteAtPath(input, ['parent', 'a'])
+    expect(input).toEqual({ parent: { a: 1, b: 2 } })
+  })
+})
+
+describe('applyConfigUnset', () => {
+  test('removes a defaulted key and reports its default value', () => {
+    const config = { ...base, decksDir: './custom-decks' }
+    const outcome = applyConfigUnset(config, 'decksDir')
+    if ('error' in outcome) throw new Error(outcome.error)
+    expect(outcome.property).toBe('decksDir')
+    expect(outcome.defaultValue).toBe('./decks')
+    expect('decksDir' in outcome.updatedConfig).toBeFalse()
+  })
+
+  test('removes an optional key without a default value', () => {
+    const config = { ...base, cacheFeedUrl: 'https://feed.example/feed.json' }
+    const outcome = applyConfigUnset(config, 'cacheFeedUrl')
+    if ('error' in outcome) throw new Error(outcome.error)
+    expect(outcome.defaultValue).toBeUndefined()
+    expect('cacheFeedUrl' in outcome.updatedConfig).toBeFalse()
+  })
+
+  test('reports the effective default for a site selection list', () => {
+    const seeded = applyConfigSet(base, 'site.includeDecks', ['Izzet Storm'], 'replace')
+    if ('error' in seeded) throw new Error(seeded.error)
+    const outcome = applyConfigUnset(seeded.updatedConfig, 'site.includeDecks')
+    if ('error' in outcome) throw new Error(outcome.error)
+    expect(outcome.defaultValue).toEqual(['*'])
+    expect(outcome.updatedConfig.site?.includeDecks).toBeUndefined()
+  })
+
+  test('is idempotent for an already-absent optional key', () => {
+    const outcome = applyConfigUnset(base, 'cacheFeedUrl')
+    if ('error' in outcome) throw new Error(outcome.error)
+    expect(outcome.updatedConfig).toEqual(base)
+  })
+
+  test('blocks the site deployment keys', () => {
+    const outcome = applyConfigUnset(base, 'site.ciSystem')
+    expect('error' in outcome).toBeTrue()
+    if ('error' in outcome) {
+      expect(outcome.error).toContain('init-site')
+    }
+  })
+
+  test('returns error for unknown property', () => {
+    const outcome = applyConfigUnset(base, 'nope')
+    expect('error' in outcome).toBeTrue()
+    if ('error' in outcome) {
+      expect(outcome.error).toContain('Unknown property')
+    }
+  })
+
+  test('does not mutate the input config', () => {
+    const config = { ...base, decksDir: './custom-decks' }
+    applyConfigUnset(config, 'decksDir')
+    expect(config.decksDir).toBe('./custom-decks')
+  })
+})
+
+describe('applyConfigGet', () => {
+  test('returns the value of a set property', () => {
+    const outcome = applyConfigGet(base, 'decksDir')
+    expect(outcome).toEqual({ kind: 'value', value: './decks' })
+  })
+
+  test('resolves nested admin properties', () => {
+    const outcome = applyConfigGet(base, 'admin.rateLimitMaxAttempts')
+    expect(outcome).toEqual({ kind: 'value', value: 5 })
+  })
+
+  test('reports an optional key that was never set as unset', () => {
+    const outcome = applyConfigGet(base, 'cacheFeedUrl')
+    expect(outcome).toEqual({ kind: 'unset' })
+  })
+
+  test('reports site selection lists as unset before a site config exists', () => {
+    const outcome = applyConfigGet(base, 'site.includeDecks')
+    expect(outcome).toEqual({ kind: 'unset' })
+  })
+
+  test('allows reading exportPresets even though it is not settable', () => {
+    const config = {
+      ...base,
+      exportPresets: { mine: { format: 'csv' } },
+    } as unknown as typeof base
+    const outcome = applyConfigGet(config, 'exportPresets')
+    expect(outcome.kind).toBe('value')
+  })
+
+  test('returns unknown-property with the available key listing', () => {
+    const outcome = applyConfigGet(base, 'site.ciSystem')
+    expect(outcome.kind).toBe('unknown-property')
+    if (outcome.kind === 'unknown-property') {
+      expect(outcome.error).toContain('Unknown property')
+      expect(outcome.error).toContain('decksDir')
+      expect(outcome.error).toContain('exportPresets')
+    }
+  })
+})
+
+describe('listConfigEntries', () => {
+  test('marks untouched defaulted keys as default and optional keys as unset', () => {
+    const entries = listConfigEntries(base)
+    const byKey = new Map(entries.map((entry) => [entry.property, entry]))
+
+    expect(byKey.get('decksDir')).toEqual({
+      property: 'decksDir',
+      value: './decks',
+      isDefault: true,
+    })
+    expect(byKey.get('cacheFeedUrl')?.value).toBeUndefined()
+    expect(byKey.get('admin.rateLimitEnabled')).toEqual({
+      property: 'admin.rateLimitEnabled',
+      value: true,
+      isDefault: true,
+    })
+    // No site object yet: the site lists are unset (their effective defaults
+    // only materialize once a site config exists).
+    expect(byKey.get('site.includeDecks')?.value).toBeUndefined()
+  })
+
+  test('marks customized values as non-default by value equality', () => {
+    const config = {
+      ...base,
+      decksDir: './custom',
+      admin: { ...base.admin, ipAllowList: ['1.2.3.4'] },
+    }
+    const entries = listConfigEntries(config)
+    const byKey = new Map(entries.map((entry) => [entry.property, entry]))
+
+    expect(byKey.get('decksDir')?.isDefault).toBeFalse()
+    expect(byKey.get('admin.ipAllowList')?.isDefault).toBeFalse()
+  })
+
+  test('marks a site selection list holding its documented default as default', () => {
+    const seeded = applyConfigSet(base, 'site.includeDecks', ['*'], 'replace')
+    if ('error' in seeded) throw new Error(seeded.error)
+    const entries = listConfigEntries(seeded.updatedConfig)
+    const entry = entries.find((candidate) => candidate.property === 'site.includeDecks')
+    expect(entry?.value).toEqual(['*'])
+    expect(entry?.isDefault).toBeTrue()
   })
 })

@@ -37,7 +37,9 @@ export default defineConfig({
             {
               label: 'Deck Management',
               items: [
-                'commands/new-deck',
+                'commands/new',
+                'commands/rename',
+                'commands/delete',
                 'commands/import-account',
                 'commands/get-primer',
                 'commands/deck-sync',
@@ -54,6 +56,7 @@ export default defineConfig({
                 'commands/import-csv',
                 'commands/import-changes',
                 'commands/export',
+                'commands/diff',
               ],
             },
             {
@@ -81,6 +84,7 @@ export default defineConfig({
             {
               label: 'Scripting',
               items: [
+                'commands/lists',
                 'commands/add-card',
                 'commands/remove-card',
                 'commands/set-card',
@@ -91,7 +95,7 @@ export default defineConfig({
               label: 'Utilities',
               items: [
                 'commands/cleanup',
-                'commands/config-set',
+                'commands/config',
                 'commands/git-detect-changes',
                 'commands/hash',
                 'commands/list-all-cards',

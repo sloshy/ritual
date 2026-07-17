@@ -1,18 +1,17 @@
-import { Command } from 'commander'
 import {
-  loadRitualConfig,
+  getDefaultRitualConfig,
+  getSiteSelectionConfig,
   parseBannedPrinting,
   parseCacheFeedUrl,
   parseCacheLockTimeoutSeconds,
   parseCacheSource,
   parseDefaultCurrency,
-  saveRitualConfig,
   type AdminConfig,
   type RitualConfig,
   type SiteConfig,
   type SiteSelectionConfig,
-} from '../ritual-config'
-import { ExitCode } from './scripting'
+} from './ritual-config'
+import { getAtPath } from './utils'
 
 type ConfigFieldType = 'string' | 'boolean' | 'number' | 'string[]'
 
@@ -118,16 +117,40 @@ export const SETTABLE_SITE_FIELDS: Record<string, ConfigFieldType> = {
   'site.bannedPrintings': 'string[]',
 } satisfies SettableSiteFieldsMap
 
-function getAtPath(obj: unknown, path: string[]): unknown {
-  let current = obj
-  for (const key of path) {
-    if (typeof current !== 'object' || current === null) return undefined
-    current = (current as Record<string, unknown>)[key]
-  }
-  return current
+/**
+ * Config keys readable through `config get` but not settable here: they are
+ * managed by their own commands (export presets via `ritual export --save-preset`).
+ */
+const READ_ONLY_FIELDS: readonly string[] = ['exportPresets']
+
+/** Every property `config set`/`config unset` accepts, in display order. */
+function settableProperties(): string[] {
+  return [
+    ...Object.keys(SETTABLE_FIELDS),
+    ...Object.keys(SETTABLE_ADMIN_FIELDS),
+    ...Object.keys(SETTABLE_SITE_FIELDS),
+  ]
 }
 
-function setAtPath(
+/**
+ * True when `property` targets the init-site-managed portion of the `site`
+ * object (deployment settings) rather than one of the user-tunable site lists.
+ */
+function isSiteDeployManagedPath(property: string): boolean {
+  return (
+    (property === 'site' || property.startsWith('site.')) && !(property in SETTABLE_SITE_FIELDS)
+  )
+}
+
+function siteDeployGuardError(verb: 'set' | 'unset'): string {
+  return (
+    `The "site" property is managed by "ritual init-site" and cannot be ${verb} with "config ${verb}", ` +
+    'except for the public-site selection lists: ' +
+    `${Object.keys(SETTABLE_SITE_FIELDS).join(', ')}.`
+  )
+}
+
+export function setAtPath(
   obj: Record<string, unknown>,
   path: string[],
   value: unknown,
@@ -145,6 +168,35 @@ function setAtPath(
   return { ...obj, [head]: setAtPath(nested, rest, value) }
 }
 
+/**
+ * Immutably remove the key at `path`, pruning parent objects that become empty
+ * along the way (so unsetting the last nested key does not leave `{}` behind).
+ * Returns the input object unchanged when the path does not exist.
+ */
+export function deleteAtPath(
+  obj: Record<string, unknown>,
+  path: string[],
+): Record<string, unknown> {
+  const head = path[0]
+  if (head === undefined || !(head in obj)) return obj
+  if (path.length === 1) {
+    const remaining = { ...obj }
+    delete remaining[head]
+    return remaining
+  }
+  const nested = obj[head]
+  if (typeof nested !== 'object' || nested === null) return obj
+  const updatedNested = deleteAtPath(nested as Record<string, unknown>, path.slice(1))
+  if (updatedNested === nested) return obj
+  if (Object.keys(updatedNested).length === 0) {
+    // Prune the now-empty parent object rather than leaving `{}` behind.
+    const remaining = { ...obj }
+    delete remaining[head]
+    return remaining
+  }
+  return { ...obj, [head]: updatedNested }
+}
+
 export function applyConfigSet(
   config: RitualConfig,
   property: string,
@@ -153,26 +205,14 @@ export function applyConfigSet(
 ): ConfigSetOutcome {
   // The deployment portion of `site` is managed by init-site; only the
   // public-site selection lists may be set here.
-  if (
-    (property === 'site' || property.startsWith('site.')) &&
-    !(property in SETTABLE_SITE_FIELDS)
-  ) {
-    return {
-      error:
-        'The "site" property is managed by "ritual init-site" and cannot be set with config-set, ' +
-        'except for the public-site selection lists: ' +
-        `${Object.keys(SETTABLE_SITE_FIELDS).join(', ')}.`,
-    }
+  if (isSiteDeployManagedPath(property)) {
+    return { error: siteDeployGuardError('set') }
   }
 
   const fieldType =
     SETTABLE_FIELDS[property] ?? SETTABLE_ADMIN_FIELDS[property] ?? SETTABLE_SITE_FIELDS[property]
   if (!fieldType) {
-    const available = [
-      ...Object.keys(SETTABLE_FIELDS),
-      ...Object.keys(SETTABLE_ADMIN_FIELDS),
-      ...Object.keys(SETTABLE_SITE_FIELDS),
-    ].join(', ')
+    const available = settableProperties().join(', ')
     return {
       error: `Unknown property: "${property}". Available properties: ${available}`,
     }
@@ -312,41 +352,137 @@ export function applyConfigSet(
   return { property, newValue, updatedConfig }
 }
 
-type ConfigSetOptions = {
-  add?: boolean
-  remove?: boolean
+/**
+ * The built-in default value for a config property, or undefined for genuinely
+ * optional keys (cacheFeedUrl, site.bannedPrintings, exportPresets).
+ *
+ * Defaults come from {@link getDefaultRitualConfig} by value — never from what
+ * happens to be on disk, since `saveRitualConfig` materializes defaults
+ * into the file. The site selection lists are special-cased: the default config
+ * carries no `site` object at all, but each list has a documented effective
+ * default (`['*']` for include lists, `[]` for exclude lists).
+ */
+export function defaultConfigValueAtPath(property: string): unknown {
+  if (property.startsWith('site.')) {
+    const selection = getSiteSelectionConfig(undefined) as unknown as Record<string, unknown>
+    return selection[property.slice('site.'.length)]
+  }
+  return getAtPath(getDefaultRitualConfig(), property.split('.'))
 }
 
-export function registerConfigSetCommand(program: Command): void {
-  program
-    .command('config-set')
-    .description('Set or update a value in the ritual configuration file')
-    .argument('<property>', 'Config property to set (use dot notation for nested: parent.child)')
-    .argument('<value...>', 'Value(s) to set')
-    .option('--add', 'Add value(s) to an array property instead of replacing it')
-    .option('--remove', 'Remove value(s) from an array property')
-    .action(async (property: string, values: string[], options: ConfigSetOptions) => {
-      if (options.add && options.remove) {
-        console.error('Error: --add and --remove cannot be used together.')
-        process.exitCode = ExitCode.UsageError
-        return
-      }
+/** Value equality for config values: scalars by identity, string[] element-wise. */
+function configValuesEqual(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((value, i) => value === b[i])
+  }
+  return a === b
+}
 
-      const mode: ArrayMode = options.add ? 'add' : options.remove ? 'remove' : 'replace'
-      const config = await loadRitualConfig()
-      const outcome = applyConfigSet(config, property, values, mode)
+export type ConfigGetValue = { kind: 'value'; value: unknown }
+export type ConfigGetUnset = { kind: 'unset' }
+export type ConfigGetUnknownProperty = { kind: 'unknown-property'; error: string }
+export type ConfigGetOutcome = ConfigGetValue | ConfigGetUnset | ConfigGetUnknownProperty
 
-      if ('error' in outcome) {
-        console.error(`Error: ${outcome.error}`)
-        process.exitCode = ExitCode.UsageError
-        return
-      }
+/**
+ * Resolve one config property from the effective config. Unknown keys are a
+ * usage error; known-but-absent keys (genuinely optional values that were never
+ * set, or site lists before a `site` object exists) report `unset`.
+ */
+export function applyConfigGet(config: RitualConfig, property: string): ConfigGetOutcome {
+  const known =
+    property in SETTABLE_FIELDS ||
+    property in SETTABLE_ADMIN_FIELDS ||
+    property in SETTABLE_SITE_FIELDS ||
+    READ_ONLY_FIELDS.includes(property)
+  if (!known) {
+    const available = [...settableProperties(), ...READ_ONLY_FIELDS].join(', ')
+    return {
+      kind: 'unknown-property',
+      error: `Unknown property: "${property}". Available properties: ${available}`,
+    }
+  }
+  const value = getAtPath(config, property.split('.'))
+  if (value === undefined) {
+    return { kind: 'unset' }
+  }
+  return { kind: 'value', value }
+}
 
-      await saveRitualConfig(outcome.updatedConfig)
+export type ConfigUnsetSuccess = {
+  property: string
+  /**
+   * The built-in default that now applies again; absent for genuinely optional
+   * keys (cacheFeedUrl, site.bannedPrintings), which are simply removed.
+   */
+  defaultValue?: SettableValue
+  /**
+   * Partial: deleteAtPath may have removed keys RitualConfig declares as
+   * required — the config loader's defaulting pass re-materializes them on the
+   * next load.
+   */
+  updatedConfig: Partial<RitualConfig>
+}
 
-      const displayValue = Array.isArray(outcome.newValue)
-        ? JSON.stringify(outcome.newValue)
-        : String(outcome.newValue)
-      console.log(`Set ${outcome.property} = ${displayValue}`)
+export type ConfigUnsetOutcome = ConfigUnsetSuccess | ConfigSetError
+
+/**
+ * Remove a settable property from the config, reverting defaulted keys to their
+ * built-in defaults. Idempotent: unsetting an already-absent key succeeds and
+ * returns the config unchanged.
+ *
+ * The returned `updatedConfig` may omit keys that RitualConfig declares as
+ * required — the config loader's defaulting pass re-materializes them on the
+ * next load. Always persist it through `savePartialRitualConfig` so that
+ * round-trip stays intact; never hand-write the JSON file.
+ */
+export function applyConfigUnset(config: RitualConfig, property: string): ConfigUnsetOutcome {
+  // Same guard as applyConfigSet: init-site owns the site deployment keys.
+  if (isSiteDeployManagedPath(property)) {
+    return { error: siteDeployGuardError('unset') }
+  }
+
+  const fieldType =
+    SETTABLE_FIELDS[property] ?? SETTABLE_ADMIN_FIELDS[property] ?? SETTABLE_SITE_FIELDS[property]
+  if (!fieldType) {
+    const available = settableProperties().join(', ')
+    return {
+      error: `Unknown property: "${property}". Available properties: ${available}`,
+    }
+  }
+
+  const configObj = config as unknown as Record<string, unknown>
+  // Safe: the path is a validated settable property, and the config loader
+  // restores any removed defaulted key on the next load.
+  const updatedConfig = deleteAtPath(configObj, property.split('.')) as Partial<RitualConfig>
+  const defaultValue = defaultConfigValueAtPath(property) as SettableValue | undefined
+  return defaultValue === undefined
+    ? { property, updatedConfig }
+    : { property, defaultValue, updatedConfig }
+}
+
+export type ConfigListEntry = {
+  property: string
+  /** The configured value; undefined when the key is not set. */
+  value: unknown
+  /** True when the value equals the built-in default by value equality. */
+  isDefault: boolean
+}
+
+/**
+ * Flatten the effective config into one entry per settable property (dotted
+ * paths for nested keys), each marked as default or customized by comparing its
+ * value against {@link defaultConfigValueAtPath}.
+ */
+export function listConfigEntries(config: RitualConfig): ConfigListEntry[] {
+  const entries: ConfigListEntry[] = []
+  for (const property of settableProperties()) {
+    const value = getAtPath(config, property.split('.'))
+    const defaultValue = defaultConfigValueAtPath(property)
+    entries.push({
+      property,
+      value,
+      isDefault: value !== undefined && configValuesEqual(value, defaultValue),
     })
+  }
+  return entries
 }

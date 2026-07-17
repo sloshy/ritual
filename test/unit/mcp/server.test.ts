@@ -22,6 +22,7 @@ const EXPECTED_TOOLS = [
   'get_config',
   'get_audit_log',
   'export_cards',
+  'diff_lists',
   // write
   'create_list',
   'import_deck',
@@ -243,6 +244,54 @@ describe('Ritual MCP server (in-memory transport)', () => {
     })
     expect(result.isError).toBe(true)
     expect(firstText(result)).toContain('nope')
+  })
+
+  test('diff_lists compares two lists through the admin diff route', async () => {
+    // Diff semantics are pinned by test/unit/list-diff.test.ts and the handler
+    // test; this pins the tool wiring ([type:]name query building + body shape).
+    await callTool(client, 'add_card', {
+      listType: 'wanted',
+      slug: 'wishlist',
+      cardName: 'Sol Ring',
+    })
+
+    const result = await callTool(client, 'diff_lists', {
+      a: { listType: 'deck', name: 'test-deck' },
+      b: { name: 'wishlist' },
+    })
+    expect(result.isError).toBeFalsy()
+    const data = toolJson(result) as {
+      success: boolean
+      a: { type: string; slug: string }
+      b: { type: string; slug: string }
+      by: string
+      matches: { name: string }[]
+      onlyInA: { name: string }[]
+      onlyInB: unknown[]
+    }
+    expect(data.success).toBe(true)
+    expect(data.a).toMatchObject({ type: 'deck', slug: 'test-deck' })
+    expect(data.b).toMatchObject({ type: 'wanted', slug: 'wishlist' })
+    expect(data.by).toBe('name')
+    expect(data.matches.map((m) => m.name)).toEqual(['Sol Ring'])
+    expect(data.onlyInA.map((o) => o.name)).toEqual(['Lightning Bolt'])
+    expect(data.onlyInB).toEqual([])
+  })
+
+  test('diff_lists rejects a missing side and an unknown by mode', async () => {
+    const missingSide = await callTool(client, 'diff_lists', {
+      a: { listType: 'deck', name: 'test-deck' },
+    })
+    expect(missingSide.isError).toBe(true)
+    expect(firstText(missingSide).toLowerCase()).toContain('validation')
+
+    const badBy = await callTool(client, 'diff_lists', {
+      a: { name: 'test-deck' },
+      b: { name: 'wishlist' },
+      by: 'set',
+    })
+    expect(badBy.isError).toBe(true)
+    expect(firstText(badBy).toLowerCase()).toContain('validation')
   })
 
   test('add_card persists a new deck card (no content hash exposed)', async () => {
@@ -773,7 +822,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
   })
 
   test('update_config accepts valid values and get_config returns them normalized', async () => {
-    // Per-key validation semantics are owned by the ritual-config/config-set unit
+    // Per-key validation semantics are owned by the ritual-config/`config set` unit
     // tests; this pins the MCP wiring (handler dispatch + persisted round-trip).
     const cases: AcceptedConfigUpdate[] = [
       {

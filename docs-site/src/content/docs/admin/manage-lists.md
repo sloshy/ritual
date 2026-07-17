@@ -50,6 +50,7 @@ Deletion is permanent and cannot be undone unless you have git history or a back
 You must type the **exact deck name** before the Delete button becomes active. Deleting a deck removes:
 
 - The deck file (`<name>.md`)
+- The content-hash sidecar (`<name>.md.sha256`) if it exists
 - The changelog file (`<name>.changes.md`) if it exists
 - The primer file (`<name>.primer.md`) if it exists
 
@@ -74,7 +75,7 @@ Click **Rename** next to any collection. Renaming a collection:
 
 ### Deleting a collection
 
-Click **Delete** next to any collection. As with decks, you must type the exact collection name to confirm. Deletion removes the `<name>.md` file and its `<name>.changes.md` sidecar if present.
+Click **Delete** next to any collection. As with decks, you must type the exact collection name to confirm. Deletion removes the `<name>.md` file and its `<name>.md.sha256` and `<name>.changes.md` sidecars if present.
 
 ## Wanted Lists
 

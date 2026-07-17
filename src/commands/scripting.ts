@@ -1,6 +1,7 @@
 import { InvalidArgumentError, type Command } from 'commander'
 import type { ErrorCode } from '../types'
 import { formatResolveListError, type ResolveListError } from '../resolve-list'
+import { getAtPath } from '../utils'
 
 export type OutputFormat = 'text' | 'json' | 'ndjson'
 
@@ -159,15 +160,7 @@ function projectRecordFields(
     const pathParts = field.split('.').filter((part) => part.length > 0)
     if (pathParts.length === 0) continue
 
-    let source: unknown = record
-    for (const part of pathParts) {
-      if (typeof source !== 'object' || source === null || !(part in source)) {
-        source = undefined
-        break
-      }
-      source = (source as Record<string, unknown>)[part]
-    }
-
+    const source = getAtPath(record, pathParts)
     if (source === undefined) continue
 
     let target: Record<string, unknown> = projected

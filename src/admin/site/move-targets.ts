@@ -2,7 +2,7 @@ import { createResource, type Resource } from 'solid-js'
 import type { ListRef } from '../../change-event'
 import type { NamedListRef } from '../../site/combined-list'
 import type { ListType } from '../../list-type'
-import type { ListInfo } from '../api/list-info'
+import type { ListInfo } from '../../list-info'
 import { fetchAdminJson } from './editor-backend'
 
 type ListsResponse = { lists?: ListInfo[] }

@@ -127,9 +127,9 @@ directly, you are returned to the selection menu, since there is nothing left to
 commits the creation, and the entry disappears.
 
 A new deck prompts for its [format](#deck-format) and is written with the same YAML front matter as
-[`new-deck`](/commands/new-deck/); new collections and wanted lists get a `# Title` heading. Every
+[`new deck`](/commands/new/); new collections and wanted lists get a `# Title` heading. Every
 list type's file is named as the list is named — see
-[List file names](/commands/new-deck/#list-file-names). A name with no usable file-name characters
+[List file names](/commands/new/#list-file-names). A name with no usable file-name characters
 is rejected at the prompt, and creating a list whose file already exists is refused.
 
 Lists can be created from two places: the `➕ New …` items in the list selection menu, and the same
@@ -399,7 +399,7 @@ A deck with no `format:` — an older file, or one imported from a source that r
 is not formatless: it is read as Commander when it has a `## Commander` section (Oathbreaker for a
 `## Oathbreaker` or `## Signature Spell` section), which is what the menu shows and what the site
 displays. Saving the deck writes that resolved format into the file, so the guess only has to be
-made once. See [new-deck](/commands/new-deck/#deck-format) for the full list of formats.
+made once. See [new](/commands/new/#deck-format) for the full list of formats.
 
 ### Deck Files
 

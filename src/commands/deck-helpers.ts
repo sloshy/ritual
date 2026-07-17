@@ -70,7 +70,7 @@ export function deckFilePath(name: string): string {
 
 /**
  * Ensure a deck file exists for `name`, creating it with YAML front matter when
- * missing (mirroring `new-deck`). Returns the resolved file path.
+ * missing (mirroring `ritual new deck`). Returns the resolved file path.
  * `format` only applies to a newly created file — an existing deck keeps its own.
  */
 export async function ensureDeckFile(name: string, format: DeckFormatKey): Promise<string> {

@@ -13,7 +13,7 @@ POST /api/deck/create
 ```
 
 Create a new deck file, named as the deck is named — see
-[List file names](/commands/new-deck/#list-file-names). A name left with no usable file-name
+[List file names](/commands/new/#list-file-names). A name left with no usable file-name
 characters returns `400`.
 
 **Request Body:**
@@ -31,7 +31,7 @@ characters returns `400`.
 | `format` | Deck format (default: `"commander"`)  | No       |
 
 `format` must be one of the canonical deck format keys — see
-[Deck Format](/commands/new-deck/#deck-format) for the full list. An unrecognized value
+[Deck Format](/commands/new/#deck-format) for the full list. An unrecognized value
 returns `400` and the deck is not created.
 
 **Response:**
@@ -404,7 +404,7 @@ POST /api/collection/create
 ```
 
 Create a new collection file, named as the collection is named — see
-[List file names](/commands/new-deck/#list-file-names).
+[List file names](/commands/new/#list-file-names).
 
 **Request Body:**
 
@@ -547,7 +547,7 @@ POST /api/wanted/create
 ```
 
 Create a new wanted list file, named as the wanted list is named — see
-[List file names](/commands/new-deck/#list-file-names).
+[List file names](/commands/new/#list-file-names).
 
 **Request Body:**
 
@@ -785,6 +785,67 @@ Returns every list (deck, collection, wanted) as a slug-keyed summary. The singl
 }
 ```
 
+## Diff Lists
+
+```
+GET /api/diff?a=<[type:]name>&b=<[type:]name>&by=<name|printing>
+```
+
+Compare two lists (any mix of deck, collection, and wanted list) and return the matched identities
+with per-side quantities plus the entries only one side has. Exposed as the MCP `diff_lists` tool;
+shares its engine with the [`diff`](/commands/diff/) CLI command — see that page for the identity
+rules (nonfoil folding, the no-printing bucket, all sections included).
+
+**Query Parameters:**
+
+| Parameter | Description                                                                                          | Required |
+| --------- | ---------------------------------------------------------------------------------------------------- | -------- |
+| `a`       | First list, resolved like CLI list arguments; a `deck:`/`collection:`/`wanted:` prefix pins the type | Yes      |
+| `b`       | Second list, same form as `a`                                                                        | Yes      |
+| `by`      | Identity to compare by: `name` (default) or `printing`                                               | No       |
+
+A missing `a`/`b`, an invalid `by`, or a name that resolves to no list (or ambiguously) returns `400`.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "a": { "type": "deck", "slug": "burn", "name": "Burn" },
+  "b": { "type": "collection", "slug": "binder", "name": "Binder" },
+  "by": "name",
+  "matches": [
+    {
+      "name": "Lightning Bolt",
+      "a": {
+        "quantity": 2,
+        "printings": [
+          { "set": "lea", "collectorNumber": "161", "finish": "nonfoil", "quantity": 2 }
+        ]
+      },
+      "b": {
+        "quantity": 1,
+        "printings": [
+          { "set": "lea", "collectorNumber": "161", "finish": "nonfoil", "quantity": 1 }
+        ]
+      }
+    }
+  ],
+  "onlyInA": [
+    {
+      "name": "Fireblast",
+      "quantity": 1,
+      "printings": [{ "set": "vis", "collectorNumber": "78", "finish": "foil", "quantity": 1 }]
+    }
+  ],
+  "onlyInB": [],
+  "warnings": []
+}
+```
+
+`matches` includes identities whose quantities are equal on both sides — clients decide what counts
+as interesting. `warnings` carries list parse warnings from either side.
+
 ## Load Change History
 
 ```
@@ -872,7 +933,7 @@ Import cards from CSV text into a deck, collection, or wanted list. Used by the 
 | `hasHeader` | Whether the first row is a header row (default `true`)                           | No       |
 
 `format`, when given, must be one of the canonical deck format keys — see
-[Deck Format](/commands/new-deck/#deck-format). An unrecognized value returns `400`.
+[Deck Format](/commands/new/#deck-format). An unrecognized value returns `400`.
 
 **Response:**
 

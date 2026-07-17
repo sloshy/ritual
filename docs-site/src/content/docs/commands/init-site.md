@@ -86,7 +86,7 @@ Detection is **hash-aware**, so it's safe to leave enabled even if you also edit
     TIX - MTGO tickets
 ```
 
-Sets the root-level [`defaultCurrency`](/configuration/#default-currency) key — the currency the [price](/commands/price/) command, editor price displays, and the public site default to. USD is the default; the currently configured value is preselected. Change it later with `config-set defaultCurrency <usd|eur|tix>`.
+Sets the root-level [`defaultCurrency`](/configuration/#default-currency) key — the currency the [price](/commands/price/) command, editor price displays, and the public site default to. USD is the default; the currently configured value is preselected. Change it later with `config set defaultCurrency <usd|eur|tix>`.
 
 ### Agent skills
 
@@ -121,7 +121,7 @@ If any file already exists, you'll be prompted before overwriting.
 
 ## Version Tracking and Upgrade
 
-`init-site` writes a `site` block into `ritual.config.json` recording your CI system, settings, and the current Ritual version. It also seeds the [publish lists](/configuration/#choosing-which-lists-to-publish) (`includeDecks`, `includeCollections`, `includeWantedLists`) with the `["*"]` default — "publish everything" — which you can later narrow from the admin **Settings** page or with `config-set`. Examples:
+`init-site` writes a `site` block into `ritual.config.json` recording your CI system, settings, and the current Ritual version. It also seeds the [publish lists](/configuration/#choosing-which-lists-to-publish) (`includeDecks`, `includeCollections`, `includeWantedLists`) with the `["*"]` default — "publish everything" — which you can later narrow from the admin **Settings** page or with `config set`. Examples:
 
 ```json
 {

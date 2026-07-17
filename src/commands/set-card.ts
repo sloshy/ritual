@@ -10,7 +10,6 @@ import {
 import { applyChangesToListFile, type CardMutationChange } from '../list-mutate'
 import {
   addScriptingOptions,
-  emitError,
   emitOutput,
   ExitCode,
   normalizeScriptingOptions,
@@ -25,6 +24,7 @@ import {
   resolveListTypeFlag,
   resolvePinnedPrinting,
   resolveTarget,
+  runCommandAction,
   type CardCommandResultBase,
 } from './card-target'
 import { type ListTypeFlags } from '../resolve-list'
@@ -113,8 +113,8 @@ export function registerSetCardCommand(program: Command): void {
       const scripting = normalizeScriptingOptions(options, 'text')
       const type = resolveListTypeFlag(options, scripting)
       if (type === 'conflict') return
-      try {
-        await runSetCard(
+      await runCommandAction(scripting, () =>
+        runSetCard(
           {
             type,
             listName: listNameArg,
@@ -128,15 +128,8 @@ export function registerSetCardCommand(program: Command): void {
             commander: options.commander,
           },
           scripting,
-        )
-      } catch (err) {
-        if (err instanceof CardCommandError) {
-          emitError(err.code, err.message, scripting, err.details)
-          process.exitCode = err.exitCode
-          return
-        }
-        throw err
-      }
+        ),
+      )
     },
   )
 }

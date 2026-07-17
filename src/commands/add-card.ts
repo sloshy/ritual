@@ -42,11 +42,11 @@ import {
   parsePositiveInteger,
   resolveListTypeFlag,
   resolvePinnedPrinting,
+  runCommandAction,
   type PrintingPin,
 } from './card-target'
 import {
   addScriptingOptions,
-  emitError,
   emitOutput,
   ExitCode,
   normalizeScriptingOptions,
@@ -198,19 +198,12 @@ export function registerAddCardCommand(program: Command): void {
       }
       const type = resolveListTypeFlag(options, scripting)
       if (type === 'conflict') return
-      try {
-        await runAddCard(
+      await runCommandAction(scripting, () =>
+        runAddCard(
           { targetName, cardNameInput: cardNameParts.join(' '), type, options },
           scripting,
-        )
-      } catch (err) {
-        if (err instanceof CardCommandError) {
-          emitError(err.code, err.message, scripting, err.details)
-          process.exitCode = err.exitCode
-          return
-        }
-        throw err
-      }
+        ),
+      )
     },
   )
 }
@@ -368,7 +361,7 @@ async function resolveAddCardTarget(
     if (type === 'deck') {
       throw new CardCommandError(
         'not_found',
-        `No deck named '${name}' found. Create it first with 'new-deck'.`,
+        `No deck named '${name}' found. Create it first with 'ritual new deck'.`,
         ExitCode.NotFound,
       )
     }

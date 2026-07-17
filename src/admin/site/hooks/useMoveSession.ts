@@ -10,7 +10,7 @@ import type {
   MoveErrorResponse,
   MovePhysicalCard,
 } from '../../api/move'
-import type { ListInfo } from '../../api/list-info'
+import type { ListInfo } from '../../../list-info'
 import {
   type PendingMove,
   type MoveDestPrinting,

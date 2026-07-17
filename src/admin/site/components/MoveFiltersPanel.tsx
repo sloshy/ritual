@@ -1,6 +1,6 @@
 import { type Component, For, Show, createMemo } from 'solid-js'
 import { LIST_TYPE_DISPLAY } from '../../../list-type'
-import type { ListInfo } from '../../api/list-info'
+import type { ListInfo } from '../../../list-info'
 import { type ListId, listInfoId, groupListsByType } from '../list-grouping'
 
 interface MoveFiltersPanelProps {

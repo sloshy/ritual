@@ -1,13 +1,19 @@
 import path from 'node:path'
-import fs from 'node:fs/promises'
-import { writeFileWithHash, hashPath } from '../../content-hash'
-import { getErrorMessage } from '../../errors'
 import { isPathWithinDir } from '../../path-validation'
 import { capitalize } from '../../utils'
-import { moveListSidecars, changelogSidecarPath } from '../../list-sidecars'
-import { sanitizeListFileName, unusableFileNameMessage } from '../../list-file-name'
-import { parseTitleFromContent } from '../../section-format'
+import {
+  createList,
+  deleteList,
+  isListLifecycleError,
+  listDisplayName,
+  listLifecycleErrorStatus,
+  renameList,
+  requireDeleteConfirmation,
+  type ListLifecycleError,
+} from '../../list-lifecycle'
+import { apiHandler } from '../utils'
 import { autoCommitAndPush, validateBodySize } from './save-helpers'
+import { slugFromUrl } from './target'
 
 export type SimpleListKind = 'collection' | 'wanted'
 
@@ -29,32 +35,14 @@ type CreateRequest = { name: string }
 type RenameRequest = { newName: string }
 type DeleteRequest = { confirmName: string }
 
-/** Replace the first H1 line in content with `# <newTitle>`. If no H1 exists, prepend one. */
-function replaceFirstH1(content: string, newTitle: string): string {
-  const lines = content.split('\n')
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    if (line !== undefined && line.startsWith('# ')) {
-      lines[i] = `# ${newTitle}`
-      return lines.join('\n')
-    }
-  }
-  return `# ${newTitle}\n\n${content}`
+function lifecycleErrorResponse(error: ListLifecycleError): Response {
+  const { status, message } = listLifecycleErrorStatus(error)
+  const resp: SimpleListResponse = { success: false, message }
+  return Response.json(resp, { status })
 }
 
-function slugFromUrl(req: Request): string | null {
-  const url = new URL(req.url)
-  const pathParts = url.pathname.split('/')
-  const raw = pathParts[3]
-  if (!raw) return null
-  return decodeURIComponent(raw)
-}
-
-export async function handleSimpleListCreate(
-  req: Request,
-  cfg: SimpleListConfig,
-): Promise<Response> {
-  try {
+export function handleSimpleListCreate(req: Request, cfg: SimpleListConfig): Promise<Response> {
+  return apiHandler(async () => {
     const tooLarge = validateBodySize(req)
     if (tooLarge) return tooLarge
 
@@ -70,62 +58,26 @@ export async function handleSimpleListCreate(
     }
 
     const trimmedName = name.trim()
-    const slug = sanitizeListFileName(trimmedName)
-
-    if (!slug) {
-      const resp: SimpleListResponse = {
-        success: false,
-        message: unusableFileNameMessage(trimmedName),
-      }
-      return Response.json(resp, { status: 400 })
-    }
-
-    const dir = cfg.getDir()
-    await fs.mkdir(dir, { recursive: true })
-    const filePath = path.join(dir, `${slug}.md`)
-
-    if (!isPathWithinDir(filePath, dir)) {
-      const resp: SimpleListResponse = {
-        success: false,
-        message: `Invalid ${cfg.label} name`,
-      }
-      return Response.json(resp, { status: 400 })
-    }
-
-    if (await Bun.file(filePath).exists()) {
-      const resp: SimpleListResponse = {
-        success: false,
-        message: `A ${cfg.label} with slug '${slug}' already exists`,
-      }
-      return Response.json(resp, { status: 409 })
-    }
-
-    const content = `# ${trimmedName}\n\n`
-    await writeFileWithHash(filePath, content)
+    const result = await createList(cfg.kind, trimmedName)
+    if (isListLifecycleError(result)) return lifecycleErrorResponse(result)
 
     await autoCommitAndPush(
-      dir,
-      [filePath, hashPath(filePath)],
+      cfg.getDir(),
+      result.touchedFiles,
       `Create ${cfg.label}: ${trimmedName}`,
     )
 
     const resp: SimpleListResponse = {
       success: true,
       message: `Created ${cfg.label} '${trimmedName}'`,
-      slug,
+      slug: result.slug,
     }
     return Response.json(resp)
-  } catch (error) {
-    const resp: SimpleListResponse = { success: false, message: getErrorMessage(error) }
-    return Response.json(resp, { status: 500 })
-  }
+  })
 }
 
-export async function handleSimpleListRename(
-  req: Request,
-  cfg: SimpleListConfig,
-): Promise<Response> {
-  try {
+export function handleSimpleListRename(req: Request, cfg: SimpleListConfig): Promise<Response> {
+  return apiHandler(async () => {
     const slug = slugFromUrl(req)
     if (!slug) {
       const resp: SimpleListResponse = {
@@ -149,17 +101,6 @@ export async function handleSimpleListRename(
       return Response.json(resp, { status: 400 })
     }
 
-    const trimmedName = newName.trim()
-    const newSlug = sanitizeListFileName(trimmedName)
-
-    if (!newSlug) {
-      const resp: SimpleListResponse = {
-        success: false,
-        message: unusableFileNameMessage(trimmedName),
-      }
-      return Response.json(resp, { status: 400 })
-    }
-
     const dir = cfg.getDir()
     const filePath = path.join(dir, `${slug}.md`)
 
@@ -179,55 +120,27 @@ export async function handleSimpleListRename(
       return Response.json(resp, { status: 404 })
     }
 
-    const newFilePath = path.join(dir, `${newSlug}.md`)
+    const trimmedName = newName.trim()
+    const result = await renameList(cfg.kind, filePath, trimmedName)
+    if (isListLifecycleError(result)) return lifecycleErrorResponse(result)
 
-    if (newFilePath !== filePath && (await Bun.file(newFilePath).exists())) {
-      const resp: SimpleListResponse = {
-        success: false,
-        message: `A ${cfg.label} with slug '${newSlug}' already exists`,
-      }
-      return Response.json(resp, { status: 409 })
-    }
-
-    const existingContent = await fs.readFile(filePath, 'utf-8')
-    const oldName = parseTitleFromContent(existingContent) ?? slug
-    const updatedContent = replaceFirstH1(existingContent, trimmedName)
-
-    const filesToCommit: string[] = []
-
-    if (newFilePath !== filePath) {
-      await writeFileWithHash(newFilePath, updatedContent)
-      await fs.unlink(filePath)
-      await fs.unlink(hashPath(filePath)).catch(() => undefined)
-      filesToCommit.push(filePath, hashPath(filePath), newFilePath, hashPath(newFilePath))
-
-      for (const { from, to } of await moveListSidecars(filePath, newFilePath)) {
-        filesToCommit.push(from, to)
-      }
-    } else {
-      await writeFileWithHash(filePath, updatedContent)
-      filesToCommit.push(filePath, hashPath(filePath))
-    }
-
-    await autoCommitAndPush(dir, filesToCommit, `Rename ${cfg.label}: ${oldName} → ${trimmedName}`)
+    await autoCommitAndPush(
+      dir,
+      result.touchedFiles,
+      `Rename ${cfg.label}: ${result.oldName} → ${trimmedName}`,
+    )
 
     const resp: SimpleListResponse = {
       success: true,
       message: `Renamed ${cfg.label} to '${trimmedName}'`,
-      newSlug,
+      newSlug: result.newSlug,
     }
     return Response.json(resp)
-  } catch (error) {
-    const resp: SimpleListResponse = { success: false, message: getErrorMessage(error) }
-    return Response.json(resp, { status: 500 })
-  }
+  })
 }
 
-export async function handleSimpleListDelete(
-  req: Request,
-  cfg: SimpleListConfig,
-): Promise<Response> {
-  try {
+export function handleSimpleListDelete(req: Request, cfg: SimpleListConfig): Promise<Response> {
+  return apiHandler(async () => {
     const slug = slugFromUrl(req)
     if (!slug) {
       const resp: SimpleListResponse = {
@@ -267,38 +180,23 @@ export async function handleSimpleListDelete(
       return Response.json(resp, { status: 404 })
     }
 
-    const existingContent = await fs.readFile(filePath, 'utf-8')
-    const displayName = parseTitleFromContent(existingContent) ?? slug
+    const displayName = await listDisplayName(cfg.kind, filePath)
 
-    if (confirmName !== displayName) {
-      const resp: SimpleListResponse = {
-        success: false,
-        message: `Confirmation name does not match. Expected '${displayName}'.`,
-      }
+    const mismatch = requireDeleteConfirmation(confirmName, displayName)
+    if (mismatch) {
+      const resp: SimpleListResponse = { success: false, message: mismatch }
       return Response.json(resp, { status: 400 })
     }
 
-    const filesToCommit: string[] = [filePath, hashPath(filePath)]
-    const changelogPath = changelogSidecarPath(filePath)
-    if (await Bun.file(changelogPath).exists()) {
-      filesToCommit.push(changelogPath)
-    }
+    const result = await deleteList(cfg.kind, filePath)
+    if (isListLifecycleError(result)) return lifecycleErrorResponse(result)
 
-    await fs.unlink(filePath)
-    await fs.unlink(hashPath(filePath)).catch(() => undefined)
-    if (filesToCommit.includes(changelogPath)) {
-      await fs.unlink(changelogPath)
-    }
-
-    await autoCommitAndPush(dir, filesToCommit, `Delete ${cfg.label}: ${displayName}`)
+    await autoCommitAndPush(dir, result.touchedFiles, `Delete ${cfg.label}: ${displayName}`)
 
     const resp: SimpleListResponse = {
       success: true,
       message: `Deleted ${cfg.label} '${displayName}'`,
     }
     return Response.json(resp)
-  } catch (error) {
-    const resp: SimpleListResponse = { success: false, message: getErrorMessage(error) }
-    return Response.json(resp, { status: 500 })
-  }
+  })
 }

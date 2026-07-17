@@ -4,7 +4,6 @@ import { createRemoveChange } from '../change-event'
 import { applyChangesToListFile, type CardMutationChange } from '../list-mutate'
 import {
   addScriptingOptions,
-  emitError,
   emitOutput,
   ExitCode,
   normalizeScriptingOptions,
@@ -19,6 +18,7 @@ import {
   resolveListSelection,
   resolveListTypeFlag,
   resolveTarget,
+  runCommandAction,
   type CardCommandResultBase,
 } from './card-target'
 import { type ListTypeFlags } from '../resolve-list'
@@ -66,8 +66,8 @@ export function registerRemoveCardCommand(program: Command): void {
       const scripting = normalizeScriptingOptions(options, 'text')
       const type = resolveListTypeFlag(options, scripting)
       if (type === 'conflict') return
-      try {
-        await runRemoveCard(
+      await runCommandAction(scripting, () =>
+        runRemoveCard(
           {
             type,
             listName: listNameArg,
@@ -77,15 +77,8 @@ export function registerRemoveCardCommand(program: Command): void {
             allCopies: options.allCopies ?? false,
           },
           scripting,
-        )
-      } catch (err) {
-        if (err instanceof CardCommandError) {
-          emitError(err.code, err.message, scripting, err.details)
-          process.exitCode = err.exitCode
-          return
-        }
-        throw err
-      }
+        ),
+      )
     },
   )
 }

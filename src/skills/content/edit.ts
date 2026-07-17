@@ -3,7 +3,7 @@ import type { RitualSkill } from '../types'
 export const editSkill: RitualSkill = {
   name: 'ritual-edit',
   description:
-    'Edit cards in any Ritual deck, collection, or wanted list — one-shot non-interactive commands for agents and scripts (add-card, remove-card, set-card, note, scripted move), plus the interactive editor TUI. Use when the user wants to add, remove, or update a card, set or clear a card note, move cards between lists, edit lists interactively, apply a change bundle exported from the site editor, export cards as CSV or JSON, or compact a change history.',
+    'Edit cards in any Ritual deck, collection, or wanted list — one-shot non-interactive commands for agents and scripts (add-card, remove-card, set-card, note, scripted move), plus the interactive editor TUI. Use when the user wants to add, remove, or update a card, set or clear a card note, move cards between lists, edit lists interactively, apply a change bundle exported from the site editor, export cards as CSV or JSON, or read or compact a change history.',
   body: `# Editing cards in any Ritual list
 
 The **one-shot commands** — \`add-card\`, \`remove-card\`, \`set-card\`, \`note\`, and the
@@ -39,7 +39,7 @@ ritual add-card "To Buy" "Demonic Tutor" --wanted --set sta --collector-number 9
 ritual add-card "Winota Stax" "Lightning Bolt" --exact --output json
 \`\`\`
 
-- \`--collection\` / \`--wanted\` create the list if it does not exist (\`--deck\` does not — use \`new-deck\`).
+- \`--collection\` / \`--wanted\` create the list if it does not exist (\`--deck\` does not — use \`ritual new deck\`).
 - \`--set <code>\` + \`--collector-number <cn>\` (always together) pin an exact printing;
   the pair is validated against the card's real printings, and \`-f\` against the
   finishes that printing offers.
@@ -249,7 +249,7 @@ lowercase in JSON and UPPERCASE in CSV. Without \`--out\` the export goes to std
 stderr, so stdout stays parseable). Presets persist in \`ritual.config.json\` under
 \`exportPresets\`. Exit codes: 2 usage error, 3 unknown list/preset.
 
-## Compact change history
+## Read or compact change history
 
 \`ritual history\` interactively compacts and rewrites a list's \`.changes.md\` log.
 Only the changelog is touched — the list file itself is never modified:
@@ -257,6 +257,17 @@ Only the changelog is touched — the list file itself is never modified:
 \`\`\`bash
 ritual history "Winota Stax"
 ritual history "Winota Stax" --deck
+\`\`\`
+
+**Reading history non-interactively:** \`--show\` prints the change history
+newest-first and exits without opening the editor (nothing is ever written), and
+\`--limit <n>\` (requires \`--show\`) keeps only the newest \`n\` change sets. This is
+how agents read a changelog:
+
+\`\`\`bash
+ritual history "Winota Stax" --show
+ritual history "Winota Stax" --show --limit 3
+ritual history "Winota Stax" --show --output json --quiet
 \`\`\`
 
 Combining two change sets orders the merged lines oldest-set-first (newest changes

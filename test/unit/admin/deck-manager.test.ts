@@ -156,7 +156,7 @@ describe('deck-rename handler', () => {
     expect(oldFileExists).toBe(false)
 
     const content = await fs.readFile(path.join(decksDir, 'New Deck Name.md'), 'utf-8')
-    expect(content).toContain('name: "New Deck Name"')
+    expect(content).toContain('name: New Deck Name')
   })
 
   test('also renames changelog when it exists', async () => {

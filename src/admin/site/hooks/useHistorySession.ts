@@ -9,7 +9,7 @@ import {
   sortNewestFirst,
   type ChangeSet,
 } from '../../../changelog-blocks'
-import type { ListInfo } from '../../api/list-info'
+import type { ListInfo } from '../../../list-info'
 import type {
   HistoryLoadResponse,
   HistorySaveResponse,

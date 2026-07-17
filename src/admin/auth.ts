@@ -46,6 +46,27 @@ export async function createAdminUser(username: string, password: string): Promi
   })
 }
 
+/**
+ * Replace the stored admin password hash (and optionally the username) in
+ * place. Everything else in the credentials file — most importantly a
+ * `totpSecret`, including a stuck `pending:` enrollment — is preserved
+ * verbatim. Returns the effective username after the reset.
+ */
+export async function resetAdminPassword(password: string, username?: string): Promise<string> {
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    throw new Error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`)
+  }
+
+  const credentials = await readCredentials()
+  credentials.passwordHash = await Bun.password.hash(password, { algorithm: 'bcrypt', cost: 10 })
+  if (username !== undefined) {
+    credentials.username = username
+  }
+
+  await fs.writeFile(getAuthFilePath(), JSON.stringify(credentials, null, 2), { mode: 0o600 })
+  return credentials.username
+}
+
 export async function verifyAdminUser(username: string, password: string): Promise<boolean> {
   try {
     const credentials = await readCredentials()

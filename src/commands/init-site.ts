@@ -918,7 +918,7 @@ async function writeInitFiles(config: InitSiteConfig, opts: ForceOption): Promis
 function printNextSteps(config: InitSiteConfig): void {
   console.log()
   console.log('Your site is ready! Next steps:')
-  console.log('  1. Add decks to the decks/ directory (ritual new-deck "My Deck")')
+  console.log('  1. Add decks to the decks/ directory (ritual new deck "My Deck")')
 
   if (config.ciSystem === 'manual') {
     console.log('  2. Run ritual build-site to build your site')

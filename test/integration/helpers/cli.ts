@@ -37,15 +37,21 @@ export async function ensureBinary(): Promise<void> {
   binaryReady = true
 }
 
-/** Spawn the built `ritual` binary with the given args and capture stdout/stderr. */
+/**
+ * Spawn the built `ritual` binary with the given args and capture
+ * stdout/stderr. When `stdin` is given it is piped to the process (for flags
+ * like `--password-stdin`); otherwise stdin is ignored.
+ */
 export async function runCli(
   args: string[],
   cwd: string,
   env?: Record<string, string | undefined>,
+  stdin?: string | Buffer,
 ): Promise<CliResult> {
   await ensureBinary()
   const proc = Bun.spawn([binaryPath, ...args], {
     cwd,
+    stdin: stdin === undefined ? 'ignore' : Buffer.from(stdin),
     stdout: 'pipe',
     stderr: 'pipe',
     env: {

@@ -27,6 +27,8 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   JSON covering one or more lists) to the underlying lists.
 - export_cards renders a CSV/JSON export of any mix of lists and card picks (filterable by name,
   set, finish, condition; column selection and order included) and returns the content string.
+- diff_lists compares two lists by card name (default) or exact printing and reports matched
+  identities with per-side quantities plus only-in-A / only-in-B entries.
 - rename_list, delete_list (which requires a matching confirmName), rewrite_history, and
   update_config are destructive; use them deliberately.
 - Lists are also exposed as readable resources at ritual://{type}/{slug}.`

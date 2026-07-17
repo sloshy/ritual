@@ -38,6 +38,18 @@ ritual move "Demonic Tutor" --from "wanted:To Buy" --to "collection:Main Binder"
   --set sta --collector-number 90
 \`\`\`
 
+## Plan purchases with a diff
+
+\`ritual diff\` compares a wanted list against a collection: entries only in the
+wanted list are still unowned, matches are already covered (mismatched quantities
+are listed separately). \`--by name\` is the default; \`--by printing\` compares exact
+set/collector-number/finish instead:
+
+\`\`\`bash
+ritual diff wanted:to-buy "collection:Main Binder"
+ritual diff wanted:to-buy "collection:Main Binder" --by printing --output json
+\`\`\`
+
 ## Interactive management
 
 \`ritual edit\` opens the interactive editor (covered in full by the **ritual-edit**

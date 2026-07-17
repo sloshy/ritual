@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { extractMarkdownTitle } from '../markdown-utils'
+import { parseTitleFromContent } from '../section-format'
 import {
   getChangedFiles,
   getFileAtCommit,
@@ -47,7 +47,7 @@ type DetectChangesOutput = {
 // ── Entity name extraction ───────────────────────────────────────────
 
 function entityNameFromContent(content: string, fallbackPath: string): string {
-  return extractMarkdownTitle(content) ?? path.basename(fallbackPath, '.md')
+  return parseTitleFromContent(content) ?? path.basename(fallbackPath, '.md')
 }
 
 // ── Per-file diffing ─────────────────────────────────────────────────

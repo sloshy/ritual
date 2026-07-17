@@ -57,7 +57,7 @@ Moxfield report the deck's format, and it is mapped onto Ritual's format keys
 When the source reports a format Ritual does not model, or reports none at all — as
 MTGGoldfish and plain text files do — the format is inferred from the deck's
 sections: a `## Commander` section means Commander. See
-[new-deck](/commands/new-deck/#deck-format) for the full list.
+[new](/commands/new/#deck-format) for the full list.
 
 ## Examples
 
