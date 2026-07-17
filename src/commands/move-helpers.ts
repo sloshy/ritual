@@ -20,6 +20,7 @@ import {
   applyRemoveFromStaged,
   applyAddToStaged,
   writeStagedFile,
+  type DroppedNote,
   type StagedFile,
 } from './move-io'
 import { getCollectionsDir, getDecksDir, getWantedDir } from '../ritual-config'
@@ -59,6 +60,11 @@ export type VirtualCard = {
   card: PhysicalCard
   /** Where the card currently sits (may be different from card.listEntry after pending moves). */
   currentList: ListEntry
+  /**
+   * Destination deck section for the pending move (deck destinations only).
+   * Not part of card identity — it only steers the destination-side add.
+   */
+  destSection?: string
   pendingMove: PendingMove | null
   /** Marked for deletion from its source list (cross-list bulk remove). */
   pendingRemove?: true
@@ -201,10 +207,17 @@ export function buildVirtualState(physicalCards: PhysicalCard[]): Map<string, Vi
 
 // ── Virtual state management ──────────────────────────────────────────────────
 
+/** Optional per-move settings for {@link applyVirtualMove}. */
+export type VirtualMoveOptions = {
+  /** Destination deck section (exact name; created when missing). */
+  section?: string
+}
+
 export function applyVirtualMove(
   state: Map<string, VirtualCard>,
   physicalKey: string,
   destList: ListEntry,
+  options?: VirtualMoveOptions,
 ): boolean {
   const vc = state.get(physicalKey)
   if (!vc) return false
@@ -213,8 +226,11 @@ export function applyVirtualMove(
     // First move: record original location
     vc.pendingMove = { originalList: vc.currentList }
   }
-  // Update current (chain: keep originalList, just update currentList)
+  // Update current (chain: keep originalList, just update currentList). The
+  // destination section always tracks the latest retarget — a chained move
+  // without a section clears any previously requested one.
   vc.currentList = destList
+  vc.destSection = options?.section
   return true
 }
 
@@ -345,6 +361,11 @@ export type CommitMovesResult = {
    * deduplicated, so callers can stage exactly these paths for an auto-commit.
    */
   writtenFiles: string[]
+  /**
+   * Notes discarded by deck quantity-merges (the incoming note differed from the
+   * existing line's). Only reported for moves whose removal succeeded.
+   */
+  droppedNotes: DroppedNote[]
 }
 
 /**
@@ -359,7 +380,7 @@ export type CommitMovesResult = {
  */
 export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<CommitMovesResult> {
   const pending = getPendingMoves(state)
-  if (pending.length === 0) return { moved: 0, writtenFiles: [] }
+  if (pending.length === 0) return { moved: 0, writtenFiles: [], droppedNotes: [] }
 
   // Group by source file (for removals) and destination file (for additions)
   const bySource = new Map<string, PerFileChanges>()
@@ -410,11 +431,13 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
   }
 
   // --- APPLY: Additions in memory (only for successfully removed cards) ---
+  const droppedNotes: DroppedNote[] = []
   for (const { listEntry, adds } of byDest.values()) {
     const stagedFile = staged.get(listEntry.filePath)!
     for (const vc of adds) {
       if (!removedKeys.has(vc.physicalKey)) continue
-      applyAddToStaged(stagedFile, vc.card, listEntry.ref.type)
+      const dropped = applyAddToStaged(stagedFile, vc.card, listEntry.ref.type, vc.destSection)
+      if (dropped) droppedNotes.push(dropped)
     }
   }
 
@@ -462,7 +485,7 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
     }
   }
 
-  return { moved: removedKeys.size, writtenFiles: [...new Set(writtenFiles)] }
+  return { moved: removedKeys.size, writtenFiles: [...new Set(writtenFiles)], droppedNotes }
 }
 
 export type CommitRemovalsResult = {

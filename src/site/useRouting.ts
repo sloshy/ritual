@@ -1,7 +1,7 @@
 import { createSignal, onMount, onCleanup } from 'solid-js'
 import type { Accessor } from 'solid-js'
 import type { ListType } from '../list-type'
-import type { ListRef } from './combined-list'
+import type { CombinedListRef } from './combined-list'
 import { parseCombinedQuery } from './combined-list'
 
 export type Route =
@@ -9,7 +9,7 @@ export type Route =
   | { page: 'deck'; slug: string; primerOpen?: boolean; sectionId?: string }
   | { page: 'collection'; slug: string }
   | { page: 'wanted'; slug: string }
-  | { page: 'combined'; all: boolean; allType?: ListType; refs: ListRef[] }
+  | { page: 'combined'; all: boolean; allType?: ListType; refs: CombinedListRef[] }
   | { page: 'trade' }
   | { page: 'find' }
   | { page: 'search-results' }

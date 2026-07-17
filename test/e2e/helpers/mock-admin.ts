@@ -492,7 +492,7 @@ export async function mockChangeHistoryApi(
   page: Page,
   onSave?: (body: unknown) => void,
 ): Promise<void> {
-  await fulfillJson(page, '**/api/history', HISTORY_LISTS)
+  await fulfillJson(page, '**/api/lists', HISTORY_LISTS)
 
   await fulfillJson(page, '**/api/history/deck/history-deck', HISTORY_DETAIL)
 

@@ -124,7 +124,7 @@ function App() {
     allSelections.clear()
   }
 
-  const handleMoveAll = (dest: ListRef) => {
+  const handleMoveAll = (dest: NamedListRef) => {
     const cards = allSelections.selected()
     void moveAllSelectedPublic(cards, dest).then(() => allSelections.clear())
   }
@@ -159,8 +159,7 @@ function App() {
   })
 
   // Every list as a move destination (all are offered; per-card self-moves are skipped).
-  const moveAllTargets = (): ListRef[] =>
-    allNamedLists().map((l) => ({ type: l.type, name: l.name }))
+  const moveAllTargets = (): NamedListRef[] => allNamedLists()
 
   // The other lists a single editor's cards can move to (excludes the current list).
   const moveTargetsFor = (type: ListRef['type'], slug: () => string | null) => (): ListRef[] =>

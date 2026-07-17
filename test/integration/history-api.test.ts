@@ -3,11 +3,7 @@ import { execSync } from 'node:child_process'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { resetRitualConfigCache, getDefaultRitualConfig } from '../../src/ritual-config'
-import {
-  handleHistoryLists,
-  handleHistoryLoad,
-  handleHistorySave,
-} from '../../src/admin/api/history'
+import { handleHistoryLoad, handleHistorySave } from '../../src/admin/api/history'
 import type { ChangeSet } from '../../src/changelog-blocks'
 import {
   bindWorkspace,
@@ -15,18 +11,16 @@ import {
   initGitRepo,
   writeConfig,
   writeDeckFile,
-  writeWantedFile,
   type BoundWorkspace,
 } from './helpers/workspace'
 
 /**
- * End-to-end coverage for the admin change-history endpoints: enumerating lists,
- * loading parsed change sets (+ rewrite defaults), and saving back — verifying the
- * write lands only on the `.changes.md`, preserves the header, and is rejected on
- * malformed input.
+ * End-to-end coverage for the admin change-history endpoints: loading parsed
+ * change sets (+ rewrite defaults) and saving back — verifying the write lands
+ * only on the `.changes.md`, preserves the header, and is rejected on malformed
+ * input. (List enumeration lives on GET /api/lists, covered elsewhere.)
  */
 
-type ListsResponse = { success: true; lists: { type: string; slug: string; name: string }[] }
 type LoadResponse = { success: true; header: string; sets: ChangeSet[]; defaultLines: string[] }
 type SaveResponse = { success: boolean; message?: string; setCount?: number }
 type InvalidSetsCase = { description: string; sets: unknown }
@@ -90,22 +84,6 @@ async function save(
 }
 
 describe('history API', () => {
-  test('lists every list across the three types', async () => {
-    await writeBinder()
-    await writeWantedFile(tmpDir, 'wishlist', {
-      title: 'Wishlist',
-      entries: [{ name: 'Mana Crypt', cardId: 1 }],
-    })
-
-    const resp = await handleHistoryLists()
-    const data = (await resp.json()) as ListsResponse
-    expect(data.success).toBe(true)
-    expect(data.lists.map((l) => `${l.type}:${l.slug}`).sort()).toEqual([
-      'collection:binder',
-      'wanted:wishlist',
-    ])
-  })
-
   test('loads change sets newest-first with rewrite defaults', async () => {
     await writeBinder()
     const { status, body } = await load('collection', 'binder')

@@ -1,5 +1,6 @@
 import { createResource, type Resource } from 'solid-js'
 import type { ListRef } from '../../change-event'
+import type { NamedListRef } from '../../site/combined-list'
 import type { ListType } from '../../list-type'
 import type { ListInfo } from '../api/list-info'
 import { fetchAdminJson } from './editor-backend'
@@ -31,7 +32,7 @@ export function moveTargetsExcluding(
     .map((l) => ({ type: l.type, name: l.name }))
 }
 
-/** Every list as a {@link ListRef} (no exclusion) — for the cross-list navbar move. */
-export function listInfosToRefs(lists: ListInfo[] | undefined): ListRef[] {
-  return (lists ?? []).map((l) => ({ type: l.type, name: l.name }))
+/** Every list as a slug-bearing {@link NamedListRef} (no exclusion) — for the cross-list navbar move. */
+export function listInfosToNamedRefs(lists: ListInfo[] | undefined): NamedListRef[] {
+  return (lists ?? []).map((l) => ({ type: l.type, slug: l.slug, name: l.name }))
 }

@@ -41,9 +41,10 @@ export function closeMovePrompt(): void {
 
 /**
  * Open the picker to move card(s) into another list. Destinations are labelled
- * with {@link listRefLabel}; picking one invokes `onPick` with that {@link ListRef}.
+ * with {@link listRefLabel}; picking one invokes `onPick` with the exact target
+ * object that was passed in (generic, so slug-bearing refs survive the round trip).
  */
-export function promptListMove(targets: ListRef[], onPick: (dest: ListRef) => void): void {
+export function promptListMove<T extends ListRef>(targets: T[], onPick: (dest: T) => void): void {
   promptMoveTarget({
     title: 'Move to list',
     options: targets.map((dest) => ({

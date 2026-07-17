@@ -9,6 +9,7 @@ import {
   bindWorkspace,
   writeCollectionFile,
   writeDeckFile,
+  writeWantedFile,
   type BoundWorkspace,
 } from './helpers/workspace'
 
@@ -26,6 +27,10 @@ beforeEach(async () => {
     title: 'Binder',
     entries: [{ name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 }],
   })
+  await writeWantedFile(tmpDir, 'wishlist', {
+    title: 'Wishlist',
+    entries: [{ name: 'Brainstorm', cardId: 1 }],
+  })
 })
 
 afterEach(async () => {
@@ -34,8 +39,8 @@ afterEach(async () => {
 
 describe('applyOutgoingMoves', () => {
   test('no moves returns no written files', async () => {
-    const written = await applyOutgoingMoves({ type: 'collection', name: 'Binder' }, [])
-    expect(written).toEqual([])
+    const result = await applyOutgoingMoves({ type: 'collection', name: 'Binder' }, [])
+    expect(result).toEqual({ writtenFiles: [], droppedNotes: [] })
   })
 
   test('writes the destination list and a move-to changelog', async () => {
@@ -45,18 +50,36 @@ describe('applyOutgoingMoves', () => {
       cardId: 1,
       to: { type: 'deck', name: 'My Deck' },
     })
-    const written = await applyOutgoingMoves({ type: 'collection', name: 'Binder' }, [change])
+    const result = await applyOutgoingMoves({ type: 'collection', name: 'Binder' }, [change])
 
     const deckPath = path.join(tmpDir, 'decks', 'my-deck.md')
     const deckContent = await fs.readFile(deckPath, 'utf-8')
     expect(deckContent).toContain('Lightning Bolt')
-    expect(written).toContain(deckPath)
+    expect(result.writtenFiles).toContain(deckPath)
 
     const changelog = await fs.readFile(path.join(tmpDir, 'decks', 'my-deck.changes.md'), 'utf-8')
     // The destination changelog reads "Moved … from <source>" — the source list is
     // the `from` label, never the destination deck itself.
     expect(changelog).toMatch(/Moved "Lightning Bolt".*from Collection 'Binder'/)
     expect(changelog).not.toContain("Deck 'My Deck'")
+  })
+
+  test('a quantity merge onto an existing deck line reports droppedNotes', async () => {
+    // The deck already holds Sol Ring (C19:221); moving the same printing in
+    // merges quantities on the existing line rather than adding a second line.
+    const change = createMoveFromChange('Sol Ring', {
+      set: 'c19',
+      collectorNumber: '221',
+      cardId: 2,
+      to: { type: 'deck', name: 'My Deck' },
+    })
+    const result = await applyOutgoingMoves({ type: 'collection', name: 'Binder' }, [change])
+
+    const deckContent = await fs.readFile(path.join(tmpDir, 'decks', 'my-deck.md'), 'utf-8')
+    expect(deckContent).toContain('2 Sol Ring')
+    // `move-from` events carry no note today, so a merge cannot drop one — the
+    // field is pinned here as the (empty) report the editor save surfaces.
+    expect(result.droppedNotes).toEqual([])
   })
 
   test('throws moving a printing-less card into a collection', async () => {
@@ -109,7 +132,7 @@ describe('POST /api/move/selected', () => {
     }
   }
 
-  test('moves a selected card from its list into the destination', async () => {
+  test('moves a selected card from its list into the destination addressed by slug', async () => {
     const res = await move([
       {
         listType: 'deck',
@@ -118,7 +141,7 @@ describe('POST /api/move/selected', () => {
         cardId: 1,
         copyIndex: 0,
         toType: 'collection',
-        toName: 'Binder',
+        toSlug: 'binder',
       },
     ])
     expect(res.success).toBe(true)
@@ -139,7 +162,24 @@ describe('POST /api/move/selected', () => {
         cardId: 1,
         copyIndex: 0,
         toType: 'collection',
-        toName: 'Binder',
+        toSlug: 'binder',
+      },
+    ])
+    expect(res.moved).toBe(0)
+    expect(res.skipped).toBe(1)
+  })
+
+  test('a destination display name is not accepted in place of the slug', async () => {
+    // The collection's display name is 'Binder'; only the slug 'binder' resolves.
+    const res = await move([
+      {
+        listType: 'deck',
+        listSlug: 'my-deck',
+        name: 'Sol Ring',
+        cardId: 1,
+        copyIndex: 0,
+        toType: 'collection',
+        toSlug: 'Binder',
       },
     ])
     expect(res.moved).toBe(0)
@@ -155,11 +195,60 @@ describe('POST /api/move/selected', () => {
         cardId: 999,
         copyIndex: 0,
         toType: 'collection',
-        toName: 'Binder',
+        toSlug: 'binder',
       },
     ])
     expect(res.moved).toBe(0)
     expect(res.skipped).toBe(1)
+  })
+
+  test('toSection routes a move into the named deck section', async () => {
+    const res = await move([
+      {
+        listType: 'collection',
+        listSlug: 'binder',
+        name: 'Lightning Bolt',
+        cardId: 1,
+        copyIndex: 0,
+        toType: 'deck',
+        toSlug: 'my-deck',
+        toSection: 'Sideboard',
+      },
+    ])
+    expect(res.success).toBe(true)
+    expect(res.moved).toBe(1)
+
+    const deckContent = await fs.readFile(path.join(tmpDir, 'decks', 'my-deck.md'), 'utf-8')
+    expect(deckContent).toContain('## Sideboard')
+    expect(deckContent.indexOf('Lightning Bolt')).toBeGreaterThan(
+      deckContent.indexOf('## Sideboard'),
+    )
+  })
+
+  test('rejects toSection when the destination is not a deck', async () => {
+    const req = new Request('http://localhost/api/move/selected', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        moves: [
+          {
+            listType: 'deck',
+            listSlug: 'my-deck',
+            name: 'Sol Ring',
+            cardId: 1,
+            copyIndex: 0,
+            toType: 'collection',
+            toSlug: 'binder',
+            toSection: 'Main',
+          },
+        ],
+      }),
+    })
+    const resp = await handleSelectedMove(req)
+    expect(resp.status).toBe(400)
+    const body = (await resp.json()) as { success: boolean; message: string }
+    expect(body.success).toBe(false)
+    expect(body.message).toContain('toSection')
   })
 
   test('rejects a malformed body', async () => {
@@ -184,5 +273,6 @@ describe('GET /api/lists', () => {
     expect(body.success).toBe(true)
     expect(body.lists).toContainEqual({ type: 'deck', slug: 'my-deck', name: 'My Deck' })
     expect(body.lists).toContainEqual({ type: 'collection', slug: 'binder', name: 'Binder' })
+    expect(body.lists).toContainEqual({ type: 'wanted', slug: 'wishlist', name: 'Wishlist' })
   })
 })

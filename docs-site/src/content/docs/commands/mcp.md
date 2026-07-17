@@ -77,60 +77,88 @@ there (since the admin binds `0.0.0.0` by default) and is independent of the bro
 
 ## Tools
 
+Every tool that addresses a list takes the same two fields: `listType` (`deck` | `collection` |
+`wanted`) and `slug` (the markdown file basename without `.md`).
+
 ### Read (read-only)
 
-| Tool                                            | Description                                                                                                  |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `list_decks`, `list_collections`, `list_wanted` | List lists of one type.                                                                                      |
-| `list_all_lists`                                | Every deck/collection/wanted list as `{ type, slug, name }`.                                                 |
-| `load_deck`, `load_collection`, `load_wanted`   | Load a list's cards/entries and sections.                                                                    |
-| `search_cards`, `autocomplete_card`             | Find card names on Scryfall.                                                                                 |
-| `card_printings`, `card_price`                  | A card's printings and per-currency prices.                                                                  |
-| `load_history`                                  | A list's change history.                                                                                     |
-| `move_candidates`                               | Every movable card across lists, with keys for `move_cards`.                                                 |
-| `get_config`, `get_audit_log`                   | Configuration and admin activity.                                                                            |
-| `export_cards`                                  | Render a CSV/JSON [export](/commands/export/) of lists and/or card picks, with filters and column selection. |
+| Tool                                | Description                                                                                                                       |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `list_lists`                        | Every list as `{ listType, slug, name }`, optionally filtered by `listType`.                                                      |
+| `load_list`                         | Load one list: decks return `{ slug, deck, frontMatter }`; collections and wanted lists return `{ slug, entries, sectionOrder }`. |
+| `search_cards`, `autocomplete_card` | Find card names on Scryfall.                                                                                                      |
+| `card_printings`, `card_price`      | A card's printings and per-currency prices (an unknown card name is an error).                                                    |
+| `price_report`                      | [Price](/commands/price/) one list (`listType` + `slug`), one list type (`listType` alone), or every list (no arguments).         |
+| `load_history`                      | A list's change history.                                                                                                          |
+| `get_config`, `get_audit_log`       | Configuration and admin activity.                                                                                                 |
+| `export_cards`                      | Render a CSV/JSON [export](/commands/export/) of lists and/or card picks, with filters and column selection.                      |
+
+`price_report` takes both `listType` and `slug` (one list's summary plus its priced card entries),
+`listType` alone (per-list totals across every list of that type, like the CLI's `price --deck
+--summary`), or neither (per-list totals across every list) — a `slug` without a `listType` is a
+validation error. The optional `currency` (`usd` | `eur` | `tix`) defaults to the configured
+`defaultCurrency`. Prices come strictly from the local card cache; an empty cache is an error (run
+`refresh_cache` first).
 
 ### Write
 
-| Tool                                                               | Description                                                                                       |
-| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| `create_deck`, `create_collection`, `create_wanted`                | Create a new, empty list. `create_deck` takes a `format` from the fixed set of deck formats.      |
-| `import_deck`                                                      | Import a deck from a URL or pasted decklist text.                                                 |
-| `import_csv`                                                       | Import CSV text into a new or existing list (create/overwrite/append) with a column-mapping spec. |
-| `import_changes`                                                   | Apply a change bundle exported from the site editor to the underlying lists.                      |
-| `add_card_to_deck`, `add_card_to_collection`, `add_card_to_wanted` | Add a card.                                                                                       |
-| `remove_card_from_deck`                                            | Remove one copy of a card from a deck.                                                            |
-| `set_card_note`, `set_card_printing`, `set_commander`              | Edit a card in place.                                                                             |
-| `move_cards`                                                       | Move cards between lists (using keys from `move_candidates`).                                     |
+| Tool                                 | Description                                                                                                                       |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `create_list`                        | Create a new, empty list. `format` (from the fixed set of deck formats) applies to decks only.                                    |
+| `import_deck`                        | Import a deck from a URL or pasted decklist text.                                                                                 |
+| `import_csv`                         | Import CSV text into a new or existing list (create/overwrite/append) with a column-mapping spec. `format` applies to decks only. |
+| `import_changes`                     | Apply a change bundle exported from the site editor to the underlying lists.                                                      |
+| `add_card`                           | Add a card to any list; `quantity` adds that many copies in one save. `condition` is rejected for wanted lists.                   |
+| `remove_card`                        | Remove a card from any list; `quantity` (decks only) removes that many copies. Flat lists remove one entry a time.                |
+| `set_card_note`, `set_card_printing` | Edit a card in place.                                                                                                             |
+| `set_card_section`                   | Move a card to a section of its list (created when missing).                                                                      |
+| `set_commander`, `unset_commander`   | Move a card into / out of a deck's Commander section.                                                                             |
+| `apply_changes`                      | Apply an ordered batch of card-level changes to one list atomically (one save, one changelog block).                              |
+| `move_cards`                         | Move a batch of identity-addressed cards between lists atomically.                                                                |
+| `remove_cards`                       | Remove a batch of identity-addressed cards across lists atomically.                                                               |
 
 Card edits load the list, apply the change, and save in a single call, so **you never supply a content
 hash** — conflict detection is handled internally (a concurrent web-UI edit surfaces as an error you can
 retry).
 
+`move_cards` and `remove_cards` address each card by identity: source `listType` + `slug` +
+`cardName`, plus `cardId` (the persistent `&N` id — required to match whenever the entry has one;
+`load_list` shows it) and `copyIndex` (0-based, for deck lines with quantity above 1). Each
+`move_cards` item names its destination with `toListType` + `toSlug`, may override the printing on
+arrival (`set`, `collectorNumber`, `finish`, `condition`), and may pick a destination deck section
+with `toSection` (deck destinations only). Unresolvable items are skipped and counted in the
+response; notes a destination cannot keep are reported as `droppedNotes`.
+
+`apply_changes` accepts the card-level change actions (`add`, `remove`, `set-finish`,
+`set-printing`, `set-note`, `set-commander`, `unset-commander`, `set-section`); missing change
+`id`/`timestamp` fields are autofilled. Cross-list moves and section-structural events are rejected —
+use `move_cards` and `set_card_section` instead.
+
 ### Destructive
 
 These are flagged with the MCP `destructiveHint` so clients can gate or confirm them:
 
-| Tool                                                | Description                                                               |
-| --------------------------------------------------- | ------------------------------------------------------------------------- |
-| `rename_deck`, `rename_collection`, `rename_wanted` | Rename a list (changes its slug).                                         |
-| `delete_deck`, `delete_collection`, `delete_wanted` | Delete a list. Requires a `confirmName` matching the list's display name. |
-| `rewrite_history`                                   | Replace a list's entire change log.                                       |
-| `update_config`                                     | Merge a partial configuration.                                            |
-| `build_site`                                        | Rebuild the public static site.                                           |
-| `refresh_cache`                                     | Refresh the Scryfall card cache (bulk download + oracle/art tags).        |
+| Tool              | Description                                                               |
+| ----------------- | ------------------------------------------------------------------------- |
+| `rename_list`     | Rename a list (changes its slug).                                         |
+| `delete_list`     | Delete a list. Requires a `confirmName` matching the list's display name. |
+| `rewrite_history` | Replace a list's entire change log.                                       |
+| `update_config`   | Merge a partial configuration.                                            |
+| `build_site`      | Rebuild the public static site.                                           |
+| `refresh_cache`   | Refresh the Scryfall card cache (bulk download + oracle/art tags).        |
 
-`import_deck`, `import_csv`, and `import_changes` (listed under [Write](#write)) also carry
-`destructiveHint`: the first two can overwrite an existing list of the same name, and an imported
-change list can remove cards. The imports' default, non-overwrite modes are otherwise safe.
+`import_deck`, `import_csv`, `import_changes`, and `apply_changes` (listed under [Write](#write))
+also carry `destructiveHint`: the imports can overwrite an existing list of the same name, and an
+imported or applied change batch can remove cards. Their default, non-overwrite modes are otherwise
+safe.
 
 The authentication endpoints (`setup`, `login`, TOTP, Archidekt) are intentionally **not** exposed.
 
 ## Resources
 
 Every list is also a readable resource at `ritual://{type}/{slug}` (e.g. `ritual://deck/my-deck`),
-listed via the MCP resources API and returning the list's JSON contents.
+listed via the MCP resources API. A read returns the same projected JSON as the `load_list` tool —
+the list's contents without the heavy editor payload (card data, printings, prices).
 
 ## Card cache
 

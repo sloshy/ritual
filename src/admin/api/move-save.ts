@@ -12,8 +12,21 @@ import {
   loadStagedFile,
   applyAddToStaged,
   writeStagedFile,
+  type DroppedNote,
   type StagedFile,
 } from '../../commands/move-io'
+
+/**
+ * Success body shared by the three editor save endpoints (deck/collection/wanted).
+ * `droppedNotes` reports notes discarded by the destination side of this save's
+ * cross-list moves (deck quantity merges keep the existing line's note).
+ */
+export type ListSaveResponse = {
+  success: true
+  message: string
+  contentHash: string
+  droppedNotes: DroppedNote[]
+}
 
 type DestGroup = {
   listEntry: ListEntry
@@ -35,6 +48,16 @@ function physicalFromMove(mv: MoveFromChange, listEntry: ListEntry): PhysicalCar
 }
 
 /**
+ * What the destination side of an editor save's moves produced: every file written
+ * (list markdown + hash sidecars + changelogs), deduplicated for git staging, plus
+ * any notes the destination adds had to discard (deck quantity merges).
+ */
+export type OutgoingMovesResult = {
+  writtenFiles: string[]
+  droppedNotes: DroppedNote[]
+}
+
+/**
  * Apply the destination side of any `move-from` changes in an editor save: for each
  * move, add the card to its target list and append a `move-to` changelog entry there.
  * The source side (removal + `move-from` changelog) is handled by the normal save path.
@@ -43,15 +66,14 @@ function physicalFromMove(mv: MoveFromChange, listEntry: ListEntry): PhysicalCar
  * load-validate-then-write ordering: every destination is pre-loaded and the adds
  * applied in memory before anything is written, so a missing destination or an
  * invalid add (e.g. a printing-less card into a collection) aborts before mutating
- * any file. Returns every file written (list markdown + hash sidecars + changelogs),
- * deduplicated, for git staging. A no-op (returns `[]`) when there are no moves.
+ * any file. A no-op (empty result) when there are no moves.
  */
 export async function applyOutgoingMoves(
   sourceRef: ListRef,
   changes: ChangeEvent[],
-): Promise<string[]> {
+): Promise<OutgoingMovesResult> {
   const moves = changes.filter((c): c is MoveFromChange => c.action === 'move-from')
-  if (moves.length === 0) return []
+  if (moves.length === 0) return { writtenFiles: [], droppedNotes: [] }
 
   const allLists = await loadAllLists()
 
@@ -75,10 +97,13 @@ export async function applyOutgoingMoves(
   }
 
   // APPLY: in-memory adds (a bad add — e.g. a printing-less card into a collection — throws here).
+  const droppedNotes: DroppedNote[] = []
   for (const { listEntry, moves } of byDest.values()) {
     const file = staged.get(listEntry.filePath)!
-    for (const mv of moves)
-      applyAddToStaged(file, physicalFromMove(mv, listEntry), listEntry.ref.type)
+    for (const mv of moves) {
+      const dropped = applyAddToStaged(file, physicalFromMove(mv, listEntry), listEntry.ref.type)
+      if (dropped) droppedNotes.push(dropped)
+    }
   }
 
   // WRITE: files, then a move-to changelog entry per moved card.
@@ -101,5 +126,5 @@ export async function applyOutgoingMoves(
     written.push(await appendChangelog(listEntry.filePath, listEntry.ref.name, events))
   }
 
-  return [...new Set(written)]
+  return { writtenFiles: [...new Set(written)], droppedNotes }
 }

@@ -47,6 +47,27 @@ describe('saveEditorChanges', () => {
     expect(result).toEqual({ success: true, contentHash: 'abc123' })
   })
 
+  it('appends a dropped-note report to the success status when the save dropped notes', async () => {
+    globalThis.fetch = (async () =>
+      ({
+        json: async () => ({
+          success: true,
+          contentHash: 'abc123',
+          droppedNotes: [{ cardName: 'Sol Ring', cardId: 3, note: 'from trade' }],
+        }),
+      }) as Response) as any
+
+    await saveEditorChanges('/api/test/save', { data: 'test' }, statusActions, discardAll)
+
+    expect(calls).toEqual([
+      { method: 'saveStart', args: [] },
+      {
+        method: 'saveSuccess',
+        args: ['Changes saved successfully. Note dropped on merge: Sol Ring ("from trade").'],
+      },
+    ])
+  })
+
   it('resolves saveError message via error ?? message ?? fallback on failure responses', async () => {
     type SaveErrorCase = {
       response: { success: boolean; error?: string; message?: string }

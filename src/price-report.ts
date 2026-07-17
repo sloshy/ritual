@@ -155,6 +155,36 @@ export type BuiltPriceReport = {
 }
 
 /**
+ * The JSON contract of the all-lists summary view, shared by the CLI's
+ * `--output json` mode and the admin price API.
+ */
+export type PriceSummaryPayload = {
+  currency: PriceCurrency
+  lastRefreshedAt: number | null
+  lists: ListPriceSummary[]
+  typeTotals: ListTypeTotals[]
+  totals: PriceReportTotals
+}
+
+/**
+ * The JSON contract of the single-list view, shared by the CLI's
+ * `--output json` mode and the admin price API.
+ */
+export type PriceListDetailPayload = {
+  currency: PriceCurrency
+  list: ListPriceSummary | undefined
+  cards: PricedEntry[]
+}
+
+/** The JSON contract of the CLI's card-search view (`--output json`). */
+export type PriceCardSearchPayload = {
+  currency: PriceCurrency
+  filters: PriceEntryFilters
+  cards: PricedEntry[]
+  totals: PriceTotals
+}
+
+/**
  * Load every list of the given type (or all types) into pricing inputs. Deck
  * sections classified as extras (maybeboard/token) are excluded, matching the
  * public site's deck totals; sideboards are included.

@@ -13,8 +13,29 @@ import {
   commitAllRemovals,
   type ListEntry,
 } from '../../commands/move-helpers'
+import type { DroppedNote } from '../../commands/move-io'
 import { listSlug, type ListInfo } from './list-info'
 import { validateBodySize, autoCommitAndPush } from './save-helpers'
+
+/** Error body every move/remove endpoint returns on validation failure or a thrown error. */
+export type MoveErrorResponse = { success: false; message: string }
+
+function errorResponse(message: string, status: number): Response {
+  const body: MoveErrorResponse = { success: false, message }
+  return Response.json(body, { status })
+}
+
+/**
+ * The one message for a `toSection` aimed at a non-deck destination, shared by
+ * the admin endpoints and the MCP `move_cards` schema so the wording never drifts.
+ */
+export const TO_SECTION_DECK_ONLY_MESSAGE =
+  'toSection is only valid when the destination is a deck.'
+
+/** True when a move item carries a `toSection` but its destination is not a deck. */
+export function isToSectionInvalid(toSection: unknown, toType: unknown): boolean {
+  return toSection !== undefined && toType !== 'deck'
+}
 
 /**
  * One movable physical card. Mirrors the CLI's `PhysicalCard` but uses a
@@ -91,7 +112,7 @@ export async function handleMoveData(): Promise<Response> {
     const body: MoveDataResponse = { success: true, lists: listInfos, cards }
     return Response.json(body)
   } catch (error) {
-    return Response.json({ success: false, message: getErrorMessage(error) }, { status: 500 })
+    return errorResponse(getErrorMessage(error), 500)
   }
 }
 
@@ -100,6 +121,8 @@ export type MoveCommitItem = {
   cardKey: string
   toType: ListType
   toSlug: string
+  /** Destination deck section (deck destinations only; exact name, created when missing). */
+  toSection?: string
   /**
    * Destination printing overrides. Carried so a name-only card resolved to a
    * specific printing (required for collection destinations) lands with that
@@ -112,6 +135,16 @@ export type MoveCommitItem = {
 }
 
 export type MoveCommitRequest = { moves: MoveCommitItem[] }
+
+/** POST /api/move/commit success body. */
+export type MoveCommitResponse = {
+  success: true
+  moved: number
+  requested: number
+  skipped: number
+  droppedNotes: DroppedNote[]
+  message: string
+}
 
 /** Untrusted request body shape, validated before narrowing to {@link MoveCommitRequest}. */
 type RawCommitBody = { moves?: unknown }
@@ -132,7 +165,7 @@ export async function handleMoveCommit(req: Request): Promise<Response> {
 
     const raw = (await req.json()) as RawCommitBody
     if (raw === null || typeof raw !== 'object' || !Array.isArray(raw.moves)) {
-      return Response.json({ success: false, message: 'moves array is required' }, { status: 400 })
+      return errorResponse('moves array is required', 400)
     }
     for (const m of raw.moves as unknown[]) {
       const item = m as Record<string, unknown>
@@ -140,9 +173,14 @@ export async function handleMoveCommit(req: Request): Promise<Response> {
         typeof item.cardKey !== 'string' ||
         typeof item.toType !== 'string' ||
         !isListType(item.toType) ||
-        typeof item.toSlug !== 'string'
+        typeof item.toSlug !== 'string' ||
+        (item.toSection !== undefined &&
+          (typeof item.toSection !== 'string' || item.toSection.trim() === ''))
       ) {
-        return Response.json({ success: false, message: 'Invalid move request' }, { status: 400 })
+        return errorResponse('Invalid move request', 400)
+      }
+      if (isToSectionInvalid(item.toSection, item.toType)) {
+        return errorResponse(TO_SECTION_DECK_ONLY_MESSAGE, 400)
       }
     }
     const body = raw as MoveCommitRequest
@@ -195,10 +233,10 @@ export async function handleMoveCommit(req: Request): Promise<Response> {
           condition: m.condition ?? vc.card.condition,
         }
       }
-      applyVirtualMove(state, internalKey, dest)
+      applyVirtualMove(state, internalKey, dest, { section: m.toSection })
     }
 
-    const { moved, writtenFiles } = await commitAllMoves(state)
+    const { moved, writtenFiles, droppedNotes } = await commitAllMoves(state)
 
     // Auto-commit the written files (markdown, hashes, changelogs) when git is enabled,
     // matching the editor save endpoints. The whole repo lives under the base dir, so a
@@ -212,15 +250,17 @@ export async function handleMoveCommit(req: Request): Promise<Response> {
       )
     }
 
-    return Response.json({
+    const responseBody: MoveCommitResponse = {
       success: true,
       moved,
       requested: body.moves.length,
       skipped,
+      droppedNotes,
       message: `Moved ${moved} card${moved === 1 ? '' : 's'}.`,
-    })
+    }
+    return Response.json(responseBody)
   } catch (error) {
-    return Response.json({ success: false, message: getErrorMessage(error) }, { status: 500 })
+    return errorResponse(getErrorMessage(error), 500)
   }
 }
 
@@ -238,6 +278,15 @@ export type RemoveCommitItem = {
 }
 
 export type RemoveCommitRequest = { removes: RemoveCommitItem[] }
+
+/** POST /api/remove/commit success body. */
+export type RemoveCommitResponse = {
+  success: true
+  removed: number
+  requested: number
+  skipped: number
+  message: string
+}
 
 /** Untrusted request body shape, validated before narrowing to {@link RemoveCommitRequest}. */
 type RawRemoveBody = { removes?: unknown }
@@ -258,10 +307,7 @@ export async function handleRemoveCommit(req: Request): Promise<Response> {
 
     const raw = (await req.json()) as RawRemoveBody
     if (raw === null || typeof raw !== 'object' || !Array.isArray(raw.removes)) {
-      return Response.json(
-        { success: false, message: 'removes array is required' },
-        { status: 400 },
-      )
+      return errorResponse('removes array is required', 400)
     }
     for (const r of raw.removes as unknown[]) {
       const item = r as Record<string, unknown>
@@ -273,7 +319,7 @@ export async function handleRemoveCommit(req: Request): Promise<Response> {
         (item.cardId !== undefined && typeof item.cardId !== 'number') ||
         (item.copyIndex !== undefined && typeof item.copyIndex !== 'number')
       ) {
-        return Response.json({ success: false, message: 'Invalid remove request' }, { status: 400 })
+        return errorResponse('Invalid remove request', 400)
       }
     }
     const body = raw as RemoveCommitRequest
@@ -312,23 +358,25 @@ export async function handleRemoveCommit(req: Request): Promise<Response> {
       )
     }
 
-    return Response.json({
+    const responseBody: RemoveCommitResponse = {
       success: true,
       removed,
       requested: body.removes.length,
       skipped,
       message: `Removed ${removed} card${removed === 1 ? '' : 's'}.`,
-    })
+    }
+    return Response.json(responseBody)
   } catch (error) {
-    return Response.json({ success: false, message: getErrorMessage(error) }, { status: 500 })
+    return errorResponse(getErrorMessage(error), 500)
   }
 }
 
 /**
  * One selected card to move, addressed by source list + identity (mirroring
- * {@link RemoveCommitItem}) plus a destination list (by type + display name) and an
- * optional resolved printing. Used by the cross-list "Move all selected" navbar
- * action, which moves each selected card from its own list into one destination.
+ * {@link RemoveCommitItem}) plus a destination list (by type + slug, matching
+ * {@link MoveCommitItem}) and an optional resolved printing. Used by the
+ * cross-list "Move all selected" navbar action, which moves each selected card
+ * from its own list into one destination.
  */
 export type SelectedMoveItem = {
   listType: ListType
@@ -337,7 +385,9 @@ export type SelectedMoveItem = {
   cardId?: number
   copyIndex?: number
   toType: ListType
-  toName: string
+  toSlug: string
+  /** Destination deck section (deck destinations only; exact name, created when missing). */
+  toSection?: string
   set?: string
   collectorNumber?: string
   finish?: Finish
@@ -346,6 +396,9 @@ export type SelectedMoveItem = {
 
 export type SelectedMoveRequest = { moves: SelectedMoveItem[] }
 
+/** POST /api/move/selected success body — the same shape as {@link MoveCommitResponse}. */
+export type SelectedMoveResponse = MoveCommitResponse
+
 type RawSelectedMoveBody = { moves?: unknown }
 
 /**
@@ -353,7 +406,7 @@ type RawSelectedMoveBody = { moves?: unknown }
  *
  * Backs the cross-list "Move all selected" multi-select action. Each item is
  * resolved back to its physical key (same scheme as the load endpoint) and its
- * destination by display name, optional printing overrides are applied, and the
+ * destination by type + slug, optional printing overrides are applied, and the
  * shared {@link commitAllMoves} performs the atomic LOAD→APPLY→WRITE→CHANGELOG pass.
  * Cards or destinations that can no longer be resolved are skipped and reported.
  */
@@ -364,7 +417,7 @@ export async function handleSelectedMove(req: Request): Promise<Response> {
 
     const raw = (await req.json()) as RawSelectedMoveBody
     if (raw === null || typeof raw !== 'object' || !Array.isArray(raw.moves)) {
-      return Response.json({ success: false, message: 'moves array is required' }, { status: 400 })
+      return errorResponse('moves array is required', 400)
     }
     for (const m of raw.moves as unknown[]) {
       const item = m as Record<string, unknown>
@@ -375,11 +428,16 @@ export async function handleSelectedMove(req: Request): Promise<Response> {
         typeof item.name !== 'string' ||
         typeof item.toType !== 'string' ||
         !isListType(item.toType) ||
-        typeof item.toName !== 'string' ||
+        typeof item.toSlug !== 'string' ||
+        (item.toSection !== undefined &&
+          (typeof item.toSection !== 'string' || item.toSection.trim() === '')) ||
         (item.cardId !== undefined && typeof item.cardId !== 'number') ||
         (item.copyIndex !== undefined && typeof item.copyIndex !== 'number')
       ) {
-        return Response.json({ success: false, message: 'Invalid move request' }, { status: 400 })
+        return errorResponse('Invalid move request', 400)
+      }
+      if (isToSectionInvalid(item.toSection, item.toType)) {
+        return errorResponse(TO_SECTION_DECK_ONLY_MESSAGE, 400)
       }
     }
     const body = raw as SelectedMoveRequest
@@ -398,15 +456,15 @@ export async function handleSelectedMove(req: Request): Promise<Response> {
       )
     }
 
-    const findDest = (type: ListType, name: string): ListEntry | undefined =>
-      lists.find((l) => l.ref.type === type && l.ref.name === name)
+    const findDest = (type: ListType, slug: string): ListEntry | undefined =>
+      lists.find((l) => l.ref.type === type && slugByPath.get(l.filePath) === slug)
 
     let skipped = 0
     for (const m of body.moves) {
       const internalKey = internalByClient.get(
         moveCardKey(m.listType, m.listSlug, m.cardId, m.name, m.copyIndex),
       )
-      const dest = findDest(m.toType, m.toName)
+      const dest = findDest(m.toType, m.toSlug)
       const vc = internalKey ? state.get(internalKey) : undefined
       if (!internalKey || !dest || !vc) {
         skipped++
@@ -431,10 +489,10 @@ export async function handleSelectedMove(req: Request): Promise<Response> {
           condition: m.condition ?? vc.card.condition,
         }
       }
-      applyVirtualMove(state, internalKey, dest)
+      applyVirtualMove(state, internalKey, dest, { section: m.toSection })
     }
 
-    const { moved, writtenFiles } = await commitAllMoves(state)
+    const { moved, writtenFiles, droppedNotes } = await commitAllMoves(state)
 
     if (moved > 0) {
       await autoCommitAndPush(
@@ -444,14 +502,16 @@ export async function handleSelectedMove(req: Request): Promise<Response> {
       )
     }
 
-    return Response.json({
+    const responseBody: SelectedMoveResponse = {
       success: true,
       moved,
       requested: body.moves.length,
       skipped,
+      droppedNotes,
       message: `Moved ${moved} card${moved === 1 ? '' : 's'}.`,
-    })
+    }
+    return Response.json(responseBody)
   } catch (error) {
-    return Response.json({ success: false, message: getErrorMessage(error) }, { status: 500 })
+    return errorResponse(getErrorMessage(error), 500)
   }
 }

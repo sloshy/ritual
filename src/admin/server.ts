@@ -45,7 +45,8 @@ import {
   handleSelectedMove,
 } from './api/move'
 import { handleLists } from './api/lists'
-import { handleHistoryLists, handleHistoryLoad, handleHistorySave } from './api/history'
+import { handleHistoryLoad, handleHistorySave } from './api/history'
+import { handlePriceSummary, handlePriceList } from './api/price'
 import {
   handleSimpleListCreate,
   handleSimpleListRename,
@@ -223,7 +224,6 @@ export const routes: Route[] = [
   { method: 'POST', path: '/api/move/commit', handler: handleMoveCommit, requiresAuth: true },
   { method: 'POST', path: '/api/move/selected', handler: handleSelectedMove, requiresAuth: true },
   { method: 'POST', path: '/api/remove/commit', handler: handleRemoveCommit, requiresAuth: true },
-  { method: 'GET', path: '/api/history', handler: handleHistoryLists, requiresAuth: true },
   {
     method: 'GET',
     path: '/api/history/:type/:slug',
@@ -234,6 +234,13 @@ export const routes: Route[] = [
     method: 'POST',
     path: '/api/history/:type/:slug/save',
     handler: handleHistorySave,
+    requiresAuth: true,
+  },
+  { method: 'GET', path: '/api/price/summary', handler: handlePriceSummary, requiresAuth: true },
+  {
+    method: 'GET',
+    path: '/api/price/:type/:slug',
+    handler: handlePriceList,
     requiresAuth: true,
   },
 ]

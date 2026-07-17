@@ -26,7 +26,7 @@ function endpoint(server: Server): URL {
 
 // No Scryfall fetch stub on purpose: these tests exercise the HTTP transport (the
 // real client uses global fetch to reach the loopback server) and only call tools
-// that don't load card data, so no network is hit.
+// that don't load card data (list_lists reads list files only), so no network is hit.
 async function makeWorkspace(): Promise<BoundWorkspace> {
   const ws = await bindWorkspace({ dirs: ['decks'], config: false, init: true })
   await writeDeckFile(ws.dir, 'starter', {
@@ -64,9 +64,9 @@ describe('ritual mcp HTTP — bearer auth', () => {
     await client.connect(transport)
     try {
       const { tools } = await client.listTools()
-      expect(tools.map((t) => t.name)).toContain('list_decks')
+      expect(tools.map((t) => t.name)).toContain('list_lists')
 
-      const listed = await client.callTool({ name: 'list_decks', arguments: {} })
+      const listed = await client.callTool({ name: 'list_lists', arguments: {} })
       expect(text(listed)).toContain('starter')
     } finally {
       await client.close()
@@ -135,7 +135,7 @@ describe('ritual mcp HTTP — no auth', () => {
     await client.connect(transport)
     try {
       const { tools } = await client.listTools()
-      expect(tools.map((t) => t.name)).toContain('list_decks')
+      expect(tools.map((t) => t.name)).toContain('list_lists')
     } finally {
       await client.close()
     }

@@ -1,7 +1,7 @@
 import type { Accessor, Component } from 'solid-js'
 import { createSignal, createMemo, createEffect, For, Show } from 'solid-js'
 import { Modal } from '../ui/Modal'
-import type { ListRef } from '../change-event'
+import type { NamedListRef } from './combined-list'
 import type { CardSelectionControl, SelectedCard } from './useCardSelection'
 import { groupSelectionsBySource } from './useCardSelection'
 import { useSelectionCopy } from './useSelectionCopy'
@@ -42,9 +42,9 @@ export interface SelectionModalProps {
   /** When set, show a "Remove all selected" action that deletes every selected card from its list. */
   onRemoveAll?: () => void
   /** When set (with {@link moveAllTargets}), show a "Move all to list" group moving each card from its own list. */
-  onMoveAll?: (dest: ListRef) => void
-  /** Destination lists for the "Move all to list" group. */
-  moveAllTargets?: () => ListRef[]
+  onMoveAll?: (dest: NamedListRef) => void
+  /** Destination lists for the "Move all to list" group (slug-bearing, so senders can address by slug). */
+  moveAllTargets?: () => NamedListRef[]
 }
 
 /**

@@ -15,7 +15,7 @@
 
 import { createSignal, type Accessor } from 'solid-js'
 import type { ListType } from '../list-type'
-import type { CombinedCardData, ListRef } from './combined-list'
+import type { CombinedCardData, CombinedListRef } from './combined-list'
 import { cardMatchKey, findMatchKey } from './find-search'
 
 export interface FindPrintingsRequest {
@@ -79,7 +79,7 @@ export interface FindPrintingsGroup {
 export function buildFindPrintingsGroups(
   cards: CombinedCardData[],
   cardName: string,
-  currentList?: ListRef,
+  currentList?: CombinedListRef,
 ): FindPrintingsGroup[] {
   const key = findMatchKey(cardName)
   if (!key) return []

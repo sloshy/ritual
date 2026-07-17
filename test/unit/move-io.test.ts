@@ -64,3 +64,147 @@ describe('applyAddToStaged (deck) ID allocation', () => {
     expect(main[0]!.cardId).toBe(1)
   })
 })
+
+describe('applyAddToStaged (deck) section targeting', () => {
+  function twoSectionDeck(): DeckData {
+    return {
+      name: 'Test',
+      sections: [
+        { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }] },
+        { name: 'Sideboard', cards: [{ quantity: 1, name: 'Duress', cardId: 2 }] },
+      ],
+    }
+  }
+
+  test('adds to the exactly-named section when it exists', () => {
+    const deck = twoSectionDeck()
+    const staged = deckStaged(deck)
+
+    applyAddToStaged(staged, physicalCard('Lightning Bolt'), 'deck', 'Sideboard')
+
+    const sideboard = deck.sections.find((s) => s.name === 'Sideboard')!
+    expect(sideboard.cards.map((c) => c.name)).toContain('Lightning Bolt')
+    expect(deck.sections.find((s) => s.name === 'Main')!.cards).toHaveLength(1)
+  })
+
+  test('section matching is exact — a case-different name creates a new section', () => {
+    const deck = twoSectionDeck()
+    const staged = deckStaged(deck)
+
+    applyAddToStaged(staged, physicalCard('Lightning Bolt'), 'deck', 'sideboard')
+
+    expect(deck.sections.map((s) => s.name)).toEqual(['Main', 'Sideboard', 'sideboard'])
+    expect(deck.sections.find((s) => s.name === 'sideboard')!.cards[0]!.name).toBe('Lightning Bolt')
+  })
+
+  test('creates the section when missing', () => {
+    const deck = twoSectionDeck()
+    const staged = deckStaged(deck)
+
+    applyAddToStaged(staged, physicalCard('Lightning Bolt'), 'deck', 'Maybeboard')
+
+    const created = deck.sections.find((s) => s.name === 'Maybeboard')
+    expect(created).toBeDefined()
+    expect(created!.cards.map((c) => c.name)).toEqual(['Lightning Bolt'])
+  })
+
+  test('merges quantity within the targeted section only', () => {
+    const deck: DeckData = {
+      name: 'Test',
+      sections: [
+        { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }] },
+        { name: 'Sideboard', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 2 }] },
+      ],
+    }
+    const staged = deckStaged(deck)
+
+    applyAddToStaged(staged, physicalCard('Sol Ring'), 'deck', 'Sideboard')
+
+    expect(deck.sections.find((s) => s.name === 'Main')!.cards[0]!.quantity).toBe(1)
+    expect(deck.sections.find((s) => s.name === 'Sideboard')!.cards[0]!.quantity).toBe(2)
+  })
+
+  test('without a section, the default behavior is unchanged', () => {
+    const deck: DeckData = {
+      name: 'Test',
+      sections: [
+        { name: 'Commander', cards: [{ quantity: 1, name: 'Atraxa, Praetors’ Voice', cardId: 1 }] },
+        { name: 'Spells', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 2 }] },
+      ],
+    }
+    const staged = deckStaged(deck)
+
+    applyAddToStaged(staged, physicalCard('Lightning Bolt'), 'deck')
+
+    // First non-commander/sideboard section receives the card.
+    expect(deck.sections.find((s) => s.name === 'Spells')!.cards.map((c) => c.name)).toContain(
+      'Lightning Bolt',
+    )
+  })
+
+  test('without a section and no eligible section, Main is created', () => {
+    const deck: DeckData = { name: 'Test', sections: [] }
+    const staged = deckStaged(deck)
+
+    applyAddToStaged(staged, physicalCard('Lightning Bolt'), 'deck')
+
+    expect(deck.sections.map((s) => s.name)).toEqual(['Main'])
+  })
+})
+
+describe('applyAddToStaged (deck) dropped-note reporting', () => {
+  function deckWithLine(note?: string): DeckData {
+    return {
+      name: 'Test',
+      sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', note, cardId: 1 }] }],
+    }
+  }
+
+  test('reports the incoming note when a merge discards it', () => {
+    const staged = deckStaged(deckWithLine('keep me'))
+
+    const dropped = applyAddToStaged(
+      staged,
+      physicalCard('Sol Ring', { note: 'incoming note', cardId: 7 }),
+      'deck',
+    )
+
+    expect(dropped).toEqual({ cardName: 'Sol Ring', cardId: 7, note: 'incoming note' })
+    // The destination line's existing note wins; nothing is merged into it.
+    expect(staged.kind === 'deck' && staged.data.deck.sections[0]!.cards[0]!.note).toBe('keep me')
+  })
+
+  test('reports nothing when the incoming card has no note', () => {
+    const staged = deckStaged(deckWithLine('existing'))
+
+    const dropped = applyAddToStaged(staged, physicalCard('Sol Ring'), 'deck')
+
+    expect(dropped).toBeUndefined()
+  })
+
+  test('reports nothing when the incoming note matches the existing line note', () => {
+    const staged = deckStaged(deckWithLine('same note'))
+
+    const dropped = applyAddToStaged(
+      staged,
+      physicalCard('Sol Ring', { note: 'same note' }),
+      'deck',
+    )
+
+    expect(dropped).toBeUndefined()
+  })
+
+  test('reports nothing when the card appends a new line (note travels with it)', () => {
+    const staged = deckStaged(deckWithLine())
+
+    const dropped = applyAddToStaged(
+      staged,
+      physicalCard('Lightning Bolt', { note: 'travels' }),
+      'deck',
+    )
+
+    expect(dropped).toBeUndefined()
+    const deck = staged.kind === 'deck' ? staged.data.deck : null
+    expect(deck!.sections[0]!.cards.find((c) => c.name === 'Lightning Bolt')!.note).toBe('travels')
+  })
+})

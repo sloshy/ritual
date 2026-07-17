@@ -171,7 +171,7 @@ Get all printings of a card. Uses the card cache with fallback to Scryfall API.
 GET /api/card-price?name=<cardName>
 ```
 
-Get price data for a card including representative and cheapest printings for all currencies. If the cached data is more than 24 hours old, fresh data is fetched from Scryfall and the cache is updated.
+Get price data for a card including representative and cheapest printings for all currencies. If the cached data is more than 24 hours old, fresh data is fetched from Scryfall and the cache is updated. A card name with no printings returns `404`.
 
 **Query Parameters:**
 
@@ -198,6 +198,109 @@ Get price data for a card including representative and cheapest printings for al
 | `lowestPriceCard`    | The cheapest USD printing across all printings       |
 | `lowestPriceCardEur` | The cheapest EUR printing                            |
 | `lowestPriceCardTix` | The cheapest MTGO Tix printing                       |
+
+## Price Summary
+
+```
+GET /api/price/summary
+```
+
+Price every deck, collection, and wanted list from the local card cache and return per-list, per-type, and grand totals plus any list-parser warnings — the same payload as [`price --summary --output json`](/commands/price/). Prices are read strictly from the cache: when it is empty the endpoint returns `503` without downloading anything (run [`ritual cache preload-all`](/commands/cache/) first). `lastRefreshedAt` is the cache's last bulk-refresh time in Unix milliseconds, or `null` when unknown.
+
+**Query Parameters:**
+
+| Parameter  | Description                                                        | Required |
+| ---------- | ------------------------------------------------------------------ | -------- |
+| `type`     | Only price `deck`, `collection`, or `wanted` lists                 | No       |
+| `currency` | `usd`, `eur`, or `tix` (default: the configured `defaultCurrency`) | No       |
+
+An unknown `type` or `currency` returns `400`.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "currency": "usd",
+  "lastRefreshedAt": 1752600000000,
+  "lists": [
+    {
+      "type": "deck",
+      "name": "my-deck",
+      "cardCount": 100,
+      "total": 245.1,
+      "lowestTotal": 199.9,
+      "unpricedCount": 2
+    }
+  ],
+  "typeTotals": [
+    {
+      "type": "deck",
+      "listCount": 1,
+      "cardCount": 100,
+      "total": 245.1,
+      "lowestTotal": 199.9,
+      "unpricedCount": 2
+    }
+  ],
+  "totals": {
+    "listCount": 1,
+    "cardCount": 100,
+    "total": 245.1,
+    "lowestTotal": 199.9,
+    "unpricedCount": 2
+  },
+  "warnings": []
+}
+```
+
+## Price List
+
+```
+GET /api/price/:type/:slug
+```
+
+Price a single list and return its summary plus every priced card entry (in file order) — the same payload as the CLI's single-list `price <name> --output json` view. `:type` is `deck`, `collection`, or `wanted`; `:slug` is the list's file basename, matching the load endpoints. Takes the same `currency` query parameter as the summary endpoint, with the same `503` when the card cache is empty. An unknown slug returns `404`.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "currency": "usd",
+  "lastRefreshedAt": 1752600000000,
+  "list": {
+    "type": "deck",
+    "name": "my-deck",
+    "cardCount": 100,
+    "total": 245.1,
+    "lowestTotal": 199.9,
+    "unpricedCount": 2
+  },
+  "cards": [
+    {
+      "listType": "deck",
+      "listName": "my-deck",
+      "section": "Main",
+      "name": "Sol Ring",
+      "quantity": 1,
+      "set": "c21",
+      "collectorNumber": "263",
+      "pinned": true,
+      "price": 2.5,
+      "lowest": 1.1,
+      "lowestSet": "cma",
+      "lowestCollectorNumber": "215",
+      "lowestFinish": "nonfoil",
+      "cmc": 1,
+      "edhrecRank": 1,
+      "typeLine": "Artifact",
+      "fileOrder": 0
+    }
+  ],
+  "warnings": []
+}
+```
 
 ## Save Deck
 
@@ -552,7 +655,7 @@ Returns every list (deck, collection, wanted) and every movable card across them
 POST /api/move/commit
 ```
 
-Apply a batch of queued moves atomically. The move state is rebuilt from disk and each move is applied via the shared move engine, writing the source/destination files and their changelogs. The optional printing fields override the destination printing (used when a printing-less card is moved into a collection). Moves whose `cardKey` or destination can no longer be resolved are skipped and reported. When git auto-commit is enabled, the written files are committed in a single commit, the same as the editor save endpoints.
+Apply a batch of queued moves atomically. The move state is rebuilt from disk and each move is applied via the shared move engine, writing the source/destination files and their changelogs. The optional printing fields override the destination printing (used when a printing-less card is moved into a collection). The optional `toSection` (deck destinations only — `400` otherwise) places the card in that deck section, matched by exact name and created when missing; without it the default section is used. Moves whose `cardKey` or destination can no longer be resolved are skipped and reported. When git auto-commit is enabled, the written files are committed in a single commit, the same as the editor save endpoints.
 
 **Request Body:**
 
@@ -563,6 +666,7 @@ Apply a batch of queued moves atomically. The move state is rebuilt from disk an
       "cardKey": "collection:binder:1:0",
       "toType": "deck",
       "toSlug": "my-deck",
+      "toSection": "Sideboard",
       "set": "2xm",
       "collectorNumber": "270",
       "finish": "nonfoil",
@@ -574,11 +678,56 @@ Apply a batch of queued moves atomically. The move state is rebuilt from disk an
 
 **Response:**
 
+`droppedNotes` lists each note discarded by a deck quantity-merge (the card landed on an existing line whose single note slot already held a different value — the existing note wins).
+
 ```json
 {
   "success": true,
   "moved": 1,
+  "requested": 1,
   "skipped": 0,
+  "droppedNotes": [{ "cardName": "Sol Ring", "cardId": 3, "note": "from trade" }],
+  "message": "Moved 1 card."
+}
+```
+
+## Move Selected Cards
+
+```
+POST /api/move/selected
+```
+
+Move a batch of selected cards across lists atomically — backs the cross-list **Move all selected** multi-select action. Each item addresses its source card by list + identity (the same `cardId`/`copyIndex` scheme as [Remove Cards](#remove-cards)) and its destination by `toType` + `toSlug`. The optional printing fields and `toSection` behave exactly as in [Commit Moves](#commit-moves). Cards or destinations that can no longer be resolved — or whose destination is the list they already live in — are skipped and reported.
+
+**Request Body:**
+
+```json
+{
+  "moves": [
+    {
+      "listType": "deck",
+      "listSlug": "my-deck",
+      "name": "Sol Ring",
+      "cardId": 1,
+      "copyIndex": 0,
+      "toType": "collection",
+      "toSlug": "binder",
+      "set": "c21",
+      "collectorNumber": "167"
+    }
+  ]
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "moved": 1,
+  "requested": 1,
+  "skipped": 0,
+  "droppedNotes": [],
   "message": "Moved 1 card."
 }
 ```
@@ -619,13 +768,13 @@ Remove a batch of cards across lists atomically — backs the cross-list **Remov
 }
 ```
 
-## List Histories
+## List All Lists
 
 ```
-GET /api/history
+GET /api/lists
 ```
 
-Returns every list (deck, collection, wanted) as a slug-keyed summary, used to populate the [Change History](/admin/history/) page's list picker.
+Returns every list (deck, collection, wanted) as a slug-keyed summary. The single canonical enumeration endpoint — it populates the [Change History](/admin/history/) page's list picker and the cross-list move targets.
 
 **Response:**
 

@@ -4,6 +4,7 @@ import { AdaptiveMenu } from '../ui/AdaptiveMenu'
 import { useAnchoredToggle } from '../ui/useAnchoredToggle'
 import { usePointerCoarse } from '../ui/useMediaQuery'
 import type { ListRef } from '../change-event'
+import type { NamedListRef } from './combined-list'
 import type { PriceCurrency } from '../price-currency'
 import type { CardSelectionControl } from './useCardSelection'
 import { useSelectionCopy } from './useSelectionCopy'
@@ -79,9 +80,9 @@ export interface SelectionMenuProps {
    * group. Used by the navbar menu to move every selected card from its own list
    * into the chosen destination; passed only while a list is open in edit mode.
    */
-  onMoveAll?: (dest: ListRef) => void
-  /** Destination lists for the cross-list "Move all to list" group. */
-  moveAllTargets?: () => ListRef[]
+  onMoveAll?: (dest: NamedListRef) => void
+  /** Destination lists for the cross-list "Move all to list" group (slug-bearing, so senders can address by slug). */
+  moveAllTargets?: () => NamedListRef[]
 }
 
 /**

@@ -3,7 +3,13 @@ import { createStore, type SetStoreFunction, type Store } from 'solid-js/store'
 import type { DeckData, ScryfallCard } from '../../../types'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../../site/data-types'
 import { createChangeId } from '../../../change-event'
-import type { MovePhysicalCard, MoveDataResponse } from '../../api/move'
+import { formatDroppedNotesSuffix } from '../../../editor/dropped-notes'
+import type {
+  MoveCommitResponse,
+  MoveDataResponse,
+  MoveErrorResponse,
+  MovePhysicalCard,
+} from '../../api/move'
 import type { ListInfo } from '../../api/list-info'
 import {
   type PendingMove,
@@ -47,10 +53,6 @@ type EntryLoadResponse = MoveCardData & {
   sectionOrder?: string[]
 }
 type CardPrintingsResponse = { success: boolean; printings: ScryfallCard[] }
-type MoveDataError = { success: false; message: string }
-type MoveCommitResponse =
-  | { success: true; moved: number; skipped: number; message: string }
-  | { success: false; message: string }
 
 export type UseMoveSessionResult = {
   loaded: Accessor<boolean>
@@ -193,7 +195,7 @@ export function useMoveSession(): UseMoveSessionResult {
   const reloadBulk = async (): Promise<void> => {
     try {
       const resp = await fetch('/api/move', { credentials: 'same-origin' })
-      const data = (await resp.json()) as MoveDataResponse | MoveDataError
+      const data = (await resp.json()) as MoveDataResponse | MoveErrorResponse
       if (!data.success) {
         setError(data.message)
         return
@@ -435,7 +437,7 @@ export function useMoveSession(): UseMoveSessionResult {
           })),
         }),
       })
-      const json = (await resp.json()) as MoveCommitResponse
+      const json = (await resp.json()) as MoveCommitResponse | MoveErrorResponse
       if (!json.success) {
         setError(json.message)
         return
@@ -448,7 +450,10 @@ export function useMoveSession(): UseMoveSessionResult {
       // Force the viewed list (unchanged id) to reload now that its cache is cleared.
       setRefreshKey((k) => k + 1)
       const skippedNote = json.skipped > 0 ? ` (${json.skipped} skipped)` : ''
-      setStatus(`Moved ${json.moved} card${json.moved === 1 ? '' : 's'}.${skippedNote}`)
+      const droppedNote = formatDroppedNotesSuffix(json.droppedNotes)
+      setStatus(
+        `Moved ${json.moved} card${json.moved === 1 ? '' : 's'}.${skippedNote}${droppedNote}`,
+      )
     } catch (err) {
       setError(`Failed to save moves: ${errorMessage(err)}`)
     } finally {

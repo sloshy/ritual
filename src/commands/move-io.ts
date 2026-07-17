@@ -1,11 +1,12 @@
 import * as fs from 'node:fs/promises'
 import { writeFileWithHash } from '../content-hash'
+import { findOrCreateSection, resolveDefaultAddSection } from '../deck-format'
 import { importFromTextFile } from '../importers/text-file'
 import { formatCollectionLine } from './collection-helpers'
 import { formatWantedListLine } from './wanted-helpers'
 import { serializeDeckToMarkdown, parseDeckFrontMatter } from '../deck-file'
 import { allocateId, collectDeckCardIds, createIdPool, allocateNextIdFromContent } from '../card-id'
-import type { DeckSection, DeckData } from '../types'
+import type { DeckData } from '../types'
 import type { ListRef } from '../change-event'
 import type { PhysicalCard } from './move-helpers'
 
@@ -118,17 +119,39 @@ function applyRemoveFromText(staged: StagedTextFile, card: PhysicalCard): boolea
 }
 
 /**
+ * A note discarded by a deck quantity-merge: the incoming card carried a note,
+ * but it merged onto an existing line whose single note slot already holds a
+ * different value (or none). Reported rather than merged — merging would
+ * fabricate text and could not round-trip through changelogs.
+ */
+export type DroppedNote = {
+  cardName: string
+  /** The incoming card's ID in its source list, when it has one. */
+  cardId?: number
+  note: string
+}
+
+/**
  * Apply an in-memory addition to a staged file.
  * For collection destinations, throws if the card lacks set/collectorNumber.
+ *
+ * `section` (deck destinations only) targets the named deck section by exact
+ * name match, creating it when missing; when omitted, the default section is
+ * used (first non-commander/sideboard section, creating `Main` if none).
+ *
+ * Returns a {@link DroppedNote} when a deck quantity-merge discarded the
+ * incoming card's note, undefined otherwise.
  */
 export function applyAddToStaged(
   staged: StagedFile,
   card: PhysicalCard,
   listType: ListRef['type'],
-): void {
+  section?: string,
+): DroppedNote | undefined {
   if (staged.kind === 'deck') {
-    applyAddToDeck(staged, card)
-  } else if (listType === 'collection') {
+    return applyAddToDeck(staged, card, section)
+  }
+  if (listType === 'collection') {
     if (!card.set || !card.collectorNumber) {
       throw new Error(`Cannot add "${card.name}" to a collection without set and collector number`)
     }
@@ -136,22 +159,21 @@ export function applyAddToStaged(
   } else {
     staged.content = applyAddWantedLine(staged.content, card)
   }
+  return undefined
 }
 
-function applyAddToDeck(staged: StagedDeckFile, card: PhysicalCard): void {
+function applyAddToDeck(
+  staged: StagedDeckFile,
+  card: PhysicalCard,
+  section?: string,
+): DroppedNote | undefined {
   const { deck } = staged.data
-  const mainSection =
-    deck.sections.find(
-      (s) =>
-        !s.name.toLowerCase().includes('commander') && !s.name.toLowerCase().includes('sideboard'),
-    ) ??
-    (() => {
-      const s: DeckSection = { name: 'Main', cards: [] }
-      deck.sections.push(s)
-      return s
-    })()
+  const targetSection =
+    section !== undefined
+      ? findOrCreateSection(deck.sections, section)
+      : resolveDefaultAddSection(deck.sections)
 
-  const existing = mainSection.cards.find(
+  const existing = targetSection.cards.find(
     (c) =>
       c.name === card.name &&
       c.set?.toLowerCase() === card.set?.toLowerCase() &&
@@ -159,16 +181,20 @@ function applyAddToDeck(staged: StagedDeckFile, card: PhysicalCard): void {
   )
 
   if (existing) {
-    // Quantity merge into an existing line: the incoming card's note (if any) is
-    // dropped, since multiple copies share a single line and a single note slot.
-    // The destination line's existing note wins.
+    // Quantity merge into an existing line: multiple copies share a single line
+    // and a single note slot, so the destination line's existing note wins. An
+    // incoming note not already on the line is discarded — reported so callers
+    // can surface the loss.
     existing.quantity += 1
+    if (card.note && card.note !== existing.note) {
+      return { cardName: card.name, cardId: card.cardId, note: card.note }
+    }
   } else {
     // Allocate from a pool seeded by the deck's existing IDs so released IDs (gaps)
     // are reused, matching the collection/wanted add paths instead of always taking
     // the next-highest number.
     const pool = createIdPool(collectDeckCardIds(deck))
-    mainSection.cards.push({
+    targetSection.cards.push({
       quantity: 1,
       name: card.name,
       set: card.set,
@@ -179,6 +205,7 @@ function applyAddToDeck(staged: StagedDeckFile, card: PhysicalCard): void {
       cardId: allocateId(pool),
     })
   }
+  return undefined
 }
 
 function applyAddCollectionLine(content: string, card: PhysicalCard): string {

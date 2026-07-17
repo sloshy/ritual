@@ -17,14 +17,18 @@ import type {
   WantedListCardEntry,
 } from './data-types'
 
-/** A reference to a single list by its type and slug. Encoded into the combined-view URL. */
-export interface ListRef {
+/**
+ * A reference to a single list by its type and slug. Encoded into the combined-view
+ * URL. Distinct from {@link import('../change-event').ListRef}, which is keyed by
+ * display name rather than slug.
+ */
+export interface CombinedListRef {
   type: ListType
   slug: string
 }
 
-/** A {@link ListRef} paired with its display name, resolved from the site index. */
-export interface NamedListRef extends ListRef {
+/** A {@link CombinedListRef} paired with its display name, resolved from the site index. */
+export interface NamedListRef extends CombinedListRef {
   name: string
 }
 
@@ -36,23 +40,23 @@ export interface CombinedSelection {
    * every list of every type. Ignored when `all` is false.
    */
   allType?: ListType
-  refs: ListRef[]
+  refs: CombinedListRef[]
 }
 
 export interface LoadedDeckDetail {
-  ref: ListRef
+  ref: CombinedListRef
   name: string
   kind: 'deck'
   detail: DeckDetail
 }
 export interface LoadedCollectionDetail {
-  ref: ListRef
+  ref: CombinedListRef
   name: string
   kind: 'collection'
   detail: CollectionDetail
 }
 export interface LoadedWantedDetail {
-  ref: ListRef
+  ref: CombinedListRef
   name: string
   kind: 'wanted'
   detail: WantedListDetail
@@ -119,7 +123,7 @@ export function parseCombinedQuery(query: string): CombinedSelection {
     return { all: true, refs: [] }
   }
   const raw = params.get('lists') ?? ''
-  const refs: ListRef[] = []
+  const refs: CombinedListRef[] = []
   const seen = new Set<string>()
   for (const token of raw.split(',')) {
     const sep = token.indexOf(':')
@@ -137,7 +141,7 @@ export function parseCombinedQuery(query: string): CombinedSelection {
 
 // ----- Detail loading -----
 
-function detailUrl(ref: ListRef): string {
+function detailUrl(ref: CombinedListRef): string {
   if (ref.type === 'deck') return `decks/${ref.slug}.json`
   if (ref.type === 'collection') return `collections/${ref.slug}.json`
   return `wanted/${ref.slug}.json`

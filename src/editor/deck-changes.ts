@@ -1,6 +1,7 @@
 import type { DeckData } from '../types'
 import type { ChangeInput, PrintingTuple } from '../change-event'
 import { isSamePrinting } from '../change-event'
+import { findOrCreateSection, isCommanderSection, resolveDefaultAddSection } from '../deck-format'
 import { isCondition } from '../finish-condition'
 import { noteOrUndefined } from '../note-helpers'
 
@@ -10,8 +11,6 @@ export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData
     cards: s.cards.map((c) => ({ ...c })),
   }))
 
-  const isCommander = (name: string) => name.toLowerCase().includes('commander')
-  const isSideboard = (name: string) => name.toLowerCase().includes('sideboard')
   // Section-meta changes carry no card; guard the reads so the closures type-check.
   const changeCardId = 'cardId' in change ? change.cardId : undefined
   const changeCardName = 'cardName' in change ? change.cardName : ''
@@ -62,13 +61,9 @@ export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData
 
       // No existing entry — add to the explicitly requested section if given, otherwise the
       // first non-commander, non-sideboard section.
-      let targetSection = change.section
-        ? sections.find((s) => s.name === change.section)
-        : sections.find((s) => !isCommander(s.name) && !isSideboard(s.name))
-      if (!targetSection) {
-        targetSection = { name: change.section ?? 'Main', cards: [] }
-        sections.push(targetSection)
-      }
+      const targetSection = change.section
+        ? findOrCreateSection(sections, change.section)
+        : resolveDefaultAddSection(sections)
       targetSection.cards.push({
         quantity: 1,
         name: change.cardName,
@@ -94,7 +89,7 @@ export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData
     }
 
     case 'set-commander': {
-      let commanderSection = sections.find((s) => isCommander(s.name))
+      let commanderSection = sections.find((s) => isCommanderSection(s.name))
       if (!commanderSection) {
         commanderSection = { name: 'Commander', cards: [] }
         sections.unshift(commanderSection)
@@ -118,7 +113,7 @@ export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData
     }
 
     case 'unset-commander': {
-      const commanderSection = sections.find((s) => isCommander(s.name))
+      const commanderSection = sections.find((s) => isCommanderSection(s.name))
       if (!commanderSection) return { ...deck, sections }
 
       const idx =
@@ -130,12 +125,7 @@ export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData
       const [removed] = commanderSection.cards.splice(idx, 1)
       if (!removed) return { ...deck, sections }
 
-      let targetSection = sections.find((s) => !isCommander(s.name) && !isSideboard(s.name))
-      if (!targetSection) {
-        targetSection = { name: 'Main', cards: [] }
-        sections.push(targetSection)
-      }
-      targetSection.cards.push(removed)
+      resolveDefaultAddSection(sections).cards.push(removed)
       return { ...deck, sections }
     }
 
@@ -172,9 +162,7 @@ export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData
     }
 
     case 'add-section': {
-      if (!sections.some((s) => s.name === change.section)) {
-        sections.push({ name: change.section, cards: [] })
-      }
+      findOrCreateSection(sections, change.section)
       return { ...deck, sections }
     }
 
@@ -197,12 +185,7 @@ export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData
       if (found.section.name === change.section) return { ...deck, sections }
       const [moved] = found.section.cards.splice(found.idx, 1)
       if (!moved) return { ...deck, sections }
-      let destination = sections.find((s) => s.name === change.section)
-      if (!destination) {
-        destination = { name: change.section, cards: [] }
-        sections.push(destination)
-      }
-      destination.cards.push(moved)
+      findOrCreateSection(sections, change.section).cards.push(moved)
       return { ...deck, sections }
     }
 

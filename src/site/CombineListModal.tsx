@@ -7,7 +7,7 @@ import { formatPriceWithMissing } from '../price-currency'
 import { pluralizeCards } from '../deck-format'
 import { getSummaryMissingPriceCount, getSummaryTotalPrice } from './utils'
 import { LIST_TYPE_DISPLAY, type ListType } from '../list-type'
-import type { CombinedSelection, ListRef, NamedListRef } from './combined-list'
+import type { CombinedSelection, CombinedListRef, NamedListRef } from './combined-list'
 
 /** A single selectable list in the modal, flattened from the per-type summaries. */
 interface ListChoice {
@@ -28,7 +28,7 @@ const SORT_OPTIONS: SortOption[] = [
 
 const TYPE_ORDER: Record<ListType, number> = { deck: 0, collection: 1, wanted: 2 }
 
-const refKey = (ref: ListRef): string => `${ref.type}:${ref.slug}`
+const refKey = (ref: CombinedListRef): string => `${ref.type}:${ref.slug}`
 
 interface CombineListModalProps {
   open: boolean
@@ -99,9 +99,9 @@ export const CombineListModal: Component<CombineListModalProps> = (props) => {
     return list
   })
 
-  const isChecked = (ref: ListRef): boolean => all() || selected().has(refKey(ref))
+  const isChecked = (ref: CombinedListRef): boolean => all() || selected().has(refKey(ref))
 
-  const toggle = (ref: ListRef): void => {
+  const toggle = (ref: CombinedListRef): void => {
     if (all()) return
     setSelected((prev) => {
       const next = new Set(prev)
@@ -121,10 +121,10 @@ export const CombineListModal: Component<CombineListModalProps> = (props) => {
       props.onView({ all: true, refs: [] })
       return
     }
-    const others: ListRef[] = sortedChoices()
+    const others: CombinedListRef[] = sortedChoices()
       .filter((c) => selected().has(refKey(c.ref)))
       .map((c) => ({ type: c.ref.type, slug: c.ref.slug }))
-    const refs: ListRef[] = props.current
+    const refs: CombinedListRef[] = props.current
       ? [{ type: props.current.type, slug: props.current.slug }, ...others]
       : others
     props.onView({ all: false, refs })

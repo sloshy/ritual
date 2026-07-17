@@ -1,23 +1,26 @@
 import type { SelectedCard } from '../../site/useCardSelection'
-import type { ListRef, PrintingTuple } from '../../change-event'
+import type { PrintingTuple } from '../../change-event'
+import type { NamedListRef } from '../../site/combined-list'
 import { promptForPrinting } from '../../site/printing-prompt'
-import type { RemoveCommitItem, SelectedMoveItem } from '../api/move'
+import type {
+  MoveErrorResponse,
+  RemoveCommitItem,
+  RemoveCommitResponse,
+  SelectedMoveItem,
+  SelectedMoveResponse,
+} from '../api/move'
 
 /** Destination + resolved printing shared by every per-copy {@link SelectedMoveItem} of one card. */
 type MoveDestination = Pick<
   SelectedMoveItem,
-  'toType' | 'toName' | 'set' | 'collectorNumber' | 'finish' | 'condition'
+  'toType' | 'toSlug' | 'set' | 'collectorNumber' | 'finish' | 'condition'
 >
 
-/** Response shape from POST /api/remove/commit. */
-export type RemoveCommitResponse =
-  | { success: true; removed: number; requested: number; skipped: number; message: string }
-  | { success: false; message: string }
+/** Full response from POST /api/remove/commit. */
+export type RemoveCommitResult = RemoveCommitResponse | MoveErrorResponse
 
-/** Response shape from POST /api/move/selected. */
-export type SelectedMoveResponse =
-  | { success: true; moved: number; requested: number; skipped: number; message: string }
-  | { success: false; message: string }
+/** Full response from POST /api/move/selected. */
+export type SelectedMoveResult = SelectedMoveResponse | MoveErrorResponse
 
 /**
  * Expand a multi-select into per-copy remove items for the cross-list endpoint.
@@ -50,14 +53,14 @@ export function selectionToRemoveItems(cards: SelectedCard[]): RemoveCommitItem[
 }
 
 /** Remove every selected card from its list file via the atomic admin endpoint. */
-export async function removeSelectedAdmin(cards: SelectedCard[]): Promise<RemoveCommitResponse> {
+export async function removeSelectedAdmin(cards: SelectedCard[]): Promise<RemoveCommitResult> {
   const resp = await fetch('/api/remove/commit', {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ removes: selectionToRemoveItems(cards) }),
   })
-  return (await resp.json()) as RemoveCommitResponse
+  return (await resp.json()) as RemoveCommitResult
 }
 
 /**
@@ -68,12 +71,12 @@ export async function removeSelectedAdmin(cards: SelectedCard[]): Promise<Remove
  */
 async function selectionToMoveItems(
   cards: SelectedCard[],
-  dest: ListRef,
+  dest: NamedListRef,
 ): Promise<SelectedMoveItem[]> {
   const items: SelectedMoveItem[] = []
   for (const c of cards) {
     if (!c.sourceSlug) continue
-    if (c.sourceKind === dest.type && c.sourceName === dest.name) continue
+    if (c.sourceKind === dest.type && c.sourceSlug === dest.slug) continue
 
     let printing: PrintingTuple = {}
     if (dest.type === 'collection' && !(c.set && c.collectorNumber)) {
@@ -87,7 +90,7 @@ async function selectionToMoveItems(
       }
     }
 
-    const base: MoveDestination = { toType: dest.type, toName: dest.name, ...printing }
+    const base: MoveDestination = { toType: dest.type, toSlug: dest.slug, ...printing }
     if (c.sourceKind === 'deck') {
       const cardId = c.cardIds[0]
       for (let copyIndex = 0; copyIndex < c.groupSize; copyIndex++) {
@@ -119,11 +122,18 @@ async function selectionToMoveItems(
 /** Move every selected card from its own list into `dest` via the atomic admin endpoint. */
 export async function moveSelectedAdmin(
   cards: SelectedCard[],
-  dest: ListRef,
-): Promise<SelectedMoveResponse> {
+  dest: NamedListRef,
+): Promise<SelectedMoveResult> {
   const moves = await selectionToMoveItems(cards, dest)
   if (moves.length === 0) {
-    return { success: true, moved: 0, requested: 0, skipped: 0, message: 'No cards to move.' }
+    return {
+      success: true,
+      moved: 0,
+      requested: 0,
+      skipped: 0,
+      droppedNotes: [],
+      message: 'No cards to move.',
+    }
   }
   const resp = await fetch('/api/move/selected', {
     method: 'POST',
@@ -131,5 +141,5 @@ export async function moveSelectedAdmin(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ moves }),
   })
-  return (await resp.json()) as SelectedMoveResponse
+  return (await resp.json()) as SelectedMoveResult
 }

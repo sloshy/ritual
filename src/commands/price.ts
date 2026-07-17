@@ -5,31 +5,28 @@ import { getErrorMessage } from '../errors'
 import { listTypeLabel } from '../list-type'
 import { parseCurrencyFlagOrError, type PriceCurrency } from '../price-currency'
 import {
-  buildPriceReport,
   filterPricedEntries,
   hasActiveFilters,
   isPriceSortField,
-  loadPriceListInputs,
   PRICE_SORT_FIELDS,
   sumPricedEntries,
   comparePricedEntries,
   type BuiltPriceReport,
-  type ListPriceSummary,
-  type ListTypeTotals,
+  type PriceCardSearchPayload,
   type PriceEntryFilters,
   type PricedEntry,
-  type PriceReportTotals,
+  type PriceListDetailPayload,
   type PriceSortField,
-  type PriceTotals,
+  type PriceSummaryPayload,
 } from '../price-report'
+import { loadAndBuildPriceReport } from '../price-runtime'
 import {
   isResolveListError,
   listTypeFromFlags,
   resolveList,
   type ListLocation,
 } from '../resolve-list'
-import { getBannedPrintings, getDefaultCurrency } from '../ritual-config'
-import { getCardPrintings } from '../scryfall'
+import { getDefaultCurrency } from '../ritual-config'
 import { refreshCardCache } from '../cache/refresh-source'
 import {
   formatEntryChoiceTitle,
@@ -102,30 +99,6 @@ function sortedEntries(
   descending: boolean,
 ): PricedEntry[] {
   return [...entries].sort((a, b) => comparePricedEntries(a, b, sort, descending))
-}
-
-/** The `--output json` contract of the all-lists summary view. */
-type PriceSummaryPayload = {
-  currency: PriceCurrency
-  lastRefreshedAt: number | null
-  lists: ListPriceSummary[]
-  typeTotals: ListTypeTotals[]
-  totals: PriceReportTotals
-}
-
-/** The `--output json` contract of the single-list view. */
-type PriceListDetailPayload = {
-  currency: PriceCurrency
-  list: ListPriceSummary | undefined
-  cards: PricedEntry[]
-}
-
-/** The `--output json` contract of the card-search view. */
-type PriceCardSearchPayload = {
-  currency: PriceCurrency
-  filters: PriceEntryFilters
-  cards: PricedEntry[]
-  totals: PriceTotals
 }
 
 function emitSummary(
@@ -329,20 +302,15 @@ export function registerPriceCommand(program: Command): void {
     }
 
     try {
-      const bannedPrintings = getBannedPrintings()
       const buildScoped = async (
         reportCurrency: PriceCurrency,
         locations?: ListLocation[],
       ): Promise<BuiltPriceReport> => {
-        const loaded = await loadPriceListInputs(type, locations)
+        const { built, warnings } = await loadAndBuildPriceReport(type, locations, reportCurrency)
         if (scriptingOptions.output === 'text' && !scriptingOptions.quiet) {
-          for (const warning of loaded.warnings) console.warn(`⚠️  ${warning}`)
+          for (const warning of warnings) console.warn(`⚠️  ${warning}`)
         }
-        return buildPriceReport(loaded.inputs, {
-          currency: reportCurrency,
-          lookup: getCardPrintings,
-          bannedPrintings,
-        })
+        return built
       }
 
       if (!scriptingOptions.quiet && scriptingOptions.output === 'text') {

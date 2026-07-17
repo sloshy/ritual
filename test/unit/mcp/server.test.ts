@@ -4,53 +4,60 @@ import path from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import { cardCache } from '../../../src/cache'
 import { buildMcpServer } from '../../../src/mcp/server'
+import { makeScryfallCard } from '../../test-utils'
 import { setupRitualTestEnv, type RitualTestEnv } from './harness'
 
 const EXPECTED_TOOLS = [
   // read
-  'list_decks',
-  'list_collections',
-  'list_wanted',
-  'list_all_lists',
-  'load_deck',
-  'load_collection',
-  'load_wanted',
+  'list_lists',
+  'load_list',
   'search_cards',
   'autocomplete_card',
   'card_printings',
   'card_price',
+  'price_report',
   'load_history',
-  'move_candidates',
   'get_config',
   'get_audit_log',
   'export_cards',
   // write
-  'create_deck',
-  'create_collection',
-  'create_wanted',
+  'create_list',
   'import_deck',
   'import_csv',
   'import_changes',
-  'add_card_to_deck',
-  'remove_card_from_deck',
-  'add_card_to_collection',
-  'add_card_to_wanted',
+  'add_card',
+  'remove_card',
   'set_card_note',
   'set_card_printing',
+  'set_card_section',
   'set_commander',
+  'unset_commander',
+  'apply_changes',
   'move_cards',
+  'remove_cards',
   // destructive
-  'rename_deck',
-  'rename_collection',
-  'rename_wanted',
-  'delete_deck',
-  'delete_collection',
-  'delete_wanted',
+  'rename_list',
+  'delete_list',
   'rewrite_history',
   'update_config',
   'build_site',
   'refresh_cache',
+]
+
+/** Mutation tools whose schemas must never surface the internally-managed content hash. */
+const MUTATION_TOOLS = [
+  'add_card',
+  'remove_card',
+  'set_card_note',
+  'set_card_printing',
+  'set_card_section',
+  'set_commander',
+  'unset_commander',
+  'apply_changes',
+  'move_cards',
+  'remove_cards',
 ]
 
 type ConfigView = {
@@ -71,6 +78,11 @@ type AcceptedConfigUpdate = {
 type RejectedConfigUpdate = {
   label: string
   update: Record<string, unknown>
+}
+
+type LoadedDeck = {
+  deck: { sections: { name: string; cards: { name: string }[] }[] }
+  cards?: unknown
 }
 
 function firstText(result: CallToolResult): string {
@@ -107,6 +119,14 @@ describe('Ritual MCP server (in-memory transport)', () => {
     await env.cleanup()
   })
 
+  async function loadDeck(slug: string): Promise<LoadedDeck> {
+    return toolJson(await callTool(client, 'load_list', { listType: 'deck', slug })) as LoadedDeck
+  }
+
+  function deckCardNames(data: LoadedDeck): string[] {
+    return data.deck.sections.flatMap((s) => s.cards.map((c) => c.name))
+  }
+
   test('negotiates capabilities and server identity on initialize', () => {
     expect(client.getServerVersion()?.name).toBe('ritual')
     const caps = client.getServerCapabilities()
@@ -118,15 +138,18 @@ describe('Ritual MCP server (in-memory transport)', () => {
     const { tools } = await client.listTools()
     expect(new Set(tools.map((t) => t.name))).toEqual(new Set(EXPECTED_TOOLS))
 
-    const loadDeck = tools.find((t) => t.name === 'load_deck')
-    expect(loadDeck?.inputSchema.type).toBe('object')
-    expect(loadDeck?.inputSchema.required).toContain('slug')
+    const loadList = tools.find((t) => t.name === 'load_list')
+    expect(loadList?.inputSchema.type).toBe('object')
+    expect(loadList?.inputSchema.required).toContain('listType')
+    expect(loadList?.inputSchema.required).toContain('slug')
 
     // Mutation tools hide the content hash entirely — the agent never supplies one.
-    const addCard = tools.find((t) => t.name === 'add_card_to_deck')
-    const props = addCard?.inputSchema.properties ?? {}
-    expect(Object.keys(props)).toContain('cardName')
-    expect(Object.keys(props)).not.toContain('contentHash')
+    for (const name of MUTATION_TOOLS) {
+      const tool = tools.find((t) => t.name === name)
+      const props = Object.keys(tool?.inputSchema.properties ?? {})
+      expect({ name, empty: props.length === 0, hasContentHash: props.includes('contentHash') }) //
+        .toEqual({ name, empty: false, hasContentHash: false })
+    }
   })
 
   test('flags every data-destroying tool with destructiveHint', async () => {
@@ -136,15 +159,12 @@ describe('Ritual MCP server (in-memory transport)', () => {
     )
 
     // Renames, deletes, history rewrites, config/site/cache ops, plus the import
-    // tools (deck/CSV can overwrite an existing list; changes can remove cards).
+    // tools (deck/CSV can overwrite an existing list; changes can remove cards)
+    // and apply_changes (a change batch can remove cards in bulk).
     expect(destructiveHinted).toEqual(
       new Set([
-        'rename_deck',
-        'rename_collection',
-        'rename_wanted',
-        'delete_deck',
-        'delete_collection',
-        'delete_wanted',
+        'rename_list',
+        'delete_list',
         'rewrite_history',
         'update_config',
         'build_site',
@@ -152,36 +172,57 @@ describe('Ritual MCP server (in-memory transport)', () => {
         'import_deck',
         'import_csv',
         'import_changes',
+        'apply_changes',
       ]),
     )
 
     // Purely additive edits stay unflagged.
-    const addCard = tools.find((t) => t.name === 'add_card_to_deck')
+    const addCard = tools.find((t) => t.name === 'add_card')
     expect(addCard?.annotations?.destructiveHint).not.toBe(true)
   })
 
-  test('list_decks returns the synthetic deck', async () => {
-    const data = toolJson(await callTool(client, 'list_decks', {})) as {
-      decks: { slug: string; name: string }[]
+  test('list_lists returns every list and filters by listType', async () => {
+    const all = toolJson(await callTool(client, 'list_lists', {})) as {
+      lists: { listType: string; slug: string }[]
     }
-    expect(data.decks.map((d) => d.slug)).toContain('test-deck')
+    expect(all.lists.map((l) => `${l.listType}:${l.slug}`).sort()).toEqual([
+      'collection:shoebox',
+      'deck:test-deck',
+      'wanted:wishlist',
+    ])
+
+    const decksOnly = toolJson(await callTool(client, 'list_lists', { listType: 'deck' })) as {
+      lists: unknown[]
+    }
+    expect(decksOnly.lists).toEqual([{ listType: 'deck', slug: 'test-deck', name: 'Test Deck' }])
   })
 
-  test('load_deck returns the deck contents without the heavy card payload', async () => {
-    const result = await callTool(client, 'load_deck', { slug: 'test-deck' })
+  test('load_list returns deck contents without the heavy card payload', async () => {
+    const result = await callTool(client, 'load_list', { listType: 'deck', slug: 'test-deck' })
     expect(result.isError).toBeFalsy()
-    const data = toolJson(result) as {
-      deck: { sections: { cards: { name: string }[] }[] }
-      cards?: unknown
-    }
-    const names = data.deck.sections.flatMap((s) => s.cards.map((c) => c.name))
-    expect(names).toContain('Sol Ring')
+    const data = toolJson(result) as LoadedDeck
+    expect(deckCardNames(data)).toContain('Sol Ring')
+    expect(data.cards).toBeUndefined()
+  })
+
+  test('load_list returns flat-list entries', async () => {
+    const added = await callTool(client, 'add_card', {
+      listType: 'wanted',
+      slug: 'wishlist',
+      cardName: 'Brainstorm',
+    })
+    expect(added.isError).toBeFalsy()
+
+    const data = toolJson(
+      await callTool(client, 'load_list', { listType: 'wanted', slug: 'wishlist' }),
+    ) as { entries: { name: string }[]; cards?: unknown }
+    expect(data.entries.map((e) => e.name)).toContain('Brainstorm')
     expect(data.cards).toBeUndefined()
   })
 
   test('export_cards renders the selected list with chosen columns', async () => {
     const result = await callTool(client, 'export_cards', {
-      lists: [{ type: 'deck', name: 'test-deck' }],
+      lists: [{ listType: 'deck', name: 'test-deck' }],
       format: 'csv',
       columns: ['name', 'quantity', 'section'],
       quoteAll: true,
@@ -204,26 +245,44 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(firstText(result)).toContain('nope')
   })
 
-  test('add_card_to_deck persists a new card (no content hash exposed)', async () => {
-    const added = await callTool(client, 'add_card_to_deck', {
+  test('add_card persists a new deck card (no content hash exposed)', async () => {
+    const added = await callTool(client, 'add_card', {
+      listType: 'deck',
       slug: 'test-deck',
       cardName: 'Counterspell',
     })
     expect(added.isError).toBeFalsy()
 
-    const reloaded = toolJson(await callTool(client, 'load_deck', { slug: 'test-deck' })) as {
-      deck: { sections: { cards: { name: string }[] }[] }
-    }
-    const names = reloaded.deck.sections.flatMap((s) => s.cards.map((c) => c.name))
-    expect(names).toContain('Counterspell')
+    expect(deckCardNames(await loadDeck('test-deck'))).toContain('Counterspell')
 
     const onDisk = await fs.readFile(path.join(env.dir, 'decks', 'test-deck.md'), 'utf-8')
     // The card must be written with a freshly allocated &N id (1 and 2 are taken).
     expect(onDisk).toMatch(/Counterspell &\d+/)
   })
 
-  test('add_card_to_collection persists through the disk-rederiving save path', async () => {
-    const added = await callTool(client, 'add_card_to_collection', {
+  test('add_card quantity adds all copies in one save with one changelog block', async () => {
+    const added = await callTool(client, 'add_card', {
+      listType: 'deck',
+      slug: 'test-deck',
+      cardName: 'Counterspell',
+      quantity: 3,
+    })
+    expect(added.isError).toBeFalsy()
+
+    const onDisk = await fs.readFile(path.join(env.dir, 'decks', 'test-deck.md'), 'utf-8')
+    expect(onDisk).toMatch(/3 Counterspell &\d+/)
+
+    // One save round trip → exactly one "## <timestamp>" changelog block.
+    const changelog = await fs.readFile(
+      path.join(env.dir, 'decks', 'test-deck.changes.md'),
+      'utf-8',
+    )
+    expect(changelog.match(/^## /gm)).toHaveLength(1)
+  })
+
+  test('add_card persists a collection card through the disk-rederiving save path', async () => {
+    const added = await callTool(client, 'add_card', {
+      listType: 'collection',
       slug: 'shoebox',
       cardName: 'Llanowar Elves',
       set: 'LEB',
@@ -236,18 +295,295 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(onDisk).toContain('(LEB:203)')
   })
 
-  test('remove_card_from_deck deletes the line at quantity zero', async () => {
-    const removed = await callTool(client, 'remove_card_from_deck', {
+  test('add_card rejects a condition on a wanted list', async () => {
+    const result = await callTool(client, 'add_card', {
+      listType: 'wanted',
+      slug: 'wishlist',
+      cardName: 'Brainstorm',
+      condition: 'NM',
+    })
+    expect(result.isError).toBe(true)
+    expect(firstText(result).toLowerCase()).toContain('validation')
+  })
+
+  test('remove_card deletes the deck line at quantity zero', async () => {
+    const removed = await callTool(client, 'remove_card', {
+      listType: 'deck',
       slug: 'test-deck',
       cardName: 'Lightning Bolt',
     })
     expect(removed.isError).toBeFalsy()
-    const reloaded = toolJson(await callTool(client, 'load_deck', { slug: 'test-deck' })) as {
-      deck: { sections: { cards: { name: string }[] }[] }
-    }
-    const names = reloaded.deck.sections.flatMap((s) => s.cards.map((c) => c.name))
+    const names = deckCardNames(await loadDeck('test-deck'))
     expect(names).not.toContain('Lightning Bolt')
     expect(names).toContain('Sol Ring')
+  })
+
+  test('remove_card quantity removes that many deck copies in one save', async () => {
+    await callTool(client, 'add_card', {
+      listType: 'deck',
+      slug: 'test-deck',
+      cardName: 'Counterspell',
+      quantity: 3,
+    })
+    const removed = await callTool(client, 'remove_card', {
+      listType: 'deck',
+      slug: 'test-deck',
+      cardName: 'Counterspell',
+      quantity: 2,
+    })
+    expect(removed.isError).toBeFalsy()
+    const onDisk = await fs.readFile(path.join(env.dir, 'decks', 'test-deck.md'), 'utf-8')
+    expect(onDisk).toMatch(/1 Counterspell &\d+/)
+  })
+
+  test('remove_card removes a flat-list entry by name', async () => {
+    await callTool(client, 'add_card', {
+      listType: 'collection',
+      slug: 'shoebox',
+      cardName: 'Llanowar Elves',
+      set: 'LEB',
+      collectorNumber: '203',
+    })
+    const removed = await callTool(client, 'remove_card', {
+      listType: 'collection',
+      slug: 'shoebox',
+      cardName: 'Llanowar Elves',
+    })
+    expect(removed.isError).toBeFalsy()
+    const onDisk = await fs.readFile(path.join(env.dir, 'collections', 'shoebox.md'), 'utf-8')
+    expect(onDisk).not.toContain('Llanowar Elves')
+  })
+
+  test('remove_card rejects quantity above 1 on a flat list', async () => {
+    const result = await callTool(client, 'remove_card', {
+      listType: 'collection',
+      slug: 'shoebox',
+      cardName: 'Llanowar Elves',
+      quantity: 2,
+    })
+    expect(result.isError).toBe(true)
+    expect(firstText(result).toLowerCase()).toContain('validation')
+  })
+
+  test('set_card_section moves a deck card into a (created) section', async () => {
+    const moved = await callTool(client, 'set_card_section', {
+      listType: 'deck',
+      slug: 'test-deck',
+      cardName: 'Lightning Bolt',
+      section: 'Sideboard',
+    })
+    expect(moved.isError).toBeFalsy()
+    const data = await loadDeck('test-deck')
+    const sideboard = data.deck.sections.find((s) => s.name === 'Sideboard')
+    expect(sideboard?.cards.map((c) => c.name)).toEqual(['Lightning Bolt'])
+  })
+
+  test('unset_commander moves the commander back to the main section', async () => {
+    const result = await callTool(client, 'unset_commander', {
+      slug: 'test-deck',
+      cardName: 'Sol Ring',
+    })
+    expect(result.isError).toBeFalsy()
+    const data = await loadDeck('test-deck')
+    const commander = data.deck.sections.find((s) => s.name === 'Commander')
+    expect(commander?.cards ?? []).toHaveLength(0)
+    const main = data.deck.sections.find((s) => s.name === 'Main')
+    expect(main?.cards.map((c) => c.name)).toContain('Sol Ring')
+  })
+
+  test('apply_changes applies an ordered batch in one save with one changelog block', async () => {
+    const result = await callTool(client, 'apply_changes', {
+      listType: 'deck',
+      slug: 'test-deck',
+      changes: [
+        { action: 'add', cardName: 'Counterspell' },
+        { action: 'remove', cardName: 'Lightning Bolt' },
+      ],
+    })
+    expect(result.isError).toBeFalsy()
+
+    const names = deckCardNames(await loadDeck('test-deck'))
+    expect(names).toContain('Counterspell')
+    expect(names).not.toContain('Lightning Bolt')
+
+    const changelog = await fs.readFile(
+      path.join(env.dir, 'decks', 'test-deck.changes.md'),
+      'utf-8',
+    )
+    expect(changelog.match(/^## /gm)).toHaveLength(1)
+  })
+
+  test('apply_changes rejects unsupported change actions', async () => {
+    for (const action of ['move-from', 'add-section']) {
+      const result = await callTool(client, 'apply_changes', {
+        listType: 'deck',
+        slug: 'test-deck',
+        changes: [{ action, cardName: 'Sol Ring', section: 'X' }],
+      })
+      expect({ action, isError: result.isError }).toEqual({ action, isError: true })
+      expect(firstText(result).toLowerCase()).toContain('validation')
+    }
+  })
+
+  test('move_cards moves an identity-addressed card between lists', async () => {
+    const result = await callTool(client, 'move_cards', {
+      moves: [
+        {
+          listType: 'deck',
+          slug: 'test-deck',
+          cardName: 'Lightning Bolt',
+          cardId: 2,
+          toListType: 'wanted',
+          toSlug: 'wishlist',
+        },
+      ],
+    })
+    expect(result.isError).toBeFalsy()
+    const data = toolJson(result) as { moved: number; requested: number; skipped: number }
+    expect(data.moved).toBe(1)
+    expect(data.requested).toBe(1)
+    expect(data.skipped).toBe(0)
+
+    expect(deckCardNames(await loadDeck('test-deck'))).not.toContain('Lightning Bolt')
+    const wishlist = await fs.readFile(path.join(env.dir, 'wanted', 'wishlist.md'), 'utf-8')
+    expect(wishlist).toContain('Lightning Bolt')
+  })
+
+  test('move_cards skips an unresolvable item and still applies the rest', async () => {
+    const result = await callTool(client, 'move_cards', {
+      moves: [
+        {
+          listType: 'deck',
+          slug: 'test-deck',
+          cardName: 'Lightning Bolt',
+          cardId: 2,
+          toListType: 'wanted',
+          toSlug: 'wishlist',
+        },
+        {
+          listType: 'deck',
+          slug: 'test-deck',
+          cardName: 'Phantom Card',
+          cardId: 99,
+          toListType: 'wanted',
+          toSlug: 'wishlist',
+        },
+      ],
+    })
+    expect(result.isError).toBeFalsy()
+    const data = toolJson(result) as { moved: number; requested: number; skipped: number }
+    expect(data).toMatchObject({ moved: 1, requested: 2, skipped: 1 })
+  })
+
+  test('move_cards rejects toSection for a non-deck destination', async () => {
+    const result = await callTool(client, 'move_cards', {
+      moves: [
+        {
+          listType: 'deck',
+          slug: 'test-deck',
+          cardName: 'Lightning Bolt',
+          toListType: 'wanted',
+          toSlug: 'wishlist',
+          toSection: 'Main',
+        },
+      ],
+    })
+    expect(result.isError).toBe(true)
+    expect(firstText(result).toLowerCase()).toContain('validation')
+  })
+
+  test('remove_cards removes an identity-addressed batch', async () => {
+    const result = await callTool(client, 'remove_cards', {
+      removes: [{ listType: 'deck', slug: 'test-deck', cardName: 'Sol Ring', cardId: 1 }],
+    })
+    expect(result.isError).toBeFalsy()
+    const data = toolJson(result) as { removed: number; skipped: number }
+    expect(data.removed).toBe(1)
+    expect(data.skipped).toBe(0)
+    expect(deckCardNames(await loadDeck('test-deck'))).not.toContain('Sol Ring')
+  })
+
+  test('remove_cards skips an unresolvable item and still applies the rest', async () => {
+    const result = await callTool(client, 'remove_cards', {
+      removes: [
+        { listType: 'deck', slug: 'test-deck', cardName: 'Sol Ring', cardId: 1 },
+        { listType: 'deck', slug: 'test-deck', cardName: 'Phantom Card', cardId: 99 },
+      ],
+    })
+    expect(result.isError).toBeFalsy()
+    const data = toolJson(result) as { removed: number; requested: number; skipped: number }
+    expect(data).toMatchObject({ removed: 1, requested: 2, skipped: 1 })
+  })
+
+  test('price_report summarizes every list and details one list', async () => {
+    // Seed one priced printing so the cache is non-empty; the other synthetic
+    // cards resolve to no printings via the offline stub and price as missing.
+    await cardCache.bulkSet({
+      'Sol Ring': [makeScryfallCard({ name: 'Sol Ring', prices: { usd: '2.50', eur: '4.00' } })],
+    })
+
+    const summary = toolJson(await callTool(client, 'price_report', {})) as {
+      success: boolean
+      currency: string
+      lists: { type: string }[]
+    }
+    expect(summary.success).toBe(true)
+    expect(summary.currency).toBe('usd')
+    expect(summary.lists.length).toBeGreaterThan(0)
+
+    // Shape-only wiring checks: the exact totals are pinned by the price-report
+    // engine tests and the admin handler tests, not re-computed here.
+    const detail = toolJson(
+      await callTool(client, 'price_report', {
+        listType: 'deck',
+        slug: 'test-deck',
+        currency: 'eur',
+      }),
+    ) as {
+      success: boolean
+      currency: string
+      list?: { name: string; total: number }
+      cards: unknown[]
+    }
+    expect(detail.success).toBe(true)
+    expect(detail.currency).toBe('eur')
+    expect(detail.list?.name).toBe('test-deck')
+    expect(typeof detail.list?.total).toBe('number')
+    expect(detail.cards.length).toBeGreaterThan(0)
+  })
+
+  test('price_report scopes the summary to one list type with listType alone', async () => {
+    await cardCache.bulkSet({
+      'Sol Ring': [makeScryfallCard({ name: 'Sol Ring', prices: { usd: '2.50', eur: '4.00' } })],
+    })
+
+    const summary = toolJson(await callTool(client, 'price_report', { listType: 'deck' })) as {
+      success: boolean
+      lists: { type: string }[]
+    }
+    expect(summary.success).toBe(true)
+    expect(summary.lists.length).toBeGreaterThan(0)
+    expect(summary.lists.every((l) => l.type === 'deck')).toBe(true)
+  })
+
+  test('price_report rejects a slug without a listType', async () => {
+    const result = await callTool(client, 'price_report', { slug: 'test-deck' })
+    expect(result.isError).toBe(true)
+    expect(firstText(result).toLowerCase()).toContain('validation')
+  })
+
+  test('load_history returns the change sets for a list', async () => {
+    await callTool(client, 'add_card', {
+      listType: 'deck',
+      slug: 'test-deck',
+      cardName: 'Counterspell',
+    })
+    const data = toolJson(
+      await callTool(client, 'load_history', { listType: 'deck', slug: 'test-deck' }),
+    ) as { success: boolean; sets: { lines: string[] }[] }
+    expect(data.success).toBe(true)
+    expect(data.sets).toHaveLength(1)
+    expect(data.sets[0]?.lines.join('\n')).toContain('Counterspell')
   })
 
   test('import_csv creates a new list by default', async () => {
@@ -266,6 +602,18 @@ describe('Ritual MCP server (in-memory transport)', () => {
 
     const onDisk = await fs.readFile(path.join(env.dir, 'wanted', 'csv-wants.md'), 'utf-8')
     expect(onDisk).toContain('- Brainstorm &1')
+  })
+
+  test('import_csv rejects format for a non-deck list', async () => {
+    const result = await callTool(client, 'import_csv', {
+      listType: 'collection',
+      name: 'csv-cards',
+      content: 'Name\nBrainstorm',
+      columns: 'name=1',
+      format: 'commander',
+    })
+    expect(result.isError).toBe(true)
+    expect(firstText(result).toLowerCase()).toContain('validation')
   })
 
   test('import_changes applies a change bundle to the target lists', async () => {
@@ -313,35 +661,52 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(firstText(result)).toContain('Invalid change bundle')
   })
 
-  test('add_card_to_wanted persists through the entry-serializing save path', async () => {
-    const added = await callTool(client, 'add_card_to_wanted', {
-      slug: 'wishlist',
-      cardName: 'Brainstorm',
-    })
-    expect(added.isError).toBeFalsy()
-    const onDisk = await fs.readFile(path.join(env.dir, 'wanted', 'wishlist.md'), 'utf-8')
-    expect(onDisk).toContain('Brainstorm')
-  })
-
   test('returns an isError result for a missing list', async () => {
-    const result = await callTool(client, 'load_deck', { slug: 'no-such-deck' })
+    const result = await callTool(client, 'load_list', { listType: 'deck', slug: 'no-such-deck' })
     expect(result.isError).toBe(true)
     expect(firstText(result).toLowerCase()).toContain('not found')
   })
 
   test('rejects invalid arguments before reaching the handler', async () => {
-    const result = await callTool(client, 'add_card_to_deck', {})
+    const result = await callTool(client, 'add_card', {})
     expect(result.isError).toBe(true)
     expect(firstText(result).toLowerCase()).toContain('validation')
   })
 
-  test('create_deck rejects a format outside the canonical set', async () => {
-    const result = await callTool(client, 'create_deck', { name: 'Cube Deck', format: 'cube' })
+  test('create_list creates a list of each addressable type', async () => {
+    const created = await callTool(client, 'create_list', {
+      listType: 'collection',
+      name: 'Trade Binder',
+    })
+    expect(created.isError).toBeFalsy()
+
+    const lists = toolJson(await callTool(client, 'list_lists', { listType: 'collection' })) as {
+      lists: { slug: string }[]
+    }
+    expect(lists.lists.map((l) => l.slug)).toContain('Trade Binder')
+  })
+
+  test('create_list rejects a format outside the canonical set', async () => {
+    const result = await callTool(client, 'create_list', {
+      listType: 'deck',
+      name: 'Cube Deck',
+      format: 'cube',
+    })
     expect(result.isError).toBe(true)
     expect(firstText(result).toLowerCase()).toContain('validation')
   })
 
-  test('exposes lists as readable resources', async () => {
+  test('create_list rejects a format on a non-deck list', async () => {
+    const result = await callTool(client, 'create_list', {
+      listType: 'wanted',
+      name: 'Wants',
+      format: 'commander',
+    })
+    expect(result.isError).toBe(true)
+    expect(firstText(result).toLowerCase()).toContain('validation')
+  })
+
+  test('exposes lists as readable resources with the load_list projection', async () => {
     const { resources } = await client.listResources()
     const uris = resources.map((r) => r.uri)
     expect(uris).toContain('ritual://deck/test-deck')
@@ -351,27 +716,60 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(entry?.uri).toBe('ritual://deck/test-deck')
     expect(entry?.mimeType).toBe('application/json')
     const text = entry && 'text' in entry ? entry.text : ''
-    const parsed = JSON.parse(String(text)) as { deck: { name: string } }
+    const parsed = JSON.parse(String(text)) as { deck: { name: string }; cards?: unknown }
     expect(parsed.deck.name).toBe('Test Deck')
+    // Same projection as load_list: the heavy editor payload never leaks through.
+    expect(parsed.cards).toBeUndefined()
   })
 
-  test('delete_deck enforces the confirmName guard', async () => {
-    const wrong = await callTool(client, 'delete_deck', {
+  test('rename_list renames a list on disk', async () => {
+    const renamed = await callTool(client, 'rename_list', {
+      listType: 'wanted',
+      slug: 'wishlist',
+      newName: 'Big Wants',
+    })
+    expect(renamed.isError).toBeFalsy()
+    const lists = toolJson(await callTool(client, 'list_lists', { listType: 'wanted' })) as {
+      lists: { slug: string }[]
+    }
+    expect(lists.lists.map((l) => l.slug)).toContain('Big Wants')
+    expect(lists.lists.map((l) => l.slug)).not.toContain('wishlist')
+  })
+
+  test('delete_list enforces the confirmName guard', async () => {
+    const wrong = await callTool(client, 'delete_list', {
+      listType: 'deck',
       slug: 'test-deck',
       confirmName: 'Wrong Name',
     })
     expect(wrong.isError).toBe(true)
 
-    const right = await callTool(client, 'delete_deck', {
+    const right = await callTool(client, 'delete_list', {
+      listType: 'deck',
       slug: 'test-deck',
       confirmName: 'Test Deck',
     })
     expect(right.isError).toBeFalsy()
 
-    const decks = toolJson(await callTool(client, 'list_decks', {})) as {
-      decks: { slug: string }[]
+    const lists = toolJson(await callTool(client, 'list_lists', { listType: 'deck' })) as {
+      lists: { slug: string }[]
     }
-    expect(decks.decks.map((d) => d.slug)).not.toContain('test-deck')
+    expect(lists.lists.map((l) => l.slug)).not.toContain('test-deck')
+  })
+
+  test('rewrite_history replaces the change log via listType addressing', async () => {
+    const rewritten = await callTool(client, 'rewrite_history', {
+      listType: 'deck',
+      slug: 'test-deck',
+      sets: [{ timestamp: '2026-01-01T00:00:00.000Z', lines: ['- Added Sol Ring'] }],
+    })
+    expect(rewritten.isError).toBeFalsy()
+
+    const data = toolJson(
+      await callTool(client, 'load_history', { listType: 'deck', slug: 'test-deck' }),
+    ) as { sets: { lines: string[] }[] }
+    expect(data.sets).toHaveLength(1)
+    expect(data.sets[0]?.lines).toEqual(['- Added Sol Ring'])
   })
 
   test('update_config accepts valid values and get_config returns them normalized', async () => {

@@ -8,10 +8,10 @@ import {
   isSelectionViewOpen,
   closeSelectionView,
 } from '../../../site/SelectionModal'
-import type { ListRef } from '../../../change-event'
+import type { NamedListRef } from '../../../site/combined-list'
 import { useAllSelections } from '../../../site/useCardSelection'
 import { moveSelectedAdmin, removeSelectedAdmin } from '../remove-selected'
-import { useAdminLists, listInfosToRefs } from '../move-targets'
+import { useAdminLists, listInfosToNamedRefs } from '../move-targets'
 
 interface NavItem {
   id: Page
@@ -62,15 +62,26 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
     })
   }
 
-  const handleMoveAll = (dest: ListRef) => {
+  const handleMoveAll = (dest: NamedListRef) => {
     const cards = allSelections.selected()
     void moveSelectedAdmin(cards, dest).then((res) => {
-      if (res.success) allSelections.clear()
-      else window.alert(res.message)
+      if (!res.success) {
+        window.alert(res.message)
+        return
+      }
+      allSelections.clear()
+      // The navbar move has no status surface; a dropped note is silent data
+      // loss without this alert.
+      if (res.droppedNotes.length > 0) {
+        const lines = res.droppedNotes.map((d) => `${d.cardName}: "${d.note}"`)
+        window.alert(
+          `Moved, but ${lines.length} note(s) could not travel (merged onto existing lines):\n${lines.join('\n')}`,
+        )
+      }
     })
   }
 
-  const moveAllTargets = (): ListRef[] => listInfosToRefs(lists())
+  const moveAllTargets = (): NamedListRef[] => listInfosToNamedRefs(lists())
 
   const handleNav = (page: Page) => {
     props.onNavigate(page)

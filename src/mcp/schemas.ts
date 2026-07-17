@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { DECK_FORMAT_KEYS } from '../deck-format'
 import { VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
+import { VALID_CURRENCIES } from '../price-currency'
 
 /**
  * Shared zod field schemas composed into each tool's `inputSchema` raw shape.
@@ -9,6 +10,8 @@ import { VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
  */
 
 export const listTypeSchema = z.enum(['deck', 'collection', 'wanted'])
+/** Derived from the canonical currency list, so the tool schema cannot drift from it. */
+export const currencySchema = z.enum(VALID_CURRENCIES)
 export const finishSchema = z.enum(VALID_FINISHES)
 export const conditionSchema = z.enum(VALID_CONDITIONS)
 /** Derived from the canonical format list, so the tool schema cannot drift from it. */
@@ -54,3 +57,17 @@ export const sectionField = z
   .string()
   .optional()
   .describe('Section (markdown "## Section") to place the card in. Defaults to the main section.')
+
+export const quantityField = z
+  .number()
+  .int()
+  .min(1)
+  .default(1)
+  .describe('Number of copies (default 1). Applied as one change per copy in a single save.')
+
+export const copyIndexField = z
+  .number()
+  .int()
+  .min(0)
+  .optional()
+  .describe('Which copy of a deck line to target (0-based) when its quantity is above 1.')

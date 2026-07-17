@@ -48,6 +48,7 @@ type MoveSuccessPayload = {
   card: { name: string; set?: string; collectorNumber?: string; cardId?: number }
   from: { type: string; name: string }
   to: { type: string; name: string }
+  droppedNotes: { cardName: string; cardId?: number; note: string }[]
 }
 
 let dir: string
@@ -369,6 +370,92 @@ describe('move CLI headless mode (Integration)', () => {
     expect(multi).toContain('1 Lightning Bolt (2XM:157) &2')
     const target = await fs.readFile(path.join(dir, 'decks', 'target.md'), 'utf-8')
     expect(target).toContain('1 Lightning Bolt (LEA:161)')
+  })
+
+  test('--to-section places the card in the named deck section, creating it', async () => {
+    const result = await runCli(
+      [
+        'move',
+        'Lightning',
+        'Bolt',
+        '--from',
+        'deck:source',
+        '--to',
+        'deck:target',
+        '--to-section',
+        'Sideboard',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const target = await fs.readFile(path.join(dir, 'decks', 'target.md'), 'utf-8')
+    expect(target).toContain('## Sideboard')
+    expect(target.indexOf('Lightning Bolt')).toBeGreaterThan(target.indexOf('## Sideboard'))
+  })
+
+  test('--to-section with a non-deck destination is a usage error', async () => {
+    const result = await runCli(
+      [
+        'move',
+        'Lightning',
+        'Bolt',
+        '--from',
+        'deck:source',
+        '--to',
+        'collection:binder',
+        '--to-section',
+        'Sideboard',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(2)
+    const err = JSON.parse(result.stderr) as MoveErrorPayload
+    expect(err.error.code).toBe('usage_error')
+    expect(err.error.message).toContain('--to-section requires a deck destination')
+
+    // Nothing moved.
+    const source = await fs.readFile(path.join(dir, 'decks', 'source.md'), 'utf-8')
+    expect(source).toContain('2 Lightning Bolt (LEA:161) &1')
+  })
+
+  test('a note dropped by a destination quantity-merge is warned on stderr and reported in JSON', async () => {
+    await writeCollectionFile(dir, 'notes', {
+      entries: [
+        { name: 'Sol Ring', set: 'c19', collectorNumber: '221', note: 'trade pile', cardId: 1 },
+      ],
+    })
+    await writeDeckFile(dir, 'ringdeck', {
+      frontMatter: { name: 'Ring Deck' },
+      cards: [{ quantity: 1, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }],
+    })
+
+    const result = await runCli(
+      [
+        'move',
+        'Sol',
+        'Ring',
+        '--from',
+        'collection:notes',
+        '--to',
+        'deck:ringdeck',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as MoveSuccessPayload
+    expect(json.moved).toBe(1)
+    expect(json.droppedNotes).toEqual([{ cardName: 'Sol Ring', cardId: 1, note: 'trade pile' }])
+    // The warning goes to stderr, never stdout.
+    expect(result.stderr).toContain('trade pile')
+
+    const deck = await fs.readFile(path.join(dir, 'decks', 'ringdeck.md'), 'utf-8')
+    expect(deck).toContain('2 Sol Ring (C19:221)')
   })
 
   test('a malformed --set value is a usage error', async () => {

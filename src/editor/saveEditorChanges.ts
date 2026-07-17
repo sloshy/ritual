@@ -1,3 +1,5 @@
+import type { DroppedNote } from '../commands/move-io'
+import { formatDroppedNotesSuffix } from './dropped-notes'
 import type { EditorStatusActions } from './useEditorStatus'
 
 type SaveResponse = {
@@ -6,6 +8,8 @@ type SaveResponse = {
   message?: string
   conflict?: boolean
   contentHash?: string
+  /** Notes discarded by the destination side of this save's cross-list moves. */
+  droppedNotes?: DroppedNote[]
 }
 
 export async function saveEditorChanges(
@@ -24,7 +28,10 @@ export async function saveEditorChanges(
     })
     const data = (await resp.json()) as SaveResponse
     if (data.success) {
-      statusActions.saveSuccess('Changes saved successfully')
+      const droppedNote = formatDroppedNotesSuffix(data.droppedNotes ?? [])
+      statusActions.saveSuccess(
+        droppedNote ? `Changes saved successfully.${droppedNote}` : 'Changes saved successfully',
+      )
       discardAll()
       return data
     }

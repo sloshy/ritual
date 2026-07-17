@@ -118,6 +118,7 @@ ritual move "Lightning Bolt" --from deck:burn --to deck:storm
 ritual move "Lightning Bolt" --from burn --to "collection:Main Binder" -q 2
 ritual move "Demonic Tutor" --from "wanted:To Buy" --to "collection:Main Binder" \\
   --set sta --collector-number 90     # purchase flow: assign the printing on arrival
+ritual move "Duress" --from "collection:Main Binder" --to deck:storm --to-section Sideboard
 ritual move --card-id 7 --from "wanted:To Buy" --to deck:storm --output json
 \`\`\`
 
@@ -127,9 +128,13 @@ ritual move --card-id 7 --from "wanted:To Buy" --to deck:storm --output json
 - Moving into a **collection** requires a concrete printing: a card without one (a
   name-only wanted entry) takes it from \`--set\`/\`--collector-number\`, or from its
   single known printing; otherwise the command errors listing the cached printings.
+- Moving into a **deck**, \`--to-section <name>\` targets that section (exact name,
+  created if missing) instead of the default; it errors on non-deck destinations.
 - Deck sources decrement quantity, notes travel with the card, both lists get
   changelog entries, and \`-q <n>\` moves n copies of the same printing. JSON output:
-  \`{moved, card, from, to}\`.
+  \`{moved, card, from, to, droppedNotes}\` — \`droppedNotes\` lists any note discarded
+  by a quantity-merge onto an existing deck line whose note differs (also warned on
+  stderr).
 
 Interactively, \`ritual move\` (requires a terminal) opens a TUI session across all
 lists; \`--from <list>\` alone starts it with only that list enabled as a source

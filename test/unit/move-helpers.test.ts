@@ -75,6 +75,36 @@ describe('applyVirtualMove', () => {
     const dstList = makeListEntry('collection', 'Binder')
     expect(applyVirtualMove(state, 'nonexistent', dstList)).toBe(false)
   })
+
+  test('records the destination section without touching card identity', () => {
+    const srcList = makeListEntry('deck', 'Source')
+    const dstList = makeListEntry('deck', 'Target')
+    const card = makePhysicalCard('Lightning Bolt', srcList)
+    const state = buildVirtualState([card])
+
+    applyVirtualMove(state, card.key, dstList, { section: 'Sideboard' })
+
+    const vc = state.get(card.key)!
+    expect(vc.destSection).toBe('Sideboard')
+    // The section is destination routing, not card identity.
+    expect('destSection' in vc.card).toBe(false)
+  })
+
+  test('a chained retarget overwrites the destination section', () => {
+    const srcList = makeListEntry('deck', 'Source')
+    const deckB = makeListEntry('deck', 'B')
+    const deckC = makeListEntry('deck', 'C')
+    const card = makePhysicalCard('Sol Ring', srcList)
+    const state = buildVirtualState([card])
+
+    applyVirtualMove(state, card.key, deckB, { section: 'Sideboard' })
+    applyVirtualMove(state, card.key, deckC, { section: 'Maybeboard' })
+    expect(state.get(card.key)!.destSection).toBe('Maybeboard')
+
+    // A retarget without a section clears the stale one.
+    applyVirtualMove(state, card.key, deckB)
+    expect(state.get(card.key)!.destSection).toBeUndefined()
+  })
 })
 
 // ── getPendingMoves ───────────────────────────────────────────────────────────

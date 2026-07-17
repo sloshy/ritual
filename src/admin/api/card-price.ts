@@ -76,7 +76,7 @@ export async function handleCardPrice(req: Request): Promise<Response> {
         lowestPriceCardTix: null,
         message: `No printings found for '${name}'`,
       }
-      return Response.json(resp)
+      return Response.json(resp, { status: 404 })
     }
 
     const sorted = [...printings].sort((a, b) =>

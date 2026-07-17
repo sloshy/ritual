@@ -24,14 +24,14 @@ export interface SaveResult {
   contentHash: string
 }
 
-/** A list summary as returned by `GET /api/history` (every list across all three types). */
+/** A list summary as returned by `GET /api/lists` (every list across all three types). */
 export interface ListSummary {
   type: ListType
   slug: string
   name: string
 }
 
-/** `GET /api/history` body — used by the resource enumerator. */
+/** `GET /api/lists` body — used by the resource enumerator and `list_lists`. */
 export interface ListsResponse {
   lists: ListSummary[]
 }

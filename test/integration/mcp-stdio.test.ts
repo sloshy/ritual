@@ -5,15 +5,15 @@ import { binaryPath, ensureBinary, withTempDir } from './helpers/cli'
 import { writeDeckFile } from './helpers/workspace'
 
 type ToolText = { content: { type: string; text?: string }[] }
-type DeckList = { decks: { slug: string }[] }
+type ListsResult = { lists: { slug: string }[] }
 
 function text(result: unknown): string {
   const block = (result as ToolText).content[0]
   return block?.text ?? ''
 }
 
-function deckSlugs(result: unknown): string[] {
-  return (JSON.parse(text(result)) as DeckList).decks.map((d) => d.slug)
+function listSlugs(result: unknown): string[] {
+  return (JSON.parse(text(result)) as ListsResult).lists.map((l) => l.slug)
 }
 
 describe('ritual mcp (stdio)', () => {
@@ -36,20 +36,20 @@ describe('ritual mcp (stdio)', () => {
       await client.connect(transport)
       try {
         const { tools } = await client.listTools()
-        expect(tools.map((t) => t.name)).toContain('list_decks')
+        expect(tools.map((t) => t.name)).toContain('list_lists')
 
-        const listed = await client.callTool({ name: 'list_decks', arguments: {} })
-        expect(deckSlugs(listed)).toContain('starter')
+        const listed = await client.callTool({ name: 'list_lists', arguments: {} })
+        expect(listSlugs(listed)).toContain('starter')
 
         // A network-free write, proving an end-to-end mutation round-trip.
         const created = await client.callTool({
-          name: 'create_deck',
-          arguments: { name: 'Made By MCP' },
+          name: 'create_list',
+          arguments: { listType: 'deck', name: 'Made By MCP' },
         })
         expect(text(created)).toContain('Made By MCP')
 
-        const after = await client.callTool({ name: 'list_decks', arguments: {} })
-        expect(deckSlugs(after)).toContain('Made By MCP')
+        const after = await client.callTool({ name: 'list_lists', arguments: {} })
+        expect(listSlugs(after)).toContain('Made By MCP')
       } finally {
         await client.close()
       }

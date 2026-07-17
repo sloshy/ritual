@@ -8,7 +8,7 @@ import {
   commitAllMoves,
 } from '../../src/commands/move-helpers'
 import type { PhysicalCard, ListEntry } from '../../src/commands/move-helpers'
-import { collectionMarkdown, wantedMarkdown } from './helpers/workspace'
+import { collectionMarkdown, deckMarkdown, wantedMarkdown } from './helpers/workspace'
 
 // ── Fixtures ───────────────────────────────────────────────────────────────────
 
@@ -198,6 +198,103 @@ describe('commitAllMoves', () => {
     // Source is unchanged
     const srcContent = await fs.readFile(srcList.filePath, 'utf-8')
     expect(srcContent).toContain('Some Other Card')
+  })
+
+  test('a section-targeted move lands in the named deck section, creating it', async () => {
+    const srcList = makeList('collection', 'Source', 'src.md')
+    const deckList = makeList('deck', 'Deck', 'deck.md')
+    await fs.writeFile(
+      srcList.filePath,
+      collectionMarkdown({
+        title: 'Source',
+        entries: [{ name: 'Duress', set: 'usg', collectorNumber: '132', cardId: 1 }],
+      }),
+    )
+    await fs.writeFile(
+      deckList.filePath,
+      deckMarkdown({
+        frontMatter: { name: 'Deck' },
+        cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
+      }),
+    )
+
+    const card = makeCard('Duress', srcList, { set: 'usg', collectorNumber: '132' })
+    const state = buildVirtualState([card])
+    applyVirtualMove(state, card.key, deckList, { section: 'Sideboard' })
+
+    const { moved } = await commitAllMoves(state)
+    expect(moved).toBe(1)
+
+    const deckContent = await fs.readFile(deckList.filePath, 'utf-8')
+    expect(deckContent).toContain('## Sideboard')
+    expect(deckContent.indexOf('Duress')).toBeGreaterThan(deckContent.indexOf('## Sideboard'))
+  })
+
+  test('reports notes dropped by a destination quantity-merge', async () => {
+    const srcList = makeList('collection', 'Source', 'src.md')
+    const deckList = makeList('deck', 'Deck', 'deck.md')
+    await fs.writeFile(
+      srcList.filePath,
+      collectionMarkdown({
+        title: 'Source',
+        entries: [
+          {
+            name: 'Sol Ring',
+            set: 'c21',
+            collectorNumber: '167',
+            note: 'from my binder',
+            cardId: 4,
+          },
+        ],
+      }),
+    )
+    await fs.writeFile(
+      deckList.filePath,
+      deckMarkdown({
+        frontMatter: { name: 'Deck' },
+        cards: [{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '167', cardId: 1 }],
+      }),
+    )
+
+    const card = makeCard('Sol Ring', srcList, {
+      set: 'c21',
+      collectorNumber: '167',
+      note: 'from my binder',
+      cardId: 4,
+    })
+    const state = buildVirtualState([card])
+    applyVirtualMove(state, card.key, deckList)
+
+    const { moved, droppedNotes } = await commitAllMoves(state)
+    expect(moved).toBe(1)
+    expect(droppedNotes).toEqual([{ cardName: 'Sol Ring', cardId: 4, note: 'from my binder' }])
+  })
+
+  test('a failed removal reports no dropped note for that card', async () => {
+    const srcList = makeList('collection', 'Source', 'src.md')
+    const deckList = makeList('deck', 'Deck', 'deck.md')
+    // Source does NOT contain the card being moved, so the removal fails.
+    await fs.writeFile(srcList.filePath, collectionMarkdown({ title: 'Source', entries: [] }))
+    await fs.writeFile(
+      deckList.filePath,
+      deckMarkdown({
+        frontMatter: { name: 'Deck' },
+        cards: [{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '167', cardId: 1 }],
+      }),
+    )
+
+    const card = makeCard('Sol Ring', srcList, {
+      set: 'c21',
+      collectorNumber: '167',
+      note: 'would merge',
+      cardId: 9,
+    })
+    const state = buildVirtualState([card])
+    applyVirtualMove(state, card.key, deckList)
+
+    const { moved, droppedNotes } = await commitAllMoves(state)
+    expect(moved).toBe(0)
+    expect(droppedNotes).toEqual([])
   })
 
   test('missing destination file aborts before mutating source', async () => {

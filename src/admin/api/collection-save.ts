@@ -10,7 +10,7 @@ import { parseCollectionFile } from '../../collection-file'
 import { applyChangeToCollection } from '../../editor/collection-changes'
 import { collectionToMarkdown } from '../../editor/list-export'
 import { parseTitleFromContent } from '../../section-format'
-import { applyOutgoingMoves } from './move-save'
+import { applyOutgoingMoves, type ListSaveResponse } from './move-save'
 import {
   validateBodySize,
   validateContentHash,
@@ -104,8 +104,8 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
 
     // Apply the destination side of any cross-list moves first; a bad destination
     // aborts before the source is rewritten.
-    const movedFiles = await applyOutgoingMoves({ type: 'collection', name: title }, changes)
-    filesToCommit.push(...movedFiles)
+    const outgoing = await applyOutgoingMoves({ type: 'collection', name: title }, changes)
+    filesToCommit.push(...outgoing.writtenFiles)
 
     const order = sectionOrder ?? parsed.sectionOrder
     const newContent = collectionToMarkdown(title, current, order)
@@ -124,11 +124,13 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
       `Edit collection: ${slug} (${changes.length} changes)`,
     )
 
-    return Response.json({
+    const responseBody: ListSaveResponse = {
       success: true,
       message: `Saved ${changes.length} changes to ${slug}`,
       contentHash: newContentHash,
-    })
+      droppedNotes: outgoing.droppedNotes,
+    }
+    return Response.json(responseBody)
   } catch (error) {
     return Response.json({ success: false, message: getErrorMessage(error) }, { status: 500 })
   }

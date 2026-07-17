@@ -36,14 +36,19 @@ Move cards between decks, collections, and wanted lists — interactively by def
 | `--set <code>`            | Narrow the match to this set code — or assign the printing when the card has none                                |         |
 | `--collector-number <cn>` | Narrow the match to this collector number — or assign the printing when the card has none                        |         |
 | `--finish <finish>`       | Narrow the match to this finish: `nonfoil`, `foil`, `etched`                                                     |         |
+| `--to-section <name>`     | Deck destinations only: add the card to this section (exact name, created if missing)                            |         |
 | `--output <format>`       | Output format: `text`, `json`, or `ndjson`                                                                       | `text`  |
 | `--quiet`                 | Suppress non-essential output                                                                                    | `false` |
 
 ## Scripted Moves
 
-When both `--from` and `--to` are given, the move runs headlessly — no prompts, ever — making it safe for scripts and agents. A card selector is required: a card name argument or `--card-id`. Passing any scripting flag (a card name, `--quantity`, `--card-id`, `--set`, `--collector-number`, `--finish`) without both `--from` and `--to` is a usage error (exit code 2) — it never silently falls back to the interactive session.
+When both `--from` and `--to` are given, the move runs headlessly — no prompts, ever — making it safe for scripts and agents. A card selector is required: a card name argument or `--card-id`. Passing any scripting flag (a card name, `--quantity`, `--card-id`, `--set`, `--collector-number`, `--finish`, `--to-section`) without both `--from` and `--to` is a usage error (exit code 2) — it never silently falls back to the interactive session.
 
 The scripted path uses the exact same engine as the interactive session, so all its behaviors apply: deck sources decrement quantity, notes travel with the card, both lists get changelog entries, and destination lists assign fresh `&N` IDs.
+
+When the destination is a deck, `--to-section <name>` places the card in that section instead of the default (the first non-Commander, non-Sideboard section). The section is matched by exact name and created when missing; using it with a collection or wanted-list destination is a usage error.
+
+When a move quantity-merges onto an existing deck line that already carries a different note, the incoming card's note cannot travel (one line has one note slot) — the existing note wins. Each dropped note is warned on stderr, and JSON output reports them in a `droppedNotes` array (`{ cardName, cardId?, note }`).
 
 ### Examples
 
@@ -72,6 +77,12 @@ Disambiguate between printings with `--set` (or `--card-id`):
 ./ritual move "Lightning Bolt" --from deck:burn --to deck:storm --set lea
 ```
 
+Move a card into a specific deck section:
+
+```bash
+./ritual move "Duress" --from collection:binder --to deck:storm --to-section Sideboard
+```
+
 Select by card ID and emit a JSON record for scripting:
 
 ```bash
@@ -83,7 +94,8 @@ Select by card ID and emit a JSON record for scripting:
   "moved": 1,
   "card": { "name": "Demonic Tutor", "cardId": 7 },
   "from": { "type": "wanted", "name": "needs" },
-  "to": { "type": "deck", "name": "Storm" }
+  "to": { "type": "deck", "name": "Storm" },
+  "droppedNotes": []
 }
 ```
 
@@ -111,7 +123,7 @@ Run without `--to` to launch the interactive session. With `--from <list>`, the 
 Key behaviors:
 
 - **Deck moves**: Moving a card from a deck decrements its quantity by 1. The line is removed when quantity reaches 0.
-- **Note preservation**: Notes (`{note}`) on deck, collection, and wanted list entries are carried over to the destination list.
+- **Note preservation**: Notes (`{note}`) on deck, collection, and wanted list entries are carried over to the destination list. The one exception is a quantity-merge onto an existing deck line that already carries a different note — the existing note wins and the dropped note is reported after saving.
 - **Name-only wanted entries**: If a card has no set/collector number (i.e., it is a name-only wanted list entry) and the destination requires a printing (e.g., a collection), you will be prompted to resolve a printing before the move is queued.
 - **Single destination**: If only one valid destination is configured, the destination prompt is skipped and the card is queued immediately.
 - **Change tracking**: Source files receive a `Moved … to …` changelog entry. Destination files receive a `Moved … from …` changelog entry.

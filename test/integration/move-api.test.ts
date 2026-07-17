@@ -9,6 +9,7 @@ import {
   initGitRepo,
   writeCollectionFile,
   writeConfig,
+  writeDeckFile,
   writeWantedFile,
   type BoundWorkspace,
 } from './helpers/workspace'
@@ -42,16 +43,21 @@ function findCard(data: MoveDataResponse, name: string): MovePhysicalCard {
   return card
 }
 
-async function commit(
-  moves: unknown[],
-): Promise<{ success: boolean; moved: number; skipped: number }> {
+type CommitResult = {
+  success: boolean
+  moved: number
+  skipped: number
+  droppedNotes: { cardName: string; cardId?: number; note: string }[]
+}
+
+async function commit(moves: unknown[]): Promise<CommitResult> {
   const req = new Request('http://localhost/api/move/commit', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ moves }),
   })
   const resp = await handleMoveCommit(req)
-  return (await resp.json()) as { success: boolean; moved: number; skipped: number }
+  return (await resp.json()) as CommitResult
 }
 
 describe('move API', () => {
@@ -169,6 +175,92 @@ describe('move API', () => {
     const tracked = execSync('git ls-files', { cwd: tmpDir, encoding: 'utf-8' })
     expect(tracked).toContain('collections/src.md')
     expect(tracked).toContain('collections/dst.md')
+  })
+
+  test('toSection places the card in the named deck section and reports dropped notes', async () => {
+    await writeCollectionFile(tmpDir, 'binder', {
+      title: 'Binder',
+      entries: [
+        {
+          name: 'Duress',
+          set: 'usg',
+          collectorNumber: '132',
+          note: 'sideboard tech',
+          cardId: 1,
+        },
+      ],
+    })
+    const deckPath = await writeDeckFile(tmpDir, 'my-deck', {
+      frontMatter: { name: 'My Deck' },
+      cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
+    })
+
+    const data = await loadData()
+    const card = findCard(data, 'Duress')
+
+    const result = await commit([
+      { cardKey: card.key, toType: 'deck', toSlug: 'my-deck', toSection: 'Sideboard' },
+    ])
+    expect(result.moved).toBe(1)
+    // No quantity-merge happened, so nothing was dropped.
+    expect(result.droppedNotes).toEqual([])
+
+    const deck = await fs.readFile(deckPath, 'utf-8')
+    expect(deck).toContain('## Sideboard')
+    expect(deck.indexOf('Duress')).toBeGreaterThan(deck.indexOf('## Sideboard'))
+  })
+
+  test('a quantity-merge into a deck reports the discarded note', async () => {
+    await writeCollectionFile(tmpDir, 'binder', {
+      title: 'Binder',
+      entries: [
+        {
+          name: 'Sol Ring',
+          set: 'c21',
+          collectorNumber: '167',
+          note: 'from trade',
+          cardId: 3,
+        },
+      ],
+    })
+    await writeDeckFile(tmpDir, 'my-deck', {
+      frontMatter: { name: 'My Deck' },
+      cards: [{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '167', cardId: 1 }],
+    })
+
+    const data = await loadData()
+    // The load endpoint returns both copies; pick the collection one as the source.
+    const source = data.cards.find((c) => c.name === 'Sol Ring' && c.listType === 'collection')!
+
+    const result = await commit([{ cardKey: source.key, toType: 'deck', toSlug: 'my-deck' }])
+    expect(result.moved).toBe(1)
+    expect(result.droppedNotes).toEqual([{ cardName: 'Sol Ring', cardId: 3, note: 'from trade' }])
+  })
+
+  test('rejects toSection when the destination is not a deck', async () => {
+    await writeCollectionFile(tmpDir, 'binder', {
+      title: 'Binder',
+      entries: [{ name: 'Sol Ring', set: 'c21', collectorNumber: '167', cardId: 1 }],
+    })
+    const req = new Request('http://localhost/api/move/commit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        moves: [
+          {
+            cardKey: 'collection:binder:1:0',
+            toType: 'collection',
+            toSlug: 'binder',
+            toSection: 'Main',
+          },
+        ],
+      }),
+    })
+    const resp = await handleMoveCommit(req)
+    expect(resp.status).toBe(400)
+    const body = (await resp.json()) as { success: boolean; message: string }
+    expect(body.success).toBe(false)
+    expect(body.message).toContain('toSection')
   })
 
   test('rejects a request whose moves field is not an array', async () => {

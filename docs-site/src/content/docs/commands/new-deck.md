@@ -70,7 +70,7 @@ one — the CLI, the editors, imports, and the admin site.
 
 A deck's format lives in its `format:` front matter, and is the same closed set of
 values everywhere it is used — `new-deck`, the editors, `import-csv`, the admin
-site, and the MCP `create_deck` tool.
+site, and the MCP `create_list` tool.
 
 A deck that declares no format is treated as Commander when it has a `## Commander`
 section (Oathbreaker for a `## Oathbreaker` or `## Signature Spell` section). That

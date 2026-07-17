@@ -2,15 +2,8 @@ import { ResourceTemplate, type McpServer } from '@modelcontextprotocol/sdk/serv
 import { isListType } from '../list-type'
 import { callApi } from './dispatch'
 import { apiErrorToMcp } from './errors'
+import { loadProjectedList } from './projection'
 import type { ListsResponse } from './types'
-
-/** Map a list type + slug to the admin load endpoint that backs its resource read. */
-function endpointFor(type: string, slug: string): string {
-  const encoded = encodeURIComponent(slug)
-  if (type === 'deck') return `/api/deck/${encoded}`
-  if (type === 'collection') return `/api/collection/${encoded}`
-  return `/api/wanted/${encoded}`
-}
 
 /** Template variables arrive as string | string[]; take the first concrete value. */
 function firstValue(value: string | string[] | undefined): string {
@@ -20,15 +13,16 @@ function firstValue(value: string | string[] | undefined): string {
 
 /**
  * Expose every deck, collection, and wanted list as a readable MCP resource at
- * `ritual://{type}/{slug}`. The `list` callback enumerates them via GET /api/history;
- * a read dispatches to the matching load endpoint and returns the JSON payload.
+ * `ritual://{type}/{slug}`. The `list` callback enumerates them via GET /api/lists;
+ * a read returns the same agent-facing projection as the `load_list` tool (see
+ * {@link loadProjectedList}) — never the raw editor payload.
  */
 export function registerResources(server: McpServer): void {
   server.registerResource(
     'ritual-list',
     new ResourceTemplate('ritual://{type}/{slug}', {
       list: async () => {
-        const data = (await callApi('GET', '/api/history')) as ListsResponse
+        const data = (await callApi('GET', '/api/lists')) as ListsResponse
         return {
           resources: data.lists.map((entry) => ({
             uri: `ritual://${entry.type}/${entry.slug}`,
@@ -49,7 +43,7 @@ export function registerResources(server: McpServer): void {
       if (!isListType(type)) {
         throw apiErrorToMcp(400, { message: `Unknown list type "${type}" in ${uri.href}` })
       }
-      const data = await callApi('GET', endpointFor(type, slug))
+      const data = await loadProjectedList(type, slug)
       return {
         contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(data) }],
       }

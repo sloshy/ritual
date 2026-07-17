@@ -5,7 +5,7 @@ import { appendChangelog } from '../../changelog-writer'
 import type { DeckData } from '../../types'
 import type { ChangeEvent } from '../../change-event'
 import { getDecksDir } from '../../ritual-config'
-import { applyOutgoingMoves } from './move-save'
+import { applyOutgoingMoves, type ListSaveResponse } from './move-save'
 import {
   validateBodySize,
   validateContentHash,
@@ -65,8 +65,8 @@ export async function handleDeckSave(req: Request): Promise<Response> {
     // Apply the destination side of any cross-list moves first; a bad destination
     // (missing list, or a printing-less card into a collection) aborts before the
     // source is written.
-    const movedFiles = await applyOutgoingMoves({ type: 'deck', name: deck.name }, changes)
-    filesToCommit.push(...movedFiles)
+    const outgoing = await applyOutgoingMoves({ type: 'deck', name: deck.name }, changes)
+    filesToCommit.push(...outgoing.writtenFiles)
 
     // Write changelog
     if (changes.length > 0) {
@@ -87,11 +87,13 @@ export async function handleDeckSave(req: Request): Promise<Response> {
       `Edit deck: ${deck.name} (${changes.length} changes)`,
     )
 
-    return Response.json({
+    const responseBody: ListSaveResponse = {
       success: true,
       message: `Saved ${changes.length} changes to ${deck.name}`,
       contentHash: newContentHash,
-    })
+      droppedNotes: outgoing.droppedNotes,
+    }
+    return Response.json(responseBody)
   } catch (error) {
     return Response.json({ success: false, message: getErrorMessage(error) }, { status: 500 })
   }

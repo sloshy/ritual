@@ -111,6 +111,27 @@ export function isSideboardSection(name: string): boolean {
   return name.toLowerCase().includes('sideboard')
 }
 
+/** Find a deck section by exact name, creating and appending an empty one when missing. */
+export function findOrCreateSection(sections: DeckSection[], name: string): DeckSection {
+  const existing = sections.find((s) => s.name === name)
+  if (existing) return existing
+  const created: DeckSection = { name, cards: [] }
+  sections.push(created)
+  return created
+}
+
+/**
+ * The section an unqualified add lands in: the first section that is neither the
+ * commander nor the sideboard, creating and appending `Main` when none exists.
+ */
+export function resolveDefaultAddSection(sections: DeckSection[]): DeckSection {
+  const existing = sections.find((s) => !isCommanderSection(s.name) && !isSideboardSection(s.name))
+  if (existing) return existing
+  const created: DeckSection = { name: 'Main', cards: [] }
+  sections.push(created)
+  return created
+}
+
 export function isExtraSection(name: string): boolean {
   const low = name.toLowerCase()
   return low.includes('maybeboard') || low.includes('token')

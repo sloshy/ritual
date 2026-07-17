@@ -11,11 +11,11 @@ import {
 } from '../../../changelog-blocks'
 import type { ListInfo } from '../../api/list-info'
 import type {
-  HistoryListsResponse,
   HistoryLoadResponse,
   HistorySaveResponse,
   HistoryErrorResponse,
 } from '../../api/history'
+import type { ListsResponse } from '../../api/lists'
 import { type ListId, listInfoId } from '../list-grouping'
 
 export type UseHistorySessionResult = {
@@ -101,8 +101,8 @@ export function useHistorySession(): UseHistorySessionResult {
 
   const reloadLists = async (): Promise<void> => {
     try {
-      const resp = await fetch('/api/history', { credentials: 'same-origin' })
-      const data = (await resp.json()) as HistoryListsResponse | HistoryErrorResponse
+      const resp = await fetch('/api/lists', { credentials: 'same-origin' })
+      const data = (await resp.json()) as ListsResponse | HistoryErrorResponse
       if (!data.success) {
         setError(data.message)
         return

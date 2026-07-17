@@ -1,17 +1,14 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { callApi } from '../dispatch'
+import { loadProjectedList } from '../projection'
 import { jsonResult } from '../result'
-import { finishSchema, listTypeSchema, slugField } from '../schemas'
+import { currencySchema, finishSchema, listTypeSchema, slugField } from '../schemas'
 import { EXPORT_PROPERTIES } from '../../export/render'
 import { VALID_CONDITIONS } from '../../finish-condition'
+import type { ListType } from '../../list-type'
 import type { ScryfallCard } from '../../types'
-import type {
-  CollectionLoadResult,
-  DeckLoadResult,
-  PrintingSummary,
-  WantedLoadResult,
-} from '../types'
+import type { ListsResponse, PrintingSummary } from '../types'
 
 /** The Scryfall fields the printing summary projects from (all optional on input). */
 type RawScryfallCard = Partial<
@@ -32,6 +29,18 @@ interface CardPrintingsResponse {
   printings: RawScryfallCard[]
 }
 
+/** One list as `list_lists` returns it (the tool vocabulary uses `listType`, not `type`). */
+interface ListSummaryResult {
+  listType: ListType
+  slug: string
+  name: string
+}
+
+/** `list_lists` result: every (optionally type-filtered) list as a summary. */
+interface ListListsResult {
+  lists: ListSummaryResult[]
+}
+
 /** Project a full Scryfall card to the compact fields agents need, dropping image URLs etc. */
 function summarizePrinting(card: RawScryfallCard | null): PrintingSummary | null {
   if (!card) return null
@@ -50,99 +59,42 @@ function summarizePrinting(card: RawScryfallCard | null): PrintingSummary | null
 /**
  * Register the read-only tools: listing, loading (projected to drop the heavy
  * Scryfall card/printing/price payloads the editors need but agents do not),
- * card search/lookup, change history, the cross-list move candidates, and config.
+ * card search/lookup, price reports, change history, config, and exports.
  */
 export function registerReadTools(server: McpServer): void {
   server.registerTool(
-    'list_decks',
+    'list_lists',
     {
-      title: 'List decks',
-      description: 'List every deck as { slug, name }.',
-      inputSchema: {},
+      title: 'List lists',
+      description:
+        'List every deck, collection, and wanted list as { listType, slug, name }, ' +
+        'optionally filtered to one list type.',
+      inputSchema: {
+        listType: listTypeSchema.optional().describe('Only return lists of this type.'),
+      },
       annotations: { readOnlyHint: true },
     },
-    async () => jsonResult(await callApi('GET', '/api/decks')),
-  )
-
-  server.registerTool(
-    'list_collections',
-    {
-      title: 'List collections',
-      description: 'List every collection.',
-      inputSchema: {},
-      annotations: { readOnlyHint: true },
-    },
-    async () => jsonResult(await callApi('GET', '/api/collections')),
-  )
-
-  server.registerTool(
-    'list_wanted',
-    {
-      title: 'List wanted lists',
-      description: 'List every wanted list.',
-      inputSchema: {},
-      annotations: { readOnlyHint: true },
-    },
-    async () => jsonResult(await callApi('GET', '/api/wanted')),
-  )
-
-  server.registerTool(
-    'list_all_lists',
-    {
-      title: 'List all lists',
-      description: 'List every deck, collection, and wanted list as { type, slug, name }.',
-      inputSchema: {},
-      annotations: { readOnlyHint: true },
-    },
-    async () => jsonResult(await callApi('GET', '/api/history')),
-  )
-
-  server.registerTool(
-    'load_deck',
-    {
-      title: 'Load deck',
-      description: 'Load a deck: its sections, cards, and front matter.',
-      inputSchema: { slug: slugField },
-      annotations: { readOnlyHint: true },
-    },
-    async ({ slug }) => {
-      const data = (await callApi('GET', `/api/deck/${encodeURIComponent(slug)}`)) as DeckLoadResult
-      return jsonResult({ slug, deck: data.deck, frontMatter: data.frontMatter })
+    async ({ listType }) => {
+      const data = (await callApi('GET', '/api/lists')) as ListsResponse
+      const lists = listType ? data.lists.filter((l) => l.type === listType) : data.lists
+      const result: ListListsResult = {
+        lists: lists.map((l) => ({ listType: l.type, slug: l.slug, name: l.name })),
+      }
+      return jsonResult(result)
     },
   )
 
   server.registerTool(
-    'load_collection',
+    'load_list',
     {
-      title: 'Load collection',
-      description: 'Load a collection: its card entries and section order.',
-      inputSchema: { slug: slugField },
+      title: 'Load list',
+      description:
+        'Load one list. Decks return { slug, deck, frontMatter }; collections and wanted ' +
+        'lists return { slug, entries, sectionOrder }.',
+      inputSchema: { listType: listTypeSchema, slug: slugField },
       annotations: { readOnlyHint: true },
     },
-    async ({ slug }) => {
-      const data = (await callApi(
-        'GET',
-        `/api/collection/${encodeURIComponent(slug)}`,
-      )) as CollectionLoadResult
-      return jsonResult({ slug, entries: data.entries, sectionOrder: data.sectionOrder })
-    },
-  )
-
-  server.registerTool(
-    'load_wanted',
-    {
-      title: 'Load wanted list',
-      description: 'Load a wanted list: its card entries and section order.',
-      inputSchema: { slug: slugField },
-      annotations: { readOnlyHint: true },
-    },
-    async ({ slug }) => {
-      const data = (await callApi(
-        'GET',
-        `/api/wanted/${encodeURIComponent(slug)}`,
-      )) as WantedLoadResult
-      return jsonResult({ slug, entries: data.entries, sectionOrder: data.sectionOrder })
-    },
+    async ({ listType, slug }) => jsonResult(await loadProjectedList(listType, slug)),
   )
 
   server.registerTool(
@@ -194,7 +146,9 @@ export function registerReadTools(server: McpServer): void {
     'card_price',
     {
       title: 'Card price',
-      description: 'Get a card’s representative printing and cheapest printing per currency.',
+      description:
+        'Get a card’s representative printing and cheapest printing per currency. ' +
+        'An unknown card name is an error.',
       inputSchema: { name: z.string().min(1).describe('Exact card name.') },
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
@@ -214,27 +168,59 @@ export function registerReadTools(server: McpServer): void {
   )
 
   server.registerTool(
+    'price_report',
+    {
+      title: 'Price report',
+      description:
+        'Price lists from the local card cache. With listType + slug, one list’s summary plus ' +
+        'its priced card entries; with listType alone, per-list totals across every list of ' +
+        'that type; with neither, per-list totals across every list. Errors when the card ' +
+        'cache is empty (run refresh_cache first).',
+      inputSchema: z
+        .object({
+          listType: listTypeSchema
+            .optional()
+            .describe('Restrict to one list type (alone) or name one list (with slug).'),
+          slug: slugField.optional(),
+          currency: currencySchema
+            .optional()
+            .describe('Pricing currency; defaults to the configured defaultCurrency.'),
+        })
+        .superRefine((val, ctx) => {
+          if (val.slug !== undefined && val.listType === undefined) {
+            ctx.addIssue({
+              code: 'custom',
+              message: 'slug requires listType (omit both for the all-lists summary).',
+            })
+          }
+        }),
+      annotations: { readOnlyHint: true },
+    },
+    async ({ listType, slug, currency }) => {
+      if (listType !== undefined && slug !== undefined) {
+        const query = currency === undefined ? '' : `?currency=${currency}`
+        return jsonResult(
+          await callApi('GET', `/api/price/${listType}/${encodeURIComponent(slug)}${query}`),
+        )
+      }
+      const params = new URLSearchParams()
+      if (listType !== undefined) params.set('type', listType)
+      if (currency !== undefined) params.set('currency', currency)
+      const query = params.size > 0 ? `?${params}` : ''
+      return jsonResult(await callApi('GET', `/api/price/summary${query}`))
+    },
+  )
+
+  server.registerTool(
     'load_history',
     {
       title: 'Load change history',
       description: 'Load a list’s change history (newest first) plus the default-rewrite lines.',
-      inputSchema: { type: listTypeSchema, slug: slugField },
+      inputSchema: { listType: listTypeSchema, slug: slugField },
       annotations: { readOnlyHint: true },
     },
-    async ({ type, slug }) =>
-      jsonResult(await callApi('GET', `/api/history/${type}/${encodeURIComponent(slug)}`)),
-  )
-
-  server.registerTool(
-    'move_candidates',
-    {
-      title: 'Move candidates',
-      description:
-        'List every movable card across all lists with an opaque key for use with move_cards.',
-      inputSchema: {},
-      annotations: { readOnlyHint: true },
-    },
-    async () => jsonResult(await callApi('GET', '/api/move')),
+    async ({ listType, slug }) =>
+      jsonResult(await callApi('GET', `/api/history/${listType}/${encodeURIComponent(slug)}`)),
   )
 
   server.registerTool(
@@ -278,8 +264,15 @@ export function registerReadTools(server: McpServer): void {
         lists: z
           .array(
             z.object({
-              type: listTypeSchema.optional().describe('Pin the list type of an ambiguous name.'),
-              name: z.string().min(1).describe('List name (matched like CLI list arguments).'),
+              listType: listTypeSchema
+                .optional()
+                .describe('Pin the list type of an ambiguous name.'),
+              name: z
+                .string()
+                .min(1)
+                .describe(
+                  'List name (matched like CLI list arguments; a slug/file basename also works).',
+                ),
             }),
           )
           .optional()
@@ -321,6 +314,12 @@ export function registerReadTools(server: McpServer): void {
       },
       annotations: { readOnlyHint: true },
     },
-    async (args) => jsonResult(await callApi('POST', '/api/export', args)),
+    async ({ lists, ...rest }) =>
+      jsonResult(
+        await callApi('POST', '/api/export', {
+          ...rest,
+          lists: lists?.map((l) => ({ type: l.listType, name: l.name })),
+        }),
+      ),
   )
 }

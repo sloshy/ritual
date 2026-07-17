@@ -5,6 +5,7 @@ import { promptExitMenu } from './prompts-helpers'
 import { resolveCardPrinting } from './collection-helpers'
 import { listRefLabel, type ListRef } from '../change-event'
 import type { ListEntry, MoveSessionConfig, PhysicalCard, VirtualCard } from './move-helpers'
+import type { DroppedNote } from './move-io'
 import {
   loadAllLists,
   loadPhysicalCards,
@@ -89,6 +90,7 @@ type MoveCliOptions = {
   set?: string
   collectorNumber?: string
   finish?: string
+  toSection?: string
 } & Partial<ScriptingOptions>
 
 export function registerMoveCommand(program: Command): void {
@@ -117,7 +119,11 @@ export function registerMoveCommand(program: Command): void {
         '--collector-number <cn>',
         'Narrow the match to this collector number, or assign the printing when the card has none',
       )
-      .option('--finish <finish>', `Narrow the match to this finish: ${VALID_FINISHES.join(', ')}`),
+      .option('--finish <finish>', `Narrow the match to this finish: ${VALID_FINISHES.join(', ')}`)
+      .option(
+        '--to-section <name>',
+        'Deck destinations only: add the card to this section (exact name, created if missing)',
+      ),
   ).action(async (cardNameParts: string[], options: MoveCliOptions) => {
     const scripting = normalizeScriptingOptions(options, 'text')
     const cardName = cardNameParts.join(' ').trim() || undefined
@@ -142,6 +148,7 @@ export function registerMoveCommand(program: Command): void {
             setRaw: options.set,
             collectorNumber: options.collectorNumber,
             finishRaw: options.finish,
+            toSectionRaw: options.toSection,
           },
           scripting,
         )
@@ -154,7 +161,8 @@ export function registerMoveCommand(program: Command): void {
         options.quantity !== undefined ||
         options.set !== undefined ||
         options.collectorNumber !== undefined ||
-        options.finish !== undefined
+        options.finish !== undefined ||
+        options.toSection !== undefined
       ) {
         throw new CardCommandError(
           'usage_error',
@@ -315,6 +323,7 @@ type HeadlessMoveArgs = {
   setRaw: string | undefined
   collectorNumber: string | undefined
   finishRaw: string | undefined
+  toSectionRaw: string | undefined
 }
 
 /** Validated card-selection criteria for a scripted move. */
@@ -350,6 +359,8 @@ type MoveSuccessOutput = {
   card: MovedCardSummary
   from: MoveListRefOutput
   to: MoveListRefOutput
+  /** Notes discarded by deck quantity-merges at the destination. */
+  droppedNotes: DroppedNote[]
 }
 
 function parseQuantityFlag(raw: string): number {
@@ -425,6 +436,18 @@ async function runHeadlessMove(args: HeadlessMoveArgs, scripting: ScriptingOptio
     )
   }
 
+  const toSection = args.toSectionRaw?.trim()
+  if (toSection !== undefined && toSection === '') {
+    throw new CardCommandError('usage_error', '--to-section cannot be empty.', ExitCode.UsageError)
+  }
+  if (toSection !== undefined && toResolved.type !== 'deck') {
+    throw new CardCommandError(
+      'usage_error',
+      '--to-section requires a deck destination.',
+      ExitCode.UsageError,
+    )
+  }
+
   const allLists = await loadAllLists()
   const fromEntry = allLists.find((l) => l.filePath === fromResolved.filePath)
   const toEntry = allLists.find((l) => l.filePath === toResolved.filePath)
@@ -450,9 +473,19 @@ async function runHeadlessMove(args: HeadlessMoveArgs, scripting: ScriptingOptio
   }
 
   for (const vc of selected) {
-    applyVirtualMove(state, vc.physicalKey, toEntry)
+    applyVirtualMove(state, vc.physicalKey, toEntry, { section: toSection })
   }
-  const { moved } = await commitAllMoves(state)
+  const { moved, droppedNotes } = await commitAllMoves(state)
+
+  // Surface any note discarded by a destination quantity-merge on stderr, so it
+  // never pollutes stdout in json/ndjson mode. Data loss is essential output —
+  // not suppressed by --quiet.
+  for (const dn of droppedNotes) {
+    const idPart = dn.cardId !== undefined ? ` &${dn.cardId}` : ''
+    process.stderr.write(
+      `Warning: note on "${dn.cardName}"${idPart} was dropped (merged onto an existing line): ${dn.note}\n`,
+    )
+  }
 
   if (moved < selection.quantity) {
     throw new CardCommandError(
@@ -463,7 +496,7 @@ async function runHeadlessMove(args: HeadlessMoveArgs, scripting: ScriptingOptio
     )
   }
 
-  emitMoveSuccess(selected[0]!.card, moved, fromEntry, toEntry, scripting)
+  emitMoveSuccess(selected[0]!.card, moved, fromEntry, toEntry, droppedNotes, scripting)
 }
 
 /**
@@ -673,6 +706,7 @@ function emitMoveSuccess(
   moved: number,
   from: ListEntry,
   to: ListEntry,
+  droppedNotes: DroppedNote[],
   scripting: ScriptingOptions,
 ): void {
   if (scripting.output === 'text') {
@@ -697,6 +731,7 @@ function emitMoveSuccess(
     },
     from: { type: from.ref.type, name: from.ref.name },
     to: { type: to.ref.type, name: to.ref.name },
+    droppedNotes,
   }
   emitOutput(payload, scripting)
 }
@@ -709,7 +744,13 @@ async function savePendingMoves(virtualState: Map<string, VirtualCard>): Promise
   }
 
   console.log(`Saving ${pending.length} move(s)...`)
-  const { moved } = await commitAllMoves(virtualState)
+  const { moved, droppedNotes } = await commitAllMoves(virtualState)
+  for (const dn of droppedNotes) {
+    const idPart = dn.cardId !== undefined ? ` &${dn.cardId}` : ''
+    console.log(
+      `  ⚠ Note on "${dn.cardName}"${idPart} was dropped (merged onto an existing line): ${dn.note}`,
+    )
+  }
   console.log(`Done. Moved ${moved} card(s).`)
 }
 

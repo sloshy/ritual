@@ -419,7 +419,7 @@ List every deck, collection, and wanted list as lightweight summaries. Backs the
 
 **Auth required:** Yes
 
-Move a batch of selected cards across lists atomically — the server side of the cross-list **All Selected → Move all to list…** action. Each item identifies a card by its source list and identity and names a destination list (by `toType` + `toName`); optional `set`/`collectorNumber`/`finish`/`condition` pin a resolved printing (required when moving a printing-less card into a collection).
+Move a batch of selected cards across lists atomically — the server side of the cross-list **All Selected → Move all to list…** action. Each item identifies a card by its source list and identity and names a destination list (by `toType` + `toSlug`); optional `set`/`collectorNumber`/`finish`/`condition` pin a resolved printing (required when moving a printing-less card into a collection), and `toSection` (deck destinations only) places the card in that section. See the [admin API reference](/admin/api/#move-selected-cards) for the full request/response specification.
 
 **Request body:**
 
@@ -433,7 +433,7 @@ Move a batch of selected cards across lists atomically — the server side of th
       "cardId": 3,
       "copyIndex": 0,
       "toType": "collection",
-      "toName": "Binder",
+      "toSlug": "binder",
       "set": "lea",
       "collectorNumber": "161"
     }
@@ -441,7 +441,7 @@ Move a batch of selected cards across lists atomically — the server side of th
 }
 ```
 
-**Response:** `{ "success": true, "moved": 1, "requested": 1, "skipped": 0, "message": "Moved 1 card." }`. Cards whose source or destination can no longer be resolved (or whose destination is their own list) are skipped and counted.
+**Response:** `{ "success": true, "moved": 1, "requested": 1, "skipped": 0, "droppedNotes": [], "message": "Moved 1 card." }`. Cards whose source or destination can no longer be resolved (or whose destination is their own list) are skipped and counted.
 
 ### `POST /api/search-cards`
 

@@ -1,6 +1,5 @@
 import { getErrorMessage } from '../../errors'
 import { getBaseDir } from '../../base-dir'
-import { isListType, type ListType } from '../../list-type'
 import {
   isValidIso8601,
   parseChangeSets,
@@ -13,10 +12,10 @@ import {
   changesPathFor,
   loadListSnapshot,
 } from '../../commands/history-helpers'
-import { listSlug, loadListInfos, resolveListFile, type ListInfo } from './list-info'
+import { listSlug, resolveListFile } from './list-info'
 import { validateBodySize, autoCommitAndPush } from './save-helpers'
+import { parseListTarget } from './target'
 
-export type HistoryListsResponse = { success: true; lists: ListInfo[] }
 export type HistoryLoadResponse = {
   success: true
   /** Everything before the first change set (e.g. `# Changelog for My Deck`). */
@@ -32,38 +31,11 @@ export type HistoryErrorResponse = { success: false; message: string }
 /** Untrusted save body, validated before narrowing to `{ sets: ChangeSet[] }`. */
 type RawSaveBody = { sets?: unknown }
 
-/** The validated `:type` / `:slug` path target shared by the load and save routes. */
-type HistoryTarget = { type: ListType; slug: string }
-
 const CHANGE_LINE = /^-\s+/
 
 function error(message: string, status: number): Response {
   const body: HistoryErrorResponse = { success: false, message }
   return Response.json(body, { status })
-}
-
-/** Parse and validate the `:type` / `:slug` path segments shared by the load and save routes. */
-function parseTarget(req: Request): HistoryTarget | Response {
-  const parts = new URL(req.url).pathname.split('/')
-  const rawType = parts[3]
-  const rawSlug = parts[4]
-  if (!rawType || !isListType(rawType)) return error('Invalid or missing list type', 400)
-  if (!rawSlug) return error('List slug is required', 400)
-  const slug = decodeURIComponent(rawSlug)
-  // A slug is a single file basename; reject path separators / null bytes outright
-  // (resolveListFile also guards traversal, but this gives a clearer 400).
-  if (/[/\\\0]/.test(slug)) return error('Invalid list slug', 400)
-  return { type: rawType, slug }
-}
-
-/** GET /api/history — every deck, collection, and wanted list as a slug-keyed summary. */
-export async function handleHistoryLists(): Promise<Response> {
-  try {
-    const body: HistoryListsResponse = { success: true, lists: await loadListInfos() }
-    return Response.json(body)
-  } catch (err) {
-    return error(getErrorMessage(err), 500)
-  }
 }
 
 /**
@@ -74,7 +46,7 @@ export async function handleHistoryLists(): Promise<Response> {
  */
 export async function handleHistoryLoad(req: Request): Promise<Response> {
   try {
-    const target = parseTarget(req)
+    const target = parseListTarget(req)
     if (target instanceof Response) return target
 
     const filePath = await resolveListFile(target.type, target.slug)
@@ -142,7 +114,7 @@ export async function handleHistorySave(req: Request): Promise<Response> {
     const tooLarge = validateBodySize(req)
     if (tooLarge) return tooLarge
 
-    const target = parseTarget(req)
+    const target = parseListTarget(req)
     if (target instanceof Response) return target
 
     const raw = (await req.json()) as RawSaveBody
