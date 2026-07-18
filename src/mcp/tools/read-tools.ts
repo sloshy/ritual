@@ -4,6 +4,7 @@ import { callApi } from '../dispatch'
 import { loadProjectedList } from '../projection'
 import { jsonResult } from '../result'
 import { currencySchema, finishSchema, listTypeSchema, slugField } from '../schemas'
+import { EXPORT_FORMATS } from '../../export/presets'
 import { EXPORT_PROPERTIES } from '../../export/render'
 import { VALID_CONDITIONS } from '../../finish-condition'
 import { DIFF_BY_MODES } from '../../list-diff'
@@ -298,11 +299,12 @@ export function registerReadTools(server: McpServer): void {
     {
       title: 'Export cards',
       description:
-        'Render a CSV or JSON export of cards from decks, collections, and wanted lists. ' +
-        'Select whole lists and/or pick cards by name terms; filter by name, set, finish, or ' +
-        'condition; choose the columns and their order. With no lists and no cards, every ' +
-        'list is exported. Returns { format, entryCount, content, warnings } — the content ' +
-        'string is the rendered export (nothing is written to disk).',
+        'Render a CSV, JSON, plain-text, or Markdown export of cards from decks, collections, ' +
+        'and wanted lists. Select whole lists and/or pick cards by name terms; filter by name, ' +
+        'set, finish, or condition; choose the columns and their order (csv/json only — text ' +
+        'and md have fixed line formats). With no lists and no cards, every list is exported. ' +
+        'Returns { format, entryCount, content, warnings } — the content string is the ' +
+        'rendered export (nothing is written to disk).',
       inputSchema: {
         lists: z
           .array(
@@ -343,7 +345,13 @@ export function registerReadTools(server: McpServer): void {
               ),
           })
           .optional(),
-        format: z.enum(['csv', 'json']).optional().describe('Output format (default csv).'),
+        format: z
+          .enum(EXPORT_FORMATS)
+          .optional()
+          .describe(
+            'Output format (default csv): csv, json, text (one flat plain-text decklist), ' +
+              'or md (canonical list markdown without &N ids).',
+          ),
         columns: z
           .array(z.enum(EXPORT_PROPERTIES))
           .optional()

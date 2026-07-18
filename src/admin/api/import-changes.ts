@@ -271,6 +271,23 @@ export async function applyChangeBundle(bundle: ChangeBundle): Promise<BundleImp
 }
 
 /**
+ * Build the one-line human summary of a bundle import ("Applied 3 changes
+ * across 2 lists"). Shared verbatim by the admin `POST /api/import-changes`
+ * response, the MCP `import_changes` tool (which calls that route), and the
+ * CLI's `--output json` payload, so all three surfaces report identically.
+ */
+export function bundleImportMessage(result: BundleImportResult): string {
+  const applied = countLabel(
+    result.lists.reduce((sum, l) => sum + l.applied, 0),
+    'change',
+  )
+  const failed = result.lists.filter((l) => l.error !== undefined).length
+  return result.success
+    ? `Applied ${applied} across ${countLabel(result.lists.length, 'list')}`
+    : `Applied ${applied}; ${countLabel(failed, 'list')} failed`
+}
+
+/**
  * `POST /api/import-changes` — apply an exported change bundle. The body is the
  * raw exported JSON; the response reports per-list
  * applied counts, skipped conflicts, and errors.
@@ -286,15 +303,7 @@ export async function handleImportChanges(req: Request): Promise<Response> {
     }
 
     const result = await applyChangeBundle(bundle)
-    const applied = countLabel(
-      result.lists.reduce((sum, l) => sum + l.applied, 0),
-      'change',
-    )
-    const failed = result.lists.filter((l) => l.error !== undefined).length
-    const message = result.success
-      ? `Applied ${applied} across ${countLabel(result.lists.length, 'list')}`
-      : `Applied ${applied}; ${countLabel(failed, 'list')} failed`
-    return Response.json({ ...result, message })
+    return Response.json({ ...result, message: bundleImportMessage(result) })
   } catch (error) {
     return Response.json({ success: false, message: getErrorMessage(error) }, { status: 500 })
   }

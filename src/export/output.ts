@@ -1,5 +1,5 @@
 import type { ExportEntry } from './entries'
-import { renderCsvExport, renderJsonExport } from './render'
+import { renderCsvExport, renderJsonExport, renderMarkdownExport, renderTextExport } from './render'
 import type { ExportPreset, ResolvedExportSettings } from './presets'
 import { loadRitualConfig, saveRitualConfig } from '../ritual-config'
 
@@ -8,14 +8,24 @@ import { loadRitualConfig, saveRitualConfig } from '../ritual-config'
  * (kept out of the command module so the wizard never imports it back).
  */
 
-/** Render the assembled entries to their final CSV or JSON string. */
+/**
+ * Render the assembled entries to their final string in the resolved format.
+ * No renderer emits a trailing newline; the writer appends exactly one.
+ */
 export function renderExport(entries: ExportEntry[], settings: ResolvedExportSettings): string {
-  return settings.format === 'json'
-    ? renderJsonExport(entries, settings.columns)
-    : renderCsvExport(entries, settings.columns, {
+  switch (settings.format) {
+    case 'json':
+      return renderJsonExport(entries, settings.columns)
+    case 'text':
+      return renderTextExport(entries)
+    case 'md':
+      return renderMarkdownExport(entries)
+    case 'csv':
+      return renderCsvExport(entries, settings.columns, {
         header: settings.header,
         quoteAll: settings.quoteAll,
       })
+  }
 }
 
 /** Persist the resolved output shape as a named preset in ritual.config.json. */

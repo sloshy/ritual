@@ -25,8 +25,9 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   or existing list of any type (create/overwrite/append, with a column-mapping spec).
 - import_changes applies a change bundle exported from the site editor ("ritual-change-bundle"
   JSON covering one or more lists) to the underlying lists.
-- export_cards renders a CSV/JSON export of any mix of lists and card picks (filterable by name,
-  set, finish, condition; column selection and order included) and returns the content string.
+- export_cards renders a CSV, JSON, plain-text, or Markdown export of any mix of lists and card
+  picks (filterable by name, set, finish, condition; column selection and order for csv/json) and
+  returns the content string.
 - diff_lists compares two lists by card name (default) or exact printing and reports matched
   identities with per-side quantities plus only-in-A / only-in-B entries.
 - rename_list, delete_list (which requires a matching confirmName), rewrite_history, and

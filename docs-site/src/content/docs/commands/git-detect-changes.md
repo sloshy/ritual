@@ -22,9 +22,11 @@ It is **hash-aware**, so it can be run safely even on files that Ritual itself e
 
 ## Options
 
-| Option          | Description                                    | Default |
-| --------------- | ---------------------------------------------- | ------- |
-| `-n, --dry-run` | Preview detected changes without writing files | `false` |
+| Option              | Description                                    | Default |
+| ------------------- | ---------------------------------------------- | ------- |
+| `-n, --dry-run`     | Preview detected changes without writing files | `false` |
+| `--output <format>` | Output format: `text`, `json`, or `ndjson`     | `text`  |
+| `--quiet`           | Suppress the per-file progress lines           | `false` |
 
 ## Examples
 
@@ -50,6 +52,12 @@ Detect changes since a branch point:
 
 ```bash
 ./ritual git-detect-changes main
+```
+
+Emit the detection report as JSON for scripting:
+
+```bash
+./ritual git-detect-changes HEAD~1 --output json
 ```
 
 ## Behavior
@@ -100,6 +108,53 @@ This makes the command idempotent and lets a repository freely mix Ritual edits 
 ### Dry Run
 
 When `--dry-run` (or `-n`) is specified, the command prints what it would do without modifying any files. This is useful for previewing detected changes before committing them.
+
+## Scripted Output
+
+With `--output json` (or `ndjson`), the progress lines are suppressed and stdout carries a single report payload. The changelogs are still updated (or previewed under `--dry-run`) exactly as in text mode — only the reporting changes. File paths are repo-relative, as git emits them. Parser warnings still go to stderr.
+
+```json
+{
+  "commit": "HEAD~1",
+  "dryRun": false,
+  "changelogsUpdated": 1,
+  "renames": {
+    "decks/old-name.md": "decks/New Name.md"
+  },
+  "results": [
+    {
+      "file": "decks/New Name.md",
+      "kind": "deck",
+      "status": "R",
+      "changes": [
+        {
+          "id": "1752624000000-a1b2c3",
+          "timestamp": 1752624000000,
+          "cardName": "Lightning Bolt",
+          "cardId": 2,
+          "action": "remove",
+          "set": "2x2",
+          "collectorNumber": "117"
+        }
+      ],
+      "ritualClean": false
+    }
+  ]
+}
+```
+
+- `commit` — the ref that was diffed against, as given on the command line.
+- `changelogsUpdated` — the number of list files whose changelog was (or, under `--dry-run`, would be) updated.
+- `renames` — old path → new path for renamed list files.
+- `results` — one entry per changed list file: its `kind` (`deck`, `collection`, or `wanted`), git `status` (`A`, `M`, `D`, or `R`), whether it was skipped as `ritualClean` (see [Hash-aware detection](#hash-aware-detection)), and the detected change events.
+
+## Exit Codes
+
+| Code | Meaning                                                             |
+| ---- | ------------------------------------------------------------------- |
+| `0`  | Detection ran (or previewed) successfully                           |
+| `1`  | The git diff failed, or applying the detected changes failed        |
+| `2`  | Usage error (missing `<commit>` argument, invalid `--output` value) |
 
 ## CI Integration
 

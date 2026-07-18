@@ -1006,7 +1006,7 @@ Each list is loaded fresh and its changes re-targeted to the current card IDs (b
 POST /api/export
 ```
 
-Render a CSV or JSON export of cards from decks, collections, and wanted lists. Exposed as the MCP `export_cards` tool; shares its engine with the [`export`](/commands/export/) CLI command. Nothing is written to disk — the rendered export is returned as a string.
+Render a CSV, JSON, plain-text, or Markdown export of cards from decks, collections, and wanted lists. Exposed as the MCP `export_cards` tool; shares its engine with the [`export`](/commands/export/) CLI command. Nothing is written to disk — the rendered export is returned as a string.
 
 **Request Body:** every field is optional. With no `lists` and no `cards`, every list is exported.
 
@@ -1024,6 +1024,8 @@ Render a CSV or JSON export of cards from decks, collections, and wanted lists. 
 ```
 
 `lists` names resolve like CLI list arguments (the optional `type` pins an ambiguous name). Each `cards` entry is whitespace-separated name terms; every entry across all lists whose name matches all terms is added (deduplicated against the selected lists). `filters.conditions` takes condition grades and/or `none` (cards with no condition marked), matching the CLI's `--condition` semantics. `preset` starts from a saved [export preset](/commands/export/#presets); the explicit fields override its values.
+
+`format` is one of `csv` (default), `json`, `text` (one flat merged decklist, quantities aggregated), or `md` (canonical list markdown without `&N` ids) — see [export formats](/commands/export/#formats). `columns`, `header`, and `quoteAll` shape `csv`/`json` output only and are ignored for `text`/`md` (unlike the CLI, the route does not reject the combination).
 
 **Response:**
 

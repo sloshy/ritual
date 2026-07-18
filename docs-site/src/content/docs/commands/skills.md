@@ -16,7 +16,7 @@ local git repository and want your coding agent to work with them.
 
 ```bash
 ritual skills install [names...] [options]
-ritual skills list
+ritual skills list [options]
 ```
 
 ## Subcommands
@@ -34,15 +34,41 @@ ritual skills install --dir ../my-repo     # target another project directory
 ritual skills install --force              # overwrite existing skill files
 ```
 
-| Option         | Description                                                      | Default      |
-| -------------- | ---------------------------------------------------------------- | ------------ |
-| `--global`     | Install into `~/.claude/skills` instead of the project directory |              |
-| `--dir <path>` | Project directory that should contain `.claude/skills`           | the base dir |
-| `-f, --force`  | Overwrite skill files that already exist                         | `false`      |
+| Option              | Description                                                      | Default      |
+| ------------------- | ---------------------------------------------------------------- | ------------ |
+| `--global`          | Install into `~/.claude/skills` instead of the project directory |              |
+| `--dir <path>`      | Project directory that should contain `.claude/skills`           | the base dir |
+| `-f, --force`       | Overwrite skill files that already exist                         | `false`      |
+| `--output <format>` | Output format: `text`, `json`, or `ndjson`                       | `text`       |
+| `--quiet`           | Suppress the per-skill and summary lines in text mode            | `false`      |
 
 Existing files are left untouched (and reported as skipped) unless `--force` is given, so
 re-installing never clobbers local edits without consent. The global `--base-dir <path>`
 option sets the default project directory when `--dir` is omitted.
+
+With `--output json` the command prints a single report object instead of the text lines
+(`--output ndjson` emits the same object on one line). Paths are absolute, and `status` is
+`written` or `skipped`:
+
+```bash
+ritual skills install ritual-decks --output json
+```
+
+```json
+{
+  "skillsDir": "/home/me/mtg/.claude/skills",
+  "results": [
+    {
+      "name": "ritual-decks",
+      "path": "/home/me/mtg/.claude/skills/ritual-decks/SKILL.md",
+      "status": "written"
+    }
+  ]
+}
+```
+
+Errors (such as an unknown skill name) go to stderr — as a structured `{ "error": ... }`
+envelope in `json`/`ndjson` mode — and the command exits `2`.
 
 ### `list`
 
@@ -52,17 +78,38 @@ Print the available skills and their descriptions without installing anything.
 ritual skills list
 ```
 
+| Option              | Description                                | Default |
+| ------------------- | ------------------------------------------ | ------- |
+| `--output <format>` | Output format: `text`, `json`, or `ndjson` | `text`  |
+| `--quiet`           | Suppress non-essential output              | `false` |
+
+With `--output json` each skill is one `{ name, description }` object
+(`ndjson` emits the same rows one object per line):
+
+```bash
+ritual skills list --output json
+```
+
+```json
+[
+  {
+    "name": "ritual-decks",
+    "description": "Create, import, sync, and price Magic: The Gathering decks with the ritual CLI..."
+  }
+]
+```
+
 ## The skills
 
-| Skill                | Covers                                                                                                                                        |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ritual`             | Overview, workspace layout, file format, global options, and setup.                                                                           |
-| `ritual-decks`       | Create, import, sync, and price decks.                                                                                                        |
-| `ritual-collections` | Manage and price collections.                                                                                                                 |
-| `ritual-wanted`      | Manage and price wanted lists.                                                                                                                |
-| `ritual-edit`        | Card edits across any list: non-interactive commands, applying exported change bundles, CSV/JSON exports, and the unified interactive editor. |
-| `ritual-cards`       | Card lookup and Scryfall searches.                                                                                                            |
-| `ritual-site`        | Build, serve, and administer the site, plus the MCP server.                                                                                   |
+| Skill                | Covers                                                                                                                                                                      |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ritual`             | Overview, workspace layout, file format, global options, and setup.                                                                                                         |
+| `ritual-decks`       | Create, import, sync, and price decks.                                                                                                                                      |
+| `ritual-collections` | Manage and price collections.                                                                                                                                               |
+| `ritual-wanted`      | Manage and price wanted lists.                                                                                                                                              |
+| `ritual-edit`        | Card edits across any list: non-interactive commands, applying exported change bundles, card exports (CSV, JSON, plain text, Markdown), and the unified interactive editor. |
+| `ritual-cards`       | Card lookup and Scryfall searches.                                                                                                                                          |
+| `ritual-site`        | Build, serve, and administer the site, plus the MCP server.                                                                                                                 |
 
 ## Keeping skills current
 

@@ -20,9 +20,11 @@ The same JSON can also be applied in the [admin site](/commands/admin/#import-ch
 
 ## Options
 
-| Option      | Description                           |
-| ----------- | ------------------------------------- |
-| `-y, --yes` | Apply without asking for confirmation |
+| Option              | Description                                | Default |
+| ------------------- | ------------------------------------------ | ------- |
+| `-y, --yes`         | Apply without asking for confirmation      | `false` |
+| `--output <format>` | Output format: `text`, `json`, or `ndjson` | `text`  |
+| `--quiet`           | Suppress non-essential output              | `false` |
 
 ## Format
 
@@ -43,7 +45,9 @@ Before anything is applied, the command prints every pending change grouped by i
 ? Apply 3 changes to 2 lists? › (y/N)
 ```
 
-Pass `--yes` to skip the prompt (for scripts and agents). When stdin is not a terminal, or prompts are disabled globally (`--no-input` / `RITUAL_NO_INPUT`), `--yes` is required — instead of prompting, the command exits with code `2`.
+Pass `--yes` to skip the prompt (for scripts and agents). When stdin is not a terminal, prompts are disabled globally (`--no-input` / `RITUAL_NO_INPUT`), or `--output json`/`ndjson` owns stdout, `--yes` is required — instead of prompting, the command exits with code `2`.
+
+`--quiet` suppresses the preview and the per-list applied/skipped lines; list failures are still reported on stderr.
 
 ## How Changes Are Applied
 
@@ -56,11 +60,44 @@ Lists are applied in file order, each loaded fresh immediately before saving (so
 
 A list that fails entirely (for example, one that no longer exists) is reported without stopping the remaining lists.
 
+## Scripted Output
+
+With `--output json` (or `ndjson`), the preview and glyph lines are replaced by a single payload on stdout after the apply — byte-for-byte the response body of the admin `POST /api/import-changes` route and the MCP `import_changes` tool, so a script can consume any of the three surfaces identically. `--yes` is required (there is no prompt outside text mode); without it a structured usage error is written to stderr and the command exits with code `2`.
+
+```json
+{
+  "success": true,
+  "lists": [
+    {
+      "kind": "deck",
+      "slug": "test-deck",
+      "name": "Test Deck",
+      "applied": 2,
+      "conflicts": [
+        {
+          "change": {
+            "id": "r2",
+            "timestamp": 3,
+            "action": "remove",
+            "cardName": "Not In Deck",
+            "cardId": 99
+          },
+          "reason": "target-not-found"
+        }
+      ]
+    }
+  ],
+  "message": "Applied 2 changes across 1 list"
+}
+```
+
+A list that failed to load or save carries an `error` string instead of applying anything, `success` is `false`, and the exit code is `1` — the same as text mode.
+
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                            |
-| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | All lists applied (skipped conflicts do not fail the run)                                                                                          |
-| `1`  | At least one list failed to apply, or the file could not be read                                                                                   |
-| `2`  | Invalid change bundle, confirmation declined/cancelled, or missing `--yes` when prompts are unavailable (stdin is not a terminal, or `--no-input`) |
-| `3`  | Bundle file not found, or the bundle contains no changes to apply                                                                                  |
+| Code | Meaning                                                                                                                                                                      |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | All lists applied (skipped conflicts do not fail the run)                                                                                                                    |
+| `1`  | At least one list failed to apply, or the file could not be read                                                                                                             |
+| `2`  | Invalid change bundle, confirmation declined/cancelled, or missing `--yes` when prompts are unavailable (stdin is not a terminal, `--no-input`, or `--output json`/`ndjson`) |
+| `3`  | Bundle file not found, or the bundle contains no changes to apply                                                                                                            |

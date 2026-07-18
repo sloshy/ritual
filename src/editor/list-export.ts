@@ -2,7 +2,14 @@ import type { DeckData } from '../types'
 import type { CollectionCardEntry, WantedListCardEntry } from '../site/data-types'
 import type { SelectedCard } from '../site/useCardSelection'
 import { serializeSectionedList } from '../section-format'
-import { formatCollectionLine, formatWantedListLine, printingSuffix } from '../card-line'
+import {
+  aggregateQuantities,
+  formatCollectionLine,
+  formatWantedListLine,
+  printingSuffix,
+  variantKey,
+  type Aggregated,
+} from '../card-line'
 import { csvCell } from '../csv'
 import { DEFAULT_EXPORT_COLUMNS, EXPORT_PROPERTY_LABELS } from '../export/render'
 
@@ -79,36 +86,8 @@ function csvRow(
   return [csvCell(name), set.toUpperCase(), collectorNumber, finish, condition, quantity].join(',')
 }
 
-/** One grouped item plus its summed quantity, preserving first-seen order. */
-type Aggregated<E> = { entry: E; quantity: number }
-
-/** Group items by a string key, summing per-item quantities, preserving first-seen order. */
-function aggregate<E>(
-  items: E[],
-  key: (item: E) => string,
-  quantity: (item: E) => number,
-): Aggregated<E>[] {
-  const counts = new Map<string, Aggregated<E>>()
-  for (const item of items) {
-    const k = key(item)
-    const existing = counts.get(k)
-    if (existing) existing.quantity += quantity(item)
-    else counts.set(k, { entry: item, quantity: quantity(item) })
-  }
-  return [...counts.values()]
-}
-
-/** Aggregation key grouping identical printings (name + printing + finish + condition). */
-const variantKey = (
-  name: string,
-  set: string | undefined,
-  collectorNumber: string | undefined,
-  finish: string | undefined,
-  condition: string | undefined,
-): string => `${name}|${set ?? ''}|${collectorNumber ?? ''}|${finish ?? ''}|${condition ?? ''}`
-
 const aggregateSelection = (cards: SelectedCard[]): Aggregated<SelectedCard>[] =>
-  aggregate(
+  aggregateQuantities(
     cards,
     (c) => variantKey(c.name, c.set, c.collectorNumber, c.finish, c.condition),
     (c) => c.quantity,
@@ -116,7 +95,7 @@ const aggregateSelection = (cards: SelectedCard[]): Aggregated<SelectedCard>[] =
 
 /** Collection entries are atomic (one copy each), so each contributes a quantity of 1. */
 const aggregateCollection = (entries: CollectionCardEntry[]): Aggregated<CollectionCardEntry>[] =>
-  aggregate(
+  aggregateQuantities(
     entries,
     (e) => variantKey(e.name, e.set, e.collectorNumber, e.finish, e.condition),
     () => 1,

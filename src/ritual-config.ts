@@ -112,7 +112,7 @@ export interface RitualConfig {
   exportPresets?: Record<string, ExportPreset>
 }
 
-const DEFAULT_ADMIN_CONFIG = {
+export const DEFAULT_ADMIN_CONFIG = {
   gitEnabled: false,
   gitAutoCommit: false,
   gitAutoPush: false,
@@ -158,16 +158,38 @@ function isStringArray(value: unknown): value is string[] {
 }
 
 /**
+ * The error branch shared by every config parser: a structured `{ error }`
+ * object rather than a bare string. Several parsers succeed with a string
+ * (currencies, URLs), so a `T | string` union would not be discriminable —
+ * every parser returns this shape instead, and every consumer branches via
+ * {@link isConfigParseError}.
+ */
+export type ConfigParseError = { error: string }
+
+/** True when a config parser result is the {@link ConfigParseError} branch. */
+export function isConfigParseError(value: unknown): value is ConfigParseError {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as Partial<ConfigParseError>).error === 'string'
+  )
+}
+
+/**
  * Parse one of the `include*`/`exclude*` selection lists. Returns the supplied
  * `fallback` when absent (`['*']` for include lists, `[]` for exclude lists), the
- * array when valid, or an error string when malformed.
+ * array when valid, or a parse error when malformed.
  */
-function parseSelectionList(value: unknown, field: string, fallback: string[]): string[] | string {
+function parseSelectionList(
+  value: unknown,
+  field: string,
+  fallback: string[],
+): string[] | ConfigParseError {
   if (value === undefined) {
     return fallback
   }
   if (!isStringArray(value)) {
-    return `site config: "${field}" must be an array of strings`
+    return { error: `site config: "${field}" must be an array of strings` }
   }
   return value
 }
@@ -177,20 +199,20 @@ export type ParsedBannedPrinting = { set: string; collectorNumber: string; key: 
 /**
  * Parse one `bannedPrintings` entry of the form `SET:COLLECTOR` (e.g. `sld:123`).
  * The set code is normalized to lowercase; the collector number is kept verbatim.
- * Returns the parsed pieces plus the canonical `set:collectorNumber` key, or an
- * error string when the entry is malformed.
+ * Returns the parsed pieces plus the canonical `set:collectorNumber` key, or a
+ * parse error when the entry is malformed.
  */
-export function parseBannedPrinting(raw: string): ParsedBannedPrinting | string {
+export function parseBannedPrinting(raw: string): ParsedBannedPrinting | ConfigParseError {
   const trimmed = raw.trim()
   const colon = trimmed.indexOf(':')
   // Require exactly one ':' with non-empty text on each side.
   if (colon <= 0 || trimmed.indexOf(':', colon + 1) !== -1) {
-    return `banned printing "${raw}" must be in "SET:COLLECTOR" form (e.g. "sld:123")`
+    return { error: `banned printing "${raw}" must be in "SET:COLLECTOR" form (e.g. "sld:123")` }
   }
   const set = trimmed.slice(0, colon).toLowerCase()
   const collectorNumber = trimmed.slice(colon + 1).trim()
   if (set.length === 0 || collectorNumber.length === 0) {
-    return `banned printing "${raw}" must be in "SET:COLLECTOR" form (e.g. "sld:123")`
+    return { error: `banned printing "${raw}" must be in "SET:COLLECTOR" form (e.g. "sld:123")` }
   }
   return { set, collectorNumber, key: `${set}:${collectorNumber}` }
 }
@@ -198,17 +220,17 @@ export function parseBannedPrinting(raw: string): ParsedBannedPrinting | string 
 /**
  * Validate and normalize a `bannedPrintings` list. Every entry must parse as a
  * `SET:COLLECTOR` pair. Returns the deduped, normalized `set:collectorNumber`
- * keys (set codes lowercased) or an error string describing the first bad entry.
+ * keys (set codes lowercased) or a parse error describing the first bad entry.
  */
-export function normalizeBannedPrintings(value: unknown): string[] | string {
+export function normalizeBannedPrintings(value: unknown): string[] | ConfigParseError {
   if (!isStringArray(value)) {
-    return 'site config: "bannedPrintings" must be an array of strings'
+    return { error: 'site config: "bannedPrintings" must be an array of strings' }
   }
   const keys: string[] = []
   const seen = new Set<string>()
   for (const entry of value) {
     const parsed = parseBannedPrinting(entry)
-    if (typeof parsed === 'string') return `site config: ${parsed}`
+    if (isConfigParseError(parsed)) return { error: `site config: ${parsed.error}` }
     if (!seen.has(parsed.key)) {
       seen.add(parsed.key)
       keys.push(parsed.key)
@@ -219,35 +241,35 @@ export function normalizeBannedPrintings(value: unknown): string[] | string {
 
 /**
  * Parse the `site` sub-object of a ritual.config.json. Returns the parsed
- * site config or an error string describing what is wrong.
+ * site config or a parse error describing what is wrong.
  *
  * The selection settings (`includeDecks`, `includeCollections`,
  * `includeWantedLists` and their `exclude*` counterparts) always resolve, the
  * include lists defaulting to `['*']` and the exclude lists to `[]`. The
  * deployment settings are validated only when present (i.e. once `init-site` has run).
  */
-export function parseSiteConfig(value: unknown): SiteConfig | string {
+export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
   if (typeof value !== 'object' || value === null) {
-    return 'site config must be a JSON object'
+    return { error: 'site config must be a JSON object' }
   }
   const obj = value as Record<string, unknown>
 
   const includeDecks = parseSelectionList(obj.includeDecks, 'includeDecks', [INCLUDE_ALL])
-  if (typeof includeDecks === 'string') return includeDecks
+  if (isConfigParseError(includeDecks)) return includeDecks
   const includeCollections = parseSelectionList(obj.includeCollections, 'includeCollections', [
     INCLUDE_ALL,
   ])
-  if (typeof includeCollections === 'string') return includeCollections
+  if (isConfigParseError(includeCollections)) return includeCollections
   const includeWantedLists = parseSelectionList(obj.includeWantedLists, 'includeWantedLists', [
     INCLUDE_ALL,
   ])
-  if (typeof includeWantedLists === 'string') return includeWantedLists
+  if (isConfigParseError(includeWantedLists)) return includeWantedLists
   const excludeDecks = parseSelectionList(obj.excludeDecks, 'excludeDecks', [])
-  if (typeof excludeDecks === 'string') return excludeDecks
+  if (isConfigParseError(excludeDecks)) return excludeDecks
   const excludeCollections = parseSelectionList(obj.excludeCollections, 'excludeCollections', [])
-  if (typeof excludeCollections === 'string') return excludeCollections
+  if (isConfigParseError(excludeCollections)) return excludeCollections
   const excludeWantedLists = parseSelectionList(obj.excludeWantedLists, 'excludeWantedLists', [])
-  if (typeof excludeWantedLists === 'string') return excludeWantedLists
+  if (isConfigParseError(excludeWantedLists)) return excludeWantedLists
   const selection: SiteSelectionConfig = {
     includeDecks,
     includeCollections,
@@ -260,7 +282,7 @@ export function parseSiteConfig(value: unknown): SiteConfig | string {
   let bannedPrintings: string[] | undefined
   if (obj.bannedPrintings !== undefined) {
     const parsed = normalizeBannedPrintings(obj.bannedPrintings)
-    if (typeof parsed === 'string') return parsed
+    if (isConfigParseError(parsed)) return parsed
     bannedPrintings = parsed
   }
   // Only carry the key when present, so a selection-only config still equals its
@@ -282,24 +304,24 @@ export function parseSiteConfig(value: unknown): SiteConfig | string {
   }
 
   if (typeof obj.version !== 'string') {
-    return 'site config: "version" must be a string'
+    return { error: 'site config: "version" must be a string' }
   }
   if (!isValidSemver(obj.version)) {
-    return 'site config: "version" is not a valid semver string'
+    return { error: 'site config: "version" is not a valid semver string' }
   }
   if (obj.ciSystem !== 'github-actions' && obj.ciSystem !== 'manual') {
-    return 'site config: "ciSystem" must be "github-actions" or "manual"'
+    return { error: 'site config: "ciSystem" must be "github-actions" or "manual"' }
   }
 
   if (obj.ciSystem === 'github-actions') {
     if (obj.deployMode !== 'publish-for-me' && obj.deployMode !== 'local-build') {
-      return 'site config: "deployMode" must be "publish-for-me" or "local-build"'
+      return { error: 'site config: "deployMode" must be "publish-for-me" or "local-build"' }
     }
     if (typeof obj.distDir !== 'string') {
-      return 'site config: "distDir" must be a string'
+      return { error: 'site config: "distDir" must be a string' }
     }
     if (typeof obj.detectChanges !== 'boolean') {
-      return 'site config: "detectChanges" must be a boolean'
+      return { error: 'site config: "detectChanges" must be a boolean' }
     }
     return {
       ...selection,
@@ -371,17 +393,25 @@ type ParsedConfig = Omit<Partial<RitualConfig>, 'admin' | 'site' | 'exportPreset
 }
 
 /** Validate a boolean admin field, defaulting when absent or erroring when malformed. */
-function parseAdminBoolean(value: unknown, field: string, fallback: boolean): boolean | string {
+function parseAdminBoolean(
+  value: unknown,
+  field: string,
+  fallback: boolean,
+): boolean | ConfigParseError {
   if (value === undefined) return fallback
-  if (typeof value !== 'boolean') return `admin config: "${field}" must be a boolean`
+  if (typeof value !== 'boolean') return { error: `admin config: "${field}" must be a boolean` }
   return value
 }
 
 /** Validate a numeric admin field, defaulting when absent or erroring when malformed. */
-function parseAdminNumber(value: unknown, field: string, fallback: number): number | string {
+function parseAdminNumber(
+  value: unknown,
+  field: string,
+  fallback: number,
+): number | ConfigParseError {
   if (value === undefined) return fallback
   if (typeof value !== 'number' || !Number.isFinite(value)) {
-    return `admin config: "${field}" must be a number`
+    return { error: `admin config: "${field}" must be a number` }
   }
   return value
 }
@@ -391,77 +421,79 @@ function parseAdminStringList(
   value: unknown,
   field: string,
   fallback: string[],
-): string[] | string {
+): string[] | ConfigParseError {
   if (value === undefined) return fallback
-  if (!isStringArray(value)) return `admin config: "${field}" must be an array of strings`
+  if (!isStringArray(value)) {
+    return { error: `admin config: "${field}" must be an array of strings` }
+  }
   return value
 }
 
 /**
  * Parse the `admin` sub-object of a ritual.config.json. Returns the parsed admin
- * config — each absent field defaulted from {@link DEFAULT_ADMIN_CONFIG} — or an
- * error string describing the first malformed field. Mirrors {@link parseSiteConfig}:
+ * config — each absent field defaulted from {@link DEFAULT_ADMIN_CONFIG} — or a
+ * parse error describing the first malformed field. Mirrors {@link parseSiteConfig}:
  * a single bad field invalidates the whole admin object (the caller falls back to
  * defaults), so settings cannot be silently coerced to the wrong type.
  */
-export function parseAdminConfig(value: unknown): AdminConfig | string {
+export function parseAdminConfig(value: unknown): AdminConfig | ConfigParseError {
   if (value === undefined) return { ...DEFAULT_ADMIN_CONFIG }
   if (typeof value !== 'object' || value === null) {
-    return 'admin config must be a JSON object'
+    return { error: 'admin config must be a JSON object' }
   }
   const obj = value as Record<string, unknown>
   const d = DEFAULT_ADMIN_CONFIG
 
   const gitEnabled = parseAdminBoolean(obj.gitEnabled, 'gitEnabled', d.gitEnabled)
-  if (typeof gitEnabled === 'string') return gitEnabled
+  if (isConfigParseError(gitEnabled)) return gitEnabled
   const gitAutoCommit = parseAdminBoolean(obj.gitAutoCommit, 'gitAutoCommit', d.gitAutoCommit)
-  if (typeof gitAutoCommit === 'string') return gitAutoCommit
+  if (isConfigParseError(gitAutoCommit)) return gitAutoCommit
   const gitAutoPush = parseAdminBoolean(obj.gitAutoPush, 'gitAutoPush', d.gitAutoPush)
-  if (typeof gitAutoPush === 'string') return gitAutoPush
+  if (isConfigParseError(gitAutoPush)) return gitAutoPush
   const trustProxy = parseAdminBoolean(obj.trustProxy, 'trustProxy', d.trustProxy)
-  if (typeof trustProxy === 'string') return trustProxy
+  if (isConfigParseError(trustProxy)) return trustProxy
   const secureCookies = parseAdminBoolean(obj.secureCookies, 'secureCookies', d.secureCookies)
-  if (typeof secureCookies === 'string') return secureCookies
+  if (isConfigParseError(secureCookies)) return secureCookies
   const ipAllowList = parseAdminStringList(obj.ipAllowList, 'ipAllowList', d.ipAllowList)
-  if (typeof ipAllowList === 'string') return ipAllowList
+  if (isConfigParseError(ipAllowList)) return ipAllowList
   const ipDenyList = parseAdminStringList(obj.ipDenyList, 'ipDenyList', d.ipDenyList)
-  if (typeof ipDenyList === 'string') return ipDenyList
+  if (isConfigParseError(ipDenyList)) return ipDenyList
   const userAgentAllowList = parseAdminStringList(
     obj.userAgentAllowList,
     'userAgentAllowList',
     d.userAgentAllowList,
   )
-  if (typeof userAgentAllowList === 'string') return userAgentAllowList
+  if (isConfigParseError(userAgentAllowList)) return userAgentAllowList
   const userAgentDenyList = parseAdminStringList(
     obj.userAgentDenyList,
     'userAgentDenyList',
     d.userAgentDenyList,
   )
-  if (typeof userAgentDenyList === 'string') return userAgentDenyList
+  if (isConfigParseError(userAgentDenyList)) return userAgentDenyList
   const rateLimitEnabled = parseAdminBoolean(
     obj.rateLimitEnabled,
     'rateLimitEnabled',
     d.rateLimitEnabled,
   )
-  if (typeof rateLimitEnabled === 'string') return rateLimitEnabled
+  if (isConfigParseError(rateLimitEnabled)) return rateLimitEnabled
   const rateLimitMaxAttempts = parseAdminNumber(
     obj.rateLimitMaxAttempts,
     'rateLimitMaxAttempts',
     d.rateLimitMaxAttempts,
   )
-  if (typeof rateLimitMaxAttempts === 'string') return rateLimitMaxAttempts
+  if (isConfigParseError(rateLimitMaxAttempts)) return rateLimitMaxAttempts
   const rateLimitWindowMinutes = parseAdminNumber(
     obj.rateLimitWindowMinutes,
     'rateLimitWindowMinutes',
     d.rateLimitWindowMinutes,
   )
-  if (typeof rateLimitWindowMinutes === 'string') return rateLimitWindowMinutes
+  if (isConfigParseError(rateLimitWindowMinutes)) return rateLimitWindowMinutes
   const failedAuthDelayMs = parseAdminNumber(
     obj.failedAuthDelayMs,
     'failedAuthDelayMs',
     d.failedAuthDelayMs,
   )
-  if (typeof failedAuthDelayMs === 'string') return failedAuthDelayMs
+  if (isConfigParseError(failedAuthDelayMs)) return failedAuthDelayMs
 
   return {
     gitEnabled,
@@ -480,16 +512,11 @@ export function parseAdminConfig(value: unknown): AdminConfig | string {
   }
 }
 
-/** The error branch of {@link parseDefaultCurrency}. A currency is itself a
- * string, so the usual `T | string` parser union would not be discriminable —
- * the error is wrapped in a structured object instead. */
-export type DefaultCurrencyParseError = { error: string }
-
 /**
  * Parse the `defaultCurrency` config value. Absent falls back to `usd`; an
- * unrecognized value is reported as a structured error for the caller to surface.
+ * unrecognized value is reported as a parse error for the caller to surface.
  */
-export function parseDefaultCurrency(value: unknown): PriceCurrency | DefaultCurrencyParseError {
+export function parseDefaultCurrency(value: unknown): PriceCurrency | ConfigParseError {
   if (value === undefined) return DEFAULT_CURRENCY
   if (typeof value === 'string') {
     const lower = value.toLowerCase()
@@ -500,23 +527,21 @@ export function parseDefaultCurrency(value: unknown): PriceCurrency | DefaultCur
 
 /**
  * Parse a `cacheLockTimeoutSeconds` value. Returns the number when it is a
- * positive integer, the default when absent, or an error string when malformed.
+ * positive integer, the default when absent, or a parse error when malformed.
  */
-export function parseCacheLockTimeoutSeconds(value: unknown): number | string {
+export function parseCacheLockTimeoutSeconds(value: unknown): number | ConfigParseError {
   if (value === undefined) return DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS
   if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
-    return '"cacheLockTimeoutSeconds" must be a positive integer'
+    return { error: '"cacheLockTimeoutSeconds" must be a positive integer' }
   }
   return value
 }
 
-export type CacheSourceParseError = { error: string }
-
 /**
  * Parse a `cacheSource` value. Returns the source when valid, the default
- * when absent, or a structured error when malformed.
+ * when absent, or a parse error when malformed.
  */
-export function parseCacheSource(value: unknown): CacheSource | CacheSourceParseError {
+export function parseCacheSource(value: unknown): CacheSource | ConfigParseError {
   if (value === undefined) return 'scryfall'
   if (typeof value === 'string' && (CACHE_SOURCES as readonly string[]).includes(value)) {
     return value as CacheSource
@@ -524,14 +549,13 @@ export function parseCacheSource(value: unknown): CacheSource | CacheSourceParse
   return { error: `"cacheSource" must be one of: ${CACHE_SOURCES.join(', ')}` }
 }
 
-export type CacheFeedUrlParseError = { error: string }
-
 /**
  * Parse a `cacheFeedUrl` value. Returns the URL when it is a valid http(s)
- * URL, undefined when absent, or a structured error when malformed.
+ * URL, or a parse error when malformed. Absence means "use the built-in
+ * default" and is the caller's concern: check for `undefined` before parsing —
+ * an `undefined` input is malformed here.
  */
-export function parseCacheFeedUrl(value: unknown): string | undefined | CacheFeedUrlParseError {
-  if (value === undefined) return undefined
+export function parseCacheFeedUrl(value: unknown): string | ConfigParseError {
   if (typeof value === 'string') {
     try {
       const url = new URL(value)
@@ -545,48 +569,53 @@ export function parseCacheFeedUrl(value: unknown): string | undefined | CacheFee
 
 function applyDefaults(parsed: ParsedConfig): RitualConfig {
   const admin = parseAdminConfig(parsed.admin)
-  if (typeof admin === 'string') {
-    console.warn(`ritual.config.json: ignoring invalid admin config — ${admin}`)
+  if (isConfigParseError(admin)) {
+    console.warn(`ritual.config.json: ignoring invalid admin config — ${admin.error}`)
   }
   const defaultCurrency = parseDefaultCurrency(parsed.defaultCurrency)
-  if (typeof defaultCurrency !== 'string') {
+  if (isConfigParseError(defaultCurrency)) {
     console.warn(`ritual.config.json: ignoring invalid defaultCurrency — ${defaultCurrency.error}`)
   }
   const cacheLockTimeoutSeconds = parseCacheLockTimeoutSeconds(parsed.cacheLockTimeoutSeconds)
-  if (typeof cacheLockTimeoutSeconds === 'string') {
+  if (isConfigParseError(cacheLockTimeoutSeconds)) {
     console.warn(
-      `ritual.config.json: ignoring invalid cacheLockTimeoutSeconds — ${cacheLockTimeoutSeconds}`,
+      `ritual.config.json: ignoring invalid cacheLockTimeoutSeconds — ${cacheLockTimeoutSeconds.error}`,
     )
   }
   const cacheSource = parseCacheSource(parsed.cacheSource)
-  if (typeof cacheSource !== 'string') {
+  if (isConfigParseError(cacheSource)) {
     console.warn(`ritual.config.json: ignoring invalid cacheSource — ${cacheSource.error}`)
   }
-  const cacheFeedUrl = parseCacheFeedUrl(parsed.cacheFeedUrl)
-  if (cacheFeedUrl !== undefined && typeof cacheFeedUrl !== 'string') {
-    console.warn(`ritual.config.json: ignoring invalid cacheFeedUrl — ${cacheFeedUrl.error}`)
+  // Absence means "use the built-in default", so only parse when present.
+  let cacheFeedUrl: string | undefined
+  if (parsed.cacheFeedUrl !== undefined) {
+    const parsedFeedUrl = parseCacheFeedUrl(parsed.cacheFeedUrl)
+    if (isConfigParseError(parsedFeedUrl)) {
+      console.warn(`ritual.config.json: ignoring invalid cacheFeedUrl — ${parsedFeedUrl.error}`)
+    } else {
+      cacheFeedUrl = parsedFeedUrl
+    }
   }
   const merged: RitualConfig = {
     decksDir: parsed.decksDir ?? DEFAULT_CONFIG.decksDir,
     collectionsDir: parsed.collectionsDir ?? DEFAULT_CONFIG.collectionsDir,
     wantedDir: parsed.wantedDir ?? DEFAULT_CONFIG.wantedDir,
-    defaultCurrency: typeof defaultCurrency === 'string' ? defaultCurrency : DEFAULT_CURRENCY,
-    cacheLockTimeoutSeconds:
-      typeof cacheLockTimeoutSeconds === 'number'
-        ? cacheLockTimeoutSeconds
-        : DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS,
-    cacheSource: typeof cacheSource === 'string' ? cacheSource : 'scryfall',
-    admin: typeof admin === 'string' ? { ...DEFAULT_ADMIN_CONFIG } : admin,
+    defaultCurrency: isConfigParseError(defaultCurrency) ? DEFAULT_CURRENCY : defaultCurrency,
+    cacheLockTimeoutSeconds: isConfigParseError(cacheLockTimeoutSeconds)
+      ? DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS
+      : cacheLockTimeoutSeconds,
+    cacheSource: isConfigParseError(cacheSource) ? 'scryfall' : cacheSource,
+    admin: isConfigParseError(admin) ? { ...DEFAULT_ADMIN_CONFIG } : admin,
   }
-  if (typeof cacheFeedUrl === 'string') {
+  if (cacheFeedUrl !== undefined) {
     merged.cacheFeedUrl = cacheFeedUrl
   }
   if (parsed.site !== undefined) {
     const site = parseSiteConfig(parsed.site)
-    if (typeof site !== 'string') {
-      merged.site = site
+    if (isConfigParseError(site)) {
+      console.warn(`ritual.config.json: ignoring invalid site config — ${site.error}`)
     } else {
-      console.warn(`ritual.config.json: ignoring invalid site config — ${site}`)
+      merged.site = site
     }
   }
   if (parsed.exportPresets !== undefined) {

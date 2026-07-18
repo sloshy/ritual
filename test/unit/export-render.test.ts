@@ -6,6 +6,8 @@ import {
   parseColumnsFlag,
   renderCsvExport,
   renderJsonExport,
+  renderMarkdownExport,
+  renderTextExport,
 } from '../../src/export/render'
 
 function entry(overrides: Partial<ExportEntry> = {}): ExportEntry {
@@ -103,6 +105,157 @@ describe('renderJsonExport', () => {
       { isFoil: false },
       { isFoil: false },
     ])
+  })
+})
+
+describe('renderTextExport', () => {
+  test('aggregates identical variants across lists and sections, summing quantities in first-seen order', () => {
+    const text = renderTextExport([
+      entry({ listName: 'Burn', listType: 'deck', section: 'Main', quantity: 2 }),
+      entry({ name: 'Fireblast', set: 'vis', collectorNumber: '78', fileOrder: 1 }),
+      // Same variant as the first entry, from another list and section.
+      entry({ listName: 'Binder', section: 'Trade', quantity: 1 }),
+    ])
+    expect(text).toBe('3 Lightning Bolt (LEA:161)\n1 Fireblast (VIS:78)')
+  })
+
+  test('distinct finish/condition variants stay separate lines even though neither prints', () => {
+    const text = renderTextExport([
+      entry({ finish: 'foil' }),
+      entry({ finish: undefined, fileOrder: 1 }),
+    ])
+    expect(text).toBe('1 Lightning Bolt (LEA:161)\n1 Lightning Bolt (LEA:161)')
+  })
+
+  test('omits the printing suffix when the set or collector number is missing', () => {
+    const text = renderTextExport([
+      entry({ name: 'Price of Progress', set: undefined, collectorNumber: undefined }),
+      entry({ name: 'Sol Ring', collectorNumber: undefined, fileOrder: 1 }),
+    ])
+    expect(text).toBe('1 Price of Progress\n1 Sol Ring')
+  })
+
+  test('uppercases the set code in the printing suffix', () => {
+    expect(renderTextExport([entry({ set: 'lea' })])).toBe('1 Lightning Bolt (LEA:161)')
+  })
+})
+
+describe('renderMarkdownExport', () => {
+  test('groups lists under H1s and sections under H2s with per-type canonical lines', () => {
+    const md = renderMarkdownExport([
+      entry({
+        listType: 'deck',
+        listName: 'Burn',
+        section: 'Main',
+        quantity: 2,
+        finish: undefined,
+        // NM is the default and must be omitted from the canonical deck line.
+        condition: 'NM',
+      }),
+      entry({
+        listType: 'deck',
+        listName: 'Burn',
+        section: 'Main',
+        name: 'Fireblast',
+        set: 'vis',
+        collectorNumber: '78',
+        condition: undefined,
+        fileOrder: 1,
+      }),
+      entry({
+        listType: 'deck',
+        listName: 'Burn',
+        section: 'Maybeboard',
+        name: 'Price of Progress',
+        set: undefined,
+        collectorNumber: undefined,
+        finish: undefined,
+        condition: undefined,
+        fileOrder: 2,
+      }),
+      entry({
+        listType: 'collection',
+        listName: 'Binder',
+        section: 'Main',
+        name: 'Sol Ring',
+        set: 'c21',
+        collectorNumber: '263',
+        condition: undefined,
+      }),
+      entry({
+        listType: 'wanted',
+        listName: 'Wishlist',
+        section: 'Main',
+        name: 'Brainstorm',
+        set: undefined,
+        collectorNumber: undefined,
+        finish: undefined,
+        condition: undefined,
+      }),
+    ])
+    expect(md).toBe(
+      '# Burn\n\n' +
+        '## Main\n2 Lightning Bolt (LEA:161)\n1 Fireblast (VIS:78) [foil]\n\n' +
+        '## Maybeboard\n1 Price of Progress\n\n' +
+        '# Binder\n\n## Main\n- Sol Ring (C21:263) [foil]\n\n' +
+        '# Wishlist\n\n## Main\n- Brainstorm',
+    )
+    expect(md).not.toContain('&')
+    // The writer appends the single trailing newline; the renderer emits none.
+    expect(md.endsWith('\n')).toBe(false)
+  })
+
+  test('collection and wanted lines carry condition, finish, and note tokens', () => {
+    const md = renderMarkdownExport([
+      entry({ listType: 'collection', listName: 'Binder', condition: 'LP', note: 'trade' }),
+      entry({
+        listType: 'wanted',
+        listName: 'Wants',
+        name: 'Sol Ring',
+        set: 'ltc',
+        collectorNumber: '284',
+        finish: 'etched',
+        condition: undefined,
+        note: 'gift',
+      }),
+    ])
+    expect(md).toBe(
+      '# Binder\n\n## Main\n- Lightning Bolt (LEA:161) [foil] [LP] {trade}\n\n' +
+        '# Wants\n\n## Main\n- Sol Ring (LTC:284) [etched] {gift}',
+    )
+  })
+
+  test('sections group by first-seen order even when entries interleave', () => {
+    const md = renderMarkdownExport([
+      entry({ listType: 'deck', listName: 'Burn', section: 'Main', finish: undefined }),
+      entry({
+        listType: 'deck',
+        listName: 'Burn',
+        section: 'Sideboard',
+        name: 'Pyroblast',
+        set: 'ice',
+        collectorNumber: '213',
+        finish: undefined,
+        condition: undefined,
+        fileOrder: 1,
+      }),
+      entry({
+        listType: 'deck',
+        listName: 'Burn',
+        section: 'Main',
+        name: 'Fireblast',
+        set: 'vis',
+        collectorNumber: '78',
+        finish: undefined,
+        condition: undefined,
+        fileOrder: 2,
+      }),
+    ])
+    expect(md).toBe(
+      '# Burn\n\n' +
+        '## Main\n1 Lightning Bolt (LEA:161)\n1 Fireblast (VIS:78)\n\n' +
+        '## Sideboard\n1 Pyroblast (ICE:213)',
+    )
   })
 })
 

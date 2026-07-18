@@ -173,3 +173,7 @@ You can edit the directory keys and the nested `admin` settings in `ritual.confi
 The deployment portion of the `site` key is owned by `ritual init-site`; let that command manage it. The publish lists (`site.includeDecks`, `site.includeCollections`, `site.includeWantedLists` and their `site.exclude*` counterparts) are the exception — they are user settings you can edit from the admin **Settings** page, the **Manage Lists** visibility toggles, or with `config set`.
 
 If a field is missing from the file, Ritual falls back to the default for that field.
+
+### Validation
+
+Invalid values are rejected at the point of entry: [`config set`](/commands/config/) refuses them with an error, and saving from the admin **Settings** page (`PUT /api/config`) rejects the whole update — including unknown top-level keys and wrong-typed fields — before anything is persisted. Values edited into the file by hand are instead validated when the config is loaded: a malformed field (or an invalid `admin` or `site` object) is ignored with a warning and its default applies for that run. Fix the file to clear the warning.

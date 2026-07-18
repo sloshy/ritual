@@ -33,35 +33,42 @@ export default defineConfig({
           label: 'Commands',
           items: [
             { label: 'Overview', slug: 'commands' },
-            { label: 'Account & Auth', items: ['commands/login'] },
             {
-              label: 'Deck Management',
+              label: 'Lists',
               items: [
+                'commands/lists',
                 'commands/new',
                 'commands/rename',
                 'commands/delete',
-                'commands/import-account',
+                'commands/edit',
+                'commands/history',
+                'commands/diff',
                 'commands/get-primer',
-                'commands/deck-sync',
               ],
             },
             {
-              label: 'Card Management',
+              label: 'Cards',
               items: [
-                'commands/edit',
-                'commands/price',
+                'commands/add-card',
+                'commands/remove-card',
+                'commands/set-card',
+                'commands/note',
                 'commands/move',
-                'commands/history',
+              ],
+            },
+            {
+              label: 'Import & Export',
+              items: [
                 'commands/import',
                 'commands/import-csv',
+                'commands/import-account',
                 'commands/import-changes',
                 'commands/export',
-                'commands/diff',
               ],
             },
             {
-              label: 'Card Lookup',
-              items: ['commands/card', 'commands/scry', 'commands/random'],
+              label: 'Lookup & Pricing',
+              items: ['commands/card', 'commands/scry', 'commands/random', 'commands/price'],
             },
             {
               label: 'Site',
@@ -75,30 +82,20 @@ export default defineConfig({
             },
             {
               label: 'Integrations',
-              items: ['commands/mcp', 'commands/skills'],
+              items: ['commands/login', 'commands/deck-sync', 'commands/mcp', 'commands/skills'],
             },
             {
               label: 'Cache',
               items: ['commands/cache', 'commands/cache-server', 'commands/cache-feed'],
             },
             {
-              label: 'Scripting',
-              items: [
-                'commands/lists',
-                'commands/add-card',
-                'commands/remove-card',
-                'commands/set-card',
-                'commands/note',
-              ],
-            },
-            {
               label: 'Utilities',
               items: [
                 'commands/cleanup',
-                'commands/config',
                 'commands/git-detect-changes',
                 'commands/hash',
                 'commands/list-all-cards',
+                'commands/config',
               ],
             },
             {

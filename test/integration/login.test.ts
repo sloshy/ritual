@@ -67,13 +67,13 @@ describe('login CLI headless paths (Integration)', () => {
     expect(result.stderr).toContain('empty')
   })
 
-  test('status without a stored login reports logged out', async () => {
+  test('status without a stored login reports logged out and exits 3', async () => {
     const text = await runCli(['login', 'status'], dir, OFFLINE_ENV)
-    expect(text.exitCode).toBe(0)
+    expect(text.exitCode).toBe(3)
     expect(text.stdout).toContain('Not logged in.')
 
     const json = await runCli(['login', 'status', '--output', 'json'], dir, OFFLINE_ENV)
-    expect(json.exitCode).toBe(0)
+    expect(json.exitCode).toBe(3)
     expect(JSON.parse(json.stdout) as LoginStatusPayload).toEqual({ loggedIn: false })
   })
 
@@ -92,6 +92,28 @@ describe('login CLI headless paths (Integration)', () => {
     })
   })
 
+  test('status --quiet emits nothing and communicates via the exit code alone', async () => {
+    const loggedOut = await runCli(['login', 'status', '--quiet'], dir, OFFLINE_ENV)
+    expect(loggedOut.exitCode).toBe(3)
+    expect(loggedOut.stdout).toBe('')
+    expect(loggedOut.stderr).toBe('')
+
+    // --quiet suppresses json/ndjson payloads too, not just text.
+    const loggedOutJson = await runCli(
+      ['login', 'status', '--quiet', '--output', 'json'],
+      dir,
+      OFFLINE_ENV,
+    )
+    expect(loggedOutJson.exitCode).toBe(3)
+    expect(loggedOutJson.stdout).toBe('')
+
+    await seedStoredLogin(dir, 'tester')
+    const loggedIn = await runCli(['login', 'status', '--quiet'], dir, OFFLINE_ENV)
+    expect(loggedIn.exitCode).toBe(0)
+    expect(loggedIn.stdout).toBe('')
+    expect(loggedIn.stderr).toBe('')
+  })
+
   test('logout clears the stored token and reports who was logged out', async () => {
     await seedStoredLogin(dir, 'tester')
 
@@ -103,6 +125,7 @@ describe('login CLI headless paths (Integration)', () => {
     expect(tokenExists).toBe(false)
 
     const status = await runCli(['login', 'status', '--output', 'json'], dir, OFFLINE_ENV)
+    expect(status.exitCode).toBe(3)
     expect(JSON.parse(status.stdout) as LoginStatusPayload).toEqual({ loggedIn: false })
   })
 

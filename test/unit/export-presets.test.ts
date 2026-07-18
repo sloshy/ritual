@@ -22,6 +22,17 @@ describe('parseExportPresets', () => {
     })
   })
 
+  test('accepts the fixed-line text and md formats (columns stored but unused)', () => {
+    const result = parseExportPresets({
+      list: { format: 'text', columns: ['name'] },
+      files: { format: 'md', columns: ['name'] },
+    })
+    expect(result).toEqual({
+      list: { format: 'text', columns: ['name'] },
+      files: { format: 'md', columns: ['name'] },
+    })
+  })
+
   test.each([
     ['not an object', ['a'], '"exportPresets" must be an object'],
     ['non-object preset', { p: 'csv' }, 'exportPresets["p"] must be an object'],

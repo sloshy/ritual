@@ -92,6 +92,15 @@ async function runArchidektLogin(options: LoginArchidektOptions): Promise<void> 
 
 async function runLoginStatus(scripting: ScriptingOptions): Promise<void> {
   const user = await makeAuth().getStoredUser()
+  // Exit 3 (NotFound) when no login is stored so scripts can branch on the
+  // exit code alone; --quiet suppresses ALL output (every format) for exactly
+  // that use case: `ritual login status --quiet && ...`.
+  if (!user) {
+    process.exitCode = ExitCode.NotFound
+  }
+  if (scripting.quiet) {
+    return
+  }
   if (scripting.output === 'text') {
     emitOutput(user ? `Logged in to Archidekt as ${user.username}` : 'Not logged in.', scripting)
     return

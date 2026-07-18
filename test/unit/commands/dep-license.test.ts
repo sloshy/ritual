@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import { formatEntry } from '../../../src/commands/dep-license'
+import {
+  formatDepLicenseList,
+  formatEntry,
+  toDepLicenseListEntries,
+} from '../../../src/commands/dep-license'
 import { depLicenses, type DepLicenseEntry } from '../../../src/generated/dep-licenses'
 
 describe('depLicenses', () => {
@@ -13,6 +17,41 @@ describe('depLicenses', () => {
     expect(commander).toBeDefined()
     expect(commander?.isPrimary).toBeTrue()
     expect(commander?.license).toBe('MIT')
+  })
+})
+
+describe('formatDepLicenseList', () => {
+  const entries: DepLicenseEntry[] = [
+    { name: 'trans-pkg', version: '2.0.0', license: 'ISC', text: null, isPrimary: false },
+    { name: 'main-pkg', version: '1.2.3', license: 'MIT', text: 'MIT text', isPrimary: true },
+  ]
+
+  test('groups primary before transitive with name version license lines', () => {
+    const result = formatDepLicenseList(entries)
+    expect(result).toBe('Primary:\n  main-pkg 1.2.3 MIT\nTransitive:\n  trans-pkg 2.0.0 ISC')
+  })
+
+  test('lists commander under Primary for the real dependency set', () => {
+    const result = formatDepLicenseList(depLicenses)
+    const transitiveAt = result.indexOf('Transitive:')
+    const commanderAt = result.indexOf('\n  commander ')
+    expect(commanderAt).toBeGreaterThan(-1)
+    expect(commanderAt).toBeLessThan(transitiveAt)
+  })
+})
+
+describe('toDepLicenseListEntries', () => {
+  test('projects entries without the license text field', () => {
+    const entries = toDepLicenseListEntries(depLicenses)
+    const commander = entries.find((e) => e.name === 'commander')
+    expect(commander).toBeDefined()
+    expect(commander?.isPrimary).toBeTrue()
+    expect(commander?.license).toBe('MIT')
+    expect(commander?.version.length).toBeGreaterThan(0)
+    // The huge bundled license text must not leak into the list payload.
+    for (const entry of entries) {
+      expect('text' in entry).toBe(false)
+    }
   })
 })
 

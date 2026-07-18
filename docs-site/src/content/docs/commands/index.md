@@ -6,14 +6,13 @@ description: All available commands in the Ritual CLI.
 All available commands in the Ritual CLI, grouped by area. Use the sidebar to browse, or
 jump to a category:
 
-- **Account & Auth** — [login](/commands/login/)
-- **Deck Management** — [new](/commands/new/), [rename](/commands/rename/), [delete](/commands/delete/), [import-account](/commands/import-account/), [get-primer](/commands/get-primer/), [deck-sync](/commands/deck-sync/)
-- **Card Management** — [edit](/commands/edit/), [price](/commands/price/), [move](/commands/move/), [history](/commands/history/), [import](/commands/import/), [import-csv](/commands/import-csv/), [import-changes](/commands/import-changes/), [export](/commands/export/), [diff](/commands/diff/)
-- **Card Lookup** — [card](/commands/card/), [scry](/commands/scry/), [random](/commands/random/)
+- **Lists** — [lists](/commands/lists/), [new](/commands/new/), [rename](/commands/rename/), [delete](/commands/delete/), [edit](/commands/edit/), [history](/commands/history/), [diff](/commands/diff/), [get-primer](/commands/get-primer/)
+- **Cards** — [add-card](/commands/add-card/), [remove-card](/commands/remove-card/), [set-card](/commands/set-card/), [note](/commands/note/), [move](/commands/move/)
+- **Import & Export** — [import](/commands/import/), [import-csv](/commands/import-csv/), [import-account](/commands/import-account/), [import-changes](/commands/import-changes/), [export](/commands/export/)
+- **Lookup & Pricing** — [card](/commands/card/), [scry](/commands/scry/), [random](/commands/random/), [price](/commands/price/)
 - **Site** — [build-site](/commands/build-site/), [serve](/commands/serve/), [serve-site](/commands/serve-site/), [init-site](/commands/init-site/), [admin](/commands/admin/)
-- **Integrations** — [mcp](/commands/mcp/), [skills](/commands/skills/)
+- **Integrations** — [login](/commands/login/), [deck-sync](/commands/deck-sync/), [mcp](/commands/mcp/), [skills](/commands/skills/)
 - **Cache** — [cache](/commands/cache/), [cache-server](/commands/cache-server/), [cache-feed](/commands/cache-feed/)
-- **Scripting** — [lists](/commands/lists/), [add-card](/commands/add-card/), [remove-card](/commands/remove-card/), [set-card](/commands/set-card/), [note](/commands/note/)
-- **Utilities** — [cleanup](/commands/cleanup/), [config](/commands/config/), [git-detect-changes](/commands/git-detect-changes/), [hash](/commands/hash/), [list-all-cards](/commands/list-all-cards/)
+- **Utilities** — [cleanup](/commands/cleanup/), [git-detect-changes](/commands/git-detect-changes/), [hash](/commands/hash/), [list-all-cards](/commands/list-all-cards/), [config](/commands/config/)
 - **Reference** — [List Resolution](/commands/list-resolution/)
 - **Legal** — [license](/commands/license/), [dep-license](/commands/dep-license/)

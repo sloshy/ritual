@@ -1,11 +1,37 @@
 import { parseExportColumns, DEFAULT_EXPORT_COLUMNS, type ExportProperty } from './render'
 
-export type ExportFormat = 'csv' | 'json'
+export type ExportFormat = 'csv' | 'json' | 'text' | 'md'
 
-export const EXPORT_FORMATS: readonly ExportFormat[] = ['csv', 'json']
+export const EXPORT_FORMATS = [
+  'csv',
+  'json',
+  'text',
+  'md',
+] as const satisfies readonly ExportFormat[]
 
 export function isExportFormat(value: string): value is ExportFormat {
   return (EXPORT_FORMATS as readonly string[]).includes(value)
+}
+
+/**
+ * File extension for a format's default output filename (`export.<ext>`). The
+ * `text` format writes `.txt`; the others match their format name.
+ */
+export const EXPORT_FORMAT_EXTENSIONS: Record<ExportFormat, string> = {
+  csv: 'csv',
+  json: 'json',
+  text: 'txt',
+  md: 'md',
+}
+
+/**
+ * Whether a format's output shape is a column selection. Text and markdown
+ * exports have fixed line formats, so the column and CSV options don't apply
+ * to them (giving those flags alongside `--output text|md` is a usage error;
+ * a preset's stored columns are simply unused).
+ */
+export function exportFormatUsesColumns(format: ExportFormat): boolean {
+  return format === 'csv' || format === 'json'
 }
 
 /**
@@ -16,6 +42,7 @@ export function isExportFormat(value: string): value is ExportFormat {
  */
 export type ExportPreset = {
   format: ExportFormat
+  /** Always stored; only csv/json output reads it (text/md lines are fixed). */
   columns: ExportProperty[]
   /** CSV only; emit the header row. Defaults to true. */
   header?: boolean

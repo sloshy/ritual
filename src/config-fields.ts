@@ -1,6 +1,7 @@
 import {
   getDefaultRitualConfig,
   getSiteSelectionConfig,
+  isConfigParseError,
   parseBannedPrinting,
   parseCacheFeedUrl,
   parseCacheLockTimeoutSeconds,
@@ -246,7 +247,7 @@ export function applyConfigSet(
       const normalized: string[] = []
       for (const value of values) {
         const parsed = parseBannedPrinting(value)
-        if (typeof parsed === 'string') return { error: parsed }
+        if (isConfigParseError(parsed)) return parsed
         normalized.push(parsed.key)
       }
       inputValues = normalized
@@ -310,8 +311,8 @@ export function applyConfigSet(
     // discards (falling back to the default with only a console.warn) on the next load.
     if (property === 'cacheLockTimeoutSeconds') {
       const parsed = parseCacheLockTimeoutSeconds(num)
-      if (typeof parsed === 'string') {
-        return { error: parsed }
+      if (isConfigParseError(parsed)) {
+        return parsed
       }
     }
     // Safe: path is a validated keyof RitualConfig, value matches the field's number type.
@@ -324,7 +325,7 @@ export function applyConfigSet(
   let newValue = rawValue
   if (property === 'defaultCurrency') {
     const parsed = parseDefaultCurrency(rawValue)
-    if (typeof parsed !== 'string') {
+    if (isConfigParseError(parsed)) {
       return parsed
     }
     newValue = parsed
@@ -333,17 +334,15 @@ export function applyConfigSet(
   // here rather than persisting something the loader silently resets.
   if (property === 'cacheSource') {
     const parsed = parseCacheSource(rawValue)
-    if (typeof parsed !== 'string') {
+    if (isConfigParseError(parsed)) {
       return parsed
     }
     newValue = parsed
   }
   if (property === 'cacheFeedUrl') {
     const parsed = parseCacheFeedUrl(rawValue)
-    if (typeof parsed !== 'string') {
-      return {
-        error: parsed === undefined ? '"cacheFeedUrl" must be an http(s) URL' : parsed.error,
-      }
+    if (isConfigParseError(parsed)) {
+      return parsed
     }
     newValue = parsed
   }

@@ -8,6 +8,7 @@ import '../../src/scryfall'
 import { cardCache } from '../../src/cache'
 import { getBaseDir, setBaseDir } from '../../src/base-dir'
 import { runCli, withTempDir } from './helpers/cli'
+import { OFFLINE_ENV } from './helpers/offline-env'
 import { writeCollectionFile, writeDeckFile, writeWantedFile } from './helpers/workspace'
 
 const BUNDLE = {
@@ -188,6 +189,95 @@ describe('import-changes command (Integration)', () => {
       const result = await runCli(['import-changes', 'empty.json'], dir)
       expect(result.exitCode).toBe(3)
       expect(result.stderr).toContain('no changes to apply')
+    })
+  })
+
+  test('--output json emits the admin-verbatim payload on stdout with no preview', async () => {
+    await withTempDir(async (dir) => {
+      await seedWorkspace(dir)
+      await fs.writeFile(path.join(dir, 'edits.json'), JSON.stringify(BUNDLE))
+
+      const result = await runCli(
+        ['import-changes', 'edits.json', '--yes', '--output', 'json'],
+        dir,
+      )
+
+      expect(result.exitCode).toBe(0)
+      // stdout is pure JSON — the preview and per-list glyph lines are text-only.
+      const report = JSON.parse(result.stdout)
+      expect(report.success).toBe(true)
+      expect(report.message).toBe('Applied 3 changes across 2 lists')
+      expect(report.lists).toHaveLength(2)
+
+      const [deck, wanted] = report.lists
+      expect(deck).toMatchObject({ kind: 'deck', slug: 'test-deck', name: 'Test Deck', applied: 2 })
+      expect(deck.conflicts).toHaveLength(1)
+      expect(deck.conflicts[0].reason).toBe('target-not-found')
+      expect(deck.conflicts[0].change.cardName).toBe('Not In Deck')
+      expect(wanted).toMatchObject({ kind: 'wanted', slug: 'wishlist', applied: 1, conflicts: [] })
+
+      // The apply really happened, same as text mode.
+      const deckFile = await fs.readFile(path.join(dir, 'decks', 'test-deck.md'), 'utf-8')
+      expect(deckFile).toMatch(/Counterspell &\d+/)
+    })
+  }, 60_000)
+
+  test('--output json keeps the cold-cache data-layer chatter off stdout', async () => {
+    await withTempDir(async (dir) => {
+      // No cache pre-warm: the cold cache makes the data layer log its
+      // Scryfall chatter ("Fetching ...") during the run, which the
+      // STDERR_LOGGER must divert off stdout. The offline env keeps Scryfall
+      // unreachable, so the apply outcome varies (per-card fetches time out) —
+      // stdout purity must hold either way. An empty deck and a single change
+      // keep the number of doomed 15s card fetches minimal.
+      await writeDeckFile(dir, 'test-deck', {
+        frontMatter: { name: 'Test Deck', format: 'commander' },
+        cards: [],
+      })
+      const bundle = {
+        ...BUNDLE,
+        lists: [
+          {
+            kind: 'deck',
+            slug: 'test-deck',
+            name: 'Test Deck',
+            changes: [{ id: 'a1', timestamp: 1, action: 'add', cardName: 'Counterspell' }],
+          },
+        ],
+      }
+      await fs.writeFile(path.join(dir, 'edits.json'), JSON.stringify(bundle))
+
+      const result = await runCli(
+        ['import-changes', 'edits.json', '--yes', '--output', 'json'],
+        dir,
+        OFFLINE_ENV,
+      )
+
+      // The data-layer chatter happened and landed on stderr — never on stdout.
+      expect(result.stderr).toContain('Fetching')
+      expect(result.stdout).not.toContain('Fetching')
+      // Anything stdout does carry must be the pure JSON payload.
+      if (result.stdout !== '') {
+        expect(() => JSON.parse(result.stdout)).not.toThrow()
+      }
+    })
+  }, 240_000)
+
+  test('--output json without --yes emits a structured usage error and applies nothing', async () => {
+    await withTempDir(async (dir) => {
+      await fs.writeFile(path.join(dir, 'edits.json'), JSON.stringify(BUNDLE))
+
+      const result = await runCli(['import-changes', 'edits.json', '--output', 'json'], dir)
+
+      expect(result.exitCode).toBe(2)
+      expect(result.stdout).toBe('')
+      const envelope = JSON.parse(result.stderr)
+      expect(envelope.error.code).toBe('usage_error')
+      expect(envelope.error.message).toBe(
+        'Confirmation required: pass --yes to apply changes non-interactively.',
+      )
+      // Nothing was applied: the target deck file was never created.
+      expect(await Bun.file(path.join(dir, 'decks', 'test-deck.md')).exists()).toBeFalse()
     })
   })
 

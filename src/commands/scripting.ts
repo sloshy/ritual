@@ -1,3 +1,5 @@
+import * as fs from 'node:fs/promises'
+import path from 'node:path'
 import { InvalidArgumentError, type Command } from 'commander'
 import type { ErrorCode } from '../types'
 import { ExitCode, type ExitCodeValue } from '../errors'
@@ -124,6 +126,54 @@ export function emitResolveListError(error: ResolveListError, options: Scripting
       emitError('not_found', message, options)
       process.exitCode = ExitCode.NotFound
       return
+  }
+}
+
+/**
+ * How {@link emitToFileOrStdout} confirms a completed write, if at all. Each
+ * destination has its own channel: a file-write confirmation goes to stdout
+ * (stdout carried no data), while a stdout-write confirmation goes to stderr
+ * so the payload stays parseable. Omit either line to stay silent for that
+ * destination.
+ */
+export type OutputConfirmation = {
+  /** Confirmation printed to stdout after writing the file at `target`. */
+  file?: (target: string) => string
+  /** Confirmation printed to stderr after writing the payload to stdout. */
+  stdout?: string
+}
+
+/** Destination and chattiness for {@link emitToFileOrStdout}. */
+export type EmitToFileOrStdoutOptions = {
+  /** Pre-resolved absolute destination path; undefined writes to stdout. */
+  outPath?: string
+  /** Suppress the confirmation lines. */
+  quiet: boolean
+  confirm?: OutputConfirmation
+}
+
+/**
+ * The shared `--out <file>` writer: write the fully rendered content (trailing
+ * newline included) to the resolved path — creating parent directories — or
+ * raw to stdout when no path was given. Write failures propagate to the caller,
+ * which owns their classification.
+ */
+export async function emitToFileOrStdout(
+  content: string,
+  options: EmitToFileOrStdoutOptions,
+): Promise<void> {
+  const { outPath, quiet, confirm } = options
+  if (outPath === undefined) {
+    process.stdout.write(content)
+    if (!quiet && confirm?.stdout !== undefined) {
+      process.stderr.write(`${confirm.stdout}\n`)
+    }
+    return
+  }
+  await fs.mkdir(path.dirname(outPath), { recursive: true })
+  await fs.writeFile(outPath, content, 'utf-8')
+  if (!quiet && confirm?.file) {
+    console.log(confirm.file(outPath))
   }
 }
 

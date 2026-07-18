@@ -20,9 +20,16 @@ Without a package name, opens an interactive list showing all bundled dependenci
 
 ## Options
 
-| Option    | Description                            |
-| --------- | -------------------------------------- |
-| `--plain` | Output license text directly to stdout |
+| Option              | Description                                                | Default |
+| ------------------- | ---------------------------------------------------------- | ------- |
+| `--list`            | List every bundled dependency with its version and license | `false` |
+| `--plain`           | Output license text directly to stdout                     | `false` |
+| `--output <format>` | Output format for `--list`: `text`, `json`, or `ndjson`    | `text`  |
+| `--quiet`           | Suppress non-essential output                              | `false` |
+
+`--list` cannot be combined with a package name argument. It never prompts, so it also works
+outside a TTY — without either a package name or `--list`, a non-TTY invocation is a usage
+error (exit `2`).
 
 ## Examples
 
@@ -49,3 +56,43 @@ Print a license to stdout:
 ```bash
 ./ritual dep-license prompts --plain
 ```
+
+List every dependency (primary first, then transitive) as `name version license` lines:
+
+```bash
+./ritual dep-license --list
+```
+
+```text
+Primary:
+  commander 15.0.0 MIT
+  prompts 2.4.2 MIT
+Transitive:
+  kleur 3.0.3 MIT
+```
+
+## Scripted Output
+
+`--list --output json` emits one `{ name, version, license, isPrimary }` object per
+dependency (`ndjson` emits the same rows one object per line). The payload deliberately
+excludes the full license text — it is large; run `./ritual dep-license <package>` to see a
+package's complete license text.
+
+```bash
+./ritual dep-license --list --output json
+```
+
+```json
+[
+  { "name": "commander", "version": "15.0.0", "license": "MIT", "isPrimary": true },
+  { "name": "kleur", "version": "3.0.3", "license": "MIT", "isPrimary": false }
+]
+```
+
+## Exit Codes
+
+| Code | Meaning                                                                    |
+| ---- | -------------------------------------------------------------------------- |
+| `0`  | Success                                                                    |
+| `2`  | Usage error (no package name and no `--list` outside a TTY, or both given) |
+| `3`  | Package not found                                                          |

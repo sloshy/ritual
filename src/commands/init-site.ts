@@ -90,7 +90,7 @@ jobs:
           chmod +x ritual
 
       - name: Generate card manifest
-        run: ./ritual list-all-cards
+        run: ./ritual list-all-cards --out all-cards.md
 
       - name: Restore Scryfall cache
         uses: actions/cache@v5
@@ -190,7 +190,7 @@ jobs:
 
       - name: Generate card manifest
         if: steps.detect-changes.outputs.has-changes != 'true'
-        run: ./ritual list-all-cards
+        run: ./ritual list-all-cards --out all-cards.md
 
       - name: Restore Scryfall cache
         if: steps.detect-changes.outputs.has-changes != 'true'

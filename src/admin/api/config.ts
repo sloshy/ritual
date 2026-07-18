@@ -1,15 +1,19 @@
 import {
+  DEFAULT_ADMIN_CONFIG,
   getRitualConfigPath,
+  isConfigParseError,
   loadRitualConfig,
-  normalizeBannedPrintings,
+  parseAdminConfig,
   parseCacheFeedUrl,
   parseCacheLockTimeoutSeconds,
   parseCacheSource,
   parseDefaultCurrency,
+  parseSiteConfig,
   reloadRitualConfig,
   saveRitualConfig,
   type RitualConfig,
 } from '../../ritual-config'
+import { parseExportPresets } from '../../export/presets'
 import { shouldAutoCommit, commitFiles } from '../git'
 import { apiHandler } from '../utils'
 import { MAX_BODY_SIZE } from '../validation'
@@ -19,6 +23,39 @@ interface ConfigResponse {
   success: boolean
   config?: RitualConfig
   message?: string
+}
+
+/** Marks every RitualConfig key; `satisfies` keeps the allowlist exhaustive. */
+type KnownConfigKeyMap = Record<keyof RitualConfig, true>
+
+/** Top-level ritual.config.json keys a PUT /api/config body may carry. */
+const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set(
+  Object.keys({
+    decksDir: true,
+    collectionsDir: true,
+    wantedDir: true,
+    defaultCurrency: true,
+    cacheLockTimeoutSeconds: true,
+    cacheSource: true,
+    cacheFeedUrl: true,
+    admin: true,
+    site: true,
+    exportPresets: true,
+  } satisfies KnownConfigKeyMap),
+)
+
+/**
+ * Nested `admin` keys a PUT /api/config body may carry, derived from the
+ * default admin config (which `satisfies AdminConfig`, so it names every key).
+ */
+const KNOWN_ADMIN_CONFIG_KEYS: ReadonlySet<string> = new Set(Object.keys(DEFAULT_ADMIN_CONFIG))
+
+/** The directory keys, all plain (unconstrained) strings. */
+const DIRECTORY_CONFIG_KEYS = ['decksDir', 'collectionsDir', 'wantedDir'] as const
+
+function badRequest(message: string): Response {
+  const resp: ConfigResponse = { success: false, message }
+  return Response.json(resp, { status: 400 })
 }
 
 export async function handleGetConfig(): Promise<Response> {
@@ -33,45 +70,49 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
     if (contentLength > MAX_BODY_SIZE) {
       return Response.json({ success: false, message: 'Request body too large' }, { status: 413 })
     }
-    const updates = (await req.json()) as Partial<RitualConfig>
+    const body = (await req.json()) as unknown
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+      return badRequest('Config update must be a JSON object')
+    }
+    const raw = body as Record<string, unknown>
 
-    // Validate and normalize banned printings before persisting so the stored
-    // config always holds canonical `set:collectorNumber` keys (set codes
-    // lowercased), matching what `config set` writes.
-    if (updates.site?.bannedPrintings !== undefined) {
-      const normalized = normalizeBannedPrintings(updates.site.bannedPrintings)
-      if (typeof normalized === 'string') {
-        return Response.json({ success: false, message: normalized }, { status: 400 })
+    // Validate every present top-level key before merging, so an invalid value
+    // is rejected with feedback here instead of persisted and then silently
+    // reset to its default (with only a console.warn) on the next config load.
+    for (const key of Object.keys(raw)) {
+      if (!KNOWN_CONFIG_KEYS.has(key)) {
+        return badRequest(`Unknown config key "${key}"`)
       }
-      updates.site = { ...updates.site, bannedPrintings: normalized }
     }
 
-    // Validate and normalize the default currency before persisting, matching
-    // what `config set` does — an unvalidated write here would otherwise persist
-    // an invalid value that only gets caught (and silently reset to the
-    // default) the next time the config is loaded, with no feedback to the caller.
-    if (updates.defaultCurrency !== undefined) {
-      const parsed = parseDefaultCurrency(updates.defaultCurrency)
-      if (typeof parsed !== 'string') {
-        return Response.json({ success: false, message: parsed.error }, { status: 400 })
+    const updates = raw as Partial<RitualConfig>
+
+    for (const key of DIRECTORY_CONFIG_KEYS) {
+      if (raw[key] !== undefined && typeof raw[key] !== 'string') {
+        return badRequest(`"${key}" must be a string`)
+      }
+    }
+
+    if (raw.defaultCurrency !== undefined) {
+      const parsed = parseDefaultCurrency(raw.defaultCurrency)
+      if (isConfigParseError(parsed)) {
+        return badRequest(parsed.error)
       }
       updates.defaultCurrency = parsed
     }
 
-    // Same rationale as defaultCurrency: reject an invalid lock timeout here
-    // instead of persisting it and silently resetting on the next load.
-    if (updates.cacheLockTimeoutSeconds !== undefined) {
-      const parsed = parseCacheLockTimeoutSeconds(updates.cacheLockTimeoutSeconds)
-      if (typeof parsed === 'string') {
-        return Response.json({ success: false, message: parsed }, { status: 400 })
+    if (raw.cacheLockTimeoutSeconds !== undefined) {
+      const parsed = parseCacheLockTimeoutSeconds(raw.cacheLockTimeoutSeconds)
+      if (isConfigParseError(parsed)) {
+        return badRequest(parsed.error)
       }
       updates.cacheLockTimeoutSeconds = parsed
     }
 
-    if (updates.cacheSource !== undefined) {
-      const parsed = parseCacheSource(updates.cacheSource)
-      if (typeof parsed !== 'string') {
-        return Response.json({ success: false, message: parsed.error }, { status: 400 })
+    if (raw.cacheSource !== undefined) {
+      const parsed = parseCacheSource(raw.cacheSource)
+      if (isConfigParseError(parsed)) {
+        return badRequest(parsed.error)
       }
       updates.cacheSource = parsed
     }
@@ -79,20 +120,60 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
     // An empty string clears the override (falls back to the built-in default);
     // the key must be removed from the merged config, not just from the update.
     let clearCacheFeedUrl = false
-    if (updates.cacheFeedUrl !== undefined) {
-      if (updates.cacheFeedUrl === '') {
+    if (raw.cacheFeedUrl !== undefined) {
+      if (raw.cacheFeedUrl === '') {
         clearCacheFeedUrl = true
         delete updates.cacheFeedUrl
       } else {
-        const parsed = parseCacheFeedUrl(updates.cacheFeedUrl)
-        if (typeof parsed !== 'string') {
-          return Response.json(
-            { success: false, message: parsed?.error ?? '"cacheFeedUrl" must be an http(s) URL' },
-            { status: 400 },
-          )
+        const parsed = parseCacheFeedUrl(raw.cacheFeedUrl)
+        if (isConfigParseError(parsed)) {
+          return badRequest(parsed.error)
         }
         updates.cacheFeedUrl = parsed
       }
+    }
+
+    // `admin` merges deep (see below), so parseAdminConfig is used purely as a
+    // validator of the present fields — the raw partial is what gets merged,
+    // never the parsed result, whose defaulted absent fields would clobber the
+    // current values. Because the raw partial is merged verbatim, unknown
+    // nested keys must be rejected here (parseAdminConfig silently ignores
+    // them), mirroring the top-level allowlist and the CLI's
+    // `config set admin.<field>` behavior.
+    if (raw.admin !== undefined) {
+      const parsed = parseAdminConfig(raw.admin)
+      if (isConfigParseError(parsed)) {
+        return badRequest(parsed.error)
+      }
+      if (typeof raw.admin === 'object' && raw.admin !== null) {
+        for (const key of Object.keys(raw.admin)) {
+          if (!KNOWN_ADMIN_CONFIG_KEYS.has(key)) {
+            return badRequest(`Unknown admin config key "${key}"`)
+          }
+        }
+      }
+    }
+
+    // `site` replaces wholesale: parseSiteConfig validates the full object and
+    // normalizes bannedPrintings to canonical lowercase `set:collectorNumber`
+    // keys, matching what `config set` writes. Unlike `config set`, there is
+    // deliberately no guard on the init-site-managed deployment keys here —
+    // the admin Settings UI round-trips the full site object (deployment keys
+    // included), so the admin path must accept them.
+    if (raw.site !== undefined) {
+      const parsed = parseSiteConfig(raw.site)
+      if (isConfigParseError(parsed)) {
+        return badRequest(parsed.error)
+      }
+      updates.site = parsed
+    }
+
+    if (raw.exportPresets !== undefined) {
+      const parsed = parseExportPresets(raw.exportPresets)
+      if (typeof parsed === 'string') {
+        return badRequest(parsed)
+      }
+      updates.exportPresets = parsed
     }
 
     const current = await loadRitualConfig()

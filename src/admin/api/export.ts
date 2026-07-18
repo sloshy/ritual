@@ -6,6 +6,7 @@ import {
 } from '../../export/entries'
 import { renderExport } from '../../export/output'
 import {
+  EXPORT_FORMATS,
   isExportFormat,
   resolveExportSettings,
   type ExportPreset,
@@ -76,7 +77,7 @@ function parseSettingsFlags(body: ExportRequestBody): ExportSettingsFlags | stri
   }
   if (body.format !== undefined) {
     if (typeof body.format !== 'string' || !isExportFormat(body.format)) {
-      return `Invalid format '${String(body.format)}'. Use 'csv' or 'json'.`
+      return `Invalid format '${String(body.format)}'. Use one of: ${EXPORT_FORMATS.join(', ')}.`
     }
     flags.format = body.format
   }
@@ -125,8 +126,9 @@ function parseFilters(raw: ExportRequestFilters | undefined): ExportFilters | st
  * `POST /api/export` — assemble and render a card export. Mirrors the CLI
  * `export` command's flag mode: selected lists (or every list when none are
  * named and no card picks are given) plus card picks, filtered, rendered to
- * CSV or JSON. Returns the rendered content as a string rather than writing
- * a file — the caller decides where it goes.
+ * CSV, JSON, plain text, or Markdown (columns and the CSV toggles only shape
+ * csv/json output). Returns the rendered content as a string rather than
+ * writing a file — the caller decides where it goes.
  */
 export async function handleExport(req: Request): Promise<Response> {
   try {

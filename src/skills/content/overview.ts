@@ -90,7 +90,7 @@ formats, leaving formatless decks untouched and reported).
 - **ritual-decks** — create, import, sync, and price decks
 - **ritual-collections** — manage and price collections
 - **ritual-wanted** — manage and price wanted lists
-- **ritual-edit** — card edits across any list: one-shot non-interactive commands (\`add-card\`, \`remove-card\`, \`set-card\`, \`note\`, scripted \`move\`), the unified interactive editor, and CSV/JSON exports
+- **ritual-edit** — card edits across any list: one-shot non-interactive commands (\`add-card\`, \`remove-card\`, \`set-card\`, \`note\`, scripted \`move\`), the unified interactive editor, and card exports (CSV, JSON, plain text, Markdown)
 - **ritual-cards** — look up cards and run Scryfall searches
 - **ritual-site** — build, serve, and administer the published site (and the MCP server)
 
@@ -115,7 +115,7 @@ prices per-card, never a bulk download), and \`never\` (use the cache as-is).
 \`\`\`bash
 ritual login archidekt            # log in to Archidekt (for imports/sync)
 echo "$PASS" | ritual login archidekt --username you --password-stdin  # headless login
-ritual login status               # show the stored Archidekt login, if any
+ritual login status               # show the stored Archidekt login (exit 3 when not logged in)
 ritual login logout               # remove the stored Archidekt session
 ritual config set <prop> <value>  # set a config value (dot notation for nested keys)
 ritual config set defaultCurrency eur  # currency price commands/displays default to (usd | eur | tix)

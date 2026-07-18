@@ -11,10 +11,15 @@ import {
   getSiteDeployConfig,
   getSiteSelectionConfig,
   initRitualConfig,
+  isConfigParseError,
   loadRitualConfig,
   normalizeBannedPrintings,
   parseAdminConfig,
   parseBannedPrinting,
+  parseCacheFeedUrl,
+  parseCacheLockTimeoutSeconds,
+  parseCacheSource,
+  parseDefaultCurrency,
   parseSiteConfig,
   resetRitualConfigCache,
   saveRitualConfig,
@@ -25,6 +30,14 @@ import { setBaseDir } from '../../src/base-dir'
 
 const testDir = path.join(import.meta.dir, '../.test-ritual-config')
 const configPath = path.join(testDir, 'ritual.config.json')
+
+/** Assert `result` is the shared ConfigParseError branch naming `substring`. */
+function expectParseError(result: unknown, substring: string): void {
+  expect(isConfigParseError(result)).toBeTrue()
+  if (isConfigParseError(result)) {
+    expect(result.error).toContain(substring)
+  }
+}
 
 describe('ritual config', () => {
   const originalCwd = process.cwd()
@@ -318,16 +331,14 @@ describe('parseAdminConfig', () => {
     expect(result).toEqual({ ...defaults, gitEnabled: true, ipAllowList: ['10.0.0.1'] })
   })
 
-  test('returns error string when not an object', () => {
-    expect(parseAdminConfig('nope') as string).toContain('admin config')
-    expect(typeof parseAdminConfig(42)).toBe('string')
-    expect(typeof parseAdminConfig(null)).toBe('string')
+  test('returns a parse error when not an object', () => {
+    expectParseError(parseAdminConfig('nope'), 'admin config')
+    expect(isConfigParseError(parseAdminConfig(42))).toBeTrue()
+    expect(isConfigParseError(parseAdminConfig(null))).toBeTrue()
   })
 
   test('returns error naming the field when a boolean field is malformed', () => {
-    const result = parseAdminConfig({ gitEnabled: 'yes' })
-    expect(typeof result).toBe('string')
-    expect(result as string).toContain('gitEnabled')
+    expectParseError(parseAdminConfig({ gitEnabled: 'yes' }), 'gitEnabled')
   })
 
   test.each([
@@ -335,14 +346,12 @@ describe('parseAdminConfig', () => {
     ['rateLimitWindowMinutes', { rateLimitWindowMinutes: 'a while' }],
     ['failedAuthDelayMs', { failedAuthDelayMs: 'slow' }],
   ])('returns error naming the field when number field %s is malformed', (field, input) => {
-    const result = parseAdminConfig(input)
-    expect(typeof result).toBe('string')
-    expect(result as string).toContain(field)
+    expectParseError(parseAdminConfig(input), field)
   })
 
   test('returns error when a list field is not an array of strings', () => {
-    expect(typeof parseAdminConfig({ ipAllowList: '10.0.0.1' })).toBe('string')
-    expect(typeof parseAdminConfig({ userAgentDenyList: [1, 2] })).toBe('string')
+    expect(isConfigParseError(parseAdminConfig({ ipAllowList: '10.0.0.1' }))).toBeTrue()
+    expect(isConfigParseError(parseAdminConfig({ userAgentDenyList: [1, 2] }))).toBeTrue()
   })
 
   test('ignores unknown extra fields', () => {
@@ -440,58 +449,52 @@ describe('parseSiteConfig', () => {
   })
 
   test('returns error when a selection list is not an array of strings', () => {
-    expect(typeof parseSiteConfig({ includeDecks: 'Izzet Storm' })).toBe('string')
-    expect(parseSiteConfig({ includeDecks: 'Izzet Storm' }) as string).toContain('includeDecks')
-    expect(typeof parseSiteConfig({ includeCollections: [1, 2] })).toBe('string')
-    expect(typeof parseSiteConfig({ excludeDecks: 'Old Brew' })).toBe('string')
-    expect(parseSiteConfig({ excludeDecks: 'Old Brew' }) as string).toContain('excludeDecks')
+    expectParseError(parseSiteConfig({ includeDecks: 'Izzet Storm' }), 'includeDecks')
+    expect(isConfigParseError(parseSiteConfig({ includeCollections: [1, 2] }))).toBeTrue()
+    expectParseError(parseSiteConfig({ excludeDecks: 'Old Brew' }), 'excludeDecks')
   })
 
-  test('returns error string when not an object', () => {
-    expect(parseSiteConfig('just a string') as string).toContain('site config')
-    expect(typeof parseSiteConfig(null)).toBe('string')
-    expect(typeof parseSiteConfig(42)).toBe('string')
+  test('returns a parse error when not an object', () => {
+    expectParseError(parseSiteConfig('just a string'), 'site config')
+    expect(isConfigParseError(parseSiteConfig(null))).toBeTrue()
+    expect(isConfigParseError(parseSiteConfig(42))).toBeTrue()
   })
 
-  test('returns error string when version is not valid semver', () => {
+  test('returns a parse error when version is not valid semver', () => {
     const result = parseSiteConfig({
       version: 'latest',
       ciSystem: 'github-actions',
       deployMode: 'publish-for-me',
       distDir: 'dist',
     })
-    expect(typeof result).toBe('string')
-    expect(result as string).toContain('"version"')
+    expectParseError(result, '"version"')
   })
 
-  test('returns error string when version is missing', () => {
+  test('returns a parse error when version is missing', () => {
     const result = parseSiteConfig({
       ciSystem: 'github-actions',
       deployMode: 'publish-for-me',
       distDir: 'dist',
     })
-    expect(typeof result).toBe('string')
-    expect(result as string).toContain('"version"')
+    expectParseError(result, '"version"')
   })
 
-  test('returns error string when ciSystem is invalid', () => {
+  test('returns a parse error when ciSystem is invalid', () => {
     const result = parseSiteConfig({
       version: '1.0.0',
       ciSystem: 'gitlab',
     })
-    expect(typeof result).toBe('string')
-    expect(result as string).toContain('"ciSystem"')
+    expectParseError(result, '"ciSystem"')
   })
 
-  test('returns error string when deployMode is invalid for github-actions', () => {
+  test('returns a parse error when deployMode is invalid for github-actions', () => {
     const result = parseSiteConfig({
       version: '1.0.0',
       ciSystem: 'github-actions',
       deployMode: 'invalid',
       distDir: 'dist',
     })
-    expect(typeof result).toBe('string')
-    expect(result as string).toContain('"deployMode"')
+    expectParseError(result, '"deployMode"')
   })
 
   test('returns error when distDir is missing for github-actions', () => {
@@ -501,8 +504,7 @@ describe('parseSiteConfig', () => {
       deployMode: 'publish-for-me',
       detectChanges: false,
     })
-    expect(typeof result).toBe('string')
-    expect(result as string).toContain('"distDir"')
+    expectParseError(result, '"distDir"')
   })
 
   test('returns error when detectChanges is missing for github-actions', () => {
@@ -512,8 +514,7 @@ describe('parseSiteConfig', () => {
       deployMode: 'publish-for-me',
       distDir: 'dist',
     })
-    expect(typeof result).toBe('string')
-    expect(result as string).toContain('"detectChanges"')
+    expectParseError(result, '"detectChanges"')
   })
 
   test('returns error when detectChanges is the wrong type for github-actions', () => {
@@ -524,8 +525,7 @@ describe('parseSiteConfig', () => {
       distDir: 'dist',
       detectChanges: 'yes',
     })
-    expect(typeof result).toBe('string')
-    expect(result as string).toContain('"detectChanges"')
+    expectParseError(result, '"detectChanges"')
   })
 
   test.each([
@@ -551,13 +551,11 @@ describe('parseSiteConfig', () => {
   })
 
   test('returns error when a bannedPrintings entry is malformed', () => {
-    const result = parseSiteConfig({ bannedPrintings: ['SLD:123', 'oops'] })
-    expect(typeof result).toBe('string')
-    expect(result as string).toContain('oops')
+    expectParseError(parseSiteConfig({ bannedPrintings: ['SLD:123', 'oops'] }), 'oops')
   })
 
   test('returns error when bannedPrintings is not an array of strings', () => {
-    expect(typeof parseSiteConfig({ bannedPrintings: 'SLD:123' })).toBe('string')
+    expect(isConfigParseError(parseSiteConfig({ bannedPrintings: 'SLD:123' }))).toBeTrue()
   })
 })
 
@@ -571,7 +569,7 @@ describe('parseBannedPrinting', () => {
   })
 
   test.each(['sld', 'sld:', ':123', 'sld:12:3', '   '])('rejects malformed entry %p', (raw) => {
-    expect(typeof parseBannedPrinting(raw)).toBe('string')
+    expectParseError(parseBannedPrinting(raw), 'SET:COLLECTOR')
   })
 })
 
@@ -584,7 +582,41 @@ describe('normalizeBannedPrintings', () => {
   })
 
   test('returns error for a non-array', () => {
-    expect(typeof normalizeBannedPrintings('SLD:123')).toBe('string')
+    expectParseError(normalizeBannedPrintings('SLD:123'), 'bannedPrintings')
+  })
+})
+
+describe('config parser error shape', () => {
+  test('isConfigParseError discriminates errors from success values', () => {
+    expect(isConfigParseError({ error: 'nope' })).toBeTrue()
+    expect(isConfigParseError('nope')).toBeFalse()
+    expect(isConfigParseError(undefined)).toBeFalse()
+    expect(isConfigParseError(null)).toBeFalse()
+    expect(isConfigParseError({ set: 'sld', collectorNumber: '123', key: 'sld:123' })).toBeFalse()
+  })
+
+  test('parseDefaultCurrency returns the currency or a shared-shape error', () => {
+    expect(parseDefaultCurrency('EUR')).toBe('eur')
+    expectParseError(parseDefaultCurrency('gbp'), 'defaultCurrency')
+  })
+
+  test('parseCacheLockTimeoutSeconds returns the number or a shared-shape error', () => {
+    expect(parseCacheLockTimeoutSeconds(60)).toBe(60)
+    expectParseError(parseCacheLockTimeoutSeconds(0), 'positive integer')
+  })
+
+  test('parseCacheSource returns the source or a shared-shape error', () => {
+    expect(parseCacheSource('feed')).toBe('feed')
+    expectParseError(parseCacheSource('torrent'), 'cacheSource')
+  })
+
+  test('parseCacheFeedUrl parses only present values — absence is the caller’s check', () => {
+    expect(parseCacheFeedUrl('https://feed.example/feed.json')).toBe(
+      'https://feed.example/feed.json',
+    )
+    expectParseError(parseCacheFeedUrl('ftp://feed.example/feed.json'), 'http(s) URL')
+    // undefined is no longer a success branch: callers skip parsing when absent.
+    expectParseError(parseCacheFeedUrl(undefined), 'http(s) URL')
   })
 })
 

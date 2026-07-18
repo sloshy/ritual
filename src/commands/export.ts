@@ -1,4 +1,3 @@
-import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import type { Command } from 'commander'
 import { getErrorMessage } from '../errors'
@@ -14,6 +13,7 @@ import {
 import { describeExportProperties, parseColumnsFlag, type ExportProperty } from '../export/render'
 import {
   EXPORT_FORMATS,
+  exportFormatUsesColumns,
   isExportFormat,
   resolveExportSettings,
   type ExportFormat,
@@ -30,10 +30,16 @@ import {
 } from '../resolve-list'
 import { getExportPresets } from '../ritual-config'
 import { isNoInput } from '../no-input'
-import { emitError, emitResolveListError, ExitCode, type ScriptingOptions } from './scripting'
+import {
+  emitError,
+  emitResolveListError,
+  emitToFileOrStdout,
+  ExitCode,
+  type ScriptingOptions,
+} from './scripting'
 import { runExportWizard } from './export-wizard'
 
-/** Raw commander option values; format/columns/finish/condition are validated in the action. */
+/** Raw commander option values; output/columns/finish/condition are validated in the action. */
 type ExportCommandOptions = {
   deck?: boolean
   collection?: boolean
@@ -44,7 +50,8 @@ type ExportCommandOptions = {
   set?: string
   finish?: string
   condition?: string
-  format?: string
+  /** The `--output <format>` export format; validated into `ParsedExportFlags.format`. */
+  output?: string
   columns?: string
   /** Commander stores `--no-header` as `header: false` (true when not given). */
   header: boolean
@@ -132,10 +139,12 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
   }
 
   let format: ExportFormat | undefined
-  if (options.format !== undefined) {
-    const lower = options.format.toLowerCase()
+  if (options.output !== undefined) {
+    const lower = options.output.toLowerCase()
     if (!isExportFormat(lower)) {
-      usageError(`Invalid format '${options.format}'. Use one of: ${EXPORT_FORMATS.join(', ')}.`)
+      usageError(
+        `Invalid output format '${options.output}'. Use one of: ${EXPORT_FORMATS.join(', ')}.`,
+      )
       return undefined
     }
     format = lower
@@ -149,6 +158,22 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
       return undefined
     }
     columns = parsed
+  }
+
+  // The column/CSV-shape flags conflict with an explicit fixed-line format.
+  // Only explicit flags conflict — a preset whose stored columns accompany a
+  // text/md format is fine (the columns are simply unused).
+  if (format !== undefined && !exportFormatUsesColumns(format)) {
+    const conflicting: string[] = []
+    if (options.columns !== undefined) conflicting.push('--columns')
+    if (!options.header) conflicting.push('--no-header')
+    if (options.quoteAll) conflicting.push('--quote-all')
+    if (conflicting.length > 0) {
+      usageError(
+        `${conflicting.join(' and ')} cannot be combined with --output ${format}: ${format} exports have a fixed line format. Columns and CSV options apply to csv/json output only.`,
+      )
+      return undefined
+    }
   }
 
   return {
@@ -173,16 +198,15 @@ async function emitExport(
   out: string | undefined,
   quiet: boolean,
 ): Promise<void> {
-  if (out) {
-    const target = path.resolve(out)
-    await fs.mkdir(path.dirname(target), { recursive: true })
-    await fs.writeFile(target, content + '\n', 'utf-8')
-    if (!quiet) console.log(`✓ Exported ${countLabel(entryCount, 'card')} to ${target}`)
-    return
-  }
-  process.stdout.write(content + '\n')
-  // Keep stdout parseable: the confirmation goes to stderr.
-  if (!quiet) process.stderr.write(`Exported ${countLabel(entryCount, 'card')}\n`)
+  await emitToFileOrStdout(`${content}\n`, {
+    outPath: out ? path.resolve(out) : undefined,
+    quiet,
+    confirm: {
+      file: (target) => `✓ Exported ${countLabel(entryCount, 'card')} to ${target}`,
+      // Keep stdout parseable: the stdout-mode confirmation goes to stderr.
+      stdout: `Exported ${countLabel(entryCount, 'card')}`,
+    },
+  })
 }
 
 async function runFlagExport(
@@ -262,7 +286,9 @@ async function runFlagExport(
 export function registerExportCommand(program: Command): void {
   program
     .command('export')
-    .description('Export cards from decks, collections, and wanted lists as CSV or JSON')
+    .description(
+      'Export cards from decks, collections, and wanted lists as CSV, JSON, plain text, or Markdown',
+    )
     .argument(
       '[lists...]',
       'Lists to export; an optional deck:/collection:/wanted: prefix pins the type',
@@ -284,10 +310,12 @@ export function registerExportCommand(program: Command): void {
       '--condition <list>',
       `Only cards with one of these conditions (comma-separated): ${VALID_CONDITIONS.join(', ')}, none (no condition marked)`,
     )
-    .option('--format <format>', `Output format: ${EXPORT_FORMATS.join(' or ')} (default: csv)`)
+    // No commander default and no argParser: `undefined` must mean "not given"
+    // so a preset's stored format can fill it in (tri-state precedence).
+    .option('--output <format>', `Export format: ${EXPORT_FORMATS.join(', ')} (default: csv)`)
     .option(
       '--columns <list>',
-      `Comma-separated columns in output order. Available: ${describeExportProperties()}`,
+      `Comma-separated columns in output order (csv/json only). Available: ${describeExportProperties()}`,
     )
     .option('--no-header', 'Omit the CSV header row')
     .option('--quote-all', 'Quote every CSV cell instead of only cells that need it')

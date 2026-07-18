@@ -105,6 +105,20 @@ describe('ritual skills command (Integration)', () => {
     })
   })
 
+  test('list --output json emits every skill as { name, description }', async () => {
+    await withTempDir(async (dir) => {
+      const result = await runCli(['skills', 'list', '--output', 'json'], dir)
+      expect(result.exitCode).toBe(0)
+
+      const entries = JSON.parse(result.stdout) as { name: string; description: string }[]
+      // The full catalog is present, in catalog order, with non-empty descriptions.
+      expect(entries.map((entry) => entry.name)).toEqual(SKILLS.map((skill) => skill.name))
+      for (const entry of entries) {
+        expect(entry.description.length).toBeGreaterThan(0)
+      }
+    })
+  })
+
   test('install writes skills under the workspace .claude/skills', async () => {
     await withTempDir(async (dir) => {
       const result = await runCli(['skills', 'install'], dir)
@@ -127,6 +141,37 @@ describe('ritual skills command (Integration)', () => {
       // The unnamed overview skill must not have been installed.
       const overview = path.join(dir, '.claude', 'skills', 'ritual', 'SKILL.md')
       expect(await fileExists(overview)).toBe(false)
+    })
+  })
+
+  test('install --output json reports the skills dir and per-skill results with absolute paths', async () => {
+    await withTempDir(async (dir) => {
+      const result = await runCli(['skills', 'install', '--output', 'json'], dir)
+      expect(result.exitCode).toBe(0)
+
+      // stdout is pure JSON (parse would fail if the glyph chatter leaked in).
+      const report = JSON.parse(result.stdout) as {
+        skillsDir: string
+        results: { name: string; path: string; status: string }[]
+      }
+      // Absolute paths, never the display-relative form used in text mode.
+      expect(path.isAbsolute(report.skillsDir)).toBe(true)
+      expect(report.skillsDir.endsWith(path.join('.claude', 'skills'))).toBe(true)
+      expect(report.results.map((r) => r.name)).toEqual(SKILLS.map((skill) => skill.name))
+      for (const entry of report.results) {
+        expect(entry.status).toBe('written')
+        expect(path.isAbsolute(entry.path)).toBe(true)
+        expect(entry.path.startsWith(report.skillsDir)).toBe(true)
+      }
+    })
+  })
+
+  test('install --quiet suppresses the text chatter but still writes the skills', async () => {
+    await withTempDir(async (dir) => {
+      const result = await runCli(['skills', 'install', '--quiet'], dir)
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toBe('')
+      expect(await fileExists(path.join(dir, '.claude', 'skills', 'ritual', 'SKILL.md'))).toBe(true)
     })
   })
 

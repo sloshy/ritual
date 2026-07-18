@@ -826,6 +826,12 @@ Returns the current application configuration.
 
 Update the application configuration. Partial updates are supported — only the fields you include will be changed. The nested `admin` object is merged field-by-field, so you can send just the admin settings you want to change.
 
+Every key in the request body is validated **before** the merge is persisted — a malformed update is rejected with a `400`, never written to disk and silently dropped on the next config load. Specifically:
+
+- Unknown top-level keys are rejected with a `400` (`Unknown config key "x"`).
+- Unknown keys inside `admin` are rejected with a `400` (`Unknown admin config key "x"`), matching `config set admin.<field>`.
+- When `admin` or `site` is present, its fields are validated field-by-field (the same rules the config loader applies), and any malformed field rejects the whole update with a `400`.
+
 `defaultCurrency`, `cacheLockTimeoutSeconds`, `cacheSource`, and `cacheFeedUrl` are validated the same way as [`config set`](/commands/config/) and rejected with a `400` when malformed. `cacheFeedUrl` has one extra rule: sending it as an **empty string** explicitly clears a previously-set override (falling back to the built-in default) — omitting the field entirely, by contrast, leaves the current value untouched.
 
 **Request body:**

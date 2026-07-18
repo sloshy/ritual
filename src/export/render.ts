@@ -1,4 +1,14 @@
 import { csvCell } from '../csv'
+import {
+  aggregateQuantities,
+  formatCollectionLine,
+  formatWantedListLine,
+  printingSuffix,
+  variantKey,
+  type CardPrinting,
+} from '../card-line'
+import { serializeCardLine } from '../deck-text'
+import type { Card } from '../types'
 import type { ExportEntry } from './entries'
 
 /**
@@ -175,6 +185,101 @@ export function renderJsonExport(entries: ExportEntry[], columns: ExportProperty
     return record
   })
   return JSON.stringify(records, null, 2)
+}
+
+/**
+ * Render entries as ONE flat plain-text decklist: `${qty} ${name} (SET:CN)`
+ * per distinct variant (finish and condition distinguish variants even though
+ * the line prints neither), quantities summed across sections and lists (a
+ * multi-list export merges into a single list). No headers or sections; lines
+ * appear in first-seen entry order. The printing suffix is omitted for entries
+ * without a pinned printing; set codes are uppercased (user-facing output).
+ */
+export function renderTextExport(entries: ExportEntry[]): string {
+  return aggregateQuantities(
+    entries,
+    (entry) =>
+      variantKey(entry.name, entry.set, entry.collectorNumber, entry.finish, entry.condition),
+    (entry) => entry.quantity,
+  )
+    .map(
+      ({ entry, quantity }) =>
+        `${quantity} ${entry.name}${printingSuffix(entry.set, entry.collectorNumber)}`,
+    )
+    .join('\n')
+}
+
+/** One list's group of entries for the markdown export, in first-seen order. */
+type MarkdownListGroup = { listName: string; entries: ExportEntry[] }
+
+/**
+ * The canonical markdown line for one entry, per its list type, WITHOUT a
+ * trailing newline (the collection/wanted formatters are newline-terminated
+ * while the deck serializer is not, so both are normalized here) and without a
+ * `&N` id (ExportEntry deliberately carries none).
+ */
+function markdownLine(entry: ExportEntry): string {
+  if (entry.listType === 'deck') {
+    const card: Card = {
+      quantity: entry.quantity,
+      name: entry.name,
+      set: entry.set,
+      collectorNumber: entry.collectorNumber,
+      finish: entry.finish,
+      condition: entry.condition,
+      note: entry.note,
+    }
+    return serializeCardLine(card)
+  }
+  if (entry.listType === 'collection' && entry.set && entry.collectorNumber) {
+    return formatCollectionLine(
+      entry.name,
+      entry.set,
+      entry.collectorNumber,
+      entry.finish ?? 'nonfoil',
+      entry.condition,
+      entry.note,
+    ).replace(/\n$/, '')
+  }
+  // Wanted entries — and, as a type-level fallback, a collection entry missing
+  // its printing (the collection parser never produces one) — use the
+  // wanted-list grammar, where the printing and finish are optional.
+  const printing: CardPrinting | undefined =
+    entry.set && entry.collectorNumber
+      ? { set: entry.set, collectorNumber: entry.collectorNumber }
+      : undefined
+  return formatWantedListLine(entry.name, printing, entry.finish, entry.note).replace(/\n$/, '')
+}
+
+/**
+ * Render entries as grouped canonical markdown: one `# ${listName}` H1 per
+ * list (in first-seen order), `## ${section}` H2 blocks (first-seen order
+ * within the list), and each entry's canonical line for its list type — deck
+ * quantity lines, collection/wanted `- ` bullet lines — without `&N` ids.
+ * Returns without a trailing newline (the writer appends exactly one, like
+ * every renderer here).
+ */
+export function renderMarkdownExport(entries: ExportEntry[]): string {
+  const groups = new Map<string, MarkdownListGroup>()
+  for (const entry of entries) {
+    const key = `${entry.listType}|${entry.listName}`
+    const group = groups.get(key)
+    if (group) group.entries.push(entry)
+    else groups.set(key, { listName: entry.listName, entries: [entry] })
+  }
+  const listBlocks = [...groups.values()].map((group) => {
+    const sections = new Map<string, string[]>()
+    for (const entry of group.entries) {
+      const lines = sections.get(entry.section)
+      if (lines) lines.push(markdownLine(entry))
+      else sections.set(entry.section, [markdownLine(entry)])
+    }
+    const sectionBlocks = [...sections.entries()].map(
+      ([section, lines]) => `## ${section}\n${lines.join('\n')}`,
+    )
+    return `# ${group.listName}\n\n${sectionBlocks.join('\n\n')}`
+  })
+  return listBlocks.join('\n\n')
 }
 
 export type CsvRenderOptions = {

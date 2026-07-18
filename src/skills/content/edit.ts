@@ -3,7 +3,7 @@ import type { RitualSkill } from '../types'
 export const editSkill: RitualSkill = {
   name: 'ritual-edit',
   description:
-    'Edit cards in any Ritual deck, collection, or wanted list — one-shot non-interactive commands for agents and scripts (add-card, remove-card, set-card, note, scripted move), plus the interactive editor TUI. Use when the user wants to add, remove, or update a card, set or clear a card note, move cards between lists, edit lists interactively, apply a change bundle exported from the site editor, export cards as CSV or JSON, or read or compact a change history.',
+    'Edit cards in any Ritual deck, collection, or wanted list — one-shot non-interactive commands for agents and scripts (add-card, remove-card, set-card, note, scripted move), plus the interactive editor TUI. Use when the user wants to add, remove, or update a card, set or clear a card note, move cards between lists, edit lists interactively, apply a change bundle exported from the site editor, export cards as CSV, JSON, plain text, or Markdown, or read or compact a change history.',
   body: `# Editing cards in any Ritual list
 
 The **one-shot commands** — \`add-card\`, \`remove-card\`, \`set-card\`, \`note\`, and the
@@ -221,7 +221,11 @@ ritual import-changes edits.json --yes    # apply without the confirmation promp
 \`\`\`
 
 Agents and scripts must always pass \`--yes\`: when stdin is not a terminal the
-command refuses with exit code 2 instead of prompting.
+command refuses with exit code 2 instead of prompting. With \`--output json\` the
+preview is suppressed and the apply report (\`{success, lists, message}\` —
+byte-identical to the admin \`/api/import-changes\` response and the MCP
+\`import_changes\` tool) is emitted on stdout; \`--yes\` is required there too, since
+the confirmation prompt only exists in text mode.
 
 Changes are re-targeted to each list's current \`&N\` card IDs (by ID when it still
 exists, else by card name); changes whose target card no longer exists are skipped
@@ -229,16 +233,24 @@ and reported. Each list gets a changelog entry, and a failed list (e.g. one that
 longer exists) is reported without stopping the rest. Exits non-zero when any list
 fails. The same JSON can also be applied in the web admin's **Import Changes** page.
 
-## Export cards as CSV or JSON
+## Export cards (CSV, JSON, text, Markdown)
 
-\`ritual export\` renders any grouping of cards to CSV or JSON. Bare \`ritual export\`
-in a terminal opens an interactive wizard; agents should always pass flags (any
+\`ritual export\` renders any grouping of cards in one of four formats, chosen with
+\`--output csv|json|text|md\` (default \`csv\`). On this command \`--output\` is the
+**export format** itself — not the shared \`text|json|ndjson\` envelope other
+commands use — and the raw payload goes to stdout unless \`--out <file>\` writes it
+to a file. \`text\` merges everything into **one flat decklist** (\`1 Name (SET:CN)\`
+lines, quantities aggregated across lists); \`md\` is canonical list markdown
+grouped by list and section, **without** \`&N\` ids. Bare \`ritual export\` in a
+terminal opens an interactive wizard; agents should always pass flags (any
 source, filter, or output flag runs non-interactively). With no lists and no
 \`--card\` picks, **every list** is exported:
 
 \`\`\`bash
-ritual export --format json > all-cards.json          # everything, JSON on stdout
+ritual export --output json > all-cards.json          # everything, JSON on stdout
 ritual export deck:burn --out burn.csv                # one deck to a CSV file
+ritual export --all --output text                     # one merged decklist on stdout
+ritual export --all --output md --out cards.md        # canonical markdown, no &N ids
 ritual export "Main Binder" wishlist --set MKM        # two lists, filtered by set
 ritual export --card "sol ring" --card "mana crypt"   # cherry-pick cards across lists
 ritual export --collection --finish foil --condition NM
@@ -255,8 +267,11 @@ matches only cards with it explicitly marked and \`none\` matches cards without
 one (e.g. \`--condition NM,none\`); wanted entries never match. Available columns:
 \`name\`, \`quantity\`, \`set\`, \`collectorNumber\`, \`edition\` (set + collector
 number as \`SET:number\`), \`finish\`, \`isFoil\` (true when foil or etched),
-\`condition\`, \`note\`, \`section\`, \`listName\`, \`listType\`. Set codes are
-lowercase in JSON and UPPERCASE in CSV. Without \`--out\` the export goes to stdout (the confirmation goes to
+\`condition\`, \`note\`, \`section\`, \`listName\`, \`listType\`. Columns apply to
+csv/json only: giving \`--columns\`, \`--no-header\`, or \`--quote-all\` alongside an
+explicit \`--output text|md\` is a usage error (a preset's stored columns with a
+text/md format are simply unused). Set codes are lowercase in JSON and UPPERCASE
+in CSV, text, and md output. Without \`--out\` the export goes to stdout (the confirmation goes to
 stderr, so stdout stays parseable). Presets persist in \`ritual.config.json\` under
 \`exportPresets\`. Exit codes: 2 usage error, 3 unknown list/preset.
 

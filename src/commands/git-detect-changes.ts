@@ -18,13 +18,22 @@ import { appendChangelog } from '../changelog-writer'
 import { formatChange, type ChangeEvent } from '../change-event'
 import { getBaseDir } from '../base-dir'
 import { computeHash, isHashCurrent, loadHash, saveHash } from '../content-hash'
-import { addDryRunOption, ExitCode } from './scripting'
+import { getErrorMessage } from '../errors'
+import {
+  addDryRunOption,
+  addScriptingOptions,
+  emitError,
+  emitOutput,
+  ExitCode,
+  normalizeScriptingOptions,
+  type ScriptingOptions,
+} from './scripting'
 
 // ── Types ────────────────────────────────────────────────────────────
 
 type GitDetectChangesOptions = {
   dryRun?: boolean
-}
+} & Partial<ScriptingOptions>
 
 type DetectResult = {
   file: string
@@ -42,6 +51,21 @@ type DetectResult = {
 type DetectChangesOutput = {
   results: DetectResult[]
   renames: Map<string, string>
+}
+
+/**
+ * The `--output json`/`ndjson` payload: the detection results plus what the run
+ * did (or, under `--dry-run`, would do). File paths are repo-relative, as git
+ * emits them.
+ */
+type DetectChangesReport = {
+  commit: string
+  dryRun: boolean
+  /** Number of list files whose changelog was (or would be) updated. */
+  changelogsUpdated: number
+  /** Old path → new path for renamed list files. */
+  renames: Record<string, string>
+  results: DetectResult[]
 }
 
 // ── Entity name extraction ───────────────────────────────────────────
@@ -165,6 +189,16 @@ export async function detectChanges(commit: string, cwd: string): Promise<Detect
 
 // ── Applying detected changes ────────────────────────────────────────
 
+export type ApplyDetectedChangesOptions = {
+  /** Report what would change without writing files. */
+  dryRun: boolean
+  /**
+   * Suppress the per-file progress lines on stdout. Non-text output modes own
+   * stdout, so they always apply quietly.
+   */
+  quiet?: boolean
+}
+
 /**
  * Apply the output of {@link detectChanges} to disk: rename/delete `.changes.md`
  * changelog files to follow their list files, and append changelog entries for
@@ -178,9 +212,13 @@ export async function detectChanges(commit: string, cwd: string): Promise<Detect
 export async function applyDetectedChanges(
   output: DetectChangesOutput,
   cwd: string,
-  dryRun: boolean,
+  options: ApplyDetectedChangesOptions,
 ): Promise<number> {
   const { results, renames } = output
+  const { dryRun } = options
+  const log: (message: string) => void = options.quiet
+    ? () => undefined
+    : (message) => console.log(message)
 
   // First pass: handle renames of .changes.md files
   for (const [oldPath, newPath] of renames) {
@@ -190,10 +228,10 @@ export async function applyDetectedChanges(
     try {
       await fs.access(oldChangesPath)
       if (dryRun) {
-        console.log(`  Would rename: ${changesPath(oldPath)} → ${changesPath(newPath)}`)
+        log(`  Would rename: ${changesPath(oldPath)} → ${changesPath(newPath)}`)
       } else {
         await fs.rename(oldChangesPath, newChangesPath)
-        console.log(`  Renamed: ${changesPath(oldPath)} → ${changesPath(newPath)}`)
+        log(`  Renamed: ${changesPath(oldPath)} → ${changesPath(newPath)}`)
       }
     } catch {
       // Old changes file doesn't exist — nothing to rename
@@ -208,10 +246,10 @@ export async function applyDetectedChanges(
     try {
       await fs.access(deletePath)
       if (dryRun) {
-        console.log(`  Would delete: ${changesPath(result.file)}`)
+        log(`  Would delete: ${changesPath(result.file)}`)
       } else {
         await fs.rm(deletePath)
-        console.log(`  Deleted: ${changesPath(result.file)}`)
+        log(`  Deleted: ${changesPath(result.file)}`)
       }
     } catch {
       // Changes file doesn't exist — nothing to delete
@@ -227,18 +265,18 @@ export async function applyDetectedChanges(
     const label = `${result.kind}/${path.basename(result.file, '.md')}`
 
     if (result.ritualClean) {
-      console.log(`  ${label}: up to date with Ritual — skipping`)
+      log(`  ${label}: up to date with Ritual — skipping`)
       continue
     }
 
     if (result.changes.length === 0) {
-      console.log(`  ${label}: no card changes detected`)
+      log(`  ${label}: no card changes detected`)
       continue
     }
 
-    console.log(`  ${label}: ${result.changes.length} change(s)`)
+    log(`  ${label}: ${result.changes.length} change(s)`)
     for (const change of result.changes) {
-      console.log(`    ${formatChange(change)}`)
+      log(`    ${formatChange(change)}`)
     }
     updated++
 
@@ -259,34 +297,68 @@ export async function applyDetectedChanges(
 // ── Command registration ─────────────────────────────────────────────
 
 export function registerGitDetectChangesCommand(program: Command): void {
-  addDryRunOption(
-    program
-      .command('git-detect-changes')
-      .description('Detect card changes from git history and update changelogs')
-      .argument('<commit>', 'Git commit hash or ref to diff against (e.g. HEAD~1, abc123)'),
-    'Preview detected changes without writing files',
+  addScriptingOptions(
+    addDryRunOption(
+      program
+        .command('git-detect-changes')
+        .description('Detect card changes from git history and update changelogs')
+        .argument('<commit>', 'Git commit hash or ref to diff against (e.g. HEAD~1, abc123)'),
+      'Preview detected changes without writing files',
+    ),
   ).action(async (commit: string, options: GitDetectChangesOptions) => {
+    const scripting = normalizeScriptingOptions(options)
     const cwd = getBaseDir()
     const dryRun = options.dryRun ?? false
+    const text = scripting.output === 'text'
+    // Non-text modes own stdout (the payload must stay pure JSON), so the
+    // progress chatter only exists in non-quiet text mode.
+    const chatty = text && !scripting.quiet
 
-    console.log(`Comparing against ${commit}...`)
-    if (dryRun) console.log('(dry run — no files will be modified)\n')
+    if (chatty) {
+      console.log(`Comparing against ${commit}...`)
+      if (dryRun) console.log('(dry run — no files will be modified)\n')
+    }
 
     let output: DetectChangesOutput
     try {
       output = await detectChanges(commit, cwd)
     } catch (err) {
-      console.error(`Failed to detect changes: ${err instanceof Error ? err.message : String(err)}`)
+      emitError('runtime_error', `Failed to detect changes: ${getErrorMessage(err)}`, scripting)
       process.exitCode = ExitCode.RuntimeError
       return
     }
 
-    if (output.results.length === 0 && output.renames.size === 0) {
-      console.log('No deck, collection, or wanted list changes detected.')
+    if (text && output.results.length === 0 && output.renames.size === 0) {
+      if (chatty) console.log('No deck, collection, or wanted list changes detected.')
       return
     }
 
-    const updated = await applyDetectedChanges(output, cwd, dryRun)
+    let updated: number
+    try {
+      updated = await applyDetectedChanges(output, cwd, { dryRun, quiet: !chatty })
+    } catch (err) {
+      emitError(
+        'runtime_error',
+        `Failed to apply detected changes: ${getErrorMessage(err)}`,
+        scripting,
+      )
+      process.exitCode = ExitCode.RuntimeError
+      return
+    }
+
+    if (!text) {
+      const report: DetectChangesReport = {
+        commit,
+        dryRun,
+        changelogsUpdated: updated,
+        renames: Object.fromEntries(output.renames),
+        results: output.results,
+      }
+      emitOutput(report, scripting)
+      return
+    }
+
+    if (!chatty) return
 
     if (dryRun) {
       console.log('\nDry run complete. No files were modified.')

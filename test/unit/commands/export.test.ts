@@ -65,7 +65,7 @@ describe('export wizard gating', () => {
     ['list args', flags(), ['Burn']],
     ['--all', flags({ all: true }), []],
     ['--card', flags({ cards: ['bolt'] }), []],
-    ['--format', flags({ format: 'json' }), []],
+    ['--output', flags({ format: 'json' }), []],
     ['--columns', flags({ columns: ['name'] }), []],
     ['--no-header', flags({ header: false }), []],
     ['--quote-all', flags({ quoteAll: true }), []],
@@ -159,7 +159,39 @@ describe('wizard pure builders', () => {
     })
     const jsonWithPresets = menuKinds(json, 2)
     expect(jsonWithPresets).not.toContain('csv-options')
+    expect(jsonWithPresets).toContain('columns')
     expect(jsonWithPresets).toContain('load-preset')
+  })
+
+  test.each<['text' | 'md']>([['text'], ['md']])(
+    'the fixed-line %s format hides both the columns and CSV options menus',
+    (format) => {
+      const state = wizardState({
+        settings: { format, columns: ['name'], header: true, quoteAll: false },
+      })
+      const kinds = menuKinds(state, 0)
+      expect(kinds).toContain('format')
+      expect(kinds).not.toContain('columns')
+      expect(kinds).not.toContain('csv-options')
+    },
+  )
+
+  test('formatWizardHeaderLines omits the column list for fixed-line formats', () => {
+    const textLines = formatWizardHeaderLines(
+      wizardState({
+        settings: { format: 'text', columns: ['name'], header: true, quoteAll: false },
+      }),
+      0,
+    )
+    expect(textLines).toContain('Format: TEXT')
+    expect(textLines.some((line) => line.includes('Columns'))).toBe(false)
+    const jsonLines = formatWizardHeaderLines(
+      wizardState({
+        settings: { format: 'json', columns: ['name'], header: true, quoteAll: false },
+      }),
+      0,
+    )
+    expect(jsonLines.some((line) => line.startsWith('Format: JSON · Columns: Name'))).toBe(true)
   })
 
   test('the menu reads as the export pipeline, with load-preset above what it overwrites', () => {

@@ -173,10 +173,11 @@ describe('computeMigrations', () => {
         } satisfies InitSiteConfig,
       ],
     ] as const)(
-      'upgrading a %s workflow regenerates deploy-site.yml with the current build-site refresh vocabulary',
+      'upgrading a %s workflow regenerates deploy-site.yml with the current flag vocabulary',
       (_mode, migrationConfig) => {
-        // An older generated workflow used `build-site --allow-refresh`; the
-        // upgrade migration must rewrite it with the current flags.
+        // Older generated workflows used `build-site --allow-refresh` and a bare
+        // `list-all-cards` invocation (which wrote all-cards.md by default); the
+        // upgrade migration must rewrite them with the current flags.
         const migrations = computeMigrations('0.0.1', ritualVersion, MANAGED_FILES, migrationConfig)
 
         const write = migrations.find(
@@ -185,8 +186,12 @@ describe('computeMigrations', () => {
         expect(write).toBeDefined()
         if (write?.type !== 'write') throw new Error('expected a write migration')
         expect(write.content).not.toContain('--allow-refresh')
+        // list-all-cards now prints to stdout by default — the regenerated
+        // workflow must never carry a bare (fileless) invocation.
+        expect(write.content).not.toMatch(/list-all-cards\s*$/m)
         if (migrationConfig.deployMode === 'publish-for-me') {
           expect(write.content).toContain('./ritual build-site --refresh auto')
+          expect(write.content).toContain('./ritual list-all-cards --out all-cards.md')
         }
       },
     )

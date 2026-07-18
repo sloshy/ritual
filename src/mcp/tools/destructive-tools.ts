@@ -86,7 +86,8 @@ export function registerDestructiveTools(server: McpServer): void {
       description:
         'Merge a partial Ritual configuration into the current one (e.g. admin git settings, ' +
         'or site.bannedPrintings — "SET:COLLECTOR" printings barred from auto-selection as a ' +
-        'card\'s default printing). Nested "admin" fields merge; other top-level keys replace.',
+        'card\'s default printing). Nested "admin" fields merge; other top-level keys replace. ' +
+        'Unknown keys — top-level or nested in "admin" — are rejected.',
       inputSchema: {
         config: z.record(z.string(), z.unknown()).describe('Partial RitualConfig object to merge.'),
       },

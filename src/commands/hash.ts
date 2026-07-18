@@ -3,14 +3,22 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getBaseDir } from '../base-dir'
 import { computeHash, saveHash } from '../content-hash'
-import { addDryRunOption } from './scripting'
+import {
+  addDryRunOption,
+  addScriptingOptions,
+  emitOutput,
+  normalizeScriptingOptions,
+  type ScriptingOptions,
+} from './scripting'
 import { getCollectionsDir, getDecksDir, getWantedDir } from '../ritual-config'
 
-type HashOptions = {
+type HashCommandOptions = {
   dryRun?: boolean
-}
+} & Partial<ScriptingOptions>
 
-type HashResult = {
+/** One hashed list file — also the `--output json`/`ndjson` payload entry. */
+export type HashResult = {
+  /** Absolute path of the hashed list file. */
   file: string
   hash: string
 }
@@ -37,38 +45,47 @@ async function hashListsInDir(dir: string, dryRun: boolean): Promise<HashResult[
   return results
 }
 
-async function runHash(options: HashOptions): Promise<void> {
+async function runHash(options: HashCommandOptions, scripting: ScriptingOptions): Promise<void> {
   const baseDir = getBaseDir()
   const dryRun = options.dryRun ?? false
 
   const dirs = [getDecksDir(), getCollectionsDir(), getWantedDir()]
 
-  let total = 0
+  const results: HashResult[] = []
   for (const dir of dirs) {
-    const results = await hashListsInDir(dir, dryRun)
-    for (const { file, hash } of results) {
-      const rel = path.relative(baseDir, file)
-      console.log(`${dryRun ? '[dry-run] ' : ''}${rel}: ${hash}`)
-      total++
-    }
+    results.push(...(await hashListsInDir(dir, dryRun)))
   }
 
-  if (total === 0) {
+  if (scripting.output !== 'text') {
+    emitOutput(results, scripting)
+    return
+  }
+
+  if (scripting.quiet) return
+
+  for (const { file, hash } of results) {
+    const rel = path.relative(baseDir, file)
+    console.log(`${dryRun ? '[dry-run] ' : ''}${rel}: ${hash}`)
+  }
+
+  if (results.length === 0) {
     console.log('No list files found.')
   } else if (!dryRun) {
-    console.log(`\nHashed ${total} file${total === 1 ? '' : 's'}.`)
+    console.log(`\nHashed ${results.length} file${results.length === 1 ? '' : 's'}.`)
   } else {
-    console.log(`\nWould hash ${total} file${total === 1 ? '' : 's'}.`)
+    console.log(`\nWould hash ${results.length} file${results.length === 1 ? '' : 's'}.`)
   }
 }
 
 export function registerHashCommand(program: Command): void {
-  addDryRunOption(
-    program
-      .command('hash')
-      .description('Compute and save hashes for all deck, collection, and wanted list files'),
-    'Print computed hashes without writing .sha256 files',
-  ).action(async (options: HashOptions) => {
-    await runHash(options)
+  addScriptingOptions(
+    addDryRunOption(
+      program
+        .command('hash')
+        .description('Compute and save hashes for all deck, collection, and wanted list files'),
+      'Print computed hashes without writing .sha256 files',
+    ),
+  ).action(async (options: HashCommandOptions) => {
+    await runHash(options, normalizeScriptingOptions(options))
   })
 }

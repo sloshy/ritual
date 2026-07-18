@@ -8,7 +8,7 @@ Login to a supported website to save authentication tokens for future requests, 
 
 ```bash
 ./ritual login archidekt [options]
-./ritual login status [--output <format>]
+./ritual login status [--output <format>] [--quiet]
 ./ritual login logout
 ```
 
@@ -68,7 +68,20 @@ Reports whether an Archidekt login token is stored and for which user. Never tou
 }
 ```
 
-Without a stored login the text output is `Not logged in.` and the JSON payload is `{ "loggedIn": false }`. The exit code is `0` either way.
+Without a stored login the text output is `Not logged in.` and the JSON payload is `{ "loggedIn": false }`.
+
+`--quiet` suppresses all output in every format, so scripts can branch purely on the exit code:
+
+```bash
+./ritual login status --quiet && echo "logged in" || echo "not logged in"
+```
+
+### Exit Codes
+
+| Code | Meaning                   |
+| ---- | ------------------------- |
+| `0`  | A stored login exists     |
+| `3`  | No stored Archidekt login |
 
 ## `login logout`
 

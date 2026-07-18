@@ -71,6 +71,13 @@ describe('generatePublishForMeWorkflow', () => {
       'Deploy to GitHub Pages',
     ])
   })
+
+  test('writes the card manifest to an explicit --out file', () => {
+    // list-all-cards prints to stdout by default, so the workflow must name
+    // the cache-key file explicitly.
+    const step = findStep(job.steps, 'Generate card manifest')
+    expect(step?.run).toBe('./ritual list-all-cards --out all-cards.md')
+  })
 })
 
 describe('generatePublishForMeWorkflow with detectChanges', () => {
@@ -121,6 +128,11 @@ describe('generatePublishForMeWorkflow with detectChanges', () => {
       'Upload artifact',
       'Deploy to GitHub Pages',
     ])
+  })
+
+  test('writes the card manifest to an explicit --out file', () => {
+    const step = findStep(job.steps, 'Generate card manifest')
+    expect(step?.run).toBe('./ritual list-all-cards --out all-cards.md')
   })
 })
 

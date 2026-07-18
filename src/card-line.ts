@@ -16,6 +16,44 @@ export function printingSuffix(
   return ` (${set.toUpperCase()}:${collectorNumber})`
 }
 
+/** One grouped item plus its summed quantity, preserving first-seen order. */
+export type Aggregated<E> = { entry: E; quantity: number }
+
+/**
+ * Group items by a string key, summing per-item quantities, preserving
+ * first-seen order. Shared by every surface that collapses card lines into
+ * per-variant counts (editor copy/export, `ritual export` text output).
+ */
+export function aggregateQuantities<E>(
+  items: E[],
+  key: (item: E) => string,
+  quantity: (item: E) => number,
+): Aggregated<E>[] {
+  const counts = new Map<string, Aggregated<E>>()
+  for (const item of items) {
+    const k = key(item)
+    const existing = counts.get(k)
+    if (existing) existing.quantity += quantity(item)
+    else counts.set(k, { entry: item, quantity: quantity(item) })
+  }
+  return [...counts.values()]
+}
+
+/**
+ * Aggregation key grouping identical card variants (name + printing + finish +
+ * condition). Finish and condition distinguish variants so quantities are never
+ * summed across them, even in outputs that print neither.
+ */
+export function variantKey(
+  name: string,
+  set: string | undefined,
+  collectorNumber: string | undefined,
+  finish: string | undefined,
+  condition: string | undefined,
+): string {
+  return `${name}|${set ?? ''}|${collectorNumber ?? ''}|${finish ?? ''}|${condition ?? ''}`
+}
+
 /**
  * Format a single collection card line in the canonical markdown format, e.g.
  * `- Sol Ring (LTC:284) [foil] [LP] {note} &12`. The default NM condition is

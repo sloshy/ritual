@@ -67,6 +67,7 @@ type ConfigView = {
   cacheLockTimeoutSeconds?: number
   cacheSource?: string
   cacheFeedUrl?: string
+  admin?: { gitEnabled?: boolean; rateLimitEnabled?: boolean; rateLimitMaxAttempts?: number }
 }
 
 type AcceptedConfigUpdate = {
@@ -236,6 +237,31 @@ describe('Ritual MCP server (in-memory transport)', () => {
       '"Sol Ring","1","Commander"',
       '"Lightning Bolt","1","Main"',
     ])
+  })
+
+  test('export_cards renders a plain-text export as one flat decklist', async () => {
+    const result = await callTool(client, 'export_cards', {
+      lists: [{ listType: 'deck', name: 'test-deck' }],
+      format: 'text',
+    })
+    expect(result.isError).toBeFalsy()
+    const data = toolJson(result) as { format: string; content: string }
+    expect(data.format).toBe('text')
+    expect(data.content.split('\n')).toEqual(['1 Sol Ring', '1 Lightning Bolt'])
+  })
+
+  test('export_cards renders a markdown export with headings and no &N ids', async () => {
+    const result = await callTool(client, 'export_cards', {
+      lists: [{ listType: 'deck', name: 'test-deck' }],
+      format: 'md',
+    })
+    expect(result.isError).toBeFalsy()
+    const data = toolJson(result) as { format: string; content: string }
+    expect(data.format).toBe('md')
+    expect(data.content).toContain('# test-deck')
+    expect(data.content).toContain('## Commander')
+    expect(data.content).toContain('1 Sol Ring')
+    expect(data.content).not.toContain('&')
   })
 
   test('export_cards rejects an unknown list with a clear error', async () => {
@@ -879,12 +905,31 @@ describe('Ritual MCP server (in-memory transport)', () => {
         label: 'non-http(s) cacheFeedUrl',
         update: { cacheFeedUrl: 'ftp://feed.example/feed.json' },
       },
+      { label: 'unknown top-level key', update: { bogusKey: true } },
+      // Unknown nested admin keys must be rejected, not spread verbatim into
+      // the persisted config (parseAdminConfig silently ignores them).
+      { label: 'unknown nested admin key', update: { admin: { gitEnabled: true, bogusKey: 1 } } },
+      { label: 'wrong-typed admin field', update: { admin: { gitEnabled: 'yes' } } },
+      { label: 'wrong-typed directory key', update: { decksDir: 42 } },
     ]
 
     for (const { label, update } of cases) {
       const result = await callTool(client, 'update_config', { config: update })
       expect({ label, isError: result.isError }).toEqual({ label, isError: true })
     }
+  })
+
+  test('update_config deep-merges admin fields without clobbering siblings', async () => {
+    const updated = await callTool(client, 'update_config', {
+      config: { admin: { gitEnabled: true } },
+    })
+    expect(updated.isError).toBeFalsy()
+
+    const got = toolJson(await callTool(client, 'get_config', {})) as { config: ConfigView }
+    expect(got.config.admin?.gitEnabled).toBe(true)
+    // Omitted admin siblings keep their current values, not their defaults.
+    expect(got.config.admin?.rateLimitEnabled).toBe(true)
+    expect(got.config.admin?.rateLimitMaxAttempts).toBe(5)
   })
 
   test('update_config clears an existing cacheFeedUrl with an empty string', async () => {

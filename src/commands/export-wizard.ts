@@ -25,7 +25,11 @@ import {
 } from '../export/entries'
 import { renderExport, saveExportPreset } from '../export/output'
 import {
+  EXPORT_FORMAT_EXTENSIONS,
+  EXPORT_FORMATS,
+  exportFormatUsesColumns,
   resolveExportSettings,
+  type ExportFormat,
   type ExportPreset,
   type ResolvedExportSettings,
 } from '../export/presets'
@@ -125,12 +129,18 @@ export function formatWizardHeaderLines(state: ExportWizardState, entryCount: nu
   if (state.lists.length > 0) sources.push(countLabel(state.lists.length, 'list'))
   if (state.picked.length > 0) sources.push(`${countLabel(state.picked.length, 'picked card')}`)
   const sourceText = sources.length > 0 ? sources.join(' + ') : 'nothing selected'
+  // Text/md exports have fixed line formats, so their header omits the
+  // (unused) column selection.
+  let formatLine = `Format: ${state.settings.format.toUpperCase()}`
+  if (exportFormatUsesColumns(state.settings.format)) {
+    formatLine += ` · Columns: ${state.settings.columns
+      .map((column) => EXPORT_PROPERTY_LABELS[column])
+      .join(', ')}`
+  }
   const lines: string[] = [
     `📤 Sources: ${sourceText} — ${countLabel(entryCount, 'card')} to export`,
     `Filters: ${formatFiltersSegment(state.filters)}`,
-    `Format: ${state.settings.format.toUpperCase()} · Columns: ${state.settings.columns
-      .map((column) => EXPORT_PROPERTY_LABELS[column])
-      .join(', ')}`,
+    formatLine,
   ]
   if (state.settings.format === 'csv') {
     lines.push(
@@ -174,16 +184,17 @@ export function buildWizardMenuChoices(
       value: { kind: 'load-preset' } satisfies ExportWizardSelection,
     })
   }
-  choices.push(
-    {
-      title: `📄 Format: ${state.settings.format.toUpperCase()}`,
-      value: { kind: 'format' } satisfies ExportWizardSelection,
-    },
-    {
+  choices.push({
+    title: `📄 Format: ${state.settings.format.toUpperCase()}`,
+    value: { kind: 'format' } satisfies ExportWizardSelection,
+  })
+  // Text/md lines are fixed, so the column and CSV-option menus disappear.
+  if (exportFormatUsesColumns(state.settings.format)) {
+    choices.push({
       title: `🧱 Columns (${state.settings.columns.length})`,
       value: { kind: 'columns' } satisfies ExportWizardSelection,
-    },
-  )
+    })
+  }
   if (state.settings.format === 'csv') {
     choices.push({
       title: `⚙️ CSV options: header ${state.settings.header ? 'on' : 'off'} · ${
@@ -372,14 +383,24 @@ async function promptFilters(state: ExportWizardState): Promise<void> {
   }
 }
 
+/** Menu labels for the format picker; the raw format key is the value. */
+const FORMAT_CHOICE_LABELS: Record<ExportFormat, string> = {
+  csv: 'CSV',
+  json: 'JSON',
+  text: 'Plain text (1 Name (SET:CN))',
+  md: 'Markdown (canonical list markdown, no &N ids)',
+}
+
 async function promptFormat(state: ExportWizardState): Promise<void> {
-  const pick = await ask<'csv' | 'json'>({
+  const pick = await ask<ExportFormat>({
     type: 'select',
     message: 'Export format',
-    choices: [
-      { title: `CSV${state.settings.format === 'csv' ? ' (current)' : ''}`, value: 'csv' },
-      { title: `JSON${state.settings.format === 'json' ? ' (current)' : ''}`, value: 'json' },
-    ],
+    choices: EXPORT_FORMATS.map(
+      (format): Choice => ({
+        title: `${FORMAT_CHOICE_LABELS[format]}${state.settings.format === format ? ' (current)' : ''}`,
+        value: format,
+      }),
+    ),
   })
   if (pick) state.settings.format = pick
 }
@@ -530,7 +551,7 @@ async function promptExport(entries: ExportEntry[], state: ExportWizardState): P
   const target = await ask<string>({
     type: 'text',
     message: 'Output file',
-    initial: `export.${state.settings.format}`,
+    initial: `export.${EXPORT_FORMAT_EXTENSIONS[state.settings.format]}`,
   })
   if (!target || !target.trim()) return false
   const resolved = path.resolve(target.trim())
