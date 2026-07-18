@@ -70,6 +70,8 @@ Deck card lines start with a quantity; collection and wanted lines start with \`
 - \`(SET:CollectorNumber)\` pins a printing. Set codes are written **UPPERCASE** in files.
 - \`[foil]\`/\`[etched]\` is the finish, \`[LP]\`/\`[MP]\`/\`[HP]\`/\`[DMG]\` the condition (the default \`NM\` is not written), \`{...}\` a note.
 - \`&N\` is a **stable internal card ID**. Never hand-author or renumber these — the tools manage them.
+  Any list-touching command backfills missing IDs on startup and persists them to the
+  files — except under \`-n\`/\`--dry-run\`, which writes nothing, including that backfill.
 
 A deck's YAML front matter carries its \`format:\` (a fixed set of keys — see the
 **ritual-decks** skill). A deck with no \`format:\` is treated as Commander when it
@@ -79,7 +81,9 @@ has a \`## Commander\` section, and the tools write that down on the next save.
 \`&N\` IDs and \`.changes.md\` changelog stay correct. Reading files directly for
 inspection is fine. To normalize a whole workspace — canonical formatting, file
 names that match list names, a \`format:\` on every deck — run \`ritual cleanup\`
-(\`--dry-run\` to preview).
+(\`-n\`/\`--dry-run\` to preview; \`--check\` to additionally exit 1 when any file
+would change, for hooks and CI; \`--skip-formats\` to never prompt for deck
+formats, leaving formatless decks untouched and reported).
 
 ## The ritual-* skills
 
@@ -94,11 +98,25 @@ names that match list names, a \`format:\` on every deck — run \`ritual cleanu
 
 - \`--base-dir <path>\` — operate on a workspace other than the current directory
 - \`--cache-server <host:port>\` — share a card/price cache with other instances
+- \`--no-input\` — **the** headless switch: never prompt anywhere; where input
+  would be required the command fails fast (or uses a documented default)
+  instead of hanging. Setting the \`RITUAL_NO_INPUT\` environment variable does
+  the same. There are no per-command non-interactive flags.
+
+Commands that read the Scryfall card cache (\`add-card\`, \`edit\`, \`price\`,
+\`build-site\`, \`serve-site\`, \`admin\`) also share a \`--refresh <mode>\` option
+controlling cache freshness: \`ask\` (the default — prompt about stale or empty
+caches; the prompt is skipped when prompts are unavailable), \`auto\` (refresh
+stale data without asking, bulk download allowed), \`no-bulk\` (refresh stale
+prices per-card, never a bulk download), and \`never\` (use the cache as-is).
 
 ## Setup
 
 \`\`\`bash
 ritual login archidekt            # log in to Archidekt (for imports/sync)
+echo "$PASS" | ritual login archidekt --username you --password-stdin  # headless login
+ritual login status               # show the stored Archidekt login, if any
+ritual login logout               # remove the stored Archidekt session
 ritual config set <prop> <value>  # set a config value (dot notation for nested keys)
 ritual config set defaultCurrency eur  # currency price commands/displays default to (usd | eur | tix)
 ritual config get <prop>          # read one value (exit 3 when unset)

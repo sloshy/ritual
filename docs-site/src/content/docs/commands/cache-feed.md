@@ -63,7 +63,7 @@ Behavior:
   artifacts are ingested and seeded automatically.
 
 To make feed syncing the default for **all** of ritual's cache refreshes (the
-`cache preload-all` command, stale-cache prompts, `build-site --allow-refresh`,
+`cache preload-all` command, stale-cache prompts, `build-site --refresh auto`,
 price refreshes), set the [`cacheSource` config key](/configuration/#cache-source):
 
 ```bash

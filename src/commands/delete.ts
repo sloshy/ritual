@@ -9,8 +9,8 @@ import {
 } from '../list-lifecycle'
 import { listTypeLabel, type ListType } from '../list-type'
 import { type ListTypeFlags } from '../resolve-list'
+import { CardCommandError } from '../errors'
 import {
-  CardCommandError,
   requireInteractive,
   resolveListSelection,
   resolveListTypeFlag,

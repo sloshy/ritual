@@ -85,10 +85,11 @@ Then open http://localhost:3000 to view your deck collection.
 
 These options are available on every command:
 
-| Option                       | Description                                                 |
-| ---------------------------- | ----------------------------------------------------------- |
-| `--base-dir <path>`          | Use this directory instead of the current working directory |
-| `--cache-server <host:port>` | Use a remote cache server instead of local cache files      |
+| Option                       | Description                                                                 |
+| ---------------------------- | --------------------------------------------------------------------------- |
+| `--base-dir <path>`          | Use this directory instead of the current working directory                 |
+| `--cache-server <host:port>` | Use a remote cache server instead of local cache files                      |
+| `--no-input`                 | Never prompt; fail or use documented defaults where input would be required |
 
 ### `--base-dir`
 
@@ -103,6 +104,17 @@ ritual --base-dir /projects/mtg price "My Deck"
 ```
 
 This affects all file paths: decks, collections, wanted lists, cache, config files, and the output `dist/` directory. The directory locations themselves can be customized via [`ritual.config.json`](/configuration/) — paths in that file are interpreted relative to `--base-dir`.
+
+### `--no-input`
+
+Disables every interactive prompt across the CLI — the headless switch for scripts, CI, and agents. A command that would normally prompt either fails with a usage error or falls back to a documented default instead (the specific behavior is called out in each command's own docs, e.g. [`price`](/commands/price/#price-freshness), [`export`](/commands/export/#interactive-wizard), [`cleanup`](/commands/cleanup/#headless-runs)).
+
+The `RITUAL_NO_INPUT` environment variable does the same thing and is checked whenever `--no-input` itself is not passed — set it once in a CI environment instead of adding the flag to every invocation:
+
+```bash
+RITUAL_NO_INPUT=1 ritual cleanup --skip-formats
+ritual import ./decklist.txt --type deck --no-input
+```
 
 ## Features
 
@@ -130,11 +142,11 @@ Stream multiple card lookups as NDJSON:
 Avoid interactive prompts in CI:
 
 ```bash
-./ritual import-account johndoe --all --non-interactive --dry-run
+./ritual import-account johndoe --all --no-input --dry-run
 ```
 
-## Migration notes
+## Scripting tips
 
 - Prefer `--output json` or `--output ndjson` for script parsing.
 - Use `--fields` to project stable subsets of data.
-- Add `--non-interactive` (and `--yes` when needed) in headless environments.
+- Add the global `--no-input` flag (or set `RITUAL_NO_INPUT`) in headless environments so no command ever prompts; pass `--yes` where a confirmation is required.

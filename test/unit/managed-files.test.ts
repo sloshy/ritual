@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import type { ActiveManagedFile, HistoricalManagedFile } from '../../src/managed-files'
 import { computeMigrations, isActiveManagedFile } from '../../src/managed-files'
+import { MANAGED_FILES } from '../../src/commands/init-site'
+import { version as ritualVersion } from '../../src/version'
 import type { InitSiteConfig } from '../../src/ritual-config'
 
 const config: InitSiteConfig = {
@@ -156,5 +158,42 @@ describe('computeMigrations', () => {
   test('returns empty array when no files provided', () => {
     const migrations = computeMigrations('0.1.0', '0.2.0', [], config)
     expect(migrations).toHaveLength(0)
+  })
+
+  describe('real init-site managed files', () => {
+    test.each([
+      ['publish-for-me', config],
+      [
+        'local-build',
+        {
+          ciSystem: 'github-actions',
+          deployMode: 'local-build',
+          distDir: 'dist',
+          detectChanges: false,
+        } satisfies InitSiteConfig,
+      ],
+    ] as const)(
+      'upgrading a %s workflow regenerates deploy-site.yml with the current build-site refresh vocabulary',
+      (_mode, migrationConfig) => {
+        // An older generated workflow used `build-site --allow-refresh`; the
+        // upgrade migration must rewrite it with the current flags.
+        const migrations = computeMigrations('0.0.1', ritualVersion, MANAGED_FILES, migrationConfig)
+
+        const write = migrations.find(
+          (m) => m.type === 'write' && m.path === '.github/workflows/deploy-site.yml',
+        )
+        expect(write).toBeDefined()
+        if (write?.type !== 'write') throw new Error('expected a write migration')
+        expect(write.content).not.toContain('--allow-refresh')
+        if (migrationConfig.deployMode === 'publish-for-me') {
+          expect(write.content).toContain('./ritual build-site --refresh auto')
+        }
+      },
+    )
+
+    test('manual CI has no managed workflow to migrate', () => {
+      const migrations = computeMigrations('0.0.1', ritualVersion, MANAGED_FILES, manualConfig)
+      expect(migrations).toHaveLength(0)
+    })
   })
 })

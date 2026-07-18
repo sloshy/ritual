@@ -27,11 +27,12 @@ import {
   normalizeScriptingOptions,
   type ScriptingOptions,
 } from './scripting'
+import { CardCommandError } from '../errors'
 import {
-  CardCommandError,
   describeEntry,
   parseCardIdFlag,
   parsePositiveInteger,
+  resolvePinnedPrinting,
   runCommandAction,
 } from './card-target'
 import { isResolveListError, parseListArgument, resolveList } from '../resolve-list'
@@ -644,16 +645,22 @@ type AssignedPrinting = {
 
 /**
  * Resolve the printing a name-only card lands with in a collection: the
- * `--set`/`--collector-number` flags when given, else the card's single known
- * printing from the local Scryfall cache. Anything ambiguous (or unknown) is a
- * usage error — the headless path never prompts.
+ * `--set`/`--collector-number` flags when given (validated against the card's
+ * known printings — an unknown pair is a usage error listing the printings
+ * that do exist), else the card's single known printing from the local
+ * Scryfall cache. Anything ambiguous (or unknown) is a usage error — the
+ * headless path never prompts.
  */
 async function resolvePrintingForCollection(
   cardName: string,
   selection: HeadlessSelection,
 ): Promise<AssignedPrinting> {
   if (selection.set !== undefined && selection.collectorNumber !== undefined) {
-    return { set: selection.set, collectorNumber: selection.collectorNumber }
+    const printing = await resolvePinnedPrinting(cardName, {
+      set: selection.set,
+      collectorNumber: selection.collectorNumber,
+    })
+    return { set: printing.set.toLowerCase(), collectorNumber: printing.collector_number }
   }
   if (selection.set !== undefined || selection.collectorNumber !== undefined) {
     throw new CardCommandError(
@@ -831,8 +838,12 @@ async function handleCardMove(
   if (destList.ref.type === 'collection' && (!card.set || !card.collectorNumber)) {
     console.log(`"${card.name}" has no printing info. Resolve printing for collection destination.`)
     const result = await resolveCardPrinting(card.name, {}, false)
-    if (!result) {
+    if (result.kind === 'cancelled') {
       console.log('Printing selection cancelled.')
+      return
+    }
+    if (result.kind === 'none') {
+      console.log(`No printings found for "${card.name}"; cannot move it to a collection.`)
       return
     }
     resolvedCard = {

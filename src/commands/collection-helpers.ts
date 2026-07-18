@@ -44,16 +44,22 @@ export type FinishConditionConfig = {
   condition?: Condition | 'NONE'
 }
 
-type PrintingResult = {
-  cardName: string
-  printing: ScryfallCard
-} | null
+/**
+ * How an interactive printing resolution ended. `none` (the card has no known
+ * printings after filtering) and `cancelled` (the user aborted the picker with
+ * Esc/Ctrl-C) are distinct outcomes: a cancel must never fall through to a
+ * caller's no-printings fallback (e.g. adding a name-only card).
+ */
+export type PrintingResolution =
+  | { kind: 'picked'; printing: ScryfallCard }
+  | { kind: 'cancelled' }
+  | { kind: 'none' }
 
 export async function resolveCardPrinting(
   cardName: string,
   config: PrintingFilterConfig,
   excludeDigitalOnly: boolean,
-): Promise<PrintingResult> {
+): Promise<PrintingResolution> {
   let printings = await getCardPrintings(cardName)
 
   if (excludeDigitalOnly) {
@@ -72,7 +78,7 @@ export async function resolveCardPrinting(
   }
 
   if (printings.length === 0) {
-    return null
+    return { kind: 'none' }
   }
 
   let selectedPrinting = printings[0]!
@@ -114,11 +120,11 @@ export async function resolveCardPrinting(
       },
     })
 
-    if (printingExited || !printingResponse.printing) return null
+    if (printingExited || !printingResponse.printing) return { kind: 'cancelled' }
     selectedPrinting = printingResponse.printing
   }
 
-  return { cardName, printing: selectedPrinting }
+  return { kind: 'picked', printing: selectedPrinting }
 }
 
 /** A printing surfaced in a strict-pin error, as a `set`/`collectorNumber` pair. */

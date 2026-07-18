@@ -35,8 +35,8 @@ When invoked this way (i.e. via `bun` rather than the compiled `ritual` binary),
 For iterative development of the `admin` interface or the static site, use:
 
 ```bash
-bun run dev admin --no-refresh        # auto-restart `admin`
-bun run dev serve-site --no-refresh   # auto-restart `serve-site`
+bun run dev admin --refresh never        # auto-restart `admin`
+bun run dev serve-site --refresh never   # auto-restart `serve-site`
 ```
 
 This launches `scripts/dev.ts`, which:
@@ -60,15 +60,15 @@ The dev orchestrator is a source-tree-only tool — it is not part of the compil
 
 ### Answering cache prompts
 
-Because the orchestrator owns the terminal exclusively, the child process can't read interactive prompts (e.g. the "Card cache is N days old, refresh?" prompt). Rather than leave the child hanging on an unanswerable prompt, `bun run dev` **requires** you to pre-answer it with one of the refresh flags and fails fast before launching otherwise:
+Because the orchestrator owns the terminal exclusively, the child process can't read interactive prompts (e.g. the "Card cache is N days old, refresh?" prompt issued under the default `--refresh ask`). Rather than leave the child hanging on an unanswerable prompt, `bun run dev` **requires** you to pre-answer it with an explicit `--refresh` mode and fails fast before launching otherwise:
 
 ```bash
-bun run dev serve-site --allow-refresh          # refresh stale cache (bulk download allowed)
-bun run dev serve-site --allow-refresh-no-bulk  # refresh prices per-card, no bulk download
-bun run dev serve-site --no-refresh             # use the existing cache as-is
+bun run dev serve-site --refresh auto     # refresh stale cache (bulk download allowed)
+bun run dev serve-site --refresh no-bulk  # refresh prices per-card, no bulk download
+bun run dev serve-site --refresh never    # use the existing cache as-is
 ```
 
-The same applies to `bun run dev admin`, except that `admin` only takes `--allow-refresh` and `--no-refresh` (it has no per-card refresh mode). The flags are forwarded straight to the underlying [`serve-site`](/commands/serve-site/) / [`admin`](/commands/admin/) command, so they behave exactly as documented there. For day-to-day dev `--no-refresh` is usually what you want; if you need to refresh the Scryfall cache, use `--allow-refresh` on the next restart or run `ritual cache preload-all` separately.
+The same applies to `bun run dev admin`. The flag is forwarded straight to the underlying [`serve-site`](/commands/serve-site/) / [`admin`](/commands/admin/) command, so the modes behave exactly as documented there. `--refresh ask` does **not** count as an answer — it restates the prompting default. Passing `--no-input` also satisfies the check, since under it the child skips the refresh instead of prompting. For day-to-day dev `--refresh never` is usually what you want; if you need to refresh the Scryfall cache, use `--refresh auto` on the next restart or run `ritual cache preload-all` separately.
 
 ## Building
 

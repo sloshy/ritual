@@ -541,7 +541,7 @@ async function promptExport(entries: ExportEntry[], state: ExportWizardState): P
 }
 
 /** Run the interactive export wizard until the user exports or exits. */
-export async function runExportWizard(initialPresetName?: string): Promise<void> {
+export async function runExportWizard(): Promise<void> {
   const allLocations = await listLocations()
   if (allLocations.length === 0) {
     console.log('No decks, collections, or wanted lists found.')
@@ -550,19 +550,11 @@ export async function runExportWizard(initialPresetName?: string): Promise<void>
   const loaded = await loadExportEntries(allLocations)
   for (const warning of loaded.warnings) console.warn(`⚠️  ${warning}`)
 
-  let initialPreset: ExportPreset | undefined
-  if (initialPresetName !== undefined) {
-    initialPreset = getExportPresets()[initialPresetName]
-    if (!initialPreset) {
-      console.warn(`⚠️  No export preset named '${initialPresetName}'; starting from defaults.`)
-    }
-  }
-
   const state: ExportWizardState = {
     lists: [],
     picked: [],
     filters: {},
-    settings: resolveExportSettings(initialPreset, {}),
+    settings: resolveExportSettings(undefined, {}),
   }
 
   while (true) {

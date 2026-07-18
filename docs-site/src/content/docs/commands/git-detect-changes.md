@@ -22,9 +22,9 @@ It is **hash-aware**, so it can be run safely even on files that Ritual itself e
 
 ## Options
 
-| Option      | Description                                    | Default |
-| ----------- | ---------------------------------------------- | ------- |
-| `--dry-run` | Preview detected changes without writing files | `false` |
+| Option          | Description                                    | Default |
+| --------------- | ---------------------------------------------- | ------- |
+| `-n, --dry-run` | Preview detected changes without writing files | `false` |
 
 ## Examples
 
@@ -99,7 +99,7 @@ This makes the command idempotent and lets a repository freely mix Ritual edits 
 
 ### Dry Run
 
-When `--dry-run` is specified, the command prints what it would do without modifying any files. This is useful for previewing detected changes before committing them.
+When `--dry-run` (or `-n`) is specified, the command prints what it would do without modifying any files. This is useful for previewing detected changes before committing them.
 
 ## CI Integration
 

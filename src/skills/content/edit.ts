@@ -27,6 +27,17 @@ Conventions shared by every one-shot command:
 - Nothing blocks on a prompt in a script: when stdin is not a terminal, a missing
   argument or flag fails fast with exit code 2 (\`Input required: ...\`) instead of
   opening a picker. Exit codes: 1 runtime error, 2 usage error, 3 not found.
+- The global \`--no-input\` flag (or the \`RITUAL_NO_INPUT\` environment variable)
+  works on **every** command and guarantees no prompting: where input would be
+  required the command fails fast (or uses a documented default) instead of
+  hanging. It is the one headless switch — there are no per-command
+  non-interactive flags.
+- Commands that read the Scryfall card cache (\`add-card\`, \`edit\`, \`price\`,
+  \`build-site\`, \`serve-site\`, \`admin\`) share a \`--refresh <mode>\` option
+  controlling cache freshness: \`ask\` (the default — prompt about stale/empty
+  caches; the prompt is skipped when prompts are unavailable), \`auto\` (refresh
+  stale data without asking, bulk download allowed), \`no-bulk\` (refresh stale
+  prices per-card, never a bulk download), and \`never\` (use the cache as-is).
 
 ## Add a card
 
@@ -170,8 +181,8 @@ ritual edit "wanted:To Buy"                 # deck:/collection:/wanted: prefixes
 ritual edit --sets "FDN,SPG" --finish foil --condition NM   # session filter defaults
 ritual edit --section Sideboard             # pin the deck target section
 ritual edit --collector --sets "FDN, SPG"   # collector-number entry, sets preloaded
-ritual edit --no-cache-prompt               # skip the "cache is >1 week old?" prompt
-ritual edit --refresh-prices                # redownload cache when prices are >1 day old
+ritual edit --refresh never                 # use the existing cache as-is, no prompt
+ritual edit --refresh auto                  # redownload cache when prices are >1 day old
 \`\`\`
 
 The \`[listName]\` argument matches the list's **file basename** (like every other

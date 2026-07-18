@@ -230,7 +230,9 @@ describe('export command (Integration)', () => {
         mini: { format: 'json', columns: ['name'], header: true, quoteAll: false },
       })
 
-      const reuse = await runCli(['export', '--preset', 'mini', '--all', '--quiet'], dir)
+      // --preset is a run signal on its own: no --all (or wizard) involved, the
+      // preset run exports every list headlessly.
+      const reuse = await runCli(['export', '--preset', 'mini', '--quiet'], dir)
       expect(reuse.exitCode).toBe(0)
       expect(reuse.stdout).toBe(save.stdout)
       expect(parseJsonExport(reuse.stdout)).toHaveLength(7)

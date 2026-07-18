@@ -96,6 +96,8 @@ Every card entry in deck, collection, and wanted list markdown files has a persi
 - Files without IDs get auto-assigned IDs on load and persisted on save
 - Changelog entries include card IDs
 
+**Backfill policy**: `index.ts`'s `preAction` hook runs `ensureCardIdsForAllLists()` before a command's action, assigning and persisting missing `&N` IDs across every list file. Commands in `COMMANDS_WITHOUT_LIST_IDS` (matched by leaf or parent command name) skip the backfill — the criteria for membership are commands that never read list card lines at all, or that self-heal IDs on load and never expose them. The hook also skips the backfill whenever the invoked command was given `--dry-run`, so a dry run never writes anything.
+
 **Undo system**: The admin site editors support linear undo of individual changes. Undo of a removal reclaims the original card ID. Implemented via `useCardChanges` hook with `UndoEntry` stack.
 
 ## Agent-Facing Surfaces (MCP Server & Skills)

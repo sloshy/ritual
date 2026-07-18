@@ -14,9 +14,9 @@ Ritual stores a `.sha256` sidecar file alongside each list file so that content 
 
 ## Options
 
-| Option      | Description                                           | Default |
-| ----------- | ----------------------------------------------------- | ------- |
-| `--dry-run` | Print computed hashes without writing `.sha256` files | `false` |
+| Option          | Description                                           | Default |
+| --------------- | ----------------------------------------------------- | ------- |
+| `-n, --dry-run` | Print computed hashes without writing `.sha256` files | `false` |
 
 ## Examples
 

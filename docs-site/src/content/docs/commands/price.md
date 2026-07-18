@@ -8,7 +8,7 @@ The same pricing engine backs the [MCP](/commands/mcp/) `price_report` tool.
 
 Run without flags in a terminal, `price` opens an interactive browser. It shows when prices were last updated, each list with its total (and its "lowest price" total for decks and wanted lists), how many cards in each list are unpriced, totals per list type, and a grand total across everything. From the main screen you can drill into a single list, search every list at once, refresh prices, or switch currency.
 
-With scripting flags (or when output is piped), the same information prints non-interactively.
+With scripting flags (or when stdin or stdout is piped, or the global `--no-input` flag is in force), the same information prints non-interactively.
 
 ## Usage
 
@@ -38,9 +38,7 @@ The name is matched case- and accent-insensitively across all three list types, 
 | `--sort <field>`       | Sort cards by `name`, `price`, `lowest`, `set`, `cmc`, `edhrec`, or `quantity`                                         |
 | `--descending`         | Reverse the sort direction                                                                                             |
 | `--summary`            | Print the price summary instead of opening the browser                                                                 |
-| `--no-interactive`     | Never open the interactive browser                                                                                     |
-| `--no-cache-prompt`    | Do not prompt to update stale prices                                                                                   |
-| `--refresh-prices`     | Refresh cached prices that are more than a day old                                                                     |
+| `--refresh <mode>`     | Card cache refresh policy: `ask` (default — prompt; skip when prompts are unavailable), `auto`, `no-bulk`, or `never`  |
 | `--output <format>`    | Output format (`text`, `json`, or `ndjson`)                                                                            |
 | `--quiet`              | Suppress non-essential output                                                                                          |
 
@@ -58,9 +56,9 @@ Selecting a list opens a card browser over that list; **🔎 Search all cards** 
 
 ## Price Freshness
 
-Prices come from the local Scryfall card cache. On launch, `price` reports when the cache was last refreshed; if prices are more than a day old it asks whether to update them (suppress with `--no-cache-prompt`, or auto-accept with `--refresh-prices`). When the cache is empty it offers to download the card database; declining exits, since nothing can be priced.
+Prices come from the local Scryfall card cache; the shared `--refresh <mode>` option decides how its freshness is handled. On launch, `price` reports when the cache was last refreshed. If prices are more than a day old, `ask` (the default) prompts to update them (default no), `auto` updates them without prompting, and `no-bulk` / `never` leave them alone. When the cache is empty, `ask` offers to download the card database (default yes) and `auto` downloads it outright; declining — or an empty cache under `no-bulk` / `never` — exits with an error, since nothing can be priced.
 
-Prompts never fire in non-TTY or structured-output (`--output json`/`ndjson`) runs.
+Prompts never fire when they can't be answered: under `--no-input` / `RITUAL_NO_INPUT` or a non-TTY stdin the `ask` prompts are declined, and in structured-output (`--output json`/`ndjson`) runs `ask` downgrades to `never` so the output stays parseable.
 
 ## How Cards Are Priced
 
@@ -79,7 +77,7 @@ Three views, chosen by the flags:
 ./ritual price --summary
 
 # One list's cards and totals
-./ritual price "Red Binder" --no-interactive
+./ritual price "Red Binder" --no-input
 
 # Search cards across all lists
 ./ritual price --set neo --sort price --descending

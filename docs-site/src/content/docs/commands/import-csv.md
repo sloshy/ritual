@@ -2,7 +2,7 @@
 title: 'import-csv'
 ---
 
-Import cards from a CSV file into a deck, collection, or wanted list — creating a new list or appending to an existing one. An interactive setup wizard maps your CSV's columns to card fields, and prints the equivalent non-interactive command so the same import can be scripted.
+Import cards from a CSV file into a deck, collection, or wanted list — creating a new list or appending to an existing one. An interactive setup wizard maps your CSV's columns to card fields, and prints the equivalent flag-only command so the same import can be scripted.
 
 CSV import is also available in the [admin site](/commands/admin/#import-csv) (**Import CSV** page) and as the [MCP](/commands/mcp/) `import_csv` tool, both backed by the same engine.
 
@@ -25,15 +25,45 @@ Run with no other flags to use the interactive wizard. The wizard asks for the l
 | Option                    | Description                                                        |
 | ------------------------- | ------------------------------------------------------------------ |
 | `-t, --type <type>`       | List type to import into: `deck`, `collection`, or `wanted`        |
-| `-n, --name <name>`       | Name of the list to create or append to                            |
+| `--name <name>`           | Name of the list to create or append to                            |
 | `-f, --format <format>`   | Deck format when creating a deck (e.g. `commander`, `modern`)      |
 | `-c, --columns <mapping>` | Column mapping (see below). Skips the interactive setup wizard.    |
 | `--no-header`             | Treat the first row as data instead of a header row                |
 | `-o, --overwrite`         | Replace an existing list file with the same name                   |
 | `-a, --append`            | Append the cards to an existing list instead of creating a new one |
-| `--non-interactive`       | Disable interactive prompts; fail when input is required           |
+| `--output <format>`       | Output format: `text` (default), `json`, or `ndjson`               |
+| `--quiet`                 | Suppress non-essential output                                      |
 
-Every import requires a name, and creating a deck also requires a format (appending to a deck does not — the format is already in the file). Interactively the wizard prompts for them; non-interactively pass `--name` (and `--format`).
+Every import requires a name, and creating a deck also requires a format (appending to a deck does not — the format is already in the file). Interactively the wizard prompts for them; in a scripted run pass `--name` (and `--format`).
+
+## Scripting Without Prompts
+
+The wizard's prompts are unavailable — and every required value must come from a flag — when
+any of the following holds:
+
+- prompts are disabled globally (`--no-input` or `RITUAL_NO_INPUT`),
+- stdin is not a terminal (piped or redirected input), or
+- `--columns` is given (an explicit mapping means the import is scripted).
+
+A scripted run missing `--type`, `--name`, `--columns`, or (when creating a deck) `--format`
+fails with a usage error (exit code `2`) instead of prompting.
+
+With `--output json` (or `ndjson`) the command emits a structured result on success:
+
+```json
+{
+  "imported": 4,
+  "failed": 1,
+  "failures": [{ "line": 3, "reason": "Invalid quantity 'x'" }],
+  "filePath": "collections/Red Binder.md",
+  "mode": "create"
+}
+```
+
+`imported` counts copies written, `failures` lists the rejected rows by CSV line number, and
+`mode` is the resolved `create`/`overwrite`/`append`. Errors are emitted on stderr as
+`{ "error": { "code", "message" } }` in JSON modes. A partial failure still exits `1` even
+though the payload was emitted (see below).
 
 ## Create, Overwrite, or Append
 

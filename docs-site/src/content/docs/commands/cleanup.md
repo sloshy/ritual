@@ -26,11 +26,67 @@ Cleanup never adds changelog entries — a cleaned-up file has the same cards it
 
 ## Options
 
-| Option          | Description                                    | Default |
-| --------------- | ---------------------------------------------- | ------- |
-| `-n, --dry-run` | Report what would change without writing files | `false` |
+| Option              | Description                                                                     | Default |
+| ------------------- | ------------------------------------------------------------------------------- | ------- |
+| `-n, --dry-run`     | Report what would change without writing files                                  | `false` |
+| `--skip-formats`    | Never prompt for deck formats; leave formatless decks untouched and report them | `false` |
+| `--check`           | Like `--dry-run`, but exit 1 when any file would change (for hooks and CI)      | `false` |
+| `--output <format>` | Output format: `text`, `json`, or `ndjson`                                      | `text`  |
+| `--quiet`           | Suppress non-essential output                                                   | `false` |
 
-Under `--dry-run` nothing is prompted either — decks with no declared format are reported as `needs a format` and left untouched.
+Under `--dry-run` nothing is prompted either — decks with no declared format are reported as `needs a format` and left untouched. `--check` implies `--dry-run`.
+
+## Headless Runs
+
+The deck-format step is the only interactive part of cleanup. A real run that
+encounters a formatless deck when prompts are unavailable (`--no-input` /
+`RITUAL_NO_INPUT`, stdin is not a terminal, or `--output json`/`ndjson` owns
+stdout) refuses **before touching any file** with a usage error (exit 2) naming
+`--skip-formats`. Pass `--skip-formats` to run everything else and leave
+formatless decks as they are (reported as `format skipped`), or run
+interactively to answer the prompts.
+
+## `--check`
+
+`--check` is `--dry-run` with a meaningful exit code, for git hooks and CI:
+
+```bash
+./ritual cleanup --check
+```
+
+It exits 1 when any file would be rewritten, renamed, or is blocked from its
+canonical rewrite by parse warnings — and 0 when the workspace is already clean.
+A formatless deck alone does not fail `--check`: a real run would not change it
+without an interactive answer.
+
+## Scripted Output
+
+With `--output json` (or `ndjson`), the text report is replaced by a single
+payload on stdout containing the per-file results (only files with something to
+report) and every warning, prefixed with its file:
+
+```json
+{
+  "files": [
+    {
+      "type": "wanted",
+      "filePath": "/path/to/wanted/binder.md",
+      "renamedTo": "Binder.md",
+      "rewritten": true,
+      "warnings": []
+    }
+  ],
+  "warnings": []
+}
+```
+
+## Exit Codes
+
+| Code | Meaning                                                                                      |
+| ---- | -------------------------------------------------------------------------------------------- |
+| `0`  | Cleanup ran (or previewed) successfully                                                      |
+| `1`  | A real run could not rewrite a file because its parse skipped lines, or `--check` found work |
+| `2`  | A real run needed the deck-format prompt but prompts were unavailable (see `--skip-formats`) |
 
 ## Examples
 
@@ -52,6 +108,18 @@ Run the cleanup:
 
 ```bash
 ./ritual cleanup
+```
+
+Run headless (CI, scripts) without the format prompts:
+
+```bash
+./ritual cleanup --skip-formats
+```
+
+Fail a CI job when the workspace needs a cleanup:
+
+```bash
+./ritual cleanup --check
 ```
 
 Clean up a workspace elsewhere:

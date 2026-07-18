@@ -1,4 +1,4 @@
-import { Command } from 'commander'
+import { Command, InvalidArgumentError } from 'commander'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import prompts from 'prompts'
@@ -22,10 +22,13 @@ import { computeMigrations, isActiveManagedFile } from '../managed-files'
 import { compareVersions } from '../semver'
 import { getBaseDir } from '../base-dir'
 import { fileExists } from '../utils'
+import { isNoInput } from '../no-input'
 import { version as ritualVersion } from '../version'
 import { SKILLS } from '../skills/catalog'
 import { installSkills, refreshInstalledSkills, resolveSkillsDir } from '../skills/install'
-import { ExitCode } from './scripting'
+import { CardCommandError } from '../errors'
+import { runCommandAction } from './card-target'
+import { ExitCode, normalizeScriptingOptions, parseEnumFlag } from './scripting'
 
 export function generatePublishForMeWorkflow(config?: GitHubActionsSiteConfig): string {
   if (config?.detectChanges) {
@@ -97,7 +100,7 @@ jobs:
           restore-keys: ritual-cache-
 
       - name: Build site
-        run: ./ritual build-site --allow-refresh
+        run: ./ritual build-site --refresh auto
 
       - name: Setup Pages
         uses: actions/configure-pages@v6
@@ -199,7 +202,7 @@ jobs:
 
       - name: Build site
         if: steps.detect-changes.outputs.has-changes != 'true'
-        run: ./ritual build-site --allow-refresh
+        run: ./ritual build-site --refresh auto
 
       - name: Setup Pages
         if: steps.detect-changes.outputs.has-changes != 'true'
@@ -410,7 +413,63 @@ async function promptOverwrite(filePath: string): Promise<boolean> {
 }
 
 type ForceOption = { force: boolean }
-export type InitSiteCommandOptions = { force?: boolean; upgrade?: boolean; skills?: boolean }
+
+export type InitSiteCommandOptions = {
+  force?: boolean
+  upgrade?: boolean
+  skills?: boolean
+  ci?: CISystem
+  deploy?: DeployMode
+  distDir?: string
+  changeDetection?: boolean
+  currency?: PriceCurrency
+  overwriteReadme?: boolean
+}
+
+/** Whether interactive prompts can run: prompting enabled and stdin is a terminal. */
+function promptsAvailable(): boolean {
+  return !isNoInput() && process.stdin.isTTY === true
+}
+
+/** The usage error raised when a prompt is needed but prompts are unavailable. */
+function missingFlagError(flag: string, what: string): CardCommandError {
+  return new CardCommandError(
+    'usage_error',
+    `${what} is required and prompts are unavailable; pass ${flag}.`,
+    ExitCode.UsageError,
+  )
+}
+
+function usageError(message: string): CardCommandError {
+  return new CardCommandError('usage_error', message, ExitCode.UsageError)
+}
+
+const CI_SYSTEMS = ['github-actions', 'manual'] as const satisfies readonly CISystem[]
+const DEPLOY_MODES = ['publish-for-me', 'local-build'] as const satisfies readonly DeployMode[]
+
+/** Commander argParser for `--ci`: only the two supported CI systems are valid. */
+export function parseCISystemFlag(value: string): CISystem {
+  return parseEnumFlag(value, CI_SYSTEMS, 'CI system')
+}
+
+/** Commander argParser for `--deploy`: only the two deploy modes are valid. */
+export function parseDeployModeFlag(value: string): DeployMode {
+  return parseEnumFlag(value, DEPLOY_MODES, 'deploy mode')
+}
+
+/** Commander argParser for `--dist-dir`: any non-empty path. */
+export function parseDistDirFlag(value: string): string {
+  const trimmed = value.trim()
+  if (trimmed.length === 0) {
+    throw new InvalidArgumentError('Expected a directory path for --dist-dir.')
+  }
+  return trimmed
+}
+
+/** Commander argParser for `--currency`: one of the supported price currencies. */
+export function parseCurrencyFlag(value: string): PriceCurrency {
+  return parseEnumFlag(value.trim(), VALID_CURRENCIES, 'currency')
+}
 
 /**
  * Install Ritual agent skills into the repository's `.claude/skills` so coding
@@ -495,10 +554,50 @@ async function writeFileWithOverwritePrompt(
   filePath: string,
   content: string,
   opts: ForceOption = { force: false },
-): Promise<'written' | 'skipped' | 'cancelled'> {
+): Promise<'written' | 'skipped'> {
   if (!opts.force && (await fileExists(filePath))) {
+    if (!promptsAvailable()) {
+      throw usageError(
+        `${path.relative(getBaseDir(), filePath)} already exists and prompts are unavailable; ` +
+          'pass --force to overwrite generated files.',
+      )
+    }
     const shouldOverwrite = await promptOverwrite(filePath)
     if (!shouldOverwrite) return 'skipped'
+  }
+  await fs.mkdir(path.dirname(filePath), { recursive: true })
+  await fs.writeFile(filePath, content, 'utf-8')
+  return 'written'
+}
+
+/** How `writeInitFiles` decides file overwrites: `--force` plus the README-specific flag. */
+type WriteInitFilesOptions = ForceOption & {
+  /** Explicit `--overwrite-readme`/`--no-overwrite-readme` decision, when given. */
+  overwriteReadme?: boolean
+}
+
+/**
+ * Write (or skip) the generated README. An explicit `--overwrite-readme` /
+ * `--no-overwrite-readme` decides without prompting; otherwise `--force`
+ * overwrites, and an existing file falls back to the interactive prompt.
+ */
+async function writeReadme(
+  filePath: string,
+  content: string,
+  opts: WriteInitFilesOptions,
+): Promise<'written' | 'skipped'> {
+  if (await fileExists(filePath)) {
+    const decision = opts.overwriteReadme ?? (opts.force ? true : undefined)
+    if (decision === false) return 'skipped'
+    if (decision === undefined) {
+      if (!promptsAvailable()) {
+        throw usageError(
+          'README.md already exists and prompts are unavailable; ' +
+            'pass --overwrite-readme or --no-overwrite-readme.',
+        )
+      }
+      if (!(await promptOverwrite(filePath))) return 'skipped'
+    }
   }
   await fs.mkdir(path.dirname(filePath), { recursive: true })
   await fs.writeFile(filePath, content, 'utf-8')
@@ -543,7 +642,7 @@ export async function updateGitignore(
 // Registry of all files ever managed by `ritual init-site`.
 // Active files are regenerated on version upgrade for matching CI systems.
 // Historical files are deleted (or have their old path cleaned up on rename) during migration.
-const MANAGED_FILES: ManagedFile[] = [
+export const MANAGED_FILES: ManagedFile[] = [
   {
     ciSystem: 'github-actions',
     paths: [{ path: '.github/workflows/deploy-site.yml' }],
@@ -581,126 +680,183 @@ export function registerInitSiteCommand(program: Command): void {
       'Re-initialize and overwrite all generated files, ignoring the existing site config',
     )
     .option('-u, --upgrade', 'Upgrade tracked workflows to the current version without prompting')
+    .option(
+      '--ci <system>',
+      "CI system for a fresh init: 'github-actions' or 'manual'",
+      parseCISystemFlag,
+    )
+    .option(
+      '--deploy <mode>',
+      "Deploy mode for a fresh init: 'publish-for-me' or 'local-build' (github-actions only)",
+      parseDeployModeFlag,
+    )
+    .option(
+      '--dist-dir <dir>',
+      'Directory containing your locally built site (local-build deploys only)',
+      parseDistDirFlag,
+    )
+    .option(
+      '--change-detection',
+      'Enable automatic change detection in the generated workflow (publish-for-me only)',
+    )
+    .option('--no-change-detection', 'Disable automatic change detection (no prompt)')
+    .option(
+      '--currency <currency>',
+      "Default price currency: 'usd', 'eur', or 'tix'",
+      parseCurrencyFlag,
+    )
+    .option('--overwrite-readme', 'Overwrite an existing README.md without prompting')
+    .option('--no-overwrite-readme', 'Keep an existing README.md as-is (no prompt)')
     .option('--skills', 'Install Ritual agent skills into .claude/skills without prompting')
     .option('--no-skills', 'Skip installing Ritual agent skills (no prompt)')
     .action(async (options: InitSiteCommandOptions) => {
-      // --force: ignore saved state, prompt fresh, overwrite everything
-      if (options.force) {
-        const config = await promptForConfig()
-        if (!config) {
-          process.exitCode = ExitCode.UsageError
-          return
-        }
-        const defaultCurrency = await promptDefaultCurrency()
-        if (!defaultCurrency) {
-          console.error('Cancelled.')
-          process.exitCode = ExitCode.UsageError
-          return
-        }
-        await writeInitFiles(config, { force: true })
-        if (!(await persistSiteConfig({ ...config, version: ritualVersion }, defaultCurrency))) {
-          process.exitCode = ExitCode.RuntimeError
-          return
-        }
-        await maybeInstallSkills(options, true)
-        printNextSteps(config)
-        return
+      await runCommandAction(normalizeScriptingOptions({}), () => runInitSite(options))
+    })
+}
+
+/** True when any flag that configures a fresh init was passed. */
+function freshInitFlagsGiven(options: InitSiteCommandOptions): boolean {
+  return (
+    options.ci !== undefined ||
+    options.deploy !== undefined ||
+    options.distDir !== undefined ||
+    options.changeDetection !== undefined ||
+    options.currency !== undefined ||
+    options.overwriteReadme !== undefined
+  )
+}
+
+async function runInitSite(options: InitSiteCommandOptions): Promise<void> {
+  // --force: ignore saved state, resolve config fresh, overwrite everything
+  if (options.force) {
+    const config = await resolveConfig(options)
+    if (!config) {
+      process.exitCode = ExitCode.UsageError
+      return
+    }
+    const defaultCurrency = await resolveDefaultCurrency(options)
+    if (!defaultCurrency) {
+      console.error('Cancelled.')
+      process.exitCode = ExitCode.UsageError
+      return
+    }
+    await writeInitFiles(config, { force: true, overwriteReadme: options.overwriteReadme })
+    if (!(await persistSiteConfig({ ...config, version: ritualVersion }, defaultCurrency))) {
+      process.exitCode = ExitCode.RuntimeError
+      return
+    }
+    await maybeInstallSkills(options, true)
+    printNextSteps(config)
+    return
+  }
+
+  const loaded = getSiteDeployConfig((await loadRitualConfig()).site)
+
+  if (loaded !== null) {
+    if (freshInitFlagsGiven(options)) {
+      throw usageError(
+        'This repository is already initialized; --ci, --deploy, --dist-dir, ' +
+          '--change-detection, --currency, and --overwrite-readme only apply to a fresh init. ' +
+          'Use --force to re-initialize with new settings.',
+      )
+    }
+
+    const cmp = compareVersions(ritualVersion, loaded.version)
+
+    if (cmp === 0) {
+      console.error(`Already initialized with the current version (${ritualVersion}).`)
+      process.exitCode = ExitCode.UsageError
+      return
+    }
+
+    if (cmp < 0) {
+      console.warn(
+        `Warning: The current Ritual build (${ritualVersion}) is older than the version ` +
+          `last used to initialize this repository (${loaded.version}).`,
+      )
+      console.warn(
+        'Use --force to re-initialize with current settings, or remove the "site" key from ' +
+          'ritual.config.json if you want to use this older version.',
+      )
+      process.exitCode = ExitCode.RuntimeError
+      return
+    }
+
+    // Newer build: prompt unless --upgrade was passed
+    if (!options.upgrade) {
+      if (!promptsAvailable()) {
+        throw usageError(
+          `Ritual has been upgraded (${loaded.version} → ${ritualVersion}) and prompts are ` +
+            'unavailable; pass --upgrade to regenerate tracked managed files.',
+        )
       }
-
-      const loaded = getSiteDeployConfig((await loadRitualConfig()).site)
-
-      if (loaded !== null) {
-        const cmp = compareVersions(ritualVersion, loaded.version)
-
-        if (cmp === 0) {
-          console.error(`Already initialized with the current version (${ritualVersion}).`)
-          process.exitCode = ExitCode.UsageError
-          return
-        }
-
-        if (cmp < 0) {
-          console.warn(
-            `Warning: The current Ritual build (${ritualVersion}) is older than the version ` +
-              `last used to initialize this repository (${loaded.version}).`,
-          )
-          console.warn(
-            'Use --force to re-initialize with current settings, or remove the "site" key from ' +
-              'ritual.config.json if you want to use this older version.',
-          )
-          process.exitCode = ExitCode.RuntimeError
-          return
-        }
-
-        // Newer build: prompt unless --upgrade was passed
-        if (!options.upgrade) {
-          let cancelled = false
-          const response = await prompts(
-            {
-              type: 'confirm',
-              name: 'confirm',
-              message: `Ritual has been upgraded (${loaded.version} → ${ritualVersion}). Regenerate tracked managed files?`,
-              initial: true,
-            },
-            {
-              onCancel: () => {
-                cancelled = true
-              },
-            },
-          )
-          if (cancelled || !response.confirm) {
-            console.error('Cancelled.')
-            process.exitCode = ExitCode.UsageError
-            return
-          }
-        }
-
-        console.log(`Upgrading from ${loaded.version} to ${ritualVersion}...`)
-        const { version: _version, ...config } = loaded
-        const migrations = computeMigrations(loaded.version, ritualVersion, MANAGED_FILES, config)
-        await applyMigrations(migrations)
-
-        // Keep .gitignore in sync with the current template. This is idempotent
-        // (only missing entries are added), so upgrades pick up new exclusions
-        // such as the downloaded /ritual binary.
-        const gitignoreResult = await updateGitignore(generateGitignoreEntries())
-        if (gitignoreResult === 'created') {
-          console.log('✓ Created .gitignore')
-        } else if (gitignoreResult === 'updated') {
-          console.log('✓ Updated .gitignore')
-        }
-
-        const updatedSite: SiteDeployConfig = { ...config, version: ritualVersion }
-        if (!(await persistSiteConfig(updatedSite))) {
-          process.exitCode = ExitCode.RuntimeError
-          return
-        }
-        console.log(`✓ ritual.config.json site section updated to ${ritualVersion}`)
-
-        // Refresh any already-installed agent skills so they track the new version.
-        await refreshSkillsOnUpgrade(options)
-        return
-      }
-
-      // Fresh init (no site config yet)
-      const config = await promptForConfig()
-      if (!config) {
-        process.exitCode = ExitCode.UsageError
-        return
-      }
-      const defaultCurrency = await promptDefaultCurrency()
-      if (!defaultCurrency) {
+      let cancelled = false
+      const response = await prompts(
+        {
+          type: 'confirm',
+          name: 'confirm',
+          message: `Ritual has been upgraded (${loaded.version} → ${ritualVersion}). Regenerate tracked managed files?`,
+          initial: true,
+        },
+        {
+          onCancel: () => {
+            cancelled = true
+          },
+        },
+      )
+      if (cancelled || !response.confirm) {
         console.error('Cancelled.')
         process.exitCode = ExitCode.UsageError
         return
       }
-      await writeInitFiles(config, { force: false })
-      if (!(await persistSiteConfig({ ...config, version: ritualVersion }, defaultCurrency))) {
-        process.exitCode = ExitCode.RuntimeError
-        return
-      }
-      await maybeInstallSkills(options, false)
-      printNextSteps(config)
-    })
+    }
+
+    console.log(`Upgrading from ${loaded.version} to ${ritualVersion}...`)
+    const { version: _version, ...config } = loaded
+    const migrations = computeMigrations(loaded.version, ritualVersion, MANAGED_FILES, config)
+    await applyMigrations(migrations)
+
+    // Keep .gitignore in sync with the current template. This is idempotent
+    // (only missing entries are added), so upgrades pick up new exclusions
+    // such as the downloaded /ritual binary.
+    const gitignoreResult = await updateGitignore(generateGitignoreEntries())
+    if (gitignoreResult === 'created') {
+      console.log('✓ Created .gitignore')
+    } else if (gitignoreResult === 'updated') {
+      console.log('✓ Updated .gitignore')
+    }
+
+    const updatedSite: SiteDeployConfig = { ...config, version: ritualVersion }
+    if (!(await persistSiteConfig(updatedSite))) {
+      process.exitCode = ExitCode.RuntimeError
+      return
+    }
+    console.log(`✓ ritual.config.json site section updated to ${ritualVersion}`)
+
+    // Refresh any already-installed agent skills so they track the new version.
+    await refreshSkillsOnUpgrade(options)
+    return
+  }
+
+  // Fresh init (no site config yet)
+  const config = await resolveConfig(options)
+  if (!config) {
+    process.exitCode = ExitCode.UsageError
+    return
+  }
+  const defaultCurrency = await resolveDefaultCurrency(options)
+  if (!defaultCurrency) {
+    console.error('Cancelled.')
+    process.exitCode = ExitCode.UsageError
+    return
+  }
+  await writeInitFiles(config, { force: false, overwriteReadme: options.overwriteReadme })
+  if (!(await persistSiteConfig({ ...config, version: ritualVersion }, defaultCurrency))) {
+    process.exitCode = ExitCode.RuntimeError
+    return
+  }
+  await maybeInstallSkills(options, false)
+  printNextSteps(config)
 }
 
 /** Write the site deploy config; on failure, print the error and return false. */
@@ -743,6 +899,21 @@ export function defaultCurrencyChoices(current: PriceCurrency): prompts.Choice[]
 type DefaultCurrencyPromptResponse = { currency?: PriceCurrency }
 
 /**
+ * Resolve the default price currency: the `--currency` flag when given,
+ * otherwise the interactive prompt. When prompts are unavailable and the flag
+ * is unset, a usage error naming `--currency` is raised.
+ */
+async function resolveDefaultCurrency(
+  options: InitSiteCommandOptions,
+): Promise<PriceCurrency | null> {
+  if (options.currency !== undefined) return options.currency
+  if (!promptsAvailable()) {
+    throw missingFlagError('--currency <currency>', 'A default price currency')
+  }
+  return promptDefaultCurrency()
+}
+
+/**
  * Ask which currency price-touching surfaces should default to. Defaults to
  * the currently configured value (USD out of the box). Returns null when the
  * prompt is cancelled.
@@ -768,96 +939,137 @@ async function promptDefaultCurrency(): Promise<PriceCurrency | null> {
   return response.currency
 }
 
-async function promptForConfig(): Promise<InitSiteConfig | null> {
+/**
+ * Resolve the init configuration from flags and prompts. Every value provided
+ * by a flag skips its prompt; every value left unset prompts interactively.
+ * When prompts are unavailable, an unset value raises a usage error naming the
+ * missing flag. Returns null when a prompt is cancelled.
+ */
+async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteConfig | null> {
   let cancelled = false
   const onCancel = () => {
     cancelled = true
   }
 
-  const ciResponse = await prompts(
-    {
-      type: 'select',
-      name: 'ciSystem',
-      message: 'Which CI system are you using?',
-      choices: [
-        {
-          title: 'GitHub Actions',
-          description: 'Generate a GitHub Actions workflow that builds and deploys automatically',
-          value: 'github-actions',
-        },
-        {
-          title: 'Manual / None',
-          description: 'No CI integration — build and deploy manually',
-          value: 'manual',
-        },
-      ],
-    },
-    { onCancel },
-  )
-
-  if (cancelled || ciResponse.ciSystem === undefined) {
-    console.error('Cancelled.')
-    return null
-  }
-
-  const ciSystem: CISystem = ciResponse.ciSystem
-
-  if (ciSystem === 'manual') {
-    return { ciSystem }
-  }
-
-  const modeResponse = await prompts(
-    {
-      type: 'select',
-      name: 'deployMode',
-      message: 'How would you like to deploy your site?',
-      choices: [
-        {
-          title: 'Publish for me',
-          description:
-            'Generate a GitHub Action that builds your site and deploys it automatically',
-          value: 'publish-for-me',
-        },
-        {
-          title: 'Deploy my local build',
-          description:
-            'Generate a GitHub Action that deploys a directory you build locally with build-site',
-          value: 'local-build',
-        },
-      ],
-    },
-    { onCancel },
-  )
-
-  if (cancelled || modeResponse.deployMode === undefined) {
-    console.error('Cancelled.')
-    return null
-  }
-
-  const deployMode: DeployMode = modeResponse.deployMode
-  let distDir = 'dist'
-
-  if (deployMode === 'local-build') {
-    const dirResponse = await prompts(
+  let ciSystem = options.ci
+  if (ciSystem === undefined) {
+    if (!promptsAvailable()) throw missingFlagError('--ci <system>', 'A CI system')
+    const ciResponse = await prompts(
       {
-        type: 'text',
-        name: 'distDir',
-        message: 'Which directory contains your built site?',
-        initial: 'dist',
+        type: 'select',
+        name: 'ciSystem',
+        message: 'Which CI system are you using?',
+        choices: [
+          {
+            title: 'GitHub Actions',
+            description: 'Generate a GitHub Actions workflow that builds and deploys automatically',
+            value: 'github-actions',
+          },
+          {
+            title: 'Manual / None',
+            description: 'No CI integration — build and deploy manually',
+            value: 'manual',
+          },
+        ],
       },
       { onCancel },
     )
 
-    if (cancelled || dirResponse.distDir === undefined) {
+    if (cancelled || ciResponse.ciSystem === undefined) {
       console.error('Cancelled.')
       return null
     }
-
-    distDir = dirResponse.distDir
+    ciSystem = ciResponse.ciSystem as CISystem
   }
 
-  let detectChanges = false
-  if (deployMode === 'publish-for-me') {
+  if (ciSystem === 'manual') {
+    if (
+      options.deploy !== undefined ||
+      options.distDir !== undefined ||
+      options.changeDetection !== undefined
+    ) {
+      throw usageError(
+        '--deploy, --dist-dir, and --change-detection only apply with --ci github-actions.',
+      )
+    }
+    return { ciSystem }
+  }
+
+  let deployMode = options.deploy
+  if (deployMode === undefined) {
+    if (!promptsAvailable()) throw missingFlagError('--deploy <mode>', 'A deploy mode')
+    const modeResponse = await prompts(
+      {
+        type: 'select',
+        name: 'deployMode',
+        message: 'How would you like to deploy your site?',
+        choices: [
+          {
+            title: 'Publish for me',
+            description:
+              'Generate a GitHub Action that builds your site and deploys it automatically',
+            value: 'publish-for-me',
+          },
+          {
+            title: 'Deploy my local build',
+            description:
+              'Generate a GitHub Action that deploys a directory you build locally with build-site',
+            value: 'local-build',
+          },
+        ],
+      },
+      { onCancel },
+    )
+
+    if (cancelled || modeResponse.deployMode === undefined) {
+      console.error('Cancelled.')
+      return null
+    }
+    deployMode = modeResponse.deployMode as DeployMode
+  }
+
+  if (deployMode === 'local-build') {
+    if (options.changeDetection === true) {
+      throw usageError('--change-detection only applies with --deploy publish-for-me.')
+    }
+
+    let distDir = options.distDir
+    if (distDir === undefined) {
+      if (!promptsAvailable())
+        throw missingFlagError('--dist-dir <dir>', 'The built-site directory')
+      const dirResponse = await prompts(
+        {
+          type: 'text',
+          name: 'distDir',
+          message: 'Which directory contains your built site?',
+          initial: 'dist',
+        },
+        { onCancel },
+      )
+
+      if (cancelled || dirResponse.distDir === undefined) {
+        console.error('Cancelled.')
+        return null
+      }
+      distDir = dirResponse.distDir as string
+    }
+
+    return { ciSystem, deployMode, distDir, detectChanges: false }
+  }
+
+  // publish-for-me
+  if (options.distDir !== undefined) {
+    throw usageError('--dist-dir only applies with --deploy local-build.')
+  }
+
+  let detectChanges = options.changeDetection
+  if (detectChanges === undefined) {
+    if (!promptsAvailable()) {
+      throw missingFlagError(
+        '--change-detection/--no-change-detection',
+        'Automatic change detection',
+      )
+    }
     const detectResponse = await prompts(
       {
         type: 'confirm',
@@ -876,10 +1088,10 @@ async function promptForConfig(): Promise<InitSiteConfig | null> {
     detectChanges = detectResponse.detectChanges === true
   }
 
-  return { ciSystem, deployMode, distDir, detectChanges }
+  return { ciSystem, deployMode, distDir: 'dist', detectChanges }
 }
 
-async function writeInitFiles(config: InitSiteConfig, opts: ForceOption): Promise<void> {
+async function writeInitFiles(config: InitSiteConfig, opts: WriteInitFilesOptions): Promise<void> {
   // Write managed files filtered to the selected CI system
   for (const file of MANAGED_FILES) {
     if (!isActiveManagedFile(file)) continue
@@ -887,7 +1099,9 @@ async function writeInitFiles(config: InitSiteConfig, opts: ForceOption): Promis
     const currentRecord = file.paths.find((r) => r.until === undefined)
     if (!currentRecord) continue
     const filePath = path.join(getBaseDir(), currentRecord.path)
-    const result = await writeFileWithOverwritePrompt(filePath, file.generate(config), opts)
+    const result = await writeFileWithOverwritePrompt(filePath, file.generate(config), {
+      force: opts.force,
+    })
     if (result === 'written') {
       console.log(`✓ Created ${currentRecord.path}`)
     } else {
@@ -895,9 +1109,10 @@ async function writeInitFiles(config: InitSiteConfig, opts: ForceOption): Promis
     }
   }
 
-  // Write README (user-editable — always prompt, even with --force)
+  // Write README. --overwrite-readme/--no-overwrite-readme decides without
+  // prompting; otherwise --force overwrites and an existing file prompts.
   const readmePath = path.join(getBaseDir(), 'README.md')
-  const readmeResult = await writeFileWithOverwritePrompt(readmePath, generateReadme(config))
+  const readmeResult = await writeReadme(readmePath, generateReadme(config), opts)
   if (readmeResult === 'written') {
     console.log('✓ Created README.md')
   } else {

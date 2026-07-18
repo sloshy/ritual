@@ -18,7 +18,7 @@ export type EnsureCacheDeps = {
 }
 
 export type EnsureCacheOptions = {
-  /** When false, never trigger a bulk download (e.g. `--allow-refresh-no-bulk`/`--no-refresh`). */
+  /** When false, never trigger a bulk download (e.g. `--refresh no-bulk`/`--refresh never`). */
   allowBulk?: boolean
 }
 

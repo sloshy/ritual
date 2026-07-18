@@ -29,8 +29,6 @@ export function registerServeSiteCommand(program: Command): void {
       collections: options.collections,
       wantedLists: options.wantedLists,
       currencies: options.currencies,
-      allowRefresh: options.allowRefresh,
-      allowRefreshNoBulk: options.allowRefreshNoBulk,
       refresh: options.refresh,
       theme: options.theme,
       themeFile: options.themeFile,

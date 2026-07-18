@@ -12,6 +12,7 @@ import {
 import { type BundleImportResult, applyChangeBundle } from '../admin/api/import-changes'
 import { ask } from './prompts-helpers'
 import { classifyFileReadError, ExitCode } from './scripting'
+import { isNoInput } from '../no-input'
 
 type ImportChangesOptions = {
   yes?: boolean
@@ -80,9 +81,10 @@ export function registerImportChangesCommand(program: Command): void {
       printPreview(bundle)
 
       if (!options.yes) {
-        // The confirm prompt cannot be answered without a terminal; without
-        // this guard a piped stdin would silently resolve false or hang.
-        if (!process.stdin.isTTY) {
+        // The confirm prompt cannot be answered without a terminal (and is
+        // disabled outright under --no-input); without this guard a piped
+        // stdin would silently resolve false or hang.
+        if (isNoInput() || !process.stdin.isTTY) {
           console.error('Confirmation required: pass --yes to apply changes non-interactively.')
           process.exitCode = ExitCode.UsageError
           return

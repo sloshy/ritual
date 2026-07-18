@@ -13,7 +13,8 @@ import { formatCollectionLine } from './collection-helpers'
 import { writeFileWithHash } from '../content-hash'
 import { ExitCode } from './scripting'
 import { noteOrUndefined } from '../note-helpers'
-import { CardCommandError, type EntryRef } from './card-target'
+import { CardCommandError } from '../errors'
+import type { EntryRef } from './card-target'
 
 /**
  * Write a new note value to the matching card entry by rewriting its `- ...`

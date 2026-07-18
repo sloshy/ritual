@@ -49,7 +49,7 @@ describe('import text file into flat lists (Integration)', () => {
     )
 
     const deckData = await importFromTextFile(source)
-    await saveFlatList(deckData, 'collection', { nonInteractive: true })
+    await saveFlatList(deckData, 'collection', { noPrompts: true })
 
     const content = await fs.readFile(path.join(tmpDir, 'collections', 'Trade Binder.md'), 'utf-8')
     expect(content).toBe(
@@ -74,7 +74,7 @@ describe('import text file into flat lists (Integration)', () => {
     )
 
     const deckData = await importFromTextFile(source)
-    await saveFlatList(deckData, 'wanted', { nonInteractive: true })
+    await saveFlatList(deckData, 'wanted', { noPrompts: true })
 
     const content = await fs.readFile(path.join(tmpDir, 'wanted', 'wants.md'), 'utf-8')
     expect(content).toBe(
@@ -96,14 +96,14 @@ describe('import text file into flat lists (Integration)', () => {
     const deckData = await importFromTextFile(source)
 
     // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
-    await expect(saveFlatList(deckData, 'collection', { nonInteractive: true })).rejects.toThrow(
+    await expect(saveFlatList(deckData, 'collection', { noPrompts: true })).rejects.toThrow(
       /no printing.*Arcane Signet/,
     )
     // Nothing should have been written.
     expect(await Bun.file(path.join(tmpDir, 'collections', 'binder.md')).exists()).toBeFalse()
   })
 
-  test('non-interactive conflict throws instead of prompting', async () => {
+  test('conflict with prompts disabled throws instead of prompting', async () => {
     const wantsPath = await writeWantedFile(tmpDir, 'wants', {
       entries: [{ name: 'Mox Ruby', cardId: 1 }],
     })
@@ -113,7 +113,7 @@ describe('import text file into flat lists (Integration)', () => {
     const deckData = await importFromTextFile(source)
 
     // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
-    await expect(saveFlatList(deckData, 'wanted', { nonInteractive: true })).rejects.toThrow(
+    await expect(saveFlatList(deckData, 'wanted', { noPrompts: true })).rejects.toThrow(
       'Import conflict',
     )
 
@@ -129,7 +129,7 @@ describe('import text file into flat lists (Integration)', () => {
 
     const source = await writeSource('wants.txt', '1 Black Lotus\n')
     const deckData = await importFromTextFile(source)
-    await saveFlatList(deckData, 'wanted', { nonInteractive: true, forceOverwrite: true })
+    await saveFlatList(deckData, 'wanted', { noPrompts: true, forceOverwrite: true })
 
     const content = await fs.readFile(wantsPath, 'utf-8')
     expect(content).toBe('# wants\n\n## Main\n- Black Lotus &1\n')
@@ -139,7 +139,7 @@ describe('import text file into flat lists (Integration)', () => {
     const source = await writeSource('binder.txt', '1 Sol Ring (c19:221)\n')
     const deckData = await importFromTextFile(source)
 
-    await saveFlatList(deckData, 'collection', { nonInteractive: true, dryRun: true })
+    await saveFlatList(deckData, 'collection', { noPrompts: true, dryRun: true })
 
     expect(await Bun.file(path.join(tmpDir, 'collections', 'binder.md')).exists()).toBeFalse()
     expect(

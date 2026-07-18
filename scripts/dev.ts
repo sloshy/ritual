@@ -16,8 +16,9 @@ const SUBCOMMANDS = ['admin', 'serve-site'] as const
 type Subcommand = (typeof SUBCOMMANDS)[number]
 
 // Subcommands whose underlying command can issue interactive prompts (the
-// Scryfall cache refresh). The child can't read stdin under the orchestrator,
-// so these require an explicit `--*-refresh` answer up front.
+// Scryfall cache refresh under the default `--refresh ask`). The child can't
+// read stdin under the orchestrator, so these require an explicit non-`ask`
+// `--refresh <mode>` (or `--no-input`) up front.
 const PROMPTING_SUBCOMMANDS: readonly Subcommand[] = ['admin', 'serve-site']
 
 const DATA_DIRS: readonly string[] = ['decks', 'collections', 'wanted']
@@ -42,7 +43,7 @@ const passthrough = rawArgs.slice(1)
 
 // The orchestrator owns the TTY, so the child can't answer interactive
 // prompts. Require the prompt answers up front and bail before spawning.
-if (PROMPTING_SUBCOMMANDS.includes(subcommand) && !hasAnswerFlag(subcommand, passthrough)) {
+if (PROMPTING_SUBCOMMANDS.includes(subcommand) && !hasAnswerFlag(passthrough)) {
   console.error(answerFlagRequiredMessage(subcommand))
   process.exit(1)
 }
@@ -107,8 +108,8 @@ function spawnChild(): void {
   // - `stdio[0] = 'ignore'` gives the orchestrator exclusive ownership of the
   //   TTY for keyboard-shortcut detection. The child therefore can't read
   //   interactive prompts, which is why the prompting subcommands require an
-  //   explicit `--*-refresh` answer flag (enforced above) that the child
-  //   resolves non-interactively.
+  //   explicit non-`ask` `--refresh <mode>` or `--no-input` (enforced above)
+  //   that the child resolves non-interactively.
   child = Bun.spawn(['bun', indexPath, subcommand, ...passthrough], {
     cwd: projectRoot,
     stdio: ['ignore', 'inherit', 'inherit'],

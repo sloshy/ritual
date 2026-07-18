@@ -29,6 +29,7 @@ import {
   type ListLocation,
 } from '../resolve-list'
 import { getExportPresets } from '../ritual-config'
+import { isNoInput } from '../no-input'
 import { emitError, emitResolveListError, ExitCode, type ScriptingOptions } from './scripting'
 import { runExportWizard } from './export-wizard'
 
@@ -52,8 +53,6 @@ type ExportCommandOptions = {
   preset?: string
   savePreset?: string
   quiet?: boolean
-  /** Commander stores `--no-interactive` as `interactive: false` (true when not given). */
-  interactive: boolean
 }
 
 /** Validated flag values that decide gating and output shape. */
@@ -70,27 +69,34 @@ export type ParsedExportFlags = {
   preset?: string
   savePreset?: string
   quiet?: boolean
-  interactive: boolean
 }
 
 /**
- * The wizard launches only for a bare TTY invocation: no list args and no flag
- * that describes a concrete export. `--preset` alone still opens the wizard
- * (pre-loaded with that preset's output shape).
+ * Whether the invocation carries a run signal — a list arg or any flag that
+ * describes a concrete export, `--preset` included (`export --preset x` runs
+ * that preset directly). With a run signal the command runs headlessly; without
+ * one it is wizard-intent: it opens the wizard on a full TTY and is a usage
+ * error when prompts are unavailable.
+ */
+export function hasExportRunSignal(flags: ParsedExportFlags, listArgs: string[]): boolean {
+  if (listArgs.length > 0) return true
+  if (flags.all || flags.cards.length > 0) return true
+  if (flags.format || flags.columns || flags.header !== undefined || flags.quoteAll) return true
+  if (flags.out || flags.preset || flags.savePreset) return true
+  return hasActiveExportFilters(flags.filters)
+}
+
+/**
+ * The wizard launches only for a wizard-intent invocation (no run signals)
+ * where prompting is possible: stdout and stdin are terminals and `--no-input`
+ * is not in force.
  */
 export function shouldRunExportInteractive(
   flags: ParsedExportFlags,
   listArgs: string[],
-  isTTY: boolean,
+  interactiveAvailable: boolean,
 ): boolean {
-  if (!isTTY) return false
-  if (!flags.interactive) return false
-  if (listArgs.length > 0) return false
-  if (flags.all || flags.cards.length > 0) return false
-  if (flags.format || flags.columns || flags.header !== undefined || flags.quoteAll) return false
-  if (flags.out || flags.savePreset) return false
-  if (hasActiveExportFilters(flags.filters)) return false
-  return true
+  return interactiveAvailable && !hasExportRunSignal(flags, listArgs)
 }
 
 const textOptions: ScriptingOptions = { output: 'text', quiet: false }
@@ -157,7 +163,6 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
     preset: options.preset,
     savePreset: options.savePreset,
     quiet: options.quiet,
-    interactive: options.interactive !== false,
   }
 }
 
@@ -287,10 +292,9 @@ export function registerExportCommand(program: Command): void {
     .option('--no-header', 'Omit the CSV header row')
     .option('--quote-all', 'Quote every CSV cell instead of only cells that need it')
     .option('--out <file>', 'Write to this file instead of stdout')
-    .option('--preset <name>', 'Start from a saved export preset')
+    .option('--preset <name>', 'Export with a saved preset (explicit flags override its values)')
     .option('--save-preset <name>', 'Save the resolved format/columns/CSV options as a preset')
     .option('--quiet', 'Suppress warnings and confirmations')
-    .option('--no-interactive', 'Never open the interactive wizard')
     .action(async (listArgs: string[], options: ExportCommandOptions) => {
       const type = listTypeFromFlags(options)
       if (type === 'conflict') {
@@ -302,8 +306,16 @@ export function registerExportCommand(program: Command): void {
       if (!flags) return
 
       try {
-        if (shouldRunExportInteractive(flags, listArgs, process.stdout.isTTY === true)) {
-          await runExportWizard(flags.preset)
+        const interactiveAvailable =
+          process.stdout.isTTY === true && process.stdin.isTTY === true && !isNoInput()
+        if (shouldRunExportInteractive(flags, listArgs, interactiveAvailable)) {
+          await runExportWizard()
+          return
+        }
+        if (!hasExportRunSignal(flags, listArgs)) {
+          usageError(
+            'The export wizard needs an interactive terminal, and prompts are unavailable. Specify what to export instead — e.g. --all for every list, list names, --card picks, or filters.',
+          )
           return
         }
         await runFlagExport(listArgs, type, flags)

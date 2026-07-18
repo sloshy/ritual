@@ -148,7 +148,8 @@ export function createCollectionStrategy(
       let printing = input.preselected
       if (!printing) {
         const result = await resolveCardPrinting(cardName, sessionConfig, excludeDigitalOnly)
-        if (!result) {
+        if (result.kind === 'cancelled') return
+        if (result.kind === 'none') {
           // A collection entry requires a printing (name-only lines are not part of the
           // collection format), so there is nothing sensible to add here.
           if (!isEditing) console.error('No printings found. Skipping.')
@@ -205,7 +206,8 @@ export function createCollectionStrategy(
 
       if (action === 'printing') {
         const result = await resolveCardPrinting(entry.name, sessionConfig, excludeDigitalOnly)
-        if (!result) {
+        if (result.kind === 'cancelled') return
+        if (result.kind === 'none') {
           console.error('No printings found.')
           return
         }

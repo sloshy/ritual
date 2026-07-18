@@ -64,7 +64,9 @@ export function handleImportDeck(req: Request): Promise<Response> {
     const decksDir = getDecksDir()
     await saveDeck(deckData, decksDir, {
       forceOverwrite: overwrite,
-      nonInteractive: true,
+      // There is no terminal behind an API request; a conflict must throw
+      // instead of trying to prompt.
+      noPrompts: true,
       assumeYes: overwrite,
     })
 

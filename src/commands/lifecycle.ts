@@ -1,5 +1,5 @@
 import type { ListLifecycleError } from '../list-lifecycle'
-import { CardCommandError } from './card-target'
+import { CardCommandError } from '../errors'
 import { ExitCode } from './scripting'
 
 /**

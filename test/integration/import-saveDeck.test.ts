@@ -39,7 +39,7 @@ describe('saveDeck (Integration)', () => {
 
   test('dry-run writes nothing and logs the deck and primer sidecar paths', async () => {
     await withTempDir(async (dir) => {
-      await saveDeck(deckWithPrimer, dir, { dryRun: true, nonInteractive: true })
+      await saveDeck(deckWithPrimer, dir, { dryRun: true, noPrompts: true })
 
       const files = await fs.readdir(dir)
       expect(files).toHaveLength(0)
@@ -62,30 +62,30 @@ describe('saveDeck (Integration)', () => {
       const deck: DeckData = { ...sampleDeck, name: '???' }
 
       // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
-      await expect(saveDeck(deck, dir, { nonInteractive: true })).rejects.toThrow(
+      await expect(saveDeck(deck, dir, { noPrompts: true })).rejects.toThrow(
         'no characters usable in a file name',
       )
       expect(await fs.readdir(dir)).toEqual([])
     })
   })
 
-  test('non-interactive conflict without overwrite throws', async () => {
+  test('conflict with prompts disabled throws instead of prompting', async () => {
     await withTempDir(async (dir) => {
       await Bun.write(deckPath(dir, sampleDeck.name), '# existing')
 
       // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
-      await expect(saveDeck(sampleDeck, dir, { nonInteractive: true })).rejects.toThrow(
+      await expect(saveDeck(sampleDeck, dir, { noPrompts: true })).rejects.toThrow(
         'Import conflict',
       )
     })
   })
 
-  test('assumeYes overwrites in non-interactive mode', async () => {
+  test('assumeYes overwrites a conflict with prompts disabled', async () => {
     await withTempDir(async (dir) => {
       const conflictPath = deckPath(dir, sampleDeck.name)
       await Bun.write(conflictPath, '# existing')
 
-      await saveDeck(sampleDeck, dir, { nonInteractive: true, assumeYes: true })
+      await saveDeck(sampleDeck, dir, { noPrompts: true, assumeYes: true })
 
       const frontMatter = await parseDeckFrontMatter(conflictPath)
       expect(frontMatter.name).toBe('Integration Deck')
@@ -97,7 +97,7 @@ describe('saveDeck (Integration)', () => {
   test('persists the format the source service reported', async () => {
     await withTempDir(async (dir) => {
       const deck: DeckData = { ...sampleDeck, format: 'modern' }
-      await saveDeck(deck, dir, { nonInteractive: true })
+      await saveDeck(deck, dir, { noPrompts: true })
 
       const frontMatter = await parseDeckFrontMatter(deckPath(dir, deck.name))
       expect(frontMatter.format).toBe('modern')
@@ -116,7 +116,7 @@ describe('saveDeck (Integration)', () => {
           { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
         ],
       }
-      await saveDeck(deck, dir, { nonInteractive: true })
+      await saveDeck(deck, dir, { noPrompts: true })
 
       const frontMatter = await parseDeckFrontMatter(deckPath(dir, deck.name))
       expect(frontMatter.format).toBe('commander')
@@ -144,7 +144,7 @@ describe('saveDeck (Integration)', () => {
           },
         ],
       }
-      await saveDeck(deckWithPrinting, dir, { nonInteractive: true })
+      await saveDeck(deckWithPrinting, dir, { noPrompts: true })
 
       const content = await readWrittenDeck(dir)
       expect(content).toContain('1 Mana Crypt (2XM:1) [foil] &1')
@@ -153,7 +153,7 @@ describe('saveDeck (Integration)', () => {
 
   test('deck with primer writes .primer.md sidecar and no primer in frontmatter', async () => {
     await withTempDir(async (dir) => {
-      await saveDeck(deckWithPrimer, dir, { nonInteractive: true })
+      await saveDeck(deckWithPrimer, dir, { noPrompts: true })
 
       const deckFilePath = deckPath(dir, deckWithPrimer.name)
       const deckContent = await Bun.file(deckFilePath).text()

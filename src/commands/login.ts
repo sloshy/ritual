@@ -2,8 +2,116 @@ import { Command } from 'commander'
 
 import { ArchidektAuth } from '../auth/ArchidektAuth'
 import { FileTokenStore } from '../auth/FileTokenStore'
-import { promptForLoginOutcome } from '../auth/login-helper'
-import { ExitCode } from './scripting'
+import { loginWithCredentials, promptForLoginOutcome } from '../auth/login-helper'
+import { CardCommandError } from '../errors'
+import { runCommandAction } from './card-target'
+import { readPasswordFromStdin } from './prompts-helpers'
+import {
+  addScriptingOptions,
+  emitOutput,
+  ExitCode,
+  normalizeScriptingOptions,
+  type ScriptingOptions,
+} from './scripting'
+
+type LoginArchidektOptions = {
+  forceLogin?: boolean
+  username?: string
+  passwordStdin?: boolean
+}
+
+type LoginStatusOptions = Partial<ScriptingOptions>
+
+/** JSON payload for `login status`: the stored Archidekt login, if any. */
+type LoginStatusOutput = {
+  loggedIn: boolean
+  username?: string
+}
+
+const TEXT_SCRIPTING: ScriptingOptions = { output: 'text', quiet: false }
+
+function makeAuth(): ArchidektAuth {
+  return new ArchidektAuth(new FileTokenStore())
+}
+
+async function runArchidektLogin(options: LoginArchidektOptions): Promise<void> {
+  const auth = makeAuth()
+  const headless = options.username !== undefined || options.passwordStdin === true
+
+  // Explicit credentials always perform a fresh login; the existing-session
+  // short-circuit only applies to the plain interactive invocation.
+  if (!options.forceLogin && !headless) {
+    try {
+      const user = await auth.getStoredUser()
+      if (user) {
+        const token = await auth.getToken()
+        if (token) {
+          console.log(`Logged in as ${user.username}`)
+          return
+        }
+        console.log(`Session for ${user.username} expired.`)
+      }
+    } catch {
+      // Ignore errors during check, proceed to login
+    }
+  }
+
+  if (headless) {
+    if (options.username === undefined || options.passwordStdin !== true) {
+      throw new CardCommandError(
+        'usage_error',
+        'Non-interactive login requires both --username and --password-stdin.',
+        ExitCode.UsageError,
+      )
+    }
+    const password = await readPasswordFromStdin()
+    if (password.length === 0) {
+      throw new CardCommandError(
+        'usage_error',
+        'The password read from stdin is empty.',
+        ExitCode.UsageError,
+      )
+    }
+    const outcome = await loginWithCredentials(auth, { username: options.username, password })
+    if (outcome === 'failed') {
+      process.exitCode = ExitCode.RuntimeError
+    }
+    return
+  }
+
+  const outcome = await promptForLoginOutcome(auth)
+  if (outcome === 'cancelled') {
+    process.exitCode = ExitCode.UsageError
+    return
+  }
+  if (outcome === 'failed') {
+    process.exitCode = ExitCode.RuntimeError
+    return
+  }
+}
+
+async function runLoginStatus(scripting: ScriptingOptions): Promise<void> {
+  const user = await makeAuth().getStoredUser()
+  if (scripting.output === 'text') {
+    emitOutput(user ? `Logged in to Archidekt as ${user.username}` : 'Not logged in.', scripting)
+    return
+  }
+  const payload: LoginStatusOutput = user
+    ? { loggedIn: true, username: user.username }
+    : { loggedIn: false }
+  emitOutput(payload, scripting)
+}
+
+async function runLoginLogout(): Promise<void> {
+  const auth = makeAuth()
+  const user = await auth.getStoredUser()
+  await auth.logout()
+  console.log(
+    user
+      ? `Logged out of Archidekt (was ${user.username}). Stored token cleared.`
+      : 'No stored Archidekt login to clear.',
+  )
+}
 
 export function registerLoginCommand(program: Command): void {
   const loginCommand = program.command('login').description('Login to a supported website')
@@ -12,34 +120,23 @@ export function registerLoginCommand(program: Command): void {
     .command('archidekt')
     .description('Login to Archidekt')
     .option('-f, --force-login', 'Force a new login even if a session exists')
-    .action(async (options) => {
-      const tokenStore = new FileTokenStore()
-      const auth = new ArchidektAuth(tokenStore)
+    .option('--username <username>', 'Archidekt username or email (for scripting)')
+    .option('--password-stdin', 'Read the password from stdin (for scripting)', false)
+    .action(async (options: LoginArchidektOptions) => {
+      await runCommandAction(TEXT_SCRIPTING, () => runArchidektLogin(options))
+    })
 
-      if (!options.forceLogin) {
-        try {
-          const user = await auth.getStoredUser()
-          if (user) {
-            const token = await auth.getToken()
-            if (token) {
-              console.log(`Logged in as ${user.username}`)
-              return
-            }
-            console.log(`Session for ${user.username} expired.`)
-          }
-        } catch {
-          // Ignore errors during check, proceed to login
-        }
-      }
+  addScriptingOptions(
+    loginCommand.command('status').description('Show the stored Archidekt login, if any'),
+  ).action(async (options: LoginStatusOptions) => {
+    const scripting = normalizeScriptingOptions(options)
+    await runCommandAction(scripting, () => runLoginStatus(scripting))
+  })
 
-      const outcome = await promptForLoginOutcome(auth)
-      if (outcome === 'cancelled') {
-        process.exitCode = ExitCode.UsageError
-        return
-      }
-      if (outcome === 'failed') {
-        process.exitCode = ExitCode.RuntimeError
-        return
-      }
+  loginCommand
+    .command('logout')
+    .description('Clear the stored Archidekt login')
+    .action(async () => {
+      await runCommandAction(TEXT_SCRIPTING, () => runLoginLogout())
     })
 }

@@ -188,7 +188,10 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
       let printing = input.preselected
       if (!printing) {
         const result = await resolveCardPrinting(cardName, sessionConfig, excludeDigitalOnly)
-        if (!result) {
+        // A cancel must not fall through to the name-only fallback below — the
+        // user backed out of adding this card entirely.
+        if (result.kind === 'cancelled') return
+        if (result.kind === 'none') {
           if (isEditing) return
           // Deck lines may omit the printing, so fall back to a name-only add
           // rather than dropping the card.

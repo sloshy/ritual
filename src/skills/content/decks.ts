@@ -59,14 +59,15 @@ ritual edit                                   # pick a deck, prompt for a sectio
 ritual edit "Winota Stax"                     # open one deck directly (matches the file basename)
 ritual edit --section Sideboard               # add every deck card to one section
 ritual edit --collector --sets "FDN, SPG"     # collector-number entry, sets preloaded
-ritual edit --no-cache-prompt                 # skip the "cache is >1 week old, update?" prompt
-ritual edit --refresh-prices                  # redownload the cache when prices are >1 day old
+ritual edit --refresh never                   # use the existing cache as-is, no prompt
+ritual edit --refresh auto                    # redownload the cache when prices are >1 day old
 \`\`\`
 
-When the card cache was last fully downloaded more than a week ago, the session prompts
-to redownload it before starting; \`--no-cache-prompt\` suppresses that prompt and uses the
-existing cache. \`--refresh-prices\` redownloads the cache (refreshing prices) without
-prompting when the cached prices are more than a day old.
+The shared \`--refresh <mode>\` option controls card-cache freshness: under \`ask\`
+(the default) a cache last fully downloaded more than a week ago prompts to
+redownload before the session starts; \`auto\` redownloads without prompting when
+the cached prices are more than a day old; \`no-bulk\` and \`never\` use the
+existing cache as-is.
 
 Set the **target section** to a fixed section or "prompt every time" via \`--section\`,
 the \`🗂️ Set Target Section\` menu, or the session filters. Adding a card whose printing
@@ -98,12 +99,12 @@ ritual import https://archidekt.com/decks/123456
 ritual import ./my-decklist.txt --type deck
 ritual import <url> --overwrite          # replace an existing deck of the same name
 ritual import <url> --dry-run            # preview without writing files
-ritual import <url> --non-interactive    # never prompt (fail if input is required)
+ritual import <url> --no-input           # never prompt (fail if input is required)
 \`\`\`
 
 URLs always import decks. A text file import prompts for the list type (deck,
-collection, or wanted list) unless \`--type\` is passed; non-interactive runs
-without \`--type\` default to a deck.
+collection, or wanted list) unless \`--type\` is passed; under the global
+\`--no-input\` flag a run without \`--type\` defaults to a deck.
 
 Moxfield imports need a unique User-Agent: pass
 \`--moxfield-user-agent "you@example.com"\` or set \`MOXFIELD_USER_AGENT\`.
@@ -140,16 +141,17 @@ ritual import-account --all               # use the logged-in account
 
 ## Sync with Archidekt
 
-One of \`--download-changes\` or \`--upload-changes\` is always required (omitting
-both, or passing both, exits with code 2):
+The first argument is the sync direction — \`pull\` (Archidekt → local) or \`push\`
+(local → Archidekt); anything else exits with code 2:
 
 \`\`\`bash
-ritual deck-sync --download-changes                 # pull remote changes for all linked decks
-ritual deck-sync "Winota Stax" --upload-changes     # push local changes for one deck
+ritual deck-sync pull                        # pull remote changes for all linked decks
+ritual deck-sync push "Winota Stax"          # push local changes for one deck
+ritual deck-sync push --dry-run              # preview without sending anything
 \`\`\`
 
-A download also adopts the deck's Archidekt format (mapped onto Ritual's format
-keys). An upload does not push the local format back.
+A pull also adopts the deck's Archidekt format (mapped onto Ritual's format
+keys). A push does not push the local format back.
 
 ## Primer
 
@@ -161,12 +163,12 @@ ritual get-primer <moxfield-url>          # fetch a primer from Moxfield
 ## Price
 
 The unified \`price\` command covers all list types; scope it with \`--deck\` or a name.
-An interactive browser opens on a TTY — for agents, always pass a non-interactive flag
-(\`--summary\`, \`--no-interactive\`, or \`--output json\`):
+An interactive browser opens on a TTY — for agents, always pass \`--summary\`,
+\`--output json\`, or the global \`--no-input\` flag:
 
 \`\`\`bash
 ritual price --deck --summary                       # every deck's totals
-ritual price "Winota Stax" --no-interactive         # one deck's cards + totals
+ritual price "Winota Stax" --no-input               # one deck's cards + totals
 ritual price "Winota Stax" --output json --quiet
 ritual price "Winota Stax" --prices eur             # usd | eur | tix (defaults to config defaultCurrency)
 \`\`\`

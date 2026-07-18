@@ -18,7 +18,7 @@ import { appendChangelog } from '../changelog-writer'
 import { formatChange, type ChangeEvent } from '../change-event'
 import { getBaseDir } from '../base-dir'
 import { computeHash, isHashCurrent, loadHash, saveHash } from '../content-hash'
-import { ExitCode } from './scripting'
+import { addDryRunOption, ExitCode } from './scripting'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -259,42 +259,41 @@ export async function applyDetectedChanges(
 // ── Command registration ─────────────────────────────────────────────
 
 export function registerGitDetectChangesCommand(program: Command): void {
-  program
-    .command('git-detect-changes')
-    .description('Detect card changes from git history and update changelogs')
-    .argument('<commit>', 'Git commit hash or ref to diff against (e.g. HEAD~1, abc123)')
-    .option('--dry-run', 'Preview detected changes without writing files')
-    .action(async (commit: string, options: GitDetectChangesOptions) => {
-      const cwd = getBaseDir()
-      const dryRun = options.dryRun ?? false
+  addDryRunOption(
+    program
+      .command('git-detect-changes')
+      .description('Detect card changes from git history and update changelogs')
+      .argument('<commit>', 'Git commit hash or ref to diff against (e.g. HEAD~1, abc123)'),
+    'Preview detected changes without writing files',
+  ).action(async (commit: string, options: GitDetectChangesOptions) => {
+    const cwd = getBaseDir()
+    const dryRun = options.dryRun ?? false
 
-      console.log(`Comparing against ${commit}...`)
-      if (dryRun) console.log('(dry run — no files will be modified)\n')
+    console.log(`Comparing against ${commit}...`)
+    if (dryRun) console.log('(dry run — no files will be modified)\n')
 
-      let output: DetectChangesOutput
-      try {
-        output = await detectChanges(commit, cwd)
-      } catch (err) {
-        console.error(
-          `Failed to detect changes: ${err instanceof Error ? err.message : String(err)}`,
-        )
-        process.exitCode = ExitCode.RuntimeError
-        return
-      }
+    let output: DetectChangesOutput
+    try {
+      output = await detectChanges(commit, cwd)
+    } catch (err) {
+      console.error(`Failed to detect changes: ${err instanceof Error ? err.message : String(err)}`)
+      process.exitCode = ExitCode.RuntimeError
+      return
+    }
 
-      if (output.results.length === 0 && output.renames.size === 0) {
-        console.log('No deck, collection, or wanted list changes detected.')
-        return
-      }
+    if (output.results.length === 0 && output.renames.size === 0) {
+      console.log('No deck, collection, or wanted list changes detected.')
+      return
+    }
 
-      const updated = await applyDetectedChanges(output, cwd, dryRun)
+    const updated = await applyDetectedChanges(output, cwd, dryRun)
 
-      if (dryRun) {
-        console.log('\nDry run complete. No files were modified.')
-      } else if (updated > 0) {
-        console.log('\nChangelogs updated.')
-      } else {
-        console.log('\nNo changelog updates needed.')
-      }
-    })
+    if (dryRun) {
+      console.log('\nDry run complete. No files were modified.')
+    } else if (updated > 0) {
+      console.log('\nChangelogs updated.')
+    } else {
+      console.log('\nNo changelog updates needed.')
+    }
+  })
 }

@@ -1,5 +1,6 @@
 import { access } from 'node:fs/promises'
 import { createInterface } from 'node:readline/promises'
+import { isNoInput } from './no-input'
 
 /** Returns true if the path exists and is accessible. */
 export async function fileExists(filePath: string): Promise<boolean> {
@@ -45,6 +46,12 @@ export function getAtPath(obj: unknown, path: string[]): unknown {
 }
 
 export async function promptUser(question: string): Promise<string> {
+  // utils is a dependency leaf, so this throws a plain Error rather than
+  // importing CardCommandError from commands/card-target (which imports utils
+  // transitively — an import cycle). Callers classify by the thrown message.
+  if (isNoInput() || !process.stdin.isTTY) {
+    throw new Error(`Input required: ${question.trim()} (prompts are disabled)`)
+  }
   const rl = createInterface({
     input: process.stdin,
     output: process.stdout,

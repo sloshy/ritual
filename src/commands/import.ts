@@ -14,7 +14,7 @@ import {
 import { type DeckData } from '../types'
 import { serializeDeckToMarkdown, type DeckFrontMatter } from '../deck-file'
 import { parseMoxfieldPrimer } from '../primer-parser'
-import { ExitCode } from './scripting'
+import { addDryRunOption, ExitCode } from './scripting'
 import { getLogger } from '../logger'
 import { writeFileWithHash } from '../content-hash'
 import { isPathWithinDir } from '../path-validation'
@@ -22,10 +22,18 @@ import { getDecksDir } from '../ritual-config'
 import { listFilePath } from '../resolve-list'
 import { isListType, listTypeLabel, LIST_TYPES, type ListType } from '../list-type'
 import { promptListType } from './prompts-helpers'
+import { isNoInput } from '../no-input'
+import { CardCommandError } from '../errors'
 
 interface SaveListOptions {
   forceOverwrite?: boolean
-  nonInteractive?: boolean
+  /**
+   * Refuse to prompt on a name/ID conflict and throw instead. The CLI passes
+   * `isNoInput()`; programmatic callers (the admin import handler) always pass
+   * true since there is no terminal to resolve a conflict on.
+   */
+  noPrompts?: boolean
+  /** Auto-answer the overwrite confirmation with yes when a conflict comes up. */
   assumeYes?: boolean
   dryRun?: boolean
 }
@@ -37,25 +45,15 @@ type DeckFileFrontmatter = {
 type ImportCommandOptions = {
   type?: string
   overwrite?: boolean
-  nonInteractive?: boolean
   yes?: boolean
   dryRun?: boolean
   moxfieldUserAgent?: string
 }
 
-function normalizeSaveListOptions(options?: SaveListOptions | boolean): Required<SaveListOptions> {
-  if (typeof options === 'boolean') {
-    return {
-      forceOverwrite: options,
-      nonInteractive: false,
-      assumeYes: false,
-      dryRun: false,
-    }
-  }
-
+function normalizeSaveListOptions(options?: SaveListOptions): Required<SaveListOptions> {
   return {
     forceOverwrite: options?.forceOverwrite ?? false,
-    nonInteractive: options?.nonInteractive ?? false,
+    noPrompts: options?.noPrompts ?? false,
     assumeYes: options?.assumeYes ?? false,
     dryRun: options?.dryRun ?? false,
   }
@@ -87,7 +85,7 @@ async function promptConflictResolution(renamePrompt: string): Promise<ConflictR
 export async function saveDeck(
   deckData: DeckData,
   decksDir: string,
-  options?: SaveListOptions | boolean,
+  options?: SaveListOptions,
 ): Promise<void> {
   const resolvedOptions = normalizeSaveListOptions(options)
   // Determine Target Filename. An imported deck's name comes from the source
@@ -145,9 +143,9 @@ export async function saveDeck(
       getLogger().info(`Overwriting ${conflictFile}...`)
     }
   } else if (conflictFile && !shouldOverwrite) {
-    if (resolvedOptions.nonInteractive) {
+    if (resolvedOptions.noPrompts) {
       throw new Error(
-        `Import conflict for '${conflictFile}'. Re-run with --overwrite or --yes, or disable --non-interactive.`,
+        `Import conflict for '${conflictFile}'. Re-run with --overwrite or --yes to replace it.`,
       )
     }
 
@@ -294,9 +292,9 @@ export async function saveFlatList(
       getLogger().info(`Overwriting ${path.basename(filePath)}...`)
     }
   } else if (exists) {
-    if (resolvedOptions.nonInteractive) {
+    if (resolvedOptions.noPrompts) {
       throw new Error(
-        `Import conflict for '${path.basename(filePath)}'. Re-run with --overwrite or --yes, or disable --non-interactive.`,
+        `Import conflict for '${path.basename(filePath)}'. Re-run with --overwrite or --yes to replace it.`,
       )
     }
 
@@ -336,12 +334,12 @@ export async function saveFlatList(
 /** Resolve the target list type for a text-file import: flag, prompt, or deck default. */
 async function resolveImportListType(
   typeFlag: ListType | undefined,
-  nonInteractive: boolean,
 ): Promise<ListType | undefined> {
   if (typeFlag !== undefined) return typeFlag
-  // Scripted imports keep the command's historical deck behavior, but say so —
-  // the type was defaulted, not chosen.
-  if (nonInteractive) {
+  // Under --no-input the import keeps the command's historical deck behavior,
+  // but says so — the type was defaulted, not chosen. Without --no-input the
+  // prompt itself fails when no terminal is available (the ask() guard).
+  if (isNoInput()) {
     getLogger().info(
       'No --type given; importing as a deck (pass --type to import a collection or wanted list).',
     )
@@ -352,20 +350,24 @@ async function resolveImportListType(
 }
 
 export function registerImportCommand(program: Command): void {
-  program
-    .command('import')
-    .description(
-      'Import a deck from a URL (Archidekt, Moxfield, MTGGoldfish), or a deck, collection, or wanted list from a local text file',
-    )
-    .argument('<source>', 'URL or file path')
-    .option(
-      '-t, --type <type>',
-      `List type for a text file import: ${LIST_TYPES.join(', ')} (URLs always import decks)`,
-    )
-    .option('-o, --overwrite', 'Overwrite existing lists without prompting')
-    .option('--non-interactive', 'Disable interactive prompts; fail when input is required')
-    .option('-y, --yes', 'Automatically answer yes to prompts (implies overwrite on conflicts)')
-    .option('--dry-run', 'Preview actions without writing files')
+  addDryRunOption(
+    program
+      .command('import')
+      .description(
+        'Import a deck from a URL (Archidekt, Moxfield, MTGGoldfish), or a deck, collection, or wanted list from a local text file',
+      )
+      .argument('<source>', 'URL or file path')
+      .option(
+        '-t, --type <type>',
+        `List type for a text file import: ${LIST_TYPES.join(', ')} (URLs always import decks)`,
+      )
+      .option('-o, --overwrite', 'Overwrite existing lists without prompting')
+      .option(
+        '-y, --yes',
+        'Automatically answer yes to the overwrite confirmation on import conflicts',
+      ),
+    'Preview actions without writing files',
+  )
     .option(
       '--moxfield-user-agent <agent>',
       'Moxfield-approved unique User-Agent string (required for Moxfield imports unless MOXFIELD_USER_AGENT is set)',
@@ -397,10 +399,9 @@ export function registerImportCommand(program: Command): void {
         return
       }
 
-      const nonInteractive = options.nonInteractive === true || options.yes === true
       const saveOptions: SaveListOptions = {
         forceOverwrite: options.overwrite === true,
-        nonInteractive,
+        noPrompts: isNoInput(),
         assumeYes: options.yes === true,
         dryRun: options.dryRun === true,
       }
@@ -429,7 +430,7 @@ export function registerImportCommand(program: Command): void {
         logger.info(`Reading cards from file: ${source}...`)
         const deckData = await importFromTextFile(source)
 
-        const listType = await resolveImportListType(typeFlag, nonInteractive)
+        const listType = await resolveImportListType(typeFlag)
         if (listType === undefined) {
           logger.info('Import cancelled.')
           return
@@ -441,6 +442,14 @@ export function registerImportCommand(program: Command): void {
           await saveFlatList(deckData, listType, saveOptions)
         }
       } catch (error) {
+        // The prompt guards throw a structured usage error when input is
+        // needed but prompts are unavailable (no terminal, or --no-input);
+        // keep its exit code instead of flattening it to a runtime error.
+        if (error instanceof CardCommandError) {
+          logger.error(error.message)
+          process.exitCode = error.exitCode
+          return
+        }
         logger.error('Failed to import:', error)
         process.exitCode = ExitCode.RuntimeError
       }

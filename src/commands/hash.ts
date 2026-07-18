@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getBaseDir } from '../base-dir'
 import { computeHash, saveHash } from '../content-hash'
+import { addDryRunOption } from './scripting'
 import { getCollectionsDir, getDecksDir, getWantedDir } from '../ritual-config'
 
 type HashOptions = {
@@ -62,11 +63,12 @@ async function runHash(options: HashOptions): Promise<void> {
 }
 
 export function registerHashCommand(program: Command): void {
-  program
-    .command('hash')
-    .description('Compute and save hashes for all deck, collection, and wanted list files')
-    .option('--dry-run', 'Print computed hashes without writing .sha256 files')
-    .action(async (options: HashOptions) => {
-      await runHash(options)
-    })
+  addDryRunOption(
+    program
+      .command('hash')
+      .description('Compute and save hashes for all deck, collection, and wanted list files'),
+    'Print computed hashes without writing .sha256 files',
+  ).action(async (options: HashOptions) => {
+    await runHash(options)
+  })
 }

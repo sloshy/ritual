@@ -17,7 +17,7 @@ import { runHttpServer } from '../mcp/run'
 import { resolveMcpToken } from '../mcp/token'
 import { getBaseDir } from '../base-dir'
 import { ensureFreshCardCache } from '../cache/freshness'
-import { refreshMode } from '../refresh'
+import { addRefreshOption, type RefreshMode } from '../refresh'
 import { isRunningFromSource } from '../runtime'
 import {
   generateAllThemesCss,
@@ -29,7 +29,9 @@ import {
   type ThemeName,
 } from '../themes'
 import { buildFlameSvg } from '../flame'
-import { CardCommandError, requireInteractive, runCommandAction } from './card-target'
+import { CardCommandError } from '../errors'
+import { requireInteractive, runCommandAction } from './card-target'
+import { readPasswordFromStdin } from './prompts-helpers'
 import {
   addScriptingOptions,
   emitOutput,
@@ -43,8 +45,7 @@ type AdminCommandOptions = {
   port: number
   host: string
   theme?: string
-  allowRefresh?: boolean
-  refresh?: boolean
+  refresh: RefreshMode
   mcp?: boolean
   mcpPort: number
   mcpToken?: string
@@ -112,9 +113,9 @@ async function buildAdminCss(srcDir: string, adminDistDir: string): Promise<void
 }
 
 export function registerAdminCommand(program: Command): void {
-  const admin = program
-    .command('admin')
-    .description('Start the web admin interface')
+  const admin = addRefreshOption(
+    program.command('admin').description('Start the web admin interface'),
+  )
     .option('-p, --port <number>', 'Port to serve on', parsePort, 8080)
     .option('--host <address>', 'Host address to bind to', '0.0.0.0')
     .option(
@@ -122,8 +123,6 @@ export function registerAdminCommand(program: Command): void {
       `Initial theme baked into the served HTML (${themeNames.join(', ')})`,
       'default',
     )
-    .option('--allow-refresh', 'Refresh the card cache on startup without asking (bulk download)')
-    .option('--no-refresh', 'Skip the card cache refresh on startup; use cached data as-is')
     .option(
       '--mcp',
       'Also serve an MCP (Model Context Protocol) endpoint in this process (requires --mcp-token)',
@@ -167,7 +166,7 @@ export function registerAdminCommand(program: Command): void {
 
       console.log('Preparing admin interface...')
 
-      await ensureFreshCardCache(refreshMode(options))
+      await ensureFreshCardCache(options.refresh)
 
       await fs.rm(adminDistDir, { recursive: true, force: true })
       await fs.mkdir(adminDistDir, { recursive: true })
@@ -236,22 +235,6 @@ type AdminResetPasswordResult = {
 
 type AdminDisableTotpResult = {
   totpDisabled: boolean
-}
-
-/**
- * Read the password from stdin, draining it fully and stripping exactly one
- * trailing newline (`\r?\n`). Deliberately NOT `readLinesFromStdin` from
- * card.ts — that helper trims and filters lines, which would corrupt
- * passwords containing leading/trailing whitespace.
- */
-async function readPasswordFromStdin(): Promise<string> {
-  const chunks: Uint8Array[] = []
-  for await (const chunk of process.stdin as AsyncIterable<Uint8Array>) {
-    chunks.push(chunk)
-  }
-  return Buffer.concat(chunks)
-    .toString('utf-8')
-    .replace(/\r?\n$/, '')
 }
 
 async function promptForPassword(): Promise<string> {

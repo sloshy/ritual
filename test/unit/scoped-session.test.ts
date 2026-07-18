@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import prompts from 'prompts'
 import {
   buildAddTargetChoices,
@@ -27,6 +27,17 @@ import {
   type UnifiedListRef,
 } from '../../src/commands/edit-lists'
 import { createAddChange, type ChangeEvent } from '../../src/change-event'
+
+// The add flow's list picker goes through `ask`, which refuses to prompt
+// without a terminal; these tests simulate an interactive session via
+// prompts.inject, so pretend stdin is a TTY.
+const originalIsTty = process.stdin.isTTY
+beforeAll(() => {
+  process.stdin.isTTY = true
+})
+afterAll(() => {
+  process.stdin.isTTY = originalIsTty
+})
 
 const sessionConfig: SessionConfig = {
   entryMode: 'name',

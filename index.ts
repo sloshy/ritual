@@ -54,6 +54,7 @@ import {
   toCacheServerBaseUrl,
 } from './src/cache/config'
 import { setBaseDir } from './src/base-dir'
+import { resolveNoInput, setNoInputOverride } from './src/no-input'
 import { ensureCardIdsForAllLists } from './src/ensure-card-ids'
 import { initRitualConfig } from './src/ritual-config'
 import { ExitCode } from './src/commands/scripting'
@@ -72,11 +73,20 @@ program.option(
   'Use a cache server for card and pricing cache (overrides local cache files)',
 )
 program.option('--base-dir <path>', 'Use this directory instead of the current working directory')
-type GlobalOptions = { cacheServer?: string; baseDir?: string }
+program.option(
+  '--no-input',
+  'Never prompt; fail or use documented defaults where input would be required',
+)
+// Commander stores `--no-input` as `input: false` (attribute `input`, default true).
+type GlobalOptions = { cacheServer?: string; baseDir?: string; input?: boolean }
+type DryRunOptions = { dryRun?: boolean }
 
 const COMMANDS_WITHOUT_LIST_IDS = new Set([
   'login',
   'cache',
+  'serve',
+  'cache-server',
+  'cache-feed',
   'card',
   'scry',
   'random',
@@ -95,14 +105,19 @@ const COMMANDS_WITHOUT_LIST_IDS = new Set([
   'disable-totp',
 ])
 
-program.hook('preAction', async (command) => {
+// Commander passes the hooked command first (always the root program here) and
+// the command whose action is about to run second — everything per-invocation
+// must be derived from `actionCommand`.
+program.hook('preAction', async (_program, actionCommand) => {
   // The MCP stdio transport uses stdout as its JSON-RPC channel; divert any stray
   // logging (config init, card-ID backfill, etc.) to stderr before it can run.
-  if (command.name() === 'mcp') {
+  // (`src/mcp/run.ts` diverts again for the stdio transport, but only once the
+  // action starts — too late for this hook's own logging.)
+  if (actionCommand.name() === 'mcp') {
     divertConsoleLogToStderr()
   }
 
-  const options = command.optsWithGlobals<GlobalOptions>()
+  const options = actionCommand.optsWithGlobals<GlobalOptions>()
   if (options.baseDir) {
     setBaseDir(options.baseDir)
   }
@@ -112,11 +127,21 @@ program.hook('preAction', async (command) => {
   }
   setCacheServerAddressOverride(resolved)
 
+  // `--no-input` can only turn prompting off; when absent (`input` stays true),
+  // RITUAL_NO_INPUT decides.
+  setNoInputOverride(
+    resolveNoInput(options.input === false ? true : undefined, process.env.RITUAL_NO_INPUT),
+  )
+
   await initRitualConfig()
 
-  const leaf = command.name()
-  const parent = command.parent?.name()
+  const leaf = actionCommand.name()
+  const parent = actionCommand.parent?.name()
   if (COMMANDS_WITHOUT_LIST_IDS.has(leaf) || (parent && COMMANDS_WITHOUT_LIST_IDS.has(parent))) {
+    return
+  }
+  // A dry run must write nothing — including the card-ID backfill.
+  if (actionCommand.opts<DryRunOptions>().dryRun === true) {
     return
   }
   await ensureCardIdsForAllLists()

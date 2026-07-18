@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { runCli } from './helpers/cli'
+import { OFFLINE_ENV } from './helpers/offline-env'
 import {
   createWorkspace,
   removeWorkspace,
@@ -9,35 +10,40 @@ import {
   writeDeckFile,
   writeWantedFile,
 } from './helpers/workspace'
+import { makeScryfallCard } from '../test-utils'
+import type { ScryfallCard } from '../../src/types'
 
 /**
- * Point every proxy-aware HTTP client at an unroutable address so the spawned
- * CLI cannot reach Scryfall even when the machine is online. Backstop for the
- * no-printings test — the cache seed below should prevent any fetch attempt in
- * the first place.
+ * Seed the workspace's on-disk Scryfall card cache with synthetic printings so
+ * printing validation runs fully offline. A truly absent entry would make the
+ * CLI attempt a live Scryfall lookup (upstream `getCardPrintings` behavior),
+ * which is nondeterministic in tests; an empty array pins the "card has no
+ * known printings" path.
  */
-const OFFLINE_ENV: Record<string, string> = {
-  HTTP_PROXY: 'http://127.0.0.1:9',
-  HTTPS_PROXY: 'http://127.0.0.1:9',
-  http_proxy: 'http://127.0.0.1:9',
-  https_proxy: 'http://127.0.0.1:9',
-  NO_PROXY: '',
-  no_proxy: '',
-}
-
-/**
- * Seed the workspace card cache with a zero-printings entry for `name`, pinning
- * the "card has no known printings" path without any network traffic. A truly
- * absent entry would make the CLI attempt a live Scryfall lookup (upstream
- * `getCardPrintings` behavior), which is nondeterministic in tests.
- */
-async function seedCacheWithoutPrintings(workspace: string, name: string): Promise<void> {
+async function seedCardCache(
+  workspace: string,
+  cards: Record<string, ScryfallCard[]>,
+): Promise<void> {
+  type CacheEntry = { timestamp: number; data: ScryfallCard[] }
+  const entries: Record<string, CacheEntry> = Object.fromEntries(
+    Object.entries(cards).map(([name, data]) => [name, { timestamp: Date.now(), data }]),
+  )
   await fs.mkdir(path.join(workspace, 'cache'), { recursive: true })
   await fs.writeFile(
     path.join(workspace, 'cache', 'cache.json'),
-    JSON.stringify({ prices: {}, cards: { [name]: { timestamp: Date.now(), data: [] } } }),
+    JSON.stringify({ prices: {}, cards: entries }),
   )
 }
+
+const DEMONIC_TUTOR_PRINTINGS: ScryfallCard[] = [
+  makeScryfallCard({
+    name: 'Demonic Tutor',
+    set: 'sta',
+    set_name: 'Strixhaven Mystical Archive',
+    collector_number: '90',
+    finishes: ['nonfoil', 'foil'],
+  }),
+]
 
 type MoveErrorPayload = {
   error: { code: string; message: string; details?: { matches?: unknown[] } }
@@ -130,6 +136,8 @@ describe('move CLI headless mode (Integration)', () => {
   })
 
   test('wanted → collection purchase flow assigns the printing from --set/--collector-number', async () => {
+    // The pin is validated against the card cache, so the pinned printing must exist there.
+    await seedCardCache(dir, { 'Demonic Tutor': DEMONIC_TUTOR_PRINTINGS })
     const result = await runCli(
       [
         'move',
@@ -147,6 +155,7 @@ describe('move CLI headless mode (Integration)', () => {
         'json',
       ],
       dir,
+      OFFLINE_ENV,
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as MoveSuccessPayload
@@ -160,8 +169,42 @@ describe('move CLI headless mode (Integration)', () => {
     expect(wanted).not.toContain('Demonic Tutor')
   })
 
+  test('wanted → collection with a pin the card was never printed as is a usage error listing printings', async () => {
+    await seedCardCache(dir, { 'Demonic Tutor': DEMONIC_TUTOR_PRINTINGS })
+    const result = await runCli(
+      [
+        'move',
+        'Demonic',
+        'Tutor',
+        '--from',
+        'wanted:needs',
+        '--to',
+        'collection:binder',
+        '--set',
+        '3ed',
+        '--collector-number',
+        '999',
+        '--output',
+        'json',
+      ],
+      dir,
+      OFFLINE_ENV,
+    )
+    expect(result.exitCode).toBe(2)
+    const err = JSON.parse(result.stderr) as MoveErrorPayload
+    expect(err.error.code).toBe('usage_error')
+    expect(err.error.message).toContain('Available printings')
+    expect(err.error.message).toContain('STA:90')
+
+    // Nothing moved: the wanted entry is untouched and the collection unchanged.
+    const wanted = await fs.readFile(path.join(dir, 'wanted', 'needs.md'), 'utf-8')
+    expect(wanted).toContain('Demonic Tutor')
+    const collection = await fs.readFile(path.join(dir, 'collections', 'binder.md'), 'utf-8')
+    expect(collection).not.toContain('Demonic Tutor')
+  })
+
   test('wanted → collection without printing flags and no cached printings fails cleanly', async () => {
-    await seedCacheWithoutPrintings(dir, 'Zzz Fake Test Card')
+    await seedCardCache(dir, { 'Zzz Fake Test Card': [] })
     const result = await runCli(
       [
         'move',
@@ -370,6 +413,42 @@ describe('move CLI headless mode (Integration)', () => {
     expect(multi).toContain('1 Lightning Bolt (2XM:157) &2')
     const target = await fs.readFile(path.join(dir, 'decks', 'target.md'), 'utf-8')
     expect(target).toContain('1 Lightning Bolt (LEA:161)')
+  })
+
+  test('--finish narrows an otherwise-ambiguous finish match', async () => {
+    await writeCollectionFile(dir, 'finishes', {
+      entries: [
+        { name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 },
+        { name: 'Sol Ring', set: 'c19', collectorNumber: '221', finish: 'foil', cardId: 2 },
+      ],
+    })
+    const result = await runCli(
+      [
+        'move',
+        'Sol',
+        'Ring',
+        '--from',
+        'collection:finishes',
+        '--to',
+        'deck:target',
+        '--finish',
+        'foil',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as MoveSuccessPayload
+    expect(json.moved).toBe(1)
+    expect(json.card.name).toBe('Sol Ring')
+
+    // The foil copy moved; the nonfoil line stays behind.
+    const collection = await fs.readFile(path.join(dir, 'collections', 'finishes.md'), 'utf-8')
+    expect(collection).toContain('- Sol Ring (C19:221) &1')
+    expect(collection).not.toContain('[foil]')
+    const target = await fs.readFile(path.join(dir, 'decks', 'target.md'), 'utf-8')
+    expect(target).toContain('Sol Ring (C19:221) [foil]')
   })
 
   test('--to-section places the card in the named deck section, creating it', async () => {

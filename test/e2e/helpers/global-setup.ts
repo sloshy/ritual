@@ -57,10 +57,10 @@ async function globalSetup(): Promise<void> {
   createSyntheticWorkspace(workspaceDir)
   console.log(`[global-setup] Workspace at ${workspaceDir}`)
 
-  // Build the site from the synthetic workspace. --no-refresh guarantees the
-  // build uses the seeded cache as-is and never contacts Scryfall.
+  // Build the site from the synthetic workspace. --refresh never guarantees
+  // the build uses the seeded cache as-is and never contacts Scryfall.
   console.log('[global-setup] Building site...')
-  execSync(`bun run index.ts --base-dir "${workspaceDir}" build-site --no-refresh`, {
+  execSync(`bun run index.ts --base-dir "${workspaceDir}" build-site --refresh never`, {
     cwd: repoRoot,
     stdio: 'pipe',
     timeout: 300_000,
@@ -92,7 +92,17 @@ async function globalSetup(): Promise<void> {
   console.log('[global-setup] Starting admin server on :8456...')
   const adminProc = spawn(
     'bun',
-    ['run', 'index.ts', '--base-dir', workspaceDir, 'admin', '--port', '8456', '--no-refresh'],
+    [
+      'run',
+      'index.ts',
+      '--base-dir',
+      workspaceDir,
+      'admin',
+      '--port',
+      '8456',
+      '--refresh',
+      'never',
+    ],
     {
       cwd: repoRoot,
       stdio: ['pipe', 'pipe', 'inherit'],

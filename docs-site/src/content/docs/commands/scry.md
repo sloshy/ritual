@@ -18,15 +18,27 @@ Run a raw Scryfall card search.
 
 ## Options
 
-| Option              | Description                                                       | Default           |
-| ------------------- | ----------------------------------------------------------------- | ----------------- |
-| `--csv`             | Output results as CSV                                             | `false`           |
-| `--pages <number>`  | Number of pages to output                                         | `1` (for non-TTY) |
-| `--fields <list>`   | Comma-separated fields for `json`/`ndjson` output                 | -                 |
-| `--output <format>` | Output format (`json`, `ndjson`, or `text`)                       | `json`            |
-| `--quiet`           | Suppress non-essential output and default to one page in TTY mode | `false`           |
-| `--non-interactive` | Disable interactive pagination prompts                            | `false`           |
-| `-y, --yes`         | Automatically fetch additional pages in TTY mode                  | `false`           |
+| Option              | Description                                       | Default                                    |
+| ------------------- | ------------------------------------------------- | ------------------------------------------ |
+| `--csv`             | Output results as CSV                             | `false`                                    |
+| `--pages <number>`  | Fetch up to this many pages, without prompting    | `1` when interactive paging is unavailable |
+| `--fields <list>`   | Comma-separated fields for `json`/`ndjson` output | -                                          |
+| `--output <format>` | Output format (`json`, `ndjson`, or `text`)       | `json`                                     |
+| `--quiet`           | Suppress non-essential output                     | `false`                                    |
+
+## Paging
+
+Scryfall returns results in pages. How many `scry` fetches:
+
+- **`--pages <n>`** fetches up to `n` pages and never prompts, in a terminal or not.
+- **Without `--pages`, in an interactive terminal** (stdout and stdin are both TTYs and prompting is allowed), `scry` asks "Fetch next page?" after each page until you decline or the results run out.
+- **Everywhere else** — piped output, scripts, or the global `--no-input` flag (or the `RITUAL_NO_INPUT` environment variable) — exactly one page is fetched.
+
+`--quiet` does not affect paging; it only suppresses non-essential output.
+
+:::note
+Use the global `--no-input` flag to guarantee no prompting, and `--pages <n>` to fetch a fixed number of pages. There is no fetch-all flag — pass a suitably large `--pages` value if you truly want everything.
+:::
 
 ## Examples
 
@@ -60,16 +72,10 @@ Stream projected card fields as NDJSON:
 ./ritual scry "type:artifact" --fields name,set,prices.usd --output ndjson
 ```
 
-Get multiple pages of results:
+Get multiple pages of results without prompts:
 
 ```bash
 ./ritual scry "type:planeswalker" --pages 5
-```
-
-Fetch all pages in TTY mode without prompts:
-
-```bash
-./ritual scry "type:planeswalker" --yes
 ```
 
 ## Query Syntax

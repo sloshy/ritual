@@ -349,6 +349,21 @@ describe('ScryfallClient', () => {
 
       expect(result).toEqual({ error: 'network down' })
     })
+
+    test('should pass an abort signal and surface a timeout as a clear fetch error', async () => {
+      let receivedSignal: AbortSignal | null | undefined
+      mockHttp.mock('https://api.scryfall.com/cards/named?exact=Lightning+Bolt', (init) => {
+        receivedSignal = init?.signal
+        // What `fetch` rejects with once AbortSignal.timeout fires.
+        throw new DOMException('The operation timed out.', 'TimeoutError')
+      })
+
+      const result = await client.fetchNamedCard('Lightning Bolt')
+
+      expect(receivedSignal).toBeInstanceOf(AbortSignal)
+      if (result === null || !('error' in result)) throw new Error('expected a fetch error')
+      expect(result.error).toContain('timed out after 15 seconds')
+    })
   })
 
   describe('fetchRandomCard', () => {

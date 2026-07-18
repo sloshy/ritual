@@ -1,32 +1,43 @@
 import { InvalidArgumentError, type Command } from 'commander'
 import type { ErrorCode } from '../types'
+import { ExitCode, type ExitCodeValue } from '../errors'
 import { formatResolveListError, type ResolveListError } from '../resolve-list'
 import { getAtPath } from '../utils'
 
-export type OutputFormat = 'text' | 'json' | 'ndjson'
+// The exit-code vocabulary lives in src/errors.ts (the dependency-free leaf so
+// CardCommandError can carry an ExitCodeValue); command modules keep importing
+// it from here.
+export { ExitCode }
+export type { ExitCodeValue }
 
-export const ExitCode = {
-  RuntimeError: 1,
-  UsageError: 2,
-  NotFound: 3,
-} as const
+export const OUTPUT_FORMATS = ['text', 'json', 'ndjson'] as const
 
-export type ExitCodeValue = (typeof ExitCode)[keyof typeof ExitCode]
+export type OutputFormat = (typeof OUTPUT_FORMATS)[number]
 
 export interface ScriptingOptions {
   output: OutputFormat
   quiet: boolean
 }
 
-export function parseOutputFormat(value: string): OutputFormat {
+/**
+ * Commander argParser body for an enum-valued flag: lowercase the value,
+ * require membership in `values`, and reject anything else with the shared
+ * `Invalid <label> '<value>'. Use one of: ...` message.
+ */
+export function parseEnumFlag<T extends string>(
+  value: string,
+  values: readonly T[],
+  label: string,
+): T {
   const normalized = value.toLowerCase()
-  if (normalized === 'text' || normalized === 'json' || normalized === 'ndjson') {
-    return normalized
+  if ((values as readonly string[]).includes(normalized)) {
+    return normalized as T
   }
+  throw new InvalidArgumentError(`Invalid ${label} '${value}'. Use one of: ${values.join(', ')}.`)
+}
 
-  throw new InvalidArgumentError(
-    `Invalid output format '${value}'. Use 'text', 'json', or 'ndjson'.`,
-  )
+export function parseOutputFormat(value: string): OutputFormat {
+  return parseEnumFlag(value, OUTPUT_FORMATS, 'output format')
 }
 
 export function addScriptingOptions(
@@ -41,6 +52,11 @@ export function addScriptingOptions(
       defaultOutput,
     )
     .option('--quiet', 'Suppress non-essential output', false)
+}
+
+/** Register the shared `-n, --dry-run` flag with a command-specific description. */
+export function addDryRunOption(command: Command, description: string): Command {
+  return command.option('-n, --dry-run', description)
 }
 
 export function normalizeScriptingOptions(

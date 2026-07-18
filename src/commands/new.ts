@@ -1,7 +1,8 @@
 import { Command } from 'commander'
 import { createList, isListLifecycleError } from '../list-lifecycle'
 import { isListType, listTypeLabel, type ListType } from '../list-type'
-import { CardCommandError, runCommandAction } from './card-target'
+import { CardCommandError } from '../errors'
+import { runCommandAction } from './card-target'
 import { lifecycleErrorToCommandError } from './lifecycle'
 import {
   addScriptingOptions,

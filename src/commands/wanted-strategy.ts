@@ -167,7 +167,10 @@ export function createWantedStrategy(
       let printing = input.preselected
       if (!printing) {
         const result = await resolveCardPrinting(cardName, sessionConfig, excludeDigitalOnly)
-        if (!result) {
+        // A cancel must not fall through to the name-only fallback below — the
+        // user backed out of adding this card entirely.
+        if (result.kind === 'cancelled') return
+        if (result.kind === 'none') {
           if (isEditing) return
           // Name-only entries are first-class in the wanted-list format, so fall
           // back to one rather than dropping the card.
@@ -233,7 +236,8 @@ export function createWantedStrategy(
         let target: PrintingTuple = {}
         if (specificity === 'specific') {
           const result = await resolveCardPrinting(entry.name, sessionConfig, excludeDigitalOnly)
-          if (!result) {
+          if (result.kind === 'cancelled') return
+          if (result.kind === 'none') {
             console.error('No printings found.')
             return
           }

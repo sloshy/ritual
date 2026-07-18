@@ -3,40 +3,59 @@ import { hasAnswerFlag, answerFlagRequiredMessage } from '../../scripts/dev-args
 
 describe('hasAnswerFlag', () => {
   test('false when no refresh answer is present', () => {
-    expect(hasAnswerFlag('serve-site', [])).toBe(false)
-    expect(hasAnswerFlag('serve-site', ['--port', '3000', '--decks', 'Burn'])).toBe(false)
+    expect(hasAnswerFlag([])).toBe(false)
+    expect(hasAnswerFlag(['--port', '3000', '--decks', 'Burn'])).toBe(false)
   })
 
-  test('true for each accepted refresh flag', () => {
-    expect(hasAnswerFlag('serve-site', ['--allow-refresh'])).toBe(true)
-    expect(hasAnswerFlag('serve-site', ['--allow-refresh-no-bulk'])).toBe(true)
-    expect(hasAnswerFlag('serve-site', ['--no-refresh'])).toBe(true)
+  test('false for --refresh ask — it restates the prompting default', () => {
+    expect(hasAnswerFlag(['--refresh', 'ask'])).toBe(false)
+    expect(hasAnswerFlag(['--refresh=ask'])).toBe(false)
   })
 
-  test('true when a refresh flag is mixed with other args', () => {
-    expect(hasAnswerFlag('serve-site', ['--port', '8080', '--no-refresh'])).toBe(true)
+  test('true for each non-ask refresh mode', () => {
+    expect(hasAnswerFlag(['--refresh', 'auto'])).toBe(true)
+    expect(hasAnswerFlag(['--refresh', 'no-bulk'])).toBe(true)
+    expect(hasAnswerFlag(['--refresh', 'never'])).toBe(true)
   })
 
-  test('admin does not accept the no-bulk flag it no longer has', () => {
-    expect(hasAnswerFlag('admin', ['--allow-refresh-no-bulk'])).toBe(false)
-    expect(hasAnswerFlag('admin', ['--allow-refresh'])).toBe(true)
-    expect(hasAnswerFlag('admin', ['--no-refresh'])).toBe(true)
+  test('accepts the --refresh=<mode> spelling', () => {
+    expect(hasAnswerFlag(['--refresh=auto'])).toBe(true)
+    expect(hasAnswerFlag(['--refresh=no-bulk'])).toBe(true)
+    expect(hasAnswerFlag(['--refresh=never'])).toBe(true)
+  })
+
+  test('true for --no-input, even alongside --refresh ask', () => {
+    expect(hasAnswerFlag(['--no-input'])).toBe(true)
+    expect(hasAnswerFlag(['--refresh', 'ask', '--no-input'])).toBe(true)
+  })
+
+  test('true when a refresh answer is mixed with other args', () => {
+    expect(hasAnswerFlag(['--port', '8080', '--refresh', 'never'])).toBe(true)
+  })
+
+  test('the last --refresh wins, matching commander', () => {
+    expect(hasAnswerFlag(['--refresh', 'ask', '--refresh', 'auto'])).toBe(true)
+    expect(hasAnswerFlag(['--refresh', 'auto', '--refresh', 'ask'])).toBe(false)
+  })
+
+  test('matches the mode value case-insensitively, like the CLI parser', () => {
+    expect(hasAnswerFlag(['--refresh', 'AUTO'])).toBe(true)
+    expect(hasAnswerFlag(['--refresh', 'Never'])).toBe(true)
+  })
+
+  test('false when --refresh is missing its value or given an unknown mode', () => {
+    expect(hasAnswerFlag(['--refresh'])).toBe(false)
+    expect(hasAnswerFlag(['--refresh', 'sometimes'])).toBe(false)
   })
 })
 
 describe('answerFlagRequiredMessage', () => {
-  test('names the subcommand and all three refresh choices', () => {
+  test('names the subcommand and every prompt-free answer', () => {
     const message = answerFlagRequiredMessage('serve-site')
     expect(message).toContain('serve-site')
-    expect(message).toContain('--allow-refresh')
-    expect(message).toContain('--allow-refresh-no-bulk')
-    expect(message).toContain('--no-refresh')
-  })
-
-  test('omits the no-bulk suggestion for admin', () => {
-    const message = answerFlagRequiredMessage('admin')
-    expect(message).toContain('admin')
-    expect(message).not.toContain('--allow-refresh-no-bulk')
-    expect(message).toContain('--no-refresh')
+    expect(message).toContain('--refresh auto')
+    expect(message).toContain('--refresh no-bulk')
+    expect(message).toContain('--refresh never')
+    expect(message).toContain('--no-input')
   })
 })

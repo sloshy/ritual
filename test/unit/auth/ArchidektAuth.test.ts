@@ -110,6 +110,25 @@ describe('ArchidektAuth', () => {
     expect(user).toBeNull()
   })
 
+  test('logout clears the stored token', async () => {
+    const validToken: ArchidektToken = {
+      access_token: 'accessRepo',
+      refresh_token: 'refreshRepo',
+      user: { id: 1, username: 'user' },
+      access_token_expiration: new Date(Date.now() + 3600000).toISOString(),
+    }
+    await tokenStore.save('archidekt', validToken)
+
+    await auth.logout()
+    expect(await auth.getStoredUser()).toBeNull()
+    expect(await auth.getToken()).toBeNull()
+  })
+
+  test('logout is a no-op when nothing is stored', async () => {
+    await auth.logout()
+    expect(await auth.getStoredUser()).toBeNull()
+  })
+
   describe('getStatus', () => {
     test('reports a login is required when no token exists', async () => {
       const status = await auth.getStatus()

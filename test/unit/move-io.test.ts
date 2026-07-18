@@ -1,5 +1,9 @@
 import { describe, test, expect } from 'bun:test'
-import { applyAddToStaged, type StagedFile } from '../../src/commands/move-io'
+import {
+  applyAddToStaged,
+  applyRemoveFromStaged,
+  type StagedFile,
+} from '../../src/commands/move-io'
 import type { PhysicalCard } from '../../src/commands/move-helpers'
 import type { DeckData } from '../../src/types'
 
@@ -15,6 +19,58 @@ function physicalCard(name: string, extra?: Partial<PhysicalCard>): PhysicalCard
     ...extra,
   }
 }
+
+describe('applyRemoveFromStaged (text) line matching', () => {
+  test('a card ID is authoritative: an ID miss never falls back to the name match', () => {
+    // Two lines share name/set/collector and differ only in finish. Removing
+    // the foil copy (&2) must not touch the nonfoil line (&1).
+    const staged: StagedFile = {
+      kind: 'text',
+      content: '# finishes\n\n## Main\n- Sol Ring (C19:221) &1\n- Sol Ring (C19:221) [foil] &2\n',
+    }
+    const removed = applyRemoveFromStaged(
+      staged,
+      physicalCard('Sol Ring', {
+        set: 'c19',
+        collectorNumber: '221',
+        finish: 'foil',
+        cardId: 2,
+      }),
+    )
+    expect(removed).toBe(true)
+    expect(staged).toEqual({
+      kind: 'text',
+      content: '# finishes\n\n## Main\n- Sol Ring (C19:221) &1\n',
+    })
+  })
+
+  test('a card ID present in the source but missing from the file removes nothing', () => {
+    const staged: StagedFile = {
+      kind: 'text',
+      content: '# binder\n\n## Main\n- Sol Ring (C19:221) &1\n',
+    }
+    const removed = applyRemoveFromStaged(
+      staged,
+      physicalCard('Sol Ring', { set: 'c19', collectorNumber: '221', cardId: 9 }),
+    )
+    expect(removed).toBe(false)
+    expect(staged.kind === 'text' && staged.content).toContain('- Sol Ring (C19:221) &1')
+  })
+
+  test('without an ID, the name match narrows by set and collector number', () => {
+    const staged: StagedFile = {
+      kind: 'text',
+      content: '# binder\n\n## Main\n- Sol Ring (C19:221)\n- Sol Ring (LEA:270)\n',
+    }
+    const removed = applyRemoveFromStaged(
+      staged,
+      physicalCard('Sol Ring', { set: 'lea', collectorNumber: '270' }),
+    )
+    expect(removed).toBe(true)
+    expect(staged.kind === 'text' && staged.content).toContain('- Sol Ring (C19:221)')
+    expect(staged.kind === 'text' && staged.content).not.toContain('- Sol Ring (LEA:270)')
+  })
+})
 
 describe('applyAddToStaged (deck) ID allocation', () => {
   test('reuses the smallest released ID gap instead of taking the next-highest', () => {

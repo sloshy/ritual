@@ -31,14 +31,27 @@ working.
 
 ## Options
 
-| Option                          | Description                                                                                                                             |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `-t, --type <type>`             | List type for a text file import: `deck`, `collection`, or `wanted`. Skips the interactive prompt. URLs always import decks.            |
-| `-o, --overwrite`               | Overwrite existing lists without prompting                                                                                              |
-| `--non-interactive`             | Disable interactive prompts; fail when user input is required. Without `--type`, a text file import defaults to a deck.                 |
-| `-y, --yes`                     | Automatically answer yes to prompts (implies overwrite on conflicts and, like `--non-interactive`, defaults to a deck without `--type`) |
-| `--dry-run`                     | Preview actions without writing files                                                                                                   |
-| `--moxfield-user-agent <agent>` | Moxfield-approved unique User-Agent string (required for Moxfield imports unless env is set)                                            |
+| Option                          | Description                                                                                                                  |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `-t, --type <type>`             | List type for a text file import: `deck`, `collection`, or `wanted`. Skips the interactive prompt. URLs always import decks. |
+| `-o, --overwrite`               | Overwrite existing lists without prompting                                                                                   |
+| `-y, --yes`                     | Automatically answer yes to the overwrite confirmation when an import conflicts with an existing list                        |
+| `-n, --dry-run`                 | Preview actions without writing files                                                                                        |
+| `--moxfield-user-agent <agent>` | Moxfield-approved unique User-Agent string (required for Moxfield imports unless env is set)                                 |
+
+## Scripting Without Prompts
+
+The global `--no-input` flag (or the `RITUAL_NO_INPUT` environment variable) is the headless
+switch: with it, `import` never prompts.
+
+- A text file import without `--type` defaults to a **deck** (logged, so the defaulting is
+  visible). Pass `--type` to import a collection or wanted list.
+- A name/ID conflict with an existing list fails (exit code `1`) instead of prompting —
+  pass `--overwrite` or `--yes` to replace the existing list.
+
+`-y, --yes` only answers the overwrite confirmation; it does **not** disable prompting.
+Without `--no-input`, a run whose stdin is not a terminal fails with a usage error
+(exit code `2`) whenever a prompt would be required.
 
 ## Supported Sources
 
@@ -94,13 +107,13 @@ Import a text file into a collection:
 Import a text file into a wanted list without prompts:
 
 ```bash
-./ritual import ./wants.txt --type wanted --non-interactive
+./ritual import ./wants.txt --type wanted --no-input
 ```
 
 Preview an import without writing files:
 
 ```bash
-./ritual import ./decklist.txt --dry-run --non-interactive
+./ritual import ./decklist.txt --dry-run --no-input
 ```
 
 ## Moxfield User-Agent Requirement

@@ -33,12 +33,15 @@ cat names.txt | ritual card --stdin
 \`\`\`bash
 ritual scry "c:red cmc<=2 t:instant"
 ritual scry "set:fdn r:mythic" --output ndjson
-ritual scry "o:draw t:creature" --non-interactive       # no pagination prompts
-ritual scry "t:land" --pages 3 --yes                    # fetch the first 3 pages
+ritual scry "o:draw t:creature" --no-input              # no pagination prompts, one page
+ritual scry "t:land" --pages 3                          # fetch the first 3 pages, no prompts
 ritual scry "c:blue" --csv                              # CSV output
 \`\`\`
 
-In scripts always pass \`--non-interactive\` (or \`--yes\`) so pagination never blocks.
+Paging never blocks a script: \`--pages <n>\` fetches up to \`n\` pages without
+prompting, and everywhere prompts are unavailable (piped output, the global
+\`--no-input\` flag, or \`RITUAL_NO_INPUT\`) exactly one page is fetched. There is
+no fetch-all flag — pass a large \`--pages\` value to get everything.
 
 ## Random card
 

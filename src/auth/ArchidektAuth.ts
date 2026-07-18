@@ -90,6 +90,11 @@ export class ArchidektAuth implements AuthService<ArchidektCredentials> {
     await this.tokenStore.save(this.SITE_NAME, data)
   }
 
+  /** Forget the stored login (token + user); a no-op when none is stored. */
+  async logout(): Promise<void> {
+    await this.tokenStore.clear(this.SITE_NAME)
+  }
+
   async getToken(): Promise<string | null> {
     const token = await this.tokenStore.load<ArchidektToken>(this.SITE_NAME)
 

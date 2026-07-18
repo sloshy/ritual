@@ -1,6 +1,6 @@
 import { Command, InvalidArgumentError } from 'commander'
 import { fetchSearchPage } from '../scryfall'
-import prompts from 'prompts'
+import { isNoInput } from '../no-input'
 import {
   addScriptingOptions,
   emitError,
@@ -11,15 +11,34 @@ import {
   projectFields,
 } from './scripting'
 import { getErrorMessage } from '../errors'
+import { ask } from './prompts-helpers'
 
 type ScryCommandOptions = {
   csv: boolean
   pages?: number
   output?: 'text' | 'json' | 'ndjson'
   quiet?: boolean
-  nonInteractive?: boolean
-  yes?: boolean
   fields?: string[]
+}
+
+/** The inputs that decide whether scry offers the page-by-page confirm prompt. */
+export type ScryPagingInput = {
+  stdoutIsTTY: boolean
+  stdinIsTTY: boolean
+  noInput: boolean
+  /** The explicit `--pages` value, or undefined when the flag was not given. */
+  pagesFlag: number | undefined
+}
+
+/**
+ * Interactive "fetch next page?" paging needs a full terminal (stdout AND
+ * stdin), prompting must be allowed, and no explicit `--pages` cap may be
+ * given — an explicit cap means "fetch exactly this many, no questions".
+ * `--quiet` deliberately has no say here: it suppresses non-essential chatter,
+ * not interaction.
+ */
+export function shouldPageInteractively(input: ScryPagingInput): boolean {
+  return input.stdoutIsTTY && input.stdinIsTTY && !input.noInput && input.pagesFlag === undefined
 }
 
 export function registerScryCommand(program: Command): void {
@@ -29,9 +48,11 @@ export function registerScryCommand(program: Command): void {
       .description('Run a raw Scryfall card search')
       .argument('<query>', 'Scryfall search query')
       .option('--csv', 'Output as CSV', false)
-      .option('--pages <number>', 'Number of pages to output (default 1 for non-TTY)', parsePages)
-      .option('--non-interactive', 'Disable pagination prompts')
-      .option('-y, --yes', 'Automatically fetch additional pages in TTY mode')
+      .option(
+        '--pages <number>',
+        'Fetch up to this many pages without prompting (default 1 when prompts are unavailable)',
+        parsePages,
+      )
       .option('--fields <list>', 'Comma-separated fields for json/ndjson output', parseFields),
     'json',
   ).action(async (query: string, options: ScryCommandOptions) => {
@@ -53,20 +74,15 @@ export function registerScryCommand(program: Command): void {
     let page = 1
     const format = options.csv ? 'csv' : 'json'
 
-    // Determine max pages
-    // If TTY, infinity (until user quits). If not TTY, default to 1 unless specified.
-    const isTTY = process.stdout.isTTY
-    const interactivePaging =
-      isTTY && !scriptingOptions.quiet && options.nonInteractive !== true && options.yes !== true
-    let maxPages = options.pages
-
-    if (maxPages === undefined) {
-      if (options.yes && isTTY) {
-        maxPages = Number.MAX_SAFE_INTEGER
-      } else {
-        maxPages = interactivePaging ? Number.MAX_SAFE_INTEGER : 1
-      }
-    }
+    const interactivePaging = shouldPageInteractively({
+      stdoutIsTTY: process.stdout.isTTY === true,
+      stdinIsTTY: process.stdin.isTTY === true,
+      noInput: isNoInput(),
+      pagesFlag: options.pages,
+    })
+    // Interactive paging keeps fetching until the user declines; otherwise the
+    // explicit `--pages` cap applies, defaulting to a single page.
+    const maxPages = options.pages ?? (interactivePaging ? Number.MAX_SAFE_INTEGER : 1)
 
     while (true) {
       if (page > maxPages) break
@@ -112,20 +128,15 @@ export function registerScryCommand(program: Command): void {
 
         if (!hasMore) break
 
-        if (options.yes === true) {
-          page++
-          continue
-        }
-
-        if (interactivePaging && page < maxPages) {
-          const response = await prompts({
+        // The gate guarantees a prompt-capable terminal here, so the guarded
+        // ask() never throws; cancelling (Esc / Ctrl-C) stops paging.
+        if (interactivePaging) {
+          const fetchNext = await ask<boolean>({
             type: 'confirm',
-            name: 'continue',
             message: `Page ${page} displayed. Fetch next page?`,
             initial: true,
           })
-
-          if (!response.continue) break
+          if (fetchNext !== true) break
         }
 
         page++

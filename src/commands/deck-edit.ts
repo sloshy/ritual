@@ -292,7 +292,8 @@ export async function editDeckCard(
 
   if (action === 'printing') {
     const result = await resolveCardPrinting(card.name, deps.sessionConfig, deps.excludeDigitalOnly)
-    if (!result) {
+    if (result.kind === 'cancelled') return
+    if (result.kind === 'none') {
       console.error('No printings found.')
       return
     }

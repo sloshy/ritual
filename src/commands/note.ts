@@ -14,8 +14,8 @@ import {
 } from './scripting'
 import { normalizeNote } from '../note-helpers'
 import { applyNoteUpdate } from './note-edit'
+import { CardCommandError } from '../errors'
 import {
-  CardCommandError,
   parseCardIdFlag,
   resolveListSelection,
   resolveListTypeFlag,

@@ -1,13 +1,12 @@
-import { Command, InvalidArgumentError } from 'commander'
+import { Command } from 'commander'
 import { cardCache } from '../cache'
-import { ensureFreshPriceData } from '../cache/freshness'
+import { emptyCacheAdvice, ensureFreshPriceData } from '../cache/freshness'
 import { getErrorMessage } from '../errors'
 import { listTypeLabel } from '../list-type'
 import { parseCurrencyFlagOrError, type PriceCurrency } from '../price-currency'
 import {
   filterPricedEntries,
   hasActiveFilters,
-  isPriceSortField,
   PRICE_SORT_FIELDS,
   sumPricedEntries,
   comparePricedEntries,
@@ -28,6 +27,8 @@ import {
 } from '../resolve-list'
 import { getDefaultCurrency } from '../ritual-config'
 import { refreshCardCache } from '../cache/refresh-source'
+import { addRefreshOption, type RefreshMode } from '../refresh'
+import { isNoInput } from '../no-input'
 import {
   formatEntryChoiceTitle,
   formatListChoiceTitle,
@@ -43,6 +44,8 @@ import {
   emitResolveListError,
   ExitCode,
   normalizeScriptingOptions,
+  parseEnumFlag,
+  type OutputFormat,
   type ScriptingOptions,
 } from './scripting'
 
@@ -60,37 +63,46 @@ type PriceCommandOptions = Partial<ScriptingOptions> & {
   sort?: PriceSortField
   descending?: boolean
   summary?: boolean
-  /** Commander stores `--no-interactive` as `interactive: false`. */
-  interactive?: boolean
-  /** Commander stores `--no-cache-prompt` as `cachePrompt: false`. */
-  cachePrompt?: boolean
-  refreshPrices?: boolean
+  refresh: RefreshMode
 }
 
 function parseSortFlag(value: string): PriceSortField {
-  const normalized = value.toLowerCase()
-  if (isPriceSortField(normalized)) return normalized
-  throw new InvalidArgumentError(
-    `Invalid sort field '${value}'. Use one of: ${PRICE_SORT_FIELDS.join(', ')}.`,
-  )
+  return parseEnumFlag(value, PRICE_SORT_FIELDS, 'sort field')
+}
+
+/** The terminal facts the interactive-browser gate depends on. */
+export type InteractiveTerminal = {
+  stdinIsTTY: boolean
+  stdoutIsTTY: boolean
+  noInput: boolean
 }
 
 /**
- * The browser launches only for a plain-text TTY run that didn't opt out and
- * didn't ask for a non-interactive view (summary or card-search filters).
+ * The browser launches only for a plain-text run where interaction is
+ * available (stdin and stdout are both terminals and `--no-input` isn't in
+ * force — the browser prompts on stdin, so a piped stdin must fall back to
+ * report mode) that didn't ask for a non-interactive view (summary or
+ * card-search filters).
  */
 export function shouldRunInteractive(
   options: PriceCommandOptions,
   scriptingOptions: ScriptingOptions,
   filters: PriceEntryFilters,
-  isTTY: boolean,
+  terminal: InteractiveTerminal,
 ): boolean {
-  if (!isTTY) return false
-  if (options.interactive === false) return false
+  if (!terminal.stdinIsTTY || !terminal.stdoutIsTTY || terminal.noInput) return false
   if (options.summary) return false
   if (scriptingOptions.output !== 'text') return false
   if (hasActiveFilters(filters)) return false
   return true
+}
+
+/**
+ * Structured output must stay parseable, so never mix prompts into it: an
+ * unanswerable `ask` refresh downgrades to `never`.
+ */
+export function resolveRefreshMode(refresh: RefreshMode, output: OutputFormat): RefreshMode {
+  return output !== 'text' && refresh === 'ask' ? 'never' : refresh
 }
 
 function sortedEntries(
@@ -208,28 +220,27 @@ function emitCardSearch(
 }
 
 export function registerPriceCommand(program: Command): void {
-  addScriptingOptions(
-    program
-      .command('price')
-      .description('Browse prices of every deck, collection, and wanted list')
-      .argument('[listName]', 'Open (or print) a single list instead of all lists')
-      .option('--deck', 'Only decks (also disambiguates listName)')
-      .option('--collection', 'Only collections (also disambiguates listName)')
-      .option('--wanted', 'Only wanted lists (also disambiguates listName)')
-      .option(
-        '--prices <currency>',
-        'Price currency: usd, eur, or tix (default: the configured defaultCurrency)',
-      )
-      .option('--name <terms>', 'Print cards whose name contains every term')
-      .option('--set <code>', 'Print cards from this set code')
-      .option('--collector <number>', 'Print cards with this collector number')
-      .option('--sort <field>', `Sort cards by: ${PRICE_SORT_FIELDS.join(', ')}`, parseSortFlag)
-      .option('--descending', 'Reverse the sort direction')
-      .option('--summary', 'Print the price summary instead of opening the browser')
-      .option('--no-interactive', 'Never open the interactive browser')
-      .option('--no-cache-prompt', 'Do not prompt to update stale prices')
-      .option('--refresh-prices', 'Refresh cached prices that are more than a day old'),
-    'text',
+  addRefreshOption(
+    addScriptingOptions(
+      program
+        .command('price')
+        .description('Browse prices of every deck, collection, and wanted list')
+        .argument('[listName]', 'Open (or print) a single list instead of all lists')
+        .option('--deck', 'Only decks (also disambiguates listName)')
+        .option('--collection', 'Only collections (also disambiguates listName)')
+        .option('--wanted', 'Only wanted lists (also disambiguates listName)')
+        .option(
+          '--prices <currency>',
+          'Price currency: usd, eur, or tix (default: the configured defaultCurrency)',
+        )
+        .option('--name <terms>', 'Print cards whose name contains every term')
+        .option('--set <code>', 'Print cards from this set code')
+        .option('--collector <number>', 'Print cards with this collector number')
+        .option('--sort <field>', `Sort cards by: ${PRICE_SORT_FIELDS.join(', ')}`, parseSortFlag)
+        .option('--descending', 'Reverse the sort direction')
+        .option('--summary', 'Print the price summary instead of opening the browser'),
+      'text',
+    ),
   ).action(async (listName: string | undefined, options: PriceCommandOptions) => {
     const scriptingOptions = normalizeScriptingOptions(options, 'text')
 
@@ -260,12 +271,11 @@ export function registerPriceCommand(program: Command): void {
       set: options.set,
       collector: options.collector,
     }
-    const interactive = shouldRunInteractive(
-      options,
-      scriptingOptions,
-      filters,
-      process.stdout.isTTY === true,
-    )
+    const interactive = shouldRunInteractive(options, scriptingOptions, filters, {
+      stdinIsTTY: process.stdin.isTTY === true,
+      stdoutIsTTY: process.stdout.isTTY === true,
+      noInput: isNoInput(),
+    })
 
     let scope: ListLocation[] | undefined
     let openList: PriceListRef | undefined
@@ -286,15 +296,12 @@ export function registerPriceCommand(program: Command): void {
       }
     }
 
-    // Structured output must stay parseable, so never mix prompts into it.
-    const freshness = await ensureFreshPriceData({
-      cachePrompt: scriptingOptions.output === 'text' ? options.cachePrompt : false,
-      refreshPrices: options.refreshPrices,
-    })
+    const refreshMode = resolveRefreshMode(options.refresh, scriptingOptions.output)
+    const freshness = await ensureFreshPriceData(refreshMode)
     if (!freshness.ready) {
       emitError(
         'runtime_error',
-        'The card cache is empty; prices are unavailable. Run `ritual cache preload-all` first.',
+        emptyCacheAdvice('The card cache is empty; prices are unavailable.'),
         scriptingOptions,
       )
       process.exitCode = ExitCode.RuntimeError

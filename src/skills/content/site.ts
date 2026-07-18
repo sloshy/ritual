@@ -17,6 +17,26 @@ ritual init-site --force         # regenerate all managed files
 ritual init-site --upgrade       # upgrade tracked workflows to this version
 \`\`\`
 
+Run bare in a terminal, \`init-site\` walks through its choices interactively. When
+prompts are unavailable (\`--no-input\`, \`RITUAL_NO_INPUT\`, or no terminal), every
+prompt must be pre-answered with a flag — a missing one is a usage error (exit 2)
+naming the flag:
+
+\`\`\`bash
+ritual init-site --ci github-actions --deploy publish-for-me \\
+  --change-detection --currency usd --no-skills
+ritual init-site --ci manual --currency usd --no-skills
+\`\`\`
+
+Flags: \`--ci github-actions|manual\`, \`--deploy publish-for-me|local-build\`
+(github-actions only), \`--dist-dir <dir>\` (local-build only),
+\`--change-detection\`/\`--no-change-detection\` (publish-for-me only),
+\`--currency usd|eur|tix\`, and \`--skills\`/\`--no-skills\` (install the Ritual agent
+skills). Flags that do not apply to the chosen CI system or deploy mode are usage
+errors. An existing \`README.md\` additionally needs \`--overwrite-readme\`,
+\`--no-overwrite-readme\`, or \`--force\`; a pending version upgrade needs
+\`--upgrade\`.
+
 ## Build the static site
 
 \`\`\`bash
@@ -26,11 +46,17 @@ ritual build-site --collections "Main Binder"              # specific collection
 ritual build-site --wanted-lists "To Buy"                  # specific wanted lists
 ritual build-site --currencies usd,eur             # currencies to include (first is default)
 ritual build-site --theme izzet                    # initial theme baked into the HTML
-ritual build-site --no-refresh                     # build from cached data as-is
-ritual build-site --allow-refresh                  # refresh stale cache (bulk download)
+ritual build-site --refresh never                  # build from cached data as-is
+ritual build-site --refresh auto                   # refresh stale cache (bulk download allowed)
 \`\`\`
 
 \`--cache-images\` downloads card images locally instead of hot-linking Scryfall.
+
+The shared \`--refresh <mode>\` option controls card-cache freshness: \`ask\` (the
+default) prompts about stale data — prompts that can't be answered are declined —
+\`auto\` refreshes without asking, \`no-bulk\` refreshes stale prices per-card but
+never bulk-downloads, and \`never\` uses the cache as-is. Headless builds (e.g. CI)
+should pass \`--refresh auto\` or \`--refresh never\` explicitly.
 
 ## Banning default printings
 
@@ -60,7 +86,7 @@ ritual serve-site -p 8000 --host 127.0.0.1
 \`\`\`bash
 ritual admin                       # http://0.0.0.0:8080
 ritual admin -p 9000
-ritual admin --no-refresh
+ritual admin --refresh never       # skip the startup cache check, use cached data as-is
 \`\`\`
 
 The admin's **Import Changes** page applies a change-list JSON exported from the

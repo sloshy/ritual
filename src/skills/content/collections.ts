@@ -42,11 +42,11 @@ ritual edit --sets "FDN,SPG"         # restrict to these set codes
 ritual edit --finish foil --condition NM
 ritual edit --collector              # enter cards by collector number
 ritual edit --allow-digital-only-cards
-ritual edit --no-cache-prompt        # skip the "cache is >1 week old, update?" prompt
-ritual edit --refresh-prices         # redownload the cache when prices are >1 day old
+ritual edit --refresh never          # use the existing cache as-is, no prompt
+ritual edit --refresh auto           # redownload the cache when prices are >1 day old
 \`\`\`
 
-When the card cache was last fully downloaded more than a week ago, the session prompts to redownload it before starting; \`--no-cache-prompt\` suppresses that prompt. \`--refresh-prices\` redownloads the cache (refreshing prices) without prompting when the cached prices are more than a day old.
+The shared \`--refresh <mode>\` option controls card-cache freshness: under \`ask\` (the default) a cache last fully downloaded more than a week ago prompts to redownload before the session starts; \`auto\` redownloads without prompting when the cached prices are more than a day old; \`no-bulk\` and \`never\` use the existing cache as-is.
 
 Within the session, changes accumulate **in memory**: \`💾 Save\` writes the file and changelog without exiting (saving repeatedly in one session folds the later changes into that session's existing changelog entry and bumps its timestamp, so one editing session is always one changelog entry), and \`🚪 Exit\` (or Esc) opens an exit menu when changes are unsaved — save and exit, exit without saving (discards everything unsaved), or cancel to keep editing. \`🛠️ Switch to Edit Mode\` turns the search prompt into a picker over the collection's existing entries — change a card's printing, finish, condition, or note, or remove it — and \`↩️ Undo Last Edit\` reverts the latest edit. \`↩️ Undo Last Add\` removes the most recent card and \`📋 View Session Changes\` opens a picker over every change made this session — adds, edits, and removals — where selecting one offers to discard just that change (same-card changes must be discarded newest-first). Discarding an add frees that card's \`&N\` id and keeps the remaining session ids dense (each later card slides down one).
 
@@ -68,11 +68,12 @@ to one bullet line per copy):
 
 \`\`\`bash
 ritual import binder.txt --type collection
-ritual import binder.txt --type collection --overwrite --non-interactive
+ritual import binder.txt --type collection --overwrite --no-input
 \`\`\`
 
-Without \`--type\` an interactive run prompts for the list type; non-interactive runs
-default to a deck, so agents should always pass \`--type collection\`. Every line
+Without \`--type\` an interactive run prompts for the list type; under the global
+\`--no-input\` flag the type defaults to a deck, so agents should always pass
+\`--type collection\`. Every line
 must carry a printing (e.g. \`2 Sol Ring (C19:221)\`) — collections track specific
 physical printings, so name-only lines are rejected.
 
@@ -100,14 +101,14 @@ partial failure).
 ## Price
 
 The unified \`price\` command covers all list types; scope it with \`--collection\` or a
-name. An interactive browser opens on a TTY — for agents, always pass a non-interactive
-flag (\`--summary\`, \`--no-interactive\`, or \`--output json\`):
+name. An interactive browser opens on a TTY — for agents, always pass \`--summary\`,
+\`--output json\`, or the global \`--no-input\` flag:
 
 \`\`\`bash
 ritual price --collection --summary            # every collection's totals
-ritual price main-binder --no-interactive      # one collection's cards + totals
+ritual price main-binder --no-input            # one collection's cards + totals
 ritual price main-binder --output json --quiet
-ritual price main-binder --sort price --descending --no-interactive
+ritual price main-binder --sort price --descending --no-input
 ritual price main-binder --prices eur          # usd | eur | tix (defaults to config defaultCurrency)
 \`\`\`
 

@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import { shouldRunExportInteractive, type ParsedExportFlags } from '../../../src/commands/export'
+import {
+  hasExportRunSignal,
+  shouldRunExportInteractive,
+  type ParsedExportFlags,
+} from '../../../src/commands/export'
 import { assembleExportEntries } from '../../../src/export/entries'
 import {
   assembledWizardEntries,
@@ -19,7 +23,6 @@ function flags(overrides: Partial<ParsedExportFlags> = {}): ParsedExportFlags {
     all: false,
     cards: [],
     filters: {},
-    interactive: true,
     ...overrides,
   }
 }
@@ -48,31 +51,32 @@ function wizardState(overrides: Partial<ExportWizardState> = {}): ExportWizardSt
   }
 }
 
-describe('shouldRunExportInteractive', () => {
-  test('interactive for a bare TTY invocation', () => {
+describe('export wizard gating', () => {
+  test('a bare invocation has no run signal and opens the wizard when prompting is possible', () => {
+    expect(hasExportRunSignal(flags(), [])).toBe(false)
     expect(shouldRunExportInteractive(flags(), [], true)).toBe(true)
   })
 
-  test('interactive with only --preset', () => {
-    expect(shouldRunExportInteractive(flags({ preset: 'deckbox' }), [], true)).toBe(true)
+  test('no wizard when prompting is unavailable (non-TTY or --no-input)', () => {
+    expect(shouldRunExportInteractive(flags(), [], false)).toBe(false)
   })
 
-  test.each<[string, ParsedExportFlags, string[], boolean]>([
-    ['stdout is not a TTY', flags(), [], false],
-    ['list args', flags(), ['Burn'], true],
-    ['--all', flags({ all: true }), [], true],
-    ['--card', flags({ cards: ['bolt'] }), [], true],
-    ['--format', flags({ format: 'json' }), [], true],
-    ['--columns', flags({ columns: ['name'] }), [], true],
-    ['--no-header', flags({ header: false }), [], true],
-    ['--quote-all', flags({ quoteAll: true }), [], true],
-    ['--out', flags({ out: 'x.csv' }), [], true],
-    ['--save-preset', flags({ savePreset: 'p' }), [], true],
-    ['a name filter', flags({ filters: { name: 'bolt' } }), [], true],
-    ['a finish filter', flags({ filters: { finish: 'foil' } }), [], true],
-    ['--no-interactive', flags({ interactive: false }), [], true],
-  ])('flag mode when %s is present', (_label, input, listArgs, isTTY) => {
-    expect(shouldRunExportInteractive(input, listArgs, isTTY)).toBe(false)
+  test.each<[string, ParsedExportFlags, string[]]>([
+    ['list args', flags(), ['Burn']],
+    ['--all', flags({ all: true }), []],
+    ['--card', flags({ cards: ['bolt'] }), []],
+    ['--format', flags({ format: 'json' }), []],
+    ['--columns', flags({ columns: ['name'] }), []],
+    ['--no-header', flags({ header: false }), []],
+    ['--quote-all', flags({ quoteAll: true }), []],
+    ['--out', flags({ out: 'x.csv' }), []],
+    ['--preset', flags({ preset: 'deckbox' }), []],
+    ['--save-preset', flags({ savePreset: 'p' }), []],
+    ['a name filter', flags({ filters: { name: 'bolt' } }), []],
+    ['a finish filter', flags({ filters: { finish: 'foil' } }), []],
+  ])('%s is a run signal that skips the wizard even on a TTY', (_label, input, listArgs) => {
+    expect(hasExportRunSignal(input, listArgs)).toBe(true)
+    expect(shouldRunExportInteractive(input, listArgs, true)).toBe(false)
   })
 })
 

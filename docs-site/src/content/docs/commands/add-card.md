@@ -36,6 +36,7 @@ The target list is resolved from `<targetName>` across all three list types (see
 | `--collector-number <num>` | Pin an exact printing by collector number (requires `--set`)                                                                         |         |                    |
 | `--name-only`              | Add the card by name without choosing a printing                                                                                     |         | Wanted only        |
 | `--specific`               | Record a specific printing (via `--set`/`--collector-number` or interactive picker)                                                  |         | Wanted only        |
+| `--refresh <mode>`         | Card cache refresh policy: `ask` (prompt; skip when prompts are unavailable), `auto`, `no-bulk`, or `never`                          | `ask`   |                    |
 | `--output <format>`        | Output format: `text`, `json`, or `ndjson`                                                                                           | `text`  |                    |
 | `--quiet`                  | Suppress non-essential output                                                                                                        | `false` |                    |
 
@@ -103,7 +104,7 @@ Suggestions are ordered by EDHRec popularity, except that a card whose **whole n
 
 When `--exact` is used, the input name is normalized (case and accents folded, punctuation stripped) and compared against all cached card names. If exactly one card matches, it is selected automatically with a confirmation message. If no exact match is found, the command exits with an error indicating how many cards contain the input as a substring (counted up to 100, reported as "100+" if the limit is reached).
 
-When stdin is **not a terminal**, the autocomplete prompt cannot run — an input that exactly matches a cached card name is accepted as if `--exact` were passed, and anything else is a usage error rather than a silent first-suggestion pick.
+When prompts are unavailable (stdin is **not a terminal**, or `--no-input` / `RITUAL_NO_INPUT` is in force), the autocomplete prompt cannot run — an input that exactly matches a cached card name is accepted as if `--exact` were passed, and anything else is a usage error rather than a silent first-suggestion pick.
 
 ### Printing Pins
 
@@ -125,11 +126,13 @@ Without a pin, a non-interactive run (stdin not a terminal) only succeeds when t
 
 ### Cache Freshness
 
-Before displaying the autocomplete prompt, the command checks the card cache:
+Before displaying the autocomplete prompt, the command checks the card cache; the shared `--refresh <mode>` option decides how it responds:
 
-- If the cache is **empty**, you are prompted to download the card database.
-- If the cache is **older than 7 days**, you are prompted to update it.
+- If the cache is **empty**, `ask` (the default) prompts to download the card database (default yes) and `auto` downloads it without prompting. If it isn't downloaded — the prompt is declined or unanswerable, or the mode is `no-bulk` / `never` — the command fails with a hint to run `ritual cache preload-all` or re-run with `--refresh auto`.
+- If the cache is **older than 7 days**, `ask` prompts to update it (default no) and `auto` updates it without prompting; `no-bulk` / `never` use it as-is.
 - If the cache is **fresh**, the command proceeds immediately.
+
+Under `ask`, prompts that can't be answered (`--no-input` / `RITUAL_NO_INPUT`, or stdin is not a terminal) are declined, never resolved to their defaults.
 
 ### Change Tracking
 
@@ -154,7 +157,7 @@ Collection entries always record the specific printing (set code and collector n
 ### Wanted List Mode
 
 1. Card is selected via autocomplete from the cache (or `--exact`).
-2. Specificity comes from `--name-only`, `--specific`, or a printing pin; with none of them you are prompted: **Name only (any copy)** appends just the card name, while **Choose specific printing** enters the printing selection flow followed by a finish prompt. When stdin is not a terminal, one of the flags is required — instead of prompting, the command exits with code `2`.
+2. Specificity comes from `--name-only`, `--specific`, or a printing pin; with none of them you are prompted: **Name only (any copy)** appends just the card name, while **Choose specific printing** enters the printing selection flow followed by a finish prompt. When prompts are unavailable (stdin is not a terminal, or `--no-input` / `RITUAL_NO_INPUT`), one of the flags is required — instead of prompting, the command exits with code `2`.
 3. The entry is appended to the wanted list file in `wanted/`.
 
 In the specific flow, a printing that cannot be resolved (no pin and no way to ask) is an **error** — the command never silently degrades a specific request to a name-only entry. Wanted list entries require only the card name; the printing and finish are optional (see the [card states](/commands/edit/#card-states)). A default finish can be specified with `-f`.

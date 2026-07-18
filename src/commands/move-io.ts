@@ -96,7 +96,12 @@ function applyRemoveFromText(staged: StagedTextFile, card: PhysicalCard): boolea
   const targetIdx = lines.findIndex((line) => {
     const trimmed = line.trim()
     if (!trimmed.startsWith('- ')) return false
-    if (card.cardId !== undefined && trimmed.match(new RegExp(`&${card.cardId}\\s*$`))) return true
+    // An ID is authoritative (mirrors the deck removal path): falling through
+    // to the name match on an ID miss could remove a sibling line that shares
+    // the printing but differs in finish or condition.
+    if (card.cardId !== undefined) {
+      return new RegExp(`&${card.cardId}\\s*$`).test(trimmed)
+    }
     // Fallback: match by name, also using set/collectorNumber when available
     const nameMatch = trimmed.match(/^- (.+?)(?:\s[([{&]|$)/)
     if (nameMatch?.[1] !== card.name) return false

@@ -23,19 +23,18 @@ a `[listName]` to skip the menu and open that list's session directly — see
 
 ### Options
 
-| Flag                          | Description                                                 |
-| ----------------------------- | ----------------------------------------------------------- |
-| `--deck`                      | Resolve `[listName]` as a deck                              |
-| `--collection`                | Resolve `[listName]` as a collection                        |
-| `--wanted`                    | Resolve `[listName]` as a wanted list                       |
-| `-s, --sets <codes>`          | Filter by set codes (comma-separated, e.g., `"FDN, SPG"`)   |
-| `-f, --finish <finish>`       | Default finish: `nonfoil`, `foil`, or `etched`              |
-| `-c, --condition <condition>` | Default condition: `NM`, `LP`, `MP`, `HP`, or `DMG`         |
-| `--section <name>`            | Add deck cards to this section (otherwise you are prompted) |
-| `--collector`                 | Start in collector number mode                              |
-| `--allow-digital-only-cards`  | Include digital-only sets (e.g., Alchemy) in results        |
-| `--no-cache-prompt`           | Do not prompt to update a card cache older than a week      |
-| `--refresh-prices`            | Refresh cached prices that are more than a day old          |
+| Flag                          | Description                                                                                                           |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `--deck`                      | Resolve `[listName]` as a deck                                                                                        |
+| `--collection`                | Resolve `[listName]` as a collection                                                                                  |
+| `--wanted`                    | Resolve `[listName]` as a wanted list                                                                                 |
+| `-s, --sets <codes>`          | Filter by set codes (comma-separated, e.g., `"FDN, SPG"`)                                                             |
+| `-f, --finish <finish>`       | Default finish: `nonfoil`, `foil`, or `etched`                                                                        |
+| `-c, --condition <condition>` | Default condition: `NM`, `LP`, `MP`, `HP`, or `DMG`                                                                   |
+| `--section <name>`            | Add deck cards to this section (otherwise you are prompted)                                                           |
+| `--collector`                 | Start in collector number mode                                                                                        |
+| `--allow-digital-only-cards`  | Include digital-only sets (e.g., Alchemy) in results                                                                  |
+| `--refresh <mode>`            | Card cache refresh policy: `ask` (default — prompt; skip when prompts are unavailable), `auto`, `no-bulk`, or `never` |
 
 Digital-only sets (Alchemy sets, plus `OM1`) are filtered out by default since they have no paper
 printings. Options can be combined; when `--collector` is used with `--sets`, the set card data is
@@ -77,13 +76,16 @@ decks and collections; wanted lists track desired cards, not owned ones, so they
 
 ## Cache Freshness
 
-The editor reads card data from the built-in Scryfall cache. When that cache was last fully
-downloaded **more than a week ago**, the command prompts you to redownload it before the session
-starts. Pass `--no-cache-prompt` to skip the prompt and use the existing cache as-is.
+The editor reads card data from the built-in Scryfall cache. The shared `--refresh <mode>` option
+decides how its freshness is handled before the session starts:
 
-Card prices ride along inside the cached card data. Pass `--refresh-prices` to redownload the
-cache (and thus refresh prices) whenever the cached prices are **more than a day old**; this
-happens without prompting because you asked for it explicitly.
+- **`ask`** (the default) — when the cache was last fully downloaded **more than a week ago**,
+  prompts to redownload it (default no). When prompts are unavailable (`--no-input` /
+  `RITUAL_NO_INPUT`, or stdin is not a terminal) the prompt is skipped and the existing cache is
+  used as-is.
+- **`auto`** — redownloads the cache without prompting whenever its prices are **more than a day
+  old** (prices ride along inside the cached card data, so a redownload is how they refresh).
+- **`no-bulk`** / **`never`** — leave the cache alone; the session uses it as-is.
 
 ## The List Selection Menu
 

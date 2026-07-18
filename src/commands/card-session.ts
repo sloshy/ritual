@@ -1,11 +1,9 @@
-import type { Command } from 'commander'
 import prompts, { type Choice } from 'prompts'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { getAllCardNames, getCardsBySet } from '../scryfall'
-import { refreshCardCacheForSession, type CacheRefreshOptions } from '../cache/freshness'
-
-export type { CacheRefreshOptions } from '../cache/freshness'
+import { emptyCacheAdvice, refreshCardCacheForSession } from '../cache/freshness'
+import type { RefreshMode } from '../refresh'
 import type { Condition, Finish, ScryfallCard } from '../types'
 import { CONDITION_LABELS, isCondition, isFinish, VALID_CONDITIONS } from '../finish-condition'
 import type { PromptState } from './prompts-types'
@@ -15,6 +13,7 @@ import { writeFileWithHash } from '../content-hash'
 import { formatSetCodesForDisplay, parseSetCodesInput } from '../set-codes'
 import { matchesAllNameTerms, promoteFullNameMatches } from '../term-match'
 import { promptExitMenu } from './prompts-helpers'
+import { ExitCode } from './scripting'
 
 /**
  * Shared engine for the unified `edit` command's interactive card-entry
@@ -245,26 +244,16 @@ export type CardSessionStrategy = {
 // ── Shared startup helpers ──────────────────────────────────────────
 
 /**
- * Apply the card-cache freshness flags of the interactive card-entry
- * sessions. See {@link CacheRefreshOptions}.
- */
-export function applyCacheRefreshOptions(command: Command): Command {
-  return command
-    .option('--no-cache-prompt', 'Do not prompt to update a card cache older than a week')
-    .option('--refresh-prices', 'Refresh cached prices that are more than a day old')
-}
-
-/**
- * Apply the {@link CacheRefreshOptions} freshness policy before a session, then
- * load the card-name list for autocomplete, logging progress. Returns null
- * (after telling the user to preload) when the Scryfall cache is empty.
+ * Apply the `--refresh` freshness policy before a session, then load the
+ * card-name list for autocomplete, logging progress. Returns null (after
+ * telling the user to preload) when the Scryfall cache is empty.
  */
 export async function prepareCardSessionCache(
-  options: CacheRefreshOptions,
+  mode: RefreshMode,
   sets: string[] | undefined,
   excludeDigitalOnly: boolean,
 ): Promise<string[] | null> {
-  await refreshCardCacheForSession(options)
+  await refreshCardCacheForSession(mode)
   return loadCardNamesOrWarn(sets, excludeDigitalOnly)
 }
 
@@ -279,7 +268,8 @@ async function loadCardNamesOrWarn(
   console.log('Loading card database for autocomplete...')
   const cardNames = await getAllCardNames({ sets, excludeDigitalOnly })
   if (cardNames.length === 0) {
-    console.log('Cache is empty. Please run preload to populate the cache for autocomplete.')
+    console.error(emptyCacheAdvice('Card cache is empty.'))
+    process.exitCode = ExitCode.RuntimeError
     return null
   }
   console.log(`Loaded ${cardNames.length} cards.`)

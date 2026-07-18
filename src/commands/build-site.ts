@@ -69,8 +69,8 @@ import {
 } from '../themes'
 import { ExitCode } from './scripting'
 import {
+  addRefreshOption,
   bulkAllowed,
-  refreshMode,
   refreshStaleAllowed,
   shouldBulkRefresh,
   type RefreshMode,
@@ -83,9 +83,7 @@ export interface BuildSiteOptions {
   collections?: string[]
   wantedLists?: string[]
   currencies?: string
-  allowRefresh?: boolean
-  allowRefreshNoBulk?: boolean
-  refresh?: boolean
+  refresh?: RefreshMode
   theme?: string
   themeFile?: string[]
 }
@@ -488,9 +486,9 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
   const totalCards = uniqueCards.length
   console.log(`\nFound ${totalCards} unique cards.`)
 
-  // How the cache refresh question is answered for this run (--allow-refresh /
-  // --allow-refresh-no-bulk / --no-refresh, or interactive when unset).
-  const mode = refreshMode(options)
+  // How the cache refresh question is answered for this run (--refresh <mode>,
+  // interactive by default).
+  const mode = options.refresh ?? 'ask'
 
   // Ensure the full card cache has been bulk-downloaded at least once per week,
   // and trigger a bulk refresh if many cards are missing. Suppressed when bulk
@@ -588,7 +586,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       }
       let repPrints
       if (pricesFresh || !refreshStaleAllowed(mode)) {
-        // Use cached prices when they're fresh, or when --no-refresh forbids
+        // Use cached prices when they're fresh, or when --refresh never forbids
         // refetching merely-stale prices.
         const sortedPrintings = [...printings].sort((a, b) =>
           (b.released_at ?? '').localeCompare(a.released_at ?? ''),
@@ -1488,7 +1486,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
  * Shared by `build-site` and `serve-site` so the two stay in sync.
  */
 export function applyBuildSiteOptions(command: Command): Command {
-  return command
+  return addRefreshOption(command)
     .option('-v, --verbose', 'Show list of cards to be fetched')
     .option(
       '--cache-images',
@@ -1510,15 +1508,6 @@ export function applyBuildSiteOptions(command: Command): Command {
       '--currencies <list>',
       'Comma-separated currencies to include: usd, eur, tix (default: all three; first is default)',
     )
-    .option(
-      '--allow-refresh',
-      'Refresh the card cache when stale, including the fast Scryfall bulk download',
-    )
-    .option(
-      '--allow-refresh-no-bulk',
-      'Refresh stale prices per-card but never trigger a bulk download',
-    )
-    .option('--no-refresh', 'Never refresh the card cache; build from cached data as-is')
     .option(
       '--theme <name>',
       `Initial theme baked into the generated HTML (${themeNames.join(', ')}, or a custom theme name loaded via --theme-file)`,

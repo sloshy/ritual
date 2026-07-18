@@ -305,4 +305,119 @@ describe('cleanup CLI (Integration)', () => {
       expect(clean.stdout).toContain('already clean')
     })
   })
+
+  test('--skip-formats leaves formatless decks untouched and cleans everything else', async () => {
+    await withWorkspace(async (dir) => {
+      const deckPath = path.join(dir, 'decks', 'Jank.md')
+      const deckContent = '## Main\n1 Sol Ring &1\n'
+      await fs.writeFile(deckPath, deckContent)
+      await writeWantedFile(dir, 'binder', {
+        title: 'Binder',
+        entries: [{ name: 'Sol Ring', set: 'ltc', collectorNumber: '284', cardId: 1 }],
+      })
+
+      const result = await runCli(['cleanup', '--skip-formats'], dir)
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain('format skipped')
+      // The formatless deck is untouched — no inferred format stamped.
+      expect(await fs.readFile(deckPath, 'utf-8')).toBe(deckContent)
+      // The rest of the workspace is still cleaned.
+      expect(await Bun.file(path.join(dir, 'wanted', 'Binder.md')).exists()).toBeTrue()
+    })
+  })
+
+  test('a headless real run over a formatless deck is a usage error naming --skip-formats', async () => {
+    await withWorkspace(async (dir) => {
+      const deckPath = path.join(dir, 'decks', 'Jank.md')
+      await fs.writeFile(deckPath, '## Main\n1 Sol Ring &1\n')
+      // A second dirty file that a partial pass would have renamed.
+      await writeWantedFile(dir, 'binder', {
+        title: 'Binder',
+        entries: [{ name: 'Sol Ring', set: 'ltc', collectorNumber: '284', cardId: 1 }],
+      })
+
+      // runCli's stdin is not a TTY, so prompts are unavailable.
+      const result = await runCli(['cleanup'], dir)
+
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain('--skip-formats')
+      // The refusal happens before any file is touched — no partial cleanup.
+      expect(await Bun.file(path.join(dir, 'wanted', 'binder.md')).exists()).toBeTrue()
+      expect(await Bun.file(path.join(dir, 'wanted', 'Binder.md')).exists()).toBeFalse()
+    })
+  })
+
+  test('--check exits 1 when a file would change and writes nothing', async () => {
+    await withWorkspace(async (dir) => {
+      // No card IDs: --check must not even trigger the global ID backfill.
+      const filePath = path.join(dir, 'wanted', 'binder.md')
+      const content = '# Binder\n\n- Sol Ring (ltc:284)\n'
+      await fs.writeFile(filePath, content)
+
+      const check = await runCli(['cleanup', '--check'], dir)
+
+      expect(check.exitCode).toBe(1)
+      expect(check.stdout).toContain('[check]')
+      expect(await fs.readFile(filePath, 'utf-8')).toBe(content)
+      expect(await Bun.file(path.join(dir, 'wanted', 'Binder.md')).exists()).toBeFalse()
+    })
+  })
+
+  test('--check exits 0 on a clean workspace, even with a formatless deck', async () => {
+    await withWorkspace(async (dir) => {
+      await writeWantedFile(dir, 'Binder', {
+        title: 'Binder',
+        entries: [{ name: 'Sol Ring', set: 'ltc', collectorNumber: '284', cardId: 1 }],
+      })
+      // A formatless deck needs attention, but --check only fails on files a
+      // real run would change — and a real run never changes it without an answer.
+      await fs.writeFile(path.join(dir, 'decks', 'Jank.md'), '## Main\n1 Sol Ring &1\n')
+
+      const check = await runCli(['cleanup', '--check'], dir)
+
+      expect(check.exitCode).toBe(0)
+    })
+  })
+
+  test('a real run blocked by parse warnings exits 1', async () => {
+    await withWorkspace(async (dir) => {
+      // The malformed line is not a card line, so the CLI-wide card-ID
+      // backfill leaves the file byte-identical before cleanup sees it.
+      const filePath = path.join(dir, 'decks', 'Scraps.md')
+      const content =
+        '---\nformat: modern\n---\n\n## Main\n1 Sol Ring &1\nsideboard ideas: maybe a counterspell\n'
+      await fs.writeFile(filePath, content)
+
+      const result = await runCli(['cleanup'], dir)
+
+      expect(result.exitCode).toBe(1)
+      expect(result.stderr).toContain('not rewritten')
+      expect(await fs.readFile(filePath, 'utf-8')).toBe(content)
+
+      // --check reports the blocked file as a failure too.
+      const check = await runCli(['cleanup', '--check'], dir)
+      expect(check.exitCode).toBe(1)
+    })
+  })
+
+  test('--output json emits the per-file results and flattened warnings', async () => {
+    await withWorkspace(async (dir) => {
+      await writeWantedFile(dir, 'binder', {
+        title: 'Binder',
+        entries: [{ name: 'Sol Ring', set: 'ltc', collectorNumber: '284', cardId: 1 }],
+      })
+
+      const result = await runCli(['cleanup', '--dry-run', '--output', 'json'], dir)
+
+      expect(result.exitCode).toBe(0)
+      const report = JSON.parse(result.stdout) as {
+        files: CleanupResult[]
+        warnings: string[]
+      }
+      expect(report.warnings).toEqual([])
+      expect(report.files).toHaveLength(1)
+      expect(report.files[0]).toMatchObject({ type: 'wanted', renamedTo: 'Binder.md' })
+    })
+  })
 })

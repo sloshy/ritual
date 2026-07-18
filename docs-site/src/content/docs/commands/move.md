@@ -110,7 +110,7 @@ Select by card ID and emit a JSON record for scripting:
 
 Collections require a concrete printing. When the selected card already has one, nothing changes. When it does not (a name-only wanted entry), the printing is resolved in this order:
 
-1. `--set` + `--collector-number`, when given (both are required together).
+1. `--set` + `--collector-number`, when given (both are required together). The pair is validated against the card's known printings in the local Scryfall cache — a set/collector-number the card was never printed as is a usage error listing the printings that do exist.
 2. The card's **single** known printing in the local Scryfall cache, auto-accepted.
 3. Otherwise the command exits with a usage error listing the cached printings to pick from.
 

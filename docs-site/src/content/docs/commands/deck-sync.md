@@ -7,34 +7,65 @@ Sync deck card lists between local files and Archidekt.
 ## Usage
 
 ```bash
-./ritual deck-sync [decks...] --download-changes
-./ritual deck-sync [decks...] --upload-changes
+./ritual deck-sync pull [decks...]
+./ritual deck-sync push [decks...]
 ```
 
 ## Arguments
 
-| Argument     | Description                                                                                                           | Required |
-| ------------ | --------------------------------------------------------------------------------------------------------------------- | -------- |
-| `[decks...]` | Deck names to sync (matched case- and accent-insensitively, no `.md`). If omitted, syncs all Archidekt-sourced decks. | No       |
+| Argument      | Description                                                                                                           | Required |
+| ------------- | --------------------------------------------------------------------------------------------------------------------- | -------- |
+| `<direction>` | `pull` (Archidekt → local) or `push` (local → Archidekt). Any other value exits with code 2.                          | Yes      |
+| `[decks...]`  | Deck names to sync (matched case- and accent-insensitively, no `.md`). If omitted, syncs all Archidekt-sourced decks. | No       |
 
 Each name is matched case- and accent-insensitively with a unique-substring fallback; an ambiguous name is reported and skipped. See [List Resolution](/commands/list-resolution/).
 
 ## Options
 
-| Option               | Description                                              |
-| -------------------- | -------------------------------------------------------- |
-| `--download-changes` | Pull remote changes from Archidekt into local deck files |
-| `--upload-changes`   | Push local changes to Archidekt                          |
+| Option              | Description                                                     | Default |
+| ------------------- | --------------------------------------------------------------- | ------- |
+| `-n, --dry-run`     | Report what would sync without writing files or pushing changes | `false` |
+| `--output <format>` | Output format: `text`, `json`, or `ndjson`                      | `text`  |
+| `--quiet`           | Suppress non-essential output                                   | `false` |
 
-One of `--download-changes` or `--upload-changes` is required. They cannot be used together. Violating either rule exits with code 2.
+Under `--dry-run`, both directions still fetch the remote deck state (the diff
+needs it), but a pull writes no files and records no changelog entries, and a
+push sends nothing to Archidekt and does not update `lastSynced`.
+
+## Scripted Output
+
+With `--output json` (or `ndjson`), progress logging is suppressed and a single
+report is emitted on stdout:
+
+```json
+{
+  "direction": "pull",
+  "decks": [
+    { "name": "Winota Stax", "status": "synced" },
+    { "name": "Oops All Soldiers", "status": "synced", "reason": "no changes" },
+    {
+      "name": "Borrowed Deck",
+      "status": "skipped",
+      "reason": "you do not own Archidekt deck 12345"
+    },
+    { "name": "Gone", "status": "failed", "reason": "Failed to fetch Archidekt deck 999: 404" }
+  ],
+  "failedCount": 1
+}
+```
+
+Each deck's `status` is `synced`, `failed`, or `skipped`; `reason` explains
+anything other than a clean sync. Decks that could not be resolved or are not
+sourced from Archidekt appear as `failed` entries. Top-level failures (for
+example, not being signed in) are emitted as a structured error on stderr.
 
 ## Failure Behavior
 
-Per-deck failures (a failed Archidekt fetch or push, or cards that could not be
-translated into upload entries) are reported as they happen, and the sync continues
-with the remaining decks. If any deck failed, a summary such as `2 of 5 decks failed`
-is printed to stderr and the command exits with code 1; it exits 0 only when every
-deck synced cleanly.
+Per-deck failures (a failed Archidekt fetch or push, cards that could not be
+translated into upload entries, or a deck name that did not resolve) are reported
+as they happen, and the sync continues with the remaining decks. If any deck
+failed, a summary such as `2 of 5 decks failed` is printed to stderr and the
+command exits with code 1; it exits 0 only when every deck synced cleanly.
 
 ## How It Works
 
@@ -48,7 +79,7 @@ You must be signed into Archidekt before syncing:
 
 Decks must have been imported from Archidekt (i.e., they have `sourceUrl` and `sourceId` in their YAML front matter).
 
-### Download Changes (`--download-changes`)
+### Pull (`deck-sync pull`)
 
 1. Fetches the current deck state from Archidekt
 2. Compares cards and quantities against the local deck file, **per board** (Main,
@@ -74,7 +105,7 @@ Decks must have been imported from Archidekt (i.e., they have `sourceUrl` and `s
    deck sync; it is not recorded in the changelog, which tracks cards only
 6. Sets `lastSynced` timestamp in front matter
 
-### Upload Changes (`--upload-changes`)
+### Push (`deck-sync push`)
 
 1. Verifies you own the Archidekt deck (skips non-owned decks with a warning)
 2. Fetches the current Archidekt deck state
@@ -88,11 +119,11 @@ Decks must have been imported from Archidekt (i.e., they have `sourceUrl` and `s
 
 ### What Is Compared
 
-Sync compares **card names** and **quantities**. Downloads additionally respect the
+Sync compares **card names** and **quantities**. Pulls additionally respect the
 **board** a card lives in (Main, Commander, Sideboard, Maybeboard), so cards land in
 the right section locally.
 
-Downloads also adopt the deck's format from Archidekt. Uploads do not push the local
+Pulls also adopt the deck's format from Archidekt. Pushes do not send the local
 format back.
 
 The following are intentionally ignored at this time:
@@ -102,11 +133,11 @@ The following are intentionally ignored at this time:
 - Labels and categories (beyond mapping to a board)
 - Card condition
 
-> **Note on uploads:** uploads ignore board placement. The Archidekt batch API path
+> **Note on pushes:** pushes ignore board placement. The Archidekt batch API path
 > used here cannot yet target a specific remote board/category, so moving a card
 > between boards locally is not pushed (it would otherwise re-add the card to the
 > default mainboard on Archidekt). Board-aware behavior currently applies to
-> `--download-changes` only.
+> `pull` only.
 
 ### Front Matter
 
@@ -125,22 +156,42 @@ lastSynced: '2026-04-02T12:00:00.000Z'
 `format` is written on every save, whether it came from Archidekt or was inferred
 from the deck's sections. See [new](/commands/new/#deck-format).
 
+## Exit Codes
+
+| Code | Meaning                                                            |
+| ---- | ------------------------------------------------------------------ |
+| `0`  | Every deck synced cleanly (or there was nothing to sync)           |
+| `1`  | At least one deck failed, or you are not signed into Archidekt     |
+| `2`  | Missing or invalid `<direction>` (anything other than push / pull) |
+
 ## Examples
 
-Download changes for a specific deck:
+Pull changes for a specific deck:
 
 ```bash
-./ritual deck-sync black-panther --download-changes
+./ritual deck-sync pull black-panther
 ```
 
-Upload changes for multiple decks:
+Push changes for multiple decks:
 
 ```bash
-./ritual deck-sync black-panther oops-all-soldiers --upload-changes
+./ritual deck-sync push black-panther oops-all-soldiers
 ```
 
-Sync all Archidekt decks (download):
+Pull for all Archidekt decks:
 
 ```bash
-./ritual deck-sync --download-changes
+./ritual deck-sync pull
+```
+
+Preview a push without sending anything:
+
+```bash
+./ritual deck-sync push --dry-run
+```
+
+Script a pull and inspect per-deck results:
+
+```bash
+./ritual deck-sync pull --output json
 ```

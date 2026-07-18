@@ -14,19 +14,17 @@ Generate a website for your decks and collections.
 
 By default, deck card images use Scryfall URLs from card data. This can be overridden with the `--cache-images` option to download and use local images instead.
 
-| Option                      | Description                                                                                                              |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `-v, --verbose`             | Show list of cards being fetched from Scryfall                                                                           |
-| `--cache-images`            | Download and use local deck card images in `dist/images` instead of URLs                                                 |
-| `--decks [names...]`        | Deck names or URLs to include in the site (default: the `site.includeDecks` config selection)                            |
-| `--collections [names...]`  | Collection names to include in the site (default: the `site.includeCollections` config selection)                        |
-| `--wanted-lists [names...]` | Wanted list names to include in the site (default: the `site.includeWantedLists` config selection)                       |
-| `--currencies <list>`       | Comma-separated currencies to include on the site: `usd`, `eur`, `tix` (default: all three)                              |
-| `--allow-refresh`           | Refresh the card cache when stale, including the fast Scryfall bulk download (answers the prompt for you)                |
-| `--allow-refresh-no-bulk`   | Refresh stale prices per-card but never trigger a bulk download                                                          |
-| `--no-refresh`              | Never refresh the card cache; build from cached data as-is                                                               |
-| `--theme <name>`            | Initial theme served to first-time visitors (built-in name or a custom name from `--theme-file`). Defaults to `default`. |
-| `--theme-file <path...>`    | Load one or more custom theme JSON files; each is added to the runtime theme list under its declared `name`.             |
+| Option                      | Description                                                                                                                                                           |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-v, --verbose`             | Show list of cards being fetched from Scryfall                                                                                                                        |
+| `--cache-images`            | Download and use local deck card images in `dist/images` instead of URLs                                                                                              |
+| `--decks [names...]`        | Deck names or URLs to include in the site (default: the `site.includeDecks` config selection)                                                                         |
+| `--collections [names...]`  | Collection names to include in the site (default: the `site.includeCollections` config selection)                                                                     |
+| `--wanted-lists [names...]` | Wanted list names to include in the site (default: the `site.includeWantedLists` config selection)                                                                    |
+| `--currencies <list>`       | Comma-separated currencies to include on the site: `usd`, `eur`, `tix` (default: all three)                                                                           |
+| `--refresh <mode>`          | Card cache refresh policy: `ask` (default — prompt; skip when prompts are unavailable), `auto`, `no-bulk`, or `never`. See [Card Cache Refresh](#card-cache-refresh). |
+| `--theme <name>`            | Initial theme served to first-time visitors (built-in name or a custom name from `--theme-file`). Defaults to `default`.                                              |
+| `--theme-file <path...>`    | Load one or more custom theme JSON files; each is added to the runtime theme list under its declared `name`.                                                          |
 
 ## Examples
 
@@ -306,29 +304,30 @@ A build pulls card data and prices from three places, in order:
    ```
 
 3. **Per-card fetch** — every card whose cached price is stale (>24h) is then refetched individually; cards with fresh prices are reused from cache.
-4. **Tag download** — if none of the build's cards carry oracle/art tags (needed by the site's [tag filters](/public-site/filtering/)), `build-site` offers to download them and bake them into the cache. It is gated by the same flags as the bulk download — `--allow-refresh` accepts it and `--allow-refresh-no-bulk` / `--no-refresh` skip it (leaving the tag filters empty for that build) — but its prompt defaults to **Yes**, since the filters are unusable without it.
+4. **Tag download** — if none of the build's cards carry oracle/art tags (needed by the site's [tag filters](/public-site/filtering/)), `build-site` offers to download them and bake them into the cache. It is gated by the same `--refresh` mode as the bulk download — `auto` accepts it and `no-bulk` / `never` skip it (leaving the tag filters empty for that build) — but its prompt defaults to **Yes**, since the filters are unusable without it.
 
-When stdin is not a TTY (e.g. a CI pipeline) the prompts can't be answered, so each resolves to its default: the bulk price-refresh prompt (step 2) to **No**, and the tag-download prompt (step 4) to **Yes**.
+When prompts are unavailable (stdin is not a TTY, or the global `--no-input` flag / `RITUAL_NO_INPUT` is in force), every prompt is **declined** — never resolved to its on-screen default — so a headless run can't be surprised by a multi-MB download.
 
-### Refresh flags
+### The `--refresh` mode
 
-The three `--*-refresh` flags answer the prompt non-interactively and control the bulk download:
+The shared `--refresh <mode>` option answers the prompts non-interactively and controls the bulk download:
 
-| Flag                      | Bulk download (steps 1 & 2) | Per-card refresh of stale prices (step 3) | Tag download (step 4) |
-| ------------------------- | --------------------------- | ----------------------------------------- | --------------------- |
-| `--allow-refresh`         | Allowed                     | Yes                                       | Allowed               |
-| `--allow-refresh-no-bulk` | **Suppressed**              | Yes                                       | **Suppressed**        |
-| `--no-refresh`            | **Suppressed**              | **No** (uses cached prices as-is)         | **Suppressed**        |
+| Mode                | Automatic bulk download (step 1) | Bulk price-refresh prompt (step 2)   | Per-card refresh of stale prices (step 3) | Tag download (step 4)                |
+| ------------------- | -------------------------------- | ------------------------------------ | ----------------------------------------- | ------------------------------------ |
+| `ask` (the default) | Allowed                          | Prompts (declined when unanswerable) | Yes                                       | Prompts (declined when unanswerable) |
+| `auto`              | Allowed                          | Yes, without prompting               | Yes                                       | Yes, without prompting               |
+| `no-bulk`           | **Suppressed**                   | **Skipped**                          | Yes                                       | **Skipped**                          |
+| `never`             | **Suppressed**                   | **Skipped**                          | **No** (uses cached prices as-is)         | **Skipped**                          |
 
 ```bash
-./ritual build-site --allow-refresh          # fastest full refresh
-./ritual build-site --allow-refresh-no-bulk  # refresh prices without the big download
-./ritual build-site --no-refresh             # build entirely from the existing cache
+./ritual build-site --refresh auto     # fastest full refresh, no prompts
+./ritual build-site --refresh no-bulk  # refresh prices without the big download
+./ritual build-site --refresh never    # build entirely from the existing cache
 ```
 
-> **Note:** `--allow-refresh-no-bulk` and `--no-refresh` also suppress the _automatic_ bulk download (step 1). On an empty or very stale cache this forces every card to be fetched individually, which is slow and can hit Scryfall rate limits — use them when you already have a populated cache.
+> **Note:** `--refresh no-bulk` and `--refresh never` also suppress the _automatic_ bulk download (step 1). On an empty or very stale cache this forces every card to be fetched individually, which is slow and can hit Scryfall rate limits — use them when you already have a populated cache.
 
-These flags are also what `bun run dev serve-site` requires — see [Development → Dev Workflow](/development/#dev-workflow).
+An explicit `--refresh` mode is also what `bun run dev serve-site` requires — see [Development → Dev Workflow](/development/#dev-workflow).
 
 ## Quick Switch
 

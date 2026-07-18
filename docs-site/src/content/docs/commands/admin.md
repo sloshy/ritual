@@ -22,13 +22,12 @@ Run bare, `ritual admin` starts the web admin server. The `setup`, `reset-passwo
 | `-p, --port <number>`  | Port to serve on                                                                                                                                                                               | `8080`    |
 | `--host <address>`     | Host address to bind to                                                                                                                                                                        | `0.0.0.0` |
 | `--theme <name>`       | Initial theme served by the admin. Append `-inverted` (e.g. `boros-inverted`) for the inverted variant. See [`build-site` themes](/commands/build-site/#themes) for the full list of palettes. | `default` |
-| `--allow-refresh`      | Refresh the card cache on startup without asking (bulk download)                                                                                                                               |           |
-| `--no-refresh`         | Skip the card cache refresh on startup; use cached data as-is                                                                                                                                  |           |
+| `--refresh <mode>`     | Card cache refresh policy on startup: `ask` (prompt; skip when prompts are unavailable), `auto`, `no-bulk`, or `never`                                                                         | `ask`     |
 | `--mcp`                | Also serve an [MCP](/commands/mcp/) endpoint in this same process (requires `--mcp-token`)                                                                                                     |           |
 | `--mcp-port <number>`  | Port for the embedded MCP server (only with `--mcp`)                                                                                                                                           | `8765`    |
 | `--mcp-token <secret>` | Bearer token required on the embedded MCP endpoint (with `--mcp`)                                                                                                                              |           |
 
-On startup, `admin` checks whether the Scryfall card cache is missing or stale and prompts to refresh it. Pass `--allow-refresh` or `--no-refresh` to answer that prompt non-interactively — this is required when running under `bun run dev admin` (see [Development → Dev Workflow](/development/#dev-workflow)).
+On startup, `admin` checks whether the Scryfall card cache is missing or stale and prompts to refresh it. Pass `--refresh auto` (or `no-bulk` / `never`) to answer that prompt non-interactively — an explicit mode is required when running under `bun run dev admin` (see [Development → Dev Workflow](/development/#dev-workflow)). Under the default `--refresh ask`, a run where prompts are unavailable (stdin is not a TTY, or the global `--no-input` flag is in force) skips the refresh instead of prompting.
 
 ## Embedded MCP Server
 
@@ -237,6 +236,8 @@ Settings are stored in `ritual.config.json` in the base directory. The file is s
     "gitEnabled": false,
     "gitAutoCommit": false,
     "gitAutoPush": false,
+    "trustProxy": false,
+    "secureCookies": false,
     "ipAllowList": [],
     "ipDenyList": [],
     "userAgentAllowList": [],
@@ -804,6 +805,8 @@ Returns the current application configuration.
       "gitEnabled": false,
       "gitAutoCommit": false,
       "gitAutoPush": false,
+      "trustProxy": false,
+      "secureCookies": false,
       "ipAllowList": [],
       "ipDenyList": [],
       "userAgentAllowList": [],
@@ -852,6 +855,8 @@ Update the application configuration. Partial updates are supported — only the
       "gitEnabled": true,
       "gitAutoCommit": true,
       "gitAutoPush": false,
+      "trustProxy": false,
+      "secureCookies": false,
       "ipAllowList": [],
       "ipDenyList": [],
       "userAgentAllowList": [],

@@ -9,8 +9,8 @@ import {
   normalizeScriptingOptions,
   type ScriptingOptions,
 } from './scripting'
+import { CardCommandError } from '../errors'
 import {
-  CardCommandError,
   describeEntry,
   listTypeLabel,
   parseCardIdFlag,

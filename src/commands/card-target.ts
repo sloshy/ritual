@@ -14,7 +14,7 @@ import type { PromptState } from './prompts-types'
 import { importFromTextFile } from '../importers/text-file'
 import { parseCollectionFile } from '../collection-file'
 import { parseWantedListFile } from './wanted-helpers'
-import { emitError, ExitCode, type ExitCodeValue, type ScriptingOptions } from './scripting'
+import { emitError, ExitCode, type ScriptingOptions } from './scripting'
 import { matchByNormalizedName } from '../term-match'
 import { type ListType } from '../list-type'
 import {
@@ -28,10 +28,11 @@ import {
   type ResolveListError,
 } from '../resolve-list'
 import { formatPrintingAnnotation } from '../change-event'
+import { isNoInput } from '../no-input'
 import { matchFinishPin, matchPrintingPin } from './collection-helpers'
 import { getCardPrintings } from '../scryfall'
-import { getErrorMessage } from '../errors'
-import type { Condition, ErrorCode, Finish, ScryfallCard } from '../types'
+import { CardCommandError, getErrorMessage } from '../errors'
+import type { Condition, Finish, ScryfallCard } from '../types'
 
 /** Unified summary for a card entry across all list types. */
 export type EntryRef = {
@@ -44,20 +45,6 @@ export type EntryRef = {
   cardId?: number
   /** Line quantity — decks only; flat-list entries are one physical card each. */
   quantity?: number
-}
-
-/** Structured error thrown by one-shot card commands. The action handler should
- * `instanceof`-check this to convert it into an `emitError` call. */
-export class CardCommandError extends Error {
-  readonly code: ErrorCode
-  readonly exitCode: ExitCodeValue
-  readonly details?: unknown
-  constructor(code: ErrorCode, message: string, exitCode: ExitCodeValue, details?: unknown) {
-    super(message)
-    this.code = code
-    this.exitCode = exitCode
-    this.details = details
-  }
 }
 
 /**
@@ -324,16 +311,17 @@ export function describeEntry(entry: EntryRef): string {
 }
 
 /**
- * Refuse to open an interactive picker without a terminal on stdin. Without
- * this, a script that omits a selector either exits 0 having done nothing
- * (closed stdin: the prompt never resolves and the event loop drains) or
- * blocks — never an acceptable one-shot contract.
+ * Refuse to open an interactive picker when prompting is unavailable — stdin
+ * is not a terminal, or `--no-input` disabled prompts. Without this, a script
+ * that omits a selector either exits 0 having done nothing (closed stdin: the
+ * prompt never resolves and the event loop drains) or blocks — never an
+ * acceptable one-shot contract.
  */
 export function requireInteractive(what: string): void {
-  if (!process.stdin.isTTY) {
+  if (isNoInput() || !process.stdin.isTTY) {
     throw new CardCommandError(
       'usage_error',
-      `Input required: pass ${what} (no terminal available for interactive selection).`,
+      `Input required: pass ${what} (interactive selection is unavailable without a terminal or with --no-input).`,
       ExitCode.UsageError,
     )
   }

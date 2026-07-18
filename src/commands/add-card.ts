@@ -15,7 +15,9 @@ import { isCondition, isFinish, normalizeFinishValue, VALID_CONDITIONS } from '.
 import { parseSetCode } from '../set-codes'
 import { ensureWantedListFile, formatWantedListLine, promptWantedFinish } from './wanted-helpers'
 import { isUsableFileName, unusableFileNameMessage } from '../list-file-name'
-import { ensureFreshCardCache } from '../cache/freshness'
+import { isNoInput } from '../no-input'
+import { emptyCacheAdvice, ensureFreshCardCache } from '../cache/freshness'
+import { addRefreshOption, type RefreshMode } from '../refresh'
 import { appendChangelog } from '../changelog-writer'
 import { createAddChange } from '../change-event'
 import { allocateNextIdFromContent } from '../card-id'
@@ -37,7 +39,6 @@ import {
   type ListTypeFlags,
 } from '../resolve-list'
 import {
-  CardCommandError,
   ensureFinishAvailable,
   parsePositiveInteger,
   resolveListTypeFlag,
@@ -53,7 +54,7 @@ import {
   type ScriptingOptions,
 } from './scripting'
 import { divertConsoleLogToStderr } from '../mcp/stdout-guard'
-import { getErrorMessage } from '../errors'
+import { CardCommandError, getErrorMessage } from '../errors'
 
 /** Parse existing &N IDs from a file and allocate the next available ID. */
 async function allocateNextIdFromFile(filePath: string): Promise<number> {
@@ -76,6 +77,7 @@ type AddCardOptions = {
   collectorNumber?: string
   nameOnly?: boolean
   specific?: boolean
+  refresh: RefreshMode
 } & ListTypeFlags &
   Partial<ScriptingOptions>
 
@@ -188,6 +190,7 @@ export function registerAddCardCommand(program: Command): void {
       'Wanted lists: record a specific printing (via --set/--collector-number or interactive selection)',
     ),
   )
+  addRefreshOption(command)
   addScriptingOptions(command).action(
     async (targetName: string, cardNameParts: string[], options: AddCardOptions) => {
       const scripting = normalizeScriptingOptions(options, 'text')
@@ -230,11 +233,11 @@ async function runAddCard(input: RunInput, scripting: ScriptingOptions): Promise
   const target = await resolveAddCardTarget(listArg.name, type)
   if (type === undefined) validateTargetFlags(target.type, pin, options)
 
-  const cacheResult = await ensureFreshCardCache()
+  const cacheResult = await ensureFreshCardCache(options.refresh)
   if (!cacheResult.ready) {
     throw new CardCommandError(
       'runtime_error',
-      'Card cache is not available. Cannot proceed without cached card data.',
+      emptyCacheAdvice('Card cache is not available.'),
       ExitCode.RuntimeError,
     )
   }
@@ -322,11 +325,11 @@ function validateTargetFlags(
     !options.nameOnly &&
     !options.specific &&
     pin === undefined &&
-    !process.stdin.isTTY
+    (isNoInput() || !process.stdin.isTTY)
   ) {
     throw new CardCommandError(
       'usage_error',
-      'Wanted-list adds are interactive by default. Pass --name-only, --specific, or --set/--collector-number when stdin is not a terminal.',
+      'Wanted-list adds are interactive by default. Pass --name-only, --specific, or --set/--collector-number when prompts are unavailable (stdin is not a terminal, or --no-input).',
       ExitCode.UsageError,
     )
   }
@@ -431,9 +434,10 @@ async function resolveCardName(
     return match
   }
 
-  if (!process.stdin.isTTY) {
+  if (isNoInput() || !process.stdin.isTTY) {
     // The autocomplete prompt would silently auto-answer with its first
-    // suggestion when stdin is not a terminal — accept only an exact name.
+    // suggestion when stdin is not a terminal (and must not open at all under
+    // --no-input) — accept only an exact name.
     const match = findExactMatch(cardNameInput, cardNames)
     if (match) return match
     if (countSubstringMatches(cardNameInput, cardNames, 1) === 0) {
@@ -445,7 +449,7 @@ async function resolveCardName(
     }
     throw new CardCommandError(
       'usage_error',
-      `Interactive card selection needs a terminal, and '${cardNameInput}' does not exactly match a cached card name. Pass the full card name.`,
+      `Interactive card selection needs a terminal with prompts enabled, and '${cardNameInput}' does not exactly match a cached card name. Pass the full card name.`,
       ExitCode.UsageError,
     )
   }
@@ -643,7 +647,10 @@ async function resolveInteractivePrinting(
     throw makeFailure()
   }
   const result = await resolveCardPrinting(cardName, {}, true)
-  if (!result) throw makeFailure()
+  if (result.kind === 'cancelled') {
+    throw new CardCommandError('usage_error', 'Cancelled.', ExitCode.UsageError)
+  }
+  if (result.kind === 'none') throw makeFailure()
   return result.printing
 }
 

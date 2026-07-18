@@ -2,7 +2,7 @@
 title: 'export'
 ---
 
-Export any grouping of cards from your decks, collections, and wanted lists as **CSV** or **JSON**. Run it bare in a terminal for an interactive wizard, or drive everything with flags for scripting. The same engine backs the [MCP](/commands/mcp/) `export_cards` tool.
+Export any grouping of cards from your decks, collections, and wanted lists as **CSV** or **JSON**. Run it bare in a terminal for an interactive wizard, or drive everything with flags for scripting — the global `--no-input` flag is the headless switch that guarantees the wizard never opens. The same engine backs the [MCP](/commands/mcp/) `export_cards` tool.
 
 ## Usage
 
@@ -26,7 +26,7 @@ Export any grouping of cards from your decks, collections, and wanted lists as *
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------------- | -------- |
 | `[lists...]` | Lists to export. Names resolve like every list command; a `deck:` / `collection:` / `wanted:` prefix pins the type of an ambiguous name | No       |
 
-When no lists and no `--card` picks are given, **every list is exported** (so `ritual export --format json` dumps everything).
+When no lists and no `--card` picks are given, a headless run exports **every list** (so `ritual export --format json` dumps everything). A completely bare `ritual export` instead opens the [interactive wizard](#interactive-wizard) — or, where prompting is unavailable, fails with a usage error asking for `--all` or another flag.
 
 ## Options
 
@@ -53,17 +53,16 @@ Filters apply to the assembled set — list entries and card picks alike.
 
 ### Output
 
-| Option                 | Description                                                    |
-| ---------------------- | -------------------------------------------------------------- |
-| `--format <format>`    | `csv` (default) or `json`                                      |
-| `--columns <list>`     | Comma-separated properties in output order (see below)         |
-| `--no-header`          | Omit the CSV header row                                        |
-| `--quote-all`          | Quote every CSV cell instead of only cells that need it        |
-| `--out <file>`         | Write to this file instead of stdout                           |
-| `--preset <name>`      | Start from a saved preset (explicit flags override its values) |
-| `--save-preset <name>` | Save the resolved format/columns/CSV options as a named preset |
-| `--quiet`              | Suppress warnings and confirmations                            |
-| `--no-interactive`     | Never open the interactive wizard                              |
+| Option                 | Description                                                     |
+| ---------------------- | --------------------------------------------------------------- |
+| `--format <format>`    | `csv` (default) or `json`                                       |
+| `--columns <list>`     | Comma-separated properties in output order (see below)          |
+| `--no-header`          | Omit the CSV header row                                         |
+| `--quote-all`          | Quote every CSV cell instead of only cells that need it         |
+| `--out <file>`         | Write to this file instead of stdout                            |
+| `--preset <name>`      | Export with a saved preset (explicit flags override its values) |
+| `--save-preset <name>` | Save the resolved format/columns/CSV options as a named preset  |
+| `--quiet`              | Suppress warnings and confirmations                             |
 
 ## Properties
 
@@ -84,7 +83,9 @@ Notes on values:
 
 ## Interactive Wizard
 
-A bare `ritual export` in a terminal opens the wizard. From its main menu you can:
+A bare `ritual export` opens the wizard when prompting is possible: stdout and stdin are both terminals and the global `--no-input` flag (or the `RITUAL_NO_INPUT` environment variable) is not in force. Any argument or flag that describes a concrete export — list names, `--all`, `--card`, a filter, an output-shape flag, `--out`, `--preset`, or `--save-preset` — skips the wizard and runs headlessly instead. A bare `ritual export` where prompting is unavailable is a usage error with a hint to pass such a flag (e.g. `--all` to export everything).
+
+From the wizard's main menu you can:
 
 - **Add lists** — an autocomplete over every deck, collection, and wanted list.
 - **Add individual cards** — an autocomplete over every card entry across all your lists; type to search by name, set, or list.
@@ -95,7 +96,7 @@ A bare `ritual export` in a terminal opens the wizard. From its main menu you ca
 - **Review** — print the assembled cards before exporting.
 - **Export** — prompts for the output path (defaults to `export.csv` / `export.json`).
 
-`ritual export --preset <name>` (with no other flags) opens the wizard pre-loaded with that preset.
+`ritual export --preset <name>` runs the export directly with that preset's output shape (every list, unless other flags narrow it) — it does not open the wizard. To start the wizard from a preset, open the wizard and pick **Load preset**.
 
 ## Presets
 
@@ -118,9 +119,9 @@ Precedence when exporting: built-in defaults → `--preset` values → explicit 
 
 ## Exit Codes
 
-| Code | Meaning                                                                                   |
-| ---- | ----------------------------------------------------------------------------------------- |
-| `0`  | Export written                                                                            |
-| `1`  | Runtime error (for example, the output file could not be written)                         |
-| `2`  | Usage error (conflicting type flags, unknown column, invalid filter, ambiguous list name) |
-| `3`  | Not found (unknown list or preset)                                                        |
+| Code | Meaning                                                                                                                                    |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `0`  | Export written                                                                                                                             |
+| `1`  | Runtime error (for example, the output file could not be written)                                                                          |
+| `2`  | Usage error (conflicting type flags, unknown column, invalid filter, ambiguous list name, or a bare `export` where the wizard cannot open) |
+| `3`  | Not found (unknown list or preset)                                                                                                         |

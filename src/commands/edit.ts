@@ -3,16 +3,15 @@ import type { Choice } from 'prompts'
 import { LIST_TYPES, LIST_TYPE_DISPLAY, listTypeLabel, type ListType } from '../list-type'
 import { parseSetCodesInput } from '../set-codes'
 import {
-  applyCacheRefreshOptions,
   buildInitialSessionConfig,
   confirmMultiListExit,
   prepareCardSessionCache,
   resetCardSessionTracking,
   runCardSession,
   saveCardSession,
-  type CacheRefreshOptions,
   type MultiListSessionControls,
 } from './card-session'
+import { addRefreshOption, type RefreshMode } from '../refresh'
 import { ask, suggestByTitleTerms } from './prompts-helpers'
 import { promptDeckFormat, type DeckSessionConfig } from './deck-helpers'
 import {
@@ -56,15 +55,15 @@ import {
  * which edits several lists in one session — see {@link createScopedSession}.
  */
 
-type EditCommandOptions = CacheRefreshOptions &
-  ListTypeFlags & {
-    sets?: string
-    finish?: string
-    condition?: string
-    section?: string
-    collector?: boolean
-    allowDigitalOnlyCards?: boolean
-  }
+type EditCommandOptions = ListTypeFlags & {
+  refresh: RefreshMode
+  sets?: string
+  finish?: string
+  condition?: string
+  section?: string
+  collector?: boolean
+  allowDigitalOnlyCards?: boolean
+}
 
 export type { UnifiedListRef } from './edit-lists'
 
@@ -220,7 +219,7 @@ export function registerEditCommand(program: Command): void {
     .option('--section <name>', 'Add deck cards to this section (otherwise prompts per card)')
     .option('--collector', 'Start in collector number mode')
     .option('--allow-digital-only-cards', 'Include digital-only sets (e.g., Alchemy)')
-  applyCacheRefreshOptions(editCommand)
+  addRefreshOption(editCommand)
   editCommand.action(async (listNameArg: string | undefined, options: EditCommandOptions) => {
     // Conflicting type flags are a usage error with or without a [listName] —
     // `ritual edit --deck --collection` must not silently open the menu.
@@ -243,7 +242,7 @@ export function registerEditCommand(program: Command): void {
     const parsedSets = options.sets ? parseSetCodesInput(options.sets) : undefined
     const excludeDigitalOnly = !options.allowDigitalOnlyCards
 
-    let cardNames = await prepareCardSessionCache(options, parsedSets, excludeDigitalOnly)
+    let cardNames = await prepareCardSessionCache(options.refresh, parsedSets, excludeDigitalOnly)
     if (!cardNames) return
 
     // One config shared by every list, so filters, entry mode, and the deck

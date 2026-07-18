@@ -43,7 +43,7 @@ Before anything is applied, the command prints every pending change grouped by i
 ? Apply 3 changes to 2 lists? › (y/N)
 ```
 
-Pass `--yes` to skip the prompt (for scripts and agents). When stdin is not a terminal, `--yes` is required — instead of prompting, the command exits with code `2`.
+Pass `--yes` to skip the prompt (for scripts and agents). When stdin is not a terminal, or prompts are disabled globally (`--no-input` / `RITUAL_NO_INPUT`), `--yes` is required — instead of prompting, the command exits with code `2`.
 
 ## How Changes Are Applied
 
@@ -58,9 +58,9 @@ A list that fails entirely (for example, one that no longer exists) is reported 
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                 |
-| ---- | ------------------------------------------------------------------------------------------------------- |
-| `0`  | All lists applied (skipped conflicts do not fail the run)                                               |
-| `1`  | At least one list failed to apply, or the file could not be read                                        |
-| `2`  | Invalid change bundle, confirmation declined/cancelled, or missing `--yes` when stdin is not a terminal |
-| `3`  | Bundle file not found, or the bundle contains no changes to apply                                       |
+| Code | Meaning                                                                                                                                            |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | All lists applied (skipped conflicts do not fail the run)                                                                                          |
+| `1`  | At least one list failed to apply, or the file could not be read                                                                                   |
+| `2`  | Invalid change bundle, confirmation declined/cancelled, or missing `--yes` when prompts are unavailable (stdin is not a terminal, or `--no-input`) |
+| `3`  | Bundle file not found, or the bundle contains no changes to apply                                                                                  |

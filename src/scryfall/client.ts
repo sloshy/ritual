@@ -10,6 +10,7 @@ import {
 import type { PriceCurrency } from '../price-currency'
 import { getPriceField } from '../price-currency'
 import { getBannedPrintings } from '../ritual-config'
+import { isNoInput } from '../no-input'
 import { getLogger } from '../logger'
 import { getErrorMessage, throwHttpError } from '../errors'
 import path from 'node:path'
@@ -37,6 +38,8 @@ import { writeFileAtomic } from '../cache/atomic-write'
 
 const RATE_LIMIT_MS = 150
 const SCRYFALL_CARDS_PER_PAGE = 175
+/** How long a single Scryfall API request may take before it is aborted. */
+const SCRYFALL_FETCH_TIMEOUT_MS = 15_000
 
 class RequestQueue {
   private readonly queue: Array<() => Promise<void>> = []
@@ -238,9 +241,38 @@ export class ScryfallClient implements PricingBackend {
   /** undefined = not yet loaded; null = loaded but no cache file; TagIndex = loaded. */
   private tagIndex: TagIndex | null | undefined
 
+  /**
+   * `http.fetch` with a {@link SCRYFALL_FETCH_TIMEOUT_MS} abort timeout, for
+   * the short per-request API calls (card lookups, search pages, price
+   * batches). Deliberately not used for bulk-file downloads, whose transfer
+   * time legitimately exceeds any per-request budget. A timeout is rethrown
+   * with a clear message so it surfaces through the existing request-failure
+   * shapes.
+   */
+  private async fetchWithTimeout(url: string | URL, init?: RequestInit): Promise<Response> {
+    try {
+      return await this.http.fetch(url, {
+        ...init,
+        signal: AbortSignal.timeout(SCRYFALL_FETCH_TIMEOUT_MS),
+      })
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'TimeoutError') {
+        throw new Error(
+          `Scryfall request timed out after ${SCRYFALL_FETCH_TIMEOUT_MS / 1000} seconds: ${url}`,
+          { cause: e },
+        )
+      }
+      throw e
+    }
+  }
+
   private async checkAndPromptPreload() {
     if (this.hasPrompted) return
     this.hasPrompted = true
+
+    // With prompts unavailable, proceed without preloading — downstream
+    // cache-miss paths fetch (or fail) per card instead.
+    if (isNoInput() || !process.stdin.isTTY) return
 
     if (this.cardCache.isEmpty && (await this.cardCache.isEmpty())) {
       const response = await prompts({
@@ -271,7 +303,7 @@ export class ScryfallClient implements PricingBackend {
     }
 
     getLogger().info('Fetching symbology from Scryfall...')
-    const response = await this.http.fetch('https://api.scryfall.com/symbology')
+    const response = await this.fetchWithTimeout('https://api.scryfall.com/symbology')
     if (!response.ok) throwHttpError(response, 'Failed to fetch symbology')
 
     const json = (await response.json()) as ScryfallList<ScryfallSymbol>
@@ -302,7 +334,7 @@ export class ScryfallClient implements PricingBackend {
     // Apply rate limiting to avoid server load, even for static resources
     await Bun.sleep(RATE_LIMIT_MS)
 
-    const response = await this.http.fetch(symbol.svg_uri)
+    const response = await this.fetchWithTimeout(symbol.svg_uri)
     if (!response.ok) throw new Error(`Failed to download symbol ${symbol.symbol}`)
 
     const buffer = await response.arrayBuffer()
@@ -409,7 +441,7 @@ export class ScryfallClient implements PricingBackend {
       const queryName = getFrontFaceName(name)
       if (!queryName) return null
       const url = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(queryName)}`
-      const response = await this.http.fetch(url)
+      const response = await this.fetchWithTimeout(url)
 
       if (response.ok) {
         const json = (await response.json()) as ScryfallCard
@@ -474,7 +506,7 @@ export class ScryfallClient implements PricingBackend {
   private async fetchSingleCard(url: string): Promise<FetchCardResult> {
     let result: FetchCardResult
     try {
-      const response = await this.http.fetch(url)
+      const response = await this.fetchWithTimeout(url)
       if (response.ok) {
         result = (await response.json()) as ScryfallCard
       } else if (response.status === 404) {
@@ -504,7 +536,7 @@ export class ScryfallClient implements PricingBackend {
         name: getFrontFaceName(name),
       }))
 
-      const response = await this.http.fetch('https://api.scryfall.com/cards/collection', {
+      const response = await this.fetchWithTimeout('https://api.scryfall.com/cards/collection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifiers }),
@@ -576,7 +608,7 @@ export class ScryfallClient implements PricingBackend {
         (url: string): (() => Promise<void>) =>
         async () => {
           try {
-            const response = await this.http.fetch(url)
+            const response = await this.fetchWithTimeout(url)
             if (!response.ok) {
               if (response.status === 404 && !firstPageDone) {
                 await this.cardCache.addToBlocklist?.(name)
@@ -612,7 +644,7 @@ export class ScryfallClient implements PricingBackend {
     const url = `https://api.scryfall.com/cards/search?q=${encodedName}+unique%3Aprints&order=${orderField}&dir=asc`
 
     try {
-      const response = await this.http.fetch(url)
+      const response = await this.fetchWithTimeout(url)
       if (response.ok) {
         const json = (await response.json()) as ScryfallList<ScryfallCard>
         const data = json.data
@@ -648,7 +680,7 @@ export class ScryfallClient implements PricingBackend {
       const allCards: ScryfallCard[] = []
 
       while (nextUrl) {
-        const response: Response = await this.http.fetch(nextUrl)
+        const response: Response = await this.fetchWithTimeout(nextUrl)
 
         if (response.ok) {
           const json = (await response.json()) as ScryfallList<ScryfallCard>
@@ -701,7 +733,7 @@ export class ScryfallClient implements PricingBackend {
     const pageParam = `&page=${page}`
     const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(query)}&order=edhrec${formatParam}${pageParam}`
 
-    const response = await this.http.fetch(url)
+    const response = await this.fetchWithTimeout(url)
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -741,7 +773,7 @@ export class ScryfallClient implements PricingBackend {
       // Download if not in cache
       await this.fileSystem.mkdir(getImageCacheDir(), { recursive: true })
 
-      const response = await this.http.fetch(url)
+      const response = await this.fetchWithTimeout(url)
       if (!response.ok) return false
 
       const blob = await response.blob()

@@ -1,4 +1,4 @@
-import { Command } from 'commander'
+import { Command, Option } from 'commander'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getBaseDir } from '../base-dir'
@@ -16,8 +16,19 @@ import { parseDeckFrontMatter, serializeDeckToMarkdown } from '../deck-file'
 import { parseDeckText } from '../importers/text-file'
 import { moveListSidecars } from '../list-sidecars'
 import { collectionToMarkdown, wantedToMarkdown } from '../editor/list-export'
+import { isNoInput } from '../no-input'
+import { CardCommandError } from '../errors'
+import { runCommandAction } from './card-target'
 import { promptDeckFormat } from './deck-helpers'
 import { readCollectionFile, readWantedFile } from './flat-list-session'
+import {
+  addDryRunOption,
+  addScriptingOptions,
+  emitOutput,
+  ExitCode,
+  normalizeScriptingOptions,
+  type ScriptingOptions,
+} from './scripting'
 
 /**
  * The `ritual cleanup` command: one pass over every deck, collection, and wanted
@@ -62,6 +73,11 @@ export type CleanupResult = {
   rewritten: boolean
   /** True for a deck left without a format (no answer, or dry-run). */
   missingFormat?: boolean
+  /**
+   * True when parse warnings blocked the rewrite: the parser skipped lines, so
+   * a re-emit would silently drop them. The file must be fixed by hand.
+   */
+  rewriteBlocked?: boolean
   warnings: string[]
 }
 
@@ -228,6 +244,7 @@ export async function cleanupList(
   // A file whose parse skipped lines would lose them if re-emitted; leave its
   // content alone (renaming is still safe) and surface the warnings instead.
   if (document.parseWarnings.length > 0) {
+    result.rewriteBlocked = true
     result.warnings.push(...document.parseWarnings)
     result.warnings.push('not rewritten: fix the lines above and rerun cleanup')
   } else {
@@ -254,16 +271,28 @@ export async function cleanupAllLists(options: CleanupOptions = {}): Promise<Cle
   return results
 }
 
-type CleanupCommandOptions = Pick<CleanupOptions, 'dryRun'>
+type CleanupCommandOptions = {
+  dryRun?: boolean
+  skipFormats?: boolean
+  check?: boolean
+} & Partial<ScriptingOptions>
+
+/** The `--output json`/`ndjson` payload: per-file results plus flattened warnings. */
+type CleanupReport = {
+  files: CleanupResult[]
+  warnings: string[]
+}
 
 /** The action phrases reported for one cleaned-up file, e.g. `renamed to 'Winota Stax.md'`. */
-function describeActions(result: CleanupResult, dryRun: boolean): string[] {
+function describeActions(result: CleanupResult, dryRun: boolean, skipFormats: boolean): string[] {
   const actions: string[] = []
   if (result.formatSet) actions.push(`format set to ${result.formatSet}`)
   if (result.renamedTo) actions.push(`renamed to '${result.renamedTo}'`)
   if (result.rewritten) actions.push('rewritten in canonical form')
   if (result.missingFormat) {
-    actions.push(dryRun ? 'needs a format' : 'left without a format')
+    actions.push(
+      dryRun ? 'needs a format' : skipFormats ? 'format skipped' : 'left without a format',
+    )
   }
   return actions
 }
@@ -283,53 +312,137 @@ function formatSignalNote(deckName: string, signal: DeckFormatSignal): string {
   }
 }
 
-async function runCleanup(options: CleanupCommandOptions): Promise<void> {
+/** Whether a result carries a change a real (or `--check`) run would write. */
+function wouldChangeFile(result: CleanupResult): boolean {
+  return result.rewritten || result.renamedTo !== undefined || result.formatSet !== undefined
+}
+
+async function runCleanup(
+  options: CleanupCommandOptions,
+  scripting: ScriptingOptions,
+): Promise<void> {
+  const check = options.check ?? false
+  // `--check` implies `--dry-run` (see the Option registration below).
   const dryRun = options.dryRun ?? false
+  const skipFormats = options.skipFormats ?? false
   const baseDir = getBaseDir()
-  const prefix = dryRun ? '[dry-run] ' : ''
+  const prefix = check ? '[check] ' : dryRun ? '[dry-run] ' : ''
 
-  const chooseFormat = dryRun
-    ? undefined
-    : async (deckName: string, signal: DeckFormatSignal): Promise<DeckFormatKey | null> => {
-        console.log(formatSignalNote(deckName, signal))
-        return promptDeckFormat({ keys: deckFormatKeysForSignal(signal.kind) })
-      }
+  // The interactive format prompt needs a terminal, enabled prompting, and
+  // ownership of stdout (JSON/NDJSON output cannot share it with a prompt).
+  const interactive = scripting.output === 'text' && !isNoInput() && process.stdin.isTTY === true
 
-  const results = await cleanupAllLists({ dryRun, chooseFormat })
-
-  let changed = 0
-  for (const result of results) {
-    if (!hasCleanupActions(result)) continue
-    changed++
-    const rel = path.relative(baseDir, result.filePath)
-    const actions = describeActions(result, dryRun)
-    if (actions.length > 0) {
-      console.log(`${prefix}${rel}: ${actions.join(', ')}`)
-    }
-    for (const warning of result.warnings) {
-      console.warn(`${prefix}${rel}: warning: ${warning}`)
+  // A real run over a formatless deck needs the prompt. When prompts are
+  // unavailable, refuse up front — before any file is touched — instead of
+  // failing midway through the pass.
+  if (!dryRun && !skipFormats && !interactive) {
+    const preview = await cleanupAllLists({ dryRun: true })
+    const formatless = preview.filter((result) => result.missingFormat)
+    if (formatless.length > 0) {
+      const names = formatless.map((result) => path.relative(baseDir, result.filePath)).join(', ')
+      throw new CardCommandError(
+        'usage_error',
+        `${formatless.length} deck(s) have no format and prompts are unavailable (${names}). ` +
+          'Re-run with --skip-formats to leave them untouched, or run interactively to choose formats.',
+        ExitCode.UsageError,
+      )
     }
   }
 
-  const files = (count: number): string => `${count} list file${count === 1 ? '' : 's'}`
-  if (results.length === 0) {
-    console.log('No list files found.')
-  } else if (changed === 0) {
-    console.log(`Checked ${files(results.length)}; everything is already clean.`)
+  const chooseFormat =
+    dryRun || skipFormats
+      ? undefined
+      : async (deckName: string, signal: DeckFormatSignal): Promise<DeckFormatKey | null> => {
+          console.log(formatSignalNote(deckName, signal))
+          return promptDeckFormat({ keys: deckFormatKeysForSignal(signal.kind) })
+        }
+
+  const results = await cleanupAllLists({ dryRun, chooseFormat })
+  const reported = results.filter(hasCleanupActions)
+
+  if (scripting.output === 'text') {
+    for (const result of reported) {
+      const rel = path.relative(baseDir, result.filePath)
+      const actions = describeActions(result, dryRun, skipFormats)
+      if (actions.length > 0 && !scripting.quiet) {
+        console.log(`${prefix}${rel}: ${actions.join(', ')}`)
+      }
+      for (const warning of result.warnings) {
+        console.warn(`${prefix}${rel}: warning: ${warning}`)
+      }
+    }
+
+    if (!scripting.quiet) {
+      const files = (count: number): string => `${count} list file${count === 1 ? '' : 's'}`
+      if (results.length === 0) {
+        console.log('No list files found.')
+      } else if (reported.length === 0) {
+        console.log(`Checked ${files(results.length)}; everything is already clean.`)
+      } else {
+        // Count only what a run would actually write — a deck that merely
+        // needs a format (unanswerable without a prompt) is reported above but
+        // is not a pending change, and `--check`'s exit code agrees.
+        const changing = reported.filter(wouldChangeFile).length
+        if (changing > 0) {
+          const verb = dryRun ? 'Would clean up' : 'Cleaned up'
+          console.log(`\n${verb} ${changing} of ${files(results.length)}.`)
+        }
+        const formatOnly = reported.length - changing
+        if (formatOnly > 0) {
+          console.log(
+            `${formatOnly} deck${formatOnly === 1 ? '' : 's'} still need${formatOnly === 1 ? 's' : ''} a format (run interactively to choose, or pass --skip-formats to leave as-is).`,
+          )
+        }
+      }
+    }
   } else {
-    const verb = dryRun ? 'Would clean up' : 'Cleaned up'
-    console.log(`\n${verb} ${changed} of ${files(results.length)}.`)
+    const report: CleanupReport = {
+      files: reported,
+      warnings: reported.flatMap((result) =>
+        result.warnings.map((warning) => `${path.relative(baseDir, result.filePath)}: ${warning}`),
+      ),
+    }
+    emitOutput(report, scripting)
+  }
+
+  const blocked = results.some((result) => result.rewriteBlocked)
+  if (check) {
+    // `--check` is for hooks/CI: fail when a real run would change any file,
+    // or when a file cannot be brought to canonical form (blocked rewrite).
+    if (results.some(wouldChangeFile) || blocked) {
+      process.exitCode = ExitCode.RuntimeError
+    }
+    return
+  }
+  // A real run that had to leave a file un-rewritten because its parse skipped
+  // lines did not fully clean the workspace — surface that in the exit code.
+  if (!dryRun && blocked) {
+    process.exitCode = ExitCode.RuntimeError
   }
 }
 
 export function registerCleanupCommand(program: Command): void {
-  program
-    .command('cleanup')
-    .description(
-      'Normalize every list file: canonical formatting, file names that match list names, and a format for every deck',
+  addScriptingOptions(
+    addDryRunOption(
+      program
+        .command('cleanup')
+        .description(
+          'Normalize every list file: canonical formatting, file names that match list names, and a format for every deck',
+        ),
+      'Report what would change without writing anything',
     )
-    .option('-n, --dry-run', 'Report what would change without writing anything')
-    .action(async (options: CleanupCommandOptions) => {
-      await runCleanup(options)
-    })
+      .option(
+        '--skip-formats',
+        'Never prompt for deck formats; leave formatless decks untouched and report them',
+      )
+      .addOption(
+        new Option(
+          '--check',
+          'Like --dry-run, but exit 1 when any file would change (for hooks and CI)',
+        ).implies({ dryRun: true }),
+      ),
+  ).action(async (options: CleanupCommandOptions) => {
+    const scripting = normalizeScriptingOptions(options)
+    await runCommandAction(scripting, () => runCleanup(options, scripting))
+  })
 }

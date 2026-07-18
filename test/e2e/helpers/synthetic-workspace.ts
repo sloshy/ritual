@@ -8,7 +8,7 @@ import type { RitualConfig } from '../../../src/ritual-config'
 /**
  * Builds the fully synthetic workspace the e2e servers run against: seed
  * decks/collections/wanted lists, a ritual.config.json, and a pre-populated
- * Scryfall cache (cards, symbology, symbol SVGs) so `build-site --no-refresh`
+ * Scryfall cache (cards, symbology, symbol SVGs) so `build-site --refresh never`
  * and the admin server never touch the network or the developer's real data.
  */
 

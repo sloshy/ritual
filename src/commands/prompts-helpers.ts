@@ -2,6 +2,9 @@ import prompts, { type Choice } from 'prompts'
 import type { PromptState } from './prompts-types'
 import { LIST_TYPES, type ListType } from '../list-type'
 import { matchesAllTerms } from '../term-match'
+import { isNoInput } from '../no-input'
+import { CardCommandError } from '../errors'
+import { ExitCode } from './scripting'
 
 type PromptAnswer = { value?: unknown }
 
@@ -25,6 +28,14 @@ export async function suggestByTitleTerms(rawInput: unknown, choices: Choice[]):
 export async function ask<T>(
   question: Omit<prompts.PromptObject<'value'>, 'name'>,
 ): Promise<T | undefined> {
+  if (isNoInput() || !process.stdin.isTTY) {
+    const label = typeof question.message === 'string' ? question.message : 'interactive input'
+    throw new CardCommandError(
+      'usage_error',
+      `Input required: ${label} (prompts are disabled)`,
+      ExitCode.UsageError,
+    )
+  }
   let exited = false
   const response = (await prompts({
     ...question,
@@ -35,6 +46,22 @@ export async function ask<T>(
   })) as PromptAnswer
   if (exited || response.value === undefined) return undefined
   return response.value as T
+}
+
+/**
+ * Read the password from stdin, draining it fully and stripping exactly one
+ * trailing newline (`\r?\n`). Deliberately NOT `readLinesFromStdin` from
+ * card.ts — that helper trims and filters lines, which would corrupt
+ * passwords containing leading/trailing whitespace.
+ */
+export async function readPasswordFromStdin(): Promise<string> {
+  const chunks: Uint8Array[] = []
+  for await (const chunk of process.stdin as AsyncIterable<Uint8Array>) {
+    chunks.push(chunk)
+  }
+  return Buffer.concat(chunks)
+    .toString('utf-8')
+    .replace(/\r?\n$/, '')
 }
 
 /**

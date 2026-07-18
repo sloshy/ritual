@@ -33,7 +33,8 @@ import {
   type ScriptingOptions,
 } from './scripting'
 import { promptExitMenu } from './prompts-helpers'
-import { CardCommandError, parsePositiveInteger, requireInteractive } from './card-target'
+import { CardCommandError } from '../errors'
+import { parsePositiveInteger, requireInteractive } from './card-target'
 
 type HistoryOptions = ListTypeFlags &
   Partial<ScriptingOptions> & {
