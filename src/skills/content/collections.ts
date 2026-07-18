@@ -79,14 +79,15 @@ physical printings, so name-only lines are rejected.
 
 ## Import from a CSV file
 
-\`import-csv\` imports a CSV export (Moxfield, Deckbox, ManaBox, ...) into a new
-collection, or appends to an existing one. Non-interactive agents must pass all flags
-(running it bare opens an interactive column-mapping wizard):
+A \`.csv\` source makes \`import\` import a CSV export (Moxfield, Deckbox, ManaBox, ...)
+into a new collection, or append to an existing one (\`--csv\` forces CSV parsing for
+other extensions). Non-interactive agents must pass all flags (running it bare opens
+an interactive column-mapping wizard):
 
 \`\`\`bash
-ritual import-csv binder.csv --type collection --name "Red Binder" \\
+ritual import binder.csv --type collection --name "Red Binder" \\
   --columns "name=1,set=2,collector-number=3,finish=4,condition=5,quantity=6"
-ritual import-csv more.csv --type collection --name "Red Binder" --append \\
+ritual import more.csv --type collection --name "Red Binder" --append \\
   --columns "name=1,set=2,collector-number=3"
 \`\`\`
 

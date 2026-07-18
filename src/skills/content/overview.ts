@@ -104,7 +104,7 @@ formats, leaving formatless decks untouched and reported).
   the same. There are no per-command non-interactive flags.
 
 Commands that read the Scryfall card cache (\`add-card\`, \`edit\`, \`price\`,
-\`build-site\`, \`serve-site\`, \`admin\`) also share a \`--refresh <mode>\` option
+\`build-site\`, \`serve --build\`, \`admin\`) also share a \`--refresh <mode>\` option
 controlling cache freshness: \`ask\` (the default — prompt about stale or empty
 caches; the prompt is skipped when prompts are unavailable), \`auto\` (refresh
 stale data without asking, bulk download allowed), \`no-bulk\` (refresh stale
@@ -125,8 +125,8 @@ ritual config unset <prop>        # revert a value to its default
 ritual cache status               # report cache size/freshness/source without refreshing
 ritual cache preload-all          # warm the Scryfall card cache + tags (bulk download)
 ritual cache refresh-tags         # refresh only the oracle/art tags on cached cards
-ritual cache-feed host            # host a P2P feed of the raw Scryfall bulk files
-ritual cache-feed fetch           # sync the cache from a feed, then seed to peers
+ritual cache feed host            # host a P2P feed of the raw Scryfall bulk files
+ritual cache feed fetch           # sync the cache from a feed, then seed to peers
 ritual config set cacheSource feed  # make all cache refreshes sync via the feed
 \`\`\`
 

@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test'
-import { shouldPageInteractively, type ScryPagingInput } from '../../../src/commands/scry'
+import {
+  shouldPageInteractively,
+  validateScryUsage,
+  type ScryPagingInput,
+  type ScryUsageInput,
+} from '../../../src/commands/scry'
 
 function input(overrides: Partial<ScryPagingInput> = {}): ScryPagingInput {
   return {
@@ -28,4 +33,48 @@ describe('shouldPageInteractively', () => {
   // `--quiet` is deliberately not an input to this gate: it silences
   // non-essential chatter, never interaction. ScryPagingInput having no quiet
   // field pins that structurally.
+})
+
+function usage(overrides: Partial<ScryUsageInput> = {}): ScryUsageInput {
+  return {
+    query: 'type:creature',
+    random: false,
+    countFlag: undefined,
+    csv: false,
+    pagesFlag: undefined,
+    ...overrides,
+  }
+}
+
+describe('validateScryUsage', () => {
+  test.each<[string, ScryUsageInput]>([
+    ['a plain search query', usage()],
+    ['a search with --csv and --pages', usage({ csv: true, pagesFlag: 3 })],
+    ['--random without a query', usage({ query: undefined, random: true })],
+    ['--random with a query filter', usage({ random: true })],
+    ['--random with --count', usage({ query: undefined, random: true, countFlag: 3 })],
+  ])('%s is valid', (_label, value) => {
+    expect(validateScryUsage(value)).toBeNull()
+  })
+
+  test.each<[string, ScryUsageInput, string]>([
+    [
+      'no query and no --random',
+      usage({ query: undefined }),
+      'A search query is required unless --random is given.',
+    ],
+    ['--count without --random', usage({ countFlag: 2 }), '--count requires --random.'],
+    [
+      '--random with --pages',
+      usage({ random: true, pagesFlag: 2 }),
+      '--pages cannot be used with --random.',
+    ],
+    [
+      '--random with --csv',
+      usage({ random: true, csv: true }),
+      '--csv cannot be used with --random.',
+    ],
+  ])('%s is a usage error', (_label, value, message) => {
+    expect(validateScryUsage(value)).toBe(message)
+  })
 })

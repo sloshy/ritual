@@ -111,15 +111,16 @@ Moxfield imports need a unique User-Agent: pass
 
 ## Import from a CSV file
 
-\`import-csv\` imports a CSV export into a new deck, or appends to an existing one.
-Non-interactive agents must pass all flags (running it bare opens an interactive
-column-mapping wizard):
+A \`.csv\` source makes \`import\` import a CSV export into a new deck, or append to an
+existing one (\`--csv\` forces CSV parsing for other extensions). Non-interactive
+agents must pass all flags (running it bare opens an interactive column-mapping
+wizard):
 
 \`\`\`bash
-ritual import-csv burn.csv --type deck --name "Burn" --format modern \\
+ritual import burn.csv --type deck --name "Burn" --deck-format modern \\
   --columns "quantity=1,name=2,section=3"
-ritual import-csv more.csv --type deck --name "Burn" --append \\
-  --columns "quantity=1,name=2"          # merge into existing lines; no --format needed
+ritual import more.csv --type deck --name "Burn" --append \\
+  --columns "quantity=1,name=2"          # merge into existing lines; no --deck-format needed
 \`\`\`
 
 \`--columns\` maps fields to 1-based column numbers (fields: \`name\`, \`set\`,

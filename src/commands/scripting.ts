@@ -61,6 +61,15 @@ export function addDryRunOption(command: Command, description: string): Command 
   return command.option('-n, --dry-run', description)
 }
 
+/** Register the shared `--fields <list>` projection flag for json/ndjson output. */
+export function addFieldsOption(command: Command): Command {
+  return command.option(
+    '--fields <list>',
+    'Comma-separated fields for json/ndjson output',
+    parseFields,
+  )
+}
+
 export function normalizeScriptingOptions(
   options: Partial<ScriptingOptions>,
   defaultOutput: OutputFormat = 'text',
@@ -107,6 +116,31 @@ export function emitError(
   }
 
   process.stderr.write(`${message}\n`)
+}
+
+/**
+ * The `--fields` projection only applies to structured output. When `--fields`
+ * was given alongside `--output text`, emit the shared usage error, set the
+ * usage exit code, and return true so the caller can bail out.
+ */
+export function rejectFieldsWithTextOutput(
+  fields: string[] | undefined,
+  options: ScriptingOptions,
+): boolean {
+  if (fields !== undefined && fields.length > 0 && options.output === 'text') {
+    emitError('usage_error', '--fields requires --output json or --output ndjson.', options)
+    process.exitCode = ExitCode.UsageError
+    return true
+  }
+  return false
+}
+
+/** The card fields {@link renderCardSummary} needs for its one-line summary. */
+export type CardSummary = { name: string; set: string }
+
+/** The shared one-line text rendering for a fetched card: `Name (SET)`. */
+export function renderCardSummary(card: CardSummary): string {
+  return `${card.name} (${card.set.toUpperCase()})`
 }
 
 /**

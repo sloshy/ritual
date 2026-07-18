@@ -38,7 +38,7 @@ The admin site offers the same editor in the browser — see the [Change History
 
 `--deck`, `--collection`, and `--wanted` are mutually exclusive. `--limit` requires `--show`.
 
-## Read-only output with --show
+## Read-only output with `--show`
 
 `--show` skips the editor entirely and prints the change history newest-first, then exits. Nothing is ever written.
 

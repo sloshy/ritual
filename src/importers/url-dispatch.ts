@@ -85,8 +85,11 @@ export function resolveMoxfieldUserAgent(
   return undefined
 }
 
-/** Run `fn` with `MOXFIELD_USER_AGENT` temporarily set, restoring it afterward. */
-async function withMoxfieldUserAgent<T>(userAgent: string, run: () => Promise<T>): Promise<T> {
+/** Run `run` with `MOXFIELD_USER_AGENT` temporarily set, restoring it afterward. */
+export async function withMoxfieldUserAgent<T>(
+  userAgent: string,
+  run: () => Promise<T>,
+): Promise<T> {
   const previousUserAgent = process.env.MOXFIELD_USER_AGENT
   process.env.MOXFIELD_USER_AGENT = userAgent
 

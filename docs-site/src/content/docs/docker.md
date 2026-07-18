@@ -25,7 +25,7 @@ If git metadata is unavailable, the script falls back to a short commit SHA, the
 
 ### Example `docker-compose.yml`
 
-This `docker-compose.yml` example shows an example of running the `cache-server` command, which starts the [cache server](/commands/cache-server/) with some common options:
+This `docker-compose.yml` example shows an example of running the `cache server` command, which starts the [cache server](/commands/cache/#server) with some common options:
 
 ```yaml
 services:
@@ -40,7 +40,7 @@ services:
       - ./collections:/app/collections
       - ./cache:/app/cache
       - ./.logins:/app/.logins
-    command: cache-server --host 0.0.0.0 --port 4000 --verbose --cards-refresh weekly --prices-refresh weekly
+    command: cache server --host 0.0.0.0 --port 4000 --verbose --cards-refresh weekly --prices-refresh weekly
 ```
 
 ## Directory Mounts

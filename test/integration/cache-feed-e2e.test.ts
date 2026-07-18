@@ -84,7 +84,7 @@ async function leechAndVerify(entry: CacheFeedEntry, peerPort: number): Promise<
   }
 }
 
-describe('cache-feed host (e2e over the built binary)', () => {
+describe('cache feed host (e2e over the built binary)', () => {
   let upstream: ReturnType<typeof Bun.serve>
   let hostProc: Subprocess | undefined
   let feedDir: string
@@ -121,7 +121,8 @@ describe('cache-feed host (e2e over the built binary)', () => {
     hostProc = Bun.spawn(
       [
         binaryPath,
-        'cache-feed',
+        'cache',
+        'feed',
         'host',
         '--port',
         String(FEED_PORT),
@@ -160,7 +161,10 @@ describe('cache-feed host (e2e over the built binary)', () => {
     const fetchDir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-fetch-cwd-'))
     try {
       const feedUrl = `http://127.0.0.1:${FEED_PORT}/feed.json`
-      const first = await runCli(['cache-feed', 'fetch', '--url', feedUrl, '--no-seed'], fetchDir)
+      const first = await runCli(
+        ['cache', 'feed', 'fetch', '--url', feedUrl, '--no-seed'],
+        fetchDir,
+      )
       expect(first.exitCode).toBe(0)
       expect(first.stdout).toContain('Card cache updated from the feed.')
 
@@ -173,7 +177,10 @@ describe('cache-feed host (e2e over the built binary)', () => {
         await Bun.file(path.join(fetchDir, 'cache', 'feed-client', 'state.json')).exists(),
       ).toBeTrue()
 
-      const second = await runCli(['cache-feed', 'fetch', '--url', feedUrl, '--no-seed'], fetchDir)
+      const second = await runCli(
+        ['cache', 'feed', 'fetch', '--url', feedUrl, '--no-seed'],
+        fetchDir,
+      )
       expect(second.exitCode).toBe(0)
       expect(second.stdout).toContain('Feed is unchanged')
     } finally {
@@ -188,14 +195,15 @@ describe('cache-feed host (e2e over the built binary)', () => {
       serverProc = Bun.spawn(
         [
           binaryPath,
-          'cache-server',
+          'cache',
+          'server',
           '--port',
           String(CACHE_SERVER_PORT),
           '--cache-source',
           'feed',
-          '--feed-url',
+          '--url',
           `http://127.0.0.1:${FEED_PORT}/feed.json`,
-          '--feed-torrent-port',
+          '--torrent-port',
           String(CACHE_SERVER_TORRENT_PORT),
         ],
         { cwd: serverDir, stdout: 'pipe', stderr: 'pipe' },
@@ -239,21 +247,22 @@ describe('cache-feed host (e2e over the built binary)', () => {
     }
   }, 120_000)
 
-  test('--no-feed-seed syncs the cache without seeding', async () => {
+  test('--no-seed syncs the cache without seeding', async () => {
     const serverDir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-cache-server-noseed-'))
     let serverProc: Subprocess | undefined
     try {
       serverProc = Bun.spawn(
         [
           binaryPath,
-          'cache-server',
+          'cache',
+          'server',
           '--port',
           String(CACHE_SERVER_PORT + 2),
           '--cache-source',
           'feed',
-          '--feed-url',
+          '--url',
           `http://127.0.0.1:${FEED_PORT}/feed.json`,
-          '--no-feed-seed',
+          '--no-seed',
         ],
         { cwd: serverDir, stdout: 'pipe', stderr: 'pipe' },
       )

@@ -24,7 +24,7 @@ function prepareEntries(csv: string, spec: string, listType: ListType): CsvConve
   return convertCsvRows(parsed.rows, mapping, listType)
 }
 
-describe('import-csv', () => {
+describe('applyCsvImport', () => {
   let ws: BoundWorkspace
   let tmpDir: string
 
@@ -106,5 +106,63 @@ describe('import-csv', () => {
     const changelog = await fs.readFile(path.join(tmpDir, 'decks', 'Burn.changes.md'), 'utf-8')
     expect(changelog).toContain('Added "Lightning Bolt" &1')
     expect(changelog).toContain('Added "Pyroblast" to Sideboard &3')
+  })
+
+  test('dry-run create reports the target without writing the file', async () => {
+    const { entries } = prepareEntries('Lightning Bolt,2', 'name=1,quantity=2', 'wanted')
+    const result = await applyCsvImport(
+      { listType: 'wanted', name: 'To Buy', mode: 'create' },
+      entries,
+      { dryRun: true },
+    )
+    if ('error' in result) throw new Error(result.error)
+    expect(result.cardCount).toBe(2)
+    expect(result.mode).toBe('create')
+    expect(result.filePath).toBe(path.join(tmpDir, 'wanted', 'To Buy.md'))
+    expect(await Bun.file(result.filePath).exists()).toBeFalse()
+  })
+
+  test('dry-run append leaves the list and its changelog untouched', async () => {
+    const filePath = await writeCollectionFile(tmpDir, 'Binder', {
+      entries: [{ name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }],
+    })
+    const before = await fs.readFile(filePath, 'utf-8')
+
+    const { entries } = prepareEntries(
+      'Lightning Bolt,lea,161,2',
+      'name=1,set=2,collector-number=3,quantity=4',
+      'collection',
+    )
+    const result = await applyCsvImport(
+      { listType: 'collection', name: 'Binder', mode: 'append' },
+      entries,
+      { dryRun: true },
+    )
+    if ('error' in result) throw new Error(result.error)
+    expect(result.cardCount).toBe(2)
+    expect(result.mode).toBe('append')
+    expect(result.changelogPath).toBeUndefined()
+
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
+    const changelogPath = path.join(tmpDir, 'collections', 'Binder.changes.md')
+    expect(await Bun.file(changelogPath).exists()).toBeFalse()
+  })
+
+  test('dry-run create still reports an existing target as an error', async () => {
+    await writeCollectionFile(tmpDir, 'Binder', {
+      entries: [{ name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }],
+    })
+
+    const { entries } = prepareEntries(
+      'Lightning Bolt,lea,161',
+      'name=1,set=2,collector-number=3',
+      'collection',
+    )
+    const result = await applyCsvImport(
+      { listType: 'collection', name: 'Binder', mode: 'create' },
+      entries,
+      { dryRun: true },
+    )
+    expect('error' in result && result.error).toContain('File already exists')
   })
 })

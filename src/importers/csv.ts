@@ -7,7 +7,7 @@ import type { ListType } from '../list-type'
  * (Moxfield, Deckbox, ManaBox, TCGplayer, ...) into Ritual card entries.
  *
  * Everything in this module is pure so it can be unit tested; the file I/O and
- * interactive wizard live in `src/commands/import-csv.ts`.
+ * interactive wizard live in `src/commands/import.ts`.
  */
 
 /** One parsed CSV record, with enough source info to report failures usefully. */

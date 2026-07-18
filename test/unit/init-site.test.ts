@@ -241,7 +241,7 @@ describe('generateReadme', () => {
     expect(readme).toContain('https://ritual.rpeters.dev/')
     // Browser editor, local preview, and repo layout pointers.
     expect(readme).toContain('ritual admin')
-    expect(readme).toContain('ritual serve')
+    expect(readme).toContain('ritual serve --build')
     expect(readme).toContain('http://localhost:3000')
     expect(readme).toContain('ritual.config.json')
   })

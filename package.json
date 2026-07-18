@@ -14,7 +14,7 @@
     "build:assets": "sh scripts/bundle-assets.sh && bun run scripts/generate-licenses.ts",
     "dev": "bun scripts/dev.ts",
     "version:sync": "bun run scripts/sync-version.ts",
-    "serve": "bun run index.ts build-site && bun run index.ts serve",
+    "serve": "bun run index.ts serve --build",
     "format": "prettier --write .",
     "check-format": "prettier --check .",
     "lint": "eslint . --concurrency auto",

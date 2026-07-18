@@ -3,14 +3,16 @@ import fs from 'node:fs/promises'
 import { classifyFetchCard, scryfallClient } from '../scryfall'
 import { getErrorMessage } from '../errors'
 import {
+  addFieldsOption,
   addScriptingOptions,
   classifyFileReadError,
   emitError,
   emitOutput,
   ExitCode,
   normalizeScriptingOptions,
-  parseFields,
   projectFields,
+  rejectFieldsWithTextOutput,
+  renderCardSummary,
 } from './scripting'
 
 type CardCommandOptions = {
@@ -45,25 +47,20 @@ function parseInputNames(raw: string): string[] {
 
 export function registerCardCommand(program: Command): void {
   addScriptingOptions(
-    program
-      .command('card')
-      .description('Look up a single card by name using Scryfall')
-      .argument('[name]', 'Card name to search for')
-      .option('--fuzzy', 'Use fuzzy matching instead of exact', false)
-      .option('--set <code>', 'Filter by set code')
-      .option('--stdin', 'Read card names from stdin (one per line)')
-      .option('--from-file <path>', 'Read card names from file (one per line)')
-      .option('--fields <list>', 'Comma-separated fields for json/ndjson output', parseFields),
+    addFieldsOption(
+      program
+        .command('card')
+        .description('Look up a single card by name using Scryfall')
+        .argument('[name]', 'Card name to search for')
+        .option('--fuzzy', 'Use fuzzy matching instead of exact', false)
+        .option('--set <code>', 'Filter by set code')
+        .option('--stdin', 'Read card names from stdin (one per line)')
+        .option('--from-file <path>', 'Read card names from file (one per line)'),
+    ),
     'json',
   ).action(async (name: string | undefined, options: CardCommandOptions) => {
     const scriptingOptions = normalizeScriptingOptions(options, 'json')
-    if (options.fields && options.fields.length > 0 && scriptingOptions.output === 'text') {
-      emitError(
-        'usage_error',
-        '--fields requires --output json or --output ndjson.',
-        scriptingOptions,
-      )
-      process.exitCode = ExitCode.UsageError
+    if (rejectFieldsWithTextOutput(options.fields, scriptingOptions)) {
       return
     }
     if (options.stdin && options.fromFile) {
@@ -142,7 +139,7 @@ export function registerCardCommand(program: Command): void {
       const card = outcome.card
 
       if (effectiveOptions.output === 'text') {
-        emitOutput(`${card.name} (${card.set.toUpperCase()})`, effectiveOptions)
+        emitOutput(renderCardSummary(card), effectiveOptions)
         continue
       }
 

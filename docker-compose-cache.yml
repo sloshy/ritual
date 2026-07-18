@@ -9,5 +9,5 @@ services:
       # - ./decks:/app/decks # Used for loading and downloading decks
       # - ./collections:/app/collections # Used for your collection files
       # - ./.logins:/app/.logins # Used for your logins to various Magic-related websites
-    command: cache-server --verbose --cards-refresh weekly --prices-refresh weekly
+    command: cache server --verbose --cards-refresh weekly --prices-refresh weekly
     restart: unless-stopped

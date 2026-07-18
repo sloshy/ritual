@@ -142,7 +142,7 @@ For upload and paste, an optional **Deck Name** is used unless the text defines 
 
 ### Import CSV
 
-Import cards from a CSV export (Moxfield, Deckbox, ManaBox, ...) into a deck, collection, or wanted list — either **creating a new list** or **appending to an existing one**. Upload a file or paste CSV text; the page parses it in the browser, guesses whether the first row is a header, and pre-selects which column holds each card field (name, set, collector number, condition, finish, section, quantity) for you to confirm. Values are normalized on import (e.g. `Near Mint` → `NM`, `F` → foil, `side` → `Sideboard`) exactly like the [`import-csv`](/commands/import-csv/) CLI command, which shares the same engine.
+Import cards from a CSV export (Moxfield, Deckbox, ManaBox, ...) into a deck, collection, or wanted list — either **creating a new list** or **appending to an existing one**. Upload a file or paste CSV text; the page parses it in the browser, guesses whether the first row is a header, and pre-selects which column holds each card field (name, set, collector number, condition, finish, section, quantity) for you to confirm. Values are normalized on import (e.g. `Near Mint` → `NM`, `F` → foil, `side` → `Sideboard`) exactly like the [`import`](/commands/import/#csv-imports) CLI command's CSV mode, which shares the same engine.
 
 When creating, an **Overwrite if a list with this name exists** checkbox replaces an existing list of the same name; in **Append to Existing** mode the target is picked from a dropdown of the existing lists of the selected type. Appends record every added card in the list's changelog. Rows that fail validation are listed with their line numbers; the valid rows still import.
 

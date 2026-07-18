@@ -39,13 +39,19 @@ import {
 
 /**
  * Applies converted card entries to a list on disk: creating a new list file,
- * overwriting one, or appending to an existing one. Shared by the `import-csv`
- * CLI command, the admin `/api/import-csv` route (and through it the MCP
- * server), and the `import` command's text-file imports into collections and
- * wanted lists, so every surface applies imports identically.
+ * overwriting one, or appending to an existing one. Shared by the `import`
+ * CLI command (both its CSV and text-file sources) and the admin
+ * `/api/import-csv` route (and through it the MCP server), so every surface
+ * applies imports identically.
  */
 
 export type CsvImportMode = 'create' | 'overwrite' | 'append'
+
+/** Behavior switches for {@link applyCsvImport}. */
+export type CsvImportOptions = {
+  /** Validate and resolve everything, but write neither the list file nor its changelog. */
+  dryRun?: boolean
+}
 
 /**
  * A normalized card entry ready to apply to a list. CSV rows never produce a
@@ -67,7 +73,7 @@ export type CsvImportSuccess = {
   /** Total copies imported (sum of row quantities). */
   cardCount: number
   mode: CsvImportMode
-  /** The changelog written for an append; absent for create/overwrite. */
+  /** The changelog written for an append; absent for create/overwrite and dry runs. */
   changelogPath?: string
 }
 
@@ -192,6 +198,7 @@ function buildFlatListMarkdown(
 async function createList(
   target: CsvImportTarget,
   entries: ImportCardEntry[],
+  dryRun: boolean,
 ): Promise<CsvImportOutcome> {
   const targetDir = dirForType(target.listType)
   const filePath = listFilePath(target.listType, target.name)
@@ -215,8 +222,10 @@ async function createList(
     content = buildFlatListMarkdown(target.listType, target.name, entries)
   }
 
-  await fs.mkdir(targetDir, { recursive: true })
-  await writeFileWithHash(filePath, content)
+  if (!dryRun) {
+    await fs.mkdir(targetDir, { recursive: true })
+    await writeFileWithHash(filePath, content)
+  }
   return { filePath, cardCount: totalCards(entries), mode: target.mode }
 }
 
@@ -323,6 +332,7 @@ function appendToFlatList(
 async function appendToList(
   target: CsvImportTarget,
   entries: ImportCardEntry[],
+  dryRun: boolean,
 ): Promise<CsvImportOutcome> {
   const location = await resolveList(target.name, target.listType)
   if (isResolveListError(location)) {
@@ -334,6 +344,10 @@ async function appendToList(
     target.listType === 'deck'
       ? appendToDeck(content, location.name, entries)
       : appendToFlatList(target.listType, content, location.name, entries)
+
+  if (dryRun) {
+    return { filePath: location.filePath, cardCount: totalCards(entries), mode: 'append' }
+  }
 
   await writeFileWithHash(location.filePath, result.content)
   const changelogPath = await appendChangelog(location.filePath, location.name, result.changes)
@@ -350,14 +364,17 @@ async function appendToList(
  * Apply converted card entries to the target list. Create mode refuses to
  * replace an existing file; overwrite replaces it; append requires an existing
  * list (resolved like every other list-name lookup) and records the added
- * cards in the list's changelog.
+ * cards in the list's changelog. A dry run performs every validation and
+ * resolution step but writes nothing (no list file, no changelog).
  */
 export async function applyCsvImport(
   target: CsvImportTarget,
   entries: ImportCardEntry[],
+  options: CsvImportOptions = {},
 ): Promise<CsvImportOutcome> {
+  const dryRun = options.dryRun === true
   if (target.mode === 'append') {
-    return appendToList(target, entries)
+    return appendToList(target, entries, dryRun)
   }
-  return createList(target, entries)
+  return createList(target, entries, dryRun)
 }

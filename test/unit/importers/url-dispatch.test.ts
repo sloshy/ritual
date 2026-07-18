@@ -1,8 +1,9 @@
-import { describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, test } from 'bun:test'
 import {
   matchDeckUrl,
   resolveImportSourceUrl,
   resolveMoxfieldUserAgent,
+  withMoxfieldUserAgent,
 } from '../../../src/importers/url-dispatch'
 
 describe('resolveMoxfieldUserAgent', () => {
@@ -18,6 +19,42 @@ describe('resolveMoxfieldUserAgent', () => {
     expect(resolveMoxfieldUserAgent('  cli-agent  ', 'env-agent')).toBe('cli-agent')
     expect(resolveMoxfieldUserAgent('   ', '  env-agent  ')).toBe('env-agent')
     expect(resolveMoxfieldUserAgent('   ', '   ')).toBeUndefined()
+  })
+})
+
+describe('withMoxfieldUserAgent', () => {
+  const originalUserAgent = process.env.MOXFIELD_USER_AGENT
+
+  afterEach(() => {
+    if (originalUserAgent === undefined) {
+      delete process.env.MOXFIELD_USER_AGENT
+    } else {
+      process.env.MOXFIELD_USER_AGENT = originalUserAgent
+    }
+  })
+
+  test('sets the env var for the duration of the callback and restores the previous value', async () => {
+    process.env.MOXFIELD_USER_AGENT = 'outer-agent'
+
+    const seen = await withMoxfieldUserAgent('inner-agent', async () => {
+      return process.env.MOXFIELD_USER_AGENT
+    })
+
+    expect(seen).toBe('inner-agent')
+    expect(process.env.MOXFIELD_USER_AGENT).toBe('outer-agent')
+  })
+
+  test('removes the env var afterward when it was previously unset, even on throw', async () => {
+    delete process.env.MOXFIELD_USER_AGENT
+
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's .rejects matcher is thenable at runtime but not in its types
+    await expect(
+      withMoxfieldUserAgent('inner-agent', async () => {
+        throw new Error('fetch failed')
+      }),
+    ).rejects.toThrow('fetch failed')
+
+    expect(process.env.MOXFIELD_USER_AGENT).toBeUndefined()
   })
 })
 

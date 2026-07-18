@@ -3,6 +3,11 @@ import { searchCards, refreshTags } from '../scryfall'
 import { refreshCardCache } from '../cache/refresh-source'
 import { cardCache, PRICE_MAX_AGE_MS } from '../cache'
 import { getConfiguredCacheServerAddress } from '../cache/config'
+import { addFeedUrlOption, feedUrlSourceConflict, parseCacheSourceFlag } from '../cache/cadence'
+import { getErrorMessage } from '../errors'
+import { type CacheSource as ConfiguredCacheSource } from '../ritual-config'
+import { registerCacheFeedSubcommand } from './cache-feed'
+import { registerCacheServerSubcommand } from './cache-server'
 import {
   addScriptingOptions,
   emitOutput,
@@ -13,6 +18,16 @@ import {
 
 /** Where card data is being read from: the on-disk cache or a configured cache server. */
 type CacheSource = 'local' | 'cache-server'
+
+/** Flags for `cache preload-all`. */
+type CachePreloadAllOptions = {
+  /** Override the configured `cacheSource` for this run. */
+  source?: ConfiguredCacheSource
+  /** Feed URL override — implies `--source feed`. */
+  url?: string
+  /** Re-download and re-ingest even when the feed is unchanged. */
+  force: boolean
+}
 
 /** The `cache status` report. Diagnostic only — collecting it never mutates the cache. */
 type CacheStatusResult = {
@@ -133,11 +148,37 @@ export function registerCacheCommand(program: Command): void {
       }
     })
 
-  cache
-    .command('preload-all')
-    .description('Download and cache all Scryfall card data (bulk), including oracle and art tags')
-    .action(async () => {
-      await refreshCardCache()
+  addFeedUrlOption(
+    cache
+      .command('preload-all')
+      .description(
+        'Download and cache all Scryfall card data (bulk), including oracle and art tags',
+      )
+      .option(
+        '--source <source>',
+        "Where to download from: 'scryfall' or 'feed' (overrides the cacheSource config key for this run)",
+        parseCacheSourceFlag,
+      ),
+    'Feed URL for a feed-sourced refresh (implies --source feed; defaults to the cacheFeedUrl config key)',
+  )
+    .option('--force', 'Re-download and re-ingest even when the feed is unchanged', false)
+    .action(async (options: CachePreloadAllOptions) => {
+      const conflict = feedUrlSourceConflict(options.source, options.url)
+      if (conflict !== undefined) {
+        console.error(conflict)
+        process.exitCode = ExitCode.UsageError
+        return
+      }
+      try {
+        await refreshCardCache({
+          ...(options.source !== undefined ? { source: options.source } : {}),
+          ...(options.url !== undefined ? { url: options.url } : {}),
+          force: options.force,
+        })
+      } catch (e) {
+        console.error('Failed to preload card cache:', getErrorMessage(e))
+        process.exitCode = ExitCode.RuntimeError
+      }
     })
 
   cache
@@ -146,6 +187,14 @@ export function registerCacheCommand(program: Command): void {
       'Re-download oracle and art tag bulks and re-attach them to cached cards (no full card re-download)',
     )
     .action(async () => {
-      await refreshTags()
+      try {
+        await refreshTags()
+      } catch (e) {
+        console.error('Failed to refresh tags:', getErrorMessage(e))
+        process.exitCode = ExitCode.RuntimeError
+      }
     })
+
+  registerCacheServerSubcommand(cache)
+  registerCacheFeedSubcommand(cache)
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * Source-tree dev orchestrator. Spawns `bun index.ts <subcommand> [...args]`
- * as a child, watches source files (and data files for `serve-site`), and
+ * as a child, watches source files (and data files for `serve`), and
  * fully restarts the child on changes so core-logic edits take effect.
  *
  * Only meant to run from the project root via `bun run dev`.
@@ -12,14 +12,14 @@ import { answerFlagRequiredMessage, hasAnswerFlag } from './dev-args'
 import { shouldRestartForSource } from './dev-watch'
 import { diffSnapshots, snapshotTree, type TreeSnapshot, type WatchRoot } from './dev-snapshot'
 
-const SUBCOMMANDS = ['admin', 'serve-site'] as const
+const SUBCOMMANDS = ['admin', 'serve'] as const
 type Subcommand = (typeof SUBCOMMANDS)[number]
 
 // Subcommands whose underlying command can issue interactive prompts (the
 // Scryfall cache refresh under the default `--refresh ask`). The child can't
 // read stdin under the orchestrator, so these require an explicit non-`ask`
 // `--refresh <mode>` (or `--no-input`) up front.
-const PROMPTING_SUBCOMMANDS: readonly Subcommand[] = ['admin', 'serve-site']
+const PROMPTING_SUBCOMMANDS: readonly Subcommand[] = ['admin', 'serve']
 
 const DATA_DIRS: readonly string[] = ['decks', 'collections', 'wanted']
 const RESTART_DEBOUNCE_MS = 200
@@ -41,6 +41,13 @@ if (!target || !isSubcommand(target)) {
 const subcommand: Subcommand = target
 const passthrough = rawArgs.slice(1)
 
+// Under the orchestrator, `serve` always builds — a watch-and-restart loop
+// over a command that never rebuilds would be pointless. Append `--build`
+// unless the caller already passed it.
+if (subcommand === 'serve' && !passthrough.includes('--build')) {
+  passthrough.push('--build')
+}
+
 // The orchestrator owns the TTY, so the child can't answer interactive
 // prompts. Require the prompt answers up front and bail before spawning.
 if (PROMPTING_SUBCOMMANDS.includes(subcommand) && !hasAnswerFlag(passthrough)) {
@@ -60,7 +67,7 @@ const watchRoots: WatchRoot[] = buildWatchRoots()
 
 function buildWatchRoots(): WatchRoot[] {
   const roots: WatchRoot[] = [{ dir: srcDir, include: shouldRestartForSource }]
-  if (subcommand === 'serve-site') {
+  if (subcommand === 'serve') {
     const baseDir = resolveBaseDir()
     for (const dataDir of DATA_DIRS) {
       const abs = path.join(baseDir, dataDir)

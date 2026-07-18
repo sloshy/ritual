@@ -3,7 +3,7 @@ import type { RitualSkill } from '../types'
 export const cardsSkill: RitualSkill = {
   name: 'ritual-cards',
   description:
-    'Look up Magic: The Gathering cards and run Scryfall searches with Ritual. Use when the user wants details or prices for a specific card, a Scryfall syntax query, batch card lookups, or a random card. Output is JSON by default for easy parsing.',
+    'Look up Magic: The Gathering cards and run Scryfall searches with Ritual. Use when the user wants details or prices for a specific card, a Scryfall syntax query, batch card lookups, or random cards. Output is JSON by default for easy parsing.',
   body: `# Looking up cards with Ritual
 
 These commands query Scryfall and print **JSON by default**, so they are easy to
@@ -43,12 +43,19 @@ prompting, and everywhere prompts are unavailable (piped output, the global
 \`--no-input\` flag, or \`RITUAL_NO_INPUT\`) exactly one page is fetched. There is
 no fetch-all flag — pass a large \`--pages\` value to get everything.
 
-## Random card
+## Random cards
+
+\`scry --random\` fetches random cards instead of searching; the (optional) query
+becomes a Scryfall filter on the picks:
 
 \`\`\`bash
-ritual random
-ritual random --filter "is:commander c:gruul"           # constrain with a Scryfall query
-ritual random --output text
+ritual scry --random
+ritual scry "is:commander c:gruul" --random             # constrain with a Scryfall query
+ritual scry --random --count 5                          # 5 random cards, emitted as an array
+ritual scry --random --output text
 \`\`\`
+
+With a single pick (the default) the output is one bare card object. \`--count\`
+requires \`--random\`, and \`--random\` cannot be combined with \`--pages\` or \`--csv\`.
 `,
 }

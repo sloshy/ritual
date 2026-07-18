@@ -30,8 +30,10 @@ export interface CacheServerCommandOptions {
   verbose?: boolean
   denyHttp?: boolean
   cacheSource?: CacheSource
-  feedUrl?: string
-  feedTorrentPort?: number
-  /** Commander stores `--no-feed-seed` as `feedSeed: false`. */
-  feedSeed: boolean
+  /** Cache feed URL override (`--url`) for feed-sourced refreshes. */
+  url?: string
+  /** Fixed TCP port for incoming torrent peers while seeding feed artifacts. */
+  torrentPort?: number
+  /** Commander stores `--no-seed` as `seed: false`. */
+  seed: boolean
 }

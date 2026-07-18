@@ -51,8 +51,8 @@ describe('hasAnswerFlag', () => {
 
 describe('answerFlagRequiredMessage', () => {
   test('names the subcommand and every prompt-free answer', () => {
-    const message = answerFlagRequiredMessage('serve-site')
-    expect(message).toContain('serve-site')
+    const message = answerFlagRequiredMessage('serve')
+    expect(message).toContain("'serve'")
     expect(message).toContain('--refresh auto')
     expect(message).toContain('--refresh no-bulk')
     expect(message).toContain('--refresh never')

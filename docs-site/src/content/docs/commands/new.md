@@ -89,8 +89,8 @@ one — the CLI, the editors, imports, and the admin site.
 ## Deck format
 
 A deck's format lives in its `format:` front matter, and is the same closed set of
-values everywhere it is used — `ritual new`, the editors, `import-csv`, the admin
-site, and the MCP `create_list` tool.
+values everywhere it is used — `ritual new`, the editors, [`import`](/commands/import/#deck-format),
+the admin site, and the MCP `create_list` tool.
 
 A deck that declares no format is treated as Commander when it has a `## Commander`
 section (Oathbreaker for a `## Oathbreaker` or `## Signature Spell` section). That

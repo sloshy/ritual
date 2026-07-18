@@ -1,13 +1,11 @@
 import { describe, expect, test } from 'bun:test'
+import { cadenceToMs, parseRefreshCadence, scheduleRecurringTask } from '../../../src/cache/cadence'
 import {
-  cadenceToMs,
   getInitialPriceRefreshAt,
   isOlderThan,
-  parseRefreshCadence,
   runStaggeredTasksInCompletionOrder,
   shouldForcePriceRefresh,
-} from '../../../src/commands/cache-server'
-import { scheduleRecurringTask } from '../../../src/cache-server/cadence'
+} from '../../../src/cache-server/helpers'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const WEEK_MS = 7 * DAY_MS

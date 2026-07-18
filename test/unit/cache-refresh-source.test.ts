@@ -92,6 +92,38 @@ describe('refreshCardCache', () => {
     expect(calls).toEqual(['feed'])
   })
 
+  test('an explicit url with no explicit source implies the feed source', async () => {
+    const calls: string[] = []
+    const feedUrls: (string | undefined)[] = []
+    await refreshCardCache({
+      url: 'https://explicit.example/feed.json',
+      feedRefresh: async (url) => {
+        calls.push('feed')
+        feedUrls.push(url)
+        return 'ingested'
+      },
+      scryfallPreload: async () => {
+        calls.push('scryfall')
+      },
+    })
+    expect(calls).toEqual(['feed'])
+    expect(feedUrls).toEqual(['https://explicit.example/feed.json'])
+  })
+
+  test('force threads through to the feed refresh', async () => {
+    const forcedFlags: (boolean | undefined)[] = []
+    await refreshCardCache({
+      source: 'feed',
+      force: true,
+      feedRefresh: async (_url, force) => {
+        forcedFlags.push(force)
+        return 'ingested'
+      },
+      scryfallPreload: async () => {},
+    })
+    expect(forcedFlags).toEqual([true])
+  })
+
   test('a failing feed falls back to Scryfall with a warning', async () => {
     const logger = new MemoryLogger()
     setLogger(logger)

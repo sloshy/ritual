@@ -88,14 +88,15 @@ Without \`--type\` an interactive run prompts for the list type; under the globa
 
 ## Import from a CSV file
 
-\`import-csv\` imports a CSV file into a new wanted list, or appends to an existing
-one. Non-interactive agents must pass all flags (running it bare opens an interactive
+A \`.csv\` source makes \`import\` import a CSV file into a new wanted list, or append
+to an existing one (\`--csv\` forces CSV parsing for other extensions).
+Non-interactive agents must pass all flags (running it bare opens an interactive
 column-mapping wizard):
 
 \`\`\`bash
-ritual import-csv wants.csv --type wanted --name "To Buy" \\
+ritual import wants.csv --type wanted --name "To Buy" \\
   --columns "name=1,set=2,collector-number=3,finish=4,quantity=5"
-ritual import-csv more.csv --type wanted --name "To Buy" --append --columns "name=1"
+ritual import more.csv --type wanted --name "To Buy" --append --columns "name=1"
 \`\`\`
 
 \`--columns\` maps fields to 1-based column numbers; only \`name\` is required and

@@ -907,7 +907,7 @@ Overwrite the list's change log with the supplied change sets. Each set needs a 
 POST /api/import-csv
 ```
 
-Import cards from CSV text into a deck, collection, or wanted list. Used by the admin site's **Import CSV** page and exposed as the MCP `import_csv` tool; shares its parsing, normalization, and column-mapping engine with the [`import-csv`](/commands/import-csv/) CLI command.
+Import cards from CSV text into a deck, collection, or wanted list. Used by the admin site's **Import CSV** page and exposed as the MCP `import_csv` tool; shares its parsing, normalization, and column-mapping engine with the [`import`](/commands/import/#csv-imports) CLI command's CSV mode.
 
 **Request Body:**
 

@@ -11,19 +11,52 @@ import {
   type FlatListType,
   type ImportCardEntry,
 } from '../importers/csv-apply'
+import {
+  CSV_FIELDS,
+  CSV_FIELD_LABELS,
+  FIELD_TO_KEY,
+  convertCsvRows,
+  formatColumnsSpec,
+  guessColumns,
+  guessHasHeader,
+  isRequiredCsvField,
+  parseColumnsSpec,
+  parseCsv,
+  validateMapping,
+  type ColumnMapping,
+  type CsvRow,
+  type CsvRowFailure,
+} from '../importers/csv'
+import {
+  DECK_FORMAT_KEYS,
+  getDeckFormatLabel,
+  invalidDeckFormatMessage,
+  parseDeckFormat,
+  type DeckFormatKey,
+} from '../deck-format'
 import { type DeckData } from '../types'
 import { serializeDeckToMarkdown, type DeckFrontMatter } from '../deck-file'
 import { parseMoxfieldPrimer } from '../primer-parser'
-import { addDryRunOption, ExitCode } from './scripting'
-import { getLogger } from '../logger'
+import {
+  addDryRunOption,
+  addScriptingOptions,
+  classifyFileReadError,
+  emitError,
+  emitOutput,
+  ExitCode,
+  normalizeScriptingOptions,
+  type OutputFormat,
+  type ScriptingOptions,
+} from './scripting'
+import { getLogger, setLogger, STDERR_LOGGER } from '../logger'
 import { writeFileWithHash } from '../content-hash'
 import { isPathWithinDir } from '../path-validation'
 import { getDecksDir } from '../ritual-config'
 import { listFilePath } from '../resolve-list'
 import { isListType, listTypeLabel, LIST_TYPES, type ListType } from '../list-type'
-import { promptListType } from './prompts-helpers'
+import { ask, promptListType } from './prompts-helpers'
 import { isNoInput } from '../no-input'
-import { CardCommandError } from '../errors'
+import { CardCommandError, getErrorMessage } from '../errors'
 
 interface SaveListOptions {
   forceOverwrite?: boolean
@@ -44,10 +77,53 @@ type DeckFileFrontmatter = {
 
 type ImportCommandOptions = {
   type?: string
+  name?: string
+  deckFormat?: string
+  columns?: string
+  /** Commander sets this to false for --no-header; defaults to true. */
+  header: boolean
   overwrite?: boolean
+  append?: boolean
   yes?: boolean
+  csv?: boolean
   dryRun?: boolean
   moxfieldUserAgent?: string
+  output: OutputFormat
+  quiet: boolean
+}
+
+/** How an `import <source>` argument will be read. */
+type ImportSourceKind = 'url' | 'csv' | 'text'
+
+/** What saving the imported list did — or would do, under `--dry-run`. */
+export type SaveListAction = 'created' | 'overwritten' | 'renamed'
+
+/** Result of {@link saveDeck} / {@link saveFlatList}: where the list went, or a prompt cancel. */
+export type SaveListOutcome =
+  | { status: 'saved'; filePath: string; name: string; action: SaveListAction }
+  | { status: 'cancelled' }
+
+/** Structured `--output json`/`ndjson` payload for URL and text-file imports. */
+type ImportJsonResult = {
+  source: string
+  listType: ListType
+  name: string
+  filePath: string
+  action: SaveListAction
+  dryRun: boolean
+}
+
+/** One failed CSV row in the `--output json`/`ndjson` result. */
+type ImportCsvFailureOutput = { line: number; reason: string }
+
+/** Success payload for a CSV import under `--output json`/`ndjson` (also emitted on partial failure). */
+type ImportCsvJsonResult = {
+  imported: number
+  failed: number
+  failures: ImportCsvFailureOutput[]
+  filePath: string
+  mode: CsvImportMode
+  dryRun: boolean
 }
 
 function normalizeSaveListOptions(options?: SaveListOptions): Required<SaveListOptions> {
@@ -86,7 +162,7 @@ export async function saveDeck(
   deckData: DeckData,
   decksDir: string,
   options?: SaveListOptions,
-): Promise<void> {
+): Promise<SaveListOutcome> {
   const resolvedOptions = normalizeSaveListOptions(options)
   // Determine Target Filename. An imported deck's name comes from the source
   // service, so it can be anything — a name with nothing usable left is an error,
@@ -135,10 +211,12 @@ export async function saveDeck(
   }
 
   let filePath = path.join(decksDir, fileName)
+  let action: SaveListAction = 'created'
   const shouldOverwrite = resolvedOptions.forceOverwrite || resolvedOptions.assumeYes
 
   if (conflictFile && shouldOverwrite) {
     filePath = path.join(decksDir, conflictFile)
+    action = 'overwritten'
     if (!resolvedOptions.dryRun) {
       getLogger().info(`Overwriting ${conflictFile}...`)
     }
@@ -159,7 +237,7 @@ export async function saveDeck(
 
     if (resolution.action === 'cancel') {
       getLogger().info('Import cancelled.')
-      return
+      return { status: 'cancelled' }
     } else if (resolution.action === 'rename') {
       // The typed-in name goes through the same naming rule as any other list, so
       // a prompt answer can neither escape the decks directory nor name a file `.md`.
@@ -169,6 +247,7 @@ export async function saveDeck(
       }
       fileName = renamed
       filePath = path.join(decksDir, fileName)
+      action = 'renamed'
       if (!isPathWithinDir(filePath, decksDir)) {
         throw new Error(`Name '${resolution.newName}' is not a valid deck file name`)
       }
@@ -181,6 +260,7 @@ export async function saveDeck(
     } else {
       // Overwrite existing file.
       filePath = path.join(decksDir, conflictFile)
+      action = 'overwritten'
       getLogger().info(`Overwriting ${conflictFile}...`)
     }
   }
@@ -204,12 +284,14 @@ export async function saveDeck(
   const primerPath = filePath.replace(/\.md$/, '.primer.md')
   const primerMarkdown = deckData.primer ? parseMoxfieldPrimer(deckData.primer).markdown : undefined
 
+  const outcome: SaveListOutcome = { status: 'saved', filePath, name: deckData.name, action }
+
   if (resolvedOptions.dryRun) {
     getLogger().info(`[dry-run] Would save deck to: ${filePath}`)
     if (primerMarkdown) {
       getLogger().info(`[dry-run] Would save primer to: ${primerPath}`)
     }
-    return
+    return outcome
   }
 
   await writeFileWithHash(filePath, fileContent)
@@ -219,6 +301,8 @@ export async function saveDeck(
     await Bun.write(primerPath, primerMarkdown + '\n')
     getLogger().info(`Successfully saved primer to: ${primerPath}`)
   }
+
+  return outcome
 }
 
 /** Flatten parsed deck-style sections into flat-list entries, one per card line. */
@@ -251,7 +335,7 @@ export async function saveFlatList(
   deckData: DeckData,
   listType: FlatListType,
   options?: SaveListOptions,
-): Promise<void> {
+): Promise<SaveListOutcome> {
   const resolvedOptions = normalizeSaveListOptions(options)
   const label = listTypeLabel(listType)
   const entries = flattenToEntries(deckData)
@@ -272,6 +356,7 @@ export async function saveFlatList(
 
   let name = deckData.name
   let mode: CsvImportMode = 'create'
+  let action: SaveListAction = 'created'
 
   /** The list's path, rejecting a name with nothing usable left rather than naming a file `.md`. */
   const targetPathFor = (listName: string): string => {
@@ -288,6 +373,7 @@ export async function saveFlatList(
 
   if (exists && shouldOverwrite) {
     mode = 'overwrite'
+    action = 'overwritten'
     if (!resolvedOptions.dryRun) {
       getLogger().info(`Overwriting ${path.basename(filePath)}...`)
     }
@@ -303,10 +389,11 @@ export async function saveFlatList(
 
     if (resolution.action === 'cancel') {
       getLogger().info('Import cancelled.')
-      return
+      return { status: 'cancelled' }
     } else if (resolution.action === 'rename') {
       name = resolution.newName
       filePath = targetPathFor(name)
+      action = 'renamed'
 
       if (await Bun.file(filePath).exists()) {
         getLogger().error(`File '${path.basename(filePath)}' also exists. Aborting.`)
@@ -314,13 +401,14 @@ export async function saveFlatList(
       }
     } else {
       mode = 'overwrite'
+      action = 'overwritten'
       getLogger().info(`Overwriting ${path.basename(filePath)}...`)
     }
   }
 
   if (resolvedOptions.dryRun) {
     getLogger().info(`[dry-run] Would save ${label} to: ${filePath}`)
-    return
+    return { status: 'saved', filePath, name, action }
   }
 
   const result = await applyCsvImport({ listType, name, mode }, entries)
@@ -329,6 +417,7 @@ export async function saveFlatList(
   }
 
   getLogger().info(`Successfully imported ${label} to: ${result.filePath}`)
+  return { status: 'saved', filePath: result.filePath, name, action }
 }
 
 /** Resolve the target list type for a text-file import: flag, prompt, or deck default. */
@@ -349,109 +438,613 @@ async function resolveImportListType(
   return promptListType()
 }
 
-export function registerImportCommand(program: Command): void {
-  addDryRunOption(
-    program
-      .command('import')
-      .description(
-        'Import a deck from a URL (Archidekt, Moxfield, MTGGoldfish), or a deck, collection, or wanted list from a local text file',
-      )
-      .argument('<source>', 'URL or file path')
-      .option(
-        '-t, --type <type>',
-        `List type for a text file import: ${LIST_TYPES.join(', ')} (URLs always import decks)`,
-      )
-      .option('-o, --overwrite', 'Overwrite existing lists without prompting')
-      .option(
-        '-y, --yes',
-        'Automatically answer yes to the overwrite confirmation on import conflicts',
-      ),
-    'Preview actions without writing files',
-  )
-    .option(
-      '--moxfield-user-agent <agent>',
-      'Moxfield-approved unique User-Agent string (required for Moxfield imports unless MOXFIELD_USER_AGENT is set)',
+/** Whether a file path names a CSV source by extension. */
+function isCsvPath(source: string): boolean {
+  return source.toLowerCase().endsWith('.csv')
+}
+
+/** The first CSV-only flag present on the command line, for per-source validation. */
+function firstCsvOnlyFlag(options: ImportCommandOptions): string | undefined {
+  if (options.csv === true) return '--csv'
+  if (options.name !== undefined) return '--name'
+  if (options.columns !== undefined) return '--columns'
+  if (options.header === false) return '--no-header'
+  if (options.append === true) return '--append'
+  if (options.deckFormat !== undefined) return '--deck-format'
+  return undefined
+}
+
+/** A usage-error message when a given flag does not apply to the resolved source kind. */
+function rejectedFlagForSource(
+  kind: ImportSourceKind,
+  options: ImportCommandOptions,
+): string | undefined {
+  if (kind === 'url' || kind === 'text') {
+    const flag = firstCsvOnlyFlag(options)
+    if (flag !== undefined) {
+      return kind === 'url'
+        ? `${flag} does not apply to URL imports.`
+        : `${flag} requires a CSV source (a .csv file, or --csv to force CSV parsing).`
+    }
+  }
+  if (kind === 'csv' && options.moxfieldUserAgent !== undefined) {
+    return '--moxfield-user-agent does not apply to CSV imports.'
+  }
+  return undefined
+}
+
+/**
+ * The shared interactive-cancel exit: `Cancelled.` on stderr (structured in
+ * JSON modes) and the usage-error exit code, so a cancelled run never looks
+ * like a successful no-op to a script.
+ */
+function emitCancelled(scripting: ScriptingOptions): void {
+  emitError('usage_error', 'Cancelled.', scripting)
+  process.exitCode = ExitCode.UsageError
+}
+
+/** Emit the structured summary for a URL/text import. Text mode already logged its lines. */
+function emitImportSummary(
+  source: string,
+  listType: ListType,
+  outcome: SaveListOutcome,
+  dryRun: boolean,
+  scripting: ScriptingOptions,
+): void {
+  if (outcome.status === 'cancelled') {
+    emitCancelled(scripting)
+    return
+  }
+  if (scripting.output === 'text') return
+  const payload: ImportJsonResult = {
+    source,
+    listType,
+    name: outcome.name,
+    filePath: outcome.filePath,
+    action: outcome.action,
+    dryRun,
+  }
+  emitOutput(payload, scripting)
+}
+
+// ── CSV source flow ─────────────────────────────────────────────────
+
+/** Quote a value for the echoed scripting command when it needs it. */
+function shellQuote(value: string): string {
+  if (/^[A-Za-z0-9_@%+=:,./-]+$/.test(value)) return value
+  return `'${value.replaceAll("'", `'\\''`)}'`
+}
+
+/**
+ * Build the non-interactive command equivalent to the wizard's answers, so the
+ * same CSV import can be scripted without the setup wizard. `forceCsv` adds the
+ * `--csv` flag for files whose extension would not trigger CSV detection.
+ */
+export function formatScriptingCommand(
+  file: string,
+  listType: ListType,
+  name: string,
+  mode: CsvImportMode,
+  format: DeckFormatKey | undefined,
+  mapping: ColumnMapping,
+  hasHeader: boolean,
+  forceCsv: boolean,
+): string {
+  const parts = ['ritual', 'import', shellQuote(file)]
+  if (forceCsv) parts.push('--csv')
+  parts.push('--type', listType, '--name', shellQuote(name))
+  if (mode === 'overwrite') parts.push('--overwrite')
+  if (mode === 'append') parts.push('--append')
+  if (format !== undefined) parts.push('--deck-format', format)
+  parts.push('--columns', shellQuote(formatColumnsSpec(mapping)))
+  if (!hasHeader) parts.push('--no-header')
+  return parts.join(' ')
+}
+
+type ColumnChoice = { title: string; value: number }
+
+function buildColumnChoices(
+  headerCells: string[] | null,
+  sampleCells: string[],
+  columnCount: number,
+  usedColumns: Set<number>,
+  optional: boolean,
+): ColumnChoice[] {
+  const choices: ColumnChoice[] = []
+  if (optional) choices.push({ title: '(not in this file)', value: -1 })
+  for (let i = 0; i < columnCount; i++) {
+    if (usedColumns.has(i)) continue
+    const header = headerCells?.[i]
+    const sample = sampleCells[i]
+    let title =
+      header !== undefined && header !== '' ? `Column ${i + 1}: "${header}"` : `Column ${i + 1}`
+    if (sample !== undefined && sample !== '') title += ` — e.g. "${sample}"`
+    choices.push({ title, value: i })
+  }
+  return choices
+}
+
+type WizardMappingResult = { mapping: ColumnMapping; cancelled: false } | { cancelled: true }
+
+/** Interactively map CSV columns to card fields. */
+async function promptColumnMapping(
+  listType: ListType,
+  rows: CsvRow[],
+  hasHeader: boolean,
+): Promise<WizardMappingResult> {
+  if (rows.length === 0) return { cancelled: true }
+  const headerCells = hasHeader ? (rows[0]?.cells ?? null) : null
+  const sampleCells = (hasHeader ? rows[1]?.cells : rows[0]?.cells) ?? []
+  const columnCount = Math.max(...rows.map((row) => row.cells.length))
+  const guessed = headerCells ? guessColumns(headerCells) : {}
+
+  const mapping: Partial<ColumnMapping> = {}
+  const usedColumns = new Set<number>()
+
+  for (const field of CSV_FIELDS) {
+    if (field === 'condition' && listType === 'wanted') continue
+    const required = isRequiredCsvField(field, listType)
+    const choices = buildColumnChoices(
+      headerCells,
+      sampleCells,
+      columnCount,
+      usedColumns,
+      !required,
     )
-    .action(async (source: string, options: ImportCommandOptions) => {
-      const logger = getLogger()
+    const guessedIndex = guessed[FIELD_TO_KEY[field]]
+    const initial =
+      guessedIndex === undefined ? 0 : choices.findIndex((c) => c.value === guessedIndex)
+    const selection = await ask<number>({
+      type: 'select',
+      message: `Which column holds: ${CSV_FIELD_LABELS[field]}?${required ? '' : ' (optional)'}`,
+      choices,
+      initial: initial === -1 ? 0 : initial,
+    })
+    if (selection === undefined) return { cancelled: true }
+    if (selection === -1) continue
+    mapping[FIELD_TO_KEY[field]] = selection
+    usedColumns.add(selection)
+  }
 
-      let typeFlag: ListType | undefined
-      if (options.type !== undefined) {
-        const normalized = options.type.toLowerCase()
-        if (!isListType(normalized)) {
-          logger.error(`Invalid list type '${options.type}'. Use: ${LIST_TYPES.join(', ')}`)
-          process.exitCode = ExitCode.UsageError
-          return
-        }
-        typeFlag = normalized
+  return { mapping: mapping as ColumnMapping, cancelled: false }
+}
+
+/** Map an engine row failure onto the JSON output shape. */
+function toFailureOutput(failure: CsvRowFailure): ImportCsvFailureOutput {
+  return { line: failure.lineNumber, reason: failure.reason }
+}
+
+function reportFailures(failures: CsvRowFailure[]): void {
+  const logger = getLogger()
+  logger.error(`${failures.length} row(s) failed to import:`)
+  for (const failure of failures) {
+    logger.error(`  Line ${failure.lineNumber}: ${failure.raw}`)
+    logger.error(`    ${failure.reason}`)
+  }
+}
+
+/**
+ * The CSV source path of `ritual import`: resolve the target from flags (or the
+ * interactive wizard), convert the rows, and apply them through the shared CSV
+ * import engine.
+ */
+async function runCsvImport(
+  file: string,
+  options: ImportCommandOptions,
+  typeFlag: ListType | undefined,
+  scripting: ScriptingOptions,
+): Promise<void> {
+  const logger = getLogger()
+  const dryRun = options.dryRun === true
+
+  if (options.overwrite === true && options.append === true) {
+    emitError('usage_error', '--overwrite and --append are mutually exclusive', scripting)
+    process.exitCode = ExitCode.UsageError
+    return
+  }
+
+  let content: string
+  try {
+    content = await fs.readFile(file, 'utf-8')
+  } catch (error) {
+    const failure = classifyFileReadError(error)
+    emitError(failure.errorCode, `Could not read CSV file: ${file}`, scripting)
+    process.exitCode = failure.exitCode
+    return
+  }
+
+  const parsed = parseCsv(content)
+  if ('error' in parsed) {
+    emitError('runtime_error', `Failed to parse CSV: ${parsed.error}`, scripting)
+    process.exitCode = ExitCode.RuntimeError
+    return
+  }
+  if (parsed.rows.length === 0) {
+    emitError('runtime_error', 'CSV file contains no rows', scripting)
+    process.exitCode = ExitCode.RuntimeError
+    return
+  }
+
+  // Resolve list type, name, mode, and format from flags first; the wizard
+  // only asks for whatever is missing.
+  let listType: ListType | undefined = typeFlag
+
+  let name = options.name?.trim()
+  if (name === '') {
+    emitError('usage_error', 'List name cannot be empty', scripting)
+    process.exitCode = ExitCode.UsageError
+    return
+  }
+
+  let format: DeckFormatKey | undefined
+  if (options.deckFormat !== undefined) {
+    const normalized = parseDeckFormat(options.deckFormat)
+    if (normalized === null) {
+      emitError('usage_error', invalidDeckFormatMessage(options.deckFormat), scripting)
+      process.exitCode = ExitCode.UsageError
+      return
+    }
+    format = normalized
+  }
+
+  // Prompts are unavailable when they are disabled (--no-input), when stdin
+  // is not a terminal, or when --columns says the user is scripting.
+  const scripted = isNoInput() || !process.stdin.isTTY || options.columns !== undefined
+  const flagMode: CsvImportMode | undefined =
+    options.append === true ? 'append' : options.overwrite === true ? 'overwrite' : undefined
+
+  if (scripted) {
+    const missing: string[] = []
+    if (listType === undefined) missing.push('--type')
+    if (name === undefined) missing.push('--name')
+    if (options.columns === undefined) missing.push('--columns')
+    if (listType === 'deck' && flagMode !== 'append' && format === undefined) {
+      missing.push('--deck-format')
+    }
+    if (missing.length > 0) {
+      emitError(
+        'usage_error',
+        `Missing required flags for a scripted import (prompts are unavailable): ${missing.join(', ')}`,
+        scripting,
+      )
+      process.exitCode = ExitCode.UsageError
+      return
+    }
+  }
+
+  const cancelled = (): void => {
+    emitCancelled(scripting)
+  }
+
+  if (listType === undefined) {
+    const picked = await promptListType()
+    if (picked === undefined) return cancelled()
+    listType = picked
+  }
+
+  if (format !== undefined && listType !== 'deck') {
+    emitError('usage_error', '--deck-format only applies to deck imports', scripting)
+    process.exitCode = ExitCode.UsageError
+    return
+  }
+  if (format !== undefined && flagMode === 'append') {
+    emitError(
+      'usage_error',
+      '--deck-format only applies when creating a deck, not when appending',
+      scripting,
+    )
+    process.exitCode = ExitCode.UsageError
+    return
+  }
+
+  if (name === undefined) {
+    const picked = await ask<string>({
+      type: 'text',
+      message: `Name of the ${listTypeLabel(listType)} to create or append to:`,
+      validate: (value: string) => (value.trim().length > 0 ? true : 'Name cannot be empty'),
+    })
+    if (picked === undefined) return cancelled()
+    name = picked.trim()
+  }
+
+  // Resolve the import mode: explicit flags win; otherwise an existing file of
+  // the same name is overwritten under --yes (which auto-answers the conflict,
+  // like the URL/text paths) or prompts append / overwrite / cancel.
+  let mode: CsvImportMode
+  if (flagMode !== undefined) {
+    mode = flagMode
+  } else {
+    const targetPath = listFilePath(listType, name)
+    const exists = targetPath !== null && (await Bun.file(targetPath).exists())
+    if (!exists) {
+      mode = 'create'
+    } else if (options.yes === true) {
+      mode = 'overwrite'
+    } else if (scripted) {
+      emitError(
+        'runtime_error',
+        `File already exists: ${targetPath}. Re-run with --append to add to it or --overwrite to replace it.`,
+        scripting,
+      )
+      process.exitCode = ExitCode.RuntimeError
+      return
+    } else {
+      const picked = await ask<CsvImportMode | 'cancel'>({
+        type: 'select',
+        message: `'${path.basename(targetPath)}' already exists. What should happen?`,
+        choices: [
+          { title: 'Append the cards to it', value: 'append' },
+          { title: 'Overwrite it with the import', value: 'overwrite' },
+          { title: 'Cancel', value: 'cancel' },
+        ],
+      })
+      if (picked === undefined || picked === 'cancel') return cancelled()
+      mode = picked
+    }
+  }
+
+  if (listType === 'deck' && mode !== 'append' && format === undefined) {
+    const picked = await ask<DeckFormatKey>({
+      type: 'select',
+      message: 'Deck format:',
+      choices: DECK_FORMAT_KEYS.map((key) => ({ title: getDeckFormatLabel(key), value: key })),
+    })
+    if (picked === undefined) return cancelled()
+    format = picked
+  }
+
+  // Column mapping: from the --columns flag when given, otherwise the wizard.
+  let hasHeader = options.header
+  let mapping: ColumnMapping
+  let wizardRan = false
+  if (options.columns !== undefined) {
+    const result = parseColumnsSpec(options.columns, listType)
+    if (typeof result === 'string') {
+      emitError('usage_error', result, scripting)
+      process.exitCode = ExitCode.UsageError
+      return
+    }
+    mapping = result
+  } else {
+    wizardRan = true
+    const firstRow = parsed.rows[0]!
+    const headerAnswer = await ask<boolean>({
+      type: 'confirm',
+      message: 'Does the first row contain column headers?',
+      initial: guessHasHeader(firstRow.cells),
+    })
+    if (headerAnswer === undefined) return cancelled()
+    hasHeader = headerAnswer
+
+    if (hasHeader && parsed.rows.length < 2) {
+      emitError('runtime_error', 'CSV file contains a header row but no data rows', scripting)
+      process.exitCode = ExitCode.RuntimeError
+      return
+    }
+
+    const wizardResult = await promptColumnMapping(listType, parsed.rows, hasHeader)
+    if (wizardResult.cancelled) return cancelled()
+    mapping = wizardResult.mapping
+  }
+
+  const mappingError = validateMapping(mapping, listType)
+  if (mappingError !== null) {
+    emitError('usage_error', mappingError, scripting)
+    process.exitCode = ExitCode.UsageError
+    return
+  }
+
+  if (wizardRan && scripting.output === 'text' && !scripting.quiet) {
+    logger.info('\nTo repeat this import without the setup wizard, run:')
+    logger.info(
+      `  ${formatScriptingCommand(file, listType, name, mode, format, mapping, hasHeader, !isCsvPath(file))}\n`,
+    )
+  }
+
+  const dataRows = hasHeader ? parsed.rows.slice(1) : parsed.rows
+  if (dataRows.length === 0) {
+    emitError('runtime_error', 'CSV file contains no data rows', scripting)
+    process.exitCode = ExitCode.RuntimeError
+    return
+  }
+
+  const { entries, failures } = convertCsvRows(dataRows, mapping, listType)
+  if (entries.length === 0) {
+    emitError('runtime_error', 'No rows could be imported.', scripting, {
+      failures: failures.map(toFailureOutput),
+    })
+    if (scripting.output === 'text') reportFailures(failures)
+    process.exitCode = ExitCode.RuntimeError
+    return
+  }
+
+  const result = await applyCsvImport({ listType, name, mode, format }, entries, { dryRun })
+  if ('error' in result) {
+    emitError('runtime_error', result.error, scripting)
+    process.exitCode = ExitCode.RuntimeError
+    return
+  }
+
+  if (scripting.output === 'text') {
+    if (!scripting.quiet) {
+      if (dryRun) {
+        const verb = result.mode === 'append' ? 'append' : 'import'
+        const preposition = result.mode === 'append' ? 'to' : 'into'
+        logger.info(
+          `[dry-run] Would ${verb} ${result.cardCount} card(s) ${preposition} ${listType} '${name}': ${result.filePath}`,
+        )
+      } else {
+        const verb = result.mode === 'append' ? 'Appended' : 'Imported'
+        const preposition = result.mode === 'append' ? 'to' : 'into'
+        logger.info(
+          `${verb} ${result.cardCount} card(s) ${preposition} ${listType} '${name}': ${result.filePath}`,
+        )
       }
+    }
+    if (failures.length > 0) reportFailures(failures)
+  } else {
+    const payload: ImportCsvJsonResult = {
+      imported: result.cardCount,
+      failed: failures.length,
+      failures: failures.map(toFailureOutput),
+      filePath: result.filePath,
+      mode: result.mode,
+      dryRun,
+    }
+    emitOutput(payload, scripting)
+  }
+  // A partial failure still writes the import, but the run must not look clean.
+  if (failures.length > 0) {
+    process.exitCode = ExitCode.RuntimeError
+  }
+}
 
-      // URL-shaped sources (explicit scheme, or a scheme-less supported deck
-      // URL like `archidekt.com/decks/123`) go through URL dispatch; everything
-      // else is a local file path.
-      const sourceUrl = resolveImportSourceUrl(source)
-      const isUrl = sourceUrl !== undefined
-      if (isUrl && typeFlag !== undefined && typeFlag !== 'deck') {
-        logger.error(
-          `URL imports only support decks; importing a ${listTypeLabel(typeFlag)} from a URL is not supported.`,
+export function registerImportCommand(program: Command): void {
+  addScriptingOptions(
+    addDryRunOption(
+      program
+        .command('import')
+        .description(
+          'Import a deck from a URL (Archidekt, Moxfield, MTGGoldfish), or a deck, collection, or wanted list from a local text or CSV file',
+        )
+        .argument('<source>', 'URL or file path (.csv files are imported as CSV)')
+        .option(
+          '-t, --type <type>',
+          `List type for a file import: ${LIST_TYPES.join(', ')} (URLs always import decks)`,
+        )
+        .option('--name <name>', 'CSV only: name of the list to create or append to')
+        .option(
+          '--deck-format <format>',
+          'CSV only: deck format when creating a deck (e.g. commander, modern)',
+        )
+        .option(
+          '-c, --columns <mapping>',
+          `CSV only: column mapping like 'name=1,set=2,collector-number=3' (1-based; fields: ${CSV_FIELDS.join(', ')}). Skips the interactive setup wizard.`,
+        )
+        .option('--no-header', 'CSV only: treat the first row as data instead of a header row')
+        .option(
+          '--append',
+          'CSV only: append the cards to an existing list instead of creating a new one',
+        )
+        .option('--csv', 'Treat the source file as CSV regardless of its extension')
+        .option('-o, --overwrite', 'Overwrite existing lists without prompting')
+        .option(
+          '-y, --yes',
+          'Automatically answer yes to the overwrite confirmation on import conflicts',
+        )
+        .option(
+          '--moxfield-user-agent <agent>',
+          'Moxfield-approved unique User-Agent string (required for Moxfield imports unless MOXFIELD_USER_AGENT is set)',
+        ),
+      'Preview actions without writing files',
+    ),
+  ).action(async (source: string, options: ImportCommandOptions) => {
+    const scripting = normalizeScriptingOptions(options)
+    // JSON modes keep stdout for the payload; info chatter goes to stderr.
+    if (scripting.output !== 'text') {
+      setLogger(STDERR_LOGGER)
+    }
+    const logger = getLogger()
+
+    let typeFlag: ListType | undefined
+    if (options.type !== undefined) {
+      const normalized = options.type.toLowerCase()
+      if (!isListType(normalized)) {
+        emitError(
+          'usage_error',
+          `Invalid list type '${options.type}'. Use: ${LIST_TYPES.join(', ')}`,
+          scripting,
         )
         process.exitCode = ExitCode.UsageError
         return
       }
+      typeFlag = normalized
+    }
 
-      const saveOptions: SaveListOptions = {
-        forceOverwrite: options.overwrite === true,
-        noPrompts: isNoInput(),
-        assumeYes: options.yes === true,
-        dryRun: options.dryRun === true,
+    // URL-shaped sources (explicit scheme, or a scheme-less supported deck
+    // URL like `archidekt.com/decks/123`) go through URL dispatch; a `.csv`
+    // file (or any file under --csv) goes through the CSV flow; everything
+    // else is a local text file.
+    const sourceUrl = resolveImportSourceUrl(source)
+    const kind: ImportSourceKind =
+      sourceUrl !== undefined ? 'url' : options.csv === true || isCsvPath(source) ? 'csv' : 'text'
+
+    const rejection = rejectedFlagForSource(kind, options)
+    if (rejection !== undefined) {
+      emitError('usage_error', rejection, scripting)
+      process.exitCode = ExitCode.UsageError
+      return
+    }
+
+    if (kind === 'url' && typeFlag !== undefined && typeFlag !== 'deck') {
+      emitError(
+        'usage_error',
+        `URL imports only support decks; importing a ${listTypeLabel(typeFlag)} from a URL is not supported.`,
+        scripting,
+      )
+      process.exitCode = ExitCode.UsageError
+      return
+    }
+
+    const saveOptions: SaveListOptions = {
+      forceOverwrite: options.overwrite === true,
+      noPrompts: isNoInput(),
+      assumeYes: options.yes === true,
+      dryRun: options.dryRun === true,
+    }
+
+    try {
+      if (kind === 'csv') {
+        await runCsvImport(source, options, typeFlag, scripting)
+        return
       }
 
-      try {
-        if (sourceUrl !== undefined) {
-          const result = await fetchDeckFromUrl(sourceUrl, {
-            moxfieldUserAgent: options.moxfieldUserAgent,
-            onProgress: (message) => logger.info(message),
-          })
-          if (typeof result === 'string') {
-            logger.error(`Error: ${result}`)
-            process.exitCode = ExitCode.UsageError
-            return
-          }
-          await saveDeck(result, getDecksDir(), saveOptions)
+      if (sourceUrl !== undefined) {
+        const result = await fetchDeckFromUrl(sourceUrl, {
+          moxfieldUserAgent: options.moxfieldUserAgent,
+          onProgress: (message) => logger.info(message),
+        })
+        if (typeof result === 'string') {
+          emitError('usage_error', result, scripting)
+          process.exitCode = ExitCode.UsageError
           return
         }
-
-        if (!(await Bun.file(source).exists())) {
-          logger.error(`File not found: ${source}`)
-          process.exitCode = ExitCode.NotFound
-          return
-        }
-
-        logger.info(`Reading cards from file: ${source}...`)
-        const deckData = await importFromTextFile(source)
-
-        const listType = await resolveImportListType(typeFlag)
-        if (listType === undefined) {
-          logger.info('Import cancelled.')
-          return
-        }
-
-        if (listType === 'deck') {
-          await saveDeck(deckData, getDecksDir(), saveOptions)
-        } else {
-          await saveFlatList(deckData, listType, saveOptions)
-        }
-      } catch (error) {
-        // The prompt guards throw a structured usage error when input is
-        // needed but prompts are unavailable (no terminal, or --no-input);
-        // keep its exit code instead of flattening it to a runtime error.
-        if (error instanceof CardCommandError) {
-          logger.error(error.message)
-          process.exitCode = error.exitCode
-          return
-        }
-        logger.error('Failed to import:', error)
-        process.exitCode = ExitCode.RuntimeError
+        const outcome = await saveDeck(result, getDecksDir(), saveOptions)
+        emitImportSummary(source, 'deck', outcome, saveOptions.dryRun === true, scripting)
+        return
       }
-    })
+
+      if (!(await Bun.file(source).exists())) {
+        emitError('not_found', `File not found: ${source}`, scripting)
+        process.exitCode = ExitCode.NotFound
+        return
+      }
+
+      logger.info(`Reading cards from file: ${source}...`)
+      const deckData = await importFromTextFile(source)
+
+      const listType = await resolveImportListType(typeFlag)
+      if (listType === undefined) {
+        emitCancelled(scripting)
+        return
+      }
+
+      const outcome =
+        listType === 'deck'
+          ? await saveDeck(deckData, getDecksDir(), saveOptions)
+          : await saveFlatList(deckData, listType, saveOptions)
+      emitImportSummary(source, listType, outcome, saveOptions.dryRun === true, scripting)
+    } catch (error) {
+      // The prompt guards throw a structured usage error when input is
+      // needed but prompts are unavailable (no terminal, or --no-input);
+      // keep its exit code instead of flattening it to a runtime error.
+      if (error instanceof CardCommandError) {
+        emitError(error.code, error.message, scripting, error.details)
+        process.exitCode = error.exitCode
+        return
+      }
+      emitError('runtime_error', `Failed to import: ${getErrorMessage(error)}`, scripting)
+      process.exitCode = ExitCode.RuntimeError
+    }
+  })
 }

@@ -26,7 +26,7 @@ export function parseRefreshFlag(value: string): RefreshMode {
 /**
  * Register the shared `--refresh <mode>` option (default `ask`). Every command
  * that touches card-cache freshness uses this so the vocabulary never drifts.
- * (The `cache-feed` command's unrelated `--refresh <interval>` is not this.)
+ * (The `cache feed` subcommands' unrelated `--refresh <interval>` is not this.)
  */
 export function addRefreshOption(command: Command): Command {
   return command.option(

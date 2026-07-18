@@ -124,7 +124,7 @@ async function startServer(options: StartServerOptions = {}): Promise<RunningSer
   )
 
   const port = pickPort()
-  const args = [binaryPath, 'cache-server', '--host', '127.0.0.1', '--port', String(port)]
+  const args = [binaryPath, 'cache', 'server', '--host', '127.0.0.1', '--port', String(port)]
   if (options.verbose) {
     args.push('--verbose')
   }
@@ -173,7 +173,7 @@ async function stopServer(server: RunningServer): Promise<StopServerOutput> {
   }
 }
 
-describe('cache-server command (Integration)', () => {
+describe('cache server command (Integration)', () => {
   const runningServers: RunningServer[] = []
 
   // defaultCache resolves its cache file relative to the process base dir; pin

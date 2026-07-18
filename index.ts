@@ -14,22 +14,17 @@ import { registerImportCommand } from './src/commands/import'
 import { registerPriceCommand } from './src/commands/price'
 import { registerBuildSiteCommand } from './src/commands/build-site'
 import { registerServeCommand } from './src/commands/serve'
-import { registerServeSiteCommand } from './src/commands/serve-site'
 import { registerAddCardCommand } from './src/commands/add-card'
 import { registerNoteCommand } from './src/commands/note'
 import { registerRemoveCardCommand } from './src/commands/remove-card'
 import { registerSetCardCommand } from './src/commands/set-card'
 import { registerCacheCommand } from './src/commands/cache'
-import { registerCacheServerCommand } from './src/commands/cache-server'
-import { registerCacheFeedCommand } from './src/commands/cache-feed'
 import { registerLoginCommand } from './src/commands/login'
 
 import { registerImportAccountCommand } from './src/commands/import-account'
-import { registerImportCsvCommand } from './src/commands/import-csv'
 import { registerImportChangesCommand } from './src/commands/import-changes'
 import { registerScryCommand } from './src/commands/scry'
 import { registerCardCommand } from './src/commands/card'
-import { registerRandomCommand } from './src/commands/random'
 import { registerGetPrimerCommand } from './src/commands/get-primer'
 import { registerInitSiteCommand } from './src/commands/init-site'
 import { registerAdminCommand } from './src/commands/admin'
@@ -83,13 +78,11 @@ type DryRunOptions = { dryRun?: boolean }
 
 const COMMANDS_WITHOUT_LIST_IDS = new Set([
   'login',
+  // 'cache' covers every nested subcommand (status, preloads, server, feed
+  // host/fetch) because the skip check walks the full ancestor chain.
   'cache',
-  'serve',
-  'cache-server',
-  'cache-feed',
   'card',
   'scry',
-  'random',
   'license',
   'dep-license',
   'git-detect-changes',
@@ -104,6 +97,19 @@ const COMMANDS_WITHOUT_LIST_IDS = new Set([
   'reset-password',
   'disable-totp',
 ])
+
+/** Every command name from the action command up to (excluding) the root program. */
+function commandChainNames(command: Command): string[] {
+  const names: string[] = []
+  let current: Command | null = command
+  while (current && current.parent) {
+    names.push(current.name())
+    current = current.parent
+  }
+  return names
+}
+
+type ServeBuildOptions = { build?: boolean }
 
 // Commander passes the hooked command first (always the root program here) and
 // the command whose action is about to run second — everything per-invocation
@@ -135,9 +141,13 @@ program.hook('preAction', async (_program, actionCommand) => {
 
   await initRitualConfig()
 
-  const leaf = actionCommand.name()
-  const parent = actionCommand.parent?.name()
-  if (COMMANDS_WITHOUT_LIST_IDS.has(leaf) || (parent && COMMANDS_WITHOUT_LIST_IDS.has(parent))) {
+  const chain = commandChainNames(actionCommand)
+  if (chain.some((name) => COMMANDS_WITHOUT_LIST_IDS.has(name))) {
+    return
+  }
+  // Plain `serve` only serves a prebuilt dist/ and must not write; with
+  // --build it rebuilds from the list files, so the backfill applies.
+  if (actionCommand.name() === 'serve' && actionCommand.opts<ServeBuildOptions>().build !== true) {
     return
   }
   // A dry run must write nothing — including the card-ID backfill.
@@ -166,7 +176,6 @@ registerMoveCommand(program)
 
 program.commandsGroup('Import & Export')
 registerImportCommand(program)
-registerImportCsvCommand(program)
 registerImportAccountCommand(program)
 registerImportChangesCommand(program)
 registerExportCommand(program)
@@ -174,13 +183,11 @@ registerExportCommand(program)
 program.commandsGroup('Lookup & Pricing')
 registerCardCommand(program)
 registerScryCommand(program)
-registerRandomCommand(program)
 registerPriceCommand(program)
 
 program.commandsGroup('Site')
 registerBuildSiteCommand(program)
 registerServeCommand(program)
-registerServeSiteCommand(program)
 registerInitSiteCommand(program)
 registerAdminCommand(program)
 
@@ -192,8 +199,6 @@ registerSkillsCommand(program)
 
 program.commandsGroup('Cache')
 registerCacheCommand(program)
-registerCacheServerCommand(program)
-registerCacheFeedCommand(program)
 
 program.commandsGroup('Utilities')
 registerCleanupCommand(program)

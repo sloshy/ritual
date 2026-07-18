@@ -66,7 +66,7 @@ export async function readPasswordFromStdin(): Promise<string> {
 
 /**
  * Ask which list type an import targets, or `undefined` when the user cancels.
- * Shared by the `import` and `import-csv` commands so the wording never drifts.
+ * Shared by the `import` command's text and CSV paths so the wording never drifts.
  */
 export async function promptListType(): Promise<ListType | undefined> {
   return ask<ListType>({

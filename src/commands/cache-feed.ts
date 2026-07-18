@@ -4,12 +4,14 @@ import { getCacheDir } from '../cache'
 import { defaultHttpClient } from '../http'
 import { getErrorMessage } from '../errors'
 import {
-  parseFeedUrlFlag,
+  addFeedUrlOption,
+  addTorrentPortOption,
   parseRefreshCadence,
   resolveRefreshMs,
   scheduleRecurringTask,
-} from '../cache-server/cadence'
+} from '../cache/cadence'
 import { ExitCode, parsePort } from './scripting'
+import { DAY_REFRESH_MS } from '../cache-server/constants'
 import type { RefreshCadence } from '../cache-server/types'
 import { CACHE_FEED_LOG_PREFIX, CacheFeedHost, DEFAULT_BULK_API_URL } from '../cache-feed/host'
 import { FeedSeeder } from '../cache-feed/seeder'
@@ -38,40 +40,43 @@ type CacheFeedHostCommandOptions = {
   verbose: boolean
 }
 
-const DAILY_MS = 24 * 60 * 60 * 1000
-
 function log(message: string): void {
   console.log(`${CACHE_FEED_LOG_PREFIX} ${message}`)
 }
 
-export function registerCacheFeedCommand(program: Command): void {
-  const cacheFeed = program
-    .command('cache-feed')
-    .description('Share Scryfall bulk cache data peer-to-peer')
+/** Wire `cache feed host` and `cache feed fetch` under the parent `cache` command. */
+export function registerCacheFeedSubcommand(cache: Command): void {
+  const feed = cache.command('feed').description('Share Scryfall bulk cache data peer-to-peer')
 
-  cacheFeed
-    .command('host')
-    .description(
-      'Host a cache feed: download the raw Scryfall bulk files, torrent them, ' +
-        'and serve + seed them for other ritual clients',
-    )
-    .option('-p, --port <number>', 'Port for the feed HTTP server', parsePort, 4010)
-    .option('--host <hostname>', 'Host interface for the feed HTTP server', '127.0.0.1')
-    .option(
-      '--public-url <url>',
-      'Public base URL peers reach this host at (embedded in the feed and web-seed URLs; ' +
-        'defaults to http://<host>:<port>)',
-    )
-    .option(
-      '--refresh <interval>',
-      "Re-check Scryfall for new bulk data on an interval (supported: 'daily', 'weekly', " +
-        "'monthly'; falls back to RITUAL_CACHE_FEED_REFRESH, then 'daily')",
-      parseRefreshCadence,
-    )
-    .option('--upstream <url>', 'Bulk manifest URL to source artifacts from', DEFAULT_BULK_API_URL)
-    .option('--dir <path>', 'Feed data directory (defaults to <cache>/feed)')
-    .option('--no-seed', 'Serve the feed and files over HTTP only, without BitTorrent seeding')
-    .option('--torrent-port <number>', 'Fixed TCP port for incoming torrent peers', parsePort)
+  addTorrentPortOption(
+    feed
+      .command('host')
+      .description(
+        'Host a cache feed: download the raw Scryfall bulk files, torrent them, ' +
+          'and serve + seed them for other ritual clients',
+      )
+      .option('-p, --port <number>', 'Port for the feed HTTP server', parsePort, 4010)
+      .option('--host <hostname>', 'Host interface for the feed HTTP server', '127.0.0.1')
+      .option(
+        '--public-url <url>',
+        'Public base URL peers reach this host at (embedded in the feed and web-seed URLs; ' +
+          'defaults to http://<host>:<port>)',
+      )
+      .option(
+        '--refresh <interval>',
+        "Re-check Scryfall for new bulk data on an interval (supported: 'daily', 'weekly', " +
+          "'monthly'; falls back to RITUAL_CACHE_FEED_REFRESH, then 'daily')",
+        parseRefreshCadence,
+      )
+      .option(
+        '--upstream <url>',
+        'Bulk manifest URL to source artifacts from',
+        DEFAULT_BULK_API_URL,
+      )
+      .option('--dir <path>', 'Feed data directory (defaults to <cache>/feed)')
+      .option('--no-seed', 'Serve the feed and files over HTTP only, without BitTorrent seeding'),
+    'Fixed TCP port for incoming torrent peers',
+  )
     .option('-v, --verbose', 'Log every feed-server request', false)
     .action(async (options: CacheFeedHostCommandOptions) => {
       const feedDir = options.dir ?? path.join(getCacheDir(), 'feed')
@@ -143,7 +148,8 @@ export function registerCacheFeedCommand(program: Command): void {
         return
       }
 
-      const refreshMs = resolveRefreshMs(options.refresh, 'RITUAL_CACHE_FEED_REFRESH') ?? DAILY_MS
+      const refreshMs =
+        resolveRefreshMs(options.refresh, 'RITUAL_CACHE_FEED_REFRESH') ?? DAY_REFRESH_MS
       scheduleRecurringTask(
         refreshMs,
         async () => {
@@ -162,20 +168,20 @@ export function registerCacheFeedCommand(program: Command): void {
       }
     })
 
-  cacheFeed
-    .command('fetch')
-    .description(
-      'Sync the card cache from a cache feed, then stay open seeding the ' +
-        'artifacts to other peers (Ctrl+C to stop)',
-    )
-    .option(
-      '--url <feedUrl>',
+  addTorrentPortOption(
+    addFeedUrlOption(
+      feed
+        .command('fetch')
+        .description(
+          'Sync the card cache from a cache feed, then stay open seeding the ' +
+            'artifacts to other peers (Ctrl+C to stop)',
+        ),
       'Feed URL (defaults to the cacheFeedUrl config key, then the built-in default)',
-      parseFeedUrlFlag,
     )
-    .option('--no-p2p', 'Download over plain HTTP instead of BitTorrent')
-    .option('--no-seed', 'Exit after ingesting instead of staying open to seed')
-    .option('--torrent-port <number>', 'Fixed TCP port for incoming torrent peers', parsePort)
+      .option('--no-p2p', 'Download over plain HTTP instead of BitTorrent')
+      .option('--no-seed', 'Exit after ingesting instead of staying open to seed'),
+    'Fixed TCP port for incoming torrent peers',
+  )
     .option('--force', 'Re-download and re-ingest even when the feed is unchanged', false)
     .option(
       '--refresh <interval>',
@@ -227,7 +233,8 @@ export function registerCacheFeedCommand(program: Command): void {
           'Press Ctrl+C to stop.',
       )
 
-      const refreshMs = resolveRefreshMs(options.refresh, 'RITUAL_CACHE_FEED_REFRESH') ?? DAILY_MS
+      const refreshMs =
+        resolveRefreshMs(options.refresh, 'RITUAL_CACHE_FEED_REFRESH') ?? DAY_REFRESH_MS
       const refreshTimer = scheduleRecurringTask(
         refreshMs,
         async () => {

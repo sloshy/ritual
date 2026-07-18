@@ -33,7 +33,7 @@ Conventions shared by every one-shot command:
   hanging. It is the one headless switch — there are no per-command
   non-interactive flags.
 - Commands that read the Scryfall card cache (\`add-card\`, \`edit\`, \`price\`,
-  \`build-site\`, \`serve-site\`, \`admin\`) share a \`--refresh <mode>\` option
+  \`build-site\`, \`serve --build\`, \`admin\`) share a \`--refresh <mode>\` option
   controlling cache freshness: \`ask\` (the default — prompt about stale/empty
   caches; the prompt is skipped when prompts are unavailable), \`auto\` (refresh
   stale data without asking, bulk download allowed), \`no-bulk\` (refresh stale

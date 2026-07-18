@@ -1,21 +1,27 @@
 import { Command, InvalidArgumentError } from 'commander'
-import { fetchSearchPage } from '../scryfall'
+import type { ScryfallCard } from '../types'
+import { classifyFetchCard, fetchRandomCard, fetchSearchPage } from '../scryfall'
 import { isNoInput } from '../no-input'
 import {
+  addFieldsOption,
   addScriptingOptions,
   emitError,
   emitOutput,
   ExitCode,
   normalizeScriptingOptions,
-  parseFields,
   projectFields,
+  rejectFieldsWithTextOutput,
+  renderCardSummary,
+  type ScriptingOptions,
 } from './scripting'
 import { getErrorMessage } from '../errors'
 import { ask } from './prompts-helpers'
 
 type ScryCommandOptions = {
   csv: boolean
+  random: boolean
   pages?: number
+  count?: number
   output?: 'text' | 'json' | 'ndjson'
   quiet?: boolean
   fields?: string[]
@@ -41,36 +47,95 @@ export function shouldPageInteractively(input: ScryPagingInput): boolean {
   return input.stdoutIsTTY && input.stdinIsTTY && !input.noInput && input.pagesFlag === undefined
 }
 
+/** The flag/argument combination that decides the random-vs-search dispatch. */
+export type ScryUsageInput = {
+  query: string | undefined
+  random: boolean
+  /** The explicit `--count` value, or undefined when the flag was not given. */
+  countFlag: number | undefined
+  csv: boolean
+  /** The explicit `--pages` value, or undefined when the flag was not given. */
+  pagesFlag: number | undefined
+}
+
+/**
+ * Validate the random-vs-search usage matrix: paging and CSV are meaningless
+ * for random picks, `--count` is meaningless for searches, and a search needs
+ * a query. Returns the usage-error message, or null when the combination is
+ * valid.
+ */
+export function validateScryUsage(input: ScryUsageInput): string | null {
+  if (input.random) {
+    if (input.pagesFlag !== undefined) {
+      return '--pages cannot be used with --random.'
+    }
+    if (input.csv) {
+      return '--csv cannot be used with --random.'
+    }
+    return null
+  }
+  if (input.countFlag !== undefined) {
+    return '--count requires --random.'
+  }
+  if (input.query === undefined) {
+    return 'A search query is required unless --random is given.'
+  }
+  return null
+}
+
 export function registerScryCommand(program: Command): void {
   addScriptingOptions(
-    program
-      .command('scry')
-      .description('Run a raw Scryfall card search')
-      .argument('<query>', 'Scryfall search query')
-      .option('--csv', 'Output as CSV', false)
-      .option(
-        '--pages <number>',
-        'Fetch up to this many pages without prompting (default 1 when prompts are unavailable)',
-        parsePages,
-      )
-      .option('--fields <list>', 'Comma-separated fields for json/ndjson output', parseFields),
+    addFieldsOption(
+      program
+        .command('scry')
+        .description('Run a raw Scryfall card search or fetch random cards')
+        .argument('[query]', 'Scryfall search query (with --random, filters the random pick)')
+        .option('--csv', 'Output as CSV', false)
+        .option(
+          '--pages <number>',
+          'Fetch up to this many pages without prompting (default 1 when prompts are unavailable)',
+          parsePages,
+        )
+        .option('--random', 'Fetch random cards instead of searching', false)
+        .option(
+          '--count <number>',
+          'Number of random cards to fetch with --random (default 1)',
+          parseCount,
+        ),
+    ),
     'json',
-  ).action(async (query: string, options: ScryCommandOptions) => {
+  ).action(async (query: string | undefined, options: ScryCommandOptions) => {
     const scriptingOptions = normalizeScriptingOptions(options, 'json')
+    const usageError = validateScryUsage({
+      query,
+      random: options.random,
+      countFlag: options.count,
+      csv: options.csv,
+      pagesFlag: options.pages,
+    })
+    if (usageError !== null) {
+      emitError('usage_error', usageError, scriptingOptions)
+      process.exitCode = ExitCode.UsageError
+      return
+    }
     if (options.fields && options.fields.length > 0 && options.csv) {
       emitError('usage_error', '--fields cannot be used with --csv.', scriptingOptions)
       process.exitCode = ExitCode.UsageError
       return
     }
-    if (options.fields && options.fields.length > 0 && scriptingOptions.output === 'text') {
-      emitError(
-        'usage_error',
-        '--fields requires --output json or --output ndjson.',
-        scriptingOptions,
-      )
-      process.exitCode = ExitCode.UsageError
+    if (rejectFieldsWithTextOutput(options.fields, scriptingOptions)) {
       return
     }
+
+    if (options.random) {
+      await runRandom(query, options.count ?? 1, options.fields, scriptingOptions)
+      return
+    }
+    if (query === undefined) {
+      // Unreachable: validateScryUsage guarantees a query on the search path.
+      return
+    }
+
     let page = 1
     const format = options.csv ? 'csv' : 'json'
 
@@ -150,11 +215,66 @@ export function registerScryCommand(program: Command): void {
   })
 }
 
-/** Commander argParser for --pages: reject non-numeric and non-positive values at parse time. */
-function parsePages(value: string): number {
-  const pages = Number.parseInt(value, 10)
-  if (!Number.isInteger(pages) || pages <= 0) {
-    throw new InvalidArgumentError('Pages must be a positive integer.')
+/**
+ * The `--random` path: fetch `count` random cards sequentially (the Scryfall
+ * client rate-limits each request), then emit them — a bare card for a single
+ * pick, an array otherwise. Any fetch failure or empty pick aborts without
+ * emitting partial output.
+ */
+async function runRandom(
+  filter: string | undefined,
+  count: number,
+  fields: string[] | undefined,
+  scriptingOptions: ScriptingOptions,
+): Promise<void> {
+  const cards: ScryfallCard[] = []
+  for (let i = 0; i < count; i++) {
+    const outcome = classifyFetchCard(await fetchRandomCard(filter))
+
+    if (outcome.kind === 'failed') {
+      emitError(
+        'runtime_error',
+        `Failed to fetch random card: ${outcome.message}`,
+        scriptingOptions,
+      )
+      process.exitCode = ExitCode.RuntimeError
+      return
+    }
+
+    if (outcome.kind === 'not-found') {
+      emitError('not_found', 'No card found for the supplied random filter.', scriptingOptions)
+      process.exitCode = ExitCode.NotFound
+      return
+    }
+
+    cards.push(outcome.card)
   }
-  return pages
+
+  if (scriptingOptions.output === 'text') {
+    for (const card of cards) {
+      emitOutput(renderCardSummary(card), scriptingOptions)
+    }
+    return
+  }
+
+  emitOutput(projectFields(count === 1 ? cards[0] : cards, fields), scriptingOptions)
+}
+
+/** Reject non-numeric and non-positive flag values at parse time. */
+function parsePositiveInt(value: string, label: string): number {
+  const parsed = Number.parseInt(value, 10)
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new InvalidArgumentError(`${label} must be a positive integer.`)
+  }
+  return parsed
+}
+
+/** Commander argParser for --pages. */
+function parsePages(value: string): number {
+  return parsePositiveInt(value, 'Pages')
+}
+
+/** Commander argParser for --count. */
+function parseCount(value: string): number {
+  return parsePositiveInt(value, 'Count')
 }

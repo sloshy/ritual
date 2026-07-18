@@ -28,22 +28,22 @@ bun run index.ts --help
 bun run index.ts new deck "Test Deck"
 ```
 
-When invoked this way (i.e. via `bun` rather than the compiled `ritual` binary), both [`admin`](/commands/admin/) and [`serve-site`](/commands/serve-site/) rebuild their SPA bundles from `src/` on startup. No flag is needed — the source-tree path is selected automatically. The compiled binary serves the pre-bundled assets baked into it.
+When invoked this way (i.e. via `bun` rather than the compiled `ritual` binary), both [`admin`](/commands/admin/) and [`serve --build`](/commands/serve/) rebuild their SPA bundles from `src/` on startup. No flag is needed — the source-tree path is selected automatically. The compiled binary serves the pre-bundled assets baked into it.
 
 ## Dev Workflow
 
 For iterative development of the `admin` interface or the static site, use:
 
 ```bash
-bun run dev admin --refresh never        # auto-restart `admin`
-bun run dev serve-site --refresh never   # auto-restart `serve-site`
+bun run dev admin --refresh never   # auto-restart `admin`
+bun run dev serve --refresh never   # auto-restart `serve --build`
 ```
 
 This launches `scripts/dev.ts`, which:
 
-- Spawns `bun index.ts <subcommand>` as a child process.
-- Watches `src/` (TypeScript, TSX, CSS, SVG) and — for `serve-site` — `decks/`, `collections/`, and `wanted/` (Markdown).
-- On any change, fully restarts the child process so updates to **any** part of the codebase (core logic, server handlers, parsers, SPA, themes, etc.) take effect on the next request. Running from source, `admin` and `serve-site` rebuild their CSS and SPA bundle from `src/` on each (re)start — there is no separate compile step to run, and the gitignored `*.compiled.*` artifacts are only used by the compiled binary.
+- Spawns `bun index.ts <subcommand>` as a child process. For `serve`, the orchestrator appends `--build` automatically when absent — a restart loop over a server that never rebuilds would be pointless.
+- Watches `src/` (TypeScript, TSX, CSS, SVG) and — for `serve` — `decks/`, `collections/`, and `wanted/` (Markdown).
+- On any change, fully restarts the child process so updates to **any** part of the codebase (core logic, server handlers, parsers, SPA, themes, etc.) take effect on the next request. Running from source, `admin` and `serve --build` rebuild their CSS and SPA bundle from `src/` on each (re)start — there is no separate compile step to run, and the gitignored `*.compiled.*` artifacts are only used by the compiled binary.
 - **Live-reloads the browser** (`admin` only, source mode). The served page holds an `EventSource` to a dev-only `/__dev_reload` endpoint that carries the server's boot id; the page reloads when that id changes (a real restart), not on every reconnect, so an idle-timeout drop never triggers a spurious reload. The restarted server rebuilds `styles.css`/`app.js` from source, and the reload refetches them.
 - Catches changes even when the OS file watcher drops events. `fs.watch` can silently miss events under bursts (a formatter touching many files, an editor "save all", or atomic-rename saves), which would otherwise leave the rebuild stale. A snapshot of the watched tree is taken each time a build is launched, and a ~1s background scan re-checks it; if any file drifts from what the running build was launched against, the child restarts so the build always converges on the latest sources.
 
@@ -51,10 +51,10 @@ Any extra arguments are forwarded to the underlying command:
 
 ```bash
 bun run dev admin --port 9090 --theme boros
-bun run dev serve-site --decks "Atraxa Superfriends" --currencies usd
+bun run dev serve --decks "Atraxa Superfriends" --currencies usd
 ```
 
-If `--base-dir <path>` is passed for `serve-site`, the watcher uses that base directory's data folders.
+If `--base-dir <path>` is passed for `serve`, the watcher uses that base directory's data folders.
 
 The dev orchestrator is a source-tree-only tool — it is not part of the compiled binary. Press `q` or `Ctrl+C` to stop it cleanly; the child process and its port are released before the orchestrator exits.
 
@@ -63,12 +63,12 @@ The dev orchestrator is a source-tree-only tool — it is not part of the compil
 Because the orchestrator owns the terminal exclusively, the child process can't read interactive prompts (e.g. the "Card cache is N days old, refresh?" prompt issued under the default `--refresh ask`). Rather than leave the child hanging on an unanswerable prompt, `bun run dev` **requires** you to pre-answer it with an explicit `--refresh` mode and fails fast before launching otherwise:
 
 ```bash
-bun run dev serve-site --refresh auto     # refresh stale cache (bulk download allowed)
-bun run dev serve-site --refresh no-bulk  # refresh prices per-card, no bulk download
-bun run dev serve-site --refresh never    # use the existing cache as-is
+bun run dev serve --refresh auto     # refresh stale cache (bulk download allowed)
+bun run dev serve --refresh no-bulk  # refresh prices per-card, no bulk download
+bun run dev serve --refresh never    # use the existing cache as-is
 ```
 
-The same applies to `bun run dev admin`. The flag is forwarded straight to the underlying [`serve-site`](/commands/serve-site/) / [`admin`](/commands/admin/) command, so the modes behave exactly as documented there. `--refresh ask` does **not** count as an answer — it restates the prompting default. Passing `--no-input` also satisfies the check, since under it the child skips the refresh instead of prompting. For day-to-day dev `--refresh never` is usually what you want; if you need to refresh the Scryfall cache, use `--refresh auto` on the next restart or run `ritual cache preload-all` separately.
+The same applies to `bun run dev admin`. The flag is forwarded straight to the underlying [`serve`](/commands/serve/) / [`admin`](/commands/admin/) command, so the modes behave exactly as documented there. `--refresh ask` does **not** count as an answer — it restates the prompting default. Passing `--no-input` also satisfies the check, since under it the child skips the refresh instead of prompting. For day-to-day dev `--refresh never` is usually what you want; if you need to refresh the Scryfall cache, use `--refresh auto` on the next restart or run `ritual cache preload-all` separately.
 
 ## Building
 

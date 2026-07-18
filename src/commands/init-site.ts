@@ -30,146 +30,18 @@ import { CardCommandError } from '../errors'
 import { runCommandAction } from './card-target'
 import { ExitCode, normalizeScriptingOptions, parseEnumFlag } from './scripting'
 
-export function generatePublishForMeWorkflow(config?: GitHubActionsSiteConfig): string {
-  if (config?.detectChanges) {
-    return generatePublishForMeWithDetectChanges()
-  }
-  return generatePublishForMeBase()
-}
+/**
+ * The `if:` guard stamped on every build/deploy step of the detect-changes
+ * variant — when change detection pushes a new commit, that push re-triggers
+ * the workflow, so the current run skips the build.
+ */
+const DETECT_CHANGES_GUARD = `\n        if: steps.detect-changes.outputs.has-changes != 'true'`
 
-function generatePublishForMeBase(): string {
-  return `name: Build and Deploy Ritual Site
+/** `with:` block appended to the checkout step so `git-detect-changes` can diff history. */
+const FULL_HISTORY_CHECKOUT = `\n        with:\n          fetch-depth: 0`
 
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
-
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: \${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Get Ritual version
-        id: ritual-version
-        run: |
-          VERSION="\${RITUAL_VERSION:-latest}"
-          if [ "$VERSION" = "latest" ]; then
-            VERSION=$(curl -s https://api.github.com/repos/sloshy/ritual/releases/latest \\
-              | grep '"tag_name"' | head -1 | cut -d'"' -f4)
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-        env:
-          RITUAL_VERSION: \${{ vars.RITUAL_VERSION }}
-
-      - name: Cache Ritual binary
-        id: ritual-cache
-        uses: actions/cache@v5
-        with:
-          path: ritual
-          key: ritual-binary-\${{ steps.ritual-version.outputs.version }}-linux-x86_64
-
-      - name: Download Ritual
-        if: steps.ritual-cache.outputs.cache-hit != 'true'
-        run: |
-          VERSION="\${{ steps.ritual-version.outputs.version }}"
-          curl -L -o ritual "https://github.com/sloshy/ritual/releases/download/\${VERSION}/ritual-linux-x86_64"
-          chmod +x ritual
-
-      - name: Generate card manifest
-        run: ./ritual list-all-cards --out all-cards.md
-
-      - name: Restore Scryfall cache
-        uses: actions/cache@v5
-        with:
-          path: cache/
-          key: ritual-cache-\${{ hashFiles('all-cards.md') }}
-          restore-keys: ritual-cache-
-
-      - name: Build site
-        run: ./ritual build-site --refresh auto
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v6
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: dist
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
-`
-}
-
-function generatePublishForMeWithDetectChanges(): string {
-  return `name: Build and Deploy Ritual Site
-
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
-
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: \${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Get Ritual version
-        id: ritual-version
-        run: |
-          VERSION="\${RITUAL_VERSION:-latest}"
-          if [ "$VERSION" = "latest" ]; then
-            VERSION=$(curl -s https://api.github.com/repos/sloshy/ritual/releases/latest \\
-              | grep '"tag_name"' | head -1 | cut -d'"' -f4)
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-        env:
-          RITUAL_VERSION: \${{ vars.RITUAL_VERSION }}
-
-      - name: Cache Ritual binary
-        id: ritual-cache
-        uses: actions/cache@v5
-        with:
-          path: ritual
-          key: ritual-binary-\${{ steps.ritual-version.outputs.version }}-linux-x86_64
-
-      - name: Download Ritual
-        if: steps.ritual-cache.outputs.cache-hit != 'true'
-        run: |
-          VERSION="\${{ steps.ritual-version.outputs.version }}"
-          curl -L -o ritual "https://github.com/sloshy/ritual/releases/download/\${VERSION}/ritual-linux-x86_64"
-          chmod +x ritual
-
+/** Step inserted between "Download Ritual" and "Generate card manifest" in the detect-changes variant. */
+const DETECT_AND_COMMIT_STEP = `
       - name: Detect and commit changes
         id: detect-changes
         run: |
@@ -187,38 +59,96 @@ jobs:
             git push
             echo "has-changes=true" >> "$GITHUB_OUTPUT"
           fi
+`
 
-      - name: Generate card manifest
-        if: steps.detect-changes.outputs.has-changes != 'true'
+/**
+ * The trailing Setup Pages / Upload artifact / Deploy steps shared by every
+ * generated workflow. `guard` is an `if:` line prefix stamped on each step
+ * (`''` for none).
+ */
+function generateDeploySteps(distDir: string, guard: string): string {
+  return `      - name: Setup Pages${guard}
+        uses: actions/configure-pages@v6
+
+      - name: Upload artifact${guard}
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: ${distDir}
+
+      - name: Deploy to GitHub Pages${guard}
+        id: deployment
+        uses: actions/deploy-pages@v5
+`
+}
+
+export function generatePublishForMeWorkflow(config?: GitHubActionsSiteConfig): string {
+  const detectChanges = config?.detectChanges === true
+  const guard = detectChanges ? DETECT_CHANGES_GUARD : ''
+  return `name: Build and Deploy Ritual Site
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: ${detectChanges ? 'write' : 'read'}
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: \${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7${detectChanges ? FULL_HISTORY_CHECKOUT : ''}
+
+      - name: Get Ritual version
+        id: ritual-version
+        run: |
+          VERSION="\${RITUAL_VERSION:-latest}"
+          if [ "$VERSION" = "latest" ]; then
+            VERSION=$(curl -s https://api.github.com/repos/sloshy/ritual/releases/latest \\
+              | grep '"tag_name"' | head -1 | cut -d'"' -f4)
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        env:
+          RITUAL_VERSION: \${{ vars.RITUAL_VERSION }}
+
+      - name: Cache Ritual binary
+        id: ritual-cache
+        uses: actions/cache@v5
+        with:
+          path: ritual
+          key: ritual-binary-\${{ steps.ritual-version.outputs.version }}-linux-x86_64
+
+      - name: Download Ritual
+        if: steps.ritual-cache.outputs.cache-hit != 'true'
+        run: |
+          VERSION="\${{ steps.ritual-version.outputs.version }}"
+          curl -L -o ritual "https://github.com/sloshy/ritual/releases/download/\${VERSION}/ritual-linux-x86_64"
+          chmod +x ritual
+${detectChanges ? DETECT_AND_COMMIT_STEP : ''}
+      - name: Generate card manifest${guard}
         run: ./ritual list-all-cards --out all-cards.md
 
-      - name: Restore Scryfall cache
-        if: steps.detect-changes.outputs.has-changes != 'true'
+      - name: Restore Scryfall cache${guard}
         uses: actions/cache@v5
         with:
           path: cache/
           key: ritual-cache-\${{ hashFiles('all-cards.md') }}
           restore-keys: ritual-cache-
 
-      - name: Build site
-        if: steps.detect-changes.outputs.has-changes != 'true'
+      - name: Build site${guard}
         run: ./ritual build-site --refresh auto
 
-      - name: Setup Pages
-        if: steps.detect-changes.outputs.has-changes != 'true'
-        uses: actions/configure-pages@v6
-
-      - name: Upload artifact
-        if: steps.detect-changes.outputs.has-changes != 'true'
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: dist
-
-      - name: Deploy to GitHub Pages
-        if: steps.detect-changes.outputs.has-changes != 'true'
-        id: deployment
-        uses: actions/deploy-pages@v5
-`
+${generateDeploySteps('dist', guard)}`
 }
 
 export function generateLocalBuildWorkflow(distDir: string): string {
@@ -247,18 +177,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v6
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: ${distDir}
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
-`
+${generateDeploySteps(distDir, '')}`
 }
 
 export function generateWorkflow(config: GitHubActionsSiteConfig): string {
@@ -292,11 +211,10 @@ interface instead.
 
 ## Previewing Locally
 
-Build the site and serve it on your machine before you deploy:
+Build and serve the site on your machine before you deploy:
 
 \`\`\`sh
-ritual build-site
-ritual serve
+ritual serve --build
 \`\`\`
 
 Then open <http://localhost:3000> to preview it.
@@ -1134,13 +1052,14 @@ function printNextSteps(config: InitSiteConfig): void {
   console.log()
   console.log('Your site is ready! Next steps:')
   console.log('  1. Add decks to the decks/ directory (ritual new deck "My Deck")')
+  console.log('  2. Preview locally with ritual serve --build')
 
   if (config.ciSystem === 'manual') {
-    console.log('  2. Run ritual build-site to build your site')
-    console.log('  3. Deploy the dist/ directory to your hosting provider')
+    console.log('  3. Run ritual build-site to build your site')
+    console.log('  4. Deploy the dist/ directory to your hosting provider')
   } else {
-    console.log('  2. Enable GitHub Pages in your repo: Settings → Pages → Source: GitHub Actions')
-    console.log('  3. Push to main to trigger a deploy')
+    console.log('  3. Enable GitHub Pages in your repo: Settings → Pages → Source: GitHub Actions')
+    console.log('  4. Push to main to trigger a deploy')
 
     if (config.deployMode === 'publish-for-me') {
       console.log()

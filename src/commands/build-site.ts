@@ -47,8 +47,7 @@ import type {
   WantedListEntryState,
   SiteIndex,
 } from '../site/data-types'
-import { ArchidektClient } from '../clients/ArchidektClient'
-import { fetchMoxfieldDeck } from '../importers/moxfield-lib'
+import { fetchDeckFromUrl } from '../importers/url-dispatch'
 import { resolveCardImageSources } from '../site/image-sources'
 import { parseCollectionFile, resolveFinish } from '../collection-file'
 import { parseWantedListFile } from './wanted-helpers'
@@ -86,6 +85,7 @@ export interface BuildSiteOptions {
   refresh?: RefreshMode
   theme?: string
   themeFile?: string[]
+  moxfieldUserAgent?: string
 }
 
 export type SiteSpaAssets = {
@@ -378,13 +378,14 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     let deckData: DeckData | undefined
     try {
       if (source.startsWith('http')) {
-        if (source.includes('archidekt')) {
-          const match = source.match(/archidekt\.com\/decks\/(\d+)/)
-          if (match && match[1]) deckData = await new ArchidektClient().fetchDeck(match[1])
-        } else if (source.includes('moxfield')) {
-          const match = source.match(/moxfield\.com\/decks\/([a-zA-Z0-9_-]+)/)
-          if (match && match[1]) deckData = await fetchMoxfieldDeck(match[1])
+        const result = await fetchDeckFromUrl(source, {
+          moxfieldUserAgent: options.moxfieldUserAgent,
+        })
+        if (typeof result === 'string') {
+          console.error(`Failed to load deck '${source}': ${result}`)
+          continue
         }
+        deckData = result
       } else {
         const fileName = path.basename(source.endsWith('.md') ? source : `${source}.md`)
         deckData = await importFromTextFile(path.join(decksDir, fileName))
@@ -1483,7 +1484,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
 
 /**
  * Register every commander option that maps to a {@link BuildSiteOptions} field.
- * Shared by `build-site` and `serve-site` so the two stay in sync.
+ * Shared by `build-site` and `serve --build` so the two stay in sync.
  */
 export function applyBuildSiteOptions(command: Command): Command {
   return addRefreshOption(command)
@@ -1516,6 +1517,10 @@ export function applyBuildSiteOptions(command: Command): Command {
     .option(
       '--theme-file <path...>',
       'Load one or more custom theme JSON files; their names become selectable alongside the built-ins',
+    )
+    .option(
+      '--moxfield-user-agent <agent>',
+      'Moxfield-approved unique User-Agent string (required for Moxfield deck URLs unless MOXFIELD_USER_AGENT is set)',
     )
 }
 

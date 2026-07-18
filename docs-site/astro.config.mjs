@@ -60,7 +60,6 @@ export default defineConfig({
               label: 'Import & Export',
               items: [
                 'commands/import',
-                'commands/import-csv',
                 'commands/import-account',
                 'commands/import-changes',
                 'commands/export',
@@ -68,14 +67,13 @@ export default defineConfig({
             },
             {
               label: 'Lookup & Pricing',
-              items: ['commands/card', 'commands/scry', 'commands/random', 'commands/price'],
+              items: ['commands/card', 'commands/scry', 'commands/price'],
             },
             {
               label: 'Site',
               items: [
                 'commands/build-site',
                 'commands/serve',
-                'commands/serve-site',
                 'commands/init-site',
                 'commands/admin',
               ],
@@ -86,7 +84,7 @@ export default defineConfig({
             },
             {
               label: 'Cache',
-              items: ['commands/cache', 'commands/cache-server', 'commands/cache-feed'],
+              items: ['commands/cache'],
             },
             {
               label: 'Utilities',

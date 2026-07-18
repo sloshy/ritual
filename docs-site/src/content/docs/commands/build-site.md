@@ -14,17 +14,18 @@ Generate a website for your decks and collections.
 
 By default, deck card images use Scryfall URLs from card data. This can be overridden with the `--cache-images` option to download and use local images instead.
 
-| Option                      | Description                                                                                                                                                           |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-v, --verbose`             | Show list of cards being fetched from Scryfall                                                                                                                        |
-| `--cache-images`            | Download and use local deck card images in `dist/images` instead of URLs                                                                                              |
-| `--decks [names...]`        | Deck names or URLs to include in the site (default: the `site.includeDecks` config selection)                                                                         |
-| `--collections [names...]`  | Collection names to include in the site (default: the `site.includeCollections` config selection)                                                                     |
-| `--wanted-lists [names...]` | Wanted list names to include in the site (default: the `site.includeWantedLists` config selection)                                                                    |
-| `--currencies <list>`       | Comma-separated currencies to include on the site: `usd`, `eur`, `tix` (default: all three)                                                                           |
-| `--refresh <mode>`          | Card cache refresh policy: `ask` (default — prompt; skip when prompts are unavailable), `auto`, `no-bulk`, or `never`. See [Card Cache Refresh](#card-cache-refresh). |
-| `--theme <name>`            | Initial theme served to first-time visitors (built-in name or a custom name from `--theme-file`). Defaults to `default`.                                              |
-| `--theme-file <path...>`    | Load one or more custom theme JSON files; each is added to the runtime theme list under its declared `name`.                                                          |
+| Option                          | Description                                                                                                                                                           |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-v, --verbose`                 | Show list of cards being fetched from Scryfall                                                                                                                        |
+| `--cache-images`                | Download and use local deck card images in `dist/images` instead of URLs                                                                                              |
+| `--decks [names...]`            | Deck names or URLs to include in the site (default: the `site.includeDecks` config selection)                                                                         |
+| `--collections [names...]`      | Collection names to include in the site (default: the `site.includeCollections` config selection)                                                                     |
+| `--wanted-lists [names...]`     | Wanted list names to include in the site (default: the `site.includeWantedLists` config selection)                                                                    |
+| `--currencies <list>`           | Comma-separated currencies to include on the site: `usd`, `eur`, `tix` (default: all three)                                                                           |
+| `--refresh <mode>`              | Card cache refresh policy: `ask` (default — prompt; skip when prompts are unavailable), `auto`, `no-bulk`, or `never`. See [Card Cache Refresh](#card-cache-refresh). |
+| `--theme <name>`                | Initial theme served to first-time visitors (built-in name or a custom name from `--theme-file`). Defaults to `default`.                                              |
+| `--theme-file <path...>`        | Load one or more custom theme JSON files; each is added to the runtime theme list under its declared `name`.                                                          |
+| `--moxfield-user-agent <agent>` | Moxfield-approved unique User-Agent string (required for Moxfield deck URLs unless `MOXFIELD_USER_AGENT` is set)                                                      |
 
 ## Examples
 
@@ -52,7 +53,7 @@ Build with downloaded local deck card images:
 ./ritual build-site --cache-images
 ```
 
-Build directly from a URL:
+Build directly from a URL (see [Building decks from URLs](#building-decks-from-urls)):
 
 ```bash
 ./ritual build-site --decks https://archidekt.com/decks/12345
@@ -101,6 +102,24 @@ Setting a list to specific **display names** publishes only those lists and filt
 Each category also has an `exclude*` list (`site.excludeDecks`, `site.excludeCollections`, `site.excludeWantedLists`) that drops lists by display name even when the `include*` list selects them — exclusion always wins. The exclude lists default to empty and have no wildcard. For example, `"includeDecks": ["*"]` with `"excludeDecks": ["Untuned Brew"]` publishes every deck except "Untuned Brew". The admin **Manage Lists** page toggles these per list; see [publishing visibility](/admin/manage-lists/#publishing-visibility).
 
 You can edit these lists from the admin **Settings** page, with [`config set`](/commands/config/), or by hand.
+
+## Building decks from URLs
+
+Entries passed to `--decks` can be deck URLs instead of local deck names. URL decks are fetched at build time through the same dispatch as [`import`](/commands/import/), so all three supported services work:
+
+- **Archidekt** — `https://archidekt.com/decks/<id>`
+- **Moxfield** — `https://moxfield.com/decks/<id>`
+- **MTGGoldfish** — any `mtggoldfish.com` deck URL
+
+Moxfield requires a unique, Moxfield-approved User-Agent string: pass `--moxfield-user-agent <agent>` or set the `MOXFIELD_USER_AGENT` environment variable. A Moxfield URL given without one is reported as an error for that deck and the build continues without it.
+
+An `http(s)` URL that doesn't match a supported service is also reported as an error naming the URL and skipped — the rest of the build continues.
+
+URL decks have no local file, so they carry no changelog and no file timestamp on the generated site.
+
+```bash
+./ritual build-site --decks https://moxfield.com/decks/abc123 --moxfield-user-agent "YourName Ritual Build/1.0"
+```
 
 ## Themes
 
@@ -327,7 +346,7 @@ The shared `--refresh <mode>` option answers the prompts non-interactively and c
 
 > **Note:** `--refresh no-bulk` and `--refresh never` also suppress the _automatic_ bulk download (step 1). On an empty or very stale cache this forces every card to be fetched individually, which is slow and can hit Scryfall rate limits — use them when you already have a populated cache.
 
-An explicit `--refresh` mode is also what `bun run dev serve-site` requires — see [Development → Dev Workflow](/development/#dev-workflow).
+An explicit `--refresh` mode is also what `bun run dev serve` requires — see [Development → Dev Workflow](/development/#dev-workflow).
 
 ## Quick Switch
 
@@ -455,10 +474,10 @@ After building, use the [`serve`](/commands/serve/) command to preview locally:
 ./ritual serve
 ```
 
-To build and serve in a single step, use [`serve-site`](/commands/serve-site/):
+To build and serve in a single step, pass `--build` to [`serve`](/commands/serve/):
 
 ```bash
-./ritual serve-site
+./ritual serve --build
 ```
 
 ## Trade Planner

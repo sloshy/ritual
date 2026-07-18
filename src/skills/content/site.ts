@@ -52,6 +52,9 @@ ritual build-site --refresh auto                   # refresh stale cache (bulk d
 
 \`--cache-images\` downloads card images locally instead of hot-linking Scryfall.
 
+\`--decks\` also accepts Archidekt, Moxfield, or MTGGoldfish deck URLs; Moxfield
+URLs need \`--moxfield-user-agent "you@example.com"\` (or \`MOXFIELD_USER_AGENT\`).
+
 The shared \`--refresh <mode>\` option controls card-cache freshness: \`ask\` (the
 default) prompts about stale data — prompts that can't be answered are declined —
 \`auto\` refreshes without asking, \`no-bulk\` refreshes stale prices per-card but
@@ -75,9 +78,12 @@ ritual config set --remove site.bannedPrintings "SLD:123"  # un-ban it
 \`\`\`bash
 ritual serve                       # serve an already-built dist/ on :3000
 ritual serve -p 8000
-ritual serve-site                  # build, then serve
-ritual serve-site -p 8000 --host 127.0.0.1
+ritual serve --build               # build, then serve
+ritual serve --build -p 8000 --host 127.0.0.1
 \`\`\`
+
+Build flags (\`--refresh\`, \`--theme\`, ...) only apply together with \`--build\`;
+passing one without it is a usage error.
 
 ## Web admin
 

@@ -170,12 +170,15 @@ name: "Conflict Deck"
     })
   })
 
-  test('import-csv with piped stdin and missing flags fails instead of prompting', async () => {
+  // A `.csv` extension routes the source through the CSV flow, whose scripted
+  // gate requires the CSV flags — a text-file import would have defaulted to a
+  // deck instead of asking for --columns.
+  test('import of a .csv with piped stdin and missing flags fails instead of prompting', async () => {
     await withTempDir(async (dir) => {
       const csvPath = path.join(dir, 'cards.csv')
       await Bun.write(csvPath, 'name,quantity\nSol Ring,2\n')
 
-      const result = await runCli(['import-csv', csvPath], dir, { RITUAL_NO_INPUT: undefined })
+      const result = await runCli(['import', csvPath], dir, { RITUAL_NO_INPUT: undefined })
 
       expect(result.exitCode).toBe(2)
       expect(result.stderr).toContain('--type')
@@ -189,20 +192,20 @@ name: "Conflict Deck"
     })
   })
 
-  test('import-csv --output json emits the structured result and keeps exit 1 on partial failure', async () => {
+  test('csv import --output json emits the structured result and keeps exit 1 on partial failure', async () => {
     await withTempDir(async (dir) => {
       const csvPath = path.join(dir, 'cards.csv')
       await Bun.write(csvPath, 'name,quantity\nSol Ring,2\nBad Row,not-a-number\n')
 
       const result = await runCli(
         [
-          'import-csv',
+          'import',
           csvPath,
           '--type',
           'deck',
           '--name',
           'Json Deck',
-          '--format',
+          '--deck-format',
           'commander',
           '--columns',
           'name=1,quantity=2',
@@ -220,15 +223,173 @@ name: "Conflict Deck"
         failures: { line: number; reason: string }[]
         filePath: string
         mode: string
+        dryRun: boolean
       }
       expect(payload.imported).toBe(2)
       expect(payload.failed).toBe(1)
       expect(payload.failures).toHaveLength(1)
       expect(payload.failures[0]?.line).toBe(3)
       expect(payload.mode).toBe('create')
+      expect(payload.dryRun).toBeFalse()
       expect(await Bun.file(payload.filePath).exists()).toBeTrue()
       const deck = await fs.readFile(payload.filePath, 'utf-8')
       expect(deck).toContain('2 Sol Ring &1')
+    })
+  })
+
+  test('--csv forces the CSV flow for a file without a .csv extension', async () => {
+    await withTempDir(async (dir) => {
+      const sourcePath = path.join(dir, 'cards.txt')
+      await Bun.write(sourcePath, 'Lightning Bolt,2\n')
+
+      const result = await runCli(
+        [
+          'import',
+          sourcePath,
+          '--csv',
+          '--type',
+          'wanted',
+          '--name',
+          'To Buy',
+          '--columns',
+          'name=1,quantity=2',
+          '--no-header',
+          '--no-input',
+        ],
+        dir,
+      )
+
+      expect(result.exitCode).toBe(0)
+      const content = await fs.readFile(path.join(dir, 'wanted', 'To Buy.md'), 'utf-8')
+      expect(content).toContain('- Lightning Bolt &1')
+      expect(content).toContain('- Lightning Bolt &2')
+    })
+  })
+
+  test('csv-only flags are rejected for URL sources', async () => {
+    await withTempDir(async (dir) => {
+      const result = await runCli(
+        ['import', 'https://archidekt.com/decks/12345', '--columns', 'name=1', '--no-input'],
+        dir,
+      )
+
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain('--columns')
+      expect(result.stderr).toContain('does not apply to URL imports')
+    })
+  })
+
+  test('csv-only flags are rejected for plain text sources', async () => {
+    await withTempDir(async (dir) => {
+      const sourcePath = path.join(dir, 'cards.txt')
+      await Bun.write(sourcePath, '1 Sol Ring\n')
+
+      const result = await runCli(['import', sourcePath, '--columns', 'name=1', '--no-input'], dir)
+
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain('--columns')
+      expect(result.stderr).toContain('requires a CSV source')
+      expect(await Bun.file(path.join(dir, 'decks', 'cards.md')).exists()).toBeFalse()
+    })
+  })
+
+  test('--moxfield-user-agent is rejected for CSV sources', async () => {
+    await withTempDir(async (dir) => {
+      const csvPath = path.join(dir, 'cards.csv')
+      await Bun.write(csvPath, 'name,quantity\nSol Ring,1\n')
+
+      const result = await runCli(
+        [
+          'import',
+          csvPath,
+          '--moxfield-user-agent',
+          'Tester Ritual/1.0',
+          '--type',
+          'wanted',
+          '--name',
+          'To Buy',
+          '--columns',
+          'name=1',
+          '--no-input',
+        ],
+        dir,
+      )
+
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain('--moxfield-user-agent')
+      expect(result.stderr).toContain('does not apply to CSV imports')
+      const entries = await fs.readdir(dir)
+      expect(entries).not.toContain('wanted')
+    })
+  })
+
+  test('text-file import --output json emits the structured summary on clean stdout', async () => {
+    await withTempDir(async (dir) => {
+      const sourcePath = path.join(dir, 'wants.txt')
+      await Bun.write(sourcePath, '1 Lightning Bolt (lea:161)\n')
+
+      const result = await runCli(
+        ['import', sourcePath, '--type', 'wanted', '--output', 'json', '--no-input'],
+        dir,
+      )
+
+      expect(result.exitCode).toBe(0)
+      // stdout must be exactly the payload — info chatter belongs on stderr.
+      const payload = JSON.parse(result.stdout) as {
+        source: string
+        listType: string
+        name: string
+        filePath: string
+        action: string
+        dryRun: boolean
+      }
+      expect(payload.source).toBe(sourcePath)
+      expect(payload.listType).toBe('wanted')
+      expect(payload.name).toBe('wants')
+      expect(payload.filePath.endsWith(path.join('wanted', 'wants.md'))).toBeTrue()
+      expect(payload.action).toBe('created')
+      expect(payload.dryRun).toBeFalse()
+      expect(await Bun.file(payload.filePath).exists()).toBeTrue()
+    })
+  })
+
+  test('csv import --dry-run validates the run but writes nothing', async () => {
+    await withTempDir(async (dir) => {
+      const csvPath = path.join(dir, 'cards.csv')
+      await Bun.write(csvPath, 'name,quantity\nSol Ring,2\n')
+
+      const result = await runCli(
+        [
+          'import',
+          csvPath,
+          '--type',
+          'deck',
+          '--name',
+          'Dry Deck',
+          '--deck-format',
+          'commander',
+          '--columns',
+          'name=1,quantity=2',
+          '--dry-run',
+          '--output',
+          'json',
+        ],
+        dir,
+      )
+
+      expect(result.exitCode).toBe(0)
+      const payload = JSON.parse(result.stdout) as {
+        imported: number
+        filePath: string
+        mode: string
+        dryRun: boolean
+      }
+      expect(payload.imported).toBe(2)
+      expect(payload.mode).toBe('create')
+      expect(payload.dryRun).toBeTrue()
+      expect(await Bun.file(payload.filePath).exists()).toBeFalse()
+      const entries = await fs.readdir(dir)
+      expect(entries).not.toContain('decks')
     })
   })
 

@@ -4,7 +4,11 @@ import { MoxfieldClient } from '../importers/moxfield-client'
 import { parseMoxfieldPrimer } from '../primer-parser'
 import { ExitCode } from './scripting'
 import { getLogger } from '../logger'
-import { resolveMoxfieldUserAgent } from '../importers/url-dispatch'
+import {
+  matchDeckUrl,
+  resolveMoxfieldUserAgent,
+  withMoxfieldUserAgent,
+} from '../importers/url-dispatch'
 import type { DeckData } from '../types'
 import { formatResolveListError, isResolveListError, resolveList } from '../resolve-list'
 
@@ -28,9 +32,9 @@ export function registerGetPrimerCommand(program: Command): void {
       const logger = getLogger()
 
       // Moxfield URL path
-      const moxfieldMatch = source.match(/moxfield\.com\/decks\/([a-zA-Z0-9_-]+)/)
-      if (moxfieldMatch?.[1]) {
-        const deckId = moxfieldMatch[1]
+      const urlMatch = matchDeckUrl(source)
+      if (urlMatch?.service === 'moxfield') {
+        const deckId = urlMatch.deckId
         const userAgent = resolveMoxfieldUserAgent(options.moxfieldUserAgent)
         if (!userAgent) {
           logger.error(
@@ -40,9 +44,7 @@ export function registerGetPrimerCommand(program: Command): void {
           return
         }
 
-        const savedUserAgent = process.env.MOXFIELD_USER_AGENT
-        process.env.MOXFIELD_USER_AGENT = userAgent
-        try {
+        await withMoxfieldUserAgent(userAgent, async () => {
           const client = new MoxfieldClient()
           const deck = await client.fetchDeck(deckId)
           const primer = await client.fetchPrimer(deck.id ?? deckId)
@@ -54,13 +56,7 @@ export function registerGetPrimerCommand(program: Command): void {
           }
           const { markdown } = parseMoxfieldPrimer(rawText)
           process.stdout.write(markdown + '\n')
-        } finally {
-          if (savedUserAgent === undefined) {
-            delete process.env.MOXFIELD_USER_AGENT
-          } else {
-            process.env.MOXFIELD_USER_AGENT = savedUserAgent
-          }
-        }
+        })
         return
       }
 
