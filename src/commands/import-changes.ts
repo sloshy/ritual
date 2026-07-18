@@ -14,6 +14,7 @@ import {
   applyChangeBundle,
   bundleImportMessage,
 } from '../admin/api/import-changes'
+import { suppressAutoCommit } from '../admin/git'
 import { ask } from './prompts-helpers'
 import {
   type ScriptingOptions,
@@ -144,7 +145,11 @@ export function registerImportChangesCommand(program: Command): void {
       }
     }
 
-    const result = await applyChangeBundle(bundle)
+    // The apply replays the bundle through the admin save handlers in-process,
+    // whose git auto-commit is governed by the admin.git* keys. Those keys
+    // cover the admin surfaces (web UI + MCP) only — CLI commands never
+    // auto-commit — so the handlers run with auto-commit suppressed here.
+    const result = await suppressAutoCommit(() => applyChangeBundle(bundle))
     if (scripting.output === 'text') {
       printResults(result, scripting.quiet)
     } else {

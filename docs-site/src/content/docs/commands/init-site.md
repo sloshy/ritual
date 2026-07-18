@@ -129,7 +129,7 @@ After the site files are written, `init-site` offers to install the [Ritual agen
 ? Install Ritual agent skills into .claude/skills so coding agents can work with this repository? (Y/n)
 ```
 
-If you keep your decks, collections, and wanted lists in a git repository and work in it with a coding agent (e.g. Claude Code), answering yes writes the skill files into `.claude/skills/` so the agent can drive Ritual in this repository's context. Pass `--skills` or `--no-skills` to make the choice without prompting (handy for scripted setups). With `--force`, existing skill files are overwritten; otherwise customized skill files are preserved. (During [upgrades](#upgrading), already-installed skills are refreshed automatically — no `--force` needed.) You can also install or refresh them at any time with [`ritual skills install`](/commands/skills/).
+If you keep your decks, collections, and wanted lists in a git repository and work in it with a coding agent (e.g. Claude Code), answering yes writes the skill files into `.claude/skills/` so the agent can drive Ritual in this repository's context. Pass `--skills` or `--no-skills` to make the choice without prompting (handy for scripted setups). With `--force`, existing skill files are overwritten; otherwise customized skill files are preserved. (During [upgrades](#upgrading), already-installed skills are refreshed automatically — no `--force` needed.) You can also install or refresh them at any time with [`ritual skills install`](/commands/skills/), or refresh just the already-installed ones — never adding new skills — with [`ritual skills update`](/commands/skills/#update).
 
 ## Generated Files
 

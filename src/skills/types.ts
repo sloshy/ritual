@@ -3,7 +3,9 @@
  * that teaches an AI agent how to drive Ritual's CLI from a local workspace.
  *
  * The frontmatter is generated from {@link RitualSkill.name} and
- * {@link RitualSkill.description}; the body is the Markdown that follows it.
+ * {@link RitualSkill.description}, plus two machine-managed marker keys
+ * (`ritual-version` and `ritual-content-hash`) that let installs detect stale
+ * and user-edited copies; the body is the Markdown that follows it.
  * See `src/skills/catalog.ts` for rendering and the install command in
  * `src/commands/skills.ts` for writing them to disk.
  */

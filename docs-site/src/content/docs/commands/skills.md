@@ -16,8 +16,27 @@ local git repository and want your coding agent to work with them.
 
 ```bash
 ritual skills install [names...] [options]
+ritual skills update [names...] [options]
 ritual skills list [options]
 ```
+
+## How installed files are tracked
+
+Every skill Ritual writes carries two extra frontmatter keys after `name` and `description`:
+
+- `ritual-version` — the Ritual version that wrote the file.
+- `ritual-content-hash` — a SHA-256 digest of the file's name, description, and body
+  (the marker lines themselves are excluded).
+
+Claude Code only reads `name` and `description`, so the markers don't affect how agents load
+the skill. Ritual uses them to tell three kinds of files apart:
+
+- **Machine-managed** — the stored hash matches the file's content: Ritual wrote it and
+  nobody edited it since. Safe to rewrite when the version changes.
+- **User-edited** — the hash doesn't match (or the markers are missing): you customized the
+  file, or it predates the markers. `install` and `update` leave these untouched unless you
+  pass `--force`.
+- **Absent** — no file at the skill's path.
 
 ## Subcommands
 
@@ -31,24 +50,32 @@ ritual skills install                      # install all skills into ./.claude/s
 ritual skills install ritual-decks         # install a single skill
 ritual skills install --global             # install into ~/.claude/skills
 ritual skills install --dir ../my-repo     # target another project directory
-ritual skills install --force              # overwrite existing skill files
+ritual skills install --force              # overwrite even user-edited skill files
 ```
 
-| Option              | Description                                                      | Default      |
-| ------------------- | ---------------------------------------------------------------- | ------------ |
-| `--global`          | Install into `~/.claude/skills` instead of the project directory |              |
-| `--dir <path>`      | Project directory that should contain `.claude/skills`           | the base dir |
-| `-f, --force`       | Overwrite skill files that already exist                         | `false`      |
-| `--output <format>` | Output format: `text`, `json`, or `ndjson`                       | `text`       |
-| `--quiet`           | Suppress the per-skill and summary lines in text mode            | `false`      |
+| Option              | Description                                                | Default      |
+| ------------------- | ---------------------------------------------------------- | ------------ |
+| `--global`          | Target `~/.claude/skills` instead of the project directory |              |
+| `--dir <path>`      | Project directory that should contain `.claude/skills`     | the base dir |
+| `-f, --force`       | Overwrite skill files even when they have local edits      | `false`      |
+| `--output <format>` | Output format: `text`, `json`, or `ndjson`                 | `text`       |
+| `--quiet`           | Suppress the per-skill and summary lines in text mode      | `false`      |
 
-Existing files are left untouched (and reported as skipped) unless `--force` is given, so
-re-installing never clobbers local edits without consent. The global `--base-dir <path>`
-option sets the default project directory when `--dir` is omitted.
+Each skill reports one of three statuses:
+
+- `written` — the file was missing, or was a machine-managed copy from another Ritual
+  version and got rewritten.
+- `up-to-date` — a machine-managed copy at the current version is already installed;
+  nothing was written.
+- `skipped` — the file has local edits and was left untouched. Pass `--force` to overwrite
+  it with the current version (your edits are lost).
+
+The global `--base-dir <path>` option sets the default project directory when `--dir` is
+omitted.
 
 With `--output json` the command prints a single report object instead of the text lines
 (`--output ndjson` emits the same object on one line). Paths are absolute, and `status` is
-`written` or `skipped`:
+`written`, `up-to-date`, or `skipped`:
 
 ```bash
 ritual skills install ritual-decks --output json
@@ -69,6 +96,29 @@ ritual skills install ritual-decks --output json
 
 Errors (such as an unknown skill name) go to stderr — as a structured `{ "error": ... }`
 envelope in `json`/`ndjson` mode — and the command exits `2`.
+
+### `update`
+
+Refresh already-installed skills to the current Ritual version. Unlike `install`, `update`
+never adds a skill that isn't present: a skill without an installed file is reported as
+`absent` and left uninstalled. With no names, every installed skill is refreshed.
+
+```bash
+ritual skills update                       # refresh every installed skill
+ritual skills update ritual-decks         # refresh a single skill
+ritual skills update --global             # refresh the ~/.claude/skills installs
+ritual skills update --force              # also overwrite user-edited skill files
+```
+
+`update` takes the same options as `install` (`--global`, `--dir <path>`, `-f, --force`,
+`--output <format>`, `--quiet`) and reports the same statuses plus `absent`:
+
+- `written` — a machine-managed install from another version was rewritten.
+- `up-to-date` — the install already matches the current version.
+- `skipped` — the file has local edits; pass `--force` to overwrite it.
+- `absent` — the skill is not installed (use `install` to add it).
+
+The JSON report has the same `{ skillsDir, results }` shape as `install`.
 
 ### `list`
 
@@ -109,14 +159,18 @@ ritual skills list --output json
 | `ritual-wanted`      | Manage and price wanted lists.                                                                                                                                              |
 | `ritual-edit`        | Card edits across any list: non-interactive commands, applying exported change bundles, card exports (CSV, JSON, plain text, Markdown), and the unified interactive editor. |
 | `ritual-cards`       | Card lookup and Scryfall searches.                                                                                                                                          |
-| `ritual-site`        | Build, serve, and administer the site, plus the MCP server.                                                                                                                 |
+| `ritual-site`        | Build, serve, and administer the site, wire up the CI publishing pipeline (cache keys, changelog change detection), and run the MCP server.                                 |
 
 ## Keeping skills current
 
-The skill content is generated from the CLI, so re-run `ritual skills install --force` after
-upgrading Ritual to refresh the installed copies with the latest commands and flags. If your
-repository was set up with [`ritual init-site`](/commands/init-site/), upgrading it also refreshes any
-installed skills automatically (see below).
+The skill content is generated from the CLI, so installed copies go stale when you upgrade
+Ritual. Run `ritual skills update` after upgrading to refresh them: machine-managed installs
+from an older version are rewritten, files you edited are preserved (add `--force` to
+overwrite those too), and skills you never installed stay absent. Use
+`ritual skills update --global` to refresh a `~/.claude/skills` install.
+
+If your repository was set up with [`ritual init-site`](/commands/init-site/), upgrading it
+also refreshes any installed skills automatically with the same rules (see below).
 
 ## Installing during `init-site`
 
@@ -126,8 +180,10 @@ prompting. This is the easiest way to make sure a freshly initialized repository
 its agents need.
 
 When you later re-run `init-site` to upgrade the repository to a newer Ritual version, it also
-**refreshes any already-installed skills** so they track the new version (without introducing skills you
-never installed). Use `--no-skills` to skip that, or `--skills` to (re)install the full set.
+**refreshes any already-installed skills** so they track the new version — without introducing skills you
+never installed, and without overwriting skill files you edited (it reports those as skipped and points
+at `ritual skills update --force`). Use `--no-skills` to skip that, or `--skills` to (re)install the
+full set.
 
 ## See also
 

@@ -1,4 +1,15 @@
 import type { RitualSkill } from '../types'
+import {
+  csvImportSection,
+  DIFF_BY_MODES,
+  interactiveEditIntro,
+  PRICE_CURRENCY_COMMENT,
+  priceIntro,
+  REFRESH_SESSION,
+  sessionSemantics,
+  textImportSection,
+  wrapProse,
+} from './shared'
 
 export const wantedSkill: RitualSkill = {
   name: 'ritual-wanted',
@@ -11,11 +22,13 @@ name-only — no printing required. See the **ritual** skill for the file format
 
 ## One-shot edits (non-interactive — best for agents)
 
-Use the one-shot commands (covered in full by the **ritual-edit** skill). \`add-card\`
-works on wanted lists and creates the list if it does not exist yet. Every wanted add
-chooses a specificity: \`--name-only\` (any copy) or a specific printing via
-\`--set\`/\`--collector-number\` (a terminal prompts when neither is given; a
-non-interactive run without one exits 2):
+Use the one-shot commands (covered in full by the **ritual-edit** skill).
+\`add-card\` works on wanted lists, and — when the type is pinned with \`--wanted\`
+or a \`wanted:\` prefix — creates the list if it does not exist yet. Every wanted
+add chooses a specificity: \`--name-only\` (any copy), a specific printing via
+\`--set\`/\`--collector-number\`, or \`--specific\` (open the interactive printing
+picker; needs a terminal). A terminal prompts when none is given; a
+non-interactive run without one exits 2:
 
 \`\`\`bash
 ritual add-card "To Buy" "Mox Ruby" --wanted --name-only
@@ -40,10 +53,11 @@ ritual move "Demonic Tutor" --from "wanted:To Buy" --to "collection:Main Binder"
 
 ## Plan purchases with a diff
 
-\`ritual diff\` compares a wanted list against a collection: entries only in the
-wanted list are still unowned, matches are already covered (mismatched quantities
-are listed separately). \`--by name\` is the default; \`--by printing\` compares exact
-set/collector-number/finish instead:
+${wrapProse(
+  '`ritual diff` compares a wanted list against a collection: entries only in ' +
+    'the wanted list are still unowned, matches are already covered (mismatched ' +
+    `quantities are listed separately). ${DIFF_BY_MODES}`,
+)}
 
 \`\`\`bash
 ritual diff wanted:to-buy "collection:Main Binder"
@@ -52,10 +66,9 @@ ritual diff wanted:to-buy "collection:Main Binder" --by printing --output json
 
 ## Interactive management
 
-\`ritual edit\` opens the interactive editor (covered in full by the **ritual-edit**
-skill); pick a wanted list (or \`➕ New Wanted List\`) from its list selection menu. It
-**requires a terminal**, so it is not suitable for non-interactive agents — use
-the one-shot commands instead.
+${interactiveEditIntro({
+  pick: 'pick a wanted list (or `➕ New Wanted List`) from its list selection menu',
+})}
 
 \`\`\`bash
 ritual edit
@@ -68,55 +81,52 @@ ritual edit --refresh never          # use the existing cache as-is, no prompt
 ritual edit --refresh auto           # redownload the cache when prices are >1 day old
 \`\`\`
 
-The shared \`--refresh <mode>\` option controls card-cache freshness: under \`ask\` (the default) a cache last fully downloaded more than a week ago prompts to redownload before the session starts; \`auto\` redownloads without prompting when the cached prices are more than a day old; \`no-bulk\` and \`never\` use the existing cache as-is.
+${REFRESH_SESSION}
 
-Within the session, changes accumulate **in memory**: \`💾 Save\` writes the file and changelog without exiting (saving repeatedly in one session folds the later changes into that session's existing changelog entry and bumps its timestamp, so one editing session is always one changelog entry), and \`🚪 Exit\` (or Esc) opens an exit menu when changes are unsaved — save and exit, exit without saving (discards everything unsaved), or cancel to keep editing. \`🛠️ Switch to Edit Mode\` turns the search prompt into a picker over the list's existing entries — change a card's printing (or make it name-only), finish, or note, or remove it — and \`↩️ Undo Last Edit\` reverts the latest edit. \`↩️ Undo Last Add\` removes the most recent card and \`📋 View Session Changes\` opens a picker over every change made this session — adds, edits, and removals — where selecting one offers to discard just that change (same-card changes must be discarded newest-first). Discarding an add frees that card's \`&N\` id and keeps the remaining session ids dense (each later card slides down one).
+${sessionSemantics({
+  fileNoun: 'file',
+  editScope: "the list's existing entries",
+  editFields: "change a card's printing (or make it name-only), finish, or note, or remove it",
+  editModeNote:
+    'The `✨ Change Finish` item is hidden for name-only entries — a finish only annotates a specific printing.',
+  undoAddVerb: 'removes',
+  changeKinds: 'adds, edits, and removals',
+  discardTarget: 'same-card changes',
+  discardAddEffect:
+    "Discarding an add frees that card's `&N` id and keeps the remaining session ids dense (each later card slides down one).",
+})}
 
 ## Import from a text file
 
-\`import\` turns a decklist-style text file into a new wanted list (quantities expand
-to one bullet line per copy):
-
-\`\`\`bash
-ritual import wants.txt --type wanted
-ritual import wants.txt --type wanted --overwrite --no-input
-\`\`\`
-
-Without \`--type\` an interactive run prompts for the list type; under the global
-\`--no-input\` flag the type defaults to a deck, so agents should always pass
-\`--type wanted\`.
+${textImportSection({
+  typeNoun: 'wanted list',
+  typeFlag: 'wanted',
+  examples: `ritual import wants.txt --type wanted
+ritual import wants.txt --type wanted --overwrite --no-input`,
+})}
 
 ## Import from a CSV file
 
-A \`.csv\` source makes \`import\` import a CSV file into a new wanted list, or append
-to an existing one (\`--csv\` forces CSV parsing for other extensions).
-Non-interactive agents must pass all flags (running it bare opens an interactive
-column-mapping wizard):
-
-\`\`\`bash
-ritual import wants.csv --type wanted --name "To Buy" \\
+${csvImportSection({
+  source: 'a CSV file',
+  typeNoun: 'wanted list',
+  examples: `ritual import wants.csv --type wanted --name "To Buy" \\
   --columns "name=1,set=2,collector-number=3,finish=4,quantity=5"
-ritual import more.csv --type wanted --name "To Buy" --append --columns "name=1"
-\`\`\`
-
-\`--columns\` maps fields to 1-based column numbers; only \`name\` is required and
-wanted lists carry no \`condition\` column. Add \`--no-header\` when the first row is
-data, \`--overwrite\` to replace an existing list, or \`--append\` to add to one
-(appends continue card IDs and record the changelog). Failed rows are reported with
-line numbers on stderr and the rest still import (exit code 1 on partial failure).
+ritual import more.csv --type wanted --name "To Buy" --append --columns "name=1"`,
+  requiredColumns: 'only `name` is required and wanted lists carry no `condition` column',
+  appendNote: 'appends continue card IDs and record the changelog',
+})}
 
 ## Price
 
-The unified \`price\` command covers all list types; scope it with \`--wanted\` or a
-name. An interactive browser opens on a TTY — for agents, always pass \`--summary\`,
-\`--output json\`, or the global \`--no-input\` flag:
+${priceIntro({ scopeFlag: '--wanted' })}
 
 \`\`\`bash
 ritual price --wanted --summary                # every wanted list's totals
 ritual price to-buy --no-input                 # one list's cards + totals
 ritual price to-buy --output json --quiet
 ritual price to-buy --sort price --descending --no-input
-ritual price to-buy --prices eur               # usd | eur | tix (defaults to config defaultCurrency)
+ritual price to-buy --prices eur               ${PRICE_CURRENCY_COMMENT}
 \`\`\`
 
 Each wanted list also reports a "lowest" total: name-only entries use the cheapest

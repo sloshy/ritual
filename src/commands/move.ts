@@ -32,6 +32,7 @@ import {
   describeEntry,
   parseCardIdFlag,
   parsePositiveInteger,
+  requireInteractive,
   resolvePinnedPrinting,
   runCommandAction,
 } from './card-target'
@@ -197,6 +198,9 @@ export function registerMoveCommand(program: Command): void {
  * mid-session.
  */
 async function runInteractiveMove(sourceFilterPath: string | undefined): Promise<void> {
+  // The session is prompt-driven end to end; without a terminal (or with
+  // prompts disabled via --no-input) the only path is the headless one.
+  requireInteractive('--from and --to')
   console.log('Loading all lists...')
   const allLists = await loadAllLists()
 

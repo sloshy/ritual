@@ -17,6 +17,7 @@ import { applyNoteUpdate } from './note-edit'
 import { CardCommandError } from '../errors'
 import {
   parseCardIdFlag,
+  requireInteractive,
   resolveListSelection,
   resolveListTypeFlag,
   resolveTarget,
@@ -224,13 +225,9 @@ async function resolveNoteText(
 ): Promise<string> {
   if (flagValue !== undefined) return validateOrThrow(flagValue)
 
-  if (!process.stdin.isTTY) {
-    throw new CardCommandError(
-      'usage_error',
-      'No note given. Pass --note <text> to set a note or --clear to remove it.',
-      ExitCode.UsageError,
-    )
-  }
+  // The note-text prompt is only available interactively — a run without a
+  // terminal, or with prompts disabled via --no-input, must say what to pass.
+  requireInteractive('--note <text> or --clear')
 
   let exited = false
   const resp = await prompts({

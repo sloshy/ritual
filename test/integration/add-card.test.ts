@@ -445,6 +445,31 @@ describe('add-card CLI (Integration)', () => {
       expect(content).not.toContain('Sol Ring')
     })
 
+    test('the printing picker is gated on --no-input too: a multi-printing card fails', async () => {
+      const result = await runCli(
+        [
+          'add-card',
+          '--collection',
+          'main',
+          'Sol',
+          'Ring',
+          '--exact',
+          '--condition',
+          'NONE',
+          '--output',
+          'json',
+        ],
+        dir,
+        { RITUAL_NO_INPUT: '1' },
+      )
+      expect(result.exitCode).toBe(1)
+      const err = JSON.parse(result.stderr) as CliErrorPayload
+      expect(err.error.code).toBe('runtime_error')
+      expect(err.error.message).toContain('--set')
+      const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
+      expect(content).not.toContain('Sol Ring')
+    })
+
     test('rejects a valid --finish the printing is not offered in', async () => {
       const result = await runCli(
         [

@@ -262,6 +262,8 @@ When git integration is enabled in settings:
 
 Enable this feature in the Settings page by checking both **Enable Git integration** and **Auto-commit changes**.
 
+Auto-commit covers writes made through the admin web UI and the [MCP server](/commands/mcp/), which reuses the same handlers in-process. CLI commands never auto-commit — including [`ritual import-changes`](/commands/import-changes/), which replays bundles through the same save handlers with auto-commit suppressed.
+
 ## Security
 
 ### Failed Login Delay

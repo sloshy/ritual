@@ -120,6 +120,8 @@ The resolution happens before anything is written — a failure here leaves both
 
 Run without `--to` to launch the interactive session. With `--from <list>`, the session starts with only that list enabled as a source — the same setting the Session Filters screen edits, so it can be widened mid-session.
 
+The session requires a terminal with prompts enabled. When prompts are unavailable (stdin is not a terminal, or `--no-input` / `RITUAL_NO_INPUT` is in force), the command refuses to open the session and exits with code `2` (`Input required: pass --from and --to …`) — the headless path is the only one available to scripts.
+
 Key behaviors:
 
 - **Deck moves**: Moving a card from a deck decrements its quantity by 1. The line is removed when quantity reaches 0.
@@ -204,9 +206,9 @@ Destination list changelog:
 
 Scripted (`--from` + `--to`) invocations follow the standard exit-code contract:
 
-| Code | Meaning                                                                                                                                        |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | The requested copies were moved                                                                                                                |
-| `1`  | Runtime error, or fewer copies were moved than requested                                                                                       |
-| `2`  | Usage error: `--to` without `--from`, missing card selector, ambiguous list or printing, unresolvable collection printing, invalid flag values |
-| `3`  | Not found: unknown source or destination list, no matching card, or fewer copies available than requested                                      |
+| Code | Meaning                                                                                                                                                                                                           |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | The requested copies were moved                                                                                                                                                                                   |
+| `1`  | Runtime error, or fewer copies were moved than requested                                                                                                                                                          |
+| `2`  | Usage error: `--to` without `--from`, missing card selector, ambiguous list or printing, unresolvable collection printing, invalid flag values, or an interactive session requested while prompts are unavailable |
+| `3`  | Not found: unknown source or destination list, no matching card, or fewer copies available than requested                                                                                                         |

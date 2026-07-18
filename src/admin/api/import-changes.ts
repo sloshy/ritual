@@ -65,8 +65,11 @@ type ApiCallResult<T> = { ok: true; data: T } | { ok: false; error: string }
  * Invoke an admin route handler in-process with a synthetic request and return
  * its parsed JSON body, normalizing HTTP failures and `success: false` bodies to
  * an error string. This reuses the exact load/save code paths the admin editors
- * (and the MCP server) go through — content hashing, changelogs, cross-list
- * moves, and auto-commit all behave identically.
+ * (and the MCP server) go through — content hashing, changelogs, and cross-list
+ * moves behave identically. Git auto-commit depends on the surface: the admin
+ * route and the MCP `import_changes` tool honor the `admin.git*` keys, while the
+ * `ritual import-changes` CLI wraps its apply in `suppressAutoCommit` so the CLI
+ * never creates commits.
  */
 async function call<T>(
   handler: (req: Request) => Promise<Response>,

@@ -26,6 +26,7 @@ import { isNoInput } from '../no-input'
 import { version as ritualVersion } from '../version'
 import { SKILLS } from '../skills/catalog'
 import { installSkills, refreshInstalledSkills, resolveSkillsDir } from '../skills/install'
+import { printSkillsWriteSummary } from './skills'
 import { CardCommandError } from '../errors'
 import { runCommandAction } from './card-target'
 import { ExitCode, normalizeScriptingOptions, parseEnumFlag } from './scripting'
@@ -428,27 +429,22 @@ export async function maybeInstallSkills(
   const skillsDir = resolveSkillsDir({})
   const relativeDir = path.relative(getBaseDir(), skillsDir)
   const results = await installSkills(SKILLS, skillsDir, { force })
-  const written = results.filter((result) => result.status === 'written').length
-  const skipped = results.filter((result) => result.status === 'skipped').length
-
-  if (written > 0) {
-    console.log(
-      `✓ Installed ${written} Ritual agent skill${written === 1 ? '' : 's'} in ${relativeDir}`,
-    )
-  }
-  if (skipped > 0) {
-    console.log(
-      `⊘ ${skipped} Ritual agent skill${skipped === 1 ? '' : 's'} already present in ${relativeDir} (use --force to refresh)`,
-    )
-  }
+  printSkillsWriteSummary(results, {
+    verb: 'Installed',
+    preposition: 'in',
+    dir: relativeDir,
+    noun: 'Ritual agent skill',
+    forceHint: 'use --force to overwrite them',
+  })
 }
 
 /**
- * Keep already-installed skills current during an upgrade. By default only the
- * skills already present in `.claude/skills` are overwritten with the current
- * version (no prompting, and skills the user never installed stay absent).
- * `--no-skills` opts out entirely; `--skills` forces a full (re)install of every
- * skill, matching the flag's meaning on a fresh init.
+ * Keep already-installed skills current during an upgrade, following the same
+ * rules as `ritual skills update`: only the skills already present in
+ * `.claude/skills` are refreshed (no prompting, and skills the user never
+ * installed stay absent), and user-edited skill files are skipped rather than
+ * clobbered. `--no-skills` opts out entirely; `--skills` forces a full
+ * (re)install of every skill, matching the flag's meaning on a fresh init.
  */
 export async function refreshSkillsOnUpgrade(options: InitSiteCommandOptions): Promise<void> {
   if (options.skills === false) return
@@ -458,14 +454,17 @@ export async function refreshSkillsOnUpgrade(options: InitSiteCommandOptions): P
   const results =
     options.skills === true
       ? await installSkills(SKILLS, skillsDir, { force: true })
-      : await refreshInstalledSkills(SKILLS, skillsDir)
+      : await refreshInstalledSkills(SKILLS, skillsDir, { force: false })
 
-  const updated = results.filter((result) => result.status === 'written').length
-  if (updated > 0) {
-    console.log(
-      `✓ Updated ${updated} Ritual agent skill${updated === 1 ? '' : 's'} in ${relativeDir}`,
-    )
-  }
+  // A never-installed skill staying absent is the upgrade path's contract, not
+  // something to report — so `reportAbsent` stays off here.
+  printSkillsWriteSummary(results, {
+    verb: 'Updated',
+    preposition: 'in',
+    dir: relativeDir,
+    noun: 'Ritual agent skill',
+    forceHint: 'run `ritual skills update --force` to overwrite them',
+  })
 }
 
 async function writeFileWithOverwritePrompt(

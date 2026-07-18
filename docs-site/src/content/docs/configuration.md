@@ -97,13 +97,13 @@ The `admin` key holds settings that are configured through, and for, the [admin 
 
 ### Git integration
 
-| Field                 | Default | Description                                                         |
-| --------------------- | ------- | ------------------------------------------------------------------- |
-| `admin.gitEnabled`    | `false` | Enable git integration for admin file changes.                      |
-| `admin.gitAutoCommit` | `false` | When set with `gitEnabled`, admin saves auto-commit affected files. |
-| `admin.gitAutoPush`   | `false` | When set with `gitAutoCommit`, push the commit after creating it.   |
+| Field                 | Default | Description                                                                                                        |
+| --------------------- | ------- | ------------------------------------------------------------------------------------------------------------------ |
+| `admin.gitEnabled`    | `false` | Enable git integration for admin-surface file changes.                                                             |
+| `admin.gitAutoCommit` | `false` | When set with `gitEnabled`, writes made through the admin web UI or the MCP server auto-commit the affected files. |
+| `admin.gitAutoPush`   | `false` | When set with `gitAutoCommit`, push the commit after creating it.                                                  |
 
-These only affect changes made through the admin server.
+These keys govern the admin surfaces: the admin web UI and the [MCP server](/commands/mcp/), which reuses the admin handlers in-process. CLI commands never auto-commit — including [`ritual import-changes`](/commands/import-changes/), which replays bundles through the same save handlers but suppresses auto-commit, leaving the applied changes in your working tree.
 
 ### Network and authentication security
 

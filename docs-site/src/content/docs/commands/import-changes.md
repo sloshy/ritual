@@ -56,9 +56,11 @@ Lists are applied in file order, each loaded fresh immediately before saving (so
 - Changes are **re-targeted** to each list's current `&N` card IDs — added cards draw fresh IDs, and other changes match by ID when it still exists, otherwise by card name.
 - Changes whose target card can no longer be found are **skipped and reported** as conflicts; the rest still apply.
 - `move-from` changes also write the destination list (the card is added there, with a `move-to` changelog entry), exactly like an admin editor save.
-- Every list that received changes gets an entry in its `.changes.md` changelog, and files are auto-committed when `git.autoCommit` is enabled — the same save path the admin editors use.
+- Every list that received changes gets an entry in its `.changes.md` changelog — the same save path the admin editors use.
 
 A list that fails entirely (for example, one that no longer exists) is reported without stopping the remaining lists.
+
+The CLI command never creates git commits — applied changes are left in the working tree for you to review. The admin **Import Changes** page and the MCP `import_changes` tool apply the same engine to the same bundle, and those surfaces auto-commit each saved list when `admin.gitEnabled` and `admin.gitAutoCommit` are set (see [Git integration](/configuration/#git-integration)).
 
 ## Scripted Output
 

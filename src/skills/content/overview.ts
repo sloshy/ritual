@@ -1,4 +1,5 @@
 import type { RitualSkill } from '../types'
+import { asBullet, NO_INPUT_GUARANTEE, REFRESH_COMMANDS } from './shared'
 
 export const overviewSkill: RitualSkill = {
   name: 'ritual',
@@ -45,10 +46,12 @@ prompts). \`ritual diff <listA> <listB>\` compares any two lists by card name
 
 **File naming:** creating a list names its file exactly as the list is named — case,
 spaces, and punctuation are kept (\`ritual new deck "Winota Stax"\` → \`decks/Winota Stax.md\`,
-not \`winota-stax.md\`). Only characters file systems reject (\`/ \\ : * ? " < > |\`, leading or
-repeated dots) are stripped, and a name with nothing usable left is an error. Older lists may
-still have hyphenated file names; they resolve by name as normal, and their display name comes
-from the deck's \`name:\` front matter (or the file name, for collections and wanted lists).
+not \`winota-stax.md\`). Only what file systems reject is cleaned up: the characters
+\`/ \\ : * ? " < > |\` are stripped, runs of dots collapse to a single dot, leading and
+trailing dots are trimmed, and a name with nothing usable left is an error. Older
+lists may still have hyphenated file names; they resolve by name as normal, and their
+display name comes from the deck's \`name:\` front matter (or, for collections and
+wanted lists, the first \`# Title\` heading), falling back to the file name.
 \`ritual cleanup\` renames such files to match their list names in one pass.
 
 ## File format
@@ -92,23 +95,20 @@ formats, leaving formatless decks untouched and reported).
 - **ritual-wanted** — manage and price wanted lists
 - **ritual-edit** — card edits across any list: one-shot non-interactive commands (\`add-card\`, \`remove-card\`, \`set-card\`, \`note\`, scripted \`move\`), the unified interactive editor, and card exports (CSV, JSON, plain text, Markdown)
 - **ritual-cards** — look up cards and run Scryfall searches
-- **ritual-site** — build, serve, and administer the published site (and the MCP server)
+- **ritual-site** — build, serve, and administer the published site, the CI publishing pipeline, and the MCP server
 
 ## Global options (work on every command)
 
 - \`--base-dir <path>\` — operate on a workspace other than the current directory
 - \`--cache-server <host:port>\` — share a card/price cache with other instances
-- \`--no-input\` — **the** headless switch: never prompt anywhere; where input
-  would be required the command fails fast (or uses a documented default)
-  instead of hanging. Setting the \`RITUAL_NO_INPUT\` environment variable does
-  the same. There are no per-command non-interactive flags.
+  (the \`RITUAL_CACHE_SERVER\` environment variable does the same; host one with
+  \`ritual cache server\`)
+${asBullet(NO_INPUT_GUARANTEE)}
 
-Commands that read the Scryfall card cache (\`add-card\`, \`edit\`, \`price\`,
-\`build-site\`, \`serve --build\`, \`admin\`) also share a \`--refresh <mode>\` option
-controlling cache freshness: \`ask\` (the default — prompt about stale or empty
-caches; the prompt is skipped when prompts are unavailable), \`auto\` (refresh
-stale data without asking, bulk download allowed), \`no-bulk\` (refresh stale
-prices per-card, never a bulk download), and \`never\` (use the cache as-is).
+Exit codes are uniform across commands: **1** runtime error, **2** usage error,
+**3** not found.
+
+${REFRESH_COMMANDS}
 
 ## Setup
 
@@ -124,7 +124,9 @@ ritual config list                # print the full effective config (defaults ma
 ritual config unset <prop>        # revert a value to its default
 ritual cache status               # report cache size/freshness/source without refreshing
 ritual cache preload-all          # warm the Scryfall card cache + tags (bulk download)
+ritual cache preload-set khm      # cache all cards of one set (by set code)
 ritual cache refresh-tags         # refresh only the oracle/art tags on cached cards
+ritual cache server               # host a shared cache server (default 127.0.0.1:4000)
 ritual cache feed host            # host a P2P feed of the raw Scryfall bulk files
 ritual cache feed fetch           # sync the cache from a feed, then seed to peers
 ritual config set cacheSource feed  # make all cache refreshes sync via the feed

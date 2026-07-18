@@ -1,9 +1,10 @@
 import type { RitualSkill } from '../types'
+import { moxfieldUserAgentNote, REFRESH_COMMANDS, wrapProse } from './shared'
 
 export const siteSkill: RitualSkill = {
   name: 'ritual-site',
   description:
-    'Build, serve, and administer the Ritual website, and run the MCP server. Use when the user wants to generate the static site, preview it locally, set up publishing, open the web admin for editing lists, or expose Ritual to AI agents over MCP.',
+    'Build, serve, and administer the Ritual website, wire up the CI publishing pipeline, and run the MCP server. Use when the user wants to generate the static site, preview it locally, set up publishing or CI (cache keys, changelog change detection for hand edits), open the web admin for editing lists, or expose Ritual to AI agents over MCP.',
   body: `# Building and serving a Ritual site
 
 Ritual publishes your decks, collections, and wanted lists as a static website, and
@@ -37,6 +38,45 @@ errors. An existing \`README.md\` additionally needs \`--overwrite-readme\`,
 \`--no-overwrite-readme\`, or \`--force\`; a pending version upgrade needs
 \`--upgrade\`.
 
+## CI / publishing pipeline
+
+The generated GitHub Actions workflow is wired around three commands, just as
+useful in a hand-rolled pipeline:
+
+**\`ritual list-all-cards\`** prints a deduplicated, deterministically sorted
+manifest of every unique card across all decks, collections, and wanted lists —
+a stable fingerprint of what a build needs from Scryfall, designed to be a CI
+cache key. \`--out <file>\` writes it to a file (relative to the base dir; \`-\`
+means stdout), and \`--output text|json|ndjson\` picks the format (\`text\` is a
+\`# All cards\` Markdown manifest; \`json\`/\`ndjson\` emit \`{name, set?,
+collectorNumber?}\` objects with lowercase set codes). An unreadable list file
+warns on stderr and sets exit code 1, but the (incomplete) manifest is still
+emitted. The generated workflow writes \`all-cards.md\`, restores the \`cache/\`
+directory keyed on that file's hash (with a prefix fallback to the newest
+previous cache), then runs \`./ritual build-site --refresh auto\` — so the bulk
+download reruns only when the cards the site needs actually changed.
+
+**\`ritual git-detect-changes <commit>\`** (e.g. \`HEAD~1\`) makes hand-edited
+lists show up in changelogs: it diffs the deck/collection/wanted files between
+that commit and the working tree, appends changelog entries for lists whose
+changes Ritual did not write itself, and renames or deletes \`.changes.md\`
+sidecars to follow moved or deleted lists. A \`.sha256\` content-hash sidecar
+marks a list file "ritual-clean" (Ritual last wrote it and already recorded its
+changelog), so it is skipped; after appending, the sidecar is refreshed, making
+detection idempotent. \`-n\`/\`--dry-run\` previews without writing; \`--output
+json\` reports \`{commit, dryRun, changelogsUpdated, renames, results}\`; exit 1
+on failure. With change detection enabled, the generated workflow diffs against
+the pushed-from commit (falling back to the previous commit), commits any
+updated changelogs back as \`github-actions[bot]\`, and skips the rest of the
+build — that push re-triggers the workflow, and the second run builds from the
+updated tree.
+
+**\`ritual hash\`** stamps the \`.sha256\` sidecar for every list file (never a
+\`.changes.md\`) — the manual "ritual-clean" stamp. Run it after hand edits you
+do **not** want \`git-detect-changes\` to record as changelog entries.
+\`-n\`/\`--dry-run\` prints the hashes without writing; \`--output json\` emits
+\`[{file, hash}]\`.
+
 ## Build the static site
 
 \`\`\`bash
@@ -46,20 +86,23 @@ ritual build-site --collections "Main Binder"              # specific collection
 ritual build-site --wanted-lists "To Buy"                  # specific wanted lists
 ritual build-site --currencies usd,eur             # currencies to include (first is default)
 ritual build-site --theme izzet                    # initial theme baked into the HTML
+ritual build-site --theme-file my-theme.json       # load custom theme JSON files (their names become selectable)
 ritual build-site --refresh never                  # build from cached data as-is
 ritual build-site --refresh auto                   # refresh stale cache (bulk download allowed)
 \`\`\`
 
-\`--cache-images\` downloads card images locally instead of hot-linking Scryfall.
+\`--cache-images\` downloads card images locally instead of hot-linking Scryfall;
+\`-v\`/\`--verbose\` lists the cards to be fetched.
 
-\`--decks\` also accepts Archidekt, Moxfield, or MTGGoldfish deck URLs; Moxfield
-URLs need \`--moxfield-user-agent "you@example.com"\` (or \`MOXFIELD_USER_AGENT\`).
+${wrapProse(
+  '`--decks` also accepts Archidekt, Moxfield, or MTGGoldfish deck URLs. ' +
+    moxfieldUserAgentNote({ subject: 'URLs' }),
+)}
 
-The shared \`--refresh <mode>\` option controls card-cache freshness: \`ask\` (the
-default) prompts about stale data — prompts that can't be answered are declined —
-\`auto\` refreshes without asking, \`no-bulk\` refreshes stale prices per-card but
-never bulk-downloads, and \`never\` uses the cache as-is. Headless builds (e.g. CI)
-should pass \`--refresh auto\` or \`--refresh never\` explicitly.
+${REFRESH_COMMANDS}
+${wrapProse(
+  'Headless builds (e.g. CI) should pass `--refresh auto` or `--refresh never` explicitly.',
+)}
 
 ## Banning default printings
 
@@ -92,26 +135,35 @@ passing one without it is a usage error.
 \`\`\`bash
 ritual admin                       # http://0.0.0.0:8080
 ritual admin -p 9000
+ritual admin --theme izzet         # initial theme baked into the admin UI
 ritual admin --refresh never       # skip the startup cache check, use cached data as-is
 \`\`\`
+
+With the \`admin.gitEnabled\` and \`admin.gitAutoCommit\` config keys set, saves
+made through the admin UI (and the MCP server, which reuses the admin handlers)
+are auto-committed to git (\`admin.gitAutoPush\` also pushes). CLI commands never
+auto-commit.
 
 The admin's **Import Changes** page applies a change-list JSON exported from the
 public site's edit mode (a bundle covering one or more lists) with a per-list
 preview before applying — the same operation as \`ritual import-changes\` (see the
 **ritual-edit** skill) and the MCP \`import_changes\` tool.
 
-It can also expose an MCP endpoint in the same process:
+It can also expose an MCP endpoint in the same process, on its own port
+(\`--mcp-port\`, default 8765):
 
 \`\`\`bash
 ritual admin --mcp --mcp-token "$RITUAL_MCP_TOKEN"
+ritual admin --mcp --mcp-token "$RITUAL_MCP_TOKEN" --mcp-port 9100
 \`\`\`
 
 **Account setup and recovery** (headless — no server started): \`ritual admin setup\`
-creates the admin account ahead of the first browser visit, \`ritual admin
-reset-password\` resets a lost password (\`--username <name>\` also replaces the
-username; the TOTP enrollment is preserved), and \`ritual admin disable-totp\` clears
-TOTP two-factor auth when the authenticator is lost. On a terminal they prompt for
-the password; in scripts pipe it with \`--password-stdin\`:
+creates the admin account ahead of the first browser visit (\`--username\` is
+required, even on a terminal), \`ritual admin reset-password\` resets a lost
+password (\`--username <name>\` also replaces the username; the TOTP enrollment is
+preserved), and \`ritual admin disable-totp\` clears TOTP two-factor auth when the
+authenticator is lost. On a terminal they prompt for the password; in scripts
+pipe it with \`--password-stdin\`:
 
 \`\`\`bash
 ritual admin setup --username ops --password-stdin < password.txt
@@ -128,6 +180,11 @@ operations as tools — an alternative to driving the CLI for MCP-native clients
 ritual mcp                                         # stdio transport (default)
 ritual mcp --transport http --port 8765 --token "$RITUAL_MCP_TOKEN"
 \`\`\`
+
+The HTTP transport binds \`--host\` (default \`127.0.0.1\`). Without a token
+(\`--token\` or \`RITUAL_MCP_TOKEN\`) it serves unauthenticated on loopback only —
+on a non-loopback host it refuses to start unless \`--allow-unauthenticated\` is
+passed explicitly.
 
 Register it with Claude Code:
 

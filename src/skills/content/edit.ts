@@ -1,4 +1,5 @@
 import type { RitualSkill } from '../types'
+import { asBullet, NO_INPUT_GUARANTEE, REFRESH_COMMANDS, sessionSavingSemantics } from './shared'
 
 export const editSkill: RitualSkill = {
   name: 'ritual-edit',
@@ -19,25 +20,18 @@ Conventions shared by every one-shot command:
   across all three types unless you pass \`--deck\`, \`--collection\`, or \`--wanted\`
   (or prefix the name: \`deck:burn\`, \`collection:Main Binder\`, \`wanted:To Buy\`).
   An ambiguous name is an error.
-- The card is matched by name (case-, accent-, and punctuation-insensitive). When
-  several entries match, disambiguate with \`--card-id <N>\` (the \`&N\` suffix in
-  the file).
+- The card is matched by name (case-, accent-, and punctuation-insensitive).
+  \`add-card\` matches the name against Scryfall's cards; the other commands
+  (\`remove-card\`, \`set-card\`, \`note\`, \`move\`) match the list's existing entries
+  and, when several match, disambiguate with \`--card-id <N>\` (the \`&N\` suffix in
+  the file — \`add-card\` has no \`--card-id\`).
 - \`--output json\` (or \`ndjson\`) emits a machine-readable result; \`--quiet\`
   suppresses non-essential text.
 - Nothing blocks on a prompt in a script: when stdin is not a terminal, a missing
   argument or flag fails fast with exit code 2 (\`Input required: ...\`) instead of
   opening a picker. Exit codes: 1 runtime error, 2 usage error, 3 not found.
-- The global \`--no-input\` flag (or the \`RITUAL_NO_INPUT\` environment variable)
-  works on **every** command and guarantees no prompting: where input would be
-  required the command fails fast (or uses a documented default) instead of
-  hanging. It is the one headless switch — there are no per-command
-  non-interactive flags.
-- Commands that read the Scryfall card cache (\`add-card\`, \`edit\`, \`price\`,
-  \`build-site\`, \`serve --build\`, \`admin\`) share a \`--refresh <mode>\` option
-  controlling cache freshness: \`ask\` (the default — prompt about stale/empty
-  caches; the prompt is skipped when prompts are unavailable), \`auto\` (refresh
-  stale data without asking, bulk download allowed), \`no-bulk\` (refresh stale
-  prices per-card, never a bulk download), and \`never\` (use the cache as-is).
+${asBullet(NO_INPUT_GUARANTEE)}
+${asBullet(REFRESH_COMMANDS)}
 
 ## Add a card
 
@@ -163,10 +157,7 @@ each. Moving a printing-less card into a collection prompts for a specific print
 
 \`ritual edit\` is **the** interactive TUI (requires a terminal) for editing decks,
 collections, and wanted lists: a selection menu covers all lists (plus create-new
-items), and backing out of a list (\`🔀 Switch List\` or Esc) keeps its unsaved changes
-in memory while you edit other lists. Save flushes every open list (a separate "save
-current list" item saves just one), and each saved list gets one changelog entry per
-session. Sessions support name/collector entry modes, per-type edit modes over
+items). Sessions support name/collector entry modes, per-type edit modes over
 existing entries, and undo. Creating a deck prompts for its format, and deck sessions
 have a \`🏷️ Change Format\` menu action that rewrites the \`format:\` front matter on the
 next save. A deck with no \`format:\` is read as Commander when it has a \`## Commander\`
@@ -181,12 +172,15 @@ ritual edit "wanted:To Buy"                 # deck:/collection:/wanted: prefixes
 ritual edit --sets "FDN,SPG" --finish foil --condition NM   # session filter defaults
 ritual edit --section Sideboard             # pin the deck target section
 ritual edit --collector --sets "FDN, SPG"   # collector-number entry, sets preloaded
+ritual edit --allow-digital-only-cards      # include digital-only sets (e.g. Alchemy)
 ritual edit --refresh never                 # use the existing cache as-is, no prompt
 ritual edit --refresh auto                  # redownload cache when prices are >1 day old
 \`\`\`
 
 The \`[listName]\` argument matches the list's **file basename** (like every other
 command), not a deck's display title from its front matter.
+
+${sessionSavingSemantics({ fileNoun: 'list file' })}
 
 The selection menu leads with the **multi-list modes** — \`🗃️ All Lists\`, \`🎴 All Decks\`,
 \`📦 All Collections\`, \`🎯 All Wanted Lists\` — each shown only when it spans two or more

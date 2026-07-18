@@ -21,6 +21,12 @@ With no arguments, the editor starts at the [list selection menu](#the-list-sele
 a `[listName]` to skip the menu and open that list's session directly — see
 [Opening a List Directly](#opening-a-list-directly).
 
+The editor is interactive end to end and requires a terminal with prompts enabled. When prompts
+are unavailable (stdin is not a terminal, or `--no-input` / `RITUAL_NO_INPUT` is in force), it
+exits with code `2` (`Input required: …`) instead of opening — scripts should use the one-shot
+commands ([`add-card`](/commands/add-card/), [`remove-card`](/commands/remove-card/),
+[`set-card`](/commands/set-card/), [`note`](/commands/note/), [`move`](/commands/move/)) instead.
+
 ### Options
 
 | Flag                          | Description                                                                                                           |
@@ -544,11 +550,11 @@ Collector-number entry with sets pre-loaded:
 
 ## Exit Codes
 
-The failure codes apply only to [opening a list directly](#opening-a-list-directly); the
-interactive editor itself always exits `0`.
+The failure codes apply only to startup — [opening a list directly](#opening-a-list-directly) and
+the interactivity requirement; once open, the interactive editor itself always exits `0`.
 
-| Code | Meaning                                                                           |
-| ---- | --------------------------------------------------------------------------------- |
-| `0`  | Editor exited normally                                                            |
-| `2`  | Usage error (conflicting type flags, or `[listName]` matched more than one list)  |
-| `3`  | Not found (`[listName]` matched nothing, or no lists exist in the searched scope) |
+| Code | Meaning                                                                                                                                  |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Editor exited normally                                                                                                                   |
+| `2`  | Usage error (conflicting type flags, `[listName]` matched more than one list, or prompts are unavailable — no terminal, or `--no-input`) |
+| `3`  | Not found (`[listName]` matched nothing, or no lists exist in the searched scope)                                                        |

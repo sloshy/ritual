@@ -51,3 +51,21 @@ describe('ritual edit [listName] resolution (Integration)', () => {
     expect(result.stderr).toContain('Specify only one of --deck, --collection, or --wanted.')
   })
 })
+
+// The editor is a TUI: its entry is gated on prompting being possible. The
+// gate runs after [listName] resolution (so the failures above keep their own
+// errors) but before any cache work.
+describe('ritual edit interactive gating (Integration)', () => {
+  test('bare `edit` without a terminal exits 2 pointing at the one-shot commands', async () => {
+    const result = await runCli(['edit'], dir, { RITUAL_NO_INPUT: '1' })
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr).toContain('Input required')
+    expect(result.stderr).toContain('add-card')
+  })
+
+  test('a valid [listName] still cannot open the TUI headlessly', async () => {
+    const result = await runCli(['edit', '--deck', 'Staples'], dir, { RITUAL_NO_INPUT: '1' })
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr).toContain('Input required')
+  })
+})

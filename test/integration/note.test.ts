@@ -118,8 +118,21 @@ describe('note CLI — setting (Integration)', () => {
     expect(result.exitCode).toBe(2)
     const err = JSON.parse(result.stderr) as { error: { code: string; message: string } }
     expect(err.error.code).toBe('usage_error')
+    expect(err.error.message).toContain('Input required')
     expect(err.error.message).toContain('--note')
     expect(err.error.message).toContain('--clear')
+  })
+
+  test('the note-text prompt is gated on --no-input too, not only on a missing TTY', async () => {
+    const result = await runCli(
+      ['note', '--deck', 'test', 'Sol', 'Ring', '--output', 'json'],
+      dir,
+      { RITUAL_NO_INPUT: '1' },
+    )
+    expect(result.exitCode).toBe(2)
+    const err = JSON.parse(result.stderr) as { error: { code: string; message: string } }
+    expect(err.error.code).toBe('usage_error')
+    expect(err.error.message).toContain('Input required')
   })
 
   test('rejects combining --note with --clear', async () => {

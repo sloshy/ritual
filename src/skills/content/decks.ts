@@ -1,4 +1,14 @@
 import type { RitualSkill } from '../types'
+import {
+  csvImportSection,
+  interactiveEditIntro,
+  moxfieldUserAgentNote,
+  PRICE_CURRENCY_COMMENT,
+  priceIntro,
+  REFRESH_SESSION,
+  sessionSemantics,
+  wrapProse,
+} from './shared'
 
 export const decksSkill: RitualSkill = {
   name: 'ritual-decks',
@@ -16,6 +26,9 @@ ritual new deck "Winota Stax"                 # defaults to commander
 ritual new deck "Mono-Red Aggro" -f standard  # -f / --format
 \`\`\`
 
+Renaming and deleting decks (\`ritual rename\`, \`ritual delete\`) are covered in
+the **ritual** skill.
+
 ### Deck format
 
 \`--format\` takes one of: \`commander\`, \`oathbreaker\`, \`standard\`, \`modern\`,
@@ -26,9 +39,11 @@ and normalized (\`EDH\` → \`commander\`, \`premodern\` → \`pre-modern\`); an
 an error.
 
 The format is stored as \`format:\` in the deck's front matter. A deck that declares
-none is treated as Commander when it has a \`## Commander\` section, and that
-inference is written into the file on its next save — so do not add a \`format:\` by
-hand to "fix" a deck that displays correctly.
+none is inferred from its sections — an \`## Oathbreaker\` or \`## Signature Spell\`
+section means Oathbreaker (checked first), and a command-zone section such as
+\`## Commander\` means Commander — and that inference is written into the file on
+its next save, so do not add a \`format:\` by hand to "fix" a deck that displays
+correctly.
 
 ## One-shot edits (non-interactive — best for agents)
 
@@ -47,12 +62,13 @@ ritual move "Lightning Bolt" --from "deck:Winota Stax" --to deck:burn
 
 ## Build interactively
 
-\`ritual edit\` opens the interactive editor (covered in full by the **ritual-edit**
-skill); pick a deck (or \`➕ New Deck\`, which prompts for a format) from its list
-selection menu, then add cards to named \`## Section\` headers with name/collector entry
-modes and session filters (\`-s/--sets\`, \`-f/--finish\`, \`-c/--condition\`) plus section
-targeting and a \`🏷️ Change Format\` action. It **requires a terminal**, so it is not
-suitable for non-interactive agents — use the one-shot commands instead.
+${interactiveEditIntro({
+  pick:
+    'pick a deck (or `➕ New Deck`, which prompts for a format) from its list selection menu, ' +
+    'then add cards to named `## Section` headers with name/collector entry modes and session ' +
+    'filters (`-s/--sets`, `-f/--finish`, `-c/--condition`) plus section targeting and a ' +
+    '`🏷️ Change Format` action',
+})}
 
 \`\`\`bash
 ritual edit                                   # pick a deck, prompt for a section per card
@@ -63,33 +79,23 @@ ritual edit --refresh never                   # use the existing cache as-is, no
 ritual edit --refresh auto                    # redownload the cache when prices are >1 day old
 \`\`\`
 
-The shared \`--refresh <mode>\` option controls card-cache freshness: under \`ask\`
-(the default) a cache last fully downloaded more than a week ago prompts to
-redownload before the session starts; \`auto\` redownloads without prompting when
-the cached prices are more than a day old; \`no-bulk\` and \`never\` use the
-existing cache as-is.
+${REFRESH_SESSION}
 
 Set the **target section** to a fixed section or "prompt every time" via \`--section\`,
 the \`🗂️ Set Target Section\` menu, or the session filters. Adding a card whose printing
 already exists in the deck increments its quantity instead of duplicating the line.
 
-**Saving:** changes accumulate **in memory** — \`💾 Save\` writes the deck file and changelog
-without exiting, and \`🚪 Exit\` (or Esc) opens an exit menu when changes are unsaved: save and
-exit, exit without saving (discards everything unsaved), or cancel to keep editing. Saving more than
-once in one session folds the later changes into the session's existing changelog entry (bumping its
-timestamp) rather than writing a new entry per save — one editing session is always one changelog
-entry.
-
-**Edit mode:** \`🛠️ Switch to Edit Mode\` turns the search prompt into a picker over the deck's
-existing lines — change a line's printing, add/remove copies, move it to another section, edit
-its note, or remove it entirely — and \`↩️ Undo Last Edit\` reverts the latest edit.
-
-**Undo within the session:** \`↩️ Undo Last Add\` takes back the most recent card, and
-\`📋 View Session Changes\` opens a picker over every change made this session — copy adds,
-field edits, and removals — where selecting one offers to discard just that change
-(same-line changes must be discarded newest-first). Discarding an add decrements or removes
-the line; a fully removed session line frees its \`&N\` id and keeps the remaining session
-ids dense.
+${sessionSemantics({
+  fileNoun: 'deck file',
+  editScope: "the deck's existing lines",
+  editFields:
+    "change a line's printing, add/remove copies, move it to another section, edit its note, or remove it entirely",
+  undoAddVerb: 'takes back',
+  changeKinds: 'copy adds, field edits, and removals',
+  discardTarget: 'same-line changes',
+  discardAddEffect:
+    'Discarding an add decrements or removes the line; a fully removed session line frees its `&N` id and keeps the remaining session ids dense.',
+})}
 
 ## Import from a URL or text file
 
@@ -106,31 +112,22 @@ URLs always import decks. A text file import prompts for the list type (deck,
 collection, or wanted list) unless \`--type\` is passed; under the global
 \`--no-input\` flag a run without \`--type\` defaults to a deck.
 
-Moxfield imports need a unique User-Agent: pass
-\`--moxfield-user-agent "you@example.com"\` or set \`MOXFIELD_USER_AGENT\`.
+${wrapProse(moxfieldUserAgentNote({ subject: 'imports' }))}
 
 ## Import from a CSV file
 
-A \`.csv\` source makes \`import\` import a CSV export into a new deck, or append to an
-existing one (\`--csv\` forces CSV parsing for other extensions). Non-interactive
-agents must pass all flags (running it bare opens an interactive column-mapping
-wizard):
-
-\`\`\`bash
-ritual import burn.csv --type deck --name "Burn" --deck-format modern \\
+${csvImportSection({
+  source: 'a CSV export',
+  typeNoun: 'deck',
+  examples: `ritual import burn.csv --type deck --name "Burn" --deck-format modern \\
   --columns "quantity=1,name=2,section=3"
 ritual import more.csv --type deck --name "Burn" --append \\
-  --columns "quantity=1,name=2"          # merge into existing lines; no --deck-format needed
-\`\`\`
-
-\`--columns\` maps fields to 1-based column numbers (fields: \`name\`, \`set\`,
-\`collector-number\`, \`condition\`, \`finish\`, \`section\`, \`quantity\`; only \`name\` is
-required for decks). Add \`--no-header\` when the first row is data, \`--overwrite\` to
-replace an existing deck, or \`--append\` to add to one (appends merge identical
-printings, continue card IDs, and record the changelog). Conditions/finishes/sections
-are normalized (e.g. \`Near Mint\` → \`NM\`, \`F\` → foil, \`side\` → \`Sideboard\`). Failed
-rows are reported with line numbers on stderr and the rest still import (exit code 1
-on partial failure).
+  --columns "quantity=1,name=2"          # merge into existing lines`,
+  requiredColumns: 'only `name` is required for decks',
+  appendNote: 'appends merge identical printings, continue card IDs, and record the changelog',
+  typeNotes:
+    'Conditions/finishes/sections are normalized (e.g. `Near Mint` → `NM`, `F` → foil, `side` → `Sideboard`). `--deck-format` applies only when creating a deck — passing it with `--append` is a usage error.',
+})}
 
 ## Import an entire Archidekt account
 
@@ -163,15 +160,13 @@ ritual get-primer <moxfield-url>          # fetch a primer from Moxfield
 
 ## Price
 
-The unified \`price\` command covers all list types; scope it with \`--deck\` or a name.
-An interactive browser opens on a TTY — for agents, always pass \`--summary\`,
-\`--output json\`, or the global \`--no-input\` flag:
+${priceIntro({ scopeFlag: '--deck' })}
 
 \`\`\`bash
 ritual price --deck --summary                       # every deck's totals
 ritual price "Winota Stax" --no-input               # one deck's cards + totals
 ritual price "Winota Stax" --output json --quiet
-ritual price "Winota Stax" --prices eur             # usd | eur | tix (defaults to config defaultCurrency)
+ritual price "Winota Stax" --prices eur             ${PRICE_CURRENCY_COMMENT}
 \`\`\`
 
 Deck totals cover every section except extras (maybeboard/token). Each deck also

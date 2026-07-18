@@ -116,7 +116,7 @@ When prompts are unavailable (stdin is **not a terminal**, or `--no-input` / `RI
 
 The pair is validated strictly against the card's known printings — a set/collector-number combination that doesn't exist fails with a usage error listing up to 10 available printings (also carried as `details.available` in JSON error output). There is no fuzzy or fallback matching.
 
-Without a pin, a non-interactive run (stdin not a terminal) only succeeds when the card has a single paper printing; several candidates fail with an error instead of guessing.
+Without a pin, a run where prompts are unavailable (stdin is **not a terminal**, or `--no-input` / `RITUAL_NO_INPUT` is in force) only succeeds when the card has a single paper printing; several candidates fail with an error instead of guessing.
 
 ### Finish and Condition
 
@@ -183,9 +183,9 @@ Deck adds include `quantity`; wanted adds omit the fields that weren't recorded.
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                                      |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `0`  | Card added                                                                                                                                                   |
-| `1`  | Runtime error (card cache unavailable, printing unresolvable in the specific flow, file write failure)                                                       |
-| `2`  | Usage error (invalid or conflicting flags, unknown printing pin, unavailable finish, cancelled prompt, missing wanted-specificity flag when stdin is no TTY) |
-| `3`  | Not found (missing deck, no exact card-name match, no cards matching the search)                                                                             |
+| Code | Meaning                                                                                                                                                                                                                          |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Card added                                                                                                                                                                                                                       |
+| `1`  | Runtime error (card cache unavailable, printing unresolvable in the specific flow, file write failure)                                                                                                                           |
+| `2`  | Usage error (invalid or conflicting flags, unknown printing pin, unavailable finish, cancelled prompt, missing wanted-specificity flag when prompts are unavailable — stdin not a terminal, or `--no-input` / `RITUAL_NO_INPUT`) |
+| `3`  | Not found (missing deck, no exact card-name match, no cards matching the search)                                                                                                                                                 |

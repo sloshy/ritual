@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { execSync } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 // scryfall must load before src/cache: cache/index transitively imports
@@ -7,9 +8,19 @@ import path from 'node:path'
 import '../../src/scryfall'
 import { cardCache } from '../../src/cache'
 import { getBaseDir, setBaseDir } from '../../src/base-dir'
+import { getDefaultRitualConfig } from '../../src/ritual-config'
+import { applyChangeBundle } from '../../src/admin/api/import-changes'
+import { parseChangeBundle } from '../../src/editor/change-bundle'
 import { runCli, withTempDir } from './helpers/cli'
 import { OFFLINE_ENV } from './helpers/offline-env'
-import { writeCollectionFile, writeDeckFile, writeWantedFile } from './helpers/workspace'
+import {
+  bindWorkspace,
+  initGitRepo,
+  writeCollectionFile,
+  writeConfig,
+  writeDeckFile,
+  writeWantedFile,
+} from './helpers/workspace'
 
 const BUNDLE = {
   format: 'ritual-change-bundle',
@@ -280,6 +291,156 @@ describe('import-changes command (Integration)', () => {
       expect(await Bun.file(path.join(dir, 'decks', 'test-deck.md')).exists()).toBeFalse()
     })
   })
+
+  test('never creates git commits, even when admin git auto-commit is enabled', async () => {
+    await withTempDir(async (dir) => {
+      await seedWorkspace(dir)
+      // A full, valid admin config with auto-commit enabled — the keys govern
+      // the admin surfaces (web UI + MCP), never the CLI.
+      const base = getDefaultRitualConfig()
+      await writeConfig(dir, {
+        admin: { ...base.admin, gitEnabled: true, gitAutoCommit: true, gitAutoPush: false },
+      })
+      initGitRepo(dir)
+      execSync('git add -A', { cwd: dir })
+      execSync('git commit -q -m baseline', { cwd: dir })
+      await fs.writeFile(path.join(dir, 'edits.json'), JSON.stringify(BUNDLE))
+
+      const result = await runCli(['import-changes', 'edits.json', '--yes'], dir)
+
+      expect(result.exitCode).toBe(0)
+      const deck = await fs.readFile(path.join(dir, 'decks', 'test-deck.md'), 'utf-8')
+      expect(deck).toMatch(/Counterspell &\d+/)
+
+      // The applied changes stay in the working tree: git log is unchanged and
+      // the rewritten deck file is left uncommitted.
+      const log = execSync('git log --pretty=%s', { cwd: dir, encoding: 'utf-8' }).trim()
+      expect(log).toBe('baseline')
+      const status = execSync('git status --porcelain', { cwd: dir, encoding: 'utf-8' })
+      expect(status).toContain('decks/test-deck.md')
+    })
+  }, 60_000)
+
+  test('the admin applyChangeBundle path auto-commits each saved list when enabled', async () => {
+    const base = getDefaultRitualConfig()
+    const ws = await bindWorkspace({
+      config: {
+        admin: { ...base.admin, gitEnabled: true, gitAutoCommit: true, gitAutoPush: false },
+      },
+    })
+    try {
+      await writeDeckFile(ws.dir, 'test-deck', {
+        frontMatter: { name: 'Test Deck', format: 'commander' },
+        cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
+      })
+      await cardCache.bulkSet({})
+      initGitRepo(ws.dir)
+      execSync('git add -A', { cwd: ws.dir })
+      execSync('git commit -q -m baseline', { cwd: ws.dir })
+
+      const bundle = parseChangeBundle(
+        JSON.stringify({
+          format: 'ritual-change-bundle',
+          version: 1,
+          exportedAt: '2026-06-04T00:00:00.000Z',
+          lists: [
+            {
+              kind: 'deck',
+              slug: 'test-deck',
+              name: 'Test Deck',
+              changes: [
+                { id: 'r1', timestamp: 1, action: 'remove', cardName: 'Sol Ring', cardId: 1 },
+              ],
+            },
+          ],
+        }),
+      )
+      if (typeof bundle === 'string') throw new Error(`invalid fixture bundle: ${bundle}`)
+
+      // Called directly (as the admin route and MCP tool do), with no CLI
+      // suppression wrapper: the save handler's auto-commit must fire.
+      const result = await applyChangeBundle(bundle)
+      expect(result.success).toBe(true)
+
+      const subject = execSync('git log -1 --pretty=%s', { cwd: ws.dir, encoding: 'utf-8' }).trim()
+      expect(subject).toBe('Edit deck: Test Deck (1 changes)')
+      // The rewritten deck file was committed, not left as a working-tree change.
+      const status = execSync('git status --porcelain', { cwd: ws.dir, encoding: 'utf-8' })
+      expect(status).not.toContain('decks/test-deck.md')
+    } finally {
+      await ws.dispose()
+    }
+  }, 60_000)
+
+  test('auto-commit targets the list directory git repo when it differs from the base dir repo', async () => {
+    // Regression pin for autoCommitAndPush's dir consistency: the repo guard,
+    // the commit, and the push must all run against the *list* directory, so a
+    // decksDir configured inside a different git repo than the base dir gets
+    // the commit — and the base dir's repo stays untouched.
+    const base = getDefaultRitualConfig()
+    const ws = await bindWorkspace({
+      config: {
+        decksDir: './deck-repo/decks',
+        admin: { ...base.admin, gitEnabled: true, gitAutoCommit: true, gitAutoPush: false },
+      },
+      // Load the written config into the sync cache so getDecksDir() sees the
+      // custom decksDir (the default bindWorkspace leaves defaults cached).
+      init: true,
+    })
+    try {
+      const deckRepo = path.join(ws.dir, 'deck-repo')
+      await writeDeckFile(deckRepo, 'test-deck', {
+        frontMatter: { name: 'Test Deck', format: 'commander' },
+        cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
+      })
+      await cardCache.bulkSet({})
+
+      // The deck dir lives in its own git repo, nested inside (but separate
+      // from) the base dir's repo.
+      initGitRepo(deckRepo)
+      execSync('git add -A', { cwd: deckRepo })
+      execSync('git commit -q -m deck-baseline', { cwd: deckRepo })
+      initGitRepo(ws.dir)
+      execSync('git add ritual.config.json', { cwd: ws.dir })
+      execSync('git commit -q -m base-baseline', { cwd: ws.dir })
+
+      const bundle = parseChangeBundle(
+        JSON.stringify({
+          format: 'ritual-change-bundle',
+          version: 1,
+          exportedAt: '2026-06-04T00:00:00.000Z',
+          lists: [
+            {
+              kind: 'deck',
+              slug: 'test-deck',
+              name: 'Test Deck',
+              changes: [
+                { id: 'r1', timestamp: 1, action: 'remove', cardName: 'Sol Ring', cardId: 1 },
+              ],
+            },
+          ],
+        }),
+      )
+      if (typeof bundle === 'string') throw new Error(`invalid fixture bundle: ${bundle}`)
+
+      const result = await applyChangeBundle(bundle)
+      expect(result.success).toBe(true)
+
+      // The commit landed in the deck repo, covering the rewritten deck file...
+      const subject = execSync('git log -1 --pretty=%s', {
+        cwd: deckRepo,
+        encoding: 'utf-8',
+      }).trim()
+      expect(subject).toBe('Edit deck: Test Deck (1 changes)')
+      const deckStatus = execSync('git status --porcelain', { cwd: deckRepo, encoding: 'utf-8' })
+      expect(deckStatus).not.toContain('decks/test-deck.md')
+      // ...and the base dir's own repo history is untouched.
+      const baseLog = execSync('git log --pretty=%s', { cwd: ws.dir, encoding: 'utf-8' }).trim()
+      expect(baseLog).toBe('base-baseline')
+    } finally {
+      await ws.dispose()
+    }
+  }, 60_000)
 
   test('requires --yes when stdin is not a TTY instead of prompting', async () => {
     await withTempDir(async (dir) => {

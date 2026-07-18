@@ -586,3 +586,27 @@ describe('move CLI headless mode (Integration)', () => {
     expect(source).toContain('2 Lightning Bolt (LEA:161) &1')
   })
 })
+
+// The interactive session is prompt-driven end to end, so its entry must be
+// gated: piped stdin or --no-input fails fast with the headless alternative
+// instead of opening (or silently draining) the TUI.
+describe('move CLI interactive-session gating (Integration)', () => {
+  test('bare `move` without a terminal is a usage error naming --from/--to', async () => {
+    const result = await runCli(['move', '--output', 'json'], dir, { RITUAL_NO_INPUT: '1' })
+    expect(result.exitCode).toBe(2)
+    const err = JSON.parse(result.stderr) as MoveErrorPayload
+    expect(err.error.code).toBe('usage_error')
+    expect(err.error.message).toContain('Input required')
+    expect(err.error.message).toContain('--from and --to')
+  })
+
+  test('`move --from <list>` alone is gated too — it would open the session', async () => {
+    const result = await runCli(['move', '--from', 'deck:source', '--output', 'json'], dir, {
+      RITUAL_NO_INPUT: '1',
+    })
+    expect(result.exitCode).toBe(2)
+    const err = JSON.parse(result.stderr) as MoveErrorPayload
+    expect(err.error.code).toBe('usage_error')
+    expect(err.error.message).toContain('Input required')
+  })
+})

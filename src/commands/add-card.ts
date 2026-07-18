@@ -15,7 +15,6 @@ import { isCondition, isFinish, normalizeFinishValue, VALID_CONDITIONS } from '.
 import { parseSetCode } from '../set-codes'
 import { ensureWantedListFile, formatWantedListLine, promptWantedFinish } from './wanted-helpers'
 import { isUsableFileName, unusableFileNameMessage } from '../list-file-name'
-import { isNoInput } from '../no-input'
 import { emptyCacheAdvice, ensureFreshCardCache } from '../cache/freshness'
 import { addRefreshOption, type RefreshMode } from '../refresh'
 import { appendChangelog } from '../changelog-writer'
@@ -41,6 +40,7 @@ import {
 import {
   ensureFinishAvailable,
   parsePositiveInteger,
+  promptsUnavailable,
   resolveListTypeFlag,
   resolvePinnedPrinting,
   runCommandAction,
@@ -325,7 +325,7 @@ function validateTargetFlags(
     !options.nameOnly &&
     !options.specific &&
     pin === undefined &&
-    (isNoInput() || !process.stdin.isTTY)
+    promptsUnavailable()
   ) {
     throw new CardCommandError(
       'usage_error',
@@ -434,7 +434,7 @@ async function resolveCardName(
     return match
   }
 
-  if (isNoInput() || !process.stdin.isTTY) {
+  if (promptsUnavailable()) {
     // The autocomplete prompt would silently auto-answer with its first
     // suggestion when stdin is not a terminal (and must not open at all under
     // --no-input) — accept only an exact name.
@@ -634,14 +634,15 @@ async function addToCollection(
 /**
  * Resolve a printing when no strict pin was given. Interactively this is the
  * shared printing picker; without a terminal the picker would silently
- * auto-answer with its first suggestion, so non-interactive runs only accept a
- * card with a single (paper) printing and otherwise fail with `makeFailure()`.
+ * auto-answer with its first suggestion (and under `--no-input` it must not
+ * open at all), so non-interactive runs only accept a card with a single
+ * (paper) printing and otherwise fail with `makeFailure()`.
  */
 async function resolveInteractivePrinting(
   cardName: string,
   makeFailure: () => CardCommandError,
 ): Promise<ScryfallCard> {
-  if (!process.stdin.isTTY) {
+  if (promptsUnavailable()) {
     const printings = (await getCardPrintings(cardName)).filter((p) => !isDigitalOnlySet(p.set))
     if (printings.length === 1) return printings[0]!
     throw makeFailure()

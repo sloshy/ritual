@@ -84,7 +84,12 @@ export function normalizeRequestNotes(
   return null
 }
 
-/** Commit files and push if the config enables auto-commit/auto-push for the given directory. */
+/**
+ * Commit files and push if the config enables auto-commit/auto-push for the
+ * given directory. The repo guard, the commit, and the push all run against
+ * `dir`, so a list directory configured inside a different git repo than the
+ * base dir is committed to consistently.
+ */
 export async function autoCommitAndPush(
   dir: string,
   files: string[],
@@ -92,7 +97,7 @@ export async function autoCommitAndPush(
 ): Promise<void> {
   const config = await loadRitualConfig()
   if (shouldAutoCommit(config, dir)) {
-    commitFiles(files, message)
+    commitFiles(files, message, dir)
     if (shouldAutoPush(config, dir)) {
       pushChanges(dir)
     }

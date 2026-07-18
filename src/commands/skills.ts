@@ -1,7 +1,15 @@
 import { Command } from 'commander'
 import path from 'node:path'
 import { SKILLS, selectSkills } from '../skills/catalog'
-import { installSkills, resolveSkillsDir, type SkillInstallResult } from '../skills/install'
+import {
+  installSkills,
+  refreshInstalledSkills,
+  resolveSkillsDir,
+  type SkillInstallResult,
+  type SkillInstallStatus,
+  type SkillWriteOptions,
+} from '../skills/install'
+import type { RitualSkill } from '../skills/types'
 import {
   addScriptingOptions,
   emitError,
@@ -13,7 +21,8 @@ import {
 
 type SkillsListOptions = Partial<ScriptingOptions>
 
-type SkillsInstallOptions = {
+/** Shared flags of the `skills install` and `skills update` subcommands. */
+type SkillsWriteCommandOptions = {
   global?: boolean
   dir?: string
   force?: boolean
@@ -25,10 +34,154 @@ type SkillListEntry = {
   description: string
 }
 
-/** Payload of `skills install --output json|ndjson`. Paths are absolute. */
+/** Payload of `skills install|update --output json|ndjson`. Paths are absolute. */
 type SkillsInstallReport = {
   skillsDir: string
   results: SkillInstallResult[]
+}
+
+/** Add the target-directory and overwrite flags shared by install and update. */
+function addSkillsWriteOptions(command: Command): Command {
+  return addScriptingOptions(
+    command
+      .option('--global', 'Target ~/.claude/skills instead of the project directory')
+      .option(
+        '--dir <path>',
+        'Project directory that should contain .claude/skills (defaults to the base dir)',
+      )
+      .option('-f, --force', 'Overwrite skill files even when they have local edits'),
+  )
+}
+
+/** Render a path relative to the cwd when it is inside it, absolute otherwise. */
+function displayPath(filePath: string): string {
+  const relative = path.relative(process.cwd(), filePath)
+  return relative.startsWith('..') ? filePath : relative
+}
+
+/** Print the shared per-skill result lines for text mode. */
+function printSkillResultLines(results: SkillInstallResult[]): void {
+  for (const result of results) {
+    switch (result.status) {
+      case 'written':
+        console.log(`✓ ${result.name} → ${displayPath(result.path)}`)
+        break
+      case 'up-to-date':
+        console.log(`• ${result.name} already up to date`)
+        break
+      case 'skipped':
+        console.log(`• ${result.name} has local edits (skipped)`)
+        break
+      case 'absent':
+        console.log(`• ${result.name} not installed (skipped)`)
+        break
+      default: {
+        result.status satisfies never
+        throw new Error('Unhandled skill install status (this is a bug)')
+      }
+    }
+  }
+}
+
+/** Pluralize a skill noun phrase for a count. */
+function skillNoun(count: number, noun = 'skill'): string {
+  return `${noun}${count === 1 ? '' : 's'}`
+}
+
+/** How {@link printSkillsWriteSummary} words its lines for one consumer. */
+export type SkillsWriteSummaryOptions = {
+  /** Verb for the written-count line: 'Installed' or 'Updated'. */
+  verb: 'Installed' | 'Updated'
+  /** Preposition between the verb phrase and the directory: 'to' or 'in'. */
+  preposition: 'to' | 'in'
+  /** The target directory as it should be rendered in the summary lines. */
+  dir: string
+  /** Noun for a single skill; defaults to 'skill' (init-site passes 'Ritual agent skill'). */
+  noun?: string
+  /** The re-run that overwrites locally edited files, e.g. 're-run with --force to overwrite them'. */
+  forceHint: string
+  /** Print the written-count line even when nothing was written (the skills subcommands always do). */
+  alwaysReportWritten?: boolean
+  /** Report skills that are not installed (only `skills update` surfaces those). */
+  reportAbsent?: boolean
+}
+
+/**
+ * Print the status-count summary shared by every consumer of the skill write
+ * engines: the `skills install` and `skills update` actions here, plus
+ * init-site's `maybeInstallSkills` and `refreshSkillsOnUpgrade`. The counts
+ * object is keyed by the full {@link SkillInstallStatus} union, so adding a
+ * status without accounting for it here is a compile error rather than a
+ * silently dropped summary line.
+ */
+export function printSkillsWriteSummary(
+  results: SkillInstallResult[],
+  options: SkillsWriteSummaryOptions,
+): void {
+  const counts: Record<SkillInstallStatus, number> = {
+    written: 0,
+    'up-to-date': 0,
+    skipped: 0,
+    absent: 0,
+  }
+  for (const result of results) counts[result.status]++
+  const noun = options.noun ?? 'skill'
+
+  if (counts.written > 0 || options.alwaysReportWritten) {
+    console.log(
+      `✓ ${options.verb} ${counts.written} ${skillNoun(counts.written, noun)} ${options.preposition} ${options.dir}`,
+    )
+  }
+  if (counts['up-to-date'] > 0) {
+    console.log(
+      `• ${counts['up-to-date']} ${skillNoun(counts['up-to-date'], noun)} already up to date`,
+    )
+  }
+  if (counts.skipped > 0) {
+    console.log(
+      `⊘ ${counts.skipped} ${skillNoun(counts.skipped, noun)} with local edits left untouched (${options.forceHint})`,
+    )
+  }
+  if (options.reportAbsent && counts.absent > 0) {
+    console.log(
+      `• ${counts.absent} ${skillNoun(counts.absent, noun)} not installed; use \`ritual skills install\` to add ${counts.absent === 1 ? 'it' : 'them'}`,
+    )
+  }
+}
+
+/**
+ * The shared prologue of `skills install` and `skills update`: resolve names to
+ * skills (usage error on unknown ones), resolve the target directory, run the
+ * write engine, and emit the JSON report when structured output was requested.
+ * Returns `null` when the command is done (error or structured output); the
+ * caller then prints its own text summary.
+ */
+async function runSkillsWrite(
+  names: string[],
+  options: SkillsWriteCommandOptions,
+  scripting: ScriptingOptions,
+  engine: (
+    skills: readonly RitualSkill[],
+    skillsDir: string,
+    writeOptions: SkillWriteOptions,
+  ) => Promise<SkillInstallResult[]>,
+): Promise<SkillsInstallReport | null> {
+  const selected = selectSkills(names)
+  if (typeof selected === 'string') {
+    emitError('usage_error', selected, scripting)
+    process.exitCode = ExitCode.UsageError
+    return null
+  }
+
+  const skillsDir = resolveSkillsDir({ global: options.global, dir: options.dir })
+  const results = await engine(selected, skillsDir, { force: options.force ?? false })
+  const report: SkillsInstallReport = { skillsDir, results }
+
+  if (scripting.output !== 'text') {
+    emitOutput(report, scripting)
+    return null
+  }
+  return report
 }
 
 export function registerSkillsCommand(program: Command): void {
@@ -58,62 +211,48 @@ export function registerSkillsCommand(program: Command): void {
     }
   })
 
-  addScriptingOptions(
+  addSkillsWriteOptions(
     skills
       .command('install [names...]')
       .description(
         'Install Ritual skills into .claude/skills (or ~/.claude/skills with --global). Installs every skill when no names are given.',
-      )
-      .option('--global', 'Install into ~/.claude/skills instead of the project directory')
-      .option(
-        '--dir <path>',
-        'Project directory that should contain .claude/skills (defaults to the base dir)',
-      )
-      .option('-f, --force', 'Overwrite skill files that already exist'),
-  ).action(async (names: string[], options: SkillsInstallOptions) => {
+      ),
+  ).action(async (names: string[], options: SkillsWriteCommandOptions) => {
     const scripting = normalizeScriptingOptions(options)
+    const report = await runSkillsWrite(names, options, scripting, installSkills)
+    if (report === null || scripting.quiet) return
 
-    const selected = selectSkills(names)
-    if (typeof selected === 'string') {
-      emitError('usage_error', selected, scripting)
-      process.exitCode = ExitCode.UsageError
-      return
-    }
-
-    const skillsDir = resolveSkillsDir({ global: options.global, dir: options.dir })
-    const results = await installSkills(selected, skillsDir, { force: options.force ?? false })
-
-    if (scripting.output !== 'text') {
-      const report: SkillsInstallReport = { skillsDir, results }
-      emitOutput(report, scripting)
-      return
-    }
-
-    if (scripting.quiet) return
-
-    const written = results.filter((result) => result.status === 'written')
-    const skipped = results.filter((result) => result.status === 'skipped')
-
-    const displayPath = (filePath: string): string => {
-      const relative = path.relative(process.cwd(), filePath)
-      return relative.startsWith('..') ? filePath : relative
-    }
-
-    for (const result of written) {
-      console.log(`✓ ${result.name} → ${displayPath(result.path)}`)
-    }
-    for (const result of skipped) {
-      console.log(`• ${result.name} already present (skipped)`)
-    }
-
+    printSkillResultLines(report.results)
     console.log('')
-    console.log(
-      `Installed ${written.length} skill${written.length === 1 ? '' : 's'} to ${skillsDir}`,
-    )
-    if (skipped.length > 0) {
-      console.log(
-        `${skipped.length} already present; re-run with --force to overwrite with the current version.`,
-      )
-    }
+    printSkillsWriteSummary(report.results, {
+      verb: 'Installed',
+      preposition: 'to',
+      dir: report.skillsDir,
+      forceHint: 're-run with --force to overwrite them with the current version',
+      alwaysReportWritten: true,
+    })
+  })
+
+  addSkillsWriteOptions(
+    skills
+      .command('update [names...]')
+      .description(
+        'Refresh already-installed Ritual skills to the current version. Never installs skills that are not present; use install for that.',
+      ),
+  ).action(async (names: string[], options: SkillsWriteCommandOptions) => {
+    const scripting = normalizeScriptingOptions(options)
+    const report = await runSkillsWrite(names, options, scripting, refreshInstalledSkills)
+    if (report === null || scripting.quiet) return
+
+    printSkillResultLines(report.results)
+    console.log('')
+    printSkillsWriteSummary(report.results, {
+      verb: 'Updated',
+      preposition: 'in',
+      dir: report.skillsDir,
+      forceHint: 're-run with --force to overwrite them with the current version',
+      alwaysReportWritten: true,
+      reportAbsent: true,
+    })
   })
 }

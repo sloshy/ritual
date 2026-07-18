@@ -45,10 +45,36 @@ export function pushChanges(cwd?: string): void {
   })
 }
 
+/**
+ * When set, {@link shouldAutoCommit} and {@link shouldAutoPush} both report
+ * false regardless of the `admin.git*` config keys. See {@link suppressAutoCommit}.
+ */
+let autoCommitSuppressed = false
+
+/**
+ * Run `fn` with git auto-commit and auto-push disabled, regardless of the
+ * `admin.git*` config keys. Those keys govern the admin surfaces — the admin
+ * web UI and the MCP server (which reuses the admin handlers) — while CLI
+ * commands never auto-commit. A CLI command that replays admin save handlers
+ * in-process (`ritual import-changes`) wraps the apply in this so the shared
+ * handlers stay commit-free on the CLI path. The suppression is restored even
+ * when `fn` throws.
+ */
+export async function suppressAutoCommit<T>(fn: () => Promise<T>): Promise<T> {
+  autoCommitSuppressed = true
+  try {
+    return await fn()
+  } finally {
+    autoCommitSuppressed = false
+  }
+}
+
 export function shouldAutoCommit(config: RitualConfig, dir: string): boolean {
+  if (autoCommitSuppressed) return false
   return config.admin.gitEnabled && config.admin.gitAutoCommit && isGitRepo(dir)
 }
 
 export function shouldAutoPush(config: RitualConfig, dir: string): boolean {
+  if (autoCommitSuppressed) return false
   return config.admin.gitEnabled && config.admin.gitAutoPush && isGitRepo(dir)
 }

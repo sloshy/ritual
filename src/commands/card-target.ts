@@ -311,6 +311,17 @@ export function describeEntry(entry: EntryRef): string {
 }
 
 /**
+ * Whether interactive prompting is unavailable for this process: `--no-input`
+ * (or `RITUAL_NO_INPUT`) disabled prompts, or stdin is not a terminal. The
+ * single source of truth for the prompt gate — commands must consult this (or
+ * {@link requireInteractive}) rather than re-deriving the condition inline, so
+ * the `--no-input` half can never be dropped from one copy.
+ */
+export function promptsUnavailable(): boolean {
+  return isNoInput() || !process.stdin.isTTY
+}
+
+/**
  * Refuse to open an interactive picker when prompting is unavailable — stdin
  * is not a terminal, or `--no-input` disabled prompts. Without this, a script
  * that omits a selector either exits 0 having done nothing (closed stdin: the
@@ -318,7 +329,7 @@ export function describeEntry(entry: EntryRef): string {
  * acceptable one-shot contract.
  */
 export function requireInteractive(what: string): void {
-  if (isNoInput() || !process.stdin.isTTY) {
+  if (promptsUnavailable()) {
     throw new CardCommandError(
       'usage_error',
       `Input required: pass ${what} (interactive selection is unavailable without a terminal or with --no-input).`,
