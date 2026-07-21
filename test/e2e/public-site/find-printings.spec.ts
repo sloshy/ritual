@@ -125,7 +125,7 @@ test.describe('Find Other Printings modal', () => {
     await expect(page.locator('.card-item[data-card-id="1"].card-nav-highlight')).toBeVisible()
   })
 
-  test('opens from the editor context menu via "Find other printings"', async ({ page }) => {
+  test('opens from the editor context menu via "Find in Lists"', async ({ page }) => {
     await enterEditMode(page)
 
     const tile = page.locator('.card-item[data-name="steam vents"]')
@@ -141,14 +141,14 @@ test.describe('Find Other Printings modal', () => {
     await expect(
       menu.locator('.card-context-menu-item', { hasText: 'Move to section' }),
     ).toBeVisible()
-    await menu.locator('.card-context-menu-item', { hasText: 'Find other printings' }).click()
+    await menu.locator('.card-context-menu-item', { hasText: 'Find in Lists' }).click()
 
     const modal = page.locator('.find-printings-modal')
     await expect(modal).toBeVisible()
     await expect(modal.locator('.find-printings-summary')).toHaveText('4 copies across 2 lists')
   })
 
-  test('the read-mode ⋯ menu offers only "Find other printings"', async ({ page }) => {
+  test('the read-mode ⋯ menu offers only "Find in Lists"', async ({ page }) => {
     // No edit mode: the tile still offers the ⋯ menu, but without edit actions.
     const tile = page.locator('.card-item[data-name="steam vents"]')
     await tile.locator('.card-binder').hover()
@@ -159,7 +159,7 @@ test.describe('Find Other Printings modal', () => {
     await expect(menu).toBeVisible()
     const items = menu.locator('.card-context-menu-item')
     await expect(items).toHaveCount(1)
-    await expect(items).toHaveText('Find other printings')
+    await expect(items).toHaveText('Find in Lists')
 
     await items.click()
     const modal = page.locator('.find-printings-modal')

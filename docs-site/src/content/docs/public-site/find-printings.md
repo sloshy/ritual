@@ -1,8 +1,8 @@
 ---
-title: 'Find Other Printings'
+title: 'Find in Lists'
 ---
 
-**Find Other Printings** answers "where else do I have a version of this card?" for any single card, right from the card you're looking at. It searches every deck, collection, and wanted list on the site and shows each physical copy, grouped by the list it lives in. It's built for visually upgrading a deck — compare the printing you're running against the copies sitting in your binders — but works just as well for spotting that a collection card is already being played in a deck, or hiding in a trade binder.
+**Find in Lists** answers "where else do I have a version of this card?" for any single card, right from the card you're looking at. It searches every deck, collection, and wanted list on the site and shows each physical copy, grouped by the list it lives in. It's built for visually upgrading a deck — compare the printing you're running against the copies sitting in your binders — but works just as well for spotting that a collection card is already being played in a deck, or hiding in a trade binder.
 
 Like [Find Cards](/public-site/find/), this is a public-site browsing feature only; it never writes anything.
 
@@ -10,8 +10,10 @@ Like [Find Cards](/public-site/find/), this is a public-site browsing feature on
 
 There are two entry points, both scoped to one card:
 
-- **From the card ⋯ menu**: hover a card, open its **⋯** menu, and choose **Find other printings**. The ⋯ menu is available on every list page — outside edit mode it carries just this lookup, while in edit mode it sits alongside the usual edit actions.
+- **From the card ⋯ menu**: hover a card, open its **⋯** menu, and choose **Find in Lists**. The ⋯ menu is available on every list page — outside edit mode it carries just this lookup, while in edit mode it sits alongside the usual edit actions.
 - **From the card detail modal**: click any card to open its detail modal, then press **Find in Lists**.
+
+Either entry point opens the same dialog, titled **Other Copies**.
 
 ## What it shows
 

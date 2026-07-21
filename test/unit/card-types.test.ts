@@ -48,27 +48,22 @@ describe('extractCardTypeTags', () => {
   })
 })
 
+// The three match modes are pinned against `matchesSelection` in
+// test/unit/site/filter-mode.test.ts; `matchesCardTypes` only adds that the tags
+// extracted from the type line are what gets matched.
 describe('matchesCardTypes', () => {
   const typeLine = 'Artifact Creature — Robot'
 
-  test('no selected types means the filter is inactive', () => {
-    expect(matchesCardTypes(typeLine, [], 'or')).toBe(true)
-    expect(matchesCardTypes(typeLine, [], 'and')).toBe(true)
-  })
-
-  test('OR matches when any selected type is present', () => {
-    expect(matchesCardTypes(typeLine, ['artifact', 'enchantment'], 'or')).toBe(true)
-    expect(matchesCardTypes(typeLine, ['enchantment', 'land'], 'or')).toBe(false)
-  })
-
-  test('AND requires every selected type', () => {
-    expect(matchesCardTypes(typeLine, ['artifact', 'creature'], 'and')).toBe(true)
-    expect(matchesCardTypes(typeLine, ['artifact', 'elf'], 'and')).toBe(false)
+  test('matches the tags extracted from the type line under the given mode', () => {
+    expect(matchesCardTypes(typeLine, ['artifact', 'enchantment'], 'include')).toBe(true)
+    expect(matchesCardTypes(typeLine, ['enchantment', 'land'], 'include')).toBe(false)
+    expect(matchesCardTypes(typeLine, ['artifact', 'creature'], 'exact')).toBe(true)
+    expect(matchesCardTypes(typeLine, ['enchantment'], 'exclude')).toBe(true)
   })
 
   test('matches the multi-word "time lord" tag', () => {
-    expect(matchesCardTypes('Creature — Time Lord', ['time lord'], 'or')).toBe(true)
-    expect(matchesCardTypes('Creature — Time Lord', ['time'], 'or')).toBe(false)
+    expect(matchesCardTypes('Creature — Time Lord', ['time lord'], 'include')).toBe(true)
+    expect(matchesCardTypes('Creature — Time Lord', ['time'], 'include')).toBe(false)
   })
 })
 

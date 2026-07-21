@@ -26,6 +26,25 @@ test.describe('Responsive Layout', () => {
     })
   }
 
+  // Currency, Edit, and Theme collapse behind the ⚙ toggle only in the phone
+  // layout; wider viewports must keep them inline with no toggle at all.
+  test('header utility controls collapse only in the phone layout', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 720 })
+    await page.goto('/')
+    await expect(page.locator('.deck-cover').first()).toBeVisible()
+
+    await expect(page.locator('.header-utility-toggle')).toHaveCount(0)
+    await expect(page.locator('.currency-select')).toBeVisible()
+    await expect(page.locator('.btn-edit')).toBeVisible()
+    await expect(page.locator('.theme-customize-btn')).toBeVisible()
+
+    await page.setViewportSize({ width: 375, height: 667 })
+    await expect(page.locator('.header-utility-toggle')).toBeVisible()
+    await expect(page.locator('.currency-select')).toHaveCount(0)
+    await expect(page.locator('.btn-edit')).toHaveCount(0)
+    await expect(page.locator('.theme-customize-btn')).toHaveCount(0)
+  })
+
   test('deck page is usable on mobile', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 })
     await page.goto(`#/deck/${SYNTHETIC_DECK_SLUG}`)

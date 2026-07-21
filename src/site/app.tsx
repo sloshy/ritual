@@ -1,5 +1,6 @@
 import { render } from 'solid-js/web'
 import {
+  batch,
   createSignal,
   createEffect,
   createMemo,
@@ -23,12 +24,7 @@ import { CollectionPage } from './CollectionPage'
 import { WantedListPage } from './WantedListPage'
 import { CombinedListPage } from './CombinedListPage'
 import { CombineListModal } from './CombineListModal'
-import {
-  type CombinedSelection,
-  type NamedListRef,
-  combinedAllHref,
-  encodeCombinedHash,
-} from './combined-list'
+import { type CombinedSelection, type NamedListRef, encodeCombinedHash } from './combined-list'
 import type { ListType } from '../list-type'
 import type { ListRef } from '../change-event'
 import { TradePage } from './TradePage'
@@ -64,12 +60,12 @@ import { closeFindPrintings } from './find-printings'
 import { FindPrintingsModal } from './FindPrintingsModal'
 import { pendingMovePrompt, closeMovePrompt } from './move-prompt'
 import { MoveTargetPicker } from './MoveTargetPicker'
-import { createThemeStore, ThemeProvider, useTheme } from './useTheme'
+import { createThemeStore, ThemeProvider } from './useTheme'
 import { syncFaviconToTheme } from './useFavicon'
 import { FlameIcon } from './FlameIcon'
 import { ThemeEditor } from './ThemeEditor'
-import { ThemePicker } from './ThemePicker'
 import { MobileTabBar } from './MobileTabBar'
+import { CurrencySelector, EditModeButton, ThemeHeaderControls } from './HeaderControls'
 import { NAV_DESTINATIONS, type NavActiveState } from './nav-destinations'
 import { useMobileLayout } from '../ui/useMediaQuery'
 
@@ -91,6 +87,20 @@ function App() {
 
   // Quick switch dialog state
   const [quickSwitchOpen, setQuickSwitchOpen] = createSignal(false)
+
+  // Phone layout only: the collapsible header row holding currency, edit, and
+  // theme. Deliberately not reset on navigation — it's a display preference for
+  // the session, not a transient dialog.
+  const [headerUtilityOpen, setHeaderUtilityOpen] = createSignal(false)
+
+  // Batched so the currency and the epoch counter that invalidates cached
+  // prices land together, rather than as two separate notifications.
+  const changeCurrency = (next: PriceCurrency) => {
+    batch(() => {
+      setCurrency(next)
+      notifyCurrencyChanged()
+    })
+  }
 
   // Site-wide edit mode: a single toggle that persists across navigation. While
   // on, the list in view (if any) is shown in its editor, and moving to another
@@ -364,21 +374,10 @@ function App() {
             <span class="site-logo-text">Ritual</span>
           </a>
           <span class="site-nav-sep">|</span>
-          {/* Destinations come from the shared NAV_DESTINATIONS list (also the
-              tab bar's source); "All" is header-only with its computed href,
-              slotted between Wanted and Trade. */}
+          {/* Destinations come from the shared NAV_DESTINATIONS list, which the
+              mobile tab bar renders from too. */}
           <nav class="site-nav">
-            <For each={NAV_DESTINATIONS.slice(0, 3)}>
-              {(d) => (
-                <NavLink href={d.href} active={navActive()[d.key]}>
-                  {d.label}
-                </NavLink>
-              )}
-            </For>
-            <NavLink href={combinedAllHref()} active={navActive().all}>
-              All
-            </NavLink>
-            <For each={NAV_DESTINATIONS.slice(3)}>
+            <For each={NAV_DESTINATIONS}>
               {(d) => (
                 <NavLink href={d.href} active={navActive()[d.key]}>
                   {d.label}
@@ -402,45 +401,20 @@ function App() {
               <kbd>K</kbd>
             </span>
           </button>
-          <div class="currency-selector">
-            <label class="currency-label">Prices:</label>
-            <select
-              class="currency-select"
-              value={currency()}
-              onChange={(e) => {
-                setCurrency(e.target.value as PriceCurrency)
-                notifyCurrencyChanged()
-              }}
-            >
-              <Show when={availableCurrencies().includes('usd')}>
-                <option value="usd">USD ($)</option>
-              </Show>
-              <Show when={availableCurrencies().includes('eur')}>
-                <option value="eur">EUR (€)</option>
-              </Show>
-              <Show when={availableCurrencies().includes('tix')}>
-                <option value="tix">TIX</option>
-              </Show>
-            </select>
-          </div>
-          <button
-            type="button"
-            class="btn btn-secondary btn-edit"
-            classList={{ 'btn-edit--active': editMode() }}
-            title={
-              editMode()
-                ? 'Leave edit mode'
-                : editableListInView()
-                  ? 'Edit this list locally'
-                  : 'Enter edit mode, then open a list to edit'
-            }
-            onClick={toggleEdit}
-          >
-            <span class="btn-edit-icon" aria-hidden="true">
-              {editMode() ? '✓' : '✏️'}
-            </span>
-            <span class="btn-edit-label">{editMode() ? 'Done' : 'Edit'}</span>
-          </button>
+          {/* Desktop keeps these inline; the phone layout moves them into the
+              collapsible utility row below. */}
+          <Show when={!mobileLayout()}>
+            <CurrencySelector
+              currency={currency()}
+              available={availableCurrencies()}
+              onChange={changeCurrency}
+            />
+            <EditModeButton
+              editMode={editMode()}
+              editableListInView={editableListInView()}
+              onToggle={toggleEdit}
+            />
+          </Show>
           <SelectionMenu
             selection={allSelections}
             currency={currency()}
@@ -454,8 +428,41 @@ function App() {
             onMoveAll={editMode() ? handleMoveAll : undefined}
             moveAllTargets={editMode() ? moveAllTargets : undefined}
           />
-          <ThemeHeaderControls />
+          <Show when={!mobileLayout()}>
+            <ThemeHeaderControls />
+          </Show>
+          <Show when={mobileLayout()}>
+            <button
+              type="button"
+              class="header-utility-toggle"
+              classList={{ 'header-utility-toggle--open': headerUtilityOpen() }}
+              aria-label={headerUtilityOpen() ? 'Hide display options' : 'Show display options'}
+              aria-expanded={headerUtilityOpen()}
+              title="Display options"
+              onClick={() => setHeaderUtilityOpen((v) => !v)}
+            >
+              <span aria-hidden="true">⚙</span>
+            </button>
+          </Show>
         </div>
+
+        {/* Edit/Done keeps this one home in every state — the ⚙ toggle stays in
+            the main row, so reopening the row is always one tap away. */}
+        <Show when={mobileLayout() && headerUtilityOpen()}>
+          <div class="site-header-utility">
+            <CurrencySelector
+              currency={currency()}
+              available={availableCurrencies()}
+              onChange={changeCurrency}
+            />
+            <EditModeButton
+              editMode={editMode()}
+              editableListInView={editableListInView()}
+              onToggle={toggleEdit}
+            />
+            <ThemeHeaderControls />
+          </div>
+        </Show>
 
         <Show
           when={editChrome.current()}
@@ -832,49 +839,6 @@ interface ErrorMessageProps {
 
 function ErrorMessage(props: ErrorMessageProps) {
   return <div class="error-container">{props.message}</div>
-}
-
-function ThemeHeaderControls() {
-  const theme = useTheme()
-  const [pickerOpen, setPickerOpen] = createSignal(false)
-  let wrapperRef: HTMLDivElement | undefined
-
-  // Click-outside dismisses the popover. Use mousedown (not click) so a
-  // press on the trigger's toggling its own state doesn't get followed by a
-  // close fired from the bubbled click — Solid's click handler runs after
-  // mousedown.
-  createEffect(() => {
-    if (!pickerOpen()) return
-    const onMouseDown = (e: MouseEvent) => {
-      if (wrapperRef && !wrapperRef.contains(e.target as Node)) {
-        setPickerOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onMouseDown)
-    onCleanup(() => document.removeEventListener('mousedown', onMouseDown))
-  })
-
-  return (
-    <div ref={wrapperRef} class="theme-picker-wrapper">
-      <button
-        type="button"
-        class="theme-customize-btn"
-        classList={{ 'theme-customize-btn-active': pickerOpen() || theme.editorOpen() }}
-        onClick={() => setPickerOpen((v) => !v)}
-        aria-haspopup="dialog"
-        aria-expanded={pickerOpen()}
-        title={theme.editorOpen() ? 'Theme menu (editor open)' : 'Theme menu'}
-      >
-        <span class="theme-customize-btn-icon" aria-hidden="true">
-          🎨
-        </span>
-        <span class="theme-customize-btn-label">
-          {theme.editorOpen() ? 'Editing theme' : 'Theme'}
-        </span>
-      </button>
-      <ThemePicker open={pickerOpen()} onClose={() => setPickerOpen(false)} />
-    </div>
-  )
 }
 
 function Root() {

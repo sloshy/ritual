@@ -1,6 +1,9 @@
 import { type Component, type JSX, Show } from 'solid-js'
 import { useDialogModal } from './useDialogModal'
 
+/** Fade/scale-out duration; matches the `.modal-shell` / `.modal-panel` transitions in modal.css. */
+const MODAL_EXIT_MS = 150
+
 /** Named width rungs for the panel (see `--modal-w-*` in theme-base.css). */
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl'
 /** Where the panel sits within the viewport when open. */
@@ -43,7 +46,11 @@ export type ModalProps = {
  * `onClose` exactly once per user dismissal.
  */
 export const Modal: Component<ModalProps> = (props) => {
-  const dialog = useDialogModal(() => props.open, { onOpen: () => props.onOpen?.() })
+  const dialog = useDialogModal(() => props.open, {
+    onOpen: () => props.onOpen?.(),
+    onDismiss: () => props.onClose(),
+    exitMs: MODAL_EXIT_MS,
+  })
 
   const size = (): ModalSize => props.size ?? 'md'
   const placement = (): ModalPlacement => props.placement ?? 'center'
@@ -53,24 +60,30 @@ export const Modal: Component<ModalProps> = (props) => {
     <dialog
       ref={dialog.setDialog}
       class={`modal-shell modal-shell--${placement()}`}
+      classList={{ 'is-closing': dialog.exiting() }}
       aria-label={props['aria-label']}
-      onClose={() => dialog.handleClose(props.onClose)}
       onCancel={(e) => {
-        // Escape fires `cancel` before `close`; block it when not dismissable.
-        if (!dismissable()) e.preventDefault()
+        // Escape would close the element outright, skipping the exit animation —
+        // always block it and route the dismissal through the owner instead.
+        e.preventDefault()
+        if (dismissable()) dialog.requestClose()
       }}
       onClick={(e) => {
         if (dismissable()) dialog.onBackdropClick(e)
       }}
     >
       <div
-        ref={props.panelRef}
+        ref={(el) => {
+          dialog.setPanel(el)
+          props.panelRef?.(el)
+        }}
         class={`modal-panel modal-panel--${size()}${props.panelClass ? ` ${props.panelClass}` : ''}`}
       >
-        {/* Render content only while open so a closed (but still-mounted) dialog
-            leaves no queryable/focusable DOM behind, and its shared class names
-            (e.g. `.view-toggle`, `.btn-danger`) don't leak into page-wide queries. */}
-        <Show when={props.open}>{props.children}</Show>
+        {/* Render content while open plus the closing animation, so a closed and
+            settled dialog leaves no queryable/focusable DOM behind, and its shared
+            class names (e.g. `.view-toggle`, `.btn-danger`) don't leak into
+            page-wide queries. */}
+        <Show when={dialog.mounted()}>{props.children}</Show>
       </div>
       {props.overlay}
     </dialog>

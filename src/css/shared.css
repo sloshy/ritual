@@ -163,7 +163,9 @@
 /* Positioned (fixed) by useAnchoredMenu; only the box styling lives here. */
 .filter-menu-panel {
   z-index: 60; /* above the sticky toolbar */
-  width: 320px;
+  /* This is the panel's real width; PANEL_WIDTH in FilterMenu.tsx feeds the same
+     number to the anchoring math, so the two must be changed together. */
+  width: 380px;
   display: flex;
   flex-direction: column;
   gap: 0.625rem;
@@ -182,6 +184,8 @@
 
 .filter-row-toggles {
   flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 0.5rem;
 }
 
@@ -244,7 +248,6 @@
   color: var(--text-body);
 }
 
-.filter-color-mode,
 .filter-toggle-group {
   display: inline-flex;
   border: 1px solid var(--border);
@@ -266,19 +269,14 @@
   }
 }
 
-/* In the color row the mode toggle is pushed to the right edge. */
-.filter-color-mode {
-  margin-left: auto;
-}
-
-/* Card type row: label on the left, the logic + mode toggle groups on the right. */
+/* Every filter heading: label on the left, its match-mode toggle on the right. */
 .filter-type-header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.375rem;
 
-  .filter-toggle-group:first-of-type {
+  .filter-toggle-group {
     margin-left: auto;
   }
 }
@@ -369,43 +367,29 @@
   }
 }
 
-.filter-mana-value {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
+/* Mana Value, Price, and Copies all sit on the same line as their label and
+   comparator buttons, at one uniform width so the comparator groups line up. */
+.filter-input-numeric {
+  width: 5.25rem;
 }
 
-.filter-input-mana-value {
-  width: 6rem;
-}
+/* Clear rides at the right end of the Hide-toggle row that heads the panel. It
+   takes the primary button's accent fill (the same treatment as "Update prices")
+   so it reads as an action rather than another state toggle, scaled down to the
+   toggles' metrics so it sits level with them. Hover and the disabled state come
+   from .btn/.btn-primary.
 
-.filter-price {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.filter-price-symbol {
-  color: var(--text-muted);
+   Scoped to the row to outrank .btn's own sizing: controls.css is imported after
+   this file, so a bare .filter-clear would lose the tie on equal specificity. */
+.filter-row-toggles .filter-clear {
+  margin-left: auto;
+  padding: 4px 8px;
   font-size: 0.75rem;
-}
-
-.filter-input-price {
-  width: 6rem;
-}
-
-.filter-copies {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-}
-
-.filter-input-copies {
-  width: 6rem;
-}
-
-.filter-clear {
-  align-self: flex-start;
+  font-weight: 500;
+  /* .btn tightens this to 1.2; the toggles inherit 1.5, and matching it is what
+     makes the two the same height. */
+  line-height: 1.5;
+  border-radius: 0.25rem;
 }
 
 /* ===== Link Action ===== */

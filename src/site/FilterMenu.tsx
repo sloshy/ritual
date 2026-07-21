@@ -14,12 +14,28 @@ import {
 } from './card-filters'
 import { type PriceCurrency, getCurrencySymbol } from '../price-currency'
 import { formatCardTypeForDisplay, parseCardTypesInput, scanCardTypeInput } from './card-types'
-import type { TagFilterMode, TagMatchLogic } from './card-tags'
+import {
+  COLOR_MATCH_MODES,
+  FILTER_MATCH_MODES,
+  SET_CODE_FILTER_MODES,
+  type FilterMatchMode,
+} from './filter-mode'
 import { TagsInput } from './TagsInput'
 import type { CardFiltersControl } from './useCardFilters'
 import { useDebouncedInput, type DebouncedInput } from './useDebouncedInput'
 
-const PANEL_WIDTH = 320
+/**
+ * Wide enough for the header row to hold all three "Hide" toggles plus Clear on
+ * one line (deck pages show the most), which also lets the Color Identity row fit
+ * its label and four match modes without wrapping.
+ *
+ * Only feeds the anchored-popover placement math — `.filter-menu-panel` in
+ * shared.css sets the width that actually renders, so keep the two in step.
+ */
+const PANEL_WIDTH = 380
+
+/** Display name for the colorless swatch — `colorIdentityName([])` is "Colorless". */
+const COLORLESS_NAME = colorIdentityName([])
 
 /** A numeric filter value as the string its input field shows ('' when unset). */
 function numericFieldText(value: number | null): string {
@@ -58,6 +74,85 @@ const COMPARATOR_OPTIONS: ComparatorOption[] = [
   { value: '>=', label: '≥' },
 ]
 
+/** One button in a filter's match-mode segmented control. */
+type FilterModeOption<M extends string> = { value: M; label: string; title: string }
+
+type FilterModeToggleProps<M extends string> = {
+  /** Accessible name for the group, e.g. "Card type match mode". */
+  ariaLabel: string
+  options: readonly FilterModeOption<M>[]
+  value: M
+  onChange: (mode: M) => void
+}
+
+/**
+ * The segmented Include / Exclude / Exact control that sits beside a filter's
+ * heading. Every multi-value filter uses it, so the whole menu speaks one
+ * vocabulary; Sets passes a two-option list since `exact` can't apply there.
+ */
+function FilterModeToggle<M extends string>(props: FilterModeToggleProps<M>): JSX.Element {
+  return (
+    <div class="filter-toggle-group" role="group" aria-label={props.ariaLabel}>
+      <For each={props.options}>
+        {(option) => (
+          <button
+            type="button"
+            classList={{ active: props.value === option.value }}
+            aria-pressed={props.value === option.value}
+            title={option.title}
+            onClick={() => props.onChange(option.value)}
+          >
+            {option.label}
+          </button>
+        )}
+      </For>
+    </div>
+  )
+}
+
+/** The button text and tooltip for one mode, before it is paired with its value. */
+type FilterModeCopy = { label: string; title: string }
+
+/**
+ * Expand per-mode copy into options, in the canonical mode order. Keying the copy
+ * by mode means adding a mode to `FilterMatchMode` fails to compile here until it
+ * is given a label, rather than silently rendering one button fewer.
+ */
+function modeOptions<M extends string>(
+  modes: readonly M[],
+  copy: Record<M, FilterModeCopy>,
+): readonly FilterModeOption<M>[] {
+  return modes.map((value) => ({ value, ...copy[value] }))
+}
+
+/**
+ * Build the match-mode options for a tag-style filter (types, oracle tags, art
+ * tags), whose tooltips only differ by the noun they name.
+ */
+function matchModeOptions(noun: string): readonly FilterModeOption<FilterMatchMode>[] {
+  return modeOptions(FILTER_MATCH_MODES, {
+    include: { label: 'Include', title: `Match cards with any of the selected ${noun}` },
+    exclude: { label: 'Exclude', title: `Hide cards with any of the selected ${noun}` },
+    exact: { label: 'Exact', title: `Match cards with all of the selected ${noun}` },
+  })
+}
+
+const COLOR_MODE_OPTIONS = modeOptions(COLOR_MATCH_MODES, {
+  subset: { label: 'Subset', title: 'Card could be played in a deck of the selected colors' },
+  include: { label: 'Include', title: 'Card uses at least one of the selected colors' },
+  exclude: { label: 'Exclude', title: 'Card uses none of the selected colors' },
+  exact: { label: 'Exact', title: 'Color identity is exactly the selected colors' },
+})
+
+const SET_MODE_OPTIONS = modeOptions(SET_CODE_FILTER_MODES, {
+  include: { label: 'Include', title: 'Show only cards from the selected sets' },
+  exclude: { label: 'Exclude', title: 'Hide cards from the selected sets' },
+})
+
+const CARD_TYPE_MODE_OPTIONS = matchModeOptions('types')
+const ORACLE_TAG_MODE_OPTIONS = matchModeOptions('oracle tags')
+const ART_TAG_MODE_OPTIONS = matchModeOptions('art tags')
+
 export interface FilterMenuProps {
   filters: CardFiltersControl
   symbolMap: Record<string, string>
@@ -84,17 +179,16 @@ type TagFilterRowProps = {
   suggestionsLabel: string
   options: string[]
   selected: string[]
-  logic: TagMatchLogic
-  mode: TagFilterMode
+  modeOptions: readonly FilterModeOption<FilterMatchMode>[]
+  mode: FilterMatchMode
   onTags: (tags: string[]) => void
-  onLogic: (logic: TagMatchLogic) => void
-  onMode: (mode: TagFilterMode) => void
+  onMode: (mode: FilterMatchMode) => void
 }
 
 /**
- * A tag filter row (Oracle or Art): an any/all logic toggle, an include/exclude
- * mode toggle, and a chip autocomplete. Tag slugs are already lowercase, so the
- * card-type scanner is reused and matching is a plain substring test.
+ * A tag filter row (Oracle or Art): a match-mode toggle beside the heading and a
+ * chip autocomplete. Tag slugs are already lowercase, so the card-type scanner is
+ * reused and matching is a plain substring test.
  */
 const TagFilterRow: Component<TagFilterRowProps> = (props) => {
   return (
@@ -103,46 +197,12 @@ const TagFilterRow: Component<TagFilterRowProps> = (props) => {
         <label class="filter-label" for={props.inputId}>
           {props.label}
         </label>
-        <div class="filter-toggle-group" role="group" aria-label={`${props.label} match logic`}>
-          <button
-            type="button"
-            classList={{ active: props.logic === 'or' }}
-            aria-pressed={props.logic === 'or'}
-            title="Match cards with any of the selected tags"
-            onClick={() => props.onLogic('or')}
-          >
-            Any
-          </button>
-          <button
-            type="button"
-            classList={{ active: props.logic === 'and' }}
-            aria-pressed={props.logic === 'and'}
-            title="Match cards with all of the selected tags"
-            onClick={() => props.onLogic('and')}
-          >
-            All
-          </button>
-        </div>
-        <div class="filter-toggle-group" role="group" aria-label={`${props.label} filter mode`}>
-          <button
-            type="button"
-            classList={{ active: props.mode === 'include' }}
-            aria-pressed={props.mode === 'include'}
-            title="Show only cards with the selected tags"
-            onClick={() => props.onMode('include')}
-          >
-            Include
-          </button>
-          <button
-            type="button"
-            classList={{ active: props.mode === 'exclude' }}
-            aria-pressed={props.mode === 'exclude'}
-            title="Hide cards with the selected tags"
-            onClick={() => props.onMode('exclude')}
-          >
-            Exclude
-          </button>
-        </div>
+        <FilterModeToggle
+          ariaLabel={`${props.label} match mode`}
+          options={props.modeOptions}
+          value={props.mode}
+          onChange={props.onMode}
+        />
       </div>
       <TagsInput
         selected={props.selected}
@@ -177,18 +237,15 @@ type NumericFilterRowProps = {
   error: string | null
   step: string
   inputMode: 'numeric' | 'decimal'
-  /** Class of the flex wrapper around the input (e.g. "filter-mana-value"). */
-  wrapperClass: string
-  /** Width class for the input itself (e.g. "filter-input-mana-value"). */
-  inputClass: string
-  /** Optional content rendered before the input (the currency symbol, for Price). */
-  prefix?: JSX.Element
 }
 
 /**
- * A numeric filter row (Mana Value, Price, or Copies): a comparator toggle
- * group and a number input, with an optional prefix (the currency symbol, for
- * Price) and a validation error shown below.
+ * A numeric filter row (Mana Value, Price, or Copies): the label, a comparator
+ * toggle group, and a number input all on one line — these three rows are the
+ * menu's most compact, so keeping the field beside its comparators rather than
+ * below them saves a line each. Validation errors wrap underneath. Price carries
+ * its currency in the label rather than beside the field, so all three fields are
+ * the same width and their comparator groups line up.
  */
 const NumericFilterRow: Component<NumericFilterRowProps> = (props) => {
   return (
@@ -211,12 +268,9 @@ const NumericFilterRow: Component<NumericFilterRowProps> = (props) => {
             )}
           </For>
         </div>
-      </div>
-      <div class={props.wrapperClass}>
-        {props.prefix}
         <input
           id={props.inputId}
-          class={`filter-input ${props.inputClass}`}
+          class="filter-input filter-input-numeric"
           type="number"
           min="0"
           step={props.step}
@@ -327,6 +381,14 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
     (copies) => props.filters.update({ copies }),
   )
 
+  // The currency lives in the label — "Price ($)" — rather than beside the field,
+  // so the three numeric fields stay a uniform width. Currencies with no symbol
+  // fall back to a bare "Price".
+  const priceLabel = (): string => {
+    const symbol = getCurrencySymbol(props.currency)
+    return symbol ? `Price (${symbol})` : 'Price'
+  }
+
   const handleClearAll = () => {
     // One reactive flush for the whole reset. Order matters: reset the store first so
     // each input's `reset()` re-seeds its draft from the new defaults, and abandons any
@@ -377,6 +439,16 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
             Hide Extras
           </button>
         </Show>
+        {/* Rendered even with nothing active (disabled) rather than shown conditionally,
+            so applying the first filter doesn't reflow the row it sits in. */}
+        <button
+          type="button"
+          class="btn btn-primary filter-clear"
+          disabled={props.filters.activeCount() === 0}
+          onClick={handleClearAll}
+        >
+          Clear
+        </button>
       </div>
       <div class="filter-row">
         <label class="filter-label" for="filter-name">
@@ -393,7 +465,15 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         />
       </div>
       <div class="filter-row">
-        <span class="filter-label">Color Identity</span>
+        <div class="filter-type-header">
+          <span class="filter-label">Color Identity</span>
+          <FilterModeToggle
+            ariaLabel="Color match mode"
+            options={COLOR_MODE_OPTIONS}
+            value={props.filters.filters.colorMode}
+            onChange={(colorMode) => props.filters.update({ colorMode })}
+          />
+        </div>
         <div class="filter-colors">
           <For each={WUBRG}>
             {(color) => (
@@ -420,26 +500,22 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
               </button>
             )}
           </For>
-          <div class="filter-color-mode" role="group" aria-label="Color match mode">
-            <button
-              type="button"
-              classList={{ active: props.filters.filters.colorMode === 'exclusive' }}
-              aria-pressed={props.filters.filters.colorMode === 'exclusive'}
-              title="Color identity is exactly the selected colors"
-              onClick={() => props.filters.update({ colorMode: 'exclusive' })}
+          {/* Colorless sits after the five colors, as it does in Scryfall's own filters. */}
+          <button
+            type="button"
+            class="filter-color-btn"
+            classList={{ active: props.filters.filters.colorless }}
+            aria-pressed={props.filters.filters.colorless}
+            title={COLORLESS_NAME}
+            onClick={() => props.filters.update({ colorless: !props.filters.filters.colorless })}
+          >
+            <Show
+              when={props.symbolMap['{C}']}
+              fallback={<span class="filter-color-letter">C</span>}
             >
-              Exclusive
-            </button>
-            <button
-              type="button"
-              classList={{ active: props.filters.filters.colorMode === 'inclusive' }}
-              aria-pressed={props.filters.filters.colorMode === 'inclusive'}
-              title="Card could be played in a deck of the selected colors"
-              onClick={() => props.filters.update({ colorMode: 'inclusive' })}
-            >
-              Inclusive
-            </button>
-          </div>
+              {(src) => <img src={src()} alt={COLORLESS_NAME} class="mana-symbol" />}
+            </Show>
+          </button>
         </div>
       </div>
       <div class="filter-row">
@@ -447,26 +523,12 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
           <label class="filter-label" for="filter-sets">
             Sets
           </label>
-          <div class="filter-toggle-group" role="group" aria-label="Set filter mode">
-            <button
-              type="button"
-              classList={{ active: props.filters.filters.setCodeMode === 'include' }}
-              aria-pressed={props.filters.filters.setCodeMode === 'include'}
-              title="Show only cards from the selected sets"
-              onClick={() => props.filters.update({ setCodeMode: 'include' })}
-            >
-              Include
-            </button>
-            <button
-              type="button"
-              classList={{ active: props.filters.filters.setCodeMode === 'exclude' }}
-              aria-pressed={props.filters.filters.setCodeMode === 'exclude'}
-              title="Hide cards from the selected sets"
-              onClick={() => props.filters.update({ setCodeMode: 'exclude' })}
-            >
-              Exclude
-            </button>
-          </div>
+          <FilterModeToggle
+            ariaLabel="Set match mode"
+            options={SET_MODE_OPTIONS}
+            value={props.filters.filters.setCodeMode}
+            onChange={(setCodeMode) => props.filters.update({ setCodeMode })}
+          />
         </div>
         <TagsInput
           selected={props.filters.filters.setCodes}
@@ -487,46 +549,12 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
           <label class="filter-label" for="filter-types">
             Card Type
           </label>
-          <div class="filter-toggle-group" role="group" aria-label="Card type match logic">
-            <button
-              type="button"
-              classList={{ active: props.filters.filters.cardTypeLogic === 'or' }}
-              aria-pressed={props.filters.filters.cardTypeLogic === 'or'}
-              title="Match cards with any of the selected types"
-              onClick={() => props.filters.update({ cardTypeLogic: 'or' })}
-            >
-              Any
-            </button>
-            <button
-              type="button"
-              classList={{ active: props.filters.filters.cardTypeLogic === 'and' }}
-              aria-pressed={props.filters.filters.cardTypeLogic === 'and'}
-              title="Match cards with all of the selected types"
-              onClick={() => props.filters.update({ cardTypeLogic: 'and' })}
-            >
-              All
-            </button>
-          </div>
-          <div class="filter-toggle-group" role="group" aria-label="Card type filter mode">
-            <button
-              type="button"
-              classList={{ active: props.filters.filters.cardTypeMode === 'include' }}
-              aria-pressed={props.filters.filters.cardTypeMode === 'include'}
-              title="Show only cards of the selected types"
-              onClick={() => props.filters.update({ cardTypeMode: 'include' })}
-            >
-              Include
-            </button>
-            <button
-              type="button"
-              classList={{ active: props.filters.filters.cardTypeMode === 'exclude' }}
-              aria-pressed={props.filters.filters.cardTypeMode === 'exclude'}
-              title="Hide cards of the selected types"
-              onClick={() => props.filters.update({ cardTypeMode: 'exclude' })}
-            >
-              Exclude
-            </button>
-          </div>
+          <FilterModeToggle
+            ariaLabel="Card type match mode"
+            options={CARD_TYPE_MODE_OPTIONS}
+            value={props.filters.filters.cardTypeMode}
+            onChange={(cardTypeMode) => props.filters.update({ cardTypeMode })}
+          />
         </div>
         <TagsInput
           selected={props.filters.filters.cardTypes}
@@ -556,10 +584,9 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         suggestionsLabel="Oracle tag suggestions"
         options={props.oracleTagOptions}
         selected={props.filters.filters.oracleTags}
-        logic={props.filters.filters.oracleTagLogic}
+        modeOptions={ORACLE_TAG_MODE_OPTIONS}
         mode={props.filters.filters.oracleTagMode}
         onTags={(oracleTags) => props.filters.update({ oracleTags })}
-        onLogic={(oracleTagLogic) => props.filters.update({ oracleTagLogic })}
         onMode={(oracleTagMode) => props.filters.update({ oracleTagMode })}
       />
       <TagFilterRow
@@ -569,10 +596,9 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         suggestionsLabel="Art tag suggestions"
         options={props.artTagOptions}
         selected={props.filters.filters.artTags}
-        logic={props.filters.filters.artTagLogic}
+        modeOptions={ART_TAG_MODE_OPTIONS}
         mode={props.filters.filters.artTagMode}
         onTags={(artTags) => props.filters.update({ artTags })}
-        onLogic={(artTagLogic) => props.filters.update({ artTagLogic })}
         onMode={(artTagMode) => props.filters.update({ artTagMode })}
       />
       <NumericFilterRow
@@ -587,11 +613,9 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         error={manaValueError()}
         step="1"
         inputMode="numeric"
-        wrapperClass="filter-mana-value"
-        inputClass="filter-input-mana-value"
       />
       <NumericFilterRow
-        label="Price"
+        label={priceLabel()}
         inputId="filter-price"
         ariaLabel="Price comparison"
         op={props.filters.filters.priceOp}
@@ -602,17 +626,6 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         error={priceError()}
         step="0.01"
         inputMode="decimal"
-        wrapperClass="filter-price"
-        inputClass="filter-input-price"
-        prefix={
-          <Show when={getCurrencySymbol(props.currency)}>
-            {(symbol) => (
-              <span class="filter-price-symbol" aria-hidden="true">
-                {symbol()}
-              </span>
-            )}
-          </Show>
-        }
       />
       <NumericFilterRow
         label="Copies"
@@ -626,14 +639,7 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         error={copiesError()}
         step="1"
         inputMode="numeric"
-        wrapperClass="filter-copies"
-        inputClass="filter-input-copies"
       />
-      <Show when={props.filters.activeCount() > 0}>
-        <button type="button" class="link-action filter-clear" onClick={handleClearAll}>
-          Clear all filters
-        </button>
-      </Show>
     </>
   )
 }

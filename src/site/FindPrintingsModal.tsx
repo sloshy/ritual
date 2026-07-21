@@ -140,7 +140,7 @@ export const FindPrintingsModal: Component<FindPrintingsModalProps> = (props) =>
       onClose={closeFindPrintings}
       size="xl"
       panelClass="find-printings-modal"
-      aria-label={`Other printings of ${findPrintingsRequest()?.cardName ?? 'card'}`}
+      aria-label={`Other copies of ${findPrintingsRequest()?.cardName ?? 'card'}`}
       overlay={
         <TooltipOverlay
           tooltip={tooltip()}
@@ -152,7 +152,7 @@ export const FindPrintingsModal: Component<FindPrintingsModalProps> = (props) =>
     >
       <div class="find-printings-header">
         <div class="find-printings-heading">
-          <span class="find-printings-title">Other Printings</span>
+          <span class="find-printings-title">Other Copies</span>
           <span class="find-printings-card-name">{findPrintingsRequest()?.cardName}</span>
         </div>
         <button

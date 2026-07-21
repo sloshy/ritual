@@ -124,7 +124,7 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
             openFindPrintings(name)
           }}
         >
-          Find other printings
+          Find in Lists
         </button>
       </Show>
     </div>

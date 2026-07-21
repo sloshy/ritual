@@ -125,11 +125,36 @@ describe('writeListViewParams', () => {
     expect(params.get('mv')).toBe('3')
   })
 
+  test("colorless is written into the colors param as a leading 'C' and round-trips", () => {
+    const filters = createDefaultCardFilters()
+    filters.colorless = true
+    // Colorless alone still activates the color filter, with no WUBRG letters.
+    expect(encode(defaultState({ filters })).get('colors')).toBe('C')
+
+    filters.colors = ['W', 'U']
+    const params = encode(defaultState({ filters }))
+    expect(params.get('colors')).toBe('CWU')
+
+    const parsed = parseListViewParams(params)
+    expect(parsed.filters?.colorless).toBe(true)
+    expect(parsed.filters?.colors).toEqual(['W', 'U'])
+  })
+
+  // The colors param and its colorMode sub-option share one "is the color filter
+  // active" check, so a colorless-only selection must still carry a non-default mode.
+  test('a colorless-only selection still writes a non-default colorMode', () => {
+    const filters = createDefaultCardFilters()
+    filters.colorless = true
+    filters.colorMode = 'exclude'
+    const params = encode(defaultState({ filters }))
+    expect(params.get('colors')).toBe('C')
+    expect(params.get('colorMode')).toBe('exclude')
+  })
+
   test('filter sub-options are written only when their parent filter is active', () => {
     const filters = createDefaultCardFilters()
-    filters.colorMode = 'inclusive'
+    filters.colorMode = 'exact'
     filters.setCodeMode = 'exclude'
-    filters.cardTypeLogic = 'and'
     filters.cardTypeMode = 'exclude'
     filters.manaValueOp = '>='
     // No colors / sets / types / manaValue set, so the sub-options stay out of the URL.
@@ -140,23 +165,21 @@ describe('writeListViewParams', () => {
     filters.cardTypes = ['dragon']
     filters.manaValue = 5
     const params = encode(defaultState({ filters }))
-    expect(params.get('colorMode')).toBe('inclusive')
+    expect(params.get('colorMode')).toBe('exact')
     expect(params.get('setMode')).toBe('exclude')
-    expect(params.get('typeLogic')).toBe('and')
     expect(params.get('typeMode')).toBe('exclude')
     expect(params.get('mvOp')).toBe('>=')
   })
 
   test('sub-options at their default stay out of the URL even when the parent is active', () => {
     const filters = createDefaultCardFilters()
-    filters.colors = ['R'] // colorMode left at default 'exclusive'
+    filters.colors = ['R'] // colorMode left at default 'subset'
     filters.setCodes = ['mkm'] // setCodeMode left at default 'include'
-    filters.cardTypes = ['dragon'] // logic 'or' / mode 'include' left at default
+    filters.cardTypes = ['dragon'] // cardTypeMode left at default 'exact'
     filters.manaValue = 5 // manaValueOp left at default '='
     const params = encode(defaultState({ filters }))
     expect(params.has('colorMode')).toBe(false)
     expect(params.has('setMode')).toBe(false)
-    expect(params.has('typeLogic')).toBe(false)
     expect(params.has('typeMode')).toBe(false)
     expect(params.has('mvOp')).toBe(false)
   })
@@ -192,16 +215,13 @@ describe('writeListViewParams', () => {
   test('oracle and art tag selections and their non-default sub-options are written', () => {
     const filters = createDefaultCardFilters()
     filters.oracleTags = ['ramp', 'mana-rock']
-    filters.oracleTagLogic = 'and'
     filters.oracleTagMode = 'exclude'
     filters.artTags = ['dragon']
-    // artTagLogic / artTagMode left at default, so they stay out of the URL.
+    // artTagMode left at default, so it stays out of the URL.
     const params = encode(defaultState({ filters }))
     expect(params.get('otags')).toBe('ramp,mana-rock')
-    expect(params.get('otagLogic')).toBe('and')
     expect(params.get('otagMode')).toBe('exclude')
     expect(params.get('atags')).toBe('dragon')
-    expect(params.has('atagLogic')).toBe(false)
     expect(params.has('atagMode')).toBe(false)
   })
 
@@ -223,17 +243,15 @@ describe('parseListViewParams', () => {
     filters.hideExtras = true
     filters.name = 'bolt'
     filters.colors = ['U', 'R']
-    filters.colorMode = 'inclusive'
+    filters.colorMode = 'exact'
     filters.setCodes = ['mkm', 'lea']
     filters.setCodeMode = 'exclude'
     filters.cardTypes = ['instant', 'goblin']
-    filters.cardTypeLogic = 'and'
     filters.cardTypeMode = 'exclude'
     filters.oracleTags = ['ramp', 'mana-rock']
-    filters.oracleTagLogic = 'and'
     filters.oracleTagMode = 'exclude'
     filters.artTags = ['dragon']
-    // artTagLogic / artTagMode left at default to verify they stay absent from the round-trip.
+    // artTagMode left at default to verify it stays absent from the round-trip.
     filters.manaValue = 4
     filters.manaValueOp = '<='
     filters.price = 5.25
@@ -263,14 +281,12 @@ describe('parseListViewParams', () => {
       hideExtras: true,
       name: 'bolt',
       colors: ['U', 'R'],
-      colorMode: 'inclusive',
+      colorMode: 'exact',
       setCodes: ['mkm', 'lea'],
       setCodeMode: 'exclude',
       cardTypes: ['instant', 'goblin'],
-      cardTypeLogic: 'and',
       cardTypeMode: 'exclude',
       oracleTags: ['ramp', 'mana-rock'],
-      oracleTagLogic: 'and',
       oracleTagMode: 'exclude',
       artTags: ['dragon'],
       manaValue: 4,
@@ -317,6 +333,17 @@ describe('parseListViewParams', () => {
   test('non-color letters in the colors param are dropped', () => {
     const parsed = parseListViewParams(new URLSearchParams('colors=xWqU'))
     expect(parsed.filters?.colors).toEqual(['W', 'U'])
+    expect(parsed.filters?.colorless).toBeUndefined()
+  })
+
+  test("colorless rides in the colors param as 'C', alone or alongside colors", () => {
+    const alone = parseListViewParams(new URLSearchParams('colors=C'))
+    expect(alone.filters?.colorless).toBe(true)
+    expect(alone.filters?.colors).toBeUndefined()
+
+    const mixed = parseListViewParams(new URLSearchParams('colors=CG'))
+    expect(mixed.filters?.colorless).toBe(true)
+    expect(mixed.filters?.colors).toEqual(['G'])
   })
 
   // Mana value and copies share one integer parser (parseIntegerParam), so its
@@ -363,17 +390,32 @@ describe('parseListViewParams', () => {
     expect(invalid.filters?.setCodeMode).toBeUndefined()
   })
 
-  test('oracle and art tag params parse with their logic/mode sub-options', () => {
+  test('oracle and art tag params parse with their mode sub-option', () => {
     const parsed = parseListViewParams(
-      new URLSearchParams('otags=Ramp,Mana-Rock&otagLogic=and&otagMode=exclude&atags=dragon'),
+      new URLSearchParams('otags=Ramp,Mana-Rock&otagMode=exclude&atags=dragon'),
     )
     expect(parsed.filters?.oracleTags).toEqual(['ramp', 'mana-rock'])
-    expect(parsed.filters?.oracleTagLogic).toBe('and')
     expect(parsed.filters?.oracleTagMode).toBe('exclude')
     expect(parsed.filters?.artTags).toEqual(['dragon'])
     // Sub-options absent from the URL keep their defaults (omitted from overrides).
-    expect(parsed.filters?.artTagLogic).toBeUndefined()
     expect(parsed.filters?.artTagMode).toBeUndefined()
+  })
+
+  test("'subset' is accepted for colors only, since no other filter has that mode", () => {
+    const colors = parseListViewParams(new URLSearchParams('colors=R&colorMode=subset'))
+    expect(colors.filters?.colorMode).toBe('subset')
+
+    const types = parseListViewParams(new URLSearchParams('types=goblin&typeMode=subset'))
+    expect(types.filters?.cardTypeMode).toBeUndefined()
+  })
+
+  test("the shared match mode accepts 'exact' and rejects the removed logic values", () => {
+    const parsed = parseListViewParams(new URLSearchParams('types=goblin&typeMode=exact'))
+    expect(parsed.filters?.cardTypeMode).toBe('exact')
+
+    // 'and'/'or' were the old any/all logic values and are no longer valid modes.
+    const stale = parseListViewParams(new URLSearchParams('types=goblin&typeMode=and'))
+    expect(stale.filters?.cardTypeMode).toBeUndefined()
   })
 })
 

@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
-import { enterEditMode, gotoList } from '../helpers/list-ui'
+import { enterEditMode, gotoList, openHeaderUtility } from '../helpers/list-ui'
 import {
+  mockPublicSiteCombinedLists,
   mockPublicSiteDeckForFilters,
   mockPublicSiteDeckForMultiSelect,
   mockPublicSiteDeckWithMultipleSections,
@@ -33,9 +34,30 @@ test.describe('Mobile tab bar', () => {
     await expect(page.locator('.site-nav')).toBeHidden()
     await expect(page.locator('.mobile-tab.active .mobile-tab-label')).toHaveText('Decks')
 
+    // The bar carries every NAV_DESTINATIONS entry, in the same order as the
+    // desktop header — the two must not drift apart.
+    await expect(page.locator('.mobile-tab-label')).toHaveText([
+      'Decks',
+      'Collections',
+      'Wanted',
+      'All',
+      'Trade',
+      'Find',
+    ])
+
     await page.locator('.mobile-tab', { hasText: 'Collections' }).click()
     await expect(page.locator('h1')).toContainText('My Collections')
     await expect(page.locator('.mobile-tab.active .mobile-tab-label')).toHaveText('Collections')
+  })
+
+  test('the All tab opens the every-list combined view', async ({ page }) => {
+    await mockPublicSiteCombinedLists(page)
+    await page.goto('/')
+    await expect(page.locator('.mobile-tabbar')).toBeVisible()
+
+    await page.locator('.mobile-tabbar').getByRole('link', { name: 'All', exact: true }).click()
+    await expect(page.locator('.page-title')).toHaveText('All Cards')
+    await expect(page.locator('.mobile-tab.active .mobile-tab-label')).toHaveText('All')
   })
 
   test('yields the bottom edge to the editor dock in edit mode', async ({ page }) => {
@@ -43,12 +65,69 @@ test.describe('Mobile tab bar', () => {
     await gotoList(page, '#/deck/test-multi-section-deck')
     await expect(page.locator('.mobile-tabbar')).toBeVisible()
 
+    await openHeaderUtility(page)
     await page.locator('.btn-edit').click()
     await expect(page.locator('.editor-action-dock')).toBeVisible()
     await expect(page.locator('.mobile-tabbar')).toHaveCount(0)
 
+    // The utility row stays open across the toggle, so Done is still in place.
     await page.locator('.btn-edit', { hasText: 'Done' }).click()
     await expect(page.locator('.mobile-tabbar')).toBeVisible()
+  })
+})
+
+test.describe('Header utility row', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockPublicSiteIndexLists(page)
+    await page.goto('/')
+    await expect(page.locator('.deck-cover').first()).toBeVisible()
+  })
+
+  test('hides currency, edit, and theme behind the toggle', async ({ page }) => {
+    // Collapsed by default: none of the three crowd the header.
+    await expect(page.locator('.site-header-utility')).toHaveCount(0)
+    await expect(page.locator('.currency-select')).toHaveCount(0)
+    await expect(page.locator('.btn-edit')).toHaveCount(0)
+    await expect(page.locator('.theme-customize-btn')).toHaveCount(0)
+
+    await page.locator('.header-utility-toggle').click()
+
+    const row = page.locator('.site-header-utility')
+    await expect(row).toBeVisible()
+    await expect(row.locator('.currency-select')).toBeVisible()
+    await expect(row.locator('.btn-edit')).toBeVisible()
+    await expect(row.locator('.theme-customize-btn')).toBeVisible()
+
+    await page.locator('.header-utility-toggle').click()
+    await expect(page.locator('.site-header-utility')).toHaveCount(0)
+  })
+
+  test('Edit and Done share the same slot, reachable again via the toggle', async ({ page }) => {
+    await openHeaderUtility(page)
+    const row = page.locator('.site-header-utility')
+    await expect(row.locator('.btn-edit')).toHaveText(/Edit/)
+    await row.locator('.btn-edit').click()
+    await expect(page.locator('.edit-banner')).toBeVisible()
+
+    // Done takes Edit's place rather than moving elsewhere, and collapsing is
+    // recoverable: the ⚙ toggle never leaves the main row.
+    await expect(row.locator('.btn-edit')).toHaveText(/Done/)
+    await page.locator('.header-utility-toggle').click()
+    await expect(row).toHaveCount(0)
+    await expect(page.locator('.btn-edit')).toHaveCount(0)
+
+    await page.locator('.header-utility-toggle').click()
+    await expect(row.locator('.btn-edit')).toHaveText(/Done/)
+    await row.locator('.btn-edit').click()
+    await expect(page.locator('.edit-banner')).toHaveCount(0)
+    await expect(row.locator('.btn-edit')).toHaveText(/Edit/)
+  })
+
+  test('the row survives navigation', async ({ page }) => {
+    await openHeaderUtility(page)
+    await page.locator('.mobile-tab', { hasText: 'Collections' }).click()
+    await expect(page.locator('h1')).toContainText('My Collections')
+    await expect(page.locator('.site-header-utility')).toBeVisible()
   })
 })
 
@@ -122,6 +201,44 @@ test.describe('Touch toolbar', () => {
     await expect(hideLands).toHaveClass(/active/)
     await expect(page.locator('.card-item[data-name="test forest"]')).toHaveCount(0)
   })
+
+  // The numeric filters put their field on the same line as the comparator
+  // buttons, and touch bumps the input to a 16px font with roomier padding — so
+  // the field has to be sized for that, or a typed value scrolls out of sight.
+  test('numeric filter fields show a long value without clipping it', async ({ page }) => {
+    await mockPublicSiteDeckForFilters(page)
+    await gotoList(page, '#/deck/test-filter-deck')
+    await page.locator('.filter-menu .toolbar-toggle', { hasText: 'Filters' }).click()
+    const sheet = page.locator('.sheet-shell[open]')
+    await expect(sheet.locator('.filter-menu-panel')).toBeVisible()
+
+    const price = sheet.locator('#filter-price')
+    await price.fill('1234.56')
+    // scrollWidth exceeding clientWidth means the text is scrolled out of view.
+    await expect
+      .poll(() => price.evaluate((el: HTMLInputElement) => el.scrollWidth > el.clientWidth + 1))
+      .toBe(false)
+    // …and widening the field must not push the sheet into sideways scrolling.
+    expect(await sheet.evaluate((el) => el.scrollWidth > el.clientWidth + 1)).toBe(false)
+  })
+
+  // The sheet keeps its content mounted while it slides back out, so the panel
+  // has something to animate instead of collapsing to an empty header first.
+  // That hold is on a timer, so the thing worth pinning is that it always ends:
+  // if it ever failed to clear, the content would stay in the DOM indefinitely.
+  test('closing the sheet tears its content down once the slide-out ends', async ({ page }) => {
+    await mockPublicSiteDeckForFilters(page)
+    await gotoList(page, '#/deck/test-filter-deck')
+    await page.locator('.filter-menu .toolbar-toggle', { hasText: 'Filters' }).click()
+    const filterPanel = page.locator('.sheet-shell .filter-menu-panel')
+    await expect(filterPanel).toBeVisible()
+
+    await page.locator('.sheet-shell[open] .sheet-close').click()
+    await expect(page.locator('.sheet-shell[open]')).toHaveCount(0)
+    // Auto-retries past the exit animation; the panel must leave the DOM, not
+    // merely stop being visible.
+    await expect(filterPanel).toHaveCount(0)
+  })
 })
 
 test.describe('Touch selection mode', () => {
@@ -164,6 +281,75 @@ test.describe('Touch selection mode', () => {
     await selectToggle.click()
     await cards.nth(0).locator('.card-binder').click()
     await expect(page.locator('.card-modal')).toBeVisible()
+  })
+
+  test('the corner checkbox rides on selection mode and the trade bookmark stays gone', async ({
+    page,
+  }) => {
+    const firstCard = page.locator('.card-item').first()
+    const checkbox = firstCard.locator('.card-select-checkbox--overlay')
+    const selectToggle = page.locator('.toolbar .toolbar-toggle', { hasText: 'Select' })
+
+    // Asserted via opacity, not toBeHidden(): Playwright treats an opacity-0
+    // element as visible, so toBeHidden() would pass no matter what this rule
+    // does. pointer-events pins that it is also untappable, not just invisible.
+    await expect(checkbox).toHaveCSS('opacity', '0')
+    await expect(checkbox).toHaveCSS('pointer-events', 'none')
+
+    // The "Add to Trade" bookmark is display:none here, so toBeHidden() is the
+    // right check — but assert it renders at all first, or this would pass just
+    // as well against a page that never had the button.
+    const tradeBtn = firstCard.locator('.card-trade-btn')
+    await expect(tradeBtn).toHaveCount(1)
+    await expect(tradeBtn).toBeHidden()
+
+    await selectToggle.click()
+    await expect(checkbox).toHaveCSS('opacity', '0.85')
+    await expect(checkbox).toHaveCSS('pointer-events', 'auto')
+
+    // Selecting the card must not strand a visible checkbox once the mode ends.
+    await firstCard.locator('.card-binder').click()
+    await expect(firstCard.locator('.card-select-checkbox.selected')).toHaveCSS('opacity', '1')
+    await selectToggle.click()
+    await expect(checkbox).toHaveCSS('opacity', '0')
+  })
+
+  test('a hovering coarse pointer still cannot summon the checkbox', async ({ page }) => {
+    // Coarse pointer and hover are not mutually exclusive — an Android tablet
+    // with a mouse matches both, and phones can latch a sticky :hover after a
+    // tap. The card CSS reveals the checkbox on `.card-binder:hover`, and a
+    // :hover counts toward specificity, so the touch rule that hides it has to
+    // out-specify that reveal rather than merely follow it in source order.
+    //
+    // page.hover() cannot exercise this: Chromium suppresses hover under the
+    // isMobile emulation this file uses, so the assertions below would pass
+    // against the unfixed CSS. Forcing the pseudo-state over CDP is what makes
+    // the check real.
+    const cdp = await page.context().newCDPSession(page)
+    await cdp.send('DOM.enable')
+    await cdp.send('CSS.enable')
+    const { root } = await cdp.send('DOM.getDocument', { depth: -1 })
+    const { nodeId } = await cdp.send('DOM.querySelector', {
+      nodeId: root.nodeId,
+      selector: '.card-item .card-binder',
+    })
+    await cdp.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: ['hover'] })
+
+    const checkbox = page.locator('.card-item').first().locator('.card-select-checkbox--overlay')
+    await expect(checkbox).toHaveCSS('opacity', '0')
+    await expect(checkbox).toHaveCSS('pointer-events', 'none')
+
+    // ...and the forced hover is genuinely in effect. This sentinel has to be a
+    // property nothing *but* :hover can produce, or it proves nothing: the tile
+    // lift is set only by `.card-binder:hover` and is left alone by the touch
+    // rules, so a non-identity transform means the pseudo-state really took. (A
+    // property the touch media query un-gates unconditionally — the card label,
+    // say — would read the same whether or not the CDP call did anything, and
+    // the checkbox assertions above would then be passing on an inert page.)
+    await expect(page.locator('.card-item').first().locator('.card-binder')).not.toHaveCSS(
+      'transform',
+      'none',
+    )
   })
 })
 

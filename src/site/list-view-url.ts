@@ -8,15 +8,13 @@
  */
 import {
   type CardFilters,
-  type ColorFilterMode,
   type NumericComparator,
-  type SetCodeFilterMode,
   createDefaultCardFilters,
+  isColorFilterActive,
   parseNonNegativeInteger,
   parsePriceAmount,
 } from './card-filters'
-import type { CardTypeFilterMode, CardTypeMatchLogic } from './card-types'
-import type { TagFilterMode, TagMatchLogic } from './card-tags'
+import { COLOR_MATCH_MODES, FILTER_MATCH_MODES, SET_CODE_FILTER_MODES } from './filter-mode'
 import {
   type CardSize,
   type GroupBy,
@@ -77,13 +75,7 @@ const SORT_BYS: readonly SortBy[] = [
   'color-identity',
 ]
 const PRICE_STRATEGIES: readonly PriceGroupStrategy[] = ['archidekt', 'five', 'ten']
-const COLOR_MODES: readonly ColorFilterMode[] = ['exclusive', 'inclusive']
-const SET_CODE_MODES: readonly SetCodeFilterMode[] = ['include', 'exclude']
 const NUMERIC_OPS: readonly NumericComparator[] = ['=', '<', '<=', '>', '>=']
-const TYPE_LOGICS: readonly CardTypeMatchLogic[] = ['and', 'or']
-const TYPE_MODES: readonly CardTypeFilterMode[] = ['include', 'exclude']
-const TAG_LOGICS: readonly TagMatchLogic[] = ['and', 'or']
-const TAG_MODES: readonly TagFilterMode[] = ['include', 'exclude']
 
 /** Param keys, kept short and readable for shareable URLs. */
 const KEYS = {
@@ -102,13 +94,10 @@ const KEYS = {
   setCodes: 'sets',
   setCodeMode: 'setMode',
   cardTypes: 'types',
-  cardTypeLogic: 'typeLogic',
   cardTypeMode: 'typeMode',
   oracleTags: 'otags',
-  oracleTagLogic: 'otagLogic',
   oracleTagMode: 'otagMode',
   artTags: 'atags',
-  artTagLogic: 'atagLogic',
   artTagMode: 'atagMode',
   manaValue: 'mv',
   manaValueOp: 'mvOp',
@@ -184,8 +173,14 @@ export function writeListViewParams(
   const name = f.name.trim()
   setOrDelete(params, KEYS.name, name.length > 0 ? name : null)
 
-  const hasColors = f.colors.length > 0
-  setOrDelete(params, KEYS.colors, hasColors ? f.colors.join('') : null)
+  // Colorless rides along in the same param as a leading 'C' (e.g. "CWU"), keeping
+  // the whole color selection in one short key.
+  const hasColors = isColorFilterActive(f)
+  setOrDelete(
+    params,
+    KEYS.colors,
+    hasColors ? `${f.colorless ? 'C' : ''}${f.colors.join('')}` : null,
+  )
   setOrDelete(params, KEYS.colorMode, hasColors && f.colorMode !== d.colorMode ? f.colorMode : null)
 
   const hasSets = f.setCodes.length > 0
@@ -200,11 +195,6 @@ export function writeListViewParams(
   setOrDelete(params, KEYS.cardTypes, hasTypes ? f.cardTypes.join(',') : null)
   setOrDelete(
     params,
-    KEYS.cardTypeLogic,
-    hasTypes && f.cardTypeLogic !== d.cardTypeLogic ? f.cardTypeLogic : null,
-  )
-  setOrDelete(
-    params,
     KEYS.cardTypeMode,
     hasTypes && f.cardTypeMode !== d.cardTypeMode ? f.cardTypeMode : null,
   )
@@ -213,22 +203,12 @@ export function writeListViewParams(
   setOrDelete(params, KEYS.oracleTags, hasOracleTags ? f.oracleTags.join(',') : null)
   setOrDelete(
     params,
-    KEYS.oracleTagLogic,
-    hasOracleTags && f.oracleTagLogic !== d.oracleTagLogic ? f.oracleTagLogic : null,
-  )
-  setOrDelete(
-    params,
     KEYS.oracleTagMode,
     hasOracleTags && f.oracleTagMode !== d.oracleTagMode ? f.oracleTagMode : null,
   )
 
   const hasArtTags = f.artTags.length > 0
   setOrDelete(params, KEYS.artTags, hasArtTags ? f.artTags.join(',') : null)
-  setOrDelete(
-    params,
-    KEYS.artTagLogic,
-    hasArtTags && f.artTagLogic !== d.artTagLogic ? f.artTagLogic : null,
-  )
   setOrDelete(
     params,
     KEYS.artTagMode,
@@ -271,12 +251,20 @@ function parseCsv(value: string | null): string[] | undefined {
   return items.length > 0 ? [...new Set(items)] : undefined
 }
 
-/** Parse the color selection (e.g. "WUB"), keeping canonical WUBRG order. */
-function parseColors(value: string | null): string[] | undefined {
+/** A parsed color selection: WUBRG colors in canonical order, plus the colorless flag. */
+type ParsedColors = { colors: string[]; colorless: boolean }
+
+/**
+ * Parse the color selection (e.g. "WUB", or "CG" for green plus colorless),
+ * keeping canonical WUBRG order. Returns undefined when nothing was selected, so
+ * the caller leaves both fields at their defaults.
+ */
+function parseColors(value: string | null): ParsedColors | undefined {
   if (value === null) return undefined
   const chars = new Set(value.toUpperCase().split(''))
   const colors = WUBRG.filter((c) => chars.has(c))
-  return colors.length > 0 ? colors : undefined
+  const colorless = chars.has('C')
+  return colors.length > 0 || colorless ? { colors, colorless } : undefined
 }
 
 /** Shared by mana value and copies, which are both plain non-negative integers. */
@@ -314,34 +302,31 @@ export function parseListViewParams(params: URLSearchParams): ListViewOverrides 
   if (name !== null && name.trim().length > 0) filters.name = name.trim()
 
   const colors = parseColors(get(KEYS.colors))
-  if (colors) filters.colors = colors
-  const colorMode = oneOf(get(KEYS.colorMode), COLOR_MODES)
+  if (colors) {
+    if (colors.colors.length > 0) filters.colors = colors.colors
+    if (colors.colorless) filters.colorless = true
+  }
+  const colorMode = oneOf(get(KEYS.colorMode), COLOR_MATCH_MODES)
   if (colorMode) filters.colorMode = colorMode
 
   const setCodes = parseCsv(get(KEYS.setCodes))
   if (setCodes) filters.setCodes = setCodes
-  const setCodeMode = oneOf(get(KEYS.setCodeMode), SET_CODE_MODES)
+  const setCodeMode = oneOf(get(KEYS.setCodeMode), SET_CODE_FILTER_MODES)
   if (setCodeMode) filters.setCodeMode = setCodeMode
 
   const cardTypes = parseCsv(get(KEYS.cardTypes))
   if (cardTypes) filters.cardTypes = cardTypes
-  const cardTypeLogic = oneOf(get(KEYS.cardTypeLogic), TYPE_LOGICS)
-  if (cardTypeLogic) filters.cardTypeLogic = cardTypeLogic
-  const cardTypeMode = oneOf(get(KEYS.cardTypeMode), TYPE_MODES)
+  const cardTypeMode = oneOf(get(KEYS.cardTypeMode), FILTER_MATCH_MODES)
   if (cardTypeMode) filters.cardTypeMode = cardTypeMode
 
   const oracleTags = parseCsv(get(KEYS.oracleTags))
   if (oracleTags) filters.oracleTags = oracleTags
-  const oracleTagLogic = oneOf(get(KEYS.oracleTagLogic), TAG_LOGICS)
-  if (oracleTagLogic) filters.oracleTagLogic = oracleTagLogic
-  const oracleTagMode = oneOf(get(KEYS.oracleTagMode), TAG_MODES)
+  const oracleTagMode = oneOf(get(KEYS.oracleTagMode), FILTER_MATCH_MODES)
   if (oracleTagMode) filters.oracleTagMode = oracleTagMode
 
   const artTags = parseCsv(get(KEYS.artTags))
   if (artTags) filters.artTags = artTags
-  const artTagLogic = oneOf(get(KEYS.artTagLogic), TAG_LOGICS)
-  if (artTagLogic) filters.artTagLogic = artTagLogic
-  const artTagMode = oneOf(get(KEYS.artTagMode), TAG_MODES)
+  const artTagMode = oneOf(get(KEYS.artTagMode), FILTER_MATCH_MODES)
   if (artTagMode) filters.artTagMode = artTagMode
 
   const manaValue = parseIntegerParam(get(KEYS.manaValue))

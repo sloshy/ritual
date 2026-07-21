@@ -1,6 +1,9 @@
 import { type Component, type JSX, Show } from 'solid-js'
 import { useDialogModal } from './useDialogModal'
 
+/** Slide-out duration; matches the `.sheet-shell` / `.sheet-panel` transitions in modal.css. */
+const SHEET_EXIT_MS = 200
+
 export type BottomSheetProps = {
   open: boolean
   /** Fired on a genuine user dismissal (Escape, backdrop tap, the × button). */
@@ -21,17 +24,25 @@ export type BottomSheetProps = {
  * Modal: Escape, backdrop tap, or the header's × button.
  */
 export const BottomSheet: Component<BottomSheetProps> = (props) => {
-  const dialog = useDialogModal(() => props.open)
+  const dialog = useDialogModal(() => props.open, {
+    onDismiss: () => props.onClose(),
+    exitMs: SHEET_EXIT_MS,
+  })
 
   return (
     <dialog
       ref={dialog.setDialog}
       class="sheet-shell"
+      classList={{ 'is-closing': dialog.exiting() }}
       aria-label={props['aria-label'] ?? props.title}
-      onClose={() => dialog.handleClose(props.onClose)}
+      onCancel={(e) => {
+        // Escape would close the element outright, skipping the slide-out.
+        e.preventDefault()
+        dialog.requestClose()
+      }}
       onClick={dialog.onBackdropClick}
     >
-      <div class="sheet-panel">
+      <div ref={dialog.setPanel} class="sheet-panel">
         <div class="sheet-grip" aria-hidden="true" />
         <div class="sheet-header">
           <span class="sheet-title">{props.title}</span>
@@ -39,15 +50,15 @@ export const BottomSheet: Component<BottomSheetProps> = (props) => {
             type="button"
             class="sheet-close"
             aria-label="Close"
-            onClick={() => dialog.close()}
+            onClick={dialog.requestClose}
           >
             ✕
           </button>
         </div>
         <div class="sheet-body">
-          {/* Render content only while open, mirroring Modal: a closed (but
-              still-mounted) dialog leaves no queryable/focusable DOM behind. */}
-          <Show when={props.open}>{props.children}</Show>
+          {/* Render content only while open (plus the closing animation), mirroring
+              Modal: a closed, settled dialog leaves no queryable/focusable DOM behind. */}
+          <Show when={dialog.mounted()}>{props.children}</Show>
         </div>
       </div>
     </dialog>

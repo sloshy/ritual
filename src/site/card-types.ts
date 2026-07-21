@@ -11,11 +11,7 @@
  * title case for display.
  */
 
-/** How selected types are combined when matching a card. */
-export type CardTypeMatchLogic = 'and' | 'or'
-
-/** Whether the selected types are kept ('include') or removed ('exclude'). */
-export type CardTypeFilterMode = 'include' | 'exclude'
+import { matchesSelection, type FilterMatchMode } from './filter-mode'
 
 /**
  * Subtypes whose canonical form contains a space and must be treated as a single
@@ -52,18 +48,16 @@ export function extractCardTypeTags(typeLine: string): string[] {
 }
 
 /**
- * Does a card's type line match the selected type tags under the given logic?
- * `selected` tags are lowercase. AND requires every selected tag; OR requires at
- * least one. With no selected tags, returns true (the filter is inactive).
+ * Does a card's type line match the selected type tags under the given mode?
+ * `selected` tags are lowercase. With no selected tags, returns true (the filter
+ * is inactive).
  */
 export function matchesCardTypes(
   typeLine: string,
   selected: string[],
-  logic: CardTypeMatchLogic,
+  mode: FilterMatchMode,
 ): boolean {
-  if (selected.length === 0) return true
-  const tags = new Set(extractCardTypeTags(typeLine))
-  return logic === 'and' ? selected.every((t) => tags.has(t)) : selected.some((t) => tags.has(t))
+  return matchesSelection(new Set(extractCardTypeTags(typeLine)), selected, mode)
 }
 
 /** Render a stored lowercase tag in title case for display ("time lord" → "Time Lord"). */

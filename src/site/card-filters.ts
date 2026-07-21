@@ -2,19 +2,11 @@ import type { CardData } from './card-sorting'
 import { WUBRG } from './card-sorting'
 import { matchesAllTerms } from '../term-match'
 import { getFrontFaceName } from '../scryfall/card-utils'
-import {
-  extractCardTypeTags,
-  matchesCardTypes,
-  type CardTypeFilterMode,
-  type CardTypeMatchLogic,
-} from './card-types'
-import { matchesTags, type TagFilterMode, type TagMatchLogic } from './card-tags'
+import { extractCardTypeTags, matchesCardTypes } from './card-types'
+import { matchesTags } from './card-tags'
+import type { ColorMatchMode, FilterMatchMode, SetCodeFilterMode } from './filter-mode'
 
-/** How selected colors are matched against a card's color identity. */
-export type ColorFilterMode = 'exclusive' | 'inclusive'
-
-/** Whether the selected set codes are kept ('include') or removed ('exclude'). */
-export type SetCodeFilterMode = 'include' | 'exclude'
+export type { ColorMatchMode, FilterMatchMode, SetCodeFilterMode }
 
 /** A numeric comparison operator shared by the mana value, price, and copies filters. */
 export type NumericComparator = '=' | '<' | '<=' | '>' | '>='
@@ -41,33 +33,36 @@ export interface CardFilters {
   /** Selected WUBRG colors in canonical order. Empty = no color filtering. */
   colors: string[]
   /**
-   * 'exclusive': the card's color identity is exactly the selected colors.
-   * 'inclusive': the card could be played in a deck whose identity is the
-   * selected colors (its identity is a subset of the selection).
+   * Whether colorless (an empty color identity) is selected alongside `colors`.
+   * Kept as its own flag rather than a sixth `colors` entry because colorless is
+   * the *absence* of colors, and `colors` is WUBRG-normalized on every write
+   * (`toggleColorSelection`) — a 'C' token there would be silently dropped.
    */
-  colorMode: ColorFilterMode
+  colorless: boolean
+  /**
+   * 'subset': the card could be played in a deck whose identity is the selected
+   * colors (its identity is a subset of the selection).
+   * 'include': the card uses at least one of the selected colors.
+   * 'exclude': the card uses none of them.
+   * 'exact': the card's identity is exactly the selected colors.
+   */
+  colorMode: ColorMatchMode
   /** Lowercase set codes. Empty = no set filtering. */
   setCodes: string[]
   /** 'include': keep cards from the selected sets. 'exclude': drop them. */
   setCodeMode: SetCodeFilterMode
   /** Lowercase card type tags (types and subtypes). Empty = no type filtering. */
   cardTypes: string[]
-  /** 'and': a card must have every selected type. 'or': at least one. */
-  cardTypeLogic: CardTypeMatchLogic
-  /** 'include': keep matching cards. 'exclude': drop matching cards. */
-  cardTypeMode: CardTypeFilterMode
+  /** 'include': any selected type. 'exclude': none of them. 'exact': every one. */
+  cardTypeMode: FilterMatchMode
   /** Lowercase oracle (functional) tag slugs. Empty = no oracle tag filtering. */
   oracleTags: string[]
-  /** 'and': a card must have every selected oracle tag. 'or': at least one. */
-  oracleTagLogic: TagMatchLogic
-  /** 'include': keep matching cards. 'exclude': drop matching cards. */
-  oracleTagMode: TagFilterMode
+  /** 'include': any selected tag. 'exclude': none of them. 'exact': every one. */
+  oracleTagMode: FilterMatchMode
   /** Lowercase art (illustration) tag slugs. Empty = no art tag filtering. */
   artTags: string[]
-  /** 'and': a card must have every selected art tag. 'or': at least one. */
-  artTagLogic: TagMatchLogic
-  /** 'include': keep matching cards. 'exclude': drop matching cards. */
-  artTagMode: TagFilterMode
+  /** 'include': any selected tag. 'exclude': none of them. 'exact': every one. */
+  artTagMode: FilterMatchMode
   /** Mana value compared via `manaValueOp`. Null = no mana value filtering. */
   manaValue: number | null
   manaValueOp: ManaValueComparator
@@ -94,18 +89,16 @@ export function createDefaultCardFilters(): CardFilters {
     hideExtras: false,
     name: '',
     colors: [],
-    colorMode: 'exclusive',
+    colorless: false,
+    colorMode: 'subset',
     setCodes: [],
     setCodeMode: 'include',
     cardTypes: [],
-    cardTypeLogic: 'or',
-    cardTypeMode: 'include',
+    cardTypeMode: 'exact',
     oracleTags: [],
-    oracleTagLogic: 'or',
-    oracleTagMode: 'include',
+    oracleTagMode: 'exact',
     artTags: [],
-    artTagLogic: 'or',
-    artTagMode: 'include',
+    artTagMode: 'exact',
     manaValue: null,
     manaValueOp: '=',
     price: null,
@@ -134,15 +127,70 @@ function compareNumeric(actual: number, op: NumericComparator, value: number): b
   }
 }
 
-function matchesColorIdentity(
-  identity: string[],
-  selected: string[],
-  mode: ColorFilterMode,
-): boolean {
-  if (mode === 'exclusive') {
-    return identity.length === selected.length && identity.every((c) => selected.includes(c))
+/**
+ * Match a card's set code, given whether it is one of the selected codes. A card
+ * belongs to exactly one set, so this is a plain keep-or-drop rather than a
+ * `matchesSelection` call — but it stays an exhaustive switch so that widening
+ * `SetCodeFilterMode` fails to compile rather than silently falling through to
+ * "exclude".
+ */
+function matchesSetCode(inSelection: boolean, mode: SetCodeFilterMode): boolean {
+  switch (mode) {
+    case 'include':
+      return inSelection
+    case 'exclude':
+      return !inSelection
   }
-  return identity.every((c) => selected.includes(c))
+}
+
+/**
+ * Match a card's color identity against the selected colors. `include`/`exclude`
+ * mean the same any-of / none-of as everywhere else, but a color identity is the
+ * card's *complete* color set, so it also supports `subset` (the card fits inside
+ * the selection — "playable in a deck of these colors") and `exact` (the identity
+ * equals the selection — the "exactly Azorius" query).
+ *
+ * `colorless` selects cards with an empty identity. It contributes no color to
+ * the selection, so under `subset` it only bites when nothing else is selected
+ * ("playable in a colorless deck" — a colorless card already fits inside every
+ * other selection). Under the remaining modes it acts as one more thing a card
+ * can match, and `exclude` stays the exact negation of `include`.
+ */
+/**
+ * Whether the color filter is doing anything. Colorless is a selection in its own
+ * right, so it activates the filter even with no WUBRG colors picked — shared so
+ * the predicate, the active-count badge, and the URL writer can't disagree.
+ */
+export function isColorFilterActive(filters: Pick<CardFilters, 'colors' | 'colorless'>): boolean {
+  return filters.colors.length > 0 || filters.colorless
+}
+
+type ColorIdentityQuery = {
+  /** The card's own color identity. */
+  identity: string[]
+  /** The WUBRG colors the user selected. */
+  selected: string[]
+  colorless: boolean
+  mode: ColorMatchMode
+}
+
+function matchesColorIdentity(query: ColorIdentityQuery): boolean {
+  const { identity, selected, colorless, mode } = query
+  const isColorless = identity.length === 0
+  switch (mode) {
+    case 'subset':
+      return identity.every((c) => selected.includes(c))
+    case 'include':
+      return identity.some((c) => selected.includes(c)) || (colorless && isColorless)
+    case 'exclude':
+      return !identity.some((c) => selected.includes(c)) && !(colorless && isColorless)
+    case 'exact':
+      return colorless && isColorless
+        ? true
+        : selected.length > 0 &&
+            identity.length === selected.length &&
+            identity.every((c) => selected.includes(c))
+  }
 }
 
 /**
@@ -176,31 +224,25 @@ export function filterCards<T extends CardData>(cards: T[], filters: CardFilters
     if (filters.hideUnpriced && card.price <= 0) return false
     if (nameQuery.length > 0 && !matchesAllTerms(card.name, nameQuery)) return false
     if (
-      filters.colors.length > 0 &&
-      !matchesColorIdentity(card.colorIdentity, filters.colors, filters.colorMode)
+      isColorFilterActive(filters) &&
+      !matchesColorIdentity({
+        identity: card.colorIdentity,
+        selected: filters.colors,
+        colorless: filters.colorless,
+        mode: filters.colorMode,
+      })
     ) {
       return false
     }
-    if (setCodes.size > 0) {
-      const matches = setCodes.has(card.setCode.toLowerCase())
-      const shouldExclude = filters.setCodeMode === 'include' ? !matches : matches
-      if (shouldExclude) return false
+    if (
+      setCodes.size > 0 &&
+      !matchesSetCode(setCodes.has(card.setCode.toLowerCase()), filters.setCodeMode)
+    ) {
+      return false
     }
-    if (filters.cardTypes.length > 0) {
-      const matches = matchesCardTypes(card.type, filters.cardTypes, filters.cardTypeLogic)
-      const shouldExclude = filters.cardTypeMode === 'include' ? !matches : matches
-      if (shouldExclude) return false
-    }
-    if (filters.oracleTags.length > 0) {
-      const matches = matchesTags(card.oracleTags, filters.oracleTags, filters.oracleTagLogic)
-      const shouldExclude = filters.oracleTagMode === 'include' ? !matches : matches
-      if (shouldExclude) return false
-    }
-    if (filters.artTags.length > 0) {
-      const matches = matchesTags(card.artTags, filters.artTags, filters.artTagLogic)
-      const shouldExclude = filters.artTagMode === 'include' ? !matches : matches
-      if (shouldExclude) return false
-    }
+    if (!matchesCardTypes(card.type, filters.cardTypes, filters.cardTypeMode)) return false
+    if (!matchesTags(card.oracleTags, filters.oracleTags, filters.oracleTagMode)) return false
+    if (!matchesTags(card.artTags, filters.artTags, filters.artTagMode)) return false
     if (
       filters.manaValue !== null &&
       !compareNumeric(card.cmc, filters.manaValueOp, filters.manaValue)
@@ -229,7 +271,8 @@ export function countActiveFilters(filters: CardFilters): number {
   if (filters.hideUnpriced) count++
   if (filters.hideExtras) count++
   if (filters.name.trim().length > 0) count++
-  if (filters.colors.length > 0) count++
+  // Colors and colorless are one control in the UI, so they count once together.
+  if (isColorFilterActive(filters)) count++
   if (filters.setCodes.length > 0) count++
   if (filters.cardTypes.length > 0) count++
   if (filters.oracleTags.length > 0) count++

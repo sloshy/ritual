@@ -50,6 +50,62 @@ body {
   border-top: 1px solid var(--border-separator, var(--border));
 }
 
+/* Phone-layout utility row: currency, edit, and theme, revealed by the ⚙
+   toggle in the main row. Desktop has room to keep those inline, so this row
+   only renders under MOBILE_LAYOUT_QUERY. Mirrors the edit row's separator so
+   stacked header rows read as one system. */
+.site-header-utility {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border-separator, var(--border));
+}
+
+.header-utility-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.95rem;
+  line-height: 1;
+  border-radius: 0.375rem;
+  border: 1px solid var(--border);
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  cursor: pointer;
+  transition:
+    background 150ms,
+    border-color 150ms,
+    color 150ms;
+
+  &:hover {
+    background: var(--btn-hover);
+    border-color: var(--border-hover);
+    color: var(--text-primary);
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-color: var(--border-focus);
+  }
+}
+
+.header-utility-toggle--open {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--btn-on-color-text);
+
+  &:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+    color: var(--btn-on-color-text);
+  }
+}
+
 /* Shown in the edit row when edit mode is armed but no list editor is open. */
 .edit-mode-hint {
   align-self: center;
@@ -70,7 +126,17 @@ body {
 
 .btn-edit--active {
   background: var(--accent);
+  border-color: var(--accent);
   color: var(--btn-on-color-text);
+
+  /* Matches `.btn-secondary:hover:not(:disabled)`'s specificity so "Done" keeps
+     reading as active under the pointer instead of reverting to the neutral
+     button color. */
+  &:hover:not(:disabled) {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+    color: var(--btn-on-color-text);
+  }
 }
 
 .btn-edit:disabled {
@@ -303,10 +369,6 @@ body {
   .site-nav-sep {
     display: none;
   }
-
-  .currency-label {
-    display: none;
-  }
 }
 
 /* ===== Mobile Tab Bar ===== */
@@ -323,12 +385,15 @@ body {
 }
 
 .mobile-tab {
-  flex: 1;
+  /* Equal widths regardless of label length: `flex-basis: 0` + `min-width: 0` so
+     the widest label ("Collections") can't claim a larger share than the rest. */
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 0.5rem 0 0.45rem;
+  padding: 0.5rem 0.125rem 0.45rem;
   text-decoration: none;
   color: var(--text-secondary);
 }
@@ -343,8 +408,35 @@ body {
 }
 
 .mobile-tab-label {
+  max-width: 100%;
   font-size: 0.65rem;
   font-weight: 500;
+  /* Labels must stay on one line: the bar's reserved height
+     (--mobile-tabbar-h) is fixed, so a wrapped label would overflow it. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Narrower phones: six tabs leave a ~53–65px column each, too little for the
+   longest label ("Collections") at the default size. Two steps down keeps it
+   whole rather than ellipsized, even on a 320px-wide screen. */
+@media (max-width: 400px) {
+  .mobile-tab-label {
+    font-size: 0.6rem;
+  }
+}
+
+@media (max-width: 340px) {
+  .mobile-tab {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .mobile-tab-label {
+    font-size: 0.55rem;
+    letter-spacing: -0.01em;
+  }
 }
 
 /* While the tab bar is shown: reserve space for it at the page bottom, and lift
@@ -368,6 +460,13 @@ body {
   .site-nav,
   .site-nav-sep {
     display: none;
+  }
+
+  /* Quick switch is absolutely centered and out of flow, so one auto margin on
+     the logo packs every remaining control against the right edge — whether or
+     not the selection menu and Done button happen to be present. */
+  .site-logo {
+    margin-right: auto;
   }
 }
 
@@ -1576,8 +1675,14 @@ body {
 }
 
 /* ===== Quick Switch ===== */
+/* Centered in the header's main row at every width (the row is the positioning
+   context). Taking it out of flow is what lets it sit truly centered rather
+   than wherever the surrounding controls leave it. */
 .quick-switch-trigger {
-  margin-left: auto;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -1630,16 +1735,6 @@ body {
   font-family: inherit;
   font-size: 0.6875rem;
   color: var(--text-secondary);
-}
-
-@media (min-width: 768px) {
-  .quick-switch-trigger {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    margin-left: 0;
-  }
 }
 
 @media (max-width: 640px) {
@@ -1866,39 +1961,19 @@ body {
 }
 
 /* ===== Theme customize button (in site header) ===== */
-.theme-customize-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.3rem 0.6rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-  border-radius: 0.375rem;
-  border: 1px solid var(--border);
-  background: var(--btn-bg);
-  color: var(--btn-text);
-  cursor: pointer;
-  transition:
-    background 150ms,
-    border-color 150ms,
-    color 150ms;
-  white-space: nowrap;
-
-  &:hover {
-    background: var(--btn-hover);
-    border-color: var(--border-hover);
-    color: var(--text-primary);
-  }
-}
-
+/* Sizing/colors come from `.btn .btn-secondary` so this sits flush with the
+   Edit button beside it; only the active state and icon are bespoke. */
 .theme-customize-btn-active {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--btn-on-color-text);
 
-  &:hover {
+  /* Matches `.btn-secondary:hover:not(:disabled)`'s specificity so the accent
+     survives hover; styles.css is imported after controls.css, so it wins. */
+  &:hover:not(:disabled) {
     background: var(--accent-hover);
     border-color: var(--accent-hover);
+    color: var(--btn-on-color-text);
   }
 }
 
@@ -1907,8 +1982,11 @@ body {
   line-height: 1;
 }
 
+/* Inline in the header, tablet width leaves no room for the label — but the
+   phone layout's utility row has room to spare, so scope this to the main row
+   rather than hiding the label everywhere. */
 @media (max-width: 768px) {
-  .theme-customize-btn-label {
+  .site-header-main .theme-customize-btn-label {
     display: none;
   }
 }

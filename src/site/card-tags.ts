@@ -10,23 +10,17 @@
  * separated, lowercased).
  */
 
-/** How selected tags are combined when matching a card. */
-export type TagMatchLogic = 'and' | 'or'
-
-/** Whether the selected tags are kept ('include') or removed ('exclude'). */
-export type TagFilterMode = 'include' | 'exclude'
+import { matchesSelection, type FilterMatchMode } from './filter-mode'
 
 /**
- * Does a card's tag list match the selected tags under the given logic?
- * `selected` slugs are lowercase. AND requires every selected tag; OR requires at
- * least one. With no selected tags, returns true (the filter is inactive).
+ * Does a card's tag list match the selected tags under the given mode?
+ * `selected` slugs are lowercase. With no selected tags, returns true (the filter
+ * is inactive).
  */
 export function matchesTags(
   cardTags: readonly string[],
   selected: readonly string[],
-  logic: TagMatchLogic,
+  mode: FilterMatchMode,
 ): boolean {
-  if (selected.length === 0) return true
-  const tags = new Set(cardTags)
-  return logic === 'and' ? selected.every((t) => tags.has(t)) : selected.some((t) => tags.has(t))
+  return matchesSelection(new Set(cardTags), selected, mode)
 }

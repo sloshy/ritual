@@ -63,34 +63,111 @@ describe('filterCards', () => {
     expect(filterCards(cards, makeFilters({ name: '  llanowar   elves  ' }))).toHaveLength(1)
   })
 
-  test('exclusive color filter matches only the exact color identity', () => {
+  test('exact color filter matches only the identical color identity', () => {
     const golgari = makeCard({ name: 'Golgari', colorIdentity: ['B', 'G'] })
     const mono = makeCard({ name: 'Mono Green', colorIdentity: ['G'] })
     const colorless = makeCard({ name: 'Rock', colorIdentity: [] })
     const result = filterCards(
       [golgari, mono, colorless],
-      makeFilters({ colors: ['B', 'G'], colorMode: 'exclusive' }),
+      makeFilters({ colors: ['B', 'G'], colorMode: 'exact' }),
     )
     expect(result.map((c) => c.name)).toEqual(['Golgari'])
   })
 
-  test('exclusive color match ignores identity ordering', () => {
+  test('exact color match ignores identity ordering', () => {
     const card = makeCard({ colorIdentity: ['G', 'B'] })
     expect(
-      filterCards([card], makeFilters({ colors: ['B', 'G'], colorMode: 'exclusive' })),
+      filterCards([card], makeFilters({ colors: ['B', 'G'], colorMode: 'exact' })),
     ).toHaveLength(1)
   })
 
-  test('inclusive color filter matches any card playable in the selected colors', () => {
+  test('subset color filter matches any card playable in the selected colors', () => {
     const golgari = makeCard({ name: 'Golgari', colorIdentity: ['B', 'G'] })
     const mono = makeCard({ name: 'Mono Green', colorIdentity: ['G'] })
     const colorless = makeCard({ name: 'Rock', colorIdentity: [] })
     const boros = makeCard({ name: 'Boros', colorIdentity: ['R', 'W'] })
     const result = filterCards(
       [golgari, mono, colorless, boros],
-      makeFilters({ colors: ['B', 'G'], colorMode: 'inclusive' }),
+      makeFilters({ colors: ['B', 'G'], colorMode: 'subset' }),
     )
     expect(result.map((c) => c.name)).toEqual(['Golgari', 'Mono Green', 'Rock'])
+  })
+
+  // 'include' is any-of, matching its meaning on every other filter: a partial
+  // overlap counts, and (unlike 'subset') a colorless card never does.
+  test('include color filter matches cards using at least one selected color', () => {
+    const golgari = makeCard({ name: 'Golgari', colorIdentity: ['B', 'G'] })
+    const mono = makeCard({ name: 'Mono Green', colorIdentity: ['G'] })
+    const colorless = makeCard({ name: 'Rock', colorIdentity: [] })
+    const jund = makeCard({ name: 'Jund', colorIdentity: ['B', 'G', 'R'] })
+    const boros = makeCard({ name: 'Boros', colorIdentity: ['R', 'W'] })
+    const result = filterCards(
+      [golgari, mono, colorless, jund, boros],
+      makeFilters({ colors: ['B', 'G'], colorMode: 'include' }),
+    )
+    expect(result.map((c) => c.name)).toEqual(['Golgari', 'Mono Green', 'Jund'])
+  })
+
+  test('exclude color filter drops cards using any selected color, keeping colorless', () => {
+    const golgari = makeCard({ name: 'Golgari', colorIdentity: ['B', 'G'] })
+    const mono = makeCard({ name: 'Mono Green', colorIdentity: ['G'] })
+    const colorless = makeCard({ name: 'Rock', colorIdentity: [] })
+    const boros = makeCard({ name: 'Boros', colorIdentity: ['R', 'W'] })
+    const result = filterCards(
+      [golgari, mono, colorless, boros],
+      makeFilters({ colors: ['B', 'G'], colorMode: 'exclude' }),
+    )
+    expect(result.map((c) => c.name)).toEqual(['Rock', 'Boros'])
+  })
+
+  // Colorless contributes no color to the selection, so each mode reads it a bit
+  // differently — these pin all four against the same card set.
+  describe('colorless selection', () => {
+    const cards = [
+      makeCard({ name: 'Golgari', colorIdentity: ['B', 'G'] }),
+      makeCard({ name: 'Mono Green', colorIdentity: ['G'] }),
+      makeCard({ name: 'Rock', colorIdentity: [] }),
+      makeCard({ name: 'Boros', colorIdentity: ['R', 'W'] }),
+    ]
+    const names = (filters: Partial<CardFilters>): string[] =>
+      filterCards(cards, makeFilters(filters)).map((c) => c.name)
+
+    test('colorless alone selects only cards with an empty identity', () => {
+      // The default mode ('subset') is the one a user lands on by just clicking C.
+      expect(names({ colorless: true })).toEqual(['Rock'])
+      expect(names({ colorless: true, colorMode: 'include' })).toEqual(['Rock'])
+      expect(names({ colorless: true, colorMode: 'exact' })).toEqual(['Rock'])
+    })
+
+    test('colorless alone under exclude hides exactly the colorless cards', () => {
+      expect(names({ colorless: true, colorMode: 'exclude' })).toEqual([
+        'Golgari',
+        'Mono Green',
+        'Boros',
+      ])
+    })
+
+    test('colorless combines with colors as one more thing a card may match', () => {
+      expect(names({ colors: ['G'], colorless: true, colorMode: 'include' })).toEqual([
+        'Golgari',
+        'Mono Green',
+        'Rock',
+      ])
+      expect(names({ colors: ['G'], colorless: true, colorMode: 'exact' })).toEqual([
+        'Mono Green',
+        'Rock',
+      ])
+    })
+
+    test('colorless is redundant under subset, which already admits colorless cards', () => {
+      const withFlag = names({ colors: ['B', 'G'], colorless: true })
+      expect(withFlag).toEqual(names({ colors: ['B', 'G'] }))
+      expect(withFlag).toContain('Rock')
+    })
+
+    test('exclude with colors and colorless drops both', () => {
+      expect(names({ colors: ['G'], colorless: true, colorMode: 'exclude' })).toEqual(['Boros'])
+    })
   })
 
   test('set code filter matches case-insensitively against the card set code', () => {
@@ -124,23 +201,23 @@ describe('filterCards', () => {
     ).toHaveLength(1)
   })
 
-  test('card type filter (OR include) keeps cards with any selected type or subtype', () => {
+  test('card type filter (include) keeps cards with any selected type or subtype', () => {
     const robot = makeCard({ name: 'Robot', type: 'Artifact Creature — Robot' })
     const elf = makeCard({ name: 'Elf', type: 'Creature — Elf Druid' })
     const land = makeCard({ name: 'Land', type: 'Basic Land — Forest' })
     const result = filterCards(
       [robot, elf, land],
-      makeFilters({ cardTypes: ['artifact', 'elf'], cardTypeLogic: 'or' }),
+      makeFilters({ cardTypes: ['artifact', 'elf'], cardTypeMode: 'include' }),
     )
     expect(result.map((c) => c.name)).toEqual(['Robot', 'Elf'])
   })
 
-  test('card type filter (AND include) requires every selected type', () => {
+  test('card type filter (exact) requires every selected type', () => {
     const artifactCreature = makeCard({ name: 'Robot', type: 'Artifact Creature — Robot' })
     const plainCreature = makeCard({ name: 'Elf', type: 'Creature — Elf' })
     const result = filterCards(
       [artifactCreature, plainCreature],
-      makeFilters({ cardTypes: ['artifact', 'creature'], cardTypeLogic: 'and' }),
+      makeFilters({ cardTypes: ['artifact', 'creature'], cardTypeMode: 'exact' }),
     )
     expect(result.map((c) => c.name)).toEqual(['Robot'])
   })
@@ -155,23 +232,23 @@ describe('filterCards', () => {
     expect(result.map((c) => c.name)).toEqual(['Rock'])
   })
 
-  test('oracle tag filter (OR include) keeps cards with any selected tag', () => {
+  test('oracle tag filter (include) keeps cards with any selected tag', () => {
     const ramp = makeCard({ name: 'Ramp', oracleTags: ['mana-rock', 'ramp'] })
     const draw = makeCard({ name: 'Draw', oracleTags: ['card-draw'] })
     const none = makeCard({ name: 'None', oracleTags: [] })
     const result = filterCards(
       [ramp, draw, none],
-      makeFilters({ oracleTags: ['ramp', 'flying'], oracleTagLogic: 'or' }),
+      makeFilters({ oracleTags: ['ramp', 'flying'], oracleTagMode: 'include' }),
     )
     expect(result.map((c) => c.name)).toEqual(['Ramp'])
   })
 
-  test('oracle tag filter (AND include) requires every selected tag', () => {
+  test('oracle tag filter (exact) requires every selected tag', () => {
     const both = makeCard({ name: 'Both', oracleTags: ['ramp', 'artifact'] })
     const one = makeCard({ name: 'One', oracleTags: ['ramp'] })
     const result = filterCards(
       [both, one],
-      makeFilters({ oracleTags: ['ramp', 'artifact'], oracleTagLogic: 'and' }),
+      makeFilters({ oracleTags: ['ramp', 'artifact'], oracleTagMode: 'exact' }),
     )
     expect(result.map((c) => c.name)).toEqual(['Both'])
   })
@@ -201,6 +278,27 @@ describe('filterCards', () => {
       makeFilters({ oracleTags: ['ramp'], artTags: ['dragon'] }),
     )
     expect(result.map((c) => c.name)).toEqual(['Match'])
+  })
+
+  // Distinct modes on the two tag filters, so swapping the mode fields between the
+  // oracle and art `matchesTags` calls would change the result rather than pass.
+  test('the oracle and art tag filters apply their own modes, not each other’s', () => {
+    const cards = [
+      makeCard({ name: 'Both', oracleTags: ['ramp', 'removal'], artTags: ['dragon'] }),
+      makeCard({ name: 'OneTag', oracleTags: ['ramp'], artTags: ['dragon'] }),
+      makeCard({ name: 'BadArt', oracleTags: ['ramp', 'removal'], artTags: ['forest'] }),
+    ]
+    const result = filterCards(
+      cards,
+      makeFilters({
+        // 'exact' needs both oracle tags; 'include' needs only one of the art tags.
+        oracleTags: ['ramp', 'removal'],
+        oracleTagMode: 'exact',
+        artTags: ['dragon', 'zombie'],
+        artTagMode: 'include',
+      }),
+    )
+    expect(result.map((c) => c.name)).toEqual(['Both'])
   })
 
   test('hideExtras has no effect in filterCards (applied at section level by the deck page)', () => {
@@ -356,20 +454,21 @@ describe('countActiveFilters', () => {
     expect(countActiveFilters(filters)).toBe(12)
   })
 
-  test('card type logic/mode alone do not count as active', () => {
-    expect(countActiveFilters(makeFilters({ cardTypeLogic: 'and', cardTypeMode: 'exclude' }))).toBe(
-      0,
-    )
+  // Colors and colorless are one control in the UI, so they contribute one count.
+  test('colorless counts as an active filter, and not twice alongside colors', () => {
+    expect(countActiveFilters(makeFilters({ colorless: true }))).toBe(1)
+    expect(countActiveFilters(makeFilters({ colors: ['G'], colorless: true }))).toBe(1)
   })
 
-  test('tag logic/mode alone do not count as active', () => {
+  test('a match mode alone does not count as active', () => {
     expect(
       countActiveFilters(
         makeFilters({
-          oracleTagLogic: 'and',
+          colorMode: 'include',
+          setCodeMode: 'exclude',
+          cardTypeMode: 'exclude',
           oracleTagMode: 'exclude',
-          artTagLogic: 'and',
-          artTagMode: 'exclude',
+          artTagMode: 'include',
         }),
       ),
     ).toBe(0)

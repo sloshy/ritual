@@ -1,11 +1,14 @@
 /* ===== Touch / coarse-pointer adaptations =====
    Everything the public site changes on touch-first devices (no hover, or a
-   coarse primary pointer). Two concerns live here:
+   coarse primary pointer). Three concerns live here:
 
    1. Un-gating hover-revealed controls — on touch there is no hover, so any
       control that fades in on :hover is otherwise unreachable. They become
       always visible instead.
-   2. Touch-target sizing — pointer targets are raised toward the ~44px
+   2. Suppressing the art-tile corner controls — the exception to (1). Made
+      permanent they crowd the art rather than reading as affordances, so they
+      are gated on explicit intent (or dropped) instead.
+   3. Touch-target sizing — pointer targets are raised toward the ~44px
       guideline without changing the desktop design.
 
    The media query must stay in sync with COARSE_POINTER_QUERY in
@@ -24,23 +27,55 @@
     opacity: 1;
   }
 
-  /* Multi-select checkbox on art tiles: visible and tappable. */
-  .card-binder .card-select-checkbox--overlay,
-  .card-overlap .card-select-checkbox--overlay {
-    opacity: 0.85;
-    pointer-events: auto;
-  }
-
-  /* "Add to Trade" corner bookmark. */
-  .card-trade-btn {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
   /* Card name/price label at the bottom of art tiles. */
   .card-binder .card-label,
   .card-overlap .card-label {
     opacity: 1;
+  }
+
+  /* ----- Keep the art-tile corners clear -----
+
+     The two absolutely-positioned corner controls are deliberately *not*
+     un-gated above: with no hover to summon them they would sit on every tile
+     permanently, which reads as clutter over the art.
+
+     The multi-select checkbox (top-left) returns only while selection mode is
+     on — that toggle is the touch equivalent of the intent hover carries. The
+     "Add to Trade" bookmark (top-right) stays hidden outright; trading is still
+     reachable from the card modal's "+ Add to Trade" and the multi-select
+     menu's "Add to Trade". */
+
+  /* Scoped through :not(.select-mode) rather than left unscoped, for
+     specificity: the base reveals are `.card-binder:hover .card-select-checkbox
+     --overlay{,.selected}`, and a :hover counts as a class, so an unscoped
+     `.card-binder .card-select-checkbox--overlay` would *lose* to them. That
+     matters on a coarse-pointer device that also reports hover (an Android
+     tablet with a mouse), and under mobile sticky-hover, where the checkbox
+     would otherwise flash back in outside selection mode.
+
+     Showing it inside selection mode needs no rule here — with these hides
+     scoped away, the base `.card-item.select-mode` rule already applies. */
+  .card-item:not(.select-mode) .card-binder .card-select-checkbox--overlay,
+  .card-item:not(.select-mode) .card-binder .card-select-checkbox--overlay.selected,
+  .card-item:not(.select-mode) .card-binder .card-select-checkbox--overlay.partial,
+  .card-item:not(.select-mode) .card-overlap .card-select-checkbox--overlay,
+  .card-item:not(.select-mode) .card-overlap .card-select-checkbox--overlay.selected,
+  .card-item:not(.select-mode) .card-overlap .card-select-checkbox--overlay.partial {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* A selected box reads at full strength; the base select-mode rule's 0.85 is
+     for the unselected ones still awaiting a tap. */
+  .card-item.select-mode .card-binder .card-select-checkbox--overlay.selected,
+  .card-item.select-mode .card-binder .card-select-checkbox--overlay.partial,
+  .card-item.select-mode .card-overlap .card-select-checkbox--overlay.selected,
+  .card-item.select-mode .card-overlap .card-select-checkbox--overlay.partial {
+    opacity: 1;
+  }
+
+  .card-trade-btn {
+    display: none;
   }
 
   /* ----- Touch-target sizing: card tiles ----- */
@@ -70,7 +105,9 @@
     height: 28px;
   }
 
-  /* Keep the quantity badge clear of the larger checkbox. */
+  /* Keep the quantity badge clear of the larger checkbox. The corner stays
+     reserved even while the checkbox is hidden, matching how desktop reserves it
+     against the hover-revealed checkbox. */
   .card-item.is-selectable .card-binder .qty-badge,
   .card-item.is-selectable .card-overlap .qty-badge {
     left: 38px;
@@ -89,12 +126,6 @@
     width: 40px;
     height: 40px;
     font-size: 20px;
-  }
-
-  .card-trade-btn {
-    width: 44px;
-    height: 44px;
-    font-size: 1rem;
   }
 
   /* List rows: taller, with room for the bigger inline controls. */
@@ -121,6 +152,13 @@
     padding: 0.375rem 0.75rem;
   }
 
+  /* Clear isn't a .toolbar-toggle, so it misses the bump above and would sit
+     shorter than the Hide toggles it shares a row with. Selector depth matches
+     the desktop rule in shared.css so this wins on cascade order. */
+  .filter-row-toggles .filter-clear {
+    padding: 0.375rem 0.75rem;
+  }
+
   .toolbar-select {
     padding: 0.375rem 0.625rem;
   }
@@ -135,6 +173,14 @@
     padding: 0.5rem 0.625rem;
   }
 
+  /* The 16px touch font plus the roomier padding above needs more room than the
+     desktop width, or a long price ("1234.56") scrolls out of view in the field.
+     If the row runs out of width the field wraps below its comparators, which is
+     fine on a bottom sheet — legibility matters more than the saved line here. */
+  .filter-input-numeric {
+    width: 7rem;
+  }
+
   .filter-color-btn {
     width: 40px;
     height: 40px;
@@ -145,7 +191,6 @@
     height: 20px;
   }
 
-  .filter-color-mode button,
   .filter-toggle-group button {
     padding: 8px 10px;
     font-size: 0.75rem;

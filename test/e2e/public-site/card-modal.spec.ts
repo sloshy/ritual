@@ -36,6 +36,24 @@ test.describe('Card detail modal', () => {
     await expect(page.locator('.modal-printings-view')).toHaveCount(0)
     await expect(page.getByRole('button', { name: /Other Printings/ })).toBeVisible()
   })
+
+  // The modal keeps its content mounted while it fades out, so the panel has
+  // something to animate rather than emptying mid-flight. That hold runs on a
+  // timer, so what's worth pinning is that it always ends: were it to stick, the
+  // modal's markup would stay in the DOM and leak into page-wide queries.
+  test('closing tears the modal content down once the fade-out ends', async ({ page }) => {
+    await page.locator('.card-item').first().locator('.card-binder').click()
+    await expect(page.locator('.card-modal')).toBeVisible({ timeout: 5000 })
+    // `.card-modal` is the panel itself and always exists, so assert on content
+    // rendered inside it — that is what the mount gate controls.
+    const body = page.locator('.card-modal-details')
+    await expect(body).toBeVisible()
+
+    await page.locator('.modal-close').click()
+    // Auto-retries past the exit animation; the content must leave the DOM, not
+    // merely stop being visible.
+    await expect(body).toHaveCount(0)
+  })
 })
 
 test.describe('Card detail modal — tags', () => {

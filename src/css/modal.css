@@ -23,35 +23,45 @@
   overflow: visible;
 }
 
-.modal-shell[open] {
-  display: flex;
+/* Layout is kept off the [open] selector as a safeguard: the element stays open
+   throughout its exit, but tying placement to [open] is what previously made the
+   panel jump out of position the instant a close began. */
+.modal-shell {
   justify-content: center;
 }
 
-.modal-shell--center[open] {
+.modal-shell--center {
   align-items: center;
 }
 
-.modal-shell--top[open] {
+.modal-shell--top {
   align-items: flex-start;
   padding-top: 10vh;
 }
 
-/* Backdrop scrim with an entrance/exit fade. `allow-discrete` + @starting-style
-   let the native dialog animate out even though it leaves the top layer at once. */
+.modal-shell[open] {
+  display: flex;
+}
+
+/* Backdrop scrim. It fades in from @starting-style, and back out when the shell
+   picks up `is-closing` — which useDialogModal holds on the element while it is
+   still `[open]`, so the fade is an ordinary transition rather than something
+   that has to outlive the element leaving the top layer. */
 .modal-shell::backdrop,
 .sheet-shell::backdrop {
   background: var(--modal-backdrop);
   opacity: 0;
-  transition:
-    opacity 0.15s ease,
-    display 0.15s allow-discrete,
-    overlay 0.15s allow-discrete;
+  transition: opacity 0.15s ease;
 }
 
 .modal-shell[open]::backdrop,
 .sheet-shell[open]::backdrop {
   opacity: 1;
+}
+
+.modal-shell.is-closing::backdrop,
+.sheet-shell.is-closing::backdrop {
+  opacity: 0;
 }
 
 @starting-style {
@@ -77,14 +87,18 @@
   transform: translateY(0.5rem) scale(0.98);
   transition:
     opacity 0.15s ease,
-    transform 0.15s ease,
-    display 0.15s allow-discrete,
-    overlay 0.15s allow-discrete;
+    transform 0.15s ease;
 }
 
 .modal-shell[open] .modal-panel {
   opacity: 1;
   transform: translateY(0) scale(1);
+}
+
+/* Reverses the entrance while the element is still open — see useDialogModal. */
+.modal-shell.is-closing .modal-panel {
+  opacity: 0;
+  transform: translateY(0.5rem) scale(0.98);
 }
 
 @starting-style {
@@ -130,10 +144,16 @@
    The shell and backdrop rules are shared with .modal-shell above; only the
    bottom-anchored layout and the panel's slide-up entrance live here. */
 
-.sheet-shell[open] {
-  display: flex;
+/* As with .modal-shell above, the bottom anchoring must not be gated on [open]
+   or the panel snaps to the top of the viewport the moment it starts closing,
+   and then slides down from there instead of from where it sat. */
+.sheet-shell {
   flex-direction: column;
   justify-content: flex-end;
+}
+
+.sheet-shell[open] {
+  display: flex;
 }
 
 .sheet-panel {
@@ -148,14 +168,16 @@
   box-shadow: var(--modal-shadow);
   overflow: hidden;
   transform: translateY(100%);
-  transition:
-    transform 0.2s ease,
-    display 0.2s allow-discrete,
-    overlay 0.2s allow-discrete;
+  transition: transform 0.2s ease;
 }
 
 .sheet-shell[open] .sheet-panel {
   transform: translateY(0);
+}
+
+/* Slides back down while the element is still open — see useDialogModal. */
+.sheet-shell.is-closing .sheet-panel {
+  transform: translateY(100%);
 }
 
 @starting-style {
@@ -264,8 +286,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .modal-shell,
   .modal-shell::backdrop,
   .modal-panel,
+  .sheet-shell,
   .sheet-shell::backdrop,
   .sheet-panel {
     transition: none;

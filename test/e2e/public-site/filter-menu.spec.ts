@@ -49,18 +49,60 @@ test.describe('Toolbar Filters menu', () => {
     await expectVisibleCards(page, ALL_CARDS)
   })
 
-  test('color identity filter is exclusive by default and subset-matches when inclusive', async ({
+  test('color identity filter subset-matches by default and covers all four modes', async ({
     page,
   }) => {
     await openFilterMenu(page)
     await page.locator('.filter-color-btn[title="Black"]').click()
     await page.locator('.filter-color-btn[title="Green"]').click()
+    const colorMode = page.getByRole('group', { name: 'Color match mode' })
 
-    // Exclusive: only the card whose identity is exactly {B, G}
+    // Subset (default): everything playable in a B/G deck (subsets of {B, G}, incl. colorless)
+    await expectVisibleCards(page, ['Boring Rock', 'Golgari Lord', 'Green Elf', 'Test Forest'])
+
+    // Include: anything using black or green — so colorless Boring Rock drops out
+    await colorMode.getByRole('button', { name: 'Include' }).click()
+    await expectVisibleCards(page, ['Golgari Lord', 'Green Elf', 'Test Forest'])
+
+    // Exact: only the card whose identity is exactly {B, G}
+    await colorMode.getByRole('button', { name: 'Exact' }).click()
     await expectVisibleCards(page, ['Golgari Lord'])
 
-    // Inclusive: everything playable in a B/G deck (subsets of {B, G}, including colorless)
-    await page.getByRole('button', { name: 'Inclusive' }).click()
+    // Exclude: everything using neither black nor green (colorless included)
+    await colorMode.getByRole('button', { name: 'Exclude' }).click()
+    await expectVisibleCards(page, ['Boring Rock', 'Maybe Dragon', 'White Knight'])
+  })
+
+  test('the colorless swatch selects cards with no color identity', async ({ page }) => {
+    await openFilterMenu(page)
+    // 'Boring Rock' is the only card with an empty color identity.
+    await page.locator('.filter-color-btn[title="Colorless"]').click()
+    await expectVisibleCards(page, ['Boring Rock'])
+
+    // Exclude inverts it to everything that has a color.
+    await page
+      .getByRole('group', { name: 'Color match mode' })
+      .getByRole('button', { name: 'Exclude' })
+      .click()
+    await expectVisibleCards(
+      page,
+      ALL_CARDS.filter((c) => c !== 'Boring Rock'),
+    )
+
+    // Deselecting clears the filter rather than leaving an empty selection applied.
+    await page.locator('.filter-color-btn[title="Colorless"]').click()
+    await expectVisibleCards(page, ALL_CARDS)
+  })
+
+  test('colorless combines with a color under include', async ({ page }) => {
+    await openFilterMenu(page)
+    await page.locator('.filter-color-btn[title="Green"]').click()
+    await page.locator('.filter-color-btn[title="Colorless"]').click()
+    await page
+      .getByRole('group', { name: 'Color match mode' })
+      .getByRole('button', { name: 'Include' })
+      .click()
+    // Everything green, plus the colorless card.
     await expectVisibleCards(page, ['Boring Rock', 'Golgari Lord', 'Green Elf', 'Test Forest'])
   })
 
@@ -84,7 +126,7 @@ test.describe('Toolbar Filters menu', () => {
     await expectVisibleCards(page, ['Boring Rock', 'Green Elf'])
 
     await page
-      .getByRole('group', { name: 'Set filter mode' })
+      .getByRole('group', { name: 'Set match mode' })
       .getByRole('button', { name: 'Exclude' })
       .click()
     await expectVisibleCards(
@@ -119,7 +161,7 @@ test.describe('Toolbar Filters menu', () => {
     await expectVisibleCards(page, ['Boring Rock'])
 
     await page
-      .getByRole('group', { name: 'Card type filter mode' })
+      .getByRole('group', { name: 'Card type match mode' })
       .getByRole('button', { name: 'Exclude' })
       .click()
     await expectVisibleCards(page, [
@@ -135,7 +177,7 @@ test.describe('Toolbar Filters menu', () => {
     await expectVisibleCards(page, ALL_CARDS)
   })
 
-  test('card type Any/All logic combines a type and a subtype tag', async ({ page }) => {
+  test('card type match mode combines a type and a subtype tag', async ({ page }) => {
     await openFilterMenu(page)
     // 'Green Elf' is Elf Druid; 'Golgari Lord' is Zombie Elf (Elf but not Druid).
     await page.locator('#filter-types').fill('elf ')
@@ -144,15 +186,15 @@ test.describe('Toolbar Filters menu', () => {
     await page.locator('#filter-types').fill('druid ')
     await expect(page.locator('.filter-tag').filter({ hasText: 'Druid' })).toBeVisible()
 
-    // Any (default): Elf OR Druid
-    await expectVisibleCards(page, ['Golgari Lord', 'Green Elf'])
-
-    // All: Elf AND Druid
-    await page
-      .getByRole('group', { name: 'Card type match logic' })
-      .getByRole('button', { name: 'All', exact: true })
-      .click()
+    // Exact (default): Elf AND Druid
     await expectVisibleCards(page, ['Green Elf'])
+
+    // Include: Elf OR Druid
+    await page
+      .getByRole('group', { name: 'Card type match mode' })
+      .getByRole('button', { name: 'Include' })
+      .click()
+    await expectVisibleCards(page, ['Golgari Lord', 'Green Elf'])
   })
 
   test('card type autocomplete suggests tags from the list and adds one on click', async ({
@@ -224,13 +266,13 @@ test.describe('Toolbar Filters menu', () => {
     await expectVisibleCards(page, ['Golgari Lord', 'White Knight'])
 
     await page
-      .getByRole('group', { name: 'Oracle Tags filter mode' })
+      .getByRole('group', { name: 'Oracle Tags match mode' })
       .getByRole('button', { name: 'Exclude' })
       .click()
     await expectVisibleCards(page, ['Boring Rock', 'Green Elf', 'Maybe Dragon', 'Test Forest'])
   })
 
-  test('oracle tag Any/All logic combines two tags', async ({ page }) => {
+  test('oracle tag match mode combines two tags', async ({ page }) => {
     await openFilterMenu(page)
     // Golgari Lord has both 'removal' and 'ramp'; White Knight only 'removal'; Green Elf only 'ramp'.
     await page.locator('#filter-oracle-tags').fill('removal ')
@@ -238,15 +280,15 @@ test.describe('Toolbar Filters menu', () => {
     await page.locator('#filter-oracle-tags').fill('ramp ')
     await expect(page.locator('.filter-tag').filter({ hasText: 'Ramp' })).toBeVisible()
 
-    // Any (default): removal OR ramp
-    await expectVisibleCards(page, ['Golgari Lord', 'Green Elf', 'White Knight'])
-
-    // All: removal AND ramp
-    await page
-      .getByRole('group', { name: 'Oracle Tags match logic' })
-      .getByRole('button', { name: 'All', exact: true })
-      .click()
+    // Exact (default): removal AND ramp
     await expectVisibleCards(page, ['Golgari Lord'])
+
+    // Include: removal OR ramp
+    await page
+      .getByRole('group', { name: 'Oracle Tags match mode' })
+      .getByRole('button', { name: 'Include' })
+      .click()
+    await expectVisibleCards(page, ['Golgari Lord', 'Green Elf', 'White Knight'])
   })
 
   test('art tag filter matches a printing’s artwork independently of oracle tags', async ({
@@ -262,7 +304,7 @@ test.describe('Toolbar Filters menu', () => {
 
     // Exclude inverts: every card except the dragon survives.
     await page
-      .getByRole('group', { name: 'Art Tags filter mode' })
+      .getByRole('group', { name: 'Art Tags match mode' })
       .getByRole('button', { name: 'Exclude' })
       .click()
     await expectVisibleCards(
@@ -407,18 +449,24 @@ test.describe('Toolbar Filters menu', () => {
     await expectVisibleCards(page, ALL_CARDS)
   })
 
-  test('Filters button shows an active-count badge and Clear all resets everything', async ({
+  test('Filters button shows an active-count badge and Clear resets everything', async ({
     page,
   }) => {
     await openFilterMenu(page)
+    const clear = page.getByRole('button', { name: 'Clear', exact: true })
+    // Nothing active yet, so Clear is present but inert.
+    await expect(clear).toBeDisabled()
+
     await page.locator('#filter-name').fill('green')
     await page.locator('.filter-color-btn[title="Green"]').click()
 
     await expect(page.locator('.filter-menu-badge')).toHaveText('2')
     await expectVisibleCards(page, ['Green Elf'])
 
-    await page.getByRole('button', { name: 'Clear all filters' }).click()
+    await expect(clear).toBeEnabled()
+    await clear.click()
     await expect(page.locator('.filter-menu-badge')).not.toBeVisible()
+    await expect(clear).toBeDisabled()
     await expectVisibleCards(page, ALL_CARDS)
   })
 
