@@ -644,6 +644,17 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
               onKeyDown={handleSearchKeyDown}
             />
           </div>
+          <Show when={props.search.sourceNote}>
+            {(note) => (
+              <p class="search-source-note">
+                {note().prefix}
+                <a href={note().linkUrl} target="_blank" rel="noopener noreferrer">
+                  {note().linkText}
+                </a>
+                {note().suffix}
+              </p>
+            )}
+          </Show>
           <div
             class="search-modal-body"
             onMouseLeave={() => {

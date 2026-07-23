@@ -60,8 +60,8 @@ export function matchesNameTerms(normalizedName: string, terms: string[]): boole
  *
  * This is what makes a query like `in tre` usable — typing the start of each word is
  * how people search, so those names are the ones {@link rankNameMatches} floats to the
- * top, and the public site uses it to tell whether Scryfall's own autocomplete already
- * answered a multi-term query (see `site/scryfall-search.ts`).
+ * top when the local card cache is searched (the CLI prompts and the admin API's
+ * autocomplete).
  */
 export function matchesNameWordPrefixes(normalizedName: string, terms: string[]): boolean {
   const words = normalizedName.split(' ')

@@ -130,6 +130,10 @@ test.describe('Admin Editor — keyboard navigation', () => {
     await page.keyboard.press('Control+Enter')
     await expect(page.locator('.search-modal input[type="text"]')).toBeVisible({ timeout: 5_000 })
 
+    // The Scryfall-backend note is public-site-only; the admin search runs on
+    // the local cache and shows no attribution.
+    await expect(page.locator('.search-source-note')).toHaveCount(0)
+
     // Page-level shortcuts are suppressed while a dialog is open: Ctrl+B must
     // not pull focus out of the modal and into the bar behind it.
     await page.keyboard.press('Control+b')

@@ -78,55 +78,16 @@ describe('autocompleteCardNames', () => {
     expect(await autocompleteCardNames('!!')).toEqual([])
   })
 
-  describe('term matching Scryfall cannot do', () => {
-    // Scryfall matches an autocomplete query as one contiguous string: "in tre"
-    // reaches "Intrepid Ace" but never "In the Trenches", which every other Ritual
-    // surface finds. The widening search is how the public site catches up.
+  test('asks a multi-term query as-is — one request, Scryfall order kept', async () => {
+    // The admin editor and CLI apply term matching over the local cache (`in
+    // tre` finds "In the Trenches"); the public site deliberately surfaces
+    // Scryfall's own contiguous-string results instead of widening the query
+    // with extra requests. The search dialog discloses the difference.
     const contiguousOnly = ['Intrepid Ace', 'Kin-Tree Warden']
-    const trenches = makeScryfallCard({ id: 'trenches', name: 'In the Trenches' })
+    const requests = stubScryfall({ autocomplete: () => contiguousOnly })
 
-    test('widens a multi-term query whose terms only matched mid-word', async () => {
-      const requests = stubScryfall({
-        autocomplete: () => contiguousOnly,
-        search: () => cardList(trenches),
-      })
-
-      expect(await autocompleteCardNames('in tre')).toEqual(['In the Trenches', ...contiguousOnly])
-      // One `name:` clause per term, ANDed by Scryfall.
-      expect(new URL(requests[1]!.url).searchParams.get('q')).toBe('name:in name:tre')
-    })
-
-    test('a suggestion that already begins its words with the terms needs no widening', async () => {
-      const requests = stubScryfall({ autocomplete: () => ['Lightning Bolt'] })
-
-      expect(await autocompleteCardNames('ligh bo')).toEqual(['Lightning Bolt'])
-      expect(requests).toHaveLength(1)
-    })
-
-    test('a single-term query is never widened', async () => {
-      // One term is already a contiguous string, so Scryfall cannot have missed it.
-      const requests = stubScryfall({ autocomplete: () => contiguousOnly })
-
-      expect(await autocompleteCardNames('intre')).toEqual(contiguousOnly)
-      expect(requests).toHaveLength(1)
-    })
-
-    test('a failed widening keeps the suggestions Scryfall did offer', async () => {
-      // The search endpoint 404s when nothing matches, and may simply be down.
-      stubScryfall({ autocomplete: () => contiguousOnly })
-      expect(await autocompleteCardNames('in tre')).toEqual(contiguousOnly)
-    })
-
-    test('widened results are deduplicated against the suggestions', async () => {
-      const ace = makeScryfallCard({ id: 'ace', name: 'Intrepid Ace' })
-      stubScryfall({ autocomplete: () => contiguousOnly, search: () => cardList(trenches, ace) })
-
-      expect(await autocompleteCardNames('in tre')).toEqual([
-        'In the Trenches',
-        'Intrepid Ace',
-        'Kin-Tree Warden',
-      ])
-    })
+    expect(await autocompleteCardNames('in tre')).toEqual(contiguousOnly)
+    expect(requests).toHaveLength(1)
   })
 })
 

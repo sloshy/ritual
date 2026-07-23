@@ -331,6 +331,19 @@
   color: var(--text-secondary);
 }
 
+/* Subtle search-backend attribution under the search box (Scryfall-backed
+   providers only — the public editor's results differ from the admin's). */
+.search-source-note {
+  padding: 4px 16px 0;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+}
+
+.search-source-note a {
+  color: inherit;
+  text-decoration: underline;
+}
+
 .search-result-item {
   display: flex;
   align-items: center;

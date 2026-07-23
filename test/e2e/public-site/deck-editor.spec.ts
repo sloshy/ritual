@@ -43,6 +43,21 @@ test.describe('Public deck editor', () => {
     await expect(editBtn).toContainText('Edit')
   })
 
+  test('add-card search discloses its Scryfall backend', async ({ page }) => {
+    // The public editor searches Scryfall directly (contiguous-string matching)
+    // rather than the admin's local-cache term matching, so its search step
+    // carries a subtle note linking to the Scryfall API docs.
+    await enterEditMode(page)
+    await page.locator('.btn-add').click()
+
+    const note = page.locator('.search-source-note')
+    await expect(note).toContainText('results may differ from the admin editor')
+    await expect(note.locator('a')).toHaveAttribute(
+      'href',
+      'https://scryfall.com/docs/api/cards/autocomplete',
+    )
+  })
+
   test('edits a local copy, toggles original/edited, and exports', async ({ page }) => {
     // Published view: Edit button shown (enabled on a list), no edit banner yet.
     await expect(page.locator('.btn-edit')).toBeVisible()

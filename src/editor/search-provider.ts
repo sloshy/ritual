@@ -1,6 +1,19 @@
 import type { ScryfallCard } from '../types'
 
 /**
+ * A subtle attribution note about where a provider's searches go, rendered by
+ * the search UI as `{prefix}<a href={linkUrl}>{linkText}</a>{suffix}`. Present
+ * on providers whose backend (and therefore result set) differs from the local
+ * card cache the other editors search.
+ */
+export type SearchSourceNote = {
+  prefix: string
+  linkText: string
+  linkUrl: string
+  suffix: string
+}
+
+/**
  * Pluggable card-search backend for {@link CardSearchModal}. The admin editor
  * resolves searches against its own API (which is backed by the local Scryfall
  * cache); the public site resolves them directly against Scryfall. Both return
@@ -11,6 +24,8 @@ export type SearchProvider = {
   autocomplete: (query: string) => Promise<string[]>
   /** All printings of an exact card name, newest first. */
   printings: (cardName: string) => Promise<ScryfallCard[]>
+  /** Shown subtly in the search UI when the backend warrants a heads-up. */
+  sourceNote?: SearchSourceNote
 }
 
 type AutocompleteResponse = { success: boolean; names: string[] }

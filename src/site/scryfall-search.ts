@@ -1,11 +1,6 @@
 import type { ScryfallCard, ScryfallList } from '../types'
 import { getPrintingsByName, putFetchedPrintings } from './session-cache'
-import {
-  matchesNameWordPrefixes,
-  normalizeCardName,
-  rankNameMatches,
-  splitNameTerms,
-} from '../term-match'
+import { promoteFullNameMatches } from '../term-match'
 
 /**
  * The public site's browser-side Scryfall client. The site is serverless, so its
@@ -35,19 +30,22 @@ export type ScryfallRequestOptions = {
   signal?: AbortSignal
 }
 
-/** How many suggestions the search boxes are offered, matching the admin API's cap. */
-const MAX_SUGGESTIONS = 20
-
 /** Whether a caught error is a `fetch` cancelled through its {@link AbortSignal}. */
 export function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError'
 }
 
 /**
- * Autocomplete card names for a partial query, ordered by {@link rankNameMatches}
- * so the same typing surfaces the same cards here as in the CLI and admin site.
- * Scryfall ranks its own suggestions by popularity, which becomes the tiebreak
- * between equally good matches.
+ * Autocomplete card names for a partial query, asked of Scryfall as-is.
+ *
+ * Deliberately NOT the term matching the CLI and admin editor apply (`in tre`
+ * finding "In the Trenches") — that semantic belongs to searches over the local
+ * card cache, while Scryfall's autocomplete matches the query as one contiguous
+ * string. The public site surfaces Scryfall's own results rather than
+ * approximating the local semantics with extra requests, and its search UI says
+ * so (see the Scryfall provider's `sourceNote`). Scryfall ranks its suggestions
+ * by popularity, so a name the query already spells out in full is floated to
+ * the top (see {@link promoteFullNameMatches}).
  */
 export async function autocompleteCardNames(
   query: string,
@@ -57,45 +55,7 @@ export async function autocompleteCardNames(
   const resp = await fetch(url, options)
   if (!resp.ok) return []
   const data = (await resp.json()) as ScryfallAutocompleteResponse
-  const suggestions = await widenToTermMatches(query, data.data ?? [], options)
-  return rankNameMatches(suggestions, query, (name) => name).slice(0, MAX_SUGGESTIONS)
-}
-
-/**
- * Add the term matches Scryfall's autocomplete cannot reach.
- *
- * Scryfall matches an autocomplete query as one contiguous string, so `in tre`
- * offers "Intrepid Ace" and never "In the Trenches" — while every other Ritual
- * surface treats the terms separately and finds it. When none of Scryfall's
- * suggestions begin their words with the query's terms, the query is re-asked as
- * a `name:` search (one `name:` per term, which Scryfall ANDs) and those results
- * lead the suggestions it did offer.
- *
- * Only multi-term queries can miss this way — a single term is already a
- * contiguous string — so a one-word query never spends the extra request. Neither
- * does a query Scryfall answered well, which is the common case: `lightning bo`
- * needs no widening. A failed widening leaves the original suggestions alone; a
- * cancelled one propagates, like every other request here.
- */
-async function widenToTermMatches(
-  query: string,
-  suggestions: string[],
-  options: ScryfallRequestOptions,
-): Promise<string[]> {
-  const terms = splitNameTerms(query)
-  if (terms.length < 2) return suggestions
-  if (suggestions.some((name) => matchesNameWordPrefixes(normalizeCardName(name), terms))) {
-    return suggestions
-  }
-
-  const termQuery = terms.map((term) => `name:${term}`).join(' ')
-  const url = `${SCRYFALL_API}/cards/search?q=${encodeURIComponent(termQuery)}&unique=cards&order=edhrec`
-  const resp = await get(url, options)
-  if (!resp?.ok) return suggestions
-
-  const data = (await resp.json()) as ScryfallList<ScryfallCard>
-  const widened = (data.data ?? []).map((card) => card.name)
-  return [...new Set([...widened, ...suggestions])]
+  return promoteFullNameMatches(data.data ?? [], query, (name) => name)
 }
 
 /**
