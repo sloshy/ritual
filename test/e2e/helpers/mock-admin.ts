@@ -1,5 +1,6 @@
 import type { Page, Route } from '@playwright/test'
 import type { RitualConfig } from '../../../src/ritual-config'
+import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/editor/search-debounce'
 import { fulfillJson } from './fulfill'
 import { MOCK_COLLECTION_DETAIL, MOCK_WANTED_LIST_DETAIL, makeMockScryfallCard } from './mock-cards'
 
@@ -72,6 +73,7 @@ export const MOCK_CONFIG = {
   defaultCurrency: 'eur',
   cacheLockTimeoutSeconds: 300,
   cacheSource: 'scryfall',
+  searchDebounceMs: DEFAULT_SEARCH_DEBOUNCE_MS,
   admin: {
     gitEnabled: false,
     gitAutoCommit: false,

@@ -6,6 +6,7 @@ import { mockConfigApi, mockTotpApi, MOCK_CONFIG } from '../helpers/mock-admin'
 type ConfigPutBody = {
   cacheSource?: string
   cacheFeedUrl?: string
+  searchDebounceMs?: number
   admin?: {
     gitEnabled?: boolean
     gitAutoCommit?: boolean
@@ -46,6 +47,22 @@ test.describe('Settings Page', () => {
     )
     await expect(main.locator('select[name="cacheSource"]')).toHaveValue(MOCK_CONFIG.cacheSource)
     await expect(main.locator('input[name="cacheFeedUrl"]')).toHaveValue('')
+    await expect(main.locator('input[name="searchDebounceMs"]')).toHaveValue(
+      String(MOCK_CONFIG.searchDebounceMs),
+    )
+  })
+
+  test('editing the search debounce persists the new value', async ({ page }) => {
+    const main = page.locator('main')
+    await main.locator('input[name="searchDebounceMs"]').fill('250')
+
+    const requestPromise = page.waitForRequest(
+      (req) => req.url().includes('/api/config') && req.method() === 'PUT',
+    )
+    await main.locator('button:has-text("Save")').click()
+    const request = await requestPromise
+    const body = JSON.parse(request.postData() ?? '{}') as ConfigPutBody
+    expect(body.searchDebounceMs).toBe(250)
   })
 
   test('public-site include lists default to the wildcard and exclude lists are empty', async ({

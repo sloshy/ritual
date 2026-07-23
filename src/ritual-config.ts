@@ -11,6 +11,7 @@ import { isValidSemver } from './semver'
 import { DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS } from './cache/constants'
 import { INCLUDE_ALL, defaultSiteSelection, type SiteSelectionConfig } from './site/list-selection'
 import { parseExportPresets, type ExportPreset } from './export/presets'
+import { DEFAULT_SEARCH_DEBOUNCE_MS } from './editor/search-debounce'
 
 export { INCLUDE_ALL } from './site/list-selection'
 export type { SiteSelectionConfig } from './site/list-selection'
@@ -100,6 +101,13 @@ export interface RitualConfig {
   cacheSource: CacheSource
   /** Cache feed URL used when `cacheSource` is 'feed'; the built-in default when absent. */
   cacheFeedUrl?: string
+  /**
+   * How long (ms) the web editors' add-card search waits after a keystroke
+   * before firing an autocomplete request. Applies to the admin editors at
+   * runtime and is baked into the public site at build time. `0` disables the
+   * debounce entirely. Always present, defaulting to 500.
+   */
+  searchDebounceMs: number
   /** Admin-server settings; always present, defaulting to {@link DEFAULT_ADMIN_CONFIG}. */
   admin: AdminConfig
   /** Present only when `ritual init-site` has been run; managed exclusively by that command. */
@@ -139,6 +147,7 @@ const DEFAULT_CONFIG = {
   defaultCurrency: DEFAULT_CURRENCY,
   cacheLockTimeoutSeconds: DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS,
   cacheSource: 'scryfall',
+  searchDebounceMs: DEFAULT_SEARCH_DEBOUNCE_MS,
 } satisfies Omit<RitualConfig, 'admin' | 'site' | 'cacheFeedUrl'>
 
 const CONFIG_FILENAME = 'ritual.config.json'
@@ -538,6 +547,19 @@ export function parseCacheLockTimeoutSeconds(value: unknown): number | ConfigPar
 }
 
 /**
+ * Parse a `searchDebounceMs` value. Returns the number when it is a
+ * non-negative integer (0 disables the debounce), the default when absent, or
+ * a parse error when malformed.
+ */
+export function parseSearchDebounceMs(value: unknown): number | ConfigParseError {
+  if (value === undefined) return DEFAULT_SEARCH_DEBOUNCE_MS
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+    return { error: '"searchDebounceMs" must be a non-negative integer' }
+  }
+  return value
+}
+
+/**
  * Parse a `cacheSource` value. Returns the source when valid, the default
  * when absent, or a parse error when malformed.
  */
@@ -567,45 +589,51 @@ export function parseCacheFeedUrl(value: unknown): string | ConfigParseError {
   return { error: '"cacheFeedUrl" must be an http(s) URL' }
 }
 
+/**
+ * Collapse a parser result to its value, or warn and return `fallback` when it
+ * is the error branch. The load path never fails on a bad field — it logs and
+ * continues with the field's default.
+ */
+function parseOrWarn<T>(parsed: T | ConfigParseError, fieldLabel: string, fallback: T): T {
+  if (isConfigParseError(parsed)) {
+    console.warn(`ritual.config.json: ignoring invalid ${fieldLabel} — ${parsed.error}`)
+    return fallback
+  }
+  return parsed
+}
+
 function applyDefaults(parsed: ParsedConfig): RitualConfig {
-  const admin = parseAdminConfig(parsed.admin)
-  if (isConfigParseError(admin)) {
-    console.warn(`ritual.config.json: ignoring invalid admin config — ${admin.error}`)
-  }
-  const defaultCurrency = parseDefaultCurrency(parsed.defaultCurrency)
-  if (isConfigParseError(defaultCurrency)) {
-    console.warn(`ritual.config.json: ignoring invalid defaultCurrency — ${defaultCurrency.error}`)
-  }
-  const cacheLockTimeoutSeconds = parseCacheLockTimeoutSeconds(parsed.cacheLockTimeoutSeconds)
-  if (isConfigParseError(cacheLockTimeoutSeconds)) {
-    console.warn(
-      `ritual.config.json: ignoring invalid cacheLockTimeoutSeconds — ${cacheLockTimeoutSeconds.error}`,
-    )
-  }
-  const cacheSource = parseCacheSource(parsed.cacheSource)
-  if (isConfigParseError(cacheSource)) {
-    console.warn(`ritual.config.json: ignoring invalid cacheSource — ${cacheSource.error}`)
-  }
-  // Absence means "use the built-in default", so only parse when present.
-  let cacheFeedUrl: string | undefined
-  if (parsed.cacheFeedUrl !== undefined) {
-    const parsedFeedUrl = parseCacheFeedUrl(parsed.cacheFeedUrl)
-    if (isConfigParseError(parsedFeedUrl)) {
-      console.warn(`ritual.config.json: ignoring invalid cacheFeedUrl — ${parsedFeedUrl.error}`)
-    } else {
-      cacheFeedUrl = parsedFeedUrl
-    }
-  }
+  // Absence means "use the built-in default", so cacheFeedUrl only parses when
+  // present; a malformed value falls back to absent.
+  const cacheFeedUrl =
+    parsed.cacheFeedUrl !== undefined
+      ? parseOrWarn<string | undefined>(
+          parseCacheFeedUrl(parsed.cacheFeedUrl),
+          'cacheFeedUrl',
+          undefined,
+        )
+      : undefined
   const merged: RitualConfig = {
     decksDir: parsed.decksDir ?? DEFAULT_CONFIG.decksDir,
     collectionsDir: parsed.collectionsDir ?? DEFAULT_CONFIG.collectionsDir,
     wantedDir: parsed.wantedDir ?? DEFAULT_CONFIG.wantedDir,
-    defaultCurrency: isConfigParseError(defaultCurrency) ? DEFAULT_CURRENCY : defaultCurrency,
-    cacheLockTimeoutSeconds: isConfigParseError(cacheLockTimeoutSeconds)
-      ? DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS
-      : cacheLockTimeoutSeconds,
-    cacheSource: isConfigParseError(cacheSource) ? 'scryfall' : cacheSource,
-    admin: isConfigParseError(admin) ? { ...DEFAULT_ADMIN_CONFIG } : admin,
+    defaultCurrency: parseOrWarn(
+      parseDefaultCurrency(parsed.defaultCurrency),
+      'defaultCurrency',
+      DEFAULT_CURRENCY,
+    ),
+    cacheLockTimeoutSeconds: parseOrWarn(
+      parseCacheLockTimeoutSeconds(parsed.cacheLockTimeoutSeconds),
+      'cacheLockTimeoutSeconds',
+      DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS,
+    ),
+    cacheSource: parseOrWarn(parseCacheSource(parsed.cacheSource), 'cacheSource', 'scryfall'),
+    searchDebounceMs: parseOrWarn(
+      parseSearchDebounceMs(parsed.searchDebounceMs),
+      'searchDebounceMs',
+      DEFAULT_SEARCH_DEBOUNCE_MS,
+    ),
+    admin: parseOrWarn(parseAdminConfig(parsed.admin), 'admin config', { ...DEFAULT_ADMIN_CONFIG }),
   }
   if (cacheFeedUrl !== undefined) {
     merged.cacheFeedUrl = cacheFeedUrl
@@ -737,6 +765,11 @@ export function getCacheLockTimeoutSeconds(config: RitualConfig = getRitualConfi
 /** Where card-cache refreshes download from ('scryfall' unless overridden). */
 export function getCacheSource(config: RitualConfig = getRitualConfig()): CacheSource {
   return config.cacheSource
+}
+
+/** The web editors' add-card search debounce in ms (500 unless overridden). */
+export function getSearchDebounceMs(config: RitualConfig = getRitualConfig()): number {
+  return config.searchDebounceMs
 }
 
 /** The configured cache feed URL, or undefined to use the built-in default. */

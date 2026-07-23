@@ -3,6 +3,7 @@ import type { AdminConfig, CacheSource, RitualConfig } from '../../../ritual-con
 // Value imports here must stay browser-safe: ritual-config pulls in node:fs,
 // so only its types may be imported into the admin SPA bundle.
 import { DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS } from '../../../cache/constants'
+import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../editor/search-debounce'
 import type { PriceCurrency } from '../../../price-currency'
 import {
   INCLUDE_ALL,
@@ -208,6 +209,30 @@ export function Settings(): JSX.Element {
                 )
               }
             />
+          </div>
+          <div>
+            <label class="form-label">Card Search Debounce (ms)</label>
+            <input
+              type="number"
+              class="form-input"
+              name="searchDebounceMs"
+              min={0}
+              step={100}
+              placeholder="e.g. 500"
+              value={config()!.searchDebounceMs}
+              onInput={(e) => {
+                const n = parseInt(e.currentTarget.value, 10)
+                updateField(
+                  'searchDebounceMs',
+                  Number.isFinite(n) && n >= 0 ? n : DEFAULT_SEARCH_DEBOUNCE_MS,
+                )
+              }}
+            />
+            <p class="form-hint form-hint-top">
+              How long the editors' add-card search waits after a keystroke before querying
+              autocomplete. 0 disables the debounce. Applies to the public site the next time it is
+              built.
+            </p>
           </div>
 
           {/* Git settings */}

@@ -210,6 +210,7 @@ Configure admin settings including:
 - **Cache Lock Timeout**: seconds a cache refresh waits for another process's cache-write lock before failing (default: `300`; see [Configuration](/configuration/#cache-lock-timeout))
 - **Cache Source**: where cache refreshes download from — Scryfall directly or a peer-to-peer cache feed (default: `scryfall`; see [Configuration](/configuration/#cache-source))
 - **Cache Feed URL**: the feed URL used when the cache source is the feed (empty = the built-in default)
+- **Card Search Debounce**: milliseconds the editors' add-card search waits after a keystroke before querying autocomplete; `0` disables the debounce (default: `500`; see [Configuration](/configuration/#search-debounce))
 - **Git Integration**: enable/disable git auto-commit
 - **Two-Factor Authentication (TOTP)**: set up or disable TOTP 2FA
 - **Rate Limiting**: configure failed login attempt limits and lockout duration
@@ -232,6 +233,7 @@ Settings are stored in `ritual.config.json` in the base directory. The file is s
   "defaultCurrency": "usd",
   "cacheLockTimeoutSeconds": 300,
   "cacheSource": "scryfall",
+  "searchDebounceMs": 500,
   "admin": {
     "gitEnabled": false,
     "gitAutoCommit": false,
@@ -803,6 +805,7 @@ Returns the current application configuration.
     "defaultCurrency": "usd",
     "cacheLockTimeoutSeconds": 300,
     "cacheSource": "scryfall",
+    "searchDebounceMs": 500,
     "admin": {
       "gitEnabled": false,
       "gitAutoCommit": false,
@@ -834,7 +837,7 @@ Every key in the request body is validated **before** the merge is persisted —
 - Unknown keys inside `admin` are rejected with a `400` (`Unknown admin config key "x"`), matching `config set admin.<field>`.
 - When `admin` or `site` is present, its fields are validated field-by-field (the same rules the config loader applies), and any malformed field rejects the whole update with a `400`.
 
-`defaultCurrency`, `cacheLockTimeoutSeconds`, `cacheSource`, and `cacheFeedUrl` are validated the same way as [`config set`](/commands/config/) and rejected with a `400` when malformed. `cacheFeedUrl` has one extra rule: sending it as an **empty string** explicitly clears a previously-set override (falling back to the built-in default) — omitting the field entirely, by contrast, leaves the current value untouched.
+`defaultCurrency`, `cacheLockTimeoutSeconds`, `cacheSource`, `cacheFeedUrl`, and `searchDebounceMs` are validated the same way as [`config set`](/commands/config/) and rejected with a `400` when malformed. `cacheFeedUrl` has one extra rule: sending it as an **empty string** explicitly clears a previously-set override (falling back to the built-in default) — omitting the field entirely, by contrast, leaves the current value untouched.
 
 **Request body:**
 
@@ -859,6 +862,7 @@ Every key in the request body is validated **before** the merge is persisted —
     "defaultCurrency": "usd",
     "cacheLockTimeoutSeconds": 300,
     "cacheSource": "scryfall",
+    "searchDebounceMs": 500,
     "admin": {
       "gitEnabled": true,
       "gitAutoCommit": true,

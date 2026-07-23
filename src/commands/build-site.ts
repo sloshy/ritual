@@ -32,6 +32,7 @@ import {
   getDecksDir,
   getDefaultCurrency,
   getRitualConfig,
+  getSearchDebounceMs,
   getSiteSelectionConfig,
   getWantedDir,
 } from '../ritual-config'
@@ -1430,6 +1431,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     defaultCurrency,
     availableCurrencies,
     pricesDate,
+    searchDebounceMs: getSearchDebounceMs(),
   }
   await Bun.write(path.join(distDir, 'index.json'), JSON.stringify(siteIndex))
 

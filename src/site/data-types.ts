@@ -153,6 +153,8 @@ export interface SiteIndex {
   defaultCurrency: PriceCurrency
   availableCurrencies: PriceCurrency[]
   pricesDate?: string
+  /** The configured add-card search debounce (ms), baked in at build time. */
+  searchDebounceMs: number
 }
 
 export type TradeCardSource = 'collection' | 'deck' | 'wanted' | 'scryfall'

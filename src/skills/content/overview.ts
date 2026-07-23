@@ -126,6 +126,7 @@ ritual login status               # show the stored Archidekt login (exit 3 when
 ritual login logout               # remove the stored Archidekt session
 ritual config set <prop> <value>  # set a config value (dot notation for nested keys)
 ritual config set defaultCurrency eur  # currency price commands/displays default to (usd | eur | tix)
+ritual config set searchDebounceMs 250 # web editors' add-card search debounce in ms (0 disables)
 ritual config get <prop>          # read one value (exit 3 when unset)
 ritual config list                # print the full effective config (defaults marked)
 ritual config unset <prop>        # revert a value to its default

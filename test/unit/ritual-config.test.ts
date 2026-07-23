@@ -20,6 +20,7 @@ import {
   parseCacheLockTimeoutSeconds,
   parseCacheSource,
   parseDefaultCurrency,
+  parseSearchDebounceMs,
   parseSiteConfig,
   resetRitualConfigCache,
   saveRitualConfig,
@@ -87,6 +88,7 @@ describe('ritual config', () => {
       cacheLockTimeoutSeconds: 120,
       cacheSource: 'feed',
       cacheFeedUrl: 'https://feed.example/feed.json',
+      searchDebounceMs: 250,
       admin: {
         gitEnabled: true,
         gitAutoCommit: true,
@@ -134,14 +136,30 @@ describe('ritual config', () => {
     expect(config.admin.rateLimitMaxAttempts).toBe(5)
   })
 
-  test('defaultCurrency, cacheLockTimeoutSeconds, and cacheSource default when absent', async () => {
+  test('defaultCurrency, cacheLockTimeoutSeconds, cacheSource, and searchDebounceMs default when absent', async () => {
     await fs.writeFile(configPath, JSON.stringify({ decksDir: './d' }))
     const config = await loadRitualConfig()
     expect(config.defaultCurrency).toBe('usd')
     expect(config.cacheLockTimeoutSeconds).toBe(300)
     expect(config.cacheSource).toBe('scryfall')
     expect(config.cacheFeedUrl).toBeUndefined()
+    expect(config.searchDebounceMs).toBe(500)
   })
+
+  test('searchDebounceMs loads a valid value, allowing 0', async () => {
+    await fs.writeFile(configPath, JSON.stringify({ searchDebounceMs: 0 }))
+    const config = await loadRitualConfig()
+    expect(config.searchDebounceMs).toBe(0)
+  })
+
+  test.each([['-50'], ['2.5'], ['"fast"'], ['true']])(
+    'searchDebounceMs falls back to 500 when %s',
+    async (raw) => {
+      await fs.writeFile(configPath, `{ "searchDebounceMs": ${raw} }`)
+      const config = await loadRitualConfig()
+      expect(config.searchDebounceMs).toBe(500)
+    },
+  )
 
   test('defaultCurrency loads a valid value, normalizing case', async () => {
     await fs.writeFile(configPath, JSON.stringify({ defaultCurrency: 'EUR' }))
@@ -608,6 +626,12 @@ describe('config parser error shape', () => {
   test('parseCacheSource returns the source or a shared-shape error', () => {
     expect(parseCacheSource('feed')).toBe('feed')
     expectParseError(parseCacheSource('torrent'), 'cacheSource')
+  })
+
+  test('parseSearchDebounceMs returns the number or a shared-shape error', () => {
+    expect(parseSearchDebounceMs(250)).toBe(250)
+    expect(parseSearchDebounceMs(0)).toBe(0)
+    expectParseError(parseSearchDebounceMs(-1), 'non-negative integer')
   })
 
   test('parseCacheFeedUrl parses only present values — absence is the caller’s check', () => {

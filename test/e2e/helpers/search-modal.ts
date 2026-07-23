@@ -1,13 +1,14 @@
 import { type Page } from '@playwright/test'
-import type { SearchDebounceOverride } from '../../../src/editor/components/CardSearchModal'
+import type { SearchDebounceOverride } from '../../../src/editor/search-debounce'
 
 /**
  * Disable the card search autocomplete debounce for the page under test.
  *
  * `CardSearchModal` reads `window.__ritualSearchDebounceMs__` and otherwise
- * waits its default 1s before firing autocomplete. Forcing 0 removes the
- * wall-clock wait so search-result assertions don't race a real timer under
- * parallel load (the cause of intermittent failures).
+ * waits the configured/default debounce before firing autocomplete. Forcing 0
+ * removes the wall-clock wait so search-result assertions don't race a real
+ * timer under parallel load (the cause of intermittent failures). The override
+ * takes precedence over any configured `searchDebounceMs`.
  *
  * Must be called before the page navigates (the init script runs on each
  * document load). It re-fires on `page.reload()`, which is harmless: it only

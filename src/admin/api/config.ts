@@ -8,9 +8,11 @@ import {
   parseCacheLockTimeoutSeconds,
   parseCacheSource,
   parseDefaultCurrency,
+  parseSearchDebounceMs,
   parseSiteConfig,
   reloadRitualConfig,
   saveRitualConfig,
+  type ConfigParseError,
   type RitualConfig,
 } from '../../ritual-config'
 import { parseExportPresets } from '../../export/presets'
@@ -38,6 +40,7 @@ const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set(
     cacheLockTimeoutSeconds: true,
     cacheSource: true,
     cacheFeedUrl: true,
+    searchDebounceMs: true,
     admin: true,
     site: true,
     exportPresets: true,
@@ -52,6 +55,36 @@ const KNOWN_ADMIN_CONFIG_KEYS: ReadonlySet<string> = new Set(Object.keys(DEFAULT
 
 /** The directory keys, all plain (unconstrained) strings. */
 const DIRECTORY_CONFIG_KEYS = ['decksDir', 'collectionsDir', 'wantedDir'] as const
+
+/**
+ * The constrained scalar keys sharing one presence-check → parse → stage shape.
+ * `cacheFeedUrl` is deliberately not one of them: its empty-string-clears rule
+ * needs its own branch.
+ */
+type ScalarConfigKey =
+  | 'defaultCurrency'
+  | 'cacheLockTimeoutSeconds'
+  | 'cacheSource'
+  | 'searchDebounceMs'
+
+/**
+ * Validate one constrained scalar key of a PUT /api/config body and stage it
+ * into `updates`. Returns the parse error message when the value is malformed,
+ * or null when the key is absent or was staged successfully.
+ */
+function applyScalarUpdate<K extends ScalarConfigKey>(
+  raw: Record<string, unknown>,
+  updates: Partial<RitualConfig>,
+  key: K,
+  parse: (value: unknown) => RitualConfig[K] | ConfigParseError,
+): string | null {
+  const value = raw[key]
+  if (value === undefined) return null
+  const parsed = parse(value)
+  if (isConfigParseError(parsed)) return parsed.error
+  updates[key] = parsed
+  return null
+}
 
 function badRequest(message: string): Response {
   const resp: ConfigResponse = { success: false, message }
@@ -93,28 +126,16 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
       }
     }
 
-    if (raw.defaultCurrency !== undefined) {
-      const parsed = parseDefaultCurrency(raw.defaultCurrency)
-      if (isConfigParseError(parsed)) {
-        return badRequest(parsed.error)
-      }
-      updates.defaultCurrency = parsed
-    }
-
-    if (raw.cacheLockTimeoutSeconds !== undefined) {
-      const parsed = parseCacheLockTimeoutSeconds(raw.cacheLockTimeoutSeconds)
-      if (isConfigParseError(parsed)) {
-        return badRequest(parsed.error)
-      }
-      updates.cacheLockTimeoutSeconds = parsed
-    }
-
-    if (raw.cacheSource !== undefined) {
-      const parsed = parseCacheSource(raw.cacheSource)
-      if (isConfigParseError(parsed)) {
-        return badRequest(parsed.error)
-      }
-      updates.cacheSource = parsed
+    // Validate each present constrained scalar, rejecting on the first
+    // malformed value. `??` chains to the next key only while no error has
+    // been produced, so a bad update never half-applies.
+    const scalarError =
+      applyScalarUpdate(raw, updates, 'defaultCurrency', parseDefaultCurrency) ??
+      applyScalarUpdate(raw, updates, 'cacheLockTimeoutSeconds', parseCacheLockTimeoutSeconds) ??
+      applyScalarUpdate(raw, updates, 'cacheSource', parseCacheSource) ??
+      applyScalarUpdate(raw, updates, 'searchDebounceMs', parseSearchDebounceMs)
+    if (scalarError !== null) {
+      return badRequest(scalarError)
     }
 
     // An empty string clears the override (falls back to the built-in default);

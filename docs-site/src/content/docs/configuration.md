@@ -21,6 +21,7 @@ When you pass `--base-dir`, Ritual loads the config from that directory and reso
   "defaultCurrency": "usd",
   "cacheLockTimeoutSeconds": 300,
   "cacheSource": "scryfall",
+  "searchDebounceMs": 500,
   "admin": {
     "gitEnabled": false,
     "gitAutoCommit": false,
@@ -64,6 +65,12 @@ You can use absolute paths (`"/srv/mtg/decks"`) or paths that step outside the b
 | `cacheLockTimeoutSeconds` | `300`   | How long a cache-refreshing operation waits for another process's cache refresh to finish before failing. Refreshes take an exclusive lock (`cache/.ritual-cache-lock`) so concurrent processes — CLI commands, the [cache server](/commands/cache/#server), the [admin server](/commands/admin/) — never interleave writes to the cache. Must be a positive integer. |
 
 A waiting process breaks the lock immediately when its holder is provably no longer running (e.g. it crashed without cleaning up), so a stale lock never wedges the cache for longer than one acquisition attempt.
+
+## Search debounce
+
+| Field              | Default | Description                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `searchDebounceMs` | `500`   | How long (in milliseconds) the web editors' add-card search waits after a keystroke before firing an autocomplete request. Must be a non-negative integer; `0` disables the debounce. The admin editors pick the value up at runtime; the public site bakes it in on the next [build-site](/commands/build-site/). Also editable on the admin [Settings page](/commands/admin/). |
 
 ## Cache source
 

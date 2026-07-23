@@ -29,12 +29,15 @@ All subcommands accept the standard scripting options:
 | `cacheLockTimeoutSeconds` | `number` | `300`           |
 | `cacheSource`             | `string` | `scryfall`      |
 | `cacheFeedUrl`            | `string` | —               |
+| `searchDebounceMs`        | `number` | `500`           |
 
 `defaultCurrency` must be one of `usd`, `eur`, or `tix`; it sets the currency every price-touching command defaults to.
 
 `cacheLockTimeoutSeconds` is how long a cache-refreshing operation waits for another process's refresh to finish before failing — see [Configuration → Cache lock timeout](/configuration/#cache-lock-timeout).
 
 `cacheSource` must be `scryfall` or `feed`; `cacheFeedUrl` must be an http(s) URL. Together they route cache refreshes through a peer-to-peer [cache feed](/commands/cache/#feed-fetch) — see [Configuration → Cache source](/configuration/#cache-source).
+
+`searchDebounceMs` is how long the web editors' add-card search waits after a keystroke before querying autocomplete; a non-negative integer, where `0` disables the debounce — see [Configuration → Search debounce](/configuration/#search-debounce).
 
 The nested `admin` keys — settings for the [admin server](/commands/admin/) — use dot notation:
 

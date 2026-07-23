@@ -234,6 +234,15 @@ describe('applyConfigSet — number properties', () => {
     }
   })
 
+  test('accepts zero for searchDebounceMs (0 disables the debounce)', () => {
+    const result = applyConfigSet(base, 'searchDebounceMs', ['0'], 'replace')
+    expect('error' in result).toBeFalse()
+    if (!('error' in result)) {
+      expect(result.newValue).toBe(0)
+      expect(result.updatedConfig.searchDebounceMs).toBe(0)
+    }
+  })
+
   test('returns error for non-numeric string', () => {
     const result = applyConfigSet(base, 'admin.rateLimitMaxAttempts', ['abc'], 'replace')
     expect('error' in result).toBeTrue()

@@ -1,5 +1,6 @@
 import { type JSX, Show, Switch, Match, For, createSignal, createMemo } from 'solid-js'
 import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
+import { useSearchDebounce } from '../hooks/useSearchDebounce'
 import type { CardPrintingOptions } from '../../../change-event'
 import type { CardContextInfo } from '../../../site/card-context'
 import { DeckPage } from '../../../site/DeckPage'
@@ -36,6 +37,7 @@ type MoveFlow = {
 
 export function MoveCards(): JSX.Element {
   const defaultCurrency = useDefaultCurrency()
+  useSearchDebounce()
   const session = useMoveSession()
   const [filtersOpen, setFiltersOpen] = createSignal(false)
   const [pendingOpen, setPendingOpen] = createSignal(false)

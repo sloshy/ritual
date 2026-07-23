@@ -10,6 +10,7 @@ import type {
   WantedListSummary,
 } from '../../../src/site/data-types'
 import type { ScryfallCard } from '../../../src/types'
+import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/editor/search-debounce'
 import { fulfillJson } from './fulfill'
 import {
   MOCK_COLLECTION_CARD_PRICED,
@@ -29,6 +30,7 @@ export function makeSiteIndex(overrides: Partial<SiteIndex> = {}): SiteIndex {
     useScryfallImgUrls: false,
     defaultCurrency: 'usd',
     availableCurrencies: ['usd'],
+    searchDebounceMs: DEFAULT_SEARCH_DEBOUNCE_MS,
     ...overrides,
   }
 }

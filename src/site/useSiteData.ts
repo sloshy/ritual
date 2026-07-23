@@ -2,6 +2,7 @@ import { createSignal, onMount, onCleanup } from 'solid-js'
 import type { Accessor, Setter } from 'solid-js'
 import type { DeckSummary, CollectionSummary, WantedListSummary, SiteIndex } from './data-types'
 import type { PriceCurrency } from '../price-currency'
+import { setSearchDebounceMs } from '../editor/search-debounce'
 
 export type UseSiteDataResult = {
   deckList: Accessor<DeckSummary[] | null>
@@ -42,6 +43,7 @@ export function useSiteData(): UseSiteDataResult {
         if (data.defaultCurrency) setCurrency(data.defaultCurrency)
         if (data.availableCurrencies) setAvailableCurrencies(data.availableCurrencies)
         if (data.pricesDate) setPricesDate(data.pricesDate)
+        if (typeof data.searchDebounceMs === 'number') setSearchDebounceMs(data.searchDebounceMs)
       } catch (e) {
         if ((e as Error).name === 'AbortError') return
         console.error('Failed to load index:', e)
