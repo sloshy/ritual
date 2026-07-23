@@ -29,7 +29,13 @@ import {
 import { getDefaultCurrency } from '../ritual-config'
 import type { Card, Condition, Finish, ScryfallCard } from '../types'
 import type { ListType } from '../list-type'
-import { matchesAllNameTerms, normalizeCardName, promoteFullNameMatches } from '../term-match'
+import {
+  matchesAllNameTerms,
+  matchesNameTerms,
+  normalizeCardName,
+  rankNameMatches,
+  splitNameTerms,
+} from '../term-match'
 import {
   formatResolveListError,
   isResolveListError,
@@ -398,14 +404,16 @@ function findExactMatch(inputName: string, cardNames: string[]): string | null {
 }
 
 /**
- * Count how many card names contain the input as a normalized substring.
- * Short-circuits at `limit` to avoid scanning the full list unnecessarily.
+ * Count how many card names the input matches by term — the same rule the
+ * autocomplete prompt filters by, so the count describes what selecting
+ * interactively would have offered. Short-circuits at `limit` to avoid scanning
+ * the full list unnecessarily.
  */
-function countSubstringMatches(inputName: string, cardNames: string[], limit: number): number {
-  const normalized = normalizeCardName(inputName)
+function countTermMatches(inputName: string, cardNames: string[], limit: number): number {
+  const terms = splitNameTerms(inputName)
   let count = 0
   for (const name of cardNames) {
-    if (normalizeCardName(name).includes(normalized)) {
+    if (matchesNameTerms(normalizeCardName(name), terms)) {
       count++
       if (count >= limit) return count
     }
@@ -422,11 +430,11 @@ async function resolveCardName(
   if (exact) {
     const match = findExactMatch(cardNameInput, cardNames)
     if (!match) {
-      const matchCount = countSubstringMatches(cardNameInput, cardNames, 100)
+      const matchCount = countTermMatches(cardNameInput, cardNames, 100)
       const countLabel = matchCount >= 100 ? '100+' : String(matchCount)
       throw new CardCommandError(
         'not_found',
-        `No exact match for '${cardNameInput}'. ${countLabel} card${matchCount !== 1 ? 's' : ''} contain that name.`,
+        `No exact match for '${cardNameInput}'. ${countLabel} card${matchCount !== 1 ? 's' : ''} match that name.`,
         ExitCode.NotFound,
       )
     }
@@ -440,7 +448,7 @@ async function resolveCardName(
     // --no-input) — accept only an exact name.
     const match = findExactMatch(cardNameInput, cardNames)
     if (match) return match
-    if (countSubstringMatches(cardNameInput, cardNames, 1) === 0) {
+    if (countTermMatches(cardNameInput, cardNames, 1) === 0) {
       throw new CardCommandError(
         'not_found',
         `No cards found matching '${cardNameInput}'.`,
@@ -469,11 +477,11 @@ async function selectCardAutocomplete(
   cardNames: string[],
   initialSearch: string,
 ): Promise<string | null> {
-  // Pre-filter: only include cards whose normalized name contains the normalized search as a substring
+  // Pre-filter by term, matching what `suggest` does to what is typed next — a
+  // substring pre-filter would drop names the prompt itself would have offered.
   let filteredNames = cardNames
   if (initialSearch) {
-    const normalizedSearch = normalizeCardName(initialSearch)
-    filteredNames = cardNames.filter((name) => normalizeCardName(name).includes(normalizedSearch))
+    filteredNames = cardNames.filter((name) => matchesAllNameTerms(name, initialSearch))
 
     if (filteredNames.length === 0) {
       throw new CardCommandError(
@@ -487,7 +495,7 @@ async function selectCardAutocomplete(
       `Found ${filteredNames.length} card${filteredNames.length !== 1 ? 's' : ''} matching '${initialSearch}'.`,
     )
 
-    filteredNames = promoteFullNameMatches(filteredNames, initialSearch, (name) => name)
+    filteredNames = rankNameMatches(filteredNames, initialSearch, (name) => name)
   }
 
   const choices = filteredNames.map((name) => ({ title: name, value: name }))
@@ -504,7 +512,7 @@ async function selectCardAutocomplete(
       if (!input) return choices.slice(0, 15)
 
       const matches = choices.filter((choice) => matchesAllNameTerms(choice.title, input))
-      return promoteFullNameMatches(matches, input, (choice) => choice.title)
+      return rankNameMatches(matches, input, (choice) => choice.title)
     },
     onState: (state: PromptState) => {
       if (state.exited) isExited = true

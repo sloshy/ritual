@@ -50,9 +50,11 @@ describe('suggestNameMode', () => {
     expect(result.map((c) => c.value)).toEqual(['__SAVE__', '__EXIT__'])
   })
 
-  test('all space-separated terms must match the title', () => {
+  test('all space-separated terms must match the title, in any order', () => {
     const result = suggestNameMode('bolt light', nameModeChoices())
-    expect(result.map((c) => c.value)).toEqual(['Lightning Bolt', 'Bolt of Lightning'])
+    // Both match; "Bolt of Lightning" leads because its words begin with the
+    // terms in the order they were typed (see rankNameMatches).
+    expect(result.map((c) => c.value)).toEqual(['Bolt of Lightning', 'Lightning Bolt'])
   })
 
   test('trailing ! marks card matches to force prompts', () => {

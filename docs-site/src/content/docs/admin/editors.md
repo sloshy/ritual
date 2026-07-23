@@ -103,6 +103,8 @@ Click the **+ Add Card** button in the bottom [action bar](#editor-action-bar), 
 #### Step 1: Search
 
 - Type at least 2 characters to search (debounced to 1 request per second)
+- What you type is split on whitespace and **every term must appear in the card name**, in any order — `in tre` finds "In the Trenches", `bolt light` finds "Lightning Bolt". Case, accents, and punctuation don't have to match (`jaces archivist` finds "Jace's Archivist"). This is the same matching the CLI prompts use
+- The closest matches lead: a name you have typed in full, then names your query prefixes, then names whose words your terms begin, then names matched mid-word
 - Results are keyboard navigable (↑/↓ arrows, Enter to select)
 - Hovering or navigating to a card shows a preview image of the cheapest printing
 

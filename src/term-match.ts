@@ -30,9 +30,9 @@ export function matchesAllTerms(text: string, query: string): boolean {
 /**
  * {@link matchesAllTerms} for card names specifically: also punctuation-insensitive
  * (see {@link normalizeCardName}), so `jaces archivist` matches `Jace's Archivist`
- * without the apostrophe. Card searches use this so that a name typed without its
- * punctuation still reaches {@link promoteFullNameMatches} rather than being
- * filtered out before it can be promoted.
+ * without the apostrophe. Card searches filter with this and then order what
+ * survives with {@link rankNameMatches}, so a name typed without its punctuation
+ * still reaches the ranking rather than being dropped before it can be promoted.
  */
 export function matchesAllNameTerms(text: string, query: string): boolean {
   return matchesNameTerms(normalizeCardName(text), splitNameTerms(query))
@@ -51,6 +51,33 @@ export function splitNameTerms(query: string): string[] {
 /** Whether an already-{@link normalizeCardName}d name contains every one of `terms`. */
 export function matchesNameTerms(normalizedName: string, terms: string[]): boolean {
   return terms.every((term) => normalizedName.includes(term))
+}
+
+/**
+ * Whether every one of `terms` begins a *word* of an already-{@link normalizeCardName}d
+ * name. Stricter than {@link matchesNameTerms}, which is satisfied by a term landing
+ * mid-word: `in tre` matches "Kin-Tree Warden" by substring but not by word prefix.
+ *
+ * This is what makes a query like `in tre` usable — typing the start of each word is
+ * how people search, so those names are the ones {@link rankNameMatches} floats to the
+ * top, and the public site uses it to tell whether Scryfall's own autocomplete already
+ * answered a multi-term query (see `site/scryfall-search.ts`).
+ */
+export function matchesNameWordPrefixes(normalizedName: string, terms: string[]): boolean {
+  const words = normalizedName.split(' ')
+  return terms.every((term) => words.some((word) => word.startsWith(term)))
+}
+
+/** {@link matchesNameWordPrefixes}, with the words additionally matched left to right. */
+function matchesNameWordPrefixesInOrder(normalizedName: string, terms: string[]): boolean {
+  const words = normalizedName.split(' ')
+  let from = 0
+  for (const term of terms) {
+    const index = words.findIndex((word, i) => i >= from && word.startsWith(term))
+    if (index === -1) return false
+    from = index + 1
+  }
+  return true
 }
 
 /**
@@ -134,4 +161,75 @@ export function promoteFullNameMatches<T>(
 
   if (fullMatches.length === 0 && frontFaceMatches.length === 0) return items
   return [...fullMatches, ...frontFaceMatches, ...rest]
+}
+
+/** A card-name search result decorated with its {@link nameMatchRank}, for sorting. */
+type RankedNameMatch<T> = { item: T; rank: NameMatchRankValue }
+
+/**
+ * How well a name answers a term query, lowest (best) first. The tiers rank the
+ * ways a name can satisfy {@link matchesNameTerms}, from "you typed the name" down
+ * to "the letters happen to be in there somewhere".
+ */
+const NameMatchRank = {
+  /** The query spells out the whole name. */
+  FullName: 0,
+  /** The query spells out the front face of a double-faced name. */
+  FrontFace: 1,
+  /** The name begins with the query, contiguously (`sol ri` → "Sol Ring"). */
+  Prefix: 2,
+  /** Every term begins a word, left to right (`in tre` → "In the Trenches"). */
+  WordPrefixesInOrder: 3,
+  /** Every term begins a word, in any order (`tre in` → "In the Trenches"). */
+  WordPrefixes: 4,
+  /** Every term appears somewhere, possibly mid-word (`in tre` → "Kin-Tree Warden"). */
+  Substring: 5,
+} as const
+
+type NameMatchRankValue = (typeof NameMatchRank)[keyof typeof NameMatchRank]
+
+function nameMatchRank(name: string, normalizedQuery: string, terms: string[]): NameMatchRankValue {
+  const normalized = normalizeCardName(name)
+  if (normalized === normalizedQuery) return NameMatchRank.FullName
+  const frontFace = getFrontFaceName(name)
+  if (frontFace !== name && normalizeCardName(frontFace) === normalizedQuery) {
+    return NameMatchRank.FrontFace
+  }
+  if (normalized.startsWith(normalizedQuery)) return NameMatchRank.Prefix
+  if (matchesNameWordPrefixesInOrder(normalized, terms)) return NameMatchRank.WordPrefixesInOrder
+  if (matchesNameWordPrefixes(normalized, terms)) return NameMatchRank.WordPrefixes
+  return NameMatchRank.Substring
+}
+
+/**
+ * Order card-name search results by how directly they answer the query — the
+ * ranking shared by every surface that searches names by term (the CLI's add and
+ * session prompts, the admin autocomplete API, and the public site's Scryfall
+ * search), so the same typing produces the same top results everywhere.
+ *
+ * Term matching alone ({@link matchesAllNameTerms}) is deliberately loose: `in tre`
+ * matches 80 real cards, most of them because "in" and "tre" landed mid-word
+ * ("Arctic Treeline", "Anafenza, Kin-Tree Spirit"). Popularity order then buries
+ * the card actually being typed — "In the Trenches" sits 20th, past the end of a
+ * suggestion list. Ranking by *how* each name matched floats the handful whose
+ * words the terms begin, which is how the query was meant to be read.
+ *
+ * Ties keep their incoming order, so whatever the caller sorted by (EDHRec
+ * popularity for cached and Scryfall results, alphabetical for the admin API)
+ * still breaks them. Supersedes {@link promoteFullNameMatches} — its two tiers
+ * lead this ranking — for callers whose query is card-name terms rather than
+ * Scryfall search syntax.
+ */
+export function rankNameMatches<T>(items: T[], query: string, nameOf: (item: T) => string): T[] {
+  const normalizedQuery = normalizeCardName(query)
+  if (!normalizedQuery) return items
+  const terms = splitNameTerms(query)
+
+  const ranked: RankedNameMatch<T>[] = items.map((item) => ({
+    item,
+    rank: nameMatchRank(nameOf(item), normalizedQuery, terms),
+  }))
+  // Array.prototype.sort is stable, so equal ranks keep the incoming order.
+  ranked.sort((a, b) => a.rank - b.rank)
+  return ranked.map((entry) => entry.item)
 }

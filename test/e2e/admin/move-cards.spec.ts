@@ -63,7 +63,9 @@ test.describe('Move Cards page', () => {
     await page.locator('.admin-nav-item:has-text("Move Cards")').click()
     await expect(page.locator('.section-heading')).toContainText('Move Cards')
 
-    await page.locator('#move-search-input').fill('Lightning')
+    // Each term is matched separately, so the terms need not be contiguous or
+    // in order — "bol ligh" finds "Lightning Bolt" just as "Lightning" does.
+    await page.locator('#move-search-input').fill('bol ligh')
     const row = page.locator('.move-search-row')
     await expect(row).toHaveCount(1)
     await expect(row).toContainText('Lightning Bolt')

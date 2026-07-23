@@ -133,8 +133,10 @@ export function registerReadTools(server: McpServer): void {
     {
       title: 'Autocomplete card name',
       description:
-        'Autocomplete card names by prefix/substring, ignoring case, accents, and punctuation ' +
-        '(up to 20). A query that spells out a card name in full is returned first.',
+        'Autocomplete card names from the local cache (up to 20), ignoring case, accents, and ' +
+        'punctuation. Every whitespace-separated term must appear in the name, in any order, so ' +
+        '"in tre" finds "In the Trenches". Closest matches first: a name spelled out in full, ' +
+        'then names the query prefixes, then names whose words the terms begin.',
       inputSchema: { query: z.string().min(1).describe('Partial card name.') },
       annotations: { readOnlyHint: true, openWorldHint: true },
     },

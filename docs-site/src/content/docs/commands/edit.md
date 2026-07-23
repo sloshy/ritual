@@ -288,11 +288,17 @@ Two entry modes are available while adding cards, toggleable at any time:
 
 Autocomplete-driven card name entry. Type a card name and select from suggestions.
 
-Suggestions are ordered by EDHRec popularity, except that a card whose **whole name** you have typed
-is offered first, ahead of more popular cards that merely contain what you typed. Searching `The En`
-lists the popular cards first; finishing the name as `The End` puts the card named "The End" at the
-top. Case, accents, and punctuation don't have to match (`jaces archivist` finds "Jace's Archivist"),
-and typing the front face of a double-faced card counts as its whole name.
+What you type is split on whitespace and **every term must appear in the card name**, in any order —
+`in tre` finds "In the Trenches", `bolt light` finds "Lightning Bolt". Case, accents, and punctuation
+don't have to match (`jaces archivist` finds "Jace's Archivist").
+
+Suggestions are ordered by EDHRec popularity, except that closer matches come first: a card whose
+**whole name** you have typed leads, ahead of more popular cards that merely contain what you typed.
+Searching `The En` lists the popular cards first; finishing the name as `The End` puts the card named
+"The End" at the top. Typing the front face of a double-faced card counts as its whole name. Below
+those come the cards your query prefixes, then the cards whose **words your terms begin** — which is
+what puts "In the Trenches" at the top of `in tre`, ahead of the 80 cards that merely contain those
+letters somewhere.
 
 - **Session Filters** — Configure default set codes, finish, condition, and (for decks) the target
   section via `⚙️ Configure Session Filters`. When set, these defaults are applied automatically

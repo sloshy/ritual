@@ -3,9 +3,12 @@ import {
   matchByNormalizedName,
   matchesAllNameTerms,
   matchesAllTerms,
+  matchesNameWordPrefixes,
   normalizeCardName,
   normalizeForSearch,
   promoteFullNameMatches,
+  rankNameMatches,
+  splitNameTerms,
 } from '../../src/term-match'
 
 describe('normalizeForSearch', () => {
@@ -186,5 +189,85 @@ describe('promoteFullNameMatches', () => {
       'plst',
       'mkm',
     ])
+  })
+})
+
+describe('matchesNameWordPrefixes', () => {
+  const terms = splitNameTerms('in tre')
+
+  test('every term must begin a word', () => {
+    expect(matchesNameWordPrefixes(normalizeCardName('In the Trenches'), terms)).toBe(true)
+    expect(matchesNameWordPrefixes(normalizeCardName('Five Kids in a Trenchcoat'), terms)).toBe(
+      true,
+    )
+  })
+
+  test('a term landing mid-word does not count', () => {
+    // Both terms are in there — "kIN-TREe" — but neither begins a word.
+    expect(matchesNameWordPrefixes(normalizeCardName('Kin-Tree Warden'), terms)).toBe(false)
+    expect(matchesNameWordPrefixes(normalizeCardName('Intrepid Paleontologist'), terms)).toBe(false)
+  })
+})
+
+describe('rankNameMatches', () => {
+  const identity = (name: string): string => name
+
+  // Every one of these matches "in tre" by term, which is why ranking has to
+  // decide between them: only the first two begin their words with the terms.
+  const inTreMatches = [
+    'Arctic Treeline',
+    'Intrepid Paleontologist',
+    'In the Trenches',
+    'Realmbreaker, the Invasion Tree',
+  ]
+
+  test('names whose words the terms begin lead the ones matched mid-word', () => {
+    expect(rankNameMatches(inTreMatches, 'in tre', identity)).toEqual([
+      'In the Trenches',
+      'Realmbreaker, the Invasion Tree',
+      'Arctic Treeline',
+      'Intrepid Paleontologist',
+    ])
+  })
+
+  test('word prefixes matched in order beat the same terms out of order', () => {
+    const names = ['Treachery of the Kingpin', 'In the Trenches']
+    expect(rankNameMatches(names, 'in tre', identity)[0]).toBe('In the Trenches')
+  })
+
+  test('a contiguous prefix of the name leads a match starting mid-name', () => {
+    const names = ['Alharu, Solemn Ritualist', 'Sol Ring']
+    expect(rankNameMatches(names, 'sol ri', identity)).toEqual([
+      'Sol Ring',
+      'Alharu, Solemn Ritualist',
+    ])
+  })
+
+  test('a whole-name match leads, then a front-face match', () => {
+    const names = ['Delver of Secrets Deluxe', 'Delver of Secrets // Insectile Aberration']
+    expect(rankNameMatches(names, 'delver of secrets', identity)).toEqual([
+      'Delver of Secrets // Insectile Aberration',
+      'Delver of Secrets Deluxe',
+    ])
+  })
+
+  test('equally ranked names keep their incoming order', () => {
+    // All three are prefix matches, so the caller's popularity order survives.
+    const byPopularity = ['The Enduring Renown', 'The Endless Swarm', 'The Endstone']
+    expect(rankNameMatches(byPopularity, 'the en', identity)).toEqual(byPopularity)
+  })
+
+  test('an empty or punctuation-only query leaves the order alone', () => {
+    expect(rankNameMatches(inTreMatches, '  ', identity)).toEqual(inTreMatches)
+    expect(rankNameMatches(inTreMatches, '!!', identity)).toEqual(inTreMatches)
+  })
+
+  test('ranks by a projected name, not the item itself', () => {
+    type Entry = { title: string; id: number }
+    const entries: Entry[] = [
+      { title: 'Arctic Treeline', id: 1 },
+      { title: 'In the Trenches', id: 2 },
+    ]
+    expect(rankNameMatches(entries, 'in tre', (e) => e.title).map((e) => e.id)).toEqual([2, 1])
   })
 })

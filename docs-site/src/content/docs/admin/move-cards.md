@@ -9,7 +9,7 @@ The **Move Cards** page moves cards between decks, collections, and wanted lists
 There are two ways to surface the cards you want to move:
 
 - **Browse a list** — Choose a deck, collection, or wanted list from the **Browse list** dropdown to view it in the standard list/grid view (the same one the public site uses, minus the editing controls), complete with the usual toolbar, sections, and view modes.
-- **Search by name** — Type a card name into the **Search cards** box to find matching cards across every enabled source list. Results are grouped per list and tagged with their source; hovering a result shows the card-image preview, and clicking anywhere on the row opens its destination menu.
+- **Search by name** — Type a card name into the **Search cards** box to find matching cards across every enabled source list. What you type is split on whitespace and every term must appear in the card name, in any order (`in tre` finds "In the Trenches"), ignoring case, accents, and punctuation — the same matching the [editors](/admin/editors/#step-1-search) and the CLI prompts use — with the closest matches first. Results are grouped per list and tagged with their source; hovering a result shows the card-image preview, and clicking anywhere on the row opens its destination menu.
 
 ## Moving a card
 

@@ -103,7 +103,9 @@ The `confirmName` must match the deck's `name` field exactly. Returns `400` if t
 GET /api/autocomplete?q=<query>
 ```
 
-Search for card names using the in-memory card cache. Matching ignores case, accents, and punctuation (`jotun` matches `Jötun Grunt`; `jaces archivist` matches `Jace's Archivist`). Returns up to 20 results sorted by relevance: a card whose whole name the query spells out comes first (the front face of a double-faced card counts as its whole name), then prefix matches, then substring matches.
+Search for card names using the in-memory card cache. The query is split on whitespace and **every term must appear in the name**, in any order — the same matching the CLI prompts use, so `in tre` finds "In the Trenches". Matching ignores case, accents, and punctuation (`jotun` matches `Jötun Grunt`; `jaces archivist` matches `Jace's Archivist`).
+
+Returns up to 20 results, ranked by how directly each name answers the query: a name the query spells out in full comes first (the front face of a double-faced card counts as its whole name), then names the query prefixes (`sol ri` → "Sol Ring"), then names whose words the terms begin — in order, then in any order — and finally names matched mid-word (`in tre` → "Kin-Tree Warden"). Equally ranked names are alphabetical.
 
 **Query Parameters:**
 

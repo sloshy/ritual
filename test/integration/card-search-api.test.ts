@@ -27,6 +27,11 @@ const CARD_NAMES = [
   'Ach! Hans, Run!',
   'Delver of Secrets Deluxe',
   'Delver of Secrets // Insectile Aberration',
+  // The "in tre" set: each term appears in all three, but only "In the Trenches"
+  // is spelled the way the query reads — the others match mid-word.
+  'In the Trenches',
+  'Arctic Treeline',
+  'Intrepid Paleontologist',
 ]
 
 /** Seed the card cache with the fixture, which also stands in for a completed preload. */
@@ -61,11 +66,14 @@ describe('handleAutocomplete', () => {
     return body.names
   }
 
-  test('a partial query returns every match', async () => {
-    expect((await autocomplete('The En')).sort()).toEqual([
+  test('a partial query returns every match, the closest first', async () => {
+    // "In the Trenches" matches too — its terms just land mid-word ("trENches"),
+    // which is what ranks it below the three names the query prefixes.
+    expect(await autocomplete('The En')).toEqual([
       'The End',
       'The Endless Swarm',
       'The Enduring Renown',
+      'In the Trenches',
     ])
   })
 
@@ -87,6 +95,19 @@ describe('handleAutocomplete', () => {
 
   test('a one-character query returns nothing', async () => {
     expect(await autocomplete('T')).toEqual([])
+  })
+
+  test('each term is matched separately, as the CLI prompts match them', async () => {
+    // No card name contains "in tre" contiguously, so this used to return nothing.
+    expect(await autocomplete('in tre')).toEqual([
+      'In the Trenches',
+      'Arctic Treeline',
+      'Intrepid Paleontologist',
+    ])
+  })
+
+  test('terms may be typed in any order', async () => {
+    expect((await autocomplete('tre in'))[0]).toBe('In the Trenches')
   })
 })
 

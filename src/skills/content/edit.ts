@@ -21,10 +21,12 @@ Conventions shared by every one-shot command:
   (or prefix the name: \`deck:burn\`, \`collection:Main Binder\`, \`wanted:To Buy\`).
   An ambiguous name is an error.
 - The card is matched by name (case-, accent-, and punctuation-insensitive).
-  \`add-card\` matches the name against Scryfall's cards; the other commands
-  (\`remove-card\`, \`set-card\`, \`note\`, \`move\`) match the list's existing entries
-  and, when several match, disambiguate with \`--card-id <N>\` (the \`&N\` suffix in
-  the file — \`add-card\` has no \`--card-id\`).
+  \`add-card\` matches the name against Scryfall's cards — splitting what you pass on
+  whitespace and requiring **every term** to appear in the name, in any order, so
+  \`"in tre"\` finds "In the Trenches" — while the other commands (\`remove-card\`,
+  \`set-card\`, \`note\`, \`move\`) match the list's existing entries by exact name first,
+  then substring, and when several match disambiguate with \`--card-id <N>\` (the
+  \`&N\` suffix in the file — \`add-card\` has no \`--card-id\`).
 - \`--output json\` (or \`ndjson\`) emits a machine-readable result; \`--quiet\`
   suppresses non-essential text.
 - Nothing blocks on a prompt in a script: when stdin is not a terminal, a missing

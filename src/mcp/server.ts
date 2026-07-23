@@ -18,9 +18,10 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   listType + slug + cardName plus cardId (required to match when the entry carries an &N id —
   load_list shows it) and copyIndex for deck copies.
 - create_list creates a new, empty list (format applies to decks only).
-- Card lookups: search_cards/autocomplete_card find names; card_printings/card_price detail one
-  card. price_report prices one list (listType + slug) or summarizes every list (no arguments)
-  from the local card cache.
+- Card lookups: search_cards/autocomplete_card find names (autocomplete_card matches every
+  whitespace-separated term against the local cache, in any order, so "in tre" finds "In the
+  Trenches"); card_printings/card_price detail one card. price_report prices one list (listType +
+  slug) or summarizes every list (no arguments) from the local card cache.
 - import_deck imports a decklist from a URL or pasted text; import_csv imports CSV text into a new
   or existing list of any type (create/overwrite/append, with a column-mapping spec).
 - import_changes applies a change bundle exported from the site editor ("ritual-change-bundle"

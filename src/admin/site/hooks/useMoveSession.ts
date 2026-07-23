@@ -25,7 +25,13 @@ import {
   groupCards,
 } from '../move-overlay'
 import { type ListId, listId, listInfoId } from '../list-grouping'
-import { normalizeForSearch } from '../../../term-match'
+import {
+  matchesNameTerms,
+  normalizeCardName,
+  normalizeForSearch,
+  rankNameMatches,
+  splitNameTerms,
+} from '../../../term-match'
 
 /** Merged Scryfall display data, accumulated across every list fetched this session. */
 export type MoveCardData = {
@@ -321,16 +327,23 @@ export function useMoveSession(): UseMoveSessionResult {
   const pendingKeys = createMemo(() => new Set(pending().map((m) => m.cardKey)))
 
   const searchResults = createMemo<CardGroup[]>(() => {
-    const q = normalizeForSearch(search().trim())
-    if (q.length < 2) return []
+    const query = search().trim()
+    if (normalizeForSearch(query).length < 2) return []
+    // Term matching, as everywhere else cards are searched by name: "in tre"
+    // finds "In the Trenches". Alphabetical only breaks equally close matches.
+    // A query that is all punctuation leaves no terms, and no term matches
+    // everything — so it searches for nothing rather than for every card.
+    const terms = splitNameTerms(query)
+    if (terms.length === 0) return []
     const keys = pendingKeys()
     const matches = allCards().filter(
       (c) =>
         sourceEnabled(listId(c.listType, c.listSlug)) &&
         !keys.has(c.key) &&
-        normalizeForSearch(c.name).includes(q),
+        matchesNameTerms(normalizeCardName(c.name), terms),
     )
-    return groupCards(matches).sort((a, b) => a.name.localeCompare(b.name))
+    const groups = groupCards(matches).sort((a, b) => a.name.localeCompare(b.name))
+    return rankNameMatches(groups, query, (group) => group.name)
   })
 
   // Prefetch Scryfall data for the current search matches so their hover previews are ready.

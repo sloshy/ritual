@@ -82,17 +82,17 @@ Every tool that addresses a list takes the same two fields: `listType` (`deck` |
 
 ### Read (read-only)
 
-| Tool                                | Description                                                                                                                                                 |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `list_lists`                        | Every list as `{ listType, slug, name }`, optionally filtered by `listType`.                                                                                |
-| `load_list`                         | Load one list: decks return `{ slug, deck, frontMatter }`; collections and wanted lists return `{ slug, entries, sectionOrder }`.                           |
-| `search_cards`, `autocomplete_card` | Find card names on Scryfall.                                                                                                                                |
-| `card_printings`, `card_price`      | A card's printings and per-currency prices (an unknown card name is an error).                                                                              |
-| `price_report`                      | [Price](/commands/price/) one list (`listType` + `slug`), one list type (`listType` alone), or every list (no arguments).                                   |
-| `load_history`                      | A list's change history.                                                                                                                                    |
-| `get_config`, `get_audit_log`       | Configuration and admin activity.                                                                                                                           |
-| `export_cards`                      | Render a CSV, JSON, plain-text, or Markdown [export](/commands/export/) of lists and/or card picks, with filters (and, for `csv`/`json`, column selection). |
-| `diff_lists`                        | Compare two lists by card name or exact printing — the [`diff`](/commands/diff/) command as a tool.                                                         |
+| Tool                                | Description                                                                                                                                                                                                             |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_lists`                        | Every list as `{ listType, slug, name }`, optionally filtered by `listType`.                                                                                                                                            |
+| `load_list`                         | Load one list: decks return `{ slug, deck, frontMatter }`; collections and wanted lists return `{ slug, entries, sectionOrder }`.                                                                                       |
+| `search_cards`, `autocomplete_card` | Find card names — `search_cards` runs a [Scryfall query](https://scryfall.com/docs/syntax); `autocomplete_card` matches every whitespace-separated term against the local cache's names (`in tre` → "In the Trenches"). |
+| `card_printings`, `card_price`      | A card's printings and per-currency prices (an unknown card name is an error).                                                                                                                                          |
+| `price_report`                      | [Price](/commands/price/) one list (`listType` + `slug`), one list type (`listType` alone), or every list (no arguments).                                                                                               |
+| `load_history`                      | A list's change history.                                                                                                                                                                                                |
+| `get_config`, `get_audit_log`       | Configuration and admin activity.                                                                                                                                                                                       |
+| `export_cards`                      | Render a CSV, JSON, plain-text, or Markdown [export](/commands/export/) of lists and/or card picks, with filters (and, for `csv`/`json`, column selection).                                                             |
+| `diff_lists`                        | Compare two lists by card name or exact printing — the [`diff`](/commands/diff/) command as a tool.                                                                                                                     |
 
 `diff_lists` takes two sides (`a` and `b`, each `{ listType?, name }` — names resolve like CLI list
 arguments, with `listType` pinning an ambiguous name) plus an optional `by` (`name`, the default, or

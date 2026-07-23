@@ -656,6 +656,19 @@ describe('add-card CLI (Integration)', () => {
       expect(deckContent).not.toContain('Sol Ring')
     })
 
+    test('a multi-term partial name counts as a match, not a miss', async () => {
+      // "lig bol" is nowhere in "Lightning Bolt" contiguously — each term is
+      // matched on its own, so the picker has something to offer and the run
+      // fails for want of a terminal rather than for want of a card.
+      const result = await runCli(
+        ['add-card', '--deck', 'test', 'lig', 'bol', '--output', 'json'],
+        dir,
+      )
+      expect(result.exitCode).toBe(2)
+      const err = JSON.parse(result.stderr) as CliErrorPayload
+      expect(err.error.message).toContain('needs a terminal')
+    })
+
     test('a full card name without --exact still resolves when non-interactive', async () => {
       const result = await runCli(
         ['add-card', '--deck', 'test', 'Sol', 'Ring', '--output', 'json'],
