@@ -28,12 +28,13 @@ import { parseCollectionFile } from './collection-file'
 import { parseWantedListFile } from './commands/wanted-helpers'
 import { toWantedCardEntries } from './editor/wanted-entries'
 import { applyChangeToDeck } from './editor/deck-changes'
-import { applyChangeToCollection } from './editor/collection-changes'
+import { applyChangeToCollection, findCollectionPrintingError } from './editor/collection-changes'
 import { applyChangeToWantedList } from './editor/wanted-changes'
 import { collectionToMarkdown, wantedToMarkdown } from './editor/list-export'
 import { parseTitleFromContent } from './section-format'
 import { writeFileWithHash, hashPath } from './content-hash'
 import { appendChangelog } from './changelog-writer'
+import { CardCommandError, ExitCode } from './errors'
 import type { ChangeEvent, MoveFromChange, MoveToChange } from './change-event'
 import type { ListType } from './list-type'
 import type { CollectionCardEntry } from './site/data-types'
@@ -92,6 +93,10 @@ async function applyToDeck(filePath: string, changes: ChangeEvent[]): Promise<vo
 }
 
 async function applyToCollection(filePath: string, changes: ChangeEvent[]): Promise<void> {
+  const printingError = findCollectionPrintingError(changes)
+  if (printingError) {
+    throw new CardCommandError('usage_error', printingError, ExitCode.UsageError)
+  }
   const content = await fs.readFile(filePath, 'utf-8')
   const parsed = parseCollectionFile(content)
   // Same entry mapping as the admin collection-save handler: lowercase set,

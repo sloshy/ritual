@@ -104,7 +104,9 @@ export function EditorShell<TData, TCardEntry>(
       <CardSearchModal
         open={editor.dialogs.showSearchModal()}
         onClose={editor.dialogs.closeSearchModal}
-        onAddCard={(card) => void editor.handleAddCardFromSearch(card)}
+        onAddCard={(cardName, options, scryfallCard, allPrintings) =>
+          void editor.handleAddCardFromSearch(cardName, options, scryfallCard, allPrintings)
+        }
         search={props.search}
         requirePrinting={props.requirePrinting}
         defaults={props.defaults.defaults()}

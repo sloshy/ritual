@@ -109,24 +109,29 @@ validation error. The optional `currency` (`usd` | `eur` | `tix`) defaults to th
 
 ### Write
 
-| Tool                                 | Description                                                                                                                       |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| `create_list`                        | Create a new, empty list. `format` (from the fixed set of deck formats) applies to decks only.                                    |
-| `import_deck`                        | Import a deck from a URL or pasted decklist text.                                                                                 |
-| `import_csv`                         | Import CSV text into a new or existing list (create/overwrite/append) with a column-mapping spec. `format` applies to decks only. |
-| `import_changes`                     | Apply a change bundle exported from the site editor to the underlying lists.                                                      |
-| `add_card`                           | Add a card to any list; `quantity` adds that many copies in one save. `condition` is rejected for wanted lists.                   |
-| `remove_card`                        | Remove a card from any list; `quantity` (decks only) removes that many copies. Flat lists remove one entry a time.                |
-| `set_card_note`, `set_card_printing` | Edit a card in place.                                                                                                             |
-| `set_card_section`                   | Move a card to a section of its list (created when missing).                                                                      |
-| `set_commander`, `unset_commander`   | Move a card into / out of a deck's Commander section.                                                                             |
-| `apply_changes`                      | Apply an ordered batch of card-level changes to one list atomically (one save, one changelog block).                              |
-| `move_cards`                         | Move a batch of identity-addressed cards between lists atomically.                                                                |
-| `remove_cards`                       | Remove a batch of identity-addressed cards across lists atomically.                                                               |
+| Tool                                 | Description                                                                                                                                                             |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create_list`                        | Create a new, empty list. `format` (from the fixed set of deck formats) applies to decks only.                                                                          |
+| `import_deck`                        | Import a deck from a URL or pasted decklist text.                                                                                                                       |
+| `import_csv`                         | Import CSV text into a new or existing list (create/overwrite/append) with a column-mapping spec. `format` applies to decks only.                                       |
+| `import_changes`                     | Apply a change bundle exported from the site editor to the underlying lists.                                                                                            |
+| `add_card`                           | Add a card to any list; `quantity` adds that many copies in one save. `condition` is rejected for wanted lists; collections require `set` + `collectorNumber` together. |
+| `remove_card`                        | Remove a card from any list; `quantity` (decks only) removes that many copies. Flat lists remove one entry a time.                                                      |
+| `set_card_note`, `set_card_printing` | Edit a card in place. `set_card_printing` can omit `set`/`collectorNumber` to clear a deck or wanted-list card's printing, but not a collection's — that's rejected.    |
+| `set_card_section`                   | Move a card to a section of its list (created when missing).                                                                                                            |
+| `set_commander`, `unset_commander`   | Move a card into / out of a deck's Commander section.                                                                                                                   |
+| `apply_changes`                      | Apply an ordered batch of card-level changes to one list atomically (one save, one changelog block).                                                                    |
+| `move_cards`                         | Move a batch of identity-addressed cards between lists atomically.                                                                                                      |
+| `remove_cards`                       | Remove a batch of identity-addressed cards across lists atomically.                                                                                                     |
 
 Card edits load the list, apply the change, and save in a single call, so **you never supply a content
 hash** — conflict detection is handled internally (a concurrent web-UI edit surfaces as an error you can
 retry).
+
+Collections track a specific physical printing per entry: `add_card`, `apply_changes`'s `add` and
+`set-printing` actions, and `set_card_printing` all require `set` + `collectorNumber` together when
+the target list is a collection — omitting either one is rejected rather than written as a
+printing-less (or cleared) entry. Decks and wanted lists accept a name-only card.
 
 `move_cards` and `remove_cards` address each card by identity: source `listType` + `slug` +
 `cardName`, plus `cardId` (the persistent `&N` id — required to match whenever the entry has one;

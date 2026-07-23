@@ -7,7 +7,10 @@ import type { CollectionCardEntry } from '../../site/data-types'
 import type { ChangeEvent } from '../../change-event'
 import { getCollectionsDir } from '../../ritual-config'
 import { parseCollectionFile } from '../../collection-file'
-import { applyChangeToCollection } from '../../editor/collection-changes'
+import {
+  applyChangeToCollection,
+  findCollectionPrintingError,
+} from '../../editor/collection-changes'
 import { collectionToMarkdown } from '../../editor/list-export'
 import { parseTitleFromContent } from '../../section-format'
 import { applyOutgoingMoves, type ListSaveResponse } from './move-save'
@@ -56,6 +59,11 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
 
     const noteError = normalizeRequestNotes(changes, [])
     if (noteError) return noteError
+
+    const printingError = findCollectionPrintingError(changes)
+    if (printingError) {
+      return Response.json({ success: false, message: printingError }, { status: 400 })
+    }
 
     const collectionsDir = getCollectionsDir()
     const filePath = path.join(collectionsDir, slug + '.md')

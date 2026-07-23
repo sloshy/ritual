@@ -321,7 +321,8 @@ export function registerWriteTools(server: McpServer): void {
       description:
         'Add a card to any list (decks increment quantity if the same printing already exists). ' +
         'Supply set + collectorNumber to pin the printing. quantity adds that many copies in ' +
-        'one save.',
+        'one save. Collections require set + collectorNumber together — an add without one is ' +
+        'rejected.',
       inputSchema: z
         .object({
           listType: listTypeSchema,
@@ -435,7 +436,8 @@ export function registerWriteTools(server: McpServer): void {
       title: 'Set card printing',
       description:
         'Set the printing (set/collector number/finish/condition) of a card in any list. ' +
-        'Omit set and collectorNumber to clear the specific printing.',
+        'Omit set and collectorNumber to clear the specific printing on a deck or wanted-list ' +
+        'card; collections require both together, so omitting them there is rejected.',
       inputSchema: {
         listType: listTypeSchema,
         slug: slugField,
@@ -511,7 +513,8 @@ export function registerWriteTools(server: McpServer): void {
       description:
         'Apply an ordered batch of card-level changes (add/remove/set-finish/set-printing/' +
         'set-note/set-commander/unset-commander/set-section) to one list atomically: one load, ' +
-        'one save, one changelog block. Missing change ids/timestamps are autofilled. For ' +
+        'one save, one changelog block. Missing change ids/timestamps are autofilled. On a ' +
+        'collection, add and set-printing require set + collectorNumber together. For ' +
         'cross-list moves use move_cards.',
       inputSchema: {
         listType: listTypeSchema,

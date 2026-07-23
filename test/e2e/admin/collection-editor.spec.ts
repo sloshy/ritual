@@ -1,8 +1,9 @@
-import { test, expect, type Route } from '@playwright/test'
+import { test, expect, type Page, type Route } from '@playwright/test'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor } from '../helpers/editor-nav'
 import { fulfillJson } from '../helpers/fulfill'
 import { makeMockScryfallCard } from '../helpers/mock-cards'
+import { disableSearchDebounce } from '../helpers/search-modal'
 
 const MOCK_SOL_RING = makeMockScryfallCard({
   id: 'sol-ring-id',
@@ -14,6 +15,19 @@ const MOCK_SOL_RING = makeMockScryfallCard({
   set_name: 'Commander 2021',
   collector_number: '167',
   rarity: 'uncommon',
+})
+
+const MOCK_STATIC_ORB = makeMockScryfallCard({
+  id: 'static-orb-id',
+  name: 'Static Orb',
+  cmc: 3,
+  type_line: 'Artifact',
+  prices: { usd: '5.00' },
+  set: 'tmp',
+  set_name: 'Tempest',
+  collector_number: '319',
+  rarity: 'rare',
+  image_uris: { normal: 'https://img.example/static-orb.jpg' },
 })
 
 test.describe('Collection Editor sections', () => {
@@ -179,5 +193,130 @@ test.describe('Collection Editor sections', () => {
     await expect(prompt).toBeVisible()
     await expect(prompt.locator('h3')).toHaveText('Rename section')
     await expect(page.locator('#text-prompt-input')).toHaveValue('Main')
+  })
+})
+
+/** One change event as captured from the save request body. */
+type SavedChange = {
+  action: string
+  cardName?: string
+  set?: string
+  collectorNumber?: string
+  finish?: string
+  condition?: string
+  cardId?: number
+}
+
+test.describe('Collection Editor — add card from search', () => {
+  let savedBody: { changes: SavedChange[] } | null
+
+  test.beforeEach(async ({ page }) => {
+    savedBody = null
+    await disableSearchDebounce(page)
+    await gotoAdminDashboard(page)
+
+    await fulfillJson(
+      page,
+      '**/api/collections',
+      { collections: [{ slug: 'binder', name: 'Binder' }] },
+      { method: 'GET' },
+    )
+
+    await fulfillJson(page, '**/api/collection/binder', {
+      success: true,
+      slug: 'binder',
+      entries: [
+        {
+          name: 'Sol Ring',
+          set: 'c21',
+          collectorNumber: '167',
+          finish: 'nonfoil',
+          condition: 'NM',
+          price: 0,
+          fileOrder: 0,
+          section: 'Main',
+          cardId: 1,
+        },
+      ],
+      sectionOrder: ['Main'],
+      cards: { 'c21:167': MOCK_SOL_RING, 'Sol Ring': MOCK_SOL_RING },
+      printings: { 'Sol Ring': [MOCK_SOL_RING] },
+      symbolMap: {},
+      contentHash: 'hash-1',
+    })
+
+    await fulfillJson(page, '**/api/collection/binder/save', (route: Route) => {
+      savedBody = JSON.parse(route.request().postData() ?? '{}')
+      return { success: true, message: 'Saved', contentHash: 'hash-2' }
+    })
+
+    await fulfillJson(page, '**/api/autocomplete*', { success: true, names: ['Static Orb'] })
+    await fulfillJson(page, '**/api/card-printings*', {
+      success: true,
+      printings: [MOCK_STATIC_ORB],
+    })
+
+    await openListEditor(page, 'collection')
+    await page.waitForFunction(
+      () => (document.querySelector('#collection-select') as HTMLSelectElement)?.options.length > 1,
+      { timeout: 10_000 },
+    )
+    await page.locator('#collection-select').selectOption('binder')
+    await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
+  })
+
+  /** Add Static Orb keyboard-only: search → Enter, printing → Enter, condition → Enter. */
+  async function addStaticOrbByKeyboard(page: Page): Promise<void> {
+    await page.keyboard.press('Control+Enter')
+    const searchInput = page.locator('.search-modal input[type="text"]')
+    await expect(searchInput).toBeVisible({ timeout: 5_000 })
+    await searchInput.fill('Static Orb')
+    await expect(page.locator('.search-result-item', { hasText: 'Static Orb' })).toBeVisible()
+    await page.keyboard.press('Enter')
+
+    // Printing step: the single printing starts highlighted; Enter selects it.
+    await expect(page.locator('.modal-heading-flex')).toContainText('Select a printing', {
+      timeout: 5_000,
+    })
+    await expect(page.locator('.printing-select-card')).toBeVisible()
+    await page.keyboard.press('Enter')
+
+    // Collections always confirm condition; Enter accepts the NM preselection.
+    await expect(page.locator('.modal-heading-flex')).toContainText('Set finish & condition', {
+      timeout: 5_000,
+    })
+    await page.keyboard.press('Enter')
+    await expect(page.locator('.modal-heading-flex')).toHaveCount(0, { timeout: 5_000 })
+  }
+
+  test('a keyboard-only add carries the chosen printing through to the saved change', async ({
+    page,
+  }) => {
+    await addStaticOrbByKeyboard(page)
+
+    // The new tile renders with card data: its art is present, not a blank placeholder.
+    const tile = page.locator('.card-item', { hasText: 'Static Orb' })
+    await expect(tile).toBeVisible({ timeout: 5_000 })
+    await expect(tile.locator('img').first()).toBeVisible()
+
+    // The saved add change names the exact printing picked in the modal.
+    await page.locator('.btn-save').click()
+    await expect.poll(() => savedBody?.changes.length).toBe(1)
+    expect(savedBody!.changes[0]).toMatchObject({
+      action: 'add',
+      cardName: 'Static Orb',
+      set: 'tmp',
+      collectorNumber: '319',
+      finish: 'nonfoil',
+      condition: 'NM',
+      cardId: 2,
+    })
+  })
+
+  test('a card added from search opens the details modal on click', async ({ page }) => {
+    await addStaticOrbByKeyboard(page)
+
+    await page.locator('.card-item', { hasText: 'Static Orb' }).locator('img').first().click()
+    await expect(page.locator('.card-modal-details')).toBeVisible({ timeout: 5_000 })
   })
 })

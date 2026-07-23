@@ -10,6 +10,33 @@ type CollectionChangeInput = ChangeInput & {
 }
 
 /**
+ * Collection entries always carry a printing, so a change that introduces or
+ * rewrites one (`add`, `move-to`, `set-printing`) must name both a set code and
+ * a collector number — applying one without them would serialize a malformed
+ * `- Name (:)` line that no longer parses. Returns an error message naming the
+ * first offending change, or null when every change is valid. Callers that
+ * write collection files (admin save, one-shot CLI mutations) check this before
+ * applying; the move engine enforces the same rule in `applyAddToStaged`.
+ */
+export function findCollectionPrintingError(changes: ChangeInput[]): string | null {
+  for (const change of changes) {
+    if (
+      change.action !== 'add' &&
+      change.action !== 'move-to' &&
+      change.action !== 'set-printing'
+    ) {
+      continue
+    }
+    if (!change.set || !change.collectorNumber) {
+      return change.action === 'set-printing'
+        ? `Cannot set printing on "${change.cardName}" without set and collector number`
+        : `Cannot add "${change.cardName}" to a collection without set and collector number`
+    }
+  }
+  return null
+}
+
+/**
  * Apply a single change to a collection entries array, returning a new array.
  * Does not mutate the input.
  */

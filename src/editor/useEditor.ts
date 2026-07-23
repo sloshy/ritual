@@ -461,17 +461,23 @@ export function useEditor<TData, TCardEntry = unknown>(
     scryfallCard?: ScryfallCard,
     allPrintings?: ScryfallCard[],
   ) => {
+    // Normalize the set code to lowercase at this single boundary so every
+    // downstream consumer (change events and in-memory entries) stores it
+    // lowercase, per the set-code normalization rule.
+    const normalized: CardPrintingOptions = options
+      ? { ...options, set: options.set?.toLowerCase() }
+      : {}
     const cardId = pool.allocate()
-    changes.addCard(cardName, { ...options, cardId })
+    changes.addCard(cardName, { ...normalized, cardId })
     setData((prev) =>
       prev !== null
         ? config.applyChange(prev, {
             action: 'add',
             cardName,
-            set: options?.set,
-            collectorNumber: options?.collectorNumber,
-            finish: options?.finish,
-            condition: options?.condition,
+            set: normalized.set,
+            collectorNumber: normalized.collectorNumber,
+            finish: normalized.finish,
+            condition: normalized.condition,
             cardId,
           })
         : prev,

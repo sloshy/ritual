@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'bun:test'
-import { applyChangeToCollection } from '../../src/editor/collection-changes'
+import {
+  applyChangeToCollection,
+  findCollectionPrintingError,
+} from '../../src/editor/collection-changes'
 import type { CollectionCardEntry } from '../../src/site/data-types'
 
 function makeEntry(overrides: Partial<CollectionCardEntry> = {}): CollectionCardEntry {
@@ -257,5 +260,61 @@ describe('applyChangeToCollection', () => {
     expect(result[0]!.name).toBe('Tarmogoyf')
     expect(result[0]!.set).toBe('fut')
     expect(result[0]!.finish).toBe('foil')
+  })
+})
+
+describe('findCollectionPrintingError', () => {
+  it('accepts a change list whose adds and printings are fully specified', () => {
+    const error = findCollectionPrintingError([
+      { action: 'add', cardName: 'Sol Ring', set: 'c21', collectorNumber: '167' },
+      {
+        action: 'move-to',
+        cardName: 'Tarmogoyf',
+        set: 'fut',
+        collectorNumber: '153',
+        from: { type: 'deck', name: 'Jund' },
+      },
+      { action: 'set-printing', cardName: 'Sol Ring', set: 'ltc', collectorNumber: '284' },
+    ])
+    expect(error).toBeNull()
+  })
+
+  it('rejects an add missing its printing, naming the card', () => {
+    const error = findCollectionPrintingError([{ action: 'add', cardName: 'Sol Ring' }])
+    expect(error).toBe('Cannot add "Sol Ring" to a collection without set and collector number')
+  })
+
+  it('rejects an add with a set but no collector number', () => {
+    const error = findCollectionPrintingError([{ action: 'add', cardName: 'Sol Ring', set: 'c21' }])
+    expect(error).toBe('Cannot add "Sol Ring" to a collection without set and collector number')
+  })
+
+  it('rejects a move-to missing its printing', () => {
+    const error = findCollectionPrintingError([
+      { action: 'move-to', cardName: 'Tarmogoyf', from: { type: 'deck', name: 'Jund' } },
+    ])
+    expect(error).toBe('Cannot add "Tarmogoyf" to a collection without set and collector number')
+  })
+
+  it('rejects a set-printing missing its printing, with its own wording', () => {
+    const error = findCollectionPrintingError([
+      { action: 'set-printing', cardName: 'Sol Ring', cardId: 5 },
+    ])
+    expect(error).toBe('Cannot set printing on "Sol Ring" without set and collector number')
+  })
+
+  it('ignores actions that never carry a printing', () => {
+    const error = findCollectionPrintingError([
+      { action: 'remove', cardName: 'Sol Ring' },
+      { action: 'set-note', cardName: 'Sol Ring', note: 'binder' },
+      { action: 'set-finish', cardName: 'Sol Ring', finish: 'foil' },
+      { action: 'add-section', section: 'Foils' },
+      {
+        action: 'move-from',
+        cardName: 'Sol Ring',
+        to: { type: 'deck', name: 'Burn' },
+      },
+    ])
+    expect(error).toBeNull()
   })
 })

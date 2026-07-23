@@ -2,7 +2,11 @@ import { describe, expect, test } from 'bun:test'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { applyChangesToListFile } from '../../src/list-mutate'
-import { createRemoveChange, createSetPrintingChange } from '../../src/change-event'
+import {
+  createAddChange,
+  createRemoveChange,
+  createSetPrintingChange,
+} from '../../src/change-event'
 import { withTempDir } from './helpers/cli'
 import { setBaseDir } from '../../src/base-dir'
 
@@ -85,6 +89,23 @@ describe('applyChangesToListFile (Integration)', () => {
       await expect(applyChangesToListFile('wanted', filePath, [move as never])).rejects.toThrow(
         'does not handle move events',
       )
+    })
+  })
+
+  test('collection add without a printing throws and leaves the file untouched', async () => {
+    await withTempDir(async (dir) => {
+      setBaseDir(dir)
+      const original = '# Binder\n\n- Lightning Bolt (LEA:161) &1\n'
+      const filePath = await writeList(dir, 'collections/Binder.md', original)
+
+      // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's rejects matcher resolves at runtime but its type doesn't expose Promise.
+      await expect(
+        applyChangesToListFile('collection', filePath, [
+          createAddChange('Sol Ring', { cardId: 2 }),
+        ]),
+      ).rejects.toThrow('Cannot add "Sol Ring" to a collection without set and collector number')
+
+      expect(await fs.readFile(filePath, 'utf-8')).toBe(original)
     })
   })
 })
