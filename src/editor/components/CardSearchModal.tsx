@@ -7,6 +7,8 @@ import { getCardImageUrl } from '../../card-image'
 import { isFinish, VALID_CONDITIONS } from '../../finish-condition'
 import type { EditorDefaults } from '../useEditorDefaults'
 import type { SearchProvider } from '../search-provider'
+import { useDocumentKeydown } from '../../ui/useDocumentKeydown'
+import { type KeyHint, KeyChips } from '../../ui/KeyHints'
 
 type CardSearchModalProps = {
   open: boolean
@@ -43,9 +45,6 @@ type AddOptionsInput = {
 }
 
 type Step = 'search' | 'printing' | 'finish-condition'
-
-/** A keyboard shortcut hint shown in the modal footer (e.g. ↑↓ "navigate"). */
-type KeyHint = { keys: string[]; label: string }
 
 const PRINTING_PAGE_SIZE = 8
 
@@ -209,6 +208,8 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
 
   let inputRef: HTMLInputElement | undefined
   let modalRef: HTMLDivElement | undefined
+  let printingGridRef: HTMLDivElement | undefined
+  let finishConditionRef: HTMLDivElement | undefined
   let searchTimeout: ReturnType<typeof setTimeout> | null = null
   let typedQuery = ''
   const cardImageCache = new Map<string, string>()
@@ -441,32 +442,50 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     }
   }
 
+  /**
+   * Columns the printing grid is currently laid out with, read back from the
+   * resolved `grid-template-columns` so ↑/↓ step a whole row of whatever the
+   * responsive `auto-fill` layout produced rather than a hardcoded count.
+   */
+  const printingGridColumns = (): number => {
+    // The grid unmounts while a newly picked card's printings load, and a bare
+    // ref is never cleared — so check it is still in the document before
+    // measuring, or a detached node would report no tracks at all.
+    if (!printingGridRef?.isConnected) return 1
+    const template = getComputedStyle(printingGridRef).gridTemplateColumns
+    const columns = template.split(' ').filter((track) => track !== '').length
+    return Math.max(1, columns)
+  }
+
   // Keyboard navigation for printing grid
-  createEffect(() => {
-    if (!props.open || step() !== 'printing') return
-    const hasNoPrintingOption = !props.requirePrinting
-    const offset = hasNoPrintingOption ? 1 : 0
-    const handler = (e: KeyboardEvent) => {
+  useDocumentKeydown(
+    (e) => {
+      // The "No specific printing" tile, when offered, occupies highlight index 0
+      // and shifts every printing one place along.
+      const hasNoPrintingOption = !props.requirePrinting
+      const offset = hasNoPrintingOption ? 1 : 0
       const currentPrintings = printings()
       const totalItems = currentPrintings.length + offset
-      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-        e.preventDefault()
-        const newIdx = Math.min(printingHighlightIndex() + 1, totalItems - 1)
+      // ←/→ step one card; ↑/↓ step one grid row. Both clamp to the ends of the
+      // full printing list and pull the containing page into view.
+      const moveHighlight = (delta: number) => {
+        const newIdx = Math.min(Math.max(printingHighlightIndex() + delta, 0), totalItems - 1)
         setPrintingHighlightIndex(newIdx)
         const printingIdx = newIdx - offset
-        if (printingIdx >= 0) {
-          setPrintingsPage(Math.floor(printingIdx / PRINTING_PAGE_SIZE))
-        }
-      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        setPrintingsPage(printingIdx >= 0 ? Math.floor(printingIdx / PRINTING_PAGE_SIZE) : 0)
+      }
+      if (e.key === 'ArrowRight') {
         e.preventDefault()
-        const newIdx = Math.max(printingHighlightIndex() - 1, 0)
-        setPrintingHighlightIndex(newIdx)
-        const printingIdx = newIdx - offset
-        if (printingIdx >= 0) {
-          setPrintingsPage(Math.floor(printingIdx / PRINTING_PAGE_SIZE))
-        } else {
-          setPrintingsPage(0)
-        }
+        moveHighlight(1)
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        moveHighlight(-1)
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        moveHighlight(printingGridColumns())
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        moveHighlight(-printingGridColumns())
       } else if (e.key === 'Enter') {
         e.preventDefault()
         const idx = printingHighlightIndex()
@@ -477,10 +496,9 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
           if (printing) selectPrinting(printing)
         }
       }
-    }
-    document.addEventListener('keydown', handler)
-    onCleanup(() => document.removeEventListener('keydown', handler))
-  })
+    },
+    () => props.open && step() === 'printing',
+  )
 
   // Add card with selected finish and condition
   const handleAddWithOptions = () => {
@@ -499,6 +517,28 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     )
     props.onClose()
   }
+
+  // Focus the finish/condition step's first group on entry, so the arrow keys
+  // drive the radios immediately (native radio-group behavior) without a Tab.
+  createEffect(() => {
+    if (!props.open || step() !== 'finish-condition') return
+    const id = setTimeout(() => {
+      finishConditionRef?.querySelector<HTMLInputElement>('input[type="radio"]:checked')?.focus()
+    }, 50)
+    onCleanup(() => clearTimeout(id))
+  })
+
+  // Enter anywhere on the finish/condition step adds the card with the current
+  // selections. Buttons are exempt so Enter still activates the focused one
+  // ("← Back", "Add Card") through its own default action.
+  useDocumentKeydown(
+    (e) => {
+      if (e.key !== 'Enter' || e.target instanceof HTMLButtonElement) return
+      e.preventDefault()
+      handleAddWithOptions()
+    },
+    () => props.open && step() === 'finish-condition',
+  )
 
   const goBack = () => {
     if (step() === 'finish-condition') {
@@ -520,11 +560,24 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   }
 
   // Keyboard hints shown in the footer, mirroring the public site's quick-switch
-  // dialog. The search and printing steps support arrow/Enter navigation; the
-  // finish-condition step is a short terminal form, so it only advertises Esc.
+  // dialog. Each step advertises its own navigation: a flat result list, a card
+  // grid (row-wise ↑/↓, card-wise ←/→), and the finish/condition radio groups.
   const keyHints = createMemo<KeyHint[]>(() => {
+    if (step() === 'printing') {
+      return [
+        { keys: ['←', '→'], label: 'printing' },
+        { keys: ['↑', '↓'], label: 'row' },
+        { keys: ['Enter'], label: 'select' },
+        { keys: ['Esc'], label: 'close' },
+      ]
+    }
     if (step() === 'finish-condition') {
-      return [{ keys: ['Esc'], label: 'close' }]
+      return [
+        { keys: ['↑', '↓', '←', '→'], label: 'choose' },
+        { keys: ['Tab'], label: 'next group' },
+        { keys: ['Enter'], label: 'add card' },
+        { keys: ['Esc'], label: 'close' },
+      ]
     }
     return [
       { keys: ['↑', '↓'], label: 'navigate' },
@@ -533,9 +586,15 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     ]
   })
 
-  // Compute card preview position relative to modal
+  // Compute card preview position relative to modal.
+  // Both signals are read before the `modalRef` check on purpose: `modalRef` is
+  // only assigned once the modal's panel renders, which is after this memo's
+  // first (dependency-collecting) run — short-circuiting on it would leave the
+  // memo tracking nothing at all, frozen at its initial value forever.
   const previewPositionStyle = createMemo(() => {
-    if (!modalRef || !previewCard() || step() !== 'search') return 'display: none;'
+    const card = previewCard()
+    const onSearchStep = step() === 'search'
+    if (!modalRef || !card || !onSearchStep) return 'display: none;'
     const rect = modalRef.getBoundingClientRect()
     const rightSpace = window.innerWidth - rect.right
     const left = rightSpace >= 260 ? rect.right + 16 : Math.max(0, rect.left - 256 - 16)
@@ -620,7 +679,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                   printings.
                 </div>
               </Show>
-              <div class="printing-select-grid">
+              <div class="printing-select-grid" ref={printingGridRef}>
                 <Show when={!props.requirePrinting && printingsPage() === 0}>
                   <button
                     class={`printing-no-printing${printingHighlightIndex() === 0 ? ' printing-no-printing--highlighted' : ''}`}
@@ -695,7 +754,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
               </h3>
             </div>
             <div class="search-modal-body">
-              <div class="finish-condition-grid">
+              <div class="finish-condition-grid" ref={finishConditionRef}>
                 <Show
                   when={
                     printing().finishes.length > 1 ||
@@ -764,7 +823,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
         <For each={keyHints()}>
           {(hint) => (
             <span>
-              <For each={hint.keys}>{(key) => <kbd>{key}</kbd>}</For>
+              <KeyChips keys={hint.keys} />
               {hint.label}
             </span>
           )}

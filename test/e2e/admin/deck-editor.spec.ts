@@ -95,6 +95,8 @@ test.describe('Deck Editor Page', () => {
       set_name: 'Limited Edition Alpha',
       collector_number: '161',
       color_identity: ['R'],
+      // A resolvable image URL, without which the search modal has no preview to show.
+      image_uris: { normal: 'https://example.invalid/bolt.png' },
     })
 
     test.beforeEach(async ({ page }) => {
@@ -179,6 +181,30 @@ test.describe('Deck Editor Page', () => {
       await page.locator('.btn-add').click()
       await expect(searchInput).toBeVisible({ timeout: 5_000 })
       await expect(page.locator('.modal-heading-flex')).toHaveCount(0)
+    })
+
+    test('highlighting a search result shows a positioned card preview', async ({ page }) => {
+      await page.locator('.btn-add').click()
+      const searchInput = page.locator('.search-modal input[type="text"]')
+      await expect(searchInput).toBeVisible({ timeout: 5_000 })
+
+      await searchInput.fill('Lightning')
+      const boltResult = page.locator('.search-result-item', { hasText: 'Lightning Bolt' })
+      await expect(boltResult).toBeVisible({ timeout: 5_000 })
+      await boltResult.hover()
+
+      // The preview must be positioned next to the modal, not left at its
+      // initial `display: none` (its style is computed once the panel exists).
+      const preview = page.locator('.search-card-preview')
+      await expect(preview).toBeVisible({ timeout: 5_000 })
+      await expect(preview).toHaveAttribute('style', /left: \d+px; top: \d+px;/)
+
+      // Leaving the search step drops the preview entirely.
+      await boltResult.click()
+      await expect(page.locator('.modal-heading-flex')).toContainText('Select a printing', {
+        timeout: 5_000,
+      })
+      await expect(preview).toHaveCount(0)
     })
   })
 })

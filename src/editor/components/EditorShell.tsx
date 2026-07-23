@@ -1,4 +1,4 @@
-import { type JSX, Show, For } from 'solid-js'
+import { type JSX, Show, For, createSignal } from 'solid-js'
 import type { ScryfallCard } from '../../types'
 import type { UseEditorResult, ListItem } from '../useEditor'
 import type { UseEditorDefaultsResult } from '../useEditorDefaults'
@@ -9,8 +9,10 @@ import { ImportChangesDialog } from './ImportChangesDialog'
 import { DiscardConfirmDialog } from './DiscardConfirmDialog'
 import { CardSearchModal } from './CardSearchModal'
 import { ChangePrintingQuantityDialog } from './ChangePrintingQuantityDialog'
-import { EditorActionBar } from './EditorActionBar'
+import { EditorActionBar, focusActionBar } from './EditorActionBar'
 import { TextPromptDialog } from './TextPromptDialog'
+import { ShortcutsDialog } from './ShortcutsDialog'
+import { useEditorShortcuts } from '../useEditorShortcuts'
 
 type BaseCardData = {
   cards: Record<string, ScryfallCard | null>
@@ -50,6 +52,14 @@ export function EditorShell<TData, TCardEntry>(
   props: EditorShellProps<TData, TCardEntry>,
 ): JSX.Element {
   const editor = props.editor
+  let actionBarEl: HTMLDivElement | undefined
+  const [showShortcuts, setShowShortcuts] = createSignal(false)
+
+  useEditorShortcuts({
+    onAddCard: () => editor.dialogs.openSearchModal(),
+    onFocusActionBar: () => focusActionBar(actionBarEl),
+    onShowShortcuts: () => setShowShortcuts(true),
+  })
 
   return (
     <div>
@@ -152,6 +162,9 @@ export function EditorShell<TData, TCardEntry>(
         )}
       </Show>
 
+      {/* Keyboard shortcuts reference */}
+      <ShortcutsDialog open={showShortcuts()} onClose={() => setShowShortcuts(false)} />
+
       {/* Section-naming prompt (new section / rename), replacing native window.prompt */}
       <TextPromptDialog
         open={editor.textPrompt() !== null}
@@ -180,9 +193,11 @@ export function EditorShell<TData, TCardEntry>(
           onAddSection={editor.handleAddSection}
           onRequestRename={editor.promptRenameSection}
           onRemoveSection={editor.handleRemoveSection}
+          onShowShortcuts={() => setShowShortcuts(true)}
           onImport={props.enableImport ? editor.dialogs.openImport : undefined}
           showSave={props.showSave}
           showDiscard={props.showDiscard}
+          barRef={(el) => (actionBarEl = el)}
         />
       </Show>
     </div>

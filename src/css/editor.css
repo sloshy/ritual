@@ -320,7 +320,8 @@
   gap: 0.25rem;
 }
 
-.search-modal-footer kbd {
+.search-modal-footer kbd,
+.shortcuts-keys kbd {
   background: var(--bg-body);
   border: 1px solid var(--border);
   border-radius: 0.1875rem;
@@ -511,6 +512,13 @@
 
 .radio-option input[type='radio'] {
   accent-color: var(--accent);
+}
+
+/* Keyboard focus within a radio group reads as a highlight on the whole option,
+   not just the UA ring on the small radio control itself. */
+.radio-option:has(input[type='radio']:focus-visible) {
+  border-color: var(--accent);
+  background: var(--bg-active);
 }
 
 /* Changes dialog */
@@ -706,6 +714,67 @@
   flex: 1;
   font-size: 0.8125rem;
   color: var(--text-primary);
+}
+
+/* Keyboard shortcuts reference dialog, opened by `?` or the action bar's help button. */
+.shortcuts-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px 24px;
+  margin-top: 14px;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.shortcuts-group-title {
+  margin: 0 0 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.shortcuts-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.shortcuts-keys {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 3px;
+}
+
+.shortcuts-label {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.shortcuts-note {
+  margin: 14px 0 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* The action bar's help button, sharing the neutral button treatment but square. */
+.btn-shortcuts {
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 0;
+  width: 34px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-shortcuts:hover {
+  background: var(--btn-hover);
 }
 
 /* Text-prompt dialog (new section / rename) */

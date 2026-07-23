@@ -1,4 +1,4 @@
-import { type Component, For, Show, createSignal, createMemo } from 'solid-js'
+import { type Component, type JSX, For, Show, createSignal, createMemo, onCleanup } from 'solid-js'
 import type { UseEditorDefaultsResult } from '../useEditorDefaults'
 import type { SectionInfo } from '../useEditor'
 import { EditorDefaultsForm } from './EditorDefaultsForm'
@@ -18,12 +18,34 @@ type EditorActionBarProps = {
   onAddSection: (name: string) => void
   onRequestRename: (name: string) => void
   onRemoveSection: (name: string) => void
+  /** Opens the keyboard shortcuts reference (also bound to `?`). */
+  onShowShortcuts: () => void
   /** When provided, shows an "Import…" button (admin only) to load an exported change file. */
   onImport?: () => void
   /** Show the primary Save button. Defaults to true; the public editor exports via its banner instead. */
   showSave?: boolean
   /** Show the Discard button. Defaults to true; the public editor discards via its banner instead. */
   showDiscard?: boolean
+  /**
+   * Ref for the bar element itself — used by the Ctrl+B shortcut to focus its
+   * first button. Called with `undefined` when the bar unmounts (the editor
+   * hides it while a list loads), so the owner never holds a detached node.
+   */
+  barRef?: (el: HTMLDivElement | undefined) => void
+}
+
+/** The bar's enabled buttons, in visual order. */
+function barButtons(bar: HTMLElement): HTMLButtonElement[] {
+  return [...bar.querySelectorAll<HTMLButtonElement>('button:not([disabled])')]
+}
+
+/**
+ * Move focus to the first enabled button of `bar`. Exported so the editor shell
+ * can drive it from a keyboard shortcut without reaching into the bar's markup.
+ */
+export function focusActionBar(bar: HTMLElement | undefined): void {
+  if (!bar) return
+  barButtons(bar)[0]?.focus()
 }
 
 export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
@@ -55,6 +77,28 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
     setSectionsOpen(false)
   }
 
+  /**
+   * Roving keyboard navigation once focus is in the bar (typically via Ctrl+B):
+   * ←/→ wrap between buttons, Esc gives focus back to the page. Tab still walks
+   * the buttons natively.
+   */
+  const handleBarKeyDown: JSX.EventHandler<HTMLDivElement, KeyboardEvent> = (e) => {
+    const active = document.activeElement
+    if (!(active instanceof HTMLElement) || !e.currentTarget.contains(active)) return
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      active.blur()
+      return
+    }
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+    const buttons = barButtons(e.currentTarget)
+    const index = buttons.findIndex((button) => button === active)
+    if (index === -1) return
+    e.preventDefault()
+    const delta = e.key === 'ArrowRight' ? 1 : buttons.length - 1
+    buttons[(index + delta) % buttons.length]?.focus()
+  }
+
   return (
     <div class="editor-action-dock">
       <Show when={defaultsOpen()}>
@@ -62,8 +106,20 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
           <EditorDefaultsForm defaults={props.defaults} showCondition={showCondition()} />
         </div>
       </Show>
-      <div class="editor-action-bar">
-        <button type="button" class="btn-add" onClick={props.onAddCard}>
+      <div
+        class="editor-action-bar"
+        ref={(el) => {
+          props.barRef?.(el)
+          onCleanup(() => props.barRef?.(undefined))
+        }}
+        onKeyDown={handleBarKeyDown}
+      >
+        <button
+          type="button"
+          class="btn-add"
+          title="Add a card (Ctrl+Enter)"
+          onClick={props.onAddCard}
+        >
           + Add Card
         </button>
         <button
@@ -115,6 +171,15 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
             Discard Changes
           </button>
         </Show>
+        <button
+          type="button"
+          class="btn-shortcuts"
+          title="Keyboard shortcuts (?)"
+          aria-label="Keyboard shortcuts"
+          onClick={props.onShowShortcuts}
+        >
+          ?
+        </button>
       </div>
 
       <Modal

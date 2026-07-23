@@ -10,6 +10,22 @@ The admin site provides a single **Edit Lists** page for managing decks, collect
 
 Pick a list type with the tabs at the top of the page, then choose the file to edit from the dropdown below them. Loading a file fetches full card data, printings, and pricing from the cache.
 
+### Keyboard Shortcuts
+
+The editors can be driven entirely from the keyboard. Page-level shortcuts are suppressed while any dialog is open, so a dialog's own keys always win:
+
+| Key            | Action                                                                                                             |
+| -------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **?**          | Open the **Keyboard Shortcuts** reference — the same as clicking the **?** button at the end of the action bar     |
+| **Ctrl+Enter** | Open the card search modal — the same as clicking **+ Add Card**                                                   |
+| **Ctrl+B**     | Move focus into the bottom [action bar](#editor-action-bar), on its first enabled button                           |
+| **←** / **→**  | While focus is in the action bar, move between its buttons (wrapping at either end); **Tab** still works as normal |
+| **Esc**        | While focus is in the action bar, drop focus back to the page                                                      |
+
+The **?** dialog lists every binding above plus the per-step keys of the [add-card dialog](#adding-cards), so the full set is discoverable from the editor itself. Because **?** is an ordinary character, it only triggers when you aren't typing in a text field.
+
+On macOS, **Cmd** substitutes for **Ctrl**. The same shortcuts are available in the public site's editor, which shares the action bar and dialogs.
+
 ### Filters Menu
 
 The list toolbar (shared with the public site pages) groups all card filters under a right-aligned **Filters** dropdown. The button shows a badge with the number of active filters, and the panel offers:
@@ -82,7 +98,7 @@ When a default cannot be applied (e.g. the chosen printing doesn't support the d
 
 ### Adding Cards
 
-Click the **+ Add Card** button in the bottom [action bar](#editor-action-bar) to open the card search modal. The modal shows keyboard-shortcut hints along its bottom edge; dismiss it with **Esc** or by clicking outside it.
+Click the **+ Add Card** button in the bottom [action bar](#editor-action-bar), or press **Ctrl+Enter**, to open the card search modal. The modal shows keyboard-shortcut hints along its bottom edge — they change per step — and every step is fully keyboard navigable. Dismiss it with **Esc** or by clicking outside it.
 
 #### Step 1: Search
 
@@ -94,12 +110,16 @@ Click the **+ Add Card** button in the bottom [action bar](#editor-action-bar) t
 
 Choose a specific printing from the grid showing set, collector number, and price. In the Deck Editor and Wanted List Editor, you may also choose **No specific printing** to add without printing details.
 
+The grid navigates in two dimensions: **←**/**→** move to the previous/next printing, and **↑**/**↓** move a whole row up or down (the row width follows the grid's responsive column count). Moving past the printings shown on the current page pages the grid automatically. **Enter** selects the highlighted printing.
+
 #### Step 3: Finish & Condition
 
 This step appears when the selected printing has multiple finish options.
 
 - Select a finish (nonfoil, foil, etched) if the printing has multiple options
 - Select a condition (NM, LP, MP, HP, DMG) — only available in the Deck and Collection editors; defaults to NM
+
+Focus lands on the first group's selected option when the step opens, so the arrow keys change the selection immediately; **Tab** moves to the next group. **Enter** adds the card with the current selections from anywhere in the step (except while the **← Back** button is focused, where it goes back).
 
 ### Context Menu
 
@@ -150,12 +170,13 @@ All edits are tracked as in-memory change events until explicitly saved.
 
 A bar pinned to the bottom of the editor holds all editing controls, from left to right:
 
-- **+ Add Card** — opens the card search modal (see [Adding Cards](#adding-cards))
+- **+ Add Card** — opens the card search modal (see [Adding Cards](#adding-cards)); also **Ctrl+Enter**
 - **Add Card Defaults** — expands the [defaults panel](#add-card-defaults) upward
 - **Sections** — opens the [Manage Sections](#sections) dialog
 - **Changes** — shows the pending-change count and opens the changes dialog
 - **Undo** — reverts the most recent change
 - **Save Changes** / **Discard Changes**
+- **?** — opens the [Keyboard Shortcuts](#keyboard-shortcuts) reference
 
 ### Saving and Discarding
 
