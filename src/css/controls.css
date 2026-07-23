@@ -208,6 +208,7 @@
 }
 
 .btn-add-card {
+  position: relative;
   width: 100%;
   padding: 10px;
   background: var(--btn-add);
@@ -218,6 +219,27 @@
   font-weight: 600;
   cursor: pointer;
   margin-top: 8px;
+}
+
+/* Keyboard-shortcut chip pinned in a button's corner. Inherits the button's
+   text color so it stays legible on any themed button background. Hidden on
+   touch-first devices (see touch.css). */
+.btn-key-hint {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  display: inline-flex;
+  gap: 2px;
+}
+
+.btn-key-hint kbd {
+  border: 1px solid currentColor;
+  border-radius: 0.1875rem;
+  padding: 0 0.25rem;
+  font-family: inherit;
+  font-size: 0.5625rem;
+  font-weight: 400;
+  opacity: 0.7;
 }
 
 .btn-delete {

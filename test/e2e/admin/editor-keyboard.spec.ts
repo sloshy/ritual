@@ -260,4 +260,48 @@ test.describe('Admin Editor — keyboard navigation', () => {
     })
     await expect(page.locator('.changes-badge')).toHaveText('1')
   })
+
+  test('Add Another Card commits and restarts the search instead of closing', async ({ page }) => {
+    const searchInput = page.locator('.search-modal input[type="text"]')
+
+    /** From the search step, drive Lightning Helix to the finish/condition step. */
+    const gotoFinishCondition = async () => {
+      await gotoPrintingStep(page, 'Lightning Helix')
+      await page.keyboard.press('ArrowRight')
+      await page.keyboard.press('Enter')
+      await expect(page.locator('.modal-heading-flex')).toContainText('Set finish & condition', {
+        timeout: 5_000,
+      })
+    }
+
+    await page.keyboard.press('Control+Enter')
+    await gotoFinishCondition()
+
+    // Both commit buttons advertise their shortcut in a corner chip.
+    const addCard = page.locator('.add-card-actions button', { hasText: /^Add Card/ })
+    const addAnother = page.locator('.add-card-actions button', { hasText: 'Add Another Card' })
+    await expect(addCard.locator('kbd')).toHaveText(['Enter'])
+    await expect(addAnother.locator('kbd')).toHaveText(['Ctrl', 'Enter'])
+
+    // Clicking Add Another Card records the add but reopens a blank search step.
+    await addAnother.click()
+    await expect(searchInput).toBeVisible({ timeout: 5_000 })
+    await expect(searchInput).toHaveValue('')
+    await expect(page.locator('.changes-badge')).toHaveText('1')
+
+    // Ctrl+Enter does the same from the keyboard.
+    await gotoFinishCondition()
+    await page.keyboard.press('Control+Enter')
+    await expect(searchInput).toBeVisible({ timeout: 5_000 })
+    await expect(searchInput).toHaveValue('')
+
+    // Both adds landed once the modal is dismissed: two change events, and the
+    // card is on the list.
+    await page.keyboard.press('Escape')
+    await expect(searchInput).toHaveCount(0, { timeout: 3_000 })
+    await expect(page.locator('.changes-badge')).toHaveText('2')
+    await expect(page.locator('.card-item', { hasText: 'Lightning Helix' })).toBeVisible({
+      timeout: 5_000,
+    })
+  })
 })

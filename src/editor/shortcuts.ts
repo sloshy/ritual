@@ -52,6 +52,7 @@ export const EDITOR_SHORTCUTS: readonly ShortcutGroup[] = [
       { keys: ['↑', '↓', '←', '→'], label: 'Change the selected option' },
       { keys: ['Tab'], label: 'Move to the next group' },
       { keys: ['Enter'], label: 'Add the card' },
+      { keys: ['Ctrl', 'Enter'], label: 'Add the card, then start another' },
     ],
   },
   {

@@ -467,6 +467,16 @@
   padding: 16px;
 }
 
+/* The step's two commit buttons ("Add Card" / "Add Another Card"), side by side. */
+.add-card-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.add-card-actions .btn-add-card {
+  flex: 1;
+}
+
 .finish-condition-section {
   margin-bottom: 16px;
 }

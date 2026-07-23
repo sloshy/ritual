@@ -214,6 +214,30 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   let typedQuery = ''
   const cardImageCache = new Map<string, string>()
 
+  // Reset every step's state back to a fresh search. Runs when the modal opens
+  // and again after "Add Another Card", which restarts the flow in place. A
+  // debounce timer armed by the previous search must not survive the reset, or
+  // it would repopulate the results with the stale query after it fires.
+  const resetToSearch = () => {
+    if (searchTimeout) clearTimeout(searchTimeout)
+    searchTimeout = null
+    setStep('search')
+    setQuery('')
+    setResults([])
+    setHighlightedIndex(-1)
+    setPreviewCard(null)
+    setSelectedCardName('')
+    setPrintings([])
+    setPrintingHighlightIndex(0)
+    setPrintingsPage(0)
+    setLoadingPrintings(false)
+    setSelectedPrinting(null)
+    setSelectedFinish(props.defaults?.finish ?? 'nonfoil')
+    setSelectedCondition(defaultCondition() ?? 'NM')
+    setSetFilterFellBack(false)
+    typedQuery = ''
+  }
+
   // Reset all state when modal opens
   // Keyed on `props.open` so reopening always resets, but a defaults change while
   // the modal is open never re-runs this (which would wipe the user's in-progress
@@ -224,21 +248,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       () => props.open,
       (open) => {
         if (!open) return
-        setStep('search')
-        setQuery('')
-        setResults([])
-        setHighlightedIndex(-1)
-        setPreviewCard(null)
-        setSelectedCardName('')
-        setPrintings([])
-        setPrintingHighlightIndex(0)
-        setPrintingsPage(0)
-        setLoadingPrintings(false)
-        setSelectedPrinting(null)
-        setSelectedFinish(props.defaults?.finish ?? 'nonfoil')
-        setSelectedCondition(defaultCondition() ?? 'NM')
-        setSetFilterFellBack(false)
-        typedQuery = ''
+        resetToSearch()
         // "Change printing" mode: jump straight to the printing step for the
         // already-known card instead of showing the search step.
         if (props.initialCardName) {
@@ -500,8 +510,14 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     () => props.open && step() === 'printing',
   )
 
-  // Add card with selected finish and condition
-  const handleAddWithOptions = () => {
+  // "Add Another Card" commits the card and restarts the flow instead of
+  // closing. Offered only in the normal add flow — in change-printing mode the
+  // dialog is editing an existing card, so there is no "another" to add.
+  const canAddAnother = () => !props.initialCardName
+
+  // Add card with selected finish and condition. With `addAnother`, the modal
+  // returns to a fresh search step instead of closing.
+  const handleAddWithOptions = (addAnother = false) => {
     const printing = selectedPrinting()
     if (!printing) return
     props.onAddCard(
@@ -515,7 +531,11 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       printing,
       printings(),
     )
-    props.onClose()
+    if (addAnother) {
+      resetToSearch()
+    } else {
+      props.onClose()
+    }
   }
 
   // Focus the finish/condition step's first group on entry, so the arrow keys
@@ -529,11 +549,21 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   })
 
   // Enter anywhere on the finish/condition step adds the card with the current
-  // selections. Buttons are exempt so Enter still activates the focused one
-  // ("← Back", "Add Card") through its own default action.
+  // selections; Ctrl/Cmd+Enter adds it and starts a fresh search for another.
+  // For plain Enter, buttons are exempt so it still activates the focused one
+  // ("← Back", "Add Card") through its own default action. The chord is
+  // handled even on a focused button — it is unambiguous, and the default
+  // action would otherwise click that button instead.
   useDocumentKeydown(
     (e) => {
-      if (e.key !== 'Enter' || e.target instanceof HTMLButtonElement) return
+      if (e.key !== 'Enter') return
+      if (e.ctrlKey || e.metaKey) {
+        if (!canAddAnother()) return
+        e.preventDefault()
+        handleAddWithOptions(true)
+        return
+      }
+      if (e.target instanceof HTMLButtonElement) return
       e.preventDefault()
       handleAddWithOptions()
     },
@@ -550,6 +580,10 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
         props.onClose()
         return
       }
+      // Same stale-timer guard as resetToSearch: the search step being returned
+      // to must not have a leftover debounce fire over it.
+      if (searchTimeout) clearTimeout(searchTimeout)
+      searchTimeout = null
       setStep('search')
       setQuery(typedQuery)
       setHighlightedIndex(-1)
@@ -572,12 +606,14 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       ]
     }
     if (step() === 'finish-condition') {
-      return [
+      const hints: KeyHint[] = [
         { keys: ['↑', '↓', '←', '→'], label: 'choose' },
         { keys: ['Tab'], label: 'next group' },
         { keys: ['Enter'], label: 'add card' },
-        { keys: ['Esc'], label: 'close' },
       ]
+      if (canAddAnother()) hints.push({ keys: ['Ctrl', 'Enter'], label: 'add + another' })
+      hints.push({ keys: ['Esc'], label: 'close' })
+      return hints
     }
     return [
       { keys: ['↑', '↓'], label: 'navigate' },
@@ -810,9 +846,22 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                   </div>
                 </Show>
 
-                <button onClick={handleAddWithOptions} class="btn-add-card">
-                  Add Card
-                </button>
+                <div class="add-card-actions">
+                  <button onClick={() => handleAddWithOptions()} class="btn-add-card">
+                    Add Card
+                    <span class="btn-key-hint" aria-hidden="true">
+                      <KeyChips keys={['Enter']} />
+                    </span>
+                  </button>
+                  <Show when={canAddAnother()}>
+                    <button onClick={() => handleAddWithOptions(true)} class="btn-add-card">
+                      Add Another Card
+                      <span class="btn-key-hint" aria-hidden="true">
+                        <KeyChips keys={['Ctrl', 'Enter']} />
+                      </span>
+                    </button>
+                  </Show>
+                </div>
               </div>
             </div>
           </>

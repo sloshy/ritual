@@ -292,4 +292,11 @@
   .theme-customize-btn {
     padding: 0.5rem 0.75rem;
   }
+
+  /* ----- Keyboard-shortcut chips ----- */
+
+  /* Corner chips on buttons advertise keys a touch-first device doesn't have. */
+  .btn-key-hint {
+    display: none;
+  }
 }

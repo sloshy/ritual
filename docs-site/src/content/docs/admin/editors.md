@@ -123,6 +123,11 @@ This step appears when the selected printing has multiple finish options.
 
 Focus lands on the first group's selected option when the step opens, so the arrow keys change the selection immediately; **Tab** moves to the next group. **Enter** adds the card with the current selections from anywhere in the step (except while the **← Back** button is focused, where it goes back).
 
+The step offers two commit buttons, each with its shortcut shown in its corner (the corner hints are hidden on touch devices):
+
+- **Add Card** (**Enter**) — adds the card and closes the modal
+- **Add Another Card** (**Ctrl+Enter**) — adds the card, then returns to a fresh search step so the next card can be added without reopening the modal. Not offered when the dialog was opened via **Change Printing…**, which edits an existing card.
+
 ### Context Menu
 
 Right-clicking a card (or clicking the **⋯** button in binder/overlap views) opens a context menu. **Set as Foil**, **Change Printing…**, and **Move to section…** are available in all editors. The Deck Editor additionally offers **Set as Commander**.
