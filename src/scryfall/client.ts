@@ -19,7 +19,9 @@ import {
   type CardNameFilter,
   isDigitalOnlySet,
   isArenaOnly,
-  isToken,
+  isRealPrinting,
+  classifyExcludedPrinting,
+  type PrintingExclusion,
   getFrontFaceName,
   mapScryfallCard,
 } from './card-utils'
@@ -385,10 +387,12 @@ export class ScryfallClient implements PricingBackend {
       for (const c of cached) {
         if (!c.color_identity) c.color_identity = []
       }
-      const filtered = cached.filter((c) => !isToken(c))
+      const filtered = cached.filter(isRealPrinting)
       if (filtered.length !== cached.length) {
-        // Evict tokens found in existing cache entry
-        this.cardCache.set(name, filtered).catch(() => {})
+        // Evict excluded printings (tokens, art series, …) left by an older cache
+        this.cardCache.set(name, filtered).catch((e) => {
+          getLogger().warn(`Failed to evict excluded printings for '${name}':`, e)
+        })
       }
       return filtered
     }
@@ -586,18 +590,18 @@ export class ScryfallClient implements PricingBackend {
       const allCards: ScryfallCard[] = []
 
       const finish = () => {
-        const nonTokens = allCards.filter((c) => !isArenaOnly(c) && !isToken(c))
-        const mapped = nonTokens.map((c) => mapScryfallCard(c))
+        const realPrintings = allCards.filter(isRealPrinting)
+        const mapped = realPrintings.map((c) => mapScryfallCard(c))
         if (mapped.length > 0) {
           this.cardCache.set(name, mapped).catch((e) => {
             getLogger().warn(`Failed to cache printings for '${name}':`, e)
           })
         }
-        const nonTokenFirstPage = firstPageCards.filter((c) => !isToken(c))
+        const realFirstPage = firstPageCards.filter(isRealPrinting)
         resolve(
           computeRepresentativePrints(
-            nonTokenFirstPage,
-            nonTokens,
+            realFirstPage,
+            realPrintings,
             currencies,
             getBannedPrintings(),
           ),
@@ -687,7 +691,7 @@ export class ScryfallClient implements PricingBackend {
           const data = json.data || []
 
           for (const item of data) {
-            if (isArenaOnly(item)) continue
+            if (!isRealPrinting(item)) continue
 
             const card = mapScryfallCard(item)
 
@@ -989,7 +993,11 @@ export class ScryfallClient implements PricingBackend {
 
     const entries: Record<string, ScryfallCard[]> = {}
     let cardCount = 0
-    let filteredCount = 0
+    const excluded: Record<PrintingExclusion, number> = {
+      'arena-only': 0,
+      token: 0,
+      'art-series': 0,
+    }
     let malformedCount = 0
     for await (const item of readGzipJsonLines(body, onProgress)) {
       // Guard the minimum shape mapScryfallCard dereferences, so one malformed
@@ -998,14 +1006,13 @@ export class ScryfallClient implements PricingBackend {
         malformedCount++
         continue
       }
-      const raw = item
-      // Filter out arena-only and token printings
-      if (isArenaOnly(raw) || isToken(raw)) {
-        filteredCount++
+      const exclusion = classifyExcludedPrinting(item)
+      if (exclusion) {
+        excluded[exclusion]++
         continue
       }
 
-      const card = mapScryfallCard(raw)
+      const card = mapScryfallCard(item)
       if (tagIndex) attachTags(card, tagIndex)
       ;(entries[card.name] ??= []).push(card)
       cardCount++
@@ -1015,8 +1022,11 @@ export class ScryfallClient implements PricingBackend {
     if (malformedCount > 0) {
       getLogger().warn(`Skipped ${malformedCount} malformed bulk card entries.`)
     }
-    if (filteredCount > 0) {
-      getLogger().info(`Filtered out ${filteredCount} arena-only or token printings.`)
+    const excludedEntries = Object.entries(excluded).filter(([, count]) => count > 0)
+    if (excludedEntries.length > 0) {
+      const total = excludedEntries.reduce((sum, [, count]) => sum + count, 0)
+      const breakdown = excludedEntries.map(([reason, count]) => `${count} ${reason}`).join(', ')
+      getLogger().info(`Filtered out ${total} printings (${breakdown}).`)
     }
     getLogger().info(`Processed ${cardCount} cards.`)
 

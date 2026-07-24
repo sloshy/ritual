@@ -7,6 +7,7 @@ import {
   computeRepresentativePrints,
   getCardGames,
   isArenaOnly,
+  isArtSeries,
   isToken,
 } from '../../src/scryfall'
 import type { FileSystemClient } from '../../src/interfaces'
@@ -222,6 +223,29 @@ describe('ScryfallClient', () => {
       const cached2 = await mockCache.get('Card 2')
       expect(cached1?.[0]?.name).toBe('Card 1')
       expect(cached2?.[0]?.name).toBe('Card 2')
+    })
+
+    test('drops excluded printings from results and from the cache', async () => {
+      const real = makeScryfallCard({ id: 'r', name: 'Ghalta, Primal Hunger', layout: 'normal' })
+      // Same name as the real card, so caching it would pollute that card's printings.
+      const artSeries = makeScryfallCard({
+        id: 'a',
+        name: 'Ghalta, Primal Hunger',
+        layout: 'art_series',
+        set: 'arix',
+      })
+      const token = makeScryfallCard({ id: 't', name: 'Dinosaur', layout: 'token' })
+
+      mockHttp.mock(
+        'https://api.scryfall.com/cards/search?q=set%3Arix&order=edhrec',
+        () => new Response(JSON.stringify({ data: [real, artSeries, token] })),
+      )
+
+      const result = await client.searchCards('set:rix')
+
+      expect(result.map((c) => c.id)).toEqual(['r'])
+      expect((await mockCache.get('Ghalta, Primal Hunger'))?.map((c) => c.id)).toEqual(['r'])
+      expect(await mockCache.get('Dinosaur')).toBeNull()
     })
 
     test('should return empty array on 404', async () => {
@@ -755,6 +779,29 @@ describe('isToken', () => {
 
   test.each(cases)('$label → $expected', ({ card, expected }) => {
     expect(isToken(card)).toBe(expected)
+  })
+})
+
+describe('isArtSeries', () => {
+  type IsArtSeriesCase = { label: string; card: ScryfallCard; expected: boolean }
+  const cases: IsArtSeriesCase[] = [
+    {
+      label: 'art_series layout',
+      card: makeScryfallCard({ layout: 'art_series', type_line: 'Card // Card', set: 'aznr' }),
+      expected: true,
+    },
+    { label: 'normal card layout', card: makeScryfallCard({ layout: 'normal' }), expected: false },
+    {
+      // The set-code shape alone must not decide it — real cards live in 4-letter sets too.
+      label: 'normal card in an a-prefixed set',
+      card: makeScryfallCard({ layout: 'normal', set: 'aznr' }),
+      expected: false,
+    },
+    { label: 'layout absent', card: makeScryfallCard(), expected: false },
+  ]
+
+  test.each(cases)('$label → $expected', ({ card, expected }) => {
+    expect(isArtSeries(card)).toBe(expected)
   })
 })
 

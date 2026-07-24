@@ -2,6 +2,7 @@ export {
   type CardNameFilter,
   isDigitalOnlySet,
   isArenaOnly,
+  isArtSeries,
   isToken,
   getCardGames,
   getFrontFaceName,

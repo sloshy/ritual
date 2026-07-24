@@ -114,7 +114,7 @@ describe('StreamingLogger', () => {
       logger.progress('\rDownloading: 50% (36.25/72.50 MiB)')
       logger.progress('\rDownloading: 100% (72.50/72.50 MiB)')
       logger.progress('\n')
-      logger.info('Filtered out 1234 arena-only or token printings.')
+      logger.info('Filtered out 1234 printings (1000 arena-only, 200 token, 34 art-series).')
       logger.info('Processed 62000 cards.')
       logger.info('Saving to cache...')
       logger.info('Done! Card cache populated.')

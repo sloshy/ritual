@@ -18,10 +18,42 @@ export function isToken(card: ScryfallCard): boolean {
   return /\bToken\b/.test(card.type_line ?? '')
 }
 
+/**
+ * Returns true if the card is an Art Series print — the oversized art-only
+ * cards printed in set boosters. They share their name with the real card (or,
+ * for double-faced cards, carry it twice as `Name // Name`), so leaving them in
+ * the cache pollutes both name autocomplete and the printing pickers with
+ * entries no list should ever reference.
+ */
+export function isArtSeries(card: ScryfallCard): boolean {
+  return card.layout === 'art_series'
+}
+
 /** Returns true if the card is only available on Arena (no paper or MTGO). */
 export function isArenaOnly(card: ScryfallCard): boolean {
   const games = card.games ?? []
   return games.length > 0 && !games.includes('paper') && !games.includes('mtgo')
+}
+
+/** Why a printing is kept out of the card cache. */
+export type PrintingExclusion = 'arena-only' | 'token' | 'art-series'
+
+/**
+ * Classify a printing no list should ever reference, or `null` when it is a
+ * real, paper-obtainable card. This is the single definition of what the cache
+ * excludes — every ingest and search path filters through it, so a new
+ * exclusion reaches all of them at once.
+ */
+export function classifyExcludedPrinting(card: ScryfallCard): PrintingExclusion | null {
+  if (isArenaOnly(card)) return 'arena-only'
+  if (isToken(card)) return 'token'
+  if (isArtSeries(card)) return 'art-series'
+  return null
+}
+
+/** Returns true when the printing is a real card a list may reference. */
+export function isRealPrinting(card: ScryfallCard): boolean {
+  return classifyExcludedPrinting(card) === null
 }
 
 /** Returns the union of all `games` arrays across printings. */

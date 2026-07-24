@@ -71,6 +71,14 @@ instead, falling back to Scryfall when the feed is unreachable.
 | `--url <feedUrl>`   | Feed URL for a feed-sourced refresh; implies `--source feed` (combining it with `--source scryfall` is a usage error)                                | `cacheFeedUrl` config, then the built-in default |
 | `--force`           | Re-download and re-ingest even when the feed is unchanged (only meaningful with the feed source — a Scryfall refresh always downloads the full bulk) | off                                              |
 
+Printings that no list should ever reference are dropped during ingestion and
+never enter the cache: **tokens**, **Arena-only** prints, and **Art Series**
+prints (the oversized art-only cards from set boosters, which share their card's
+name). Filtering them at ingest keeps them out of every search surface at once —
+CLI autocomplete and printing pickers, the admin editor, and the hosted public
+site's card search. An older cache built before this filtering existed still
+holds them; re-run `preload-all` to clear them out.
+
 A failed preload exits `1`.
 
 ### refresh-tags
