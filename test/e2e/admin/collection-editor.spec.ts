@@ -265,8 +265,11 @@ test.describe('Collection Editor — add card from search', () => {
     await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
   })
 
-  /** Add Static Orb keyboard-only: search → Enter, printing → Enter, condition → Enter. */
-  async function addStaticOrbByKeyboard(page: Page): Promise<void> {
+  /**
+   * Add Static Orb keyboard-only: search → Enter, printing → Enter, condition →
+   * Enter. `copies` above one is dialled in with the quantity ticker's `+` key.
+   */
+  async function addStaticOrbByKeyboard(page: Page, copies = 1): Promise<void> {
     await page.keyboard.press('Control+Enter')
     const searchInput = page.locator('.search-modal input[type="text"]')
     await expect(searchInput).toBeVisible({ timeout: 5_000 })
@@ -285,6 +288,8 @@ test.describe('Collection Editor — add card from search', () => {
     await expect(page.locator('.modal-heading-flex')).toContainText('Set finish & condition', {
       timeout: 5_000,
     })
+    for (let i = 1; i < copies; i++) await page.keyboard.press('+')
+    await expect(page.locator('#add-card-qty .qty-val')).toHaveText(String(copies))
     await page.keyboard.press('Enter')
     await expect(page.locator('.modal-heading-flex')).toHaveCount(0, { timeout: 5_000 })
   }
@@ -311,6 +316,29 @@ test.describe('Collection Editor — add card from search', () => {
       condition: 'NM',
       cardId: 2,
     })
+  })
+
+  test('the quantity ticker adds one entry per copy, each with its own card ID', async ({
+    page,
+  }) => {
+    await addStaticOrbByKeyboard(page, 3)
+
+    // Collections store one entry per copy, so three tiles — not one tile of three.
+    await expect(page.locator('.card-item', { hasText: 'Static Orb' })).toHaveCount(3, {
+      timeout: 5_000,
+    })
+
+    await page.locator('.btn-save').click()
+    await expect.poll(() => savedBody?.changes.length).toBe(3)
+    expect(savedBody!.changes.map((c) => c.cardId)).toEqual([2, 3, 4])
+    for (const change of savedBody!.changes) {
+      expect(change).toMatchObject({
+        action: 'add',
+        cardName: 'Static Orb',
+        set: 'tmp',
+        collectorNumber: '319',
+      })
+    }
   })
 
   test('a card added from search opens the details modal on click', async ({ page }) => {

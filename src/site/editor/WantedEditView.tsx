@@ -3,7 +3,7 @@ import type { WantedListDetail } from '../data-types'
 import type { PriceCurrency } from '../../price-currency'
 import type { WantedListCardEntry } from '../data-types'
 import type { ListRef } from '../../change-event'
-import type { EditorConfig } from '../../editor/useEditor'
+import type { ListEditorConfig } from '../../editor/useEditor'
 import type { EntryCardDataActions } from '../../editor/useEntryCardData'
 import { collectExistingIds } from '../../card-id'
 import { useEditorDefaults } from '../../editor/useEditorDefaults'
@@ -34,7 +34,9 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
   const defaults = useEditorDefaults('wanted')
   const [originalModalCard, setOriginalModalCard] = createSignal<string | null>(null)
 
-  const buildConfig = (cardActions: EntryCardDataActions): EditorConfig<WantedListCardEntry[]> => ({
+  const buildConfig = (
+    cardActions: EntryCardDataActions,
+  ): ListEditorConfig<WantedListCardEntry[]> => ({
     currency: () => props.currency,
     fetchList: () => Promise.resolve(undefined),
     extractListItems: () => [{ slug: props.slug, name: props.detail.name }],

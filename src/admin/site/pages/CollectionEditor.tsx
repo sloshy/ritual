@@ -1,7 +1,7 @@
 import type { JSX } from 'solid-js'
 import type { ScryfallCard } from '../../../types'
 import type { CollectionCardEntry } from '../../../site/data-types'
-import type { EditorConfig } from '../../../editor/useEditor'
+import type { ListEditorConfig } from '../../../editor/useEditor'
 import type { EntryCardDataActions } from '../../../editor/useEntryCardData'
 import { collectExistingIds } from '../../../card-id'
 import { useEditorDefaults } from '../../../editor/useEditorDefaults'
@@ -41,7 +41,9 @@ export function CollectionEditor(props: CollectionEditorProps): JSX.Element {
 
   const defaultCurrency = useDefaultCurrency()
 
-  const buildConfig = (cardActions: EntryCardDataActions): EditorConfig<CollectionCardEntry[]> => ({
+  const buildConfig = (
+    cardActions: EntryCardDataActions,
+  ): ListEditorConfig<CollectionCardEntry[]> => ({
     currency: defaultCurrency,
     fetchList: () => fetchAdminJson('/api/collections'),
     extractListItems: (r) => (r as CollectionListResponse).collections ?? [],

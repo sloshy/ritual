@@ -3,7 +3,7 @@ import type { DeckDetail } from '../data-types'
 import type { PriceCurrency } from '../../price-currency'
 import type { DeckData } from '../../types'
 import type { ListRef } from '../../change-event'
-import type { EditorConfig } from '../../editor/useEditor'
+import type { ListEditorConfig } from '../../editor/useEditor'
 import type { DeckCardDataActions } from '../../editor/useDeckCardData'
 import { collectDeckCardIds } from '../../card-id'
 import { useEditorDefaults } from '../../editor/useEditorDefaults'
@@ -48,7 +48,7 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
 
   const deckName = () => props.detail.deck.name
 
-  const buildConfig = (cardActions: DeckCardDataActions): EditorConfig<DeckData> => ({
+  const buildConfig = (cardActions: DeckCardDataActions): ListEditorConfig<DeckData> => ({
     currency: () => props.currency,
     // Single preloaded item — no list, no network. The selector is hidden.
     fetchList: () => Promise.resolve(undefined),

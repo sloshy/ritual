@@ -480,6 +480,12 @@
   padding: 16px;
 }
 
+/* The multiplier shown on the commit buttons once more than one copy is queued. */
+.btn-qty-badge {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
 /* The step's two commit buttons ("Add Card" / "Add Another Card"), side by side. */
 .add-card-actions {
   display: flex;

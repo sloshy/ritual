@@ -43,7 +43,13 @@ const HELIX = makeMockScryfallCard({
   prices: { usd: '2.00', usd_foil: '8.00' },
 })
 
-async function openDeckEditor(page: Page): Promise<void> {
+/** The change events posted by the last save, captured by {@link openDeckEditor}'s mock. */
+type SavedDeckChange = { action: string; cardName?: string; cardId?: number }
+
+async function openDeckEditor(
+  page: Page,
+  onSave?: (changes: SavedDeckChange[]) => void,
+): Promise<void> {
   await disableSearchDebounce(page)
   await gotoAdminDashboard(page)
 
@@ -73,6 +79,14 @@ async function openDeckEditor(page: Page): Promise<void> {
     lowestPriceCardsTix: {},
     symbolMap: {},
     frontMatter: {},
+  })
+
+  await fulfillJson(page, '**/api/deck/keyboard-deck/save', (route) => {
+    const body = JSON.parse(route.request().postData() ?? '{}') as {
+      changes?: SavedDeckChange[]
+    }
+    onSave?.(body.changes ?? [])
+    return { success: true, message: 'Saved', contentHash: 'hash-2' }
   })
 
   await fulfillJson(page, '**/api/autocomplete*', {
@@ -108,6 +122,16 @@ async function gotoPrintingStep(page: Page, cardName: string): Promise<void> {
   })
 }
 
+/** Drive `cardName` from the search step through to the finish/condition step. */
+async function gotoFinishCondition(page: Page, cardName: string): Promise<void> {
+  await gotoPrintingStep(page, cardName)
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.modal-heading-flex')).toContainText('Set finish & condition', {
+    timeout: 5_000,
+  })
+}
+
 /** The printing grid's live column count, as row navigation computes it. */
 async function gridColumns(page: Page): Promise<number> {
   return page.evaluate(() => {
@@ -120,8 +144,11 @@ async function gridColumns(page: Page): Promise<number> {
 }
 
 test.describe('Admin Editor — keyboard navigation', () => {
+  let saved: SavedDeckChange[] | null
+
   test.beforeEach(async ({ page }) => {
-    await openDeckEditor(page)
+    saved = null
+    await openDeckEditor(page, (changes) => (saved = changes))
   })
 
   test('Ctrl+Enter opens the add card modal and Ctrl+B focuses the action bar', async ({
@@ -182,6 +209,10 @@ test.describe('Admin Editor — keyboard navigation', () => {
       .locator('.shortcuts-row', { hasText: 'Previous / next row' })
       .locator('kbd')
     await expect(rowKeys).toHaveText(['↑', '↓'])
+    const qtyKeys = dialog
+      .locator('.shortcuts-row', { hasText: 'Adjust the quantity to add' })
+      .locator('kbd')
+    await expect(qtyKeys).toHaveText(['+', '-'])
 
     await page.keyboard.press('Escape')
     await expect(dialog).not.toBeVisible({ timeout: 3_000 })
@@ -240,20 +271,14 @@ test.describe('Admin Editor — keyboard navigation', () => {
   })
 
   test('Enter on the finish/condition step adds the card', async ({ page }) => {
-    await page.keyboard.press('Control+Enter')
-    await gotoPrintingStep(page, 'Lightning Helix')
-
     // Both finishes are available, so the flow stops for confirmation.
-    await page.keyboard.press('ArrowRight')
-    await page.keyboard.press('Enter')
-    await expect(page.locator('.modal-heading-flex')).toContainText('Set finish & condition', {
-      timeout: 5_000,
-    })
+    await page.keyboard.press('Control+Enter')
+    await gotoFinishCondition(page, 'Lightning Helix')
 
-    // Focus lands on the pre-selected finish, so arrows change the selection.
+    // Focus lands on the pre-selected finish, so ←/→ change the selection.
     const finishRadios = page.locator('.finish-condition-grid input[name="finish"]')
     await expect(finishRadios.first()).toBeFocused({ timeout: 5_000 })
-    await page.keyboard.press('ArrowDown')
+    await page.keyboard.press('ArrowRight')
     await expect(finishRadios.nth(1)).toBeChecked()
 
     // Enter commits without reaching for the Add Card button.
@@ -268,18 +293,8 @@ test.describe('Admin Editor — keyboard navigation', () => {
   test('Add Another Card commits and restarts the search instead of closing', async ({ page }) => {
     const searchInput = page.locator('.search-modal input[type="text"]')
 
-    /** From the search step, drive Lightning Helix to the finish/condition step. */
-    const gotoFinishCondition = async () => {
-      await gotoPrintingStep(page, 'Lightning Helix')
-      await page.keyboard.press('ArrowRight')
-      await page.keyboard.press('Enter')
-      await expect(page.locator('.modal-heading-flex')).toContainText('Set finish & condition', {
-        timeout: 5_000,
-      })
-    }
-
     await page.keyboard.press('Control+Enter')
-    await gotoFinishCondition()
+    await gotoFinishCondition(page, 'Lightning Helix')
 
     // Both commit buttons advertise their shortcut in a corner chip.
     const addCard = page.locator('.add-card-actions button', { hasText: /^Add Card/ })
@@ -294,7 +309,7 @@ test.describe('Admin Editor — keyboard navigation', () => {
     await expect(page.locator('.changes-badge')).toHaveText('1')
 
     // Ctrl+Enter does the same from the keyboard.
-    await gotoFinishCondition()
+    await gotoFinishCondition(page, 'Lightning Helix')
     await page.keyboard.press('Control+Enter')
     await expect(searchInput).toBeVisible({ timeout: 5_000 })
     await expect(searchInput).toHaveValue('')
@@ -307,5 +322,62 @@ test.describe('Admin Editor — keyboard navigation', () => {
     await expect(page.locator('.card-item', { hasText: 'Lightning Helix' })).toBeVisible({
       timeout: 5_000,
     })
+  })
+
+  test('the quantity ticker adds that many copies of the chosen printing', async ({ page }) => {
+    await page.keyboard.press('Control+Enter')
+    await gotoFinishCondition(page, 'Lightning Helix')
+
+    const ticker = page.locator('#add-card-qty')
+    const qty = ticker.locator('.qty-val')
+    await expect(qty).toHaveText('1')
+
+    // +/- adjust from anywhere in the step (focus is still on the finish radio),
+    // and the value floors at one.
+    await page.keyboard.press('+')
+    await page.keyboard.press('+')
+    await expect(qty).toHaveText('3')
+    await page.keyboard.press('-')
+    await page.keyboard.press('-')
+    await page.keyboard.press('-')
+    await expect(qty).toHaveText('1')
+
+    // ↓ walks the step's groups (finish → condition → quantity); once the ticker
+    // holds focus, ←/→ adjust it. The walk starts from the finish group, which
+    // the step focuses on entry.
+    await expect(page.locator('.finish-condition-grid input[name="finish"]').first()).toBeFocused({
+      timeout: 5_000,
+    })
+    await page.keyboard.press('ArrowDown')
+    await expect(
+      page.locator('.finish-condition-grid input[name="condition"]:checked'),
+    ).toBeFocused()
+    await page.keyboard.press('ArrowDown')
+    await expect(ticker).toBeFocused()
+    await page.keyboard.press('ArrowRight')
+    await page.keyboard.press('ArrowRight')
+    await expect(qty).toHaveText('3')
+    await page.keyboard.press('ArrowLeft')
+    await expect(qty).toHaveText('2')
+
+    // The commit button reflects the count, and adding lands both copies on the
+    // one deck entry as two change events.
+    await expect(
+      page.locator('.add-card-actions button', { hasText: /^Add Card/ }).locator('.btn-qty-badge'),
+    ).toHaveText('×2')
+    await page.keyboard.press('Enter')
+    await expect(page.locator('.modal-heading-flex')).toHaveCount(0, { timeout: 5_000 })
+
+    const helix = page.locator('.card-item', { hasText: 'Lightning Helix' })
+    await expect(helix).toHaveCount(1)
+    await expect(helix.locator('.qty-badge')).toHaveText('2x')
+    await expect(page.locator('.changes-badge')).toHaveText('2')
+
+    // A deck folds the copies onto one entry, so both adds carry the same card ID.
+    await page.locator('.btn-save').click()
+    await expect.poll(() => saved?.length).toBe(2)
+    const ids = saved!.map((c) => c.cardId)
+    expect(ids[0]).toBeDefined()
+    expect(ids[0]).toBe(ids[1])
   })
 })

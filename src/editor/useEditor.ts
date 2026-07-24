@@ -33,6 +33,7 @@ import { useCardIdPool } from './useCardIdPool'
 import { useCardChanges } from './useCardChanges'
 import { reconcileIdPoolForUndo, replayChanges } from './reconcile-undo'
 import { useNavigationGuard } from './navigation-guard'
+import { clampQuantity } from '../ui/quantity'
 
 export type ListItem = { slug: string; name: string }
 
@@ -85,7 +86,39 @@ type LoadResult<TData> = {
   extra: Record<string, unknown>
 }
 
+/**
+ * Commit a card chosen in the search dialog. Every argument past the name is
+ * optional, so the dialog, the shell, and the editor share one type rather than
+ * three hand-written copies that can silently drop a trailing argument.
+ */
+export type AddCardFromSearch = (
+  cardName: string,
+  options?: CardPrintingOptions,
+  scryfallCard?: ScryfallCard,
+  allPrintings?: ScryfallCard[],
+  /** Copies to add. Defaults to 1. */
+  quantity?: number,
+) => void
+
+/**
+ * How a list models multiple copies of the same printing. Decks keep one entry
+ * carrying a quantity, so every copy shares a single card ID; collections and
+ * wanted lists store one entry per copy, so each copy needs its own ID.
+ */
+export type CopyModel = 'quantity' | 'per-entry'
+
+/** Upper bound on copies a single add-from-search may commit. */
+const MAX_ADD_COPIES = 999
+
+/**
+ * The editor config a list page supplies. The copy model is not part of it: it
+ * follows from the data shape, so the deck / flat-list controller fills it in.
+ */
+export type ListEditorConfig<TData> = Omit<EditorConfig<TData>, 'copyModel'>
+
 export type EditorConfig<TData> = {
+  /** See {@link CopyModel}. Supplied by the deck / flat-list controller. */
+  copyModel: CopyModel
   /**
    * Fetch the raw list-of-items payload (passed to {@link extractListItems}).
    * Admin hits `/api/decks` etc.; the public site resolves a single preloaded
@@ -238,12 +271,7 @@ export type UseEditorResult<TData, TCardEntry> = {
   handleSetFoil: () => void
   /** Set an explicit finish on one targeted card/copy (backs the bulk foil actions). */
   handleSetFinishFor: (cardName: string, finish: Finish, cardId?: number) => void
-  handleAddCardFromSearch: (
-    cardName: string,
-    options?: CardPrintingOptions,
-    scryfallCard?: ScryfallCard,
-    allPrintings?: ScryfallCard[],
-  ) => Promise<void>
+  handleAddCardFromSearch: (...args: Parameters<AddCardFromSearch>) => Promise<void>
   handleUndo: () => void
   handleSave: () => Promise<void>
   handleDiscard: () => void
@@ -460,6 +488,7 @@ export function useEditor<TData, TCardEntry = unknown>(
     options?: CardPrintingOptions,
     scryfallCard?: ScryfallCard,
     allPrintings?: ScryfallCard[],
+    quantity = 1,
   ) => {
     // Normalize the set code to lowercase at this single boundary so every
     // downstream consumer (change events and in-memory entries) stores it
@@ -467,21 +496,33 @@ export function useEditor<TData, TCardEntry = unknown>(
     const normalized: CardPrintingOptions = options
       ? { ...options, set: options.set?.toLowerCase() }
       : {}
-    const cardId = pool.allocate()
-    changes.addCard(cardName, { ...normalized, cardId })
-    setData((prev) =>
-      prev !== null
-        ? config.applyChange(prev, {
-            action: 'add',
-            cardName,
-            set: normalized.set,
-            collectorNumber: normalized.collectorNumber,
-            finish: normalized.finish,
-            condition: normalized.condition,
-            cardId,
-          })
-        : prev,
-    )
+    // Capped as much to keep a bad caller from emitting an unbounded run of
+    // change events as to bound what the dialog can ask for.
+    const copies = clampQuantity(quantity, 1, MAX_ADD_COPIES)
+    // One `add` event per copy — the change format has no quantity field. Decks
+    // fold the copies into one entry, so they all share a card ID; flat lists
+    // store one entry per copy and each needs its own. Batched so the view
+    // repaints once rather than per copy.
+    const sharedId = config.copyModel === 'quantity' ? pool.allocate() : undefined
+    batch(() => {
+      for (let i = 0; i < copies; i++) {
+        const cardId = sharedId ?? pool.allocate()
+        changes.addCard(cardName, { ...normalized, cardId })
+        setData((prev) =>
+          prev !== null
+            ? config.applyChange(prev, {
+                action: 'add',
+                cardName,
+                set: normalized.set,
+                collectorNumber: normalized.collectorNumber,
+                finish: normalized.finish,
+                condition: normalized.condition,
+                cardId,
+              })
+            : prev,
+        )
+      }
+    })
     config.addCardData(cardName, scryfallCard, allPrintings)
 
     try {
@@ -726,7 +767,7 @@ export function useEditor<TData, TCardEntry = unknown>(
     if (!result || !original) return
     const origData = original
     const { entry, remainingChanges } = result
-    reconcileIdPoolForUndo(pool.release, pool.claim, entry)
+    reconcileIdPoolForUndo(pool.release, pool.claim, entry, remainingChanges)
     setData(() => replayChanges(origData, remainingChanges, config.applyChange))
   }
 

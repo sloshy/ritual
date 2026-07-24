@@ -18,6 +18,8 @@ export type KeyLabel =
   // Character keys, listed as bindings claim them.
   | '?'
   | 'B'
+  | '+'
+  | '-'
 
 /** A keyboard affordance: the keys to press, and what pressing them does. */
 export type KeyHint = { keys: readonly KeyLabel[]; label: string }

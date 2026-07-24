@@ -55,6 +55,29 @@ describe('reconcileIdPoolForUndo', () => {
     expect(t.released).toEqual([])
   })
 
+  test('undoing one copy of a multi-copy add keeps the shared id until the last copy goes', () => {
+    // A 3-copy deck add: three events under one card id, undone one at a time.
+    const copies = [1, 2, 3].map(() => createAddChange('Bolt', { cardId: 5 }))
+
+    const guarded = track()
+    reconcileIdPoolForUndo(
+      guarded.release,
+      guarded.claim,
+      { addedChange: copies[2]!, cancelledChange: null },
+      [copies[0]!, copies[1]!],
+    )
+    expect(guarded.released).toEqual([])
+
+    const last = track()
+    reconcileIdPoolForUndo(
+      last.release,
+      last.claim,
+      { addedChange: copies[0]!, cancelledChange: null },
+      [],
+    )
+    expect(last.released).toEqual([5])
+  })
+
   test('a move-from without a cardId touches neither pool', () => {
     const t = track()
     reconcileIdPoolForUndo(t.release, t.claim, {

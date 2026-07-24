@@ -1225,18 +1225,8 @@ body {
   --src-tone: oklch(75% 0.14 25);
 }
 
-/* ===== Qty Stepper ===== */
-.qty-stepper {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--border);
-  border-radius: 0.25rem;
-  background: var(--bg-subtle);
-  overflow: hidden;
-}
-
-/* Shared base for compact, square-ish icon buttons. */
-.qty-stepper button,
+/* The qty stepper itself lives in ../css/controls.css — it is shared with the
+   editor's add-card dialog. Compact, square-ish icon buttons here match it. */
 .trade-row-edit,
 .trade-row-remove {
   display: inline-flex;
@@ -1247,35 +1237,6 @@ body {
   transition:
     background 100ms,
     color 100ms;
-}
-
-.qty-stepper button {
-  width: 18px;
-  height: 22px;
-  border: 0;
-  border-radius: 0;
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  line-height: 1;
-
-  &:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
-  }
-
-  &:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-}
-
-.qty-val {
-  min-width: 22px;
-  text-align: center;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--text-primary);
-  padding: 0 2px;
 }
 
 .qty-val-fixed {

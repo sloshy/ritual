@@ -5,7 +5,7 @@ import type { PriceCurrency } from '../price-currency'
 import type { ListRef, PrintingTuple } from '../change-event'
 import type { SelectedCard } from '../site/useCardSelection'
 import type { CardContextInfo, ContextMenuState } from './context-menu'
-import type { EditorConfig, UseEditorResult } from './useEditor'
+import type { ListEditorConfig, UseEditorResult } from './useEditor'
 import { contextInfoFromSelected } from './selected-to-context'
 import { printingForMove } from '../site/printing-prompt'
 import { promptListMove, promptSectionMove } from '../site/move-prompt'
@@ -86,14 +86,17 @@ export type DeckEditController = {
  * strategies while sharing the store and interaction logic.
  */
 export function useDeckEditController(
-  buildConfig: (cardActions: DeckCardDataActions) => EditorConfig<DeckData>,
+  buildConfig: (cardActions: DeckCardDataActions) => ListEditorConfig<DeckData>,
   initialSlug?: string | null,
 ): DeckEditController {
   const [cardData, cardActions] = useDeckCardData()
   const [modalCardName, setModalCardName] = createSignal<string | null>(null)
   const [deckContextMenu, setDeckContextMenu] = createSignal<DeckContextMenuState | null>(null)
 
-  const editor = useEditor<DeckData, Card>(buildConfig(cardActions), initialSlug)
+  const editor = useEditor<DeckData, Card>(
+    { ...buildConfig(cardActions), copyModel: 'quantity' },
+    initialSlug,
+  )
 
   const handleIncrement = (cardName: string) => {
     const d = editor.data()

@@ -1,6 +1,6 @@
 import type { JSX } from 'solid-js'
 import type { DeckData, ScryfallCard } from '../../../types'
-import type { EditorConfig } from '../../../editor/useEditor'
+import type { ListEditorConfig } from '../../../editor/useEditor'
 import type { DeckCardDataActions } from '../../../editor/useDeckCardData'
 import { collectDeckCardIds } from '../../../card-id'
 import { useEditorDefaults } from '../../../editor/useEditorDefaults'
@@ -46,7 +46,7 @@ export function DeckEditor(props: DeckEditorProps): JSX.Element {
 
   const defaultCurrency = useDefaultCurrency()
 
-  const buildConfig = (cardActions: DeckCardDataActions): EditorConfig<DeckData> => ({
+  const buildConfig = (cardActions: DeckCardDataActions): ListEditorConfig<DeckData> => ({
     currency: defaultCurrency,
     fetchList: () => fetchAdminJson('/api/decks'),
     extractListItems: (r) => (r as DeckListResponse).decks ?? [],

@@ -251,7 +251,7 @@
     font-size: 0.75rem;
   }
 
-  /* ----- Touch-target sizing: trade rows ----- */
+  /* ----- Touch-target sizing: trade rows and the add-card quantity ticker ----- */
 
   .qty-stepper button {
     width: 34px;

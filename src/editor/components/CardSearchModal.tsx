@@ -2,24 +2,21 @@ import type { Component } from 'solid-js'
 import { createSignal, createEffect, createMemo, on, onCleanup, Show, For } from 'solid-js'
 import { Modal } from '../../ui/Modal'
 import type { Finish, Condition, ScryfallCard } from '../../types'
-import type { CardPrintingOptions } from '../../change-event'
 import { getCardImageUrl } from '../../card-image'
 import { isFinish, VALID_CONDITIONS } from '../../finish-condition'
 import type { EditorDefaults } from '../useEditorDefaults'
+import type { AddCardFromSearch } from '../useEditor'
 import type { SearchProvider } from '../search-provider'
 import { useDocumentKeydown } from '../../ui/useDocumentKeydown'
 import { type KeyHint, KeyChips } from '../../ui/KeyHints'
+import { QuantityStepper } from '../../ui/QuantityStepper'
+import { stepQuantity } from '../../ui/quantity'
 import { searchDebounceMs } from '../search-debounce'
 
 type CardSearchModalProps = {
   open: boolean
   onClose: () => void
-  onAddCard: (
-    cardName: string,
-    options?: CardPrintingOptions,
-    scryfallCard?: ScryfallCard,
-    allPrintings?: ScryfallCard[],
-  ) => void
+  onAddCard: AddCardFromSearch
   /** Backend resolving autocomplete + printings (admin API or Scryfall). */
   search: SearchProvider
   requirePrinting?: boolean
@@ -48,6 +45,17 @@ type AddOptionsInput = {
 type Step = 'search' | 'printing' | 'finish-condition'
 
 const PRINTING_PAGE_SIZE = 8
+
+/** DOM id of the finish/condition step's quantity ticker, shared by its ↑/↓ navigation. */
+const QUANTITY_STEPPER_ID = 'add-card-qty'
+
+/** One stop in the finish/condition step's ↑/↓ walk. See {@link finishConditionGroups}. */
+type FocusGroup = {
+  /** The group's root, used to test whether it currently holds focus. */
+  container: HTMLElement
+  /** The element focused when the group is entered. */
+  entry: HTMLElement
+}
 
 type PreviewCard = {
   name: string
@@ -181,6 +189,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   const [selectedPrinting, setSelectedPrinting] = createSignal<ScryfallCard | null>(null)
   const [selectedFinish, setSelectedFinish] = createSignal<Finish>('nonfoil')
   const [selectedCondition, setSelectedCondition] = createSignal<Condition>('NM')
+  const [quantity, setQuantity] = createSignal(1)
 
   let inputRef: HTMLInputElement | undefined
   let modalRef: HTMLDivElement | undefined
@@ -210,6 +219,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     setSelectedPrinting(null)
     setSelectedFinish(props.defaults?.finish ?? 'nonfoil')
     setSelectedCondition(defaultCondition() ?? 'NM')
+    setQuantity(1)
     setSetFilterFellBack(false)
     typedQuery = ''
   }
@@ -486,10 +496,24 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     () => props.open && step() === 'printing',
   )
 
-  // "Add Another Card" commits the card and restarts the flow instead of
-  // closing. Offered only in the normal add flow — in change-printing mode the
-  // dialog is editing an existing card, so there is no "another" to add.
-  const canAddAnother = () => !props.initialCardName
+  /**
+   * True in the normal add flow, false in change-printing mode (which reuses this
+   * dialog to re-target an existing card). Both extras of the finish/condition
+   * step hang off it: there is no "another" card to add when editing one, and the
+   * copy count was already answered by the quantity prompt that opened the flow.
+   */
+  const isAddFlow = () => !props.initialCardName
+  const canAddAnother = isAddFlow
+  const usesQuantity = isAddFlow
+
+  const adjustQuantity = (delta: number) => setQuantity((q) => stepQuantity(q, delta))
+
+  /** The `×N` multiplier both commit buttons carry once more than one copy is queued. */
+  const quantityBadge = () => (
+    <Show when={usesQuantity() && quantity() > 1}>
+      <span class="btn-qty-badge"> ×{quantity()}</span>
+    </Show>
+  )
 
   // Add card with selected finish and condition. With `addAnother`, the modal
   // returns to a fresh search step instead of closing.
@@ -506,6 +530,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       },
       printing,
       printings(),
+      usesQuantity() ? quantity() : 1,
     )
     if (addAnother) {
       resetToSearch()
@@ -518,20 +543,65 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   // drive the radios immediately (native radio-group behavior) without a Tab.
   createEffect(() => {
     if (!props.open || step() !== 'finish-condition') return
-    const id = setTimeout(() => {
-      finishConditionRef?.querySelector<HTMLInputElement>('input[type="radio"]:checked')?.focus()
-    }, 50)
+    const id = setTimeout(() => finishConditionGroups()[0]?.entry.focus(), 50)
     onCleanup(() => clearTimeout(id))
   })
 
-  // Enter anywhere on the finish/condition step adds the card with the current
-  // selections; Ctrl/Cmd+Enter adds it and starts a fresh search for another.
-  // For plain Enter, buttons are exempt so it still activates the focused one
-  // ("← Back", "Add Card") through its own default action. The chord is
-  // handled even on a focused button — it is unambiguous, and the default
-  // action would otherwise click that button instead.
+  /**
+   * The finish/condition step's groups in visual order. `container` answers
+   * "which group holds focus right now" (a radio group's focused option may not
+   * be its checked one), `entry` is what takes focus when the group is entered.
+   * ↑/↓ walk this list.
+   */
+  const finishConditionGroups = (): FocusGroup[] => {
+    // Bare refs are never cleared, so a detached node would answer queries about
+    // a step that is no longer mounted.
+    if (!finishConditionRef?.isConnected) return []
+    const groups: FocusGroup[] = []
+    for (const group of finishConditionRef.querySelectorAll<HTMLElement>('.radio-group')) {
+      const entry =
+        group.querySelector<HTMLInputElement>('input[type="radio"]:checked') ??
+        group.querySelector<HTMLInputElement>('input[type="radio"]')
+      if (entry) groups.push({ container: group, entry })
+    }
+    const stepper = finishConditionRef.querySelector<HTMLElement>(`#${QUANTITY_STEPPER_ID}`)
+    if (stepper) groups.push({ container: stepper, entry: stepper })
+    return groups
+  }
+
+  /** Move focus between the step's groups. Wraps at both ends. */
+  const moveFinishConditionGroup = (delta: number) => {
+    const groups = finishConditionGroups()
+    if (groups.length === 0) return
+    const active = document.activeElement
+    const current = groups.findIndex((g) => g.container === active || g.container.contains(active))
+    // From outside any group (e.g. a focused button), ↓ enters the first group
+    // and ↑ the last.
+    const next = current === -1 ? (delta > 0 ? 0 : groups.length - 1) : current + delta
+    groups[(next + groups.length) % groups.length]?.entry.focus()
+  }
+
+  // Keys owned by the finish/condition step:
+  // - Enter adds the card with the current selections; Ctrl/Cmd+Enter adds it and
+  //   starts a fresh search for another. For plain Enter, buttons are exempt so it
+  //   still activates the focused one ("← Back", "Add Card") through its own
+  //   default action. The chord is handled even on a focused button — it is
+  //   unambiguous, and the default action would otherwise click that button.
+  // - ↑/↓ move between groups (finish, condition, quantity); ←/→ stay inside the
+  //   focused group, handled natively by the radios and by the ticker itself.
+  // - +/- adjust the quantity from anywhere in the step, without focusing it.
   useDocumentKeydown(
     (e) => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        moveFinishConditionGroup(e.key === 'ArrowDown' ? 1 : -1)
+        return
+      }
+      if (usesQuantity() && (e.key === '+' || e.key === '-')) {
+        e.preventDefault()
+        adjustQuantity(e.key === '+' ? 1 : -1)
+        return
+      }
       if (e.key !== 'Enter') return
       if (e.ctrlKey || e.metaKey) {
         if (!canAddAnother()) return
@@ -550,6 +620,10 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     if (step() === 'finish-condition') {
       setStep('printing')
       setSelectedPrinting(null)
+      // The count belongs to the printing being confirmed: another printing may
+      // be resolved by defaults and added straight from the grid, where there is
+      // no ticker to show what would be committed.
+      setQuantity(1)
     } else if (step() === 'printing') {
       // In change-printing mode there is no search step to return to.
       if (props.initialCardName) {
@@ -563,6 +637,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       setStep('search')
       setQuery(typedQuery)
       setHighlightedIndex(-1)
+      setQuantity(1)
       setSelectedCardName('')
       setPrintings([])
       setPrintingsPage(0)
@@ -583,10 +658,11 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     }
     if (step() === 'finish-condition') {
       const hints: KeyHint[] = [
-        { keys: ['↑', '↓', '←', '→'], label: 'choose' },
-        { keys: ['Tab'], label: 'next group' },
-        { keys: ['Enter'], label: 'add card' },
+        { keys: ['←', '→'], label: 'choose' },
+        { keys: ['↑', '↓', 'Tab'], label: 'next group' },
       ]
+      if (usesQuantity()) hints.push({ keys: ['+', '-'], label: 'quantity' })
+      hints.push({ keys: ['Enter'], label: 'add card' })
       if (canAddAnother()) hints.push({ keys: ['Ctrl', 'Enter'], label: 'add + another' })
       hints.push({ keys: ['Esc'], label: 'close' })
       return hints
@@ -833,9 +909,23 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                   </div>
                 </Show>
 
+                <Show when={usesQuantity()}>
+                  <div class="finish-condition-section">
+                    <h4>Quantity</h4>
+                    <QuantityStepper
+                      id={QUANTITY_STEPPER_ID}
+                      value={quantity()}
+                      onChange={setQuantity}
+                      focusable
+                      label="Quantity to add"
+                    />
+                  </div>
+                </Show>
+
                 <div class="add-card-actions">
                   <button onClick={() => handleAddWithOptions()} class="btn-add-card">
                     Add Card
+                    {quantityBadge()}
                     <span class="btn-key-hint" aria-hidden="true">
                       <KeyChips keys={['Enter']} />
                     </span>
@@ -843,6 +933,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                   <Show when={canAddAnother()}>
                     <button onClick={() => handleAddWithOptions(true)} class="btn-add-card">
                       Add Another Card
+                      {quantityBadge()}
                       <span class="btn-key-hint" aria-hidden="true">
                         <KeyChips keys={['Ctrl', 'Enter']} />
                       </span>

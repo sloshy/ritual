@@ -1,5 +1,6 @@
 import { type Component, createSignal } from 'solid-js'
 import { Modal } from './Modal'
+import { clampQuantity } from './quantity'
 
 export interface QuantityDialogProps {
   open: boolean
@@ -23,11 +24,7 @@ export interface QuantityDialogProps {
 export const QuantityDialog: Component<QuantityDialogProps> = (props) => {
   const [count, setCount] = createSignal(1)
 
-  const clampedCount = (): number => {
-    const n = Math.round(count())
-    if (Number.isNaN(n)) return 1
-    return Math.min(Math.max(n, 1), props.total)
-  }
+  const clampedCount = (): number => clampQuantity(count(), 1, props.total)
 
   return (
     <Modal

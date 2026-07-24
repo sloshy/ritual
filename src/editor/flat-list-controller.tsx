@@ -3,7 +3,7 @@ import { type Finish, type Condition, DEFAULT_SECTION } from '../types'
 import type { ChangeInput, ListRef, PrintingTuple } from '../change-event'
 import type { SelectedCard } from '../site/useCardSelection'
 import type { CardContextInfo } from './context-menu'
-import type { EditorConfig, UseEditorResult } from './useEditor'
+import type { ListEditorConfig, UseEditorResult } from './useEditor'
 import type { ListType } from '../list-type'
 import { contextInfoFromSelected } from './selected-to-context'
 import { printingForMove } from '../site/printing-prompt'
@@ -94,7 +94,7 @@ export type FlatListController<E extends FlatEntry> = {
 }
 
 type FlatListControllerParams<E extends FlatEntry> = {
-  buildConfig: (cardActions: EntryCardDataActions) => EditorConfig<E[]>
+  buildConfig: (cardActions: EntryCardDataActions) => ListEditorConfig<E[]>
   initialSlug?: string | null
   applyChange: (entries: E[], change: FlatChangeInput) => E[]
   /** Printing fields (set/cn/finish/condition) to log when this entry is added or removed. */
@@ -107,7 +107,10 @@ export function useFlatListEditController<E extends FlatEntry>(
   const [cardData, cardActions] = useEntryCardData()
   const [modalCardKey, setModalCardKey] = createSignal<string | null>(null)
 
-  const editor = useEditor<E[], E>(params.buildConfig(cardActions), params.initialSlug)
+  const editor = useEditor<E[], E>(
+    { ...params.buildConfig(cardActions), copyModel: 'per-entry' },
+    params.initialSlug,
+  )
 
   const handleIncrement = (entry: E) => {
     const cardId = editor.pool.allocate()

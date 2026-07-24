@@ -49,8 +49,9 @@ export const EDITOR_SHORTCUTS: readonly ShortcutGroup[] = [
   {
     title: 'Add card — finish & condition',
     hints: [
-      { keys: ['↑', '↓', '←', '→'], label: 'Change the selected option' },
-      { keys: ['Tab'], label: 'Move to the next group' },
+      { keys: ['←', '→'], label: 'Change the focused group’s value' },
+      { keys: ['↑', '↓', 'Tab'], label: 'Move to the next group' },
+      { keys: ['+', '-'], label: 'Adjust the quantity to add' },
       { keys: ['Enter'], label: 'Add the card' },
       { keys: ['Ctrl', 'Enter'], label: 'Add the card, then start another' },
     ],

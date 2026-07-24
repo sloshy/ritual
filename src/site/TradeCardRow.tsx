@@ -4,6 +4,7 @@ import { isCardSideways, resolveCardImageSources } from './image-sources'
 import type { PriceCurrency } from '../price-currency'
 import { formatPrice } from '../price-currency'
 import type { TradeCardEntry } from './data-types'
+import { QuantityStepper } from '../ui/QuantityStepper'
 
 export interface TradeCardRowProps {
   card: TradeCardEntry
@@ -96,27 +97,12 @@ export const TradeCardRow: Component<TradeCardRowProps> = (props) => {
         when={props.card.maxQty !== 1}
         fallback={<span class="qty-val qty-val-fixed">{props.card.qty}</span>}
       >
-        <div class="qty-stepper">
-          <button
-            onClick={() => props.onUpdateQty(-1)}
-            disabled={props.card.qty <= 1}
-            title="Decrease"
-          >
-            -
-          </button>
-          <span class="qty-val">{props.card.qty}</span>
-          <button
-            onClick={() => props.onUpdateQty(1)}
-            disabled={props.card.maxQty !== undefined && props.card.qty >= props.card.maxQty}
-            title={
-              props.card.maxQty !== undefined && props.card.qty >= props.card.maxQty
-                ? `Only ${props.card.maxQty} available`
-                : 'Increase'
-            }
-          >
-            +
-          </button>
-        </div>
+        <QuantityStepper
+          value={props.card.qty}
+          max={props.card.maxQty}
+          maxReachedTitle={`Only ${props.card.maxQty} available`}
+          onChange={(next) => props.onUpdateQty(next - props.card.qty)}
+        />
       </Show>
       <span class="trade-row-price">
         <Show when={(props.card.price ?? 0) > 0} fallback="—">

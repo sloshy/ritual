@@ -3,7 +3,7 @@ import type { CollectionDetail } from '../data-types'
 import type { PriceCurrency } from '../../price-currency'
 import type { CollectionCardEntry } from '../data-types'
 import type { ListRef } from '../../change-event'
-import type { EditorConfig } from '../../editor/useEditor'
+import type { ListEditorConfig } from '../../editor/useEditor'
 import type { EntryCardDataActions } from '../../editor/useEntryCardData'
 import { collectExistingIds } from '../../card-id'
 import { useEditorDefaults } from '../../editor/useEditorDefaults'
@@ -34,7 +34,9 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
   const defaults = useEditorDefaults('collection')
   const [originalModalCard, setOriginalModalCard] = createSignal<string | null>(null)
 
-  const buildConfig = (cardActions: EntryCardDataActions): EditorConfig<CollectionCardEntry[]> => ({
+  const buildConfig = (
+    cardActions: EntryCardDataActions,
+  ): ListEditorConfig<CollectionCardEntry[]> => ({
     currency: () => props.currency,
     fetchList: () => Promise.resolve(undefined),
     extractListItems: () => [{ slug: props.slug, name: props.detail.name }],

@@ -120,13 +120,21 @@ This step appears when the selected printing has multiple finish options.
 
 - Select a finish (nonfoil, foil, etched) if the printing has multiple options
 - Select a condition (NM, LP, MP, HP, DMG) — only available in the Deck and Collection editors; defaults to NM
+- Set a **Quantity** — how many copies of this exact printing to add. Starts at 1 and cannot go below it. Not shown when the dialog was opened via **Change Printing…**, which asks for a copy count of its own beforehand
 
-Focus lands on the first group's selected option when the step opens, so the arrow keys change the selection immediately; **Tab** moves to the next group. **Enter** adds the card with the current selections from anywhere in the step (except while the **← Back** button is focused, where it goes back).
+Focus lands on the first group's selected option when the step opens.
 
-The step offers two commit buttons, each with its shortcut shown in its corner (the corner hints are hidden on touch devices):
+- **←**/**→** move within the focused group: they change the selected finish or condition, and step the quantity up or down while the quantity ticker holds focus
+- **↑**/**↓** (or **Tab**) move between the groups — finish, condition, quantity
+- **+**/**-** adjust the quantity from anywhere in the step, without focusing the ticker first
+- **Enter** adds the card with the current selections from anywhere in the step (except while the **← Back** button is focused, where it goes back)
+
+The step offers two commit buttons, each with its shortcut shown in its corner (the corner hints are hidden on touch devices). Both add the chosen quantity of the chosen printing, and show a **×N** multiplier once the quantity is above one:
 
 - **Add Card** (**Enter**) — adds the card and closes the modal
 - **Add Another Card** (**Ctrl+Enter**) — adds the card, then returns to a fresh search step so the next card can be added without reopening the modal. Not offered when the dialog was opened via **Change Printing…**, which edits an existing card.
+
+A deck folds the added copies into one entry with a quantity; collections and wanted lists store one entry per copy, since each copy carries its own condition and note.
 
 ### Context Menu
 
