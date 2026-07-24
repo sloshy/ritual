@@ -1,4 +1,5 @@
 import { handleAutocomplete } from '../api/autocomplete'
+import { handleCards } from '../api/cards'
 import { handleCardPrintings } from '../api/card-printings'
 import { handleCardPrice } from '../api/card-price'
 import { handleCardPrices } from '../api/card-prices'
@@ -52,7 +53,8 @@ function detailHandler(live: LiveSiteData, kind: ListType): SiteRouteHandler {
  * The public site server's route table: live list data at the exact paths the
  * static build bakes (shadowing any baked copies in dist/), plus the
  * cache-backed card-query endpoints the admin editor uses — including
- * `/api/autocomplete`'s term-separation semantics.
+ * `/api/autocomplete`'s term-separation semantics — and `/api/cards`, the
+ * by-Scryfall-ID lookup a shared trade link needs to restore its rows.
  */
 export function buildSiteRoutes(live: LiveSiteData): SiteRoute[] {
   return [
@@ -65,6 +67,7 @@ export function buildSiteRoutes(live: LiveSiteData): SiteRoute[] {
     { method: 'GET', path: '/collections/:file', handler: detailHandler(live, 'collection') },
     { method: 'GET', path: '/wanted/:file', handler: detailHandler(live, 'wanted') },
     { method: 'GET', path: '/api/autocomplete', handler: handleAutocomplete },
+    { method: 'GET', path: '/api/cards', handler: handleCards },
     { method: 'GET', path: '/api/card-printings', handler: handleCardPrintings },
     { method: 'GET', path: '/api/card-price', handler: handleCardPrice },
     { method: 'POST', path: '/api/card-prices', handler: handleCardPrices },

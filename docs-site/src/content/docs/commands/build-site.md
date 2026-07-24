@@ -500,19 +500,27 @@ The left column is for cards you are offering. It searches cards from the collec
 
 **Quantity caps:** Each trade row's quantity stepper caps at the maximum number of that exact variant available in its source — for collections this is the count of identical note-less entries (same name, set, collector number, finish, condition); for decks it is the sum across mainboard/sideboard/etc. for that printing in that deck. When only one copy exists the stepper is hidden and a fixed quantity of 1 is displayed.
 
-**Editing picker-sourced rows:** Trade rows added via the printing picker (Scryfall searches on the right, deck cards without a pinned printing on the left) get a small yellow pencil button to the left of the quantity controls. Clicking it re-opens the printing picker for that card; choosing a printing replaces the row in place while preserving its quantity.
+**Editing picker-sourced rows:** Trade rows added via the printing picker (everything on the right, deck cards without a pinned printing on the left) get a small yellow pencil button to the left of the quantity controls. Clicking it re-opens the printing picker for that card; choosing a printing replaces the row in place while preserving its quantity.
 
 ### Right Column — Their Cards
 
-The right column is for cards the other party is offering. By default it searches your site's wanted lists. A "Search Scryfall" toggle switches to a direct Scryfall search.
+The right column is for cards the other party is offering. What it searches depends on whether the site has a [live backend](/public-site/hosted/).
 
-**Wanted list mode (default):** Search across all wanted lists on this site instance. Results show card name and source wanted list name.
+**Static site — wanted list mode (default):** Search across all wanted lists on this site instance. Results show card name and source wanted list name. Cards no wanted list holds are only reachable through the "Search Scryfall instead" toggle.
 
-**Scryfall mode:** When enabled, autocomplete calls the Scryfall API directly from the browser. Selecting a card name opens a **printing picker** that shows all available printings, paginated 8 at a time. The picker has a set-code filter input (e.g. typing `mkm` or `lea` narrows the results) and hovering an entry shows the full card art preview. Choose a printing and finish, then click "Add to Trade" to add the card.
+**Static site — Scryfall mode:** When the toggle is on, autocomplete calls the Scryfall API directly from the browser, and only Scryfall's results are shown.
+
+**Hosted site:** With `serve --api` behind the site, the server's card cache already covers every card, so the toggle is replaced by a note and each query searches your wanted lists **and** the cache at once. Wanted-list matches lead (with their source, printing and price), followed by cache matches labelled "Card cache". No request goes to Scryfall.
+
+**Every right-column selection opens the printing picker.** A wanted list records the printing you'd _like_, not the one being offered, so picking a wanted card never assumes its printing: the picker opens with the printings your wanted lists ask for (across every list, for that card name) floated to the top and badged **Wanted**, and you choose what's actually on the table. The row keeps its wanted-list source and quantity cap whichever printing you take.
+
+The picker shows all available printings, paginated 8 at a time, with a set-code filter input (e.g. typing `mkm` or `lea` narrows the results); hovering an entry shows the full card art preview. Choose a printing and finish, then click "Add to Trade" to add the card.
+
+Rows added from a bare card name belong to no list of yours, so they're tagged with the backend that answered the lookup — **Cache** on a hosted site, **Scryfall** on a static one — and are encoded in the trade URL by Scryfall ID.
 
 ### Update Prices
 
-The toolbar's **Update prices** button refetches current prices from Scryfall for the cards currently loaded on the trade page (only — not your full collection). It batches requests through Scryfall's `/cards/collection` endpoint (75 IDs per request) and updates each row's price and finish in place. A toast confirms how many cards were updated.
+The toolbar's **Update prices** button refetches current prices for the cards currently loaded on the trade page (only — not your full collection), and updates each row's price and finish in place. A toast confirms how many cards were updated. On a static site it batches requests through Scryfall's `/cards/collection` endpoint (75 IDs per request); on a site backed by a [live API](/public-site/hosted/) it goes through the backend's batch price endpoint instead, which updates its shared card cache server-side.
 
 ### Card Hover Previews
 

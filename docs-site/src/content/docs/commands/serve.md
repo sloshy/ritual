@@ -30,6 +30,7 @@ With `--api`, the server hosts the same static `dist/` **plus** a live, unauthen
 | GET    | `/index.json`, `/decks/…`, `/collections/…`, `/wanted/…` | **Live list data**, computed from the markdown files on request (shadowing the baked copies) — edits made via the CLI or admin appear without rebuilding. |
 | GET    | `/api/autocomplete`                                      | Card-name autocomplete over the card cache with the **same term matching as the admin editor** (`in tre` finds "In the Trenches").                        |
 | GET    | `/api/card-printings`, `/api/card-price`                 | Cached printings and staleness-gated price lookups (the same endpoints the admin editor uses).                                                            |
+| GET    | `/api/cards?ids=…`                                       | Cache-only card lookup by Scryfall ID (max 200 per request), used to restore a shared [trade link](/commands/build-site/#trade-planner) without Scryfall. |
 | POST   | `/api/card-prices`                                       | Batch price refresh by card name (used by the site's **Update Prices** button in hosted mode).                                                            |
 
 The web app detects the backend through the served `index.json` and switches its behavior: list pages refetch live data on navigation, the editor's add-card search uses the cache-backed term matching (the "results may differ" Scryfall note disappears), and price refreshes go through the server. A small **Live** badge appears in the site header.

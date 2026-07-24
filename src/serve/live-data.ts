@@ -3,6 +3,7 @@ import path from 'node:path'
 import { cardCache } from '../cache'
 import { getCacheFile } from '../cache/file-cache'
 import { getCacheServerBaseUrl } from '../cache/config'
+import { scryfallIdIndex } from '../cache/scryfall-id-index'
 import { fetchSymbology } from '../scryfall'
 import {
   getBannedPrintings,
@@ -137,16 +138,21 @@ export function createLiveSiteData(): LiveSiteData {
    */
   async function refreshGeneration(): Promise<void> {
     if (getCacheServerBaseUrl()) {
-      generation = (await cardCache.getLastRefreshedAt()) ?? 0
+      const refreshedAt = (await cardCache.getLastRefreshedAt()) ?? 0
+      // A shared cache server refreshing behind us stales the id index the same
+      // way a local cache-file rewrite does.
+      if (refreshedAt !== generation) scryfallIdIndex.reset()
+      generation = refreshedAt
       pricesDate = new Date(generation > 0 ? generation : Date.now()).toISOString()
       return
     }
     const mtimeMs = await statMtimeMs(getCacheFile())
     if (mtimeMs !== lastCacheFileMtimeMs) {
       lastCacheFileMtimeMs = mtimeMs
-      // A separate CLI process may have refreshed the cache; drop the memo so
+      // A separate CLI process may have refreshed the cache; drop the memos so
       // the next read sees the new contents.
       cardCache.invalidate()
+      scryfallIdIndex.reset()
     }
     generation = mtimeMs
     const lastRefreshed = await cardCache.getLastRefreshedAt()

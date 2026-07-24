@@ -135,8 +135,11 @@ passing one without it is a usage error. \`--refresh\` is the exception: with
 \`serve --api\` adds an unauthenticated, read-only API on the same port: list
 JSON is computed from the markdown files per request (CLI/admin edits appear
 without rebuilding), and the public editor's card search uses the card cache
-with the admin editor's term matching instead of Scryfall. There are no write
-routes — public edits still travel as export/import change bundles.
+with the admin editor's term matching instead of Scryfall. The trade page
+follows suit: its search covers the wanted lists and the cache together (no
+Scryfall toggle), and shared trade links resolve their cards from the cache.
+There are no write routes — public edits still travel as export/import change
+bundles.
 
 For a split deployment (static site on a CDN, API hosted separately), set
 \`site.apiBaseUrl\` to the API's URL before building; the site falls back to its

@@ -869,13 +869,29 @@ const MOCK_SITE_INDEX_FOR_TRADE = makeSiteIndex({
   ],
 })
 
+export type MockTradeOptions = {
+  /**
+   * Marks the index as hosted, the way `ritual serve --api` does (`''` for
+   * same-origin). The trade page's right column then searches the backend's
+   * card cache alongside the wanted lists; the caller mocks `api/*` itself.
+   */
+  apiBaseUrl?: string
+}
+
 /**
  * Mock the public site JSON endpoints for the Trade page.
  * Provides one collection (with Lightning Bolt + Sol Ring) and one wanted list (with Mana Crypt).
  * Also mocks the Scryfall autocomplete and search endpoints for right-column Scryfall mode tests.
  */
-export async function mockPublicSiteForTrade(page: Page): Promise<void> {
-  await fulfillJson(page, '**/index.json', MOCK_SITE_INDEX_FOR_TRADE)
+export async function mockPublicSiteForTrade(
+  page: Page,
+  options: MockTradeOptions = {},
+): Promise<void> {
+  const index: SiteIndex =
+    options.apiBaseUrl === undefined
+      ? MOCK_SITE_INDEX_FOR_TRADE
+      : { ...MOCK_SITE_INDEX_FOR_TRADE, apiBaseUrl: options.apiBaseUrl }
+  await fulfillJson(page, '**/index.json', index)
   await fulfillJson(page, '**/collections/trade-collection.json', MOCK_TRADE_COLLECTION_DETAIL)
   await fulfillJson(page, '**/wanted/trade-wanted-list.json', MOCK_TRADE_WANTED_DETAIL)
   await fulfillJson(page, '**/decks/trade-deck.json', MOCK_TRADE_DECK_DETAIL)

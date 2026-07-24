@@ -39,7 +39,7 @@ export const TradeCardRow: Component<TradeCardRowProps> = (props) => {
     return null
   }
 
-  const sourceLabel = () => {
+  const sourceLabel = (): string => {
     switch (props.card.source) {
       case 'collection':
         return 'Collection'
@@ -48,7 +48,9 @@ export const TradeCardRow: Component<TradeCardRowProps> = (props) => {
       case 'wanted':
         return 'Wanted'
       case 'scryfall':
-        return 'Scryfall'
+        // Which backend answered this card's lookup — "Cache" on a hosted site,
+        // "Scryfall" when the browser had to ask Scryfall itself.
+        return props.card.sourceName
     }
   }
 

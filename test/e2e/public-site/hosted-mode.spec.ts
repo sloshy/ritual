@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import type { DeckDetail } from '../../../src/site/data-types'
 import { fulfillJson } from '../helpers/fulfill'
 import { makeMockScryfallCard, withImage } from '../helpers/mock-cards'
-import { makeSiteIndex, makeDeckSummary } from '../helpers/mock-public-site'
+import { makeSiteIndex, makeDeckSummary, mockPublicSiteForTrade } from '../helpers/mock-public-site'
 import { disableSearchDebounce } from '../helpers/search-modal'
 import { enterEditMode } from '../helpers/list-ui'
 
@@ -22,6 +22,20 @@ const CREATURE = withImage(
     mana_cost: '{1}{W}',
     prices: { usd: '1.00' },
     collector_number: '1',
+  }),
+)
+
+/** A card no mocked list holds — reachable only through the backend's card cache. */
+const MANA_VAULT = withImage(
+  makeMockScryfallCard({
+    id: 'mana-vault-id',
+    name: 'Mana Vault',
+    cmc: 1,
+    type_line: 'Artifact',
+    prices: { usd: '40.00' },
+    set: 'vma',
+    set_name: 'Vintage Masters',
+    collector_number: '292',
   }),
 )
 
@@ -183,6 +197,105 @@ test.describe('Hosted public site', () => {
     await page.goto('#/')
     await expect(page.locator('.site-live-badge')).toHaveText('Offline', { timeout: 15_000 })
     await expect(page.locator('.deck-cover')).toContainText('Baked Deck')
+  })
+
+  test('trade search covers wanted lists and the card cache, with no Scryfall toggle', async ({
+    page,
+  }) => {
+    await mockPublicSiteForTrade(page, { apiBaseUrl: '' })
+    const scryfallRequests = collectScryfallRequests(page)
+
+    await fulfillJson(page, '**/api/autocomplete*', (route) => {
+      const q = new URL(route.request().url()).searchParams.get('q') ?? ''
+      // The cache holds every card, not just the ones the lists mention.
+      return { success: true, names: q === 'mana' ? ['Mana Crypt', 'Mana Vault'] : [] }
+    })
+    // Answers only for the name asked about, so the picker's contents prove which
+    // suggestion was selected.
+    await fulfillJson(page, '**/api/card-printings*', (route) => {
+      const name = new URL(route.request().url()).searchParams.get('name') ?? ''
+      return { success: true, printings: name === 'Mana Vault' ? [MANA_VAULT] : [] }
+    })
+
+    await page.goto('#/trade')
+    const right = page.locator('.trade-col[data-side="right"]')
+    // Asserted before the toggle's absence below, which would pass vacuously on a
+    // page that hasn't rendered the column yet.
+    await expect(right.locator('.source-pill')).toContainText('Wanted List + Card Cache')
+
+    // The toggle has nothing left to switch between, so it gives way to a note.
+    await expect(right.locator('.search-mode-toggle')).toHaveCount(0)
+    await expect(right.locator('.search-mode-note')).toContainText("hosted API's card cache")
+
+    await right.locator('.search-input').fill('mana')
+    const rows = right.locator('.search-suggest-row')
+    // The wanted list's own Mana Crypt leads, then the cache's matches in the
+    // order the server ranked them (the live path forwards `names` verbatim).
+    await expect(rows).toHaveCount(3)
+    await expect(rows.nth(0)).toContainText('from Trade Wanted List')
+    await expect(rows.nth(1)).toContainText('Mana Crypt')
+    await expect(rows.nth(1)).toContainText('Card cache')
+    await expect(rows.nth(2)).toContainText('Mana Vault')
+
+    // Mana Vault is in no list at all — before the cache was searched, typing its
+    // name here found nothing.
+    await rows.nth(2).click({ force: true })
+    const modal = page.locator('.trade-picker-modal')
+    await expect(modal.locator('.trade-picker-title')).toContainText('Mana Vault')
+    await modal.locator('.trade-picker-item').first().click()
+    await modal.locator('button', { hasText: 'Add to Trade' }).click()
+    await expect(modal).not.toBeVisible()
+
+    const row = right.locator('.trade-row').first()
+    await expect(row.locator('.trade-row-name-text')).toContainText('Mana Vault')
+    // The chosen printing came through, not just its name.
+    await expect(row.locator('.trade-row-name-meta')).toContainText('VMA:292')
+    // The row is still encoded by Scryfall ID, but its data came from the
+    // backend's cache, and it says so.
+    await expect(row.locator('.src-tag')).toHaveText('Cache')
+    expect(scryfallRequests).toEqual([])
+  })
+
+  test('a shared trade link resolves its cards through the API, not Scryfall', async ({ page }) => {
+    await mockPublicSiteForTrade(page, { apiBaseUrl: '' })
+    const scryfallRequests = collectScryfallRequests(page)
+
+    const idsAsked: string[] = []
+    await fulfillJson(page, '**/api/cards*', (route) => {
+      const ids = new URL(route.request().url()).searchParams.get('ids') ?? ''
+      idsAsked.push(ids)
+      return { success: true, cards: ids.includes('mana-vault-id') ? [MANA_VAULT] : [] }
+    })
+
+    // A link someone shared: one row that belongs to no list, encoded by ID.
+    await page.goto('#/trade?rightSideScryfall=x2@mana-vault-id')
+
+    const row = page.locator('.trade-col[data-side="right"] .trade-row').first()
+    await expect(row.locator('.trade-row-name-text')).toContainText('Mana Vault')
+    await expect(row.locator('.trade-row-name-meta')).toContainText('VMA:292')
+    await expect(row.locator('.src-tag')).toHaveText('Cache')
+    // Both copies the link asked for.
+    await expect(row.locator('.qty-val')).toContainText('2')
+    expect(idsAsked).toEqual(['mana-vault-id'])
+    expect(scryfallRequests).toEqual([])
+  })
+
+  test('a backend that dies mid-session hands the trade page its Scryfall toggle back', async ({
+    page,
+  }) => {
+    await mockPublicSiteForTrade(page, { apiBaseUrl: 'https://api.test' })
+    // The live index still loads, so the page boots hosted; the list fetches the
+    // trade page makes next are what die, tripping the degrade under it.
+    await page.route('https://api.test/collections/**', (route) => route.abort())
+    await page.route('https://api.test/wanted/**', (route) => route.abort())
+
+    await page.goto('#/trade')
+    const right = page.locator('.trade-col[data-side="right"]')
+    await expect(page.locator('.site-live-badge')).toHaveText('Offline', { timeout: 15_000 })
+
+    await expect(right.locator('.source-pill')).toContainText('Wanted List')
+    await expect(right.locator('.search-mode-note')).toHaveCount(0)
+    await expect(right.locator('.search-mode-toggle')).toContainText('Search Scryfall instead')
   })
 
   test('Update Prices goes through the batch API endpoint, not Scryfall', async ({ page }) => {

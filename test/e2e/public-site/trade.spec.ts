@@ -20,7 +20,8 @@ async function addToLeft(page: Page, query: string): Promise<void> {
 }
 
 /**
- * Right-column (wanted-list mode) equivalent of {@link addToLeft}. When
+ * Right-column (wanted-list mode) equivalent of {@link addToLeft}. A wanted card
+ * never implies a printing, so this also completes the picker that opens. When
  * `expectSuggestion` is given, asserts the first suggestion's text before
  * clicking it.
  */
@@ -32,6 +33,16 @@ async function addToRight(page: Page, query: string, expectSuggestion?: string):
   const firstRow = suggest.locator('.search-suggest-row').first()
   if (expectSuggestion) await expect(firstRow).toContainText(expectSuggestion)
   await firstRow.click({ force: true })
+  await confirmPrinting(page)
+}
+
+/** Choose a printing in the open picker and add it to the trade. */
+async function confirmPrinting(page: Page, index = 0): Promise<void> {
+  const modal = page.locator('.trade-picker-modal')
+  await expect(modal).toBeVisible()
+  await modal.locator('.trade-picker-item').nth(index).click()
+  await modal.locator('button', { hasText: 'Add to Trade' }).click()
+  await expect(modal).not.toBeVisible()
 }
 
 /**
@@ -136,6 +147,41 @@ test.describe('Trade Page', () => {
     )
     // Mocked Mana Crypt price is $175.00 (see MOCK_TRADE_WANTED_CARD_CRYPT).
     await expect(rightTotal).toContainText('$175.00')
+  })
+
+  test('right column: a wanted card opens the picker with the wanted printing marked first', async ({
+    page,
+  }) => {
+    // The wanted list asks for 2XM:270; the picker also offers an older printing.
+    await fulfillJson(page, '**/api.scryfall.com/cards/search**', {
+      object: 'list',
+      total_cards: 2,
+      has_more: false,
+      data: [
+        { ...PICKER_BASE_PRINTING, id: 'crypt-vma', set: 'vma', collector_number: '225' },
+        { ...PICKER_BASE_PRINTING, id: 'crypt-2xm', set: '2xm', collector_number: '270' },
+      ],
+    })
+
+    await page.goto('#/trade')
+    const right = page.locator('.trade-col[data-side="right"]')
+    await right.locator('.search-input').fill('Mana')
+    await right.locator('.search-suggest-row').first().click({ force: true })
+
+    // Wanting a printing doesn't pick it: the picker opens, with the wanted one
+    // floated to the top and badged.
+    const items = page.locator('.trade-picker-modal .trade-picker-item')
+    await expect(items).toHaveCount(2)
+    await expect(items.first()).toContainText('2XM:270')
+    await expect(items.first().locator('.trade-picker-wanted-tag')).toBeVisible()
+    await expect(items.nth(1).locator('.trade-picker-wanted-tag')).toHaveCount(0)
+
+    // Taking the printing actually on offer keeps the row wanted-sourced.
+    await confirmPrinting(page, 1)
+    const row = right.locator('.trade-row').first()
+    await expect(row.locator('.trade-row-name-text')).toContainText('Mana Crypt')
+    await expect(row.locator('.trade-row-name-meta')).toContainText('VMA:225')
+    await expect(row.locator('.src-tag')).toHaveText('Wanted')
   })
 
   test('left column: sort controls toggle and reverse the list order', async ({ page }) => {
@@ -370,6 +416,16 @@ test.describe('Trade Page', () => {
     await expect(page.locator('.trade-col[data-side="right"] .trade-row-name-text')).toContainText(
       'Mana Crypt',
     )
+  })
+
+  test('a static site restores a list-less trade row from Scryfall', async ({ page }) => {
+    // No list holds this card, so its ID can only be resolved by asking
+    // Scryfall — the hosted site asks its own cache instead (hosted-mode.spec).
+    await page.goto('/#/trade?rightSideScryfall=x1@trade-crypt-id')
+
+    const row = page.locator('.trade-col[data-side="right"] .trade-row').first()
+    await expect(row.locator('.trade-row-name-text')).toContainText('Mana Crypt')
+    await expect(row.locator('.src-tag')).toHaveText('Scryfall')
   })
 
   test('cold-load: trade URL fetches collections before decoding (regression)', async ({

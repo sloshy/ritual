@@ -9,6 +9,7 @@ import type { StaticSiteServer } from '../../src/commands/serve-helpers'
 import { createSyntheticWorkspace } from '../e2e/helpers/synthetic-workspace'
 import type { DeckDetail, SiteIndex } from '../../src/site/data-types'
 import type { CardPricesResponse } from '../../src/api/card-prices'
+import type { CardsResponse } from '../../src/api/cards'
 import type { ScryfallCard } from '../../src/types'
 
 /**
@@ -125,6 +126,23 @@ describe('site server (Integration)', () => {
     const body = (await resp.json()) as { success: boolean; printings: ScryfallCard[] }
     expect(body.success).toBeTrue()
     expect(body.printings.length).toBeGreaterThan(0)
+  })
+
+  test('cards resolves Scryfall IDs from the cache and validates the ids param', async () => {
+    const printings = (await cardCache.get('Lightning Bolt')) ?? []
+    const id = printings[0]?.id
+    expect(id).toBeString()
+
+    const resp = await fetch(`${base}/api/cards?ids=${encodeURIComponent(id!)},not-a-real-id`)
+    expect(resp.status).toBe(200)
+    const body = (await resp.json()) as CardsResponse
+    expect(body.success).toBeTrue()
+    // The unknown id is dropped rather than failing the whole lookup.
+    expect(body.cards.map((c) => c.id)).toEqual([id!])
+
+    // One representative rejection; the parser's cases are pinned in
+    // test/unit/api/cards.test.ts.
+    expect((await fetch(`${base}/api/cards`)).status).toBe(400)
   })
 
   test('batch card-prices returns cached printings and rejects bad bodies', async () => {

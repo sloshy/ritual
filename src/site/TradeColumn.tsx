@@ -11,7 +11,75 @@ import type { TradeSearchEntry } from './useTradeData'
 
 export type AutocompleteItem =
   | { kind: 'local'; entry: TradeSearchEntry }
-  | { kind: 'scryfall'; name: string }
+  /** A bare card name from the card-search backend — the live API's cache, or Scryfall. */
+  | { kind: 'search'; name: string }
+
+/**
+ * Which cards a column's search box covers. The left column switches between its
+ * two with the "include decks" toggle. The right column's depends on the Scryfall
+ * toggle *and* on whether a live backend is answering searches: with one, its
+ * cache covers every card, so wanted lists and the cache are searched together
+ * ({@link TradeColumnMode `wanted-cache`}) and the toggle has nothing left to do.
+ */
+export type TradeColumnMode =
+  | 'collection'
+  | 'collection-decks'
+  | 'wanted'
+  | 'scryfall'
+  | 'wanted-cache'
+
+/** The row under the search box: a mode switch, or a note when the mode is fixed. */
+export type TradeColumnModeControl =
+  | { kind: 'toggle'; label: string; active: boolean; onChange: () => void }
+  | { kind: 'note'; text: string }
+
+type TradeColumnModeCopy = {
+  /** `source-pill` modifier class, which colours the pill's dot. */
+  tone: 'collection' | 'deck' | 'wanted' | 'scryfall'
+  label: string
+  placeholder: string
+  emptyMessage: string
+  /** Subline for a bare card-name suggestion; `null` in modes that yield none. */
+  searchLabel: string | null
+}
+
+const MODE_COPY: Record<TradeColumnMode, TradeColumnModeCopy> = {
+  collection: {
+    tone: 'collection',
+    label: 'Collection',
+    placeholder: 'Search your collections…',
+    emptyMessage: 'No cards yet. Search above to add from your collections.',
+    searchLabel: null,
+  },
+  'collection-decks': {
+    tone: 'deck',
+    label: 'Collection + Decks',
+    placeholder: 'Search collections + decks…',
+    emptyMessage: 'No cards yet. Search above to add from your collections or decks.',
+    searchLabel: null,
+  },
+  wanted: {
+    tone: 'wanted',
+    label: 'Wanted List',
+    placeholder: 'Search your wanted lists…',
+    emptyMessage: 'No cards yet. Search above to add from a wanted list.',
+    searchLabel: null,
+  },
+  scryfall: {
+    tone: 'scryfall',
+    label: 'Scryfall',
+    placeholder: "Scryfall search: e.g. 't:creature c:r'",
+    emptyMessage: 'No cards yet. Search Scryfall above to add any printing.',
+    searchLabel: 'Scryfall',
+  },
+  'wanted-cache': {
+    tone: 'wanted',
+    label: 'Wanted List + Card Cache',
+    placeholder: 'Search your wanted lists and the card cache…',
+    emptyMessage: 'No cards yet. Search above to add from a wanted list or any card in the cache.',
+    searchLabel: 'Card cache',
+  },
+}
 
 // Defer the suggest-hide past the click handler so onMouseDown on a suggestion can fire first.
 const SUGGEST_HIDE_DELAY_MS = 150
@@ -32,8 +100,8 @@ export interface TradeColumnProps {
   autocompleteItems: AutocompleteItem[]
   autocompleteLoading: boolean
   onAutocompleteSelect: (item: AutocompleteItem) => void
-  altMode: boolean
-  onAltModeChange: () => void
+  mode: TradeColumnMode
+  modeControl: TradeColumnModeControl
   hidden: boolean
   onTooltipEnter: (src: string, sideways: boolean) => void
   onTooltipLeave: () => void
@@ -49,36 +117,19 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
 
   const title = () => (props.side === 'left' ? 'Offering' : 'Receiving')
 
-  const sourceTone = () => {
-    if (props.side === 'left') return props.altMode ? 'deck' : 'collection'
-    return props.altMode ? 'scryfall' : 'wanted'
-  }
+  const copy = (): TradeColumnModeCopy => MODE_COPY[props.mode]
 
-  const sourceLabel = () => {
-    if (props.side === 'left') return props.altMode ? 'Collection + Decks' : 'Collection'
-    return props.altMode ? 'Scryfall' : 'Wanted List'
-  }
-
-  const searchPlaceholder = () => {
-    if (props.side === 'left') {
-      return props.altMode ? 'Search collections + decks…' : 'Search your collections…'
-    }
-    return props.altMode ? "Scryfall search: e.g. 't:creature c:r'" : 'Search your wanted lists…'
-  }
-
-  const altModeLabel = () =>
-    props.side === 'left' ? 'Include cards in decks' : 'Search Scryfall instead'
-
-  const emptyMessage = () => {
-    if (props.side === 'left') {
-      return props.altMode
-        ? 'No cards yet. Search above to add from your collections or decks.'
-        : 'No cards yet. Search above to add from your collections.'
-    }
-    return props.altMode
-      ? 'No cards yet. Search Scryfall above to add any printing.'
-      : 'No cards yet. Search above to add from a wanted list.'
-  }
+  // Read the control once per recompute: the parent passes an object literal, so
+  // every read of the prop allocates a new one — narrowing a second read would
+  // be describing a different object than the one rendered.
+  const modeToggle = createMemo(() => {
+    const control = props.modeControl
+    return control.kind === 'toggle' ? control : null
+  })
+  const modeNote = createMemo(() => {
+    const control = props.modeControl
+    return control.kind === 'note' ? control : null
+  })
 
   const handleInputChange = (value: string) => {
     props.onSearchInput(value)
@@ -113,7 +164,7 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
   }
 
   const suggestionSubline = (item: AutocompleteItem): string => {
-    if (item.kind === 'scryfall') return 'Scryfall'
+    if (item.kind === 'search') return copy().searchLabel ?? ''
     const { entry } = item
     switch (entry.sourceKind) {
       case 'collection':
@@ -126,14 +177,14 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
   }
 
   const suggestionSet = (item: AutocompleteItem): string => {
-    if (item.kind === 'scryfall') return ''
+    if (item.kind === 'search') return ''
     const set = item.entry.set?.toUpperCase()
     if (!set) return ''
     return item.entry.collectorNumber ? `${set}:${item.entry.collectorNumber}` : set
   }
 
   const suggestionPrice = (item: AutocompleteItem): string => {
-    if (item.kind === 'scryfall') return ''
+    if (item.kind === 'search') return ''
     const price = item.entry.price
     if (price === undefined || price <= 0) return 'N/A'
     return formatPrice(price, props.currency)
@@ -157,9 +208,9 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
           </span>
         </div>
         <div class="trade-col-source">
-          <span class={`source-pill ${sourceTone()}`}>
+          <span class={`source-pill ${copy().tone}`}>
             <span class="source-dot" />
-            {sourceLabel()}
+            {copy().label}
           </span>
         </div>
       </div>
@@ -171,7 +222,7 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
             ref={inputRef}
             type="text"
             class="search-input"
-            placeholder={searchPlaceholder()}
+            placeholder={copy().placeholder}
             value={props.searchQuery}
             onInput={(e) => handleInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -187,11 +238,22 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
         </div>
 
         <div class="search-mode-row">
-          <label class="search-mode-toggle">
-            <input type="checkbox" checked={props.altMode} onChange={props.onAltModeChange} />
-            <span class="switch" />
-            <span>{altModeLabel()}</span>
-          </label>
+          <Show when={modeToggle()}>
+            {(toggle) => (
+              <label class="search-mode-toggle">
+                <input
+                  type="checkbox"
+                  checked={toggle().active}
+                  onChange={() => toggle().onChange()}
+                />
+                <span class="switch" />
+                <span>{toggle().label}</span>
+              </label>
+            )}
+          </Show>
+          <Show when={modeNote()}>
+            {(note) => <span class="search-mode-note">{note().text}</span>}
+          </Show>
         </div>
 
         <Show when={showSuggest()}>
@@ -269,7 +331,7 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
       <div class="trade-list">
         <Show
           when={sortedCards().length > 0}
-          fallback={<div class="trade-list-empty">{emptyMessage()}</div>}
+          fallback={<div class="trade-list-empty">{copy().emptyMessage}</div>}
         >
           <For each={sortedCards()}>
             {(card) => (

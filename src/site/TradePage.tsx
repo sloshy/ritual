@@ -12,7 +12,7 @@ import type {
   WantedListSummary,
 } from './data-types'
 import { TradeColumn } from './TradeColumn'
-import type { AutocompleteItem } from './TradeColumn'
+import type { AutocompleteItem, TradeColumnMode, TradeColumnModeControl } from './TradeColumn'
 import { TradePrintingPicker } from './TradePrintingPicker'
 import { useTradeData } from './useTradeData'
 import type { TradeSearchEntry } from './useTradeData'
@@ -25,6 +25,8 @@ import { hasSpecificPrinting } from '../card-printing'
 import { batchFetchScryfall } from './scryfall-collection'
 import { batchFetchApiPrices } from './api-prices'
 import { apiActive } from './api-base'
+import { cardLookupSourceName } from './card-lookup'
+import { printingKey } from './printing-key'
 import type { TradeSortBy, TradeSortState } from './trade-sort'
 import { useTooltip } from './useTooltip'
 import type { UseTooltipResult } from './useTooltip'
@@ -58,10 +60,16 @@ interface PickerState {
   side: 'left' | 'right'
   source: TradeCardSource
   sourceName: string
-  maxQty?: number
-  sourceCardIds?: number[]
+  /**
+   * The list entry being added, when the pick comes from one. Everything the
+   * row needs beyond the chosen printing (condition, note, quantity cap, card
+   * IDs) is carried through from here rather than re-spelled field by field.
+   */
+  entry?: TradeSearchEntry
   /** Original-array index of the row being edited; absent when adding a new row. */
   editIndex?: number
+  /** `set:collectorNumber` keys a wanted list asks for, marked in the picker. */
+  desiredPrintings?: string[]
 }
 
 interface TradePageProps {
@@ -87,6 +95,23 @@ export const TradePage: Component<TradePageProps> = (props) => {
   const [rightSort, setRightSort] = createSignal<TradeSortState>({ by: 'name', reverse: false })
   const [rightQuery, setRightQuery] = createSignal('')
   const [scryfallMode, setScryfallMode] = createSignal(false)
+
+  /**
+   * What the right column's search box covers. A live backend answers card
+   * search from its own card cache, which holds every card — not just the ones
+   * your lists mention — so the column searches the wanted lists and that cache
+   * together and drops the Scryfall toggle, whose only purpose was reaching
+   * cards no list holds. Without a backend the toggle stays and switches between
+   * the wanted lists and Scryfall. Reactive on `apiActive`, so a remote backend
+   * that degrades mid-session hands the toggle back.
+   */
+  const rightMode = createMemo((): TradeColumnMode => {
+    if (apiActive()) return 'wanted-cache'
+    return scryfallMode() ? 'scryfall' : 'wanted'
+  })
+
+  /** True while the right column's query is also sent to the card-search backend. */
+  const rightSearchesCards = createMemo(() => rightMode() !== 'wanted')
 
   const [picker, setPicker] = createSignal<PickerState | null>(null)
   const [activePane, setActivePane] = createSignal<'left' | 'right'>('left')
@@ -162,18 +187,46 @@ export const TradePage: Component<TradePageProps> = (props) => {
       .map((entry): AutocompleteItem => ({ kind: 'local', entry }))
   })
 
+  // Wanted-list matches lead: they carry a source, printing and price, and are
+  // ready the moment they're typed. Card-search names follow once they land.
+  // A card both halves know about is listed twice on purpose — the wanted row
+  // adds the copy that list asked for, the card-search row any other printing.
   const rightAutocompleteItems = createMemo((): AutocompleteItem[] => {
-    if (scryfallMode()) {
-      return cardSearch
-        .autocompleteResults()
-        .map((name): AutocompleteItem => ({ kind: 'scryfall', name }))
+    const mode = rightMode()
+    const wanted =
+      mode === 'scryfall'
+        ? []
+        : tradeData
+            .searchWanted(rightQuery())
+            .filter((entry) => !isAlreadyInRightList(entry))
+            .map((entry): AutocompleteItem => ({ kind: 'local', entry }))
+    const cards = rightSearchesCards()
+      ? cardSearch.autocompleteResults().map((name): AutocompleteItem => ({ kind: 'search', name }))
+      : []
+    return [...wanted, ...cards]
+  })
+
+  const rightAutocompleteLoading = createMemo(() => {
+    const wanted = rightMode() !== 'scryfall' && tradeData.loadingWanted()
+    return wanted || (rightSearchesCards() && cardSearch.autocompleteLoading())
+  })
+
+  const handleScryfallModeChange = () => {
+    setScryfallMode((prev) => !prev)
+    cardSearch.clearAutocomplete()
+    setRightQuery('')
+  }
+
+  const rightModeControl = createMemo((): TradeColumnModeControl => {
+    if (rightMode() === 'wanted-cache') {
+      return { kind: 'note', text: "Searches use the hosted API's card cache." }
     }
-    const q = rightQuery()
-    if (q.length < 2) return []
-    return tradeData
-      .searchWanted(q)
-      .filter((entry) => !isAlreadyInRightList(entry))
-      .map((entry): AutocompleteItem => ({ kind: 'local', entry }))
+    return {
+      kind: 'toggle',
+      label: 'Search Scryfall instead',
+      active: scryfallMode(),
+      onChange: handleScryfallModeChange,
+    }
   })
 
   const handleLeftSearchInput = (q: string) => {
@@ -182,7 +235,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
 
   const handleRightSearchInput = (q: string) => {
     setRightQuery(q)
-    if (scryfallMode()) {
+    if (rightSearchesCards()) {
       cardSearch.fetchAutocomplete(q)
     }
   }
@@ -196,8 +249,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
         side: 'left',
         source: 'deck',
         sourceName: entry.sourceName,
-        maxQty: entry.maxQty,
-        sourceCardIds: entry.cardIds,
+        entry,
       })
       void cardSearch.fetchPrintings(entry.name)
       return
@@ -205,15 +257,39 @@ export const TradePage: Component<TradePageProps> = (props) => {
     addEntryToLeft(entry, props.currency)
   }
 
+  /** Every printing any wanted list asks for under this card name. */
+  const desiredPrintingsFor = (nameKey: string): string[] => {
+    const keys = new Set<string>()
+    for (const entry of tradeData.wantedEntries()) {
+      if (entry.nameKey !== nameKey) continue
+      if (hasSpecificPrinting(entry)) keys.add(printingKey(entry.set, entry.collectorNumber))
+    }
+    return [...keys]
+  }
+
   const handleRightSelect = (item: AutocompleteItem) => {
     if (item.kind === 'local') {
-      addEntryToRight(item.entry, props.currency)
-    } else if (item.kind === 'scryfall') {
+      // A wanted list records the printing you'd *like*, not the one being
+      // offered, so it never picks for you — the picker opens with whatever the
+      // list asked for marked, and the trader confirms what's actually on offer.
+      const entry = item.entry
+      setPicker({
+        cardName: entry.name,
+        side: 'right',
+        source: 'wanted',
+        sourceName: entry.sourceName,
+        entry,
+        desiredPrintings: desiredPrintingsFor(entry.nameKey),
+      })
+      void cardSearch.fetchPrintings(entry.name)
+    } else {
+      // A bare card name belongs to no list of yours: it becomes a Scryfall-sourced
+      // row (encoded by Scryfall ID in the trade URL) whichever backend found it.
       setPicker({
         cardName: item.name,
         side: 'right',
         source: 'scryfall',
-        sourceName: 'Scryfall',
+        sourceName: cardLookupSourceName(),
       })
       void cardSearch.fetchPrintings(item.name)
     }
@@ -241,25 +317,25 @@ export const TradePage: Component<TradePageProps> = (props) => {
             : c,
         ),
       )
-    } else if (p.source === 'collection' || p.source === 'deck' || p.source === 'wanted') {
-      // Route through addEntry so the card-ID-based deduplication cap is enforced.
+    } else if (p.entry) {
+      // Route through addEntry so the card-ID-based deduplication cap is
+      // enforced, and so the entry's own condition/note reach the row — they
+      // take part in the dedup, and a note is what keeps two otherwise
+      // identical wanted entries apart.
       const searchEntry: TradeSearchEntry = {
+        ...p.entry,
         name: printing.name,
         nameKey: normalizeCardName(printing.name),
         set: printing.set.toLowerCase(),
         collectorNumber: printing.collector_number,
         finish,
         scryfallCard: printing,
-        sourceName: p.sourceName,
-        sourceKind: p.source,
-        maxQty: p.maxQty ?? 1,
-        cardIds: p.sourceCardIds ?? [],
         editable: true,
       }
       if (p.side === 'left') addEntryToLeft(searchEntry, props.currency)
       else addEntryToRight(searchEntry, props.currency)
     } else {
-      // Scryfall source — add directly, no source cap.
+      // Belongs to no list — add directly, no source cap.
       const setter = p.side === 'left' ? setLeftCards : setRightCards
       setter((prev) => [
         ...prev,
@@ -273,9 +349,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
           source: p.source,
           sourceName: p.sourceName,
           qty: 1,
-          maxQty: p.maxQty,
           editable: true,
-          sourceCardIds: p.sourceCardIds,
         },
       ])
     }
@@ -312,8 +386,10 @@ export const TradePage: Component<TradePageProps> = (props) => {
       side,
       source: card.source,
       sourceName: card.sourceName,
-      maxQty: card.maxQty,
       editIndex,
+      // Re-editing a wanted row marks the same printings the add path did.
+      desiredPrintings:
+        card.source === 'wanted' ? desiredPrintingsFor(normalizeCardName(card.name)) : undefined,
     })
     void cardSearch.fetchPrintings(card.name)
   }
@@ -325,12 +401,6 @@ export const TradePage: Component<TradePageProps> = (props) => {
 
   const handleUpdateQty = (side: Side, card: TradeCardEntry, delta: number) => {
     setterFor(side)((prev) => prev.map((c) => (c === card ? { ...c, qty: clampQty(c, delta) } : c)))
-  }
-
-  const handleScryfallModeChange = () => {
-    setScryfallMode((prev) => !prev)
-    cardSearch.clearAutocomplete()
-    setRightQuery('')
   }
 
   const handleTooltipEnter = (src: string, sideways: boolean) => {
@@ -587,8 +657,13 @@ export const TradePage: Component<TradePageProps> = (props) => {
           autocompleteItems={leftAutocompleteItems()}
           autocompleteLoading={tradeData.loadingCollections()}
           onAutocompleteSelect={handleLeftSelect}
-          altMode={includeDecks()}
-          onAltModeChange={() => setIncludeDecks((prev) => !prev)}
+          mode={includeDecks() ? 'collection-decks' : 'collection'}
+          modeControl={{
+            kind: 'toggle',
+            label: 'Include cards in decks',
+            active: includeDecks(),
+            onChange: () => setIncludeDecks((prev) => !prev),
+          }}
           hidden={activePane() === 'right'}
           onTooltipEnter={handleTooltipEnter}
           onTooltipLeave={handleTooltipLeave}
@@ -607,12 +682,10 @@ export const TradePage: Component<TradePageProps> = (props) => {
           searchQuery={rightQuery()}
           onSearchInput={handleRightSearchInput}
           autocompleteItems={rightAutocompleteItems()}
-          autocompleteLoading={
-            scryfallMode() ? cardSearch.autocompleteLoading() : tradeData.loadingWanted()
-          }
+          autocompleteLoading={rightAutocompleteLoading()}
           onAutocompleteSelect={handleRightSelect}
-          altMode={scryfallMode()}
-          onAltModeChange={handleScryfallModeChange}
+          mode={rightMode()}
+          modeControl={rightModeControl()}
           hidden={activePane() === 'left'}
           onTooltipEnter={handleTooltipEnter}
           onTooltipLeave={handleTooltipLeave}
@@ -652,6 +725,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
           <TradePrintingPicker
             cardName={p().cardName}
             printings={cardSearch.printings()}
+            desiredPrintings={p().desiredPrintings}
             loading={cardSearch.printingsLoading()}
             useScryfallImgUrls={props.useScryfallImgUrls}
             currency={props.currency}

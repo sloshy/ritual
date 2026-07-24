@@ -1,4 +1,5 @@
-import { describe, expect, test, mock, beforeAll, afterAll } from 'bun:test'
+import { describe, expect, test, mock, beforeAll, afterAll, beforeEach, afterEach } from 'bun:test'
+import { resetApiBase, setApiBase } from '../../../src/site/api-base'
 import { defaultFinishForCard, resolveTradeFinish } from '../../../src/site/trade-finish'
 import { encodeTradeToParams, hasTradeParams } from '../../../src/site/trade-url-encode'
 import { normalizeCardName } from '../../../src/term-match'
@@ -33,11 +34,12 @@ function roundTrip(
 // tests depend on the prefetched card (the rows under test either resolve from
 // the provided entries or are intentionally empty because entries are stale).
 const originalFetch = globalThis.fetch
-beforeAll(() => {
+function stubEmptyScryfallCollection(): void {
   globalThis.fetch = mock(() =>
     Promise.resolve(new Response(JSON.stringify({ data: [], not_found: [] }), { status: 200 })),
   ) as unknown as typeof fetch
-})
+}
+beforeAll(stubEmptyScryfallCollection)
 afterAll(() => {
   globalThis.fetch = originalFetch
 })
@@ -247,6 +249,44 @@ describe('encodeTradeToParams', () => {
   })
 })
 
+describe('decodeTradeFromParams — where a bare Scryfall ID is looked up', () => {
+  const card = makeCard({ id: 'sf-1', name: 'Test Card' })
+  const params = new URLSearchParams('rightSideScryfall=x1@sf-1')
+  let requested: string[] = []
+
+  beforeEach(() => {
+    requested = []
+    globalThis.fetch = (async (input: string | URL | Request): Promise<Response> => {
+      const url = input instanceof Request ? input.url : String(input)
+      requested.push(url)
+      return url.includes('/api/cards')
+        ? Response.json({ success: true, cards: [card] })
+        : Response.json({ data: [card], not_found: [] })
+    }) as unknown as typeof fetch
+  })
+
+  afterEach(() => {
+    resetApiBase()
+    stubEmptyScryfallCollection()
+  })
+
+  test('static site asks Scryfall, and the row says so', async () => {
+    const decoded = await decodeTradeFromParams(params, noEntries, 'usd')
+
+    expect(decoded.right[0]).toMatchObject({ source: 'scryfall', sourceName: 'Scryfall', qty: 1 })
+    expect(requested.some((url) => url.includes('api.scryfall.com'))).toBeTrue()
+  })
+
+  test("hosted site asks the backend's cache, and the row says so", async () => {
+    setApiBase('')
+
+    const decoded = await decodeTradeFromParams(params, noEntries, 'usd')
+
+    expect(decoded.right[0]).toMatchObject({ source: 'scryfall', sourceName: 'Cache' })
+    expect(requested).toEqual(['/api/cards?ids=sf-1'])
+  })
+})
+
 describe('encode → decode round-trip', () => {
   test('collection cards round-trip with qty and source preserved', async () => {
     const card = makeCard()
@@ -414,6 +454,60 @@ describe('encode → decode round-trip', () => {
       finish: 'foil',
     })
     expect(decoded.right[0]?.price).toBe(5.0)
+  })
+
+  test('a wanted row keeps the printing that was picked, not the one wanted', async () => {
+    // The list wants LEA:161; the trade was struck over the 2XM reprint.
+    const wanted = makeCard({ id: 'wanted-lea', set: 'lea', collector_number: '161' })
+    const picked = makeCard({ id: 'picked-2xm', set: '2xm', collector_number: '123' })
+    const entry = makeSearchEntry({
+      sourceName: 'Wishlist',
+      sourceKind: 'wanted',
+      scryfallCard: wanted,
+      set: 'lea',
+      collectorNumber: '161',
+      maxQty: 1,
+      cardIds: [40],
+    })
+    const right: TradeCardEntry[] = [
+      {
+        name: entry.name,
+        set: picked.set,
+        collectorNumber: picked.collector_number,
+        scryfallCard: picked,
+        source: 'wanted',
+        sourceName: 'Wishlist',
+        qty: 1,
+        sourceCardIds: [40],
+        editable: true,
+      },
+    ]
+
+    const params = encodeTradeToParams([], right)
+    expect(params.get('rightSideWantedIds')).toBe('Wishlist:40@picked-2xm')
+
+    // The decoder only has the wanted list's own entry, so it must resolve the
+    // picked printing from the URL's Scryfall ID.
+    globalThis.fetch = (async (): Promise<Response> =>
+      Response.json({ data: [picked], not_found: [] })) as unknown as typeof fetch
+    try {
+      const decoded = await decodeTradeFromParams(
+        params,
+        { ...noEntries, wantedEntries: [entry] },
+        'usd',
+      )
+      expect(decoded.right[0]).toMatchObject({
+        source: 'wanted',
+        sourceName: 'Wishlist',
+        set: '2xm',
+        collectorNumber: '123',
+        // Still re-editable after a restore, as it was before sharing.
+        editable: true,
+      })
+      expect(decoded.right[0]?.scryfallCard?.id).toBe('picked-2xm')
+    } finally {
+      stubEmptyScryfallCollection()
+    }
   })
 
   test('source names with URL-special characters round-trip intact', async () => {

@@ -1,16 +1,24 @@
 import type { Component } from 'solid-js'
-import { createSignal, createMemo, createEffect, For, Show } from 'solid-js'
+import { createSignal, createMemo, createEffect, on, For, Show } from 'solid-js'
 import { Modal } from '../ui/Modal'
 import type { ScryfallCard, Finish } from '../types'
 import type { PriceCurrency } from '../price-currency'
 import { formatPrice, getCardPriceForFinish } from '../price-currency'
+import { isFinish } from '../finish-condition'
 import { isCardSideways, resolveCardImageSources } from './image-sources'
 import { defaultFinishForCard } from './trade-finish'
+import { printingKey } from './printing-key'
 import { useTooltip } from './useTooltip'
 
 export interface TradePrintingPickerProps {
   cardName: string
   printings: ScryfallCard[]
+  /**
+   * `set:collectorNumber` keys of the printings a wanted list asks for. They are
+   * floated to the top of the list and badged — a hint about what you wanted,
+   * never a substitute for choosing the printing actually on offer.
+   */
+  desiredPrintings?: string[]
   loading: boolean
   useScryfallImgUrls?: boolean
   currency: PriceCurrency
@@ -22,6 +30,7 @@ const PRINTINGS_PAGE_SIZE = 8
 
 interface PickerItemProps {
   printing: ScryfallCard
+  desired: boolean
   useScryfallImgUrls?: boolean
   currency: PriceCurrency
   selectedPrinting: ScryfallCard | null
@@ -34,9 +43,7 @@ interface PickerItemProps {
 
 const PickerItem: Component<PickerItemProps> = (props) => {
   const { frontImage } = resolveCardImageSources(props.printing, Boolean(props.useScryfallImgUrls))
-  const finishes: Finish[] = (props.printing.finishes as Finish[]).filter(
-    (f): f is Finish => f === 'nonfoil' || f === 'foil' || f === 'etched',
-  )
+  const finishes: Finish[] = props.printing.finishes.filter(isFinish)
   if (finishes.length === 0) finishes.push('nonfoil')
   // Memoized so a currency change while the picker is open re-prices reactively.
   const prices = createMemo(() =>
@@ -53,7 +60,10 @@ const PickerItem: Component<PickerItemProps> = (props) => {
   return (
     <div
       class="trade-picker-item"
-      classList={{ 'trade-picker-item-selected': isSelected() }}
+      classList={{
+        'trade-picker-item-selected': isSelected(),
+        'trade-picker-item-desired': props.desired,
+      }}
       role="button"
       tabIndex={0}
       onClick={() => props.onSelectPrinting(props.printing)}
@@ -69,6 +79,9 @@ const PickerItem: Component<PickerItemProps> = (props) => {
       <div class="trade-picker-item-info">
         <span class="trade-picker-set">
           {props.printing.set.toUpperCase()}:{props.printing.collector_number}
+          <Show when={props.desired}>
+            <span class="trade-picker-wanted-tag">Wanted</span>
+          </Show>
         </span>
         <span class="trade-picker-release">{props.printing.released_at ?? ''}</span>
         <span class="trade-picker-price">
@@ -112,26 +125,42 @@ export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) 
   const [page, setPage] = createSignal(0)
   const [filterText, setFilterText] = createSignal('')
 
+  const desired = createMemo(() => new Set(props.desiredPrintings ?? []))
+  const isDesired = (printing: ScryfallCard): boolean =>
+    desired().has(printingKey(printing.set, printing.collector_number))
+
   const filteredPrintings = createMemo(() => {
     const filter = filterText().toLowerCase().trim()
     if (!filter) return props.printings
     return props.printings.filter((p) => p.set.toLowerCase().includes(filter))
   })
 
+  // Wanted printings lead so they're on the first page rather than buried
+  // several pages into a heavily reprinted card; the rest keep their order.
+  const orderedPrintings = createMemo(() => {
+    const printings = filteredPrintings()
+    if (desired().size === 0) return printings
+    const wanted: ScryfallCard[] = []
+    const rest: ScryfallCard[] = []
+    for (const printing of printings) (isDesired(printing) ? wanted : rest).push(printing)
+    return [...wanted, ...rest]
+  })
+
   const totalPages = createMemo(() =>
-    Math.max(1, Math.ceil(filteredPrintings().length / PRINTINGS_PAGE_SIZE)),
+    Math.max(1, Math.ceil(orderedPrintings().length / PRINTINGS_PAGE_SIZE)),
   )
 
   const pagedPrintings = createMemo(() => {
     const start = page() * PRINTINGS_PAGE_SIZE
-    return filteredPrintings().slice(start, start + PRINTINGS_PAGE_SIZE)
+    return orderedPrintings().slice(start, start + PRINTINGS_PAGE_SIZE)
   })
 
-  createEffect(() => {
-    props.printings
-    filterText()
-    setPage(0)
-  })
+  createEffect(
+    on(
+      () => [props.printings, props.desiredPrintings, filterText()],
+      () => setPage(0),
+    ),
+  )
 
   createEffect(() => {
     const p = selectedPrinting()
@@ -190,13 +219,14 @@ export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) 
       </Show>
       <Show when={!props.loading}>
         <div class="trade-picker-list">
-          <Show when={filteredPrintings().length === 0 && props.printings.length > 0}>
+          <Show when={orderedPrintings().length === 0 && props.printings.length > 0}>
             <div class="trade-picker-loading">No printings match that set code.</div>
           </Show>
           <For each={pagedPrintings()}>
             {(printing) => (
               <PickerItem
                 printing={printing}
+                desired={isDesired(printing)}
                 useScryfallImgUrls={props.useScryfallImgUrls}
                 currency={props.currency}
                 selectedPrinting={selectedPrinting()}
@@ -222,7 +252,7 @@ export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) 
               ← Prev
             </button>
             <span class="trade-picker-pagination-info">
-              Page {page() + 1} of {totalPages()} · {filteredPrintings().length} printings
+              Page {page() + 1} of {totalPages()} · {orderedPrintings().length} printings
             </span>
             <button
               class="btn btn-secondary"

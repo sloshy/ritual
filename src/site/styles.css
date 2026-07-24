@@ -997,6 +997,13 @@ body {
   background: var(--text-primary);
 }
 
+/* Stands in for the toggle when a column's search mode is fixed (hosted API). */
+.search-mode-note {
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+
 /* ===== Search Suggestions ===== */
 .search-suggest {
   margin-top: 0.5rem;
@@ -1494,6 +1501,24 @@ body {
 .trade-picker-item-selected {
   border-color: var(--accent);
   background: var(--bg-subtle);
+}
+
+/* A printing one of your wanted lists asks for — sorted first and badged. */
+.trade-picker-item-desired {
+  border-color: var(--accent-dim);
+}
+
+.trade-picker-wanted-tag {
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--accent-dim);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text-accent);
+  vertical-align: middle;
 }
 
 .trade-picker-thumb {

@@ -4,7 +4,7 @@ import type { ScryfallCard } from '../types'
 import { getCardPriceForFinish } from '../price-currency'
 import type { PriceCurrency } from '../price-currency'
 import { resolveTradeFinish } from './trade-finish'
-import { batchFetchScryfall } from './scryfall-collection'
+import { cardLookupSourceName, fetchCardsByIds } from './card-lookup'
 
 /**
  * Surfaced when a saved trade URL references data that no longer exists locally.
@@ -277,9 +277,13 @@ function decodeWantedParam(
       const finish = resolveTradeFinish(scryfallCard, urlFinish ?? entry.finish)
       result.push({
         name: entry.name,
-        set: entry.set,
-        collectorNumber: entry.collectorNumber,
+        // The printing on offer is whatever the picker chose, which is not
+        // necessarily the one the wanted list asked for — same as a deck row.
+        set: scryfallCard?.set ?? entry.set,
+        collectorNumber: scryfallCard?.collector_number ?? entry.collectorNumber,
         finish,
+        condition: entry.condition,
+        note: entry.note,
         price: scryfallCard
           ? getCardPriceForFinish(scryfallCard, finish, ctx.currency)
           : (entry.price ?? 0),
@@ -288,6 +292,7 @@ function decodeWantedParam(
         sourceName: entry.sourceName,
         qty,
         sourceCardIds: entry.cardIds,
+        editable: !!sfId,
       })
     }
   }
@@ -329,7 +334,7 @@ function decodeScryfallParam(paramValue: string, ctx: DecodeContext): TradeCardE
       scryfallCard: card,
       price: getCardPriceForFinish(card, finish, ctx.currency),
       source: 'scryfall',
-      sourceName: 'Scryfall',
+      sourceName: cardLookupSourceName(),
       qty,
       editable: true,
     })
@@ -396,7 +401,7 @@ export async function decodeTradeFromParams(
       if (entry.scryfallCard) scryfallMap.set(entry.scryfallCard.id, entry.scryfallCard)
     }
     const toFetch = [...sfIdsToFetch].filter((id) => !scryfallMap.has(id))
-    const fetched = await batchFetchScryfall(toFetch)
+    const fetched = await fetchCardsByIds(toFetch)
     for (const [id, card] of fetched) scryfallMap.set(id, card)
   }
 
