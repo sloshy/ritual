@@ -109,6 +109,7 @@ export default defineConfig({
         {
           label: 'Public Site',
           items: [
+            'public-site/hosted',
             'public-site/filtering',
             'public-site/combined-view',
             'public-site/find',

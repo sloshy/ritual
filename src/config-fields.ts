@@ -7,6 +7,7 @@ import {
   parseCacheLockTimeoutSeconds,
   parseCacheSource,
   parseDefaultCurrency,
+  parseSiteApiBaseUrl,
   type AdminConfig,
   type RitualConfig,
   type SiteConfig,
@@ -108,6 +109,7 @@ type SettableSiteFieldsMap = {
   >
 } & {
   'site.bannedPrintings': ConfigFieldTypeFor<NonNullable<SiteConfig['bannedPrintings']>>
+  'site.apiBaseUrl': ConfigFieldTypeFor<NonNullable<SiteConfig['apiBaseUrl']>>
 }
 export const SETTABLE_SITE_FIELDS: Record<string, ConfigFieldType> = {
   'site.includeDecks': 'string[]',
@@ -117,6 +119,7 @@ export const SETTABLE_SITE_FIELDS: Record<string, ConfigFieldType> = {
   'site.excludeCollections': 'string[]',
   'site.excludeWantedLists': 'string[]',
   'site.bannedPrintings': 'string[]',
+  'site.apiBaseUrl': 'string',
 } satisfies SettableSiteFieldsMap
 
 /**
@@ -342,6 +345,15 @@ export function applyConfigSet(
   }
   if (property === 'cacheFeedUrl') {
     const parsed = parseCacheFeedUrl(rawValue)
+    if (isConfigParseError(parsed)) {
+      return parsed
+    }
+    newValue = parsed
+  }
+  // site.apiBaseUrl is a constrained string ('' or an http(s) URL); validate and
+  // normalize (trailing slash stripped) before persisting.
+  if (property === 'site.apiBaseUrl') {
+    const parsed = parseSiteApiBaseUrl(rawValue)
     if (isConfigParseError(parsed)) {
       return parsed
     }

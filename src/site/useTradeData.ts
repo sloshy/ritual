@@ -10,6 +10,8 @@ import type {
   WantedListSummary,
 } from './data-types'
 import { fetchJson } from './useFetchJson'
+import { detailUrl, reportDataFetchError } from './api-base'
+import { isAbortError } from './utils'
 import {
   matchesNameTerms,
   normalizeCardName,
@@ -63,7 +65,12 @@ export type UseTradeDataResult = {
 }
 
 async function fetchOrNull<T>(url: string, signal: AbortSignal): Promise<T | null> {
-  return fetchJson<T>(url, signal).catch(() => null)
+  return fetchJson<T>(url, signal).catch((e: unknown) => {
+    // Pre-filter aborts (page unmount mid-fetch) so cancellation can never be
+    // mistaken for a dead backend and degrade the whole app.
+    if (!isAbortError(e)) reportDataFetchError(e)
+    return null
+  })
 }
 
 /** How many suggestions the trade search box shows. */
@@ -144,7 +151,7 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
       await Promise.all(
         collections.map(async (col) => {
           const detail = await fetchOrNull<CollectionDetail>(
-            `collections/${col.slug}.json`,
+            detailUrl('collection', col.slug),
             controller.signal,
           )
           if (!detail) return
@@ -197,7 +204,7 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
       await Promise.all(
         wantedLists.map(async (wl) => {
           const detail = await fetchOrNull<WantedListDetail>(
-            `wanted/${wl.slug}.json`,
+            detailUrl('wanted', wl.slug),
             controller.signal,
           )
           if (!detail) return
@@ -256,7 +263,7 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
     const allDeckEntries: TradeSearchEntry[] = []
     await Promise.all(
       deckSlugs().map(async (slug) => {
-        const detail = await fetchOrNull<DeckDetail>(`decks/${slug}.json`, controller.signal)
+        const detail = await fetchOrNull<DeckDetail>(detailUrl('deck', slug), controller.signal)
         if (!detail) return
         const deckName = detail.deck.name
         // Sum quantities across all sections (mainboard + sideboard + ...) for the

@@ -20,13 +20,11 @@ import {
 import { useDeckEditController, DeckEditorBody } from '../../editor/DeckEditController'
 import { deckToExportText } from '../../deck-text'
 import { DeckPage } from '../DeckPage'
-import { createScryfallSearchProvider } from './scryfall-search-provider'
+import { siteSearch } from './site-search'
 import { backfillImportedCard } from './backfill-added-card'
 import { EditViewFrame } from './EditViewFrame'
 import { confirmDiscardOnExit } from './edit-session-memory'
 import { safeFilename } from './safe-filename'
-
-const scryfallSearch = createScryfallSearchProvider()
 
 type DeckEditViewProps = {
   detail: DeckDetail
@@ -81,7 +79,7 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
       }),
     addCardData: (cardName, card, printings) => cardActions.addCard(cardName, card, printings),
     onCardAdded: (cardName, scryfallCard) =>
-      backfillImportedCard(scryfallSearch, cardName, scryfallCard, cardActions.addCard),
+      backfillImportedCard(siteSearch, cardName, scryfallCard, cardActions.addCard),
 
     applyChange: applyChangeToDeck,
     applyChangePrinting: applyDeckChangePrinting,
@@ -131,7 +129,7 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
         <DeckEditorBody
           ctrl={ctrl}
           defaults={defaults}
-          search={scryfallSearch}
+          search={siteSearch}
           currency={props.currency}
           useScryfallImgUrls={props.detail.useScryfallImgUrls}
           showSave={false}

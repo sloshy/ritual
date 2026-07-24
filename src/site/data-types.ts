@@ -155,6 +155,13 @@ export interface SiteIndex {
   pricesDate?: string
   /** The configured add-card search debounce (ms), baked in at build time. */
   searchDebounceMs: number
+  /**
+   * Base URL of a live read-only API backing this site. `''` = same origin
+   * (injected by `ritual serve --api`, which serves index.json dynamically and
+   * shadows any baked value); an absolute URL = split deployment (baked by
+   * build-site from `site.apiBaseUrl`). Absent = fully static site.
+   */
+  apiBaseUrl?: string
 }
 
 export type TradeCardSource = 'collection' | 'deck' | 'wanted' | 'scryfall'

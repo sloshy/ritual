@@ -8,6 +8,30 @@ export type ServeStaticSiteOptions = {
 
 export type StaticSiteServer = ReturnType<typeof Bun.serve>
 
+/** A response for the resolved file, or null when no file matches. */
+export type StaticFileResult = Response | null
+
+/** Serve the exact file at `pathname` under `distDir`, or null if it doesn't exist. */
+export async function serveStaticFile(
+  distDir: string,
+  pathname: string,
+): Promise<StaticFileResult> {
+  const file = Bun.file(path.join(distDir, pathname))
+  if (await file.exists()) {
+    return new Response(file)
+  }
+  return null
+}
+
+/** Serve the SPA's `index.html` fallback, or null if the site isn't built. */
+export async function serveSpaFallback(distDir: string): Promise<StaticFileResult> {
+  const indexFile = Bun.file(path.join(distDir, 'index.html'))
+  if (await indexFile.exists()) {
+    return new Response(indexFile)
+  }
+  return null
+}
+
 /**
  * Serve a built static site directory with SPA fallback to `index.html`.
  */
@@ -18,19 +42,9 @@ export function serveStaticSite(options: ServeStaticSiteOptions): StaticSiteServ
     hostname,
     async fetch(req) {
       const url = new URL(req.url)
-      const filePath = path.join(distDir, url.pathname)
-
-      const file = Bun.file(filePath)
-      if (await file.exists()) {
-        return new Response(file)
-      }
-
-      const indexFile = Bun.file(path.join(distDir, 'index.html'))
-      if (await indexFile.exists()) {
-        return new Response(indexFile)
-      }
-
-      return new Response('Not Found', { status: 404 })
+      const response =
+        (await serveStaticFile(distDir, url.pathname)) ?? (await serveSpaFallback(distDir))
+      return response ?? new Response('Not Found', { status: 404 })
     },
     error(error) {
       return new Response(`<pre>${error}\n${error.stack}</pre>`, {

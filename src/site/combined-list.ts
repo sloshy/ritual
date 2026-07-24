@@ -9,6 +9,8 @@ import { resolveWantedCardEntry } from './resolve-card'
 import type { CardData } from './card-sorting'
 import type { SelectedCard } from './useCardSelection'
 import { fetchJson } from './useFetchJson'
+import { detailUrl, reportDataFetchError } from './api-base'
+import { isAbortError } from './utils'
 import type {
   DeckDetail,
   CollectionDetail,
@@ -141,12 +143,6 @@ export function parseCombinedQuery(query: string): CombinedSelection {
 
 // ----- Detail loading -----
 
-function detailUrl(ref: CombinedListRef): string {
-  if (ref.type === 'deck') return `decks/${ref.slug}.json`
-  if (ref.type === 'collection') return `collections/${ref.slug}.json`
-  return `wanted/${ref.slug}.json`
-}
-
 /**
  * Fetch every selected list's detail JSON in parallel, preserving selection order.
  * Lists that fail to load are dropped (logged), so the view degrades gracefully.
@@ -158,18 +154,19 @@ export async function loadCombinedDetails(
   const tasks = refs.map(async (ref): Promise<LoadedListDetail | null> => {
     try {
       if (ref.type === 'deck') {
-        const detail = await fetchJson<DeckDetail>(detailUrl(ref), signal)
+        const detail = await fetchJson<DeckDetail>(detailUrl(ref.type, ref.slug), signal)
         return { ref, name: ref.name, kind: 'deck', detail }
       }
       if (ref.type === 'collection') {
-        const detail = await fetchJson<CollectionDetail>(detailUrl(ref), signal)
+        const detail = await fetchJson<CollectionDetail>(detailUrl(ref.type, ref.slug), signal)
         return { ref, name: ref.name, kind: 'collection', detail }
       }
-      const detail = await fetchJson<WantedListDetail>(detailUrl(ref), signal)
+      const detail = await fetchJson<WantedListDetail>(detailUrl(ref.type, ref.slug), signal)
       return { ref, name: ref.name, kind: 'wanted', detail }
     } catch (e) {
-      if ((e as Error).name === 'AbortError') throw e
+      if (isAbortError(e)) throw e
       console.error(`Combined view: failed to load ${ref.type}/${ref.slug}:`, e)
+      reportDataFetchError(e)
       return null
     }
   })

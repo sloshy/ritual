@@ -1,13 +1,17 @@
 import type { ScryfallCard, ScryfallList } from '../types'
+import type { AutocompleteResponse } from '../api/autocomplete'
+import type { CardPrintingsResponse } from '../api/card-printings'
 import { getPrintingsByName, putFetchedPrintings } from './session-cache'
 import { promoteFullNameMatches } from '../term-match'
+import { apiActive, apiUrl } from './api-base'
+import { isAbortError } from './utils'
 
 /**
- * The public site's browser-side Scryfall client. The site is serverless, so its
- * card search (the trade page's search box and the list editors' search modal)
- * talks to Scryfall from the browser instead of going through the admin API.
- * Both surfaces need the same two calls, so they live here: autocomplete a
- * partial name, then fetch every printing of an exact name.
+ * The public site's browser-side card search (the trade page's search box and
+ * the list editors' search modal). Each call dispatches on the API base: with a
+ * live backend the queries go to its cache-backed endpoints — the same
+ * term-separation matching the admin editor has — and without one they go
+ * straight to Scryfall, the serverless site's only option.
  *
  * Callers own their own UI state (debouncing, loading flags, abort signals). An
  * `AbortSignal` passed here is forwarded to `fetch`, and a cancelled request
@@ -26,31 +30,34 @@ type ScryfallAutocompleteResponse = {
   data: string[]
 }
 
-export type ScryfallRequestOptions = {
+export type CardSearchRequestOptions = {
   signal?: AbortSignal
 }
 
-/** Whether a caught error is a `fetch` cancelled through its {@link AbortSignal}. */
-export function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === 'AbortError'
-}
-
 /**
- * Autocomplete card names for a partial query, asked of Scryfall as-is.
+ * Autocomplete card names for a partial query.
  *
- * Deliberately NOT the term matching the CLI and admin editor apply (`in tre`
- * finding "In the Trenches") — that semantic belongs to searches over the local
- * card cache, while Scryfall's autocomplete matches the query as one contiguous
- * string. The public site surfaces Scryfall's own results rather than
- * approximating the local semantics with extra requests, and its search UI says
- * so (see the Scryfall provider's `sourceNote`). Scryfall ranks its suggestions
- * by popularity, so a name the query already spells out in full is floated to
- * the top (see {@link promoteFullNameMatches}).
+ * Backed by a live API, the server term-matches and ranks over its card cache
+ * (`in tre` finds "In the Trenches"), and its order is used verbatim. Without
+ * one, the query is asked of Scryfall as-is — deliberately NOT the term
+ * matching the CLI and admin editor apply, since Scryfall's autocomplete
+ * matches the query as one contiguous string; the public site surfaces
+ * Scryfall's own results rather than approximating the local semantics with
+ * extra requests, and its search UI says so (see `siteSearch`'s `sourceNote`).
+ * Scryfall ranks its suggestions by popularity, so a name the query already
+ * spells out in full is floated to the top (see {@link promoteFullNameMatches}).
  */
 export async function autocompleteCardNames(
   query: string,
-  options: ScryfallRequestOptions = {},
+  options: CardSearchRequestOptions = {},
 ): Promise<string[]> {
+  if (apiActive()) {
+    const resp = await fetch(apiUrl(`api/autocomplete?q=${encodeURIComponent(query)}`), options)
+    if (!resp.ok) return []
+    const data = (await resp.json()) as AutocompleteResponse
+    return data.success ? data.names : []
+  }
+
   const url = `${SCRYFALL_API}/cards/autocomplete?q=${encodeURIComponent(query)}`
   const resp = await fetch(url, options)
   if (!resp.ok) return []
@@ -62,19 +69,30 @@ export async function autocompleteCardNames(
  * All printings of an exact card name, newest first.
  *
  * Printings are read through the in-memory session cache: a name already shipped
- * in the baked list data (or fetched earlier this session) is reused instead of
- * hitting Scryfall again; fresh fetches are recorded back into the cache. The
- * exact-name search 404s for some names (tokens, edge cases), so a failed search
- * falls back to a fuzzy named lookup, which yields the single card it resolves to.
+ * in the list data (or fetched earlier this session) is reused instead of a new
+ * request; fresh fetches are recorded back into the cache. With a live API the
+ * lookup is answered from the server's card cache. On Scryfall, the exact-name
+ * search 404s for some names (tokens, edge cases), so a failed search falls back
+ * to a fuzzy named lookup, which yields the single card it resolves to.
  */
 export async function fetchCardPrintings(
   cardName: string,
-  options: ScryfallRequestOptions = {},
+  options: CardSearchRequestOptions = {},
 ): Promise<ScryfallCard[]> {
   // A cache hit answers even an already-cancelled request: there is no network
   // work left to cancel, so there is nothing to reject.
   const cached = getPrintingsByName(cardName)
   if (cached) return cached
+
+  if (apiActive()) {
+    const resp = await get(
+      apiUrl(`api/card-printings?name=${encodeURIComponent(cardName)}`),
+      options,
+    )
+    if (!resp?.ok) return []
+    const data = (await resp.json()) as CardPrintingsResponse
+    return data.success ? cachePrintings(cardName, data.printings) : []
+  }
 
   const exact = encodeURIComponent(`!"${cardName}"`)
   const searchUrl = `${SCRYFALL_API}/cards/search?q=${exact}&unique=prints&order=released&dir=desc`
@@ -93,10 +111,10 @@ export async function fetchCardPrintings(
 
 /**
  * A GET whose only failure worth surfacing is cancellation: an unreachable
- * Scryfall answers `null`, same as a 404 answers a non-ok response, so callers
+ * backend answers `null`, same as a 404 answers a non-ok response, so callers
  * can treat "couldn't ask" and "nothing there" alike.
  */
-async function get(url: string, options: ScryfallRequestOptions): Promise<Response | null> {
+async function get(url: string, options: CardSearchRequestOptions): Promise<Response | null> {
   try {
     return await fetch(url, options)
   } catch (error) {

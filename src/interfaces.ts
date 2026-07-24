@@ -14,6 +14,8 @@ export interface CacheManager<T> {
   get(key: string): Promise<T | null>
   getTimestamp?(key: string): Promise<number | null>
   getLastRefreshedAt?(): Promise<number | null>
+  /** Drop any in-process memo so the next read reloads from the backing store. */
+  invalidate?(): void
   streamGetMany(
     keys: string[],
     onEntry: (key: string, value: T, meta: CacheStreamEntryMeta) => void,

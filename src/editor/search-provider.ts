@@ -1,4 +1,6 @@
 import type { ScryfallCard } from '../types'
+import type { AutocompleteResponse } from '../api/autocomplete'
+import type { CardPrintingsResponse } from '../api/card-printings'
 
 /**
  * A subtle attribution note about where a provider's searches go, rendered by
@@ -28,9 +30,6 @@ export type SearchProvider = {
   sourceNote?: SearchSourceNote
 }
 
-type AutocompleteResponse = { success: boolean; names: string[] }
-type PrintingsResponse = { success: boolean; printings: ScryfallCard[] }
-
 /**
  * Admin {@link SearchProvider}: hits the admin server's `/api/autocomplete` and
  * `/api/card-printings`, which serve data from the local Scryfall cache.
@@ -48,7 +47,7 @@ export function createApiSearchProvider(): SearchProvider {
       const resp = await fetch(`/api/card-printings?name=${encodeURIComponent(cardName)}`, {
         credentials: 'same-origin',
       })
-      const data = (await resp.json()) as PrintingsResponse
+      const data = (await resp.json()) as CardPrintingsResponse
       return data.success ? data.printings : []
     },
   }

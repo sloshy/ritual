@@ -8,7 +8,8 @@ import { WANTED_CARD_LINE_RE } from './commands/wanted-helpers'
 import { getErrorMessage } from './errors'
 import { getCollectionsDir, getDecksDir, getWantedDir } from './ritual-config'
 
-function isNoEntryError(err: unknown): boolean {
+/** Whether a caught filesystem error is a plain "no such file or directory". */
+export function isNoEntryError(err: unknown): boolean {
   return typeof err === 'object' && err !== null && 'code' in err && err.code === 'ENOENT'
 }
 

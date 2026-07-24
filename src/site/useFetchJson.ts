@@ -1,5 +1,7 @@
-import { createSignal, createEffect, onCleanup } from 'solid-js'
+import { createSignal, createEffect, createMemo, onCleanup } from 'solid-js'
 import type { Accessor } from 'solid-js'
+import { reportDataFetchError } from './api-base'
+import { isAbortError } from './utils'
 
 export type UseFetchJsonResult<T> = {
   data: Accessor<T | null>
@@ -20,8 +22,13 @@ export function useFetchJson<T>(url: Accessor<string | null>): UseFetchJsonResul
   const [loading, setLoading] = createSignal(false)
   const [error, setError] = createSignal<string | null>(null)
 
+  // Memoized by value: a dependency of the accessor may change without changing
+  // the resulting URL (e.g. the API base resolving from null to '' keeps the
+  // same relative path) — that must not abort and refetch an in-flight load.
+  const resolvedUrl = createMemo(url)
+
   createEffect(() => {
-    const currentUrl = url()
+    const currentUrl = resolvedUrl()
     if (!currentUrl) {
       setData(null)
       return
@@ -37,8 +44,12 @@ export function useFetchJson<T>(url: Accessor<string | null>): UseFetchJsonResul
         setData(() => json)
         setLoading(false)
       } catch (e) {
-        if ((e as Error).name === 'AbortError') return
+        if (isAbortError(e)) return
         console.error(`Failed to load ${currentUrl}:`, e)
+        // A dead remote backend flips the app back to the baked data; the URL
+        // accessor re-runs this effect against the static copy, clearing the
+        // transient error.
+        reportDataFetchError(e)
         setError('Failed to load data.')
         setLoading(false)
       }

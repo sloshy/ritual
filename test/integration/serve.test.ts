@@ -34,4 +34,22 @@ describe('serve command (Integration)', () => {
       expect(result.stdout).not.toContain('Serving site')
     })
   })
+
+  test('--refresh is accepted with --api (cache warming), failing later on the missing dist', async () => {
+    await withWorkspace(async (dir) => {
+      const result = await runCli(['serve', '--api', '--refresh', 'never'], dir)
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).not.toContain('only appl')
+      expect(result.stderr).toContain('No built site found')
+    })
+  })
+
+  test('other build-only flags are still rejected with --api but without --build', async () => {
+    await withWorkspace(async (dir) => {
+      const result = await runCli(['serve', '--api', '--verbose'], dir)
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain('--verbose')
+      expect(result.stderr).toContain('--build')
+    })
+  })
 })

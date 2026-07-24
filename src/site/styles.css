@@ -167,6 +167,26 @@ body {
   font-size: 0.875rem;
 }
 
+/* Live-backend indicator: shown only when the site is backed by an API
+   (`serve --api` or a configured remote base), switching to the offline
+   variant when a remote backend has degraded to the baked data. */
+.site-live-badge {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  background: var(--success-bg);
+  border: 1px solid var(--success-border);
+  color: var(--success-text);
+}
+
+.site-live-badge--offline {
+  background: var(--error-bg);
+  border-color: var(--error-border);
+  color: var(--error);
+}
+
 .site-nav-sep {
   color: var(--text-dim);
 }

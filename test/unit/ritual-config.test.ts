@@ -20,13 +20,16 @@ import {
   parseCacheLockTimeoutSeconds,
   parseCacheSource,
   parseDefaultCurrency,
+  getSiteApiBaseUrl,
   parseSearchDebounceMs,
+  parseSiteApiBaseUrl,
   parseSiteConfig,
   resetRitualConfigCache,
   saveRitualConfig,
   type RitualConfig,
   type SiteConfig,
 } from '../../src/ritual-config'
+import { defaultSiteSelection } from '../../src/site/list-selection'
 import { setBaseDir } from '../../src/base-dir'
 
 const testDir = path.join(import.meta.dir, '../.test-ritual-config')
@@ -574,6 +577,49 @@ describe('parseSiteConfig', () => {
 
   test('returns error when bannedPrintings is not an array of strings', () => {
     expect(isConfigParseError(parseSiteConfig({ bannedPrintings: 'SLD:123' }))).toBeTrue()
+  })
+
+  test('parses apiBaseUrl alongside selection, stripping trailing slashes', () => {
+    const result = parseSiteConfig({ apiBaseUrl: 'https://api.example.com/' })
+    expect(result).toEqual({ ...defaultSelection, apiBaseUrl: 'https://api.example.com' })
+  })
+
+  test('accepts an empty apiBaseUrl (same-origin reverse proxy)', () => {
+    const result = parseSiteConfig({ apiBaseUrl: '' })
+    expect(result).toEqual({ ...defaultSelection, apiBaseUrl: '' })
+  })
+
+  test('returns error when apiBaseUrl is not an http(s) URL', () => {
+    expectParseError(parseSiteConfig({ apiBaseUrl: 'ftp://example.com' }), 'apiBaseUrl')
+    expectParseError(parseSiteConfig({ apiBaseUrl: 'not a url' }), 'apiBaseUrl')
+    expectParseError(parseSiteConfig({ apiBaseUrl: 42 }), 'apiBaseUrl')
+  })
+})
+
+describe('getSiteApiBaseUrl', () => {
+  test('reads site.apiBaseUrl, undefined when absent', () => {
+    const config = getDefaultRitualConfig()
+    expect(getSiteApiBaseUrl(config)).toBeUndefined()
+    const withApi = {
+      ...config,
+      site: { ...defaultSiteSelection(), apiBaseUrl: 'https://api.example.com' },
+    }
+    expect(getSiteApiBaseUrl(withApi)).toBe('https://api.example.com')
+  })
+})
+
+describe('parseSiteApiBaseUrl', () => {
+  test('keeps a clean http(s) URL and strips trailing slashes', () => {
+    expect(parseSiteApiBaseUrl('http://localhost:3000')).toBe('http://localhost:3000')
+    expect(parseSiteApiBaseUrl('https://api.example.com//')).toBe('https://api.example.com')
+  })
+
+  test('accepts the empty string', () => {
+    expect(parseSiteApiBaseUrl('')).toBe('')
+  })
+
+  test.each(['ws://x', 'example.com', 42, null])('rejects %p', (raw) => {
+    expect(isConfigParseError(parseSiteApiBaseUrl(raw))).toBeTrue()
   })
 })
 

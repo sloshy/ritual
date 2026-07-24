@@ -10,7 +10,7 @@ Serve the generated static site locally, optionally building it first.
 ./ritual serve [options]
 ```
 
-By default, `serve` serves a previously built `dist/` directory. Pass `--build` to build the site first and then serve the result — the one-shot preview that used to require running [`build-site`](/commands/build-site/) and `serve` separately.
+By default, `serve` serves a previously built `dist/` directory. Pass `--build` to build the site first and then serve the result — the one-shot preview that used to require running [`build-site`](/commands/build-site/) and `serve` separately. Pass `--api` to additionally host a live, read-only data API alongside the site — see [Hosting with a live backend](/public-site/hosted/).
 
 ## Options
 
@@ -19,10 +19,33 @@ By default, `serve` serves a previously built `dist/` directory. Pass `--build` 
 | `-p, --port <number>` | Port to serve on. Validated at parse time (1–65535); an invalid value exits with code 2. | `3000`    |
 | `--host <address>`    | Host address to bind to. `0.0.0.0` binds all interfaces.                                 | `0.0.0.0` |
 | `--build`             | Build the site before serving it                                                         |           |
+| `--api`               | Serve a live read-only data API alongside the site (see below)                           |           |
+
+### Live API mode (`--api`)
+
+With `--api`, the server hosts the same static `dist/` **plus** a live, unauthenticated, **read-only** API on the same port:
+
+| Method | Path                                                     | Serves                                                                                                                                                    |
+| ------ | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/index.json`, `/decks/…`, `/collections/…`, `/wanted/…` | **Live list data**, computed from the markdown files on request (shadowing the baked copies) — edits made via the CLI or admin appear without rebuilding. |
+| GET    | `/api/autocomplete`                                      | Card-name autocomplete over the card cache with the **same term matching as the admin editor** (`in tre` finds "In the Trenches").                        |
+| GET    | `/api/card-printings`, `/api/card-price`                 | Cached printings and staleness-gated price lookups (the same endpoints the admin editor uses).                                                            |
+| POST   | `/api/card-prices`                                       | Batch price refresh by card name (used by the site's **Update Prices** button in hosted mode).                                                            |
+
+The web app detects the backend through the served `index.json` and switches its behavior: list pages refetch live data on navigation, the editor's add-card search uses the cache-backed term matching (the "results may differ" Scryfall note disappears), and price refreshes go through the server. A small **Live** badge appears in the site header.
+
+Details:
+
+- **Read-only, no auth.** Only the routes above exist; an unmatched `/api/*` path answers a JSON 404 (never the SPA fallback), and none of the admin server's mutation or auth surface is reachable. Public edits stay client-side (export/import change bundles), exactly as on the static site. One local exception: like every list-reading command, startup backfills any missing `&N` card IDs into the list files on first run.
+- **Cache warming.** Startup runs the same card-cache freshness check as [`admin`](/commands/admin/); `--refresh` controls it (and is therefore valid with `--api` even without `--build`).
+- **Cache backend.** The server reads the card cache through the standard selection: the local `cache/cache.json` by default, or a [cache server](/commands/cache/) when `--cache-server`/`RITUAL_CACHE_SERVER` is set. A bulk refresh run by a separate CLI process is picked up automatically (the server watches the cache file). **Never expose the cache server itself to browsers** — it has unauthenticated write routes; only the `serve --api` process should talk to it.
+- **CORS.** API and JSON routes answer with `Access-Control-Allow-Origin: *`, so a statically deployed site (CDN/GitHub Pages) can point at a separately hosted instance via [`site.apiBaseUrl`](/configuration/#site-config-site-key) — see [Hosting with a live backend](/public-site/hosted/).
+- **Freshness.** Live JSON is served with `Cache-Control: no-cache`, content ETags, and `Last-Modified`, so unchanged payloads revalidate as cheap 304s. Every response also carries `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin`.
+- **Images.** Live data always uses Scryfall image URLs; `--cache-images` only affects the statically built assets.
 
 ### Build options (require `--build`)
 
-With `--build`, `serve` accepts the full [`build-site`](/commands/build-site/) option surface. Passing any of these **without** `--build` is a usage error: the command exits with code 2 and an error naming the offending flag(s).
+With `--build`, `serve` accepts the full [`build-site`](/commands/build-site/) option surface. Passing any of these **without** `--build` is a usage error: the command exits with code 2 and an error naming the offending flag(s). The exception is `--refresh`, which is also meaningful with `--api` (cache warming).
 
 | Option                          | Description                                                                                                                                                                         |
 | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -63,13 +86,25 @@ Build only specific decks, then serve:
 ./ritual serve --build --decks "Atraxa Superfriends" "Mono Red Aggro"
 ```
 
+Build once, then host the site with the live backend:
+
+```bash
+./ritual serve --build --api
+```
+
+Host with a shared cache server providing the card data:
+
+```bash
+./ritual serve --api --refresh never --cache-server cache-host:4000
+```
+
 ## Exit Codes
 
-| Code | Meaning                                                                                                           |
-| ---- | ----------------------------------------------------------------------------------------------------------------- |
-| `0`  | The server ran (it serves until stopped with `Ctrl+C`).                                                           |
-| `1`  | The build failed at runtime (e.g. an unreadable `--theme-file`, or a build error). The server is not started.     |
-| `2`  | Usage error: invalid `--port`, a build-only flag without `--build`, or an invalid `--currencies`/`--theme` value. |
+| Code | Meaning                                                                                                                                            |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | The server ran (it serves until stopped with `Ctrl+C`).                                                                                            |
+| `1`  | The build failed at runtime (e.g. an unreadable `--theme-file`, or a build error). The server is not started.                                      |
+| `2`  | Usage error: invalid `--port`, a build-only flag without `--build`, an invalid `--currencies`/`--theme` value, or `--api` without a built `dist/`. |
 
 ## Notes
 

@@ -1,14 +1,15 @@
-import { cardCache } from '../../cache'
-import { getErrorMessage } from '../../errors'
-import {
-  matchesNameTerms,
-  normalizeCardName,
-  rankNameMatches,
-  splitNameTerms,
-} from '../../term-match'
+import { cardCache } from '../cache'
+import { getErrorMessage } from '../errors'
+import { matchesNameTerms, normalizeCardName, rankNameMatches, splitNameTerms } from '../term-match'
 
 /** How many suggestions the editor's search box is offered. */
 const MAX_SUGGESTIONS = 20
+
+export type AutocompleteResponse = {
+  success: boolean
+  names: string[]
+  message?: string
+}
 
 export async function handleAutocomplete(req: Request): Promise<Response> {
   try {

@@ -81,6 +81,15 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
     this.now = now
   }
 
+  /**
+   * Drop the in-process memo so the next read reloads the cache file. Needed by
+   * long-running servers to pick up refreshes written by a separate process —
+   * the memo otherwise lives for the lifetime of the process.
+   */
+  invalidate(): void {
+    this.memoryCache = null
+  }
+
   private async load(): Promise<CacheSchema> {
     if (this.memoryCache) return this.memoryCache
 

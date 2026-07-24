@@ -42,6 +42,7 @@ import {
 import { QuickSwitch, useQuickSwitchShortcut } from './QuickSwitch'
 import { useRouting } from './useRouting'
 import { useSiteData } from './useSiteData'
+import { apiActive, apiDegraded, detailUrl } from './api-base'
 import { notifyCurrencyChanged } from './currency-epoch'
 import { useFetchJson } from './useFetchJson'
 import { tradeToast } from './useTradeState'
@@ -80,6 +81,7 @@ function App() {
     setCurrency,
     availableCurrencies,
     pricesDate,
+    refetch: refetchSiteData,
   } = useSiteData()
 
   // Card modal state
@@ -156,6 +158,17 @@ function App() {
       { defer: true },
     ),
   )
+
+  // With a live backend, moving to a different page refreshes the index
+  // summaries. Keyed on page identity — not the whole route object — so
+  // intra-page hash changes (e.g. primer TOC anchors) don't refetch.
+  const routePageKey = createMemo(() => {
+    const r = route()
+    return r.page === 'deck' || r.page === 'collection' || r.page === 'wanted'
+      ? `${r.page}:${r.slug}`
+      : r.page
+  })
+  createEffect(on(routePageKey, () => refetchSiteData(), { defer: true }))
 
   // Every list known to the site index, as named refs — backs the combine modal
   // and the combined-view resolution of `all` / individual refs.
@@ -289,25 +302,27 @@ function App() {
     return r.page === 'wanted' ? r.slug : null
   })
 
-  // Fetch deck/collection data (auto-cleared when navigating away)
+  // Fetch deck/collection data (auto-cleared when navigating away). The URL
+  // accessors read the API base reactively, so resolving or degrading the live
+  // backend refetches from the right source.
   const {
     data: deckDetail,
     loading: deckLoading,
     error: deckError,
-  } = useFetchJson<DeckDetail>(() => (deckSlug() ? `decks/${deckSlug()}.json` : null))
+  } = useFetchJson<DeckDetail>(() => (deckSlug() ? detailUrl('deck', deckSlug()!) : null))
   const {
     data: collectionDetail,
     loading: collectionLoading,
     error: collectionError,
   } = useFetchJson<CollectionDetail>(() =>
-    collectionSlug() ? `collections/${collectionSlug()}.json` : null,
+    collectionSlug() ? detailUrl('collection', collectionSlug()!) : null,
   )
   const {
     data: wantedListDetail,
     loading: wantedListLoading,
     error: wantedListError,
   } = useFetchJson<WantedListDetail>(() =>
-    wantedListSlug() ? `wanted/${wantedListSlug()}.json` : null,
+    wantedListSlug() ? detailUrl('wanted', wantedListSlug()!) : null,
   )
 
   // Whether an editable list (deck/collection/wanted) is currently in view. Edit
@@ -373,6 +388,19 @@ function App() {
             <FlameIcon class="site-logo-icon" />
             <span class="site-logo-text">Ritual</span>
           </a>
+          <Show when={apiActive() || apiDegraded()}>
+            <span
+              class="site-live-badge"
+              classList={{ 'site-live-badge--offline': apiDegraded() }}
+              title={
+                apiDegraded()
+                  ? 'The live backend is unreachable — showing the built-in site data'
+                  : 'Backed by a live API — list data and card search are served fresh'
+              }
+            >
+              {apiDegraded() ? 'Offline' : 'Live'}
+            </span>
+          </Show>
           <span class="site-nav-sep">|</span>
           {/* Destinations come from the shared NAV_DESTINATIONS list, which the
               mobile tab bar renders from too. */}

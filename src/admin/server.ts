@@ -1,6 +1,7 @@
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { isRunningFromSource } from '../runtime'
+import { matchRoute, type HttpMethod } from '../routing'
 import { adminUserExists } from './auth'
 import { loadRitualConfig, getCollectionsDir, getWantedDir } from '../ritual-config'
 import { parseSessionCookie, validateSession } from './session'
@@ -24,10 +25,10 @@ import {
 } from './api/totp'
 import { handleLogin, handleLogout } from './api/auth-login'
 import { handleGetAuditLog } from './api/audit'
-import { handleAutocomplete } from './api/autocomplete'
+import { handleAutocomplete } from '../api/autocomplete'
 import { handleDeckLoad } from './api/deck-load'
-import { handleCardPrintings } from './api/card-printings'
-import { handleCardPrice } from './api/card-price'
+import { handleCardPrintings } from '../api/card-printings'
+import { handleCardPrice } from '../api/card-price'
 import { handleDeckSave } from './api/deck-save'
 import { handleDeckCreate } from './api/deck-create'
 import { handleDeckRename } from './api/deck-rename'
@@ -82,8 +83,6 @@ export interface RequestContext {
 
 type SocketAddress = { address: string }
 type RequestIPServer = { requestIP?: (req: Request) => SocketAddress | null }
-
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
 
 export interface Route {
   method: HttpMethod
@@ -281,14 +280,6 @@ export function matchesPattern(value: string, pattern: string): boolean {
 
 export function matchesList(value: string, patterns: string[]): boolean {
   return patterns.some((p) => matchesPattern(value, p))
-}
-
-function matchRoute(routePath: string, requestPath: string): boolean {
-  if (routePath === requestPath) return true
-  const routeParts = routePath.split('/')
-  const requestParts = requestPath.split('/')
-  if (routeParts.length !== requestParts.length) return false
-  return routeParts.every((part, i) => part.startsWith(':') || part === requestParts[i])
 }
 
 /** Outcome of dispatching a request against the in-process route table. */

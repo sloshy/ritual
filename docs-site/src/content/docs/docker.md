@@ -43,6 +43,28 @@ services:
     command: cache server --host 0.0.0.0 --port 4000 --verbose --cards-refresh weekly --prices-refresh weekly
 ```
 
+### Hosting the public site with a live backend
+
+To self-host the [hosted public site](/public-site/hosted/) — live list data plus cache-backed card search — run [`serve --api`](/commands/serve/#live-api-mode---api) instead, mounting the list directories and a pre-populated cache:
+
+```yaml
+services:
+  ritual:
+    image: ritual
+    build: .
+    ports:
+      - '3000:3000'
+    volumes:
+      - ./dist:/app/dist
+      - ./decks:/app/decks
+      - ./collections:/app/collections
+      - ./wanted:/app/wanted
+      - ./cache:/app/cache
+    command: serve --api --host 0.0.0.0 --port 3000 --refresh never
+```
+
+`--refresh never` skips the interactive cache prompt (populate the cache first with `ritual cache preload-all`, or point the container at a shared cache server with `--cache-server`). Build `dist/` beforehand with `ritual build-site`, or add `--build --refresh never` to build on startup.
+
 ## Directory Mounts
 
 To ensure persistence and allow you to interact with the files Ritual uses, you should mount the following directories:

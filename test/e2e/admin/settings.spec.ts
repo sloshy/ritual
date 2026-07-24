@@ -18,6 +18,7 @@ type ConfigPutBody = {
     excludeDecks?: string[]
     excludeCollections?: string[]
     excludeWantedLists?: string[]
+    apiBaseUrl?: string
     bannedPrintings?: string[]
   }
 }
@@ -175,6 +176,31 @@ test.describe('Settings Page', () => {
     const request = await requestPromise
     const body = JSON.parse(request.postData() ?? '{}') as ConfigPutBody
     expect(body.site?.bannedPrintings).toEqual(['SLD:123', 'MH2:42'])
+  })
+
+  test('setting and clearing the API base URL persists and unsets site.apiBaseUrl', async ({
+    page,
+  }) => {
+    const main = page.locator('main')
+    const input = main.locator('input[name="apiBaseUrl"]')
+    await input.fill('https://ritual-api.example.com')
+
+    const setRequestPromise = page.waitForRequest(
+      (req) => req.url().includes('/api/config') && req.method() === 'PUT',
+    )
+    await main.locator('button:has-text("Save")').click()
+    const setBody = JSON.parse((await setRequestPromise).postData() ?? '{}') as ConfigPutBody
+    expect(setBody.site?.apiBaseUrl).toBe('https://ritual-api.example.com')
+
+    // Clearing the input drops the key entirely (fully static site), rather
+    // than sending the same-origin empty string.
+    await input.fill('')
+    const clearRequestPromise = page.waitForRequest(
+      (req) => req.url().includes('/api/config') && req.method() === 'PUT',
+    )
+    await main.locator('button:has-text("Save")').click()
+    const clearBody = JSON.parse((await clearRequestPromise).postData() ?? '{}') as ConfigPutBody
+    expect(clearBody.site ?? {}).not.toHaveProperty('apiBaseUrl')
   })
 })
 

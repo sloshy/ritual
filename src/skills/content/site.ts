@@ -123,10 +123,29 @@ ritual serve                       # serve an already-built dist/ on :3000
 ritual serve -p 8000
 ritual serve --build               # build, then serve
 ritual serve --build -p 8000 --host 127.0.0.1
+ritual serve --build --api         # host the site with a live read-only backend
 \`\`\`
 
-Build flags (\`--refresh\`, \`--theme\`, ...) only apply together with \`--build\`;
-passing one without it is a usage error.
+Build flags (\`--theme\`, \`--currencies\`, ...) only apply together with \`--build\`;
+passing one without it is a usage error. \`--refresh\` is the exception: with
+\`--api\` it also controls the startup cache warming, so it is valid on its own.
+
+### Hosted mode (\`--api\`)
+
+\`serve --api\` adds an unauthenticated, read-only API on the same port: list
+JSON is computed from the markdown files per request (CLI/admin edits appear
+without rebuilding), and the public editor's card search uses the card cache
+with the admin editor's term matching instead of Scryfall. There are no write
+routes — public edits still travel as export/import change bundles.
+
+For a split deployment (static site on a CDN, API hosted separately), set
+\`site.apiBaseUrl\` to the API's URL before building; the site falls back to its
+baked data when the API is unreachable:
+
+\`\`\`bash
+ritual config set site.apiBaseUrl "https://ritual-api.example.com"
+ritual build-site
+\`\`\`
 
 ## Web admin
 

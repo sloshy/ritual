@@ -2,6 +2,15 @@ import type { PriceCurrency } from '../price-currency'
 
 export { capitalize } from '../utils'
 
+/**
+ * Whether a caught error is a `fetch` cancelled through its `AbortSignal`.
+ * Abort rejections are `DOMException`s, which extend `Error`, so one check
+ * covers every runtime — the single authoritative predicate for the site.
+ */
+export function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError'
+}
+
 /** Pick a numeric value from an object based on the active currency. */
 export function getCurrencyValue(
   usd: number | undefined,

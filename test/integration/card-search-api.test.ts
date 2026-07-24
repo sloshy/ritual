@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
-import { handleAutocomplete } from '../../src/admin/api/autocomplete'
+import { handleAutocomplete } from '../../src/api/autocomplete'
 import { handleSearchCards } from '../../src/admin/api/search-cards'
 import { cardCache } from '../../src/cache'
 import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'

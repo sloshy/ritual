@@ -1,6 +1,7 @@
 import type { Component } from 'solid-js'
 import { createSignal, createMemo, createEffect, on, onCleanup, For, Show } from 'solid-js'
 import { seedCards, seedPrintings, sessionCacheVersion } from './session-cache'
+import { apiBase } from './api-base'
 import type { PriceCurrency } from '../price-currency'
 import { LIST_TYPE_DISPLAY, type ListType } from '../list-type'
 import { CombinedCardsView } from './CombinedCardsView'
@@ -36,10 +37,11 @@ export const CombinedListPage: Component<CombinedListPageProps> = (props) => {
 
   // Fetch every selected list's detail JSON whenever the selection changes. The key
   // string keeps the effect from re-firing when the array identity changes but the
-  // contents don't.
+  // contents don't. The API base is tracked too, so resolving or degrading the
+  // live backend reloads from the right source.
   const listsKey = createMemo(() => props.lists.map((l) => `${l.type}:${l.slug}`).join(','))
   createEffect(
-    on(listsKey, () => {
+    on([listsKey, apiBase], () => {
       const refs = props.lists
       setLoaded(null)
       setError(false)

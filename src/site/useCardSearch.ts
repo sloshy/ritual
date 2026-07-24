@@ -1,12 +1,13 @@
 import { createSignal, onCleanup } from 'solid-js'
 import type { Accessor } from 'solid-js'
 import type { ScryfallCard } from '../types'
-import { autocompleteCardNames, fetchCardPrintings, isAbortError } from './scryfall-search'
+import { autocompleteCardNames, fetchCardPrintings } from './card-search'
+import { isAbortError } from './utils'
 
 const AUTOCOMPLETE_DEBOUNCE_MS = 300
 const MIN_AUTOCOMPLETE_LENGTH = 2
 
-export type UseScryfallBrowserSearchResult = {
+export type UseCardSearchResult = {
   autocompleteResults: Accessor<string[]>
   autocompleteLoading: Accessor<boolean>
   printings: Accessor<ScryfallCard[]>
@@ -18,12 +19,13 @@ export type UseScryfallBrowserSearchResult = {
 }
 
 /**
- * Trade-page card search: the browser Scryfall client (see `./scryfall-search`)
+ * Trade-page card search: the browser card-search client (see `./card-search`,
+ * which serves from the live API's cache when one is configured, else Scryfall)
  * wrapped in the reactive state the search box needs — debounced autocomplete,
  * loading flags, and an abort of the in-flight request whenever a newer one
  * starts or the page goes away.
  */
-export function useScryfallBrowserSearch(): UseScryfallBrowserSearchResult {
+export function useCardSearch(): UseCardSearchResult {
   const [autocompleteResults, setAutocompleteResults] = createSignal<string[]>([])
   const [autocompleteLoading, setAutocompleteLoading] = createSignal(false)
   const [printings, setPrintings] = createSignal<ScryfallCard[]>([])
@@ -59,7 +61,7 @@ export function useScryfallBrowserSearch(): UseScryfallBrowserSearchResult {
           if (autocompleteController === controller) setAutocompleteResults(names)
         } catch (e) {
           if (isAbortError(e)) return
-          console.warn('Scryfall autocomplete failed:', e)
+          console.warn('Card autocomplete failed:', e)
         } finally {
           // A superseded request must not clear the loading flag out from under
           // the newer one that replaced it.
@@ -81,7 +83,7 @@ export function useScryfallBrowserSearch(): UseScryfallBrowserSearchResult {
       if (printingsController === controller) setPrintings(results)
     } catch (e) {
       if (isAbortError(e)) return
-      console.warn('Scryfall printings fetch failed:', e)
+      console.warn('Card printings fetch failed:', e)
     } finally {
       if (printingsController === controller) setPrintingsLoading(false)
     }

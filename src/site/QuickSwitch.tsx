@@ -14,6 +14,7 @@ import { formatPriceWithMissing } from '../price-currency'
 import { resolveCardThumbnailUrl } from './image-sources'
 import { scoreMatch } from './quick-switch-search'
 import { fetchJson } from './useFetchJson'
+import { detailUrl } from './api-base'
 import { getSummaryMissingPriceCount, getSummaryTotalPrice } from './utils'
 import { getDeckCountLabel, pluralizeCards } from '../deck-format'
 import { listHref } from './combined-list'
@@ -182,12 +183,6 @@ const MAX_LIST_RESULTS = 8
 const MAX_COMMANDER_RESULTS = 6
 const MAX_CARD_RESULTS = 12
 const MAX_PRINTING_RESULTS = 12
-
-function detailUrl(kind: ListKind, slug: string): string {
-  if (kind === 'deck') return `decks/${slug}.json`
-  if (kind === 'collection') return `collections/${slug}.json`
-  return `wanted/${slug}.json`
-}
 
 function entryKindLabel(entry: QuickSwitchEntry): string {
   if (entry.kind === 'list') return KIND_LABEL[entry.listKind]

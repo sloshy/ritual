@@ -1,5 +1,5 @@
 import { createApiSearchProvider } from '../../editor/search-provider'
-import type { CardPriceResponse } from '../api/card-price'
+import type { CardPriceResponse } from '../../api/card-price'
 
 /**
  * Admin-side wiring for the shared editor: the strategies that talk to the admin

@@ -1,5 +1,7 @@
 import { createMemo, createSignal, type Accessor } from 'solid-js'
 import { batchFetchScryfall } from './scryfall-collection'
+import { batchFetchApiPrices } from './api-prices'
+import { apiActive } from './api-base'
 import { getUpdatedAt, putFetchedCards, sessionCacheVersion } from './session-cache'
 
 /** A card in a list, reduced to what price-refresh needs: its Scryfall id and display name. */
@@ -65,6 +67,28 @@ export function usePriceRefresh(input: PriceRefreshInput): PriceRefresh {
 
   const refresh = (): void => {
     if (refreshing()) return
+
+    // Live backend: ask its batch price endpoint by name (the server's cache is
+    // name-keyed and refreshes stale prices from Scryfall server-side). The
+    // returned printings include the displayed ids, so overlays and the
+    // staleness accounting work unchanged.
+    if (apiActive()) {
+      const names = [
+        ...new Set(
+          input
+            .cards()
+            .map((c) => c.name)
+            .filter((name) => name !== ''),
+        ),
+      ]
+      if (names.length === 0) return
+      setRefreshing(true)
+      void batchFetchApiPrices(names)
+        .then((cards) => putFetchedCards(cards, Date.now()))
+        .finally(() => setRefreshing(false))
+      return
+    }
+
     const ids = [
       ...new Set(
         input

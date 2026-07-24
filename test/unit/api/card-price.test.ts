@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
-import { isPriceStale, PRICE_STALENESS_THRESHOLD_MS } from '../../../src/admin/api/card-price'
+import { isPriceStale, PRICE_STALENESS_THRESHOLD_MS } from '../../../src/api/card-price'
 import { getBaseDir, setBaseDir } from '../../../src/base-dir'
 import { cardCache } from '../../../src/cache'
 import { MemoryLogger, resetLogger, setLogger } from '../../../src/logger'
@@ -28,7 +28,7 @@ describe('isPriceStale', () => {
 
 describe('handleCardPrice', () => {
   test('returns 400 when name query param is missing', async () => {
-    const { handleCardPrice } = await import('../../../src/admin/api/card-price')
+    const { handleCardPrice } = await import('../../../src/api/card-price')
     const req = new Request('http://localhost/api/card-price')
     const resp = await handleCardPrice(req)
     expect(resp.status).toBe(400)
@@ -66,7 +66,7 @@ describe('handleCardPrice unknown card', () => {
   })
 
   test('returns 404 when no printings exist for the name', async () => {
-    const { handleCardPrice } = await import('../../../src/admin/api/card-price')
+    const { handleCardPrice } = await import('../../../src/api/card-price')
     const req = new Request('http://localhost/api/card-price?name=No%20Such%20Card')
     const resp = await handleCardPrice(req)
     expect(resp.status).toBe(404)

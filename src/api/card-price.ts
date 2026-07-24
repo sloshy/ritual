@@ -1,15 +1,16 @@
-import { cardCache } from '../../cache'
+import { cardCache } from '../cache'
 import {
   fetchRepresentativePrints,
   computeRepresentativePrints,
   getCardPrintings,
-} from '../../scryfall'
-import { getErrorMessage } from '../../errors'
-import { getBannedPrintings } from '../../ritual-config'
-import type { ScryfallCard } from '../../types'
-import type { PriceCurrency } from '../../price-currency'
+} from '../scryfall'
+import { getErrorMessage } from '../errors'
+import { getBannedPrintings } from '../ritual-config'
+import type { ScryfallCard } from '../types'
+import { VALID_CURRENCIES } from '../price-currency'
+import type { PriceCurrency } from '../price-currency'
 
-const ALL_CURRENCIES: PriceCurrency[] = ['usd', 'eur', 'tix']
+const ALL_CURRENCIES: PriceCurrency[] = [...VALID_CURRENCIES]
 
 export const PRICE_STALENESS_THRESHOLD_MS = 86_400_000 // 24 hours
 

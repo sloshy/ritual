@@ -1,20 +1,19 @@
-import { describe, test, expect, afterEach } from 'bun:test'
-import {
-  autocompleteCardNames,
-  fetchCardPrintings,
-  isAbortError,
-} from '../../../src/site/scryfall-search'
+import { beforeEach, describe, test, expect, afterEach } from 'bun:test'
+import { autocompleteCardNames, fetchCardPrintings } from '../../../src/site/card-search'
+import { isAbortError } from '../../../src/site/utils'
 import {
   getPrintingsByName,
   resetSessionCache,
   seedPrintings,
 } from '../../../src/site/session-cache'
+import { resetApiBase, setApiBase } from '../../../src/site/api-base'
 import { makeScryfallCard } from '../../test-utils'
 import type { ScryfallCard } from '../../../src/types'
 
 /**
- * The public site's browser Scryfall client, shared by the trade page's search
- * box and the list editors' search modal.
+ * The public site's browser card-search client, shared by the trade page's
+ * search box and the list editors' search modal. Dispatches per call: live-API
+ * endpoints when a backend is configured, Scryfall otherwise.
  */
 
 const originalFetch = globalThis.fetch
@@ -52,9 +51,16 @@ function cardList(...cards: ScryfallCard[]): Response {
   return Response.json({ object: 'list', has_more: false, data: cards })
 }
 
+// Reset on both sides: module-level api-base state can leak in from other test
+// files in the same process.
+beforeEach(() => {
+  resetApiBase()
+})
+
 afterEach(() => {
   globalThis.fetch = originalFetch
   resetSessionCache()
+  resetApiBase()
 })
 
 describe('autocompleteCardNames', () => {
@@ -144,5 +150,83 @@ describe('fetchCardPrintings', () => {
       caught = e
     }
     expect(isAbortError(caught)).toBe(true)
+  })
+})
+
+describe('live-API dispatch', () => {
+  const bolt = makeScryfallCard({ id: 'bolt-lea', name: 'Lightning Bolt', set: 'lea' })
+
+  /** Stub the live API endpoints; anything else (e.g. Scryfall) is an error. */
+  function stubApi(handlers: {
+    autocomplete?: () => Response
+    printings?: () => Response
+  }): StubbedRequest[] {
+    const requests: StubbedRequest[] = []
+    const stub = (input: string | URL | Request): Promise<Response> => {
+      const url = input instanceof Request ? input.url : String(input)
+      requests.push({ url })
+      if (url.includes('/api/autocomplete')) {
+        return Promise.resolve(
+          handlers.autocomplete?.() ?? Response.json({ success: true, names: [] }),
+        )
+      }
+      if (url.includes('/api/card-printings')) {
+        return Promise.resolve(
+          handlers.printings?.() ?? Response.json({ success: true, printings: [] }),
+        )
+      }
+      throw new Error(`unexpected request in API mode: ${url}`)
+    }
+    globalThis.fetch = stub as typeof fetch
+    return requests
+  }
+
+  test('autocomplete asks the API and keeps the server order verbatim', async () => {
+    setApiBase('')
+    // The server already ranked; the client must not re-promote "The End".
+    const serverOrder = ['The Enduring Renown', 'The End']
+    const requests = stubApi({
+      autocomplete: () => Response.json({ success: true, names: serverOrder }),
+    })
+
+    expect(await autocompleteCardNames('The End')).toEqual(serverOrder)
+    expect(requests).toHaveLength(1)
+    expect(requests[0]!.url).toContain('/api/autocomplete?q=The%20End')
+  })
+
+  test('a remote base prefixes the endpoint URLs', async () => {
+    setApiBase('https://api.example.com')
+    const requests = stubApi({})
+    await autocompleteCardNames('bolt')
+    expect(requests[0]!.url).toBe('https://api.example.com/api/autocomplete?q=bolt')
+  })
+
+  test('printings come from the API and land in the session cache', async () => {
+    setApiBase('')
+    const requests = stubApi({
+      printings: () => Response.json({ success: true, printings: [bolt] }),
+    })
+
+    expect(await fetchCardPrintings('Lightning Bolt')).toEqual([bolt])
+    expect(getPrintingsByName('Lightning Bolt')).toEqual([bolt])
+    expect(requests).toHaveLength(1)
+    expect(requests[0]!.url).toContain('/api/card-printings?name=Lightning%20Bolt')
+  })
+
+  test('the session cache still answers first in API mode', async () => {
+    setApiBase('')
+    seedPrintings({ 'Lightning Bolt': [bolt] })
+    const requests = stubApi({})
+
+    expect(await fetchCardPrintings('Lightning Bolt')).toEqual([bolt])
+    expect(requests).toEqual([])
+  })
+
+  test('an API failure resolves empty without caching', async () => {
+    setApiBase('')
+    stubApi({ printings: () => Response.json({ success: false, printings: [] }, { status: 500 }) })
+
+    expect(await fetchCardPrintings('Lightning Bolt')).toEqual([])
+    expect(getPrintingsByName('Lightning Bolt')).toBeUndefined()
   })
 })

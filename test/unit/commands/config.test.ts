@@ -145,6 +145,44 @@ describe('applyConfigSet — site.bannedPrintings', () => {
   })
 })
 
+describe('applyConfigSet — site.apiBaseUrl', () => {
+  test('stores a normalized URL (trailing slash stripped)', () => {
+    const result = applyConfigSet(base, 'site.apiBaseUrl', ['https://api.example.com/'], 'replace')
+    expect('error' in result).toBeFalse()
+    if (!('error' in result)) {
+      expect(result.newValue).toBe('https://api.example.com')
+      expect(result.updatedConfig.site?.apiBaseUrl).toBe('https://api.example.com')
+    }
+  })
+
+  test('accepts the empty string for a same-origin reverse proxy', () => {
+    const result = applyConfigSet(base, 'site.apiBaseUrl', [''], 'replace')
+    expect('error' in result).toBeFalse()
+    if (!('error' in result)) {
+      expect(result.newValue).toBe('')
+    }
+  })
+
+  test('rejects a non-http(s) value', () => {
+    const result = applyConfigSet(base, 'site.apiBaseUrl', ['not a url'], 'replace')
+    expect('error' in result).toBeTrue()
+    if ('error' in result) {
+      expect(result.error).toContain('apiBaseUrl')
+    }
+  })
+
+  test('unset removes the key without an init-site guard error', () => {
+    const seeded = applyConfigSet(base, 'site.apiBaseUrl', ['http://localhost:3000'], 'replace')
+    if ('error' in seeded) throw new Error(`seed setup failed: ${seeded.error}`)
+    const result = applyConfigUnset(seeded.updatedConfig, 'site.apiBaseUrl')
+    expect('error' in result).toBeFalse()
+    if (!('error' in result)) {
+      expect(result.updatedConfig.site?.apiBaseUrl).toBeUndefined()
+      expect(result.defaultValue).toBeUndefined()
+    }
+  })
+})
+
 describe('applyConfigSet — string properties', () => {
   test.each([
     ['decksDir', './my-decks'],

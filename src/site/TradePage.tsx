@@ -16,13 +16,15 @@ import type { AutocompleteItem } from './TradeColumn'
 import { TradePrintingPicker } from './TradePrintingPicker'
 import { useTradeData } from './useTradeData'
 import type { TradeSearchEntry } from './useTradeData'
-import { useScryfallBrowserSearch } from './useScryfallBrowserSearch'
+import { useCardSearch } from './useCardSearch'
 import { encodeTradeToParams, hasTradeParams } from './trade-url-encode'
 import { decodeTradeFromParams } from './trade-url-decode'
 import type { TradeDecodeWarning } from './trade-url-decode'
 import { resolveTradeFinish } from './trade-finish'
 import { hasSpecificPrinting } from '../card-printing'
 import { batchFetchScryfall } from './scryfall-collection'
+import { batchFetchApiPrices } from './api-prices'
+import { apiActive } from './api-base'
 import type { TradeSortBy, TradeSortState } from './trade-sort'
 import { useTooltip } from './useTooltip'
 import type { UseTooltipResult } from './useTooltip'
@@ -76,7 +78,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
     decks: () => props.decks(),
     wantedLists: () => props.wantedLists(),
   })
-  const scryfallSearch = useScryfallBrowserSearch()
+  const cardSearch = useCardSearch()
 
   const [leftSort, setLeftSort] = createSignal<TradeSortState>({ by: 'name', reverse: false })
   const [leftQuery, setLeftQuery] = createSignal('')
@@ -162,7 +164,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
 
   const rightAutocompleteItems = createMemo((): AutocompleteItem[] => {
     if (scryfallMode()) {
-      return scryfallSearch
+      return cardSearch
         .autocompleteResults()
         .map((name): AutocompleteItem => ({ kind: 'scryfall', name }))
     }
@@ -181,7 +183,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
   const handleRightSearchInput = (q: string) => {
     setRightQuery(q)
     if (scryfallMode()) {
-      scryfallSearch.fetchAutocomplete(q)
+      cardSearch.fetchAutocomplete(q)
     }
   }
 
@@ -197,7 +199,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
         maxQty: entry.maxQty,
         sourceCardIds: entry.cardIds,
       })
-      void scryfallSearch.fetchPrintings(entry.name)
+      void cardSearch.fetchPrintings(entry.name)
       return
     }
     addEntryToLeft(entry, props.currency)
@@ -213,7 +215,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
         source: 'scryfall',
         sourceName: 'Scryfall',
       })
-      void scryfallSearch.fetchPrintings(item.name)
+      void cardSearch.fetchPrintings(item.name)
     }
   }
 
@@ -283,8 +285,8 @@ export const TradePage: Component<TradePageProps> = (props) => {
       else setRightQuery('')
     }
     setPicker(null)
-    scryfallSearch.clearPrintings()
-    scryfallSearch.clearAutocomplete()
+    cardSearch.clearPrintings()
+    cardSearch.clearAutocomplete()
   }
 
   type Side = 'left' | 'right'
@@ -313,7 +315,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
       maxQty: card.maxQty,
       editIndex,
     })
-    void scryfallSearch.fetchPrintings(card.name)
+    void cardSearch.fetchPrintings(card.name)
   }
 
   const clampQty = (card: TradeCardEntry, delta: number): number => {
@@ -327,7 +329,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
 
   const handleScryfallModeChange = () => {
     setScryfallMode((prev) => !prev)
-    scryfallSearch.clearAutocomplete()
+    cardSearch.clearAutocomplete()
     setRightQuery('')
   }
 
@@ -407,18 +409,32 @@ export const TradePage: Component<TradePageProps> = (props) => {
     return changed ? next : cards
   }
 
+  // Live backend: fetch by name through the API's batch price endpoint, then
+  // key the result back by id for repricing. Static: id-batched Scryfall.
+  const fetchUpdatedCards = async (
+    entries: TradeCardEntry[],
+  ): Promise<Map<string, ScryfallCard>> => {
+    if (apiActive()) {
+      const names = new Set<string>()
+      for (const c of entries) if (c.scryfallCard) names.add(c.scryfallCard.name)
+      const cards = await batchFetchApiPrices([...names])
+      return new Map(cards.map((card) => [card.id, card]))
+    }
+    const ids = new Set<string>()
+    for (const c of entries) if (c.scryfallCard) ids.add(c.scryfallCard.id)
+    return batchFetchScryfall([...ids])
+  }
+
   const handleUpdatePrices = async () => {
     if (updatingPrices()) return
-    const ids = new Set<string>()
-    for (const c of leftCards()) if (c.scryfallCard) ids.add(c.scryfallCard.id)
-    for (const c of rightCards()) if (c.scryfallCard) ids.add(c.scryfallCard.id)
-    if (ids.size === 0) {
+    const entries = [...leftCards(), ...rightCards()]
+    if (!entries.some((c) => c.scryfallCard)) {
       showToast('No cards to update', updatePricesButtonRef)
       return
     }
     setUpdatingPrices(true)
     try {
-      const updated = await batchFetchScryfall([...ids])
+      const updated = await fetchUpdatedCards(entries)
       if (updated.size === 0) {
         showToast('Could not update prices', updatePricesButtonRef)
         return
@@ -592,7 +608,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
           onSearchInput={handleRightSearchInput}
           autocompleteItems={rightAutocompleteItems()}
           autocompleteLoading={
-            scryfallMode() ? scryfallSearch.autocompleteLoading() : tradeData.loadingWanted()
+            scryfallMode() ? cardSearch.autocompleteLoading() : tradeData.loadingWanted()
           }
           onAutocompleteSelect={handleRightSelect}
           altMode={scryfallMode()}
@@ -635,14 +651,14 @@ export const TradePage: Component<TradePageProps> = (props) => {
         {(p) => (
           <TradePrintingPicker
             cardName={p().cardName}
-            printings={scryfallSearch.printings()}
-            loading={scryfallSearch.printingsLoading()}
+            printings={cardSearch.printings()}
+            loading={cardSearch.printingsLoading()}
             useScryfallImgUrls={props.useScryfallImgUrls}
             currency={props.currency}
             onSelect={handlePickerSelect}
             onClose={() => {
               setPicker(null)
-              scryfallSearch.clearPrintings()
+              cardSearch.clearPrintings()
             }}
           />
         )}

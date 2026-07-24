@@ -1,6 +1,13 @@
-import { getCardPrintings } from '../../scryfall'
-import { cardCache } from '../../cache'
-import { getErrorMessage } from '../../errors'
+import { getCardPrintings } from '../scryfall'
+import { cardCache } from '../cache'
+import { getErrorMessage } from '../errors'
+import type { ScryfallCard } from '../types'
+
+export type CardPrintingsResponse = {
+  success: boolean
+  printings: ScryfallCard[]
+  message?: string
+}
 
 export async function handleCardPrintings(req: Request): Promise<Response> {
   try {

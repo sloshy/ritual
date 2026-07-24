@@ -109,7 +109,7 @@ function commandChainNames(command: Command): string[] {
   return names
 }
 
-type ServeBuildOptions = { build?: boolean }
+type ServeBuildOptions = { build?: boolean; api?: boolean }
 
 // Commander passes the hooked command first (always the root program here) and
 // the command whose action is about to run second — everything per-invocation
@@ -146,9 +146,13 @@ program.hook('preAction', async (_program, actionCommand) => {
     return
   }
   // Plain `serve` only serves a prebuilt dist/ and must not write; with
-  // --build it rebuilds from the list files, so the backfill applies.
-  if (actionCommand.name() === 'serve' && actionCommand.opts<ServeBuildOptions>().build !== true) {
-    return
+  // --build it rebuilds from the list files, and with --api it reads them
+  // live — the backfill applies to both.
+  if (actionCommand.name() === 'serve') {
+    const serveOptions = actionCommand.opts<ServeBuildOptions>()
+    if (serveOptions.build !== true && serveOptions.api !== true) {
+      return
+    }
   }
   // A dry run must write nothing — including the card-ID backfill.
   if (actionCommand.opts<DryRunOptions>().dryRun === true) {

@@ -15,6 +15,14 @@ export class RuntimeCacheManager<K extends CacheSection> implements CacheManager
     this.localCache = new FileCacheManager(filePath, section, expirationMs)
   }
 
+  /**
+   * Drop the local file cache's in-process memo so the next read reloads it
+   * from disk. A no-op for the HTTP backend, which holds no local state.
+   */
+  invalidate(): void {
+    this.localCache.invalidate()
+  }
+
   private getActiveCache(): CacheManager<DataType<K>> {
     const baseUrl = getCacheServerBaseUrl()
     if (!baseUrl) return this.localCache

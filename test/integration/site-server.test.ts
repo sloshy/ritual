@@ -1,0 +1,177 @@
+import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import { tmpdir } from 'node:os'
+import { getBaseDir, setBaseDir } from '../../src/base-dir'
+import { cardCache } from '../../src/cache'
+import { startSiteServer } from '../../src/serve/server'
+import type { StaticSiteServer } from '../../src/commands/serve-helpers'
+import { createSyntheticWorkspace } from '../e2e/helpers/synthetic-workspace'
+import type { DeckDetail, SiteIndex } from '../../src/site/data-types'
+import type { CardPricesResponse } from '../../src/api/card-prices'
+import type { ScryfallCard } from '../../src/types'
+
+/**
+ * Wiring pins for the hosted public-site server (`serve --api`): live JSON at
+ * the static paths, unauthenticated cache-backed card queries, CORS for split
+ * deployments, ETag revalidation, and the read-only guarantee. Engine
+ * semantics (memoization, detail shapes, term matching) are pinned at the
+ * unit layer (test/unit/serve/, test/unit/site/details.test.ts,
+ * test/integration/card-search-api.test.ts).
+ */
+describe('site server (Integration)', () => {
+  let dir: string
+  let originalBase: string
+  let server: StaticSiteServer
+  let base: string
+
+  beforeAll(async () => {
+    originalBase = getBaseDir()
+    dir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-site-server-'))
+    createSyntheticWorkspace(dir)
+    // A minimal dist/ stands in for a real build: the server only needs files
+    // to serve statically.
+    const distDir = path.join(dir, 'dist')
+    await fs.mkdir(distDir, { recursive: true })
+    await fs.writeFile(path.join(distDir, 'index.html'), '<!DOCTYPE html><title>Ritual</title>')
+    await fs.writeFile(path.join(distDir, 'app.js'), '// app')
+    setBaseDir(dir)
+    cardCache.invalidate()
+    // Term-separation fixture alongside the seeded synthetic cards.
+    await cardCache.set('In the Trenches', [])
+    await cardCache.set('Intrepid Paleontologist', [])
+    server = startSiteServer({ port: 0, hostname: '127.0.0.1', distDir })
+    base = `http://127.0.0.1:${server.port}`
+  })
+
+  afterAll(async () => {
+    await server.stop(true)
+    setBaseDir(originalBase)
+    cardCache.invalidate()
+    await fs.rm(dir, { recursive: true, force: true })
+  })
+
+  test('serves a live index with the same-origin marker, and disk edits appear without a rebuild', async () => {
+    const first = await fetch(`${base}/index.json`)
+    expect(first.status).toBe(200)
+    expect(first.headers.get('Cache-Control')).toBe('no-cache')
+    const index = (await first.json()) as SiteIndex
+    expect(index.apiBaseUrl).toBe('')
+    const emberwild = index.decks.find((d) => d.slug === 'emberwild-aggro')
+    expect(emberwild).toBeDefined()
+
+    // The headline behavior: edit the markdown on disk, refetch, no rebuild.
+    const deckPath = path.join(dir, 'decks', 'emberwild-aggro.md')
+    const content = await fs.readFile(deckPath, 'utf-8')
+    await Bun.sleep(5)
+    await fs.writeFile(deckPath, content.replace('3 Lightning Bolt', '4 Lightning Bolt'))
+
+    const second = await fetch(`${base}/decks/emberwild-aggro.json`)
+    expect(second.status).toBe(200)
+    const detail = (await second.json()) as DeckDetail
+    const main = detail.deck.sections.find((s) => s.name === 'Main')
+    expect(main?.cards.find((c) => c.name === 'Lightning Bolt')?.quantity).toBe(4)
+  })
+
+  test('serves each list type at its static path and 404s unknown slugs', async () => {
+    for (const detailPath of [
+      '/decks/emberwild-aggro.json',
+      '/collections/test-binder.json',
+      '/wanted/test-wants.json',
+    ]) {
+      const resp = await fetch(`${base}${detailPath}`)
+      expect(resp.status).toBe(200)
+      expect(resp.headers.get('Access-Control-Allow-Origin')).toBe('*')
+    }
+    expect((await fetch(`${base}/decks/no-such-deck.json`)).status).toBe(404)
+    expect((await fetch(`${base}/decks/not-json.txt`)).status).toBe(404)
+  })
+
+  test('ETag revalidation: 304 on If-None-Match, fresh 200 after a file change', async () => {
+    const first = await fetch(`${base}/wanted/test-wants.json`)
+    const etag = first.headers.get('ETag')
+    expect(etag).toBeTruthy()
+
+    const revalidated = await fetch(`${base}/wanted/test-wants.json`, {
+      headers: { 'If-None-Match': etag! },
+    })
+    expect(revalidated.status).toBe(304)
+
+    const wantedPath = path.join(dir, 'wanted', 'test-wants.md')
+    const content = await fs.readFile(wantedPath, 'utf-8')
+    await Bun.sleep(5)
+    await fs.writeFile(wantedPath, `${content}- Serra Angel &99\n`)
+
+    const fresh = await fetch(`${base}/wanted/test-wants.json`, {
+      headers: { 'If-None-Match': etag! },
+    })
+    expect(fresh.status).toBe(200)
+    expect(fresh.headers.get('ETag')).not.toBe(etag)
+  })
+
+  test('autocomplete is unauthenticated and term-separated', async () => {
+    const resp = await fetch(`${base}/api/autocomplete?q=${encodeURIComponent('in tre')}`)
+    expect(resp.status).toBe(200)
+    const body = (await resp.json()) as { success: boolean; names: string[] }
+    expect(body.success).toBeTrue()
+    expect(body.names[0]).toBe('In the Trenches')
+  })
+
+  test('card-printings serves cached printings without auth', async () => {
+    const resp = await fetch(
+      `${base}/api/card-printings?name=${encodeURIComponent('Lightning Bolt')}`,
+    )
+    expect(resp.status).toBe(200)
+    const body = (await resp.json()) as { success: boolean; printings: ScryfallCard[] }
+    expect(body.success).toBeTrue()
+    expect(body.printings.length).toBeGreaterThan(0)
+  })
+
+  test('batch card-prices returns cached printings and rejects bad bodies', async () => {
+    const resp = await fetch(`${base}/api/card-prices`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ names: ['Lightning Bolt'] }),
+    })
+    expect(resp.status).toBe(200)
+    const body = (await resp.json()) as CardPricesResponse
+    expect(body.success).toBeTrue()
+    expect(body.cards.some((c) => c.name === 'Lightning Bolt')).toBeTrue()
+
+    const bad = await fetch(`${base}/api/card-prices`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ names: 'Lightning Bolt' }),
+    })
+    expect(bad.status).toBe(400)
+  })
+
+  test('CORS: preflight 204 on known routes, wildcard origin on responses', async () => {
+    const preflight = await fetch(`${base}/api/autocomplete`, { method: 'OPTIONS' })
+    expect(preflight.status).toBe(204)
+    expect(preflight.headers.get('Access-Control-Allow-Origin')).toBe('*')
+    expect(preflight.headers.get('Access-Control-Allow-Methods')).toContain('POST')
+
+    const data = await fetch(`${base}/index.json`)
+    expect(data.headers.get('Access-Control-Allow-Origin')).toBe('*')
+  })
+
+  test('read-only: admin mutation routes do not exist here', async () => {
+    expect((await fetch(`${base}/api/deck/create`, { method: 'POST' })).status).toBe(404)
+    expect((await fetch(`${base}/api/config`, { method: 'PUT' })).status).toBe(404)
+    expect((await fetch(`${base}/api/deck/emberwild-aggro`, { method: 'DELETE' })).status).toBe(404)
+  })
+
+  test('static assets and SPA fallback still work; unknown /api/* is JSON 404, not SPA', async () => {
+    const html = await fetch(`${base}/`)
+    expect(html.status).toBe(200)
+    expect(await html.text()).toContain('Ritual')
+
+    const asset = await fetch(`${base}/app.js`)
+    expect(asset.status).toBe(200)
+
+    const unknownApi = await fetch(`${base}/api/nope`)
+    expect(unknownApi.status).toBe(404)
+    expect(unknownApi.headers.get('Content-Type')).toContain('application/json')
+  })
+})

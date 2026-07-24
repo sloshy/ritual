@@ -14,13 +14,11 @@ import { applyWantedChangePrinting, wantedPrintingOf } from '../../editor/wanted
 import { WantedEditorBody } from '../../editor/WantedEditorBody'
 import { wantedToMarkdown } from '../../editor/list-export'
 import { WantedListPage } from '../WantedListPage'
-import { createScryfallSearchProvider } from './scryfall-search-provider'
+import { siteSearch } from './site-search'
 import { backfillImportedCard } from './backfill-added-card'
 import { EditViewFrame } from './EditViewFrame'
 import { confirmDiscardOnExit } from './edit-session-memory'
 import { safeFilename } from './safe-filename'
-
-const scryfallSearch = createScryfallSearchProvider()
 
 type WantedEditViewProps = {
   detail: WantedListDetail
@@ -60,7 +58,7 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
       }),
     addCardData: (cardName, card, printings) => cardActions.addCard(cardName, card, printings),
     onCardAdded: (cardName, scryfallCard) =>
-      backfillImportedCard(scryfallSearch, cardName, scryfallCard, cardActions.addCard),
+      backfillImportedCard(siteSearch, cardName, scryfallCard, cardActions.addCard),
 
     applyChange: applyChangeToWantedList,
     applyChangePrinting: applyWantedChangePrinting,
@@ -124,7 +122,7 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
         <WantedEditorBody
           ctrl={ctrl}
           defaults={defaults}
-          search={scryfallSearch}
+          search={siteSearch}
           currency={props.currency}
           useScryfallImgUrls={props.detail.useScryfallImgUrls}
           name={props.detail.name}

@@ -1,5 +1,5 @@
 import { type JSX, createSignal, onMount, Show } from 'solid-js'
-import type { AdminConfig, CacheSource, RitualConfig } from '../../../ritual-config'
+import type { AdminConfig, CacheSource, RitualConfig, SiteConfig } from '../../../ritual-config'
 // Value imports here must stay browser-safe: ritual-config pulls in node:fs,
 // so only its types may be imported into the admin SPA bundle.
 import { DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS } from '../../../cache/constants'
@@ -90,6 +90,24 @@ export function Settings(): JSX.Element {
       // (deployment settings and the other selection lists) via the spread.
       const site = prev.site ?? defaultSiteSelection()
       return { ...prev, site: { ...site, [field]: parseList(value) } }
+    })
+  }
+
+  // The live-backend base URL for split deployments (static site + separately
+  // hosted `serve --api`). A blank input means "fully static" and removes the
+  // key; the same-origin empty-string variant (a reverse proxy) is a
+  // `config set` niche this input doesn't express.
+  const updateApiBaseUrl = (value: string) => {
+    setConfig((prev) => {
+      if (!prev) return null
+      const site: SiteConfig = { ...(prev.site ?? defaultSiteSelection()) }
+      const trimmed = value.trim()
+      if (trimmed === '') {
+        delete site.apiBaseUrl
+      } else {
+        site.apiBaseUrl = trimmed
+      }
+      return { ...prev, site }
     })
   }
 
@@ -483,6 +501,24 @@ export function Settings(): JSX.Element {
               name="excludeWantedLists"
               value={listToString(siteList('excludeWantedLists', []))}
               onInput={(e) => updateSiteListField('excludeWantedLists', e.currentTarget.value)}
+            />
+          </div>
+
+          <p class="form-hint form-hint-gap">
+            Optional live backend for a split deployment: a statically deployed site fetches live
+            list data and cache-backed card search from a separately hosted{' '}
+            <code>ritual serve --api</code> instance at this URL (baked in by the next site build).
+            Leave empty for a fully static site.
+          </p>
+          <div>
+            <label class="form-label">API base URL</label>
+            <input
+              type="text"
+              class="form-input"
+              name="apiBaseUrl"
+              value={config()?.site?.apiBaseUrl ?? ''}
+              onInput={(e) => updateApiBaseUrl(e.currentTarget.value)}
+              placeholder="https://ritual-api.example.com"
             />
           </div>
 

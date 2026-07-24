@@ -1,4 +1,5 @@
-import { dispatchRoute, type HttpMethod, type RequestContext } from '../admin/server'
+import { dispatchRoute, type RequestContext } from '../admin/server'
+import type { HttpMethod } from '../routing'
 import { buildSyntheticRequest } from '../synthetic-request'
 import { apiErrorToMcp, type ApiErrorBody } from './errors'
 

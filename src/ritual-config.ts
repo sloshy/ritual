@@ -55,6 +55,13 @@ export type SiteConfig = SiteSelectionConfig & {
    * only skipped when Ritual picks the featured printing on its own.
    */
   bannedPrintings?: string[]
+  /**
+   * Base URL of a live read-only API backing the built public site, baked into
+   * `index.json` so a statically-deployed site (e.g. a CDN) uses a separately
+   * hosted `ritual serve --api` instance. `''` means "same origin" (the site is
+   * reverse-proxied together with its API). Absent = fully static site.
+   */
+  apiBaseUrl?: string
 }
 
 /**
@@ -298,6 +305,14 @@ export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
   // selection object (no spurious empty `bannedPrintings`).
   const banned = bannedPrintings !== undefined ? { bannedPrintings } : {}
 
+  let apiBaseUrl: string | undefined
+  if (obj.apiBaseUrl !== undefined) {
+    const parsed = parseSiteApiBaseUrl(obj.apiBaseUrl)
+    if (isConfigParseError(parsed)) return parsed
+    apiBaseUrl = parsed
+  }
+  const api = apiBaseUrl !== undefined ? { apiBaseUrl } : {}
+
   // Deployment settings are written only by `init-site`. Detect their presence
   // so a site object carrying just selection settings (set via `config set` or the
   // admin UI before init-site has run) is still valid.
@@ -309,7 +324,7 @@ export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
     obj.detectChanges !== undefined
 
   if (!hasDeploy) {
-    return { ...selection, ...banned }
+    return { ...selection, ...banned, ...api }
   }
 
   if (typeof obj.version !== 'string') {
@@ -335,6 +350,7 @@ export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
     return {
       ...selection,
       ...banned,
+      ...api,
       version: obj.version,
       ciSystem: obj.ciSystem,
       deployMode: obj.deployMode,
@@ -343,7 +359,7 @@ export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
     }
   }
 
-  return { ...selection, ...banned, version: obj.version, ciSystem: obj.ciSystem }
+  return { ...selection, ...banned, ...api, version: obj.version, ciSystem: obj.ciSystem }
 }
 
 /**
@@ -590,6 +606,29 @@ export function parseCacheFeedUrl(value: unknown): string | ConfigParseError {
 }
 
 /**
+ * Parse a `site.apiBaseUrl` value. `''` is valid and means "same origin" (the
+ * site is reverse-proxied together with its API); otherwise the value must be
+ * an http(s) URL, normalized to carry no trailing slash. Absence means "fully
+ * static site" and is the caller's concern — an `undefined` input is malformed
+ * here.
+ */
+export function parseSiteApiBaseUrl(value: unknown): string | ConfigParseError {
+  if (typeof value !== 'string') {
+    return { error: 'site config: "apiBaseUrl" must be a string' }
+  }
+  if (value === '') return ''
+  try {
+    const url = new URL(value)
+    if (url.protocol === 'http:' || url.protocol === 'https:') {
+      return value.replace(/\/+$/, '')
+    }
+  } catch {
+    // Fall through to the error below.
+  }
+  return { error: 'site config: "apiBaseUrl" must be an http(s) URL or an empty string' }
+}
+
+/**
  * Collapse a parser result to its value, or warn and return `fallback` when it
  * is the error branch. The load path never fails on a bad field — it logs and
  * continues with the field's default.
@@ -784,6 +823,14 @@ export function getCacheFeedUrl(config: RitualConfig = getRitualConfig()): strin
  */
 export function getBannedPrintings(config: RitualConfig = getRitualConfig()): Set<string> {
   return new Set(config.site?.bannedPrintings ?? [])
+}
+
+/**
+ * The configured `site.apiBaseUrl`: `''` for a same-origin API, an absolute
+ * http(s) URL for a separately hosted one, or undefined for a fully static site.
+ */
+export function getSiteApiBaseUrl(config: RitualConfig = getRitualConfig()): string | undefined {
+  return config.site?.apiBaseUrl
 }
 
 /** The saved `ritual export` presets, keyed by preset name (empty when none saved). */
