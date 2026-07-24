@@ -2,7 +2,7 @@
 name: code-deduplicator
 description: "Use this agent when you want to identify meaningful code deduplication opportunities in recently written or existing code. This agent analyzes code for redundant logic, duplicate constants, repeated parsing patterns, and similar constructs that could be meaningfully consolidated — without suggesting superficial refactors.\nExamples: <example> Context: The user has just written several new files implementing different parts of a feature. user: \"I just finished implementing the authentication flow across multiple files. Can you check for any duplication?\" assistant: \"I'll use the code-deduplicator agent to analyze the recently written authentication code for meaningful consolidation opportunities.\" <commentary> Since the user has written new code across multiple files and wants to check for duplication, launch the code-deduplicator agent to analyze the code and produce a list of suggestions. </commentary> </example> <example> Context: The user is doing a code review pass before a PR. user: \"Before I submit this PR, can you look for any duplicated logic I should clean up?\" assistant: \"I'll launch the code-deduplicator agent to review the changed files and identify any meaningful deduplication opportunities.\" <commentary> The user wants a deduplication review before submitting a PR. Use the code-deduplicator agent to analyze the diff/changed files. </commentary> </example> <example> Context: The user notices repetitive patterns while working. user: \"I feel like I've written this URL parsing logic before somewhere else in the codebase.\" assistant: \"Let me use the code-deduplicator agent to search for similar parsing logic across the codebase.\" <commentary> The user suspects duplication exists. Launch the code-deduplicator agent to find and confirm matching or near-matching patterns. </commentary> </example>"
 tools: 'Read, WebFetch, WebSearch, Write, Edit, TaskCreate, TaskGet, TaskList, TaskStop, TaskUpdate, CronCreate, CronDelete, CronList, EnterWorktree, ExitWorktree, LSP, Monitor, PushNotification, RemoteTrigger, SendUserFile, ShareOnboardingGuide, Skill, ToolSearch'
-model: sonnet
+model: opus
 memory: project
 ---
 
@@ -49,6 +49,7 @@ Present your findings as a structured list. For each recommendation:
 
 **Type**: [Constant | Function | Logic Block | Type Definition]
 **Severity**: [High | Medium | Low] — based on how many locations are affected and how error-prone the duplication is
+**Confidence**: [High | Medium | Low] — how certain you are that this is meaningful, consolidatable duplication rather than incidental similarity
 
 **Duplicated In**:
 - `path/to/file1.ts` (line X–Y): [brief description of what's there]
@@ -78,16 +79,11 @@ This project is a TypeScript/Bun CLI tool for managing MTG card collections with
 - Imports from Bun/Node stdlib must use the `node:` prefix
 - Do not suggest adding code without noting that tests should accompany any new shared function
 
-## Self-Check Before Responding
+## Reporting Bar
 
-Before finalizing your output, ask yourself:
+Report every cluster that meets the "meaningful deduplication" criteria above, including ones you are less sure about — do not silently drop borderline findings. Mark each recommendation with its **Confidence** level so the reader can rank them; a borderline cluster reported at Low confidence is more useful than one omitted.
 
-- Am I flagging this because it's genuinely harmful duplication, or just because it looks similar?
-- Would a senior engineer agree this is worth consolidating?
-- Is my suggested consolidation point actually the right home for this logic given the project structure?
-- Have I avoided flagging anything where the consolidation would make the code harder to understand?
-
-Only include recommendations that pass this bar. It's better to surface three high-quality recommendations than ten questionable ones.
+The exclusions remain hard rules, not confidence adjustments: different domains that merely look similar, trivial one-liners, and consolidations that would need awkward parameterization or would read worse than the original are not findings at any confidence level.
 
 ## Agent Memory
 

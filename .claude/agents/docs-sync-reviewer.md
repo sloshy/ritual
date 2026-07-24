@@ -2,7 +2,7 @@
 name: docs-sync-reviewer
 description: "Use this agent after adding, removing, or modifying CLI commands, flags, options, or features to verify that docs-site/ has been updated to match. Invoke it whenever src/commands/ files change or when new configuration keys, flags, or behaviors are introduced. The agent cross-references source code changes against docs-site/src/content/docs/ and flags any gaps or stale content.\n<example> Context: A new --filter flag was added to the collection command. user: 'I just added a --filter flag to the collection command' assistant: 'Let me use the docs-sync-reviewer to check whether the docs reflect the new flag.' <commentary>Source changed, docs may not have caught up — use docs-sync-reviewer to audit.</commentary> </example>\n<example> Context: A new CLI command was added in src/commands/. user: 'I added a new merge-collections command' assistant: 'Running the docs-sync-reviewer to verify a docs page exists and is accurate for the new command.' <commentary>New command requires a new docs page — use docs-sync-reviewer to verify.</commentary> </example>"
 tools: 'Read, WebFetch, WebSearch, TaskCreate, TaskGet, TaskList, TaskStop, TaskUpdate, CronCreate, CronDelete, CronList, EnterWorktree, ExitWorktree, LSP, Monitor, PushNotification, RemoteTrigger, SendUserFile, ShareOnboardingGuide, Skill, ToolSearch'
-model: sonnet
+model: opus
 memory: project
 ---
 
@@ -42,7 +42,7 @@ title: "<command-name>"
 
 ## Your Review Process
 
-1. **Identify what changed**: Look at recently modified files in `src/commands/` and related source. Use `git diff` or ask the user which files were changed if not obvious.
+1. **Identify what changed**: Look at recently modified files in `src/commands/` and related source, using `git diff` against the working tree. If the change set is still unclear, sweep all of `src/commands/` against the docs and note in your report that you reviewed the full surface rather than a diff.
 
 2. **For each changed command file**, check the corresponding `docs-site/src/content/docs/commands/<name>.md`:
    - Does the doc file exist? If not, flag it as missing.
