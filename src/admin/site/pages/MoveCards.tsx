@@ -1,4 +1,6 @@
-import { type JSX, Show, Switch, Match, For, createSignal, createMemo } from 'solid-js'
+import { type JSX, Show, Switch, Match, For, createSignal, createMemo, onCleanup } from 'solid-js'
+import { useNavigationGuard } from '../../../editor/navigation-guard'
+import { ConfirmDialog } from '../../../ui/ConfirmDialog'
 import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
 import { useSearchDebounce } from '../hooks/useSearchDebounce'
 import type { CardPrintingOptions } from '../../../change-event'
@@ -24,6 +26,13 @@ import { QuantityDialog } from '../../../ui/QuantityDialog'
 import { CardSearchModal } from '../../../editor/components/CardSearchModal'
 import { adminSearch } from '../editor-backend'
 
+/** A navigation held back until the user says whether the queued moves may be dropped. */
+type PendingLeave = {
+  proceed: () => void
+  /** Undoes whatever started the navigation — the router restores a refused Back's URL. */
+  cancel?: () => void
+}
+
 /** Multi-step state for moving one tile: pick destination → (printing) → (quantity) → queue. */
 type MoveFlow = {
   sourceList: ListInfo
@@ -43,6 +52,29 @@ export function MoveCards(): JSX.Element {
   const [pendingOpen, setPendingOpen] = createSignal(false)
   const [modalKey, setModalKey] = createSignal<string | null>(null)
   const [flow, setFlow] = createSignal<MoveFlow | null>(null)
+  const [pendingLeave, setPendingLeave] = createSignal<PendingLeave | null>(null)
+
+  // Queued moves live in this page's session, so leaving throws them away —
+  // confirm first, exactly as the editors do with unsaved card changes. Also
+  // covers the browser's Back/Forward and the tab-close prompt, both of which
+  // go through this guard.
+  const guard = useNavigationGuard()
+  const guardedNavigate = (proceed: () => void, onCancel?: () => void) => {
+    if (session.pendingCount() === 0) {
+      proceed()
+      return
+    }
+    // A second attempt supersedes the first, which still has to undo whatever it
+    // did to get here.
+    pendingLeave()?.cancel?.()
+    setPendingLeave({ proceed, cancel: onCancel })
+  }
+  onCleanup(guard.register({ attempt: guardedNavigate, isDirty: () => session.pendingCount() > 0 }))
+
+  const leaveMessage = createMemo(() => {
+    const count = session.pendingCount()
+    return `${count} queued move${count === 1 ? '' : 's'} ${count === 1 ? 'has' : 'have'} not been saved, and will be lost.`
+  })
 
   const listNameOf = (type: ListInfo['type'], slug: string): string =>
     session.lists().find((l) => l.type === type && l.slug === slug)?.name ?? slug
@@ -387,6 +419,30 @@ export function MoveCards(): JSX.Element {
         }}
         onClose={() => setPendingOpen(false)}
       />
+
+      {/* Leaving the page with moves still queued. The queue lives in this page's
+          session, so navigating away is what discards it. */}
+      <Show when={pendingLeave()}>
+        {(leave) => (
+          <ConfirmDialog
+            open={true}
+            title="Discard queued moves?"
+            message={leaveMessage()}
+            confirmLabel="Discard"
+            destructive
+            onConfirm={() => {
+              const { proceed } = leave()
+              setPendingLeave(null)
+              proceed()
+            }}
+            onCancel={() => {
+              const { cancel } = leave()
+              setPendingLeave(null)
+              cancel?.()
+            }}
+          />
+        )}
+      </Show>
     </div>
   )
 }

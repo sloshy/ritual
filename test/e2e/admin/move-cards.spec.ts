@@ -1,10 +1,22 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { mockMoveCardsApi } from '../helpers/mock-admin'
 
 type CommitBody = { moves: { cardKey: string; toType: string; toSlug: string }[] }
 
 const BINDER_CARD_KEY = 'collection:move-binder:1:0'
+
+/** Queue the binder's one card for a move into the deck, leaving it unsaved. */
+async function queueBinderCardIntoDeck(page: Page): Promise<void> {
+  await page.locator('#move-list-select').selectOption('collection:move-binder')
+  const moveButton = page.locator('.edit-btn-move')
+  await expect(moveButton).toHaveCount(1)
+  await moveButton.first().click()
+  const menu = page.locator('.move-destination-menu')
+  await expect(menu).toBeVisible()
+  await menu.locator('.card-context-menu-item', { hasText: 'Move Deck' }).click()
+  await expect(page.locator('.changes-badge')).toHaveText('1')
+}
 
 test.describe('Move Cards page', () => {
   test.beforeEach(async ({ page }) => {
@@ -20,19 +32,10 @@ test.describe('Move Cards page', () => {
     await page.locator('.admin-nav-item:has-text("Move Cards")').click()
     await expect(page.locator('.section-heading')).toContainText('Move Cards')
 
-    // Browse the source collection — its one card renders with a Move To… button.
-    await page.locator('#move-list-select').selectOption('collection:move-binder')
-    const moveButton = page.locator('.edit-btn-move')
-    await expect(moveButton).toHaveCount(1)
+    // Browse the source collection and move its one card into the deck.
+    await queueBinderCardIntoDeck(page)
 
-    // Open the destination menu and move the card into the deck.
-    await moveButton.first().click()
-    const menu = page.locator('.move-destination-menu')
-    await expect(menu).toBeVisible()
-    await menu.locator('.card-context-menu-item', { hasText: 'Move Deck' }).click()
-
-    // The move is queued: badge shows 1 and the card leaves the source view.
-    await expect(page.locator('.changes-badge')).toHaveText('1')
+    // The move is queued, so the card leaves the source view.
     await expect(page.locator('.edit-btn-move')).toHaveCount(0)
 
     // The pending dialog lists the queued move with its route.
@@ -55,6 +58,34 @@ test.describe('Move Cards page', () => {
 
     // After a successful commit the queue is cleared.
     await expect(page.locator('.changes-badge')).toHaveCount(0)
+  })
+
+  test('leaving with moves still queued prompts before dropping them', async ({ page }) => {
+    await mockMoveCardsApi(page)
+
+    await page.locator('.admin-nav-item:has-text("Move Cards")').click()
+    await queueBinderCardIntoDeck(page)
+
+    // The queue also blocks a reload or tab close.
+    const unloadPrevented = await page.evaluate(() => {
+      const event = new Event('beforeunload', { cancelable: true })
+      window.dispatchEvent(event)
+      return event.defaultPrevented
+    })
+    expect(unloadPrevented).toBe(true)
+
+    // Refusing keeps the page and its queue.
+    await page.locator('.admin-nav-item:has-text("Dashboard")').click()
+    const dialog = page.locator('.modal-shell[open]')
+    await expect(dialog).toContainText('1 queued move has not been saved')
+    await dialog.locator('button', { hasText: 'Cancel' }).click()
+    await expect(page.locator('.section-heading')).toContainText('Move Cards')
+    await expect(page.locator('.changes-badge')).toHaveText('1')
+
+    // Confirming leaves, discarding the queue with the page.
+    await page.locator('.admin-nav-item:has-text("Dashboard")').click()
+    await page.locator('.modal-shell[open] .btn-danger').click()
+    await expect(page.locator('.section-heading')).toContainText('Dashboard')
   })
 
   test('search finds a card across lists and opens its destination menu', async ({ page }) => {

@@ -39,6 +39,8 @@ All lists are enabled by default. Selections persist across reloads in `localSto
 - **Save Moves** commits every queued move atomically. Each source list records a `Moved … to …` changelog entry and each destination a `Moved … from …` entry, matching the CLI. Intermediate lists in a move chain are never touched.
 - **Discard** clears all queued moves without writing anything.
 
+Queued moves live on this page until you save them, so leaving it discards them. Navigating away with moves still queued — a sidebar item, a dashboard card, the browser's back or forward button — asks for confirmation first, and reloading or closing the tab raises the browser's own "leave site?" prompt.
+
 Saving rebuilds the move state from disk, so any move whose card can no longer be found (for example because the underlying file changed) is skipped and reported rather than failing the whole batch.
 
 :::note
