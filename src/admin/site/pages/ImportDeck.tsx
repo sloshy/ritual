@@ -1,6 +1,7 @@
 import { type JSX, For, Match, Show, Switch, createMemo, createSignal } from 'solid-js'
 import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from '../components/StatusAlerts'
+import { PageHeading } from '../components/PageHeading'
 
 type ImportMethod = 'url' | 'upload' | 'text'
 
@@ -77,7 +78,7 @@ export function ImportDeck(): JSX.Element {
 
   return (
     <div>
-      <h2 class="section-heading">📥 Import Deck</h2>
+      <PageHeading page="import-deck" />
       <StatusAlerts status={status()} error={error()} />
       <form onSubmit={(e) => void handleImport(e)} class="form-container">
         <div class="segmented" role="group" aria-label="Import method">

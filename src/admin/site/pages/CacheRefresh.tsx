@@ -1,5 +1,6 @@
 import { type JSX, createSignal, createMemo, onCleanup, Show, For } from 'solid-js'
 import { StatusAlerts } from '../components/StatusAlerts'
+import { PageHeading } from '../components/PageHeading'
 
 type Stage = 'idle' | 'connecting' | 'download' | 'save' | 'done' | 'error'
 
@@ -143,7 +144,7 @@ export function CacheRefresh(): JSX.Element {
 
   return (
     <div>
-      <h2 class="section-heading">🔄 Refresh Cache</h2>
+      <PageHeading page="cache-refresh" />
       <p class="page-desc">Download and cache all Scryfall card data. This will take some time.</p>
       <StatusAlerts status={status()} error={error()} />
 

@@ -22,6 +22,7 @@ import { type SiteSelectionConfig, defaultSiteSelection } from '../../../site/li
 import { fetchRitualConfig } from '../config-api'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { useApiAction } from '../hooks/useApiAction'
+import { PageHeading } from '../components/PageHeading'
 
 type Category = 'decks' | 'collections' | 'wanted'
 type ViewState = 'list' | 'create' | 'rename' | 'delete'
@@ -287,7 +288,7 @@ export function ListManager(): JSX.Element {
 
   return (
     <div>
-      <h2 class="section-heading">🗂️ Manage Lists</h2>
+      <PageHeading page="list-manager" />
 
       <div class="list-type-tabs">
         <For each={CATEGORIES}>

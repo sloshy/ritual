@@ -7,6 +7,7 @@ import { StatusAlerts } from '../components/StatusAlerts'
 import { ConfirmDialog } from '../../../ui/ConfirmDialog'
 import { CombineSetDialog, type CombineCandidate } from '../components/CombineSetDialog'
 import { TextPromptDialog } from '../../../editor/components/TextPromptDialog'
+import { PageHeading } from '../components/PageHeading'
 
 /** A queued confirmation prompt routed through the shared {@link ConfirmDialog}. */
 type PendingConfirm = {
@@ -159,7 +160,7 @@ export function History(): JSX.Element {
 
   return (
     <div class="history-page">
-      <h2 class="section-heading">Change History</h2>
+      <PageHeading page="history" />
 
       <div class="history-toolbar">
         <div class="deck-selector-container history-toolbar-select">

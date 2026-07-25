@@ -2,6 +2,7 @@ import { type JSX, createSignal, onMount, Show } from 'solid-js'
 import type { ArchidektLoginStatus } from '../../../auth/interfaces'
 import { ArchidektLoginForm, ArchidektSessionAlert } from '../components/ArchidektSession'
 import { formatDuration } from '../../../utils'
+import { PageHeading } from '../components/PageHeading'
 
 function describeExpiry(expiration: string | null, valid: boolean): string {
   if (!expiration) return valid ? 'valid' : 'expiration unknown'
@@ -38,7 +39,7 @@ export function ArchidektLogin(): JSX.Element {
 
   return (
     <div>
-      <h2 class="section-heading">🔑 Archidekt Login</h2>
+      <PageHeading page="archidekt-login" />
       <p class="page-desc">
         Sign in to your Archidekt account. Credentials are sent securely to the server for
         authentication.

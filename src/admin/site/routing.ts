@@ -89,6 +89,31 @@ const PAGE_PATHS: Record<Page, string> = {
   'audit-log': 'audit',
 }
 
+/** How a page is named and pictured wherever it is referred to. */
+export type PageDisplay = { label: string; icon: string }
+
+/**
+ * Single source of truth for every page's name and icon — the sidebar, the
+ * dashboard cards, and each page's own heading all read it, so the three can
+ * never drift apart. Mirrors `LIST_TYPE_DISPLAY`'s role for list types.
+ */
+export const PAGE_DISPLAY: Record<Page, PageDisplay> = {
+  dashboard: { label: 'Dashboard', icon: '📊' },
+  'list-editor': { label: 'Edit Lists', icon: '✏️' },
+  'move-cards': { label: 'Move Cards', icon: '➡️' },
+  'list-manager': { label: 'Manage Lists', icon: '🗂️' },
+  history: { label: 'Change History', icon: '🕘' },
+  'import-deck': { label: 'Import Deck', icon: '📥' },
+  'import-csv': { label: 'Import CSV', icon: '📄' },
+  'import-changes': { label: 'Import Changes', icon: '📩' },
+  'build-site': { label: 'Build Site', icon: '🔨' },
+  'cache-refresh': { label: 'Refresh Cache', icon: '🔄' },
+  'deck-sync': { label: 'Sync Decks', icon: '🔁' },
+  'archidekt-login': { label: 'Archidekt Login', icon: '🔑' },
+  settings: { label: 'Settings', icon: '⚙️' },
+  'audit-log': { label: 'Audit Log', icon: '📋' },
+}
+
 /** Reverse of {@link PAGE_PATHS}, built once. */
 const PATH_PAGES = new Map<string, Page>(
   Object.entries(PAGE_PATHS).map(([page, path]) => [path, page as Page]),

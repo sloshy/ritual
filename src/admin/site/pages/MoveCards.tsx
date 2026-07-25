@@ -25,6 +25,7 @@ import { MoveSearchResults } from '../components/MoveSearchResults'
 import { QuantityDialog } from '../../../ui/QuantityDialog'
 import { CardSearchModal } from '../../../editor/components/CardSearchModal'
 import { adminSearch } from '../editor-backend'
+import { PageHeading } from '../components/PageHeading'
 
 /** A navigation held back until the user says whether the queued moves may be dropped. */
 type PendingLeave = {
@@ -204,7 +205,7 @@ export function MoveCards(): JSX.Element {
 
   return (
     <div class="move-page">
-      <h2 class="section-heading">Move Cards</h2>
+      <PageHeading page="move-cards" />
 
       <div class="move-toolbar">
         <div class="deck-selector-container move-toolbar-select">

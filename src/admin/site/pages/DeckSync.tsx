@@ -27,6 +27,7 @@ import type {
 import { ArchidektLoginForm, ArchidektSessionAlert } from '../components/ArchidektSession'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { formatDuration } from '../../../utils'
+import { PageHeading } from '../components/PageHeading'
 
 /** How far a run has progressed; drives the button state and result panel. */
 type RunPhase = 'idle' | 'running' | 'done' | 'error'
@@ -381,7 +382,7 @@ export function DeckSync(): JSX.Element {
 
   return (
     <div>
-      <h2 class="section-heading">🔁 Sync Decks</h2>
+      <PageHeading page="deck-sync" />
       <p class="page-desc">
         Sync decks imported from Archidekt. Decks are matched by card name and quantity; a pull also
         adopts the deck’s Archidekt format.

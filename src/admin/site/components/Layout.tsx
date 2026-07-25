@@ -1,6 +1,6 @@
 import type { ParentComponent } from 'solid-js'
 import { createMemo, createSignal, For, Show } from 'solid-js'
-import { type Page, useRouting } from '../routing'
+import { PAGE_DISPLAY, type Page, useRouting } from '../routing'
 import { NavLink } from './NavLink'
 import { FlameIcon } from '../../../site/FlameIcon'
 import { SelectionMenu } from '../../../site/SelectionMenu'
@@ -14,27 +14,22 @@ import { useAllSelections } from '../../../site/useCardSelection'
 import { moveSelectedAdmin, removeSelectedAdmin } from '../remove-selected'
 import { useAdminLists, listInfosToNamedRefs } from '../move-targets'
 
-interface NavItem {
-  id: Page
-  label: string
-  icon: string
-}
-
-const navItems: NavItem[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-  { id: 'list-editor', label: 'Edit Lists', icon: '✏️' },
-  { id: 'move-cards', label: 'Move Cards', icon: '➡️' },
-  { id: 'list-manager', label: 'Manage Lists', icon: '🗂️' },
-  { id: 'history', label: 'Change History', icon: '🕘' },
-  { id: 'import-deck', label: 'Import Deck', icon: '📥' },
-  { id: 'import-csv', label: 'Import CSV', icon: '📄' },
-  { id: 'import-changes', label: 'Import Changes', icon: '📩' },
-  { id: 'build-site', label: 'Build Site', icon: '🔨' },
-  { id: 'cache-refresh', label: 'Refresh Cache', icon: '🔄' },
-  { id: 'deck-sync', label: 'Sync Decks', icon: '🔁' },
-  { id: 'archidekt-login', label: 'Archidekt Login', icon: '🔑' },
-  { id: 'audit-log', label: 'Audit Log', icon: '📋' },
-  { id: 'settings', label: 'Settings', icon: '⚙️' },
+/** Sidebar order. Names and icons come from {@link PAGE_DISPLAY}. */
+const NAV_PAGES: readonly Page[] = [
+  'dashboard',
+  'list-editor',
+  'move-cards',
+  'list-manager',
+  'history',
+  'import-deck',
+  'import-csv',
+  'import-changes',
+  'build-site',
+  'cache-refresh',
+  'deck-sync',
+  'archidekt-login',
+  'audit-log',
+  'settings',
 ]
 
 /** Pages whose content spans the full window rather than the reading-width column. */
@@ -90,16 +85,16 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
   const moveAllTargets = (): NamedListRef[] => listInfosToNamedRefs(lists())
 
   const navList = () => (
-    <For each={navItems}>
-      {(item) => (
+    <For each={NAV_PAGES}>
+      {(page) => (
         <NavLink
-          page={item.id}
+          page={page}
           class="admin-nav-item"
-          active={currentPage() === item.id}
+          active={currentPage() === page}
           onNavigate={() => setMenuOpen(false)}
         >
-          <span class="nav-icon">{item.icon}</span>
-          {item.label}
+          <span class="nav-icon">{PAGE_DISPLAY[page].icon}</span>
+          {PAGE_DISPLAY[page].label}
         </NavLink>
       )}
     </For>

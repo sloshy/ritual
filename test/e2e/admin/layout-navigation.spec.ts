@@ -8,7 +8,28 @@ test.describe('Layout & Navigation', () => {
 
   // Desktop sidebar and dashboard-card navigation live in routing.spec.ts, which
   // covers the same clicks plus the URL they produce. What remains here is the
-  // mobile overlay, which is Layout's own behavior.
+  // mobile overlay and the nav's own labelling, both Layout's own behavior.
+
+  test('a page is titled exactly as the nav item and dashboard card that open it', async ({
+    page,
+  }) => {
+    // Name and icon come from one table, so these three cannot drift apart —
+    // Change History's heading was once missing the icon its nav item had.
+    for (const label of ['Change History', 'Move Cards', 'Build Site']) {
+      const navItem = page.locator(`.admin-sidebar .admin-nav-item:has-text("${label}")`)
+      const icon = await navItem.locator('.nav-icon').textContent()
+      expect(icon?.trim()).toBeTruthy()
+
+      await navItem.click()
+      await expect(page.locator('.section-heading')).toHaveText(`${icon} ${label}`)
+
+      // The dashboard card for the same page carries the same name and icon.
+      await page.locator('.admin-sidebar .admin-nav-item:has-text("Dashboard")').click()
+      const card = page.locator('.admin-card').filter({ hasText: label })
+      await expect(card.locator('.admin-card-icon')).toHaveText(icon!)
+      await expect(card.locator('.admin-card-title')).toHaveText(label)
+    }
+  })
 
   test('mobile hamburger menu opens sidebar overlay', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 })

@@ -1,5 +1,6 @@
 import { type JSX, createSignal, onMount, Show, For } from 'solid-js'
 import type { AuditEntry } from '../../audit-log'
+import { PageHeading } from '../components/PageHeading'
 
 type AuditLogResponse = { success: boolean; entries: AuditEntry[] }
 
@@ -46,7 +47,7 @@ export function AuditLog(): JSX.Element {
     >
       <div>
         <div class="audit-header">
-          <h2 class="section-heading">📋 Audit Log</h2>
+          <PageHeading page="audit-log" />
           <button class="btn btn-secondary" onClick={() => void fetchLog()}>
             Refresh
           </button>

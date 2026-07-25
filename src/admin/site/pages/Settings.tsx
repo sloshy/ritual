@@ -14,6 +14,7 @@ import { fetchRitualConfig } from '../config-api'
 import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { TotpSettings } from '../components/TotpSettings'
+import { PageHeading } from '../components/PageHeading'
 
 function listToString(list: string[]): string {
   return list.join('\n')
@@ -135,7 +136,7 @@ export function Settings(): JSX.Element {
       }
     >
       <div>
-        <h2 class="section-heading">⚙️ Settings</h2>
+        <PageHeading page="settings" />
         <StatusAlerts status={status()} error={error()} />
         <div class="form-container">
           {/* Directories */}

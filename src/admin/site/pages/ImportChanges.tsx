@@ -9,6 +9,7 @@ import {
   parseChangeBundle,
 } from '../../../editor/change-bundle'
 import type { BundleImportResult } from '../../api/import-changes'
+import { PageHeading } from '../components/PageHeading'
 
 type SourceMethod = 'upload' | 'text'
 
@@ -97,7 +98,7 @@ export function ImportChanges(): JSX.Element {
 
   return (
     <div>
-      <h2 class="section-heading">📩 Import Changes</h2>
+      <PageHeading page="import-changes" />
       <p class="text-muted">
         Apply a change bundle exported from the site editor, covering one or more lists. Review the
         pending changes below, then apply them to your list files.

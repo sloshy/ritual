@@ -1,6 +1,7 @@
 import type { JSX } from 'solid-js'
 import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from '../components/StatusAlerts'
+import { PageHeading } from '../components/PageHeading'
 
 export function BuildSite(): JSX.Element {
   const { status, error, loading, run } = useApiAction()
@@ -11,7 +12,7 @@ export function BuildSite(): JSX.Element {
 
   return (
     <div>
-      <h2 class="section-heading">🔨 Build Site</h2>
+      <PageHeading page="build-site" />
       <p class="page-desc">
         Generate the static website from your deck files. This may take a few minutes.
       </p>

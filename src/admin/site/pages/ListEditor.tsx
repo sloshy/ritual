@@ -6,6 +6,7 @@ import { useSearchDebounce } from '../hooks/useSearchDebounce'
 import { DeckEditor } from './DeckEditor'
 import { CollectionEditor } from './CollectionEditor'
 import { WantedListEditor } from './WantedListEditor'
+import { PageHeading } from '../components/PageHeading'
 
 /**
  * Single "Edit Lists" page hosting all three list editors. A type tab selects
@@ -50,7 +51,7 @@ export function ListEditor(): JSX.Element {
 
   return (
     <div>
-      <h2 class="section-heading">✏️ Edit Lists</h2>
+      <PageHeading page="list-editor" />
 
       <div class="list-type-tabs">
         <For each={LIST_TYPES}>

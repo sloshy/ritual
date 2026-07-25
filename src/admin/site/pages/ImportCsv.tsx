@@ -29,6 +29,7 @@ import {
   type CsvRowFailure,
 } from '../../../importers/csv'
 import type { ImportCsvResponse } from '../../api/import-csv'
+import { PageHeading } from '../components/PageHeading'
 
 type SourceMethod = 'upload' | 'text'
 
@@ -246,7 +247,7 @@ export function ImportCsv(): JSX.Element {
 
   return (
     <div>
-      <h2 class="section-heading">📄 Import CSV</h2>
+      <PageHeading page="import-csv" />
       <StatusAlerts status={status()} error={error()} />
       <Show when={failures().length > 0}>
         <div class="alert alert-error csv-failures">
