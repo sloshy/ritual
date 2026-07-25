@@ -47,6 +47,12 @@ const actions: ActionCard[] = [
     icon: '🔄',
   },
   {
+    id: 'deck-sync',
+    title: 'Sync Decks',
+    description: 'Pull or push deck changes with Archidekt',
+    icon: '🔁',
+  },
+  {
     id: 'archidekt-login',
     title: 'Archidekt Login',
     description: 'Sign in to Archidekt',

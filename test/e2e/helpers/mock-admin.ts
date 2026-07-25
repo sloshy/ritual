@@ -1,4 +1,7 @@
 import type { Page, Route } from '@playwright/test'
+import type { ArchidektLoginStatus } from '../../../src/auth/interfaces'
+import type { DeckSyncRunResponse } from '../../../src/admin/api/deck-sync'
+import type { SyncableDeck, UnreadableDeck } from '../../../src/deck-sync/engine'
 import type { RitualConfig } from '../../../src/ritual-config'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/editor/search-debounce'
 import { fulfillJson } from './fulfill'
@@ -252,38 +255,96 @@ export async function mockTotpApi(page: Page): Promise<void> {
 }
 
 /**
- * The browser `window` as the cache-refresh mocks see it: `EventSource` is
- * replaceable, and the installed mock instance is stashed for later dispatch.
+ * The browser `window` as the SSE mocks see it: `EventSource` is replaceable,
+ * and the installed mock instance is stashed for later dispatch.
  */
-type MockEventSourceWindow = Window & { EventSource: unknown; __mockEventSource?: EventTarget }
+type MockEventSourceWindow = Window & {
+  EventSource: unknown
+  __mockEventSource?: EventTarget & { url: string }
+}
+
+/** Swap `window.EventSource` for the controllable stand-in. Runs in the page. */
+function replaceEventSource(): void {
+  class MockEventSource extends EventTarget {
+    static readonly CONNECTING = 0
+    static readonly OPEN = 1
+    static readonly CLOSED = 2
+    readonly url: string
+    readyState = 1
+    constructor(url: string) {
+      super()
+      this.url = url
+      ;(window as unknown as MockEventSourceWindow).__mockEventSource = this
+    }
+    close(): void {
+      this.readyState = 2
+    }
+  }
+  ;(window as unknown as MockEventSourceWindow).EventSource = MockEventSource
+}
 
 /**
- * Mock the cache refresh SSE stream by replacing the page's `EventSource` with
- * a controllable stand-in. A route-fulfilled SSE body delivers every event in
- * one burst, unmounting the progress UI before assertions can observe it —
- * tests instead drive each stage explicitly via {@link emitCacheRefreshEvent}.
- * Also stubs the POST fallback endpoint for completeness.
+ * Replace the page's `EventSource` with a controllable stand-in, for any page
+ * driven by a server-sent event stream (cache refresh, deck sync). A
+ * route-fulfilled SSE body delivers every event in one burst, unmounting the
+ * progress UI before assertions can observe it — tests instead drive each event
+ * explicitly via {@link emitStreamEvent}.
+ *
+ * Installed both into the current document and as an init script, so the mock
+ * holds whether it is set up before or after the page navigates.
+ */
+export async function installMockEventSource(page: Page): Promise<void> {
+  await page.addInitScript(replaceEventSource)
+  await page.evaluate(replaceEventSource)
+}
+
+/**
+ * Dispatch one named SSE event on the mock EventSource installed by
+ * {@link installMockEventSource}. The page must have constructed it already
+ * (i.e. the action that opens the stream was clicked).
+ */
+export async function emitStreamEvent(
+  page: Page,
+  event: string,
+  data: Record<string, unknown>,
+): Promise<void> {
+  await page.evaluate(
+    ([eventName, payload]) => {
+      const es = (window as unknown as MockEventSourceWindow).__mockEventSource
+      if (!es) throw new Error('Mock EventSource not constructed yet — start the stream first')
+      es.dispatchEvent(new MessageEvent(eventName, { data: payload }))
+    },
+    [event, JSON.stringify(data)] as const,
+  )
+}
+
+/**
+ * Dispatch a connection-level failure: an `error` event carrying no data, which
+ * is how a browser reports a stream that could not be opened (or was dropped).
+ */
+export async function emitStreamConnectionError(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const es = (window as unknown as MockEventSourceWindow).__mockEventSource
+    if (!es) throw new Error('Mock EventSource not constructed yet — start the stream first')
+    es.dispatchEvent(new Event('error'))
+  })
+}
+
+/** The URL the page opened its (mock) event stream with. */
+export async function streamUrl(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const es = (window as unknown as MockEventSourceWindow).__mockEventSource
+    if (!es) throw new Error('Mock EventSource not constructed yet — start the stream first')
+    return es.url
+  })
+}
+
+/**
+ * Mock the cache refresh SSE stream, plus the POST fallback endpoint for
+ * completeness. Events are driven from the test via {@link emitStreamEvent}.
  */
 export async function mockCacheRefreshApi(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    class MockEventSource extends EventTarget {
-      static readonly CONNECTING = 0
-      static readonly OPEN = 1
-      static readonly CLOSED = 2
-      readonly url: string
-      readyState = 1
-      constructor(url: string) {
-        super()
-        this.url = url
-        ;(window as unknown as MockEventSourceWindow).__mockEventSource = this
-      }
-      close(): void {
-        this.readyState = 2
-      }
-    }
-    ;(window as unknown as MockEventSourceWindow).EventSource = MockEventSource
-  })
-
+  await installMockEventSource(page)
   await fulfillJson(
     page,
     '**/api/cache/refresh',
@@ -292,24 +353,130 @@ export async function mockCacheRefreshApi(page: Page): Promise<void> {
   )
 }
 
+// ===== Deck sync mock data =====
+
+export const ARCHIDEKT_NOT_LOGGED_IN: ArchidektLoginStatus = {
+  loggedIn: false,
+  username: null,
+  accessTokenExpiration: null,
+  accessTokenValid: false,
+  refreshTokenExpiration: null,
+  refreshTokenValid: false,
+  loginRequired: true,
+}
+
+export const ARCHIDEKT_LOGGED_IN: ArchidektLoginStatus = {
+  loggedIn: true,
+  username: 'testuser',
+  accessTokenExpiration: new Date(Date.now() + 4 * 3600_000).toISOString(),
+  accessTokenValid: true,
+  refreshTokenExpiration: new Date(Date.now() + 30 * 24 * 3600_000).toISOString(),
+  refreshTokenValid: true,
+  loginRequired: false,
+}
+
+export const ARCHIDEKT_SESSION_EXPIRED: ArchidektLoginStatus = {
+  loggedIn: true,
+  username: 'testuser',
+  accessTokenExpiration: new Date(Date.now() - 4 * 3600_000).toISOString(),
+  accessTokenValid: false,
+  refreshTokenExpiration: new Date(Date.now() - 3600_000).toISOString(),
+  refreshTokenValid: false,
+  loginRequired: true,
+}
+
+export const MOCK_SYNC_DECKS: SyncableDeck[] = [
+  {
+    slug: 'winota-stax',
+    name: 'Winota Stax',
+    sourceId: '111',
+    sourceUrl: 'https://archidekt.com/decks/111',
+    lastSynced: new Date(Date.now() - 3 * 3600_000).toISOString(),
+  },
+  {
+    slug: 'oops-all-soldiers',
+    name: 'Oops All Soldiers',
+    sourceId: '222',
+    sourceUrl: 'https://archidekt.com/decks/222',
+    lastSynced: null,
+  },
+]
+
+/** Handles on the deck-sync mocks, for asserting and reshaping mid-test. */
+export type DeckSyncMocks = {
+  /** Change what the next `GET /api/deck-sync` returns (e.g. after a run). */
+  setDecks: (decks: SyncableDeck[]) => void
+  /** Change the Archidekt session the next status load reports (e.g. after signing in). */
+  setArchidekt: (status: ArchidektLoginStatus) => void
+  /** Decks the non-streaming run reports as holding unreadable lines. */
+  setUnreadable: (decks: UnreadableDeck[]) => void
+  /** How many times the page has loaded the deck list. */
+  statusRequests: () => number
+  /** Bodies posted to the non-streaming fallback endpoint. */
+  postedRuns: () => unknown[]
+}
+
 /**
- * Dispatch one named SSE event on the mock EventSource installed by
- * {@link mockCacheRefreshApi}. The page must have constructed it already
- * (i.e. the refresh button was clicked).
+ * Mock the Sync Decks page endpoints: the deck/login listing, the SSE stream
+ * (driven from the test via {@link emitStreamEvent}), and the non-streaming
+ * POST fallback.
  */
-export async function emitCacheRefreshEvent(
+export async function mockDeckSyncApi(
   page: Page,
-  event: string,
-  data: Record<string, unknown>,
-): Promise<void> {
-  await page.evaluate(
-    ([eventName, payload]) => {
-      const es = (window as unknown as MockEventSourceWindow).__mockEventSource
-      if (!es) throw new Error('Mock EventSource not constructed yet — click Refresh Cache first')
-      es.dispatchEvent(new MessageEvent(eventName, { data: payload }))
+  archidekt: ArchidektLoginStatus = ARCHIDEKT_LOGGED_IN,
+  decks: SyncableDeck[] = MOCK_SYNC_DECKS,
+): Promise<DeckSyncMocks> {
+  let currentDecks = decks
+  let currentArchidekt = archidekt
+  let currentUnreadable: UnreadableDeck[] = []
+  let statusCount = 0
+  const posted: unknown[] = []
+
+  await installMockEventSource(page)
+
+  await fulfillJson(
+    page,
+    '**/api/deck-sync',
+    () => {
+      statusCount += 1
+      return { success: true, decks: currentDecks, archidekt: currentArchidekt }
     },
-    [event, JSON.stringify(data)] as const,
+    { method: 'GET' },
   )
+
+  await fulfillJson(
+    page,
+    '**/api/deck-sync',
+    (route: Route): DeckSyncRunResponse => {
+      posted.push(route.request().postDataJSON())
+      // Typed against the real response so the mock cannot drift from the handler.
+      return {
+        success: true,
+        message: `Pulled ${currentDecks.length} decks.`,
+        report: {
+          direction: 'pull',
+          decks: currentDecks.map((deck) => ({ name: deck.name, status: 'synced' })),
+          failedCount: 0,
+          unreadable: currentUnreadable,
+        },
+      }
+    },
+    { method: 'POST' },
+  )
+
+  return {
+    setDecks: (next: SyncableDeck[]) => {
+      currentDecks = next
+    },
+    setArchidekt: (next: ArchidektLoginStatus) => {
+      currentArchidekt = next
+    },
+    setUnreadable: (next: UnreadableDeck[]) => {
+      currentUnreadable = next
+    },
+    statusRequests: () => statusCount,
+    postedRuns: () => posted,
+  }
 }
 
 /**

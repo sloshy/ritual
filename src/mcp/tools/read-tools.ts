@@ -103,6 +103,20 @@ export function registerReadTools(server: McpServer): void {
   )
 
   server.registerTool(
+    'deck_sync_status',
+    {
+      title: 'Deck sync status',
+      description:
+        'List the decks linked to Archidekt (slug, name, sourceId, sourceUrl, lastSynced) ' +
+        'along with the stored Archidekt login, whose loginRequired flag says whether ' +
+        'sync_decks can run.',
+      inputSchema: {},
+      annotations: { readOnlyHint: true },
+    },
+    async () => jsonResult(await callApi('GET', '/api/deck-sync')),
+  )
+
+  server.registerTool(
     'load_list',
     {
       title: 'Load list',

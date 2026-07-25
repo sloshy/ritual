@@ -200,6 +200,12 @@ The page also shows the status of the stored login:
 
 When both the access token and refresh token have expired, the page reports that a login is required to use Archidekt account features.
 
+### Sync Decks
+
+Pull or push Archidekt-linked decks, with per-deck progress streaming into the page as the run proceeds. Toggle which decks to sync (all by default), pick a direction, and optionally preview without writing. Each deck shows when it last synced, and the page signs in to Archidekt inline when the stored token has expired.
+
+Same engine as [`deck-sync`](/commands/deck-sync/). See [Sync Decks](/admin/sync-decks/) for the full page.
+
 ### Settings
 
 Configure admin settings including:

@@ -146,10 +146,20 @@ The first argument is the sync direction — \`pull\` (Archidekt → local) or \
 ritual deck-sync pull                        # pull remote changes for all linked decks
 ritual deck-sync push "Winota Stax"          # push local changes for one deck
 ritual deck-sync push --dry-run              # preview without sending anything
+ritual deck-sync pull --yes                  # accept dropping lines the parser can't read
 \`\`\`
+
+Syncing rewrites the deck file, so a line the parser cannot read would be deleted.
+Such decks are listed with their exact lines and confirmed before syncing;
+\`--yes\` answers up front, and without a terminal (\`--no-input\`, a pipe, or
+\`--output json\`) those decks fail instead.
 
 A pull also adopts the deck's Archidekt format (mapped onto Ritual's format
 keys). A push does not push the local format back.
+
+The same sync runs from the admin site's **Sync Decks** page (deck toggles,
+direction, live per-deck progress, and each deck's last-synced time) and from the
+MCP \`sync_decks\` tool.
 
 ## Primer
 

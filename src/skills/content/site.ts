@@ -171,6 +171,15 @@ public site's edit mode (a bundle covering one or more lists) with a per-list
 preview before applying — the same operation as \`ritual import-changes\` (see the
 **ritual-edit** skill) and the MCP \`import_changes\` tool.
 
+The admin's **Sync Decks** page runs \`deck-sync\` in the browser: pick a
+direction, toggle which Archidekt-linked decks to sync (all by default), and
+watch per-deck progress stream in as it runs. Each deck shows when it last
+synced, and the page signs in to Archidekt inline when the stored token has
+expired. A deck whose file holds lines the parser cannot read is refused (a sync
+would delete them) and shown with a "Sync anyway" confirmation. Same operation as
+\`ritual deck-sync\` (see the **ritual-decks** skill) and the MCP
+\`deck_sync_status\` / \`sync_decks\` tools.
+
 It can also expose an MCP endpoint in the same process, on its own port
 (\`--mcp-port\`, default 8765):
 

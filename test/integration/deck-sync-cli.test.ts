@@ -36,6 +36,18 @@ describe('deck-sync CLI (Integration)', () => {
     })
   })
 
+  test('--yes is a recognized flag', async () => {
+    // The confirmation logic itself is unit-tested; this pins the wiring, so a
+    // renamed or dropped option surfaces as a usage error rather than silently
+    // never confirming.
+    await withWorkspace(async (dir) => {
+      const result = await runCli(['deck-sync', 'pull', '--yes'], dir)
+
+      expect(result.exitCode).toBe(1)
+      expect(result.stderr).toContain('Not signed into Archidekt')
+    })
+  })
+
   test('a valid direction without an Archidekt login fails with exit 1', async () => {
     await withWorkspace(async (dir) => {
       const result = await runCli(['deck-sync', 'pull'], dir)

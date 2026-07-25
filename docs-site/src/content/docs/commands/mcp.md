@@ -90,6 +90,7 @@ Every tool that addresses a list takes the same two fields: `listType` (`deck` |
 | `card_printings`, `card_price`      | A card's printings and per-currency prices (an unknown card name is an error).                                                                                                                                          |
 | `price_report`                      | [Price](/commands/price/) one list (`listType` + `slug`), one list type (`listType` alone), or every list (no arguments).                                                                                               |
 | `load_history`                      | A list's change history.                                                                                                                                                                                                |
+| `deck_sync_status`                  | The Archidekt-linked decks (with each deck's `lastSynced`) plus the stored Archidekt login — what `sync_decks` can act on.                                                                                              |
 | `get_config`, `get_audit_log`       | Configuration and admin activity.                                                                                                                                                                                       |
 | `export_cards`                      | Render a CSV, JSON, plain-text, or Markdown [export](/commands/export/) of lists and/or card picks, with filters (and, for `csv`/`json`, column selection).                                                             |
 | `diff_lists`                        | Compare two lists by card name or exact printing — the [`diff`](/commands/diff/) command as a tool.                                                                                                                     |
@@ -157,7 +158,19 @@ These are flagged with the MCP `destructiveHint` so clients can gate or confirm 
 | `rewrite_history` | Replace a list's entire change log.                                       |
 | `update_config`   | Merge a partial configuration.                                            |
 | `build_site`      | Rebuild the public static site.                                           |
+| `sync_decks`      | [Sync decks](/commands/deck-sync/) with Archidekt in either direction.    |
 | `refresh_cache`   | Refresh the Scryfall card cache (bulk download + oracle/art tags).        |
+
+`sync_decks` takes a `direction` (`pull` | `push`), an optional `decks` array (slugs or names; omit
+to sync every Archidekt-linked deck), and optional `dryRun` / `ignoreUnreadableLines` flags. It needs
+an Archidekt login stored by `ritual login archidekt` or the admin site — check `deck_sync_status`'s
+`archidekt.loginRequired` first. A run that completes reports `success` even when individual decks
+failed; read `report.failedCount` and each deck's `status`/`reason`.
+
+A deck whose file holds lines the parser cannot read fails with
+`N unreadable lines would be dropped by a sync`, because syncing rewrites the file and would delete
+them. `ignoreUnreadableLines: true` accepts that loss — confirm with the user before setting it,
+since it is the tool's stand-in for the CLI's [`--yes`](/commands/deck-sync/#unreadable-lines) prompt.
 
 `import_deck`, `import_csv`, `import_changes`, and `apply_changes` (listed under [Write](#write))
 also carry `destructiveHint`: the imports can overwrite an existing list of the same name, and an

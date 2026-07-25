@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { callApi } from '../dispatch'
 import { jsonResult } from '../result'
 import { listTypeSchema, slugField } from '../schemas'
+import { SYNC_DIRECTIONS } from '../../deck-sync/engine'
 
 const newNameField = z.string().min(1).describe('New display name.')
 const confirmNameField = z
@@ -24,8 +25,9 @@ const changeSetSchema = z.object({
  * Register the destructive / administrative tools. rename_list changes a list’s
  * file and slug; delete_list requires a matching `confirmName`; rewrite_history
  * replaces a change log wholesale; update_config persists configuration;
- * build_site and refresh_cache trigger longer-running operations. All are
- * flagged with the SDK’s destructiveHint so clients can gate or confirm them.
+ * build_site, sync_decks, and refresh_cache trigger longer-running operations
+ * (sync_decks also writes to Archidekt). All are flagged with the SDK’s
+ * destructiveHint so clients can gate or confirm them.
  */
 export function registerDestructiveTools(server: McpServer): void {
   server.registerTool(
@@ -105,6 +107,49 @@ export function registerDestructiveTools(server: McpServer): void {
       annotations: { destructiveHint: true },
     },
     async () => jsonResult(await callApi('POST', '/api/build-site')),
+  )
+
+  server.registerTool(
+    'sync_decks',
+    {
+      title: 'Sync decks with Archidekt',
+      description:
+        'Sync Archidekt-linked decks: "pull" applies remote changes to the local deck files ' +
+        '(recording them in each changelog), "push" sends local changes to decks you own on ' +
+        'Archidekt. Omit decks to sync every linked deck. Returns a per-deck report; ' +
+        'a run with failures still reports success — check report.failedCount.',
+      inputSchema: {
+        direction: z
+          .enum(SYNC_DIRECTIONS)
+          .describe('"pull" (Archidekt → local) or "push" (local → Archidekt).'),
+        decks: z
+          .array(z.string().min(1))
+          .optional()
+          .describe('Deck slugs or names; omit to sync every Archidekt-linked deck.'),
+        dryRun: z
+          .boolean()
+          .optional()
+          .describe('Report what would sync without writing files or pushing changes.'),
+        ignoreUnreadableLines: z
+          .boolean()
+          .optional()
+          .describe(
+            'Sync decks whose files contain lines the parser cannot read, deleting those lines. ' +
+              'Such decks fail by default; check the failure reason and confirm with the user ' +
+              'before setting this.',
+          ),
+      },
+      annotations: { destructiveHint: true, openWorldHint: true },
+    },
+    async ({ direction, decks, dryRun, ignoreUnreadableLines }) =>
+      jsonResult(
+        await callApi('POST', '/api/deck-sync', {
+          direction,
+          decks,
+          dryRun,
+          ignoreUnreadableLines,
+        }),
+      ),
   )
 
   server.registerTool(

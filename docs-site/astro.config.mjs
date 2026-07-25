@@ -125,6 +125,7 @@ export default defineConfig({
             'admin/move-cards',
             'admin/manage-lists',
             'admin/history',
+            'admin/sync-decks',
             'admin/api',
           ],
         },

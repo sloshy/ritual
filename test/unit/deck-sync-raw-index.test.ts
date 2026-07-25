@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { buildRawCardIndex } from '../../src/commands/deck-sync'
+import { buildRawCardIndex } from '../../src/deck-sync/engine'
 import type {
   ArchidektRawCardEntry,
   ArchidektRawDeckResponse,

@@ -19,6 +19,7 @@ const EXPECTED_TOOLS = [
   'card_price',
   'price_report',
   'load_history',
+  'deck_sync_status',
   'get_config',
   'get_audit_log',
   'export_cards',
@@ -44,6 +45,7 @@ const EXPECTED_TOOLS = [
   'rewrite_history',
   'update_config',
   'build_site',
+  'sync_decks',
   'refresh_cache',
 ]
 
@@ -160,9 +162,9 @@ describe('Ritual MCP server (in-memory transport)', () => {
       tools.filter((t) => t.annotations?.destructiveHint).map((t) => t.name),
     )
 
-    // Renames, deletes, history rewrites, config/site/cache ops, plus the import
-    // tools (deck/CSV can overwrite an existing list; changes can remove cards)
-    // and apply_changes (a change batch can remove cards in bulk).
+    // Renames, deletes, history rewrites, config/site/cache/sync ops, plus the
+    // import tools (deck/CSV can overwrite an existing list; changes can remove
+    // cards) and apply_changes (a change batch can remove cards in bulk).
     expect(destructiveHinted).toEqual(
       new Set([
         'rename_list',
@@ -170,6 +172,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
         'rewrite_history',
         'update_config',
         'build_site',
+        'sync_decks',
         'refresh_cache',
         'import_deck',
         'import_csv',
@@ -659,6 +662,44 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(data.success).toBe(true)
     expect(data.sets).toHaveLength(1)
     expect(data.sets[0]?.lines.join('\n')).toContain('Counterspell')
+  })
+
+  test('deck_sync_status reports linked decks and the Archidekt login', async () => {
+    // Which decks qualify is owned by test/integration/deck-sync-api.test.ts; the
+    // fixture workspace has no Archidekt-linked deck and no stored login.
+    const result = await callTool(client, 'deck_sync_status', {})
+    expect(result.isError).toBeFalsy()
+    const data = toolJson(result) as {
+      decks: unknown[]
+      archidekt: { loginRequired: boolean }
+    }
+    expect(data.decks).toEqual([])
+    expect(data.archidekt.loginRequired).toBe(true)
+  })
+
+  test('sync_decks rejects an unknown direction and errors without a login', async () => {
+    const badDirection = await callTool(client, 'sync_decks', { direction: 'sideways' })
+    expect(badDirection.isError).toBe(true)
+    expect(firstText(badDirection).toLowerCase()).toContain('validation')
+
+    const noLogin = await callTool(client, 'sync_decks', { direction: 'pull' })
+    expect(noLogin.isError).toBe(true)
+    expect(firstText(noLogin)).toContain('Not signed into Archidekt')
+  })
+
+  test('sync_decks passes ignoreUnreadableLines through to the handler', async () => {
+    // A renamed field on either side of callApi would be rejected by the
+    // handler's validation rather than reaching the login check.
+    const result = await callTool(client, 'sync_decks', {
+      direction: 'pull',
+      ignoreUnreadableLines: true,
+    })
+    expect(result.isError).toBe(true)
+    expect(firstText(result)).toContain('Not signed into Archidekt')
+
+    const { tools } = await client.listTools()
+    const schema = tools.find((tool) => tool.name === 'sync_decks')?.inputSchema
+    expect(Object.keys(schema?.properties ?? {})).toContain('ignoreUnreadableLines')
   })
 
   test('import_csv creates a new list by default', async () => {

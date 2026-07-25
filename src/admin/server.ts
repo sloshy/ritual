@@ -12,6 +12,7 @@ import { handleImportChanges } from './api/import-changes'
 import { handleExport } from './api/export'
 import { handleBuildSite } from './api/build-site'
 import { handleCacheRefresh, handleCacheRefreshStream } from './api/cache'
+import { handleDeckSyncRun, handleDeckSyncStatus, handleDeckSyncStream } from './api/deck-sync'
 import { handleArchidektLogin, handleArchidektStatus } from './api/login'
 import { handleGetConfig, handleUpdateConfig } from './api/config'
 import { handleSetup } from './api/setup'
@@ -119,6 +120,14 @@ export const routes: Route[] = [
     requiresAuth: true,
   },
   { method: 'POST', path: '/api/cache/refresh', handler: handleCacheRefresh, requiresAuth: true },
+  {
+    method: 'GET',
+    path: '/api/deck-sync/stream',
+    handler: handleDeckSyncStream,
+    requiresAuth: true,
+  },
+  { method: 'GET', path: '/api/deck-sync', handler: handleDeckSyncStatus, requiresAuth: true },
+  { method: 'POST', path: '/api/deck-sync', handler: handleDeckSyncRun, requiresAuth: true },
   {
     method: 'POST',
     path: '/api/login/archidekt',

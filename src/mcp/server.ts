@@ -31,6 +31,11 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   returns the content string.
 - diff_lists compares two lists by card name (default) or exact printing and reports matched
   identities with per-side quantities plus only-in-A / only-in-B entries.
+- deck_sync_status lists the Archidekt-linked decks (with each deck's lastSynced) and the stored
+  Archidekt login; sync_decks then pulls or pushes those decks (dryRun previews). Both require a
+  login stored by "ritual login archidekt" or the admin site. A deck whose file holds lines the
+  parser cannot read fails rather than syncing, since the save would delete them — report.unreadable
+  names those lines; only set ignoreUnreadableLines once the user has agreed to lose them.
 - rename_list, delete_list (which requires a matching confirmName), rewrite_history, and
   update_config are destructive; use them deliberately.
 - Lists are also exposed as readable resources at ritual://{type}/{slug}.`

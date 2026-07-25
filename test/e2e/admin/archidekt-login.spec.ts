@@ -1,37 +1,12 @@
 import { test, expect, type Page } from '@playwright/test'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { fulfillJsonRoute } from '../helpers/fulfill'
+import {
+  ARCHIDEKT_LOGGED_IN as LOGGED_IN_VALID,
+  ARCHIDEKT_NOT_LOGGED_IN as NOT_LOGGED_IN,
+  ARCHIDEKT_SESSION_EXPIRED as SESSION_EXPIRED,
+} from '../helpers/mock-admin'
 import type { ArchidektLoginStatus } from '../../../src/auth/interfaces'
-
-const NOT_LOGGED_IN: ArchidektLoginStatus = {
-  loggedIn: false,
-  username: null,
-  accessTokenExpiration: null,
-  accessTokenValid: false,
-  refreshTokenExpiration: null,
-  refreshTokenValid: false,
-  loginRequired: true,
-}
-
-const LOGGED_IN_VALID: ArchidektLoginStatus = {
-  loggedIn: true,
-  username: 'testuser',
-  accessTokenExpiration: new Date(Date.now() + 4 * 3600_000).toISOString(),
-  accessTokenValid: true,
-  refreshTokenExpiration: new Date(Date.now() + 30 * 24 * 3600_000).toISOString(),
-  refreshTokenValid: true,
-  loginRequired: false,
-}
-
-const SESSION_EXPIRED: ArchidektLoginStatus = {
-  loggedIn: true,
-  username: 'testuser',
-  accessTokenExpiration: new Date(Date.now() - 4 * 3600_000).toISOString(),
-  accessTokenValid: false,
-  refreshTokenExpiration: new Date(Date.now() - 3600_000).toISOString(),
-  refreshTokenValid: false,
-  loginRequired: true,
-}
 
 // Intercept both the status GET and the login POST on the shared endpoint.
 async function mockArchidekt(

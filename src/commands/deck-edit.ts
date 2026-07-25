@@ -17,7 +17,7 @@ import {
 } from '../change-event'
 import { allocateId, assignMissingDeckCardIds, collectDeckCardIds, createIdPool } from '../card-id'
 import { applyChangeToDeck } from '../editor/deck-changes'
-import { normalizeBoard } from './deck-sync-helpers'
+import { normalizeBoard } from '../deck-sync/diff'
 import {
   deckSectionNames,
   discardDeckCopy,

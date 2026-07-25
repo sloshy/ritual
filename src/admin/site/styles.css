@@ -347,6 +347,238 @@
   margin: 0;
 }
 
+/* ===== Sync decks ===== */
+.sync-last-run {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+}
+
+.sync-last-run-value {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.sync-direction-desc {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+}
+
+.sync-deck-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.sync-deck {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  border-bottom: 1px solid var(--border-separator);
+}
+
+.sync-deck:last-child {
+  border-bottom: none;
+}
+
+/* The master "All decks" row, held apart from the decks it toggles. */
+.sync-deck--all {
+  background: var(--bg-hover);
+  font-weight: 500;
+}
+
+.sync-deck-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.sync-deck-name {
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-deck-meta {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.sync-dry-run {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.sync-run-btn {
+  margin-bottom: 1rem;
+}
+
+/* ----- Unreadable-line confirmation ----- */
+.sync-unreadable {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+  border-radius: 0.375rem;
+}
+
+.sync-unreadable-lead {
+  font-size: 0.8125rem;
+  color: var(--warning-text);
+}
+
+.sync-unreadable-list {
+  list-style: none;
+  margin: 0.5rem 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sync-unreadable-file {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.sync-unreadable-line {
+  display: block;
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  padding-left: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.sync-unreadable-btn {
+  margin-top: 0.25rem;
+}
+
+.sync-run {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* A run-level line (e.g. a deck that could not be loaded at all). */
+.sync-run-note {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+/* One rule for both log surfaces: a line's level picks its color, whether it is
+   scoped to a deck (.sync-run-message) or to the run (.sync-run-note). */
+.sync-run-note[data-level='warn'],
+.sync-run-message[data-level='warn'] {
+  color: var(--warning-text);
+}
+
+.sync-run-note[data-level='error'],
+.sync-run-message[data-level='error'] {
+  color: var(--error-text);
+}
+
+.sync-run-deck {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  transition: border-color 0.2s;
+}
+
+.sync-run-deck[data-status='synced'] {
+  border-color: var(--success-border);
+}
+
+.sync-run-deck[data-status='skipped'] {
+  border-color: var(--warning-border);
+}
+
+.sync-run-deck[data-status='failed'] {
+  border-color: var(--error-border);
+}
+
+.sync-run-icon {
+  width: 1.25rem;
+  text-align: center;
+  flex-shrink: 0;
+  color: var(--text-accent);
+}
+
+.sync-run-deck[data-status='synced'] .sync-run-icon {
+  color: var(--success-text);
+}
+
+.sync-run-deck[data-status='skipped'] .sync-run-icon {
+  color: var(--warning-text);
+}
+
+.sync-run-deck[data-status='failed'] .sync-run-icon {
+  color: var(--error-text);
+}
+
+.sync-run-deck[data-status='running'] .sync-run-icon {
+  animation: sync-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes sync-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.sync-run-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.sync-run-name {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.sync-run-message {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sync-run-deck[data-status='running'] .sync-run-icon {
+    animation: none;
+  }
+}
+
 /* ===== Semantic classes (replacing inline styles) ===== */
 
 /* ----- Layout ----- */

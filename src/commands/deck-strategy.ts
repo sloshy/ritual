@@ -26,7 +26,7 @@ import {
   type DeckSessionState,
 } from './deck-edit'
 import type { CardSessionContext, CardSessionStrategy, SessionAddItem } from './card-session'
-import { normalizeBoard } from './deck-sync-helpers'
+import { normalizeBoard } from '../deck-sync/diff'
 import {
   createAddChange,
   createSetPrintingChange,

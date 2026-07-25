@@ -1,13 +1,13 @@
-import { type JSX, createSignal, onMount, Show, Switch, Match } from 'solid-js'
+import { type JSX, createSignal, onMount, Show } from 'solid-js'
 import type { ArchidektLoginStatus } from '../../../auth/interfaces'
-import { useApiAction } from '../hooks/useApiAction'
-import { StatusAlerts } from '../components/StatusAlerts'
+import { ArchidektLoginForm, ArchidektSessionAlert } from '../components/ArchidektSession'
 import { formatDuration } from '../../../utils'
 
 function describeExpiry(expiration: string | null, valid: boolean): string {
   if (!expiration) return valid ? 'valid' : 'expiration unknown'
-  const when = new Date(expiration).toLocaleString()
-  const diff = new Date(expiration).getTime() - Date.now()
+  const expiresAt = new Date(expiration)
+  const when = expiresAt.toLocaleString()
+  const diff = expiresAt.getTime() - Date.now()
   if (diff > 0) {
     return `valid for ${formatDuration(diff)} (until ${when})`
   }
@@ -15,13 +15,10 @@ function describeExpiry(expiration: string | null, valid: boolean): string {
 }
 
 export function ArchidektLogin(): JSX.Element {
-  const [username, setUsername] = createSignal('')
-  const [password, setPassword] = createSignal('')
   const [status, setStatus] = createSignal<ArchidektLoginStatus | null>(null)
   const [statusLoading, setStatusLoading] = createSignal(true)
-  const { status: actionStatus, error, loading, run } = useApiAction()
 
-  const loadStatus = async () => {
+  const loadStatus = async (): Promise<void> => {
     setStatusLoading(true)
     try {
       const resp = await fetch('/api/login/archidekt', { credentials: 'same-origin' })
@@ -38,24 +35,6 @@ export function ArchidektLogin(): JSX.Element {
   onMount(() => {
     void loadStatus()
   })
-
-  const handleLogin = async (e: Event) => {
-    e.preventDefault()
-    if (!username() || !password()) return
-    const ok = await run(
-      '/api/login/archidekt',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username(), password: password() }),
-      },
-      'Login failed',
-    )
-    if (ok) {
-      setPassword('')
-      await loadStatus()
-    }
-  }
 
   return (
     <div>
@@ -75,24 +54,7 @@ export function ArchidektLogin(): JSX.Element {
         >
           {(s) => (
             <div class="archidekt-status">
-              <Switch>
-                <Match when={!s().loggedIn}>
-                  <p class="text-muted">
-                    Not signed in to Archidekt. Sign in below to use Archidekt account features.
-                  </p>
-                </Match>
-                <Match when={s().loginRequired}>
-                  <div class="alert alert-error">
-                    Your Archidekt session has expired. A login is required to use Archidekt account
-                    features.
-                  </div>
-                </Match>
-                <Match when={!s().loginRequired}>
-                  <div class="alert alert-success">
-                    Signed in as {s().username ?? 'your Archidekt account'}.
-                  </div>
-                </Match>
-              </Switch>
+              <ArchidektSessionAlert status={s()} />
               <Show when={s().loggedIn}>
                 <dl class="archidekt-status-list">
                   <div class="archidekt-status-row">
@@ -120,34 +82,7 @@ export function ArchidektLogin(): JSX.Element {
         </Show>
       </Show>
 
-      <StatusAlerts status={actionStatus()} error={error()} />
-      <form onSubmit={(e) => void handleLogin(e)} class="form-container">
-        <div>
-          <label class="form-label">Username or Email</label>
-          <input
-            type="text"
-            class="form-input"
-            value={username()}
-            onInput={(e) => setUsername(e.currentTarget.value)}
-          />
-        </div>
-        <div>
-          <label class="form-label">Password</label>
-          <input
-            type="password"
-            class="form-input"
-            value={password()}
-            onInput={(e) => setPassword(e.currentTarget.value)}
-          />
-        </div>
-        <button
-          type="submit"
-          class="btn btn-primary"
-          disabled={loading() || !username() || !password()}
-        >
-          {loading() ? 'Logging in...' : 'Login to Archidekt'}
-        </button>
-      </form>
+      <ArchidektLoginForm onLoggedIn={() => void loadStatus()} />
     </div>
   )
 }

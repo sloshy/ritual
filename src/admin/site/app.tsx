@@ -15,6 +15,7 @@ import { ImportCsv } from './pages/ImportCsv'
 import { ImportChanges } from './pages/ImportChanges'
 import { BuildSite } from './pages/BuildSite'
 import { CacheRefresh } from './pages/CacheRefresh'
+import { DeckSync } from './pages/DeckSync'
 import { ArchidektLogin } from './pages/ArchidektLogin'
 import { Settings } from './pages/Settings'
 import { AuditLog } from './pages/AuditLog'
@@ -155,6 +156,9 @@ function App() {
               </Match>
               <Match when={page() === 'cache-refresh'}>
                 <CacheRefresh />
+              </Match>
+              <Match when={page() === 'deck-sync'}>
+                <DeckSync />
               </Match>
               <Match when={page() === 'archidekt-login'}>
                 <ArchidektLogin />

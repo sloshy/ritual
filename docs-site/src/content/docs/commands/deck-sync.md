@@ -4,6 +4,9 @@ title: 'deck-sync'
 
 Sync deck card lists between local files and Archidekt.
 
+The same sync runs from the admin site's [Sync Decks](/admin/sync-decks/) page and from the MCP
+`sync_decks` tool — all three share one engine, so the rules below apply everywhere.
+
 ## Usage
 
 ```bash
@@ -22,11 +25,12 @@ Each name is matched case- and accent-insensitively with a unique-substring fall
 
 ## Options
 
-| Option              | Description                                                     | Default |
-| ------------------- | --------------------------------------------------------------- | ------- |
-| `-n, --dry-run`     | Report what would sync without writing files or pushing changes | `false` |
-| `--output <format>` | Output format: `text`, `json`, or `ndjson`                      | `text`  |
-| `--quiet`           | Suppress non-essential output                                   | `false` |
+| Option              | Description                                                               | Default |
+| ------------------- | ------------------------------------------------------------------------- | ------- |
+| `-n, --dry-run`     | Report what would sync without writing files or pushing changes           | `false` |
+| `-y, --yes`         | Sync decks with unreadable lines without asking (those lines are removed) | `false` |
+| `--output <format>` | Output format: `text`, `json`, or `ndjson`                                | `text`  |
+| `--quiet`           | Suppress non-essential output                                             | `false` |
 
 Under `--dry-run`, both directions still fetch the remote deck state (the diff
 needs it), but a pull writes no files and records no changelog entries, and a
@@ -50,14 +54,47 @@ report is emitted on stdout:
     },
     { "name": "Gone", "status": "failed", "reason": "Failed to fetch Archidekt deck 999: 404" }
   ],
-  "failedCount": 1
+  "failedCount": 1,
+  "unreadable": []
 }
 ```
 
+`unreadable` lists any deck whose file holds lines the parser could not read, with those lines — see
+[Unreadable Lines](#unreadable-lines).
+
 Each deck's `status` is `synced`, `failed`, or `skipped`; `reason` explains
 anything other than a clean sync. Decks that could not be resolved or are not
-sourced from Archidekt appear as `failed` entries. Top-level failures (for
-example, not being signed in) are emitted as a structured error on stderr.
+sourced from Archidekt appear as `failed` entries. A deck with an Archidekt
+`sourceUrl` but no `sourceId` is `skipped` when it is swept up by an all-decks
+run, and `failed` when you name it explicitly. Top-level failures (for example,
+not being signed in) are emitted as a structured error on stderr.
+
+## Unreadable Lines
+
+Both directions rewrite the deck file, so a line the parser cannot read — a stray comment, a
+malformed card line — would be **deleted** by the save. Rather than let that happen silently, a sync
+lists every affected deck and the exact lines at stake, then asks:
+
+```
+1 deck contains lines Ritual cannot read.
+Syncing rewrites the deck file, so these lines would be removed:
+  winota-stax.md ("Winota Stax"):
+    Skipped malformed line: // buy this one later
+? Sync 1 deck anyway, removing the lines above? › (y/N)
+```
+
+Answering no (the default) fails those decks; the rest of the run continues. Pass `-y, --yes` to
+answer yes up front.
+
+Without a terminal to ask — `--no-input`, a piped stdin, or `--output json`/`ndjson`, which owns
+stdout — the run does not prompt: the affected decks fail with
+`N unreadable lines would be dropped by a sync`, and the command exits 1. Pass `--yes` to sync them
+anyway, or fix the lines first. The listing above is written to stderr in every mode, so a scripted
+run still records what it refused; every report also carries an `unreadable` array with the same
+decks and lines.
+
+`--dry-run` is exempt: a preview writes nothing, so there is nothing to confirm. The lines are
+listed and the deck is previewed like any other.
 
 ## Failure Behavior
 
@@ -158,11 +195,11 @@ from the deck's sections. See [new](/commands/new/#deck-format).
 
 ## Exit Codes
 
-| Code | Meaning                                                            |
-| ---- | ------------------------------------------------------------------ |
-| `0`  | Every deck synced cleanly (or there was nothing to sync)           |
-| `1`  | At least one deck failed, or you are not signed into Archidekt     |
-| `2`  | Missing or invalid `<direction>` (anything other than push / pull) |
+| Code | Meaning                                                                                                                              |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `0`  | Every deck synced cleanly (or there was nothing to sync)                                                                             |
+| `1`  | At least one deck failed — including a deck refused for [unreadable lines](#unreadable-lines) — or you are not signed into Archidekt |
+| `2`  | Missing or invalid `<direction>` (anything other than push / pull)                                                                   |
 
 ## Examples
 
@@ -188,6 +225,12 @@ Preview a push without sending anything:
 
 ```bash
 ./ritual deck-sync push --dry-run
+```
+
+Sync in a script, accepting the loss of any lines Ritual cannot read:
+
+```bash
+./ritual deck-sync pull --yes --no-input
 ```
 
 Script a pull and inspect per-deck results:

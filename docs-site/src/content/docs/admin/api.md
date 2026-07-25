@@ -903,6 +903,132 @@ Overwrite the list's change log with the supplied change sets. Each set needs a 
 }
 ```
 
+## Deck Sync Status
+
+```
+GET /api/deck-sync
+```
+
+Returns every Archidekt-linked deck that can be synced — those whose front matter has both an
+Archidekt `sourceUrl` and a `sourceId` — plus the stored Archidekt login. Backs the
+[Sync Decks](/admin/sync-decks/) page and the MCP `deck_sync_status` tool.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "decks": [
+    {
+      "slug": "Winota Stax",
+      "name": "Winota Stax",
+      "sourceId": "12345",
+      "sourceUrl": "https://archidekt.com/decks/12345",
+      "lastSynced": "2026-07-20T12:00:00.000Z"
+    }
+  ],
+  "archidekt": {
+    "loggedIn": true,
+    "username": "someuser",
+    "accessTokenExpiration": "2026-07-24T18:00:00.000Z",
+    "accessTokenValid": true,
+    "refreshTokenExpiration": "2026-08-20T12:00:00.000Z",
+    "refreshTokenValid": true,
+    "loginRequired": false
+  }
+}
+```
+
+`lastSynced` is `null` for a deck that has never synced.
+
+## Sync Decks
+
+```
+POST /api/deck-sync
+```
+
+Sync decks with Archidekt, using the same engine as the [`deck-sync`](/commands/deck-sync/) CLI
+command. Exposed as the MCP `sync_decks` tool. Requires a stored Archidekt login; without one the
+response is `401` with `loginRequired: true`.
+
+**Request Body:**
+
+```json
+{
+  "direction": "pull",
+  "decks": ["Winota Stax"],
+  "dryRun": false
+}
+```
+
+| Field                   | Description                                                                                          | Required |
+| ----------------------- | ---------------------------------------------------------------------------------------------------- | -------- |
+| `direction`             | `pull` (Archidekt → local) or `push` (local → Archidekt). Any other value returns `400`.             | Yes      |
+| `decks`                 | Deck slugs or names, resolved like CLI list arguments. Omitted or empty syncs every linked deck.     | No       |
+| `dryRun`                | Report what would sync without writing files or pushing changes (default `false`).                   | No       |
+| `ignoreUnreadableLines` | Sync decks whose files contain lines the parser cannot read, deleting those lines (default `false`). | No       |
+
+A sync rewrites each deck file, so a line the parser cannot read would be deleted by the save. There
+is nobody to prompt over HTTP, so such decks **fail** (`N unreadable lines would be dropped by a
+sync`) unless the request sets `ignoreUnreadableLines` — the API equivalent of the CLI's
+[`--yes`](/commands/deck-sync/#unreadable-lines). The affected decks and their exact lines are
+reported both in `report.unreadable` and, on the stream, as a `progress` frame with
+`kind: "unreadable-lines"` emitted before the decision is applied. A `dryRun` request is exempt: it
+writes nothing, so those decks are previewed rather than refused.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Pulled 2 decks, 1 skipped.",
+  "report": {
+    "direction": "pull",
+    "decks": [
+      { "name": "Winota Stax", "status": "synced" },
+      { "name": "Oops All Soldiers", "status": "synced", "reason": "no changes" },
+      {
+        "name": "Borrowed Deck",
+        "status": "skipped",
+        "reason": "you do not own Archidekt deck 12345"
+      }
+    ],
+    "failedCount": 0,
+    "unreadable": []
+  }
+}
+```
+
+`success` reports whether the run could be performed, **not** whether every deck synced — a run with
+per-deck failures still returns `200` with `success: true` and a non-zero `report.failedCount`, so
+callers can read each deck's `status` and `reason`. `report.unreadable` lists any deck whose file
+holds lines the parser could not read (`{ name, file, warnings }`), so a caller that never sees the
+stream can still show what a retry with `ignoreUnreadableLines` would delete. When git auto-commit is
+enabled, deck files written by the run are committed (`Sync decks with Archidekt (<direction>)`).
+
+## Deck Sync Stream
+
+```
+GET /api/deck-sync/stream?direction=pull&deck=<slug>&deck=<slug>&dryRun=true
+```
+
+The same sync as `POST /api/deck-sync`, streamed as server-sent events. `EventSource` can only issue
+a bodyless `GET`, so the request arrives as query parameters: `direction` is required, `deck` repeats
+once per deck (omit entirely to sync all), and `dryRun` / `ignoreUnreadableLines` take `true` or
+`false` (any other value is rejected, so a flag that decides whether files are written can never be
+misread as "no").
+
+Three event types are emitted:
+
+| Event      | Payload                                                                                                                                                                                                                                                     |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `progress` | One step of the run: `{ kind: "deck-start", deck, index, total }`, `{ kind: "log", level, deck, message }` (`deck` is `null` for run-level lines), `{ kind: "deck-result", result }`, or `{ kind: "unreadable-lines", decks: [{ name, file, warnings }] }`. |
+| `done`     | `{ message, report }` — the same message and report the JSON endpoint returns.                                                                                                                                                                              |
+| `error`    | `{ message, loginRequired }` for a run that produced no report (bad parameters, no Archidekt login, or an unexpected failure).                                                                                                                              |
+
+Failures are reported inside the stream rather than as an HTTP status, since `EventSource` exposes no
+response body for a non-2xx open.
+
 ## Import CSV
 
 ```

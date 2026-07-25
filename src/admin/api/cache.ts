@@ -2,6 +2,7 @@ import { preloadCache } from '../../scryfall'
 import { StreamingLogger, setLogger, resetLogger } from '../../logger'
 import type { CacheProgressEvent } from '../../logger'
 import { getErrorMessage } from '../../errors'
+import { sseResponse } from '../../sse'
 import { apiHandler } from '../utils'
 
 interface CacheRefreshResponse {
@@ -17,47 +18,24 @@ export function handleCacheRefresh(): Promise<Response> {
   })
 }
 
-export async function handleCacheRefreshStream(): Promise<Response> {
-  const encoder = new TextEncoder()
+/** The event vocabulary of `GET /api/cache/refresh/stream`. */
+type CacheRefreshStreamEvents = {
+  progress: CacheProgressEvent
+  done: { message: string }
+  error: { message: string }
+}
 
-  const stream = new ReadableStream({
-    async start(controller) {
-      function sendEvent(eventType: string, data: object) {
-        const payload = `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`
-        try {
-          controller.enqueue(encoder.encode(payload))
-        } catch {
-          // stream closed
-        }
-      }
-
-      const logger = new StreamingLogger((event: CacheProgressEvent) => {
-        sendEvent('progress', event)
-      })
-
-      setLogger(logger)
-      try {
-        await preloadCache()
-        sendEvent('done', { message: 'Cache refreshed successfully' })
-      } catch (error) {
-        const msg = getErrorMessage(error)
-        sendEvent('error', { message: msg })
-      } finally {
-        resetLogger()
-        try {
-          controller.close()
-        } catch {
-          // already closed
-        }
-      }
-    },
+export function handleCacheRefreshStream(): Promise<Response> {
+  const response = sseResponse<CacheRefreshStreamEvents>(async (send) => {
+    setLogger(new StreamingLogger((event: CacheProgressEvent) => send('progress', event)))
+    try {
+      await preloadCache()
+      send('done', { message: 'Cache refreshed successfully' })
+    } catch (error) {
+      send('error', { message: getErrorMessage(error) })
+    } finally {
+      resetLogger()
+    }
   })
-
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-    },
-  })
+  return Promise.resolve(response)
 }

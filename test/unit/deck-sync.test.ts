@@ -11,7 +11,7 @@ import {
   type CardIdResolver,
   type CardSummary,
   type QuantityChange,
-} from '../../src/commands/deck-sync-helpers'
+} from '../../src/deck-sync/diff'
 import { assignMissingDeckCardIds } from '../../src/card-id'
 import { serializeDeckToMarkdown } from '../../src/deck-file'
 import type { AddChange, RemoveChange } from '../../src/change-event'

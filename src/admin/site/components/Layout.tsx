@@ -30,6 +30,7 @@ const navItems: NavItem[] = [
   { id: 'import-changes', label: 'Import Changes', icon: '📩' },
   { id: 'build-site', label: 'Build Site', icon: '🔨' },
   { id: 'cache-refresh', label: 'Refresh Cache', icon: '🔄' },
+  { id: 'deck-sync', label: 'Sync Decks', icon: '🔁' },
   { id: 'archidekt-login', label: 'Archidekt Login', icon: '🔑' },
   { id: 'audit-log', label: 'Audit Log', icon: '📋' },
   { id: 'settings', label: 'Settings', icon: '⚙️' },

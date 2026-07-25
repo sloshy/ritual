@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
-import { mockCacheRefreshApi, emitCacheRefreshEvent } from '../helpers/mock-admin'
+import { mockCacheRefreshApi, emitStreamEvent } from '../helpers/mock-admin'
 
 test.describe('Cache Refresh Page', () => {
   test.beforeEach(async ({ page }) => {
@@ -14,7 +14,7 @@ test.describe('Cache Refresh Page', () => {
     const main = page.locator('main')
     await main.locator('button:has-text("Refresh Cache")').click()
 
-    await emitCacheRefreshEvent(page, 'progress', {
+    await emitStreamEvent(page, 'progress', {
       stage: 'download',
       percentage: 50,
       message: 'Downloading: 50% (36.25/72.50 MiB)',
@@ -27,7 +27,7 @@ test.describe('Cache Refresh Page', () => {
       'Downloading & processing card data',
     )
 
-    await emitCacheRefreshEvent(page, 'progress', {
+    await emitStreamEvent(page, 'progress', {
       stage: 'save',
       message: 'Saving to cache...',
     })
@@ -38,7 +38,7 @@ test.describe('Cache Refresh Page', () => {
       'Saving to cache',
     )
 
-    await emitCacheRefreshEvent(page, 'done', { message: 'Cache refreshed successfully' })
+    await emitStreamEvent(page, 'done', { message: 'Cache refreshed successfully' })
     await expect(main.locator('.alert-success')).toBeVisible({ timeout: 5000 })
     // Completion collapses the progress UI and re-enables the button.
     await expect(main.locator('.progress-stages')).toHaveCount(0)

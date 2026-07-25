@@ -11,6 +11,7 @@ export type Page =
   | 'history'
   | 'build-site'
   | 'cache-refresh'
+  | 'deck-sync'
   | 'archidekt-login'
   | 'settings'
   | 'audit-log'
