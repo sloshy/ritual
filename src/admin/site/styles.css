@@ -12,6 +12,8 @@
   border-right: 1px solid var(--border);
 }
 
+/* An `<a href="#/…">`, so nav items behave like the links they are (new tab,
+   copy address) while a plain click is still handled in-app. */
 .admin-nav-item {
   display: flex;
   align-items: center;
@@ -20,6 +22,7 @@
   padding: 0.5rem 1rem;
   font-size: 0.8125rem;
   color: var(--text-secondary);
+  text-decoration: none;
   border: none;
   border-left: 3px solid transparent;
   background: none;
@@ -76,12 +79,15 @@
 }
 
 /* ===== Cards ===== */
+/* Also an `<a href="#/…">` — see `.admin-nav-item`. */
 .admin-card {
+  display: block;
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 0.5rem;
   padding: 1rem;
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
   transition:
     transform 0.15s,

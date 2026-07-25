@@ -6,17 +6,9 @@ test.describe('Layout & Navigation', () => {
     await gotoAdminDashboard(page)
   })
 
-  test('clicking nav item changes page and active state', async ({ page }) => {
-    await page.locator('.admin-sidebar .admin-nav-item:has-text("Settings")').click()
-    await expect(page.locator('.section-heading')).toContainText('Settings')
-    const settingsNav = page.locator('.admin-sidebar .admin-nav-item:has-text("Settings")')
-    await expect(settingsNav).toHaveAttribute('data-active', 'true')
-  })
-
-  test('clicking a dashboard card navigates to its page', async ({ page }) => {
-    await page.locator('.admin-card:has-text("Build Site")').click()
-    await expect(page.locator('.section-heading')).toContainText('Build Site')
-  })
+  // Desktop sidebar and dashboard-card navigation live in routing.spec.ts, which
+  // covers the same clicks plus the URL they produce. What remains here is the
+  // mobile overlay, which is Layout's own behavior.
 
   test('mobile hamburger menu opens sidebar overlay', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 })

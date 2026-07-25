@@ -1,7 +1,12 @@
 import { createContext, createSignal, useContext } from 'solid-js'
 
-/** A guard the active editor installs so navigation can confirm discarding unsaved changes. */
-export type NavigationAttempt = (proceed: () => void) => void
+/**
+ * A guard the active editor installs so navigation can confirm discarding unsaved
+ * changes. `onCancel` runs when the user declines, which lets a caller undo a
+ * navigation that already happened — the admin router uses it to put the URL
+ * back after a refused Back/Forward.
+ */
+export type NavigationAttempt = (proceed: () => void, onCancel?: () => void) => void
 
 /** What the active editor registers with the guard. */
 export type NavigationGuardEntry = {
@@ -45,9 +50,9 @@ export const useNavigationGuard = (): NavigationGuardController =>
 export function createNavigationGuard(): NavigationGuardController {
   const [entry, setEntry] = createSignal<NavigationGuardEntry | null>(null)
   return {
-    attempt: (proceed) => {
+    attempt: (proceed, onCancel) => {
       const active = entry()
-      if (active) active.attempt(proceed)
+      if (active) active.attempt(proceed, onCancel)
       else proceed()
     },
     isDirty: () => entry()?.isDirty() ?? false,

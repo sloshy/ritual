@@ -1,5 +1,6 @@
 import { type JSX, For } from 'solid-js'
-import type { Page, NavigateFn } from '../types'
+import type { Page } from '../routing'
+import { NavLink } from '../components/NavLink'
 
 interface ActionCard {
   id: Page
@@ -67,22 +68,18 @@ const actions: ActionCard[] = [
   { id: 'settings', title: 'Settings', description: 'Configure admin settings', icon: '⚙️' },
 ]
 
-interface DashboardProps {
-  onNavigate: NavigateFn
-}
-
-export function Dashboard(props: DashboardProps): JSX.Element {
+export function Dashboard(): JSX.Element {
   return (
     <div>
       <h2 class="section-heading">Dashboard</h2>
       <div class="admin-grid">
         <For each={actions}>
           {(action) => (
-            <button class="admin-card" onClick={() => props.onNavigate(action.id)}>
+            <NavLink page={action.id} class="admin-card">
               <div class="admin-card-icon">{action.icon}</div>
               <h3 class="admin-card-title">{action.title}</h3>
               <p class="admin-card-desc">{action.description}</p>
-            </button>
+            </NavLink>
           )}
         </For>
       </div>

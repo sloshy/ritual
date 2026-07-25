@@ -153,9 +153,11 @@ test.describe('Editor — discard guard on navigation', () => {
     const dialog = page.locator(DISCARD_DIALOG)
     await expect(dialog).toBeVisible()
 
-    // Cancel stays on the editor page.
+    // Cancel stays on the editor page. The address bar must not have moved while
+    // the prompt was open — the URL is only written once the discard is accepted.
     await dialog.locator('button', { hasText: 'Cancel' }).click()
     await expect(page.locator('.section-heading')).toContainText('Edit Lists')
+    expect(await page.evaluate(() => window.location.hash)).toBe('#/edit/deck/deck-a')
 
     // Confirm leaves for the dashboard.
     await page.locator('.admin-nav-item:has-text("Dashboard")').click()

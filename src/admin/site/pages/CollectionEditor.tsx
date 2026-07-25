@@ -17,6 +17,7 @@ import { CollectionEditorBody } from '../../../editor/CollectionEditorBody'
 import { adminSearch, fetchAdminJson, fetchCardPrice } from '../editor-backend'
 import { useAdminLists, moveTargetsExcluding } from '../move-targets'
 import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
+import { type EditorSlugProps, useSlugSync } from '../hooks/useSlugSync'
 
 type CollectionListResponse = { collections?: { slug: string; name: string }[] }
 
@@ -31,9 +32,7 @@ type CollectionDataResponse = {
   contentHash: string
 }
 
-type CollectionEditorProps = { initialSlug?: string | null }
-
-export function CollectionEditor(props: CollectionEditorProps): JSX.Element {
+export function CollectionEditor(props: EditorSlugProps): JSX.Element {
   const defaults = useEditorDefaults('collection', 'admin')
   const lists = useAdminLists()
   // Late-bound so the config (built before the controller) can read the live slug.
@@ -110,6 +109,7 @@ export function CollectionEditor(props: CollectionEditorProps): JSX.Element {
     printingOf: collectionPrintingOf,
   })
   currentSlug = () => ctrl.editor.slug()
+  useSlugSync(ctrl.editor.slug, props)
 
   const name = () =>
     ctrl.editor.list().find((c) => c.slug === ctrl.editor.slug())?.name ?? ctrl.editor.slug() ?? ''

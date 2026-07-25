@@ -1,6 +1,7 @@
 import type { ParentComponent } from 'solid-js'
-import { createSignal, For, Show } from 'solid-js'
-import type { Page, NavigateFn } from '../types'
+import { createMemo, createSignal, For, Show } from 'solid-js'
+import { type Page, useRouting } from '../routing'
+import { NavLink } from './NavLink'
 import { FlameIcon } from '../../../site/FlameIcon'
 import { SelectionMenu } from '../../../site/SelectionMenu'
 import {
@@ -36,15 +37,19 @@ const navItems: NavItem[] = [
   { id: 'settings', label: 'Settings', icon: '⚙️' },
 ]
 
+/** Pages whose content spans the full window rather than the reading-width column. */
+const FULL_WIDTH_PAGES: readonly Page[] = ['list-editor', 'move-cards']
+
 interface LayoutProps {
-  currentPage: Page
-  onNavigate: NavigateFn
   onLogout?: () => void
-  fullWidth?: boolean
 }
 
 export const Layout: ParentComponent<LayoutProps> = (props) => {
   const [menuOpen, setMenuOpen] = createSignal(false)
+  const routing = useRouting()
+  // Memoized: the editor rewrites the route as its list selection changes, which
+  // must not re-run the active state of all 14 nav links.
+  const currentPage = createMemo((): Page => routing.route().page)
 
   // Cross-list selection button: always present (self-hides when nothing is
   // selected). The admin site has no trade page, so it offers copy/clear plus a
@@ -84,22 +89,18 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
 
   const moveAllTargets = (): NamedListRef[] => listInfosToNamedRefs(lists())
 
-  const handleNav = (page: Page) => {
-    props.onNavigate(page)
-    setMenuOpen(false)
-  }
-
   const navList = () => (
     <For each={navItems}>
       {(item) => (
-        <button
+        <NavLink
+          page={item.id}
           class="admin-nav-item"
-          data-active={props.currentPage === item.id ? 'true' : undefined}
-          onClick={() => handleNav(item.id)}
+          active={currentPage() === item.id}
+          onNavigate={() => setMenuOpen(false)}
         >
           <span class="nav-icon">{item.icon}</span>
           {item.label}
-        </button>
+        </NavLink>
       )}
     </For>
   )
@@ -178,7 +179,11 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
           </div>
         </Show>
         {/* Main content */}
-        <main class={props.fullWidth ? 'main-content' : 'main-content-constrained'}>
+        <main
+          class={
+            FULL_WIDTH_PAGES.includes(currentPage()) ? 'main-content' : 'main-content-constrained'
+          }
+        >
           {props.children}
         </main>
       </div>

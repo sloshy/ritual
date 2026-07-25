@@ -18,3 +18,18 @@ export async function openListEditor(page: Page, type: ListType): Promise<void> 
   await page.locator(`.list-type-tab:has-text("${LIST_TYPE_DISPLAY[type].label}")`).click()
   await expect(page.locator(SELECTOR_ID[type])).toBeVisible()
 }
+
+/**
+ * Pick a list in the open editor's selector. The selector is populated from a
+ * fetch, so it starts holding only its placeholder — selecting before the real
+ * options arrive silently fails.
+ */
+export async function selectList(page: Page, type: ListType, slug: string): Promise<void> {
+  const id = SELECTOR_ID[type]
+  await page.waitForFunction(
+    (selector) => (document.querySelector<HTMLSelectElement>(selector)?.options.length ?? 0) > 1,
+    id,
+    { timeout: 10_000 },
+  )
+  await page.locator(id).selectOption(slug)
+}

@@ -19,6 +19,7 @@ import { useDeckEditController, DeckEditorBody } from '../../../editor/DeckEditC
 import { adminSearch, fetchAdminJson, fetchCardPrice } from '../editor-backend'
 import { useAdminLists, moveTargetsExcluding } from '../move-targets'
 import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
+import { type EditorSlugProps, useSlugSync } from '../hooks/useSlugSync'
 
 type DeckListResponse = { decks?: { slug: string; name: string }[] }
 
@@ -36,9 +37,7 @@ type DeckDataResponse = {
   contentHash: string
 }
 
-type DeckEditorProps = { initialSlug?: string | null }
-
-export function DeckEditor(props: DeckEditorProps): JSX.Element {
+export function DeckEditor(props: EditorSlugProps): JSX.Element {
   const defaults = useEditorDefaults('deck', 'admin')
   const lists = useAdminLists()
   // Late-bound so the config (built before the controller) can read the live slug.
@@ -115,6 +114,7 @@ export function DeckEditor(props: DeckEditorProps): JSX.Element {
 
   const ctrl = useDeckEditController(buildConfig, props.initialSlug)
   currentSlug = () => ctrl.editor.slug()
+  useSlugSync(ctrl.editor.slug, props)
 
   return (
     <DeckEditorBody

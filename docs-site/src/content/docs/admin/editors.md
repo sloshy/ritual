@@ -10,6 +10,8 @@ The admin site provides a single **Edit Lists** page for managing decks, collect
 
 Pick a list type with the tabs at the top of the page, then choose the file to edit from the dropdown below them. Loading a file fetches full card data, printings, and pricing from the cache.
 
+The address bar follows both choices — `#/edit/deck/Winota%20Stax` is the deck editor with that deck open — so the page can be bookmarked or shared, and reloading returns to the same list. See [page URLs](/admin/#page-urls) for the full scheme.
+
 ### Keyboard Shortcuts
 
 The editors can be driven entirely from the keyboard. Page-level shortcuts are suppressed while any dialog is open, so a dialog's own keys always win:

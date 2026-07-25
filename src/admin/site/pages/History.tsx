@@ -15,6 +15,8 @@ type PendingConfirm = {
   confirmLabel: string
   destructive: boolean
   onConfirm: () => void
+  /** Runs when the prompt is dismissed, for confirmations that undo something on refusal. */
+  onCancel?: () => void
 }
 
 /** Strip the leading `- ` marker so a raw change line renders as a plain list item. */
@@ -42,12 +44,17 @@ export function History(): JSX.Element {
     })
 
   // Route a navigation (page change or list switch) through a discard confirmation
-  // when there are unsaved edits; run it immediately otherwise.
-  const guardedNavigate = (proceed: () => void) => {
+  // when there are unsaved edits; run it immediately otherwise. `onCancel` lets the
+  // caller undo a navigation that already happened — the router restores the URL
+  // when a Back/Forward is refused.
+  const guardedNavigate = (proceed: () => void, onCancel?: () => void) => {
     if (!session.dirty()) {
       proceed()
       return
     }
+    // A second attempt supersedes the first, which still has to undo whatever it
+    // did to get here (the router restores the URL a refused Back moved off of).
+    confirm()?.onCancel?.()
     setConfirm({
       title: 'Discard unsaved changes?',
       message: 'Your edits to this change history will be lost.',
@@ -57,6 +64,7 @@ export function History(): JSX.Element {
         setConfirm(null)
         proceed()
       },
+      onCancel,
     })
   }
 
@@ -345,7 +353,11 @@ export function History(): JSX.Element {
             confirmLabel={c().confirmLabel}
             destructive={c().destructive}
             onConfirm={c().onConfirm}
-            onCancel={() => setConfirm(null)}
+            onCancel={() => {
+              const onCancel = c().onCancel
+              setConfirm(null)
+              onCancel?.()
+            }}
           />
         )}
       </Show>

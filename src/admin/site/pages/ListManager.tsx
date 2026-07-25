@@ -8,7 +8,7 @@ import {
   Show,
   For,
 } from 'solid-js'
-import type { NavigateFn } from '../types'
+import { NavLink } from '../components/NavLink'
 import {
   DECK_FORMAT_KEYS,
   getDeckFormatLabel,
@@ -90,9 +90,7 @@ const CATEGORY_META: Record<Category, CategoryMeta> = {
 
 const CATEGORIES: Category[] = ['decks', 'collections', 'wanted']
 
-type ListManagerProps = { onNavigate: NavigateFn }
-
-export function ListManager(props: ListManagerProps): JSX.Element {
+export function ListManager(): JSX.Element {
   const [category, setCategory] = createSignal<Category>('decks')
   const [items, setItems] = createSignal<ListItem[]>([])
   const [loadError, setLoadError] = createSignal<string | null>(null)
@@ -282,10 +280,6 @@ export function ListManager(props: ListManagerProps): JSX.Element {
     setView('delete')
   }
 
-  const openEditor = (item: ListItem) => {
-    props.onNavigate('list-editor', { slug: item.slug, listType: meta().listType })
-  }
-
   const cancel = () => {
     resetForms()
     setView('list')
@@ -356,9 +350,13 @@ export function ListManager(props: ListManagerProps): JSX.Element {
                               {pub() ? 'Public' : 'Hidden'}
                             </span>
                           </label>
-                          <button class="btn btn-secondary btn-sm" onClick={() => openEditor(item)}>
+                          <NavLink
+                            page="list-editor"
+                            options={{ listType: meta().listType, slug: item.slug }}
+                            class="btn btn-secondary btn-sm"
+                          >
                             Edit
-                          </button>
+                          </NavLink>
                           <button class="btn btn-secondary btn-sm" onClick={() => openRename(item)}>
                             Rename
                           </button>

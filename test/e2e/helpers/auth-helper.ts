@@ -20,12 +20,15 @@ export const ADMIN_STORAGE_STATE = path.resolve(
 )
 
 /**
- * Navigate to the admin dashboard, assuming the browser context is already
+ * Navigate to the admin site, assuming the browser context is already
  * authenticated. Tests in the `admin` project start from the saved storage
  * state (see ADMIN_STORAGE_STATE), so this replaces a full login flow.
+ *
+ * Pass a `hash` (e.g. `#/edit/deck/my-deck`) to open a page directly, the way a
+ * bookmark or a shared link would; the default lands on the dashboard.
  */
-export async function gotoAdminDashboard(page: Page): Promise<void> {
-  await page.goto(ADMIN_URL)
+export async function gotoAdminDashboard(page: Page, hash = ''): Promise<void> {
+  await page.goto(`${ADMIN_URL}${hash}`)
   await page.locator('.admin-sidebar').waitFor({ timeout: 10_000 })
 }
 

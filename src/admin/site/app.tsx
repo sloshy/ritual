@@ -1,11 +1,19 @@
-import { render } from 'solid-js/web'
-import { createSignal, onMount, onCleanup, batch, Show, Switch, Match } from 'solid-js'
-import type { Page, NavigateFn } from './types'
+import { Dynamic, render } from 'solid-js/web'
+import {
+  type Component,
+  createMemo,
+  createSignal,
+  onMount,
+  onCleanup,
+  Show,
+  Switch,
+  Match,
+} from 'solid-js'
+import { type Page, RoutingProvider, createRouting } from './routing'
 import { pendingPrintingPrompt } from '../../site/printing-prompt'
 import { TradePrintingPicker } from '../../site/TradePrintingPicker'
 import { pendingMovePrompt, closeMovePrompt } from '../../site/move-prompt'
 import { MoveTargetPicker } from '../../site/MoveTargetPicker'
-import type { ListType } from '../../list-type'
 import { Layout } from './components/Layout'
 import { AuthGuard } from './components/AuthGuard'
 import { NavigationGuardProvider, createNavigationGuard } from '../../editor/navigation-guard'
@@ -26,32 +34,37 @@ import { History } from './pages/History'
 
 type StatusResponse = { setupRequired: boolean; totpEnabled?: boolean }
 
+/** The component each page renders. Typed by {@link Page}, so a new page cannot be forgotten. */
+const PAGE_COMPONENTS: Record<Page, Component> = {
+  dashboard: Dashboard,
+  'list-editor': ListEditor,
+  'list-manager': ListManager,
+  'move-cards': MoveCards,
+  history: History,
+  'import-deck': ImportDeck,
+  'import-csv': ImportCsv,
+  'import-changes': ImportChanges,
+  'build-site': BuildSite,
+  'cache-refresh': CacheRefresh,
+  'deck-sync': DeckSync,
+  'archidekt-login': ArchidektLogin,
+  settings: Settings,
+  'audit-log': AuditLog,
+}
+
 function App() {
-  const [page, setPage] = createSignal<Page>('dashboard')
-  // List type + slug to pre-select when navigating into the editor page; both
-  // cleared on any navigation that doesn't supply them (e.g. sidebar / dashboard
-  // clicks).
-  const [editorSlug, setEditorSlug] = createSignal<string | null>(null)
-  const [editorListType, setEditorListType] = createSignal<ListType | null>(null)
   const [setupRequired, setSetupRequired] = createSignal<boolean | null>(null)
   const [totpEnabled, setTotpEnabled] = createSignal(false)
   const [loggedIn, setLoggedIn] = createSignal(false)
 
   const navigationGuard = createNavigationGuard()
-
-  const navigate: NavigateFn = (next, options) => {
-    // Leaving the editor page (or any nav) confirms discarding unsaved changes
-    // first; the guard runs this immediately when there is nothing to discard.
-    navigationGuard.attempt(() => {
-      // One logical navigation event — batch so the editor page mounts once with
-      // both the target list type and slug already in place.
-      batch(() => {
-        setEditorSlug(options?.slug ?? null)
-        setEditorListType(options?.listType ?? null)
-        setPage(next)
-      })
-    })
-  }
+  // Every navigation — link, dashboard card, or the browser's Back/Forward —
+  // runs through the guard, so leaving an editor with unsaved changes still
+  // confirms first.
+  const routing = createRouting(navigationGuard.attempt)
+  // Memoized: the route also changes when the editor tracks its list selection
+  // in the URL, which must not disturb the page or the nav's active states.
+  const page = createMemo(() => routing.route().page)
 
   const checkStatus = async () => {
     try {
@@ -120,75 +133,34 @@ function App() {
       </Match>
       <Match when={loggedIn()}>
         <NavigationGuardProvider value={navigationGuard}>
-          <Layout
-            currentPage={page()}
-            onNavigate={navigate}
-            onLogout={() => navigationGuard.attempt(() => void onLogout())}
-            fullWidth={page() === 'list-editor' || page() === 'move-cards'}
-          >
-            <Switch>
-              <Match when={page() === 'dashboard'}>
-                <Dashboard onNavigate={navigate} />
-              </Match>
-              <Match when={page() === 'list-editor'}>
-                <ListEditor initialType={editorListType()} initialSlug={editorSlug()} />
-              </Match>
-              <Match when={page() === 'list-manager'}>
-                <ListManager onNavigate={navigate} />
-              </Match>
-              <Match when={page() === 'move-cards'}>
-                <MoveCards />
-              </Match>
-              <Match when={page() === 'history'}>
-                <History />
-              </Match>
-              <Match when={page() === 'import-deck'}>
-                <ImportDeck />
-              </Match>
-              <Match when={page() === 'import-csv'}>
-                <ImportCsv />
-              </Match>
-              <Match when={page() === 'import-changes'}>
-                <ImportChanges />
-              </Match>
-              <Match when={page() === 'build-site'}>
-                <BuildSite />
-              </Match>
-              <Match when={page() === 'cache-refresh'}>
-                <CacheRefresh />
-              </Match>
-              <Match when={page() === 'deck-sync'}>
-                <DeckSync />
-              </Match>
-              <Match when={page() === 'archidekt-login'}>
-                <ArchidektLogin />
-              </Match>
-              <Match when={page() === 'settings'}>
-                <Settings />
-              </Match>
-              <Match when={page() === 'audit-log'}>
-                <AuditLog />
-              </Match>
-            </Switch>
-            {/* Shared picker for choosing a move destination (section or list). */}
-            <Show when={pendingMovePrompt()}>
-              {(prompt) => <MoveTargetPicker prompt={prompt()} onClose={closeMovePrompt} />}
-            </Show>
+          <RoutingProvider value={routing}>
+            <Layout onLogout={() => navigationGuard.attempt(() => void onLogout())}>
+              {/* Keyed on the navigation, so arriving at a page — including the
+                  one already open, at a different list — always starts it fresh,
+                  while the page's own URL updates leave it mounted. */}
+              <Show when={routing.navKey()} keyed>
+                <Dynamic component={PAGE_COMPONENTS[page()]} />
+              </Show>
+              {/* Shared picker for choosing a move destination (section or list). */}
+              <Show when={pendingMovePrompt()}>
+                {(prompt) => <MoveTargetPicker prompt={prompt()} onClose={closeMovePrompt} />}
+              </Show>
 
-            {/* Shared printing picker for moving a printing-less card into a collection. */}
-            <Show when={pendingPrintingPrompt()}>
-              {(prompt) => (
-                <TradePrintingPicker
-                  cardName={prompt().cardName}
-                  printings={prompt().printings}
-                  loading={false}
-                  currency="usd"
-                  onSelect={(printing, finish) => prompt().onSelect(printing, finish)}
-                  onClose={() => prompt().onSkip()}
-                />
-              )}
-            </Show>
-          </Layout>
+              {/* Shared printing picker for moving a printing-less card into a collection. */}
+              <Show when={pendingPrintingPrompt()}>
+                {(prompt) => (
+                  <TradePrintingPicker
+                    cardName={prompt().cardName}
+                    printings={prompt().printings}
+                    loading={false}
+                    currency="usd"
+                    onSelect={(printing, finish) => prompt().onSelect(printing, finish)}
+                    onClose={() => prompt().onSkip()}
+                  />
+                )}
+              </Show>
+            </Layout>
+          </RoutingProvider>
         </NavigationGuardProvider>
       </Match>
     </Switch>

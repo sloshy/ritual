@@ -38,7 +38,7 @@ import { clampQuantity } from '../ui/quantity'
 export type ListItem = { slug: string; name: string }
 
 /** A navigation deferred until the user confirms discarding unsaved changes. */
-type PendingNavigation = { run: () => void }
+type PendingNavigation = { run: () => void; cancel?: () => void }
 
 /**
  * Narrow set of change/pool operations the "change printing" flow needs, built
@@ -412,12 +412,15 @@ export function useEditor<TData, TCardEntry = unknown>(
   /**
    * Route a navigation through the discard guard. With unsaved changes the
    * action is stashed and the discard dialog opened (it runs on confirm via
-   * {@link handleDiscard}); otherwise it runs immediately. Returns true when it
-   * ran synchronously.
+   * {@link handleDiscard}, and `onCancel` runs instead if the user backs out);
+   * otherwise it runs immediately. Returns true when it ran synchronously.
    */
-  const guardedNavigate = (proceed: () => void): boolean => {
+  const guardedNavigate = (proceed: () => void, onCancel?: () => void): boolean => {
     if (changes.changeCount() > 0) {
-      setPendingNav({ run: proceed })
+      // A second attempt (e.g. Back pressed twice before answering) supersedes
+      // the first, which still has to undo whatever it did to get here.
+      pendingNav()?.cancel?.()
+      setPendingNav({ run: proceed, cancel: onCancel })
       dialogs.openDiscard()
       return false
     }
@@ -429,7 +432,7 @@ export function useEditor<TData, TCardEntry = unknown>(
   // changes unload prompt) routes through it while it is the mounted editor.
   onCleanup(
     navigationGuard.register({
-      attempt: (proceed) => void guardedNavigate(proceed),
+      attempt: (proceed, onCancel) => void guardedNavigate(proceed, onCancel),
       isDirty: () => changes.changeCount() > 0,
     }),
   )
@@ -446,8 +449,12 @@ export function useEditor<TData, TCardEntry = unknown>(
   }
 
   const handleCancelDiscard = () => {
+    const pending = pendingNav()
     setPendingNav(null)
     dialogs.closeDiscard()
+    // Let the caller undo whatever it did to start the navigation (the admin
+    // router restores the URL a refused Back/Forward already changed).
+    pending?.cancel?.()
   }
 
   /**

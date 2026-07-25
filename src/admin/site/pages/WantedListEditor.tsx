@@ -14,6 +14,7 @@ import { WantedEditorBody } from '../../../editor/WantedEditorBody'
 import { adminSearch, fetchAdminJson, fetchCardPrice } from '../editor-backend'
 import { useAdminLists, moveTargetsExcluding } from '../move-targets'
 import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
+import { type EditorSlugProps, useSlugSync } from '../hooks/useSlugSync'
 
 type WantedListListResponse = { wantedLists?: { slug: string; name: string }[] }
 
@@ -28,9 +29,7 @@ type WantedListDataResponse = {
   contentHash: string
 }
 
-type WantedListEditorProps = { initialSlug?: string | null }
-
-export function WantedListEditor(props: WantedListEditorProps): JSX.Element {
+export function WantedListEditor(props: EditorSlugProps): JSX.Element {
   const defaults = useEditorDefaults('wanted', 'admin')
   const lists = useAdminLists()
   // Late-bound so the config (built before the controller) can read the live slug.
@@ -108,6 +107,7 @@ export function WantedListEditor(props: WantedListEditorProps): JSX.Element {
     printingOf: wantedPrintingOf,
   })
   currentSlug = () => ctrl.editor.slug()
+  useSlugSync(ctrl.editor.slug, props)
 
   const name = () =>
     ctrl.editor.list().find((c) => c.slug === ctrl.editor.slug())?.name ?? ctrl.editor.slug() ?? ''

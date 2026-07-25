@@ -12,7 +12,7 @@ The page is organised by category — switch between **Decks**, **Collections**,
 
 ## Editing a list
 
-Each list has an **Edit** button (between its visibility toggle and **Rename**) that jumps straight to the **Edit Lists** page, opening the matching tab with that list already selected, so you can start changing cards without picking it from the editor's dropdown.
+Each list has an **Edit** button (between its visibility toggle and **Rename**) that jumps straight to the **Edit Lists** page, opening the matching tab with that list already selected, so you can start changing cards without picking it from the editor's dropdown. It is a link to that list's [URL](/admin/#page-urls), so ⌘/Ctrl-clicking it opens the editor in a new tab.
 
 ## File names
 

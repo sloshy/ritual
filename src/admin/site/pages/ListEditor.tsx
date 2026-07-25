@@ -1,38 +1,50 @@
-import { type JSX, createSignal, Switch, Match, For } from 'solid-js'
+import { type JSX, batch, createSignal, untrack, Switch, Match, For } from 'solid-js'
 import { type ListType, LIST_TYPES, LIST_TYPE_DISPLAY } from '../../../list-type'
 import { useNavigationGuard } from '../../../editor/navigation-guard'
+import { useRouting } from '../routing'
 import { useSearchDebounce } from '../hooks/useSearchDebounce'
 import { DeckEditor } from './DeckEditor'
 import { CollectionEditor } from './CollectionEditor'
 import { WantedListEditor } from './WantedListEditor'
 
-type ListEditorProps = {
-  /** List type whose tab opens first (defaults to decks). */
-  initialType?: ListType | null
-  /** Slug to pre-select, valid only for the initially active type. */
-  initialSlug?: string | null
-}
-
 /**
  * Single "Edit Lists" page hosting all three list editors. A type tab selects
  * which editor mounts; each editor supplies its own type-specific behavior
  * (commander sections, condition tracking, printing requirements, etc.).
+ *
+ * The open tab and the list being edited come from the page URL
+ * (`#/edit/<type>/<slug>`) and are written back to it as they change, so the
+ * address bar always names what is on screen and the link can be shared.
  */
-export function ListEditor(props: ListEditorProps): JSX.Element {
-  const [activeType, setActiveType] = createSignal<ListType>(props.initialType ?? 'deck')
+export function ListEditor(): JSX.Element {
+  const routing = useRouting()
+  // A snapshot of where the URL pointed when this page mounted — arriving
+  // anywhere else remounts it, so it never needs to track the route.
+  const initial = untrack(routing.route)
+  const editing = initial.page === 'list-editor' ? initial.editing : undefined
+  const [activeType, setActiveType] = createSignal<ListType>(editing?.listType ?? 'deck')
   // A deep-linked slug only applies to the editor open on mount; switching tabs
   // clears it so the newly opened editor starts from its empty selector.
-  const [deepLinkSlug, setDeepLinkSlug] = createSignal<string | null>(props.initialSlug ?? null)
+  const [deepLinkSlug, setDeepLinkSlug] = createSignal<string | null>(editing?.slug ?? null)
   const navigationGuard = useNavigationGuard()
   useSearchDebounce()
+
+  // Selections made on this page rewrite the current history entry rather than
+  // adding one, so Back leaves the editor instead of stepping through the lists
+  // that were opened in it.
+  const trackInUrl = (listType: ListType, slug: string | null) =>
+    routing.replace({ page: 'list-editor', editing: { listType, slug: slug ?? undefined } })
 
   const selectType = (type: ListType) => {
     if (type === activeType()) return
     // Switching tabs unmounts the active editor; route through the guard so any
     // unsaved changes prompt for confirmation before they are dropped.
     navigationGuard.attempt(() => {
-      setDeepLinkSlug(null)
-      setActiveType(type)
+      batch(() => {
+        setDeepLinkSlug(null)
+        setActiveType(type)
+      })
+      trackInUrl(type, null)
     })
   }
 
@@ -57,13 +69,22 @@ export function ListEditor(props: ListEditorProps): JSX.Element {
 
       <Switch>
         <Match when={activeType() === 'deck'}>
-          <DeckEditor initialSlug={deepLinkSlug()} />
+          <DeckEditor
+            initialSlug={deepLinkSlug()}
+            onSlugChange={(slug) => trackInUrl('deck', slug)}
+          />
         </Match>
         <Match when={activeType() === 'collection'}>
-          <CollectionEditor initialSlug={deepLinkSlug()} />
+          <CollectionEditor
+            initialSlug={deepLinkSlug()}
+            onSlugChange={(slug) => trackInUrl('collection', slug)}
+          />
         </Match>
         <Match when={activeType() === 'wanted'}>
-          <WantedListEditor initialSlug={deepLinkSlug()} />
+          <WantedListEditor
+            initialSlug={deepLinkSlug()}
+            onSlugChange={(slug) => trackInUrl('wanted', slug)}
+          />
         </Match>
       </Switch>
     </div>
