@@ -126,7 +126,7 @@ The `site` key holds public-site settings. It has two parts:
 
 - **Deployment settings** (`version`, `ciSystem`, `deployMode`, `distDir`, `detectChanges`) are managed by `ritual init-site` and present only after you run it. Don't edit them by hand.
 - **Publish lists** (`includeDecks`, `includeCollections`, `includeWantedLists` and their `exclude*` counterparts) are user-editable and decide which lists `build-site` publishes. You can set them from the admin **Settings** page, the per-list visibility toggles on the admin **Manage Lists** page, with [`config set`](/commands/config/), or by hand.
-- **Other user settings**: `bannedPrintings` (see [`config`](/commands/config/#sitebannedprintings)) and `apiBaseUrl` (below).
+- **Other user settings**: `bannedPrintings` (see [`config`](/commands/config/#properties)) and `apiBaseUrl` (below).
 
 ```json
 {
@@ -148,21 +148,21 @@ The `site` key holds public-site settings. It has two parts:
 }
 ```
 
-| Field                | Default | Description                                                                                               |
-| -------------------- | ------- | --------------------------------------------------------------------------------------------------------- |
-| `version`            | —       | The Ritual version that initialized the site. Used to drive workflow upgrades.                            |
-| `ciSystem`           | —       | `github-actions` or `manual`.                                                                             |
-| `deployMode`         | —       | `publish-for-me` or `local-build` (github-actions only).                                                  |
-| `distDir`            | —       | The directory containing your built site (github-actions only).                                           |
-| `detectChanges`      | —       | Whether the workflow runs `git-detect-changes` (github-actions only).                                     |
-| `includeDecks`       | `["*"]` | Which decks `build-site` publishes (see below).                                                           |
-| `includeCollections` | `["*"]` | Which collections `build-site` publishes.                                                                 |
-| `includeWantedLists` | `["*"]` | Which wanted lists `build-site` publishes.                                                                |
-| `excludeDecks`       | `[]`    | Decks to drop even when `includeDecks` selects them.                                                      |
-| `excludeCollections` | `[]`    | Collections to drop even when `includeCollections` selects them.                                          |
-| `excludeWantedLists` | `[]`    | Wanted lists to drop even when `includeWantedLists` selects them.                                         |
-| `bannedPrintings`    | `[]`    | Printings barred from default-printing selection (see [`config`](/commands/config/#sitebannedprintings)). |
-| `apiBaseUrl`         | —       | Base URL of a live backend for a split deployment (see below).                                            |
+| Field                | Default | Description                                                                                      |
+| -------------------- | ------- | ------------------------------------------------------------------------------------------------ |
+| `version`            | —       | The Ritual version that initialized the site. Used to drive workflow upgrades.                   |
+| `ciSystem`           | —       | `github-actions` or `manual`.                                                                    |
+| `deployMode`         | —       | `publish-for-me` or `local-build` (github-actions only).                                         |
+| `distDir`            | —       | The directory containing your built site (github-actions only).                                  |
+| `detectChanges`      | —       | Whether the workflow runs `git-detect-changes` (github-actions only).                            |
+| `includeDecks`       | `["*"]` | Which decks `build-site` publishes (see below).                                                  |
+| `includeCollections` | `["*"]` | Which collections `build-site` publishes.                                                        |
+| `includeWantedLists` | `["*"]` | Which wanted lists `build-site` publishes.                                                       |
+| `excludeDecks`       | `[]`    | Decks to drop even when `includeDecks` selects them.                                             |
+| `excludeCollections` | `[]`    | Collections to drop even when `includeCollections` selects them.                                 |
+| `excludeWantedLists` | `[]`    | Wanted lists to drop even when `includeWantedLists` selects them.                                |
+| `bannedPrintings`    | `[]`    | Printings barred from default-printing selection (see [`config`](/commands/config/#properties)). |
+| `apiBaseUrl`         | —       | Base URL of a live backend for a split deployment (see below).                                   |
 
 ### Pointing a static build at a live backend (`apiBaseUrl`)
 
