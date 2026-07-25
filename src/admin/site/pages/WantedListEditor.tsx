@@ -32,9 +32,6 @@ type WantedListDataResponse = {
 export function WantedListEditor(props: EditorSlugProps): JSX.Element {
   const defaults = useEditorDefaults('wanted', 'admin')
   const lists = useAdminLists()
-  // Late-bound so the config (built before the controller) can read the live slug.
-  let currentSlug: () => string | null = () => props.initialSlug ?? null
-
   const defaultCurrency = useDefaultCurrency()
 
   const buildConfig = (
@@ -97,7 +94,7 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
 
     cardCountsBySection: countsBySection,
     cardSectionOf: sectionOfTarget,
-    moveTargets: () => moveTargetsExcluding(lists(), 'wanted', currentSlug()),
+    moveTargets: (currentSlug) => moveTargetsExcluding(lists(), 'wanted', currentSlug),
   })
 
   const ctrl = useFlatListEditController<WantedListCardEntry>({
@@ -106,7 +103,6 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
     applyChange: applyChangeToWantedList,
     printingOf: wantedPrintingOf,
   })
-  currentSlug = () => ctrl.editor.slug()
   useSlugSync(ctrl.editor.slug, props)
 
   const name = () =>

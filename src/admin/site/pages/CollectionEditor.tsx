@@ -35,9 +35,6 @@ type CollectionDataResponse = {
 export function CollectionEditor(props: EditorSlugProps): JSX.Element {
   const defaults = useEditorDefaults('collection', 'admin')
   const lists = useAdminLists()
-  // Late-bound so the config (built before the controller) can read the live slug.
-  let currentSlug: () => string | null = () => props.initialSlug ?? null
-
   const defaultCurrency = useDefaultCurrency()
 
   const buildConfig = (
@@ -99,7 +96,7 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
 
     cardCountsBySection: countsBySection,
     cardSectionOf: sectionOfTarget,
-    moveTargets: () => moveTargetsExcluding(lists(), 'collection', currentSlug()),
+    moveTargets: (currentSlug) => moveTargetsExcluding(lists(), 'collection', currentSlug),
   })
 
   const ctrl = useFlatListEditController<CollectionCardEntry>({
@@ -108,7 +105,6 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
     applyChange: applyChangeToCollection,
     printingOf: collectionPrintingOf,
   })
-  currentSlug = () => ctrl.editor.slug()
   useSlugSync(ctrl.editor.slug, props)
 
   const name = () =>

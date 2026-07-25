@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
-import { openListEditor } from '../helpers/editor-nav'
+import { openListEditor, selectList } from '../helpers/editor-nav'
 import { fulfillJson } from '../helpers/fulfill'
 import { makeMockScryfallCard } from '../helpers/mock-cards'
 import { disableSearchDebounce } from '../helpers/search-modal'
@@ -80,6 +80,32 @@ test.describe('Deck Editor Page', () => {
       await restoredCard.locator('.edit-btn-context').click()
       const menu = page.locator('.card-context-menu')
       await expect(menu.locator('button', { hasText: 'Unset as Commander' })).toBeVisible()
+    })
+
+    test('"Move to list" offers every list except the deck being edited', async ({ page }) => {
+      // The destinations are computed from the editor's live selection, so they
+      // must follow a switch to another deck — not stay pinned to the one the
+      // editor mounted with.
+      const openMovePicker = async () => {
+        await page
+          .locator('.card-item')
+          .filter({ hasText: 'Lightning Bolt' })
+          .first()
+          .locator('.edit-btn-context')
+          .click()
+        await page.locator('.card-context-menu button', { hasText: 'Move to list…' }).click()
+        return page.locator('.move-picker-list')
+      }
+
+      await expect(await openMovePicker()).toContainText('Emberwild Aggro')
+      await expect(page.locator('.move-picker-list')).not.toContainText('Test Unset Commander')
+      await page.locator('.move-picker-close').click()
+
+      await selectList(page, 'deck', 'emberwild-aggro')
+      await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
+
+      await expect(await openMovePicker()).toContainText('Test Unset Commander')
+      await expect(page.locator('.move-picker-list')).not.toContainText('Emberwild Aggro')
     })
   })
 

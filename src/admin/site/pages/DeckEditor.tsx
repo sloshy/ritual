@@ -40,9 +40,6 @@ type DeckDataResponse = {
 export function DeckEditor(props: EditorSlugProps): JSX.Element {
   const defaults = useEditorDefaults('deck', 'admin')
   const lists = useAdminLists()
-  // Late-bound so the config (built before the controller) can read the live slug.
-  let currentSlug: () => string | null = () => props.initialSlug ?? null
-
   const defaultCurrency = useDefaultCurrency()
 
   const buildConfig = (cardActions: DeckCardDataActions): ListEditorConfig<DeckData> => ({
@@ -109,11 +106,10 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
     sectionsOf: (deck) => deck.sections.map((s) => s.name),
     cardCountsBySection: deckCountsBySection,
     cardSectionOf: findDeckCardSection,
-    moveTargets: () => moveTargetsExcluding(lists(), 'deck', currentSlug()),
+    moveTargets: (currentSlug) => moveTargetsExcluding(lists(), 'deck', currentSlug),
   })
 
   const ctrl = useDeckEditController(buildConfig, props.initialSlug)
-  currentSlug = () => ctrl.editor.slug()
   useSlugSync(ctrl.editor.slug, props)
 
   return (

@@ -189,10 +189,12 @@ export type EditorConfig<TData> = {
   cardSectionOf?: (data: TData, target: CardContextInfo) => string | undefined
 
   /**
-   * The other lists a card in this editor can be moved to, already excluding the
-   * current list. Drives the "Move to list" menus; omit to disable cross-list moves.
+   * The other lists a card in this editor can be moved to. Drives the "Move to
+   * list" menus; omit to disable cross-list moves. Receives the slug of the list
+   * currently open — which changes as the user picks another one — so the
+   * implementation can exclude it without tracking the selection itself.
    */
-  moveTargets?: () => ListRef[]
+  moveTargets?: (currentSlug: string | null) => ListRef[]
 
   /**
    * The currency price displays should use, as a reactive accessor. The admin
@@ -938,7 +940,7 @@ export function useEditor<TData, TCardEntry = unknown>(
     handleRemoveSection,
     handleMoveCardToSection,
     handleMoveCardsToSection,
-    moveTargets: () => config.moveTargets?.() ?? [],
+    moveTargets: () => config.moveTargets?.(slug()) ?? [],
 
     textPrompt,
     closeTextPrompt,
