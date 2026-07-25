@@ -10,6 +10,13 @@ import type { SearchProvider } from '../search-provider'
 import { useDocumentKeydown } from '../../ui/useDocumentKeydown'
 import { type KeyHint, KeyChips } from '../../ui/KeyHints'
 import { QuantityStepper } from '../../ui/QuantityStepper'
+import {
+  type PrintingCellOffset,
+  firstCellOfPage,
+  pageOfPrinting,
+  printingsPageStart,
+  totalPrintingPages,
+} from '../printing-pagination'
 import { stepQuantity } from '../../ui/quantity'
 import { searchDebounceMs } from '../search-debounce'
 
@@ -43,8 +50,6 @@ type AddOptionsInput = {
 }
 
 type Step = 'search' | 'printing' | 'finish-condition'
-
-const PRINTING_PAGE_SIZE = 8
 
 /** DOM id of the finish/condition step's quantity ticker, shared by its ↑/↓ navigation. */
 const QUANTITY_STEPPER_ID = 'add-card-qty'
@@ -115,13 +120,29 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     return d.condition
   }
 
-  const totalPrintingsPages = createMemo(() => Math.ceil(printings().length / PRINTING_PAGE_SIZE))
+  /**
+   * Cells the "No specific printing" tile takes from the first page. It also
+   * shifts every printing one place along in the keyboard highlight index, which
+   * runs over grid cells rather than printings.
+   */
+  const cellOffset = (): PrintingCellOffset => (props.requirePrinting ? 0 : 1)
+
+  const totalPrintingsPages = createMemo(() => totalPrintingPages(printings().length, cellOffset()))
+  /** Index into `printings()` of the first printing on the current page. */
+  const pageStart = createMemo(() => printingsPageStart(printingsPage(), cellOffset()))
   const paginatedPrintings = createMemo(() =>
-    printings().slice(
-      printingsPage() * PRINTING_PAGE_SIZE,
-      (printingsPage() + 1) * PRINTING_PAGE_SIZE,
-    ),
+    printings().slice(pageStart(), printingsPageStart(printingsPage() + 1, cellOffset())),
   )
+
+  /**
+   * Page the grid, moving the highlight onto the new page's first cell — leaving
+   * it on cell 0 would highlight nothing (the "No specific printing" tile renders
+   * on page 0 only) while Enter still committed that tile's choice.
+   */
+  const goToPage = (page: number): void => {
+    setPrintingsPage(page)
+    setPrintingHighlightIndex(firstCellOfPage(page))
+  }
 
   /**
    * Apply the set-code default to a list of printings. If the filter excludes
@@ -458,8 +479,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     (e) => {
       // The "No specific printing" tile, when offered, occupies highlight index 0
       // and shifts every printing one place along.
-      const hasNoPrintingOption = !props.requirePrinting
-      const offset = hasNoPrintingOption ? 1 : 0
+      const offset = cellOffset()
       const currentPrintings = printings()
       const totalItems = currentPrintings.length + offset
       // ←/→ step one card; ↑/↓ step one grid row. Both clamp to the ends of the
@@ -468,7 +488,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
         const newIdx = Math.min(Math.max(printingHighlightIndex() + delta, 0), totalItems - 1)
         setPrintingHighlightIndex(newIdx)
         const printingIdx = newIdx - offset
-        setPrintingsPage(printingIdx >= 0 ? Math.floor(printingIdx / PRINTING_PAGE_SIZE) : 0)
+        setPrintingsPage(printingIdx >= 0 ? pageOfPrinting(printingIdx, offset) : 0)
       }
       if (e.key === 'ArrowRight') {
         e.preventDefault()
@@ -485,7 +505,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       } else if (e.key === 'Enter') {
         e.preventDefault()
         const idx = printingHighlightIndex()
-        if (hasNoPrintingOption && idx === 0) {
+        if (offset > 0 && idx === 0) {
           selectPrinting(null)
         } else {
           const printing = currentPrintings[idx - offset]
@@ -789,12 +809,11 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                 </Show>
                 <For each={paginatedPrintings()}>
                   {(printing, i) => {
-                    const offset = props.requirePrinting ? 0 : 1
-                    const globalIdx = printingsPage() * PRINTING_PAGE_SIZE + i() + offset
+                    const cellIdx = (): number => pageStart() + i() + cellOffset()
                     const imageUrl = getCardImageUrl(printing)
                     return (
                       <button
-                        class={`printing-select-card btn-unstyled${globalIdx === printingHighlightIndex() ? ' printing-select-card--highlighted' : ''}`}
+                        class={`printing-select-card btn-unstyled${cellIdx() === printingHighlightIndex() ? ' printing-select-card--highlighted' : ''}`}
                         onClick={() => selectPrinting(printing)}
                       >
                         <Show when={imageUrl}>
@@ -816,10 +835,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
             <div class="printing-select-pagination">
               <button
                 disabled={printingsPage() === 0}
-                onClick={() => {
-                  setPrintingsPage((p) => p - 1)
-                  setPrintingHighlightIndex(0)
-                }}
+                onClick={() => goToPage(printingsPage() - 1)}
               >
                 ← Prev
               </button>
@@ -828,10 +844,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
               </span>
               <button
                 disabled={printingsPage() >= totalPrintingsPages() - 1}
-                onClick={() => {
-                  setPrintingsPage((p) => p + 1)
-                  setPrintingHighlightIndex(0)
-                }}
+                onClick={() => goToPage(printingsPage() + 1)}
               >
                 Next →
               </button>
