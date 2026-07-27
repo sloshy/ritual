@@ -103,9 +103,10 @@ export class ArchidektAuth implements AuthService<ArchidektCredentials> {
     }
 
     if (this.isExpired(token)) {
-      getLogger().info('Token expired, refreshing...')
       try {
-        return await this.refreshToken(token)
+        const accessToken = await this.refreshToken(token)
+        getLogger().info('Token refreshed successfully.')
+        return accessToken
       } catch (error) {
         getLogger().error('Failed to refresh token:', error)
         // Returning null signals the caller to re-enter the login flow.
