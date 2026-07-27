@@ -1,8 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import { csvCell } from '../../src/csv'
 import type { ExportEntry } from '../../src/export/entries'
+import { ARCHIDEKT_EXPORT_SETTINGS } from '../../src/export/presets'
 import {
   DEFAULT_EXPORT_COLUMNS,
+  exportPropertyLabel,
   parseColumnsFlag,
   renderCsvExport,
   renderJsonExport,
@@ -25,6 +27,9 @@ function entry(overrides: Partial<ExportEntry> = {}): ExportEntry {
     ...overrides,
   }
 }
+
+/** Header-less, minimally quoted CSV in Archidekt's dialect — one cell per column. */
+const csvOptions = { header: false, quoteAll: false, dialect: 'archidekt' } as const
 
 describe('csvCell', () => {
   test('quotes only when needed by default', () => {
@@ -306,5 +311,94 @@ describe('renderCsvExport', () => {
       quoteAll: false,
     })
     expect(csv).toBe('Lightning Bolt,"keep, do not trade"')
+  })
+
+  test('scryfallId renders the resolved id, empty when nothing resolved it', () => {
+    const csv = renderCsvExport(
+      [entry({ scryfallId: '1b59533a-3e38-495d-873e-2f89fbd08494' }), entry({ fileOrder: 1 })],
+      ['name', 'scryfallId'],
+      { header: true, quoteAll: false },
+    )
+    expect(csv).toBe(
+      'Name,Scryfall ID\n' +
+        'Lightning Bolt,1b59533a-3e38-495d-873e-2f89fbd08494\n' +
+        'Lightning Bolt,',
+    )
+  })
+})
+
+describe('the archidekt dialect', () => {
+  test.each<[ExportEntry['finish'], string]>([
+    ['nonfoil', 'Normal'],
+    ['foil', 'Foil'],
+    ['etched', 'Etched'],
+    // An unmarked line means nonfoil, and Archidekt's CSV has no "unmarked".
+    [undefined, 'Normal'],
+  ])('writes the finish %s as %s', (finish, expected) => {
+    expect(renderCsvExport([entry({ finish })], ['finish'], csvOptions)).toBe(expected)
+  })
+
+  test.each<[ExportEntry['condition'], string]>([
+    ['NM', 'NM'],
+    ['LP', 'LP'],
+    ['MP', 'MP'],
+    ['HP', 'HP'],
+    // Archidekt's CSV code for Damaged is D, not Ritual's DMG.
+    ['DMG', 'D'],
+    [undefined, 'NM'],
+  ])('writes the condition %s as %s', (condition, expected) => {
+    expect(renderCsvExport([entry({ condition })], ['condition'], csvOptions)).toBe(expected)
+  })
+
+  test('labels the finish column the way Archidekt names it', () => {
+    expect(exportPropertyLabel('finish', 'archidekt')).toBe('Variant')
+    expect(exportPropertyLabel('finish')).toBe('Finish')
+    expect(exportPropertyLabel('condition', 'archidekt')).toBe('Condition')
+  })
+
+  test('reaches JSON values too, without renaming the keys', () => {
+    const json = renderJsonExport(
+      [entry({ finish: 'etched', condition: 'DMG' })],
+      ['finish', 'condition'],
+      'archidekt',
+    )
+    expect(JSON.parse(json)).toEqual([{ finish: 'Etched', condition: 'D' }])
+  })
+
+  test('leaves every other property alone', () => {
+    const csv = renderCsvExport(
+      [entry({ scryfallId: 'abc', note: 'trade' })],
+      ['name', 'set', 'edition', 'scryfallId', 'isFoil', 'note', 'quantity'],
+      csvOptions,
+    )
+    expect(csv).toBe('Lightning Bolt,LEA,LEA:161,abc,true,trade,1')
+  })
+
+  test('the archidekt preset renders exactly the documented upload format', () => {
+    const csv = renderCsvExport(
+      [
+        entry({
+          scryfallId: '1b59533a-3e38-495d-873e-2f89fbd08494',
+          quantity: 2,
+          finish: 'nonfoil',
+        }),
+        entry({
+          scryfallId: '9f0a30cf-b9d6-4b7e-8a6b-2a8b1c3d4e5f',
+          condition: 'DMG',
+          fileOrder: 1,
+        }),
+      ],
+      ARCHIDEKT_EXPORT_SETTINGS.columns,
+      {
+        header: ARCHIDEKT_EXPORT_SETTINGS.header,
+        quoteAll: ARCHIDEKT_EXPORT_SETTINGS.quoteAll,
+        dialect: ARCHIDEKT_EXPORT_SETTINGS.dialect,
+      },
+    )
+    expect(csv).toBe(
+      'Scryfall ID,Quantity,Variant,Condition\n' +
+        '1b59533a-3e38-495d-873e-2f89fbd08494,2,Normal,NM\n' +
+        '9f0a30cf-b9d6-4b7e-8a6b-2a8b1c3d4e5f,1,Foil,D',
+    )
   })
 })

@@ -1,9 +1,11 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
+import type { CollectionSyncRequest } from '../../admin/api/collection-sync'
 import { callApi } from '../dispatch'
 import { jsonResult } from '../result'
 import { listTypeSchema, slugField } from '../schemas'
-import { SYNC_DIRECTIONS } from '../../deck-sync/engine'
+import { CSV_UPLOAD_THRESHOLD } from '../../collection-sync/csv'
+import { SYNC_CHANGE_FILTERS, SYNC_DIRECTIONS } from '../../sync-common'
 
 const newNameField = z.string().min(1).describe('New display name.')
 const confirmNameField = z
@@ -21,13 +23,50 @@ const changeSetSchema = z.object({
     .describe('Change lines, each starting with "- " (e.g. "- Added Sol Ring").'),
 })
 
+// ── Wording shared by the two Archidekt sync tools ────────────────────
+//
+// sync_decks and sync_collection expose the same flags over the same
+// vocabulary, so the prose describing them lives here once, parameterized by
+// what each tool syncs. Only the descriptions are shared: the fields themselves
+// are built per tool, since a tool’s raw input shape is its own.
+
+const SYNC_DIRECTION_DESCRIPTION = '"pull" (Archidekt → local) or "push" (local → Archidekt).'
+
+const SYNC_DRY_RUN_DESCRIPTION = 'Report what would sync without writing files or pushing changes.'
+
+/**
+ * The `only` filter, worded for the thing whose diff it narrows (`"each deck"`,
+ * `"the collection"`).
+ */
+function changeFilterDescription(subject: string): string {
+  return (
+    `Apply only one side of ${subject}’s diff, relative to the sync destination: ` +
+    '"additions" applies new cards and quantity increases, "removals" applies ' +
+    'removed cards and quantity decreases. Omit to apply every change.'
+  )
+}
+
+/**
+ * The `ignoreUnreadableLines` escape hatch, worded for what fails without it
+ * (`"decks"`, `"collection lists"`). Both directions lose those lines — a pull
+ * rewrites the file, and a push treats the file as the truth — which is why this
+ * is the tool’s stand-in for the CLI’s `--yes` prompt.
+ */
+function ignoreUnreadableDescription(plural: string): string {
+  return (
+    `Sync ${plural} whose files contain lines the parser cannot read, losing those lines. ` +
+    `Such ${plural} fail by default; check the failure reason and confirm with the user ` +
+    'before setting this.'
+  )
+}
+
 /**
  * Register the destructive / administrative tools. rename_list changes a list’s
  * file and slug; delete_list requires a matching `confirmName`; rewrite_history
  * replaces a change log wholesale; update_config persists configuration;
- * build_site, sync_decks, and refresh_cache trigger longer-running operations
- * (sync_decks also writes to Archidekt). All are flagged with the SDK’s
- * destructiveHint so clients can gate or confirm them.
+ * build_site, sync_decks, sync_collection, and refresh_cache trigger
+ * longer-running operations (both sync tools also write to Archidekt). All are
+ * flagged with the SDK’s destructiveHint so clients can gate or confirm them.
  */
 export function registerDestructiveTools(server: McpServer): void {
   server.registerTool(
@@ -119,37 +158,136 @@ export function registerDestructiveTools(server: McpServer): void {
         'Archidekt. Omit decks to sync every linked deck. Returns a per-deck report; ' +
         'a run with failures still reports success — check report.failedCount.',
       inputSchema: {
-        direction: z
-          .enum(SYNC_DIRECTIONS)
-          .describe('"pull" (Archidekt → local) or "push" (local → Archidekt).'),
+        direction: z.enum(SYNC_DIRECTIONS).describe(SYNC_DIRECTION_DESCRIPTION),
         decks: z
           .array(z.string().min(1))
           .optional()
           .describe('Deck slugs or names; omit to sync every Archidekt-linked deck.'),
-        dryRun: z
-          .boolean()
-          .optional()
-          .describe('Report what would sync without writing files or pushing changes.'),
+        dryRun: z.boolean().optional().describe(SYNC_DRY_RUN_DESCRIPTION),
         ignoreUnreadableLines: z
           .boolean()
           .optional()
-          .describe(
-            'Sync decks whose files contain lines the parser cannot read, deleting those lines. ' +
-              'Such decks fail by default; check the failure reason and confirm with the user ' +
-              'before setting this.',
-          ),
+          .describe(ignoreUnreadableDescription('decks')),
+        only: z.enum(SYNC_CHANGE_FILTERS).optional().describe(changeFilterDescription('each deck')),
       },
       annotations: { destructiveHint: true, openWorldHint: true },
     },
-    async ({ direction, decks, dryRun, ignoreUnreadableLines }) =>
+    async ({ direction, decks, dryRun, ignoreUnreadableLines, only }) =>
       jsonResult(
         await callApi('POST', '/api/deck-sync', {
           direction,
           decks,
           dryRun,
           ignoreUnreadableLines,
+          only,
         }),
       ),
+  )
+
+  server.registerTool(
+    'sync_collection',
+    {
+      title: 'Sync collection with Archidekt',
+      description:
+        'Sync collection lists with the signed-in Archidekt account’s collection: "pull" adds ' +
+        'and removes local card lines (recording them in each changelog), "push" reshapes the ' +
+        'remote records to match the local lists. An account has ONE collection while Ritual ' +
+        'has many collection lists, so a run compares the union of the lists in scope against ' +
+        'the whole remote collection. A pull that must take only SOME of a printing’s copies ' +
+        'when they live in several lists cannot know which list lost the card: without ' +
+        'removalPriority such a run fails and writes nothing at all — not even the account’s ' +
+        'lastSynced. report.ambiguous lists every ambiguity the planner found whether or not a ' +
+        'priority went on to place them, so read report.errors to tell a failed run from a ' +
+        `resolved one. A push adding more than ${CSV_UPLOAD_THRESHOLD} new printings likewise ` +
+        'fails without pushing anything unless csv: true lets it upload them as one CSV import ' +
+        '(report.csv then says what that import did). Returns a per-list report; a run with ' +
+        'failures still reports success — check report.failedCount.',
+      inputSchema: {
+        direction: z.enum(SYNC_DIRECTIONS).describe(SYNC_DIRECTION_DESCRIPTION),
+        lists: z
+          .array(z.string().min(1))
+          .optional()
+          .describe(
+            'Collection list slugs or names to scope the local side to; omit to compare every ' +
+              'collection list. The remote side is always the whole Archidekt collection, so ' +
+              'naming a subset declares that those lists are what it mirrors — cards living ' +
+              'only in unnamed lists read as absent. Pair it with only: "additions" when the ' +
+              'named lists are not the whole story.',
+          ),
+        dryRun: z.boolean().optional().describe(SYNC_DRY_RUN_DESCRIPTION),
+        ignoreUnreadableLines: z
+          .boolean()
+          .optional()
+          .describe(ignoreUnreadableDescription('collection lists')),
+        only: z
+          .enum(SYNC_CHANGE_FILTERS)
+          .optional()
+          .describe(changeFilterDescription('the collection')),
+        into: z
+          .string()
+          .min(1)
+          .optional()
+          .describe(
+            'Collection list a pull adds new cards to, created if it does not exist. Defaults ' +
+              'to the collectionSync.pullTarget config key ("Inbox" unless configured). A push ' +
+              'ignores it — it writes nothing locally.',
+          ),
+        removalPriority: z
+          .array(z.string().min(1))
+          .optional()
+          .describe(
+            'Collection lists an ambiguous removal may take copies from, IN PRIORITY ORDER: ' +
+              'copies come only from these lists, walking them in the order given. Names are ' +
+              'matched exactly (never by the substring rule), and an unknown one fails the run. ' +
+              'It applies to ambiguous removals only — taking every copy of a printing, or ' +
+              'copies held in a single list, never needs it. A priority that cannot cover a ' +
+              'removal fails the run and writes nothing, so ask the user which binders may ' +
+              'lose cards rather than guessing. A push ignores it.',
+          ),
+        csv: z
+          .boolean()
+          .optional()
+          .describe(
+            'Send a push’s NEW cards to Archidekt as one CSV import (rows built from the local ' +
+              'Scryfall cache) instead of resolving and creating them one at a time. Adding a ' +
+              `printing costs a search plus a create, so a push with more than ${CSV_UPLOAD_THRESHOLD} ` +
+              'new printings and no csv: true FAILS before writing anything remote rather than ' +
+              'spending that many paced requests — there is nobody to prompt over MCP. Set it for ' +
+              'any large push (a dry run never needs it: it reports the upload it would make). ' +
+              'The rows come from the local Scryfall cache, so an empty or day-old cache is ' +
+              'refreshed automatically before the upload is built (there is nobody to ask). ' +
+              'report.csv then says what the import did, including rows Archidekt refused. ' +
+              'Quantity changes and removals never ride the CSV, and a pull ignores the field. ' +
+              'Writing the CSV to a file instead of pushing it is CLI-only (--csv-file).',
+          ),
+      },
+      annotations: { destructiveHint: true, openWorldHint: true },
+    },
+    async ({
+      direction,
+      lists,
+      dryRun,
+      ignoreUnreadableLines,
+      only,
+      into,
+      removalPriority,
+      csv,
+    }) => {
+      // Typed against the endpoint's own contract, so a field renamed on either
+      // side is a compile error here rather than an option silently dropped on the
+      // way to the handler (which ignores keys it does not know).
+      const body: Partial<CollectionSyncRequest> = {
+        direction,
+        lists,
+        dryRun,
+        ignoreUnreadableLines,
+        only,
+        into,
+        removalPriority,
+        csv,
+      }
+      return jsonResult(await callApi('POST', '/api/collection-sync', body))
+    },
   )
 
   server.registerTool(

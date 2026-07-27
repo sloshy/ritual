@@ -961,12 +961,13 @@ response is `401` with `loginRequired: true`.
 }
 ```
 
-| Field                   | Description                                                                                          | Required |
-| ----------------------- | ---------------------------------------------------------------------------------------------------- | -------- |
-| `direction`             | `pull` (Archidekt → local) or `push` (local → Archidekt). Any other value returns `400`.             | Yes      |
-| `decks`                 | Deck slugs or names, resolved like CLI list arguments. Omitted or empty syncs every linked deck.     | No       |
-| `dryRun`                | Report what would sync without writing files or pushing changes (default `false`).                   | No       |
-| `ignoreUnreadableLines` | Sync decks whose files contain lines the parser cannot read, deleting those lines (default `false`). | No       |
+| Field                   | Description                                                                                                                                                                                                                   | Required |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `direction`             | `pull` (Archidekt → local) or `push` (local → Archidekt). Any other value returns `400`.                                                                                                                                      | Yes      |
+| `decks`                 | Deck slugs or names, resolved like CLI list arguments. Omitted or empty syncs every linked deck.                                                                                                                              | No       |
+| `dryRun`                | Report what would sync without writing files or pushing changes (default `false`).                                                                                                                                            | No       |
+| `ignoreUnreadableLines` | Sync decks whose files contain lines the parser cannot read, deleting those lines (default `false`).                                                                                                                          | No       |
+| `only`                  | `additions` or `removals` — apply just one side of each deck's diff, relative to the sync destination (see [Change Filter](/commands/deck-sync/#change-filter)). Omitted applies every change; any other value returns `400`. | No       |
 
 A sync rewrites each deck file, so a line the parser cannot read would be deleted by the save. There
 is nobody to prompt over HTTP, so such decks **fail** (`N unreadable lines would be dropped by a
@@ -1009,14 +1010,14 @@ enabled, deck files written by the run are committed (`Sync decks with Archidekt
 ## Deck Sync Stream
 
 ```
-GET /api/deck-sync/stream?direction=pull&deck=<slug>&deck=<slug>&dryRun=true
+GET /api/deck-sync/stream?direction=pull&deck=<slug>&deck=<slug>&only=additions&dryRun=true
 ```
 
 The same sync as `POST /api/deck-sync`, streamed as server-sent events. `EventSource` can only issue
 a bodyless `GET`, so the request arrives as query parameters: `direction` is required, `deck` repeats
-once per deck (omit entirely to sync all), and `dryRun` / `ignoreUnreadableLines` take `true` or
-`false` (any other value is rejected, so a flag that decides whether files are written can never be
-misread as "no").
+once per deck (omit entirely to sync all), `only` takes `additions` or `removals` (omit it to apply
+every change), and `dryRun` / `ignoreUnreadableLines` take `true` or `false` (any other value is
+rejected, so a flag that decides whether files are written can never be misread as "no").
 
 Three event types are emitted:
 
@@ -1025,6 +1026,212 @@ Three event types are emitted:
 | `progress` | One step of the run: `{ kind: "deck-start", deck, index, total }`, `{ kind: "log", level, deck, message }` (`deck` is `null` for run-level lines), `{ kind: "deck-result", result }`, or `{ kind: "unreadable-lines", decks: [{ name, file, warnings }] }`. |
 | `done`     | `{ message, report }` — the same message and report the JSON endpoint returns.                                                                                                                                                                              |
 | `error`    | `{ message, loginRequired }` for a run that produced no report (bad parameters, no Archidekt login, or an unexpected failure).                                                                                                                              |
+
+Failures are reported inside the stream rather than as an HTTP status, since `EventSource` exposes no
+response body for a non-2xx open.
+
+## Collection Sync Status
+
+```
+GET /api/collection-sync
+```
+
+Returns every collection list a run can be scoped to, the stored Archidekt login, when the account
+last synced, and the list a pull adds new cards to.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "lists": [{ "slug": "binder", "name": "Blue Binder" }],
+  "archidekt": {
+    "loggedIn": true,
+    "username": "someuser",
+    "accessTokenExpiration": "2026-07-24T18:00:00.000Z",
+    "accessTokenValid": true,
+    "refreshTokenExpiration": "2026-08-20T12:00:00.000Z",
+    "refreshTokenValid": true,
+    "loginRequired": false
+  },
+  "lastSynced": "2026-07-26T12:00:00.000Z",
+  "pullTarget": "Inbox",
+  "csvThreshold": 25
+}
+```
+
+`lastSynced` is account-level rather than per-list — an Archidekt account has one collection while
+ritual has many collection lists — and is `null` until a run applies something for real. A dry run
+records nothing, and neither does a run that stopped without writing (an ambiguous removal nothing
+could place — see [Sync Collection](#sync-collection) below), so the stamp always means "the lists
+and the account agreed at this time". `pullTarget` is the
+[`collectionSync.pullTarget`](/configuration/#collection-sync) config
+key, the list a pull adds new cards to unless the request names another. `csvThreshold` is how many
+new printings a push adds one at a time before the [CSV import path](#csv-import-for-new-cards) takes
+over — reported so a caller can explain (or decide) the `csv` field without restating the number.
+
+## Sync Collection
+
+```
+POST /api/collection-sync
+```
+
+Sync the account's Archidekt collection with the local collection lists, using the same engine as the
+[`collection-sync`](/commands/collection-sync/) CLI command. Requires a stored Archidekt login; without
+one the response is `401` with `loginRequired: true`. A login that predates recording which account it
+belongs to is refused the same way — a collection is fetched by numeric user id, so signing in again is
+the fix.
+
+**Request Body:**
+
+```json
+{
+  "direction": "pull",
+  "lists": ["Blue Binder"],
+  "into": "Inbox",
+  "removalPriority": ["Long Box", "Blue Binder"],
+  "dryRun": false
+}
+```
+
+| Field                   | Description                                                                                                                                                                          | Required |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| `direction`             | `pull` (Archidekt → local) or `push` (local → Archidekt). Any other value returns `400`.                                                                                             | Yes      |
+| `lists`                 | Collection list slugs or names, resolved like CLI list arguments. Omitted or empty compares the whole collection; the remote side is always the entire Archidekt collection.         | No       |
+| `into`                  | The list a pull adds new cards to, created if it does not exist. Omitted uses the `collectionSync.pullTarget` config key. A push ignores it.                                         | No       |
+| `only`                  | `additions` or `removals` — apply just one side of the diff, relative to the sync destination. Omitted applies every change; any other value returns `400`.                          | No       |
+| `removalPriority`       | Collection list names **in priority order** — the only lists an ambiguous removal may take copies from (see below). Must be an array of non-blank names or `400`. A push ignores it. | No       |
+| `csv`                   | Upload a push's **new cards** as one CSV import instead of adding them one at a time (see below). Must be a boolean or `400`. A pull ignores it.                                     | No       |
+| `dryRun`                | Report what would sync without writing files or touching Archidekt (default `false`).                                                                                                | No       |
+| `ignoreUnreadableLines` | Sync lists whose files contain lines the parser cannot read, dropping those lines (default `false`).                                                                                 | No       |
+
+A `csvFile` field is **rejected** with `400`: writing a CSV to a path the caller names is a CLI
+affordance ([`--csv-file`](/commands/collection-sync/#writing-the-csv-instead-of-pushing---csv-file)),
+not something this API does. Refused rather than ignored, so a caller mirroring the CLI's flags is
+told rather than watching its additions be uploaded instead.
+
+### CSV import for new cards
+
+Creating a record for a printing Archidekt does not have costs a search plus a create, both
+[paced 500 ms apart](/commands/collection-sync/#rate-limiting), so a first push of a real collection
+would take hundreds of requests. `csv: true` sends those additions through Archidekt's own collection
+importer instead — one upload, with every row built from the local Scryfall cache — exactly as the
+CLI's [`--csv`](/commands/collection-sync/#csv-import-for-new-cards) does, however few there are.
+
+There is nobody to prompt over HTTP, so a push adding more new printings than `csvThreshold` without
+`csv: true` **fails before writing anything to Archidekt**: the guidance lands in `report.errors`,
+`report.csv` stays `null`, and no record is created, grown, or deleted. A `dryRun` never needs the
+flag — over the threshold it reports the upload it would make and resolves nothing, which is what
+keeps a first preview from being rate limited. Quantity changes and removals never ride the CSV
+(removals use Archidekt's bulk-delete endpoint), and additions whose printing the local cache does
+not hold cannot become rows: they are added one at a time and counted in `report.csv.uncached`.
+
+The rows are keyed by the Scryfall ids the **local card cache** holds, and there is nobody here to ask
+about it either, so a run taking this path treats cache freshness as
+[`--refresh auto`](/commands/collection-sync/#cache-freshness): an empty or day-old cache is
+redownloaded before the file is built, reported as a `log` event on the stream and in the run's
+messages.
+
+A pull removal is **ambiguous** when only _some_ of a printing's copies are going and those copies
+live in several lists — nothing says which list the card physically left. (Taking every copy, or
+copies held in a single list, never is.) There is nobody to prompt over HTTP, so `removalPriority` is
+the caller's decision made up front: copies come only from the lists it names, walking them in the
+order given. Names are matched exactly, never by the substring rule other list lookups use, and an
+unknown name fails the run. Without a priority — or with one that cannot cover a removal — the run
+**fails and writes nothing at all**: the reason lands in `report.errors`, `report.ambiguous` carries
+each removal with its per-list copy counts, no list file is touched, and the account's `lastSynced`
+is left alone. A `dryRun` request never fails on an ambiguity itself; it reports it instead. (An
+unknown `removalPriority` name still fails a `dryRun` request — that is a bad argument rather than
+an unresolved removal.)
+
+A pull rewrites each list file and a push treats those files as the truth, so a line the parser cannot
+read would be lost either way. There is nobody to prompt over HTTP, so such lists **fail** unless the
+request sets `ignoreUnreadableLines` — the API equivalent of the CLI's `--yes`. The affected lists and
+their exact lines are reported both in `report.unreadable` and, on the stream, as a `progress` frame
+with `kind: "unreadable-lines"`. A `dryRun` request is exempt: it writes nothing, so those lists are
+previewed rather than refused.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Pulled +1 added, -0 removed into \"Inbox\".",
+  "report": {
+    "direction": "pull",
+    "into": "Inbox",
+    "dryRun": false,
+    "lists": [{ "name": "binder", "status": "synced", "added": 1, "removed": 0, "pending": 0 }],
+    "failedCount": 0,
+    "errors": [],
+    "unreadable": [],
+    "ambiguous": [],
+    "localIncomplete": false,
+    "csv": null,
+    "totals": { "added": 1, "removed": 0, "skipped": 0, "pending": 0 }
+  }
+}
+```
+
+`success` reports whether the run could be performed, **not** whether every list synced — a run with
+per-list failures still returns `200` with `success: true` and a non-zero `report.failedCount`.
+`report.errors` carries failures that belong to the run rather than to one list (the collection fetch,
+or deleting records for cards no list holds any more), and `report.ambiguous` every removal a pull
+could not place on its own — reported whether a `removalPriority` placed them or the run failed on
+them. Counts are in copies, not lists, since one card can live in several.
+
+`report.localIncomplete` is `true` when a list in scope did not make it into the comparison — an
+unresolvable name, a file that could not be read, or one held back for unreadable lines. The local
+side is then short of cards it really holds, so the run withholds exactly the changes that shortfall
+would manufacture: a pull adds nothing (those cards would be duplicated into the target list) and a
+push removes nothing (they would be deleted from Archidekt). Fix or accept the listed lists and run
+again. When git auto-commit is enabled, list files written by the run are
+committed (`Sync collection with Archidekt (<direction>)`).
+
+`report.csv` describes what the [CSV import](#csv-import-for-new-cards) did with a push's new cards,
+and is `null` on any run that did not take that path (every pull, a push that added nothing new, and
+one refused for lacking `csv: true`). Every shape carries `cards` (copies), `rows` (one per printing),
+and `uncached` (additions the cache could not resolve, added one at a time instead), plus:
+
+| `status`   | Extra fields                                | Meaning                                                        |
+| ---------- | ------------------------------------------- | -------------------------------------------------------------- |
+| `uploaded` | `chunks`, `failures[]`, `unconfirmedChunks` | Imported; `failures` names the rows Archidekt refused          |
+| `planned`  | `destination` (`upload`)                    | What a `dryRun` would have done — nothing was sent             |
+| `failed`   | `message`                                   | The whole import failed; the rest of the run still applied     |
+| `empty`    | —                                           | No row could be keyed at all: `uncached` covers every new card |
+
+`unconfirmedChunks` counts chunk responses Ritual could not read: their rows are counted as imported
+because nothing said otherwise, so a non-zero value means part of that outcome is assumed rather than
+confirmed (the run log carries what Archidekt replied).
+
+Each entry of `failures` is `{ row, card, ambiguous, notFound, errors }` — the 0-based row of the
+uploaded CSV, the card it carried, and why it was dropped. The lists holding those cards are reported
+as failed. (`exported` — the CLI's `--csv-file` outcome — cannot occur here, since the request parser
+refuses `csvFile`. `report.totals.pending` therefore stays `0` on this surface.)
+
+## Collection Sync Stream
+
+```
+GET /api/collection-sync/stream?direction=pull&list=<slug>&into=Inbox&only=additions&removalPriority=<slug>&csv=true&dryRun=true
+```
+
+The same sync as `POST /api/collection-sync`, streamed as server-sent events. `EventSource` can only
+issue a bodyless `GET`, so the request arrives as query parameters: `direction` is required, `list`
+repeats once per list (omit entirely to sync the whole collection), `removalPriority` repeats once
+per list **in priority order** (the order of the parameters is the priority; a blank one is
+rejected), `only` and `into` are omitted (or
+empty) to accept their defaults, and `csv` / `dryRun` / `ignoreUnreadableLines` take `true` or
+`false` (any other value is rejected, so a flag that decides whether files are written — or how a
+large batch of cards reaches Archidekt — can never be misread as "no"). A `csvFile` parameter is
+rejected here too.
+
+Three event types are emitted:
+
+| Event      | Payload                                                                                                                                                                                                                         |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `progress` | One step of the run: `{ kind: "list-start", list, index, total }`, `{ kind: "log", level, list, message }` (`list` is `null` for run-level lines), `{ kind: "list-result", result }`, or `{ kind: "unreadable-lines", lists }`. |
+| `done`     | `{ message, report }` — the same message and report the JSON endpoint returns.                                                                                                                                                  |
+| `error`    | `{ message, loginRequired }` for a run that produced no report (bad parameters, no Archidekt login, or an unexpected failure).                                                                                                  |
 
 Failures are reported inside the stream rather than as an HTTP status, since `EventSource` exposes no
 response body for a non-2xx open.
@@ -1147,13 +1354,14 @@ Render a CSV, JSON, plain-text, or Markdown export of cards from decks, collecti
   "columns": ["name", "set", "collectorNumber", "quantity"],
   "header": true,
   "quoteAll": false,
+  "dialect": "ritual",
   "preset": "trade-sheet"
 }
 ```
 
-`lists` names resolve like CLI list arguments (the optional `type` pins an ambiguous name). Each `cards` entry is whitespace-separated name terms; every entry across all lists whose name matches all terms is added (deduplicated against the selected lists). `filters.conditions` takes condition grades and/or `none` (cards with no condition marked), matching the CLI's `--condition` semantics. `preset` starts from a saved [export preset](/commands/export/#presets); the explicit fields override its values.
+`lists` names resolve like CLI list arguments (the optional `type` pins an ambiguous name). Each `cards` entry is whitespace-separated name terms; every entry across all lists whose name matches all terms is added (deduplicated against the selected lists). `filters.conditions` takes condition grades and/or `none` (cards with no condition marked), matching the CLI's `--condition` semantics. `preset` starts from a saved or built-in [export preset](/commands/export/#presets) — the built-in `archidekt` preset needs no config, and a saved preset of that name shadows it; the explicit fields override the preset's values.
 
-`format` is one of `csv` (default), `json`, `text` (one flat merged decklist, quantities aggregated), or `md` (canonical list markdown without `&N` ids) — see [export formats](/commands/export/#formats). `columns`, `header`, and `quoteAll` shape `csv`/`json` output only and are ignored for `text`/`md` (unlike the CLI, the route does not reject the combination).
+`format` is one of `csv` (default), `json`, `text` (one flat merged decklist, quantities aggregated), or `md` (canonical list markdown without `&N` ids) — see [export formats](/commands/export/#formats). `columns`, `header`, `quoteAll`, and `dialect` shape `csv`/`json` output only and are ignored for `text`/`md` (unlike the CLI, the route does not reject the combination). `dialect` is the value vocabulary for finish and condition: `ritual` (the default — `nonfoil`/`foil`/`etched`, `NM`…`DMG`) or `archidekt` (`Normal`/`Foil`/`Etched` under a `Variant` header, and `NM|LP|MP|HP|D`) — see [dialects](/commands/export/#dialects). An unknown `dialect` or `preset` is a `400`. A selected `scryfallId` column is resolved from the local Scryfall cache.
 
 **Response:**
 
@@ -1167,4 +1375,4 @@ Render a CSV, JSON, plain-text, or Markdown export of cards from decks, collecti
 }
 ```
 
-`warnings` carries list parse warnings and `cards` terms that matched nothing. The response is `400` for an unknown list, preset, column, or filter value.
+`warnings` carries list parse warnings, `cards` terms that matched nothing, and — when the `scryfallId` column is selected — one entry per printing the local Scryfall cache does not hold (that cell renders empty). The response is `400` for an unknown list, preset, column, dialect, or filter value.

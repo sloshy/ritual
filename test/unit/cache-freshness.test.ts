@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   emptyCacheAdvice,
+  ensureCardCacheForUpload,
   ensureFreshPriceData,
   refreshCardCacheForSession,
   type SessionCardCache,
@@ -271,5 +272,149 @@ describe('ensureFreshPriceData', () => {
     })
     expect(h.confirmCalls).toHaveLength(0)
     expect(h.preloadCalls).toBe(0)
+  })
+})
+
+/**
+ * The gate a CSV upload passes through. Uploaded rows are keyed by the Scryfall
+ * ids this cache holds, so "stale" here is not a suggestion to update — it is a
+ * reason to refuse, since the alternative is rows that quietly go missing and one
+ * paced Archidekt search per addition that lost its row.
+ */
+describe('ensureCardCacheForUpload', () => {
+  const DAY_OLD = (): number => Date.now() - PRICE_MAX_AGE_MS - 1
+
+  test('a cache refreshed within the day is used as it is', async () => {
+    const h = harness(true)
+    const logged: string[] = []
+
+    const ready = await ensureCardCacheForUpload('ask', {
+      cache: stubCache({ lastRefreshedAt: Date.now() - 60_000 }),
+      log: (message) => logged.push(message),
+      ...h,
+    })
+
+    expect(ready).toBe(true)
+    expect(h.confirmCalls).toHaveLength(0)
+    expect(h.preloadCalls).toBe(0)
+    expect(logged).toEqual([])
+  })
+
+  test('a cache of unknown age counts as fresh, as every other command reads it', async () => {
+    const h = harness(true)
+
+    // No timestamp means the cache was filled by something other than a bulk
+    // download — not that it is old.
+    const ready = await ensureCardCacheForUpload('never', {
+      cache: stubCache({ lastRefreshedAt: null }),
+      ...h,
+    })
+
+    expect(ready).toBe(true)
+    expect(h.preloadCalls).toBe(0)
+  })
+
+  test('auto refreshes an empty cache without asking, reporting it through the log', async () => {
+    const h = harness()
+    const logged: string[] = []
+    let empty = true
+
+    const ready = await ensureCardCacheForUpload('auto', {
+      cache: { isEmpty: () => Promise.resolve(empty), getLastRefreshedAt: async () => null },
+      log: (message) => logged.push(message),
+      preload: async () => {
+        h.preloadCalls++
+        empty = false
+      },
+      confirmStaleRefresh: h.confirmStaleRefresh,
+    })
+
+    expect(ready).toBe(true)
+    expect(h.confirmCalls).toHaveLength(0)
+    expect(h.preloadCalls).toBe(1)
+    expect(logged).toEqual([
+      'Archidekt CSV uploads are configured to require Scryfall IDs from the local card cache, which is empty. Refreshing it from Scryfall first...',
+    ])
+  })
+
+  test('auto refreshes a day-old cache too', async () => {
+    const h = harness()
+
+    const ready = await ensureCardCacheForUpload('auto', {
+      cache: stubCache({ lastRefreshedAt: DAY_OLD() }),
+      log: () => {},
+      ...h,
+    })
+
+    expect(ready).toBe(true)
+    expect(h.preloadCalls).toBe(1)
+  })
+
+  test('ask prompts with yes preselected and preloads when accepted', async () => {
+    const h = harness(true)
+
+    const ready = await ensureCardCacheForUpload('ask', {
+      cache: stubCache({ lastRefreshedAt: DAY_OLD() }),
+      log: () => {},
+      ...h,
+    })
+
+    expect(ready).toBe(true)
+    // Freshness is a requirement here, so the default answer is yes — unlike the
+    // ordinary weekly nag, which defaults to no.
+    expect(h.confirmCalls).toEqual([
+      {
+        message: expect.stringContaining('Update it before uploading?'),
+        initial: true,
+      },
+    ])
+    expect(h.preloadCalls).toBe(1)
+  })
+
+  test('a declined prompt refuses rather than uploading from the cache anyway', async () => {
+    const h = harness(false)
+
+    const ready = await ensureCardCacheForUpload('ask', {
+      cache: stubCache({ lastRefreshedAt: DAY_OLD() }),
+      log: () => {},
+      ...h,
+    })
+
+    expect(h.preloadCalls).toBe(0)
+    expect(ready).toContain('Run `ritual cache preload-all`, or re-run with --refresh auto.')
+  })
+
+  test.each(['no-bulk', 'never'] as const)(
+    '%s refuses an empty cache instead of falling back to per-card searches',
+    async (mode) => {
+      const h = harness(true)
+
+      const ready = await ensureCardCacheForUpload(mode, {
+        cache: stubCache({ empty: true, lastRefreshedAt: null }),
+        log: () => {},
+        ...h,
+      })
+
+      expect(h.confirmCalls).toHaveLength(0)
+      expect(h.preloadCalls).toBe(0)
+      expect(ready).toBe(
+        'Archidekt CSV uploads are configured to require Scryfall IDs from the local card cache, which is empty. Run `ritual cache preload-all`, or re-run with --refresh auto.',
+      )
+    },
+  )
+
+  test('a refresh that leaves the cache empty is still a refusal', async () => {
+    const h = harness()
+
+    const ready = await ensureCardCacheForUpload('auto', {
+      cache: stubCache({ empty: true, lastRefreshedAt: null }),
+      log: () => {},
+      ...h,
+    })
+
+    expect(h.preloadCalls).toBe(1)
+    expect(ready).toBe(
+      'The card cache is still empty after a refresh, so no CSV row could be keyed by a Scryfall id.',
+    )
   })
 })

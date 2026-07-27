@@ -172,13 +172,35 @@ preview before applying — the same operation as \`ritual import-changes\` (see
 **ritual-edit** skill) and the MCP \`import_changes\` tool.
 
 The admin's **Sync Decks** page runs \`deck-sync\` in the browser: pick a
-direction, toggle which Archidekt-linked decks to sync (all by default), and
-watch per-deck progress stream in as it runs. Each deck shows when it last
+direction, narrow the run to additions or removals only (the \`--only\` flag's
+three-way control), toggle which Archidekt-linked decks to sync (all by default),
+and watch per-deck progress stream in as it runs. Each deck shows when it last
 synced, and the page signs in to Archidekt inline when the stored token has
 expired. A deck whose file holds lines the parser cannot read is refused (a sync
 would delete them) and shown with a "Sync anyway" confirmation. Same operation as
 \`ritual deck-sync\` (see the **ritual-decks** skill) and the MCP
 \`deck_sync_status\` / \`sync_decks\` tools.
+
+The admin's **Sync Collection** page is its counterpart for collections, running
+\`ritual collection-sync\`: pick a direction, scope the run to the whole
+collection or to selected lists, narrow it to additions or removals only, and
+(on a pull) choose the list new cards land in — defaulting to the
+\`collectionSync.pullTarget\` config key, created on first use. A pull also takes
+an ordered **removal priority**, offering the lists in scope: the browser cannot
+be prompted mid-run, so a removal whose copies span several lists is placed from
+the lists named there, or the whole run fails without writing anything (not even
+the account's last-sync time) and lists what it could not place. A **Preview
+only** run reports such a removal instead of failing on it.
+A push offers one control of its own — **Upload new cards as one CSV import**, on
+by default: the browser cannot be asked mid-run either, and with it off a push
+adding more new printings than Ritual will create one at a time fails without
+pushing anything. What the import did (rows, requests, and any row Archidekt
+refused) is reported when the run finishes.
+Progress streams per list with a copies-moved tally, and lists holding lines the
+parser cannot read are refused behind the same "Sync anyway" confirmation. The account's
+last sync time is shown above the controls — a collection belongs to an account,
+not to a file. Same operation as \`ritual collection-sync\` (see the
+**ritual-collections** skill) and the MCP \`sync_collection\` tool.
 
 It can also expose an MCP endpoint in the same process, on its own port
 (\`--mcp-port\`, default 8765):

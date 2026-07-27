@@ -85,6 +85,19 @@ export interface AdminConfig {
   failedAuthDelayMs: number
 }
 
+/**
+ * Settings for `ritual collection-sync`. Always present, defaulting to
+ * {@link DEFAULT_COLLECTION_SYNC_CONFIG}.
+ */
+export interface CollectionSyncConfig {
+  /**
+   * The collection list a pull writes new cards into, created on first use. A
+   * pulled card belongs in *some* binder and only you know which, so every
+   * addition lands here unless `collection-sync --into` overrides it.
+   */
+  pullTarget: string
+}
+
 export interface RitualConfig {
   decksDir: string
   collectionsDir: string
@@ -117,6 +130,11 @@ export interface RitualConfig {
   searchDebounceMs: number
   /** Admin-server settings; always present, defaulting to {@link DEFAULT_ADMIN_CONFIG}. */
   admin: AdminConfig
+  /**
+   * Collection-sync settings; always present, defaulting to
+   * {@link DEFAULT_COLLECTION_SYNC_CONFIG}.
+   */
+  collectionSync: CollectionSyncConfig
   /** Present only when `ritual init-site` has been run; managed exclusively by that command. */
   site?: SiteConfig
   /**
@@ -143,6 +161,10 @@ export const DEFAULT_ADMIN_CONFIG = {
   failedAuthDelayMs: 3000,
 } satisfies AdminConfig
 
+export const DEFAULT_COLLECTION_SYNC_CONFIG = {
+  pullTarget: 'Inbox',
+} satisfies CollectionSyncConfig
+
 export type CacheSource = 'scryfall' | 'feed'
 
 export const CACHE_SOURCES: readonly CacheSource[] = ['scryfall', 'feed']
@@ -155,7 +177,7 @@ const DEFAULT_CONFIG = {
   cacheLockTimeoutSeconds: DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS,
   cacheSource: 'scryfall',
   searchDebounceMs: DEFAULT_SEARCH_DEBOUNCE_MS,
-} satisfies Omit<RitualConfig, 'admin' | 'site' | 'cacheFeedUrl'>
+} satisfies Omit<RitualConfig, 'admin' | 'collectionSync' | 'site' | 'cacheFeedUrl'>
 
 const CONFIG_FILENAME = 'ritual.config.json'
 
@@ -166,7 +188,11 @@ export function getRitualConfigPath(): string {
 }
 
 export function getDefaultRitualConfig(): RitualConfig {
-  return { ...DEFAULT_CONFIG, admin: { ...DEFAULT_ADMIN_CONFIG } }
+  return {
+    ...DEFAULT_CONFIG,
+    admin: { ...DEFAULT_ADMIN_CONFIG },
+    collectionSync: { ...DEFAULT_COLLECTION_SYNC_CONFIG },
+  }
 }
 
 function isStringArray(value: unknown): value is string[] {
@@ -407,12 +433,17 @@ export function getSiteDeployConfig(site: SiteConfig | undefined): SiteDeployCon
 }
 
 /**
- * The raw, unvalidated config as read from disk. `admin` and `site` are widened
- * to `unknown` because JSON.parse returns untrusted data; {@link parseAdminConfig}
- * and {@link parseSiteConfig} validate and narrow them in {@link applyDefaults}.
+ * The raw, unvalidated config as read from disk. The nested objects are widened
+ * to `unknown` because JSON.parse returns untrusted data; {@link parseAdminConfig},
+ * {@link parseCollectionSyncConfig}, and {@link parseSiteConfig} validate and
+ * narrow them in {@link applyDefaults}.
  */
-type ParsedConfig = Omit<Partial<RitualConfig>, 'admin' | 'site' | 'exportPresets'> & {
+type ParsedConfig = Omit<
+  Partial<RitualConfig>,
+  'admin' | 'collectionSync' | 'site' | 'exportPresets'
+> & {
   admin?: unknown
+  collectionSync?: unknown
   site?: unknown
   exportPresets?: unknown
 }
@@ -535,6 +566,37 @@ export function parseAdminConfig(value: unknown): AdminConfig | ConfigParseError
     rateLimitWindowMinutes,
     failedAuthDelayMs,
   }
+}
+
+/**
+ * Parse a `collectionSync.pullTarget` value: the name of the collection list a
+ * pull writes new cards into. Absent falls back to `Inbox`; anything that is
+ * not a non-blank list name is a parse error, since a blank target would leave
+ * a pull with nowhere to put the cards it found.
+ */
+export function parseCollectionSyncPullTarget(value: unknown): string | ConfigParseError {
+  if (value === undefined) return DEFAULT_COLLECTION_SYNC_CONFIG.pullTarget
+  if (typeof value !== 'string' || value.trim() === '') {
+    return { error: 'collectionSync config: "pullTarget" must be a non-empty list name' }
+  }
+  return value.trim()
+}
+
+/**
+ * Parse the `collectionSync` sub-object of a ritual.config.json. Mirrors
+ * {@link parseAdminConfig}: an absent object (or an absent field within it)
+ * defaults from {@link DEFAULT_COLLECTION_SYNC_CONFIG}, and a single malformed
+ * field invalidates the whole object rather than being silently coerced.
+ */
+export function parseCollectionSyncConfig(value: unknown): CollectionSyncConfig | ConfigParseError {
+  if (value === undefined) return { ...DEFAULT_COLLECTION_SYNC_CONFIG }
+  if (typeof value !== 'object' || value === null) {
+    return { error: 'collectionSync config must be a JSON object' }
+  }
+  const obj = value as Record<string, unknown>
+  const pullTarget = parseCollectionSyncPullTarget(obj.pullTarget)
+  if (isConfigParseError(pullTarget)) return pullTarget
+  return { pullTarget }
 }
 
 /**
@@ -673,6 +735,13 @@ function applyDefaults(parsed: ParsedConfig): RitualConfig {
       DEFAULT_SEARCH_DEBOUNCE_MS,
     ),
     admin: parseOrWarn(parseAdminConfig(parsed.admin), 'admin config', { ...DEFAULT_ADMIN_CONFIG }),
+    // Defaulted unconditionally rather than only when the key is present, so a
+    // config file written before this section existed still yields the default.
+    collectionSync: parseOrWarn(
+      parseCollectionSyncConfig(parsed.collectionSync),
+      'collectionSync config',
+      { ...DEFAULT_COLLECTION_SYNC_CONFIG },
+    ),
   }
   if (cacheFeedUrl !== undefined) {
     merged.cacheFeedUrl = cacheFeedUrl
@@ -809,6 +878,14 @@ export function getCacheSource(config: RitualConfig = getRitualConfig()): CacheS
 /** The web editors' add-card search debounce in ms (500 unless overridden). */
 export function getSearchDebounceMs(config: RitualConfig = getRitualConfig()): number {
   return config.searchDebounceMs
+}
+
+/**
+ * The collection list `collection-sync pull` writes new cards into (`Inbox`
+ * unless overridden). The command's `--into` flag takes precedence over it.
+ */
+export function getCollectionSyncPullTarget(config: RitualConfig = getRitualConfig()): string {
+  return config.collectionSync.pullTarget
 }
 
 /** The configured cache feed URL, or undefined to use the built-in default. */

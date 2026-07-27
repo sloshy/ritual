@@ -5,7 +5,7 @@ import { loadProjectedList } from '../projection'
 import { jsonResult } from '../result'
 import { currencySchema, finishSchema, listTypeSchema, slugField } from '../schemas'
 import { EXPORT_FORMATS } from '../../export/presets'
-import { EXPORT_PROPERTIES } from '../../export/render'
+import { EXPORT_DIALECTS, EXPORT_PROPERTIES } from '../../export/render'
 import { VALID_CONDITIONS } from '../../finish-condition'
 import { DIFF_BY_MODES } from '../../list-diff'
 import type { ListType } from '../../list-type'
@@ -114,6 +114,20 @@ export function registerReadTools(server: McpServer): void {
       annotations: { readOnlyHint: true },
     },
     async () => jsonResult(await callApi('GET', '/api/deck-sync')),
+  )
+
+  server.registerTool(
+    'collection_sync_status',
+    {
+      title: 'Collection sync status',
+      description:
+        'List the collection lists a sync can cover (slug, name), the list a pull adds new ' +
+        'cards to by default, and when the account last synced — along with the stored ' +
+        'Archidekt login, whose loginRequired flag says whether sync_collection can run.',
+      inputSchema: {},
+      annotations: { readOnlyHint: true },
+    },
+    async () => jsonResult(await callApi('GET', '/api/collection-sync')),
   )
 
   server.registerTool(
@@ -371,13 +385,26 @@ export function registerReadTools(server: McpServer): void {
         columns: z
           .array(z.enum(EXPORT_PROPERTIES))
           .optional()
-          .describe('Columns to export, in output order.'),
+          .describe(
+            'Columns to export, in output order. scryfallId is resolved from the local ' +
+              'Scryfall cache; an uncached printing exports an empty cell and a warning.',
+          ),
         header: z.boolean().optional().describe('CSV: include the header row (default true).'),
         quoteAll: z.boolean().optional().describe('CSV: quote every cell (default false).'),
+        dialect: z
+          .enum(EXPORT_DIALECTS)
+          .optional()
+          .describe(
+            "csv/json value spellings (default ritual): archidekt writes Archidekt's " +
+              'finish/condition words (Normal|Foil|Etched, NM|LP|MP|HP|D) under a Variant header.',
+          ),
         preset: z
           .string()
           .optional()
-          .describe('Start from a saved export preset; explicit fields override it.'),
+          .describe(
+            'Start from a saved or built-in export preset; explicit fields override it. ' +
+              "Built-in: archidekt (the CSV Archidekt's collection importer takes).",
+          ),
       },
       annotations: { readOnlyHint: true },
     },

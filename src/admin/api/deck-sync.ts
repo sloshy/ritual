@@ -6,17 +6,24 @@ import { getDecksDir } from '../../ritual-config'
 import {
   listSyncableDecks,
   runDeckSync,
-  SYNC_DIRECTIONS,
   type DeckSyncEvent,
   type DeckSyncEventHandler,
   type DeckSyncReport,
   type DeckSyncStatus,
   type SyncableDeck,
-  type SyncDirection,
 } from '../../deck-sync/engine'
+import type { SyncDirection } from '../../sync-common'
 import { sseResponse } from '../../sse'
 import { apiHandler } from '../utils'
 import { autoCommitAndPush, validateBodySize } from './save-helpers'
+import {
+  isRecord,
+  parseNameArray,
+  parseSyncRequestCore,
+  readBooleanFlags,
+  type BooleanFieldsOf,
+  type SyncRequestCore,
+} from './sync-request'
 
 /** Shown whenever the stored Archidekt token cannot be used or refreshed. */
 export const LOGIN_REQUIRED_MESSAGE =
@@ -29,18 +36,14 @@ export type DeckSyncStatusResponse = {
   archidekt: ArchidektLoginStatus
 }
 
-/** A validated sync request, however it arrived (JSON body or query string). */
-export type DeckSyncRequest = {
-  direction: SyncDirection
+/**
+ * A validated sync request, however it arrived (JSON body or query string).
+ * Everything but the deck list is common to both syncs, so it is described once
+ * on {@link SyncRequestCore}.
+ */
+export type DeckSyncRequest = SyncRequestCore & {
   /** Deck names/slugs to sync; empty syncs every Archidekt-linked deck. */
   decks: string[]
-  dryRun: boolean
-  /**
-   * Sync decks whose files hold lines the parser cannot read, removing those
-   * lines. There is nobody to prompt over HTTP, so such decks fail by default;
-   * this is the caller's explicit "yes", equivalent to the CLI's `--yes`.
-   */
-  ignoreUnreadableLines: boolean
 }
 
 /**
@@ -54,67 +57,30 @@ export type DeckSyncRunResponse =
 
 // ── Request parsing ───────────────────────────────────────────────────
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 /**
  * Validate a `POST /api/deck-sync` body. Returns the request or a message
- * describing why it is not one.
+ * describing why it is not one. The direction, change filter, and flags are
+ * validated the same way the collection sync validates them
+ * ({@link parseSyncRequestCore}); only the list of decks is this request's own.
  */
 export function parseDeckSyncBody(value: unknown): DeckSyncRequest | string {
   if (!isRecord(value)) return 'Invalid request body'
 
-  const rawDirection = value.direction
-  if (typeof rawDirection !== 'string' || rawDirection.length === 0) {
-    return `direction is required (${SYNC_DIRECTIONS.join(' or ')})`
-  }
-  // Matched case-insensitively, as the CLI's `parseEnumFlag` does, so the same
-  // value is accepted whichever surface it is typed into.
-  const normalized = rawDirection.toLowerCase()
-  const direction = SYNC_DIRECTIONS.find((candidate) => candidate === normalized)
-  if (!direction) {
-    return `Invalid direction '${rawDirection}'. Use one of: ${SYNC_DIRECTIONS.join(', ')}.`
-  }
+  const core = parseSyncRequestCore(value)
+  if (typeof core === 'string') return core
 
-  const rawDecks = value.decks ?? []
-  if (
-    !Array.isArray(rawDecks) ||
-    !rawDecks.every((name): name is string => typeof name === 'string')
-  ) {
-    return 'decks must be an array of deck names'
-  }
+  const decks = parseNameArray(value.decks, { field: 'decks', noun: 'deck names', blanks: 'drop' })
+  if (typeof decks === 'string') return decks
 
-  if (value.dryRun !== undefined && typeof value.dryRun !== 'boolean') {
-    return 'dryRun must be a boolean'
-  }
-  if (
-    value.ignoreUnreadableLines !== undefined &&
-    typeof value.ignoreUnreadableLines !== 'boolean'
-  ) {
-    return 'ignoreUnreadableLines must be a boolean'
-  }
-
-  const decks = rawDecks.map((name) => name.trim()).filter((name) => name.length > 0)
-  return {
-    direction,
-    decks,
-    dryRun: value.dryRun === true,
-    ignoreUnreadableLines: value.ignoreUnreadableLines === true,
-  }
+  return { ...core, decks }
 }
-
-/** The request's boolean-valued fields — the ones a query string spells 'true'/'false'. */
-type BooleanRequestFlag = {
-  [K in keyof DeckSyncRequest]-?: DeckSyncRequest[K] extends boolean ? K : never
-}[keyof DeckSyncRequest]
 
 /**
  * Every boolean field of a request must appear here, or the query string would
  * silently revert it to `false`. `satisfies` makes leaving one out a type error.
  */
 const BOOLEAN_FLAGS = { dryRun: true, ignoreUnreadableLines: true } as const satisfies Record<
-  BooleanRequestFlag,
+  BooleanFieldsOf<DeckSyncRequest>,
   true
 >
 
@@ -126,18 +92,18 @@ const BOOLEAN_FLAGS = { dryRun: true, ignoreUnreadableLines: true } as const sat
  * Boolean flags are validated rather than coerced: they decide whether files are
  * written, changes pushed, and unreadable lines deleted, so an unrecognized
  * value must be rejected instead of quietly meaning "no".
+ *
+ * `only` is a string enum rather than a flag, so it is handed to the body parser
+ * as-is and validated there — an absent param and an empty one both mean
+ * "apply everything".
  */
 export function parseDeckSyncQuery(params: URLSearchParams): DeckSyncRequest | string {
-  const flags = {} as Record<BooleanRequestFlag, boolean>
-  for (const flag of Object.keys(BOOLEAN_FLAGS) as BooleanRequestFlag[]) {
-    const raw = params.get(flag)
-    if (raw !== null && raw !== 'true' && raw !== 'false')
-      return `${flag} must be 'true' or 'false'`
-    flags[flag] = raw === 'true'
-  }
+  const flags = readBooleanFlags(params, BOOLEAN_FLAGS)
+  if (typeof flags === 'string') return flags
   return parseDeckSyncBody({
     direction: params.get('direction') ?? undefined,
     decks: params.getAll('deck'),
+    only: params.get('only') ?? undefined,
     ...flags,
   })
 }
@@ -196,6 +162,7 @@ async function performSync(
     token,
     deckNames: request.decks,
     dryRun: request.dryRun,
+    only: request.only,
     onEvent,
     // Nobody to prompt over HTTP: the request either carries the caller's "yes"
     // up front, or decks with unreadable lines fail and the caller retries.

@@ -215,6 +215,34 @@ describe('applyConfigSet — string properties', () => {
   })
 })
 
+describe('applyConfigSet — collectionSync.pullTarget', () => {
+  test('sets and trims the pull target', () => {
+    const result = applyConfigSet(base, 'collectionSync.pullTarget', ['  Red Binder '], 'replace')
+    expect('error' in result).toBeFalse()
+    if (!('error' in result)) {
+      expect(result.newValue).toBe('Red Binder')
+      expect(result.updatedConfig.collectionSync.pullTarget).toBe('Red Binder')
+    }
+  })
+
+  test('rejects a blank list name, which a pull could not write to', () => {
+    const result = applyConfigSet(base, 'collectionSync.pullTarget', ['   '], 'replace')
+    expect('error' in result).toBeTrue()
+    if ('error' in result) {
+      expect(result.error).toContain('pullTarget')
+    }
+  })
+
+  test('unset reverts to the built-in default', () => {
+    const result = applyConfigUnset(base, 'collectionSync.pullTarget')
+    expect('error' in result).toBeFalse()
+    if (!('error' in result)) {
+      expect(result.defaultValue).toBe('Inbox')
+      expect(result.updatedConfig.collectionSync).toBeUndefined()
+    }
+  })
+})
+
 describe('applyConfigSet — boolean properties', () => {
   test.each([
     ['true', true],
@@ -620,6 +648,11 @@ describe('applyConfigGet', () => {
     expect(outcome).toEqual({ kind: 'unset' })
   })
 
+  test('resolves the nested collection-sync pull target', () => {
+    const outcome = applyConfigGet(base, 'collectionSync.pullTarget')
+    expect(outcome).toEqual({ kind: 'value', value: 'Inbox' })
+  })
+
   test('reports site selection lists as unset before a site config exists', () => {
     const outcome = applyConfigGet(base, 'site.includeDecks')
     expect(outcome).toEqual({ kind: 'unset' })
@@ -659,6 +692,11 @@ describe('listConfigEntries', () => {
     expect(byKey.get('admin.rateLimitEnabled')).toEqual({
       property: 'admin.rateLimitEnabled',
       value: true,
+      isDefault: true,
+    })
+    expect(byKey.get('collectionSync.pullTarget')).toEqual({
+      property: 'collectionSync.pullTarget',
+      value: 'Inbox',
       isDefault: true,
     })
     // No site object yet: the site lists are unset (their effective defaults

@@ -198,6 +198,21 @@ export function priceIntro(options: PriceIntroOptions): string {
 /** The `--prices` example comment shared by every price example block. */
 export const PRICE_CURRENCY_COMMENT = '# usd | eur | tix (defaults to config defaultCurrency)'
 
+/**
+ * The `--only <additions|removals>` change filter, described once for both sync
+ * commands: `deck-sync` and `collection-sync` share the flag, its
+ * destination-relative vocabulary, and its skipped-changes reporting, and only
+ * differ in what the filter is *for*, which each skill adds after this.
+ */
+export const SYNC_CHANGE_FILTER = wrapProse(
+  '`--only additions` / `--only removals` narrows a run to one side of the ' +
+    'diff. The vocabulary is relative to the **sync destination** — the local ' +
+    'files on a pull, Archidekt on a push — so additions are new cards and ' +
+    'quantity increases *there*, removals are deleted cards and quantity ' +
+    'decreases. The other side is still reported ("Skipped 3 removals (--only ' +
+    'additions).") and simply not applied.',
+)
+
 /** The `ritual diff` matching-mode sentence (ends with a colon: an example block follows). */
 export const DIFF_BY_MODES =
   `\`--by name\` (the default) matches card names; \`--by printing\` requires the ` +

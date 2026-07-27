@@ -1,16 +1,21 @@
 import { describe, expect, test } from 'bun:test'
 import { runCli } from './helpers/cli'
+import { OFFLINE_ENV } from './helpers/offline-env'
 import { withWorkspace } from './helpers/workspace'
 
 /**
  * Network-free argument-surface tests for `deck-sync`. The sync flows
  * themselves hit Archidekt and are not exercised here — these pin the
  * `<direction>` positional validation and the unauthenticated failure path.
+ *
+ * Every case resolves before any network call could happen; `OFFLINE_ENV` is the
+ * backstop, so a stored or expired token can never turn one of these into a real
+ * request to Archidekt (matching `collection-sync-cli.test.ts`).
  */
 describe('deck-sync CLI (Integration)', () => {
   test('an invalid direction is a usage error', async () => {
     await withWorkspace(async (dir) => {
-      const result = await runCli(['deck-sync', 'sideways'], dir)
+      const result = await runCli(['deck-sync', 'sideways'], dir, OFFLINE_ENV)
 
       expect(result.exitCode).toBe(2)
       expect(result.stderr).toContain("Invalid direction 'sideways'")
@@ -20,7 +25,7 @@ describe('deck-sync CLI (Integration)', () => {
 
   test('a missing direction is a usage error', async () => {
     await withWorkspace(async (dir) => {
-      const result = await runCli(['deck-sync'], dir)
+      const result = await runCli(['deck-sync'], dir, OFFLINE_ENV)
 
       expect(result.exitCode).toBe(2)
       expect(result.stderr).toContain('direction')
@@ -29,7 +34,7 @@ describe('deck-sync CLI (Integration)', () => {
 
   test('the removed --download-changes flag is rejected', async () => {
     await withWorkspace(async (dir) => {
-      const result = await runCli(['deck-sync', 'pull', '--download-changes'], dir)
+      const result = await runCli(['deck-sync', 'pull', '--download-changes'], dir, OFFLINE_ENV)
 
       expect(result.exitCode).toBe(2)
       expect(result.stderr).toContain('unknown option')
@@ -41,16 +46,31 @@ describe('deck-sync CLI (Integration)', () => {
     // renamed or dropped option surfaces as a usage error rather than silently
     // never confirming.
     await withWorkspace(async (dir) => {
-      const result = await runCli(['deck-sync', 'pull', '--yes'], dir)
+      const result = await runCli(['deck-sync', 'pull', '--yes'], dir, OFFLINE_ENV)
 
       expect(result.exitCode).toBe(1)
       expect(result.stderr).toContain('Not signed into Archidekt')
     })
   })
 
+  test('--only accepts the change filter values and rejects anything else', async () => {
+    // Filtering itself is unit-tested; this pins the flag wiring, so a renamed
+    // option or argParser surfaces here rather than silently syncing everything.
+    await withWorkspace(async (dir) => {
+      const accepted = await runCli(['deck-sync', 'pull', '--only', 'additions'], dir, OFFLINE_ENV)
+      expect(accepted.exitCode).toBe(1)
+      expect(accepted.stderr).toContain('Not signed into Archidekt')
+
+      const rejected = await runCli(['deck-sync', 'pull', '--only', 'adds'], dir, OFFLINE_ENV)
+      expect(rejected.exitCode).toBe(2)
+      expect(rejected.stderr).toContain("Invalid change filter 'adds'")
+      expect(rejected.stderr).toContain('Use one of: additions, removals.')
+    })
+  })
+
   test('a valid direction without an Archidekt login fails with exit 1', async () => {
     await withWorkspace(async (dir) => {
-      const result = await runCli(['deck-sync', 'pull'], dir)
+      const result = await runCli(['deck-sync', 'pull'], dir, OFFLINE_ENV)
 
       expect(result.exitCode).toBe(1)
       expect(result.stderr).toContain('Not signed into Archidekt')
@@ -59,7 +79,7 @@ describe('deck-sync CLI (Integration)', () => {
 
   test('--output json reports the login failure as a structured error', async () => {
     await withWorkspace(async (dir) => {
-      const result = await runCli(['deck-sync', 'push', '--output', 'json'], dir)
+      const result = await runCli(['deck-sync', 'push', '--output', 'json'], dir, OFFLINE_ENV)
 
       expect(result.exitCode).toBe(1)
       const parsed = JSON.parse(result.stderr) as {

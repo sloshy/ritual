@@ -10,6 +10,7 @@ Documentation for the Ritual admin interface:
 - [Manage Lists](/admin/manage-lists/) — create, rename, and delete lists
 - [Change History](/admin/history/) — browse the history of changes across all lists
 - [Sync Decks](/admin/sync-decks/) — pull or push deck changes with Archidekt
+- [Sync Collection](/admin/sync-collection/) — pull or push collection changes with Archidekt
 - [Admin API](/admin/api/) — HTTP API reference
 
 ## Page URLs
@@ -28,7 +29,8 @@ Every page has its own address, using the same `#/…` hash routing as the publi
 | Import Changes  | `#/import/changes`                            |
 | Build Site      | `#/build`                                     |
 | Refresh Cache   | `#/cache`                                     |
-| Sync Decks      | `#/sync`                                      |
+| Sync Decks      | `#/sync/decks`                                |
+| Sync Collection | `#/sync/collection`                           |
 | Archidekt Login | `#/archidekt`                                 |
 | Audit Log       | `#/audit`                                     |
 | Settings        | `#/settings`                                  |

@@ -8,6 +8,7 @@ import {
   type CardPrinting,
 } from '../card-line'
 import { serializeCardLine } from '../deck-text'
+import { archidektCsvCondition, archidektModifier } from '../importers/archidekt-collection'
 import type { Card } from '../types'
 import type { ExportEntry } from './entries'
 
@@ -22,6 +23,7 @@ export const EXPORT_PROPERTIES = [
   'set',
   'collectorNumber',
   'edition',
+  'scryfallId',
   'finish',
   'isFoil',
   'condition',
@@ -44,6 +46,7 @@ export const EXPORT_PROPERTY_LABELS: Record<ExportProperty, string> = {
   set: 'Set',
   collectorNumber: 'Collector Number',
   edition: 'Edition',
+  scryfallId: 'Scryfall ID',
   finish: 'Finish',
   isFoil: 'Is Foil',
   condition: 'Condition',
@@ -60,7 +63,46 @@ export const EXPORT_PROPERTY_LABELS: Record<ExportProperty, string> = {
  */
 export const EXPORT_PROPERTY_HINTS: Partial<Record<ExportProperty, string>> = {
   edition: 'set + collector number',
+  scryfallId: 'resolved from the local Scryfall cache',
   isFoil: 'true when foil or etched',
+}
+
+/**
+ * The vocabulary an export is written in. `ritual` (the default) writes Ritual's
+ * own spellings — the file format's values, unchanged. A non-default dialect
+ * writes another tool's spellings for the same properties, so an export can be
+ * fed straight into that tool's importer without a translation step.
+ *
+ * `archidekt` differs from `ritual` in exactly three ways, all in
+ * {@link propertyValue} / {@link exportPropertyLabel}:
+ *
+ * - `finish` renders Archidekt's modifier (`Normal` / `Foil` / `Etched`) and is
+ *   labelled `Variant`, the name Archidekt's own CSV importer uses.
+ * - `condition` renders Archidekt's CSV short codes, where Damaged is `D`.
+ * - Both render the *effective* value when a line marks none (`Normal` / `NM`):
+ *   Archidekt's CSV has no "unmarked" spelling, so an empty cell would be a
+ *   row Archidekt has to guess about.
+ */
+export type ExportDialect = 'ritual' | 'archidekt'
+
+export const EXPORT_DIALECTS = ['ritual', 'archidekt'] as const satisfies readonly ExportDialect[]
+
+export function isExportDialect(value: string): value is ExportDialect {
+  return (EXPORT_DIALECTS as readonly string[]).includes(value)
+}
+
+/** Labels a dialect spells differently from {@link EXPORT_PROPERTY_LABELS}. */
+const DIALECT_PROPERTY_LABELS: Record<ExportDialect, Partial<Record<ExportProperty, string>>> = {
+  ritual: {},
+  archidekt: { finish: 'Variant' },
+}
+
+/** A property's header/picker label in a dialect. */
+export function exportPropertyLabel(
+  property: ExportProperty,
+  dialect: ExportDialect = 'ritual',
+): string {
+  return DIALECT_PROPERTY_LABELS[dialect][property] ?? EXPORT_PROPERTY_LABELS[property]
 }
 
 /** The property keys joined for help text, with parenthetical hints where one exists. */
@@ -132,11 +174,14 @@ function editionValue(entry: ExportEntry, uppercaseSet: boolean): string | undef
 /**
  * The value an entry exports for one property, or undefined when the entry has
  * none. Set codes stay lowercase here (the internal convention); the CSV
- * renderer uppercases them at the output boundary.
+ * renderer uppercases them at the output boundary. The dialect only reaches the
+ * properties named in {@link ExportDialect} — every other value is identical in
+ * every dialect.
  */
 function propertyValue(
   entry: ExportEntry,
   property: ExportProperty,
+  dialect: ExportDialect,
 ): string | number | boolean | undefined {
   switch (property) {
     case 'name':
@@ -149,12 +194,18 @@ function propertyValue(
       return entry.collectorNumber
     case 'edition':
       return editionValue(entry, false)
+    case 'scryfallId':
+      return entry.scryfallId
     case 'finish':
-      return entry.finish
+      // An unmarked line means nonfoil; only a foreign dialect spells that out
+      // (Ritual's own output keeps "unmarked" and "nonfoil" distinguishable).
+      return dialect === 'archidekt' ? archidektModifier(entry.finish ?? 'nonfoil') : entry.finish
     case 'isFoil':
       return entry.finish === 'foil' || entry.finish === 'etched'
     case 'condition':
-      return entry.condition
+      return dialect === 'archidekt'
+        ? archidektCsvCondition(entry.condition ?? 'NM')
+        : entry.condition
     case 'note':
       return entry.note
     case 'section':
@@ -173,13 +224,18 @@ export type ExportRecord = Partial<Record<ExportProperty, string | number | bool
  * Render entries as a JSON array of objects, one per entry, containing only the
  * selected properties. Absent properties are omitted rather than emitted as
  * null; key order follows the column order. Set codes stay lowercase (JSON is
- * a data format, matching the internal convention).
+ * a data format, matching the internal convention). Keys are the property names
+ * in every dialect — a dialect changes values, not the JSON schema.
  */
-export function renderJsonExport(entries: ExportEntry[], columns: ExportProperty[]): string {
+export function renderJsonExport(
+  entries: ExportEntry[],
+  columns: ExportProperty[],
+  dialect: ExportDialect = 'ritual',
+): string {
   const records = entries.map((entry): ExportRecord => {
     const record: ExportRecord = {}
     for (const column of columns) {
-      const value = propertyValue(entry, column)
+      const value = propertyValue(entry, column, dialect)
       if (value !== undefined) record[column] = value
     }
     return record
@@ -287,30 +343,36 @@ export type CsvRenderOptions = {
   header: boolean
   /** Quote every cell instead of only cells that need it. */
   quoteAll: boolean
+  /** Value (and header) vocabulary; `ritual` by default. */
+  dialect?: ExportDialect
 }
 
 /**
  * Render entries as CSV in the selected column order. Missing values are empty
- * cells; set codes are uppercased (user-facing output convention); an explicit
- * or implicit `nonfoil` finish is written as stored (blank when unmarked) so
- * the export mirrors the markdown data.
+ * cells; set codes are uppercased (user-facing output convention); in the
+ * `ritual` dialect an explicit or implicit `nonfoil` finish is written as stored
+ * (blank when unmarked) so the export mirrors the markdown data.
  */
 export function renderCsvExport(
   entries: ExportEntry[],
   columns: ExportProperty[],
   options: CsvRenderOptions,
 ): string {
+  const dialect = options.dialect ?? 'ritual'
   const rows: string[] = []
   if (options.header) {
     rows.push(
-      columns.map((column) => csvCell(EXPORT_PROPERTY_LABELS[column], options.quoteAll)).join(','),
+      columns
+        .map((column) => csvCell(exportPropertyLabel(column, dialect), options.quoteAll))
+        .join(','),
     )
   }
   for (const entry of entries) {
     const cells = columns.map((column) => {
       // Edition uppercases only its set-code half, so it can't reuse the
       // generic whole-value uppercasing the set column gets.
-      const value = column === 'edition' ? editionValue(entry, true) : propertyValue(entry, column)
+      const value =
+        column === 'edition' ? editionValue(entry, true) : propertyValue(entry, column, dialect)
       if (value === undefined) return csvCell('', options.quoteAll)
       const text = column === 'set' ? String(value).toUpperCase() : String(value)
       return csvCell(text, options.quoteAll)

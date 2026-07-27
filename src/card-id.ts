@@ -193,7 +193,7 @@ export function clonePool(pool: CardIdPool): CardIdPool {
   }
 }
 
-type EntryWithCardId = { cardId?: number }
+export type EntryWithCardId = { cardId?: number }
 type DeckWithCardIds = {
   sections: readonly { cards: readonly EntryWithCardId[] }[]
 }

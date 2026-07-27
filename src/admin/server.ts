@@ -13,6 +13,11 @@ import { handleExport } from './api/export'
 import { handleBuildSite } from './api/build-site'
 import { handleCacheRefresh, handleCacheRefreshStream } from './api/cache'
 import { handleDeckSyncRun, handleDeckSyncStatus, handleDeckSyncStream } from './api/deck-sync'
+import {
+  handleCollectionSyncRun,
+  handleCollectionSyncStatus,
+  handleCollectionSyncStream,
+} from './api/collection-sync'
 import { handleArchidektLogin, handleArchidektStatus } from './api/login'
 import { handleGetConfig, handleUpdateConfig } from './api/config'
 import { handleSetup } from './api/setup'
@@ -128,6 +133,24 @@ export const routes: Route[] = [
   },
   { method: 'GET', path: '/api/deck-sync', handler: handleDeckSyncStatus, requiresAuth: true },
   { method: 'POST', path: '/api/deck-sync', handler: handleDeckSyncRun, requiresAuth: true },
+  {
+    method: 'GET',
+    path: '/api/collection-sync/stream',
+    handler: handleCollectionSyncStream,
+    requiresAuth: true,
+  },
+  {
+    method: 'GET',
+    path: '/api/collection-sync',
+    handler: handleCollectionSyncStatus,
+    requiresAuth: true,
+  },
+  {
+    method: 'POST',
+    path: '/api/collection-sync',
+    handler: handleCollectionSyncRun,
+    requiresAuth: true,
+  },
   {
     method: 'POST',
     path: '/api/login/archidekt',

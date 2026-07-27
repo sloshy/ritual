@@ -6,9 +6,11 @@ import {
   parseCacheFeedUrl,
   parseCacheLockTimeoutSeconds,
   parseCacheSource,
+  parseCollectionSyncPullTarget,
   parseDefaultCurrency,
   parseSiteApiBaseUrl,
   type AdminConfig,
+  type CollectionSyncConfig,
   type RitualConfig,
   type SiteConfig,
   type SiteSelectionConfig,
@@ -43,6 +45,15 @@ type SettableFieldsMap = {
 // The `satisfies` check keeps the keys in sync with AdminConfig.
 type SettableAdminFieldsMap = {
   [K in keyof AdminConfig as `admin.${K & string}`]: ConfigFieldTypeFor<AdminConfig[K]>
+}
+
+// The collection-sync settings live under `collectionSync`, exposed as dotted
+// nested paths through the same machinery. The `satisfies` check keeps the keys
+// in sync with CollectionSyncConfig.
+type SettableCollectionSyncFieldsMap = {
+  [K in keyof CollectionSyncConfig as `collectionSync.${K & string}`]: ConfigFieldTypeFor<
+    CollectionSyncConfig[K]
+  >
 }
 
 export type ArrayMode = 'replace' | 'add' | 'remove'
@@ -94,6 +105,10 @@ export const SETTABLE_ADMIN_FIELDS: Record<string, ConfigFieldType> = {
   'admin.failedAuthDelayMs': 'number',
 } satisfies SettableAdminFieldsMap
 
+export const SETTABLE_COLLECTION_SYNC_FIELDS: Record<string, ConfigFieldType> = {
+  'collectionSync.pullTarget': 'string',
+} satisfies SettableCollectionSyncFieldsMap
+
 // The dotted path of the banned-printings list. Its values are validated and
 // normalized to canonical `set:collectorNumber` keys before being stored.
 export const SITE_BANNED_PRINTINGS = 'site.bannedPrintings'
@@ -133,6 +148,7 @@ function settableProperties(): string[] {
   return [
     ...Object.keys(SETTABLE_FIELDS),
     ...Object.keys(SETTABLE_ADMIN_FIELDS),
+    ...Object.keys(SETTABLE_COLLECTION_SYNC_FIELDS),
     ...Object.keys(SETTABLE_SITE_FIELDS),
   ]
 }
@@ -215,7 +231,10 @@ export function applyConfigSet(
   }
 
   const fieldType =
-    SETTABLE_FIELDS[property] ?? SETTABLE_ADMIN_FIELDS[property] ?? SETTABLE_SITE_FIELDS[property]
+    SETTABLE_FIELDS[property] ??
+    SETTABLE_ADMIN_FIELDS[property] ??
+    SETTABLE_COLLECTION_SYNC_FIELDS[property] ??
+    SETTABLE_SITE_FIELDS[property]
   if (!fieldType) {
     const available = settableProperties().join(', ')
     return {
@@ -350,6 +369,15 @@ export function applyConfigSet(
     }
     newValue = parsed
   }
+  // collectionSync.pullTarget is a constrained string (a non-blank list name);
+  // reject a blank one here rather than persisting a target a pull cannot use.
+  if (property === 'collectionSync.pullTarget') {
+    const parsed = parseCollectionSyncPullTarget(rawValue)
+    if (isConfigParseError(parsed)) {
+      return parsed
+    }
+    newValue = parsed
+  }
   // site.apiBaseUrl is a constrained string ('' or an http(s) URL); validate and
   // normalize (trailing slash stripped) before persisting.
   if (property === 'site.apiBaseUrl') {
@@ -404,6 +432,7 @@ export function applyConfigGet(config: RitualConfig, property: string): ConfigGe
   const known =
     property in SETTABLE_FIELDS ||
     property in SETTABLE_ADMIN_FIELDS ||
+    property in SETTABLE_COLLECTION_SYNC_FIELDS ||
     property in SETTABLE_SITE_FIELDS ||
     READ_ONLY_FIELDS.includes(property)
   if (!known) {
@@ -454,7 +483,10 @@ export function applyConfigUnset(config: RitualConfig, property: string): Config
   }
 
   const fieldType =
-    SETTABLE_FIELDS[property] ?? SETTABLE_ADMIN_FIELDS[property] ?? SETTABLE_SITE_FIELDS[property]
+    SETTABLE_FIELDS[property] ??
+    SETTABLE_ADMIN_FIELDS[property] ??
+    SETTABLE_COLLECTION_SYNC_FIELDS[property] ??
+    SETTABLE_SITE_FIELDS[property]
   if (!fieldType) {
     const available = settableProperties().join(', ')
     return {

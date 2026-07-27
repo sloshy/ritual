@@ -1,7 +1,19 @@
 import type { Page, Route } from '@playwright/test'
 import type { ArchidektLoginStatus } from '../../../src/auth/interfaces'
 import type { DeckSyncRunResponse } from '../../../src/admin/api/deck-sync'
+import type {
+  CollectionSyncList,
+  CollectionSyncRunResponse,
+  CollectionSyncStatusResponse,
+} from '../../../src/admin/api/collection-sync'
 import type { SyncableDeck, UnreadableDeck } from '../../../src/deck-sync/engine'
+import type {
+  CollectionSyncCsv,
+  CollectionSyncListResult,
+  UnreadableList,
+} from '../../../src/collection-sync/engine'
+import { CSV_UPLOAD_THRESHOLD } from '../../../src/collection-sync/csv'
+import type { AmbiguousRemoval } from '../../../src/collection-sync/describe'
 import type { RitualConfig } from '../../../src/ritual-config'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/editor/search-debounce'
 import { fulfillJson } from './fulfill'
@@ -92,6 +104,7 @@ export const MOCK_CONFIG = {
     userAgentAllowList: [],
     userAgentDenyList: [],
   },
+  collectionSync: { pullTarget: 'Inbox' },
 } satisfies RitualConfig
 
 /**
@@ -473,6 +486,153 @@ export async function mockDeckSyncApi(
     },
     setUnreadable: (next: UnreadableDeck[]) => {
       currentUnreadable = next
+    },
+    statusRequests: () => statusCount,
+    postedRuns: () => posted,
+  }
+}
+
+// ===== Collection sync mock data =====
+
+export const MOCK_SYNC_COLLECTION_LISTS: CollectionSyncList[] = [
+  // Slugs deliberately unlike the display names: a request scopes a run by slug,
+  // so a page that sent the heading instead would still look right on screen.
+  { slug: 'blue-binder', name: 'Blue Binder' },
+  { slug: 'long-box', name: 'Long Box' },
+]
+
+/** The pull target the status reports, which no list answers to — as `Inbox` usually does not. */
+export const MOCK_PULL_TARGET = 'Inbox'
+
+/**
+ * The CSV threshold the status reports — the engine's own, so the page's wording
+ * is asserted against the number a real server would send.
+ */
+export const MOCK_CSV_THRESHOLD = CSV_UPLOAD_THRESHOLD
+
+/** Handles on the collection-sync mocks, for asserting and reshaping mid-test. */
+export type CollectionSyncMocks = {
+  /** Change the lists the next `GET /api/collection-sync` reports. */
+  setLists: (lists: CollectionSyncList[]) => void
+  /** Change the Archidekt session the next status load reports (e.g. after signing in). */
+  setArchidekt: (status: ArchidektLoginStatus) => void
+  /** Change when the account last synced, e.g. to what a finished run would report. */
+  setLastSynced: (iso: string | null) => void
+  /** Lists the non-streaming run reports as holding unreadable lines. */
+  setUnreadable: (lists: UnreadableList[]) => void
+  /** Removals the non-streaming run reports as too ambiguous to place. */
+  setAmbiguous: (removals: AmbiguousRemoval[]) => void
+  /**
+   * Run-level errors the non-streaming run reports. Empty is a run that applied
+   * its changes; non-empty is one that stopped without writing, which is what
+   * tells the page whether a reported ambiguity was placed or refused.
+   */
+  setErrors: (errors: string[]) => void
+  /** What the non-streaming run reports the CSV import did with a push's new cards. */
+  setCsv: (csv: CollectionSyncCsv | null) => void
+  /** How many times the page has loaded the status. */
+  statusRequests: () => number
+  /** Bodies posted to the non-streaming fallback endpoint. */
+  postedRuns: () => unknown[]
+}
+
+/**
+ * Mock the Sync Collection page endpoints: the list/login/status read, the SSE
+ * stream (driven from the test via {@link emitStreamEvent}), and the
+ * non-streaming POST fallback.
+ */
+export async function mockCollectionSyncApi(
+  page: Page,
+  archidekt: ArchidektLoginStatus = ARCHIDEKT_LOGGED_IN,
+  lists: CollectionSyncList[] = MOCK_SYNC_COLLECTION_LISTS,
+  pullTarget: string = MOCK_PULL_TARGET,
+): Promise<CollectionSyncMocks> {
+  let currentLists = lists
+  let currentArchidekt = archidekt
+  let currentLastSynced: string | null = new Date(Date.now() - 3 * 3600_000).toISOString()
+  let currentUnreadable: UnreadableList[] = []
+  let currentAmbiguous: AmbiguousRemoval[] = []
+  let currentErrors: string[] = []
+  let currentCsv: CollectionSyncCsv | null = null
+  let statusCount = 0
+  const posted: unknown[] = []
+
+  await installMockEventSource(page)
+
+  await fulfillJson(
+    page,
+    '**/api/collection-sync',
+    (): CollectionSyncStatusResponse => {
+      statusCount += 1
+      return {
+        success: true,
+        lists: currentLists,
+        archidekt: currentArchidekt,
+        lastSynced: currentLastSynced,
+        pullTarget,
+        csvThreshold: MOCK_CSV_THRESHOLD,
+      }
+    },
+    { method: 'GET' },
+  )
+
+  await fulfillJson(
+    page,
+    '**/api/collection-sync',
+    (route: Route): CollectionSyncRunResponse => {
+      posted.push(route.request().postDataJSON())
+      // Typed against the real response so the mock cannot drift from the handler.
+      const results = currentLists.map(
+        (list): CollectionSyncListResult => ({
+          name: list.name,
+          status: 'synced',
+          added: 1,
+          removed: 0,
+          pending: 0,
+        }),
+      )
+      return {
+        success: true,
+        message: `Pulled +${results.length} added, -0 removed into "${pullTarget}".`,
+        report: {
+          direction: 'pull',
+          into: pullTarget,
+          dryRun: false,
+          lists: results,
+          failedCount: 0,
+          errors: currentErrors,
+          unreadable: currentUnreadable,
+          ambiguous: currentAmbiguous,
+          localIncomplete: false,
+          csv: currentCsv,
+          totals: { added: results.length, removed: 0, skipped: 0, pending: 0 },
+        },
+      }
+    },
+    { method: 'POST' },
+  )
+
+  return {
+    setLists: (next: CollectionSyncList[]) => {
+      currentLists = next
+    },
+    setArchidekt: (next: ArchidektLoginStatus) => {
+      currentArchidekt = next
+    },
+    setLastSynced: (next: string | null) => {
+      currentLastSynced = next
+    },
+    setErrors: (next: string[]) => {
+      currentErrors = next
+    },
+    setUnreadable: (next: UnreadableList[]) => {
+      currentUnreadable = next
+    },
+    setAmbiguous: (next: AmbiguousRemoval[]) => {
+      currentAmbiguous = next
+    },
+    setCsv: (next: CollectionSyncCsv | null) => {
+      currentCsv = next
     },
     statusRequests: () => statusCount,
     postedRuns: () => posted,

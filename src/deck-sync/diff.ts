@@ -1,4 +1,5 @@
 import { createAddChange, createRemoveChange, type CardChange } from '../change-event'
+import type { SyncChangeFilter } from '../sync-common'
 import { BOARDS, type Board, type DeckData, type DeckSection } from '../types'
 import {
   isCommanderSection,
@@ -203,6 +204,45 @@ export function diffToChangeEvents(diff: NameDiff, resolveCardId?: CardIdResolve
 /** Check whether a NameDiff contains any changes. */
 export function isDiffEmpty(diff: NameDiff): boolean {
   return diff.added.length === 0 && diff.removed.length === 0 && diff.quantityChanged.length === 0
+}
+
+/** A diff narrowed by a {@link SyncChangeFilter}, with what the narrowing left out. */
+export type FilteredNameDiff = {
+  /** The changes to apply. Identical to the input when no filter was given. */
+  diff: NameDiff
+  /** How many diff entries the filter dropped, for the run's log line. */
+  skipped: number
+}
+
+/**
+ * Narrow a diff to one side of the change vocabulary, destination-relative: the
+ * diff is always old (destination) → new (source), so `added` and quantity
+ * increases add cards to the destination and `removed` and quantity decreases
+ * take them away. Both directions build their diff that way — a pull diffs local
+ * → remote, a push diffs remote → local — so one helper serves both.
+ *
+ * Without a filter the diff is passed through untouched.
+ */
+export function filterNameDiff(
+  diff: NameDiff,
+  only: SyncChangeFilter | undefined,
+): FilteredNameDiff {
+  if (!only) return { diff, skipped: 0 }
+
+  const keepAdditions = only === 'additions'
+  const added = keepAdditions ? diff.added : []
+  const removed = keepAdditions ? [] : diff.removed
+  const quantityChanged = diff.quantityChanged.filter((entry) =>
+    keepAdditions ? entry.newQty > entry.oldQty : entry.newQty < entry.oldQty,
+  )
+
+  const skipped =
+    diff.added.length -
+    added.length +
+    (diff.removed.length - removed.length) +
+    (diff.quantityChanged.length - quantityChanged.length)
+
+  return { diff: { added, removed, quantityChanged }, skipped }
 }
 
 export type FormatSync = {

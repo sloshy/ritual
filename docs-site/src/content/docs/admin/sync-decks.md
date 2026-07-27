@@ -24,6 +24,7 @@ If the token stops working mid-run, the run reports the failure and the login fo
 | Control          | Effect                                                                                                                                                                                                   |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Direction**    | `Pull` (Archidekt → local) or `Push` (local → Archidekt). The description below the control spells out what the selected direction writes.                                                               |
+| **Changes**      | `All changes`, `Additions only`, or `Removals only` — the page's form of the CLI's [`--only`](/commands/deck-sync/#change-filter). Skipped changes are still reported per deck.                          |
 | **Decks**        | One row per Archidekt-linked deck, all selected by default. **All decks** toggles every row at once and syncs any deck linked after the page loaded. With nothing selected, the sync button is disabled. |
 | **Preview only** | Runs as a dry run: both directions still fetch the remote deck to compute the diff, but nothing is written locally and nothing is sent to Archidekt.                                                     |
 
@@ -47,7 +48,8 @@ The run streams over server-sent events, so each deck updates as it is processed
 
 Under each deck are the same lines the CLI prints: the change summary — a pull reports
 `Changes: +2 added, -1 removed, ~0 quantity changed`, a push
-`Changes: +2 to add, -1 to remove, ~0 quantity changes` — any format change, and the final `Saved.` /
+`Changes: +2 to add, -1 to remove, ~0 quantity changes` — what the change filter left out
+(`Skipped 3 removals (applying additions only).`), any format change, and the final `Saved.` /
 `Pushed N card changes to Archidekt.` A closing alert summarizes the run, e.g.
 `Pulled 3 decks, 1 skipped.`, or `Previewed 3 decks, 1 skipped.` for a preview run.
 

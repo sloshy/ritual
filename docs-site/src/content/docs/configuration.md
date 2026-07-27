@@ -36,6 +36,9 @@ When you pass `--base-dir`, Ritual loads the config from that directory and reso
     "rateLimitMaxAttempts": 5,
     "rateLimitWindowMinutes": 5,
     "failedAuthDelayMs": 3000
+  },
+  "collectionSync": {
+    "pullTarget": "Inbox"
   }
 }
 ```
@@ -79,11 +82,20 @@ A waiting process breaks the lock immediately when its holder is provably no lon
 | `cacheSource`  | `scryfall` | Where card-cache refreshes download from. `scryfall` hits Scryfall's bulk API directly; `feed` syncs from a peer-to-peer [cache feed](/commands/cache/#feed-fetch) — checking the feed's infohashes and only downloading when they changed — falling back to Scryfall when unreachable. |
 | `cacheFeedUrl` | —          | The feed URL used when `cacheSource` is `feed` (and by `cache feed fetch` without `--url`). Must be an http(s) URL; the built-in default is used when absent.                                                                                                                           |
 
+## Collection sync
+
+| Field                       | Default | Description                                                                                                                                                                                                                                                                    |
+| --------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `collectionSync.pullTarget` | `Inbox` | The collection list [`collection-sync pull`](/commands/collection-sync/) adds new cards to. A card that appeared on Archidekt belongs in _some_ binder and only you know which, so every addition lands here; the list is created on first use. Must be a non-empty list name. |
+
+The `collectionSync` key is always present and falls back to its default when omitted. A single run
+can override it with `collection-sync pull --into <list>`.
+
 ## Export presets (`exportPresets` key)
 
-| Field           | Default | Description                                                                                                                                                                                                                                                                                                                                             |
-| --------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `exportPresets` | —       | Named output shapes for the [export](/commands/export/) command: each preset holds a `format` (`csv`/`json`), a `columns` array (in output order), and the CSV toggles `header` and `quoteAll`. Managed with `export --save-preset`, the export wizard, or by hand — `config set` does not manage this key. Present only after a preset has been saved. |
+| Field           | Default | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| --------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `exportPresets` | —       | Named output shapes for the [export](/commands/export/) command: each preset holds a `format` (`csv`/`json`/`text`/`md`), a `columns` array (in output order — stored always, read only by `csv`/`json` output), the CSV toggles `header` and `quoteAll`, and an optional `dialect` (`ritual` — the default — or `archidekt`, which spells finish and condition the way Archidekt's importer reads them). Managed with `export --save-preset`, the export wizard, or by hand — `config set` does not manage this key. Present only after a preset has been saved; the built-in `archidekt` preset needs no config, and a saved preset of that name shadows it. |
 
 ```json
 {

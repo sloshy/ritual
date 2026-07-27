@@ -19,6 +19,7 @@ import {
   parseCacheFeedUrl,
   parseCacheLockTimeoutSeconds,
   parseCacheSource,
+  parseCollectionSyncConfig,
   parseDefaultCurrency,
   getSiteApiBaseUrl,
   parseSearchDebounceMs,
@@ -107,6 +108,7 @@ describe('ritual config', () => {
         rateLimitWindowMinutes: 10,
         failedAuthDelayMs: 5000,
       },
+      collectionSync: { pullTarget: 'Binder' },
       site: {
         version: '1.0.0',
         ciSystem: 'github-actions',
@@ -234,6 +236,26 @@ describe('ritual config', () => {
     await fs.writeFile(configPath, JSON.stringify({ admin: 'nope' }))
     const config = await loadRitualConfig()
     expect(config.admin).toEqual(getDefaultRitualConfig().admin)
+  })
+
+  test('loadRitualConfig falls back to the collectionSync default when the section is absent', async () => {
+    // The pull target has to resolve for every config file, including the ones
+    // written before this section existed.
+    await fs.writeFile(configPath, JSON.stringify({ decksDir: './d' }))
+    const config = await loadRitualConfig()
+    expect(config.collectionSync).toEqual({ pullTarget: 'Inbox' })
+  })
+
+  test('loadRitualConfig keeps a configured collectionSync.pullTarget', async () => {
+    await fs.writeFile(configPath, JSON.stringify({ collectionSync: { pullTarget: 'Red Binder' } }))
+    const config = await loadRitualConfig()
+    expect(config.collectionSync.pullTarget).toBe('Red Binder')
+  })
+
+  test('loadRitualConfig falls back to the collectionSync default when the section is malformed', async () => {
+    await fs.writeFile(configPath, JSON.stringify({ collectionSync: { pullTarget: '  ' } }))
+    const config = await loadRitualConfig()
+    expect(config.collectionSync).toEqual({ pullTarget: 'Inbox' })
   })
 
   test('exportPresets survive a save/load round-trip', async () => {
@@ -379,6 +401,36 @@ describe('parseAdminConfig', () => {
     const result = parseAdminConfig({ gitEnabled: true, somethingElse: 'ignored' })
     expect(result).toEqual({ ...defaults, gitEnabled: true })
   })
+})
+
+describe('parseCollectionSyncConfig', () => {
+  const defaults = getDefaultRitualConfig().collectionSync
+
+  test('returns the defaults when the section is undefined', () => {
+    expect(parseCollectionSyncConfig(undefined)).toEqual(defaults)
+  })
+
+  test('defaults an absent pullTarget', () => {
+    expect(parseCollectionSyncConfig({})).toEqual(defaults)
+  })
+
+  test('trims the configured pull target', () => {
+    expect(parseCollectionSyncConfig({ pullTarget: '  Red Binder ' })).toEqual({
+      pullTarget: 'Red Binder',
+    })
+  })
+
+  test('returns a parse error when the section is not an object', () => {
+    expectParseError(parseCollectionSyncConfig('nope'), 'collectionSync config')
+  })
+
+  test.each([['""'], ['"   "'], ['5'], ['null']])(
+    'returns a parse error when pullTarget is %s',
+    (raw) => {
+      const value = JSON.parse(`{ "pullTarget": ${raw} }`) as unknown
+      expectParseError(parseCollectionSyncConfig(value), 'pullTarget')
+    },
+  )
 })
 
 describe('parseSiteConfig', () => {

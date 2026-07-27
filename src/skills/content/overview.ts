@@ -98,7 +98,7 @@ formats, leaving formatless decks untouched and reported).
 ## The ritual-* skills
 
 - **ritual-decks** — create, import, sync, and price decks
-- **ritual-collections** — manage and price collections
+- **ritual-collections** — manage, sync (Archidekt), and price collections
 - **ritual-wanted** — manage and price wanted lists
 - **ritual-edit** — card edits across any list: one-shot non-interactive commands (\`add-card\`, \`remove-card\`, \`set-card\`, \`note\`, scripted \`move\`), the unified interactive editor, and card exports (CSV, JSON, plain text, Markdown)
 - **ritual-cards** — look up cards and run Scryfall searches

@@ -1,4 +1,11 @@
-import { parseExportColumns, DEFAULT_EXPORT_COLUMNS, type ExportProperty } from './render'
+import {
+  parseExportColumns,
+  DEFAULT_EXPORT_COLUMNS,
+  EXPORT_DIALECTS,
+  isExportDialect,
+  type ExportDialect,
+  type ExportProperty,
+} from './render'
 
 export type ExportFormat = 'csv' | 'json' | 'text' | 'md'
 
@@ -48,6 +55,62 @@ export type ExportPreset = {
   header?: boolean
   /** CSV only; quote every cell. Defaults to false. */
   quoteAll?: boolean
+  /** Value vocabulary for finish/condition. Defaults to `ritual`. */
+  dialect?: ExportDialect
+}
+
+/**
+ * The CSV Archidekt's collection importer takes, and what
+ * `ritual collection-sync push` uploads for its additions:
+ * `Scryfall ID,Quantity,Variant,Condition` under a header row, with Archidekt's
+ * own value spellings. Uid-keyed rows need no name matching, so every row is
+ * unambiguous by construction.
+ */
+const ARCHIDEKT_PRESET: ExportPreset = {
+  format: 'csv',
+  columns: ['scryfallId', 'quantity', 'finish', 'condition'],
+  header: true,
+  quoteAll: false,
+  dialect: 'archidekt',
+}
+
+/**
+ * Presets Ritual ships with, available by name without any config. A saved
+ * preset of the same name wins (user config beats built-in defaults, as
+ * everywhere else) — nothing here is load-bearing for a feature: the collection
+ * sync builds its upload from {@link ARCHIDEKT_EXPORT_SETTINGS} directly, so
+ * shadowing `archidekt` only changes what `ritual export --preset archidekt`
+ * writes.
+ */
+export const BUILT_IN_EXPORT_PRESETS: Record<string, ExportPreset> = {
+  archidekt: ARCHIDEKT_PRESET,
+}
+
+/**
+ * The resolved output shape of the built-in `archidekt` preset — what the
+ * collection sync renders its CSV upload with, independent of any saved preset
+ * of that name.
+ */
+export const ARCHIDEKT_EXPORT_SETTINGS: ResolvedExportSettings = resolveExportSettings(
+  ARCHIDEKT_PRESET,
+  {},
+)
+
+/**
+ * A preset by name: a saved one first, then the built-ins. Undefined when
+ * neither has it — callers report that with {@link exportPresetNames}.
+ */
+export function findExportPreset(
+  name: string,
+  saved: Record<string, ExportPreset>,
+): ExportPreset | undefined {
+  return saved[name] ?? BUILT_IN_EXPORT_PRESETS[name]
+}
+
+/** Every usable preset name — saved ones first, then built-ins they don't shadow. */
+export function exportPresetNames(saved: Record<string, ExportPreset>): string[] {
+  const names = Object.keys(saved)
+  return [...names, ...Object.keys(BUILT_IN_EXPORT_PRESETS).filter((name) => !names.includes(name))]
 }
 
 /**
@@ -91,9 +154,16 @@ function parsePreset(name: string, raw: unknown): ExportPreset | string {
   if (candidate.quoteAll !== undefined && typeof candidate.quoteAll !== 'boolean') {
     return `${label}.quoteAll must be a boolean`
   }
+  if (
+    candidate.dialect !== undefined &&
+    (typeof candidate.dialect !== 'string' || !isExportDialect(candidate.dialect))
+  ) {
+    return `${label}.dialect must be one of: ${EXPORT_DIALECTS.join(', ')}`
+  }
   const preset: ExportPreset = { format: candidate.format, columns }
   if (candidate.header !== undefined) preset.header = candidate.header
   if (candidate.quoteAll !== undefined) preset.quoteAll = candidate.quoteAll
+  if (candidate.dialect !== undefined) preset.dialect = candidate.dialect
   return preset
 }
 
@@ -107,6 +177,7 @@ export type ExportSettingsFlags = {
   columns?: ExportProperty[]
   header?: boolean
   quoteAll?: boolean
+  dialect?: ExportDialect
 }
 
 /** Fully resolved output shape used by the renderers. */
@@ -115,6 +186,7 @@ export type ResolvedExportSettings = {
   columns: ExportProperty[]
   header: boolean
   quoteAll: boolean
+  dialect: ExportDialect
 }
 
 /**
@@ -126,8 +198,14 @@ export function resolveExportSettings(
 ): ResolvedExportSettings {
   return {
     format: flags.format ?? preset?.format ?? 'csv',
-    columns: flags.columns ?? preset?.columns ?? DEFAULT_EXPORT_COLUMNS,
+    // Copied, never aliased: the resolved settings are handed to renderers that
+    // take a mutable array, and a preset (or the shared default) whose array they
+    // sorted in place would change the shape of every later export — including the
+    // CSV a collection push uploads, which resolves the built-in preset once at
+    // module load.
+    columns: [...(flags.columns ?? preset?.columns ?? DEFAULT_EXPORT_COLUMNS)],
     header: flags.header ?? preset?.header ?? true,
     quoteAll: flags.quoteAll ?? preset?.quoteAll ?? false,
+    dialect: flags.dialect ?? preset?.dialect ?? 'ritual',
   }
 }

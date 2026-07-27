@@ -10,10 +10,19 @@ import {
   parseConditionFilterValues,
   type ExportFilters,
 } from '../export/entries'
-import { describeExportProperties, parseColumnsFlag, type ExportProperty } from '../export/render'
+import {
+  describeExportProperties,
+  EXPORT_DIALECTS,
+  isExportDialect,
+  parseColumnsFlag,
+  type ExportDialect,
+  type ExportProperty,
+} from '../export/render'
 import {
   EXPORT_FORMATS,
   exportFormatUsesColumns,
+  exportPresetNames,
+  findExportPreset,
   isExportFormat,
   resolveExportSettings,
   type ExportFormat,
@@ -53,6 +62,7 @@ type ExportCommandOptions = {
   /** The `--output <format>` export format; validated into `ParsedExportFlags.format`. */
   output?: string
   columns?: string
+  dialect?: string
   /** Commander stores `--no-header` as `header: false` (true when not given). */
   header: boolean
   quoteAll?: boolean
@@ -69,6 +79,7 @@ export type ParsedExportFlags = {
   filters: ExportFilters
   format?: ExportFormat
   columns?: ExportProperty[]
+  dialect?: ExportDialect
   /** undefined when `--no-header` was not given. */
   header?: boolean
   quoteAll?: boolean
@@ -89,7 +100,7 @@ export function hasExportRunSignal(flags: ParsedExportFlags, listArgs: string[])
   if (listArgs.length > 0) return true
   if (flags.all || flags.cards.length > 0) return true
   if (flags.format || flags.columns || flags.header !== undefined || flags.quoteAll) return true
-  if (flags.out || flags.preset || flags.savePreset) return true
+  if (flags.dialect || flags.out || flags.preset || flags.savePreset) return true
   return hasActiveExportFilters(flags.filters)
 }
 
@@ -160,6 +171,16 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
     columns = parsed
   }
 
+  let dialect: ExportDialect | undefined
+  if (options.dialect !== undefined) {
+    const lower = options.dialect.toLowerCase()
+    if (!isExportDialect(lower)) {
+      usageError(`Invalid dialect '${options.dialect}'. Use one of: ${EXPORT_DIALECTS.join(', ')}.`)
+      return undefined
+    }
+    dialect = lower
+  }
+
   // The column/CSV-shape flags conflict with an explicit fixed-line format.
   // Only explicit flags conflict — a preset whose stored columns accompany a
   // text/md format is fine (the columns are simply unused).
@@ -168,9 +189,10 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
     if (options.columns !== undefined) conflicting.push('--columns')
     if (!options.header) conflicting.push('--no-header')
     if (options.quoteAll) conflicting.push('--quote-all')
+    if (options.dialect !== undefined) conflicting.push('--dialect')
     if (conflicting.length > 0) {
       usageError(
-        `${conflicting.join(' and ')} cannot be combined with --output ${format}: ${format} exports have a fixed line format. Columns and CSV options apply to csv/json output only.`,
+        `${conflicting.join(' and ')} cannot be combined with --output ${format}: ${format} exports have a fixed line format. Columns, CSV options, and the value dialect apply to csv/json output only.`,
       )
       return undefined
     }
@@ -182,6 +204,7 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
     filters,
     format,
     columns,
+    dialect,
     header: options.header ? undefined : false,
     quoteAll: options.quoteAll ? true : undefined,
     out: options.out,
@@ -219,15 +242,12 @@ async function runFlagExport(
   // Resolve the preset before doing any work so an unknown name fails fast.
   let preset: ExportPreset | undefined
   if (flags.preset !== undefined) {
-    const presets = getExportPresets()
-    preset = presets[flags.preset]
+    const saved = getExportPresets()
+    preset = findExportPreset(flags.preset, saved)
     if (!preset) {
-      const names = Object.keys(presets)
       emitError(
         'not_found',
-        names.length > 0
-          ? `No export preset named '${flags.preset}'. Saved presets: ${names.join(', ')}.`
-          : `No export preset named '${flags.preset}'. No presets are saved yet.`,
+        `No export preset named '${flags.preset}'. Available presets: ${exportPresetNames(saved).join(', ')}.`,
         textOptions,
       )
       process.exitCode = ExitCode.NotFound
@@ -239,6 +259,7 @@ async function runFlagExport(
     columns: flags.columns,
     header: flags.header,
     quoteAll: flags.quoteAll,
+    dialect: flags.dialect,
   })
 
   // Selected lists: named args, or every list in scope when --all (or nothing) was given.
@@ -275,12 +296,12 @@ async function runFlagExport(
     if (!quiet) console.log(`✓ Saved export preset '${flags.savePreset}'`)
   }
 
-  await emitExport(
-    renderExport(selection.entries, settings),
-    selection.entries.length,
-    flags.out,
-    quiet,
-  )
+  const rendered = await renderExport(selection.entries, settings)
+  if (!quiet) {
+    for (const warning of rendered.warnings) console.warn(`⚠️  ${warning}`)
+  }
+
+  await emitExport(rendered.content, selection.entries.length, flags.out, quiet)
 }
 
 export function registerExportCommand(program: Command): void {
@@ -317,10 +338,17 @@ export function registerExportCommand(program: Command): void {
       '--columns <list>',
       `Comma-separated columns in output order (csv/json only). Available: ${describeExportProperties()}`,
     )
+    .option(
+      '--dialect <name>',
+      `Value spellings for finish and condition (csv/json only): ${EXPORT_DIALECTS.join(', ')} (default: ritual)`,
+    )
     .option('--no-header', 'Omit the CSV header row')
     .option('--quote-all', 'Quote every CSV cell instead of only cells that need it')
     .option('--out <file>', 'Write to this file instead of stdout')
-    .option('--preset <name>', 'Export with a saved preset (explicit flags override its values)')
+    .option(
+      '--preset <name>',
+      'Export with a saved or built-in preset (explicit flags override its values)',
+    )
     .option('--save-preset <name>', 'Save the resolved format/columns/CSV options as a preset')
     .option('--quiet', 'Suppress warnings and confirmations')
     .action(async (listArgs: string[], options: ExportCommandOptions) => {

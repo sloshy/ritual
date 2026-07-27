@@ -160,7 +160,7 @@ export function matchList(
  * and `Black Panther` finds a `black-panther.md` left over from before list files
  * were named as entered.
  */
-function normalizeListName(name: string): string {
+export function normalizeListName(name: string): string {
   return normalizeForSearch(name).replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
 }
 

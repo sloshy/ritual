@@ -206,6 +206,12 @@ Pull or push Archidekt-linked decks, with per-deck progress streaming into the p
 
 Same engine as [`deck-sync`](/commands/deck-sync/). See [Sync Decks](/admin/sync-decks/) for the full page.
 
+### Sync Collection
+
+Pull or push the signed-in Archidekt account's collection, with per-list progress streaming into the page as the run proceeds. Choose a direction, a scope (the whole collection or selected lists), a change filter (all changes, additions only, removals only), the list a pull adds new cards to, an ordered removal priority (which binders may give copies up when a removal is ambiguous — without it such a run stops without writing anything), whether a push uploads its new cards as one CSV import (on by default — with it off a push adding more than 25 of them stops without pushing anything), and optionally preview without writing. A finished push reports what that import did, including any row Archidekt refused. An account has one collection, so the page shows a single account-level "last synced".
+
+Same engine as [`collection-sync`](/commands/collection-sync/). See [Sync Collection](/admin/sync-collection/) for the full page.
+
 ### Settings
 
 Configure admin settings including:
@@ -254,6 +260,9 @@ Settings are stored in `ritual.config.json` in the base directory. The file is s
     "rateLimitMaxAttempts": 5,
     "rateLimitWindowMinutes": 5,
     "failedAuthDelayMs": 3000
+  },
+  "collectionSync": {
+    "pullTarget": "Inbox"
   }
 }
 ```
@@ -826,6 +835,9 @@ Returns the current application configuration.
       "rateLimitMaxAttempts": 5,
       "rateLimitWindowMinutes": 5,
       "failedAuthDelayMs": 3000
+    },
+    "collectionSync": {
+      "pullTarget": "Inbox"
     }
   }
 }
@@ -842,6 +854,8 @@ Every key in the request body is validated **before** the merge is persisted —
 - Unknown top-level keys are rejected with a `400` (`Unknown config key "x"`).
 - Unknown keys inside `admin` are rejected with a `400` (`Unknown admin config key "x"`), matching `config set admin.<field>`.
 - When `admin` or `site` is present, its fields are validated field-by-field (the same rules the config loader applies), and any malformed field rejects the whole update with a `400`.
+
+`collectionSync` replaces wholesale like `site` rather than merging like `admin`: its fields are validated (`pullTarget` must be a non-empty list name) and any absent field takes its default, so a partial object round-trips to a complete one and a malformed value rejects the whole update with a `400`.
 
 `defaultCurrency`, `cacheLockTimeoutSeconds`, `cacheSource`, `cacheFeedUrl`, and `searchDebounceMs` are validated the same way as [`config set`](/commands/config/) and rejected with a `400` when malformed. `cacheFeedUrl` has one extra rule: sending it as an **empty string** explicitly clears a previously-set override (falling back to the built-in default) — omitting the field entirely, by contrast, leaves the current value untouched.
 
@@ -883,6 +897,9 @@ Every key in the request body is validated **before** the merge is persisted —
       "rateLimitMaxAttempts": 5,
       "rateLimitWindowMinutes": 5,
       "failedAuthDelayMs": 3000
+    },
+    "collectionSync": {
+      "pullTarget": "Inbox"
     }
   }
 }

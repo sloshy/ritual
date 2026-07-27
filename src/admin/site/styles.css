@@ -353,7 +353,7 @@
   margin: 0;
 }
 
-/* ===== Sync decks ===== */
+/* ===== Sync pages (decks, collection) ===== */
 .sync-last-run {
   font-size: 0.8125rem;
   color: var(--text-secondary);
@@ -365,13 +365,17 @@
   font-weight: 500;
 }
 
-.sync-direction-desc {
+/* The explanatory line under a segmented control (direction, scope, change
+   filter) and under the pull-target picker. */
+.sync-choice-desc {
   font-size: 0.8125rem;
   color: var(--text-muted);
   margin-top: 0.5rem;
+  max-width: 60ch;
 }
 
-.sync-deck-list {
+/* The list of things a run can be scoped to: decks, or collection lists. */
+.sync-select-list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -381,7 +385,7 @@
   overflow: hidden;
 }
 
-.sync-deck {
+.sync-select-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -391,17 +395,17 @@
   border-bottom: 1px solid var(--border-separator);
 }
 
-.sync-deck:last-child {
+.sync-select-row:last-child {
   border-bottom: none;
 }
 
 /* The master "All decks" row, held apart from the decks it toggles. */
-.sync-deck--all {
+.sync-select-row--all {
   background: var(--bg-hover);
   font-weight: 500;
 }
 
-.sync-deck-label {
+.sync-select-label {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -409,16 +413,32 @@
   cursor: pointer;
 }
 
-.sync-deck-name {
+.sync-select-name {
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.sync-deck-meta {
+.sync-select-meta {
   color: var(--text-muted);
   flex-shrink: 0;
+}
+
+/* The collection scope's list of binders, chosen under its own segmented control. */
+.sync-scope-lists {
+  margin-top: 0.75rem;
+}
+
+/* The list a collection pull adds new cards to. */
+.sync-pull-target {
+  max-width: 24rem;
+}
+
+/* An inline link out of a sync page (e.g. to the Archidekt Login page). */
+.sync-login-link {
+  color: var(--text-accent);
+  text-decoration: underline;
 }
 
 .sync-dry-run {
@@ -433,6 +453,244 @@
 
 .sync-run-btn {
   margin-bottom: 1rem;
+}
+
+/* ----- Removal priority (collection pulls) ----- */
+.sync-priority {
+  margin-top: 1.25rem;
+}
+
+/* Ranked rather than ticked: the order is what the control is for. */
+.sync-priority-chips {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.sync-priority-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.25rem 0.25rem 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+}
+
+.sync-priority-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--btn-on-color-text);
+  background: var(--accent);
+  border-radius: 50%;
+}
+
+.sync-priority-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The file basename beside a list's heading: it is what the ambiguity messages
+   name, so the picker shows both. */
+.sync-priority-slug {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+/* The chips are flex (their gap spaces it); an option button is not. */
+.sync-priority-option .sync-priority-slug {
+  margin-left: 0.375rem;
+}
+
+.sync-priority-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  font-size: 0.875rem;
+  line-height: 1;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.sync-priority-remove:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.sync-priority-empty {
+  margin-top: 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.sync-priority-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.sync-priority-option {
+  padding: 0.25rem 0.625rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  background: var(--btn-bg);
+  border: 1px dashed var(--border);
+  border-radius: 1rem;
+  cursor: pointer;
+}
+
+.sync-priority-option:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--btn-hover);
+  border-color: var(--border-hover);
+}
+
+.sync-priority-option:disabled,
+.sync-priority-remove:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ----- Removals a run could not place ----- */
+.sync-ambiguous {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
+  border-radius: 0.375rem;
+}
+
+.sync-ambiguous-lead {
+  font-size: 0.8125rem;
+  color: var(--error-text);
+}
+
+.sync-ambiguous-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.sync-ambiguous-item {
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+/* ----- How a push's new cards reach Archidekt ----- */
+.sync-csv {
+  margin-top: 1.25rem;
+}
+
+.sync-csv-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+/* Only shown while the upload is off, which is the state that can refuse a run. */
+.sync-csv-warning {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  font-size: 0.8125rem;
+  color: var(--warning-text);
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+  border-radius: 0.375rem;
+}
+
+/* ----- What the CSV import did with them ----- */
+.sync-csv-outcome {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+}
+
+/* An import that landed, one that only wrote a file, and one that failed are
+   three different pieces of news; a preview stays neutral. */
+.sync-csv-outcome[data-status='uploaded'] {
+  background: var(--success-bg);
+  border-color: var(--success-border);
+}
+
+.sync-csv-outcome[data-status='exported'] {
+  background: var(--warning-bg);
+  border-color: var(--warning-border);
+}
+
+.sync-csv-outcome[data-status='failed'] {
+  background: var(--error-bg);
+  border-color: var(--error-border);
+}
+
+.sync-csv-outcome-lead {
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.sync-csv-outcome[data-status='uploaded'] .sync-csv-outcome-lead {
+  color: var(--success-text);
+}
+
+.sync-csv-outcome[data-status='exported'] .sync-csv-outcome-lead {
+  color: var(--warning-text);
+}
+
+.sync-csv-outcome[data-status='failed'] .sync-csv-outcome-lead {
+  color: var(--error-text);
+}
+
+.sync-csv-uncached,
+.sync-csv-failures-lead {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+/* However many rows Archidekt dropped, the panel stays a panel. */
+.sync-csv-failures {
+  list-style: none;
+  margin: 0.375rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.sync-csv-failure {
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
 }
 
 /* ----- Unreadable-line confirmation ----- */
@@ -505,7 +763,7 @@
   color: var(--error-text);
 }
 
-.sync-run-deck {
+.sync-run-item {
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
@@ -516,15 +774,15 @@
   transition: border-color 0.2s;
 }
 
-.sync-run-deck[data-status='synced'] {
+.sync-run-item[data-status='synced'] {
   border-color: var(--success-border);
 }
 
-.sync-run-deck[data-status='skipped'] {
+.sync-run-item[data-status='skipped'] {
   border-color: var(--warning-border);
 }
 
-.sync-run-deck[data-status='failed'] {
+.sync-run-item[data-status='failed'] {
   border-color: var(--error-border);
 }
 
@@ -535,19 +793,19 @@
   color: var(--text-accent);
 }
 
-.sync-run-deck[data-status='synced'] .sync-run-icon {
+.sync-run-item[data-status='synced'] .sync-run-icon {
   color: var(--success-text);
 }
 
-.sync-run-deck[data-status='skipped'] .sync-run-icon {
+.sync-run-item[data-status='skipped'] .sync-run-icon {
   color: var(--warning-text);
 }
 
-.sync-run-deck[data-status='failed'] .sync-run-icon {
+.sync-run-item[data-status='failed'] .sync-run-icon {
   color: var(--error-text);
 }
 
-.sync-run-deck[data-status='running'] .sync-run-icon {
+.sync-run-item[data-status='running'] .sync-run-icon {
   animation: sync-pulse 1.4s ease-in-out infinite;
 }
 
@@ -566,6 +824,16 @@
   flex-direction: column;
   gap: 0.125rem;
   min-width: 0;
+  /* Takes the slack, so a row's tally sits against its right edge. */
+  flex: 1;
+}
+
+/* A finished row's tally (e.g. `+2 added, -1 removed`). */
+.sync-run-meta {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .sync-run-name {
@@ -580,7 +848,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sync-run-deck[data-status='running'] .sync-run-icon {
+  .sync-run-item[data-status='running'] .sync-run-icon {
     animation: none;
   }
 }

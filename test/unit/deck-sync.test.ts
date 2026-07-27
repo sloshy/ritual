@@ -5,6 +5,7 @@ import {
   diffToChangeEvents,
   buildCardIdResolver,
   applyDownloadDiff,
+  filterNameDiff,
   normalizeBoard,
   syncDeckFormat,
   type NameDiff,
@@ -737,5 +738,76 @@ describe('syncDeckFormat', () => {
     const local = deck({ sections: [{ name: 'Main', cards: [{ quantity: 4, name: 'Bolt' }] }] })
     const result = syncDeckFormat(local, undefined, deck())
     expect(result).toEqual({ format: null, localFormat: null, changed: false })
+  })
+})
+
+// ── filterNameDiff ────────────────────────────────────────────────────
+
+/** A diff with one of each change kind, so a filter's every branch is exercised. */
+function filterableDiff(): NameDiff {
+  return {
+    added: [{ name: 'Sol Ring', totalQuantity: 1, board: 'Main' }],
+    removed: [{ name: 'Lightning Bolt', totalQuantity: 2, board: 'Sideboard' }],
+    quantityChanged: [
+      { name: 'Brainstorm', oldQty: 1, newQty: 3, board: 'Main' },
+      { name: 'Ponder', oldQty: 4, newQty: 2, board: 'Main' },
+    ],
+  }
+}
+
+describe('filterNameDiff', () => {
+  test('passes the diff through untouched when no filter is given', () => {
+    const original = filterableDiff()
+    const filtered = filterNameDiff(original, undefined)
+    expect(filtered.diff).toBe(original)
+    expect(filtered.skipped).toBe(0)
+  })
+
+  test('additions keeps added cards and quantity increases', () => {
+    const { diff: kept, skipped } = filterNameDiff(filterableDiff(), 'additions')
+    expect(kept.added.map((card) => card.name)).toEqual(['Sol Ring'])
+    expect(kept.removed).toEqual([])
+    expect(kept.quantityChanged.map((entry) => entry.name)).toEqual(['Brainstorm'])
+    // One removal plus one decrease were left out.
+    expect(skipped).toBe(2)
+  })
+
+  test('removals keeps removed cards and quantity decreases', () => {
+    const { diff: kept, skipped } = filterNameDiff(filterableDiff(), 'removals')
+    expect(kept.added).toEqual([])
+    expect(kept.removed.map((card) => card.name)).toEqual(['Lightning Bolt'])
+    expect(kept.quantityChanged.map((entry) => entry.name)).toEqual(['Ponder'])
+    expect(skipped).toBe(2)
+  })
+
+  test('leaves the input diff alone', () => {
+    const original = filterableDiff()
+    filterNameDiff(original, 'additions')
+    expect(original.removed).toHaveLength(1)
+    expect(original.quantityChanged).toHaveLength(2)
+  })
+
+  test('reports nothing skipped when the whole diff is on the kept side', () => {
+    const additionsOnly: NameDiff = {
+      added: [{ name: 'Sol Ring', totalQuantity: 1, board: 'Main' }],
+      removed: [],
+      quantityChanged: [{ name: 'Brainstorm', oldQty: 1, newQty: 2, board: 'Main' }],
+    }
+    const { diff: kept, skipped } = filterNameDiff(additionsOnly, 'additions')
+    expect(kept).toEqual(additionsOnly)
+    expect(skipped).toBe(0)
+  })
+
+  test('can empty the diff entirely, which the engine reads as "no changes"', () => {
+    const { diff: kept, skipped } = filterNameDiff(
+      {
+        added: [],
+        removed: [{ name: 'Lightning Bolt', totalQuantity: 1, board: 'Main' }],
+        quantityChanged: [],
+      },
+      'additions',
+    )
+    expect(kept).toEqual({ added: [], removed: [], quantityChanged: [] })
+    expect(skipped).toBe(1)
   })
 })

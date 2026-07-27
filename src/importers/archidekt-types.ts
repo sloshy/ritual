@@ -75,6 +75,31 @@ export function getArchidektFormat(formatId: number): string {
 
 export type ArchidektCardModifier = 'Normal' | 'Foil' | 'Etched'
 
+export interface ArchidektEdition {
+  /** Set code. Archidekt serves it lowercase; normalize anyway before comparing. */
+  editioncode: string
+}
+
+export interface ArchidektOracleCard {
+  id: number
+  name: string
+  /** Archidekt's default deck category — present on deck card entries, not on every card payload. */
+  defaultCategory?: string
+}
+
+/**
+ * The card ("printing") object Archidekt embeds in deck entries and collection
+ * records. Only the fields Ritual reads are declared.
+ */
+export interface ArchidektCard {
+  id: number // Archidekt card edition ID — sent as cardid to modifyCards/v2/ and as `card` on collection upserts
+  uid: string // Scryfall UUID
+  collectorNumber: string
+  options: ArchidektCardModifier[]
+  oracleCard: ArchidektOracleCard
+  edition: ArchidektEdition
+}
+
 export interface ArchidektRawCardEntry {
   id: number // Deck-card relation ID (deckRelationId for modifyCards)
   quantity: number
@@ -84,14 +109,7 @@ export interface ArchidektRawCardEntry {
   flippedDefault: boolean
   label: string // "name,hexcolor" — default ",#656565"
   customCmc: number | null
-  card: {
-    id: number // Archidekt card edition ID — sent as cardid to modifyCards/v2/
-    uid: string // Scryfall UUID
-    collectorNumber: string
-    options: ArchidektCardModifier[]
-    oracleCard: { id: number; name: string; defaultCategory: string }
-    edition: { editioncode: string }
-  }
+  card: ArchidektCard
 }
 
 export interface ArchidektRawDeckResponse {

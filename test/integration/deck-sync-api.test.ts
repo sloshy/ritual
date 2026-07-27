@@ -9,13 +9,13 @@ import {
   type DeckSyncStatusResponse,
 } from '../../src/admin/api/deck-sync'
 import { dispatchRoute } from '../../src/admin/server'
-import type { ArchidektToken } from '../../src/auth/interfaces'
 import type { DeckSyncEvent, DeckSyncReport } from '../../src/deck-sync/engine'
 import type {
   ArchidektDeckResponse,
   ArchidektRawCardEntry,
   ArchidektRawDeckResponse,
 } from '../../src/importers/archidekt-types'
+import { signIn as storeLogin } from './helpers/archidekt'
 import { bindWorkspace, writeDeckFile, type BoundWorkspace } from './helpers/workspace'
 
 /**
@@ -48,24 +48,9 @@ let ws: BoundWorkspace
 let tmpDir: string
 let originalFetch: typeof globalThis.fetch
 
-/** A JWT the auth layer reads as valid for an hour; only the `exp` claim matters. */
-function tokenValidForAnHour(): string {
-  const payload = Buffer.from(
-    JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 }),
-  ).toString('base64url')
-  return `header.${payload}.signature`
-}
-
 /** Store an Archidekt login the same way `ritual login archidekt` does. */
 async function signIn(): Promise<void> {
-  const token: ArchidektToken = {
-    access_token: tokenValidForAnHour(),
-    refresh_token: tokenValidForAnHour(),
-    user: { id: 1, username: 'testuser' },
-  }
-  const loginsDir = path.join(tmpDir, '.logins')
-  await fs.mkdir(loginsDir, { recursive: true })
-  await fs.writeFile(path.join(loginsDir, 'archidekt.json'), JSON.stringify(token))
+  await storeLogin(tmpDir, { id: 1, username: 'testuser' })
 }
 
 /** Route Archidekt URLs to `routes`; anything else (or anything unrouted) fails. */
@@ -165,6 +150,26 @@ async function postRun(body: unknown): Promise<{ status: number; body: DeckSyncR
   })
   const resp = await handleDeckSyncRun(req)
   return { status: resp.status, body: (await resp.json()) as DeckSyncRunResponse }
+}
+
+/**
+ * Every log line a run emits, driven through the SSE stream because that is the
+ * only surface the engine's own progress reaches (the JSON endpoint keeps just
+ * the report).
+ */
+async function runEvents(body: Record<string, unknown>): Promise<string[]> {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(body)) {
+    if (Array.isArray(value)) for (const item of value) params.append('deck', String(item))
+    else if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')
+      params.set(key, String(value))
+  }
+  params.delete('decks')
+  const frames = await readStream(params.toString())
+  return frames.flatMap((frame) => {
+    const event = frame.data as { kind?: string; message?: string }
+    return frame.event === 'progress' && event.kind === 'log' ? [event.message ?? ''] : []
+  })
 }
 
 /** The report of a run that was expected to complete. */
@@ -292,6 +297,72 @@ describe('deck-sync API', () => {
 
     const changelog = await fs.readFile(path.join(tmpDir, 'decks', 'linked.changes.md'), 'utf-8')
     expect(changelog).toContain('Added "Lightning Bolt"')
+  })
+
+  test('a pull with --only additions adds the remote card and keeps the local-only one', async () => {
+    // The filter itself is unit-tested; what is pinned here is that the engine
+    // actually applies `only` on the pull path.
+    await writeDeckFile(tmpDir, 'linked', {
+      frontMatter: {
+        name: 'Linked Deck',
+        format: 'commander',
+        sourceId: SOURCE_ID,
+        sourceUrl: SOURCE_URL,
+        lastSynced: LAST_SYNCED,
+      },
+      cards: [
+        { quantity: 1, name: 'Sol Ring', cardId: 1 },
+        { quantity: 1, name: 'Counterspell', cardId: 2 },
+      ],
+    })
+    await signIn()
+    stubArchidekt()
+
+    const events = await runEvents({ direction: 'pull', decks: ['linked'], only: 'additions' })
+
+    const deck = await fs.readFile(path.join(tmpDir, 'decks', 'linked.md'), 'utf-8')
+    expect(deck).toContain('Lightning Bolt')
+    // The remote does not hold Counterspell, but removals were filtered out.
+    expect(deck).toContain('Counterspell')
+    expect(events).toContain('Skipped 1 removal (applying additions only).')
+  })
+
+  test('a push with --only removals sends the removal and not the addition', async () => {
+    await writeDeckFile(tmpDir, 'linked', {
+      frontMatter: {
+        name: 'Linked Deck',
+        format: 'commander',
+        sourceId: SOURCE_ID,
+        sourceUrl: SOURCE_URL,
+        lastSynced: LAST_SYNCED,
+      },
+      cards: [
+        { quantity: 1, name: 'Sol Ring', cardId: 1 },
+        { quantity: 1, name: 'Counterspell', cardId: 2 },
+      ],
+    })
+    await signIn()
+    const bodies: unknown[] = []
+    stubFetch({
+      'https://archidekt.com/api/decks/curated/self/': () =>
+        Response.json({ results: [{ id: Number(SOURCE_ID), name: 'Linked Deck' }], count: 1 }),
+      [`https://archidekt.com/api/decks/${SOURCE_ID}/`]: () => Response.json(RAW_DECK),
+      [`https://archidekt.com/api/decks/${SOURCE_ID}/modifyCards/v2/`]: () => Response.json({}),
+    })
+    const withBody = globalThis.fetch
+    globalThis.fetch = ((input: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === 'PATCH' && typeof init.body === 'string') {
+        bodies.push(JSON.parse(init.body))
+      }
+      return withBody(input, init)
+    }) as typeof globalThis.fetch
+
+    const events = await runEvents({ direction: 'push', decks: ['linked'], only: 'removals' })
+
+    // Lightning Bolt is remote-only, Counterspell local-only: only the former
+    // survives a removals-only push, and no card search is needed for it.
+    expect(bodies).toEqual([{ cards: [expect.objectContaining({ action: 'remove', cardid: 20 })] }])
+    expect(events).toContain('Skipped 1 addition (applying removals only).')
   })
 
   test('a dry run reports the diff without writing anything', async () => {

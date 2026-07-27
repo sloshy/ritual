@@ -31,6 +31,7 @@ export type Page =
   | 'build-site'
   | 'cache-refresh'
   | 'deck-sync'
+  | 'collection-sync'
   | 'archidekt-login'
   | 'settings'
   | 'audit-log'
@@ -83,7 +84,9 @@ const PAGE_PATHS: Record<Page, string> = {
   'import-changes': 'import/changes',
   'build-site': 'build',
   'cache-refresh': 'cache',
-  'deck-sync': 'sync',
+  // The two syncs share a path prefix, so neither reads as the default one.
+  'deck-sync': 'sync/decks',
+  'collection-sync': 'sync/collection',
   'archidekt-login': 'archidekt',
   settings: 'settings',
   'audit-log': 'audit',
@@ -109,6 +112,7 @@ export const PAGE_DISPLAY: Record<Page, PageDisplay> = {
   'build-site': { label: 'Build Site', icon: '🔨' },
   'cache-refresh': { label: 'Refresh Cache', icon: '🔄' },
   'deck-sync': { label: 'Sync Decks', icon: '🔁' },
+  'collection-sync': { label: 'Sync Collection', icon: '🔃' },
   'archidekt-login': { label: 'Archidekt Login', icon: '🔑' },
   settings: { label: 'Settings', icon: '⚙️' },
   'audit-log': { label: 'Audit Log', icon: '📋' },

@@ -32,6 +32,7 @@ import { registerLicenseCommand } from './src/commands/license'
 import { registerDepLicenseCommand } from './src/commands/dep-license'
 import { registerGitDetectChangesCommand } from './src/commands/git-detect-changes'
 import { registerDeckSyncCommand } from './src/commands/deck-sync'
+import { registerCollectionSyncCommand } from './src/commands/collection-sync'
 import { registerEditCommand } from './src/commands/edit'
 import { registerMoveCommand } from './src/commands/move'
 import { registerHistoryCommand } from './src/commands/history'
@@ -198,6 +199,7 @@ registerAdminCommand(program)
 program.commandsGroup('Integrations')
 registerLoginCommand(program)
 registerDeckSyncCommand(program)
+registerCollectionSyncCommand(program)
 registerMcpCommand(program)
 registerSkillsCommand(program)
 

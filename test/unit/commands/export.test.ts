@@ -16,6 +16,7 @@ import {
 } from '../../../src/commands/export-wizard'
 import type { ExportEntry } from '../../../src/export/entries'
 import { DEFAULT_EXPORT_COLUMNS } from '../../../src/export/render'
+import type { ResolvedExportSettings } from '../../../src/export/presets'
 import type { ExportWizardSelection } from '../../../src/commands/export-wizard'
 
 function flags(overrides: Partial<ParsedExportFlags> = {}): ParsedExportFlags {
@@ -41,12 +42,23 @@ function entry(overrides: Partial<ExportEntry> = {}): ExportEntry {
   }
 }
 
+function settings(overrides: Partial<ResolvedExportSettings> = {}): ResolvedExportSettings {
+  return {
+    format: 'csv',
+    columns: DEFAULT_EXPORT_COLUMNS,
+    header: true,
+    quoteAll: false,
+    dialect: 'ritual',
+    ...overrides,
+  }
+}
+
 function wizardState(overrides: Partial<ExportWizardState> = {}): ExportWizardState {
   return {
     lists: [],
     picked: [],
     filters: {},
-    settings: { format: 'csv', columns: DEFAULT_EXPORT_COLUMNS, header: true, quoteAll: false },
+    settings: settings(),
     ...overrides,
   }
 }
@@ -69,6 +81,7 @@ describe('export wizard gating', () => {
     ['--columns', flags({ columns: ['name'] }), []],
     ['--no-header', flags({ header: false }), []],
     ['--quote-all', flags({ quoteAll: true }), []],
+    ['--dialect', flags({ dialect: 'archidekt' }), []],
     ['--out', flags({ out: 'x.csv' }), []],
     ['--preset', flags({ preset: 'deckbox' }), []],
     ['--save-preset', flags({ savePreset: 'p' }), []],
@@ -137,9 +150,7 @@ describe('wizard pure builders', () => {
     const csvLines = formatWizardHeaderLines(wizardState(), 0)
     expect(csvLines.some((line) => line.startsWith('CSV:'))).toBe(true)
     const jsonLines = formatWizardHeaderLines(
-      wizardState({
-        settings: { format: 'json', columns: ['name'], header: true, quoteAll: false },
-      }),
+      wizardState({ settings: settings({ format: 'json', columns: ['name'] }) }),
       0,
     )
     expect(jsonLines.some((line) => line.startsWith('CSV:'))).toBe(false)
@@ -154,9 +165,7 @@ describe('wizard pure builders', () => {
     const csvWithoutPresets = menuKinds(wizardState(), 0)
     expect(csvWithoutPresets).toContain('csv-options')
     expect(csvWithoutPresets).not.toContain('load-preset')
-    const json = wizardState({
-      settings: { format: 'json', columns: ['name'], header: true, quoteAll: false },
-    })
+    const json = wizardState({ settings: settings({ format: 'json', columns: ['name'] }) })
     const jsonWithPresets = menuKinds(json, 2)
     expect(jsonWithPresets).not.toContain('csv-options')
     expect(jsonWithPresets).toContain('columns')
@@ -166,9 +175,7 @@ describe('wizard pure builders', () => {
   test.each<['text' | 'md']>([['text'], ['md']])(
     'the fixed-line %s format hides both the columns and CSV options menus',
     (format) => {
-      const state = wizardState({
-        settings: { format, columns: ['name'], header: true, quoteAll: false },
-      })
+      const state = wizardState({ settings: settings({ format, columns: ['name'] }) })
       const kinds = menuKinds(state, 0)
       expect(kinds).toContain('format')
       expect(kinds).not.toContain('columns')
@@ -178,17 +185,13 @@ describe('wizard pure builders', () => {
 
   test('formatWizardHeaderLines omits the column list for fixed-line formats', () => {
     const textLines = formatWizardHeaderLines(
-      wizardState({
-        settings: { format: 'text', columns: ['name'], header: true, quoteAll: false },
-      }),
+      wizardState({ settings: settings({ format: 'text', columns: ['name'] }) }),
       0,
     )
     expect(textLines).toContain('Format: TEXT')
     expect(textLines.some((line) => line.includes('Columns'))).toBe(false)
     const jsonLines = formatWizardHeaderLines(
-      wizardState({
-        settings: { format: 'json', columns: ['name'], header: true, quoteAll: false },
-      }),
+      wizardState({ settings: settings({ format: 'json', columns: ['name'] }) }),
       0,
     )
     expect(jsonLines.some((line) => line.startsWith('Format: JSON · Columns: Name'))).toBe(true)
@@ -222,5 +225,24 @@ describe('wizard pure builders', () => {
         quoteAll: true,
       }),
     ).toBe('deckbox — CSV · Name, Quantity · no header · quote all')
+  })
+
+  test('formatPresetSummary names a foreign dialect and its labels', () => {
+    expect(
+      formatPresetSummary('archidekt', {
+        format: 'csv',
+        columns: ['scryfallId', 'quantity', 'finish', 'condition'],
+        dialect: 'archidekt',
+      }),
+    ).toBe('archidekt — CSV · Scryfall ID, Quantity, Variant, Condition · archidekt values')
+  })
+
+  test('the wizard header names a foreign dialect, and stays silent about the default', () => {
+    const archidekt = formatWizardHeaderLines(
+      wizardState({ settings: settings({ columns: ['finish'], dialect: 'archidekt' }) }),
+      0,
+    )
+    expect(archidekt).toContain('Format: CSV · Columns: Variant · archidekt values')
+    expect(formatWizardHeaderLines(wizardState(), 0).join('\n')).not.toContain('values')
   })
 })

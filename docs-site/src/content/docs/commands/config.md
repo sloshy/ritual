@@ -57,6 +57,14 @@ The nested `admin` keys — settings for the [admin server](/commands/admin/) �
 | `admin.rateLimitWindowMinutes` | `number`   | `5`     |
 | `admin.failedAuthDelayMs`      | `number`   | `3000`  |
 
+The nested `collectionSync` key — settings for [`collection-sync`](/commands/collection-sync/) — uses dot notation too:
+
+| Property                    | Type     | Default |
+| --------------------------- | -------- | ------- |
+| `collectionSync.pullTarget` | `string` | `Inbox` |
+
+`collectionSync.pullTarget` names the collection list a `collection-sync pull` adds new cards to, created on first use; it must be a non-empty list name, and `--into` overrides it for one run. See [Configuration → Collection sync](/configuration/#collection-sync).
+
 The following nested `site` keys — the [public-site publish lists](/commands/build-site/#choosing-which-lists-to-build) and other public-site settings — are also settable:
 
 | Property                  | Type       | Default |

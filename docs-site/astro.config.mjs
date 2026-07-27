@@ -80,7 +80,13 @@ export default defineConfig({
             },
             {
               label: 'Integrations',
-              items: ['commands/login', 'commands/deck-sync', 'commands/mcp', 'commands/skills'],
+              items: [
+                'commands/login',
+                'commands/deck-sync',
+                'commands/collection-sync',
+                'commands/mcp',
+                'commands/skills',
+              ],
             },
             {
               label: 'Cache',
@@ -126,6 +132,7 @@ export default defineConfig({
             'admin/manage-lists',
             'admin/history',
             'admin/sync-decks',
+            'admin/sync-collection',
             'admin/api',
           ],
         },

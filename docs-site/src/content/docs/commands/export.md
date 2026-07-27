@@ -21,6 +21,9 @@ Export any grouping of cards from your decks, collections, and wanted lists as *
 
 # Cherry-pick cards across lists, filtered
 ./ritual export --card "sol ring" --card "lightning bolt" --finish foil
+
+# A CSV ready for Archidekt's collection importer
+./ritual export --collection --preset archidekt --out archidekt.csv
 ```
 
 ## Arguments
@@ -56,16 +59,17 @@ Filters apply to the assembled set — list entries and card picks alike.
 
 ### Output
 
-| Option                 | Description                                                     |
-| ---------------------- | --------------------------------------------------------------- |
-| `--output <format>`    | `csv` (default), `json`, `text`, or `md`                        |
-| `--columns <list>`     | Comma-separated properties in output order (`csv`/`json` only)  |
-| `--no-header`          | Omit the CSV header row                                         |
-| `--quote-all`          | Quote every CSV cell instead of only cells that need it         |
-| `--out <file>`         | Write to this file instead of stdout                            |
-| `--preset <name>`      | Export with a saved preset (explicit flags override its values) |
-| `--save-preset <name>` | Save the resolved format/columns/CSV options as a named preset  |
-| `--quiet`              | Suppress warnings and confirmations                             |
+| Option                 | Description                                                                 |
+| ---------------------- | --------------------------------------------------------------------------- |
+| `--output <format>`    | `csv` (default), `json`, `text`, or `md`                                    |
+| `--columns <list>`     | Comma-separated properties in output order (`csv`/`json` only)              |
+| `--dialect <name>`     | Value spellings for finish and condition: `ritual` (default) or `archidekt` |
+| `--no-header`          | Omit the CSV header row                                                     |
+| `--quote-all`          | Quote every CSV cell instead of only cells that need it                     |
+| `--out <file>`         | Write to this file instead of stdout                                        |
+| `--preset <name>`      | Export with a saved or built-in preset (explicit flags override its values) |
+| `--save-preset <name>` | Save the resolved format/columns/CSV options as a named preset              |
+| `--quiet`              | Suppress warnings and confirmations                                         |
 
 Unlike the shared scripting `--output text|json|ndjson` convention on other commands, here `--output` selects the **export payload format** itself — the rendered export goes to stdout (or `--out`) raw, with no envelope.
 
@@ -106,13 +110,13 @@ The canonical list markdown, grouped by source: a `# List Name` H1 per list (in 
 
 ### Conflicts
 
-`--columns`, `--no-header`, and `--quote-all` only shape `csv`/`json` output. Giving any of them **explicitly** alongside `--output text` or `--output md` is a usage error (exit `2`). A preset whose stored columns accompany a `text`/`md` format is fine — the columns are simply unused.
+`--columns`, `--dialect`, `--no-header`, and `--quote-all` only shape `csv`/`json` output. Giving any of them **explicitly** alongside `--output text` or `--output md` is a usage error (exit `2`). A preset whose stored columns accompany a `text`/`md` format is fine — the columns are simply unused.
 
 ## Properties
 
-The exportable properties are the fields stored in your list files (plus the list identity and two derived columns):
+The exportable properties are the fields stored in your list files (plus the list identity and three derived columns):
 
-`name`, `quantity`, `set`, `collectorNumber`, `edition`, `finish`, `isFoil`, `condition`, `note`, `section`, `listName`, `listType`
+`name`, `quantity`, `set`, `collectorNumber`, `edition`, `scryfallId`, `finish`, `isFoil`, `condition`, `note`, `section`, `listName`, `listType`
 
 The default column set matches the site's CSV export: `name,set,collectorNumber,finish,condition,quantity`.
 
@@ -120,10 +124,22 @@ Notes on values:
 
 - **Set codes** are lowercase in JSON output (a data format, matching how they're stored) and uppercase in CSV output (matching every other user-facing surface).
 - **`edition`** (set + collector number) combines the printing into one value — `LEA:161` in CSV, `lea:161` in JSON (only the set code changes case; collector numbers are kept verbatim). Empty/omitted for cards without a pinned printing.
+- **`scryfallId`** is the printing's Scryfall UUID, resolved from your **local Scryfall cache** (list files don't store it). A card with no pinned printing, or a printing your cache doesn't hold, exports an **empty cell** plus a warning naming the card — refresh the cache (`ritual cache preload-all`) if you need the ids. It's the only column that reads the cache, so an export without it never touches it.
 - **`isFoil`** is `true` when the card's finish is `foil` or `etched`, `false` otherwise (a real boolean in JSON, `true`/`false` text in CSV).
 - JSON records **omit** properties the entry doesn't have (no `null`s); key order follows the column order.
 - CSV renders missing values as empty cells. An explicitly marked `[nonfoil]` finish is written as `nonfoil` — unlike the site's fixed CSV export, nothing is blanked.
 - Card `&N` IDs are internal and never exported.
+
+## Dialects
+
+A dialect decides how `csv`/`json` **values** are spelled, so an export can be fed straight into another tool's importer. Column keys, the JSON schema, and every other property are identical in both.
+
+| Dialect            | `finish`                                                             | `condition`                     |
+| ------------------ | -------------------------------------------------------------------- | ------------------------------- |
+| `ritual` (default) | `nonfoil` / `foil` / `etched`, blank when the line marks none        | `NM`…`DMG`, blank when unmarked |
+| `archidekt`        | `Normal` / `Foil` / `Etched`, under a **`Variant`** CSV header label | `NM` / `LP` / `MP` / `HP` / `D` |
+
+In the `archidekt` dialect a line that marks no finish or condition is written as its **effective** value (`Normal`, `NM`) — Archidekt's CSV has no "unmarked" spelling, and an empty cell would be a row it has to guess about. That means an etched-only printing without an explicit `[etched]` tag is written as `Normal`; pin the finish on the line if you export such cards by hand. (`ritual collection-sync` resolves finishes against the Scryfall cache before building its own CSV, so its uploads are never affected.)
 
 ## Interactive Wizard
 
@@ -134,7 +150,7 @@ From the wizard's main menu you can:
 - **Add lists** — an autocomplete over every deck, collection, and wanted list.
 - **Add individual cards** — an autocomplete over every card entry across all your lists; type to search by name, set, or list.
 - **Filters** — the same name/set/finish/condition filters as the flags.
-- **Load preset** — apply a saved output shape. It is offered above the three items it overwrites, so you never set the format and columns by hand only to lose them to a preset. Shown once you have saved at least one.
+- **Load preset** — apply a saved or built-in output shape (the built-in `archidekt` preset is always listed). It is offered above the three items it overwrites, so you never set the format and columns by hand only to lose them to a preset. Loading a preset is also the only way to pick a [dialect](#dialects) in the wizard; the header line names it whenever it isn't the default.
 - **Format, Columns, CSV options** — pick `csv`/`json`/`text`/`md`. For `csv`/`json` you then pick columns _in output order_ (each pick appends; `Done` finishes, `Reset to default` restores the standard columns) and toggle the header row and quoting mode; for `text`/`md` the line format is fixed, so the Columns and CSV options menus disappear.
 - **Save current settings as a preset** — store the current output shape under a name.
 - **Review** — print the assembled cards before exporting.
@@ -144,7 +160,7 @@ From the wizard's main menu you can:
 
 ## Presets
 
-Presets capture the **output shape** — format, columns and their order, and the CSV toggles — not sources or filters. They live under `exportPresets` in [`ritual.config.json`](/configuration/) and are managed with `--save-preset`, the wizard, or by editing the file directly (`config set` does not manage them):
+Presets capture the **output shape** — format, columns and their order, the CSV toggles, and the dialect — not sources or filters. They live under `exportPresets` in [`ritual.config.json`](/configuration/) and are managed with `--save-preset`, the wizard, or by editing the file directly (`config set` does not manage them):
 
 ```json
 {
@@ -159,15 +175,30 @@ Presets capture the **output shape** — format, columns and their order, and th
 }
 ```
 
-The stored `format` may be any of `csv`, `json`, `text`, or `md`; the `columns` are always stored but only read by `csv`/`json` output.
+The stored `format` may be any of `csv`, `json`, `text`, or `md`; the `columns` are always stored but only read by `csv`/`json` output. `dialect` is stored only when it isn't the default `ritual`.
 
 Precedence when exporting: built-in defaults → `--preset` values → explicit flags. So `ritual export --preset trade-sheet --no-header` uses the preset's columns without the header row.
 
+### Built-in presets
+
+| Preset      | Output                                                                                                                                                                                                                                                                                      |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `archidekt` | `Scryfall ID,Quantity,Variant,Condition` CSV with a header row, in the [`archidekt` dialect](#dialects) — the file [Archidekt's collection importer](https://archidekt.com/collections/import) takes, and exactly what `ritual collection-sync push` uploads for a large batch of additions |
+
+Built-ins need no config and are always available to `--preset`; saving a preset of the same name shadows it for `ritual export` (the sync builds its own upload either way).
+
+```bash
+./ritual export --collection --preset archidekt --out archidekt.csv
+# 1b59533a-3e38-495d-873e-2f89fbd08494,2,Normal,NM
+```
+
+Because the CSV is keyed by Scryfall ID, rows never need name matching — but a printing missing from your local cache exports an empty id cell and a warning, and Archidekt cannot import that row.
+
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                                                                         |
-| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | Export written                                                                                                                                                                                  |
-| `1`  | Runtime error (for example, the output file could not be written)                                                                                                                               |
-| `2`  | Usage error (conflicting type flags, unknown column, invalid filter, column/CSV flags with `--output text`/`--output md`, ambiguous list name, or a bare `export` where the wizard cannot open) |
-| `3`  | Not found (unknown list or preset)                                                                                                                                                              |
+| Code | Meaning                                                                                                                                                                                                            |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `0`  | Export written                                                                                                                                                                                                     |
+| `1`  | Runtime error (for example, the output file could not be written)                                                                                                                                                  |
+| `2`  | Usage error (conflicting type flags, unknown column or dialect, invalid filter, column/dialect/CSV flags with `--output text`/`--output md`, ambiguous list name, or a bare `export` where the wizard cannot open) |
+| `3`  | Not found (unknown list or preset)                                                                                                                                                                                 |

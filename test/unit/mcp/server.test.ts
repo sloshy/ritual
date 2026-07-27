@@ -5,6 +5,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { cardCache } from '../../../src/cache'
+import { CSV_UPLOAD_THRESHOLD } from '../../../src/collection-sync/csv'
 import { buildMcpServer } from '../../../src/mcp/server'
 import { makeScryfallCard } from '../../test-utils'
 import { setupRitualTestEnv, type RitualTestEnv } from './harness'
@@ -20,6 +21,7 @@ const EXPECTED_TOOLS = [
   'price_report',
   'load_history',
   'deck_sync_status',
+  'collection_sync_status',
   'get_config',
   'get_audit_log',
   'export_cards',
@@ -46,6 +48,7 @@ const EXPECTED_TOOLS = [
   'update_config',
   'build_site',
   'sync_decks',
+  'sync_collection',
   'refresh_cache',
 ]
 
@@ -70,6 +73,7 @@ type ConfigView = {
   cacheSource?: string
   cacheFeedUrl?: string
   admin?: { gitEnabled?: boolean; rateLimitEnabled?: boolean; rateLimitMaxAttempts?: number }
+  collectionSync?: { pullTarget?: string }
 }
 
 type AcceptedConfigUpdate = {
@@ -173,6 +177,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
         'update_config',
         'build_site',
         'sync_decks',
+        'sync_collection',
         'refresh_cache',
         'import_deck',
         'import_csv',
@@ -240,6 +245,29 @@ describe('Ritual MCP server (in-memory transport)', () => {
       '"Sol Ring","1","Commander"',
       '"Lightning Bolt","1","Main"',
     ])
+  })
+
+  // Wiring only: the dialect's spellings are pinned by the renderer's unit
+  // tests — this proves the tool's field reaches them.
+  test('export_cards passes the value dialect through', async () => {
+    const result = await callTool(client, 'export_cards', {
+      lists: [{ listType: 'deck', name: 'test-deck' }],
+      format: 'csv',
+      columns: ['name', 'finish', 'condition'],
+      dialect: 'archidekt',
+    })
+    expect(result.isError).toBeFalsy()
+    const data = toolJson(result) as { content: string }
+    expect(data.content.split('\n')[0]).toBe('Name,Variant,Condition')
+    expect(data.content.split('\n')[1]).toBe('Sol Ring,Normal,NM')
+  })
+
+  test('export_cards rejects an unknown dialect', async () => {
+    const result = await callTool(client, 'export_cards', {
+      lists: [{ listType: 'deck', name: 'test-deck' }],
+      dialect: 'moxfield',
+    })
+    expect(result.isError).toBe(true)
   })
 
   test('export_cards renders a plain-text export as one flat decklist', async () => {
@@ -677,6 +705,27 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(data.archidekt.loginRequired).toBe(true)
   })
 
+  test('collection_sync_status reports the lists, the pull target, and the login', async () => {
+    // Which lists qualify is owned by test/integration/collection-sync-api.test.ts;
+    // this pins the wiring and the shape.
+    const result = await callTool(client, 'collection_sync_status', {})
+    expect(result.isError).toBeFalsy()
+    const data = toolJson(result) as {
+      lists: { slug: string }[]
+      pullTarget: string
+      csvThreshold: number
+      lastSynced: string | null
+      archidekt: { loginRequired: boolean }
+    }
+    expect(data.lists.map((list) => list.slug)).toEqual(['shoebox'])
+    expect(data.pullTarget).toBe('Inbox')
+    // The count above which a push must be told to upload its new cards, so a
+    // caller can explain the `csv` field without hardcoding the engine's number.
+    expect(data.csvThreshold).toBe(CSV_UPLOAD_THRESHOLD)
+    expect(data.lastSynced).toBeNull()
+    expect(data.archidekt.loginRequired).toBe(true)
+  })
+
   test('sync_decks rejects an unknown direction and errors without a login', async () => {
     const badDirection = await callTool(client, 'sync_decks', { direction: 'sideways' })
     expect(badDirection.isError).toBe(true)
@@ -687,19 +736,81 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(firstText(noLogin)).toContain('Not signed into Archidekt')
   })
 
-  test('sync_decks passes ignoreUnreadableLines through to the handler', async () => {
+  test('sync_decks passes ignoreUnreadableLines and only through to the handler', async () => {
     // A renamed field on either side of callApi would be rejected by the
     // handler's validation rather than reaching the login check.
     const result = await callTool(client, 'sync_decks', {
       direction: 'pull',
+      ignoreUnreadableLines: true,
+      only: 'additions',
+    })
+    expect(result.isError).toBe(true)
+    expect(firstText(result)).toContain('Not signed into Archidekt')
+
+    const badFilter = await callTool(client, 'sync_decks', { direction: 'pull', only: 'adds' })
+    expect(badFilter.isError).toBe(true)
+    expect(firstText(badFilter).toLowerCase()).toContain('validation')
+
+    const { tools } = await client.listTools()
+    const schema = tools.find((tool) => tool.name === 'sync_decks')?.inputSchema
+    expect(Object.keys(schema?.properties ?? {})).toContain('ignoreUnreadableLines')
+    expect(Object.keys(schema?.properties ?? {})).toContain('only')
+  })
+
+  test('sync_collection rejects invalid input before it reaches the handler', async () => {
+    // The schema is the gate: a missing/unknown direction, an unknown filter, and
+    // a blank list or target never reach the admin handler at all.
+    const cases: Record<string, unknown>[] = [
+      {},
+      { direction: 'sideways' },
+      { direction: 'pull', only: 'adds' },
+      { direction: 'pull', lists: [''] },
+      { direction: 'pull', into: '' },
+      { direction: 'pull', removalPriority: 'Long Box' },
+      { direction: 'pull', removalPriority: [''] },
+      { direction: 'push', csv: 'yes' },
+    ]
+    for (const args of cases) {
+      const result = await callTool(client, 'sync_collection', args)
+      expect({ args, isError: result.isError, validation: /validation/i.test(firstText(result)) }) //
+        .toEqual({ args, isError: true, validation: true })
+    }
+  })
+
+  test('sync_collection reaches the handler’s login check with every field accepted', async () => {
+    // A full, valid argument set clears the schema AND the admin handler's own
+    // validation, reaching its login check — which is as far as a workspace with
+    // no stored Archidekt session (and no network) can go. What the engine then
+    // does is owned by test/unit/collection-sync/* and the CLI/API integration
+    // tests. This cannot prove each field reached the request *body* (the handler
+    // ignores keys it does not know): the body is typed as the endpoint's own
+    // `CollectionSyncRequest`, so a renamed key is a compile error instead.
+    const result = await callTool(client, 'sync_collection', {
+      direction: 'pull',
+      lists: ['shoebox'],
+      only: 'additions',
+      into: 'Inbox',
+      removalPriority: ['Long Box', 'Blue Binder'],
+      csv: true,
+      dryRun: true,
       ignoreUnreadableLines: true,
     })
     expect(result.isError).toBe(true)
     expect(firstText(result)).toContain('Not signed into Archidekt')
 
     const { tools } = await client.listTools()
-    const schema = tools.find((tool) => tool.name === 'sync_decks')?.inputSchema
-    expect(Object.keys(schema?.properties ?? {})).toContain('ignoreUnreadableLines')
+    const schema = tools.find((tool) => tool.name === 'sync_collection')?.inputSchema
+    expect(Object.keys(schema?.properties ?? {}).sort()).toEqual([
+      'csv',
+      'direction',
+      'dryRun',
+      'ignoreUnreadableLines',
+      'into',
+      'lists',
+      'only',
+      'removalPriority',
+    ])
+    expect(schema?.required).toEqual(['direction'])
   })
 
   test('import_csv creates a new list by default', async () => {
@@ -922,6 +1033,14 @@ describe('Ritual MCP server (in-memory transport)', () => {
         read: (config) => config.cacheFeedUrl,
         expected: 'https://feed.example/feed.json',
       },
+      {
+        // The Settings page PUTs the whole config back, so this key has to be on
+        // the allowlist or every save would 400.
+        label: 'collectionSync.pullTarget (trimmed)',
+        update: { collectionSync: { pullTarget: '  Red Binder ' } },
+        read: (config) => config.collectionSync?.pullTarget,
+        expected: 'Red Binder',
+      },
     ]
 
     for (const { label, update, read, expected } of cases) {
@@ -945,6 +1064,10 @@ describe('Ritual MCP server (in-memory transport)', () => {
       {
         label: 'non-http(s) cacheFeedUrl',
         update: { cacheFeedUrl: 'ftp://feed.example/feed.json' },
+      },
+      {
+        label: 'blank collectionSync.pullTarget',
+        update: { collectionSync: { pullTarget: '   ' } },
       },
       { label: 'unknown top-level key', update: { bogusKey: true } },
       // Unknown nested admin keys must be rejected, not spread verbatim into

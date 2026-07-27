@@ -34,6 +34,7 @@ import { collectionToMarkdown, wantedToMarkdown } from './editor/list-export'
 import { parseTitleFromContent } from './section-format'
 import { writeFileWithHash, hashPath } from './content-hash'
 import { appendChangelog } from './changelog-writer'
+import { allocateId, collectExistingIds, createIdPool, type EntryWithCardId } from './card-id'
 import { CardCommandError, ExitCode } from './errors'
 import type { ChangeEvent, MoveFromChange, MoveToChange } from './change-event'
 import type { ListType } from './list-type'
@@ -70,20 +71,54 @@ export async function applyChangesToListFile(
     }
   }
 
+  // The applied changes, not the requested ones: a flat-list `add` is stamped
+  // with the `&N` it will carry on disk, so the changelog names the same id the
+  // line does.
+  let applied: CardMutationChange[]
   if (type === 'deck') {
     await applyToDeck(filePath, changes)
+    applied = changes
   } else if (type === 'collection') {
-    await applyToCollection(filePath, changes)
+    applied = await applyToCollection(filePath, changes)
   } else {
-    await applyToWanted(filePath, changes)
+    applied = await applyToWanted(filePath, changes)
   }
 
   const slug = path.basename(filePath, '.md')
-  const changelogPath = await appendChangelog(filePath, slug, changes)
+  const changelogPath = await appendChangelog(filePath, slug, applied)
   return { writtenFiles: [filePath, hashPath(filePath), changelogPath] }
 }
 
-async function applyToDeck(filePath: string, changes: ChangeEvent[]): Promise<void> {
+/**
+ * Give every `add` change a pool-allocated `&N`, so no flat-list line is ever
+ * written without one.
+ *
+ * Flat lists are one line per copy, so an `add` always creates a line that needs
+ * an id — unlike a deck `add`, which may just increment an existing card's
+ * quantity, and whose ids are assigned at serialization time by
+ * `assignMissingDeckCardIds`.
+ *
+ * The pool is seeded from the entries as they were **before** the batch, so an
+ * id a removal in the same batch frees is not handed straight back to an
+ * addition that the removal's own targeting still has to find. Callers that
+ * already chose an id (an undo reclaiming one) keep it.
+ */
+function stampAddIds(
+  changes: CardMutationChange[],
+  entries: readonly EntryWithCardId[],
+): CardMutationChange[] {
+  if (!changes.some((change) => change.action === 'add' && change.cardId === undefined)) {
+    return changes
+  }
+  const pool = createIdPool(collectExistingIds(entries))
+  return changes.map((change) =>
+    change.action === 'add' && change.cardId === undefined
+      ? { ...change, cardId: allocateId(pool) }
+      : change,
+  )
+}
+
+async function applyToDeck(filePath: string, changes: CardMutationChange[]): Promise<void> {
   let deck = await importFromTextFile(filePath)
   const frontMatter = await parseDeckFrontMatter(filePath)
   for (const change of changes) {
@@ -92,7 +127,10 @@ async function applyToDeck(filePath: string, changes: ChangeEvent[]): Promise<vo
   await writeFileWithHash(filePath, serializeDeckToMarkdown(deck, frontMatter))
 }
 
-async function applyToCollection(filePath: string, changes: ChangeEvent[]): Promise<void> {
+async function applyToCollection(
+  filePath: string,
+  changes: CardMutationChange[],
+): Promise<CardMutationChange[]> {
   const printingError = findCollectionPrintingError(changes)
   if (printingError) {
     throw new CardCommandError('usage_error', printingError, ExitCode.UsageError)
@@ -113,20 +151,27 @@ async function applyToCollection(filePath: string, changes: ChangeEvent[]): Prom
     note: e.note,
     cardId: e.cardId,
   }))
-  for (const change of changes) {
+  const applied = stampAddIds(changes, entries)
+  for (const change of applied) {
     entries = applyChangeToCollection(entries, change)
   }
   const title = parseTitleFromContent(content) ?? path.basename(filePath, '.md')
   await writeFileWithHash(filePath, collectionToMarkdown(title, entries, parsed.sectionOrder))
+  return applied
 }
 
-async function applyToWanted(filePath: string, changes: ChangeEvent[]): Promise<void> {
+async function applyToWanted(
+  filePath: string,
+  changes: CardMutationChange[],
+): Promise<CardMutationChange[]> {
   const content = await fs.readFile(filePath, 'utf-8')
   const parsed = parseWantedListFile(content)
   let entries = toWantedCardEntries(parsed.entries)
-  for (const change of changes) {
+  const applied = stampAddIds(changes, entries)
+  for (const change of applied) {
     entries = applyChangeToWantedList(entries, change)
   }
   const title = parseTitleFromContent(content) ?? path.basename(filePath, '.md')
   await writeFileWithHash(filePath, wantedToMarkdown(title, entries, parsed.sectionOrder))
+  return applied
 }

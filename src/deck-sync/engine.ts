@@ -9,7 +9,7 @@
  */
 
 import path from 'node:path'
-import { ArchidektClient } from '../clients/ArchidektClient'
+import { ArchidektClient, createPacedArchidektClient } from '../clients/ArchidektClient'
 import { listDeckFiles, parseDeckText, type DeckParseResult } from '../importers/text-file'
 import { getErrorMessage } from '../errors'
 import { parseDeckFrontMatter, serializeDeckToMarkdown, type DeckFrontMatter } from '../deck-file'
@@ -27,24 +27,29 @@ import {
   diffByCardName,
   diffToChangeEvents,
   buildCardIdResolver,
+  filterNameDiff,
   isDiffEmpty,
   applyDownloadDiff,
   syncDeckFormat,
   type NameDiff,
 } from './diff'
+import {
+  describeSkippedChanges,
+  type ConfirmUnreadable,
+  type SyncChangeFilter,
+  type SyncDirection,
+  type SyncItemStatus,
+  type SyncLogLevel,
+  type UnreadableSource,
+} from '../sync-common'
 import { assignMissingDeckCardIds } from '../card-id'
 import { hashPath, writeFileWithHash } from '../content-hash'
 import { getDecksDir } from '../ritual-config'
 
 // ── Public surface ────────────────────────────────────────────────────
 
-export const SYNC_DIRECTIONS = ['push', 'pull'] as const
-
-/** The sync direction: `push` (local → Archidekt) or `pull` (Archidekt → local). */
-export type SyncDirection = (typeof SYNC_DIRECTIONS)[number]
-
 /** What happened to one deck during a sync run. */
-export type DeckSyncStatus = 'synced' | 'failed' | 'skipped'
+export type DeckSyncStatus = SyncItemStatus
 export type DeckSyncDeckResult = { name: string; status: DeckSyncStatus; reason?: string }
 
 /** The report a run produces: per-deck results plus the failure count. */
@@ -61,27 +66,20 @@ export type DeckSyncReport = {
   unreadable: UnreadableDeck[]
 }
 
-export type DeckSyncLogLevel = 'info' | 'warn' | 'error'
+export type DeckSyncLogLevel = SyncLogLevel
 
 /**
  * A deck file the parser could not fully read. Syncing re-serializes the file,
  * so every line listed in `warnings` would be deleted by the save.
  */
-export type UnreadableDeck = {
-  /** The deck's display name. */
-  name: string
-  /** The deck file's basename, for pointing the user at what to fix. */
-  file: string
-  /** One message per line the parser skipped. */
-  warnings: string[]
-}
+export type UnreadableDeck = UnreadableSource
 
 /**
- * Decide whether decks carrying unreadable lines may sync anyway. Called once,
- * before any deck syncs, with every affected deck; `true` syncs them (dropping
- * those lines), anything else fails them.
+ * Decide whether decks carrying unreadable lines may sync anyway (declared on
+ * {@link ConfirmUnreadable} in `sync-common`): called once, before any deck
+ * syncs, with every affected deck.
  */
-export type ConfirmUnreadable = (decks: UnreadableDeck[]) => Promise<boolean> | boolean
+export type { ConfirmUnreadable }
 
 /**
  * One step of a sync run, emitted as it happens.
@@ -107,6 +105,12 @@ export type DeckSyncOptions = {
   deckNames?: string[]
   /** Report what would sync without writing files or pushing changes. */
   dryRun?: boolean
+  /**
+   * Apply only one side of each deck's diff — additions or removals, relative to
+   * the sync destination (local files on a pull, Archidekt on a push). Omitted,
+   * every change applies. Skipped changes are still counted and logged.
+   */
+  only?: SyncChangeFilter
   onEvent?: DeckSyncEventHandler
   /**
    * Confirm syncing decks whose files carry unreadable lines. Omitted, such
@@ -610,6 +614,15 @@ async function saveDeckWithSyncTimestamp(target: DeckTarget, deck: DeckData): Pr
 /** The per-deck half of a run: results plus the files it wrote. */
 type SyncOutcome = { decks: DeckSyncDeckResult[]; writtenFiles: string[] }
 
+/** Everything a direction's flow needs beyond the decks it was handed. */
+type SyncFlow = {
+  client: ArchidektClient
+  token: string
+  dryRun: boolean
+  only: SyncChangeFilter | undefined
+  emit: DeckSyncEventHandler
+}
+
 /**
  * Sync decks with Archidekt in one direction, emitting progress as it goes.
  *
@@ -620,7 +633,11 @@ export async function runDeckSync(options: DeckSyncOptions): Promise<DeckSyncRun
   const { direction, token } = options
   const emit = options.onEvent ?? ((): void => {})
   const dryRun = options.dryRun ?? false
-  const client = options.client ?? new ArchidektClient()
+  const client =
+    options.client ??
+    createPacedArchidektClient((message) =>
+      emit({ kind: 'log', level: 'warn', deck: null, message }),
+    )
 
   const { targets, problems, unreadable } = await resolveTargetDecks(
     options.deckNames ?? [],
@@ -634,12 +651,13 @@ export async function runDeckSync(options: DeckSyncOptions): Promise<DeckSyncRun
     emit({ kind: 'log', level: 'info', deck: null, message: 'No Archidekt decks found to sync.' })
   }
 
+  const flow: SyncFlow = { client, token, dryRun, only: options.only, emit }
   const outcome: SyncOutcome =
     targets.length === 0
       ? { decks: [], writtenFiles: [] }
       : direction === 'pull'
-        ? await downloadChanges(targets, client, token, dryRun, emit)
-        : await uploadChanges(targets, client, token, dryRun, emit)
+        ? await downloadChanges(targets, flow)
+        : await uploadChanges(targets, flow)
 
   const decks = [...problems, ...outcome.decks]
   const failedCount = decks.filter((deck) => deck.status === 'failed').length
@@ -672,13 +690,8 @@ function failDeck(
 
 // ── Download flow ─────────────────────────────────────────────────────
 
-async function downloadChanges(
-  targets: DeckTarget[],
-  client: ArchidektClient,
-  token: string,
-  dryRun: boolean,
-  emit: DeckSyncEventHandler,
-): Promise<SyncOutcome> {
+async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<SyncOutcome> {
+  const { client, token, dryRun, only, emit } = flow
   const results: DeckSyncDeckResult[] = []
   const writtenFiles: string[] = []
 
@@ -699,7 +712,16 @@ async function downloadChanges(
       continue
     }
 
-    const diff = diffByCardName(target.deck.sections, remoteDeck.sections)
+    // The filter narrows the diff before anything acts on it, so "no changes"
+    // means "nothing left to apply" — with the skipped side reported either way.
+    const { diff, skipped } = filterNameDiff(
+      diffByCardName(target.deck.sections, remoteDeck.sections),
+      only,
+    )
+    const skippedMessage = describeSkippedChanges(only, skipped)
+    if (skippedMessage) {
+      emit({ kind: 'log', level: 'info', deck: name, message: skippedMessage })
+    }
     const formatSync = syncDeckFormat(target.deck, target.frontMatter.format, remoteDeck)
 
     if (isDiffEmpty(diff) && !formatSync.changed) {
@@ -757,13 +779,8 @@ async function downloadChanges(
 
 // ── Upload flow ───────────────────────────────────────────────────────
 
-async function uploadChanges(
-  targets: DeckTarget[],
-  client: ArchidektClient,
-  token: string,
-  dryRun: boolean,
-  emit: DeckSyncEventHandler,
-): Promise<SyncOutcome> {
+async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<SyncOutcome> {
+  const { client, token, dryRun, only, emit } = flow
   const results: DeckSyncDeckResult[] = []
   const writtenFiles: string[] = []
 
@@ -814,7 +831,14 @@ async function uploadChanges(
     // Uploads diff by name only: the modifyCards API path cannot yet target a
     // specific remote board/category, so board placement must be ignored here to
     // avoid spuriously moving cards on Archidekt.
-    const diff = diffByCardName(remoteDeck.sections, target.deck.sections, { byBoard: false })
+    const { diff, skipped } = filterNameDiff(
+      diffByCardName(remoteDeck.sections, target.deck.sections, { byBoard: false }),
+      only,
+    )
+    const skippedMessage = describeSkippedChanges(only, skipped)
+    if (skippedMessage) {
+      emit({ kind: 'log', level: 'info', deck: name, message: skippedMessage })
+    }
 
     if (isDiffEmpty(diff)) {
       emit({ kind: 'log', level: 'info', deck: name, message: 'No changes to upload.' })

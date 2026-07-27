@@ -1,10 +1,14 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  ARCHIDEKT_EXPORT_SETTINGS,
+  BUILT_IN_EXPORT_PRESETS,
+  exportPresetNames,
+  findExportPreset,
   parseExportPresets,
   resolveExportSettings,
   type ExportPreset,
 } from '../../src/export/presets'
-import { DEFAULT_EXPORT_COLUMNS } from '../../src/export/render'
+import { DEFAULT_EXPORT_COLUMNS, exportPropertyLabel } from '../../src/export/render'
 
 describe('parseExportPresets', () => {
   test('returns an empty map when absent', () => {
@@ -59,10 +63,84 @@ describe('parseExportPresets', () => {
       { p: { format: 'csv', columns: ['name'], quoteAll: 1 } },
       '.quoteAll must be a boolean',
     ],
+    [
+      'unknown dialect',
+      { p: { format: 'csv', columns: ['name'], dialect: 'moxfield' } },
+      '.dialect must be one of: ritual, archidekt',
+    ],
   ])('rejects %s with an error string', (_label, value, expected) => {
     const result = parseExportPresets(value)
     expect(typeof result).toBe('string')
     expect(result).toContain(expected)
+  })
+
+  test('keeps a valid dialect', () => {
+    expect(
+      parseExportPresets({ p: { format: 'csv', columns: ['name'], dialect: 'archidekt' } }),
+    ).toEqual({ p: { format: 'csv', columns: ['name'], dialect: 'archidekt' } })
+  })
+})
+
+describe('built-in presets', () => {
+  test('the archidekt preset is the CSV Archidekt imports', () => {
+    expect(BUILT_IN_EXPORT_PRESETS.archidekt).toEqual({
+      format: 'csv',
+      columns: ['scryfallId', 'quantity', 'finish', 'condition'],
+      header: true,
+      quoteAll: false,
+      dialect: 'archidekt',
+    })
+    // What the collection sync renders its upload with, independent of config.
+    expect(ARCHIDEKT_EXPORT_SETTINGS).toEqual({
+      format: 'csv',
+      columns: ['scryfallId', 'quantity', 'finish', 'condition'],
+      header: true,
+      quoteAll: false,
+      dialect: 'archidekt',
+    })
+  })
+
+  /**
+   * The header Archidekt's importer reads each column under. What each column
+   * *means* to the upload is derived from these same properties
+   * (`COLLECTION_CSV_UPLOAD`, pinned in collection-sync/csv.test.ts), so a
+   * reorder cannot desync the two — but the labels are what a human uploading the
+   * file by hand matches up, and they are Archidekt's own spellings.
+   */
+  test('the archidekt preset columns carry Archidekt’s own header labels', () => {
+    expect(
+      ARCHIDEKT_EXPORT_SETTINGS.columns.map((c) => exportPropertyLabel(c, 'archidekt')),
+    ).toEqual(['Scryfall ID', 'Quantity', 'Variant', 'Condition'])
+  })
+
+  test('resolved settings never alias the preset’s own column array', () => {
+    // The resolved columns are handed to renderers that take a mutable array; a
+    // shared instance sorted in place would change every later export, including
+    // the CSV a collection push uploads.
+    const preset = BUILT_IN_EXPORT_PRESETS.archidekt!
+    const resolved = resolveExportSettings(preset, {})
+
+    expect(resolved.columns).not.toBe(preset.columns)
+    resolved.columns.reverse()
+    expect(preset.columns).toEqual(['scryfallId', 'quantity', 'finish', 'condition'])
+  })
+
+  test('built-ins are available by name, and a saved preset of that name wins', () => {
+    expect(findExportPreset('archidekt', {})).toBe(BUILT_IN_EXPORT_PRESETS.archidekt)
+    const mine: ExportPreset = { format: 'json', columns: ['name'] }
+    expect(findExportPreset('archidekt', { archidekt: mine })).toBe(mine)
+    expect(findExportPreset('nope', {})).toBeUndefined()
+  })
+
+  test('preset names list saved ones first, then unshadowed built-ins', () => {
+    expect(exportPresetNames({})).toEqual(['archidekt'])
+    expect(exportPresetNames({ mini: { format: 'csv', columns: ['name'] } })).toEqual([
+      'mini',
+      'archidekt',
+    ])
+    expect(exportPresetNames({ archidekt: { format: 'csv', columns: ['name'] } })).toEqual([
+      'archidekt',
+    ])
   })
 })
 
@@ -80,6 +158,7 @@ describe('resolveExportSettings', () => {
       columns: DEFAULT_EXPORT_COLUMNS,
       header: true,
       quoteAll: false,
+      dialect: 'ritual',
     })
   })
 
@@ -89,6 +168,7 @@ describe('resolveExportSettings', () => {
       columns: ['name', 'listName'],
       header: false,
       quoteAll: true,
+      dialect: 'ritual',
     })
   })
 
@@ -99,8 +179,17 @@ describe('resolveExportSettings', () => {
         columns: ['name', 'listName'],
         header: true,
         quoteAll: false,
+        dialect: 'ritual',
       },
     )
+  })
+
+  test('the dialect follows the same defaults → preset → flags precedence', () => {
+    expect(resolveExportSettings({ ...preset, dialect: 'archidekt' }, {}).dialect).toBe('archidekt')
+    expect(
+      resolveExportSettings({ ...preset, dialect: 'archidekt' }, { dialect: 'ritual' }).dialect,
+    ).toBe('ritual')
+    expect(resolveExportSettings(undefined, { dialect: 'archidekt' }).dialect).toBe('archidekt')
   })
 
   test('a --no-header flag overrides a preset with header on', () => {

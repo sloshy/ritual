@@ -30,6 +30,12 @@ export type ExportEntry = {
   note?: string
   /** Position within its list file; with listType+listName forms a stable identity. */
   fileOrder: number
+  /**
+   * Scryfall id of the pinned printing. Not read from the list file (no line
+   * carries one) — resolved from the local Scryfall cache by
+   * `resolveExportScryfallIds`, and only when the selected columns need it.
+   */
+  scryfallId?: string
 }
 
 export type LoadedExportEntries = { entries: ExportEntry[]; warnings: string[] }

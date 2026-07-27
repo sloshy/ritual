@@ -28,7 +28,7 @@ async function gotoSyncDecks(page: Page): Promise<void> {
 
 /** The row for one deck in the selection list. */
 function deckRow(page: Page, name: string) {
-  return page.locator('.sync-deck', { hasText: name })
+  return page.locator('.sync-select-row', { hasText: name })
 }
 
 function syncButton(page: Page) {
@@ -55,13 +55,13 @@ test.describe('Sync Decks Page', () => {
   test('lists linked decks with their last-synced time, all selected', async ({ page }) => {
     await openPage(page)
 
-    await expect(page.locator('.sync-deck-list .sync-deck-name')).toHaveText([
+    await expect(page.locator('.sync-select-list .sync-select-name')).toHaveText([
       'All decks',
       WINOTA!.name,
       SOLDIERS!.name,
     ])
-    await expect(deckRow(page, WINOTA!.name).locator('.sync-deck-meta')).toHaveText('3 hours ago')
-    await expect(deckRow(page, SOLDIERS!.name).locator('.sync-deck-meta')).toHaveText(
+    await expect(deckRow(page, WINOTA!.name).locator('.sync-select-meta')).toHaveText('3 hours ago')
+    await expect(deckRow(page, SOLDIERS!.name).locator('.sync-select-meta')).toHaveText(
       'never synced',
     )
     // The page-level line reports the most recent sync across all decks.
@@ -75,7 +75,10 @@ test.describe('Sync Decks Page', () => {
     await deckRow(page, SOLDIERS!.name).locator('input[type="checkbox"]').uncheck()
     await expect(syncButton(page)).toHaveText('Pull 1 deck')
     // A partial selection puts the master checkbox in its indeterminate state.
-    await expect(page.locator('.sync-deck--all input')).toHaveJSProperty('indeterminate', true)
+    await expect(page.locator('.sync-select-row--all input')).toHaveJSProperty(
+      'indeterminate',
+      true,
+    )
 
     const url = await runAndReadStreamUrl(page)
     expect(url).toContain('direction=pull')
@@ -91,17 +94,31 @@ test.describe('Sync Decks Page', () => {
     const url = await runAndReadStreamUrl(page)
     expect(url).toContain('direction=pull')
     expect(url).not.toContain('deck=')
+    // "All changes" is the default, and sends no filter at all.
+    expect(url).not.toContain('only=')
+  })
+
+  test('the change filter narrows the run to one side of the diff', async ({ page }) => {
+    await openPage(page)
+
+    await page.locator('.sync-change-filter .segmented-option:has-text("Additions only")').click()
+    await expect(page.locator('.sync-change-filter .sync-choice-desc')).toContainText(
+      'Only add cards',
+    )
+
+    const url = await runAndReadStreamUrl(page)
+    expect(url).toContain('only=additions')
   })
 
   test('deselecting every deck disables syncing', async ({ page }) => {
     await openPage(page)
 
-    await page.locator('.sync-deck--all input[type="checkbox"]').uncheck()
-    await expect(page.locator('.sync-deck-list input:checked')).toHaveCount(0)
+    await page.locator('.sync-select-row--all input[type="checkbox"]').uncheck()
+    await expect(page.locator('.sync-select-list input:checked')).toHaveCount(0)
     await expect(syncButton(page)).toBeDisabled()
 
     // The master checkbox re-selects everything.
-    await page.locator('.sync-deck--all input[type="checkbox"]').check()
+    await page.locator('.sync-select-row--all input[type="checkbox"]').check()
     await expect(syncButton(page)).toHaveText('Pull all decks')
     await expect(syncButton(page)).toBeEnabled()
   })
@@ -110,7 +127,9 @@ test.describe('Sync Decks Page', () => {
     await openPage(page)
 
     await page.locator('.segmented-option:has-text("Push")').click()
-    await expect(page.locator('.sync-direction-desc')).toContainText('Local → Archidekt')
+    await expect(page.locator('.sync-direction .sync-choice-desc')).toContainText(
+      'Local → Archidekt',
+    )
     await expect(syncButton(page)).toHaveText('Push all decks')
 
     await page.locator('.sync-dry-run input[type="checkbox"]').check()
@@ -141,7 +160,7 @@ test.describe('Sync Decks Page', () => {
         },
       ])
     await expect(page.locator('.sync-run-status .alert-success')).toContainText('Pulled')
-    await expect(page.locator('.sync-run-deck', { hasText: WINOTA!.name })).toHaveAttribute(
+    await expect(page.locator('.sync-run-item', { hasText: WINOTA!.name })).toHaveAttribute(
       'data-status',
       'synced',
     )
@@ -181,7 +200,7 @@ test.describe('Sync Decks Page', () => {
       index: 0,
       total: 2,
     })
-    const winotaRun = page.locator('.sync-run-deck', { hasText: WINOTA!.name })
+    const winotaRun = page.locator('.sync-run-item', { hasText: WINOTA!.name })
     await expect(winotaRun).toHaveAttribute('data-status', 'running')
 
     await emitStreamEvent(page, 'progress', {
@@ -202,7 +221,7 @@ test.describe('Sync Decks Page', () => {
       kind: 'deck-result',
       result: { name: SOLDIERS!.name, status: 'skipped', reason: 'you do not own it' },
     })
-    await expect(page.locator('.sync-run-deck', { hasText: SOLDIERS!.name })).toHaveAttribute(
+    await expect(page.locator('.sync-run-item', { hasText: SOLDIERS!.name })).toHaveAttribute(
       'data-status',
       'skipped',
     )
@@ -218,11 +237,11 @@ test.describe('Sync Decks Page', () => {
       'Pulled 1 deck, 1 skipped.',
     )
     await expect(syncButton(page)).toBeEnabled()
-    await expect(deckRow(page, WINOTA!.name).locator('.sync-deck-meta')).toContainText(
+    await expect(deckRow(page, WINOTA!.name).locator('.sync-select-meta')).toContainText(
       'less than a minute ago',
     )
     // The reload refreshed the times without resetting the narrowed selection.
-    await expect(page.locator('.sync-deck-list input:checked')).toHaveCount(1)
+    await expect(page.locator('.sync-select-list input:checked')).toHaveCount(1)
   })
 
   test('unreadable lines are shown and only removed once confirmed', async ({ page }) => {

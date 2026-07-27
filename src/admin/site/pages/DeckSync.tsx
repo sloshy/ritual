@@ -13,43 +13,36 @@ import type { ArchidektLoginStatus } from '../../../auth/interfaces'
 import type {
   DeckSyncDoneEvent,
   DeckSyncErrorEvent,
+  DeckSyncRequest,
   DeckSyncRunResponse,
   DeckSyncStatusResponse,
 } from '../../api/deck-sync'
-import type {
-  DeckSyncEvent,
-  DeckSyncLogLevel,
-  DeckSyncStatus,
-  SyncableDeck,
-  SyncDirection,
-  UnreadableDeck,
-} from '../../../deck-sync/engine'
+import type { DeckSyncEvent, SyncableDeck, UnreadableDeck } from '../../../deck-sync/engine'
+import { unreadableConsequence, type SyncDirection } from '../../../sync-common'
 import { ArchidektLoginForm, ArchidektSessionAlert } from '../components/ArchidektSession'
 import { StatusAlerts } from '../components/StatusAlerts'
-import { formatDuration } from '../../../utils'
+import {
+  ChangeFilterPicker,
+  ChoicePicker,
+  changeFilterParam,
+  type ChangeFilterChoice,
+  type SyncChoice,
+} from '../components/SyncControls'
+import { SyncRunLog } from '../components/SyncRunLog'
+import { UnreadableLinesPanel } from '../components/UnreadableLinesPanel'
+import {
+  lastSyncedLabel,
+  relativeTime,
+  upsertRunItem,
+  withMessage,
+  type SyncRunItem,
+  type SyncRunMessage,
+  type SyncRunPhase,
+} from '../sync-run'
+import { openSyncStream, type SyncStream } from '../sync-stream'
 import { PageHeading } from '../components/PageHeading'
 
-/** How far a run has progressed; drives the button state and result panel. */
-type RunPhase = 'idle' | 'running' | 'done' | 'error'
-
-/** A deck's live state during a run: `running` until its result event arrives. */
-type DeckRunStatus = DeckSyncStatus | 'running'
-
-type DeckRunMessage = { level: DeckSyncLogLevel; text: string }
-
-type DeckRunState = {
-  deck: string
-  status: DeckRunStatus
-  messages: DeckRunMessage[]
-}
-
-type DirectionOption = {
-  id: SyncDirection
-  label: string
-  description: string
-}
-
-const DIRECTIONS: DirectionOption[] = [
+const DIRECTIONS: SyncChoice<SyncDirection>[] = [
   {
     id: 'pull',
     label: 'Pull',
@@ -64,27 +57,6 @@ const DIRECTIONS: DirectionOption[] = [
   },
 ]
 
-const RUN_ICONS: Record<DeckRunStatus, string> = {
-  running: '⏳',
-  synced: '✓',
-  skipped: '⏭',
-  failed: '✗',
-}
-
-/** "2 hours ago", or null when the deck has never synced. */
-function relativeTime(iso: string | null): string | null {
-  if (!iso) return null
-  const time = new Date(iso).getTime()
-  if (Number.isNaN(time)) return null
-  const elapsed = Date.now() - time
-  // A clock skew (or a just-written timestamp) must not read as "in the future".
-  return `${formatDuration(Math.max(elapsed, 0))} ago`
-}
-
-function lastSyncedLabel(iso: string | null): string {
-  return relativeTime(iso) ?? 'never synced'
-}
-
 export function DeckSync(): JSX.Element {
   const [decks, setDecks] = createSignal<SyncableDeck[]>([])
   const [archidekt, setArchidekt] = createSignal<ArchidektLoginStatus | null>(null)
@@ -92,20 +64,21 @@ export function DeckSync(): JSX.Element {
   const [loadError, setLoadError] = createSignal<string | null>(null)
 
   const [direction, setDirection] = createSignal<SyncDirection>('pull')
+  const [changeFilter, setChangeFilter] = createSignal<ChangeFilterChoice>('all')
   const [dryRun, setDryRun] = createSignal(false)
   const [selected, setSelected] = createSignal<string[]>([])
 
-  const [phase, setPhase] = createSignal<RunPhase>('idle')
-  const [runDecks, setRunDecks] = createSignal<DeckRunState[]>([])
-  const [runLog, setRunLog] = createSignal<DeckRunMessage[]>([])
+  const [phase, setPhase] = createSignal<SyncRunPhase>('idle')
+  const [runDecks, setRunDecks] = createSignal<SyncRunItem[]>([])
+  const [runLog, setRunLog] = createSignal<SyncRunMessage[]>([])
   const [summary, setSummary] = createSignal<string | null>(null)
   const [runError, setRunError] = createSignal<string | null>(null)
   // Decks the last run refused to touch because their files hold lines the
   // parser cannot read; cleared when the user accepts the loss and re-runs.
   const [unreadable, setUnreadable] = createSignal<UnreadableDeck[]>([])
 
-  let eventSource: EventSource | null = null
-  onCleanup(() => eventSource?.close())
+  let stream: SyncStream | null = null
+  onCleanup(() => stream?.close())
 
   // Only the first load seeds the selection with every deck; later reloads (after
   // a run, or after signing in) preserve whatever the user has chosen — including
@@ -187,16 +160,8 @@ export function DeckSync(): JSX.Element {
   })
 
   /** Create or update one deck's row, preserving arrival order. */
-  const updateDeck = (name: string, apply: (state: DeckRunState) => DeckRunState): void => {
-    setRunDecks((current) => {
-      const index = current.findIndex((entry) => entry.deck === name)
-      if (index === -1) {
-        return [...current, apply({ deck: name, status: 'running', messages: [] })]
-      }
-      const next = [...current]
-      next[index] = apply(current[index]!)
-      return next
-    })
+  const updateDeck = (name: string, apply: (item: SyncRunItem) => SyncRunItem): void => {
+    setRunDecks((current) => upsertRunItem(current, name, apply))
   }
 
   /**
@@ -207,19 +172,19 @@ export function DeckSync(): JSX.Element {
   const handleSyncEvent = (event: DeckSyncEvent, confirmed: boolean): void => {
     switch (event.kind) {
       case 'deck-start':
-        updateDeck(event.deck, (state) => ({ ...state, status: 'running' }))
+        updateDeck(event.deck, (item) => ({ ...item, status: 'running' }))
         return
       case 'log': {
-        const message: DeckRunMessage = { level: event.level, text: event.message }
+        const message: SyncRunMessage = { level: event.level, text: event.message }
         if (event.deck === null) {
           setRunLog((current) => [...current, message])
           return
         }
-        updateDeck(event.deck, (state) => ({ ...state, messages: [...state.messages, message] }))
+        updateDeck(event.deck, withMessage(message))
         return
       }
       case 'deck-result':
-        updateDeck(event.result.name, (state) => ({ ...state, status: event.result.status }))
+        updateDeck(event.result.name, (item) => ({ ...item, status: event.result.status }))
         return
       case 'unreadable-lines':
         // Held for the confirmation panel the run ends on — the browser's
@@ -251,16 +216,20 @@ export function DeckSync(): JSX.Element {
   /** Sync without progress streaming, used when `EventSource` cannot connect. */
   const runWithoutStream = async (ignoreUnreadableLines: boolean): Promise<void> => {
     try {
+      // Typed against the endpoint's own contract, so a renamed field is a
+      // compile error here rather than a 400 at runtime.
+      const body: DeckSyncRequest = {
+        direction: direction(),
+        decks: allSelected() ? [] : selected(),
+        dryRun: dryRun(),
+        ignoreUnreadableLines,
+        only: changeFilterParam(changeFilter()),
+      }
       const resp = await fetch('/api/deck-sync', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          direction: direction(),
-          decks: allSelected() ? [] : selected(),
-          dryRun: dryRun(),
-          ignoreUnreadableLines,
-        }),
+        body: JSON.stringify(body),
       })
       const data = (await resp.json()) as DeckSyncRunResponse
       if (!data.success) {
@@ -270,12 +239,12 @@ export function DeckSync(): JSX.Element {
       // One render for the whole report rather than one per deck.
       batch(() => {
         for (const result of data.report.decks) {
-          updateDeck(result.name, (state) => ({
-            ...state,
+          updateDeck(result.name, (item) => ({
+            ...item,
             status: result.status,
             messages: result.reason
-              ? [...state.messages, { level: 'info', text: result.reason }]
-              : state.messages,
+              ? [...item.messages, { level: 'info', text: result.reason }]
+              : item.messages,
           }))
         }
         // The report carries the unreadable decks too, so this path offers the
@@ -295,6 +264,8 @@ export function DeckSync(): JSX.Element {
     if (!allSelected()) {
       for (const slug of selected()) params.append('deck', slug)
     }
+    const only = changeFilterParam(changeFilter())
+    if (only) params.set('only', only)
     if (dryRun()) params.set('dryRun', 'true')
     if (ignoreUnreadableLines) params.set('ignoreUnreadableLines', 'true')
     return `/api/deck-sync/stream?${params.toString()}`
@@ -316,68 +287,30 @@ export function DeckSync(): JSX.Element {
       setUnreadable([])
     })
 
-    let es: EventSource
-    try {
-      es = new EventSource(streamUrl(ignoreUnreadableLines))
-    } catch {
-      void runWithoutStream(ignoreUnreadableLines)
-      return
-    }
-    eventSource = es
-
-    const close = (): void => {
-      es.close()
-      eventSource = null
-    }
-
-    // Whether the stream ever delivered anything. A connection error before the
-    // first frame means the stream never worked (e.g. a proxy that buffers
-    // server-sent events) and the run can safely be retried over plain JSON;
-    // one *after* means a run is already underway on the server, and retrying
-    // would push a second time.
-    let received = false
-
-    es.addEventListener('progress', (e: MessageEvent) => {
-      received = true
-      try {
-        handleSyncEvent(JSON.parse(e.data as string) as DeckSyncEvent, ignoreUnreadableLines)
-      } catch {
-        // Ignore a malformed frame rather than aborting the run.
-      }
-    })
-
-    es.addEventListener('done', (e: MessageEvent) => {
-      close()
-      try {
-        finishRun((JSON.parse(e.data as string) as DeckSyncDoneEvent).message)
-      } catch {
-        finishRun('Sync complete.')
-      }
-    })
-
-    es.addEventListener('error', (e: Event) => {
-      const message = e as MessageEvent
-      if (!message.data) {
-        close()
-        if (received) {
-          // The run is already in flight server-side; re-issuing it could push a
-          // second time. Report the drop and let the user reload to see where it landed.
-          failRun('The connection dropped mid-sync. Reload to see how far the run got.', false)
-          return
-        }
-        // Never connected: retry once over plain JSON so a proxy that buffers
-        // server-sent events doesn't make the page unusable.
-        void runWithoutStream(ignoreUnreadableLines)
-        return
-      }
-      close()
-      try {
-        const data = JSON.parse(message.data as string) as DeckSyncErrorEvent
-        failRun(data.message, data.loginRequired)
-      } catch {
-        failRun('Failed to sync decks.', false)
-      }
-    })
+    stream = openSyncStream<DeckSyncEvent, DeckSyncDoneEvent, DeckSyncErrorEvent>(
+      streamUrl(ignoreUnreadableLines),
+      {
+        progress: (event) => handleSyncEvent(event, ignoreUnreadableLines),
+        done: (event) => finishRun(event?.message ?? 'Sync complete.'),
+        failed: (event) =>
+          failRun(event?.message ?? 'Failed to sync decks.', event?.loginRequired === true),
+        disconnected: (received) => {
+          stream = null
+          if (received) {
+            // The run is already in flight server-side; re-issuing it could push
+            // a second time. Report the drop and let the user reload to see
+            // where it landed.
+            failRun('The connection dropped mid-sync. Reload to see how far the run got.', false)
+            return
+          }
+          // Never connected: retry once over plain JSON so a proxy that buffers
+          // server-sent events doesn't make the page unusable.
+          void runWithoutStream(ignoreUnreadableLines)
+        },
+      },
+    )
+    // `EventSource` could not even be constructed — the same fallback applies.
+    if (!stream) void runWithoutStream(ignoreUnreadableLines)
   }
 
   return (
@@ -419,31 +352,26 @@ export function DeckSync(): JSX.Element {
             </span>
           </p>
 
-          <h3 class="section-subheading">Direction</h3>
-          <div class="segmented" role="group" aria-label="Sync direction">
-            <For each={DIRECTIONS}>
-              {(option) => (
-                <button
-                  type="button"
-                  class="segmented-option"
-                  data-active={direction() === option.id ? 'true' : undefined}
-                  aria-pressed={direction() === option.id}
-                  disabled={running()}
-                  onClick={() => setDirection(option.id)}
-                >
-                  {option.label}
-                </button>
-              )}
-            </For>
-          </div>
-          <p class="sync-direction-desc">
-            {DIRECTIONS.find((option) => option.id === direction())?.description}
-          </p>
+          <ChoicePicker
+            heading="Direction"
+            label="Sync direction"
+            class="sync-direction"
+            options={DIRECTIONS}
+            value={direction()}
+            onSelect={setDirection}
+            disabled={running()}
+          />
+
+          <ChangeFilterPicker
+            value={changeFilter()}
+            onSelect={setChangeFilter}
+            disabled={running()}
+          />
 
           <h3 class="section-subheading">Decks</h3>
-          <ul class="sync-deck-list">
-            <li class="sync-deck sync-deck--all">
-              <label class="sync-deck-label">
+          <ul class="sync-select-list">
+            <li class="sync-select-row sync-select-row--all">
+              <label class="sync-select-label">
                 <input
                   ref={trackIndeterminate}
                   type="checkbox"
@@ -451,26 +379,26 @@ export function DeckSync(): JSX.Element {
                   disabled={running()}
                   onChange={toggleAll}
                 />
-                <span class="sync-deck-name">All decks</span>
+                <span class="sync-select-name">All decks</span>
               </label>
-              <span class="sync-deck-meta">
+              <span class="sync-select-meta">
                 {selected().length} of {decks().length} selected
               </span>
             </li>
             <For each={decks()}>
               {(deck) => (
-                <li class="sync-deck">
-                  <label class="sync-deck-label">
+                <li class="sync-select-row">
+                  <label class="sync-select-label">
                     <input
                       type="checkbox"
                       checked={isSelected(deck.slug)}
                       disabled={running()}
                       onChange={() => toggleDeck(deck.slug)}
                     />
-                    <span class="sync-deck-name">{deck.name}</span>
+                    <span class="sync-select-name">{deck.name}</span>
                   </label>
                   <span
-                    class="sync-deck-meta"
+                    class="sync-select-meta"
                     title={deck.lastSynced ? new Date(deck.lastSynced).toLocaleString() : undefined}
                   >
                     {lastSyncedLabel(deck.lastSynced)}
@@ -511,64 +439,17 @@ export function DeckSync(): JSX.Element {
           {/* The browser's stand-in for the CLI's confirmation prompt: the run
               refused to rewrite these files, and re-running is the explicit yes. */}
           <Show when={unreadable().length > 0}>
-            <div class="sync-unreadable">
-              <p class="sync-unreadable-lead">
-                {unreadable().length} deck{unreadable().length === 1 ? '' : 's'} contain lines
-                Ritual cannot read. Syncing rewrites the deck file, so these lines would be removed:
-              </p>
-              <ul class="sync-unreadable-list">
-                <For each={unreadable()}>
-                  {(deck) => (
-                    <li>
-                      <span class="sync-unreadable-file">
-                        {deck.file} ({deck.name})
-                      </span>
-                      <For each={deck.warnings}>
-                        {(warning) => <span class="sync-unreadable-line">{warning}</span>}
-                      </For>
-                    </li>
-                  )}
-                </For>
-              </ul>
-              <button
-                class="btn btn-secondary sync-unreadable-btn"
-                disabled={running()}
-                onClick={() => handleSync(true)}
-              >
-                Sync anyway and remove those lines
-              </button>
-            </div>
+            <UnreadableLinesPanel
+              sources={unreadable()}
+              noun="deck"
+              consequence={unreadableConsequence('deck', direction())}
+              confirmLabel="Sync anyway and remove those lines"
+              disabled={running()}
+              onConfirm={() => handleSync(true)}
+            />
           </Show>
 
-          <Show when={runDecks().length > 0 || runLog().length > 0}>
-            <h3 class="section-subheading">Progress</h3>
-            <ul class="sync-run">
-              <For each={runLog()}>
-                {(message) => (
-                  <li class="sync-run-note" data-level={message.level}>
-                    {message.text}
-                  </li>
-                )}
-              </For>
-              <For each={runDecks()}>
-                {(deck) => (
-                  <li class="sync-run-deck" data-status={deck.status}>
-                    <span class="sync-run-icon">{RUN_ICONS[deck.status]}</span>
-                    <div class="sync-run-body">
-                      <span class="sync-run-name">{deck.deck}</span>
-                      <For each={deck.messages}>
-                        {(message) => (
-                          <span class="sync-run-message" data-level={message.level}>
-                            {message.text}
-                          </span>
-                        )}
-                      </For>
-                    </div>
-                  </li>
-                )}
-              </For>
-            </ul>
-          </Show>
+          <SyncRunLog notes={runLog()} items={runDecks()} />
         </Show>
       </Show>
     </div>

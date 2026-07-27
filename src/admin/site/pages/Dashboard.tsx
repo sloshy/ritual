@@ -25,6 +25,7 @@ const actions: ActionCard[] = [
   { page: 'build-site', description: 'Generate the static website' },
   { page: 'cache-refresh', description: 'Refresh the card data cache' },
   { page: 'deck-sync', description: 'Pull or push deck changes with Archidekt' },
+  { page: 'collection-sync', description: 'Pull or push collection changes with Archidekt' },
   { page: 'archidekt-login', description: 'Sign in to Archidekt' },
   { page: 'audit-log', description: 'View login and activity history' },
   { page: 'settings', description: 'Configure admin settings' },

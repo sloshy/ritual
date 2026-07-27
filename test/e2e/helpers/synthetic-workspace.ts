@@ -451,6 +451,7 @@ const RITUAL_CONFIG = {
     // only slow the wrong-credentials specs down.
     failedAuthDelayMs: 0,
   },
+  collectionSync: { pullTarget: 'Inbox' },
 } satisfies RitualConfig
 
 /** Create the complete synthetic workspace inside `dir` (which must exist). */

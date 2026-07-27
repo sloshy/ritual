@@ -7,6 +7,7 @@ import {
   priceIntro,
   REFRESH_SESSION,
   sessionSemantics,
+  SYNC_CHANGE_FILTER,
   textImportSection,
   wrapProse,
 } from './shared'
@@ -14,7 +15,7 @@ import {
 export const collectionsSkill: RitualSkill = {
   name: 'ritual-collections',
   description:
-    'Manage and price a Magic: The Gathering card collection with Ritual. Use when the user wants to add owned cards to a collection, browse or bulk-add cards interactively, import a collection from a CSV export or text file, or get the total value of a collection.',
+    'Manage, sync, and price a Magic: The Gathering card collection with Ritual. Use when the user wants to add owned cards to a collection, browse or bulk-add cards interactively, import a collection from a CSV export or text file, sync a collection with Archidekt (pull or push), or get the total value of a collection.',
   body: `# Managing collections with Ritual
 
 Collections of owned cards live in \`collections/<name>.md\`. See the **ritual**
@@ -108,6 +109,209 @@ ritual import more.csv --type collection --name "Red Binder" --append \\
   typeNotes:
     'Conditions/finishes are normalized (e.g. `Near Mint` → `NM`, `F` → foil, empty → non-foil).',
 })}
+
+## Sync with Archidekt
+
+${wrapProse(
+  'Collection lists sync with the Archidekt collection of the **logged-in ' +
+    'account** (`ritual login archidekt` first — the login records the numeric ' +
+    'account id the collection is read by). An account has **one** collection ' +
+    'while Ritual has **many** collection lists, so a run compares the union of ' +
+    'the lists in scope against the whole remote collection. There is no ' +
+    'per-file link and no front matter involved; the connection is the account.',
+)}
+
+\`\`\`bash
+ritual collection-sync pull                         # remote → local, every collection list
+ritual collection-sync push                         # local → remote, every collection list
+ritual collection-sync pull "Blue Binder"           # scope the local side to named lists
+ritual collection-sync push --dry-run               # preview, writing and sending nothing
+ritual collection-sync pull --into "Blue Binder"    # land new cards in this list
+ritual collection-sync push "Blue Binder" --only additions
+ritual collection-sync pull --removal-priority "Long Box" --removal-priority "Blue Binder"
+ritual collection-sync push --csv                   # new cards as one CSV import (no prompt)
+ritual collection-sync push --csv-file import.csv   # write that CSV instead of pushing them
+ritual collection-sync push --csv --refresh auto    # refresh a stale card cache instead of asking
+ritual collection-sync pull --yes                   # accept losing lines the parser can't read
+ritual collection-sync pull --output json           # scripted per-list report
+\`\`\`
+
+${wrapProse(
+  '**Scope:** with no list arguments the local side is every collection list. Naming lists ' +
+    'scopes the local side to those only — the remote side is **always** the ' +
+    'whole Archidekt collection, so a subset run declares "these lists are what ' +
+    'my Archidekt collection mirrors": cards living only in lists you did not ' +
+    'name read as absent, so a push would delete their records and a pull would ' +
+    'try to re-add them. Narrow such a run with `--only`.',
+)}
+
+${SYNC_CHANGE_FILTER}
+
+${wrapProse(
+  'That is what makes a subset scope safe with an incomplete local picture: ' +
+    '`collection-sync push "Blue Binder" --only additions` uploads what that ' +
+    'binder holds without the lists you did not name looking like cards you no ' +
+    'longer own, and `collection-sync pull --only additions` adopts new ' +
+    'Archidekt cards without deleting anything locally. `deck-sync` takes the ' +
+    'identical flag (see the **ritual-decks** skill).',
+)}
+
+${wrapProse(
+  '**Where pulled cards land:** a card that appeared on Archidekt belongs in *some* binder and nothing in the ' +
+    'data says which, so every addition goes to one target list, resolved as: ' +
+    '`--into <list>` for this run, else the `collectionSync.pullTarget` config ' +
+    'key, else `Inbox`. The list is **created on first use**; an ambiguous name ' +
+    "fails the additions rather than guessing (the run's removals still apply). " +
+    '`--into` applies to a pull only — passing it to a push warns and is ignored.',
+)}
+
+\`\`\`bash
+ritual config set collectionSync.pullTarget "Inbox"
+\`\`\`
+
+${wrapProse(
+  '**What is compared:** the join key is the printing (set code + collector number) plus finish and ' +
+    "condition — Ritual's five conditions are exactly Archidekt's, so " +
+    'NM/LP/MP/HP/DMG round-trip as-is. A line with no explicit finish resolves ' +
+    'against the card cache first, so an etched-only printing compares as ' +
+    'etched; a printing the cache does not hold syncs as nonfoil with a warning ' +
+    'naming the line. Language, tags, and purchase price have no local ' +
+    'representation: records Ritual creates are English, untagged, and ' +
+    'priceless, while existing values survive a quantity change. The game is ' +
+    'fixed to Paper (no MTGO/Arena), and sections and notes are local-only — a ' +
+    "pull adds into the target list's `Main`, a push flattens sections.",
+)}
+
+${wrapProse(
+  '**A push with many new cards:** creating a printing costs a search plus a create, each paced 500 ms ' +
+    'apart, so above **25 new printings** a push sends its additions through ' +
+    "Archidekt's CSV importer instead — one upload, no searches, rows built " +
+    'entirely from the local Scryfall cache (the same file ' +
+    '`ritual export --preset archidekt` writes, in Archidekt’s spellings: ' +
+    'variant `Normal`/`Foil`/`Etched`, and Damaged is `D`, not `DMG`). Quantity ' +
+    'increases and removals never ride it — removals use Archidekt’s own ' +
+    'bulk-delete API.',
+)}
+
+${wrapProse(
+  '`--csv` always uploads (any count, no prompt); `--csv-file <path>` always ' +
+    'writes the CSV **instead of** pushing the additions, which the report then ' +
+    'counts as pending a manual upload at `archidekt.com/collections/import` ' +
+    '(removals and quantity changes still push). The two flags contradict each ' +
+    'other: giving both is a usage error (exit 2). Over the threshold with ' +
+    'neither, a terminal is asked (upload / save to a file / add individually / ' +
+    'cancel) and anything non-interactive **fails the run before any remote ' +
+    'write**, naming both flags — the account is left untouched. A `--dry-run` ' +
+    'over the threshold never prompts and makes no per-card request at all: it ' +
+    'reports "would upload N cards (M rows) as a CSV import", which is what ' +
+    'keeps a first preview from being rate limited. A printing the cache does ' +
+    'not hold cannot become a row, so a real run adds it one at a time and a ' +
+    'preview merely names it (`csv.uncached` in the report; `csv.status` is ' +
+    '`"empty"` when the cache could key none of them).',
+)}
+
+${wrapProse(
+  '**Cache freshness is required for the CSV path.** The rows are keyed by the ' +
+    'Scryfall ids the local card cache holds, so a run taking that path checks ' +
+    'the cache before building the file and `--refresh <ask|auto|no-bulk|never>` ' +
+    'decides the rest: `ask` (the default) prompts with **yes** preselected, ' +
+    '`auto` redownloads an empty or day-old cache without asking, and ' +
+    '`no-bulk`/`never` — or a declined prompt, or no terminal to prompt on — ' +
+    '**fail the run before any remote write** naming `ritual cache preload-all`. ' +
+    'It never falls back to per-card searches, which is the rate limiting the ' +
+    'CSV path exists to avoid. The server surfaces cannot prompt, so they treat ' +
+    'freshness as `auto` and report the refresh in the run log.',
+)}
+
+${wrapProse(
+  '**On the server surfaces** — the admin **Sync Collection** page and the MCP ' +
+    '`sync_collection` tool — nothing can be prompted, so the request carries a ' +
+    '`csv` boolean meaning exactly what `--csv` means: upload the new cards as ' +
+    'one CSV import. The page’s *Upload new cards as one CSV import* toggle is ' +
+    '**on by default** (turning it off is what makes a large push fail), and the ' +
+    'MCP tool takes `csv: true`; without it an over-threshold push fails with ' +
+    'the same guidance and pushes nothing. `--csv-file` is **CLI-only** — a ' +
+    'request naming a `csvFile` is rejected, since a server does not write files ' +
+    'a caller names — and `report.csv` (status, rows, chunks, per-row failures, ' +
+    '`uncached`) is how either surface says what the import did.',
+)}
+
+${wrapProse(
+  '**Removals a pull cannot place:** a removal is *ambiguous* only when **some** of a printing’s copies are ' +
+    'going and those copies live in several lists — nothing says which binder ' +
+    'the card left. Taking **every** copy is never ambiguous however many lists ' +
+    'hold one (each simply loses what it holds), and neither is a partial ' +
+    'removal whose copies all sit in one list (its last lines go).',
+)}
+
+${wrapProse(
+  'An ambiguous removal must be settled before the pull writes **anything** — ' +
+    'there is no partial, one-card-at-a-time sync. Two ways to settle it:',
+)}
+
+\`\`\`bash
+# 1. Say up front which lists may give copies up, in priority order (repeatable)
+ritual collection-sync pull --removal-priority "Long Box" --removal-priority "Blue Binder"
+\`\`\`
+
+${wrapProse(
+  'Copies then come **only** from the named lists, walking them in the order ' +
+    'given (each list’s last lines first). Names are matched exactly, like ' +
+    '`--into` — never by the unique-substring rule — so an unknown name fails ' +
+    'the run before anything is planned, as does a priority that cannot fully ' +
+    'cover a removal. When a priority is given the run never prompts.',
+)}
+
+${wrapProse(
+  '2. **Resolve them one by one.** With no priority, `--output text`, a ' +
+    'terminal, prompts enabled (not `--no-input`) and no `--dry-run`, the run ' +
+    'first asks whether to walk the copies (default **No**), then asks which ' +
+    'list lost each copy, offering only the lists that still hold one. ' +
+    'Declining, or cancelling part way, aborts everything — nothing is written. ' +
+    '`--yes` does *not* answer these prompts; it covers unreadable lines only.',
+)}
+
+${wrapProse(
+  '**Anywhere else** — `--output json`/`ndjson`, a pipe, `--no-input`, the ' +
+    'admin site, or the MCP tool without `removalPriority` — the run **fails ' +
+    'and writes nothing** — not even the account’s `lastSynced` — with the ' +
+    'reason in the report’s `errors`; the report’s `ambiguous` array carries ' +
+    'every ambiguity the planner found, placed or not, so `errors` is what says ' +
+    'the run failed. `--dry-run` never prompts and never fails on an ambiguity ' +
+    'itself (an unknown `--removal-priority` name still fails it): it reports ' +
+    'each one, and how a given priority would place it. Other ways out: ' +
+    'scope the run to the one list, or `--only additions` to skip removals.',
+)}
+
+${wrapProse(
+  '**Unreadable lines:** both directions refuse a list whose file holds lines the parser cannot read, ' +
+    'because both lose them: a pull rewrites the file, and a push treats the ' +
+    'file as the truth (so the cards on those lines are deleted from your ' +
+    'Archidekt collection). `-y`/`--yes` accepts that up front; without a ' +
+    'terminal (`--no-input`, a pipe, or `--output json`) those lists fail ' +
+    'instead. A push also refuses to run when nothing readable is in scope, ' +
+    'rather than reading an empty local side as "the collection is empty".',
+)}
+
+${wrapProse(
+  '**An incomplete local side:** when a list in scope does not make it into the comparison — a name that ' +
+    'does not resolve, a file that cannot be read, or one held back for ' +
+    'unreadable lines — the cards it holds look like they are only on ' +
+    'Archidekt. The run therefore withholds exactly the changes that shortfall ' +
+    'would manufacture: a pull adds nothing (it would duplicate that file into ' +
+    'the target list) and a push removes nothing (it would delete those cards ' +
+    'from Archidekt). Fix or accept the listed lists and run again; the ' +
+    "report's `localIncomplete` flag says it happened.",
+)}
+
+${wrapProse(
+  "The same sync runs from the admin site's **Sync Collection** page (see the " +
+    '**ritual-site** skill) and from the MCP `sync_collection` tool, whose ' +
+    '`direction`, `lists`, `only`, `into`, `removalPriority`, `csv`, `dryRun`, ' +
+    'and `ignoreUnreadableLines` fields are these flags. Neither can prompt, so ' +
+    'both fail an ambiguous removal unless the run carries a removal priority, ' +
+    'and both refuse a large push that was not given `csv: true`.',
+)}
 
 ## Price
 

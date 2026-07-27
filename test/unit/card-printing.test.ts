@@ -15,12 +15,23 @@ function printing(set: string, collectorNumber: string): ScryfallCard {
 
 const LEA = printing('lea', '161')
 const M10 = printing('m10', '146')
-const PRINTINGS = [LEA, M10, printing('2x2', '117')]
+const CLB_ETCHED = printing('clb', '507a')
+const PRINTINGS = [LEA, M10, printing('2x2', '117'), CLB_ETCHED]
 
 describe('findPrinting', () => {
   test('matches by set (case-insensitive) and collector number', () => {
     expect(findPrinting(PRINTINGS, 'M10', '146')).toBe(M10)
     expect(findPrinting(PRINTINGS, 'lea', '161')).toBe(LEA)
+  })
+
+  test('matches a collector number case-insensitively too', () => {
+    // A collector number is a pinned identifier, not display text: a line written
+    // `(CLB:507A)` names the printing the cache holds as `507a`. The collection
+    // sync's own join key compares them the same way, so a stricter comparison
+    // here would drop such a line out of a CSV upload and report it as missing
+    // from a cache that holds it.
+    expect(findPrinting(PRINTINGS, 'clb', '507A')).toBe(CLB_ETCHED)
+    expect(findPrinting(PRINTINGS, 'CLB', '507a')).toBe(CLB_ETCHED)
   })
 
   test('returns undefined when no printing matches', () => {

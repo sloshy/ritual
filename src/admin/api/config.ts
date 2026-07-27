@@ -7,6 +7,7 @@ import {
   parseCacheFeedUrl,
   parseCacheLockTimeoutSeconds,
   parseCacheSource,
+  parseCollectionSyncConfig,
   parseDefaultCurrency,
   parseSearchDebounceMs,
   parseSiteConfig,
@@ -42,6 +43,7 @@ const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set(
     cacheFeedUrl: true,
     searchDebounceMs: true,
     admin: true,
+    collectionSync: true,
     site: true,
     exportPresets: true,
   } satisfies KnownConfigKeyMap),
@@ -173,6 +175,17 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
           }
         }
       }
+    }
+
+    // `collectionSync` replaces wholesale, like `site` below: the parser
+    // defaults every absent field, so a partial object round-trips to a
+    // complete one rather than dropping what it omitted.
+    if (raw.collectionSync !== undefined) {
+      const parsed = parseCollectionSyncConfig(raw.collectionSync)
+      if (isConfigParseError(parsed)) {
+        return badRequest(parsed.error)
+      }
+      updates.collectionSync = parsed
     }
 
     // `site` replaces wholesale: parseSiteConfig validates the full object and

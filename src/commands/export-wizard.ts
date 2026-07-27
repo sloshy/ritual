@@ -28,6 +28,8 @@ import {
   EXPORT_FORMAT_EXTENSIONS,
   EXPORT_FORMATS,
   exportFormatUsesColumns,
+  exportPresetNames,
+  findExportPreset,
   resolveExportSettings,
   type ExportFormat,
   type ExportPreset,
@@ -38,6 +40,7 @@ import {
   EXPORT_PROPERTIES,
   EXPORT_PROPERTY_HINTS,
   EXPORT_PROPERTY_LABELS,
+  exportPropertyLabel,
   type ExportProperty,
 } from '../export/render'
 import { CONDITION_LABELS, VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
@@ -134,8 +137,13 @@ export function formatWizardHeaderLines(state: ExportWizardState, entryCount: nu
   let formatLine = `Format: ${state.settings.format.toUpperCase()}`
   if (exportFormatUsesColumns(state.settings.format)) {
     formatLine += ` · Columns: ${state.settings.columns
-      .map((column) => EXPORT_PROPERTY_LABELS[column])
+      .map((column) => exportPropertyLabel(column, state.settings.dialect))
       .join(', ')}`
+    // Only a non-default dialect is worth a line: `ritual` spellings are what
+    // the list files already say.
+    if (state.settings.dialect !== 'ritual') {
+      formatLine += ` · ${state.settings.dialect} values`
+    }
   }
   const lines: string[] = [
     `📤 Sources: ${sourceText} — ${countLabel(entryCount, 'card')} to export`,
@@ -180,7 +188,7 @@ export function buildWizardMenuChoices(
   ]
   if (presetCount > 0) {
     choices.push({
-      title: `📂 Load preset (${presetCount} saved)`,
+      title: `📂 Load preset (${presetCount} available)`,
       value: { kind: 'load-preset' } satisfies ExportWizardSelection,
     })
   }
@@ -486,27 +494,30 @@ async function promptCsvOptions(state: ExportWizardState): Promise<void> {
 export function formatPresetSummary(name: string, preset: ExportPreset): string {
   const parts: string[] = [
     preset.format.toUpperCase(),
-    preset.columns.map((column) => EXPORT_PROPERTY_LABELS[column]).join(', '),
+    preset.columns.map((column) => exportPropertyLabel(column, preset.dialect)).join(', '),
   ]
   if (preset.header === false) parts.push('no header')
   if (preset.quoteAll) parts.push('quote all')
+  if (preset.dialect !== undefined && preset.dialect !== 'ritual') {
+    parts.push(`${preset.dialect} values`)
+  }
   return `${name} — ${parts.join(' · ')}`
 }
 
 async function promptLoadPreset(state: ExportWizardState): Promise<void> {
-  const presets = getExportPresets()
-  const names = Object.keys(presets)
+  const saved = getExportPresets()
+  const names = exportPresetNames(saved)
   if (names.length === 0) return
   const pick = await ask<string>({
     type: 'select',
     message: 'Load preset',
     choices: names.map((name) => ({
-      title: formatPresetSummary(name, presets[name]!),
+      title: formatPresetSummary(name, findExportPreset(name, saved)!),
       value: name,
     })),
   })
   if (!pick) return
-  state.settings = resolveExportSettings(presets[pick], {})
+  state.settings = resolveExportSettings(findExportPreset(pick, saved), {})
   console.log(`✓ Loaded preset '${pick}'`)
 }
 
@@ -518,6 +529,7 @@ async function promptSavePreset(state: ExportWizardState): Promise<void> {
   })
   if (!name) return
   const trimmed = name.trim()
+  // Only a *saved* preset can be overwritten; naming a built-in just shadows it.
   if (getExportPresets()[trimmed]) {
     const overwrite = await ask<boolean>({
       type: 'confirm',
@@ -555,8 +567,10 @@ async function promptExport(entries: ExportEntry[], state: ExportWizardState): P
   })
   if (!target || !target.trim()) return false
   const resolved = path.resolve(target.trim())
+  const rendered = await renderExport(entries, state.settings)
+  for (const warning of rendered.warnings) console.warn(`⚠️  ${warning}`)
   await fs.mkdir(path.dirname(resolved), { recursive: true })
-  await fs.writeFile(resolved, renderExport(entries, state.settings) + '\n', 'utf-8')
+  await fs.writeFile(resolved, rendered.content + '\n', 'utf-8')
   console.log(`✓ Exported ${countLabel(entries.length, 'card')} to ${resolved}`)
   return true
 }
@@ -584,7 +598,7 @@ export async function runExportWizard(): Promise<void> {
     for (const line of formatWizardHeaderLines(state, entries.length)) console.log(line)
     console.log('')
 
-    const presetCount = Object.keys(getExportPresets()).length
+    const presetCount = exportPresetNames(getExportPresets()).length
     const selection = await ask<ExportWizardSelection>({
       type: 'select',
       message: 'Export',

@@ -7,12 +7,14 @@ import {
 import { renderExport } from '../../export/output'
 import {
   EXPORT_FORMATS,
+  exportPresetNames,
+  findExportPreset,
   isExportFormat,
   resolveExportSettings,
   type ExportPreset,
   type ExportSettingsFlags,
 } from '../../export/presets'
-import { parseExportColumns } from '../../export/render'
+import { EXPORT_DIALECTS, isExportDialect, parseExportColumns } from '../../export/render'
 import { isFinish } from '../../finish-condition'
 import { isListType } from '../../list-type'
 import {
@@ -48,7 +50,9 @@ type ExportRequestBody = {
   columns?: string[]
   header?: boolean
   quoteAll?: boolean
-  /** A saved preset name; explicit fields above override its values. */
+  /** Value spellings for finish/condition; `ritual` by default. */
+  dialect?: string
+  /** A saved or built-in preset name; explicit fields above override its values. */
   preset?: string
 }
 
@@ -86,6 +90,12 @@ function parseSettingsFlags(body: ExportRequestBody): ExportSettingsFlags | stri
     const columns = parseExportColumns(body.columns)
     if (typeof columns === 'string') return columns
     flags.columns = columns
+  }
+  if (body.dialect !== undefined) {
+    if (typeof body.dialect !== 'string' || !isExportDialect(body.dialect)) {
+      return `Invalid dialect '${String(body.dialect)}'. Use one of: ${EXPORT_DIALECTS.join(', ')}.`
+    }
+    flags.dialect = body.dialect
   }
   return flags
 }
@@ -126,9 +136,9 @@ function parseFilters(raw: ExportRequestFilters | undefined): ExportFilters | st
  * `POST /api/export` — assemble and render a card export. Mirrors the CLI
  * `export` command's flag mode: selected lists (or every list when none are
  * named and no card picks are given) plus card picks, filtered, rendered to
- * CSV, JSON, plain text, or Markdown (columns and the CSV toggles only shape
- * csv/json output). Returns the rendered content as a string rather than
- * writing a file — the caller decides where it goes.
+ * CSV, JSON, plain text, or Markdown (columns, the CSV toggles, and the value
+ * dialect only shape csv/json output). Returns the rendered content as a string
+ * rather than writing a file — the caller decides where it goes.
  */
 export async function handleExport(req: Request): Promise<Response> {
   try {
@@ -148,8 +158,13 @@ export async function handleExport(req: Request): Promise<Response> {
     let preset: ExportPreset | undefined
     if (body.preset !== undefined) {
       if (typeof body.preset !== 'string') return badRequest('preset must be a string.')
-      preset = getExportPresets()[body.preset]
-      if (!preset) return badRequest(`No export preset named '${body.preset}'.`)
+      const saved = getExportPresets()
+      preset = findExportPreset(body.preset, saved)
+      if (!preset) {
+        return badRequest(
+          `No export preset named '${body.preset}'. Available presets: ${exportPresetNames(saved).join(', ')}.`,
+        )
+      }
     }
     const flags = parseSettingsFlags(body)
     if (typeof flags === 'string') return badRequest(flags)
@@ -188,12 +203,13 @@ export async function handleExport(req: Request): Promise<Response> {
     }
 
     const selection = await buildExportSelection(selected, scope, cards, filters)
+    const rendered = await renderExport(selection.entries, settings)
     const payload: ExportResponseBody = {
       success: true,
       format: settings.format,
       entryCount: selection.entries.length,
-      content: renderExport(selection.entries, settings),
-      warnings: selection.warnings,
+      content: rendered.content,
+      warnings: [...selection.warnings, ...rendered.warnings],
     }
     return Response.json(payload)
   } catch (error) {

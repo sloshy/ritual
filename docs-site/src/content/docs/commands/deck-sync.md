@@ -25,16 +25,44 @@ Each name is matched case- and accent-insensitively with a unique-substring fall
 
 ## Options
 
-| Option              | Description                                                               | Default |
-| ------------------- | ------------------------------------------------------------------------- | ------- |
-| `-n, --dry-run`     | Report what would sync without writing files or pushing changes           | `false` |
-| `-y, --yes`         | Sync decks with unreadable lines without asking (those lines are removed) | `false` |
-| `--output <format>` | Output format: `text`, `json`, or `ndjson`                                | `text`  |
-| `--quiet`           | Suppress non-essential output                                             | `false` |
+| Option              | Description                                                               | Default     |
+| ------------------- | ------------------------------------------------------------------------- | ----------- |
+| `-n, --dry-run`     | Report what would sync without writing files or pushing changes           | `false`     |
+| `-y, --yes`         | Sync decks with unreadable lines without asking (those lines are removed) | `false`     |
+| `--only <changes>`  | Apply only `additions` or `removals` (relative to the sync destination)   | all changes |
+| `--output <format>` | Output format: `text`, `json`, or `ndjson`                                | `text`      |
+| `--quiet`           | Suppress non-essential output                                             | `false`     |
 
 Under `--dry-run`, both directions still fetch the remote deck state (the diff
 needs it), but a pull writes no files and records no changelog entries, and a
 push sends nothing to Archidekt and does not update `lastSynced`.
+
+## Change Filter
+
+`--only` narrows a run to one side of each deck's diff. The vocabulary is
+**destination-relative** — the destination is whatever the run writes to, so it
+is your deck files on a `pull` and Archidekt on a `push`:
+
+| Value       | Applies                                                        | Skips                   |
+| ----------- | -------------------------------------------------------------- | ----------------------- |
+| `additions` | Cards missing from the destination, and quantity **increases** | Removals and decreases  |
+| `removals`  | Cards gone from the source, and quantity **decreases**         | Additions and increases |
+
+Anything other than `additions` or `removals` exits with code 2. Skipped changes
+are still counted and reported, once per deck:
+
+```
+Syncing "Winota Stax" (pull)...
+  Skipped 3 removals (applying additions only).
+  Changes: +2 added, -0 removed, ~1 quantity changed
+```
+
+The filter applies to cards only — a pull still adopts the deck's Archidekt
+format, and a deck whose only change is a format change still saves.
+
+The admin site's Sync Decks page offers the same choice as an
+_All changes / Additions only / Removals only_ control, and the MCP `sync_decks`
+tool takes it as an `only` field.
 
 ## Scripted Output
 
@@ -103,6 +131,16 @@ translated into upload entries, or a deck name that did not resolve) are reporte
 as they happen, and the sync continues with the remaining decks. If any deck
 failed, a summary such as `2 of 5 decks failed` is printed to stderr and the
 command exits with code 1; it exits 0 only when every deck synced cleanly.
+
+## Rate Limiting
+
+Requests to Archidekt are spaced at least 500 ms apart. When Archidekt answers
+`429 Too Many Requests`, the request is retried up to 5 times — waiting out the
+server's `Retry-After` when it names one, otherwise backing off exponentially
+(1s, 2s, 4s, … capped at 30s) — with each wait reported as a warning. A 429 that
+outlives the retry budget fails that deck's operation like any other HTTP error.
+The spacing can be tuned with the `RITUAL_ARCHIDEKT_MIN_INTERVAL_MS` environment
+variable (`0` disables it); the 429 handling is always on.
 
 ## How It Works
 
@@ -199,7 +237,7 @@ from the deck's sections. See [new](/commands/new/#deck-format).
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `0`  | Every deck synced cleanly (or there was nothing to sync)                                                                             |
 | `1`  | At least one deck failed — including a deck refused for [unreadable lines](#unreadable-lines) — or you are not signed into Archidekt |
-| `2`  | Missing or invalid `<direction>` (anything other than push / pull)                                                                   |
+| `2`  | Missing or invalid `<direction>` or `--only` (anything other than push / pull, additions / removals)                                 |
 
 ## Examples
 
@@ -225,6 +263,12 @@ Preview a push without sending anything:
 
 ```bash
 ./ritual deck-sync push --dry-run
+```
+
+Pull new cards without letting a pull delete anything locally:
+
+```bash
+./ritual deck-sync pull --only additions
 ```
 
 Sync in a script, accepting the loss of any lines Ritual cannot read:

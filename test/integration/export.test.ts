@@ -7,6 +7,8 @@ import path from 'node:path'
 import '../../src/scryfall'
 import { cardCache } from '../../src/cache'
 import { getBaseDir, setBaseDir } from '../../src/base-dir'
+import type { ScryfallCard } from '../../src/types'
+import { makeScryfallCard } from '../test-utils'
 import { runCli, withTempDir } from './helpers/cli'
 import { writeCollectionFile, writeWantedFile } from './helpers/workspace'
 
@@ -30,6 +32,23 @@ name: "Burn"
 `
 
 type ExportedRecord = Record<string, string | number>
+
+/**
+ * Cached printings for the seeded lists. Only the C21 Sol Ring is here: the
+ * uncached Bolt is what proves an unresolvable Scryfall ID warns instead of
+ * failing. Ids are synthetic — nothing contacts Scryfall.
+ */
+const CACHED_PRINTINGS: Record<string, ScryfallCard[]> = {
+  'Sol Ring': [
+    makeScryfallCard({
+      id: '1b59533a-3e38-495d-873e-2f89fbd08494',
+      name: 'Sol Ring',
+      set: 'c21',
+      collector_number: '263',
+      finishes: ['nonfoil', 'foil'],
+    }),
+  ],
+}
 
 /**
  * Seed the workspace lists and mark the card cache freshly bulk-downloaded so
@@ -64,7 +83,7 @@ async function seedWorkspace(dir: string): Promise<void> {
   const originalBase = getBaseDir()
   setBaseDir(dir)
   try {
-    await cardCache.bulkSet({})
+    await cardCache.bulkSet(CACHED_PRINTINGS)
   } finally {
     setBaseDir(originalBase)
   }
@@ -141,6 +160,51 @@ describe('export command (Integration)', () => {
       const [header, first] = result.stdout.split('\n')
       expect(header).toBe('Name,Set,Collector Number,Finish,Condition,Quantity')
       expect(first).toBe('Sol Ring,C21,263,foil,,1')
+    })
+  }, 60_000)
+
+  test('the built-in archidekt preset writes the CSV Archidekt imports', async () => {
+    await withTempDir(async (dir) => {
+      await seedWorkspace(dir)
+
+      const result = await runCli(['export', 'binder', '--preset', 'archidekt'], dir)
+
+      expect(result.exitCode).toBe(0)
+      // Archidekt's own spellings, ids from the local cache. The Binder's Bolt
+      // is not cached, so its id cell is empty and the run says so — the value
+      // spellings themselves are pinned by the renderer's unit tests.
+      expect(result.stdout).toBe(
+        'Scryfall ID,Quantity,Variant,Condition\n' +
+          '1b59533a-3e38-495d-873e-2f89fbd08494,1,Foil,NM\n' +
+          ',1,Normal,LP\n',
+      )
+      expect(result.stderr).toContain(
+        'No Scryfall ID for Lightning Bolt (LEA:161): the printing is not in the Scryfall cache.',
+      )
+    })
+  }, 60_000)
+
+  test('--dialect archidekt respells finish and condition on any column set', async () => {
+    await withTempDir(async (dir) => {
+      await seedWorkspace(dir)
+
+      const result = await runCli(
+        [
+          'export',
+          'binder',
+          '--columns',
+          'name,finish,condition',
+          '--dialect',
+          'archidekt',
+          '--quiet',
+        ],
+        dir,
+      )
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toBe(
+        'Name,Variant,Condition\nSol Ring,Foil,NM\nLightning Bolt,Normal,LP\n',
+      )
     })
   }, 60_000)
 
@@ -314,6 +378,12 @@ describe('export command (Integration)', () => {
     ['invalid finish', ['export', '--all', '--finish', 'shiny'], 2],
     ['invalid condition', ['export', '--all', '--condition', 'OK'], 2],
     ['invalid output format', ['export', '--all', '--output', 'xml'], 2],
+    ['invalid dialect', ['export', '--all', '--dialect', 'moxfield'], 2],
+    [
+      'dialect with a fixed-line format',
+      ['export', '--all', '--output', 'md', '--dialect', 'archidekt'],
+      2,
+    ],
   ])(
     '%s exits with the matching code',
     async (_label, args, exitCode) => {

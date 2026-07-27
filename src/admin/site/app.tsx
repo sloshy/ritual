@@ -24,6 +24,7 @@ import { ImportChanges } from './pages/ImportChanges'
 import { BuildSite } from './pages/BuildSite'
 import { CacheRefresh } from './pages/CacheRefresh'
 import { DeckSync } from './pages/DeckSync'
+import { CollectionSync } from './pages/CollectionSync'
 import { ArchidektLogin } from './pages/ArchidektLogin'
 import { Settings } from './pages/Settings'
 import { AuditLog } from './pages/AuditLog'
@@ -47,6 +48,7 @@ const PAGE_COMPONENTS: Record<Page, Component> = {
   'build-site': BuildSite,
   'cache-refresh': CacheRefresh,
   'deck-sync': DeckSync,
+  'collection-sync': CollectionSync,
   'archidekt-login': ArchidektLogin,
   settings: Settings,
   'audit-log': AuditLog,

@@ -82,18 +82,19 @@ Every tool that addresses a list takes the same two fields: `listType` (`deck` |
 
 ### Read (read-only)
 
-| Tool                                | Description                                                                                                                                                                                                             |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `list_lists`                        | Every list as `{ listType, slug, name }`, optionally filtered by `listType`.                                                                                                                                            |
-| `load_list`                         | Load one list: decks return `{ slug, deck, frontMatter }`; collections and wanted lists return `{ slug, entries, sectionOrder }`.                                                                                       |
-| `search_cards`, `autocomplete_card` | Find card names — `search_cards` runs a [Scryfall query](https://scryfall.com/docs/syntax); `autocomplete_card` matches every whitespace-separated term against the local cache's names (`in tre` → "In the Trenches"). |
-| `card_printings`, `card_price`      | A card's printings and per-currency prices (an unknown card name is an error).                                                                                                                                          |
-| `price_report`                      | [Price](/commands/price/) one list (`listType` + `slug`), one list type (`listType` alone), or every list (no arguments).                                                                                               |
-| `load_history`                      | A list's change history.                                                                                                                                                                                                |
-| `deck_sync_status`                  | The Archidekt-linked decks (with each deck's `lastSynced`) plus the stored Archidekt login — what `sync_decks` can act on.                                                                                              |
-| `get_config`, `get_audit_log`       | Configuration and admin activity.                                                                                                                                                                                       |
-| `export_cards`                      | Render a CSV, JSON, plain-text, or Markdown [export](/commands/export/) of lists and/or card picks, with filters (and, for `csv`/`json`, column selection).                                                             |
-| `diff_lists`                        | Compare two lists by card name or exact printing — the [`diff`](/commands/diff/) command as a tool.                                                                                                                     |
+| Tool                                | Description                                                                                                                                                                                                                |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_lists`                        | Every list as `{ listType, slug, name }`, optionally filtered by `listType`.                                                                                                                                               |
+| `load_list`                         | Load one list: decks return `{ slug, deck, frontMatter }`; collections and wanted lists return `{ slug, entries, sectionOrder }`.                                                                                          |
+| `search_cards`, `autocomplete_card` | Find card names — `search_cards` runs a [Scryfall query](https://scryfall.com/docs/syntax); `autocomplete_card` matches every whitespace-separated term against the local cache's names (`in tre` → "In the Trenches").    |
+| `card_printings`, `card_price`      | A card's printings and per-currency prices (an unknown card name is an error).                                                                                                                                             |
+| `price_report`                      | [Price](/commands/price/) one list (`listType` + `slug`), one list type (`listType` alone), or every list (no arguments).                                                                                                  |
+| `load_history`                      | A list's change history.                                                                                                                                                                                                   |
+| `deck_sync_status`                  | The Archidekt-linked decks (with each deck's `lastSynced`) plus the stored Archidekt login — what `sync_decks` can act on.                                                                                                 |
+| `collection_sync_status`            | The collection lists a sync can cover, the list a pull adds new cards to by default, the CSV threshold (`csvThreshold`), when the account last synced, and the stored Archidekt login — what `sync_collection` can act on. |
+| `get_config`, `get_audit_log`       | Configuration and admin activity.                                                                                                                                                                                          |
+| `export_cards`                      | Render a CSV, JSON, plain-text, or Markdown [export](/commands/export/) of lists and/or card picks, with filters (and, for `csv`/`json`, column selection, a value `dialect`, and saved or built-in `preset`s).            |
+| `diff_lists`                        | Compare two lists by card name or exact printing — the [`diff`](/commands/diff/) command as a tool.                                                                                                                        |
 
 `diff_lists` takes two sides (`a` and `b`, each `{ listType?, name }` — names resolve like CLI list
 arguments, with `listType` pinning an ambiguous name) plus an optional `by` (`name`, the default, or
@@ -151,18 +152,22 @@ use `move_cards` and `set_card_section` instead.
 
 These are flagged with the MCP `destructiveHint` so clients can gate or confirm them:
 
-| Tool              | Description                                                               |
-| ----------------- | ------------------------------------------------------------------------- |
-| `rename_list`     | Rename a list (changes its slug).                                         |
-| `delete_list`     | Delete a list. Requires a `confirmName` matching the list's display name. |
-| `rewrite_history` | Replace a list's entire change log.                                       |
-| `update_config`   | Merge a partial configuration.                                            |
-| `build_site`      | Rebuild the public static site.                                           |
-| `sync_decks`      | [Sync decks](/commands/deck-sync/) with Archidekt in either direction.    |
-| `refresh_cache`   | Refresh the Scryfall card cache (bulk download + oracle/art tags).        |
+| Tool              | Description                                                                             |
+| ----------------- | --------------------------------------------------------------------------------------- |
+| `rename_list`     | Rename a list (changes its slug).                                                       |
+| `delete_list`     | Delete a list. Requires a `confirmName` matching the list's display name.               |
+| `rewrite_history` | Replace a list's entire change log.                                                     |
+| `update_config`   | Merge a partial configuration.                                                          |
+| `build_site`      | Rebuild the public static site.                                                         |
+| `sync_decks`      | [Sync decks](/commands/deck-sync/) with Archidekt in either direction.                  |
+| `sync_collection` | [Sync collection lists](/commands/collection-sync/) with Archidekt in either direction. |
+| `refresh_cache`   | Refresh the Scryfall card cache (bulk download + oracle/art tags).                      |
 
 `sync_decks` takes a `direction` (`pull` | `push`), an optional `decks` array (slugs or names; omit
-to sync every Archidekt-linked deck), and optional `dryRun` / `ignoreUnreadableLines` flags. It needs
+to sync every Archidekt-linked deck), an optional
+[`only`](/commands/deck-sync/#change-filter) (`additions` | `removals`, applying just one side of
+each deck's diff relative to the sync destination), and optional `dryRun` /
+`ignoreUnreadableLines` flags. It needs
 an Archidekt login stored by `ritual login archidekt` or the admin site — check `deck_sync_status`'s
 `archidekt.loginRequired` first. A run that completes reports `success` even when individual decks
 failed; read `report.failedCount` and each deck's `status`/`reason`.
@@ -171,6 +176,58 @@ A deck whose file holds lines the parser cannot read fails with
 `N unreadable lines would be dropped by a sync`, because syncing rewrites the file and would delete
 them. `ignoreUnreadableLines: true` accepts that loss — confirm with the user before setting it,
 since it is the tool's stand-in for the CLI's [`--yes`](/commands/deck-sync/#unreadable-lines) prompt.
+
+`sync_collection` is the [collection counterpart](/commands/collection-sync/), and the shape of the
+problem differs: an Archidekt account has **one** collection while Ritual has **many** collection
+lists, so a run compares the union of the lists in scope against the whole remote collection (there
+is no per-file link — the connection is the signed-in account). It takes a `direction`
+(`pull` | `push`), an optional `lists` array (slugs or names scoping the **local** side; omit to
+compare every collection list), the same
+[`only`](/commands/collection-sync/#change-filter) filter, an optional `into`
+(the list a pull adds new cards to, created if missing — defaults to the
+[`collectionSync.pullTarget`](/configuration/#collection-sync) config key), an optional
+`removalPriority` array, an optional `csv` flag, and the same `dryRun` /
+`ignoreUnreadableLines` flags. Naming a subset of lists declares that those lists are what the
+remote collection mirrors, so cards living only in unnamed lists read as absent — pair a subset run
+with `only: "additions"` when they are not the whole story.
+
+`csv` is the tool's form of the CLI's
+[`--csv`](/commands/collection-sync/#csv-import-for-new-cards), and means the same thing: send a
+push's **new cards** to Archidekt as one CSV import, with the rows built from the local Scryfall
+cache, instead of resolving and creating them one at a time. Creating a printing costs a search plus
+a create, both [paced](/commands/collection-sync/#rate-limiting), so a push adding more than 25 new
+printings without `csv: true` **fails before writing anything remote** rather than spending that
+many requests — there is nobody to prompt over MCP. Set it for any large push; a `dryRun` never
+needs it (it reports the upload it would make). `report.csv` then says what the import did — its
+`status`, `rows`, `chunks`, the rows Archidekt refused (`failures`), and `uncached` additions whose
+printing the cache does not hold and which were added one at a time. Because those rows are keyed by
+the Scryfall ids the local cache holds, an empty or day-old cache is refreshed automatically before
+the upload is built — the CLI's [`--refresh auto`](/commands/collection-sync/#cache-freshness), since
+there is nobody to ask here either. Quantity changes and removals never ride the CSV, and a pull
+ignores the field. Writing the CSV to a file instead of pushing it is CLI-only: a `csvFile` field is
+rejected, since a server does not write files a caller names.
+
+`removalPriority` is the tool's form of the CLI's
+[`--removal-priority`](/commands/collection-sync/#ambiguous-removals): collection list names **in
+priority order**, the only lists an [ambiguous removal](/commands/collection-sync/#ambiguous-removals)
+may take copies from. A removal is ambiguous when only _some_ of a printing's copies are going and
+they live in several lists — taking every copy, or copies held in a single list, never is. There is
+nobody to prompt over MCP, so a run that meets an ambiguous removal without a priority — or with one
+that cannot cover it — **fails and writes nothing at all**, naming the cards in `report.errors`. Ask
+the user which binders may lose cards rather than guessing at a priority.
+
+It needs the same Archidekt login (`collection_sync_status`'s `archidekt.loginRequired` reports it;
+a login stored before the account id was recorded must be renewed), and it refuses a
+collection list with unreadable lines for the same reason — a pull rewrites the file, and a push
+treats the file as the truth, so those cards would be deleted from Archidekt. Its report adds
+`ambiguous` (every ambiguous removal, with the lists holding copies and how many each holds —
+reported whether a `removalPriority` placed them or the run failed on them),
+`totals.skipped` (what `only` left out), and `localIncomplete` — true when a list in scope
+did not make it into the comparison (an unresolvable name, an unreadable file, or one refused for
+unreadable lines). The local side is then short of cards it really holds, so the run withholds the
+changes that shortfall would have manufactured: a pull adds nothing (it would duplicate the missing
+list's cards into the target) and a push removes nothing (it would delete them from Archidekt).
+`report.failedCount` and each list's `status`/`reason` carry per-list failures.
 
 `import_deck`, `import_csv`, `import_changes`, and `apply_changes` (listed under [Write](#write))
 also carry `destructiveHint`: the imports can overwrite an existing list of the same name, and an

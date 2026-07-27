@@ -27,15 +27,46 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
 - import_changes applies a change bundle exported from the site editor ("ritual-change-bundle"
   JSON covering one or more lists) to the underlying lists.
 - export_cards renders a CSV, JSON, plain-text, or Markdown export of any mix of lists and card
-  picks (filterable by name, set, finish, condition; column selection and order for csv/json) and
-  returns the content string.
+  picks (filterable by name, set, finish, condition; column selection and order for csv/json, plus a
+  value dialect — ritual or archidekt — and saved/built-in presets: the built-in "archidekt" preset
+  writes the CSV Archidekt's collection importer takes, the same file a large sync_collection push
+  uploads) and returns the content string.
 - diff_lists compares two lists by card name (default) or exact printing and reports matched
   identities with per-side quantities plus only-in-A / only-in-B entries.
 - deck_sync_status lists the Archidekt-linked decks (with each deck's lastSynced) and the stored
-  Archidekt login; sync_decks then pulls or pushes those decks (dryRun previews). Both require a
-  login stored by "ritual login archidekt" or the admin site. A deck whose file holds lines the
-  parser cannot read fails rather than syncing, since the save would delete them — report.unreadable
-  names those lines; only set ignoreUnreadableLines once the user has agreed to lose them.
+  Archidekt login; sync_decks then pulls or pushes those decks (dryRun previews; only "additions"
+  or "removals" applies just one side of each diff, relative to the sync destination — the local
+  files on a pull, Archidekt on a push).
+- sync_collection is the collection counterpart: the account has ONE Archidekt collection, so a run
+  compares the union of the collection lists in scope (lists, omitted = every collection list)
+  against the whole remote collection — naming a subset declares those lists are what it mirrors, so
+  pair it with only "additions" when they are not the whole story. into names the list a pull adds
+  cards to (default: the collectionSync.pullTarget config key), created if missing; a push ignores
+  it. A pull that must take only SOME of a printing's copies when they live in several lists cannot
+  know which list lost the card: removalPriority (list names, in priority order) says which lists
+  may give copies up, and without it — or when it cannot cover them — the whole run fails and writes
+  nothing at all, not even the account's lastSynced. report.ambiguous names every ambiguity the
+  planner found whether or not a priority placed them, so report.errors is what says the run failed.
+  Taking every copy, or copies held in one list, is never ambiguous. collection_sync_status lists
+  what a run can cover, the default pull target, the CSV threshold (csvThreshold), and when the
+  account last synced (a run that wrote nothing does not stamp it).
+- A push creates each new printing with its own paced search + create, so one adding more than
+  csvThreshold (25) of them refuses to run at all unless csv: true sends those additions through
+  Archidekt's CSV importer instead — one upload, rows built from the local Scryfall cache, no
+  searches. Set csv: true for any large push; report.csv then says what the import did (rows,
+  chunks, per-row failures, and the additions whose printing the cache did not hold and which were
+  added one at a time). Quantity changes and removals never ride the CSV, and a dry run reports the
+  upload it would make without needing the flag.
+- report.localIncomplete says a list in scope did not make it into the comparison (bad name,
+  unreadable file, or held back for unreadable lines). The local side is then short of cards it
+  really holds, so a pull adds nothing and a push removes nothing — fix or accept those lists and
+  run again.
+- Both sync tools require a login stored by "ritual login archidekt" or the admin site (check
+  deck_sync_status / collection_sync_status first), and both refuse a list whose file holds lines
+  the parser cannot read,
+  since syncing would lose them — report.unreadable names those lines; only set
+  ignoreUnreadableLines once the user has agreed to lose them. A run that finishes reports success
+  even when individual decks or lists failed; read report.failedCount.
 - rename_list, delete_list (which requires a matching confirmName), rewrite_history, and
   update_config are destructive; use them deliberately.
 - Lists are also exposed as readable resources at ritual://{type}/{slug}.`

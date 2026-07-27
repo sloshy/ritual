@@ -27,6 +27,7 @@ const NAV_PAGES: readonly Page[] = [
   'build-site',
   'cache-refresh',
   'deck-sync',
+  'collection-sync',
   'archidekt-login',
   'audit-log',
   'settings',

@@ -1,9 +1,10 @@
 import { Command } from 'commander'
 import {
-  ArchidektClient,
+  createPacedArchidektClient,
   type ArchidektDeckSimple,
   getArchidektFormat,
 } from '../clients/ArchidektClient'
+import { getLogger } from '../logger'
 import { FileTokenStore } from '../auth/FileTokenStore'
 import { ArchidektAuth } from '../auth/ArchidektAuth'
 import { saveDeck } from './import'
@@ -47,7 +48,9 @@ export function registerImportAccountCommand(program: Command): void {
       }
       const tokenStore = new FileTokenStore()
       const auth = new ArchidektAuth(tokenStore)
-      const client = new ArchidektClient()
+      // One paced client for the whole import, so a long deck list is fetched
+      // politely and a 429 backoff explains itself instead of looking hung.
+      const client = createPacedArchidektClient((message) => getLogger().warn(message))
 
       const currentUser = await auth.getStoredUser()
       let decks: ArchidektDeckSimple[] = []

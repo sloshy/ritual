@@ -50,6 +50,26 @@ describe('parseDeckSyncBody', () => {
     } satisfies DeckSyncRequest)
   })
 
+  test('keeps a change filter, in any casing', () => {
+    expect(parseDeckSyncBody({ direction: 'pull', only: 'Additions' })).toEqual({
+      direction: 'pull',
+      decks: [],
+      dryRun: false,
+      ignoreUnreadableLines: false,
+      only: 'additions',
+    } satisfies DeckSyncRequest)
+  })
+
+  test('treats an absent or empty change filter as "apply everything"', () => {
+    // A query string with no `only` param, and a form control left unset, both
+    // arrive here as nothing to filter by rather than as a bad value.
+    for (const only of [undefined, null, '']) {
+      const parsed = parseDeckSyncBody({ direction: 'pull', only })
+      expect(typeof parsed).not.toBe('string')
+      expect((parsed as DeckSyncRequest).only).toBeUndefined()
+    }
+  })
+
   const rejected: RejectedCase[] = [
     { label: 'a non-object body', body: 'pull', expected: 'Invalid request body' },
     { label: 'a null body', body: null, expected: 'Invalid request body' },
@@ -84,6 +104,16 @@ describe('parseDeckSyncBody', () => {
       body: { direction: 'pull', ignoreUnreadableLines: 'yes' },
       expected: 'ignoreUnreadableLines must be a boolean',
     },
+    {
+      label: 'an unknown change filter',
+      body: { direction: 'pull', only: 'adds' },
+      expected: "Invalid only 'adds'. Use one of: additions, removals.",
+    },
+    {
+      label: 'a non-string change filter',
+      body: { direction: 'pull', only: true },
+      expected: 'only must be one of: additions, removals.',
+    },
   ]
 
   for (const { label, body, expected } of rejected) {
@@ -104,6 +134,22 @@ describe('parseDeckSyncQuery', () => {
       dryRun: true,
       ignoreUnreadableLines: true,
     } satisfies DeckSyncRequest)
+  })
+
+  test('reads the change filter, which is a string enum rather than a flag', () => {
+    expect(parseDeckSyncQuery(new URLSearchParams('direction=pull&only=removals'))).toEqual({
+      direction: 'pull',
+      decks: [],
+      dryRun: false,
+      ignoreUnreadableLines: false,
+      only: 'removals',
+    } satisfies DeckSyncRequest)
+  })
+
+  test('rejects an unknown change filter rather than syncing everything', () => {
+    expect(parseDeckSyncQuery(new URLSearchParams('direction=pull&only=everything'))).toBe(
+      "Invalid only 'everything'. Use one of: additions, removals.",
+    )
   })
 
   test('treats missing flags as a live run over every deck, refusing unreadable lines', () => {

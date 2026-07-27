@@ -7,6 +7,7 @@ import {
   priceIntro,
   REFRESH_SESSION,
   sessionSemantics,
+  SYNC_CHANGE_FILTER,
   wrapProse,
 } from './shared'
 
@@ -147,7 +148,18 @@ ritual deck-sync pull                        # pull remote changes for all linke
 ritual deck-sync push "Winota Stax"          # push local changes for one deck
 ritual deck-sync push --dry-run              # preview without sending anything
 ritual deck-sync pull --yes                  # accept dropping lines the parser can't read
+ritual deck-sync pull --only additions       # add cards locally, never remove any
+ritual deck-sync push --only removals        # push removals only, add nothing remotely
 \`\`\`
+
+${SYNC_CHANGE_FILTER}
+
+${wrapProse(
+  'Use it when the remote and local decks are deliberately out of step and only ' +
+    'one direction of change should carry over. It filters cards only: a pull ' +
+    'still adopts the remote format. `collection-sync` takes the identical flag ' +
+    '(see the **ritual-collections** skill).',
+)}
 
 Syncing rewrites the deck file, so a line the parser cannot read would be deleted.
 Such decks are listed with their exact lines and confirmed before syncing;
@@ -158,8 +170,8 @@ A pull also adopts the deck's Archidekt format (mapped onto Ritual's format
 keys). A push does not push the local format back.
 
 The same sync runs from the admin site's **Sync Decks** page (deck toggles,
-direction, live per-deck progress, and each deck's last-synced time) and from the
-MCP \`sync_decks\` tool.
+direction, change filter, live per-deck progress, and each deck's last-synced
+time) and from the MCP \`sync_decks\` tool (same \`only\` field).
 
 ## Primer
 

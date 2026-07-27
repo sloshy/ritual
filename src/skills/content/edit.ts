@@ -253,6 +253,7 @@ ritual export --collection --finish foil --condition NM
 ritual export --all --columns name,quantity,listName --no-header --quote-all
 ritual export --all --save-preset trade-sheet         # save format/columns/CSV options
 ritual export --all --preset trade-sheet --out t.csv  # reuse them (flags override)
+ritual export --collection --preset archidekt         # built-in: Archidekt import CSV
 \`\`\`
 
 List names take an optional \`deck:\`/\`collection:\`/\`wanted:\` prefix (or scope with
@@ -262,14 +263,27 @@ List names take an optional \`deck:\`/\`collection:\`/\`wanted:\` prefix (or sco
 matches only cards with it explicitly marked and \`none\` matches cards without
 one (e.g. \`--condition NM,none\`); wanted entries never match. Available columns:
 \`name\`, \`quantity\`, \`set\`, \`collectorNumber\`, \`edition\` (set + collector
-number as \`SET:number\`), \`finish\`, \`isFoil\` (true when foil or etched),
-\`condition\`, \`note\`, \`section\`, \`listName\`, \`listType\`. Columns apply to
-csv/json only: giving \`--columns\`, \`--no-header\`, or \`--quote-all\` alongside an
-explicit \`--output text|md\` is a usage error (a preset's stored columns with a
-text/md format are simply unused). Set codes are lowercase in JSON and UPPERCASE
-in CSV, text, and md output. Without \`--out\` the export goes to stdout (the confirmation goes to
-stderr, so stdout stays parseable). Presets persist in \`ritual.config.json\` under
-\`exportPresets\`. Exit codes: 2 usage error, 3 unknown list/preset.
+number as \`SET:number\`), \`scryfallId\` (the printing's Scryfall UUID, resolved
+from the local Scryfall cache — an uncached printing exports an empty cell plus a
+warning), \`finish\`, \`isFoil\` (true when foil or etched), \`condition\`, \`note\`,
+\`section\`, \`listName\`, \`listType\`. Columns apply to
+csv/json only: giving \`--columns\`, \`--dialect\`, \`--no-header\`, or \`--quote-all\`
+alongside an explicit \`--output text|md\` is a usage error (a preset's stored
+columns with a text/md format are simply unused). Set codes are lowercase in JSON
+and UPPERCASE in CSV, text, and md output.
+
+\`--dialect ritual|archidekt\` (csv/json) chooses how finish and condition are
+spelled: \`ritual\` (default) writes the file's own values, \`archidekt\` writes
+\`Normal|Foil|Etched\` under a \`Variant\` header and \`NM|LP|MP|HP|D\`, filling in
+the effective value (\`Normal\`/\`NM\`) for lines that mark none. The built-in
+\`archidekt\` preset is that dialect with columns
+\`Scryfall ID,Quantity,Variant,Condition\` — the CSV archidekt.com/collections/import
+accepts, and what \`ritual collection-sync push\` uploads for large batches.
+
+Without \`--out\` the export goes to stdout (the confirmation goes to
+stderr, so stdout stays parseable). Saved presets persist in \`ritual.config.json\`
+under \`exportPresets\` and shadow a built-in of the same name. Exit codes: 2 usage
+error, 3 unknown list/preset.
 
 ## Read or compact change history
 

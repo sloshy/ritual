@@ -135,6 +135,78 @@ export async function refreshCardCacheForSession(
   await promptStaleCacheRefresh(age, confirmStaleRefresh, preload)
 }
 
+/**
+ * Report a refresh this gate is performing. Defaults to the console; callers with
+ * a run log of their own (a sync's event stream) pass their own sink.
+ */
+export type CacheRefreshLog = (message: string) => void
+
+/** Injectable dependencies for {@link ensureCardCacheForUpload}. */
+export type UploadCacheDeps = SessionCacheDeps & { log?: CacheRefreshLog }
+
+/**
+ * Ensure the card cache is fresh enough to build a bulk upload's rows from.
+ *
+ * A collection push's CSV keys every row by the Scryfall id the **local cache**
+ * holds for that printing, so a cache that is empty or a day out of date means
+ * rows that silently go missing — and the additions they carried falling back to
+ * one paced Archidekt search each, which is the rate-limit trap the CSV path
+ * exists to avoid. So freshness here is a requirement, not a suggestion:
+ *
+ * - `auto` refreshes an empty or day-old cache without asking.
+ * - `ask` prompts, defaulting to **yes**; declining refuses the run.
+ * - `no-bulk`/`never` refuse rather than upload from a cache they may not touch
+ *   (the cache is only ever filled by a bulk download).
+ *
+ * A cache whose last refresh is unknown counts as fresh — the same reading
+ * {@link refreshCardCacheForSession} takes, since "no timestamp" is a cache that
+ * was filled by something other than a bulk download rather than an old one.
+ *
+ * @returns `true` when the cache may be used, else the reason it may not — worded
+ *   for the caller to report verbatim.
+ */
+export async function ensureCardCacheForUpload(
+  mode: RefreshMode,
+  deps: UploadCacheDeps = {},
+): Promise<true | string> {
+  const cache = deps.cache ?? cardCache
+  const preload = deps.preload ?? refreshCardCache
+  const confirmStaleRefresh =
+    deps.confirmStaleRefresh ?? ((prompt) => shouldBulkRefresh(mode, prompt))
+  const log = deps.log ?? ((message: string) => console.log(message))
+
+  const empty = await cache.isEmpty()
+  const lastRefreshed = empty ? null : await cache.getLastRefreshedAt()
+  const age = lastRefreshed === null ? null : Date.now() - lastRefreshed
+  if (!empty && (age === null || age <= PRICE_MAX_AGE_MS)) return true
+
+  const state = empty ? 'empty' : `${formatDuration(age ?? 0)} old`
+  const because = `Archidekt CSV uploads are configured to require Scryfall IDs from the local card cache, which is ${state}.`
+  const remedy = 'Run `ritual cache preload-all`, or re-run with --refresh auto.'
+
+  if (mode === 'auto') {
+    log(`${because} Refreshing it from Scryfall first...`)
+    await preload()
+  } else if (mode === 'ask') {
+    const accepted = await confirmStaleRefresh({
+      message: `${because} Update it before uploading?`,
+      initial: true,
+    })
+    // Declining is an answer, not a fall-through: uploading from this cache is
+    // exactly what the freshness requirement forbids.
+    if (!accepted) return `${because} ${remedy}`
+    await preload()
+  } else {
+    // `no-bulk` and `never` forbid the only way this cache is ever filled.
+    return `${because} ${remedy}`
+  }
+
+  if (await cache.isEmpty()) {
+    return 'The card cache is still empty after a refresh, so no CSV row could be keyed by a Scryfall id.'
+  }
+  return true
+}
+
 /** Whether price data exists at all, and when it was last refreshed. */
 export type PriceFreshnessResult = {
   ready: boolean
