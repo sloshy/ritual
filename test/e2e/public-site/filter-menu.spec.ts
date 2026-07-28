@@ -470,6 +470,42 @@ test.describe('Toolbar Filters menu', () => {
     await expectVisibleCards(page, ALL_CARDS)
   })
 
+  test('a filtered price appears next to the total only while a filter is active', async ({
+    page,
+  }) => {
+    const stats = page.locator('.page-stats')
+    // No filter yet: only the base total (and its "all cards" extras note) show.
+    await expect(stats).toContainText('Total: $25.75')
+    await expect(stats).not.toContainText('Filtered:')
+
+    await openFilterMenu(page)
+    await page.locator('#filter-name').fill('green')
+    await expectVisibleCards(page, ['Green Elf'])
+    // Green Elf is the only match, priced at $0.50.
+    await expect(stats).toContainText('Filtered: $0.50')
+
+    await page.locator('#filter-name').fill('')
+    await expectVisibleCards(page, ALL_CARDS)
+    await expect(stats).not.toContainText('Filtered:')
+  })
+
+  test('Hide Extras alone does not show a filtered price (it does not narrow the total)', async ({
+    page,
+  }) => {
+    // Hide Extras only affects the (already-excluded-from-Total) maybeboard section, so
+    // toggling it alone must not surface a "Filtered:" figure identical to the total.
+    const stats = page.locator('.page-stats')
+    await openFilterMenu(page)
+    await page.getByRole('button', { name: 'Hide Extras' }).click()
+    await expect(page.locator('.filter-menu-badge')).toHaveText('1')
+    await expect(stats).not.toContainText('Filtered:')
+
+    // Combining it with a real filter still shows the figure.
+    await page.locator('#filter-name').fill('green')
+    await expectVisibleCards(page, ['Green Elf'])
+    await expect(stats).toContainText('Filtered: $0.50')
+  })
+
   test('the name filter is debounced: it applies only after typing pauses', async ({ page }) => {
     await openFilterMenu(page)
     await expectVisibleCards(page, ALL_CARDS)

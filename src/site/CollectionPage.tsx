@@ -6,6 +6,7 @@ import { normalizeCardName } from '../term-match'
 import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { TagFilterWarning } from './TagFilterWarning'
+import { FilteredPriceStat } from './FilteredPriceStat'
 import type { ScryfallCard } from '../types'
 import type { CardContextInfo } from './card-context'
 import type { CollectionCardEntry } from './data-types'
@@ -18,6 +19,7 @@ import {
   type GroupBy,
   type SortBy,
   groupAndSortCards,
+  groupTotalPrice,
   sortByOptions,
   CARD_SIZE_WIDTHS,
 } from './card-sorting'
@@ -333,11 +335,13 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       : [],
   )
 
-  const cardGroups = createMemo((): CardGroup[] => {
-    const working = filterCards(allCards(), cardFilters.filters)
+  const filteredCards = createMemo(() => filterCards(allCards(), cardFilters.filters))
 
+  const filteredTotalPrice = createMemo(() => groupTotalPrice(filteredCards()))
+
+  const cardGroups = createMemo((): CardGroup[] => {
     return groupAndSortCards(
-      working,
+      filteredCards(),
       groupBy(),
       sortLayers(),
       sectionOrder(),
@@ -537,6 +541,11 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
           <p class="page-stats">
             {props.entries.length} cards · Total:{' '}
             {formatPrice(computedTotalPrice(), props.currency)}
+            <FilteredPriceStat
+              filters={cardFilters}
+              amount={filteredTotalPrice()}
+              currency={props.currency}
+            />
           </p>
         </div>
         <Show

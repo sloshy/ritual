@@ -283,6 +283,16 @@ export function countActiveFilters(filters: CardFilters): number {
   return count
 }
 
+/**
+ * Number of active filters that actually narrow the result of `filterCards`.
+ * `hideExtras` is a section-level toggle applied by deck pages themselves —
+ * `filterCards` ignores it — so it must not make a filtered subtotal appear
+ * that is identical to the unfiltered one.
+ */
+export function countNarrowingFilters(filters: CardFilters): number {
+  return countActiveFilters(filters) - (filters.hideExtras ? 1 : 0)
+}
+
 /** Collect the unique lowercase set codes present in `cards`, sorted, for autocomplete. */
 export function collectSetCodes(cards: CardData[]): string[] {
   const codes = new Set<string>()

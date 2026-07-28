@@ -5,6 +5,7 @@ import {
   collectOracleTags,
   collectSetCodes,
   countActiveFilters,
+  countNarrowingFilters,
   createDefaultCardFilters,
   filterCards,
   isTagFilterActive,
@@ -478,6 +479,26 @@ describe('countActiveFilters', () => {
     expect(countActiveFilters(makeFilters({ manaValueOp: '>=' }))).toBe(0)
     expect(countActiveFilters(makeFilters({ priceOp: '>=' }))).toBe(0)
     expect(countActiveFilters(makeFilters({ copiesOp: '>=' }))).toBe(0)
+  })
+})
+
+describe('countNarrowingFilters', () => {
+  test('defaults count as zero', () => {
+    expect(countNarrowingFilters(createDefaultCardFilters())).toBe(0)
+  })
+
+  // hideExtras is a section-level toggle deck pages apply themselves — filterCards
+  // ignores it — so on its own it must not register as narrowing the result set.
+  test('hideExtras alone does not count, unlike countActiveFilters', () => {
+    const filters = makeFilters({ hideExtras: true })
+    expect(countActiveFilters(filters)).toBe(1)
+    expect(countNarrowingFilters(filters)).toBe(0)
+  })
+
+  test('hideExtras alongside a real filter only subtracts its own contribution', () => {
+    const filters = makeFilters({ hideExtras: true, name: 'bolt' })
+    expect(countActiveFilters(filters)).toBe(2)
+    expect(countNarrowingFilters(filters)).toBe(1)
   })
 })
 

@@ -14,6 +14,7 @@ import {
   CARD_SIZE_WIDTHS,
 } from './card-sorting'
 import { CardModal } from './CardModal'
+import { FilteredPriceStat } from './FilteredPriceStat'
 import { capitalize } from './utils'
 import { useTooltip } from './useTooltip'
 import { Toolbar } from './Toolbar'
@@ -144,10 +145,13 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
   const oracleTagOptions = createMemo(() => collectOracleTags(props.cards))
   const artTagOptions = createMemo(() => collectArtTags(props.cards))
 
+  const filteredCards = createMemo((): CombinedCardData[] =>
+    filterCards(props.cards, cardFilters.filters),
+  )
+
   const cardGroups = createMemo((): CardGroup<CombinedCardData>[] => {
-    const working = filterCards(props.cards, cardFilters.filters)
     return groupAndSortCards(
-      working,
+      filteredCards(),
       groupBy(),
       sortLayers(),
       sectionOrder(),
@@ -158,6 +162,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
   })
 
   const totalPrice = createMemo(() => groupTotalPrice(props.cards))
+  const filteredTotalPrice = createMemo(() => groupTotalPrice(filteredCards()))
   const cardCount = createMemo(() => props.cards.reduce((sum, c) => sum + c.quantity, 0))
 
   const modalMeta = createMemo((): MetaEntry[] | undefined => {
@@ -212,6 +217,11 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
           <h1 class="page-title">{props.title}</h1>
           <p class="page-stats">
             {cardCount()} cards · Total: {formatPrice(totalPrice(), props.currency)}
+            <FilteredPriceStat
+              filters={cardFilters}
+              amount={filteredTotalPrice()}
+              currency={props.currency}
+            />
           </p>
           {props.header}
         </div>

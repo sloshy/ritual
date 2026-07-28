@@ -6,6 +6,7 @@ import { normalizeCardName } from '../term-match'
 import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { TagFilterWarning } from './TagFilterWarning'
+import { FilteredPriceStat } from './FilteredPriceStat'
 import type { Card, DeckData, ScryfallCard, Finish } from '../types'
 import type { CardContextInfo } from './card-context'
 import type { ChangelogPage } from '../changelog-parser'
@@ -427,12 +428,14 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
       : [],
   )
 
+  const filteredMainboardCards = createMemo(() =>
+    filterCards(partitioned().mainboardCards, cardFilters.filters),
+  )
+
   // Sorted and grouped cards (mainboard only)
   const cardGroups = createMemo((): CardGroup[] => {
-    const working = filterCards(partitioned().mainboardCards, cardFilters.filters)
-
     return groupAndSortCards(
-      working,
+      filteredMainboardCards(),
       groupBy(),
       sortLayers(),
       sectionOrder(),
@@ -456,6 +459,18 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
   const extrasPrice = createMemo(() => {
     return groupTotalPrice(partitioned().extraCards)
   })
+
+  const filteredSideboardCards = createMemo(() =>
+    filterCards(partitioned().sideboardCards, cardFilters.filters),
+  )
+
+  // Filtered deck price = commander (always shown, unfiltered) + filtered mainboard + filtered sideboard
+  const filteredMainAndSideboardCards = createMemo(() => {
+    const p = partitioned()
+    return [...p.commanderCards, ...filteredMainboardCards(), ...filteredSideboardCards()]
+  })
+
+  const filteredTotalPrice = createMemo(() => groupTotalPrice(filteredMainAndSideboardCards()))
 
   // Modal card data
   const modalCard = createMemo((): ScryfallCard | null => {
@@ -559,10 +574,6 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     return (actualName ? props.printings[actualName] : undefined) ?? []
   })
 
-  const filteredSideboardCards = createMemo(() =>
-    filterCards(partitioned().sideboardCards, cardFilters.filters),
-  )
-
   // Pre-compute extra sections for reactive rendering
   const extraSections = createMemo(() => {
     if (cardFilters.filters.hideExtras || partitioned().extraCards.length === 0) return []
@@ -596,6 +607,11 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
                 (all cards: {formatPrice(totalPrice() + extrasPrice(), props.currency)})
               </span>
             </Show>
+            <FilteredPriceStat
+              filters={cardFilters}
+              amount={filteredTotalPrice()}
+              currency={props.currency}
+            />
           </p>
           <Show when={props.deck.sourceUrl}>
             <a href={props.deck.sourceUrl} target="_blank" rel="noreferrer" class="copy-link">

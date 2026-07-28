@@ -1,7 +1,12 @@
 import { createEffect, createMemo, on } from 'solid-js'
 import type { Accessor } from 'solid-js'
 import { createStore } from 'solid-js/store'
-import { type CardFilters, countActiveFilters, createDefaultCardFilters } from './card-filters'
+import {
+  type CardFilters,
+  countActiveFilters,
+  countNarrowingFilters,
+  createDefaultCardFilters,
+} from './card-filters'
 import { currencyEpoch } from './currency-epoch'
 
 export type CardFiltersControl = {
@@ -13,12 +18,15 @@ export type CardFiltersControl = {
   reset: () => void
   /** Number of filters currently active; drives the toolbar badge. */
   activeCount: Accessor<number>
+  /** Number of active filters that actually narrow `filterCards`'s result; drives the filtered-price stat. */
+  narrowingCount: Accessor<number>
 }
 
 /** Shared toolbar filter state for the deck, collection, and wanted list pages. */
 export function useCardFilters(): CardFiltersControl {
   const [filters, setFilters] = createStore<CardFilters>(createDefaultCardFilters())
   const activeCount = createMemo(() => countActiveFilters(filters))
+  const narrowingCount = createMemo(() => countNarrowingFilters(filters))
 
   // The price filter is a threshold in the active currency, so a switch to a
   // different currency makes it meaningless — clear it. `defer` skips the initial
@@ -38,5 +46,6 @@ export function useCardFilters(): CardFiltersControl {
     update: (patch) => setFilters(patch),
     reset: () => setFilters(createDefaultCardFilters()),
     activeCount,
+    narrowingCount,
   }
 }
