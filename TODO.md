@@ -13,7 +13,6 @@
 - When adding a card in edit CLI, if you don't select a printing it just exits back to menu without an error. It should retry.
 - When adding a card in edit CLI, you should be able to decide if you want to add an exact duplicate or another printing of the same card
 - Confirm whether "don't care" is a valid option for a printing (default should be near-mint I think)
-- Show prices on printings in edit CLI
 - Show prices when editing a card to be a different printing or edition
 - Add ability to refresh cache while in edit mode so you don't lose progress
 
