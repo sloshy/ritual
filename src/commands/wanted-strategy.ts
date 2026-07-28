@@ -1,8 +1,17 @@
 import prompts from 'prompts'
-import { isFinish, resolveCardPrinting } from './collection-helpers'
+import {
+  finishChoices,
+  finishRows,
+  isFinish,
+  lookupPinnedPrinting,
+  resolveCardPrinting,
+  VALID_FINISHES,
+} from './collection-helpers'
 import {
   formatWantedListLine,
   promptWantedFinish,
+  NO_PREFERENCE,
+  type WantedFinishChoiceValue,
   type WantedListSessionConfig,
 } from './wanted-helpers'
 import {
@@ -36,19 +45,16 @@ import {
   undoFlatListEdit,
 } from './flat-list-edit'
 import type { WantedListCardEntry } from '../site/data-types'
-import type { Finish } from '../types'
+import type { Finish, ScryfallCard } from '../types'
 import {
   consolidateSetPrinting,
   createSetPrintingChange,
   type ChangeEvent,
   type PrintingTuple,
 } from '../change-event'
-import { capitalize } from '../utils'
 
 type SpecificityPromptResponse = { specificity?: 'name-only' | 'specific' }
 type FinishPromptResponse = { finish?: string }
-
-const NO_PREFERENCE = '__NONE__'
 
 /** Ask whether a wanted entry should be name-only or pinned to a specific printing. */
 async function promptSpecificity(cardName: string): Promise<'name-only' | 'specific' | null> {
@@ -67,28 +73,29 @@ async function promptSpecificity(cardName: string): Promise<'name-only' | 'speci
 /**
  * Pick a finish for an existing wanted entry, including "No preference" (which
  * clears the finish back off the line). Returns undefined for no preference and
- * null on cancel.
+ * null on cancel. `printing` prices the choices; it is undefined when the entry's
+ * pinned printing isn't in the card cache.
  */
 async function promptWantedFinishChoice(
   current: Finish | undefined,
+  printing: ScryfallCard | undefined,
 ): Promise<Finish | undefined | null> {
-  const finishes: Finish[] = ['nonfoil', 'foil', 'etched']
-  const choices = [
-    {
-      title: current === undefined ? 'No preference (current)' : 'No preference (any finish)',
-      value: NO_PREFERENCE,
-    },
-    ...finishes.map((f) => ({
-      title: f === current ? `${capitalize(f)} (current)` : capitalize(f),
-      value: f,
-    })),
-  ]
+  const choices = finishChoices<WantedFinishChoiceValue>(
+    [
+      {
+        label: current === undefined ? 'No preference (current)' : 'No preference (any finish)',
+        value: NO_PREFERENCE,
+      },
+      ...finishRows(VALID_FINISHES, current),
+    ],
+    printing,
+  )
   const response = (await prompts({
     type: 'select',
     name: 'finish',
     message: 'Finish:',
     choices,
-    initial: current === undefined ? 0 : Math.max(0, finishes.indexOf(current) + 1),
+    initial: current === undefined ? 0 : Math.max(0, VALID_FINISHES.indexOf(current) + 1),
   })) as FinishPromptResponse
   if (response.finish === undefined) return null
   if (response.finish === NO_PREFERENCE) return undefined
@@ -263,7 +270,10 @@ export function createWantedStrategy(
       }
 
       if (action === 'finish') {
-        const finish = await promptWantedFinishChoice(entry.finish)
+        const finish = await promptWantedFinishChoice(
+          entry.finish,
+          await lookupPinnedPrinting(entry),
+        )
         if (finish === null || finish === entry.finish) return
         // Wanted finishes can be cleared back to "no preference", which set-finish
         // cannot express, so finish edits ride on a set-printing of the same printing.

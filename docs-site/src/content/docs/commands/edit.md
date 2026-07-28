@@ -319,6 +319,44 @@ Look up cards by collector number within one or more loaded sets.
   `📦 Manage Set Codes` menu.
 - **Autocomplete** — Type a collector number prefix to filter the card list for the active set.
 
+### Printing and Finish Prices
+
+Once a card is chosen in [Name Mode](#name-mode-default), the `Select Printing:` list shows each
+printing's price in your configured [`defaultCurrency`](/configuration/#default-currency), aligned in
+a right-hand column. (Collector-number entry already identifies one printing, so it goes straight to
+the finish prompt.)
+
+```
+? Select Printing: ›
+❯   Marvel Super Heroes Commander (MSC) #211 [uncommon]  $1.85
+    Secrets of Strixhaven Commander (SOC) #427 [mythic]  $14.93 foil
+    Secret Lair Drop (SLD) #2683 [rare]                  N/A
+```
+
+Each printing is quoted at its default finish — nonfoil where the printing has one, otherwise the
+finish it actually comes in, named after the price (`$14.93 foil`) so a foil-only or etched-only
+printing doesn't read as a nonfoil quote. `N/A` (or `N/A foil`, for a printing quoted at a
+non-nonfoil finish) means the card cache carries no price for that printing in that currency.
+
+Typing filters the list by set code, set name, collector number, and rarity — never by price, so a
+number always searches collector numbers rather than matching everything that happens to cost that
+much.
+
+The finish prompts price the same way, so you can see what a foil or etched copy costs before
+picking it — `Select Finish:` when adding a card, and `✨ Change Finish` in [Edit Mode](#edit-mode):
+
+```
+? Select Finish: › - Use arrow-keys. Return to submit.
+❯   Nonfoil  $1.85
+    Foil     N/A
+```
+
+A wanted list's `No preference (any finish)` choice covers every finish, so it shows no price; an
+entry whose pinned printing is missing from the card cache shows no price column at all.
+
+Prices come from the local card cache, so they are as fresh as your last
+[cache refresh](#cache-freshness).
+
 ## Edit Mode
 
 `🛠️ Switch to Edit Mode` repurposes the search prompt: instead of the card database, it

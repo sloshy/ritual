@@ -2,8 +2,7 @@ import prompts from 'prompts'
 import type { PromptState } from './prompts-types'
 import { DEFAULT_SECTION, type Finish, type ScryfallCard } from '../types'
 import { matchSectionHeader } from '../section-format'
-import { capitalize } from '../utils'
-import { isFinish } from './collection-helpers'
+import { finishChoices, finishRows, isFinish } from './collection-helpers'
 import { getWantedDir } from '../ritual-config'
 import { listFileName, unusableFileNameMessage } from '../list-file-name'
 import { ensureListFile, type SessionConfig } from './card-session'
@@ -97,7 +96,16 @@ export type WantedListSessionConfig = Omit<SessionConfig, 'condition'>
 
 export type WantedFinishResult = Finish | 'nopreference' | 'cancelled'
 
-type FinishChoice = { title: string; value: string }
+/**
+ * The wanted pickers' "any finish will do" sentinel. Exported so the add prompt
+ * here and the edit prompt in `wanted-strategy` name one value instead of two
+ * spellings the compiler can't reconcile.
+ */
+export const NO_PREFERENCE = '__NONE__'
+
+/** What a wanted finish picker's rows resolve to: a finish, or "no preference". */
+export type WantedFinishChoiceValue = Finish | typeof NO_PREFERENCE
+
 type FinishPromptResponse = { finish?: string }
 
 /**
@@ -127,10 +135,13 @@ export async function promptWantedFinish(
     return only !== undefined ? only : 'nopreference'
   }
 
-  const choices: FinishChoice[] = [
-    { title: 'No preference (any finish)', value: '__NONE__' },
-    ...availableFinishes.map((f) => ({ title: capitalize(f), value: f })),
-  ]
+  const choices = finishChoices<WantedFinishChoiceValue>(
+    [
+      { label: 'No preference (any finish)', value: NO_PREFERENCE },
+      ...finishRows(availableFinishes),
+    ],
+    printing,
+  )
 
   let isExited = false
   const response = (await prompts({
@@ -144,7 +155,7 @@ export async function promptWantedFinish(
   })) as FinishPromptResponse
 
   if (isExited || response.finish === undefined) return 'cancelled'
-  if (response.finish === '__NONE__') return 'nopreference'
+  if (response.finish === NO_PREFERENCE) return 'nopreference'
   return isFinish(response.finish) ? response.finish : 'cancelled'
 }
 

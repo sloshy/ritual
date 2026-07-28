@@ -120,6 +120,10 @@ The pair is validated strictly against the card's known printings — a set/coll
 
 Without a pin, a run where prompts are unavailable (stdin is **not a terminal**, or `--no-input` / `RITUAL_NO_INPUT` is in force) only succeeds when the card has a single paper printing; several candidates fail with an error instead of guessing.
 
+### Printing and Finish Prices
+
+The interactive printing picker lists each printing's price in your configured [`defaultCurrency`](/configuration/#default-currency) in a right-hand column, quoted at that printing's default finish — nonfoil where it has one, otherwise the finish it comes in, named after the price (`$14.93 foil`). `N/A` means the card cache carries no price for that printing in that currency. The finish prompt prices each finish the same way. See [`edit`](/commands/edit/#printing-and-finish-prices) for examples.
+
 ### Finish and Condition
 
 `--finish` values are validated twice: the flag itself must be `nonfoil`, `foil`, or `etched` (rejected at parse time otherwise), and once a printing is resolved, a finish that printing isn't offered in fails with a usage error listing the finishes that do exist (also `details.availableFinishes` in JSON).

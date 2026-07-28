@@ -1,13 +1,16 @@
 import { describe, test, expect } from 'bun:test'
 import {
+  finishChoices,
+  finishRows,
   formatCollectionLine,
   isFinish,
   isCondition,
   matchFinishPin,
   matchPrintingPin,
-  printingFinishes,
+  printingChoices,
 } from '../../src/commands/collection-helpers'
 import type { Finish, Condition, ScryfallCard } from '../../src/types'
+import { makeScryfallCard } from '../test-utils'
 
 // Minimal card data for testing formatCollectionLine
 function makeCard(set: string, collectorNumber: string) {
@@ -164,20 +167,14 @@ function makePrinting(
   collectorNumber: string,
   finishes: string[] = ['nonfoil'],
 ): ScryfallCard {
-  return {
+  return makeScryfallCard({
     id: `id-${set}-${collectorNumber}`,
-    name: 'Test Card',
-    cmc: 1,
-    type_line: 'Artifact',
-    prices: { usd: null, usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
-    finishes,
-    games: ['paper'],
     set,
     set_name: set.toUpperCase(),
     collector_number: collectorNumber,
     rarity: 'rare',
-    color_identity: [],
-  }
+    finishes,
+  })
 }
 
 describe('matchPrintingPin', () => {
@@ -234,23 +231,6 @@ describe('matchPrintingPin', () => {
   })
 })
 
-describe('printingFinishes', () => {
-  test('returns the valid finishes of a printing', () => {
-    expect(printingFinishes(makePrinting('lea', '1', ['nonfoil', 'foil']))).toEqual([
-      'nonfoil',
-      'foil',
-    ])
-  })
-
-  test('filters out unknown finish strings', () => {
-    expect(printingFinishes(makePrinting('lea', '1', ['nonfoil', 'glossy']))).toEqual(['nonfoil'])
-  })
-
-  test('falls back to nonfoil when no usable finish data exists', () => {
-    expect(printingFinishes(makePrinting('lea', '1', []))).toEqual(['nonfoil'])
-  })
-})
-
 describe('matchFinishPin', () => {
   test('accepts a finish the printing offers', () => {
     const result = matchFinishPin(
@@ -276,5 +256,74 @@ describe('matchFinishPin', () => {
     expect(result.ok).toBe(true)
     const foil = matchFinishPin('Test Card', makePrinting('lea', '161', []), 'foil')
     expect(foil.ok).toBe(false)
+  })
+})
+
+// ── Picker titles ─────────────────────────────────────────────────────────────
+
+describe('printingChoices', () => {
+  test('prices each printing at its default finish, in one aligned column', () => {
+    const nonfoil = makeScryfallCard({
+      set: 'lea',
+      set_name: 'Limited Edition Alpha',
+      collector_number: '161',
+      rarity: 'common',
+      finishes: ['nonfoil', 'foil'],
+      prices: { usd: '3.00', usd_foil: '25.00' },
+    })
+    const etchedOnly = makeScryfallCard({
+      set: 'cmr',
+      set_name: 'Commander Legends',
+      collector_number: '472',
+      rarity: 'mythic',
+      finishes: ['etched'],
+      prices: { usd_etched: '14.99' },
+    })
+    expect(printingChoices([nonfoil, etchedOnly], 'usd')).toEqual([
+      { title: 'Limited Edition Alpha (LEA) #161 [common]  $3.00', value: nonfoil },
+      { title: 'Commander Legends (CMR) #472 [mythic]      $14.99 etched', value: etchedOnly },
+    ])
+  })
+
+  test('prices in the given currency, showing N/A where it has none', () => {
+    const card = makeScryfallCard({
+      set: 'neo',
+      set_name: 'Kamigawa',
+      collector_number: '1',
+      rarity: 'rare',
+      prices: { usd: '3.00' },
+    })
+    expect(printingChoices([card], 'eur').map((c) => c.title)).toEqual([
+      'Kamigawa (NEO) #1 [rare]  N/A',
+    ])
+  })
+})
+
+describe('finishChoices', () => {
+  const card = makeScryfallCard({ prices: { usd: '1.00', usd_foil: '4.50' } })
+
+  test('prices each finish and leaves a finishless row bare, keeping each row value', () => {
+    expect(
+      finishChoices<string>(
+        [
+          { label: 'No preference (any finish)', value: '__NONE__' },
+          ...finishRows(['nonfoil', 'foil']),
+        ],
+        card,
+        'usd',
+      ),
+    ).toEqual([
+      { title: 'No preference (any finish)', value: '__NONE__' },
+      { title: 'Nonfoil  $1.00', value: 'nonfoil' },
+      { title: 'Foil     $4.50', value: 'foil' },
+    ])
+  })
+
+  test('omits the price column entirely when the printing is unknown', () => {
+    expect(
+      finishChoices([{ label: 'Foil', finish: 'foil', value: 'foil' }], undefined, 'usd').map(
+        (c) => c.title,
+      ),
+    ).toEqual(['Foil'])
   })
 })

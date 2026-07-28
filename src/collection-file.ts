@@ -1,6 +1,6 @@
 import { DEFAULT_SECTION, type Condition, type Finish, type ScryfallCard } from './types'
 import { matchSectionHeader } from './section-format'
-import { isCondition, isFinish } from './finish-condition'
+import { defaultPrintingFinish, isCondition, isFinish } from './finish-condition'
 
 export type CollectionEntry = {
   name: string
@@ -92,8 +92,5 @@ export type FinishPreference = { finish?: Finish }
  * printing's first finish.
  */
 export function resolveFinish(entry: FinishPreference, card: ScryfallCard): Finish {
-  if (entry.finish) return entry.finish
-  if (card.finishes.includes('nonfoil')) return 'nonfoil'
-  const first = card.finishes[0]
-  return first !== undefined && isFinish(first) ? first : 'nonfoil'
+  return entry.finish ?? defaultPrintingFinish(card)
 }

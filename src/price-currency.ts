@@ -1,6 +1,6 @@
-import type { ScryfallCard, ErrorCode } from './types'
-import { getErrorMessage } from './errors'
-import type { ExitCodeValue } from './commands/scripting'
+import type { ScryfallCard, ErrorCode, Finish } from './types'
+import { getErrorMessage, type ExitCodeValue } from './errors'
+import { defaultPrintingFinish } from './finish-condition'
 
 export type PriceCurrency = 'usd' | 'eur' | 'tix'
 
@@ -107,6 +107,67 @@ export function getCardPriceForFinish(
   return 0
 }
 
+/**
+ * The price column cell for one finish of a printing. `null` when the printing is
+ * unknown (an entry whose pinned printing isn't cached), so a picker can still
+ * offer the finish without inventing a price for it.
+ */
+export function formatFinishPriceCell(
+  printing: ScryfallCard | undefined,
+  finish: Finish,
+  currency: PriceCurrency,
+): string | null {
+  if (!printing) return null
+  return formatPriceOrNA(getCardPriceForFinish(printing, finish, currency), currency)
+}
+
+/**
+ * The price column cell for a printing shown before any finish is chosen: its
+ * {@link defaultPrintingFinish} price, tagged with that finish when it isn't
+ * nonfoil so a foil-only or etched-only printing doesn't read as a nonfoil quote.
+ * The tag is kept even when there is no price (`N/A etched`) — which finish the
+ * cell speaks for is what makes the missing price legible.
+ */
+export function formatPrintingPriceCell(printing: ScryfallCard, currency: PriceCurrency): string {
+  const finish = defaultPrintingFinish(printing)
+  const cell = formatFinishPriceCell(printing, finish, currency) ?? ''
+  return finish === 'nonfoil' ? cell : `${cell} ${finish}`
+}
+
+/** A picker choice: its label, the price cell shown to its right (`null` for none), and its value. */
+export type PriceColumnRow<T> = {
+  label: string
+  price: string | null
+  value: T
+}
+
+/** A laid-out picker choice, ready to hand to `prompts`. */
+export type PriceColumnCell<T> = {
+  title: string
+  value: T
+}
+
+/** Widest label the price column aligns to; a longer label pushes its own price right. */
+export const MAX_PRICE_COLUMN_LABEL = 60
+
+/**
+ * Lay out interactive-picker choices as a label plus a right-hand price column,
+ * padding the labels to a common width so the prices line up. The width is capped
+ * so one unusually long label can't push the column off a narrow terminal, and a
+ * row with no price keeps its label unpadded. Each row's value is carried through
+ * to the laid-out choice, so callers never re-index the source array.
+ */
+export function formatPriceColumn<T>(rows: readonly PriceColumnRow<T>[]): PriceColumnCell<T>[] {
+  const width = Math.min(
+    MAX_PRICE_COLUMN_LABEL,
+    rows.reduce((max, row) => (row.price ? Math.max(max, row.label.length) : max), 0),
+  )
+  return rows.map((row) => ({
+    title: row.price ? `${row.label.padEnd(width)}  ${row.price}` : row.label,
+    value: row.value,
+  }))
+}
+
 export const VALID_CURRENCIES = ['usd', 'eur', 'tix'] as const satisfies readonly PriceCurrency[]
 
 export function isPriceCurrency(value: string): value is PriceCurrency {
@@ -201,8 +262,7 @@ export function formatSpecificPrintingPrice(
   finish: string | undefined,
   currency: PriceCurrency = DEFAULT_CURRENCY,
 ): string {
-  const resolvedFinish =
-    finish ?? (card.finishes.includes('nonfoil') ? 'nonfoil' : (card.finishes[0] ?? 'nonfoil'))
+  const resolvedFinish = finish ?? defaultPrintingFinish(card)
   const price = getCardPriceForFinish(card, resolvedFinish, currency)
   if (price <= 0) return 'Price: unavailable'
   return `Price: ${formatPrice(price, currency)}`

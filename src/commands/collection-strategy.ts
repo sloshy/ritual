@@ -1,9 +1,12 @@
 import prompts from 'prompts'
 import {
   CONDITION_LABELS,
+  finishChoices,
+  finishRows,
   formatCollectionLine,
   isCondition,
   isFinish,
+  lookupPinnedPrinting,
   promptFinishAndCondition,
   resolveCardPrinting,
   VALID_CONDITIONS,
@@ -41,7 +44,7 @@ import {
   undoFlatListEdit,
 } from './flat-list-edit'
 import type { CollectionCardEntry } from '../site/data-types'
-import type { Condition, Finish } from '../types'
+import type { Condition, Finish, ScryfallCard } from '../types'
 import {
   consolidateSetFinish,
   consolidateSetPrinting,
@@ -50,20 +53,24 @@ import {
   type ChangeEvent,
   type PrintingTuple,
 } from '../change-event'
-import { capitalize } from '../utils'
 
 type ValuePromptResponse = { value?: string }
 
-/** Pick a finish for an existing entry, defaulting the cursor to the current one. */
-async function promptFinishChoice(current: Finish): Promise<Finish | null> {
+/**
+ * Pick a finish for an existing entry, defaulting the cursor to the current one.
+ * `printing` prices the choices; it is undefined when the entry's pinned printing
+ * isn't in the card cache.
+ */
+async function promptFinishChoice(
+  current: Finish,
+  printing: ScryfallCard | undefined,
+): Promise<Finish | null> {
+  const choices = finishChoices(finishRows(VALID_FINISHES, current), printing)
   const response = (await prompts({
     type: 'select',
     name: 'value',
     message: 'Finish:',
-    choices: VALID_FINISHES.map((f) => ({
-      title: f === current ? `${capitalize(f)} (current)` : capitalize(f),
-      value: f,
-    })),
+    choices,
     initial: Math.max(0, VALID_FINISHES.indexOf(current)),
   })) as ValuePromptResponse
   return isFinish(response.value) ? response.value : null
@@ -236,7 +243,7 @@ export function createCollectionStrategy(
       }
 
       if (action === 'finish') {
-        const finish = await promptFinishChoice(entry.finish)
+        const finish = await promptFinishChoice(entry.finish, await lookupPinnedPrinting(entry))
         if (!finish || finish === entry.finish) return
         applyFlatListFieldEdit(list, ctx, entry, cardId, {
           label: `finish on ${entry.name}`,

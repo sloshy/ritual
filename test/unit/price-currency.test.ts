@@ -2,9 +2,13 @@ import { describe, test, expect } from 'bun:test'
 import {
   isPriceCurrency,
   parsePriceCurrencyFlag,
+  formatFinishPriceCell,
   formatPrice,
+  formatPriceColumn,
+  MAX_PRICE_COLUMN_LABEL,
   formatPriceOrNA,
   formatPriceWithMissing,
+  formatPrintingPriceCell,
   getCardPrice,
   getCardPriceForFinish,
   isCurrencyAvailableForCard,
@@ -154,6 +158,14 @@ describe('getCardPriceForFinish', () => {
     expect(getCardPriceForFinish(card, 'foil', 'eur')).toBe(20)
   })
 
+  test('has no etched EUR price, so etched falls back to the nonfoil EUR price', () => {
+    // Scryfall publishes no eur_etched field. The fallback keeps an etched card
+    // priced in a EUR total rather than dropping to zero — but it does mean a
+    // finish picker's "Etched" row quotes the nonfoil price in EUR.
+    const card = makeCard({ eur: '7.50', usd_etched: '15.00' })
+    expect(getCardPriceForFinish(card, 'etched', 'eur')).toBe(7.5)
+  })
+
   test('returns tix price regardless of finish', () => {
     const card = makeCard({ tix: '2.50' })
     expect(getCardPriceForFinish(card, 'nonfoil', 'tix')).toBe(2.5)
@@ -229,5 +241,78 @@ describe('parseCurrenciesFlag', () => {
 
   test('returns all currencies for empty string (treated as no input)', () => {
     expect(parseCurrenciesFlag('')).toEqual(['usd', 'eur', 'tix'])
+  })
+})
+
+describe('formatFinishPriceCell', () => {
+  test('formats the given finish in the given currency', () => {
+    const card = makeCard({ usd: '1.50', usd_foil: '4.25', eur: '1.10' })
+    expect(formatFinishPriceCell(card, 'nonfoil', 'usd')).toBe('$1.50')
+    expect(formatFinishPriceCell(card, 'foil', 'usd')).toBe('$4.25')
+    expect(formatFinishPriceCell(card, 'nonfoil', 'eur')).toBe('\u20ac1.10')
+  })
+
+  test('is N/A for a finish the printing carries no price for', () => {
+    expect(formatFinishPriceCell(makeCard(), 'foil', 'usd')).toBe('N/A')
+  })
+
+  test('is null for an unknown printing, so the picker shows no column', () => {
+    expect(formatFinishPriceCell(undefined, 'foil', 'usd')).toBeNull()
+  })
+})
+
+describe('formatPrintingPriceCell', () => {
+  test('quotes a nonfoil printing without a finish tag', () => {
+    const card = makeScryfallCard({ finishes: ['nonfoil', 'foil'], prices: { usd: '2.00' } })
+    expect(formatPrintingPriceCell(card, 'usd')).toBe('$2.00')
+  })
+
+  test('tags the finish when the printing has no nonfoil version', () => {
+    const foilOnly = makeScryfallCard({ finishes: ['foil'], prices: { usd_foil: '9.99' } })
+    expect(formatPrintingPriceCell(foilOnly, 'usd')).toBe('$9.99 foil')
+    const etchedOnly = makeScryfallCard({ finishes: ['etched'], prices: { usd_etched: '12.00' } })
+    expect(formatPrintingPriceCell(etchedOnly, 'usd')).toBe('$12.00 etched')
+  })
+
+  test('keeps the finish tag when the printing has no price at all', () => {
+    const etchedOnly = makeScryfallCard({ finishes: ['etched'] })
+    expect(formatPrintingPriceCell(etchedOnly, 'usd')).toBe('N/A etched')
+  })
+})
+
+describe('formatPriceColumn', () => {
+  test('pads labels so the prices align in one column, carrying each row value', () => {
+    expect(
+      formatPriceColumn([
+        { label: 'Alpha', price: '$1.00', value: 'a' },
+        { label: 'A much longer label', price: '$22.50', value: 'b' },
+      ]),
+    ).toEqual([
+      { title: 'Alpha                $1.00', value: 'a' },
+      { title: 'A much longer label  $22.50', value: 'b' },
+    ])
+  })
+
+  test('leaves a priceless row unpadded and out of the width calculation', () => {
+    expect(
+      formatPriceColumn([
+        { label: 'No preference (any finish)', price: null, value: 'none' },
+        { label: 'Foil', price: '$3.00', value: 'foil' },
+      ]).map((c) => c.title),
+    ).toEqual(['No preference (any finish)', 'Foil  $3.00'])
+  })
+
+  test('caps the column so one long label does not shift the rest', () => {
+    const long = 'x'.repeat(MAX_PRICE_COLUMN_LABEL + 20)
+    const [first, second] = formatPriceColumn([
+      { label: long, price: '$1.00', value: 1 },
+      { label: 'Short', price: '$2.00', value: 2 },
+    ])
+    expect(first!.title).toBe(`${long}  $1.00`)
+    expect(second!.title).toBe(`${'Short'.padEnd(MAX_PRICE_COLUMN_LABEL)}  $2.00`)
+  })
+
+  test('caps at a width that leaves the price on an 80-column terminal', () => {
+    expect(MAX_PRICE_COLUMN_LABEL).toBeLessThanOrEqual(60)
   })
 })
