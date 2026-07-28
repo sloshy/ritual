@@ -191,7 +191,8 @@
 
 .filter-label {
   font-size: 0.75rem;
-  color: var(--text-muted);
+  font-weight: 500;
+  color: var(--text-body);
 }
 
 /* Base input styling is shared with .toolbar-select above. */
