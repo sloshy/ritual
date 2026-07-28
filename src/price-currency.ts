@@ -84,19 +84,31 @@ export function getCardPrice(card: ScryfallCard, currency: PriceCurrency): numbe
   return 0
 }
 
+/**
+ * Whether a finish has no price in a currency *by construction* — as opposed to a
+ * printing that simply has no data. Scryfall publishes `usd`, `usd_foil`,
+ * `usd_etched`, `eur`, `eur_foil` and `tix`, with no etched counterpart in EUR, so
+ * an etched card can never be priced in euros. Reading `eur` there would quote the
+ * nonfoil price under an etched label — off by a lot on exactly the cards (etched
+ * showcases) where the finish is the reason for the price.
+ */
+export function isFinishPricelessInCurrency(finish: string, currency: PriceCurrency): boolean {
+  return currency === 'eur' && finish === 'etched'
+}
+
 export function getCardPriceForFinish(
   card: ScryfallCard,
   finish: string,
   currency: PriceCurrency,
 ): number {
+  if (isFinishPricelessInCurrency(finish, currency)) return 0
   let raw: string | null
   if (currency === 'usd') {
     if (finish === 'foil') raw = card.prices.usd_foil
     else if (finish === 'etched') raw = card.prices.usd_etched
     else raw = card.prices.usd
   } else if (currency === 'eur') {
-    if (finish === 'foil') raw = card.prices.eur_foil
-    else raw = card.prices.eur
+    raw = finish === 'foil' ? card.prices.eur_foil : card.prices.eur
   } else {
     raw = card.prices.tix
   }

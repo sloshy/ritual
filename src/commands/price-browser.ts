@@ -55,6 +55,7 @@ const UNPRICED_REASON_TEXT: Record<UnpricedReason, string> = {
   'no-printings': 'card not found in the local card database',
   'printing-not-found': 'printing not found in the card database',
   'currency-unavailable': 'not available in this currency’s game',
+  'finish-unpriced-in-currency': 'this finish has no price in this currency',
   'no-price-data': 'no price data for this printing',
 }
 

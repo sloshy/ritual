@@ -32,6 +32,7 @@ import {
   getCardPrice,
   getCardPriceForFinish,
   isCurrencyAvailableForCard,
+  isFinishPricelessInCurrency,
   type PriceCurrency,
 } from './price-currency'
 import { listLocations, type ListLocation } from './resolve-list'
@@ -71,6 +72,7 @@ export type UnpricedReason =
   | 'no-printings'
   | 'printing-not-found'
   | 'currency-unavailable'
+  | 'finish-unpriced-in-currency'
   | 'no-price-data'
 
 /** A single priced card line in the report. */
@@ -361,7 +363,12 @@ function priceEntry(
     lowestSet: cheapestPick?.card.set.toLowerCase(),
     lowestCollectorNumber: cheapestPick?.card.collector_number,
     lowestFinish: cheapestPick?.finish,
-    unpricedReason: price <= 0 ? 'no-price-data' : undefined,
+    unpricedReason:
+      price > 0
+        ? undefined
+        : finish && isFinishPricelessInCurrency(finish, currency)
+          ? 'finish-unpriced-in-currency'
+          : 'no-price-data',
   }
 }
 

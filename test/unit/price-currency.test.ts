@@ -12,6 +12,7 @@ import {
   getCardPrice,
   getCardPriceForFinish,
   isCurrencyAvailableForCard,
+  isFinishPricelessInCurrency,
   parseCurrenciesFlag,
 } from '../../src/price-currency'
 import type { ScryfallCard } from '../../src/types'
@@ -158,12 +159,16 @@ describe('getCardPriceForFinish', () => {
     expect(getCardPriceForFinish(card, 'foil', 'eur')).toBe(20)
   })
 
-  test('has no etched EUR price, so etched falls back to the nonfoil EUR price', () => {
-    // Scryfall publishes no eur_etched field. The fallback keeps an etched card
-    // priced in a EUR total rather than dropping to zero — but it does mean a
-    // finish picker's "Etched" row quotes the nonfoil price in EUR.
-    const card = makeCard({ eur: '7.50', usd_etched: '15.00' })
-    expect(getCardPriceForFinish(card, 'etched', 'eur')).toBe(7.5)
+  test('reports etched as unpriced in EUR rather than quoting the nonfoil price', () => {
+    // Scryfall publishes no eur_etched field, so an etched card has no euro price
+    // at all. Reading `eur` here would label the nonfoil price as the etched one.
+    const card = makeCard({ eur: '7.50', eur_foil: '20.00', usd_etched: '15.00' })
+    expect(getCardPriceForFinish(card, 'etched', 'eur')).toBe(0)
+    // The finishes that do have EUR data are unaffected.
+    expect(getCardPriceForFinish(card, 'nonfoil', 'eur')).toBe(7.5)
+    expect(getCardPriceForFinish(card, 'foil', 'eur')).toBe(20)
+    // USD has a real etched field, so etched prices normally there.
+    expect(getCardPriceForFinish(card, 'etched', 'usd')).toBe(15)
   })
 
   test('returns tix price regardless of finish', () => {
@@ -314,5 +319,15 @@ describe('formatPriceColumn', () => {
 
   test('caps at a width that leaves the price on an 80-column terminal', () => {
     expect(MAX_PRICE_COLUMN_LABEL).toBeLessThanOrEqual(60)
+  })
+})
+
+describe('isFinishPricelessInCurrency', () => {
+  test('only etched in EUR has no price field to read', () => {
+    expect(isFinishPricelessInCurrency('etched', 'eur')).toBe(true)
+    expect(isFinishPricelessInCurrency('etched', 'usd')).toBe(false)
+    expect(isFinishPricelessInCurrency('etched', 'tix')).toBe(false)
+    expect(isFinishPricelessInCurrency('nonfoil', 'eur')).toBe(false)
+    expect(isFinishPricelessInCurrency('foil', 'eur')).toBe(false)
   })
 })

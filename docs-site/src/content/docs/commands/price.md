@@ -67,6 +67,7 @@ Prompts never fire when they can't be answered: under `--no-input` / `RITUAL_NO_
 - Every deck and wanted-list entry also carries a **lowest** price — the cheapest acceptable copy. For deck entries and name-only wanted entries that is the cheapest printing+finish overall; for a wanted entry pinned to a printing without a finish it is that printing's cheapest finish; for fully-specified entries it is the entry price itself.
 - Deck totals cover every section except extras (maybeboard/token sections), matching the public site.
 - A card with no price in the active currency counts as **unpriced**; unpriced counts are quantity-weighted.
+- **Etched cards have no euro price.** Scryfall publishes `usd`, `usd_foil`, `usd_etched`, `eur`, `eur_foil` and `tix` — there is no etched field for EUR. An etched entry priced in `eur` is therefore reported as unpriced (`this finish has no price in this currency`) rather than being quoted at the printing's nonfoil euro price, which would understate exactly the cards whose finish is the reason for their value. Price those lists in `usd` for a complete total.
 
 ## Non-Interactive Output
 

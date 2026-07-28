@@ -352,7 +352,9 @@ picking it — `Select Finish:` when adding a card, and `✨ Change Finish` in [
 ```
 
 A wanted list's `No preference (any finish)` choice covers every finish, so it shows no price; an
-entry whose pinned printing is missing from the card cache shows no price column at all.
+entry whose pinned printing is missing from the card cache shows no price column at all. An `Etched`
+row is always `N/A` when your currency is `eur` — Scryfall publishes no etched euro price (see
+[How Cards Are Priced](/commands/price/#how-cards-are-priced)).
 
 Prices come from the local card cache, so they are as fresh as your last
 [cache refresh](#cache-freshness).
