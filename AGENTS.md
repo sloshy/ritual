@@ -107,10 +107,18 @@ Ritual exposes its capabilities to AI agents through two surfaces in addition to
 - **MCP server** — `src/mcp/` (command: `src/commands/mcp.ts`, run with `ritual mcp`). Exposes deck/collection/wanted operations as Model Context Protocol tools by reusing the admin route handlers. Tools live in `src/mcp/tools/{read,write,destructive}-tools.ts`; the server description is in `src/mcp/server.ts`; docs are in `docs-site/src/content/docs/commands/mcp.md`.
 - **Skills** — `src/skills/` (command: `src/commands/skills.ts`, run with `ritual skills install`). Installable Claude Code agent skills that teach an agent to drive the `ritual` CLI directly. The catalog is `src/skills/catalog.ts`; each skill's content is one module under `src/skills/content/`; docs are in `docs-site/src/content/docs/commands/skills.md`.
 
+### API-First Surface Definition
+
+The admin HTTP API (`src/admin/api/`, registered in `src/admin/server.ts`) is Ritual's **client-neutral API surface**. It is defined from the perspective of a full-featured API usable by multiple clients — the admin UI, the MCP server, and any future client — **not** by what the admin UI currently displays. Concretely:
+
+- When the MCP server (or any other client) needs a capability that has no admin route, the default is to **add an admin route for it**, even if no UI uses it yet. MCP tools calling engine modules directly is not the pattern; the shared handler is where validation and behavior live exactly once.
+- When a client needs more data than a handler's response carries, **widen the shared response type** rather than adding per-client projections or field-selection parameters. A handler returns one honest, fully-typed shape; each client projects what it needs from it.
+- The admin UI is one consumer of this API, not its definition. "No UI for it yet" is never a reason to leave a capability out of the API, and the admin UI's feature set is never the ceiling on what other clients can do.
+
 **The rule:** whenever you add, change, or remove a command, flag, option, config key, file format, or user-visible behavior, update **all** of the following in tandem so the CLI, the MCP server, and the Skills never drift apart:
 
 1. The command in `src/commands/` and its page in `docs-site/src/content/docs/`.
-2. The corresponding MCP tool(s) in `src/mcp/tools/` **if the operation is exposed there**, plus the server instructions and `mcp.md`. (Not every CLI command is mirrored by an MCP tool — the MCP server reuses admin handlers and intentionally omits the auth/login surface — but anything it does expose must match.)
+2. The corresponding MCP tool(s) in `src/mcp/tools/` **if the operation is exposed there**, plus the server instructions and `mcp.md`. (Not every CLI command is mirrored by an MCP tool — the auth/login surface is intentionally omitted — but anything the MCP does expose must match, and a capability the MCP needs gets an admin route first; see [API-First Surface Definition](#api-first-surface-definition) above. Where MCP tools declare result `outputSchema`s, a change to a handler's response shape must update the schema and its pinned tests in the same change.)
 3. The corresponding skill content in `src/skills/content/` (and the skill descriptions used for discovery), plus `skills.md`. The Skills are meant to mirror the **full CLI surface**, so a new or changed command almost always means a skill edit.
 4. The tests for each surface (`test/unit/mcp/*`, `test/integration/mcp-*.test.ts`, `test/unit/skills.test.ts`, `test/integration/skills-install.test.ts`).
 
