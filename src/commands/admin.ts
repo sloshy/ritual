@@ -196,16 +196,38 @@ export function registerAdminCommand(program: Command): void {
 
       console.log('Admin interface ready.')
 
-      await startAdminServer({ port, host, distDir: adminDistDir })
+      const adminServer = await startAdminServer({ port, host, distDir: adminDistDir })
 
-      if (embeddedMcp) {
-        // Same process, separate port; bearer-token auth like standalone `ritual mcp`.
-        await runHttpServer({
-          port: embeddedMcp.port,
-          host,
-          auth: { kind: 'bearer', token: embeddedMcp.token },
+      // Same process, separate port; bearer-token auth like standalone `ritual mcp`.
+      const mcpServer = embeddedMcp
+        ? await runHttpServer({
+            port: embeddedMcp.port,
+            host,
+            auth: { kind: 'bearer', token: embeddedMcp.token },
+          })
+        : undefined
+
+      // Both listeners hold the process open, so Ctrl-C has to stop both; with
+      // nothing left holding the loop the process then exits on its own (the
+      // stdio MCP leg's teardown works the same way). Dropping active
+      // connections is what lets the dev live-reload stream's `cancel()` run and
+      // clear its keep-alive timer.
+      // `allSettled` so one listener refusing to close still lets the other; the
+      // results are read rather than discarded, because a teardown that failed is
+      // a port left bound, and the next `ritual admin` failing to start is a much
+      // worse way to learn about it (`ritual mcp` logs its own the same way).
+      const labels = ['MCP HTTP', 'Admin'] as const
+      const shutdown = (): void => {
+        void Promise.allSettled([mcpServer?.stop(true), adminServer.stop(true)]).then((results) => {
+          results.forEach((result, index) => {
+            if (result.status === 'rejected') {
+              console.error(`${labels[index]} teardown failed:`, result.reason)
+            }
+          })
         })
       }
+      process.once('SIGINT', shutdown)
+      process.once('SIGTERM', shutdown)
     })
 
   registerSetupSubcommand(admin)

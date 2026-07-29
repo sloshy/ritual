@@ -20,7 +20,7 @@ import { isRunningFromSource } from '../runtime'
 import type { ScryfallCard } from '../types'
 import { extractPrimerCardNames } from '../primer-parser'
 import { extractChangelogCardNames } from '../changelog-parser'
-import { getBaseDir } from '../base-dir'
+import { resolveOutDir } from '../site/dist-dir'
 import {
   getBannedPrintings,
   getCollectionsDir,
@@ -79,6 +79,12 @@ export interface BuildSiteOptions {
   theme?: string
   themeFile?: string[]
   moxfieldUserAgent?: string
+  /**
+   * Publish into this directory instead of `dist/`. A relative path resolves
+   * against the Ritual base directory. The admin build route uses it to build
+   * into a scratch directory it then swaps into place atomically.
+   */
+  outDir?: string
 }
 
 export type SiteSpaAssets = {
@@ -188,7 +194,15 @@ async function checkAndOfferBulkPriceRefresh(
   })
 
   if (shouldPreload) {
-    await refreshCardCache()
+    // Best-effort warm: `refreshCardCache` propagates now, and a cold network
+    // must not fail a build that can still run against the existing cache.
+    try {
+      await refreshCardCache()
+    } catch (e) {
+      console.error(
+        `Card cache refresh failed; building with the existing cache. ${getErrorMessage(e)}`,
+      )
+    }
   }
 }
 
@@ -234,7 +248,13 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     initialThemeName = resolved
   }
 
-  const distDir = path.join(getBaseDir(), 'dist')
+  const outDir = resolveOutDir(options.outDir)
+  if (!outDir.ok) {
+    console.error(outDir.error)
+    process.exitCode = ExitCode.UsageError
+    return
+  }
+  const distDir = outDir.dir
   const imagesDir = path.join(distDir, 'images')
   const decksDir = getDecksDir()
   // Which decks/collections/wanted lists are published. CLI flags override this
@@ -922,6 +942,10 @@ export function applyBuildSiteOptions(command: Command): Command {
     .option(
       '--moxfield-user-agent <agent>',
       'Moxfield-approved unique User-Agent string (required for Moxfield deck URLs unless MOXFIELD_USER_AGENT is set)',
+    )
+    .option(
+      '--out-dir <path>',
+      'Build into this directory instead of dist/ — the directory is cleared before the build (relative paths resolve against the Ritual directory)',
     )
 }
 

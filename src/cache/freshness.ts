@@ -3,8 +3,31 @@ import { refreshCardCache } from './refresh-source'
 import { BULK_CACHE_MAX_AGE_MS, PRICE_MAX_AGE_MS } from './constants'
 import { shouldBulkRefresh, type BulkRefreshPrompt, type RefreshMode } from '../refresh'
 import { formatDuration } from '../utils'
+import { getErrorMessage } from '../errors'
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Run a bulk preload, reporting a cold network as a message instead of throwing.
+ *
+ * `refreshCardCache` propagates its failures now (that is the point of the
+ * change — a refresh that did not happen must be learnable), but every gate in
+ * this module is a *courtesy* refresh offered on the way to doing something
+ * else. A download that fails has to leave the caller with the cache it already
+ * had, not an exception out of `ritual admin`'s startup path. Callers that
+ * report to the user print the message; {@link ensureCardCacheForUpload}, whose
+ * whole contract is "true, or the reason not", returns it.
+ *
+ * @returns `null` when the preload succeeded, else the reason it did not.
+ */
+async function tryPreload(preload: () => Promise<void>): Promise<string | null> {
+  try {
+    await preload()
+    return null
+  } catch (e) {
+    return `Card cache download failed: ${getErrorMessage(e)}`
+  }
+}
 
 /**
  * The standard remedy line for an unusable (empty) card cache, appended to a
@@ -22,19 +45,23 @@ type CacheFreshnessResult = {
 /**
  * Prompt to redownload a bulk cache that is older than a week, preloading when
  * the prompt is accepted. Does nothing when the cache is younger than a week.
+ *
+ * @returns `null` when nothing failed (including when nothing was downloaded),
+ *   else why the accepted download did not happen — see {@link tryPreload}.
  */
 async function promptStaleCacheRefresh(
   age: number,
   confirm: (prompt: BulkRefreshPrompt) => Promise<boolean>,
   preload: () => Promise<void>,
-): Promise<void> {
-  if (age <= BULK_CACHE_MAX_AGE_MS) return
+): Promise<string | null> {
+  if (age <= BULK_CACHE_MAX_AGE_MS) return null
   const days = Math.floor(age / ONE_DAY_MS)
   const accepted = await confirm({
     message: `Card cache is ${days} day${days !== 1 ? 's' : ''} old. Would you like to update it?`,
     initial: false,
   })
-  if (accepted) await preload()
+  if (!accepted) return null
+  return tryPreload(preload)
 }
 
 /**
@@ -63,7 +90,10 @@ export async function ensureFreshCardCache(
     })
 
     if (shouldPreload) {
-      await refreshCardCache()
+      // Best-effort warm: a cold network must leave the caller with an empty
+      // cache rather than an exception — the `ready: false` below already says so.
+      const failure = await tryPreload(refreshCardCache)
+      if (failure !== null) console.error(failure)
     } else {
       return { ready: false, cardCount: 0 }
     }
@@ -71,11 +101,12 @@ export async function ensureFreshCardCache(
     const lastRefreshed = await cardCache.getLastRefreshedAt()
 
     if (lastRefreshed !== null) {
-      await promptStaleCacheRefresh(
+      const failure = await promptStaleCacheRefresh(
         Date.now() - lastRefreshed,
         (prompt) => shouldBulkRefresh(mode, prompt),
         refreshCardCache,
       )
+      if (failure !== null) console.error(failure)
     }
   }
 
@@ -127,12 +158,14 @@ export async function refreshCardCacheForSession(
 
   if (mode === 'auto' && age > PRICE_MAX_AGE_MS) {
     console.log('Cached prices are more than a day old. Refreshing the card cache from Scryfall...')
-    await preload()
+    const failure = await tryPreload(preload)
+    if (failure !== null) console.error(failure)
     return
   }
 
   if (mode !== 'ask') return
-  await promptStaleCacheRefresh(age, confirmStaleRefresh, preload)
+  const failure = await promptStaleCacheRefresh(age, confirmStaleRefresh, preload)
+  if (failure !== null) console.error(failure)
 }
 
 /**
@@ -186,7 +219,10 @@ export async function ensureCardCacheForUpload(
 
   if (mode === 'auto') {
     log(`${because} Refreshing it from Scryfall first...`)
-    await preload()
+    // A download that failed leaves the same cache the requirement just refused,
+    // so the failure *is* the refusal rather than an exception past the caller.
+    const failure = await tryPreload(preload)
+    if (failure !== null) return `${failure} ${remedy}`
   } else if (mode === 'ask') {
     const accepted = await confirmStaleRefresh({
       message: `${because} Update it before uploading?`,
@@ -195,7 +231,8 @@ export async function ensureCardCacheForUpload(
     // Declining is an answer, not a fall-through: uploading from this cache is
     // exactly what the freshness requirement forbids.
     if (!accepted) return `${because} ${remedy}`
-    await preload()
+    const failure = await tryPreload(preload)
+    if (failure !== null) return `${failure} ${remedy}`
   } else {
     // `no-bulk` and `never` forbid the only way this cache is ever filled.
     return `${because} ${remedy}`
@@ -247,7 +284,12 @@ export async function ensureFreshPriceData(
         initial: true,
       }))
     if (!accepted) return { ready: false, lastRefreshedAt: null }
-    await preload()
+    // The cache was empty, so a download that failed leaves nothing to price.
+    const failure = await tryPreload(preload)
+    if (failure !== null) {
+      console.error(failure)
+      return { ready: false, lastRefreshedAt: null }
+    }
     return { ready: true, lastRefreshedAt: await cache.getLastRefreshedAt() }
   }
 
@@ -255,17 +297,23 @@ export async function ensureFreshPriceData(
   if (lastRefreshed !== null) {
     const age = Date.now() - lastRefreshed
     if (age > PRICE_MAX_AGE_MS) {
+      // A stale-price refresh that failed still leaves usable (older) prices, so
+      // it is reported and the run continues.
       if (mode === 'auto') {
         console.log(
           'Cached prices are more than a day old. Refreshing the card cache from Scryfall...',
         )
-        await preload()
+        const failure = await tryPreload(preload)
+        if (failure !== null) console.error(failure)
       } else if (mode === 'ask') {
         const accepted = await confirmStaleRefresh({
           message: `Prices were last updated ${formatDuration(age)} ago. Update now?`,
           initial: false,
         })
-        if (accepted) await preload()
+        if (accepted) {
+          const failure = await tryPreload(preload)
+          if (failure !== null) console.error(failure)
+        }
       }
     }
   }

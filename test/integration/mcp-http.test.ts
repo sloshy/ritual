@@ -7,7 +7,11 @@ import {
   type McpHttpServer,
   type RpcErrorBody,
 } from '../../src/mcp/run'
+import type { Progress } from '@modelcontextprotocol/client'
 import { expectStructuredOnly, toolData } from '../mcp-test-utils'
+import { expectMonotonicProgress } from '../test-utils'
+import { stubScryfallBulk } from './helpers/scryfall-bulk'
+import type { StubbedFetch } from './helpers/stub-fetch'
 
 /** `list_lists`' result, as far as this transport check reads it. */
 type ListsResult = { lists: { slug: string }[] }
@@ -42,10 +46,38 @@ async function makeWorkspace(): Promise<BoundWorkspace> {
   return ws
 }
 
+/** `refresh_cache`'s result, as far as the progress tests read it. */
+type CacheRefreshData = { message: string }
+
 async function teardown(ws: BoundWorkspace, server: McpHttpServer): Promise<void> {
   // `runHttpServer` wraps stop() so this also tears the MCP handler down.
   await server.stop(true)
   await ws.dispose()
+}
+
+/**
+ * Connect a client to `server`, run `body`, and close it whatever happens.
+ *
+ * Every block below opened with the same four lines (transport, client,
+ * connect, `try`/`finally { client.close() }`); a block that forgot the
+ * `finally` leaked a connection into the next test's server teardown.
+ */
+async function withClient(
+  server: McpHttpServer,
+  name: string,
+  body: (client: Client) => Promise<void>,
+  options?: { requestInit?: RequestInit; clientOptions?: ConstructorParameters<typeof Client>[1] },
+): Promise<void> {
+  const transport = new StreamableHTTPClientTransport(endpoint(server), {
+    requestInit: options?.requestInit,
+  })
+  const client = new Client({ name, version: '0.0.0' }, options?.clientOptions)
+  await client.connect(transport)
+  try {
+    await body(client)
+  } finally {
+    await client.close()
+  }
 }
 
 describe('ritual mcp HTTP — bearer auth', () => {
@@ -76,36 +108,34 @@ describe('ritual mcp HTTP — bearer auth', () => {
   ]
   for (const { label, options, modern } of eras) {
     test(`drives the protocol over HTTP as a ${label} client`, async () => {
-      const transport = new StreamableHTTPClientTransport(endpoint(server), {
-        requestInit: { headers: { Authorization: `Bearer ${TOKEN}` } },
-      })
-      const client = new Client({ name: `it-http-${label}`, version: '0.0.0' }, options)
-      await client.connect(transport)
-      try {
-        if (modern) {
-          expect(client.getProtocolEra()).toBe('modern')
-        } else {
-          expect(client.getProtocolEra()).not.toBe('modern')
-        }
-        // This leg builds one server instance per request and tears it down with
-        // the response, so a resources/list_changed notification would have no
-        // connection to reach — it must not claim the capability. (Stdio does;
-        // see test/integration/mcp-stdio.test.ts.)
-        expect(client.getServerCapabilities()?.resources).toEqual({
-          listChanged: false,
-          subscribe: false,
-        })
-        const { tools } = await client.listTools()
-        expect(tools.map((t) => t.name)).toContain('list_lists')
+      await withClient(
+        server,
+        `it-http-${label}`,
+        async (client) => {
+          if (modern) {
+            expect(client.getProtocolEra()).toBe('modern')
+          } else {
+            expect(client.getProtocolEra()).not.toBe('modern')
+          }
+          // This leg builds one server instance per request and tears it down with
+          // the response, so a resources/list_changed notification would have no
+          // connection to reach — it must not claim the capability. (Stdio does;
+          // see test/integration/mcp-stdio.test.ts.)
+          expect(client.getServerCapabilities()?.resources).toEqual({
+            listChanged: false,
+            subscribe: false,
+          })
+          const { tools } = await client.listTools()
+          expect(tools.map((t) => t.name)).toContain('list_lists')
 
-        const listed = await client.callTool({ name: 'list_lists', arguments: {} })
-        // `structuredContent` must survive this transport in both eras — the one
-        // property only a transport test can pin.
-        expectStructuredOnly(listed)
-        expect(toolData<ListsResult>(listed).lists.map((l) => l.slug)).toContain('starter')
-      } finally {
-        await client.close()
-      }
+          const listed = await client.callTool({ name: 'list_lists', arguments: {} })
+          // `structuredContent` must survive this transport in both eras — the one
+          // property only a transport test can pin.
+          expectStructuredOnly(listed)
+          expect(toolData<ListsResult>(listed).lists.map((l) => l.slug)).toContain('starter')
+        },
+        { requestInit: { headers: { Authorization: `Bearer ${TOKEN}` } }, clientOptions: options },
+      )
     })
   }
 
@@ -235,15 +265,79 @@ describe('ritual mcp HTTP — no auth', () => {
   afterEach(async () => teardown(ws, server))
 
   test('serves requests without any auth header', async () => {
-    const transport = new StreamableHTTPClientTransport(endpoint(server))
-    const client = new Client({ name: 'it-http-noauth', version: '0.0.0' })
-    await client.connect(transport)
-    try {
+    await withClient(server, 'it-http-noauth', async (client) => {
       const { tools } = await client.listTools()
       expect(tools.map((t) => t.name)).toContain('list_lists')
-    } finally {
-      await client.close()
-    }
+    })
+  })
+})
+
+describe('ritual mcp HTTP — in-call progress notifications', () => {
+  let ws: BoundWorkspace
+  let server: McpHttpServer
+  let stubbed: StubbedFetch
+
+  beforeEach(async () => {
+    ws = await bindWorkspace({ dirs: ['decks'], config: false, init: true, clearCardCache: true })
+    server = await runHttpServer({ port: 0, host: '127.0.0.1', auth: { kind: 'none' } })
+    // Passthrough: the SDK client reaches the loopback server started above over
+    // this same `globalThis.fetch`, so unrouted requests must not be refused.
+    stubbed = stubScryfallBulk({ passthrough: true })
+  })
+  afterEach(async () => {
+    stubbed.restore()
+    await teardown(ws, server)
+  })
+
+  test('a call supplying a progressToken receives progress and still gets its result', async () => {
+    await withClient(
+      server,
+      'it-http-progress',
+      async (client) => {
+        const received: Progress[] = []
+        const result = await client.callTool(
+          { name: 'refresh_cache', arguments: {} },
+          {
+            onprogress: (progress) => received.push(progress),
+            // The SDK's default request timeout is 60s and does not reset on
+            // progress; a refresh is short here, but the flag is what a real
+            // client driving a long tool must set.
+            resetTimeoutOnProgress: true,
+          },
+        )
+
+        // The emission path, the stateless leg's automatic SSE upgrade, and the
+        // unchanged blocking result — one call covers all three.
+        expectMonotonicProgress(received, 100)
+        // And the run reaches the end of its own scale: a bar that stops at 99
+        // is a run the client never learns finished.
+        expect(received.at(-1)?.progress).toBe(100)
+        expectStructuredOnly(result)
+        expect(toolData<CacheRefreshData>(result).message).toBe('Cache refreshed successfully')
+      },
+      { clientOptions: { versionNegotiation: { mode: 'auto' } } },
+    )
+  })
+
+  test('a call without onprogress receives no progress notifications', async () => {
+    await withClient(
+      server,
+      'it-http-no-progress',
+      async (client) => {
+        const received: unknown[] = []
+        client.setNotificationHandler('notifications/progress', (notification) => {
+          received.push(notification)
+        })
+
+        const result = await client.callTool({ name: 'refresh_cache', arguments: {} })
+
+        // No token was stamped, so the server emitted nothing — the "only when
+        // the client asked" half of the contract.
+        expect(received).toEqual([])
+        expect(toolData<CacheRefreshData>(result).message).toBe('Cache refreshed successfully')
+      },
+      { clientOptions: { versionNegotiation: { mode: 'auto' } } },
+    )
   })
 })
 

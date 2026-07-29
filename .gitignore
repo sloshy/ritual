@@ -51,6 +51,9 @@ research/
 .logins/
 
 .admin-dist/
+# Scratch + parked trees from an admin site build's atomic publish
+.dist-build-*/
+.dist-old-*/
 
 styles.compiled.css
 app.compiled.js

@@ -759,17 +759,23 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
       sections: updatedSections,
     })
 
-    // Record changes in changelog, stamping each with its card ID. Added and
-    // quantity-changed cards resolve against the post-sync deck; removed cards
-    // (no longer present) resolve against the pre-sync deck.
+    // Write updated deck with lastSynced, THEN record the changelog — the same
+    // ordering `finishListSave` converged the three save routes on, for the same
+    // reason: neither order is atomic, and a crash between the two leaves either
+    // a phantom history entry for an edit the file never received or a correct
+    // file with a gap in its audit trail. `ritual history`, the change-bundle
+    // export, and the editors' undo all *act on* changelog entries, so a phantom
+    // propagates while a gap does not.
+    writtenFiles.push(...(await saveDeckWithSyncTimestamp(target, updatedDeck)))
+
+    // Changes are stamped with their card ID. Added and quantity-changed cards
+    // resolve against the post-sync deck; removed cards (no longer present)
+    // resolve against the pre-sync deck.
     const resolveCardId = buildCardIdResolver(updatedDeck.sections, target.deck.sections)
     const changes = diffToChangeEvents(diff, resolveCardId)
     if (changes.length > 0) {
       writtenFiles.push(await appendChangelog(target.filePath, target.deck.name, changes))
     }
-
-    // Write updated deck with lastSynced
-    writtenFiles.push(...(await saveDeckWithSyncTimestamp(target, updatedDeck)))
     emit({ kind: 'log', level: 'info', deck: name, message: 'Saved.' })
     finish(results, emit, { name, status: 'synced' })
   }

@@ -58,65 +58,6 @@ export class MemoryLogger implements Logger {
   }
 }
 
-export type CacheProgressEvent = {
-  stage: 'download' | 'save' | 'done' | 'info'
-  percentage?: number
-  message: string
-}
-
-function stringifyLogMessage(value: unknown): string {
-  if (value == null) return ''
-  if (typeof value === 'string') return value
-  if (value instanceof Error) return value.message
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return Object.prototype.toString.call(value)
-  }
-}
-
-export class StreamingLogger implements Logger {
-  constructor(
-    private readonly onEvent: (event: CacheProgressEvent) => void,
-    private readonly mirrorTo?: Logger,
-  ) {}
-
-  info(message?: unknown, ...optionalParams: unknown[]): void {
-    const msg = stringifyLogMessage(message)
-    this.mirrorTo?.info(message, ...optionalParams)
-
-    if (msg.includes('Saving to cache')) {
-      this.onEvent({ stage: 'save', message: msg })
-    } else if (msg.includes('Done!')) {
-      this.onEvent({ stage: 'done', message: msg })
-    } else {
-      this.onEvent({ stage: 'info', message: msg })
-    }
-  }
-
-  warn(message?: unknown, ...optionalParams: unknown[]): void {
-    this.mirrorTo?.warn(message, ...optionalParams)
-    this.onEvent({ stage: 'info', message: `Warning: ${stringifyLogMessage(message)}` })
-  }
-
-  error(message?: unknown, ...optionalParams: unknown[]): void {
-    this.mirrorTo?.error(message, ...optionalParams)
-    this.onEvent({ stage: 'info', message: `Error: ${stringifyLogMessage(message)}` })
-  }
-
-  progress(message: string): void {
-    this.mirrorTo?.progress(message)
-    const match = message.match(/Downloading:\s*(\d+)%\s*\(([^)]+)\)/)
-    if (match && match[1] && match[2]) {
-      this.onEvent({
-        stage: 'download',
-        percentage: parseInt(match[1], 10),
-        message: `Downloading: ${match[1]}% (${match[2]})`,
-      })
-    }
-  }
-}
-
 /**
  * A logger that keeps stdout untouched: info and progress lines go to stderr
  * alongside warnings and errors. Commands that emit structured data on stdout

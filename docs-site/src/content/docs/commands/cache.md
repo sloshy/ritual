@@ -81,7 +81,10 @@ CLI autocomplete and printing pickers, the admin editor, and the hosted public
 site's card search. An older cache built before this filtering existed still
 holds them; re-run `preload-all` to clear them out.
 
-A failed preload exits `1`.
+A failed preload exits `1`. The same refresh over HTTP
+([`POST /api/cache/refresh`](/commands/admin/#post-apicacherefresh), and the MCP
+`refresh_cache` tool that reuses it) likewise **reports the failure** rather than
+answering success unconditionally.
 
 ### refresh-tags
 

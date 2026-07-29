@@ -48,7 +48,7 @@ function lastBlockLines(content: string): string[] {
 export async function appendChangelog(
   filePath: string,
   entityName: string,
-  changes: ChangeEvent[],
+  changes: readonly ChangeEvent[],
   options: AppendChangelogOptions = {},
 ): Promise<string> {
   const changelogPath = filePath.replace(/\.md$/, '.changes.md')

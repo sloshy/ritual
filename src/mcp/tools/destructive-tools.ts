@@ -11,6 +11,7 @@ import type { DeckSyncRunResponse } from '../../admin/api/deck-sync'
 import type { HistorySaveResponse } from '../../admin/api/history'
 import type { ListDeleteResponse, ListRenameResponse } from '../../admin/api/list-lifecycle'
 import { callApi, callApiData } from '../dispatch'
+import { createToolProgressSink } from '../progress'
 import type { ListChangeNotifier } from '../notify'
 import { runTool } from '../result'
 import {
@@ -213,14 +214,21 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
     'build_site',
     {
       title: 'Build site',
-      description: 'Rebuild the public static site from the current lists.',
+      description:
+        'Rebuild the public static site from the current lists. Runs asynchronously in a child ' +
+        'process and publishes atomically, so an interrupted build never leaves a broken site. ' +
+        'Emits progress notifications when the call supplies a progressToken, and honours ' +
+        'cancellation.',
       inputSchema: z.object({}),
       outputSchema: fromJsonSchema<BuildSiteResult>(BUILD_SITE_OUTPUT),
       annotations: { destructiveHint: true },
     },
-    async () =>
+    async (_args, ctx) =>
       runTool(async (): Promise<BuildSiteResult> => {
-        const data = await callApiData<BuildSiteResponse>('POST', '/api/build-site')
+        const data = await callApiData<BuildSiteResponse>('POST', '/api/build-site', undefined, {
+          onProgress: createToolProgressSink(ctx),
+          signal: ctx.mcpReq.signal,
+        })
         return data
       }),
   )
@@ -233,7 +241,8 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         'Sync Archidekt-linked decks: "pull" applies remote changes to the local deck files ' +
         '(recording them in each changelog), "push" sends local changes to decks you own on ' +
         'Archidekt. Omit decks to sync every linked deck. Returns a per-deck report; ' +
-        'a run with failures still reports success — check report.failedCount.',
+        'a run with failures still reports success — check report.failedCount. ' +
+        'Emits one progress notification per deck when the call supplies a progressToken.',
       inputSchema: z.object({
         direction: z.enum(SYNC_DIRECTIONS).describe(SYNC_DIRECTION_DESCRIPTION),
         decks: z
@@ -250,12 +259,13 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
       outputSchema: fromJsonSchema<DeckSyncResult>(SYNC_DECKS_OUTPUT),
       annotations: { destructiveHint: true, openWorldHint: true },
     },
-    async ({ direction, decks, dryRun, ignoreUnreadableLines, only }) =>
+    async ({ direction, decks, dryRun, ignoreUnreadableLines, only }, ctx) =>
       runTool(async (): Promise<DeckSyncResult> => {
         const data = await callApiData<SyncRunSuccess<DeckSyncRunResponse>>(
           'POST',
           '/api/deck-sync',
           { direction, decks, dryRun, ignoreUnreadableLines, only },
+          { onProgress: createToolProgressSink(ctx) },
         )
         return data
       }),
@@ -278,7 +288,8 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         `resolved one. A push adding more than ${CSV_UPLOAD_THRESHOLD} new printings likewise ` +
         'fails without pushing anything unless csv: true lets it upload them as one CSV import ' +
         '(report.csv then says what that import did). Returns a per-list report; a run with ' +
-        'failures still reports success — check report.failedCount.',
+        'failures still reports success — check report.failedCount. Emits one progress ' +
+        'notification per list when the call supplies a progressToken.',
       inputSchema: z.object({
         direction: z.enum(SYNC_DIRECTIONS).describe(SYNC_DIRECTION_DESCRIPTION),
         lists: z
@@ -341,16 +352,10 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
       outputSchema: fromJsonSchema<CollectionSyncResult>(SYNC_COLLECTION_OUTPUT),
       annotations: { destructiveHint: true, openWorldHint: true },
     },
-    async ({
-      direction,
-      lists,
-      dryRun,
-      ignoreUnreadableLines,
-      only,
-      into,
-      removalPriority,
-      csv,
-    }) => {
+    async (
+      { direction, lists, dryRun, ignoreUnreadableLines, only, into, removalPriority, csv },
+      ctx,
+    ) => {
       // Typed against the endpoint's own contract, so a field renamed on either
       // side is a compile error here rather than an option silently dropped on the
       // way to the handler (which ignores keys it does not know).
@@ -369,6 +374,7 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
           'POST',
           '/api/collection-sync',
           body,
+          { onProgress: createToolProgressSink(ctx) },
         )
         return data
       })
@@ -380,14 +386,22 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
     {
       title: 'Refresh card cache',
       description:
-        'Refresh the local Scryfall card cache (downloads bulk card data and oracle/art tags; may take a while).',
+        'Refresh the local Scryfall card cache (downloads bulk card data and oracle/art tags; ' +
+        'may take a while). Fails with an error when the download or ingest fails — it no longer ' +
+        'reports success unconditionally. Emits progress notifications when the call supplies a ' +
+        'progressToken.',
       inputSchema: z.object({}),
       outputSchema: fromJsonSchema<CacheRefreshResult>(REFRESH_CACHE_OUTPUT),
       annotations: { destructiveHint: true, openWorldHint: true },
     },
-    async () =>
+    async (_args, ctx) =>
       runTool(async (): Promise<CacheRefreshResult> => {
-        const data = await callApiData<CacheRefreshResponse>('POST', '/api/cache/refresh')
+        const data = await callApiData<CacheRefreshResponse>(
+          'POST',
+          '/api/cache/refresh',
+          undefined,
+          { onProgress: createToolProgressSink(ctx) },
+        )
         return data
       }),
   )

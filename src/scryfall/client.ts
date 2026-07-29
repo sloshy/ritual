@@ -35,6 +35,7 @@ import {
 } from './tags'
 import { type GzipJsonLinesProgress, readGzipJsonLines } from './jsonl'
 import { fetchScryfallBulkManifest, type ScryfallBulkManifestEntry } from './bulk-manifest'
+import type { CacheRefreshProgressHandler, PreloadCacheOptions } from './progress'
 import { withCacheLock } from '../cache/lock'
 import { writeFileAtomic } from '../cache/atomic-write'
 
@@ -323,7 +324,13 @@ export class ScryfallClient implements PricingBackend {
       })
 
       if (response.value) {
-        await this.preloadCache()
+        // `preloadCache` propagates now; this prompt is an optional speed-up, so a
+        // cold network must not abort whatever command triggered it.
+        try {
+          await this.preloadCache()
+        } catch (e) {
+          getLogger().error('\nFailed to preload all cards:', e)
+        }
       }
     }
   }
@@ -991,14 +998,17 @@ export class ScryfallClient implements PricingBackend {
     })
   }
 
-  async preloadCache(): Promise<void> {
-    try {
-      await withCacheLock(this.fileSystem, 'bulk card cache download', () =>
-        this.downloadBulkCards(),
-      )
-    } catch (e) {
-      getLogger().error('\nFailed to preload all cards:', e)
-    }
+  /**
+   * Rebuild the card cache from Scryfall's `default_cards` bulk file.
+   *
+   * Failures **propagate**: a caller that wants a best-effort warm catches them
+   * itself, and one that reports the outcome (the admin route and the MCP
+   * `refresh_cache` tool) can only do so because they arrive here.
+   */
+  async preloadCache(options?: PreloadCacheOptions): Promise<void> {
+    await withCacheLock(this.fileSystem, 'bulk card cache download', () =>
+      this.downloadBulkCards(options),
+    )
   }
 
   /**
@@ -1006,8 +1016,11 @@ export class ScryfallClient implements PricingBackend {
    * each line through filter → map → tag attachment without ever holding the
    * whole file in memory. The caller must hold the cache-write lock.
    */
-  private async downloadBulkCards(): Promise<void> {
+  private async downloadBulkCards(options?: PreloadCacheOptions): Promise<void> {
+    const onProgress: CacheRefreshProgressHandler = options?.onProgress ?? ((): void => {})
+
     getLogger().info('Fetching bulk data metadata from Scryfall...')
+    onProgress({ stage: 'metadata', message: 'Fetching bulk data metadata from Scryfall…' })
     const metadata = await this.fetchBulkMetadata()
     const defaultData = metadata.find((d) => d.type === 'default_cards')
 
@@ -1016,6 +1029,7 @@ export class ScryfallClient implements PricingBackend {
     }
 
     // Download tags up front so they can be baked onto each card as it streams in.
+    onProgress({ stage: 'tags', message: 'Downloading oracle/art tags…' })
     const tagIndex = await this.downloadTagIndex()
 
     const bulkUrl = defaultData.jsonl_download_uri
@@ -1031,11 +1045,16 @@ export class ScryfallClient implements PricingBackend {
     const totalMiB = (totalBytes / 1024 / 1024).toFixed(2)
     if (totalBytes > 0) {
       getLogger().info(`Download size: ${totalMiB} MiB (compressed)`)
+      onProgress({
+        stage: 'download',
+        message: `Download size: ${totalMiB} MiB (compressed)`,
+      })
     }
 
-    await this.ingestCardStream(response.body, tagIndex, totalBytes)
+    await this.ingestCardStream(response.body, tagIndex, totalBytes, options)
 
     getLogger().info('Done! Card cache populated.')
+    onProgress({ stage: 'done', message: 'Done! Card cache populated.' })
   }
 
   /**
@@ -1047,7 +1066,9 @@ export class ScryfallClient implements PricingBackend {
     body: ReadableStream<Uint8Array>,
     tagIndex: TagIndex | null,
     totalBytes: number,
+    options?: PreloadCacheOptions,
   ): Promise<void> {
+    const report: CacheRefreshProgressHandler = options?.onProgress ?? ((): void => {})
     const totalMiB = (totalBytes / 1024 / 1024).toFixed(2)
     // Progress update max every 100ms to avoid spamming stdout
     let lastUpdate = 0
@@ -1059,8 +1080,14 @@ export class ScryfallClient implements PricingBackend {
       if (totalBytes > 0) {
         const percentage = Math.round((compressedBytes / totalBytes) * 100)
         getLogger().progress(`\rProcessing: ${percentage}% (${receivedMiB}/${totalMiB} MiB)`)
+        report({
+          stage: 'download',
+          percentage,
+          message: `Processing: ${percentage}% (${receivedMiB}/${totalMiB} MiB)`,
+        })
       } else {
         getLogger().progress(`\rProcessing: ${receivedMiB} MiB`)
+        report({ stage: 'download', message: `Processing: ${receivedMiB} MiB` })
       }
     }
 
@@ -1104,6 +1131,7 @@ export class ScryfallClient implements PricingBackend {
     getLogger().info(`Processed ${cardCount} cards.`)
 
     getLogger().info('Saving to cache...')
+    report({ stage: 'save', message: 'Saving to cache…' })
     await this.flushCardEntries(entries)
   }
 

@@ -18,7 +18,7 @@ import {
 import type {
   FlatCardsLoadResult,
   FlatFullLoadResult,
-  ListLoadBase,
+  ListLoadStamp,
   ListSummaryLoadResult,
 } from './load-results'
 import { apiError } from './save-helpers'
@@ -29,8 +29,8 @@ import { parseSlugFromUrl } from './target'
  *
  * All three routes open the same way — parse the slug, resolve the file, parse
  * the view/filter query — and all three stamp the same mutually exclusive
- * `partial` / `contentHash` pair onto their body. That prologue and that
- * stamping live here. Collections and wanted lists differ only in the directory,
+ * `partial` / `contentHash` pair onto every body they return, summaries
+ * included. That prologue and that stamping live here. Collections and wanted lists differ only in the directory,
  * the parser, and the wording of a refusal, so they share a whole handler
  * ({@link handleFlatListLoad}); decks keep their own body because front matter,
  * `filterDeck`, and the deck card-data load differ in ways a config could only
@@ -79,9 +79,11 @@ export async function readListLoadRequest(
  *
  * A narrowed body describes a slice, so it deliberately carries no hash: the
  * save routes require one, which is what makes saving a slice back impossible
- * rather than merely ill-advised.
+ * rather than merely ill-advised. Every view goes through here, summaries
+ * included — a filtered summary's counts are no more the whole file than a
+ * filtered page of cards is.
  */
-export function stampLoadBody<T extends ListLoadBase>(
+export function stampLoadBody<T extends ListLoadStamp>(
   body: T,
   partial: boolean,
   contentHash: string,
@@ -91,18 +93,15 @@ export function stampLoadBody<T extends ListLoadBase>(
   return body
 }
 
-/**
- * A flat-list parser's output, as {@link handleFlatListLoad} consumes it.
- *
- * The parsers also report `warnings` — lines they could not read — and this
- * deliberately does not carry them yet, so a list holding an unreadable line
- * currently loads as merely shorter. Surfacing them means widening the load
- * bodies, `get_list`'s output schema, and the MCP projection together, which is
- * its own change rather than a field added here (Phase 4 carry #2).
- */
+/** A flat-list parser's output, as {@link handleFlatListLoad} consumes it. */
 export interface FlatListParseResult<T> {
   entries: T[]
   sectionOrder: string[]
+  /**
+   * Lines the parser could not read. Carried through to every load body, so a
+   * list holding an unreadable line no longer loads as merely shorter.
+   */
+  warnings: string[]
 }
 
 /**
@@ -142,7 +141,7 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
     const { slug, filePath, params } = prologue.value
 
     const content = await Bun.file(filePath).text()
-    const { entries: allEntries, sectionOrder } = cfg.parse(content)
+    const { entries: allEntries, sectionOrder, warnings } = cfg.parse(content)
     const contentHash = await getContentHash(filePath, content)
 
     if (params.view === 'summary') {
@@ -158,9 +157,9 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
         slug,
         view: 'summary',
         counts: countEntries(counted, sectionOf),
-        contentHash,
+        warnings,
       }
-      return Response.json(summary)
+      return Response.json(stampLoadBody(summary, isNarrowedLoad(params), contentHash))
     }
 
     const { entries, totalCount } = filterEntries(allEntries, params, nameOf, sectionOf)
@@ -174,6 +173,7 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
         entries,
         sectionOrder,
         totalCount,
+        warnings,
       }
       return Response.json(stampLoadBody(body, partial, contentHash))
     }
@@ -196,6 +196,7 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
       printings,
       symbolMap,
       slug,
+      warnings,
     }
     return Response.json(stampLoadBody(body, partial, contentHash))
   })

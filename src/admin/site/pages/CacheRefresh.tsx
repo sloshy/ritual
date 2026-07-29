@@ -1,6 +1,7 @@
 import { type JSX, createSignal, createMemo, onCleanup, Show, For } from 'solid-js'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { PageHeading } from '../components/PageHeading'
+import type { CacheRefreshEvent } from '../../../scryfall/progress'
 
 type Stage = 'idle' | 'connecting' | 'download' | 'save' | 'done' | 'error'
 
@@ -11,9 +12,24 @@ interface StageInfo {
 }
 
 type CacheActionResponse = { success: boolean; message: string }
-type CacheProgressEventData = { stage: string; percentage?: number; message: string }
 type CacheDoneEventData = { message: string }
 type CacheErrorEventData = { message: string }
+
+/**
+ * The refresh stages this page renders as a step of its own. The engine reports
+ * more (`metadata`, `tags`, `info`, `done`); those drive the message line only.
+ */
+const RENDERED_STAGES = [
+  'download',
+  'save',
+] as const satisfies readonly CacheRefreshEvent['stage'][]
+
+/** A stage that is also one of this page's {@link Stage} values. */
+type RenderedStage = (typeof RENDERED_STAGES)[number]
+
+function isRenderedStage(stage: CacheRefreshEvent['stage']): stage is RenderedStage {
+  return RENDERED_STAGES.includes(stage as RenderedStage)
+}
 
 // The bulk download streams: cards are parsed and processed as bytes arrive,
 // so downloading and processing are a single stage.
@@ -83,10 +99,9 @@ export function CacheRefresh(): JSX.Element {
 
       es.addEventListener('progress', (e: MessageEvent) => {
         try {
-          const data = JSON.parse(e.data as string) as CacheProgressEventData
-          const s = data.stage as Stage
-          if (s === 'download' || s === 'save') {
-            setStage(s)
+          const data = JSON.parse(e.data as string) as CacheRefreshEvent
+          if (isRenderedStage(data.stage)) {
+            setStage(data.stage)
           }
           if (data.percentage !== undefined) {
             setPercentage(data.percentage)

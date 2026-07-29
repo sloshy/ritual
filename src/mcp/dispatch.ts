@@ -3,6 +3,7 @@ import type { HttpMethod } from '../routing'
 import { buildSyntheticRequest } from '../synthetic-request'
 import { apiErrorToMcp, type ApiErrorBody } from './errors'
 import type { OmitSuccess } from './types'
+import type { RouteProgressSink } from '../progress'
 
 /**
  * Synthetic request context for in-process calls. The MCP server is a local,
@@ -36,10 +37,15 @@ function errorBody(data: unknown, status: number): ApiErrorBody {
  * {@link import('@modelcontextprotocol/server').ProtocolError} so the calling
  * tool surfaces it as an `isError` result rather than a silent failure.
  */
-export async function callApi(method: HttpMethod, path: string, body?: unknown): Promise<unknown> {
+export async function callApi(
+  method: HttpMethod,
+  path: string,
+  body?: unknown,
+  options?: CallApiOptions,
+): Promise<unknown> {
   const req = buildSyntheticRequest(SYNTHETIC_ORIGIN, method, path, body)
 
-  const dispatched = await dispatchRoute(req, MCP_CONTEXT)
+  const dispatched = await dispatchRoute(req, callContext(options))
   if (!dispatched.matched) {
     throw apiErrorToMcp(404, { message: `No admin route for ${method} ${path}` })
   }
@@ -70,6 +76,30 @@ export async function callApi(method: HttpMethod, path: string, body?: unknown):
   return data
 }
 
+/** Per-call extras the in-process dispatcher forwards to the route handler. */
+export interface CallApiOptions {
+  /** Where the handler reports progress; omit when the caller wants none. */
+  onProgress?: RouteProgressSink
+  /** Cancels the call when the client cancelled the tool request. */
+  signal?: AbortSignal
+}
+
+/**
+ * The context for one in-process call: the shared constant when the caller wants
+ * nothing extra (the overwhelmingly common case), a fresh object otherwise.
+ *
+ * The two extras are copied by name rather than spread. `CallApiOptions` and
+ * `RequestContext` are separate types that happen to overlap here, and a spread
+ * would silently forward any future `CallApiOptions` field into the request
+ * context — including one that shadows `clientIp` or `sessionToken`.
+ */
+function callContext(options?: CallApiOptions): RequestContext {
+  if (!options) return MCP_CONTEXT
+  const { onProgress, signal } = options
+  if (onProgress === undefined && signal === undefined) return MCP_CONTEXT
+  return { ...MCP_CONTEXT, onProgress, signal }
+}
+
 /** The envelope key every admin body carries, and the only one a tool strips. */
 type SuccessEnvelope = { success?: unknown }
 
@@ -88,8 +118,9 @@ export async function callApiData<T extends object>(
   method: HttpMethod,
   path: string,
   body?: unknown,
+  options?: CallApiOptions,
 ): Promise<OmitSuccess<T>> {
-  const data = (await callApi(method, path, body)) as T & SuccessEnvelope
+  const data = (await callApi(method, path, body, options)) as T & SuccessEnvelope
   const { success: _success, ...rest } = data
   return rest as OmitSuccess<T>
 }

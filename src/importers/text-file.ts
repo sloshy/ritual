@@ -87,7 +87,14 @@ export function parseDeckText(
   const format = parseDeckFormat(parsed.data.format) ?? undefined
 
   const sections: DeckSection[] = []
-  let currentSection: DeckSection = { name: 'Main', cards: [] }
+  // The bucket body lines land in before any header is seen. It may legitimately
+  // end up empty — every canonically-written Ritual deck opens with a header —
+  // so it is exempt from the dropped-section warning below, as is the `# Title`
+  // H1 that adopts it (a document title is not a section anybody lost).
+  const syntheticMain: DeckSection = { name: 'Main', cards: [] }
+  /** Heading level that adopted the synthetic bucket; `null` while unadopted. */
+  let syntheticMainLevel: number | null = null
+  let currentSection: DeckSection = syntheticMain
   sections.push(currentSection)
 
   const lines = parsed.content.split(/\r?\n/)
@@ -97,11 +104,12 @@ export function parseDeckText(
     const trimmed = line.trim()
     if (!trimmed) continue
 
-    const headerMatch = trimmed.match(/^#{1,6}\s+(.+)$/)
-    if (headerMatch?.[1]) {
-      const sectionName = headerMatch[1].trim()
+    const headerMatch = trimmed.match(/^(#{1,6})\s+(.+)$/)
+    if (headerMatch?.[2]) {
+      const sectionName = headerMatch[2].trim()
 
       if (currentSection.cards.length === 0 && currentSection.name === 'Main') {
+        if (currentSection === syntheticMain) syntheticMainLevel = headerMatch[1]!.length
         currentSection.name = sectionName
       } else {
         currentSection = { name: sectionName, cards: [] }
@@ -128,7 +136,31 @@ export function parseDeckText(
     warnings.push(`Skipped malformed line: ${trimmed}`)
   }
 
+  // A section header with no card lines under it is dropped, and re-serializing
+  // the deck would therefore delete it. That is a silent edit unless it is
+  // reported, so it joins the malformed-line warnings — the save routes refuse a
+  // baseline that carries any.
+  //
+  // Two shapes are emptiness rather than loss, and neither warns:
+  //
+  // - **The leading bucket**, when nothing adopted it (every canonically-written
+  //   Ritual deck opens with a header) or when an `#` H1 adopted it — `# My Deck`
+  //   above the sections is a document title, which is how imported and
+  //   hand-written decks name themselves. An `##`-or-deeper first heading with no
+  //   cards under it is a genuine empty section and does warn.
+  // - **A deck with no cards at all**, which is exactly what `ritual` writes for a
+  //   freshly created list (`## Main` and nothing else). There is no content to
+  //   lose, and warning would refuse the very first save into a new deck.
   const validSections = sections.filter((s) => s.cards.length > 0)
+  if (validSections.length > 0) {
+    for (const section of sections) {
+      if (section.cards.length > 0) continue
+      if (section === syntheticMain && (syntheticMainLevel === null || syntheticMainLevel === 1)) {
+        continue
+      }
+      warnings.push(`Skipped empty section: ${section.name}`)
+    }
+  }
 
   const deck: DeckData = {
     name,
@@ -143,12 +175,14 @@ export function parseDeckText(
 }
 
 /**
- * Read a deck file (and its primer sidecar) into {@link DeckData}. Skipped-line
- * warnings are dropped here — callers that re-serialize the file and therefore
- * must not lose skipped lines (e.g. `cleanup`) go through {@link parseDeckText}
- * directly.
+ * Read a deck file (plus its `.primer.md` sidecar) and return the parse result
+ * INCLUDING `warnings` — the lines the parser could not read.
+ *
+ * {@link importFromTextFile} is this minus the warnings, for the many callers
+ * that only want the deck; anything that re-serializes the file, or reports what
+ * a load actually saw, must go through this one.
  */
-export async function importFromTextFile(filePath: string): Promise<DeckData> {
+export async function loadDeckFile(filePath: string): Promise<DeckParseResult> {
   const file = Bun.file(filePath)
   if (!(await file.exists())) {
     throw new Error(`File not found: ${filePath}`)
@@ -162,5 +196,14 @@ export async function importFromTextFile(filePath: string): Promise<DeckData> {
     ? (await primerFile.text()).trim() || undefined
     : undefined
 
-  return parseDeckText(rawText, path.basename(filePath, path.extname(filePath)), primer).deck
+  return parseDeckText(rawText, path.basename(filePath, path.extname(filePath)), primer)
+}
+
+/**
+ * Read a deck file (and its primer sidecar) into {@link DeckData}. Skipped-line
+ * warnings are dropped here — callers that re-serialize the file, or surface
+ * what the load saw, use {@link loadDeckFile} instead.
+ */
+export async function importFromTextFile(filePath: string): Promise<DeckData> {
+  return (await loadDeckFile(filePath)).deck
 }

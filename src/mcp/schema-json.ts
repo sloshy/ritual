@@ -561,8 +561,14 @@ export const GET_SYNC_STATUS_OUTPUT: JsonSchemaType = withDefs(
 )
 
 /** What every `get_list` arm carries besides its two discriminants. */
-const GET_LIST_COMMON_PROPS = { slug: str() } as const satisfies Properties
-const GET_LIST_COMMON_REQUIRED = ['view', 'listType', 'slug'] as const
+const GET_LIST_COMMON_PROPS = {
+  slug: str(),
+  warnings: arr(
+    str(),
+    'Lines the parser could not read; always present, empty when the file is clean.',
+  ),
+} as const satisfies Properties
+const GET_LIST_COMMON_REQUIRED = ['view', 'listType', 'slug', 'warnings'] as const
 
 /** What the two `cards` arms carry beyond that; the summary arm reports counts instead. */
 const GET_LIST_CARDS_PROPS = {
@@ -839,10 +845,13 @@ export const IMPORT_CSV_OUTPUT: JsonSchemaType = withDefs(
   obj(
     {
       message: str(),
-      cardCount: int('Rows imported.'),
+      cardCount: int(
+        'Copies imported (sum of row quantities); 0 when every row failed validation.',
+      ),
       failures: arr(ref('CsvRowFailure'), 'Rows that failed validation; the rest still imported.'),
+      failedCount: int('failures.length, so a client can branch without walking the array.'),
     },
-    ['message'],
+    ['message', 'cardCount', 'failures', 'failedCount'],
   ),
   'CsvRowFailure',
 )
@@ -934,11 +943,12 @@ export const RENAME_LIST_OUTPUT: JsonSchemaType = obj(
 )
 
 /**
- * Three tools currently answer with a bare `{ message }`, and they keep three
+ * Two tools now answer with a bare `{ message }`, and they keep separate
  * declarations rather than sharing one. They are unrelated operations whose
- * responses are free to grow independently (a `path` on a build, a card count on
- * a refresh); a shared const would make the first such addition a change to all
- * three, which is precisely the coupling `$defs` reuse should never introduce.
+ * responses are free to grow independently — which is not a hypothetical:
+ * `build_site` was the third member of this group until it grew `outDir` and
+ * `durationMs` below, and a shared const would have made that a change to all
+ * three. Exactly the coupling `$defs` reuse should never introduce.
  */
 export const DELETE_LIST_OUTPUT: JsonSchemaType = obj({ message: str() }, ['message'])
 
@@ -947,7 +957,14 @@ export const REWRITE_HISTORY_OUTPUT: JsonSchemaType = obj(
   ['message', 'setCount'],
 )
 
-export const BUILD_SITE_OUTPUT: JsonSchemaType = obj({ message: str() }, ['message'])
+export const BUILD_SITE_OUTPUT: JsonSchemaType = obj(
+  {
+    message: str(),
+    outDir: str('Directory the built site was published to.'),
+    durationMs: int('Wall-clock build time, in milliseconds.'),
+  },
+  ['message', 'outDir', 'durationMs'],
+)
 
 export const REFRESH_CACHE_OUTPUT: JsonSchemaType = obj({ message: str() }, ['message'])
 

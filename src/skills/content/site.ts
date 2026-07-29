@@ -89,6 +89,7 @@ ritual build-site --theme izzet                    # initial theme baked into th
 ritual build-site --theme-file my-theme.json       # load custom theme JSON files (their names become selectable)
 ritual build-site --refresh never                  # build from cached data as-is
 ritual build-site --refresh auto                   # refresh stale cache (bulk download allowed)
+ritual build-site --out-dir ./preview               # build into another directory instead of dist/ (cleared first)
 \`\`\`
 
 \`--cache-images\` downloads card images locally instead of hot-linking Scryfall;
@@ -124,7 +125,12 @@ ritual serve -p 8000
 ritual serve --build               # build, then serve
 ritual serve --build -p 8000 --host 127.0.0.1
 ritual serve --build --api         # host the site with a live read-only backend
+ritual serve --build --out-dir ./preview  # build into ./preview and serve THAT directory
 \`\`\`
+
+\`--out-dir\` is honoured by the server too: \`serve --build --out-dir X\` builds
+into X and serves X. The directory is cleared before the build, so the Ritual
+directory itself (or any ancestor of it, like \`.\`) is refused.
 
 Build flags (\`--theme\`, \`--currencies\`, ...) only apply together with \`--build\`;
 passing one without it is a usage error. \`--refresh\` is the exception: with

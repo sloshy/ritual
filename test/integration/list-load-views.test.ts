@@ -212,6 +212,18 @@ describe('a narrowed load is not a save payload', () => {
     expect(Object.keys(body)).not.toContain('contentHash')
   })
 
+  test('a narrowed summary withholds the hash too', async () => {
+    // A summary is not exempt: its counts describe the filtered slice, and the
+    // hash is the token a save reads as "this is the whole file".
+    const { body } = await callJson<ListSummaryLoadResult>(
+      handleDeckLoad,
+      'GET',
+      '/api/deck/burn?view=summary&section=Main',
+    )
+    expect(body.partial).toBeTrue()
+    expect(Object.keys(body)).not.toContain('contentHash')
+  })
+
   test('the save route refuses a body with no content hash, and says why', async () => {
     const { body: loaded } = await callJson<DeckLoadResult & { success: true }>(
       handleDeckLoad,
@@ -323,5 +335,61 @@ describe('refusals', () => {
     )
     expect(status).toBe(404)
     expect(body.message).toContain('/api/lists')
+  })
+})
+
+describe('warnings reach every view', () => {
+  let stubbed: StubbedFetch
+
+  beforeEach(async () => {
+    // A line no parser can read, appended to the deck the fixture already wrote.
+    // Every view has to report it: a list that loaded merely *shorter* than it is
+    // is exactly what an unreported warning looks like from the client's side.
+    const deckPath = path.join(ws.dir, 'decks', 'burn.md')
+    await Bun.write(deckPath, (await Bun.file(deckPath).text()) + '\nthis is not a card line\n')
+    await seedCardNames('Lightning Bolt', 'Lava Spike', 'Smash to Smithereens')
+    stubbed = stubFetch({ 'https://api.scryfall.com': () => Response.json({ data: [] }) })
+  })
+
+  afterEach(() => {
+    stubbed.restore()
+  })
+
+  test.each([
+    ['summary', '/api/deck/burn?view=summary'],
+    ['cards', '/api/deck/burn?view=cards'],
+    ['full', '/api/deck/burn?view=full'],
+  ])('view=%s carries the parser warning', async (_view, url) => {
+    const { status, body } = await callJson<{ warnings: string[] }>(handleDeckLoad, 'GET', url)
+    expect(status).toBe(200)
+    expect(body.warnings).toEqual(['Skipped malformed line: this is not a card line'])
+  })
+
+  test('the save route refuses a list whose file holds an unreadable line', async () => {
+    // The other half of the same guarantee: reporting the line on load is no use
+    // if the next save deletes it (and recycles its &N).
+    const { body: loaded } = await callJson<DeckLoadResult & { success: true }>(
+      handleDeckLoad,
+      'GET',
+      '/api/deck/burn?view=cards',
+    )
+    const { status, body } = await callJson<{ message: string }>(
+      handleDeckSave,
+      'POST',
+      '/api/deck/burn/save',
+      {
+        changes: [],
+        deck: loaded.deck,
+        frontMatter: loaded.frontMatter,
+        contentHash: loaded.contentHash,
+      },
+    )
+    expect(status).toBe(400)
+    expect(body.message).toContain('1 line(s) the parser cannot read')
+    expect(body.message).toContain('this is not a card line')
+    // The file is exactly as it was.
+    expect(await Bun.file(path.join(ws.dir, 'decks', 'burn.md')).text()).toContain(
+      'this is not a card line',
+    )
   })
 })

@@ -5,7 +5,7 @@ import { convertCsvRows, parseColumnsSpec, parseCsv, type CsvRowFailure } from '
 import { applyCsvImport, type CsvImportMode } from '../../importers/csv-apply'
 import { dirForType } from '../../resolve-list'
 import { apiHandler } from '../utils'
-import { autoCommitAndPush, readJsonObjectBody } from './save-helpers'
+import { autoCommitAndPush, badRequest, readJsonObjectBody } from './save-helpers'
 
 /**
  * CSV import request from the admin site (and, through the in-process dispatch,
@@ -28,33 +28,60 @@ export interface ImportCsvRequest {
   hasHeader?: boolean
 }
 
+/**
+ * `POST /api/import-csv` — what the import did.
+ *
+ * `success` is a pure envelope flag. A partially-failed import is still a
+ * processed request whose per-row report is the whole point, and folding that
+ * into the envelope is what made every client treating `success: false` as
+ * "throw" discard the report exactly when it mattered (the same reasoning
+ * `import-changes.ts` records for the bundle import). A 400 here means the
+ * *request* was malformed, never that some rows were.
+ */
 export interface ImportCsvResponse {
-  success: boolean
+  success: true
   message: string
-  cardCount?: number
-  /** Rows that failed validation (the rest were still imported). */
-  failures?: CsvRowFailure[]
+  /**
+   * **Copies** imported — the sum of the accepted rows' quantities, not the row
+   * count. Always present; `0` when every row failed validation.
+   */
+  cardCount: number
+  /** Rows that failed validation; the rest were still imported. Always present. */
+  failures: CsvRowFailure[]
+  /**
+   * `failures.length` — a **row** count, unlike `cardCount`'s copies. Named so a
+   * client can branch on it without walking the array.
+   */
+  failedCount: number
 }
 
 const MODES: readonly CsvImportMode[] = ['create', 'overwrite', 'append']
 
+function isCsvImportMode(value: unknown): value is CsvImportMode {
+  return typeof value === 'string' && MODES.includes(value as CsvImportMode)
+}
+
+/**
+ * Whether a parsed body is an {@link ImportCsvRequest}.
+ *
+ * The two closed vocabularies are proved rather than assumed: the guard used to
+ * claim `listType: ListType` off a bare `typeof === 'string'` and `mode:
+ * CsvImportMode` off a cast, which is a predicate that lies — the handler then
+ * had to re-check `listType` anyway to get a message worth reading.
+ */
 function isImportCsvRequest(value: unknown): value is ImportCsvRequest {
   if (typeof value !== 'object' || value === null) return false
   const record = value as Record<string, unknown>
   return (
     typeof record.listType === 'string' &&
+    isListType(record.listType) &&
     typeof record.name === 'string' &&
     typeof record.content === 'string' &&
     typeof record.columns === 'string' &&
-    (record.mode === undefined || MODES.includes(record.mode as CsvImportMode)) &&
+    (record.mode === undefined || isCsvImportMode(record.mode)) &&
     (record.format === undefined || typeof record.format === 'string') &&
     (record.hasHeader === undefined || typeof record.hasHeader === 'boolean')
   )
-}
-
-function badRequest(message: string, failures?: CsvRowFailure[]): Response {
-  const resp: ImportCsvResponse = { success: false, message, failures }
-  return Response.json(resp, { status: 400 })
 }
 
 export function handleImportCsv(req: Request): Promise<Response> {
@@ -64,12 +91,9 @@ export function handleImportCsv(req: Request): Promise<Response> {
     const body: unknown = parsedBody.body
     if (!isImportCsvRequest(body)) {
       return badRequest(
-        'Invalid request: expected listType, name, content, and columns (with optional mode, format, hasHeader)',
+        `Invalid request: expected listType (${LIST_TYPES.join(', ')}), name, content, and columns ` +
+          `(with optional mode [${MODES.join('|')}], format, hasHeader)`,
       )
-    }
-
-    if (!isListType(body.listType)) {
-      return badRequest(`Invalid listType '${body.listType}'. Use: ${LIST_TYPES.join(', ')}`)
     }
     const listType = body.listType
     const mode = body.mode ?? 'create'
@@ -101,7 +125,16 @@ export function handleImportCsv(req: Request): Promise<Response> {
 
     const { entries, failures } = convertCsvRows(dataRows, mapping, listType)
     if (entries.length === 0) {
-      return badRequest('No rows could be imported', failures)
+      // A well-formed request whose every row failed validation: the per-row
+      // report is the answer, and there is nothing to write.
+      const empty: ImportCsvResponse = {
+        success: true,
+        message: `Imported 0 card(s) into ${listType} '${name}'; ${failures.length} row(s) failed validation`,
+        cardCount: 0,
+        failures,
+        failedCount: failures.length,
+      }
+      return Response.json(empty)
     }
 
     const result = await applyCsvImport({ listType, name, mode, format }, entries)
@@ -117,11 +150,16 @@ export function handleImportCsv(req: Request): Promise<Response> {
 
     const verb = result.mode === 'append' ? 'Appended' : 'Imported'
     const preposition = result.mode === 'append' ? 'to' : 'into'
+    // A partial import says so in the same sentence: `message` is what the admin
+    // UI banners and what an agent reads back, and a count of what worked reads
+    // as "it all worked" unless the rest is named beside it.
+    const shortfall = failures.length > 0 ? `; ${failures.length} row(s) failed validation` : ''
     const resp: ImportCsvResponse = {
       success: true,
-      message: `${verb} ${result.cardCount} card(s) ${preposition} ${listType} '${name}'`,
+      message: `${verb} ${result.cardCount} card(s) ${preposition} ${listType} '${name}'${shortfall}`,
       cardCount: result.cardCount,
-      failures: failures.length > 0 ? failures : undefined,
+      failures,
+      failedCount: failures.length,
     }
     return Response.json(resp)
   })

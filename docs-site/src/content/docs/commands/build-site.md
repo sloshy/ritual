@@ -14,18 +14,19 @@ Generate a website for your decks and collections.
 
 By default, deck card images use Scryfall URLs from card data. This can be overridden with the `--cache-images` option to download and use local images instead.
 
-| Option                          | Description                                                                                                                                                           |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-v, --verbose`                 | Show list of cards being fetched from Scryfall                                                                                                                        |
-| `--cache-images`                | Download and use local deck card images in `dist/images` instead of URLs                                                                                              |
-| `--decks [names...]`            | Deck names or URLs to include in the site (default: the `site.includeDecks` config selection)                                                                         |
-| `--collections [names...]`      | Collection names to include in the site (default: the `site.includeCollections` config selection)                                                                     |
-| `--wanted-lists [names...]`     | Wanted list names to include in the site (default: the `site.includeWantedLists` config selection)                                                                    |
-| `--currencies <list>`           | Comma-separated currencies to include on the site: `usd`, `eur`, `tix` (default: all three)                                                                           |
-| `--refresh <mode>`              | Card cache refresh policy: `ask` (default — prompt; skip when prompts are unavailable), `auto`, `no-bulk`, or `never`. See [Card Cache Refresh](#card-cache-refresh). |
-| `--theme <name>`                | Initial theme served to first-time visitors (built-in name or a custom name from `--theme-file`). Defaults to `default`.                                              |
-| `--theme-file <path...>`        | Load one or more custom theme JSON files; each is added to the runtime theme list under its declared `name`.                                                          |
-| `--moxfield-user-agent <agent>` | Moxfield-approved unique User-Agent string (required for Moxfield deck URLs unless `MOXFIELD_USER_AGENT` is set)                                                      |
+| Option                          | Description                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-v, --verbose`                 | Show list of cards being fetched from Scryfall                                                                                                                                                                                                                                                                                          |
+| `--cache-images`                | Download and use local deck card images in `dist/images` instead of URLs                                                                                                                                                                                                                                                                |
+| `--decks [names...]`            | Deck names or URLs to include in the site (default: the `site.includeDecks` config selection)                                                                                                                                                                                                                                           |
+| `--collections [names...]`      | Collection names to include in the site (default: the `site.includeCollections` config selection)                                                                                                                                                                                                                                       |
+| `--wanted-lists [names...]`     | Wanted list names to include in the site (default: the `site.includeWantedLists` config selection)                                                                                                                                                                                                                                      |
+| `--currencies <list>`           | Comma-separated currencies to include on the site: `usd`, `eur`, `tix` (default: all three)                                                                                                                                                                                                                                             |
+| `--refresh <mode>`              | Card cache refresh policy: `ask` (default — prompt; skip when prompts are unavailable), `auto`, `no-bulk`, or `never`. See [Card Cache Refresh](#card-cache-refresh).                                                                                                                                                                   |
+| `--theme <name>`                | Initial theme served to first-time visitors (built-in name or a custom name from `--theme-file`). Defaults to `default`.                                                                                                                                                                                                                |
+| `--theme-file <path...>`        | Load one or more custom theme JSON files; each is added to the runtime theme list under its declared `name`.                                                                                                                                                                                                                            |
+| `--moxfield-user-agent <agent>` | Moxfield-approved unique User-Agent string (required for Moxfield deck URLs unless `MOXFIELD_USER_AGENT` is set)                                                                                                                                                                                                                        |
+| `--out-dir <path>`              | Build into this directory instead of `dist/`. A relative path resolves against the Ritual directory. **The directory is cleared before the build**, so it is refused when it is the Ritual directory itself or any ancestor of it (`.`, `..`, `/`) — see [Output](#output). Useful for building a preview alongside the published site. |
 
 ## Examples
 
@@ -179,7 +180,7 @@ Theme names must be lowercase letters, digits, and hyphens, and may not collide 
 
 ## Output
 
-Generates a single-page application in the `dist/` directory containing:
+Generates a single-page application in the `dist/` directory (or the `--out-dir` directory) containing:
 
 - `index.html` — SPA shell that loads the application
 - `app.js` — Bundled SPA with client-side routing
@@ -193,6 +194,25 @@ Generates a single-page application in the `dist/` directory containing:
 - Client-side hash routing (`#/` for index, `#/deck/{slug}` for deck pages, `#/collection/{slug}` for collection pages, `#/wanted/{slug}` for wanted list pages)
 - Navigation bar with "Decks", "Collections", and "Wanted" links always visible
 - Page transition animations
+
+### The output directory is cleared first
+
+A build removes its output directory and rebuilds it, so the published site is
+never a mixture of two builds. That makes `--out-dir` a destructive flag: it is
+refused with exit code 2 when the path it resolves to is blank, is the Ritual
+directory itself, or **contains** the Ritual directory — `--out-dir .` would
+otherwise delete your decks, collections, and `.git`.
+
+```
+$ ./ritual build-site --out-dir .
+--out-dir may not be the Ritual directory itself (/home/you/ritual) — the build
+clears its output directory first, which would delete your lists.
+```
+
+The admin site's "Build Site" page and the `build_site` MCP tool avoid the
+in-place clear entirely: they build into a scratch directory and swap it into
+`dist/` only once the build has exited cleanly, so `dist/` holds either the
+previous site or the new one at every instant.
 
 ## View Modes and Card Size
 

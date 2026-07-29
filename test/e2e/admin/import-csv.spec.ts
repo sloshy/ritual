@@ -93,6 +93,29 @@ test.describe('Import CSV Page', () => {
     await expect(main.locator('.alert-success')).toBeVisible()
   })
 
+  test('changing the CSV content clears the previous import outcome', async ({ page }) => {
+    // The banner and the failure list describe the CSV that was submitted, so
+    // loading a different one has to retire them — otherwise the page reports
+    // the previous file's result above the new one.
+    await mockImportCsvApi(page, undefined, [
+      { lineNumber: 3, raw: 'Arcane Signet,,', reason: 'Missing set code' },
+    ])
+    const main = page.locator('main')
+
+    await main.locator('.segmented-option:has-text("Paste Text")').click()
+    await main.locator('textarea.form-textarea').fill(CSV_TEXT)
+    await main.locator('input.form-input').fill('Red Binder')
+    await main.locator('button[type="submit"]').click()
+
+    await expect(main.locator('.alert-success')).toBeVisible({ timeout: 5000 })
+    await expect(main.locator('.csv-failures')).toBeVisible()
+
+    await main.locator('textarea.form-textarea').fill('Name,Set\nSol Ring,C19')
+
+    await expect(main.locator('.alert-success')).toHaveCount(0)
+    await expect(main.locator('.csv-failures')).toHaveCount(0)
+  })
+
   test('a deck import requires picking a format and sends it', async ({ page }) => {
     let captured: ImportCsvPayload | undefined
     await mockImportCsvApi(page, (b) => (captured = b as ImportCsvPayload))

@@ -4,6 +4,7 @@ import {
   Match,
   Show,
   Switch,
+  batch,
   createEffect,
   createMemo,
   createResource,
@@ -29,9 +30,17 @@ import {
   type CsvRowFailure,
 } from '../../../importers/csv'
 import type { ImportCsvResponse } from '../../api/import-csv'
+import type { ApiErrorResponse } from '../../api/save-helpers'
 import { PageHeading } from '../components/PageHeading'
 
 type SourceMethod = 'upload' | 'text'
+
+/**
+ * What `POST /api/import-csv` answers with, either way. The status decides which
+ * arm it is — `success` is a pure envelope flag, so a partially-failed import is
+ * a 2xx {@link ImportCsvResponse} whose `failures` are the point.
+ */
+type ImportCsvResult = ImportCsvResponse | ApiErrorResponse
 
 type MethodOption = { id: SourceMethod; label: string }
 
@@ -139,6 +148,23 @@ export function ImportCsv(): JSX.Element {
     ),
   )
 
+  // The outcome describes the CSV that was submitted, so new content retires it.
+  // Otherwise a green "Imported 40 card(s)" (or a red failure list) stays on
+  // screen above a file the user has just swapped in, describing the previous one.
+  createEffect(
+    on(
+      content,
+      () => {
+        batch(() => {
+          setStatus(null)
+          setError(null)
+          setFailures([])
+        })
+      },
+      { defer: true },
+    ),
+  )
+
   const headerCells = createMemo((): string[] | null =>
     hasHeader() ? (rows()[0]?.cells ?? null) : null,
   )
@@ -231,13 +257,23 @@ export function ImportCsv(): JSX.Element {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      const data = (await resp.json()) as ImportCsvResponse
-      setFailures(data.failures ?? [])
-      if (data.success) {
-        setStatus(data.message ?? 'Import complete')
-      } else {
-        setError(data.message ?? 'Failed to import CSV')
+      // `success` is now a pure envelope flag — a 2xx always carries it — so the
+      // HTTP status is what says whether the request was accepted. The per-row
+      // report is rendered either way; a partially-failed import is a success
+      // whose failures are the point.
+      const data = (await resp.json()) as ImportCsvResult
+      if (!resp.ok) {
+        setFailures([])
+        setError(data.message || 'Failed to import CSV')
+        return
       }
+      const imported = data as ImportCsvResponse
+      setFailures(imported.failures)
+      // An import that wrote nothing is not a success to banner in green, even
+      // though the *request* succeeded: every row failed, and the message says
+      // so. Anything that landed at least one copy reads as a status.
+      if (imported.cardCount === 0 && imported.failedCount > 0) setError(imported.message)
+      else setStatus(imported.message)
     } catch {
       setError('Failed to import CSV')
     } finally {

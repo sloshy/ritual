@@ -68,11 +68,20 @@ export function registerMcpCommand(program: Command): void {
             )
           }
         }
-        await runHttpServer({
+        const server = await runHttpServer({
           port: options.port,
           host: options.host,
           auth: token ? { kind: 'bearer', token } : { kind: 'none' },
         })
+        // The listener holds the process open; without this the HTTP leg had
+        // strictly less teardown wiring than stdio (which installs its own).
+        const shutdown = (): void => {
+          void server
+            .stop(true)
+            .catch((error: unknown) => console.error('MCP HTTP teardown failed:', error))
+        }
+        process.once('SIGINT', shutdown)
+        process.once('SIGTERM', shutdown)
         return
       }
 

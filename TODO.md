@@ -16,6 +16,8 @@
 - Show prices when editing a card to be a different printing or edition
 - Add ability to refresh cache while in edit mode so you don't lose progress
 
+- Finish MCP Task migration (groundwork started, see research docs)
+
 ## Misc
 
 - Multi-language support

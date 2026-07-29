@@ -1,10 +1,16 @@
-import { loadHash, computeHash } from '../../content-hash'
+import { loadHash, computeHash, hashPath, writeFileWithHash } from '../../content-hash'
+import { appendChangelog } from '../../changelog-writer'
 import { isRecord } from '../../json'
+import { listTypeLabel, type ListType } from '../../list-type'
+import { dirForType } from '../../resolve-list'
 import { loadRitualConfig } from '../../ritual-config'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { MAX_BODY_SIZE } from '../validation'
 import { normalizeNote } from '../../note-helpers'
 import type { ChangeEvent } from '../../change-event'
+import type { DroppedNote } from '../../commands/move-io'
+import type { SaveEffect } from '../../editor/save-effects'
+import type { ListSaveResponse } from './move-save'
 
 /**
  * The one error body an admin route returns on a refusal, whatever the status.
@@ -133,6 +139,35 @@ export async function validateContentHash(
 }
 
 /**
+ * Refuse a save whose **baseline** — the file as it stands on disk — holds lines
+ * the parser could not read.
+ *
+ * Every save re-serializes the whole list from parsed entries, so a line the
+ * parse dropped is a line the write deletes, and the `&N` it carried goes back
+ * into the reuse pool to be handed to some other card. Surfacing the warnings on
+ * the load routes only closed half of that: a client is free not to look, and
+ * the file is destroyed either way. Refusing here is the other half — the file is
+ * left exactly as it was, and the message says which lines to fix.
+ *
+ * The refusal is a 400: the request is fine, but this list cannot be saved until
+ * its file is readable. MCP mutations surface it as a tool error unchanged.
+ *
+ * @param filePath The list file, named in the refusal so the fix is obvious.
+ * @param warnings The baseline parse's warnings; empty means the save may proceed.
+ */
+export function refuseUnreadableBaseline(
+  filePath: string,
+  warnings: readonly string[],
+): Response | null {
+  if (warnings.length === 0) return null
+  return apiError(
+    `${filePath} has ${warnings.length} line(s) the parser cannot read, and saving would delete them ` +
+      `(releasing their &N ids). Fix the file first — ${warnings.join('; ')}`,
+    400,
+  )
+}
+
+/**
  * Trim and validate every note found in the request payload (set-note changes
  * and any entry-level `note` fields). Mutates each note in place to the trimmed
  * value. Returns a 400 Response if any note contains control characters.
@@ -156,6 +191,96 @@ export function normalizeRequestNotes(
     entry.note = result.note === '' ? undefined : result.note
   }
   return null
+}
+
+/** Everything the shared save tail needs; see {@link finishListSave}. */
+export interface ListSaveTail {
+  /**
+   * Which list this is. The commit directory, the commit message, and the
+   * response's wording all follow from it — the three routes used to spell each
+   * of those out, which is three chances for them to drift.
+   */
+  listType: ListType
+  /** The list file to write. */
+  filePath: string
+  /** Serialized markdown, ids already assigned. */
+  content: string
+  /**
+   * The subject of this save: a deck's display name, a flat list's slug. Names
+   * the changelog entry, the commit message, and the response message, which are
+   * the same subject said three times.
+   */
+  changelogName: string
+  changes: readonly ChangeEvent[]
+  /** Merge into the session's existing changelog entry instead of a new one. */
+  continueSession?: boolean
+  /**
+   * Files to commit **beyond** the ones this tail already knows about: the list
+   * file, its hash sidecar, and the changelog are seeded here, so a caller passes
+   * only what is genuinely its own — the destination files of its cross-list
+   * moves.
+   */
+  extraFiles?: readonly string[]
+}
+
+/** The list file's new content hash, which the save response returns. */
+export interface ListSaveTailResult {
+  contentHash: string
+}
+
+/** What a save learned that {@link ListSaveTail} does not already say. */
+export interface ListSaveOutcome extends ListSaveTailResult {
+  /** Notes the destination side of a cross-list move could not keep. */
+  droppedNotes: DroppedNote[]
+  /** What the save did to individual entries, with the `&N` ids it allocated. */
+  effects: SaveEffect[]
+}
+
+/**
+ * The shared tail of the three save routes: write the list file, append the
+ * changelog, auto-commit.
+ *
+ * **Ordering is deliberate — file first, changelog second.** Neither order is
+ * atomic. A crash between the two leaves either a phantom history entry
+ * describing an edit the file never received, or a correct file with an
+ * incomplete audit trail. `ritual history`, the change-bundle export, the
+ * editors' undo, and the sync flows all *act on* changelog entries, so a phantom
+ * propagates while a gap does not. The deck route used to write the changelog
+ * first and now matches the other two (as does the deck-sync engine).
+ */
+export async function finishListSave(tail: ListSaveTail): Promise<ListSaveTailResult> {
+  const contentHash = await writeFileWithHash(tail.filePath, tail.content)
+
+  const filesToCommit = [tail.filePath, hashPath(tail.filePath), ...(tail.extraFiles ?? [])]
+  if (tail.changes.length > 0) {
+    const changelogPath = await appendChangelog(tail.filePath, tail.changelogName, tail.changes, {
+      continueSession: tail.continueSession,
+    })
+    filesToCommit.push(changelogPath)
+  }
+
+  await autoCommitAndPush(
+    dirForType(tail.listType),
+    filesToCommit,
+    `Edit ${listTypeLabel(tail.listType)}: ${tail.changelogName} (${tail.changes.length} changes)`,
+  )
+
+  return { contentHash }
+}
+
+/**
+ * The success body all three save routes return, built from the same tail they
+ * were saved with so the message and the subject cannot disagree with the
+ * changelog and the commit.
+ */
+export function listSaveResponse(tail: ListSaveTail, outcome: ListSaveOutcome): ListSaveResponse {
+  return {
+    success: true,
+    message: `Saved ${tail.changes.length} changes to ${tail.changelogName}`,
+    contentHash: outcome.contentHash,
+    droppedNotes: outcome.droppedNotes,
+    effects: outcome.effects,
+  }
 }
 
 /**

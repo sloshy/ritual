@@ -482,8 +482,14 @@ export async function runCacheServer(options: CacheServerCommandOptions): Promis
         return
       }
     }
-    await localScryfallClient.preloadCache()
-    logCacheUpdate(`section=cards action=${action} source=scryfall`)
+    // `preloadCache` propagates now; a failed scheduled refresh must not kill
+    // the server's refresh loop.
+    try {
+      await localScryfallClient.preloadCache()
+      logCacheUpdate(`section=cards action=${action} source=scryfall`)
+    } catch (error) {
+      console.error(`${CACHE_SERVER_LOG_PREFIX} Refreshing cards from Scryfall failed:`, error)
+    }
   }
 
   const cardCacheIsEmpty = await localCardCache.isEmpty()

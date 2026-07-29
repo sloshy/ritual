@@ -1,9 +1,9 @@
 import path from 'node:path'
 import type { Command, Option } from 'commander'
-import { getBaseDir } from '../base-dir'
 import { ensureFreshCardCache } from '../cache/freshness'
 import { getErrorMessage } from '../errors'
 import { startSiteServer } from '../serve/server'
+import { resolveOutDir } from '../site/dist-dir'
 import { applyBuildSiteOptions, runBuildSite, type BuildSiteOptions } from './build-site'
 import { ExitCode, parsePort } from './scripting'
 import { serveStaticSite } from './serve-helpers'
@@ -52,7 +52,20 @@ export function registerServeCommand(program: Command): void {
         process.exitCode = ExitCode.UsageError
         return
       }
-    } else {
+    }
+
+    // Resolved once and shared by the build and the server: `--build --out-dir X`
+    // used to publish into X and then serve a hard-coded `dist/`, i.e. serve the
+    // *previous* build. Same rule as `ritual build-site`, same module.
+    const outDir = resolveOutDir(options.outDir)
+    if (!outDir.ok) {
+      console.error(outDir.error)
+      process.exitCode = ExitCode.UsageError
+      return
+    }
+    const distDir = outDir.dir
+
+    if (options.build === true) {
       console.log('Building site...')
       try {
         // ServeCliOptions extends BuildSiteOptions, so the whole options
@@ -72,7 +85,6 @@ export function registerServeCommand(program: Command): void {
     }
 
     const { port, host } = options
-    const distDir = path.join(getBaseDir(), 'dist')
 
     if (options.api === true) {
       if (!(await Bun.file(path.join(distDir, 'index.html')).exists())) {

@@ -14,6 +14,7 @@ import {
 } from '../../deck-sync/engine'
 import type { SyncDirection } from '../../sync-common'
 import { sseResponse } from '../../sse'
+import { itemStartProgress, itemsDoneProgress, type RouteProgressSink } from '../../progress'
 import { apiHandler } from '../utils'
 import { autoCommitAndPush, readJsonObjectBody } from './save-helpers'
 import {
@@ -199,7 +200,39 @@ function runRefused(message: string, status: number, loginRequired = false): Res
   return Response.json(body, { status })
 }
 
-export function handleDeckSyncRun(req: Request): Promise<Response> {
+/** A run's event mapper plus the scale its reports counted against. */
+interface DeckSyncProgressMapping {
+  onEvent: DeckSyncEventHandler
+  /**
+   * The engine's deck total, as its `deck-start` events reported it — the
+   * denominator every in-flight report used, and therefore the one the terminal
+   * report must use. `0` until an event says otherwise, which is also the honest
+   * scale for a run that found nothing to sync.
+   */
+  scale: () => number
+}
+
+/**
+ * Map the engine's events onto the shared progress scale.
+ *
+ * Only `deck-start` advances it: a `log` line has no position on the scale, and
+ * forwarding one would either repeat the last value (the spec wants progress to
+ * increase) or invent a fake increment. Log lines stay on the SSE channel, where
+ * the admin UI renders them as text.
+ */
+function deckSyncProgressEvents(sink: RouteProgressSink): DeckSyncProgressMapping {
+  let total = 0
+  return {
+    onEvent: (event: DeckSyncEvent): void => {
+      if (event.kind !== 'deck-start') return
+      total = event.total
+      sink(itemStartProgress(`Syncing ${event.deck}`, event.index, event.total))
+    },
+    scale: () => total,
+  }
+}
+
+export function handleDeckSyncRun(req: Request, onProgress?: RouteProgressSink): Promise<Response> {
   return apiHandler(async () => {
     const parsedBody = await readJsonObjectBody(req)
     if (!parsedBody.ok) return parsedBody.response
@@ -210,16 +243,22 @@ export function handleDeckSyncRun(req: Request): Promise<Response> {
       return runRefused(parsed, 400)
     }
 
-    const outcome = await performSync(parsed)
+    const mapping = onProgress === undefined ? undefined : deckSyncProgressEvents(onProgress)
+    const outcome = await performSync(parsed, mapping?.onEvent)
     if (!outcome.ok) {
       return runRefused(outcome.message, outcome.status, outcome.loginRequired)
     }
 
     // A run that completed is a success even when individual decks failed —
     // `report.failedCount` and each deck's `reason` carry that detail.
+    const message = describeRun(outcome.report, parsed.dryRun)
+    // On the engine's scale, not `report.decks.length`: the report also holds
+    // decks that never emitted a `deck-start`, so counting it would move the
+    // denominator out from under every frame already sent.
+    if (mapping) onProgress?.(itemsDoneProgress(mapping.scale(), message))
     const body: DeckSyncRunResponse = {
       success: true,
-      message: describeRun(outcome.report, parsed.dryRun),
+      message,
       report: outcome.report,
     }
     return Response.json(body)

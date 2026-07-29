@@ -1,6 +1,4 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
-import fs from 'node:fs/promises'
-import path from 'node:path'
 import {
   createAdminUser,
   verifyAdminUser,
@@ -8,22 +6,26 @@ import {
   getAdminUsername,
   isTotpEnabled,
   setTotpSecret,
-} from '../../../src/admin/auth'
-import { setBaseDir } from '../../../src/base-dir'
+} from '../../src/admin/auth'
+import { startAdminServer } from '../../src/admin/server'
+import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 
-const testDir = path.join(import.meta.dir, '../../.test-admin-auth')
+/**
+ * The auth helpers write a real credentials file, so they belong here rather
+ * than in the unit suite — and on a throwaway workspace rather than a fixed
+ * directory under `test/`, which two suites running at once would share (and
+ * which raced ESLint's directory scan).
+ */
 
-describe('admin auth', () => {
-  const originalCwd = process.cwd()
+let ws: BoundWorkspace
 
+describe('admin auth (Integration)', () => {
   beforeEach(async () => {
-    await fs.mkdir(testDir, { recursive: true })
-    setBaseDir(testDir)
+    ws = await bindWorkspace({ dirs: [], config: false })
   })
 
   afterEach(async () => {
-    setBaseDir(originalCwd)
-    await fs.rm(testDir, { recursive: true, force: true })
+    await ws.dispose()
   })
 
   test('adminUserExists returns false when no admin exists', async () => {
@@ -50,7 +52,8 @@ describe('admin auth', () => {
   })
 
   test('createAdminUser rejects password shorter than 8 characters', async () => {
-    expect(createAdminUser('admin', 'seven77')).rejects.toThrow(
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
+    await expect(createAdminUser('admin', 'seven77')).rejects.toThrow(
       'Password must be at least 8 characters',
     )
   })
@@ -62,7 +65,8 @@ describe('admin auth', () => {
 
   test('createAdminUser rejects creating a second admin', async () => {
     await createAdminUser('admin', 'test1234')
-    expect(createAdminUser('admin2', 'test5678')).rejects.toThrow('Admin user already exists')
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
+    await expect(createAdminUser('admin2', 'test5678')).rejects.toThrow('Admin user already exists')
   })
 
   test('getAdminUsername returns the stored username', async () => {
@@ -88,5 +92,30 @@ describe('admin auth', () => {
     await createAdminUser('admin', 'test1234')
     await setTotpSecret('JBSWY3DPEHPK3PXP')
     expect(await isTotpEnabled()).toBe(true)
+  })
+})
+
+describe('admin server shutdown (Integration)', () => {
+  beforeEach(async () => {
+    ws = await bindWorkspace({ dirs: [], config: false })
+  })
+
+  afterEach(async () => {
+    await ws.dispose()
+  })
+
+  test('stop() releases the port, so `ritual admin --mcp`’s SIGINT handler can', async () => {
+    // The seam `startAdminServer` grew this phase: it returns a handle rather
+    // than swallowing the listener, because `ritual admin --mcp` runs two of them
+    // and has to stop both. A `stop` that did not actually close would leave a
+    // bound port behind and the next start would fail.
+    const server = await startAdminServer({ port: 0, host: '127.0.0.1', distDir: ws.dir })
+    const url = `http://127.0.0.1:${server.port}/api/lists`
+    expect((await fetch(url)).status).toBeLessThan(500)
+
+    await server.stop(true)
+
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
+    await expect(fetch(url)).rejects.toThrow()
   })
 })

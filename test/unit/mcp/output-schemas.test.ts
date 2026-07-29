@@ -7,6 +7,7 @@ import {
   FIND_CARDS_OUTPUT,
   GET_LIST_OUTPUT,
   GET_PRICE_REPORT_OUTPUT,
+  IMPORT_CSV_OUTPUT,
   MUTATION_OUTPUT,
   REFRESH_CACHE_OUTPUT,
   SYNC_COLLECTION_OUTPUT,
@@ -18,7 +19,8 @@ import {
 import { apiErrorToMcp } from '../../../src/mcp/errors'
 import { toToolErrorPayload } from '../../../src/mcp/result'
 import { MCP_TOOL_NAMES } from '../../../src/mcp/tools/names'
-import type { DeckSyncResult } from '../../../src/mcp/tools/destructive-tools'
+import type { BuildSiteResult, DeckSyncResult } from '../../../src/mcp/tools/destructive-tools'
+import type { ImportCsvResponse } from '../../../src/admin/api/import-csv'
 import type { CollectionSyncReport } from '../../../src/collection-sync/engine'
 import { setupMcpClient, type McpTestSession } from './harness'
 
@@ -166,10 +168,15 @@ describe('MCP output schemas, as authored', () => {
     const listBranches = (GET_LIST_OUTPUT as unknown as SchemaNode).oneOf ?? []
     expect(listBranches).toHaveLength(3)
     expect(listBranches.map((b) => Object.keys(b.properties ?? {}))).toEqual([
-      ['view', 'listType', 'slug', 'deck', 'frontMatter', 'totalCount'],
-      ['view', 'listType', 'slug', 'entries', 'sectionOrder', 'totalCount'],
-      ['view', 'listType', 'slug', 'counts'],
+      ['view', 'listType', 'slug', 'warnings', 'deck', 'frontMatter', 'totalCount'],
+      ['view', 'listType', 'slug', 'warnings', 'entries', 'sectionOrder', 'totalCount'],
+      ['view', 'listType', 'slug', 'warnings', 'counts'],
     ])
+    // `warnings` is required on all three arms, not merely present: a client
+    // that never sees the key is a client that reads a truncated list as whole.
+    for (const branch of listBranches) {
+      expect(branch.required).toContain('warnings')
+    }
     for (const branch of listBranches) {
       expect(branch.required).toContain('view')
       expect(branch.required).toContain('listType')
@@ -223,6 +230,19 @@ describe('MCP output schemas, as authored', () => {
     const findCards = FIND_CARDS_OUTPUT as unknown as SchemaNode
     expect(findCards.required).toEqual(['cards', 'warnings'])
     expect(Object.keys(findCards.properties ?? {})).toContain('lists')
+
+    // import_csv: `success` became a pure envelope flag, so the per-row report is
+    // what a client branches on. Both `failures` and `failedCount` are required —
+    // an optional pair is exactly how a partially-failed import reads as a clean
+    // one to a client that never checks.
+    const importCsv = IMPORT_CSV_OUTPUT as unknown as SchemaNode
+    expect(Object.keys(importCsv.properties ?? {})).toEqual([
+      'message',
+      'cardCount',
+      'failures',
+      'failedCount',
+    ])
+    expect(importCsv.required).toEqual(['message', 'cardCount', 'failures', 'failedCount'])
   })
 
   test('defsFor closes transitively over $refs', () => {
@@ -252,11 +272,38 @@ describe('MCP output schemas, as authored', () => {
     // schemas are validated here against the exact body their handler returns,
     // through the same Ajv the SDK uses — otherwise a wrong `required` would ship.
     test('build_site and refresh_cache accept their handlers’ success bodies', async () => {
-      expect(await validates(BUILD_SITE_OUTPUT, { message: 'Site built successfully' })).toBe(true)
+      const buildSample: BuildSiteResult = {
+        message: 'Site built successfully',
+        outDir: '/home/user/ritual/dist',
+        durationMs: 42_000,
+      }
+      expect(await validates(BUILD_SITE_OUTPUT, buildSample)).toBe(true)
       expect(await validates(REFRESH_CACHE_OUTPUT, { message: 'Cache refreshed successfully' })) //
         .toBe(true)
-      // And reject one missing its only required field.
+      // And reject one missing its required fields.
       expect(await validates(BUILD_SITE_OUTPUT, {})).toBe(false)
+      expect(await validates(BUILD_SITE_OUTPUT, { message: 'Site built successfully' })).toBe(false)
+    })
+
+    test('import_csv accepts a partly-failed import, failure rows and all', async () => {
+      // The route is exercised end to end in test/integration/import-csv.test.ts;
+      // what only this layer can pin is that the *schema* accepts the body that
+      // route returns — including a non-empty `failures`, which is the only thing
+      // that exercises the `CsvRowFailure` $def at runtime.
+      const sample: Omit<ImportCsvResponse, 'success'> = {
+        message: "Imported 2 card(s) into collection 'Binder'; 1 row(s) failed validation",
+        cardCount: 2,
+        failures: [{ lineNumber: 4, raw: 'Arcane Signet,,', reason: 'Missing set code' }],
+        failedCount: 1,
+      }
+      expect(await validates(IMPORT_CSV_OUTPUT, sample)).toBe(true)
+      // A failure row missing its `reason` is not a report a client can render.
+      expect(
+        await validates(IMPORT_CSV_OUTPUT, {
+          ...sample,
+          failures: [{ lineNumber: 4, raw: 'Arcane Signet,,' }],
+        }),
+      ).toBe(false)
     })
 
     test('the sync tools accept a representative report', async () => {

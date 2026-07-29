@@ -1,22 +1,23 @@
 import { assignDeckCardIds } from '../../card-id'
-import { writeFileWithHash, hashPath } from '../../content-hash'
 import { serializeDeckToMarkdown } from '../../deck-file'
 import { computeDeckSaveEffects } from '../../editor/save-effects'
 import { getErrorMessage } from '../../errors'
-import { appendChangelog } from '../../changelog-writer'
 import type { DeckData } from '../../types'
 import type { ChangeEvent } from '../../change-event'
 import { getDecksDir } from '../../ritual-config'
 import { parseDeckText } from '../../importers/text-file'
 import { changeCardNames, refuseUnknownCardNames } from './card-name-check'
-import { applyOutgoingMoves, type ListSaveResponse } from './move-save'
+import { applyOutgoingMoves } from './move-save'
 import {
   apiError,
   PARTIAL_LOAD_HINT,
   readJsonObjectBody,
   validateContentHash,
-  autoCommitAndPush,
+  finishListSave,
+  listSaveResponse,
   normalizeRequestNotes,
+  refuseUnreadableBaseline,
+  type ListSaveTail,
 } from './save-helpers'
 import { resolveDeckFile, resolveListFileOrRefuse } from './list-file'
 import { parseSlugFromUrl } from './target'
@@ -72,7 +73,12 @@ export async function handleDeckSave(req: Request): Promise<Response> {
     // the effects diff are computed against. Parsed once — the request's deck
     // already has the change applied, so it would vouch for the very name being
     // added.
-    const previousDeck = parseDeckText(hashCheck.content, slug).deck
+    const previous = parseDeckText(hashCheck.content, slug)
+    // A line this parse could not read is a line the save would delete, because
+    // the write re-serializes the whole deck. Refuse instead.
+    const unreadable = refuseUnreadableBaseline(filePath, previous.warnings)
+    if (unreadable) return unreadable
+    const previousDeck = previous.deck
     const nameError = await refuseUnknownCardNames(
       body.validateCardNames,
       changeCardNames(changes),
@@ -80,44 +86,35 @@ export async function handleDeckSave(req: Request): Promise<Response> {
     )
     if (nameError) return nameError
 
-    const filesToCommit: string[] = [filePath, hashPath(filePath)]
-
     // Apply the destination side of any cross-list moves first; a bad destination
     // (missing list, or a printing-less card into a collection) aborts before the
     // source is written.
     const outgoing = await applyOutgoingMoves({ type: 'deck', name: deck.name }, changes)
-    filesToCommit.push(...outgoing.writtenFiles)
 
-    // Write changelog
-    if (changes.length > 0) {
-      const changelogPath = await appendChangelog(filePath, deck.name, changes, {
-        continueSession,
-      })
-      filesToCommit.push(changelogPath)
-    }
-
-    // Write deck file. Ids are assigned here rather than only inside
-    // `serializeDeckToMarkdown` (which re-runs the assigner idempotently) so the
-    // response can report the ids the save allocated.
+    // Ids are assigned here rather than only inside `serializeDeckToMarkdown`
+    // (which re-runs the assigner idempotently) so the response can report the
+    // ids the save allocated.
     const { deck: idedDeck, assignments } = assignDeckCardIds(deck)
     const markdown = serializeDeckToMarkdown(idedDeck, frontMatter)
-    const newContentHash = await writeFileWithHash(filePath, markdown)
 
-    // Auto-commit if enabled
-    await autoCommitAndPush(
-      decksDir,
-      filesToCommit,
-      `Edit deck: ${deck.name} (${changes.length} changes)`,
-    )
-
-    const responseBody: ListSaveResponse = {
-      success: true,
-      message: `Saved ${changes.length} changes to ${deck.name}`,
-      contentHash: newContentHash,
-      droppedNotes: outgoing.droppedNotes,
-      effects: computeDeckSaveEffects({ before: previousDeck, after: idedDeck, assignments }),
+    const tail: ListSaveTail = {
+      listType: 'deck',
+      filePath,
+      content: markdown,
+      changelogName: deck.name,
+      changes,
+      continueSession,
+      extraFiles: outgoing.writtenFiles,
     }
-    return Response.json(responseBody)
+    const { contentHash: newContentHash } = await finishListSave(tail)
+
+    return Response.json(
+      listSaveResponse(tail, {
+        contentHash: newContentHash,
+        droppedNotes: outgoing.droppedNotes,
+        effects: computeDeckSaveEffects({ before: previousDeck, after: idedDeck, assignments }),
+      }),
+    )
   } catch (error) {
     return apiError(getErrorMessage(error), 500)
   }

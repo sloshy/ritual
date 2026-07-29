@@ -22,6 +22,7 @@ import { handleArchidektLogin, handleArchidektStatus } from './api/login'
 import { handleGetConfig, handleUpdateConfig } from './api/config'
 import { handleSetup } from './api/setup'
 import { getBaseDir } from '../base-dir'
+import type { RouteProgressSink } from '../progress'
 import {
   handleTotpSetup,
   handleTotpVerifySetup,
@@ -91,6 +92,21 @@ export type RouteHandler = (req: Request, context: RequestContext) => Promise<Re
 export interface RequestContext {
   clientIp: string
   sessionToken: string | null
+  /**
+   * Progress sink for an IN-PROCESS caller (the MCP adapter). Absent for HTTP
+   * requests, which get progress over the feature's SSE route instead.
+   *
+   * Shaped for a future `io.modelcontextprotocol/tasks` adoption: a task-backed
+   * call would drive the same sink from its status updates.
+   */
+  onProgress?: RouteProgressSink
+  /**
+   * Cancellation for an in-process caller. Only `POST /api/build-site` honours it
+   * today — an aborted sync leaves remote records mutated and an aborted cache
+   * refresh holds a lock, so those keep running to completion. Same tasks-ready
+   * note as {@link RequestContext.onProgress}.
+   */
+  signal?: AbortSignal
 }
 
 type SocketAddress = { address: string }
@@ -123,7 +139,12 @@ export const routes: Route[] = [
   { method: 'POST', path: '/api/import-csv', handler: handleImportCsv, requiresAuth: true },
   { method: 'POST', path: '/api/import-changes', handler: handleImportChanges, requiresAuth: true },
   { method: 'POST', path: '/api/export', handler: handleExport, requiresAuth: true },
-  { method: 'POST', path: '/api/build-site', handler: handleBuildSite, requiresAuth: true },
+  {
+    method: 'POST',
+    path: '/api/build-site',
+    handler: (_req, ctx) => handleBuildSite(ctx.onProgress, ctx.signal),
+    requiresAuth: true,
+  },
   {
     method: 'GET',
     path: '/api/cache/refresh/stream',
@@ -131,7 +152,12 @@ export const routes: Route[] = [
     requiresAuth: true,
   },
   { method: 'GET', path: '/api/cache/status', handler: handleCacheStatus, requiresAuth: true },
-  { method: 'POST', path: '/api/cache/refresh', handler: handleCacheRefresh, requiresAuth: true },
+  {
+    method: 'POST',
+    path: '/api/cache/refresh',
+    handler: (_req, ctx) => handleCacheRefresh(ctx.onProgress),
+    requiresAuth: true,
+  },
   {
     method: 'GET',
     path: '/api/deck-sync/stream',
@@ -139,7 +165,12 @@ export const routes: Route[] = [
     requiresAuth: true,
   },
   { method: 'GET', path: '/api/deck-sync', handler: handleDeckSyncStatus, requiresAuth: true },
-  { method: 'POST', path: '/api/deck-sync', handler: handleDeckSyncRun, requiresAuth: true },
+  {
+    method: 'POST',
+    path: '/api/deck-sync',
+    handler: (req, ctx) => handleDeckSyncRun(req, ctx.onProgress),
+    requiresAuth: true,
+  },
   {
     method: 'GET',
     path: '/api/collection-sync/stream',
@@ -155,7 +186,7 @@ export const routes: Route[] = [
   {
     method: 'POST',
     path: '/api/collection-sync',
-    handler: handleCollectionSyncRun,
+    handler: (req, ctx) => handleCollectionSyncRun(req, ctx.onProgress),
     requiresAuth: true,
   },
   {
@@ -498,6 +529,14 @@ async function handleRequest(
 
     // `route` matched above, so dispatchRoute necessarily matches too; the auth-free
     // dispatcher is shared with the MCP adapter so both go through one code path.
+    //
+    // `req.signal` is deliberately NOT forwarded as the context's `signal`. It
+    // would make a browser disconnect cancel the handler — and the one handler
+    // that honours cancellation is the site build, so closing the tab (or a
+    // reload, or a proxy timing out an idle connection) would kill a build the
+    // user meant to finish. The MCP adapter passes a signal explicitly, because
+    // there an abort is an explicit `notifications/cancelled` rather than a
+    // socket closing. Wiring this would be a behaviour change, not a fix.
     const result = await dispatchRoute(req, { clientIp, sessionToken })
     return result.matched ? result.response : new Response('Not Found', { status: 404 })
   }
@@ -518,7 +557,26 @@ async function handleRequest(
   return new Response('Not Found', { status: 404 })
 }
 
-export async function startAdminServer(options: AdminServerOptions): Promise<void> {
+/**
+ * A running admin server: the Bun listener plus its teardown.
+ *
+ * Returned rather than swallowed so a caller running more than one listener —
+ * `ritual admin --mcp` runs the admin server alongside the MCP HTTP server —
+ * can stop both on SIGINT/SIGTERM instead of leaking a bound port.
+ */
+export interface AdminServer {
+  readonly server: Bun.Server<undefined>
+  readonly port: number
+  /**
+   * Stop the listener. Passing `true` also drops in-flight connections, which is
+   * what lets the dev live-reload SSE stream's `cancel()` run and clear its
+   * keep-alive interval — without it the process stays alive holding a timer.
+   */
+  stop(closeActiveConnections?: boolean): Promise<void>
+  [Symbol.asyncDispose](): Promise<void>
+}
+
+export async function startAdminServer(options: AdminServerOptions): Promise<AdminServer> {
   const { port, host, distDir } = options
 
   await Promise.all(
@@ -541,4 +599,15 @@ export async function startAdminServer(options: AdminServerOptions): Promise<voi
   })
 
   console.log(`Ritual Admin running at http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`)
+
+  const stop = async (closeActiveConnections?: boolean): Promise<void> => {
+    await server.stop(closeActiveConnections)
+  }
+
+  return {
+    server,
+    port: server.port ?? port,
+    stop,
+    [Symbol.asyncDispose]: () => stop(true),
+  }
 }

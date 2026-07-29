@@ -78,6 +78,11 @@ machine would let anyone on the network edit your lists. Tokenless binds to a lo
 The HTTP-only flags (`--port`, `--host`, `--token`, `--allow-unauthenticated`) have no effect under the
 default stdio transport; passing them there prints a warning on stderr and they are ignored.
 
+`Ctrl+C` (`SIGINT`) or `SIGTERM` stops the listener and drops active connections, so the port is
+released and the process exits on its own rather than being killed with a bound socket behind it. A
+teardown that fails is reported on stderr instead of being swallowed. `ritual admin --mcp` does the
+same for both of its listeners.
+
 #### Errors
 
 | Response | When                                                                                                                                                                                                                          |
@@ -154,6 +159,34 @@ tool result.
 (One error is deliberately re-raised rather than structured: a URL-elicitation request is a protocol
 handshake the client must answer, not a tool failure.)
 
+### Progress notifications
+
+The four long-running tools — `refresh_cache`, `sync_decks`, `sync_collection`, and `build_site` —
+emit `notifications/progress` **during** the call, but only when the client asked for them by
+supplying a `progressToken` (which the SDK client does automatically when you pass `onprogress` to
+`callTool`). Without a token nothing is emitted.
+
+Each notification carries `progress`, `total`, and a human-readable `message`; `progress` strictly
+increases across a run. The scales differ by tool: the cache refresh reports 0–100, and the two syncs
+report one notification per deck/list plus a terminal `n/n`. `build_site` reports three structural
+steps (start → building → publishing → done).
+
+The result itself is **unchanged and still blocking**: the tool returns its ordinary structured
+result when the work finishes. Over Streamable HTTP the response upgrades to an SSE stream
+automatically as soon as a notification precedes the result, so no client configuration is needed for
+the frames to arrive.
+
+One client-side setting does matter: the SDK's default request timeout is 60 seconds and does **not**
+reset on progress. A client driving a long call should pass `resetTimeoutOnProgress: true` (or a
+larger `timeout`) alongside `onprogress`. Ritual cannot set it — it is a client option.
+
+`build_site` also honours cancellation: aborting the call kills the child build, and because the
+build publishes atomically the live site is left untouched. The cancelled call answers with a tool
+error saying the site build was cancelled; `dist/` still holds the previous site, byte for byte, and
+the next `build_site` is accepted immediately. The syncs and the cache refresh deliberately run to
+completion — an aborted sync would leave remote Archidekt records already mutated, and an aborted
+refresh holds the cache lock.
+
 ## Tools
 
 Every tool that addresses a list takes the same two fields: `listType` (`deck` | `collection` |
@@ -161,21 +194,21 @@ Every tool that addresses a list takes the same two fields: `listType` (`deck` |
 
 ### Read (read-only)
 
-| Tool                                   | Description                                                                                                                                                                                                                                                                                                           |
-| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `list_lists`                           | Every list as `{ listType, slug, name }`, optionally filtered by `listType`.                                                                                                                                                                                                                                          |
-| `get_sync_status`                      | What an Archidekt sync can cover. `target: "decks"` returns the linked decks (with each deck's `lastSynced`); `target: "collection"` returns the coverable lists, the default pull target, the CSV threshold, and when the account last synced. Omit `target` for both halves. Both carry the login.                  |
-| `get_list`                             | Read one list. The result is discriminated by `view` (`"cards"` \| `"summary"`) and `listType`: a deck's cards view carries `deck` + `frontMatter`, a flat list's carries `entries` + `sectionOrder`, and `view: "summary"` carries `counts` only. `section` / `nameContains` / `limit` / `offset` narrow the result. |
-| `search_scryfall`                      | Run a live [Scryfall query](https://scryfall.com/docs/syntax) and return card summaries (name, printing, mana cost, type line, oracle text, prices). `warm: true` also caches the results locally and promotes a whole-name match.                                                                                    |
-| `autocomplete_card`                    | Match every whitespace-separated term against the local cache's card names (`in tre` → "In the Trenches").                                                                                                                                                                                                            |
-| `find_cards`                           | Find where a card physically lives across your lists — one result per copy, carrying the fields the move/remove tools address entries by. `includeLists` adds the full roster as `{ listType, slug, name }`.                                                                                                          |
-| `get_card_details`                     | Everything the local cache knows about one card: oracle text, type line, colors, keywords, legalities, Scryfall Tagger tags, faces, printing count.                                                                                                                                                                   |
-| `get_card_printings`, `get_card_price` | A card's printings and per-currency prices (an unknown card name is an error).                                                                                                                                                                                                                                        |
-| `get_price_report`                     | [Price](/commands/price/) one list (`listType` + `slug`), one list type (`listType` alone), or every list (no arguments). The result is discriminated by `mode`: `"list"` carries `list` + `cards`, `"summary"` carries `lists` + `typeTotals` + `totals`.                                                            |
-| `get_history`                          | A list's change history.                                                                                                                                                                                                                                                                                              |
-| `get_config`, `get_cache_status`       | Configuration, and the state of the local Scryfall card cache.                                                                                                                                                                                                                                                        |
-| `diff_lists`                           | Compare two lists by card name or exact printing — the [`diff`](/commands/diff/) command as a tool.                                                                                                                                                                                                                   |
-| `export_cards`                         | Render a CSV, JSON, plain-text, or Markdown [export](/commands/export/) of lists and/or card picks, with filters (and, for `csv`/`json`, column selection, a value `dialect`, and saved or built-in `preset`s). `write: true` writes a file instead.                                                                  |
+| Tool                                   | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_lists`                           | Every list as `{ listType, slug, name }`, optionally filtered by `listType`.                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `get_sync_status`                      | What an Archidekt sync can cover. `target: "decks"` returns the linked decks (with each deck's `lastSynced`); `target: "collection"` returns the coverable lists, the default pull target, the CSV threshold, and when the account last synced. Omit `target` for both halves. Both carry the login.                                                                                                                                                                                                                    |
+| `get_list`                             | Read one list. The result is discriminated by `view` (`"cards"` \| `"summary"`) and `listType`: a deck's cards view carries `deck` + `frontMatter`, a flat list's carries `entries` + `sectionOrder`, and `view: "summary"` carries `counts` only. Every arm also carries `warnings` — lines the file's parser could not read, always present and empty for a clean file, so a list holding an unreadable line is never mistaken for a shorter list. `section` / `nameContains` / `limit` / `offset` narrow the result. |
+| `search_scryfall`                      | Run a live [Scryfall query](https://scryfall.com/docs/syntax) and return card summaries (name, printing, mana cost, type line, oracle text, prices). `warm: true` also caches the results locally and promotes a whole-name match.                                                                                                                                                                                                                                                                                      |
+| `autocomplete_card`                    | Match every whitespace-separated term against the local cache's card names (`in tre` → "In the Trenches").                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `find_cards`                           | Find where a card physically lives across your lists — one result per copy, carrying the fields the move/remove tools address entries by. `includeLists` adds the full roster as `{ listType, slug, name }`.                                                                                                                                                                                                                                                                                                            |
+| `get_card_details`                     | Everything the local cache knows about one card: oracle text, type line, colors, keywords, legalities, Scryfall Tagger tags, faces, printing count.                                                                                                                                                                                                                                                                                                                                                                     |
+| `get_card_printings`, `get_card_price` | A card's printings and per-currency prices (an unknown card name is an error).                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `get_price_report`                     | [Price](/commands/price/) one list (`listType` + `slug`), one list type (`listType` alone), or every list (no arguments). The result is discriminated by `mode`: `"list"` carries `list` + `cards`, `"summary"` carries `lists` + `typeTotals` + `totals`.                                                                                                                                                                                                                                                              |
+| `get_history`                          | A list's change history.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `get_config`, `get_cache_status`       | Configuration, and the state of the local Scryfall card cache.                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `diff_lists`                           | Compare two lists by card name or exact printing — the [`diff`](/commands/diff/) command as a tool.                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `export_cards`                         | Render a CSV, JSON, plain-text, or Markdown [export](/commands/export/) of lists and/or card picks, with filters (and, for `csv`/`json`, column selection, a value `dialect`, and saved or built-in `preset`s). `write: true` writes a file instead.                                                                                                                                                                                                                                                                    |
 
 #### Network vs local
 
@@ -202,9 +235,9 @@ Three tools find cards, and their names say where the data comes from:
 
 `get_list` defaults to the whole list. To read less:
 
-- `view: "summary"` returns `{ slug, listType, counts }` — total lines, total copies, and a
-  per-section breakdown — and nothing else. It is the cheapest call on a list you have not seen, and
-  the right first one on a large collection.
+- `view: "summary"` returns `{ slug, listType, counts, warnings }` — total lines, total copies, a
+  per-section breakdown, and the parser warnings every arm carries. No card data at all, which makes
+  it the cheapest call on a list you have not seen, and the right first one on a large collection.
 - `section` matches a markdown `## Section` heading exactly (case-sensitively); a section that does
   not exist yields no entries rather than an error.
 - `nameContains` matches every whitespace-separated term, in any order, the way `autocomplete_card`
@@ -255,19 +288,19 @@ either — the writer never replaces a file), even though it is registered with 
 
 ### Write
 
-| Tool                    | Description                                                                                                                                                                                                                                                     |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `create_list`           | Create a new, empty list. `format` (from the fixed set of deck formats) applies to decks only.                                                                                                                                                                  |
-| `import_deck`           | Import a deck from a URL or pasted decklist text.                                                                                                                                                                                                               |
-| `import_csv`            | Import CSV text into a new or existing list (create/overwrite/append) with a column-mapping spec. `format` applies to decks only.                                                                                                                               |
-| `import_change_bundle`  | Apply a change bundle exported from the site editor to the underlying lists. Answers with `{ message, lists, failedCount }`; a list that could not be loaded or saved is reported in its own `lists[].error` rather than failing the call.                      |
-| `set_list_metadata`     | Write a deck's front matter: `description`, `tags`, `format`, `sourceId`, `sourceUrl`. Only the fields you send are touched; `null` clears one. Answers with `{ slug, frontMatter }` — the route's `contentHash` is dropped, since an agent never supplies one. |
-| `add_card`              | Add a card to any list; `quantity` adds that many copies in one save. `condition` is rejected for wanted lists; collections require `set` + `collectorNumber` together.                                                                                         |
-| `remove_card`           | Remove a card from any list; `quantity` (decks only) removes that many copies. Flat lists remove one entry a time.                                                                                                                                              |
-| `set_card_printing`     | Set a card's printing in place. It can omit `set`/`collectorNumber` to clear a deck or wanted-list card's printing, but not a collection's — that's rejected.                                                                                                   |
-| `apply_changes`         | Apply an ordered batch of card-level changes to one list atomically (one save, one changelog block). The only route to note, section, and commander edits.                                                                                                      |
-| `move_selected_cards`   | Move a batch of identity-addressed cards between lists atomically.                                                                                                                                                                                              |
-| `remove_selected_cards` | Remove a batch of identity-addressed cards across lists atomically.                                                                                                                                                                                             |
+| Tool                    | Description                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create_list`           | Create a new, empty list. `format` (from the fixed set of deck formats) applies to decks only.                                                                                                                                                                                                                                                                                                                                              |
+| `import_deck`           | Import a deck from a URL or pasted decklist text.                                                                                                                                                                                                                                                                                                                                                                                           |
+| `import_csv`            | Import CSV text into a new or existing list (create/overwrite/append) with a column-mapping spec. `format` applies to decks only. Rows that fail validation do not fail the call: the result always carries `cardCount`, `failures`, and `failedCount`, so a partially-failed import still succeeds and reports which rows were dropped. A refusal (bad column spec, unknown list type, append to a missing list) is a tool error as usual. |
+| `import_change_bundle`  | Apply a change bundle exported from the site editor to the underlying lists. Answers with `{ message, lists, failedCount }`; a list that could not be loaded or saved is reported in its own `lists[].error` rather than failing the call.                                                                                                                                                                                                  |
+| `set_list_metadata`     | Write a deck's front matter: `description`, `tags`, `format`, `sourceId`, `sourceUrl`. Only the fields you send are touched; `null` clears one. Answers with `{ slug, frontMatter }` — the route's `contentHash` is dropped, since an agent never supplies one.                                                                                                                                                                             |
+| `add_card`              | Add a card to any list; `quantity` adds that many copies in one save. `condition` is rejected for wanted lists; collections require `set` + `collectorNumber` together.                                                                                                                                                                                                                                                                     |
+| `remove_card`           | Remove a card from any list; `quantity` (decks only) removes that many copies. Flat lists remove one entry a time.                                                                                                                                                                                                                                                                                                                          |
+| `set_card_printing`     | Set a card's printing in place. It can omit `set`/`collectorNumber` to clear a deck or wanted-list card's printing, but not a collection's — that's rejected.                                                                                                                                                                                                                                                                               |
+| `apply_changes`         | Apply an ordered batch of card-level changes to one list atomically (one save, one changelog block). The only route to note, section, and commander edits.                                                                                                                                                                                                                                                                                  |
+| `move_selected_cards`   | Move a batch of identity-addressed cards between lists atomically.                                                                                                                                                                                                                                                                                                                                                                          |
+| `remove_selected_cards` | Remove a batch of identity-addressed cards across lists atomically.                                                                                                                                                                                                                                                                                                                                                                         |
 
 Card edits load the list, apply the change, and save in a single call, so **you never supply a content
 hash** — conflict detection is handled internally. A concurrent web-UI edit is retried once
@@ -297,6 +330,11 @@ In an `apply_changes` batch this is atomic — one miss rejects the batch — wh
 still target a card an earlier change in the same batch added. The cross-list batch tools
 (`move_selected_cards`, `remove_selected_cards`) and `import_change_bundle` use the same exact
 targeting but **skip and report** unresolvable items instead of failing, as documented below.
+
+A write to a list whose **file** holds a line the parser cannot read is also refused outright: the
+save would re-serialize the list without that line and recycle its `&N`. The error names the file
+and each unreadable line, and nothing is written — the same lines `get_list` reports in `warnings`.
+Fix the file, then retry.
 
 #### Card-name validation
 
@@ -354,16 +392,16 @@ changelog entry is recorded: the changelog is card-level, and metadata is not a 
 
 These are flagged with the MCP `destructiveHint` so clients can gate or confirm them:
 
-| Tool              | Description                                                                             |
-| ----------------- | --------------------------------------------------------------------------------------- |
-| `rename_list`     | Rename a list (changes its slug).                                                       |
-| `delete_list`     | Delete a list. Requires a `confirmName` matching the list's display name.               |
-| `rewrite_history` | Replace a list's entire change log.                                                     |
-| `update_config`   | Merge a partial configuration.                                                          |
-| `build_site`      | Rebuild the public static site.                                                         |
-| `sync_decks`      | [Sync decks](/commands/deck-sync/) with Archidekt in either direction.                  |
-| `sync_collection` | [Sync collection lists](/commands/collection-sync/) with Archidekt in either direction. |
-| `refresh_cache`   | Refresh the Scryfall card cache (bulk download + oracle/art tags).                      |
+| Tool              | Description                                                                                                                                                                                                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rename_list`     | Rename a list (changes its slug).                                                                                                                                                                                                                                                           |
+| `delete_list`     | Delete a list. Requires a `confirmName` matching the list's display name.                                                                                                                                                                                                                   |
+| `rewrite_history` | Replace a list's entire change log.                                                                                                                                                                                                                                                         |
+| `update_config`   | Merge a partial configuration.                                                                                                                                                                                                                                                              |
+| `build_site`      | Rebuild the public static site. Runs asynchronously in a child process and publishes atomically, so an interrupted build never leaves a broken site. Reports progress and honours cancellation. Returns `{ message, outDir, durationMs }` — where it published and how long the build took. |
+| `sync_decks`      | [Sync decks](/commands/deck-sync/) with Archidekt in either direction.                                                                                                                                                                                                                      |
+| `sync_collection` | [Sync collection lists](/commands/collection-sync/) with Archidekt in either direction.                                                                                                                                                                                                     |
+| `refresh_cache`   | Refresh the Scryfall card cache (bulk download + oracle/art tags). A failed download or ingest is now reported as a tool error rather than a silent success.                                                                                                                                |
 
 `sync_decks` takes a `direction` (`pull` | `push`), an optional `decks` array (slugs or names; omit
 to sync every Archidekt-linked deck), an optional
@@ -446,7 +484,8 @@ which is not an agent's concern.
 Every list is also a readable resource at `ritual://{type}/{slug}` (e.g. `ritual://deck/my-deck`),
 listed via the MCP resources API. A read returns the same projected JSON as the `get_list` tool —
 the list's contents without the heavy editor payload (card data, printings, prices), carrying the
-same `view` and `listType` discriminants. The URI template offers completions for both `{type}` and
+same `view` and `listType` discriminants — including `warnings`, the lines the parser could not
+read. The URI template offers completions for both `{type}` and
 `{slug}`, and a `{type}` already chosen narrows the slugs offered.
 
 **`resources.listChanged` is advertised on stdio only.** Stdio pins one server instance for the life

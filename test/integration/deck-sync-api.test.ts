@@ -16,8 +16,10 @@ import type {
   ArchidektRawDeckResponse,
 } from '../../src/importers/archidekt-types'
 import { signIn as storeLogin } from './helpers/archidekt'
+import type { RouteProgress, RouteProgressSink } from '../../src/progress'
 import { stubFetch } from './helpers/stub-fetch'
 import { bindWorkspace, writeDeckFile, type BoundWorkspace } from './helpers/workspace'
+import { expectMonotonicProgress } from '../test-utils'
 
 /**
  * End-to-end coverage for the admin deck-sync endpoints: which decks they list,
@@ -133,13 +135,16 @@ async function getStatus(): Promise<DeckSyncStatusResponse> {
   return (await resp.json()) as DeckSyncStatusResponse
 }
 
-async function postRun(body: unknown): Promise<{ status: number; body: DeckSyncRunResponse }> {
+async function postRun(
+  body: unknown,
+  onProgress?: RouteProgressSink,
+): Promise<{ status: number; body: DeckSyncRunResponse }> {
   const req = new Request('http://localhost/api/deck-sync', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  const resp = await handleDeckSyncRun(req)
+  const resp = await handleDeckSyncRun(req, onProgress)
   return { status: resp.status, body: (await resp.json()) as DeckSyncRunResponse }
 }
 
@@ -288,6 +293,25 @@ describe('deck-sync API', () => {
 
     const changelog = await fs.readFile(path.join(tmpDir, 'decks', 'linked.changes.md'), 'utf-8')
     expect(changelog).toContain('Added "Lightning Bolt"')
+  })
+
+  test('reports progress to an in-process caller, ending on the terminal report', async () => {
+    // The MCP adapter's channel: `handleDeckSyncRun`'s sink, not the SSE stream.
+    await signIn()
+    stubArchidekt()
+
+    const reports: RouteProgress[] = []
+    const { status } = await postRun({ direction: 'pull', decks: ['linked'] }, (r) =>
+      reports.push(r),
+    )
+    expect(status).toBe(200)
+
+    // One report per deck start (0-based), then the terminal n/n — on the
+    // engine's own scale, which is what `total` says throughout.
+    expectMonotonicProgress(reports, 1)
+    expect(reports.map((r) => r.progress)).toEqual([0, 1])
+    expect(reports[0]?.message).toBe('Syncing Linked Deck (1/1)')
+    expect(reports.at(-1)?.message).toBe('Pulled 1 deck.')
   })
 
   test('a pull with --only additions adds the remote card and keeps the local-only one', async () => {

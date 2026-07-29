@@ -49,6 +49,12 @@ export type DeckProjection = {
    * unfiltered read it is the deck's whole line count.
    */
   totalCount: number
+  /**
+   * Lines the parser could not read. Always present — an empty array is the
+   * honest report for a clean file, and an unread list that merely loaded
+   * shorter is exactly the failure an optional field hides.
+   */
+  warnings: string[]
 }
 
 /** Projected flat-list (collection/wanted) load payload: entries plus section order. */
@@ -60,6 +66,8 @@ export type FlatListProjection = {
   sectionOrder?: string[]
   /** See {@link DeckProjection.totalCount}. */
   totalCount: number
+  /** See {@link DeckProjection.warnings}. */
+  warnings: string[]
 }
 
 /** Projected `?view=summary` payload: how much is in the list, and nothing else. */
@@ -68,6 +76,8 @@ export type ListSummaryProjection = {
   listType: ListType
   slug: string
   counts: ListCounts
+  /** See {@link DeckProjection.warnings}. */
+  warnings: string[]
 }
 
 export type ListProjection = DeckProjection | FlatListProjection | ListSummaryProjection
@@ -100,7 +110,13 @@ export async function loadProjectedList(
 
   if (query?.view === 'summary') {
     const data = (await callApi('GET', path)) as ListSummaryLoadResult
-    const summary: ListSummaryProjection = { view: 'summary', listType, slug, counts: data.counts }
+    const summary: ListSummaryProjection = {
+      view: 'summary',
+      listType,
+      slug,
+      counts: data.counts,
+      warnings: data.warnings,
+    }
     return summary
   }
   if (listType === 'deck') {
@@ -112,6 +128,7 @@ export async function loadProjectedList(
       deck: data.deck,
       frontMatter: data.frontMatter,
       totalCount: data.totalCount,
+      warnings: data.warnings,
     }
     return projection
   }
@@ -123,6 +140,7 @@ export async function loadProjectedList(
     entries: data.entries,
     sectionOrder: data.sectionOrder,
     totalCount: data.totalCount,
+    warnings: data.warnings,
   }
   return projection
 }

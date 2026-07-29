@@ -146,6 +146,114 @@ export function gzipJsonLinesResponse(values: unknown[]): Response {
   )
 }
 
+// ── Scryfall bulk-data fixtures ─────────────────────────────────────────────
+//
+// The three suites that drive a cache refresh (the engine's own progress unit
+// test, the admin route's integration test, and the MCP HTTP progress test) all
+// need the same four URLs and the same bulk-index body. They had three copies,
+// which had already drifted in which card fields they set. The URL constants and
+// the payload builders live here so a unit test can import them; the two
+// `globalThis.fetch` installers that serve them live in
+// `test/integration/helpers/scryfall-bulk.ts`.
+
+/** Scryfall's bulk-data index endpoint — the first request any refresh makes. */
+export const BULK_META_URL = 'https://api.scryfall.com/bulk-data'
+/** Stand-in download URLs the index points the refresh at. */
+export const DEFAULT_CARDS_URI = 'https://data.example/default-cards.jsonl.gz'
+export const ORACLE_TAGS_URI = 'https://data.example/oracle-tags.jsonl.gz'
+export const ART_TAGS_URI = 'https://data.example/art-tags.jsonl.gz'
+
+/** One entry of the bulk-data index. */
+export type BulkMetaEntry = { type: string; jsonl_download_uri: string }
+
+/** The bulk-data index body: the three files a refresh downloads. */
+export type BulkMetaBody = { data: BulkMetaEntry[] }
+
+export function bulkMetaBody(): BulkMetaBody {
+  return {
+    data: [
+      { type: 'default_cards', jsonl_download_uri: DEFAULT_CARDS_URI },
+      { type: 'oracle_tags', jsonl_download_uri: ORACLE_TAGS_URI },
+      { type: 'art_tags', jsonl_download_uri: ART_TAGS_URI },
+    ],
+  }
+}
+
+/**
+ * One card line of a `default_cards` bulk file, with every field the ingest
+ * reads already set. Sol Ring by default; override what the test is about.
+ */
+export function bulkCard(overrides: Partial<ScryfallCard> = {}): Partial<ScryfallCard> {
+  return {
+    id: 'sol-1',
+    oracle_id: 'o-sol',
+    illustration_id: 'i-sol',
+    name: 'Sol Ring',
+    type_line: 'Artifact',
+    set: 'cmr',
+    set_name: 'Commander Legends',
+    collector_number: '472',
+    rarity: 'uncommon',
+    finishes: ['nonfoil'],
+    games: ['paper'],
+    prices: { usd: '1.50', usd_foil: null, usd_etched: null, eur: null, eur_foil: null, tix: null },
+    ...overrides,
+  }
+}
+
+/** The two-card bulk file the refresh suites share. */
+export function bulkCards(): Partial<ScryfallCard>[] {
+  return [
+    bulkCard(),
+    bulkCard({
+      id: 'bolt-1',
+      oracle_id: 'o-bolt',
+      illustration_id: 'i-bolt',
+      name: 'Lightning Bolt',
+      type_line: 'Instant',
+      set: '2x2',
+      set_name: 'Double Masters 2022',
+      collector_number: '117',
+      prices: {
+        usd: '2.00',
+        usd_foil: null,
+        usd_etched: null,
+        eur: null,
+        eur_foil: null,
+        tix: null,
+      },
+    }),
+  ]
+}
+
+/**
+ * The shape both progress vocabularies share: Ritual's `RouteProgress` and the
+ * MCP SDK's `Progress`. Typed structurally so one assertion serves both.
+ */
+export type ProgressLike = { progress: number; total?: number }
+
+/**
+ * Assert a run's progress reports are usable as a progress bar: at least one
+ * report, strictly increasing (the spec's requirement, and what the MCP sink's
+ * guard enforces), and — when `expectedTotal` is given — all on one scale.
+ *
+ * A hand-rolled `for` loop comparing `reports[i]` to `reports[i - 1]` was written
+ * out at three call sites; a run that emitted a single report passed all three
+ * vacuously, which is why the non-empty check is part of this.
+ */
+export function expectMonotonicProgress(
+  reports: readonly ProgressLike[],
+  expectedTotal?: number,
+): void {
+  expect(reports.length).toBeGreaterThan(0)
+  for (let i = 1; i < reports.length; i++) {
+    expect(reports[i]!.progress).toBeGreaterThan(reports[i - 1]!.progress)
+  }
+  if (expectedTotal !== undefined) {
+    expect(reports.every((r) => r.total === expectedTotal)).toBeTrue()
+  }
+}
+
 /** Computes the mocked Response for one request to a specific mocked URL. */
 type HttpResponder = (init?: RequestInit) => Response | Promise<Response>
 /** Fallback responder for requests to URLs without a dedicated mock. */

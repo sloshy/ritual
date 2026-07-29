@@ -96,6 +96,7 @@ type ConfigView = {
 type LoadedDeck = {
   deck: { sections: { name: string; cards: { name: string }[] }[] }
   cards?: unknown
+  warnings: string[]
 }
 
 async function callTool(
@@ -309,6 +310,21 @@ describe('Ritual MCP server (in-memory transport)', () => {
     const data = toolData<LoadedDeck>(result)
     expect(deckCardNames(data)).toContain('Sol Ring')
     expect(data.cards).toBeUndefined()
+    // The projection copies the route's `warnings` through; empty is the honest
+    // report for this fixture, and the field being present is the contract.
+    expect(data.warnings).toEqual([])
+  })
+
+  test('get_list surfaces the parser warnings of a list holding an unreadable line', async () => {
+    const deckPath = path.join(env.dir, 'decks', 'test-deck.md')
+    await fs.writeFile(deckPath, (await fs.readFile(deckPath, 'utf-8')) + '\nnot a card line\n')
+
+    const data = toolData<LoadedDeck>(
+      await callTool(client, 'get_list', { listType: 'deck', slug: 'test-deck' }),
+    )
+    // The whole point of carrying warnings to the agent surface: a list that
+    // loaded merely shorter than it is, said out loud.
+    expect(data.warnings).toEqual(['Skipped malformed line: not a card line'])
   })
 
   test('get_list returns flat-list entries', async () => {

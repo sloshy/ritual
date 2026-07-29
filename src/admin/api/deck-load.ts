@@ -1,5 +1,5 @@
 import { getContentHash } from '../../content-hash'
-import { importFromTextFile } from '../../importers/text-file'
+import { loadDeckFile } from '../../importers/text-file'
 import { parseDeckFrontMatter } from '../../deck-file'
 import { apiHandler } from '../utils'
 import { getDecksDir } from '../../ritual-config'
@@ -23,9 +23,9 @@ import type { DeckCardsLoadResult, DeckFullLoadResult, ListSummaryLoadResult } f
  * too. A summary's counts describe the whole filtered set — paging is ignored
  * there, so `?view=summary&limit=5` still reports the real totals.
  *
- * A narrowed `cards`/`full` body is marked `partial` and carries **no**
- * `contentHash`, so it cannot be handed back to the save route as if it were the
- * whole list.
+ * A narrowed body — in any view, summary included — is marked `partial` and
+ * carries **no** `contentHash`, so it cannot be handed back to the save route as
+ * if it were the whole list.
  */
 export function handleDeckLoad(req: Request): Promise<Response> {
   return apiHandler(async () => {
@@ -34,7 +34,7 @@ export function handleDeckLoad(req: Request): Promise<Response> {
     const { slug, filePath, params } = prologue.value
 
     const rawContent = await Bun.file(filePath).text()
-    const loaded = await importFromTextFile(filePath)
+    const { deck: loaded, warnings } = await loadDeckFile(filePath)
     const frontMatter = await parseDeckFrontMatter(filePath)
     const contentHash = await getContentHash(filePath, rawContent)
 
@@ -47,9 +47,9 @@ export function handleDeckLoad(req: Request): Promise<Response> {
         slug,
         view: 'summary',
         counts: countDeck(counted),
-        contentHash,
+        warnings,
       }
-      return Response.json(summary)
+      return Response.json(stampLoadBody(summary, isNarrowedLoad(params), contentHash))
     }
 
     const { deck, totalCount } = filterDeck(loaded, params)
@@ -65,6 +65,7 @@ export function handleDeckLoad(req: Request): Promise<Response> {
         deck,
         frontMatter,
         totalCount,
+        warnings,
       }
       return Response.json(stampLoadBody(body, partial, contentHash))
     }
@@ -96,6 +97,7 @@ export function handleDeckLoad(req: Request): Promise<Response> {
       symbolMap,
       frontMatter,
       slug,
+      warnings,
     }
     return Response.json(stampLoadBody(body, partial, contentHash))
   })

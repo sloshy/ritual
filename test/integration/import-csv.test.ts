@@ -1,10 +1,18 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { handleImportCsv, type ImportCsvResponse } from '../../../src/admin/api/import-csv'
-import { setBaseDir } from '../../../src/base-dir'
+import { handleImportCsv, type ImportCsvResponse } from '../../src/admin/api/import-csv'
+import type { ApiErrorResponse } from '../../src/admin/api/save-helpers'
+import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 
-const testDir = path.join(import.meta.dir, '../../.test-import-csv')
+/**
+ * The CSV import handler writes real list files, so it belongs here rather than
+ * in the unit suite — and on a throwaway workspace rather than a fixed directory
+ * under `test/`, which two suites running at once would share.
+ */
+
+let ws: BoundWorkspace
+let testDir: string
 
 function makeRequest(body: unknown): Request {
   return new Request('http://localhost/api/import-csv', {
@@ -14,9 +22,17 @@ function makeRequest(body: unknown): Request {
   })
 }
 
-async function importCsv(body: unknown): Promise<{ status: number; data: ImportCsvResponse }> {
+/** A 2xx carries the report; a refusal carries only the shared error envelope. */
+type ImportCsvResult = { status: number; data: ImportCsvResponse; error: ApiErrorResponse }
+
+async function importCsv(body: unknown): Promise<ImportCsvResult> {
   const resp = await handleImportCsv(makeRequest(body))
-  return { status: resp.status, data: (await resp.json()) as ImportCsvResponse }
+  const parsed: unknown = await resp.json()
+  return {
+    status: resp.status,
+    data: parsed as ImportCsvResponse,
+    error: parsed as ApiErrorResponse,
+  }
 }
 
 const COLLECTION_CSV = [
@@ -27,19 +43,14 @@ const COLLECTION_CSV = [
 
 const COLLECTION_COLUMNS = 'name=1,set=2,collector-number=3,finish=4,condition=5,quantity=6'
 
-describe('admin import-csv handler', () => {
-  const originalCwd = process.cwd()
-
+describe('admin import-csv handler (Integration)', () => {
   beforeEach(async () => {
-    for (const sub of ['decks', 'collections', 'wanted']) {
-      await fs.mkdir(path.join(testDir, sub), { recursive: true })
-    }
-    setBaseDir(testDir)
+    ws = await bindWorkspace()
+    testDir = ws.dir
   })
 
   afterEach(async () => {
-    setBaseDir(originalCwd)
-    await fs.rm(testDir, { recursive: true, force: true })
+    await ws.dispose()
   })
 
   test('creates a collection from CSV with canonical lines', async () => {
@@ -54,7 +65,10 @@ describe('admin import-csv handler', () => {
     expect(status).toBe(200)
     expect(data.success).toBe(true)
     expect(data.cardCount).toBe(3)
-    expect(data.failures).toBeUndefined()
+    // Always an array now, so a client never has to distinguish "no failures"
+    // from "the field was omitted".
+    expect(data.failures).toEqual([])
+    expect(data.failedCount).toBe(0)
 
     const content = await fs.readFile(path.join(testDir, 'collections', 'Binder.md'), 'utf-8')
     expect(content).toBe(
@@ -71,14 +85,14 @@ describe('admin import-csv handler', () => {
   })
 
   test('requires a format when creating a deck', async () => {
-    const { status, data } = await importCsv({
+    const { status, error } = await importCsv({
       listType: 'deck',
       name: 'Burn',
       content: 'Name\nLightning Bolt',
       columns: 'name=1',
     })
     expect(status).toBe(400)
-    expect(data.message).toContain('format is required')
+    expect(error.message).toContain('format is required')
   })
 
   test('creates a deck with sections and frontmatter format', async () => {
@@ -136,23 +150,66 @@ describe('admin import-csv handler', () => {
     expect(data.success).toBe(true)
     expect(data.cardCount).toBe(1)
     expect(data.failures).toHaveLength(1)
-    expect(data.failures![0]!.lineNumber).toBe(3)
+    expect(data.failedCount).toBe(1)
+    expect(data.failures[0]!.lineNumber).toBe(3)
   })
 
-  test('returns 400 with failures when no rows can be imported', async () => {
+  test('a request whose every row fails is a 200 carrying the per-row report', async () => {
+    // The request itself was well formed; the rows were not. Folding that into
+    // the envelope is what made clients that treat `success: false` as "throw"
+    // discard the report exactly when it mattered.
     const { status, data } = await importCsv({
       listType: 'collection',
       name: 'Nothing',
       content: 'Name,Set,Collector Number\nNo Printing,,',
       columns: 'name=1,set=2,collector-number=3',
     })
-    expect(status).toBe(400)
+    expect(status).toBe(200)
+    expect(data.success).toBe(true)
+    expect(data.cardCount).toBe(0)
+    expect(data.failedCount).toBe(1)
     expect(data.failures).toHaveLength(1)
+    // Nothing was written: there was nothing to write.
     expect(await Bun.file(path.join(testDir, 'collections', 'Nothing.md')).exists()).toBe(false)
   })
 
-  test('append to a missing list returns 400', async () => {
+  test('an all-rows-failed overwrite leaves the existing list byte-identical', async () => {
+    // The dangerous corner of the "0 imported is still a 200" contract: an
+    // `overwrite` that has nothing to write must not write nothing *over* an
+    // existing list. The handler returns before `applyCsvImport` is reached.
+    const filePath = path.join(testDir, 'collections', 'Keeper.md')
+    const before = '# Keeper\n\n## Main\n- Mox Ruby (LEA:265) &1\n'
+    await fs.writeFile(filePath, before)
+
     const { status, data } = await importCsv({
+      listType: 'collection',
+      name: 'Keeper',
+      mode: 'overwrite',
+      content: 'Name,Set,Collector Number\nNo Printing,,',
+      columns: 'name=1,set=2,collector-number=3',
+    })
+    expect(status).toBe(200)
+    expect(data.cardCount).toBe(0)
+    expect(data.failedCount).toBe(1)
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
+  })
+
+  test('a partial import says so in its message, not only in failedCount', async () => {
+    // `message` is what the admin banner shows and what an agent reads back, so
+    // "Imported 1 card(s)" alone reads as a clean run.
+    const { data } = await importCsv({
+      listType: 'collection',
+      name: 'Mixed',
+      content: ['Name,Set,Collector Number', 'Sol Ring,C19,221', 'No Printing,,'].join('\n'),
+      columns: 'name=1,set=2,collector-number=3',
+    })
+    expect(data.message).toBe(
+      "Imported 1 card(s) into collection 'Mixed'; 1 row(s) failed validation",
+    )
+  })
+
+  test('append to a missing list returns 400', async () => {
+    const { status, error } = await importCsv({
       listType: 'collection',
       name: 'Ghost',
       mode: 'append',
@@ -161,7 +218,7 @@ describe('admin import-csv handler', () => {
       hasHeader: false,
     })
     expect(status).toBe(400)
-    expect(data.success).toBe(false)
+    expect(error.success).toBe(false)
   })
 
   test('rejects malformed request bodies and bad mappings', async () => {
@@ -183,6 +240,6 @@ describe('admin import-csv handler', () => {
       columns: 'name=1,rarity=2',
     })
     expect(badColumns.status).toBe(400)
-    expect(badColumns.data.message).toContain("Unknown field 'rarity'")
+    expect(badColumns.error.message).toContain("Unknown field 'rarity'")
   })
 })

@@ -9,6 +9,12 @@
  * than falling through to the real service — a test that quietly hit the network
  * would pass locally and fail in CI, or worse, the other way round.
  *
+ * The one sanctioned exception is `{ passthrough: true }`, for a suite that is
+ * *also* talking to something real over the same `globalThis.fetch` — the MCP
+ * HTTP tests drive an SDK client against a loopback server they started, and
+ * that traffic has to reach it. Passthrough is never the right answer for
+ * "the stub is missing a route"; add the route.
+ *
  * `archidekt.ts` builds its own sync harness on top of this; `stubFetch` is the
  * general form for everything else.
  */
@@ -58,12 +64,25 @@ function recordBody(request: StubbedRequest, body: string): void {
   }
 }
 
+/** How an installed stub treats what it does not route. */
+export type StubFetchOptions = {
+  /**
+   * Delegate an unrouted request to the `fetch` that was installed, instead of
+   * throwing. See this module's header for when that is legitimate — essentially
+   * only when the suite drives a real loopback server over the same `fetch`.
+   */
+  passthrough?: boolean
+}
+
 /**
  * Install a stubbed `fetch` serving `routes` by URL prefix. Returns what it
  * records and the restore function, so a suite does not have to capture
  * `globalThis.fetch` itself before installing.
  */
-export function stubFetch(routes: Record<string, StubRoute>): StubbedFetch {
+export function stubFetch(
+  routes: Record<string, StubRoute>,
+  options: StubFetchOptions = {},
+): StubbedFetch {
   const original = globalThis.fetch
   const sent: StubbedRequest[] = []
   const byPrefix = Object.entries(routes).sort(([a], [b]) => b.length - a.length)
@@ -82,6 +101,7 @@ export function stubFetch(routes: Record<string, StubRoute>): StubbedFetch {
     for (const [prefix, route] of byPrefix) {
       if (request.url.startsWith(prefix)) return route(request)
     }
+    if (options.passthrough) return original(input, init)
     throw new Error(`Unexpected fetch: ${request.method} ${request.url}`)
   }) as typeof globalThis.fetch
   return { sent, restore: () => (globalThis.fetch = original) }

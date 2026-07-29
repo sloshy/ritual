@@ -43,6 +43,8 @@ This is one process — not a second `ritual mcp` instance — so it shares the 
 
 The endpoint is stateless and serves both the 2026-07-28 and the 2025-era protocol — see [`ritual mcp` → HTTP](/commands/mcp/#http-streamable-http) for what that means for sessions, `GET`/`DELETE`, and error responses.
 
+Both listeners stop cleanly on `Ctrl-C` (`SIGINT`) or `SIGTERM`: the admin server and the embedded MCP endpoint are shut down together, so neither port is left bound.
+
 The standalone [`ritual mcp`](/commands/mcp/) command is still the way to run MCP without the web admin (over stdio, or HTTP with a bearer token).
 
 ## First-Time Setup
@@ -178,7 +180,7 @@ The cross-list **All Selected** move does not go through the editor's Save butto
 
 ### Build Site
 
-Trigger a full static site build from the browser. This runs the same process as `ritual build-site`.
+Trigger a full static site build from the browser. This runs the same build as `ritual build-site`, as a background child process — the admin server stays responsive for its duration, and the build publishes atomically. See [`POST /api/build-site`](#post-apibuild-site) for the details.
 
 ### Refresh Cache
 
@@ -613,6 +615,8 @@ Apply an exported change bundle to the underlying lists. See the [admin API refe
 
 Trigger a full static site build. This is equivalent to running `ritual build-site`. May take several minutes.
 
+The build runs as a child process and is awaited asynchronously, so it does not block the admin server for its duration. It builds into a scratch directory and swaps that into `dist/` only once it finishes, so an interrupted or failed build never leaves a broken published site — `dist/` holds either the previous build or the new one. A second concurrent build is refused with `503`, a failed build answers `500` with the child's stderr tail, and a build cancelled by its caller (only an in-process caller such as the [MCP `build_site` tool](/commands/mcp/) can cancel one) answers `499` with `dist/` untouched.
+
 **Request body:** None
 
 **Response:**
@@ -620,7 +624,9 @@ Trigger a full static site build. This is equivalent to running `ritual build-si
 ```json
 {
   "success": true,
-  "message": "Site built successfully"
+  "message": "Site built successfully",
+  "outDir": "/home/user/ritual/dist",
+  "durationMs": 42000
 }
 ```
 
@@ -628,7 +634,7 @@ Trigger a full static site build. This is equivalent to running `ritual build-si
 
 **Auth required:** Yes
 
-Download and cache all Scryfall card data. Equivalent to `ritual cache preload-all`. Returns a JSON response when complete.
+Download and cache all Scryfall card data. Equivalent to `ritual cache preload-all`. Returns a JSON response when complete. A refresh that fails answers a non-2xx with the failure's message rather than reporting success.
 
 **Request body:** None
 
@@ -655,7 +661,7 @@ Stream cache refresh progress via Server-Sent Events (SSE). The UI uses this end
 | `done`     | `message`                         | Refresh completed successfully |
 | `error`    | `message`                         | Refresh failed                 |
 
-**Stage values:** `download`, `save`, `done`, `info` (parsing/processing happen inline while the gzipped-JSONL bulk streams, so `download` covers them)
+**Stage values:** `metadata`, `tags`, `download`, `save`, `done`, `info` (parsing/processing happen inline while the gzipped-JSONL bulk streams, so `download` covers them). The stages come from the refresh engine itself rather than being scraped from log lines, so the `percentage` on a `download` event is present whenever the compressed download size is known.
 
 **Example event stream:**
 

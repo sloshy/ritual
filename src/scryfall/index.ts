@@ -46,6 +46,12 @@ import type { PriceCurrency } from '../price-currency'
 import type { TagIndex } from './tags'
 
 export { attachTags, type TagIndex } from './tags'
+export type {
+  CacheRefreshEvent,
+  CacheRefreshProgressHandler,
+  PreloadCacheOptions,
+} from './progress'
+import type { PreloadCacheOptions } from './progress'
 
 export type MinMaxPrice = { min: number; max: number }
 
@@ -101,8 +107,8 @@ export function preloadCacheFromFiles(files: BulkCacheFiles): Promise<void> {
   return scryfallClient.preloadCacheFromFiles(files)
 }
 
-export function preloadCache(): Promise<void> {
-  return scryfallClient.preloadCache()
+export function preloadCache(options?: PreloadCacheOptions): Promise<void> {
+  return scryfallClient.preloadCache(options)
 }
 
 export function refreshTags(prefetched?: TagIndex | null): Promise<void> {

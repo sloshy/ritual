@@ -37,6 +37,7 @@ import { listDisplayName } from '../../list-lifecycle'
 import { listLocations } from '../../resolve-list'
 import { getCollectionSyncPullTarget, getCollectionsDir } from '../../ritual-config'
 import { sseResponse } from '../../sse'
+import { itemStartProgress, itemsDoneProgress, type RouteProgressSink } from '../../progress'
 import { apiHandler } from '../utils'
 import { autoCommitAndPush, readJsonObjectBody } from './save-helpers'
 import {
@@ -403,7 +404,42 @@ function runRefused(message: string, status: number, loginRequired = false): Res
   return Response.json(body, { status })
 }
 
-export function handleCollectionSyncRun(req: Request): Promise<Response> {
+/** A run's event mapper plus the scale its reports counted against. */
+interface CollectionSyncProgressMapping {
+  onEvent: CollectionSyncEventHandler
+  /**
+   * The engine's list total, as its `list-start` events reported it — the
+   * denominator every in-flight report used, and therefore the one the terminal
+   * report must use. `0` until an event says otherwise, which is also the honest
+   * scale for a run that found nothing to sync.
+   */
+  scale: () => number
+}
+
+/**
+ * Map the engine's events onto the shared progress scale.
+ *
+ * Only `list-start` advances it, for the reason deck sync's twin gives: a `log`
+ * line has no position on the scale. Both the pull and the push loop emit
+ * `list-start`, but only one of them runs per direction, so the scale stays
+ * monotonic.
+ */
+function collectionSyncProgressEvents(sink: RouteProgressSink): CollectionSyncProgressMapping {
+  let total = 0
+  return {
+    onEvent: (event: CollectionSyncEvent): void => {
+      if (event.kind !== 'list-start') return
+      total = event.total
+      sink(itemStartProgress(`Syncing ${event.list}`, event.index, event.total))
+    },
+    scale: () => total,
+  }
+}
+
+export function handleCollectionSyncRun(
+  req: Request,
+  onProgress?: RouteProgressSink,
+): Promise<Response> {
   return apiHandler(async () => {
     const parsedBody = await readJsonObjectBody(req)
     if (!parsedBody.ok) return parsedBody.response
@@ -414,7 +450,8 @@ export function handleCollectionSyncRun(req: Request): Promise<Response> {
       return runRefused(parsed, 400)
     }
 
-    const outcome = await performSync(parsed)
+    const mapping = onProgress === undefined ? undefined : collectionSyncProgressEvents(onProgress)
+    const outcome = await performSync(parsed, mapping?.onEvent)
     if (!outcome.ok) {
       return runRefused(outcome.message, outcome.status, outcome.loginRequired)
     }
@@ -422,9 +459,14 @@ export function handleCollectionSyncRun(req: Request): Promise<Response> {
     // A run that completed is a success even when individual lists failed —
     // `report.failedCount`, each list's `reason`, and `report.errors` carry that
     // detail.
+    const message = describeRun(outcome.report)
+    // On the engine's scale, not `report.lists.length`: the report also holds
+    // lists that never emitted a `list-start`, so counting it would move the
+    // denominator out from under every frame already sent.
+    if (mapping) onProgress?.(itemsDoneProgress(mapping.scale(), message))
     const body: CollectionSyncRunResponse = {
       success: true,
-      message: describeRun(outcome.report),
+      message,
       report: outcome.report,
     }
     return Response.json(body)

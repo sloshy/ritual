@@ -1,6 +1,4 @@
-import { writeFileWithHash, hashPath } from '../../content-hash'
 import { getErrorMessage } from '../../errors'
-import { appendChangelog } from '../../changelog-writer'
 import type { CollectionCardEntry } from '../../site/data-types'
 import type { ChangeEvent } from '../../change-event'
 import { applyChangesCollectingMisses, describeUnmatchedChanges } from '../../editor/apply-batch'
@@ -16,14 +14,17 @@ import {
 import { collectionToMarkdown } from '../../editor/list-export'
 import { parseTitleFromContent } from '../../section-format'
 import { changeCardNames, refuseUnknownCardNames } from './card-name-check'
-import { applyOutgoingMoves, type ListSaveResponse } from './move-save'
+import { applyOutgoingMoves } from './move-save'
 import {
   apiError,
   PARTIAL_LOAD_HINT,
   readJsonObjectBody,
   validateContentHash,
-  autoCommitAndPush,
+  finishListSave,
+  listSaveResponse,
   normalizeRequestNotes,
+  refuseUnreadableBaseline,
+  type ListSaveTail,
 } from './save-helpers'
 import { resolveFlatListFile, resolveListFileOrRefuse } from './list-file'
 import { parseSlugFromUrl } from './target'
@@ -73,10 +74,12 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
     const hashCheck = await validateContentHash(filePath, contentHash, 'Collection')
     if (!hashCheck.valid) return hashCheck.response
 
-    const filesToCommit: string[] = [filePath, hashPath(filePath)]
-
-    // Parse the file and build card entries
+    // Parse the file and build card entries. A line this parse could not read is
+    // a line the save would delete, because the write re-serializes the whole
+    // list from these entries — refuse instead.
     const parsed = parseCollectionFile(hashCheck.content)
+    const unreadable = refuseUnreadableBaseline(filePath, parsed.warnings)
+    if (unreadable) return unreadable
     const cardEntries = toCollectionCardEntries(parsed.entries)
 
     const nameError = await refuseUnknownCardNames(
@@ -107,36 +110,31 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
     // Apply the destination side of any cross-list moves first; a bad destination
     // aborts before the source is rewritten.
     const outgoing = await applyOutgoingMoves({ type: 'collection', name: title }, changes)
-    filesToCommit.push(...outgoing.writtenFiles)
 
     const order = sectionOrder ?? parsed.sectionOrder
     // Ids are assigned here rather than only inside `collectionToMarkdown`
     // (which re-runs the assigner idempotently) so the response can report them.
     const { entries: idedEntries, assignments } = assignEntryIds(current)
     const newContent = collectionToMarkdown(title, idedEntries, order)
-    const newContentHash = await writeFileWithHash(filePath, newContent)
 
-    // Write changelog
-    if (changes.length > 0) {
-      const changelogPath = await appendChangelog(filePath, slug, changes, { continueSession })
-      filesToCommit.push(changelogPath)
+    const tail: ListSaveTail = {
+      listType: 'collection',
+      filePath,
+      content: newContent,
+      changelogName: slug,
+      changes,
+      continueSession,
+      extraFiles: outgoing.writtenFiles,
     }
+    const { contentHash: newContentHash } = await finishListSave(tail)
 
-    // Auto-commit if enabled
-    await autoCommitAndPush(
-      collectionsDir,
-      filesToCommit,
-      `Edit collection: ${slug} (${changes.length} changes)`,
+    return Response.json(
+      listSaveResponse(tail, {
+        contentHash: newContentHash,
+        droppedNotes: outgoing.droppedNotes,
+        effects: computeEntrySaveEffects({ before: cardEntries, after: idedEntries, assignments }),
+      }),
     )
-
-    const responseBody: ListSaveResponse = {
-      success: true,
-      message: `Saved ${changes.length} changes to ${slug}`,
-      contentHash: newContentHash,
-      droppedNotes: outgoing.droppedNotes,
-      effects: computeEntrySaveEffects({ before: cardEntries, after: idedEntries, assignments }),
-    }
-    return Response.json(responseBody)
   } catch (error) {
     return apiError(getErrorMessage(error), 500)
   }

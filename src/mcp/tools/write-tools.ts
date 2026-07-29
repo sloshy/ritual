@@ -337,7 +337,9 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'overwriting one, or appending to an existing one. Columns map to card fields via a ' +
         '1-based spec like "name=1,set=2,collector-number=3" (fields: name, set, collector-number, ' +
         'condition, finish, section, quantity). Values are normalized (e.g. "Near Mint" → NM, ' +
-        '"F" → foil). Rows that fail validation are reported back; the rest still import.',
+        '"F" → foil). Rows that fail validation are reported back and the rest still import, so a ' +
+        'partially-failed import still succeeds — read failedCount and failures rather than ' +
+        'treating the call as all-or-nothing.',
       inputSchema: z
         .object({
           listType: listTypeSchema,

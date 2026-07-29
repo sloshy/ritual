@@ -172,7 +172,11 @@ Load a deck, at the depth `view` asks for. The same parameters apply to [Load Co
 
 `totalCount` is always present: the number of entries that matched **before** `limit`/`offset` applied — the list's whole line count when nothing was filtered — so a client can page. `offset`/`limit` count lines, and a line is never split: a `4 Lightning Bolt` deck entry travels whole.
 
-Any of `section`, `nameContains`, `limit`, or `offset` makes the body a **slice**: the `cards` and `full` responses then carry `"partial": true` and **no** `contentHash`. That is deliberate — the deck and wanted save routes persist the payload they are handed, so saving a slice back would truncate the file. Reload without the filters to get a hash you can save with. (`view=summary` always carries the hash: a summary is not a save payload in the first place.)
+Any of `section`, `nameContains`, `limit`, or `offset` makes the body a **slice**: the response then carries `"partial": true` and **no** `contentHash`. That is deliberate — the deck and wanted save routes persist the payload they are handed, so saving a slice back would truncate the file. Reload without the filters to get a hash you can save with. This applies to **every** view, `summary` included: a filtered summary's counts describe the slice, and the hash is the token the save routes read as "this is the whole file".
+
+`warnings` is always present on all three views: the body lines the file's parser could not read, as an array of messages (empty for a clean file). It is an always-present array rather than an optional one on purpose — a list holding an unreadable line would otherwise load as merely shorter, and a client that never checks an optional field would never learn the difference.
+
+**A non-empty `warnings` also blocks saving that list.** The three save routes re-serialize the whole file from parsed entries, so a line the parse could not read is a line the write would delete — releasing its `&N` id back into the reuse pool for some other card. Rather than let that happen, a save whose _baseline_ (the file as it stands on disk) parses with any warnings is refused with `400`, naming the file, the count, and each warning. The file is left untouched; fix the line and retry. MCP mutations surface the same refusal as a tool error.
 
 A missing list is a `404` whose message names `GET /api/lists` as the way to find the real slugs. A slug carrying a path separator is a `400` (`Invalid list slug`) on all three routes.
 
@@ -189,7 +193,8 @@ A missing list is a `404` whose message names `GET /api/lists` as the way to fin
   "symbolMap": { "{W}": "https://..." },
   "frontMatter": {},
   "slug": "my-deck",
-  "contentHash": "..."
+  "contentHash": "...",
+  "warnings": []
 }
 ```
 
@@ -203,7 +208,8 @@ A missing list is a `404` whose message names `GET /api/lists` as the way to fin
   "deck": { "name": "...", "sections": [] },
   "frontMatter": {},
   "totalCount": 42,
-  "contentHash": "..."
+  "contentHash": "...",
+  "warnings": []
 }
 ```
 
@@ -221,11 +227,12 @@ Front matter travels with the deck's `cards` view because the save route re-send
     "cardCount": 99,
     "sections": [{ "name": "Commander", "entryCount": 1, "cardCount": 1 }]
   },
-  "contentHash": "..."
+  "contentHash": "...",
+  "warnings": []
 }
 ```
 
-`entryCount` is lines, `cardCount` is copies (summed quantity). Collections and wanted lists hold one card per line, so the two are equal there. A summary honours `section`/`nameContains` and ignores `limit`/`offset` — the counts describe the whole filtered set.
+`entryCount` is lines, `cardCount` is copies (summed quantity). Collections and wanted lists hold one card per line, so the two are equal there. A summary honours `section`/`nameContains` and ignores `limit`/`offset` — the counts describe the whole filtered set. A _narrowed_ summary is `"partial": true` with no `contentHash`, like every other narrowed view.
 
 ## Card Printings
 
@@ -573,6 +580,10 @@ Save deck changes. Writes the updated deck file and appends to the changelog. Pa
 }
 ```
 
+### Unreadable lines block a save
+
+All three save routes parse the file as it stands on disk before applying anything, and refuse with `400` when that parse produces any warnings — a line the parser cannot read is a line the re-serializing write would delete, along with its `&N` id. The message names the file, how many lines are affected, and each warning. Nothing is written. Fix the line (or delete it deliberately) and retry; `GET /api/{type}/:slug` reports the same list in its [`warnings`](#load-deck) field.
+
 ### `validateCardNames`
 
 The three save routes and both [Move Selected Cards](#move-selected-cards) / [Remove Cards](#remove-cards) routes accept an optional boolean `validateCardNames`, default `false`. It is validated, never coerced: any non-boolean value is a `400`.
@@ -662,7 +673,8 @@ Load a collection with full card data, printings, and mana symbol map. Accepts t
   "printings": { "Sol Ring": [] },
   "symbolMap": { "{W}": "https://..." },
   "slug": "my-collection",
-  "contentHash": "..."
+  "contentHash": "...",
+  "warnings": []
 }
 ```
 
@@ -818,7 +830,8 @@ Load a wanted list with full card data, printings, and mana symbol map. Accepts 
   "printings": { "Sol Ring": [] },
   "symbolMap": { "{W}": "https://..." },
   "slug": "high-priority",
-  "contentHash": "..."
+  "contentHash": "...",
+  "warnings": []
 }
 ```
 
@@ -1681,11 +1694,12 @@ Import cards from CSV text into a deck, collection, or wanted list. Used by the 
       "raw": "No Printing,,",
       "reason": "Missing set code (required for collections)"
     }
-  ]
+  ],
+  "failedCount": 1
 }
 ```
 
-Rows that fail validation are returned in `failures` while the valid rows still import; the response is `400` only when the request itself is invalid or **no** rows could be imported. Appends record each added card in the list's changelog. When git auto-commit is enabled, the list file (and changelog) are committed.
+`cardCount`, `failures`, and `failedCount` are **always** present. Rows that fail validation are returned in `failures` while the valid rows still import, and `success` is a pure envelope flag: a request where _every_ row failed is still a `200` carrying `cardCount: 0` and the per-row report, since the report is the whole point of the call. The response is `400` only when the **request** is invalid (bad body shape, unknown `listType`/`format`, an unparseable column spec or CSV, no data rows, or an append to a list that does not exist). Appends record each added card in the list's changelog. When git auto-commit is enabled, the list file (and changelog) are committed.
 
 ## Import Changes
 

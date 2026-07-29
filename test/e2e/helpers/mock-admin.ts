@@ -15,6 +15,12 @@ import type {
 import { CSV_UPLOAD_THRESHOLD } from '../../../src/collection-sync/csv'
 import type { AmbiguousRemoval } from '../../../src/collection-sync/describe'
 import type { CardIndexResponse } from '../../../src/admin/api/card-index'
+import type { BuildSiteResponse } from '../../../src/admin/api/build-site'
+import type {
+  CollectionFullLoadResult,
+  DeckFullLoadResult,
+  WantedFullLoadResult,
+} from '../../../src/admin/api/load-results'
 import type { ListInfo } from '../../../src/list-info'
 import type { RitualConfig } from '../../../src/ritual-config'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/editor/search-debounce'
@@ -144,10 +150,16 @@ export async function mockConfigApi(page: Page): Promise<void> {
  * Mock the build-site API endpoint
  */
 export async function mockBuildSiteApi(page: Page): Promise<void> {
-  await fulfillJson(page, '**/api/build-site', {
+  // Typed against the real response so a widened body (this one grew `outDir`
+  // and `durationMs`) cannot leave the mock behind, telling the UI a shape the
+  // server no longer sends.
+  const body: BuildSiteResponse = {
     success: true,
     message: 'Site built successfully',
-  })
+    outDir: '/tmp/ritual-e2e/dist',
+    durationMs: 1234,
+  }
+  await fulfillJson(page, '**/api/build-site', body)
 }
 
 /**
@@ -175,7 +187,16 @@ export async function mockImportCsvApi(
 ): Promise<void> {
   await fulfillJson(page, '**/api/import-csv', (route: Route) => {
     onRequest?.(route.request().postDataJSON())
-    return { success: true, message: 'Imported 3 card(s)', cardCount: 3, failures }
+    // `failures`/`failedCount` are always present on the real response: a
+    // partially-failed import is a success whose per-row report is the point.
+    const rows = failures ?? []
+    return {
+      success: true,
+      message: 'Imported 3 card(s)',
+      cardCount: 3,
+      failures: rows,
+      failedCount: rows.length,
+    }
   })
 }
 
@@ -602,39 +623,37 @@ export async function mockWantedListsApi(page: Page): Promise<void> {
  * Mock a wanted list load API endpoint
  */
 export async function mockWantedListLoadApi(page: Page): Promise<void> {
-  await fulfillJson(
-    page,
-    '**/api/wanted/test-wanted-list',
-    {
-      success: true,
-      entries: MOCK_WANTED_LIST_DETAIL.entries,
-      cards: MOCK_WANTED_LIST_DETAIL.cards,
-      printings: MOCK_WANTED_LIST_DETAIL.printings,
-      symbolMap: {},
-      slug: 'test-wanted-list',
-    },
-    { method: 'GET' },
-  )
+  const body: WantedFullLoadResult = {
+    success: true,
+    view: 'full',
+    entries: MOCK_WANTED_LIST_DETAIL.entries,
+    cards: MOCK_WANTED_LIST_DETAIL.cards,
+    printings: MOCK_WANTED_LIST_DETAIL.printings,
+    symbolMap: {},
+    slug: 'test-wanted-list',
+    totalCount: MOCK_WANTED_LIST_DETAIL.entries.length,
+    warnings: [],
+  }
+  await fulfillJson(page, '**/api/wanted/test-wanted-list', body, { method: 'GET' })
 }
 
 /**
  * Mock the admin API endpoint for loading a single collection with priced and unpriced cards.
  */
 export async function mockAdminCollectionLoadApi(page: Page): Promise<void> {
-  await fulfillJson(
-    page,
-    '**/api/collection/test-collection',
-    {
-      success: true,
-      entries: MOCK_COLLECTION_DETAIL.entries,
-      cards: MOCK_COLLECTION_DETAIL.cards,
-      printings: MOCK_COLLECTION_DETAIL.printings,
-      symbolMap: {},
-      slug: 'test-collection',
-      contentHash: 'abc123',
-    },
-    { method: 'GET' },
-  )
+  const body: CollectionFullLoadResult = {
+    success: true,
+    view: 'full',
+    entries: MOCK_COLLECTION_DETAIL.entries,
+    cards: MOCK_COLLECTION_DETAIL.cards,
+    printings: MOCK_COLLECTION_DETAIL.printings,
+    symbolMap: {},
+    slug: 'test-collection',
+    contentHash: 'abc123',
+    totalCount: MOCK_COLLECTION_DETAIL.entries.length,
+    warnings: [],
+  }
+  await fulfillJson(page, '**/api/collection/test-collection', body, { method: 'GET' })
 }
 
 // ===== Move Cards page mock data =====
@@ -697,8 +716,9 @@ export async function mockMoveCardsApi(
     return { success: true, moved: 1, skipped: 0, message: 'Moved 1 card.' }
   })
 
-  await fulfillJson(page, '**/api/collection/move-binder', {
+  const binder: CollectionFullLoadResult = {
     success: true,
+    view: 'full',
     entries: [
       {
         name: 'Lightning Bolt',
@@ -706,8 +726,6 @@ export async function mockMoveCardsApi(
         collectorNumber: '161',
         finish: 'nonfoil',
         condition: 'NM',
-        price: 2,
-        fileOrder: 0,
         section: 'Main',
         cardId: 1,
       },
@@ -718,21 +736,32 @@ export async function mockMoveCardsApi(
     symbolMap: {},
     slug: 'move-binder',
     contentHash: 'move-binder-hash',
-  })
+    totalCount: 1,
+    warnings: [],
+  }
+  await fulfillJson(page, '**/api/collection/move-binder', binder)
 
-  await fulfillJson(page, '**/api/deck/move-deck', {
+  const deck: DeckFullLoadResult = {
     success: true,
+    view: 'full',
     deck: { name: 'Move Deck', sections: [{ name: 'Main', cards: [] }] },
     cards: {},
     printings: {},
+    lowestPriceCards: {},
+    lowestPriceCardsEur: {},
+    lowestPriceCardsTix: {},
     symbolMap: {},
     frontMatter: { name: 'Move Deck' },
     slug: 'move-deck',
     contentHash: 'move-deck-hash',
-  })
+    totalCount: 0,
+    warnings: [],
+  }
+  await fulfillJson(page, '**/api/deck/move-deck', deck)
 
-  await fulfillJson(page, '**/api/wanted/move-wishlist', {
+  const wishlist: WantedFullLoadResult = {
     success: true,
+    view: 'full',
     entries: [],
     sectionOrder: ['Main'],
     cards: {},
@@ -740,7 +769,10 @@ export async function mockMoveCardsApi(
     symbolMap: {},
     slug: 'move-wishlist',
     contentHash: 'move-wishlist-hash',
-  })
+    totalCount: 0,
+    warnings: [],
+  }
+  await fulfillJson(page, '**/api/wanted/move-wishlist', wishlist)
 
   await fulfillJson(page, '**/api/card-printings*', {
     success: true,

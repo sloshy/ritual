@@ -12,6 +12,7 @@ import {
   type CollectionSyncStatusResponse,
 } from '../../src/admin/api/collection-sync'
 import { dispatchRoute } from '../../src/admin/server'
+import type { RouteProgress, RouteProgressSink } from '../../src/progress'
 import type { ArchidektToken } from '../../src/auth/interfaces'
 import type { CollectionSyncEvent } from '../../src/collection-sync/engine'
 import type { ArchidektCollectionRecord } from '../../src/importers/archidekt-collection'
@@ -31,6 +32,7 @@ import {
   seededScryfallId,
 } from './helpers/archidekt'
 import { bindWorkspace, writeCollectionFile, type BoundWorkspace } from './helpers/workspace'
+import { expectMonotonicProgress } from '../test-utils'
 
 /**
  * End-to-end coverage for the admin collection-sync endpoints: what the status
@@ -69,13 +71,13 @@ async function getStatus(): Promise<CollectionSyncStatusResponse> {
 
 type RunResult = { status: number; body: CollectionSyncRunResponse }
 
-async function postRun(body: unknown): Promise<RunResult> {
+async function postRun(body: unknown, onProgress?: RouteProgressSink): Promise<RunResult> {
   const req = new Request('http://localhost/api/collection-sync', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  const resp = await handleCollectionSyncRun(req)
+  const resp = await handleCollectionSyncRun(req, onProgress)
   return { status: resp.status, body: (await resp.json()) as CollectionSyncRunResponse }
 }
 
@@ -208,6 +210,28 @@ describe('collection-sync API', () => {
     // The account-level timestamp the status endpoint reads comes from the run.
     const status2 = await getStatus()
     expect(status2.lastSynced).not.toBeNull()
+  })
+
+  test('reports progress to an in-process caller, ending on the terminal report', async () => {
+    // The MCP adapter's channel: `handleCollectionSyncRun`'s sink, not the SSE stream.
+    await signIn(ACCOUNT)
+    stubCollection(record(SOL_RING), record(BOLT))
+
+    const reports: RouteProgress[] = []
+    const { status } = await postRun(
+      { direction: 'pull', lists: ['binder'], into: 'binder' },
+      (r) => reports.push(r),
+    )
+    expect(status).toBe(200)
+
+    // The exact sequence, like the deck sibling: one report per list start
+    // (0-based), then the terminal n/n on the engine's own scale. Asserting only
+    // "monotonic, ends with the summary" let the list-start mapping be deleted
+    // entirely and still pass, since the terminal report alone satisfies both.
+    expectMonotonicProgress(reports, 1)
+    expect(reports.map((r) => r.progress)).toEqual([0, 1])
+    expect(reports[0]?.message).toBe('Syncing binder (1/1)')
+    expect(reports.at(-1)?.message).toBe('Pulled +1 added, -0 removed into "binder".')
   })
 
   test('refuses an ambiguous removal it was given no priority for, and writes nothing', async () => {

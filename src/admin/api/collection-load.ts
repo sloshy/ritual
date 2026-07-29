@@ -7,11 +7,12 @@ const COLLECTION_LOAD_CFG: FlatListLoadConfig<CollectionEntry> = {
   label: 'collection',
   getDir: getCollectionsDir,
   parse: (content): FlatListParseResult<CollectionEntry> => {
-    const { entries, sectionOrder } = parseCollectionFile(content)
+    const { entries, sectionOrder, warnings } = parseCollectionFile(content)
     // Set codes are normalized to lowercase so they match Scryfall card keys.
     return {
       entries: entries.map((entry) => ({ ...entry, set: entry.set.toLowerCase() })),
       sectionOrder,
+      warnings,
     }
   },
 }

@@ -1,6 +1,4 @@
-import { writeFileWithHash, hashPath } from '../../content-hash'
 import { getErrorMessage } from '../../errors'
-import { appendChangelog } from '../../changelog-writer'
 import type { WantedListCardEntry } from '../../site/data-types'
 import type { ChangeEvent } from '../../change-event'
 import { getWantedDir } from '../../ritual-config'
@@ -10,14 +8,17 @@ import { parseWantedListFile } from '../../commands/wanted-helpers'
 import { assignEntryIds } from '../../card-id'
 import { computeEntrySaveEffects } from '../../editor/save-effects'
 import { changeCardNames, refuseUnknownCardNames } from './card-name-check'
-import { applyOutgoingMoves, type ListSaveResponse } from './move-save'
+import { applyOutgoingMoves } from './move-save'
 import {
   apiError,
   PARTIAL_LOAD_HINT,
   readJsonObjectBody,
   validateContentHash,
-  autoCommitAndPush,
+  finishListSave,
+  listSaveResponse,
   normalizeRequestNotes,
+  refuseUnreadableBaseline,
+  type ListSaveTail,
 } from './save-helpers'
 import { resolveFlatListFile, resolveListFileOrRefuse } from './list-file'
 import { parseSlugFromUrl } from './target'
@@ -68,15 +69,18 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
     // The list as it stands on disk: the baseline for both the card-name check
     // and the effects diff. Parsed once — not from the request's `entries`,
     // which already carry the change and would vouch for the very name added.
-    const previousEntries = parseWantedListFile(hashCheck.content).entries
+    const previous = parseWantedListFile(hashCheck.content)
+    // A line this parse could not read is a line the save would delete, because
+    // the write re-serializes the whole list — refuse instead.
+    const unreadable = refuseUnreadableBaseline(filePath, previous.warnings)
+    if (unreadable) return unreadable
+    const previousEntries = previous.entries
     const nameError = await refuseUnknownCardNames(
       body.validateCardNames,
       changeCardNames(changes),
       () => previousEntries.map((entry) => entry.name),
     )
     if (nameError) return nameError
-
-    const filesToCommit: string[] = [filePath, hashPath(filePath)]
 
     // Re-serialize as a sectioned list, preserving the `# Title` H1. Entries carry their
     // section from the client; the client-sent section order drives ordering (including any
@@ -86,40 +90,35 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
     // Apply the destination side of any cross-list moves first; a bad destination
     // aborts before the source is rewritten.
     const outgoing = await applyOutgoingMoves({ type: 'wanted', name: title }, changes)
-    filesToCommit.push(...outgoing.writtenFiles)
 
     const order = sectionOrder ?? []
     // Ids are assigned here rather than only inside `wantedToMarkdown` (which
     // re-runs the assigner idempotently) so the response can report them.
     const { entries: idedEntries, assignments } = assignEntryIds(entries)
     const newContent = wantedToMarkdown(title, idedEntries, order)
-    const newContentHash = await writeFileWithHash(filePath, newContent)
 
-    // Write changelog
-    if (changes.length > 0) {
-      const changelogPath = await appendChangelog(filePath, slug, changes, { continueSession })
-      filesToCommit.push(changelogPath)
+    const tail: ListSaveTail = {
+      listType: 'wanted',
+      filePath,
+      content: newContent,
+      changelogName: slug,
+      changes,
+      continueSession,
+      extraFiles: outgoing.writtenFiles,
     }
+    const { contentHash: newContentHash } = await finishListSave(tail)
 
-    // Auto-commit if enabled
-    await autoCommitAndPush(
-      wantedListsDir,
-      filesToCommit,
-      `Edit wanted list: ${slug} (${changes.length} changes)`,
-    )
-
-    const responseBody: ListSaveResponse = {
-      success: true,
-      message: `Saved ${changes.length} changes to ${slug}`,
-      contentHash: newContentHash,
-      droppedNotes: outgoing.droppedNotes,
-      effects: computeEntrySaveEffects({
-        before: previousEntries,
-        after: idedEntries,
-        assignments,
+    return Response.json(
+      listSaveResponse(tail, {
+        contentHash: newContentHash,
+        droppedNotes: outgoing.droppedNotes,
+        effects: computeEntrySaveEffects({
+          before: previousEntries,
+          after: idedEntries,
+          assignments,
+        }),
       }),
-    }
-    return Response.json(responseBody)
+    )
   } catch (error) {
     return apiError(getErrorMessage(error), 500)
   }
