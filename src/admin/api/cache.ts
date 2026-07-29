@@ -4,10 +4,28 @@ import type { CacheProgressEvent } from '../../logger'
 import { getErrorMessage } from '../../errors'
 import { sseResponse } from '../../sse'
 import { apiHandler } from '../utils'
+import { collectCacheStatus, type CacheStatusResult } from '../../cache/status'
 
 interface CacheRefreshResponse {
   success: boolean
   message: string
+}
+
+/** `GET /api/cache/status` body: the collector's report, flattened onto the success envelope. */
+export interface CacheStatusResponse extends CacheStatusResult {
+  success: true
+}
+
+/**
+ * `GET /api/cache/status` — report the card cache's size, freshness, tag
+ * coverage, and source. The same data `ritual cache status --output json`
+ * prints. Diagnostic only: collecting it never refreshes or writes the cache.
+ */
+export function handleCacheStatus(): Promise<Response> {
+  return apiHandler(async () => {
+    const resp: CacheStatusResponse = { success: true, ...(await collectCacheStatus()) }
+    return Response.json(resp)
+  })
 }
 
 export function handleCacheRefresh(): Promise<Response> {

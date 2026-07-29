@@ -73,6 +73,8 @@ Filters apply to the assembled set — list entries and card picks alike.
 
 Unlike the shared scripting `--output text|json|ndjson` convention on other commands, here `--output` selects the **export payload format** itself — the rendered export goes to stdout (or `--out`) raw, with no envelope.
 
+The same engine backs the admin API's [`POST /api/export`](/admin/api/#export-cards). That route returns the rendered export inline by default, or — with `write: true` — writes it to a server-named file under a gitignored `exports/` directory in the base dir and returns the relative path. Files written that way are byte-identical to what `--out` produces.
+
 ## Formats
 
 ### `csv` and `json`

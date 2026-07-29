@@ -270,7 +270,14 @@ describe('Ritual MCP server (in-memory transport)', () => {
       quoteAll: true,
     })
     expect(result.isError).toBeFalsy()
-    const data = toolJson(result) as { entryCount: number; content: string; warnings: string[] }
+    const data = toolJson(result) as {
+      mode: string
+      entryCount: number
+      content: string
+      warnings: string[]
+    }
+    // The tool never asks for `write`, so the response is always the inline arm.
+    expect(data.mode).toBe('content')
     expect(data.entryCount).toBe(2)
     expect(data.content.split('\n')).toEqual([
       '"Name","Quantity","Section"',

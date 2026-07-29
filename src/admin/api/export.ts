@@ -15,6 +15,7 @@ import {
   type ExportSettingsFlags,
 } from '../../export/presets'
 import { EXPORT_DIALECTS, isExportDialect, parseExportColumns } from '../../export/render'
+import { listExistingExports, writeExportFile } from '../../export/file'
 import { isFinish } from '../../finish-condition'
 import { isListType } from '../../list-type'
 import {
@@ -54,18 +55,44 @@ export type ExportRequestBody = {
   dialect?: string
   /** A saved or built-in preset name; explicit fields above override its values. */
   preset?: string
+  /** Write the export to a server-chosen file under `exports/` instead of returning its content. */
+  write?: boolean
 }
 
-type ExportResponseBody = {
+/** Content mode: the rendered export inline. */
+export type ExportContentResponse = {
   success: true
+  mode: 'content'
   format: string
   entryCount: number
-  content: string
   warnings: string[]
+  content: string
 }
 
+/** File mode: the base-dir-relative path of the file written. */
+export type ExportFileResponse = {
+  success: true
+  mode: 'file'
+  format: string
+  entryCount: number
+  warnings: string[]
+  /** Base-dir-relative, e.g. `exports/binder-20260728.csv`. */
+  path: string
+  bytes: number
+}
+
+/** `POST /api/export` success body, discriminated by `mode`. */
+export type ExportResponseBody = ExportContentResponse | ExportFileResponse
+
+/** `POST /api/export` failure body. */
+export type ExportErrorResponse = { success: false; message: string }
+
+/** Every body `POST /api/export` can return. */
+export type ExportResponse = ExportResponseBody | ExportErrorResponse
+
 function badRequest(message: string): Response {
-  return Response.json({ success: false, message }, { status: 400 })
+  const body: ExportErrorResponse = { success: false, message }
+  return Response.json(body, { status: 400 })
 }
 
 /** Validate the body's output-shape fields into settings flags, or an error string. */
@@ -137,8 +164,13 @@ function parseFilters(raw: ExportRequestFilters | undefined): ExportFilters | st
  * `export` command's flag mode: selected lists (or every list when none are
  * named and no card picks are given) plus card picks, filtered, rendered to
  * CSV, JSON, plain text, or Markdown (columns, the CSV toggles, and the value
- * dialect only shape csv/json output). Returns the rendered content as a string
- * rather than writing a file — the caller decides where it goes.
+ * dialect only shape csv/json output).
+ *
+ * Returns the rendered content inline (`mode: 'content'`) by default. With
+ * `write: true` the render is written to a server-named file under the
+ * gitignored `exports/` directory in the base dir and the response carries its
+ * base-dir-relative `path` instead (`mode: 'file'`); an existing name is never
+ * overwritten.
  */
 export async function handleExport(req: Request): Promise<Response> {
   try {
@@ -173,6 +205,10 @@ export async function handleExport(req: Request): Promise<Response> {
     const filters = parseFilters(body.filters)
     if (typeof filters === 'string') return badRequest(filters)
 
+    if (body.write !== undefined && typeof body.write !== 'boolean') {
+      return badRequest('write must be a boolean.')
+    }
+
     if (body.cards !== undefined && !Array.isArray(body.cards)) {
       return badRequest('cards must be an array of search-term strings.')
     }
@@ -198,21 +234,49 @@ export async function handleExport(req: Request): Promise<Response> {
       }
     }
     const scope = await listLocations()
+    // The lists the caller actually named, captured before the "no selection means
+    // everything" expansion below — the export filename describes the request, so
+    // an unscoped export is named `all-lists` even in a one-list workspace.
+    const namedLists = [...selected]
     if (listRefs.length === 0 && cards.length === 0) {
       selected.push(...scope)
     }
 
     const selection = await buildExportSelection(selected, scope, cards, filters)
     const rendered = await renderExport(selection.entries, settings)
-    const payload: ExportResponseBody = {
+    const warnings = [...selection.warnings, ...rendered.warnings]
+
+    if (body.write === true) {
+      const written = await writeExportFile(rendered.content, {
+        lists: namedLists,
+        hasCardPicks: cards.length > 0,
+        format: settings.format,
+        now: new Date(),
+        existing: await listExistingExports(),
+      })
+      const filePayload: ExportFileResponse = {
+        success: true,
+        mode: 'file',
+        format: settings.format,
+        entryCount: selection.entries.length,
+        warnings,
+        path: written.path,
+        bytes: written.bytes,
+      }
+      return Response.json(filePayload)
+    }
+
+    const payload: ExportContentResponse = {
       success: true,
+      mode: 'content',
       format: settings.format,
       entryCount: selection.entries.length,
+      warnings,
       content: rendered.content,
-      warnings: [...selection.warnings, ...rendered.warnings],
     }
     return Response.json(payload)
   } catch (error) {
-    return Response.json({ success: false, message: getErrorMessage(error) }, { status: 500 })
+    const body: ExportErrorResponse = { success: false, message: getErrorMessage(error) }
+    return Response.json(body, { status: 500 })
   }
 }

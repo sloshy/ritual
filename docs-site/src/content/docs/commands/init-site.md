@@ -135,20 +135,20 @@ If you keep your decks, collections, and wanted lists in a git repository and wo
 
 ### GitHub Actions
 
-| File                                | Description                                                               |
-| ----------------------------------- | ------------------------------------------------------------------------- |
-| `.github/workflows/deploy-site.yml` | GitHub Actions workflow for deploying to GitHub Pages (tracked)           |
-| `ritual.config.json` (`site` key)   | Stores your settings and the Ritual version used — commit this file       |
-| `README.md`                         | Basic setup instructions for your site                                    |
-| `.gitignore`                        | Entries for `cache/`, `dist/`, etc. (appended if the file already exists) |
+| File                                | Description                                                                           |
+| ----------------------------------- | ------------------------------------------------------------------------------------- |
+| `.github/workflows/deploy-site.yml` | GitHub Actions workflow for deploying to GitHub Pages (tracked)                       |
+| `ritual.config.json` (`site` key)   | Stores your settings and the Ritual version used — commit this file                   |
+| `README.md`                         | Basic setup instructions for your site                                                |
+| `.gitignore`                        | Entries for `cache/`, `dist/`, `exports/`, etc. (appended if the file already exists) |
 
 ### Manual / None
 
-| File                              | Description                                                               |
-| --------------------------------- | ------------------------------------------------------------------------- |
-| `ritual.config.json` (`site` key) | Stores your settings and the Ritual version used — commit this file       |
-| `README.md`                       | Basic setup instructions for your site                                    |
-| `.gitignore`                      | Entries for `cache/`, `dist/`, etc. (appended if the file already exists) |
+| File                              | Description                                                                           |
+| --------------------------------- | ------------------------------------------------------------------------------------- |
+| `ritual.config.json` (`site` key) | Stores your settings and the Ritual version used — commit this file                   |
+| `README.md`                       | Basic setup instructions for your site                                                |
+| `.gitignore`                      | Entries for `cache/`, `dist/`, `exports/`, etc. (appended if the file already exists) |
 
 If a generated file already exists, you'll be prompted before overwriting (or it is overwritten without prompting under `--force`). The `README.md` overwrite decision can also be made without a prompt via `--overwrite-readme` / `--no-overwrite-readme`, which take precedence over `--force`. In a headless run, an existing file with no decision flag is a usage error.
 

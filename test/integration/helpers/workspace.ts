@@ -3,6 +3,7 @@ import path from 'node:path'
 import { tmpdir } from 'node:os'
 import { execSync } from 'node:child_process'
 import { getBaseDir, setBaseDir } from '../../../src/base-dir'
+import { cardCache } from '../../../src/cache/instances'
 import { initRitualConfig, resetRitualConfigCache } from '../../../src/ritual-config'
 import { serializeDeckToMarkdown, type DeckFrontMatter } from '../../../src/deck-file'
 import { serializeSectionedList } from '../../../src/section-format'
@@ -81,6 +82,13 @@ export async function withWorkspace(
 export type BoundWorkspaceOptions = WorkspaceOptions & {
   /** Also initRitualConfig() after switching, for code that reads the sync config getters. */
   init?: boolean
+  /**
+   * Clear the `cardCache` singleton on bind and again on dispose. `cardCache`
+   * has an in-memory layer shared by every test file in the process, so a
+   * neighbour's cards would otherwise make a fresh workspace look populated —
+   * and this workspace's cards would leak into the next one.
+   */
+  clearCardCache?: boolean
 }
 
 export type BoundWorkspace = {
@@ -99,9 +107,13 @@ export async function bindWorkspace(options: BoundWorkspaceOptions = {}): Promis
   setBaseDir(dir)
   resetRitualConfigCache()
   if (options.init) await initRitualConfig()
+  if (options.clearCardCache) await cardCache.clear()
   return {
     dir,
     dispose: async (): Promise<void> => {
+      // Cleared before the base dir moves: the cache resolves its file path at
+      // call time, so clearing after the switch would target the wrong workspace.
+      if (options.clearCardCache) await cardCache.clear()
       setBaseDir(originalBase)
       resetRitualConfigCache()
       await removeWorkspace(dir)

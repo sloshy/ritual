@@ -102,6 +102,9 @@ export function mapScryfallCard(item: ScryfallCard): ScryfallCard {
     collector_number: item.collector_number,
     rarity: item.rarity,
     color_identity: item.color_identity || [],
+    colors: item.colors,
+    keywords: item.keywords,
+    legalities: item.legalities,
     released_at: item.released_at,
     // Preserve any already-attached tags so the mapper round-trips enriched cards.
     oracleTags: item.oracleTags,

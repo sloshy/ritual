@@ -201,6 +201,148 @@ Get price data for a card including representative and cheapest printings for al
 | `lowestPriceCardEur` | The cheapest EUR printing                            |
 | `lowestPriceCardTix` | The cheapest MTGO Tix printing                       |
 
+## Card Details
+
+```
+GET /api/card-details?name=<cardName>
+```
+
+Everything Ritual knows about one card: oracle text, type line, mana cost and CMC, colors and color identity, keyword abilities, format legalities, and Scryfall Tagger oracle/art tags. The local card cache is read first, falling back to a single-card Scryfall fetch when the cache holds no printings for the name.
+
+Oracle-level fields are identical across printings, so the response describes _the card_ — the identity fields (`set`, `collectorNumber`, `prices`) come from its **most recent** printing, and `printingCount` reports how many printings were found. Set codes are returned lowercase.
+
+`colors`, `keywords`, and `legalities` are only present on cards written by a cache from this version onward; run [`ritual cache preload-all`](/commands/cache/) to backfill them.
+
+**Query Parameters:**
+
+| Parameter | Description     | Required |
+| --------- | --------------- | -------- |
+| `name`    | Exact card name | Yes      |
+
+A name that matches nothing returns `404` with a message pointing at [`/api/autocomplete`](#card-autocomplete) for resolving a partial name. A missing or blank `name` is a `400`. Every error response keeps the success shape — `success: false` and `card: null` — plus a `message`.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "card": {
+    "scryfallId": "...",
+    "name": "Lightning Bolt",
+    "set": "2xm",
+    "collectorNumber": "129",
+    "rarity": "uncommon",
+    "releasedAt": "2020-08-07",
+    "finishes": ["nonfoil"],
+    "prices": { "usd": "1.23", "eur": "0.99", "tix": "0.03" },
+    "manaCost": "{R}",
+    "cmc": 1,
+    "typeLine": "Instant",
+    "oracleText": "Lightning Bolt deals 3 damage to any target.",
+    "colorIdentity": ["R"],
+    "layout": "normal",
+    "colors": ["R"],
+    "keywords": [],
+    "legalities": { "commander": "legal", "standard": "not_legal" },
+    "oracleTags": ["burn"],
+    "artTags": ["lightning"],
+    "printingCount": 42
+  }
+}
+```
+
+A multi-faced card also carries `faces`, one `{ name, manaCost, typeLine, oracleText }` object per face.
+
+## Card Search
+
+```
+GET /api/card-search?q=<query>&page=<n>
+```
+
+Run a raw [Scryfall search query](https://scryfall.com/docs/syntax) and return one page of card summaries, most popular first — the same lookup the [`scry`](/commands/scry/) CLI command performs.
+
+Exactly one page is fetched per request. Walk further pages by incrementing `page` while `hasMore` is `true`.
+
+This route differs from [`POST /api/search-cards`](/commands/admin/#http-api-reference) in three ways:
+
+- It **does not write to the local card cache** at all. (`/api/search-cards` warms the cache: it writes cards under names the cache does not already hold, and leaves already-cached names untouched.)
+- It returns Scryfall's page **verbatim**: tokens, Arena-only printings, and Art Series cards are _not_ filtered out, and a page carries up to 175 cards rather than 20.
+- It does not promote whole-name matches; the order is Scryfall's own.
+
+**Query Parameters:**
+
+| Parameter | Description                           | Required |
+| --------- | ------------------------------------- | -------- |
+| `q`       | Scryfall search query                 | Yes      |
+| `page`    | 1-based page number (defaults to `1`) | No       |
+
+A missing or blank `q` is a `400`; `q` is trimmed before it is sent on. `page` may be omitted or left blank (both mean page 1); any other value that is not a positive integer is a `400`.
+
+A Scryfall `404` (no matches) is a `200` with an empty `cards` array — an empty result set is not an error. A query Scryfall itself refuses (a syntax error, an unknown filter) is a `400` whose `message` carries Scryfall's own explanation; a failure on Scryfall's side (a `5xx`, a network error) is a `500`. Every error response keeps the success shape — `success: false`, the requested `page`, `hasMore: false`, an empty `cards` array — plus a `message`.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "page": 1,
+  "hasMore": true,
+  "totalCards": 412,
+  "cards": [
+    {
+      "scryfallId": "...",
+      "name": "Lightning Bolt",
+      "set": "2xm",
+      "collectorNumber": "129",
+      "rarity": "uncommon",
+      "releasedAt": "2020-08-07",
+      "finishes": ["nonfoil"],
+      "prices": { "usd": "1.23" },
+      "manaCost": "{R}",
+      "cmc": 1,
+      "typeLine": "Instant",
+      "oracleText": "Lightning Bolt deals 3 damage to any target.",
+      "colorIdentity": ["R"]
+    }
+  ]
+}
+```
+
+`totalCards` is absent when Scryfall reported no matches.
+
+## Cache Status
+
+```
+GET /api/cache/status
+```
+
+Report the card cache's size, freshness, tag coverage, and source — the same payload [`ritual cache status --output json`](/commands/cache/) prints. Diagnostic only: asking never refreshes or writes the cache. Tag presence is checked over a bounded sample of cached cards, not a full scan, so a configured cache server is never asked for its whole contents.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "empty": false,
+  "cardCount": 31240,
+  "lastCardRefresh": "2026-07-28T04:00:00.000Z",
+  "priceAgeHours": 6,
+  "priceStale": false,
+  "tagsPresent": true,
+  "source": "local"
+}
+```
+
+| Field             | Description                                                                      |
+| ----------------- | -------------------------------------------------------------------------------- |
+| `empty`           | Whether the cache holds no cards at all                                          |
+| `cardCount`       | Distinct card **names** cached (each holds an array of printings)                |
+| `lastCardRefresh` | ISO-8601 time of the last bulk refresh, or `null` until one has run              |
+| `priceAgeHours`   | Whole hours since that refresh (prices ride in the bulk data), or `null`         |
+| `priceStale`      | `true` when prices are older than 24 hours, or their age is unknown              |
+| `tagsPresent`     | Whether any sampled card carries oracle/art tags                                 |
+| `source`          | `local`, or `cache-server` when a [cache server](/commands/cache/) is configured |
+
 ## Price Summary
 
 ```
@@ -624,13 +766,24 @@ Delete a wanted list file (and its `.changes.md` sidecar if present). Requires `
 }
 ```
 
-## Move Data
+## Card Index
 
 ```
-GET /api/move
+GET /api/card-index?name=&listType=&slug=&set=
 ```
 
-Returns every list (deck, collection, wanted) and every movable card across them, used by the [Move Cards](/admin/move-cards/) page. The lightweight `cards` payload carries no Scryfall data; each card's `key` is a path-free session identifier echoed back on commit. Deck entries with quantity > 1 expand to one card per copy (`copyIndex`).
+Returns every list (deck, collection, wanted) and every physical card across them, used by the [Move Cards](/admin/move-cards/) page and by any client that needs to find where a card physically lives. The lightweight `cards` payload carries no Scryfall data; each card's `key` is a path-free session identifier echoed back on commit. Deck entries with quantity > 1 expand to one card per copy (`copyIndex`).
+
+**Query Parameters:** every filter is optional, and they intersect. A blank value is treated as absent, not as "match nothing".
+
+| Parameter  | Description                                                                                                                                                                               |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`     | Whitespace-separated name terms, matched as [autocomplete](#card-autocomplete) matches them: case-, accent-, and punctuation-insensitive, in any order (`in tre` finds "In the Trenches") |
+| `listType` | `deck`, `collection`, or `wanted`; anything else is a `400`                                                                                                                               |
+| `slug`     | Exact list slug (the file basename); a value with a path separator is a `400`                                                                                                             |
+| `set`      | Set code, matched lowercase — `LEA` and `lea` both match a card stored as `lea`                                                                                                           |
+
+Only `cards` is filtered. `lists` is **always** the full roster, because clients render move destinations from it.
 
 **Response:**
 
@@ -648,12 +801,15 @@ Returns every list (deck, collection, wanted) and every movable card across them
       "collectorNumber": "161",
       "finish": "nonfoil",
       "condition": "NM",
+      "note": "signed",
       "cardId": 1,
       "copyIndex": 0
     }
   ]
 }
 ```
+
+`set`, `collectorNumber`, `finish`, `condition`, and `note` are each present only when the card line carries them.
 
 ## Commit Moves
 
@@ -906,6 +1062,65 @@ Overwrite the list's change log with the supplied change sets. Each set needs a 
   "setCount": 1
 }
 ```
+
+## List Metadata
+
+```
+PUT /api/metadata/:type/:slug
+```
+
+Write a list's YAML front matter. **Decks only** — collections and wanted lists carry no front matter (their serializer would drop it on the next save), so `:type` of `collection` or `wanted` is a `400`.
+
+Only the fields present in the body are written; every other front-matter key (including user-authored ones) round-trips untouched. A field sent as `null` is deleted, as is a `description` sent as an empty string. The markdown body below the front matter is left byte for byte as it was — card lines are never re-serialized and no card IDs are assigned. **No changelog entry is written**: the change log is card-level, and metadata is not a card change.
+
+**Request Body:**
+
+```json
+{
+  "description": "A ramp deck.",
+  "tags": ["ramp", "budget"],
+  "format": "commander",
+  "sourceId": "123456",
+  "sourceUrl": "https://archidekt.com/decks/123456",
+  "contentHash": "abc123..."
+}
+```
+
+| Field         | Validation                                                                                                                                           |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `description` | String (trimmed) or `null`; an empty string clears it                                                                                                |
+| `tags`        | Array of non-empty strings (trimmed, deduplicated, order preserved) or `null`                                                                        |
+| `format`      | A [deck format](/commands/new/#deck-format) name, canonicalized (`EDH` → `commander`); `null` clears it and the deck falls back to section inference |
+| `sourceId`    | Non-empty string or `null`                                                                                                                           |
+| `sourceUrl`   | An `http`/`https` URL or `null`                                                                                                                      |
+| `contentHash` | Optional concurrency token from [`GET /api/deck/:slug`](#load-deck); a non-string value is a `400`                                                   |
+
+`name` is rejected with a `400` pointing at [`POST /api/deck/:slug/rename`](#rename-deck), which also renames the file and its sidecars. `created` and `lastSynced` are stamped by Ritual (deck creation and [deck sync](/commands/deck-sync/) respectively) and are likewise rejected, as is any unknown field.
+
+Setting `sourceId` together with an `archidekt.com` `sourceUrl` is what makes a deck sync-linked, so these fields change which decks [`POST /api/deck-sync`](#sync-decks) operates on.
+
+When `contentHash` is supplied and no longer matches the file, the response is `409` with `"conflict": true` — the same optimistic-concurrency contract the editor save endpoints use. Omit it for a plain read-modify-write. Because the write updates the file's hash, an editor that had the deck open sees a conflict on its next save rather than silently clobbering the new metadata.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "slug": "my-deck",
+  "frontMatter": {
+    "name": "My Deck",
+    "format": "commander",
+    "created": "2026-01-01T00:00:00.000Z",
+    "description": "A ramp deck.",
+    "tags": ["ramp", "budget"]
+  },
+  "contentHash": "def456..."
+}
+```
+
+An unknown deck is a `404`.
+
+When git auto-commit is enabled, the deck file and its `.sha256` hash sidecar are committed with the message `Update metadata for deck <slug>`.
 
 ## Deck Sync Status
 
@@ -1345,7 +1560,7 @@ Each list is loaded fresh and its changes re-targeted to the current card IDs (b
 POST /api/export
 ```
 
-Render a CSV, JSON, plain-text, or Markdown export of cards from decks, collections, and wanted lists. Exposed as the MCP `export_cards` tool; shares its engine with the [`export`](/commands/export/) CLI command. Nothing is written to disk — the rendered export is returned as a string.
+Render a CSV, JSON, plain-text, or Markdown export of cards from decks, collections, and wanted lists. Exposed as the MCP `export_cards` tool; shares its engine with the [`export`](/commands/export/) CLI command. By default the rendered export is returned inline as a string; with `write: true` it is written to a server-named file instead.
 
 **Request Body:** every field is optional. With no `lists` and no `cards`, every list is exported.
 
@@ -1359,7 +1574,8 @@ Render a CSV, JSON, plain-text, or Markdown export of cards from decks, collecti
   "header": true,
   "quoteAll": false,
   "dialect": "ritual",
-  "preset": "trade-sheet"
+  "preset": "trade-sheet",
+  "write": false
 }
 ```
 
@@ -1367,16 +1583,37 @@ Render a CSV, JSON, plain-text, or Markdown export of cards from decks, collecti
 
 `format` is one of `csv` (default), `json`, `text` (one flat merged decklist, quantities aggregated), or `md` (canonical list markdown without `&N` ids) — see [export formats](/commands/export/#formats). `columns`, `header`, `quoteAll`, and `dialect` shape `csv`/`json` output only and are ignored for `text`/`md` (unlike the CLI, the route does not reject the combination). `dialect` is the value vocabulary for finish and condition: `ritual` (the default — `nonfoil`/`foil`/`etched`, `NM`…`DMG`) or `archidekt` (`Normal`/`Foil`/`Etched` under a `Variant` header, and `NM|LP|MP|HP|D`) — see [dialects](/commands/export/#dialects). An unknown `dialect` or `preset` is a `400`. A selected `scryfallId` column is resolved from the local Scryfall cache.
 
-**Response:**
+**Response:** the body is discriminated by `mode`.
+
+Content mode (the default, or `write: false`):
 
 ```json
 {
   "success": true,
+  "mode": "content",
   "format": "csv",
   "entryCount": 2,
-  "content": "Name,Set,Collector Number,Quantity\nSol Ring,C21,263,1\n...",
-  "warnings": []
+  "warnings": [],
+  "content": "Name,Set,Collector Number,Quantity\nSol Ring,C21,263,1\n..."
 }
 ```
+
+File mode (`write: true`):
+
+```json
+{
+  "success": true,
+  "mode": "file",
+  "format": "csv",
+  "entryCount": 2,
+  "warnings": [],
+  "path": "exports/Binder-20260728.csv",
+  "bytes": 214
+}
+```
+
+`write` must be a boolean; anything else is a `400`.
+
+The file lands under an `exports/` directory in the base dir, which [`init-site`](/commands/init-site/) adds to `.gitignore`. The server picks the name — `<scope>-<YYYYMMDD>.<ext>`, where scope is the single selected list's sanitized name, `cards` for a card-pick-only export, or `all-lists` otherwise, and the date is UTC. A name already taken gains the lowest free `-2`, `-3`, … suffix, so a write never overwrites an earlier export. `path` is **base-dir-relative** by design: a relative path cannot be walked outside the workspace by a caller that trusts it. The written file is newline-terminated, byte-identical to what the CLI's `export --out` writes.
 
 `warnings` carries list parse warnings, `cards` terms that matched nothing, and — when the `scryfallId` column is selected — one entry per printing the local Scryfall cache does not hold (that cell renders empty). The response is `400` for an unknown list, preset, column, dialect, or filter value.

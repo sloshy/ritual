@@ -14,13 +14,13 @@ import {
   describeEntry,
   listTypeLabel,
   parseCardIdFlag,
-  parsePositiveInteger,
   resolveListSelection,
   resolveListTypeFlag,
   resolveTarget,
   runCommandAction,
   type CardCommandResultBase,
 } from './card-target'
+import { parsePositiveInteger } from '../parse-number'
 import { type ListTypeFlags } from '../resolve-list'
 import type { ListType } from '../list-type'
 

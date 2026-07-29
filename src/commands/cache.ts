@@ -1,8 +1,7 @@
 import { Command } from 'commander'
-import { searchCards, refreshTags } from '../scryfall'
+import { ALL_PAGES, searchCards, refreshTags } from '../scryfall'
 import { refreshCardCache } from '../cache/refresh-source'
-import { cardCache, PRICE_MAX_AGE_MS } from '../cache'
-import { getConfiguredCacheServerAddress } from '../cache/config'
+import { collectCacheStatus, type CacheStatusResult } from '../cache/status'
 import { addFeedUrlOption, feedUrlSourceConflict, parseCacheSourceFlag } from '../cache/cadence'
 import { getErrorMessage } from '../errors'
 import { type CacheSource as ConfiguredCacheSource } from '../ritual-config'
@@ -16,9 +15,6 @@ import {
   type ScriptingOptions,
 } from './scripting'
 
-/** Where card data is being read from: the on-disk cache or a configured cache server. */
-type CacheSource = 'local' | 'cache-server'
-
 /** Flags for `cache preload-all`. */
 type CachePreloadAllOptions = {
   /** Override the configured `cacheSource` for this run. */
@@ -27,64 +23,6 @@ type CachePreloadAllOptions = {
   url?: string
   /** Re-download and re-ingest even when the feed is unchanged. */
   force: boolean
-}
-
-/** The `cache status` report. Diagnostic only — collecting it never mutates the cache. */
-type CacheStatusResult = {
-  /** Whether the card cache holds no cards at all. */
-  empty: boolean
-  /** Distinct card **names** cached — each name's value is its array of printings. */
-  cardCount: number
-  /**
-   * ISO-8601 time of the last bulk refresh, or null until one has run — only a
-   * bulk load stamps the timestamp, so per-set/per-card lookups leave it null.
-   */
-  lastCardRefresh: string | null
-  /** Whole hours since the last bulk refresh (prices ride in the bulk data), or null. */
-  priceAgeHours: number | null
-  /** True when prices are older than the 24h freshness convention, or their age is unknown. */
-  priceStale: boolean
-  /** Whether any sampled cached card carries oracle/art tags (bounded sample, not a scan). */
-  tagsPresent: boolean
-  source: CacheSource
-}
-
-const ONE_HOUR_MS = 60 * 60 * 1000
-const TAG_SAMPLE_SIZE = 25
-
-/**
- * Whether any cached card carries `oracleTags`/`artTags`, checked via `get()`
- * over a bounded sample of at most {@link TAG_SAMPLE_SIZE} keys. Deliberately
- * never `values()`: with `--cache-server` active that would pull the entire
- * cache over HTTP for a yes/no answer.
- */
-async function sampleTagsPresent(keys: string[]): Promise<boolean> {
-  for (const key of keys.slice(0, TAG_SAMPLE_SIZE)) {
-    const printings = await cardCache.get(key)
-    if (!printings) continue
-    const tagged = printings.some(
-      (card) => (card.oracleTags?.length ?? 0) > 0 || (card.artTags?.length ?? 0) > 0,
-    )
-    if (tagged) return true
-  }
-  return false
-}
-
-async function collectCacheStatus(): Promise<CacheStatusResult> {
-  const empty = await cardCache.isEmpty()
-  const keys = await cardCache.keys()
-  const lastRefreshedAt = await cardCache.getLastRefreshedAt()
-  const priceAgeMs = lastRefreshedAt === null ? null : Date.now() - lastRefreshedAt
-
-  return {
-    empty,
-    cardCount: keys.length,
-    lastCardRefresh: lastRefreshedAt === null ? null : new Date(lastRefreshedAt).toISOString(),
-    priceAgeHours: priceAgeMs === null ? null : Math.floor(priceAgeMs / ONE_HOUR_MS),
-    priceStale: priceAgeMs === null || priceAgeMs > PRICE_MAX_AGE_MS,
-    tagsPresent: await sampleTagsPresent(keys),
-    source: getConfiguredCacheServerAddress() ? 'cache-server' : 'local',
-  }
 }
 
 /** One `label: value` row of the text report. */
@@ -138,7 +76,9 @@ export function registerCacheCommand(program: Command): void {
       console.log(`Preloading set '${normalizedSetCode.toUpperCase()}'...`)
       try {
         const query = `set:${normalizedSetCode}`
-        const cards = await searchCards(query)
+        // The one caller that wants every result page: a set is preloaded whole,
+        // while every other search stops at the bounded default of one page.
+        const cards = await searchCards(query, { maxPages: ALL_PAGES })
         console.log(
           `Successfully cached ${cards.length} cards for set '${normalizedSetCode.toUpperCase()}'`,
         )

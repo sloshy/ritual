@@ -31,11 +31,11 @@ import { CardCommandError } from '../errors'
 import {
   describeEntry,
   parseCardIdFlag,
-  parsePositiveInteger,
   requireInteractive,
   resolvePinnedPrinting,
   runCommandAction,
 } from './card-target'
+import { parsePositiveInteger } from '../parse-number'
 import { isResolveListError, parseListArgument, resolveList } from '../resolve-list'
 import { matchByNormalizedName } from '../term-match'
 import { getCardPrintings } from '../scryfall'

@@ -1,5 +1,6 @@
 import { describe, expect, test, beforeEach, afterEach, mock } from 'bun:test'
 import {
+  ALL_PAGES,
   ScryfallClient,
   type ScryfallSymbol,
   classifyFetchCard,
@@ -185,44 +186,71 @@ describe('ScryfallClient', () => {
       expect(result[0]).toEqual(mockCard)
     })
 
-    test('should handle pagination', async () => {
-      const card1 = makeScryfallCard({ id: '1', name: 'Card 1' })
-      const card2 = makeScryfallCard({ id: '2', name: 'Card 2' })
+    describe('paging', () => {
+      /** Mock a two-page result set and report how many pages were actually requested. */
+      function mockTwoPages(): () => number {
+        let pagesRequested = 0
+        const card1 = makeScryfallCard({ id: '1', name: 'Card 1' })
+        const card2 = makeScryfallCard({ id: '2', name: 'Card 2' })
 
-      // Page 1
-      mockHttp.mock('https://api.scryfall.com/cards/search?q=set%3Akhm&order=edhrec', () => {
-        return new Response(
-          JSON.stringify({
-            has_more: true,
-            next_page: 'https://api.scryfall.com/cards/search?page=2',
-            data: [card1],
-          }),
-        )
+        mockHttp.mock('https://api.scryfall.com/cards/search?q=set%3Akhm&order=edhrec', () => {
+          pagesRequested++
+          return new Response(
+            JSON.stringify({
+              has_more: true,
+              next_page: 'https://api.scryfall.com/cards/search?page=2',
+              data: [card1],
+            }),
+          )
+        })
+
+        mockHttp.mock('https://api.scryfall.com/cards/search?page=2', () => {
+          pagesRequested++
+          return new Response(JSON.stringify({ has_more: false, data: [card2] }))
+        })
+
+        return () => pagesRequested
+      }
+
+      test('stops after one page by default, never touching next_page', async () => {
+        const pagesRequested = mockTwoPages()
+
+        const result = await client.searchCards('set:khm')
+
+        expect(result.map((c) => c.name)).toEqual(['Card 1'])
+        expect(pagesRequested()).toBe(1)
+        expect(await mockCache.get('Card 2')).toBeNull()
       })
 
-      // Page 2
-      mockHttp.mock('https://api.scryfall.com/cards/search?page=2', () => {
-        return new Response(
-          JSON.stringify({
-            has_more: false,
-            data: [card2],
-          }),
-        )
+      test.each([
+        ['an explicit page count', 2],
+        // ALL_PAGES is what `cache preload-set` passes to walk a whole set.
+        ['ALL_PAGES', ALL_PAGES],
+      ])('walks and caches every page with %s', async (_label, maxPages) => {
+        const pagesRequested = mockTwoPages()
+
+        const result = await client.searchCards('set:khm', { maxPages })
+
+        expect(result.map((c) => c.name)).toEqual(['Card 1', 'Card 2'])
+        expect(pagesRequested()).toBe(2)
+        // Assert the cached payloads round-trip the card, not just that *something*
+        // sits at that key: a `toBeDefined()` check would pass on an empty array.
+        expect((await mockCache.get('Card 1'))?.[0]?.name).toBe('Card 1')
+        expect((await mockCache.get('Card 2'))?.[0]?.name).toBe('Card 2')
       })
 
-      const result = await client.searchCards('set:khm')
+      test.each([
+        ['zero', 0],
+        ['negative', -3],
+        ['fractional', 1.9],
+      ])('a %s maxPages still fetches exactly one page', async (_label, maxPages) => {
+        const pagesRequested = mockTwoPages()
 
-      expect(result).toHaveLength(2)
-      expect(result[0]?.name).toBe('Card 1')
-      expect(result[1]?.name).toBe('Card 2')
+        const result = await client.searchCards('set:khm', { maxPages })
 
-      // Verify caching: assert the cached payloads actually round-trip the card,
-      // not just that *something* sits at that key. A `toBeDefined()` check would
-      // pass even if the cache stored an empty array or the wrong page's data.
-      const cached1 = await mockCache.get('Card 1')
-      const cached2 = await mockCache.get('Card 2')
-      expect(cached1?.[0]?.name).toBe('Card 1')
-      expect(cached2?.[0]?.name).toBe('Card 2')
+        expect(result.map((c) => c.name)).toEqual(['Card 1'])
+        expect(pagesRequested()).toBe(1)
+      })
     })
 
     test('drops excluded printings from results and from the cache', async () => {

@@ -11,7 +11,7 @@ import { handleImportCsv } from './api/import-csv'
 import { handleImportChanges } from './api/import-changes'
 import { handleExport } from './api/export'
 import { handleBuildSite } from './api/build-site'
-import { handleCacheRefresh, handleCacheRefreshStream } from './api/cache'
+import { handleCacheRefresh, handleCacheRefreshStream, handleCacheStatus } from './api/cache'
 import { handleDeckSyncRun, handleDeckSyncStatus, handleDeckSyncStream } from './api/deck-sync'
 import {
   handleCollectionSyncRun,
@@ -34,6 +34,8 @@ import { handleGetAuditLog } from './api/audit'
 import { handleAutocomplete } from '../api/autocomplete'
 import { handleDeckLoad } from './api/deck-load'
 import { handleCardPrintings } from '../api/card-printings'
+import { handleCardDetails } from '../api/card-details'
+import { handleCardSearch } from '../api/card-search'
 import { handleCardPrice } from '../api/card-price'
 import { handleDeckSave } from './api/deck-save'
 import { handleDeckCreate } from './api/deck-create'
@@ -45,12 +47,9 @@ import { handleCollectionSave } from './api/collection-save'
 import { handleListWantedLists } from './api/wanted-list'
 import { handleWantedListLoad } from './api/wanted-load'
 import { handleWantedListSave } from './api/wanted-save'
-import {
-  handleMoveData,
-  handleMoveCommit,
-  handleRemoveCommit,
-  handleSelectedMove,
-} from './api/move'
+import { handleMoveCommit, handleRemoveCommit, handleSelectedMove } from './api/move'
+import { handleCardIndex } from './api/card-index'
+import { handleMetadataSave } from './api/metadata'
 import { handleLists } from './api/lists'
 import { handleDiff } from './api/diff'
 import { handleHistoryLoad, handleHistorySave } from './api/history'
@@ -124,6 +123,7 @@ export const routes: Route[] = [
     handler: handleCacheRefreshStream,
     requiresAuth: true,
   },
+  { method: 'GET', path: '/api/cache/status', handler: handleCacheStatus, requiresAuth: true },
   { method: 'POST', path: '/api/cache/refresh', handler: handleCacheRefresh, requiresAuth: true },
   {
     method: 'GET',
@@ -179,6 +179,8 @@ export const routes: Route[] = [
   { method: 'GET', path: '/api/autocomplete', handler: handleAutocomplete, requiresAuth: true },
   { method: 'GET', path: '/api/card-printings', handler: handleCardPrintings, requiresAuth: true },
   { method: 'GET', path: '/api/card-price', handler: handleCardPrice, requiresAuth: true },
+  { method: 'GET', path: '/api/card-details', handler: handleCardDetails, requiresAuth: true },
+  { method: 'GET', path: '/api/card-search', handler: handleCardSearch, requiresAuth: true },
   { method: 'GET', path: '/api/collections', handler: handleListCollections, requiresAuth: true },
   {
     method: 'POST',
@@ -253,7 +255,7 @@ export const routes: Route[] = [
   },
   { method: 'GET', path: '/api/lists', handler: handleLists, requiresAuth: true },
   { method: 'GET', path: '/api/diff', handler: handleDiff, requiresAuth: true },
-  { method: 'GET', path: '/api/move', handler: handleMoveData, requiresAuth: true },
+  { method: 'GET', path: '/api/card-index', handler: handleCardIndex, requiresAuth: true },
   { method: 'POST', path: '/api/move/commit', handler: handleMoveCommit, requiresAuth: true },
   { method: 'POST', path: '/api/move/selected', handler: handleSelectedMove, requiresAuth: true },
   { method: 'POST', path: '/api/remove/commit', handler: handleRemoveCommit, requiresAuth: true },
@@ -267,6 +269,12 @@ export const routes: Route[] = [
     method: 'POST',
     path: '/api/history/:type/:slug/save',
     handler: handleHistorySave,
+    requiresAuth: true,
+  },
+  {
+    method: 'PUT',
+    path: '/api/metadata/:type/:slug',
+    handler: handleMetadataSave,
     requiresAuth: true,
   },
   { method: 'GET', path: '/api/price/summary', handler: handlePriceSummary, requiresAuth: true },

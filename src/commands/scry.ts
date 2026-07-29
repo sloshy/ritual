@@ -15,6 +15,7 @@ import {
   type ScriptingOptions,
 } from './scripting'
 import { getErrorMessage } from '../errors'
+import { parsePositiveInteger } from '../parse-number'
 import { ask } from './prompts-helpers'
 
 type ScryCommandOptions = {
@@ -149,11 +150,24 @@ export function registerScryCommand(program: Command): void {
     // explicit `--pages` cap applies, defaulting to a single page.
     const maxPages = options.pages ?? (interactivePaging ? Number.MAX_SAFE_INTEGER : 1)
 
+    /** Report a page that could not be fetched, and set the runtime exit code. */
+    const failPage = (message: string): void => {
+      emitError('runtime_error', `Error fetching page ${page}: ${message}`, scriptingOptions)
+      process.exitCode = ExitCode.RuntimeError
+    }
+
     while (true) {
       if (page > maxPages) break
 
       try {
-        const { data, raw, hasMore } = await fetchSearchPage(query, page, format)
+        const result = await fetchSearchPage(query, page, format)
+        if (result.kind === 'failed') {
+          // Scryfall refused the request (a malformed query is a 4xx); its own
+          // `details` text is the most useful thing to show.
+          failPage(result.message)
+          break
+        }
+        const { data, raw, hasMore } = result
 
         if (!raw || raw.length === 0) {
           // Empty result or 404
@@ -206,9 +220,7 @@ export function registerScryCommand(program: Command): void {
 
         page++
       } catch (e: unknown) {
-        const message = getErrorMessage(e)
-        emitError('runtime_error', `Error fetching page ${page}: ${message}`, scriptingOptions)
-        process.exitCode = ExitCode.RuntimeError
+        failPage(getErrorMessage(e))
         break
       }
     }
@@ -262,8 +274,8 @@ async function runRandom(
 
 /** Reject non-numeric and non-positive flag values at parse time. */
 function parsePositiveInt(value: string, label: string): number {
-  const parsed = Number.parseInt(value, 10)
-  if (!Number.isInteger(parsed) || parsed <= 0) {
+  const parsed = parsePositiveInteger(value)
+  if (parsed === undefined) {
     throw new InvalidArgumentError(`${label} must be a positive integer.`)
   }
   return parsed

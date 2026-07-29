@@ -548,7 +548,7 @@ Move a batch of selected cards across lists atomically — the server side of th
 
 **Auth required:** Yes
 
-Search for cards by name using the Scryfall API. Returns up to 20 results, most popular (by EDHRec rank) first — except that a card whose whole name the query spells out is returned first.
+Search Scryfall with its raw query syntax. Returns up to 20 card summaries, most popular (by EDHRec rank) first — except that a card whose whole name the query spells out is returned first. One result page is fetched. Cards returned under a name the local card cache does not already hold are written to it on the way through — an already-cached name is left as it is, so this warms the cache but never refreshes it. Use [`GET /api/card-search`](/admin/api/#card-search) to walk further pages without touching the cache at all.
 
 **Request body:**
 
@@ -558,14 +558,34 @@ Search for cards by name using the Scryfall API. Returns up to 20 results, most 
 }
 ```
 
+A body that is not a JSON object, or a missing or blank `query`, is a `400`. Every failure keeps the same envelope — `success: false`, an empty `cards` array, and a `message` explaining the problem.
+
 **Response:**
 
 ```json
 {
   "success": true,
-  "cards": [{ "name": "Lightning Bolt" }, { "name": "Lightning Bolt (Textless)" }]
+  "cards": [
+    {
+      "scryfallId": "...",
+      "name": "Lightning Bolt",
+      "set": "2xm",
+      "collectorNumber": "129",
+      "rarity": "uncommon",
+      "releasedAt": "2020-08-07",
+      "finishes": ["nonfoil"],
+      "prices": { "usd": "1.23" },
+      "manaCost": "{R}",
+      "cmc": 1,
+      "typeLine": "Instant",
+      "oracleText": "Lightning Bolt deals 3 damage to any target.",
+      "colorIdentity": ["R"]
+    }
+  ]
 }
 ```
+
+Set codes are returned lowercase (the internal representation).
 
 ### `POST /api/import-deck`
 
@@ -686,6 +706,12 @@ data: {"stage":"save","message":"Saving to cache..."}
 event: done
 data: {"message":"Cache refreshed successfully"}
 ```
+
+### `GET /api/cache/status`
+
+**Auth required:** Yes
+
+Report the local card cache's state — size, last bulk refresh, price age and staleness, tag coverage, and whether reads come from the on-disk cache or a configured cache server. The payload is the same one `ritual cache status --output json` prints, wrapped in the success envelope. Read-only: asking never refreshes or writes. See the [admin API reference](/admin/api/#cache-status) for the full response specification.
 
 ### `POST /api/login/archidekt`
 

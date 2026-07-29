@@ -129,12 +129,53 @@ export function newDeckMarkdown(name: string, format: DeckFormatKey): string {
  */
 export async function parseDeckFrontMatter(filePath: string): Promise<DeckFrontMatter> {
   const content = await fs.readFile(filePath, 'utf-8')
-  const frontMatter = matter(content).data as DeckFrontMatter
+  // Copied, not used in place: gray-matter memoizes by content string and hands
+  // the same `data` object back on a repeat parse, so mutating it would leak.
+  const frontMatter = { ...matter(content).data } as DeckFrontMatter
   const format = parseDeckFormat(frontMatter.format)
   if (format) frontMatter.format = format
   else delete frontMatter.format
   return frontMatter
 }
+
+/**
+ * Rewrite only a deck file's YAML front matter, leaving the markdown body byte
+ * for byte as it was. Returns the new content hash.
+ *
+ * Deliberately not a parse/serialize round trip: `serializeDeckToMarkdown` would
+ * canonicalize every card line and assign missing IDs, turning a metadata edit
+ * into a whole-file diff. Because the write goes through `writeFileWithHash`, an
+ * editor that had the deck open sees a 409 on its next save rather than silently
+ * clobbering the new front matter.
+ *
+ * Two caveats on "byte for byte": a body that lacked a trailing newline gains
+ * one, and the front-matter YAML is re-dumped by js-yaml — comments and the
+ * original quoting/indentation style are not preserved, though every key and
+ * value the caller passes is. Note that callers building `frontMatter` from
+ * {@link parseDeckFrontMatter} start from a copy that has already dropped an
+ * unparseable `format`, so such a value does not survive the round trip.
+ */
+export async function writeDeckFrontMatter(
+  filePath: string,
+  frontMatter: DeckFrontMatter,
+): Promise<string> {
+  const parsed = matter(await fs.readFile(filePath, 'utf-8'))
+  // The file-object form, not `matter.stringify(parsed.content, ...)`: given a
+  // string, gray-matter re-parses it, so a body whose first line is `---` (a
+  // horizontal rule) would be swallowed as a second front-matter block and the
+  // card list silently dropped. `data: {}` is required because stringify does
+  // `Object.assign({}, file.data, data)` — carrying the old data forward would
+  // resurrect exactly the keys this write means to delete.
+  const source: FrontMatterFile = { ...parsed, data: {} }
+  return writeFileWithHash(filePath, matter.stringify(source, frontMatter))
+}
+
+/**
+ * The parsed-file shape `matter.stringify` reads: the body it re-emits verbatim,
+ * the front-matter data it merges the new keys over, and the excerpt it re-emits
+ * when one was parsed (always `''` here, since no excerpt option is used).
+ */
+type FrontMatterFile = { content: string; data: Record<string, unknown>; excerpt?: string }
 
 /**
  * Add a card entry under the ## Main section of a deck file.

@@ -2,8 +2,9 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import { execSync } from 'node:child_process'
 import * as fs from 'node:fs/promises'
 import { getDefaultRitualConfig } from '../../src/ritual-config'
-import { handleMoveData, handleMoveCommit } from '../../src/admin/api/move'
-import type { MoveDataResponse, MovePhysicalCard } from '../../src/admin/api/move'
+import { handleMoveCommit } from '../../src/admin/api/move'
+import type { MovePhysicalCard } from '../../src/admin/api/move'
+import { handleCardIndex, type CardIndexResponse } from '../../src/admin/api/card-index'
 import {
   bindWorkspace,
   initGitRepo,
@@ -32,12 +33,12 @@ afterEach(async () => {
   await ws.dispose()
 })
 
-async function loadData(): Promise<MoveDataResponse> {
-  const resp = await handleMoveData()
-  return (await resp.json()) as MoveDataResponse
+async function loadData(): Promise<CardIndexResponse> {
+  const resp = await handleCardIndex(new Request('http://localhost/api/card-index'))
+  return (await resp.json()) as CardIndexResponse
 }
 
-function findCard(data: MoveDataResponse, name: string): MovePhysicalCard {
+function findCard(data: CardIndexResponse, name: string): MovePhysicalCard {
   const card = data.cards.find((c) => c.name === name)
   if (!card) throw new Error(`card ${name} not found in move data`)
   return card
@@ -61,25 +62,6 @@ async function commit(moves: unknown[]): Promise<CommitResult> {
 }
 
 describe('move API', () => {
-  test('lists every list and card across the three list types', async () => {
-    await writeCollectionFile(tmpDir, 'binder', {
-      title: 'Binder',
-      entries: [{ name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 }],
-    })
-    await writeWantedFile(tmpDir, 'wishlist', {
-      title: 'Wishlist',
-      entries: [{ name: 'Mana Crypt', cardId: 1 }],
-    })
-
-    const data = await loadData()
-    expect(data.success).toBe(true)
-    expect(data.lists.map((l) => `${l.type}:${l.slug}`).sort()).toEqual([
-      'collection:binder',
-      'wanted:wishlist',
-    ])
-    expect(data.cards.map((c) => c.name).sort()).toEqual(['Lightning Bolt', 'Mana Crypt'])
-  })
-
   test('commits a move using the key issued by the load endpoint', async () => {
     const srcPath = await writeCollectionFile(tmpDir, 'src', {
       title: 'Source',

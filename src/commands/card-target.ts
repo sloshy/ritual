@@ -32,6 +32,7 @@ import { isNoInput } from '../no-input'
 import { matchFinishPin, matchPrintingPin } from './collection-helpers'
 import { getCardPrintings } from '../scryfall'
 import { CardCommandError, getErrorMessage } from '../errors'
+import { parsePositiveInteger } from '../parse-number'
 import type { Condition, Finish, ScryfallCard } from '../types'
 
 /** Unified summary for a card entry across all list types. */
@@ -80,16 +81,6 @@ export type CardCommandResultBase = {
   list: string
   cardName: string
   cardId: number | undefined
-}
-
-/**
- * Parse a string that must be a strictly positive integer (digits only, no
- * sign, no decimals, no leading zeros). Returns `undefined` when the input is
- * not one — the caller owns the error representation for its surface.
- */
-export function parsePositiveInteger(raw: string): number | undefined {
-  if (!/^[1-9]\d*$/.test(raw)) return undefined
-  return Number.parseInt(raw, 10)
 }
 
 /**

@@ -14,6 +14,8 @@ import type {
 } from '../../../src/collection-sync/engine'
 import { CSV_UPLOAD_THRESHOLD } from '../../../src/collection-sync/csv'
 import type { AmbiguousRemoval } from '../../../src/collection-sync/describe'
+import type { CardIndexResponse } from '../../../src/admin/api/card-index'
+import type { ListInfo } from '../../../src/list-info'
 import type { RitualConfig } from '../../../src/ritual-config'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/editor/search-debounce'
 import { fulfillJson } from './fulfill'
@@ -48,19 +50,6 @@ export const MOCK_COLLECTIONS: MockCollection[] = [
 ]
 
 export const MOCK_WANTED_LISTS = [{ slug: 'test-wanted-list', name: 'Test Wanted List' }]
-
-export const MOCK_AUTOCOMPLETE_RESULTS = [
-  'Lightning Bolt',
-  'Lightning Helix',
-  'Lightning Strike',
-  'Lightning Greaves',
-]
-
-export const MOCK_SEARCH_RESULTS = [
-  { name: 'Lightning Bolt' },
-  { name: 'Lightning Helix' },
-  { name: 'Lightning Strike' },
-]
 
 export const MOCK_AUDIT_ENTRIES: AuditEntry[] = [
   {
@@ -106,43 +95,6 @@ export const MOCK_CONFIG = {
   },
   collectionSync: { pullTarget: 'Inbox' },
 } satisfies RitualConfig
-
-/**
- * Set up route interception for admin API endpoints that hit external services.
- * This mocks card search, autocomplete, and other Scryfall-dependent endpoints.
- */
-export async function mockAdminCardApis(page: Page): Promise<void> {
-  await fulfillJson(page, '**/api/autocomplete*', (route: Route) => {
-    const url = new URL(route.request().url())
-    const query = url.searchParams.get('q')?.toLowerCase() ?? ''
-    const filtered = MOCK_AUTOCOMPLETE_RESULTS.filter((name) => name.toLowerCase().includes(query))
-    return { success: true, names: filtered }
-  })
-
-  await fulfillJson(page, '**/api/search-cards', { success: true, cards: MOCK_SEARCH_RESULTS })
-
-  await fulfillJson(page, '**/api/card-printings*', {
-    success: true,
-    printings: [
-      {
-        name: 'Lightning Bolt',
-        set: 'A25',
-        collector_number: '141',
-        image_uris: { normal: 'https://via.placeholder.com/200x280?text=LightningBolt' },
-        prices: { usd: '1.50', eur: '1.20', tix: '0.05' },
-      },
-    ],
-  })
-
-  await fulfillJson(page, '**/api/card-price*', {
-    success: true,
-    printings: [],
-    representative: null,
-    lowestPriceCard: null,
-    lowestPriceCardEur: null,
-    lowestPriceCardTix: null,
-  })
-}
 
 /**
  * Mock the decks list API endpoint
@@ -703,7 +655,7 @@ const MOVE_BOLT_CARD = makeMockScryfallCard({
   released_at: '1993-08-05',
 })
 
-const MOVE_LISTS = [
+const MOVE_LISTS: ListInfo[] = [
   { type: 'deck', slug: 'move-deck', name: 'Move Deck' },
   { type: 'collection', slug: 'move-binder', name: 'Move Binder' },
   { type: 'wanted', slug: 'move-wishlist', name: 'Move Wishlist' },
@@ -726,10 +678,10 @@ const MOVE_DATA = {
       copyIndex: 0,
     },
   ],
-}
+} satisfies CardIndexResponse
 
 /**
- * Mock the admin Move Cards endpoints: the bulk `/api/move` index, the per-list
+ * Mock the admin Move Cards endpoints: the bulk `/api/card-index`, the per-list
  * load endpoints for the three synthetic lists, card printings (for moved-in
  * rendering), and the commit endpoint. `onCommit` receives the parsed POST body.
  */
@@ -737,7 +689,7 @@ export async function mockMoveCardsApi(
   page: Page,
   onCommit?: (body: unknown) => void,
 ): Promise<void> {
-  await fulfillJson(page, '**/api/move', MOVE_DATA)
+  await fulfillJson(page, '**/api/card-index', MOVE_DATA)
 
   await fulfillJson(page, '**/api/move/commit', (route: Route) => {
     onCommit?.(route.request().postDataJSON())

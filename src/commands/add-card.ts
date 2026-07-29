@@ -45,13 +45,13 @@ import {
 } from '../resolve-list'
 import {
   ensureFinishAvailable,
-  parsePositiveInteger,
   promptsUnavailable,
   resolveListTypeFlag,
   resolvePinnedPrinting,
   runCommandAction,
   type PrintingPin,
 } from './card-target'
+import { parsePositiveInteger } from '../parse-number'
 import {
   addScriptingOptions,
   emitOutput,

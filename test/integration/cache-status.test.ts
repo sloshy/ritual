@@ -3,6 +3,7 @@ import { runCli } from './helpers/cli'
 import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 import { cardCache } from '../../src/cache'
 import { makeScryfallCard } from '../test-utils'
+import type { CacheStatusResult } from '../../src/cache/status'
 
 /**
  * `ritual cache status` — the read-only cache report. The CLI runs against a
@@ -11,16 +12,8 @@ import { makeScryfallCard } from '../test-utils'
  * lastRefreshedAt metadata stamp is exercised for real rather than faked.
  */
 
-/** Mirrors CacheStatusResult in src/commands/cache.ts. */
-type CacheStatusPayload = {
-  empty: boolean
-  cardCount: number
-  lastCardRefresh: string | null
-  priceAgeHours: number | null
-  priceStale: boolean
-  tagsPresent: boolean
-  source: string
-}
+/** What `cache status --output json` prints — the collector's report verbatim. */
+type CacheStatusPayload = CacheStatusResult
 
 // Keep the spawned CLI deterministic even when the host shell has a cache
 // server configured.
@@ -36,14 +29,10 @@ async function statusJson(dir: string): Promise<StatusJsonRun> {
 let workspace: BoundWorkspace
 
 beforeEach(async () => {
-  workspace = await bindWorkspace()
+  workspace = await bindWorkspace({ clearCardCache: true })
 })
 
 afterEach(async () => {
-  // cardCache is a module singleton with an in-memory layer: clear it while the
-  // workspace is still bound, so state never leaks into the next test (or, via
-  // clear()'s save, into a directory outside the workspace).
-  await cardCache.clear()
   await workspace.dispose()
 })
 

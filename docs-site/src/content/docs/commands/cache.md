@@ -41,6 +41,8 @@ these fields:
 | `tagsPresent`     | Whether cached cards carry oracle/art tags (see [Tags](#tags)), determined from a small bounded sample of cached cards rather than a full scan — a cache where only rarely-tagged cards land in the sample can report `false` despite a completed tag refresh.  |
 | `source`          | `local` when reading the on-disk cache, `cache-server` when a [cache server](#server) is configured via `--cache-server` or `RITUAL_CACHE_SERVER`.                                                                                                              |
 
+The same report is available over HTTP as [`GET /api/cache/status`](/admin/api/#cache-status).
+
 ### preload-set
 
 Preload all cards from a specific set into the cache.

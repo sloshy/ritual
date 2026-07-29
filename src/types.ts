@@ -101,6 +101,12 @@ export interface ScryfallCard {
   collector_number: string
   rarity: string
   color_identity: string[]
+  /** Mana colors of this printing (WUBRG letters). Distinct from `color_identity`. */
+  colors?: string[]
+  /** Scryfall's named keyword abilities (e.g. `Flying`, `Ward`). */
+  keywords?: string[]
+  /** Format→status map from Scryfall (`legal` / `not_legal` / `banned` / `restricted`). */
+  legalities?: Record<string, string>
   released_at?: string
   /**
    * Oracle (functional) tag slugs from Scryfall Tagger, shared by every printing of a card.
@@ -118,5 +124,7 @@ export interface ScryfallList<T> {
   object: string
   has_more: boolean
   next_page?: string
+  /** Total matches across every page, as Scryfall reports them on a search list. */
+  total_cards?: number
   data: T[]
 }

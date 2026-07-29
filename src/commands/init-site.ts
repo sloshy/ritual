@@ -224,7 +224,7 @@ Then open <http://localhost:3000> to preview it.
 
 - \`decks/\`, \`collections/\`, \`wanted/\` — your card lists as Markdown files
 - \`ritual.config.json\` — site and pricing settings
-- \`cache/\`, \`dist/\`, and \`all-cards.md\` — generated artifacts (gitignored)
+- \`cache/\`, \`dist/\`, \`exports/\`, and \`all-cards.md\` — generated artifacts (gitignored)
 
 ## Documentation
 
@@ -303,6 +303,7 @@ export function generateGitignoreEntries(): string {
   return `# Ritual files
 cache/
 dist/
+exports/
 .admin-dist/
 .logins/
 all-cards.md

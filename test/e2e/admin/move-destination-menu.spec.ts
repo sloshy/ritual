@@ -22,7 +22,7 @@ test('tall move-destination menu stays within the viewport', async ({ page }) =>
   // Override the move index with one card in a binder plus many destination decks.
   // Must be registered AFTER mockMoveCardsApi — Playwright stacks routes last-wins,
   // so this override has to come second to actually serve the 30-deck payload.
-  await fulfillJson(page, '**/api/move', {
+  await fulfillJson(page, '**/api/card-index', {
     success: true,
     lists: [{ type: 'collection', slug: 'move-binder', name: 'Move Binder' }, ...DEST_DECKS],
     cards: [

@@ -11,6 +11,17 @@ function targetError(message: string): Response {
 }
 
 /**
+ * Whether a string is usable as a list slug: a single file basename, with no
+ * path separators and no NUL bytes. The one place that rule lives, shared by
+ * every surface that accepts a slug (path segment or query parameter);
+ * `resolveListFile` also guards traversal, but rejecting here gives a clear 400.
+ * Callers own their own error wording.
+ */
+export function isValidListSlug(slug: string): boolean {
+  return !/[/\\\0]/.test(slug)
+}
+
+/**
  * Parse and validate the `:type` / `:slug` path segments of a
  * `/api/<area>/:type/:slug` route (path segments 3 and 4), shared by the
  * history and price routes. Returns a 400 Response on an invalid type or slug.
@@ -22,9 +33,7 @@ export function parseListTarget(req: Request): ListTarget | Response {
   if (!rawType || !isListType(rawType)) return targetError('Invalid or missing list type')
   if (!rawSlug) return targetError('List slug is required')
   const slug = decodeURIComponent(rawSlug)
-  // A slug is a single file basename; reject path separators / null bytes outright
-  // (resolveListFile also guards traversal, but this gives a clearer 400).
-  if (/[/\\\0]/.test(slug)) return targetError('Invalid list slug')
+  if (!isValidListSlug(slug)) return targetError('Invalid list slug')
   return { type: rawType, slug }
 }
 

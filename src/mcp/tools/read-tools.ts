@@ -19,16 +19,12 @@ import { EXPORT_DIALECTS, EXPORT_PROPERTIES } from '../../export/render'
 import { VALID_CONDITIONS } from '../../finish-condition'
 import { DIFF_BY_MODES } from '../../list-diff'
 import type { ListType } from '../../list-type'
-import type { ScryfallCard } from '../../types'
-import type { ListsResponse, PrintingSummary } from '../types'
-
-/** The Scryfall fields the printing summary projects from (all optional on input). */
-type RawScryfallCard = Partial<
-  Pick<
-    ScryfallCard,
-    'id' | 'name' | 'set' | 'collector_number' | 'rarity' | 'released_at' | 'finishes' | 'prices'
-  >
->
+import type { ListsResponse } from '../types'
+import {
+  summarizePrinting,
+  summarizePrintingOrNull,
+  type PrintingSummary,
+} from '../../api/card-summary'
 
 /** One list as `list_lists` returns it (the tool vocabulary uses `listType`, not `type`). */
 interface ListSummaryResult {
@@ -42,24 +38,27 @@ interface ListListsResult {
   lists: ListSummaryResult[]
 }
 
+/** `card_printings` result: identity + prices for every printing of one card. */
+interface CardPrintingsResult {
+  name: string
+  printings: PrintingSummary[]
+}
+
+/**
+ * `card_price` result. The route's `lowestPriceCard*` fields are renamed to the
+ * tool vocabulary here, so this type is the only record of that mapping.
+ */
+interface CardPriceResult {
+  name: string
+  representative: PrintingSummary | null
+  lowestUsd: PrintingSummary | null
+  lowestEur: PrintingSummary | null
+  lowestTix: PrintingSummary | null
+}
+
 /** The `[type:]name` query value the admin diff route expects for one side. */
 function diffSideParam(side: ListRefInput): string {
   return side.listType === undefined ? side.name : `${side.listType}:${side.name}`
-}
-
-/** Project a full Scryfall card to the compact fields agents need, dropping image URLs etc. */
-function summarizePrinting(card: RawScryfallCard | null): PrintingSummary | null {
-  if (!card) return null
-  return {
-    scryfallId: card.id,
-    name: card.name ?? '',
-    set: card.set,
-    collectorNumber: card.collector_number,
-    rarity: card.rarity,
-    releasedAt: card.released_at,
-    finishes: card.finishes,
-    prices: card.prices,
-  }
 }
 
 /**
@@ -136,8 +135,10 @@ export function registerReadTools(server: McpServer): void {
     {
       title: 'Search cards',
       description:
-        'Search Scryfall for card names matching a query (up to 20 names), most popular first. ' +
-        'A query that spells out a card name in full is returned first.',
+        'Search Scryfall with its raw query syntax and return up to 20 card summaries ' +
+        '(name, set, collector number, rarity, mana cost, CMC, type line, oracle text, ' +
+        'color identity, prices), most popular first. A query that spells out a card name ' +
+        'in full is returned first.',
       inputSchema: z.object({ query: z.string().min(1).describe('Search text.') }),
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
@@ -174,7 +175,11 @@ export function registerReadTools(server: McpServer): void {
         'GET',
         `/api/card-printings?name=${encodeURIComponent(name)}`,
       )) as CardPrintingsResponse
-      return jsonResult({ name, printings: data.printings.map(summarizePrinting) })
+      const result: CardPrintingsResult = {
+        name,
+        printings: data.printings.map(summarizePrinting),
+      }
+      return jsonResult(result)
     },
   )
 
@@ -193,13 +198,14 @@ export function registerReadTools(server: McpServer): void {
         'GET',
         `/api/card-price?name=${encodeURIComponent(name)}`,
       )) as CardPriceResponse
-      return jsonResult({
+      const result: CardPriceResult = {
         name,
-        representative: summarizePrinting(data.representative),
-        lowestUsd: summarizePrinting(data.lowestPriceCard),
-        lowestEur: summarizePrinting(data.lowestPriceCardEur),
-        lowestTix: summarizePrinting(data.lowestPriceCardTix),
-      })
+        representative: summarizePrintingOrNull(data.representative),
+        lowestUsd: summarizePrintingOrNull(data.lowestPriceCard),
+        lowestEur: summarizePrintingOrNull(data.lowestPriceCardEur),
+        lowestTix: summarizePrintingOrNull(data.lowestPriceCardTix),
+      }
+      return jsonResult(result)
     },
   )
 
@@ -321,8 +327,8 @@ export function registerReadTools(server: McpServer): void {
         'and wanted lists. Select whole lists and/or pick cards by name terms; filter by name, ' +
         'set, finish, or condition; choose the columns and their order (csv/json only — text ' +
         'and md have fixed line formats). With no lists and no cards, every list is exported. ' +
-        'Returns { format, entryCount, content, warnings } — the content string is the ' +
-        'rendered export (nothing is written to disk).',
+        'Returns { mode: "content", format, entryCount, content, warnings } — the content ' +
+        'string is the rendered export (nothing is written to disk).',
       inputSchema: z.object({
         lists: z.array(listRefSchema).optional().describe('Lists to export whole.'),
         cards: z

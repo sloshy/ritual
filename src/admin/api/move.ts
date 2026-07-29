@@ -14,7 +14,7 @@ import {
   type ListEntry,
 } from '../../commands/move-helpers'
 import type { DroppedNote } from '../../commands/move-io'
-import { listSlug, type ListInfo } from '../../list-info'
+import { listSlug } from '../../list-info'
 import { validateBodySize, autoCommitAndPush } from './save-helpers'
 
 /** Error body every move/remove endpoint returns on validation failure or a thrown error. */
@@ -57,19 +57,13 @@ export type MovePhysicalCard = {
   copyIndex?: number
 }
 
-export type MoveDataResponse = {
-  success: true
-  lists: ListInfo[]
-  cards: MovePhysicalCard[]
-}
-
 /**
  * Stable, path-free key for a physical card within a move session. Reconstructed
  * identically on the server at commit time (from the unchanged files) so the
  * browser only ever round-trips the opaque key. Matches the shape of the CLI's
  * `PhysicalCard.key` but keyed on `type:slug` rather than the absolute file path.
  */
-function moveCardKey(
+export function moveCardKey(
   type: ListType,
   slug: string,
   cardId: number | undefined,
@@ -77,43 +71,6 @@ function moveCardKey(
   copyIndex: number | undefined,
 ): string {
   return `${type}:${slug}:${cardId ?? name}:${copyIndex ?? 0}`
-}
-
-/** GET /api/move — every list and every movable card across them (no Scryfall payload). */
-export async function handleMoveData(): Promise<Response> {
-  try {
-    const lists = await loadAllLists()
-    const physical = await loadPhysicalCards(lists)
-    const slugByPath = new Map(lists.map((l) => [l.filePath, listSlug(l.filePath)]))
-
-    const listInfos: ListInfo[] = lists.map((l) => ({
-      type: l.ref.type,
-      slug: slugByPath.get(l.filePath)!,
-      name: l.ref.name,
-    }))
-
-    const cards: MovePhysicalCard[] = physical.map((pc) => {
-      const slug = slugByPath.get(pc.listEntry.filePath)!
-      return {
-        key: moveCardKey(pc.listEntry.ref.type, slug, pc.cardId, pc.name, pc.copyIndex),
-        listType: pc.listEntry.ref.type,
-        listSlug: slug,
-        name: pc.name,
-        set: pc.set,
-        collectorNumber: pc.collectorNumber,
-        finish: pc.finish,
-        condition: pc.condition,
-        note: pc.note,
-        cardId: pc.cardId,
-        copyIndex: pc.copyIndex,
-      }
-    })
-
-    const body: MoveDataResponse = { success: true, lists: listInfos, cards }
-    return Response.json(body)
-  } catch (error) {
-    return errorResponse(getErrorMessage(error), 500)
-  }
 }
 
 /** A single queued move, identified by the source card's session key and a destination list. */

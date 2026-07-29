@@ -255,6 +255,7 @@ describe('generateGitignoreEntries', () => {
     expect(lines).toEqual([
       'cache/',
       'dist/',
+      'exports/',
       '.admin-dist/',
       '.logins/',
       'all-cards.md',

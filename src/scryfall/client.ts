@@ -40,6 +40,23 @@ import { writeFileAtomic } from '../cache/atomic-write'
 
 const RATE_LIMIT_MS = 150
 const SCRYFALL_CARDS_PER_PAGE = 175
+
+/**
+ * How many result pages {@link ScryfallClient.searchCards} walks by default.
+ * One page is 175 cards — enough for any interactive search, and a bounded
+ * default keeps a new caller from crawling an entire result set by accident.
+ */
+export const DEFAULT_SEARCH_MAX_PAGES = 1
+
+/** Walk every page — for callers that genuinely want the whole result set (`cache preload-set`). */
+export const ALL_PAGES = Number.POSITIVE_INFINITY
+
+/** Paging bound for {@link ScryfallClient.searchCards}. */
+export type SearchCardsOptions = {
+  /** Result pages to walk, from page 1. Defaults to {@link DEFAULT_SEARCH_MAX_PAGES}. */
+  maxPages?: number
+}
+
 /** How long a single Scryfall API request may take before it is aborted. */
 const SCRYFALL_FETCH_TIMEOUT_MS = 15_000
 
@@ -127,11 +144,31 @@ async function readScryfallErrorDetails(response: Response): Promise<string> {
     ? (errorBody as ScryfallErrorBody).details
     : `${response.status} ${response.statusText}`
 }
-export type SearchPageResult = {
+/**
+ * One fetched search page. `data` is null for a CSV fetch (the page lives in
+ * `raw`) and for a Scryfall 404, which means "no matches" — an empty page, not
+ * a failure.
+ */
+export type SearchPage = {
+  kind: 'page'
   data: ScryfallList<ScryfallCard> | null
   raw: string
   hasMore: boolean
 }
+
+/**
+ * Scryfall refused the request. A malformed query is a 4xx here, so callers can
+ * blame the query rather than reporting a server error; `message` carries
+ * Scryfall's own `details` text when it sent one.
+ */
+export type SearchPageFailure = {
+  kind: 'failed'
+  status: number
+  message: string
+}
+
+/** The outcome of {@link ScryfallClient.fetchSearchPage}. */
+export type SearchPageResult = SearchPage | SearchPageFailure
 
 /**
  * Compute representative and cheapest prints from cached card data.
@@ -674,7 +711,18 @@ export class ScryfallClient implements PricingBackend {
     return { min: 0, max: 0 }
   }
 
-  async searchCards(query: string): Promise<ScryfallCard[]> {
+  /**
+   * Run a Scryfall search and cache every real printing it returns.
+   *
+   * Walks at most {@link SearchCardsOptions.maxPages} result pages — one by
+   * default, so an interactive search costs a single request. Callers that want
+   * the whole result set (`cache preload-set`) pass {@link ALL_PAGES}.
+   */
+  async searchCards(query: string, options: SearchCardsOptions = {}): Promise<ScryfallCard[]> {
+    // Clamped, so a sub-1 or fractional bound behaves as "one page" rather than
+    // as "no pages" — the first page is always fetched, and only the continue
+    // condition consults the bound. `ALL_PAGES` (Infinity) survives the trunc.
+    const maxPages = Math.max(1, Math.trunc(options.maxPages ?? DEFAULT_SEARCH_MAX_PAGES))
     await this.checkAndPromptPreload()
     getLogger().info(`Searching for: ${query}`)
     try {
@@ -682,8 +730,10 @@ export class ScryfallClient implements PricingBackend {
       let nextUrl: string | undefined =
         `https://api.scryfall.com/cards/search?q=${encodeURIComponent(query)}&order=edhrec`
       const allCards: ScryfallCard[] = []
+      let pagesFetched = 0
 
       while (nextUrl) {
+        pagesFetched++
         const response: Response = await this.fetchWithTimeout(nextUrl)
 
         if (response.ok) {
@@ -703,8 +753,9 @@ export class ScryfallClient implements PricingBackend {
             allCards.push(card)
           }
 
-          if (json.has_more && json.next_page) {
+          if (json.has_more && json.next_page && pagesFetched < maxPages) {
             nextUrl = json.next_page
+            // Only the continue path sleeps, so a one-page search costs no delay.
             await Bun.sleep(RATE_LIMIT_MS)
           } else {
             nextUrl = undefined
@@ -740,10 +791,15 @@ export class ScryfallClient implements PricingBackend {
     const response = await this.fetchWithTimeout(url)
 
     if (!response.ok) {
+      // A 404 is Scryfall's "nothing matched" — the empty page it has always been.
       if (response.status === 404) {
-        return { data: null, raw: '', hasMore: false }
+        return { kind: 'page', data: null, raw: '', hasMore: false }
       }
-      throwHttpError(response, 'Scryfall API error')
+      return {
+        kind: 'failed',
+        status: response.status,
+        message: await readScryfallErrorDetails(response),
+      }
     }
 
     if (format === 'csv') {
@@ -751,11 +807,11 @@ export class ScryfallClient implements PricingBackend {
       const lineCount = text.trim().split('\n').length
       const hasMore = lineCount >= SCRYFALL_CARDS_PER_PAGE + 1
 
-      return { data: null, raw: text, hasMore }
+      return { kind: 'page', data: null, raw: text, hasMore }
     } else {
       const json = (await response.json()) as ScryfallList<ScryfallCard>
       const hasMore = json.has_more || false
-      return { data: json, raw: JSON.stringify(json, null, 2), hasMore }
+      return { kind: 'page', data: json, raw: JSON.stringify(json, null, 2), hasMore }
     }
   }
 

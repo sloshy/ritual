@@ -30,14 +30,9 @@ export interface SaveResult {
  */
 export type { ListsResponse } from '../admin/api/lists'
 
-/** A compact, agent-friendly projection of one Scryfall printing. */
-export interface PrintingSummary {
-  scryfallId?: string
-  name: string
-  set?: string
-  collectorNumber?: string
-  rarity?: string
-  releasedAt?: string
-  finishes?: string[]
-  prices?: Record<string, string | null>
-}
+/**
+ * The compact, agent-friendly projections of a Scryfall card, owned by
+ * `src/api/card-summary.ts` (the routes emit them) and re-exported here so MCP
+ * code keeps one import site for its response types.
+ */
+export type { PrintingSummary, CardSummary, CardDetails } from '../api/card-summary'

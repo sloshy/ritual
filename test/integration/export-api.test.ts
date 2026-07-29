@@ -1,0 +1,119 @@
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import { handleExport, type ExportResponse } from '../../src/admin/api/export'
+import { EXPORTS_DIR_NAME, writeExportFile } from '../../src/export/file'
+import { bindWorkspace, writeCollectionFile, type BoundWorkspace } from './helpers/workspace'
+
+/**
+ * `POST /api/export` — the two output modes. Selection and rendering are covered
+ * by the export engine's unit tests and the CLI suite; what this pins is the
+ * route: the `mode` discriminator, and that `write: true` really lands a file
+ * under the workspace's gitignored `exports/` directory without overwriting.
+ */
+
+let ws: BoundWorkspace
+
+beforeEach(async () => {
+  ws = await bindWorkspace({ config: false })
+  await writeCollectionFile(ws.dir, 'binder', {
+    title: 'Binder',
+    entries: [
+      { name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 },
+      { name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 2 },
+    ],
+  })
+})
+
+afterEach(async () => {
+  await ws.dispose()
+})
+
+type ExportCall = { status: number; body: ExportResponse }
+
+async function post(body: unknown): Promise<ExportCall> {
+  const resp = await handleExport(
+    new Request('http://localhost/api/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  )
+  return { status: resp.status, body: (await resp.json()) as ExportResponse }
+}
+
+describe('handleExport', () => {
+  test('content mode returns the rendered export inline', async () => {
+    const { status, body } = await post({ lists: [{ type: 'collection', name: 'binder' }] })
+    expect(status).toBe(200)
+    expect(body).toMatchObject({ success: true, mode: 'content', format: 'csv', entryCount: 2 })
+    if (!('content' in body)) throw new Error('expected content mode')
+    expect(body.content).toContain('Lightning Bolt')
+  })
+
+  test('write mode lands a file under exports/ and reports its relative path', async () => {
+    const { body } = await post({
+      lists: [{ type: 'collection', name: 'binder' }],
+      write: true,
+    })
+    if (!('path' in body)) throw new Error(`expected file mode, got ${JSON.stringify(body)}`)
+
+    expect(body.mode).toBe('file')
+    expect(body.entryCount).toBe(2)
+    // The relative path is the contract — an absolute one would be a path the
+    // caller could walk out of the workspace with.
+    expect(body.path).toStartWith(`${EXPORTS_DIR_NAME}/binder-`)
+    expect(body.path).toEndWith('.csv')
+
+    const written = await fs.readFile(path.join(ws.dir, body.path), 'utf-8')
+    expect(written).toContain('Lightning Bolt')
+    expect(written).toEndWith('\n')
+    expect(Buffer.byteLength(written)).toBe(body.bytes)
+  })
+
+  test('a second identical write never overwrites the first', async () => {
+    const first = await post({ lists: [{ type: 'collection', name: 'binder' }], write: true })
+    const second = await post({ lists: [{ type: 'collection', name: 'binder' }], write: true })
+    if (!('path' in first.body) || !('path' in second.body)) throw new Error('expected file mode')
+
+    expect(second.body.path).not.toBe(first.body.path)
+    expect(second.body.path).toContain('-2.csv')
+    const dir = await fs.readdir(path.join(ws.dir, EXPORTS_DIR_NAME))
+    expect(dir).toHaveLength(2)
+  })
+
+  test('a non-boolean write is a 400 and writes nothing', async () => {
+    const { status } = await post({ write: 'yes' })
+    expect(status).toBe(400)
+    // The directory is only created by a successful write, so it must not exist.
+    expect(await fs.exists(path.join(ws.dir, EXPORTS_DIR_NAME))).toBeFalse()
+  })
+})
+
+/**
+ * The file layer directly, for the race the route cannot stage: the name is
+ * chosen from a directory snapshot, so a name that became taken *after* the
+ * snapshot must not be overwritten.
+ */
+describe('writeExportFile', () => {
+  test('a name taken since the snapshot is skipped, not overwritten', async () => {
+    const dir = path.join(ws.dir, EXPORTS_DIR_NAME)
+    await fs.mkdir(dir, { recursive: true })
+    await fs.writeFile(path.join(dir, 'cards-20260728.csv'), 'claimed by someone else\n')
+
+    const written = await writeExportFile('name\nSol Ring', {
+      lists: [],
+      hasCardPicks: true,
+      format: 'csv',
+      now: new Date('2026-07-28T12:00:00Z'),
+      // Deliberately stale: the collided name is only discoverable from the write.
+      existing: new Set(),
+    })
+
+    expect(written.path).toBe(`${EXPORTS_DIR_NAME}/cards-20260728-2.csv`)
+    expect(await fs.readFile(path.join(dir, 'cards-20260728.csv'), 'utf-8')).toBe(
+      'claimed by someone else\n',
+    )
+    expect(await fs.readFile(written.absolutePath, 'utf-8')).toBe('name\nSol Ring\n')
+  })
+})

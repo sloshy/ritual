@@ -63,7 +63,10 @@ describe('init-site CLI (Integration)', () => {
       expect(config.defaultCurrency).toBe('eur')
 
       expect(await Bun.file(path.join(dir, 'README.md')).exists()).toBeTrue()
-      expect(await fs.readFile(path.join(dir, '.gitignore'), 'utf-8')).toContain('cache/')
+      const gitignore = await fs.readFile(path.join(dir, '.gitignore'), 'utf-8')
+      expect(gitignore).toContain('cache/')
+      // Server-written exports (POST /api/export with write: true) land here.
+      expect(gitignore).toContain('exports/')
     })
   })
 

@@ -14,15 +14,21 @@ export {
   ScryfallClient,
   classifyFetchCard,
   computeRepresentativePrints,
+  ALL_PAGES,
+  DEFAULT_SEARCH_MAX_PAGES,
+  type SearchCardsOptions,
   type FetchCardOutcome,
   type ScryfallSymbol,
   type CurrencyPrint,
   type RepresentativePrintsResult,
   type ScryfallFetchError,
   type FetchCardResult,
+  type SearchPage,
+  type SearchPageFailure,
+  type SearchPageResult,
 } from './client'
 
-import type { ScryfallCard, ScryfallList } from '../types'
+import type { ScryfallCard } from '../types'
 import { cardCache } from '../cache/instances'
 import { defaultHttpClient } from '../http'
 import { ScryfallClient, type BulkCacheFiles } from './client'
@@ -32,18 +38,14 @@ import type {
   FetchCardDataOptions,
   FetchNamedCardOptions,
   FetchCardResult,
+  SearchCardsOptions,
+  SearchPageResult,
 } from './client'
 import { comparePrintings, type CardNameFilter } from './card-utils'
 import type { PriceCurrency } from '../price-currency'
 import type { TagIndex } from './tags'
 
 export { attachTags, type TagIndex } from './tags'
-
-export type SearchPageResult = {
-  data: ScryfallList<ScryfallCard> | null
-  raw: string
-  hasMore: boolean
-}
 
 export type MinMaxPrice = { min: number; max: number }
 
@@ -65,8 +67,8 @@ export function fetchCardData(
   return scryfallClient.fetchCardData(name, options)
 }
 
-export function searchCards(query: string): Promise<ScryfallCard[]> {
-  return scryfallClient.searchCards(query)
+export function searchCards(query: string, options?: SearchCardsOptions): Promise<ScryfallCard[]> {
+  return scryfallClient.searchCards(query, options)
 }
 
 export function fetchSearchPage(
