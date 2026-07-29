@@ -57,7 +57,9 @@ export const slugField = z
 export const cardNameField = z
   .string()
   .min(1)
-  .describe('Card name (case-insensitive; fuzzy match).')
+  .describe(
+    'Card name. Edits and removals match the entry name exactly (case-sensitive) — copy it from load_list.',
+  )
 
 export const cardIdField = z
   .number()
