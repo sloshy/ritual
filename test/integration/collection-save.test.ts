@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import { createAddChange, type ChangeEvent } from '../../src/change-event'
+import { createAddChange, createRemoveChange, type ChangeEvent } from '../../src/change-event'
 import { handleCollectionSave } from '../../src/admin/api/collection-save'
 import { computeHash } from '../../src/content-hash'
 import { bindWorkspace, writeCollectionFile, type BoundWorkspace } from './helpers/workspace'
@@ -53,6 +53,21 @@ describe('POST /api/collection/:slug/save', () => {
     expect(body.message).toBe(
       'Cannot add "Sol Ring" to a collection without set and collector number',
     )
+
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
+    expect(await fs.exists(path.join(tmpDir, 'collections', 'binder.changes.md'))).toBe(false)
+  })
+
+  test('rejects a change whose target does not exist, leaving the file untouched', async () => {
+    const before = await fs.readFile(filePath, 'utf-8')
+    // Wrong case — replay targeting is exact and case-sensitive.
+    const resp = await save([createRemoveChange('lightning bolt')])
+    expect(resp.status).toBe(400)
+    const body = (await resp.json()) as { success: boolean; message: string }
+    expect(body.success).toBe(false)
+    expect(body.message).toContain('matched no card')
+    expect(body.message).toContain('lightning bolt')
+    expect(body.message).toContain('Nothing was saved')
 
     expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
     expect(await fs.exists(path.join(tmpDir, 'collections', 'binder.changes.md'))).toBe(false)

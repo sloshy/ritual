@@ -35,6 +35,7 @@ import { parseCollectionFile, type CollectionEntry } from '../collection-file'
 import { parseWantedListFile, type WantedListEntry } from './wanted-helpers'
 import type { CardSessionContext, SessionAddItem } from './card-session'
 import type { EditUndoEntry } from './edit-undo'
+import type { ApplyChange } from '../editor/apply-batch'
 
 /** The minimal entry shape the flat-list session machinery relies on. */
 export type FlatListEntry = { section: string; cardId?: number }
@@ -57,7 +58,7 @@ export type FlatListSession<E extends FlatListEntry> = {
   pool: CardIdPool
   /** Whether the in-memory entries differ from what was last written to disk. */
   dirty: boolean
-  apply: (entries: E[], change: ChangeEvent) => E[]
+  apply: ApplyChange<E[], ChangeEvent>
   serialize: (title: string, entries: E[], sectionOrder: string[]) => string
 }
 
@@ -90,7 +91,7 @@ export function newWantedSession(filePath: string, title: string): WantedSession
 function newFlatListSession<E extends FlatListEntry>(
   filePath: string,
   title: string,
-  apply: (entries: E[], change: ChangeEvent) => E[],
+  apply: ApplyChange<E[], ChangeEvent>,
   serialize: (title: string, entries: E[], sectionOrder: string[]) => string,
 ): FlatListSession<E> {
   return {

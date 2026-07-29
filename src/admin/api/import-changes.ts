@@ -22,6 +22,8 @@ import {
   type RetargetResult,
   retargetImportedChanges,
 } from '../../editor/import-changes'
+import { applyChangesCollectingMisses, type ApplyChange } from '../../editor/apply-batch'
+import { applyChangeToCollection, toCollectionCardEntries } from '../../editor/collection-changes'
 import { applyChangeToDeck } from '../../editor/deck-changes'
 import { applyChangeToWantedList } from '../../editor/wanted-changes'
 import { toWantedCardEntries } from '../../editor/wanted-entries'
@@ -46,7 +48,7 @@ export type ListImportResult = {
   name: string
   /** Changes applied to the list (after dropping conflicts). */
   applied: number
-  /** Changes skipped because their target card no longer exists in the list. */
+  /** Changes skipped: target card no longer exists, or the action cannot apply to the list. */
   conflicts: ImportConflict[]
   /** Human-readable failure when the list could not be loaded or saved; nothing was applied. */
   error?: string
@@ -127,6 +129,39 @@ type ApplyOutcome = {
   error?: string
 }
 
+type SplitApplicableResult<TData> = {
+  updated: TData
+  applicable: ChangeEvent[]
+  missConflicts: ImportConflict[]
+}
+
+/**
+ * Apply the retargeted changes, demoting any that still do not apply to
+ * conflicts instead of silently counting them as applied. Retargeting only
+ * guarantees the target *card* resolves — a change can still miss at apply
+ * time (an `unset-commander` on a card outside the commander section, or a
+ * commander action aimed at a flat list). Misses no-op inside the engines, so
+ * `updated` computed over the full list equals applying only the applicable
+ * changes; the split exists so the save's changelog names only real edits.
+ */
+function splitApplicable<TData>(
+  data: TData,
+  retargeted: ChangeEvent[],
+  apply: ApplyChange<TData, ChangeEvent>,
+): SplitApplicableResult<TData> {
+  const { data: updated, unmatched } = applyChangesCollectingMisses(data, retargeted, apply)
+  if (unmatched.length === 0) return { updated, applicable: retargeted, missConflicts: [] }
+  const missed = new Set(unmatched.map((item) => item.change))
+  return {
+    updated,
+    applicable: retargeted.filter((change) => !missed.has(change)),
+    missConflicts: unmatched.map((item) => ({
+      change: item.change,
+      reason: item.reason === 'not-applicable' ? 'not-applicable' : 'target-not-found',
+    })),
+  }
+}
+
 async function applyToDeck(slug: string, changes: ChangeEvent[]): Promise<ApplyOutcome> {
   const encoded = encodeURIComponent(slug)
   const loaded = await call<DeckLoadResult>(handleDeckLoad, 'GET', `/api/deck/${encoded}`)
@@ -138,15 +173,22 @@ async function applyToDeck(slug: string, changes: ChangeEvent[]): Promise<ApplyO
   )
   if (retargeted.length === 0) return { retargeted, conflicts }
 
-  const updated = retargeted.reduce(applyChangeToDeck, deck)
+  const { updated, applicable, missConflicts } = splitApplicable(
+    deck,
+    retargeted,
+    applyChangeToDeck,
+  )
+  const allConflicts = [...conflicts, ...missConflicts]
+  if (applicable.length === 0) return { retargeted: applicable, conflicts: allConflicts }
+
   const saved = await call(handleDeckSave, 'POST', `/api/deck/${encoded}/save`, {
-    changes: retargeted,
+    changes: applicable,
     deck: updated,
     frontMatter,
     contentHash,
   })
-  if (!saved.ok) return { retargeted: [], conflicts, error: saved.error }
-  return { retargeted, conflicts }
+  if (!saved.ok) return { retargeted: [], conflicts: allConflicts, error: saved.error }
+  return { retargeted: applicable, conflicts: allConflicts }
 }
 
 async function applyToCollection(slug: string, changes: ChangeEvent[]): Promise<ApplyOutcome> {
@@ -164,15 +206,25 @@ async function applyToCollection(slug: string, changes: ChangeEvent[]): Promise<
   )
   if (retargeted.length === 0) return { retargeted, conflicts }
 
-  // The collection save endpoint replays the changes against the file itself;
-  // only the (re-targeted) change list and section order need to be sent.
+  // The collection save endpoint replays the changes against the file itself
+  // and rejects the whole batch when any change does not apply, so split off
+  // inapplicable changes here first (the local dry run maps entries exactly the
+  // way the handler does) and send only the applicable ones.
+  const { applicable, missConflicts } = splitApplicable(
+    toCollectionCardEntries(entries),
+    retargeted,
+    applyChangeToCollection,
+  )
+  const allConflicts = [...conflicts, ...missConflicts]
+  if (applicable.length === 0) return { retargeted: applicable, conflicts: allConflicts }
+
   const saved = await call(handleCollectionSave, 'POST', `/api/collection/${encoded}/save`, {
-    changes: retargeted,
+    changes: applicable,
     contentHash,
-    sectionOrder: replaySectionOrder(sectionOrder ?? [], retargeted),
+    sectionOrder: replaySectionOrder(sectionOrder ?? [], applicable),
   })
-  if (!saved.ok) return { retargeted: [], conflicts, error: saved.error }
-  return { retargeted, conflicts }
+  if (!saved.ok) return { retargeted: [], conflicts: allConflicts, error: saved.error }
+  return { retargeted: applicable, conflicts: allConflicts }
 }
 
 async function applyToWanted(slug: string, changes: ChangeEvent[]): Promise<ApplyOutcome> {
@@ -189,15 +241,22 @@ async function applyToWanted(slug: string, changes: ChangeEvent[]): Promise<Appl
 
   // The wanted save endpoint serializes the entries it receives, so the changes
   // are applied here and the resulting entry list sent along with them.
-  const updated = retargeted.reduce(applyChangeToWantedList, entries)
+  const { updated, applicable, missConflicts } = splitApplicable(
+    entries,
+    retargeted,
+    applyChangeToWantedList,
+  )
+  const allConflicts = [...conflicts, ...missConflicts]
+  if (applicable.length === 0) return { retargeted: applicable, conflicts: allConflicts }
+
   const saved = await call(handleWantedListSave, 'POST', `/api/wanted/${encoded}/save`, {
-    changes: retargeted,
+    changes: applicable,
     entries: updated,
     contentHash,
-    sectionOrder: replaySectionOrder(sectionOrder ?? [], retargeted),
+    sectionOrder: replaySectionOrder(sectionOrder ?? [], applicable),
   })
-  if (!saved.ok) return { retargeted: [], conflicts, error: saved.error }
-  return { retargeted, conflicts }
+  if (!saved.ok) return { retargeted: [], conflicts: allConflicts, error: saved.error }
+  return { retargeted: applicable, conflicts: allConflicts }
 }
 
 function applyByKind(kind: ListType, slug: string, changes: ChangeEvent[]): Promise<ApplyOutcome> {

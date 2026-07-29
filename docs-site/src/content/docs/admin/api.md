@@ -377,18 +377,22 @@ Load a collection with full card data, printings, and mana symbol map.
 POST /api/collection/:slug/save
 ```
 
-Save collection changes. Writes the updated collection file and creates a changelog entry. Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session. Every collection entry must carry a printing: an `add`, `move-to`, or `set-printing` change missing `set` or `collectorNumber` returns `400` and leaves the file untouched.
+Save collection changes. Writes the updated collection file and creates a changelog entry. Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session. Every collection entry must carry a printing: an `add`, `move-to`, or `set-printing` change missing `set` or `collectorNumber` returns `400` and leaves the file untouched. A change whose target entry does not exist (matching is exact and case-sensitive on name, with `cardId` taking priority) also returns `400` naming the unapplied changes, and nothing is written — a save must never report success while dropping changes.
 
 **Request Body:**
 
 ```json
 {
   "changes": [{ "id": "...", "timestamp": 123, "action": "add", "cardName": "Sol Ring" }],
-  "collection": { "name": "...", "cards": [] },
   "contentHash": "…",
+  "sectionOrder": ["Main", "Trade Binder"],
   "continueSession": false
 }
 ```
+
+The handler re-parses the file and **replays the changes itself** — no entry list is sent. The
+optional `sectionOrder` gives section display order (including empty sections); when omitted, the
+file's parsed order is kept.
 
 **Response:**
 

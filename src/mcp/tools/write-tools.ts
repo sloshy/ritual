@@ -300,7 +300,8 @@ export function registerWriteTools(server: McpServer): void {
       description:
         'Apply a change bundle exported from the site editor (format "ritual-change-bundle", ' +
         'one or more lists) to the underlying lists. Changes are re-targeted to current ' +
-        'card IDs; ones whose target card no longer exists are reported as skipped conflicts. ' +
+        'card IDs; ones whose target card no longer exists, or whose action cannot apply to ' +
+        'the list, are reported as skipped conflicts. ' +
         'The response lists per-list applied counts, conflicts, and errors.',
       inputSchema: z.object({
         json: z.string().min(1).describe('The exported change JSON, verbatim.'),
@@ -373,7 +374,9 @@ export function registerWriteTools(server: McpServer): void {
       description:
         'Remove a card from any list. Decks remove quantity copies (deleting the line at zero); ' +
         'collections and wanted lists keep one entry per physical card, so quantity must stay 1 ' +
-        'there — remove entries individually (disambiguate with cardId).',
+        'there — remove entries individually (disambiguate with cardId). All-or-nothing: if any ' +
+        'requested copy cannot be matched (names are exact and case-sensitive), the whole call ' +
+        'fails and nothing is saved.',
       inputSchema: z
         .object({
           listType: listTypeSchema,
@@ -517,9 +520,11 @@ export function registerWriteTools(server: McpServer): void {
       description:
         'Apply an ordered batch of card-level changes (add/remove/set-finish/set-printing/' +
         'set-note/set-commander/unset-commander/set-section) to one list atomically: one load, ' +
-        'one save, one changelog block. Missing change ids/timestamps are autofilled. On a ' +
-        'collection, add and set-printing require set + collectorNumber together. For ' +
-        'cross-list moves use move_cards.',
+        'one save, one changelog block. The batch is all-or-nothing — if any change fails to ' +
+        'match (names are exact and case-sensitive), nothing is saved — but a later change may ' +
+        'target a card an earlier change in the same batch added. Missing change ids/timestamps ' +
+        'are autofilled. On a collection, add and set-printing require set + collectorNumber ' +
+        'together. For cross-list moves use move_cards.',
       inputSchema: z.object({
         listType: listTypeSchema,
         slug: slugField,

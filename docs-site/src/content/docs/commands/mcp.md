@@ -156,6 +156,15 @@ Card edits load the list, apply the change, and save in a single call, so **you 
 hash** — conflict detection is handled internally (a concurrent web-UI edit surfaces as an error you can
 retry).
 
+Card targeting is **exact and case-sensitive** on `cardName`, with `cardId` (the `&N` id shown by
+`load_list`) taking priority. For the single-list edit tools (`add_card` through `apply_changes`), a
+change whose target does not exist **fails the whole call**: nothing is saved, no changelog entry is
+written, and the error names each change that did not apply. In an `apply_changes` batch this is
+atomic — one miss rejects the batch — while a later change may still target a card an earlier change
+in the same batch added. The cross-list batch tools (`move_cards`, `remove_cards`) and
+`import_changes` use the same exact targeting but **skip and report** unresolvable items instead of
+failing, as documented below.
+
 Collections track a specific physical printing per entry: `add_card`, `apply_changes`'s `add` and
 `set-printing` actions, and `set_card_printing` all require `set` + `collectorNumber` together when
 the target list is a collection — omitting either one is rejected rather than written as a

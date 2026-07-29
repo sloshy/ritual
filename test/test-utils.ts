@@ -1,3 +1,5 @@
+import { expect, test as bunTest } from 'bun:test'
+import type { ApplyChange, MissReason } from '../src/editor/apply-batch'
 import {
   type HttpClient,
   type CacheManager,
@@ -237,3 +239,40 @@ export class DenyHttpClient implements HttpClient {
 }
 
 export { MemoryLogger, setLogger, resetLogger }
+
+/** One row of a miss matrix: the reason `onMiss` must report, or null when the change must apply. */
+export type MissMatrixCase<TChange> = [
+  description: string,
+  change: TChange,
+  expectMiss: MissReason | null,
+]
+
+/**
+ * Register one test per miss-matrix row against a change-apply engine. On an
+ * expected miss it also proves the data is untouched — compared against a
+ * fresh clone taken *before* the call (comparing against the returned
+ * reference would be tautological) — and that the input was not mutated.
+ */
+export function runMissMatrix<TData, TChange>(
+  apply: ApplyChange<TData, TChange>,
+  makeState: () => TData,
+  cases: readonly MissMatrixCase<TChange>[],
+): void {
+  for (const [description, change, expectMiss] of cases) {
+    bunTest(description, () => {
+      const state = makeState()
+      const before = structuredClone(state)
+      const seen: { reason: MissReason | null } = { reason: null }
+      const result = apply(state, change, {
+        onMiss: (reason) => {
+          seen.reason = reason
+        },
+      })
+      expect(seen.reason).toBe(expectMiss)
+      if (expectMiss !== null) {
+        expect(result).toStrictEqual(before)
+        expect(state).toStrictEqual(before)
+      }
+    })
+  }
+}

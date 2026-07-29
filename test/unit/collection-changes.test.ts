@@ -4,6 +4,7 @@ import {
   findCollectionPrintingError,
 } from '../../src/editor/collection-changes'
 import type { CollectionCardEntry } from '../../src/site/data-types'
+import { runMissMatrix, type MissMatrixCase } from '../test-utils'
 
 function makeEntry(overrides: Partial<CollectionCardEntry> = {}): CollectionCardEntry {
   return {
@@ -317,4 +318,68 @@ describe('findCollectionPrintingError', () => {
     ])
     expect(error).toBeNull()
   })
+})
+
+describe('applyChangeToCollection — onMiss reporting', () => {
+  type CollectionChange = Parameters<typeof applyChangeToCollection>[1]
+  const cases: MissMatrixCase<CollectionChange>[] = [
+    ['remove of an absent entry misses', { action: 'remove', cardName: 'Sol Ring' }, 'no-target'],
+    [
+      'remove with a wrong-case name misses (matching is case-sensitive)',
+      { action: 'remove', cardName: 'lightning bolt' },
+      'no-target',
+    ],
+    ['remove of a present entry applies', { action: 'remove', cardName: 'Lightning Bolt' }, null],
+    [
+      // Documents the deliberate 3-tier fallback: a stale cardId with a valid
+      // name resolves at the name tier.
+      'remove with a stale cardId and a valid name applies via the name tier',
+      { action: 'remove', cardName: 'Lightning Bolt', cardId: 999 },
+      null,
+    ],
+    [
+      // fileOrder is tier 2 and terminal: when present and unmatched, the
+      // change misses even though the name would have matched.
+      'remove with a stale fileOrder misses even when the name matches',
+      { action: 'remove', cardName: 'Lightning Bolt', fileOrder: 99 },
+      'no-target',
+    ],
+    [
+      'set-finish on an absent entry misses',
+      { action: 'set-finish', cardName: 'Sol Ring', finish: 'foil' },
+      'no-target',
+    ],
+    [
+      'set-printing on an absent entry misses',
+      { action: 'set-printing', cardName: 'Sol Ring', set: 'c21', collectorNumber: '1' },
+      'no-target',
+    ],
+    [
+      'set-note on an absent entry misses',
+      { action: 'set-note', cardName: 'Sol Ring', note: 'x' },
+      'no-target',
+    ],
+    [
+      'set-section on an absent entry misses',
+      { action: 'set-section', cardName: 'Sol Ring', section: 'Box' },
+      'no-target',
+    ],
+    [
+      'move-from of an absent entry misses',
+      { action: 'move-from', cardName: 'Sol Ring', to: { type: 'deck', name: 'd' } },
+      'no-target',
+    ],
+    [
+      'set-commander never applies to a collection and reports not-applicable',
+      { action: 'set-commander', cardName: 'Lightning Bolt' },
+      'not-applicable',
+    ],
+    [
+      'add never misses',
+      { action: 'add', cardName: 'Sol Ring', set: 'c21', collectorNumber: '1' },
+      null,
+    ],
+  ]
+
+  runMissMatrix(applyChangeToCollection, () => [makeEntry()], cases)
 })

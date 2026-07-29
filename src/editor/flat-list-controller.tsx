@@ -15,6 +15,7 @@ import { useEntryCardData, type EntryCardData, type EntryCardDataActions } from 
 import { sectionOfTarget } from './section-helpers'
 import { CardContextMenu } from './components/CardContextMenu'
 import { EditorShell } from './components/EditorShell'
+import type { ApplyChange } from './apply-batch'
 
 /** Minimal flat-list entry shape the shared controller and context menu rely on. */
 export type FlatEntry = {
@@ -96,7 +97,7 @@ export type FlatListController<E extends FlatEntry> = {
 type FlatListControllerParams<E extends FlatEntry> = {
   buildConfig: (cardActions: EntryCardDataActions) => ListEditorConfig<E[]>
   initialSlug?: string | null
-  applyChange: (entries: E[], change: FlatChangeInput) => E[]
+  applyChange: ApplyChange<E[], FlatChangeInput>
   /** Printing fields (set/cn/finish/condition) to log when this entry is added or removed. */
   printingOf: (entry: E) => FlatPrinting
 }

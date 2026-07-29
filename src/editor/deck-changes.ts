@@ -1,11 +1,35 @@
 import type { DeckData } from '../types'
 import type { ChangeInput, PrintingTuple } from '../change-event'
+import type { ApplyChangeOptions } from './apply-batch'
 import { isSamePrinting } from '../change-event'
 import { findOrCreateSection, isCommanderSection, resolveDefaultAddSection } from '../deck-format'
 import { isCondition } from '../finish-condition'
 import { noteOrUndefined } from '../note-helpers'
 
-export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData {
+/** The card fields commander targeting matches on. */
+type CommanderTarget = { cardId?: number; name: string }
+
+/**
+ * Apply one change to a deck, returning a new deck (the input is not mutated).
+ *
+ * A card-targeting change (`remove`, `set-*`, `set-commander`, `unset-commander`,
+ * `move-from`) whose target does not exist returns the deck **unchanged** and
+ * reports the miss through `options.onMiss` — write paths that must not silently drop a
+ * change (MCP mutations, one-shot CLI mutations) pass a callback and surface the
+ * failure; preview/overlay callers may omit it. Matching is exact and
+ * case-sensitive on name, with `cardId` taking priority.
+ *
+ * Section-structural changes (`add-section`, `remove-section`,
+ * `rename-section`) are deliberately outside the miss contract:
+ * `remove-section` on a non-empty section is a safety refusal, and the others
+ * are treated as idempotent. Extending reporting to them is tracked for a
+ * later phase.
+ */
+export function applyChangeToDeck(
+  deck: DeckData,
+  change: ChangeInput,
+  options?: ApplyChangeOptions,
+): DeckData {
   const sections = deck.sections.map((s) => ({
     ...s,
     cards: s.cards.map((c) => ({ ...c })),
@@ -85,42 +109,55 @@ export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData
         }
         return { ...deck, sections }
       }
+      options?.onMiss?.('no-target')
       return { ...deck, sections }
     }
 
     case 'set-commander': {
-      let commanderSection = sections.find((s) => isCommanderSection(s.name))
-      if (!commanderSection) {
-        commanderSection = { name: 'Commander', cards: [] }
-        sections.unshift(commanderSection)
-      }
+      // One predicate for both the move and the miss check — targeting by
+      // cardId when the change carries one, by exact name otherwise. A looser
+      // miss check (findCard's name fallback) would let a stale cardId with a
+      // valid name report success while moving nothing.
+      const matches = (c: CommanderTarget): boolean =>
+        change.cardId !== undefined ? c.cardId === change.cardId : c.name === changeCardName
+      // The commander section is created lazily, once the card is actually
+      // found — a missed change must not leave an empty section behind.
+      const commanderSection = sections.find((s) => isCommanderSection(s.name))
 
       for (const section of sections) {
-        const idx =
-          change.cardId !== undefined
-            ? section.cards.findIndex((c) => c.cardId === change.cardId)
-            : section.cards.findIndex((c) => c.name === change.cardName)
+        const idx = section.cards.findIndex(matches)
         if (idx !== -1 && section !== commanderSection) {
           const [removed] = section.cards.splice(idx, 1)
           if (removed) {
-            commanderSection.cards.push(removed)
+            if (commanderSection) {
+              commanderSection.cards.push(removed)
+            } else {
+              sections.unshift({ name: 'Commander', cards: [removed] })
+            }
           }
           return { ...deck, sections }
         }
       }
 
+      // Reaching here means either the card is already in the commander section
+      // (an idempotent success) or it does not exist at all (a miss).
+      if (!sections.some((s) => s.cards.some(matches))) options?.onMiss?.('no-target')
       return { ...deck, sections }
     }
 
     case 'unset-commander': {
+      // Same targeting predicate as set-commander, and the same idempotence:
+      // a card that exists but is already outside the commander section is the
+      // requested end state, not a miss. Only a card that does not exist at
+      // all misses.
+      const matches = (c: CommanderTarget): boolean =>
+        change.cardId !== undefined ? c.cardId === change.cardId : c.name === changeCardName
       const commanderSection = sections.find((s) => isCommanderSection(s.name))
-      if (!commanderSection) return { ...deck, sections }
-
-      const idx =
-        change.cardId !== undefined
-          ? commanderSection.cards.findIndex((c) => c.cardId === change.cardId)
-          : commanderSection.cards.findIndex((c) => c.name === change.cardName)
-      if (idx === -1) return { ...deck, sections }
+      const idx = commanderSection ? commanderSection.cards.findIndex(matches) : -1
+      if (!commanderSection || idx === -1) {
+        if (!sections.some((s) => s.cards.some(matches))) options?.onMiss?.('no-target')
+        return { ...deck, sections }
+      }
 
       const [removed] = commanderSection.cards.splice(idx, 1)
       if (!removed) return { ...deck, sections }
@@ -135,6 +172,7 @@ export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData
         found.card.finish = change.finish
         return { ...deck, sections }
       }
+      options?.onMiss?.('no-target')
       return { ...deck, sections }
     }
 
@@ -149,6 +187,7 @@ export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData
         }
         return { ...deck, sections }
       }
+      options?.onMiss?.('no-target')
       return { ...deck, sections }
     }
 
@@ -158,6 +197,7 @@ export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData
         found.card.note = noteOrUndefined(change.note)
         return { ...deck, sections }
       }
+      options?.onMiss?.('no-target')
       return { ...deck, sections }
     }
 
@@ -181,7 +221,10 @@ export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData
 
     case 'set-section': {
       const found = findCard(sections)
-      if (!found) return { ...deck, sections }
+      if (!found) {
+        options?.onMiss?.('no-target')
+        return { ...deck, sections }
+      }
       if (found.section.name === change.section) return { ...deck, sections }
       const [moved] = found.section.cards.splice(found.idx, 1)
       if (!moved) return { ...deck, sections }
@@ -192,15 +235,19 @@ export function applyChangeToDeck(deck: DeckData, change: ChangeInput): DeckData
     case 'move-from':
       // A move out of this deck removes one copy here; the destination write is
       // handled at save time (admin) or on import of the destination's change file.
-      return applyChangeToDeck(deck, {
-        action: 'remove',
-        cardName: change.cardName,
-        cardId: change.cardId,
-        set: change.set,
-        collectorNumber: change.collectorNumber,
-        finish: change.finish,
-        condition: change.condition,
-      })
+      return applyChangeToDeck(
+        deck,
+        {
+          action: 'remove',
+          cardName: change.cardName,
+          cardId: change.cardId,
+          set: change.set,
+          collectorNumber: change.collectorNumber,
+          finish: change.finish,
+          condition: change.condition,
+        },
+        options,
+      )
 
     case 'move-to':
       // A move into this deck adds the card (e.g. when importing a destination list's changes).

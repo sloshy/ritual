@@ -15,9 +15,10 @@
  * admin save does — so a one-line change can reformat a legacy file as a side
  * effect.
  *
- * Callers must resolve the target entry first (see `card-target.ts`): the
- * editor apply engines are silent no-ops when a change's target card does not
- * exist in the list.
+ * Callers must resolve the target entry first (see `card-target.ts`). As
+ * defense in depth, a change that still misses its target during apply aborts
+ * the whole mutation before anything is written — the file and its changelog
+ * must never claim an edit that did not happen.
  */
 
 import * as fs from 'node:fs/promises'
@@ -28,7 +29,11 @@ import { parseCollectionFile } from './collection-file'
 import { parseWantedListFile } from './commands/wanted-helpers'
 import { toWantedCardEntries } from './editor/wanted-entries'
 import { applyChangeToDeck } from './editor/deck-changes'
-import { applyChangeToCollection, findCollectionPrintingError } from './editor/collection-changes'
+import {
+  applyChangeToCollection,
+  findCollectionPrintingError,
+  toCollectionCardEntries,
+} from './editor/collection-changes'
 import { applyChangeToWantedList } from './editor/wanted-changes'
 import { collectionToMarkdown, wantedToMarkdown } from './editor/list-export'
 import { parseTitleFromContent } from './section-format'
@@ -37,8 +42,13 @@ import { appendChangelog } from './changelog-writer'
 import { allocateId, collectExistingIds, createIdPool, type EntryWithCardId } from './card-id'
 import { CardCommandError, ExitCode } from './errors'
 import type { ChangeEvent, MoveFromChange, MoveToChange } from './change-event'
+import {
+  applyChangesCollectingMisses,
+  describeUnmatchedChanges,
+  type UnmatchedChange,
+  type UnmatchedTarget,
+} from './editor/apply-batch'
 import type { ListType } from './list-type'
-import type { CollectionCardEntry } from './site/data-types'
 
 /** The change kinds this module applies — moves belong to the move engine. */
 export type CardMutationChange = Exclude<ChangeEvent, MoveFromChange | MoveToChange>
@@ -90,6 +100,24 @@ export async function applyChangesToListFile(
 }
 
 /**
+ * Abort when a change did not apply. Callers resolve targets before building
+ * changes, so a miss here means the list changed underneath us or a caller
+ * skipped resolution — either way, writing the survivors and a changelog block
+ * naming the misses would falsify the record.
+ */
+function assertAllApplied(
+  unmatched: UnmatchedChange<CardMutationChange>[],
+  target: UnmatchedTarget,
+): void {
+  if (unmatched.length === 0) return
+  throw new CardCommandError(
+    'not_found',
+    describeUnmatchedChanges(unmatched, target),
+    ExitCode.NotFound,
+  )
+}
+
+/**
  * Give every `add` change a pool-allocated `&N`, so no flat-list line is ever
  * written without one.
  *
@@ -119,11 +147,10 @@ function stampAddIds(
 }
 
 async function applyToDeck(filePath: string, changes: CardMutationChange[]): Promise<void> {
-  let deck = await importFromTextFile(filePath)
+  const loaded = await importFromTextFile(filePath)
   const frontMatter = await parseDeckFrontMatter(filePath)
-  for (const change of changes) {
-    deck = applyChangeToDeck(deck, change)
-  }
+  const { data: deck, unmatched } = applyChangesCollectingMisses(loaded, changes, applyChangeToDeck)
+  assertAllApplied(unmatched, { type: 'deck', slug: path.basename(filePath, '.md') })
   await writeFileWithHash(filePath, serializeDeckToMarkdown(deck, frontMatter))
 }
 
@@ -137,26 +164,15 @@ async function applyToCollection(
   }
   const content = await fs.readFile(filePath, 'utf-8')
   const parsed = parseCollectionFile(content)
-  // Same entry mapping as the admin collection-save handler: lowercase set,
-  // defaulted finish/condition, fileOrder by position.
-  let entries: CollectionCardEntry[] = parsed.entries.map((e, i) => ({
-    name: e.name,
-    set: e.set.toLowerCase(),
-    collectorNumber: e.collectorNumber,
-    finish: e.finish ?? 'nonfoil',
-    condition: e.condition ?? 'NM',
-    price: 0,
-    fileOrder: i,
-    section: e.section,
-    note: e.note,
-    cardId: e.cardId,
-  }))
+  const entries = toCollectionCardEntries(parsed.entries)
   const applied = stampAddIds(changes, entries)
-  for (const change of applied) {
-    entries = applyChangeToCollection(entries, change)
-  }
+  const result = applyChangesCollectingMisses(entries, applied, applyChangeToCollection)
+  assertAllApplied(result.unmatched, {
+    type: 'collection',
+    slug: path.basename(filePath, '.md'),
+  })
   const title = parseTitleFromContent(content) ?? path.basename(filePath, '.md')
-  await writeFileWithHash(filePath, collectionToMarkdown(title, entries, parsed.sectionOrder))
+  await writeFileWithHash(filePath, collectionToMarkdown(title, result.data, parsed.sectionOrder))
   return applied
 }
 
@@ -166,12 +182,11 @@ async function applyToWanted(
 ): Promise<CardMutationChange[]> {
   const content = await fs.readFile(filePath, 'utf-8')
   const parsed = parseWantedListFile(content)
-  let entries = toWantedCardEntries(parsed.entries)
+  const entries = toWantedCardEntries(parsed.entries)
   const applied = stampAddIds(changes, entries)
-  for (const change of applied) {
-    entries = applyChangeToWantedList(entries, change)
-  }
+  const result = applyChangesCollectingMisses(entries, applied, applyChangeToWantedList)
+  assertAllApplied(result.unmatched, { type: 'wanted', slug: path.basename(filePath, '.md') })
   const title = parseTitleFromContent(content) ?? path.basename(filePath, '.md')
-  await writeFileWithHash(filePath, wantedToMarkdown(title, entries, parsed.sectionOrder))
+  await writeFileWithHash(filePath, wantedToMarkdown(title, result.data, parsed.sectionOrder))
   return applied
 }

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { applyChangeToWantedList } from '../../src/editor/wanted-changes'
 import type { WantedListCardEntry } from '../../src/site/data-types'
+import { runMissMatrix, type MissMatrixCase } from '../test-utils'
 
 function makeEntry(overrides: Partial<WantedListCardEntry> = {}): WantedListCardEntry {
   return {
@@ -250,4 +251,55 @@ describe('applyChangeToWantedList', () => {
       expect(result[0]!.name).toBe('Brainstorm')
     })
   })
+})
+
+describe('applyChangeToWantedList — onMiss reporting', () => {
+  type WantedChange = Parameters<typeof applyChangeToWantedList>[1]
+  const cases: MissMatrixCase<WantedChange>[] = [
+    ['remove of an absent entry misses', { action: 'remove', cardName: 'Sol Ring' }, 'no-target'],
+    [
+      'remove with a wrong-case name misses (matching is case-sensitive)',
+      { action: 'remove', cardName: 'lightning bolt' },
+      'no-target',
+    ],
+    ['remove of a present entry applies', { action: 'remove', cardName: 'Lightning Bolt' }, null],
+    [
+      'remove with a stale cardId and a valid name applies via the name tier',
+      { action: 'remove', cardName: 'Lightning Bolt', cardId: 999 },
+      null,
+    ],
+    [
+      'set-finish on an absent entry misses',
+      { action: 'set-finish', cardName: 'Sol Ring', finish: 'foil' },
+      'no-target',
+    ],
+    [
+      'set-printing on an absent entry misses',
+      { action: 'set-printing', cardName: 'Sol Ring', set: 'c21', collectorNumber: '1' },
+      'no-target',
+    ],
+    [
+      'set-note on an absent entry misses',
+      { action: 'set-note', cardName: 'Sol Ring', note: 'x' },
+      'no-target',
+    ],
+    [
+      'set-section on an absent entry misses',
+      { action: 'set-section', cardName: 'Sol Ring', section: 'Box' },
+      'no-target',
+    ],
+    [
+      'move-from of an absent entry misses',
+      { action: 'move-from', cardName: 'Sol Ring', to: { type: 'deck', name: 'd' } },
+      'no-target',
+    ],
+    [
+      'unset-commander never applies to a wanted list and reports not-applicable',
+      { action: 'unset-commander', cardName: 'Lightning Bolt' },
+      'not-applicable',
+    ],
+    ['add never misses', { action: 'add', cardName: 'Sol Ring' }, null],
+  ]
+
+  runMissMatrix(applyChangeToWantedList, () => [makeEntry()], cases)
 })

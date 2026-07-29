@@ -931,6 +931,118 @@ describe('Ritual MCP server (in-memory transport)', () => {
     }
   })
 
+  test('remove_card that matches nothing errors and saves nothing', async () => {
+    const deckPath = path.join(env.dir, 'decks', 'test-deck.md')
+    const before = await fs.readFile(deckPath, 'utf-8')
+
+    // Wrong case — matching is exact and case-sensitive.
+    const result = await callTool(client, 'remove_card', {
+      listType: 'deck',
+      slug: 'test-deck',
+      cardName: 'sol ring',
+    })
+    expect(result.isError).toBe(true)
+    // The error names the change, says nothing was saved, and points at the recovery step.
+    const message = firstText(result)
+    expect(message).toContain('sol ring')
+    expect(message).toContain('Nothing was saved')
+    expect(message).toContain('load_list')
+
+    // Neither the deck file nor a changelog was written.
+    expect(await fs.readFile(deckPath, 'utf-8')).toBe(before)
+    expect(await fs.exists(path.join(env.dir, 'decks', 'test-deck.changes.md'))).toBe(false)
+  })
+
+  test('remove_card that matches nothing in a collection errors via the save handler', async () => {
+    // Seed an entry first so a wrong-case miss is distinguishable from an
+    // empty list, then prove the miss leaves the seeded state untouched.
+    const seeded = await callTool(client, 'add_card', {
+      listType: 'collection',
+      slug: 'shoebox',
+      cardName: 'Sol Ring',
+      set: 'c21',
+      collectorNumber: '125',
+    })
+    expect(seeded.isError).toBeFalsy()
+    const collPath = path.join(env.dir, 'collections', 'shoebox.md')
+    const before = await fs.readFile(collPath, 'utf-8')
+
+    // Collections replay changes server-side, so the miss is rejected by the
+    // collection-save handler (400) rather than the MCP-side apply.
+    const result = await callTool(client, 'remove_card', {
+      listType: 'collection',
+      slug: 'shoebox',
+      cardName: 'sol ring',
+    })
+    expect(result.isError).toBe(true)
+    const message = firstText(result)
+    expect(message).toContain('sol ring')
+    expect(message).toContain('Nothing was saved')
+
+    expect(await fs.readFile(collPath, 'utf-8')).toBe(before)
+  })
+
+  test('remove_card that matches nothing in a wanted list errors and saves nothing', async () => {
+    const result = await callTool(client, 'remove_card', {
+      listType: 'wanted',
+      slug: 'wishlist',
+      cardName: 'Definitely Not A Card',
+    })
+    expect(result.isError).toBe(true)
+    expect(firstText(result)).toContain('Definitely Not A Card')
+    expect(await fs.exists(path.join(env.dir, 'wanted', 'wishlist.changes.md'))).toBe(false)
+  })
+
+  test('commander actions on a flat list error with the applicability reason', async () => {
+    const result = await callTool(client, 'apply_changes', {
+      listType: 'wanted',
+      slug: 'wishlist',
+      changes: [{ action: 'set-commander', cardName: 'Sol Ring' }],
+    })
+    expect(result.isError).toBe(true)
+    // The reason must not read as a name mismatch — the action can never apply.
+    expect(firstText(result)).toContain('never apply to a wanted list')
+  })
+
+  test('apply_changes can target a card added earlier in the same batch', async () => {
+    // Miss detection is interleaved with application — validating against the
+    // initial state would wrongly reject this batch.
+    const result = await callTool(client, 'apply_changes', {
+      listType: 'deck',
+      slug: 'test-deck',
+      changes: [
+        { action: 'add', cardName: 'Counterspell' },
+        { action: 'set-note', cardName: 'Counterspell', note: 'added and annotated together' },
+      ],
+    })
+    expect(result.isError).toBeFalsy()
+
+    const loaded = await loadDeck('test-deck')
+    expect(deckCardNames(loaded)).toContain('Counterspell')
+    // The interleaved set-note must have *applied*, not merely not-missed.
+    const onDisk = await fs.readFile(path.join(env.dir, 'decks', 'test-deck.md'), 'utf-8')
+    expect(onDisk).toContain('added and annotated together')
+  })
+
+  test('apply_changes fails the whole batch when one change misses', async () => {
+    const deckPath = path.join(env.dir, 'decks', 'test-deck.md')
+    const before = await fs.readFile(deckPath, 'utf-8')
+
+    const result = await callTool(client, 'apply_changes', {
+      listType: 'deck',
+      slug: 'test-deck',
+      changes: [
+        { action: 'add', cardName: 'Counterspell' },
+        { action: 'remove', cardName: 'lightning bolt' }, // wrong case — misses
+      ],
+    })
+    expect(result.isError).toBe(true)
+    expect(firstText(result)).toContain('lightning bolt')
+
+    // Atomic: the valid add must not have been persisted either.
+    expect(await fs.readFile(deckPath, 'utf-8')).toBe(before)
+  })
+
   test('create_list creates a list of each addressable type', async () => {
     const created = await callTool(client, 'create_list', {
       listType: 'collection',

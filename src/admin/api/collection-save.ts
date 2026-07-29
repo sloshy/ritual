@@ -5,11 +5,13 @@ import { isPathWithinDir } from '../../path-validation'
 import { appendChangelog } from '../../changelog-writer'
 import type { CollectionCardEntry } from '../../site/data-types'
 import type { ChangeEvent } from '../../change-event'
+import { applyChangesCollectingMisses, describeUnmatchedChanges } from '../../editor/apply-batch'
 import { getCollectionsDir } from '../../ritual-config'
 import { parseCollectionFile } from '../../collection-file'
 import {
   applyChangeToCollection,
   findCollectionPrintingError,
+  toCollectionCardEntries,
 } from '../../editor/collection-changes'
 import { collectionToMarkdown } from '../../editor/list-export'
 import { parseTitleFromContent } from '../../section-format'
@@ -87,22 +89,25 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
 
     // Parse the file and build card entries
     const parsed = parseCollectionFile(hashCheck.content)
-    const cardEntries: CollectionCardEntry[] = parsed.entries.map((e, i) => ({
-      name: e.name,
-      set: e.set.toLowerCase(),
-      collectorNumber: e.collectorNumber,
-      finish: e.finish ?? 'nonfoil',
-      condition: e.condition ?? 'NM',
-      price: 0,
-      fileOrder: i,
-      section: e.section,
-      note: e.note,
-      cardId: e.cardId,
-    }))
+    const cardEntries = toCollectionCardEntries(parsed.entries)
 
-    let current = cardEntries
-    for (const change of changes) {
-      current = applyChangeToCollection(current, change)
+    // Replay the changes, tracking any that do not apply. A miss means the
+    // caller's view of the list is wrong (the content hash only guards against
+    // concurrent *file* edits) — rejecting is the only honest answer, because a
+    // save that reports success while dropping changes also writes a changelog
+    // block for edits that never happened.
+    const { data: current, unmatched } = applyChangesCollectingMisses<
+      CollectionCardEntry[],
+      ChangeEvent
+    >(cardEntries, changes, applyChangeToCollection)
+    if (unmatched.length > 0) {
+      return Response.json(
+        {
+          success: false,
+          message: describeUnmatchedChanges(unmatched, { type: 'collection', slug }),
+        },
+        { status: 400 },
+      )
     }
 
     // Re-serialize as a sectioned list, preserving the `# Title` H1. The client-sent section

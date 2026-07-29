@@ -18,6 +18,27 @@ async function writeList(dir: string, relative: string, content: string): Promis
 }
 
 describe('applyChangesToListFile (Integration)', () => {
+  test('aborts before writing anything when a change misses its target', async () => {
+    await withTempDir(async (dir) => {
+      setBaseDir(dir)
+      const filePath = await writeList(dir, 'decks/Burn.md', '## Main\n\n2 Lightning Bolt &1\n')
+      const before = await fs.readFile(filePath, 'utf-8')
+
+      let thrown: unknown
+      try {
+        await applyChangesToListFile('deck', filePath, [createRemoveChange('Sol Ring')])
+      } catch (error) {
+        thrown = error
+      }
+      expect(String(thrown)).toMatch(/matched no card[\s\S]*Nothing was saved/)
+
+      // File, sidecar, and changelog are all untouched.
+      expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
+      expect(await fs.exists(`${filePath}.sha256`)).toBe(false)
+      expect(await fs.exists(path.join(dir, 'decks/Burn.changes.md'))).toBe(false)
+    })
+  })
+
   test('deck remove decrements quantity, writes sidecar and changelog', async () => {
     await withTempDir(async (dir) => {
       setBaseDir(dir)

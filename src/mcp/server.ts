@@ -13,8 +13,9 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   reads one — decks return { slug, deck, frontMatter }, flat lists { slug, entries, sectionOrder }.
 - Edit cards with add_card, remove_card, set_card_note, set_card_printing, set_card_section,
   set_commander, and unset_commander. apply_changes applies an ordered batch of card-level changes
-  to one list in a single save (one changelog block). Content hashes for conflict detection are
-  handled internally — you never supply them.
+  to one list in a single save (one changelog block). Card names match exactly (case-sensitive;
+  cardId takes priority), and a change that matches nothing fails the whole call — nothing is
+  saved. Content hashes for conflict detection are handled internally — you never supply them.
 - move_cards and remove_cards operate across lists in one atomic batch, addressing each card by
   listType + slug + cardName plus cardId (required to match when the entry carries an &N id —
   load_list shows it) and copyIndex for deck copies.

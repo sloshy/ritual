@@ -34,6 +34,7 @@ import { useCardChanges } from './useCardChanges'
 import { reconcileIdPoolForUndo, replayChanges } from './reconcile-undo'
 import { useNavigationGuard } from './navigation-guard'
 import { clampQuantity } from '../ui/quantity'
+import type { ApplyChange } from './apply-batch'
 
 export type ListItem = { slug: string; name: string }
 
@@ -154,7 +155,7 @@ export type EditorConfig<TData> = {
   onCardAdded?: (cardName: string, scryfallCard?: ScryfallCard) => Promise<void> | void
 
   /** Apply a change to the in-memory data, returning updated data */
-  applyChange: (data: TData, change: ChangeInput) => TData
+  applyChange: ApplyChange<TData, ChangeInput>
   /**
    * Apply a "change printing" action: emit the appropriate change events (via
    * `ctx.tools`) and update the in-memory data (via `ctx.setData`). List types

@@ -12,6 +12,7 @@ import {
 import type { ChangeEvent, ChangeAction } from '../../src/change-event'
 import { applyChangeToDeck } from '../../src/editor/deck-changes'
 import type { DeckData } from '../../src/types'
+import { runMissMatrix, type MissMatrixCase } from '../test-utils'
 
 type MakeChangeOverrides = {
   action: ChangeAction
@@ -23,6 +24,8 @@ type MakeChangeOverrides = {
   condition?: string
   board?: string
   note?: string
+  section?: string
+  newSection?: string
   to?: unknown
   from?: unknown
 }
@@ -910,5 +913,151 @@ describe('applyChangeToDeck — additional action coverage', () => {
     expect(added).toBeDefined()
     expect(added!.set).toBe('lea')
     expect(added!.collectorNumber).toBe('54')
+  })
+})
+
+describe('applyChangeToDeck — onMiss reporting', () => {
+  const cases: MissMatrixCase<ChangeEvent>[] = [
+    [
+      'remove of an absent card misses',
+      makeChange({ action: 'remove', cardName: 'Sol Ring' }),
+      'no-target',
+    ],
+    [
+      'remove with a wrong-case name misses (matching is case-sensitive)',
+      makeChange({ action: 'remove', cardName: 'lightning bolt' }),
+      'no-target',
+    ],
+    [
+      'remove of a present card applies',
+      makeChange({ action: 'remove', cardName: 'Lightning Bolt' }),
+      null,
+    ],
+    [
+      'remove by present cardId applies',
+      makeChange({ action: 'remove', cardName: 'Wrong Name', cardId: 5 }),
+      null,
+    ],
+    [
+      // Documents the deliberate targeting fallback: a stale cardId with a
+      // valid name resolves by name rather than missing.
+      'remove with a stale cardId and a valid name applies via the name tier',
+      makeChange({ action: 'remove', cardName: 'Lightning Bolt', cardId: 999 }),
+      null,
+    ],
+    [
+      'set-note on an absent card misses',
+      makeChange({ action: 'set-note', cardName: 'Sol Ring', note: 'x' }),
+      'no-target',
+    ],
+    [
+      'set-finish on an absent card misses',
+      makeChange({ action: 'set-finish', cardName: 'Sol Ring', finish: 'foil' }),
+      'no-target',
+    ],
+    [
+      'set-printing on an absent card misses',
+      makeChange({
+        action: 'set-printing',
+        cardName: 'Sol Ring',
+        set: 'c21',
+        collectorNumber: '1',
+      }),
+      'no-target',
+    ],
+    [
+      'set-section on an absent card misses',
+      makeChange({ action: 'set-section', cardName: 'Sol Ring', section: 'Sideboard' }),
+      'no-target',
+    ],
+    [
+      'set-commander on an absent card misses',
+      makeChange({ action: 'set-commander', cardName: 'Sol Ring' }),
+      'no-target',
+    ],
+    [
+      'set-commander on a present card applies',
+      makeChange({ action: 'set-commander', cardName: 'Lightning Bolt' }),
+      null,
+    ],
+    [
+      // set-commander targets by cardId alone when one is given; a stale id
+      // with a valid name must MISS, not silently succeed via a name fallback
+      // the move itself never uses.
+      'set-commander with a stale cardId misses even when the name matches',
+      makeChange({ action: 'set-commander', cardName: 'Lightning Bolt', cardId: 999 }),
+      'no-target',
+    ],
+    [
+      // Idempotence: the card exists and is already not a commander (there is
+      // no commander section at all) — the requested end state already holds.
+      'unset-commander on an existing non-commander card is an idempotent success',
+      makeChange({ action: 'unset-commander', cardName: 'Lightning Bolt' }),
+      null,
+    ],
+    [
+      'unset-commander on an absent card misses',
+      makeChange({ action: 'unset-commander', cardName: 'Sol Ring' }),
+      'no-target',
+    ],
+    [
+      'move-from of an absent card misses',
+      makeChange({ action: 'move-from', cardName: 'Sol Ring', to: { type: 'wanted', name: 'w' } }),
+      'no-target',
+    ],
+    ['add never misses', makeChange({ action: 'add', cardName: 'Sol Ring' }), null],
+    [
+      // Section-structural actions are documented as outside the miss contract.
+      'rename-section of an absent section is not reported',
+      makeChange({
+        action: 'rename-section',
+        cardName: '',
+        section: 'Nope',
+        newSection: 'Also Nope',
+      }),
+      null,
+    ],
+    [
+      'remove-section of a non-empty section is a silent safety refusal',
+      makeChange({ action: 'remove-section', cardName: '', section: 'Main' }),
+      null,
+    ],
+  ]
+
+  runMissMatrix(applyChangeToDeck, makeDeck, cases)
+
+  test('set-commander on a card already in the commander section is an idempotent success', () => {
+    const deck: DeckData = {
+      name: 'Test Deck',
+      sections: [{ name: 'Commander', cards: [{ quantity: 1, name: 'Atraxa', cardId: 1 }] }],
+    }
+    let missed = false
+    const result = applyChangeToDeck(
+      deck,
+      makeChange({ action: 'set-commander', cardName: 'Atraxa' }),
+      { onMiss: () => (missed = true) },
+    )
+    expect(missed).toBe(false)
+    // The card stays in the commander section — no move, no new section.
+    expect(result.sections).toEqual(deck.sections)
+  })
+
+  test('unset-commander on a non-commander card with a commander section present is idempotent', () => {
+    const deck: DeckData = {
+      name: 'Test Deck',
+      sections: [
+        { name: 'Commander', cards: [{ quantity: 1, name: 'Atraxa', cardId: 1 }] },
+        { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 2 }] },
+      ],
+    }
+    let missed = false
+    const result = applyChangeToDeck(
+      deck,
+      makeChange({ action: 'unset-commander', cardName: 'Sol Ring' }),
+      { onMiss: () => (missed = true) },
+    )
+    expect(missed).toBe(false)
+    // Atraxa keeps the command zone; Sol Ring stays where it was.
+    expect(result.sections).toEqual(deck.sections)
   })
 })

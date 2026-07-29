@@ -1,9 +1,13 @@
 import type { ChangeEvent } from '../change-event'
 
-/** A change from an imported file whose target could not be resolved in the current list. */
+/**
+ * A change from an imported file that could not be applied to the current list:
+ * its target card could not be resolved, or its action can never apply to the
+ * list's type (a commander action aimed at a flat list).
+ */
 export type ImportConflict = {
   change: ChangeEvent
-  reason: 'target-not-found'
+  reason: 'target-not-found' | 'not-applicable'
 }
 
 export type RetargetResult = {

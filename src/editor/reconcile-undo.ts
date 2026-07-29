@@ -1,5 +1,6 @@
 import type { ChangeEvent } from '../change-event'
 import type { UndoEntry } from './useCardChanges.js'
+import type { ApplyChange } from './apply-batch'
 
 /**
  * Reconcile ID pool state after an undo operation.
@@ -45,11 +46,7 @@ export function reconcileIdPoolForUndo(
 }
 
 /** Rebuild data state by replaying a list of changes on top of original data. */
-export function replayChanges<T, C>(
-  original: T,
-  changes: C[],
-  applyChange: (data: T, change: C) => T,
-): T {
+export function replayChanges<T, C>(original: T, changes: C[], applyChange: ApplyChange<T, C>): T {
   let rebuilt = original
   for (const change of changes) {
     rebuilt = applyChange(rebuilt, change)
