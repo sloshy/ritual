@@ -1,3 +1,6 @@
+// An HTTP handler module that is server-agnostic: `src/api/` means "handlers no
+// server owns", not "handlers both servers mount". This one is currently mounted
+// on the admin server only.
 import { getCardPrintings } from '../scryfall'
 import { getErrorMessage } from '../errors'
 import { detailCard, type CardDetails } from './card-summary'
@@ -41,13 +44,15 @@ function errorResponse(message: string, status: number): Response {
  */
 export async function handleCardDetails(req: Request): Promise<Response> {
   try {
-    const name = new URL(req.url).searchParams.get('name')
-    if (!name || name.trim() === '') return errorResponse('name is required.', 400)
+    // Trimmed at the parse boundary, not just for the emptiness check: the name
+    // is a cache key, and `?name=%20Sol+Ring` must resolve like `Sol Ring`.
+    const name = new URL(req.url).searchParams.get('name')?.trim()
+    if (!name) return errorResponse('name is required.', 400)
 
     const printings = await getCardPrintings(name)
     if (printings.length === 0) {
       return errorResponse(
-        `No card named '${name}'. Names are matched exactly — use /api/autocomplete to resolve a partial name.`,
+        `No card named '${name}'. Names are matched exactly — resolve a partial name with /api/autocomplete (MCP: the autocomplete_card tool).`,
         404,
       )
     }

@@ -1,7 +1,9 @@
 import { cardCache } from '../../cache'
+import { CACHE_REFRESH_REMEDY } from '../../cache/status'
 import { getErrorMessage } from '../../errors'
 import { isListType, type ListType } from '../../list-type'
-import { isPriceCurrency, VALID_CURRENCIES, type PriceCurrency } from '../../price-currency'
+import { parseEnumField } from '../../parse-enum'
+import { VALID_CURRENCIES, type PriceCurrency } from '../../price-currency'
 import type { PriceListDetailPayload, PriceSummaryPayload } from '../../price-report'
 import { loadAndBuildPriceReport } from '../../price-runtime'
 import type { ListLocation } from '../../resolve-list'
@@ -9,22 +11,27 @@ import { getDefaultCurrency } from '../../ritual-config'
 import { resolveListFile } from './list-info'
 import { listSlug } from '../../list-info'
 import { parseListTarget } from './target'
+import { apiError, badRequest } from './save-helpers'
 
-/** GET /api/price/summary body — the CLI summary payload plus parser warnings. */
-export type PriceSummaryResponse = PriceSummaryPayload & { success: true; warnings: string[] }
+/**
+ * GET /api/price/summary body — the CLI summary payload plus parser warnings.
+ *
+ * `mode` discriminates the two price bodies (matching `ExportResponseBody`'s
+ * precedent), so a client that can receive either — the MCP `get_price_report`
+ * tool does — reads one field to know which it got.
+ */
+export type PriceSummaryResponse = PriceSummaryPayload & {
+  success: true
+  mode: 'summary'
+  warnings: string[]
+}
 
 /** GET /api/price/:type/:slug body — the CLI single-list payload plus cache age and warnings. */
 export type PriceListDetailResponse = PriceListDetailPayload & {
   success: true
+  mode: 'list'
   lastRefreshedAt: number | null
   warnings: string[]
-}
-
-export type PriceErrorResponse = { success: false; message: string }
-
-function error(message: string, status: number): Response {
-  const body: PriceErrorResponse = { success: false, message }
-  return Response.json(body, { status })
 }
 
 /**
@@ -34,8 +41,8 @@ function error(message: string, status: number): Response {
  */
 async function requireCardCache(): Promise<Response | null> {
   if (await cardCache.isEmpty()) {
-    return error(
-      'The card cache is empty; prices are unavailable. Run `ritual cache preload-all` first.',
+    return apiError(
+      `The card cache is empty; prices are unavailable. ${CACHE_REFRESH_REMEDY}.`,
       503,
     )
   }
@@ -46,11 +53,9 @@ async function requireCardCache(): Promise<Response | null> {
 function parseCurrencyParam(url: URL): PriceCurrency | Response {
   const raw = url.searchParams.get('currency')
   if (!raw) return getDefaultCurrency()
-  const lower = raw.toLowerCase()
-  if (!isPriceCurrency(lower)) {
-    return error(`Invalid currency '${raw}'. Must be one of: ${VALID_CURRENCIES.join(', ')}`, 400)
-  }
-  return lower
+  const parsed = parseEnumField(raw, VALID_CURRENCIES, 'currency')
+  if (!parsed.ok) return badRequest(parsed.message)
+  return parsed.value
 }
 
 /**
@@ -64,7 +69,7 @@ export async function handlePriceSummary(req: Request): Promise<Response> {
     const rawType = url.searchParams.get('type')
     let type: ListType | undefined
     if (rawType) {
-      if (!isListType(rawType)) return error(`Invalid list type '${rawType}'`, 400)
+      if (!isListType(rawType)) return apiError(`Invalid list type '${rawType}'`, 400)
       type = rawType
     }
     const currency = parseCurrencyParam(url)
@@ -77,6 +82,7 @@ export async function handlePriceSummary(req: Request): Promise<Response> {
     const { built, warnings } = await loadAndBuildPriceReport(type, undefined, currency)
     const body: PriceSummaryResponse = {
       success: true,
+      mode: 'summary',
       currency,
       lastRefreshedAt,
       lists: built.report.lists,
@@ -86,7 +92,7 @@ export async function handlePriceSummary(req: Request): Promise<Response> {
     }
     return Response.json(body)
   } catch (err) {
-    return error(getErrorMessage(err), 500)
+    return apiError(getErrorMessage(err), 500)
   }
 }
 
@@ -98,12 +104,12 @@ export async function handlePriceSummary(req: Request): Promise<Response> {
 export async function handlePriceList(req: Request): Promise<Response> {
   try {
     const target = parseListTarget(req)
-    if (target instanceof Response) return target
+    if (typeof target === 'string') return apiError(target, 400)
     const currency = parseCurrencyParam(new URL(req.url))
     if (currency instanceof Response) return currency
 
     const filePath = await resolveListFile(target.type, target.slug)
-    if (!filePath) return error(`List '${target.slug}' not found`, 404)
+    if (!filePath) return apiError(`List '${target.slug}' not found`, 404)
 
     const unavailable = await requireCardCache()
     if (unavailable) return unavailable
@@ -113,6 +119,7 @@ export async function handlePriceList(req: Request): Promise<Response> {
     const { built, warnings } = await loadAndBuildPriceReport(target.type, [location], currency)
     const body: PriceListDetailResponse = {
       success: true,
+      mode: 'list',
       currency,
       lastRefreshedAt,
       list: built.report.lists[0],
@@ -121,6 +128,6 @@ export async function handlePriceList(req: Request): Promise<Response> {
     }
     return Response.json(body)
   } catch (err) {
-    return error(getErrorMessage(err), 500)
+    return apiError(getErrorMessage(err), 500)
   }
 }

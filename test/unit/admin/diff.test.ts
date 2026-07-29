@@ -4,11 +4,8 @@ import path from 'node:path'
 import { tmpdir } from 'node:os'
 import { getBaseDir, setBaseDir } from '../../../src/base-dir'
 import { resetRitualConfigCache } from '../../../src/ritual-config'
-import {
-  handleDiff,
-  type DiffErrorResponse,
-  type DiffResponseBody,
-} from '../../../src/admin/api/diff'
+import { handleDiff, type DiffResponseBody } from '../../../src/admin/api/diff'
+import type { ApiErrorResponse } from '../../../src/admin/api/save-helpers'
 
 /**
  * Handler tests for `GET /api/diff`. Diff semantics (identity modes, finish
@@ -67,7 +64,7 @@ describe('GET /api/diff', () => {
     for (const query of ['', '?a=burn', '?b=binder']) {
       const resp = await handleDiff(diffRequest(query))
       expect({ query, status: resp.status }).toEqual({ query, status: 400 })
-      const body = (await resp.json()) as DiffErrorResponse
+      const body = (await resp.json()) as ApiErrorResponse
       expect(body.success).toBe(false)
     }
   })
@@ -75,14 +72,14 @@ describe('GET /api/diff', () => {
   test('returns 400 for an invalid by mode', async () => {
     const resp = await handleDiff(diffRequest('?a=burn&b=binder&by=set'))
     expect(resp.status).toBe(400)
-    const body = (await resp.json()) as DiffErrorResponse
-    expect(body.message).toContain("'name' or 'printing'")
+    const body = (await resp.json()) as ApiErrorResponse
+    expect(body.message).toBe("Invalid by 'set'. Use one of: name, printing.")
   })
 
   test('returns 400 for an unresolvable list name', async () => {
     const resp = await handleDiff(diffRequest('?a=burn&b=nope'))
     expect(resp.status).toBe(400)
-    const body = (await resp.json()) as DiffErrorResponse
+    const body = (await resp.json()) as ApiErrorResponse
     expect(body.success).toBe(false)
     expect(body.message).toContain('nope')
   })
@@ -91,8 +88,8 @@ describe('GET /api/diff', () => {
     const resp = await handleDiff(diffRequest('?a=deck:burn&b=collection:binder'))
     expect(resp.status).toBe(200)
     const body = (await resp.json()) as DiffResponseBody
-    expect(body.a.type).toBe('deck')
-    expect(body.b.type).toBe('collection')
+    expect(body.a.listType).toBe('deck')
+    expect(body.b.listType).toBe('collection')
   })
 
   test('diffs two lists by name with the full success body', async () => {
@@ -100,8 +97,8 @@ describe('GET /api/diff', () => {
     expect(resp.status).toBe(200)
     const body = (await resp.json()) as DiffResponseBody
     expect(body.success).toBe(true)
-    expect(body.a).toEqual({ type: 'deck', slug: 'burn', name: 'Burn' })
-    expect(body.b).toEqual({ type: 'collection', slug: 'binder', name: 'Binder' })
+    expect(body.a).toEqual({ listType: 'deck', slug: 'burn', name: 'Burn' })
+    expect(body.b).toEqual({ listType: 'collection', slug: 'binder', name: 'Binder' })
     expect(body.by).toBe('name')
     expect(body.matches.map((m) => m.name)).toEqual(['Lightning Bolt'])
     expect(body.matches[0]?.a.quantity).toBe(2)

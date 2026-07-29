@@ -1,31 +1,73 @@
 import { getContentHash } from '../../content-hash'
 import { importFromTextFile } from '../../importers/text-file'
-import { resolveDeckFilePath, parseDeckFrontMatter } from '../../deck-file'
-import { getErrorMessage } from '../../errors'
+import { parseDeckFrontMatter } from '../../deck-file'
+import { apiHandler } from '../utils'
 import { getDecksDir } from '../../ritual-config'
 import { addChangelogCardNames, fetchSymbolMap, loadDeckCardData } from './card-data-loader'
+import { resolveDeckFile } from './list-file'
+import { readListLoadRequest, stampLoadBody } from './list-load'
+import { countDeck, filterDeck, isNarrowedLoad, toCountParams } from './list-load-params'
+import type { DeckCardsLoadResult, DeckFullLoadResult, ListSummaryLoadResult } from './load-results'
 
-export async function handleDeckLoad(req: Request): Promise<Response> {
-  try {
-    const url = new URL(req.url)
-    const pathParts = url.pathname.split('/')
-    const rawSlug = pathParts[3]
-
-    if (!rawSlug) {
-      return Response.json({ success: false, message: 'Deck slug is required' }, { status: 400 })
-    }
-
-    const slug = decodeURIComponent(rawSlug)
-    const decksDir = getDecksDir()
-    const filePath = await resolveDeckFilePath(decksDir, slug)
-
-    if (!filePath) {
-      return Response.json({ success: false, message: `Deck '${slug}' not found` }, { status: 404 })
-    }
+/**
+ * `GET /api/deck/:slug` — a deck, at the depth `?view=` asks for.
+ *
+ * - `full` (default) is the editor's payload: the deck plus every card, printing,
+ *   price map, and the mana-symbol map.
+ * - `cards` returns the deck lines and front matter only, skipping all of that.
+ * - `summary` returns counts only.
+ *
+ * `section`, `nameContains`, `limit`, and `offset` filter the lines in every
+ * view; `totalCount` reports how many matched before paging. In `full` the card
+ * data is loaded for the filtered names only, so a narrow filter is cheap there
+ * too. A summary's counts describe the whole filtered set — paging is ignored
+ * there, so `?view=summary&limit=5` still reports the real totals.
+ *
+ * A narrowed `cards`/`full` body is marked `partial` and carries **no**
+ * `contentHash`, so it cannot be handed back to the save route as if it were the
+ * whole list.
+ */
+export function handleDeckLoad(req: Request): Promise<Response> {
+  return apiHandler(async () => {
+    const prologue = await readListLoadRequest(req, getDecksDir(), 'deck', resolveDeckFile)
+    if (!prologue.ok) return prologue.response
+    const { slug, filePath, params } = prologue.value
 
     const rawContent = await Bun.file(filePath).text()
-    const deck = await importFromTextFile(filePath)
+    const loaded = await importFromTextFile(filePath)
     const frontMatter = await parseDeckFrontMatter(filePath)
+    const contentHash = await getContentHash(filePath, rawContent)
+
+    if (params.view === 'summary') {
+      // Counted over the filtered-but-unpaged deck: a count that shrank with the
+      // page size would tell a paging client nothing it could page against.
+      const { deck: counted } = filterDeck(loaded, toCountParams(params))
+      const summary: ListSummaryLoadResult = {
+        success: true,
+        slug,
+        view: 'summary',
+        counts: countDeck(counted),
+        contentHash,
+      }
+      return Response.json(summary)
+    }
+
+    const { deck, totalCount } = filterDeck(loaded, params)
+    const partial = isNarrowedLoad(params)
+
+    if (params.view === 'cards') {
+      // Front matter travels with the cards view because the deck save flow
+      // re-sends it; dropping it here would silently blank a deck's YAML.
+      const body: DeckCardsLoadResult = {
+        success: true,
+        slug,
+        view: 'cards',
+        deck,
+        frontMatter,
+        totalCount,
+      }
+      return Response.json(stampLoadBody(body, partial, contentHash))
+    }
 
     // Collect unique card names
     const cardNames = new Set<string>()
@@ -41,11 +83,11 @@ export async function handleDeckLoad(req: Request): Promise<Response> {
       await loadDeckCardData(cardNames)
     const symbolMap = await fetchSymbolMap()
 
-    const contentHash = await getContentHash(filePath, rawContent)
-
-    return Response.json({
+    const body: DeckFullLoadResult = {
       success: true,
+      view: 'full',
       deck,
+      totalCount,
       cards,
       printings,
       lowestPriceCards,
@@ -54,9 +96,7 @@ export async function handleDeckLoad(req: Request): Promise<Response> {
       symbolMap,
       frontMatter,
       slug,
-      contentHash,
-    })
-  } catch (error) {
-    return Response.json({ success: false, message: getErrorMessage(error) }, { status: 500 })
-  }
+    }
+    return Response.json(stampLoadBody(body, partial, contentHash))
+  })
 }

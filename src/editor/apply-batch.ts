@@ -56,6 +56,17 @@ export function applyChangesCollectingMisses<TData, TChange>(
   return { data: current, unmatched }
 }
 
+/**
+ * One entry per unapplied change: the change as text, and why it did not apply.
+ *
+ * The itemised counterpart of {@link describeUnmatchedChanges}' one-line
+ * summary, for surfaces that report a structured list (the MCP tools' error
+ * payload) rather than prose.
+ */
+export function listUnmatchedChanges(unmatched: readonly UnmatchedChange<ChangeEvent>[]): string[] {
+  return unmatched.map((item) => `${formatChange(item.change)} (${item.reason})`)
+}
+
 /** The list a batch of unmatched changes was aimed at, for the error message. */
 export type UnmatchedTarget = { type: ListType; slug: string }
 

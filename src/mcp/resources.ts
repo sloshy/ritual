@@ -1,5 +1,5 @@
 import { ResourceTemplate, type McpServer } from '@modelcontextprotocol/server'
-import { isListType } from '../list-type'
+import { isListType, LIST_TYPES } from '../list-type'
 import { NEVER_CACHE } from './cache-hints'
 import { callApi } from './dispatch'
 import { apiErrorToMcp } from './errors'
@@ -15,8 +15,10 @@ function firstValue(value: string | string[] | undefined): string {
 /**
  * Expose every deck, collection, and wanted list as a readable MCP resource at
  * `ritual://{type}/{slug}`. The `list` callback enumerates them via GET /api/lists;
- * a read returns the same agent-facing projection as the `load_list` tool (see
- * {@link loadProjectedList}) — never the raw editor payload.
+ * a read returns the same agent-facing projection as the `get_list` tool (see
+ * {@link loadProjectedList}) — never the raw editor payload. The `complete`
+ * callbacks let a client offer the real types and slugs while a URI is being
+ * typed, so a resource reference never has to be guessed.
  */
 export function registerResources(server: McpServer): void {
   server.registerResource(
@@ -32,6 +34,21 @@ export function registerResources(server: McpServer): void {
             mimeType: 'application/json',
           })),
         }
+      },
+      complete: {
+        type: (value) => LIST_TYPES.filter((type) => type.startsWith(value)),
+        slug: async (value, context) => {
+          const data = (await callApi('GET', '/api/lists')) as ListsResponse
+          // The SDK passes the arguments already filled in, so a `type` the user
+          // has chosen narrows the slugs rather than offering every list's.
+          const type = context?.arguments?.type
+          return data.lists
+            .filter(
+              (entry) =>
+                (type === undefined || entry.type === type) && entry.slug.startsWith(value),
+            )
+            .map((entry) => entry.slug)
+        },
       },
     }),
     {

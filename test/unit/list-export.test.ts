@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   CSV_HEADER,
+  collectionToMarkdown,
   collectionToText,
   wantedToText,
   wantedToCsv,
@@ -55,6 +56,35 @@ function wantedEntry(overrides: Partial<WantedListCardEntry> = {}): WantedListCa
     ...overrides,
   }
 }
+
+describe('collectionToMarkdown', () => {
+  test('id-less entries are written with distinct &N ids', () => {
+    // Two copies of one card is the case that matters: without ids they share a
+    // `moveCardKey`, and only one of them could ever be moved or removed.
+    const markdown = collectionToMarkdown(
+      'Binder',
+      [collectionEntry(), collectionEntry({ fileOrder: 1 })],
+      ['Main'],
+    )
+    expect(markdown).toContain('&1')
+    expect(markdown).toContain('&2')
+  })
+
+  test('an entry repeating an id already in the list does not produce two &5 lines', () => {
+    // A change bundle replayed onto a list, or a `move-to` carrying the id the
+    // card had in its source list, can hand the serializer a collision.
+    const markdown = collectionToMarkdown(
+      'Binder',
+      [
+        collectionEntry({ cardId: 5 }),
+        collectionEntry({ name: 'Sol Ring', collectorNumber: '240', cardId: 5, fileOrder: 1 }),
+      ],
+      ['Main'],
+    )
+    expect(markdown.match(/&5\b/g)).toHaveLength(1)
+    expect(markdown).toContain('Sol Ring')
+  })
+})
 
 describe('collectionToText', () => {
   test('formats a line as "N Name (SET:CN)" with the set code uppercased', () => {

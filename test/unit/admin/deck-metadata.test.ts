@@ -17,21 +17,13 @@ import { invalidDeckFormatMessage } from '../../../src/deck-format'
  */
 
 /** The parsed patch, failing the test if validation rejected the body instead. */
-function patchOf(body: unknown): DeckMetadataPatch {
+function patchOf(body: Record<string, unknown>): DeckMetadataPatch {
   const parsed = parseDeckMetadataBody(body)
   if (typeof parsed === 'string') throw new Error(`expected a patch, got: ${parsed}`)
   return parsed.patch
 }
 
 describe('parseDeckMetadataBody', () => {
-  test.each([
-    ['a string', 'nope'],
-    ['null', null],
-    ['an array', []],
-  ])('%s is not a body', (_label, body) => {
-    expect(parseDeckMetadataBody(body)).toBe('Request body must be a JSON object.')
-  })
-
   test('an unknown field names the fields that are accepted', () => {
     expect(parseDeckMetadataBody({ colour: 'blue' })).toBe(
       "Unknown metadata field 'colour'. Accepted fields: description, tags, format, sourceId, sourceUrl.",

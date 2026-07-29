@@ -6,6 +6,7 @@ import {
 } from '../../src/api/card-details'
 import { cardCache } from '../../src/cache'
 import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
+import { stubFetch, type StubbedFetch } from './helpers/stub-fetch'
 import { makeScryfallCard } from '../test-utils'
 import type { ScryfallCard } from '../../src/types'
 
@@ -49,20 +50,20 @@ const BOLT_PRINTINGS: ScryfallCard[] = [
 ]
 
 let workspace: BoundWorkspace
-const originalFetch = globalThis.fetch
+let stubbed: StubbedFetch
 
 beforeAll(async () => {
   workspace = await bindWorkspace({ init: true, clearCardCache: true })
   // An uncached name falls back to a single-card Scryfall fetch; answer 404 so the
   // miss path is exercised without reaching the network.
-  const stub = (): Promise<Response> =>
-    Promise.resolve(Response.json({ object: 'error' }, { status: 404 }))
-  globalThis.fetch = stub as unknown as typeof fetch
+  stubbed = stubFetch({
+    'https://api.scryfall.com': () => Response.json({ object: 'error' }, { status: 404 }),
+  })
   await cardCache.bulkSet({ 'Lightning Bolt': BOLT_PRINTINGS })
 })
 
 afterAll(async () => {
-  globalThis.fetch = originalFetch
+  stubbed.restore()
   await workspace.dispose()
 })
 

@@ -1,13 +1,13 @@
-import path from 'node:path'
 import { writeFileWithHash, hashPath } from '../../content-hash'
 import { getErrorMessage } from '../../errors'
-import { isPathWithinDir } from '../../path-validation'
 import { appendChangelog } from '../../changelog-writer'
 import type { CollectionCardEntry } from '../../site/data-types'
 import type { ChangeEvent } from '../../change-event'
 import { applyChangesCollectingMisses, describeUnmatchedChanges } from '../../editor/apply-batch'
 import { getCollectionsDir } from '../../ritual-config'
+import { assignEntryIds } from '../../card-id'
 import { parseCollectionFile } from '../../collection-file'
+import { computeEntrySaveEffects } from '../../editor/save-effects'
 import {
   applyChangeToCollection,
   findCollectionPrintingError,
@@ -15,13 +15,18 @@ import {
 } from '../../editor/collection-changes'
 import { collectionToMarkdown } from '../../editor/list-export'
 import { parseTitleFromContent } from '../../section-format'
+import { changeCardNames, refuseUnknownCardNames } from './card-name-check'
 import { applyOutgoingMoves, type ListSaveResponse } from './move-save'
 import {
-  validateBodySize,
+  apiError,
+  PARTIAL_LOAD_HINT,
+  readJsonObjectBody,
   validateContentHash,
   autoCommitAndPush,
   normalizeRequestNotes,
 } from './save-helpers'
+import { resolveFlatListFile, resolveListFileOrRefuse } from './list-file'
+import { parseSlugFromUrl } from './target'
 
 interface CollectionSaveRequest {
   changes: ChangeEvent[]
@@ -30,56 +35,39 @@ interface CollectionSaveRequest {
   sectionOrder?: string[]
   /** Merge into the session's existing changelog entry instead of a new one. */
   continueSession?: boolean
+  /** Refuse the save when a change names a card the local Scryfall cache does not know. */
+  validateCardNames?: boolean
 }
 
 export async function handleCollectionSave(req: Request): Promise<Response> {
   try {
-    const url = new URL(req.url)
-    const pathParts = url.pathname.split('/')
-    const rawSlug = pathParts[3]
+    const parsedSlug = parseSlugFromUrl(req)
+    if (!parsedSlug.ok) return apiError(parsedSlug.message, 400)
+    const { slug } = parsedSlug
 
-    if (!rawSlug) {
-      return Response.json(
-        { success: false, message: 'Collection slug is required' },
-        { status: 400 },
-      )
-    }
-
-    const slug = decodeURIComponent(rawSlug)
-
-    const sizeError = validateBodySize(req)
-    if (sizeError) return sizeError
-    const body = (await req.json()) as CollectionSaveRequest
+    const parsedBody = await readJsonObjectBody(req)
+    if (!parsedBody.ok) return parsedBody.response
+    const body = parsedBody.body as unknown as CollectionSaveRequest
     const { changes, contentHash, sectionOrder, continueSession } = body
 
     if (!changes || typeof contentHash !== 'string') {
-      return Response.json(
-        { success: false, message: 'changes and contentHash are required' },
-        { status: 400 },
-      )
+      return apiError(`changes and contentHash are required. ${PARTIAL_LOAD_HINT}`, 400)
     }
 
     const noteError = normalizeRequestNotes(changes, [])
     if (noteError) return noteError
 
     const printingError = findCollectionPrintingError(changes)
-    if (printingError) {
-      return Response.json({ success: false, message: printingError }, { status: 400 })
-    }
+    if (printingError) return apiError(printingError, 400)
 
     const collectionsDir = getCollectionsDir()
-    const filePath = path.join(collectionsDir, slug + '.md')
-    if (!isPathWithinDir(filePath, collectionsDir)) {
-      return Response.json({ success: false, message: 'Invalid collection slug' }, { status: 400 })
-    }
-    const file = Bun.file(filePath)
-
-    if (!(await file.exists())) {
-      return Response.json(
-        { success: false, message: `Collection '${slug}' not found` },
-        { status: 404 },
-      )
-    }
+    const resolved = await resolveListFileOrRefuse(resolveFlatListFile, {
+      slug,
+      dir: collectionsDir,
+      label: 'collection',
+    })
+    if (!resolved.ok) return resolved.response
+    const { filePath } = resolved
 
     // Validate content hash for conflict detection
     const hashCheck = await validateContentHash(filePath, contentHash, 'Collection')
@@ -91,6 +79,13 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
     const parsed = parseCollectionFile(hashCheck.content)
     const cardEntries = toCollectionCardEntries(parsed.entries)
 
+    const nameError = await refuseUnknownCardNames(
+      body.validateCardNames,
+      changeCardNames(changes),
+      () => parsed.entries.map((entry) => entry.name),
+    )
+    if (nameError) return nameError
+
     // Replay the changes, tracking any that do not apply. A miss means the
     // caller's view of the list is wrong (the content hash only guards against
     // concurrent *file* edits) — rejecting is the only honest answer, because a
@@ -101,13 +96,7 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
       ChangeEvent
     >(cardEntries, changes, applyChangeToCollection)
     if (unmatched.length > 0) {
-      return Response.json(
-        {
-          success: false,
-          message: describeUnmatchedChanges(unmatched, { type: 'collection', slug }),
-        },
-        { status: 400 },
-      )
+      return apiError(describeUnmatchedChanges(unmatched, { type: 'collection', slug }), 400)
     }
 
     // Re-serialize as a sectioned list, preserving the `# Title` H1. The client-sent section
@@ -121,7 +110,10 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
     filesToCommit.push(...outgoing.writtenFiles)
 
     const order = sectionOrder ?? parsed.sectionOrder
-    const newContent = collectionToMarkdown(title, current, order)
+    // Ids are assigned here rather than only inside `collectionToMarkdown`
+    // (which re-runs the assigner idempotently) so the response can report them.
+    const { entries: idedEntries, assignments } = assignEntryIds(current)
+    const newContent = collectionToMarkdown(title, idedEntries, order)
     const newContentHash = await writeFileWithHash(filePath, newContent)
 
     // Write changelog
@@ -142,9 +134,10 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
       message: `Saved ${changes.length} changes to ${slug}`,
       contentHash: newContentHash,
       droppedNotes: outgoing.droppedNotes,
+      effects: computeEntrySaveEffects({ before: cardEntries, after: idedEntries, assignments }),
     }
     return Response.json(responseBody)
   } catch (error) {
-    return Response.json({ success: false, message: getErrorMessage(error) }, { status: 500 })
+    return apiError(getErrorMessage(error), 500)
   }
 }

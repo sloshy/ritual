@@ -1,11 +1,56 @@
-import type { McpServer } from '@modelcontextprotocol/server'
+import { fromJsonSchema, type McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
-import type { CollectionSyncRequest } from '../../admin/api/collection-sync'
-import { callApi } from '../dispatch'
-import { jsonResult } from '../result'
+import type { BuildSiteResponse } from '../../admin/api/build-site'
+import type { CacheRefreshResponse } from '../../admin/api/cache'
+import type {
+  CollectionSyncRequest,
+  CollectionSyncRunResponse,
+} from '../../admin/api/collection-sync'
+import type { ConfigResponse } from '../../admin/api/config'
+import type { DeckSyncRunResponse } from '../../admin/api/deck-sync'
+import type { HistorySaveResponse } from '../../admin/api/history'
+import type { ListDeleteResponse, ListRenameResponse } from '../../admin/api/list-lifecycle'
+import { callApi, callApiData } from '../dispatch'
+import type { ListChangeNotifier } from '../notify'
+import { runTool } from '../result'
+import {
+  BUILD_SITE_OUTPUT,
+  CONFIG_OUTPUT,
+  DELETE_LIST_OUTPUT,
+  REFRESH_CACHE_OUTPUT,
+  RENAME_LIST_OUTPUT,
+  REWRITE_HISTORY_OUTPUT,
+  SYNC_COLLECTION_OUTPUT,
+  SYNC_DECKS_OUTPUT,
+} from '../schema-json'
 import { listTypeSchema, slugField } from '../schemas'
+import type { ConfigResult, OmitSuccess } from '../types'
 import { CSV_UPLOAD_THRESHOLD } from '../../collection-sync/csv'
 import { SYNC_CHANGE_FILTERS, SYNC_DIRECTIONS } from '../../sync-common'
+
+/** `rename_list` result: the slug the list moved to. */
+export type RenameListResult = OmitSuccess<ListRenameResponse>
+
+/** `delete_list` result: the list is gone. */
+export type DeleteListResult = OmitSuccess<ListDeleteResponse>
+
+/** `rewrite_history` result: how many change sets were written. */
+export type HistoryRewriteResult = OmitSuccess<HistorySaveResponse>
+
+/** `build_site` result. */
+export type BuildSiteResult = OmitSuccess<BuildSiteResponse>
+
+/** `refresh_cache` result. */
+export type CacheRefreshResult = OmitSuccess<CacheRefreshResponse>
+
+/** The success arm of a sync run — `callApi` throws on the failure arm. */
+type SyncRunSuccess<T> = Extract<T, { success: true }>
+
+/** `sync_decks` result: the run's per-deck report. */
+export type DeckSyncResult = OmitSuccess<SyncRunSuccess<DeckSyncRunResponse>>
+
+/** `sync_collection` result: the run's per-list report. */
+export type CollectionSyncResult = OmitSuccess<SyncRunSuccess<CollectionSyncRunResponse>>
 
 const newNameField = z.string().min(1).describe('New display name.')
 const confirmNameField = z
@@ -68,19 +113,26 @@ function ignoreUnreadableDescription(plural: string): string {
  * longer-running operations (both sync tools also write to Archidekt). All are
  * flagged with the SDK’s destructiveHint so clients can gate or confirm them.
  */
-export function registerDestructiveTools(server: McpServer): void {
+export function registerDestructiveTools(server: McpServer, notifier: ListChangeNotifier): void {
   server.registerTool(
     'rename_list',
     {
       title: 'Rename list',
       description: 'Rename a deck, collection, or wanted list (changes its display name and slug).',
       inputSchema: z.object({ listType: listTypeSchema, slug: slugField, newName: newNameField }),
+      outputSchema: fromJsonSchema<RenameListResult>(RENAME_LIST_OUTPUT),
       annotations: { destructiveHint: true },
     },
     async ({ listType, slug, newName }) =>
-      jsonResult(
-        await callApi('POST', `/api/${listType}/${encodeURIComponent(slug)}/rename`, { newName }),
-      ),
+      runTool(async (): Promise<RenameListResult> => {
+        const data = await callApiData<ListRenameResponse>(
+          'POST',
+          `/api/${listType}/${encodeURIComponent(slug)}/rename`,
+          { newName },
+        )
+        notifier.notifyListsChanged()
+        return data
+      }),
   )
 
   server.registerTool(
@@ -94,12 +146,19 @@ export function registerDestructiveTools(server: McpServer): void {
         slug: slugField,
         confirmName: confirmNameField,
       }),
+      outputSchema: fromJsonSchema<DeleteListResult>(DELETE_LIST_OUTPUT),
       annotations: { destructiveHint: true, idempotentHint: true },
     },
     async ({ listType, slug, confirmName }) =>
-      jsonResult(
-        await callApi('DELETE', `/api/${listType}/${encodeURIComponent(slug)}`, { confirmName }),
-      ),
+      runTool(async (): Promise<DeleteListResult> => {
+        const data = await callApiData<ListDeleteResponse>(
+          'DELETE',
+          `/api/${listType}/${encodeURIComponent(slug)}`,
+          { confirmName },
+        )
+        notifier.notifyListsChanged()
+        return data
+      }),
   )
 
   server.registerTool(
@@ -114,14 +173,18 @@ export function registerDestructiveTools(server: McpServer): void {
         slug: slugField,
         sets: z.array(changeSetSchema).describe('The full set of change sets to write.'),
       }),
+      outputSchema: fromJsonSchema<HistoryRewriteResult>(REWRITE_HISTORY_OUTPUT),
       annotations: { destructiveHint: true },
     },
     async ({ listType, slug, sets }) =>
-      jsonResult(
-        await callApi('POST', `/api/history/${listType}/${encodeURIComponent(slug)}/save`, {
-          sets,
-        }),
-      ),
+      runTool(async (): Promise<HistoryRewriteResult> => {
+        const data = await callApiData<HistorySaveResponse>(
+          'POST',
+          `/api/history/${listType}/${encodeURIComponent(slug)}/save`,
+          { sets },
+        )
+        return data
+      }),
   )
 
   server.registerTool(
@@ -136,9 +199,14 @@ export function registerDestructiveTools(server: McpServer): void {
       inputSchema: z.object({
         config: z.record(z.string(), z.unknown()).describe('Partial RitualConfig object to merge.'),
       }),
+      outputSchema: fromJsonSchema<ConfigResult>(CONFIG_OUTPUT),
       annotations: { destructiveHint: true },
     },
-    async ({ config }) => jsonResult(await callApi('PUT', '/api/config', config)),
+    async ({ config }) =>
+      runTool(async (): Promise<ConfigResult> => {
+        const data = (await callApi('PUT', '/api/config', config)) as ConfigResponse
+        return { config: data.config }
+      }),
   )
 
   server.registerTool(
@@ -147,9 +215,14 @@ export function registerDestructiveTools(server: McpServer): void {
       title: 'Build site',
       description: 'Rebuild the public static site from the current lists.',
       inputSchema: z.object({}),
+      outputSchema: fromJsonSchema<BuildSiteResult>(BUILD_SITE_OUTPUT),
       annotations: { destructiveHint: true },
     },
-    async () => jsonResult(await callApi('POST', '/api/build-site')),
+    async () =>
+      runTool(async (): Promise<BuildSiteResult> => {
+        const data = await callApiData<BuildSiteResponse>('POST', '/api/build-site')
+        return data
+      }),
   )
 
   server.registerTool(
@@ -174,18 +247,18 @@ export function registerDestructiveTools(server: McpServer): void {
           .describe(ignoreUnreadableDescription('decks')),
         only: z.enum(SYNC_CHANGE_FILTERS).optional().describe(changeFilterDescription('each deck')),
       }),
+      outputSchema: fromJsonSchema<DeckSyncResult>(SYNC_DECKS_OUTPUT),
       annotations: { destructiveHint: true, openWorldHint: true },
     },
     async ({ direction, decks, dryRun, ignoreUnreadableLines, only }) =>
-      jsonResult(
-        await callApi('POST', '/api/deck-sync', {
-          direction,
-          decks,
-          dryRun,
-          ignoreUnreadableLines,
-          only,
-        }),
-      ),
+      runTool(async (): Promise<DeckSyncResult> => {
+        const data = await callApiData<SyncRunSuccess<DeckSyncRunResponse>>(
+          'POST',
+          '/api/deck-sync',
+          { direction, decks, dryRun, ignoreUnreadableLines, only },
+        )
+        return data
+      }),
   )
 
   server.registerTool(
@@ -265,6 +338,7 @@ export function registerDestructiveTools(server: McpServer): void {
               'Writing the CSV to a file instead of pushing it is CLI-only (--csv-file).',
           ),
       }),
+      outputSchema: fromJsonSchema<CollectionSyncResult>(SYNC_COLLECTION_OUTPUT),
       annotations: { destructiveHint: true, openWorldHint: true },
     },
     async ({
@@ -290,7 +364,14 @@ export function registerDestructiveTools(server: McpServer): void {
         removalPriority,
         csv,
       }
-      return jsonResult(await callApi('POST', '/api/collection-sync', body))
+      return runTool(async (): Promise<CollectionSyncResult> => {
+        const data = await callApiData<SyncRunSuccess<CollectionSyncRunResponse>>(
+          'POST',
+          '/api/collection-sync',
+          body,
+        )
+        return data
+      })
     },
   )
 
@@ -301,8 +382,13 @@ export function registerDestructiveTools(server: McpServer): void {
       description:
         'Refresh the local Scryfall card cache (downloads bulk card data and oracle/art tags; may take a while).',
       inputSchema: z.object({}),
+      outputSchema: fromJsonSchema<CacheRefreshResult>(REFRESH_CACHE_OUTPUT),
       annotations: { destructiveHint: true, openWorldHint: true },
     },
-    async () => jsonResult(await callApi('POST', '/api/cache/refresh')),
+    async () =>
+      runTool(async (): Promise<CacheRefreshResult> => {
+        const data = await callApiData<CacheRefreshResponse>('POST', '/api/cache/refresh')
+        return data
+      }),
   )
 }

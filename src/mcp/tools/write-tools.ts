@@ -1,14 +1,15 @@
-import type { McpServer } from '@modelcontextprotocol/server'
+import {
+  fromJsonSchema,
+  ProtocolError,
+  ProtocolErrorCode,
+  type McpServer,
+} from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import {
   createAddChange,
   createChangeId,
   createRemoveChange,
-  createSetCommanderChange,
-  createSetNoteChange,
   createSetPrintingChange,
-  createSetSectionChange,
-  createUnsetCommanderChange,
   type CardChange,
   type ChangeEvent,
 } from '../../change-event'
@@ -22,10 +23,28 @@ import {
   type SelectedMoveRequest,
 } from '../../admin/api/move'
 import type { DeckCreateRequest } from '../../admin/api/deck-create'
-import type { ImportCsvRequest } from '../../admin/api/import-csv'
-import { callApi } from '../dispatch'
-import { mutateDeck, mutateList } from '../mutations'
-import { jsonResult, textResult } from '../result'
+import type { BundleImportResponse } from '../../admin/api/import-changes'
+import type { ImportCsvRequest, ImportCsvResponse } from '../../admin/api/import-csv'
+import type { ImportDeckResponse } from '../../admin/api/import-deck'
+import type { ListCreateResponse } from '../../admin/api/list-lifecycle'
+import type { DeckMetadataRequest, MetadataResponse } from '../../admin/api/metadata'
+import type { MoveCommitResponse, RemoveCommitResponse } from '../../admin/api/move'
+import { callApi, callApiData } from '../dispatch'
+import type { ListChangeNotifier } from '../notify'
+import { applyMutation, type MutationResult } from '../mutations'
+import { runTool } from '../result'
+import {
+  CREATE_LIST_OUTPUT,
+  IMPORT_CHANGE_BUNDLE_OUTPUT,
+  IMPORT_CSV_OUTPUT,
+  IMPORT_DECK_OUTPUT,
+  MOVE_SELECTED_CARDS_OUTPUT,
+  MUTATION_OUTPUT,
+  REMOVE_SELECTED_CARDS_OUTPUT,
+  SET_LIST_METADATA_OUTPUT,
+} from '../schema-json'
+import type { ListType } from '../../list-type'
+import type { OmitSuccess } from '../types'
 import {
   cardIdField,
   cardNameField,
@@ -44,6 +63,33 @@ import {
   slugField,
 } from '../schemas'
 
+/** `create_list` result: the new list's slug. */
+export type CreateListResult = OmitSuccess<ListCreateResponse>
+
+/** `import_deck` result: the deck that was written. */
+export type ImportDeckResult = OmitSuccess<ImportDeckResponse>
+
+/** `import_csv` result: rows imported, plus any that failed validation. */
+export type ImportCsvResult = OmitSuccess<ImportCsvResponse>
+
+/** `import_change_bundle` result: what each list in the bundle applied. */
+export type ImportChangeBundleResult = OmitSuccess<BundleImportResponse>
+
+/**
+ * `set_list_metadata` result. The handler's `contentHash` is dropped: it is an
+ * optimistic-concurrency token for a client that supplies one, and no agent does.
+ */
+export interface ListMetadataResult {
+  slug: string
+  frontMatter: Record<string, unknown>
+}
+
+/** `move_selected_cards` result: what the batch moved, skipped, and dropped. */
+export type MoveSelectedResult = OmitSuccess<MoveCommitResponse>
+
+/** `remove_selected_cards` result: what the batch removed and skipped. */
+export type RemoveSelectedResult = OmitSuccess<RemoveCommitResponse>
+
 /**
  * `POST /api/import-deck` body as the MCP tool builds it. Looser than the
  * handler's `ImportDeckRequest` union on purpose: the tool schema leaves
@@ -59,20 +105,57 @@ type ImportDeckBody = {
 }
 
 /**
- * One card move, addressed by identity: source list + card name (plus cardId /
- * copyIndex to pin the exact entry) and a destination list. `cardId` must match
- * the entry's persistent `&N` id whenever the entry has one (`load_list` shows
- * it) — a name-only item matches only entries without an id.
+ * How the batch tools address one entry that already exists: the list holding
+ * it, the card's exact name, and — when the entry has them — the `&N` id and the
+ * copy index that pin the individual line. `cardId` must match whenever the
+ * entry has one (`get_list` shows it); a name-only item matches only entries
+ * without an id.
+ *
+ * Shared by `move_selected_cards`' source half and every `remove_selected_cards`
+ * item, which is also why {@link toEntryTarget} exists: the two schemas and the
+ * one mapping onto the admin routes' spelling have to move together.
+ */
+const entryTargetFields = {
+  listType: listTypeSchema.describe('List type of the entry.'),
+  slug: slugField.describe('Slug of the list holding the entry.'),
+  cardName: cardNameField.describe('Exact card name of the entry.'),
+  cardId: cardIdField.describe(
+    'The entry’s persistent card ID (the &N suffix). Required to match when the entry has one.',
+  ),
+  copyIndex: copyIndexField,
+}
+
+/** An entry-addressing item as {@link entryTargetFields} parses one. */
+export interface EntryTargetInput {
+  listType: ListType
+  slug: string
+  cardName: string
+  cardId?: number
+  copyIndex?: number
+}
+
+/**
+ * Project the tool vocabulary onto the admin routes' (`listSlug`/`name`), which
+ * `move_selected_cards` and `remove_selected_cards` both need and both used to
+ * write out.
+ */
+export function toEntryTarget(item: EntryTargetInput): RemoveCommitItem {
+  return {
+    listType: item.listType,
+    listSlug: item.slug,
+    name: item.cardName,
+    cardId: item.cardId,
+    copyIndex: item.copyIndex,
+  }
+}
+
+/**
+ * One card move: an {@link entryTargetFields} source plus a destination list and
+ * optional printing overrides applied on arrival.
  */
 const moveItemSchema = z
   .object({
-    listType: listTypeSchema.describe('Source list type.'),
-    slug: slugField.describe('Source list slug.'),
-    cardName: cardNameField.describe('Exact card name of the entry to move.'),
-    cardId: cardIdField.describe(
-      'The entry’s persistent card ID (the &N suffix). Required to match when the entry has one.',
-    ),
-    copyIndex: copyIndexField,
+    ...entryTargetFields,
     toListType: listTypeSchema.describe('Destination list type.'),
     toSlug: z.string().min(1).describe('Destination list slug.'),
     toSection: z
@@ -91,46 +174,35 @@ const moveItemSchema = z
     }
   })
 
-/** One card removal, addressed by identity like {@link moveItemSchema}'s source half. */
-const removeItemSchema = z.object({
-  listType: listTypeSchema.describe('List type.'),
-  slug: slugField,
-  cardName: cardNameField.describe('Exact card name of the entry to remove.'),
-  cardId: cardIdField.describe(
-    'The entry’s persistent card ID (the &N suffix). Required to match when the entry has one.',
-  ),
-  copyIndex: copyIndexField,
-})
+/** One card removal: an {@link entryTargetFields} target and nothing else. */
+const removeItemSchema = z.object(entryTargetFields)
 
-/** Optional identity fields on an `apply_changes` change; missing values are autofilled. */
-const changeIdField = z
-  .string()
-  .min(1)
-  .optional()
-  .describe('Change ID; autogenerated when omitted.')
-const changeTimestampField = z
-  .number()
-  .int()
-  .optional()
-  .describe('Epoch-milliseconds timestamp; autofilled when omitted.')
-
-/** Fields shared by every card-level change in `apply_changes`. */
+/**
+ * Fields shared by every card-level change in `apply_changes` that *targets* an
+ * existing entry. The `add` branch spells its fields out instead: `cardId` is a
+ * targeting field, and an add has nothing to target.
+ *
+ * A change's `id` and `timestamp` are deliberately absent: they are bookkeeping
+ * the server generates, an agent has nothing better to put there, and the union
+ * below expands to eight fully-written-out branches — so every field here costs
+ * eight copies in the advertised schema.
+ */
 const changeBase = {
-  id: changeIdField,
-  timestamp: changeTimestampField,
   cardName: cardNameField,
   cardId: cardIdField,
 }
 
 /**
  * The card-level {@link ChangeEvent} actions `apply_changes` accepts. Cross-list
- * moves (`move-from`/`move-to`) and section-structural events belong to the
- * dedicated tools (`move_cards`, `set_card_section`) and are rejected here.
+ * moves (`move-from`/`move-to`) belong to `move_selected_cards` and are rejected
+ * here; section-structural events are not agent-facing at all.
  */
 const applyChangeSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('add'),
-    ...changeBase,
+    // No `cardId`: an id identifies an entry that already exists, and an add is
+    // the one change that creates one. The server allocates the new entry's id.
+    cardName: cardNameField,
     set: setField,
     collectorNumber: collectorNumberField,
     finish: finishSchema.optional(),
@@ -175,31 +247,36 @@ type SameUnion<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : neve
 
 // Compile-time exhaustiveness: every card-level ChangeEvent action must be either
 // covered by applyChangeSchema or intentionally rejected here (the cross-list moves
-// belong to move_cards). A new card-level action added to change-event makes the
+// belong to move_selected_cards). A new card-level action added to change-event makes the
 // Exclude<> below stop matching and fails this line until the action is classified.
 void (true satisfies SameUnion<
   Exclude<CardChange['action'], ApplyChangeInput['action']>,
   'move-from' | 'move-to'
 >)
 
-/** Fill in the id/timestamp a hand-written change may omit, yielding a full {@link ChangeEvent}. */
+/** Stamp the id and timestamp a change carries, yielding a full {@link ChangeEvent}. */
 function toChangeEvent(input: ApplyChangeInput): ChangeEvent {
-  return { ...input, id: input.id ?? createChangeId(), timestamp: input.timestamp ?? Date.now() }
+  return { ...input, id: createChangeId(), timestamp: Date.now() }
 }
 
 /**
  * Register the write tools: creating lists, importing decks/CSV/change bundles,
- * card-level edits (add/remove/set-note/set-printing/set-section/commander), the
- * batch `apply_changes` primitive, and cross-list `move_cards`/`remove_cards`.
- * Card edits go through {@link mutateList}, which loads then saves inside the one
- * call so the agent never manages content hashes.
+ * deck metadata, the common single-card edits (add/remove/set-printing), the
+ * batch `apply_changes` primitive, and cross-list `move_selected_cards` /
+ * `remove_selected_cards`. Card edits go through {@link applyMutation}, which loads
+ * then saves inside the one call so the agent never manages content hashes.
+ *
+ * Note, section, and commander edits have no tool of their own: they are
+ * `apply_changes` actions. `add_card`/`remove_card`/`set_card_printing` keep
+ * theirs because a flat schema beats a tagged union for the common case, which
+ * those three are and the others are not.
  *
  * Most of these are additive, but `import_deck` and `import_csv` can replace an
- * existing list of the same name, and `import_changes`/`apply_changes` can remove
+ * existing list of the same name, and `import_change_bundle`/`apply_changes` can remove
  * cards in bulk, so those carry the SDK's `destructiveHint` — the hint reflects
  * what the tool is capable of, not what its default mode does.
  */
-export function registerWriteTools(server: McpServer): void {
+export function registerWriteTools(server: McpServer, notifier: ListChangeNotifier): void {
   server.registerTool(
     'create_list',
     {
@@ -214,11 +291,15 @@ export function registerWriteTools(server: McpServer): void {
             .describe('Deck format (decks only; defaults to commander).'),
         })
         .superRefine(refineDeckOnlyFormat),
+      outputSchema: fromJsonSchema<CreateListResult>(CREATE_LIST_OUTPUT),
     },
-    async ({ listType, name, format }) => {
-      const body: DeckCreateRequest = listType === 'deck' ? { name, format } : { name }
-      return jsonResult(await callApi('POST', `/api/${listType}/create`, body))
-    },
+    async ({ listType, name, format }) =>
+      runTool(async (): Promise<CreateListResult> => {
+        const body: DeckCreateRequest = listType === 'deck' ? { name, format } : { name }
+        const data = await callApiData<ListCreateResponse>('POST', `/api/${listType}/create`, body)
+        notifier.notifyListsChanged()
+        return data
+      }),
   )
 
   server.registerTool(
@@ -233,13 +314,18 @@ export function registerWriteTools(server: McpServer): void {
         name: z.string().optional().describe('Name for the imported deck (mode "text").'),
         overwrite: z.boolean().optional().describe('Overwrite an existing deck of the same name.'),
       }),
+      outputSchema: fromJsonSchema<ImportDeckResult>(IMPORT_DECK_OUTPUT),
       annotations: { destructiveHint: true },
     },
-    async ({ mode, url, content, name, overwrite }) => {
-      const body: ImportDeckBody =
-        mode === 'url' ? { mode, url, overwrite } : { mode, content, name, overwrite }
-      return jsonResult(await callApi('POST', '/api/import-deck', body))
-    },
+    async ({ mode, url, content, name, overwrite }) =>
+      runTool(async (): Promise<ImportDeckResult> => {
+        const body: ImportDeckBody =
+          mode === 'url' ? { mode, url, overwrite } : { mode, content, name, overwrite }
+        const data = await callApiData<ImportDeckResponse>('POST', '/api/import-deck', body)
+        // An import can create a list, so the roster may have changed.
+        notifier.notifyListsChanged()
+        return data
+      }),
   )
 
   server.registerTool(
@@ -277,46 +363,102 @@ export function registerWriteTools(server: McpServer): void {
             .describe('Whether the first row is a header row. Defaults to true.'),
         })
         .superRefine(refineDeckOnlyFormat),
+      outputSchema: fromJsonSchema<ImportCsvResult>(IMPORT_CSV_OUTPUT),
       annotations: { destructiveHint: true },
     },
-    async ({ listType, name, mode, format, content, columns, hasHeader }) => {
-      const body: ImportCsvRequest = {
-        listType,
-        name,
-        mode,
-        format,
-        content,
-        columns,
-        hasHeader,
-      }
-      return jsonResult(await callApi('POST', '/api/import-csv', body))
-    },
+    async ({ listType, name, mode, format, content, columns, hasHeader }) =>
+      runTool(async (): Promise<ImportCsvResult> => {
+        const body: ImportCsvRequest = {
+          listType,
+          name,
+          mode,
+          format,
+          content,
+          columns,
+          hasHeader,
+        }
+        const data = await callApiData<ImportCsvResponse>('POST', '/api/import-csv', body)
+        // create/overwrite modes can add a list, so the roster may have changed.
+        notifier.notifyListsChanged()
+        return data
+      }),
   )
 
   server.registerTool(
-    'import_changes',
+    'import_change_bundle',
     {
-      title: 'Import changes',
+      title: 'Import change bundle',
       description:
         'Apply a change bundle exported from the site editor (format "ritual-change-bundle", ' +
         'one or more lists) to the underlying lists. Changes are re-targeted to current ' +
         'card IDs; ones whose target card no longer exists, or whose action cannot apply to ' +
-        'the list, are reported as skipped conflicts. ' +
-        'The response lists per-list applied counts, conflicts, and errors.',
+        'the list, are reported as skipped conflicts.',
       inputSchema: z.object({
         json: z.string().min(1).describe('The exported change JSON, verbatim.'),
       }),
+      outputSchema: fromJsonSchema<ImportChangeBundleResult>(IMPORT_CHANGE_BUNDLE_OUTPUT),
       annotations: { destructiveHint: true },
     },
-    async ({ json }) => {
-      // Validate locally so a malformed payload surfaces as a clear message
-      // instead of a generic HTTP 400; the route re-validates the same way.
-      const bundle = parseChangeBundle(json)
-      if (typeof bundle === 'string') {
-        return { ...textResult(`Invalid change bundle: ${bundle}`), isError: true }
-      }
-      return jsonResult(await callApi('POST', '/api/import-changes', bundle))
+    async ({ json }) =>
+      runTool(async (): Promise<ImportChangeBundleResult> => {
+        // Validate locally so a malformed payload surfaces as a clear message
+        // instead of a generic HTTP 400; the route re-validates the same way.
+        const bundle = parseChangeBundle(json)
+        if (typeof bundle === 'string') {
+          throw new ProtocolError(
+            ProtocolErrorCode.InvalidParams,
+            `Invalid change bundle: ${bundle}`,
+          )
+        }
+        const data = await callApiData<BundleImportResponse>('POST', '/api/import-changes', bundle)
+        return data
+      }),
+  )
+
+  server.registerTool(
+    'set_list_metadata',
+    {
+      title: 'Set list metadata',
+      description:
+        'Write a deck’s front matter: description, tags, format, and the Archidekt source link. ' +
+        'Only the fields you send are touched; null (or "" for description) clears one. Setting ' +
+        'sourceId together with an archidekt.com sourceUrl is what makes a deck sync-linked, so ' +
+        'it is what sync_decks then operates on. Collections and wanted lists carry no front ' +
+        'matter — use rename_list to change their display name. No changelog entry is recorded: ' +
+        'the changelog is card-level, and metadata is not a card change.',
+      inputSchema: z.object({
+        listType: listTypeSchema.describe(
+          'Decks only today; collections and wanted lists carry no front matter.',
+        ),
+        slug: slugField,
+        description: z.string().nullable().optional().describe('null or "" clears it.'),
+        tags: z.array(z.string().min(1)).nullable().optional().describe('null clears every tag.'),
+        format: deckFormatSchema.nullable().optional(),
+        sourceId: z
+          .string()
+          .min(1)
+          .nullable()
+          .optional()
+          .describe('The deck’s id on the source service; null unlinks it.'),
+        sourceUrl: z
+          .string()
+          .url()
+          .nullable()
+          .optional()
+          .describe('The deck’s URL on the source service; null unlinks it.'),
+      }),
+      outputSchema: fromJsonSchema<ListMetadataResult>(SET_LIST_METADATA_OUTPUT),
     },
+    async ({ listType, slug, ...patch }) =>
+      runTool(async (): Promise<ListMetadataResult> => {
+        const body: DeckMetadataRequest = patch
+        const data = (await callApi(
+          'PUT',
+          `/api/metadata/${listType}/${encodeURIComponent(slug)}`,
+          body,
+        )) as MetadataResponse
+        return { slug: data.slug, frontMatter: data.frontMatter }
+      }),
   )
 
   server.registerTool(
@@ -348,6 +490,7 @@ export function registerWriteTools(server: McpServer): void {
             })
           }
         }),
+      outputSchema: fromJsonSchema<MutationResult>(MUTATION_OUTPUT),
     },
     async ({
       listType,
@@ -359,12 +502,13 @@ export function registerWriteTools(server: McpServer): void {
       condition,
       section,
       quantity,
-    }) => {
-      const changes: ChangeEvent[] = Array.from({ length: quantity }, () =>
-        createAddChange(cardName, { set, collectorNumber, finish, condition, section }),
-      )
-      return textResult((await mutateList(listType, slug, changes)).message)
-    },
+    }) =>
+      runTool((): Promise<MutationResult> => {
+        const changes: ChangeEvent[] = Array.from({ length: quantity }, () =>
+          createAddChange(cardName, { set, collectorNumber, finish, condition, section }),
+        )
+        return applyMutation(listType, slug, changes)
+      }),
   )
 
   server.registerTool(
@@ -399,6 +543,7 @@ export function registerWriteTools(server: McpServer): void {
             })
           }
         }),
+      outputSchema: fromJsonSchema<MutationResult>(MUTATION_OUTPUT),
     },
     async ({
       listType,
@@ -410,31 +555,13 @@ export function registerWriteTools(server: McpServer): void {
       finish,
       condition,
       quantity,
-    }) => {
-      const changes: ChangeEvent[] = Array.from({ length: quantity }, () =>
-        createRemoveChange(cardName, { cardId, set, collectorNumber, finish, condition }),
-      )
-      return textResult((await mutateList(listType, slug, changes)).message)
-    },
-  )
-
-  server.registerTool(
-    'set_card_note',
-    {
-      title: 'Set card note',
-      description: 'Set (or, with an empty string, clear) the note on a card in any list.',
-      inputSchema: z.object({
-        listType: listTypeSchema,
-        slug: slugField,
-        cardName: cardNameField,
-        cardId: cardIdField,
-        note: z.string().describe('Note text. Empty string clears the note.'),
+    }) =>
+      runTool((): Promise<MutationResult> => {
+        const changes: ChangeEvent[] = Array.from({ length: quantity }, () =>
+          createRemoveChange(cardName, { cardId, set, collectorNumber, finish, condition }),
+        )
+        return applyMutation(listType, slug, changes)
       }),
-    },
-    async ({ listType, slug, cardName, cardId, note }) => {
-      const change = createSetNoteChange(cardName, { note, cardId })
-      return textResult((await mutateList(listType, slug, [change])).message)
-    },
   )
 
   server.registerTool(
@@ -455,62 +582,19 @@ export function registerWriteTools(server: McpServer): void {
         finish: finishField,
         condition: conditionField,
       }),
+      outputSchema: fromJsonSchema<MutationResult>(MUTATION_OUTPUT),
     },
-    async ({ listType, slug, cardName, cardId, set, collectorNumber, finish, condition }) => {
-      const change = createSetPrintingChange(cardName, {
-        set,
-        collectorNumber,
-        finish,
-        condition,
-        cardId,
-      })
-      return textResult((await mutateList(listType, slug, [change])).message)
-    },
-  )
-
-  server.registerTool(
-    'set_card_section',
-    {
-      title: 'Set card section',
-      description: 'Move a card to a section of its list (the section is created when missing).',
-      inputSchema: z.object({
-        listType: listTypeSchema,
-        slug: slugField,
-        cardName: cardNameField,
-        cardId: cardIdField,
-        section: z.string().min(1).describe('Target section name (exact; created when missing).'),
+    async ({ listType, slug, cardName, cardId, set, collectorNumber, finish, condition }) =>
+      runTool((): Promise<MutationResult> => {
+        const change = createSetPrintingChange(cardName, {
+          set,
+          collectorNumber,
+          finish,
+          condition,
+          cardId,
+        })
+        return applyMutation(listType, slug, [change])
       }),
-    },
-    async ({ listType, slug, cardName, cardId, section }) => {
-      const change = createSetSectionChange(cardName, section, cardId)
-      return textResult((await mutateList(listType, slug, [change])).message)
-    },
-  )
-
-  server.registerTool(
-    'set_commander',
-    {
-      title: 'Set commander',
-      description: 'Move a card into a deck’s Commander section.',
-      inputSchema: z.object({ slug: slugField, cardName: cardNameField, cardId: cardIdField }),
-    },
-    async ({ slug, cardName, cardId }) => {
-      const change = createSetCommanderChange(cardName, { cardId })
-      return textResult((await mutateDeck(slug, [change])).message)
-    },
-  )
-
-  server.registerTool(
-    'unset_commander',
-    {
-      title: 'Unset commander',
-      description: 'Move a card out of a deck’s Commander section back into the main section.',
-      inputSchema: z.object({ slug: slugField, cardName: cardNameField, cardId: cardIdField }),
-    },
-    async ({ slug, cardName, cardId }) => {
-      const change = createUnsetCommanderChange(cardName, { cardId })
-      return textResult((await mutateDeck(slug, [change])).message)
-    },
   )
 
   server.registerTool(
@@ -522,27 +606,37 @@ export function registerWriteTools(server: McpServer): void {
         'set-note/set-commander/unset-commander/set-section) to one list atomically: one load, ' +
         'one save, one changelog block. The batch is all-or-nothing — if any change fails to ' +
         'match (names are exact and case-sensitive), nothing is saved — but a later change may ' +
-        'target a card an earlier change in the same batch added. Missing change ids/timestamps ' +
-        'are autofilled. On a collection, add and set-printing require set + collectorNumber ' +
-        'together. For cross-list moves use move_cards.',
+        'target a card an earlier change in the same batch added. Change ids and timestamps are ' +
+        'stamped by the server. On a collection, add and ' +
+        'set-printing require set + collectorNumber together. For cross-list moves use ' +
+        'move_selected_cards. ' +
+        'This is also the only way to set or clear a card note (set-note), move a card to a ' +
+        'section (set-section), and set or clear a deck commander (set-commander/' +
+        'unset-commander); the commander actions apply to decks only and fail on a collection ' +
+        'or wanted list. ' +
+        'Flagged destructive because a batch CAN remove cards in bulk — the note, section, and ' +
+        'commander actions are themselves additive; the hint reflects worst-case capability, ' +
+        'not what your batch does.',
       inputSchema: z.object({
         listType: listTypeSchema,
         slug: slugField,
         changes: z.array(applyChangeSchema).min(1).describe('Changes to apply, in order.'),
       }),
-      // Like import_changes: a change batch can remove cards in bulk.
+      outputSchema: fromJsonSchema<MutationResult>(MUTATION_OUTPUT),
+      // Like import_change_bundle: a change batch can remove cards in bulk.
       annotations: { destructiveHint: true },
     },
-    async ({ listType, slug, changes }) => {
-      const events: ChangeEvent[] = changes.map(toChangeEvent)
-      return textResult((await mutateList(listType, slug, events)).message)
-    },
+    async ({ listType, slug, changes }) =>
+      runTool((): Promise<MutationResult> => {
+        const events: ChangeEvent[] = changes.map(toChangeEvent)
+        return applyMutation(listType, slug, events)
+      }),
   )
 
   server.registerTool(
-    'move_cards',
+    'move_selected_cards',
     {
-      title: 'Move cards',
+      title: 'Move selected cards',
       description:
         'Move cards between lists in one atomic batch. Each move names its source entry ' +
         '(listType + slug + cardName, with cardId/copyIndex to pin the exact entry) and a ' +
@@ -552,34 +646,34 @@ export function registerWriteTools(server: McpServer): void {
       inputSchema: z.object({
         moves: z.array(moveItemSchema).min(1).describe('Moves to apply atomically.'),
       }),
+      outputSchema: fromJsonSchema<MoveSelectedResult>(MOVE_SELECTED_CARDS_OUTPUT),
     },
-    async ({ moves }) => {
-      const body: SelectedMoveRequest = {
-        moves: moves.map(
-          (m): SelectedMoveItem => ({
-            listType: m.listType,
-            listSlug: m.slug,
-            name: m.cardName,
-            cardId: m.cardId,
-            copyIndex: m.copyIndex,
-            toType: m.toListType,
-            toSlug: m.toSlug,
-            toSection: m.toSection,
-            set: m.set,
-            collectorNumber: m.collectorNumber,
-            finish: m.finish,
-            condition: m.condition,
-          }),
-        ),
-      }
-      return jsonResult(await callApi('POST', '/api/move/selected', body))
-    },
+    async ({ moves }) =>
+      runTool(async (): Promise<MoveSelectedResult> => {
+        const body: SelectedMoveRequest = {
+          moves: moves.map(
+            (m): SelectedMoveItem => ({
+              ...toEntryTarget(m),
+              toType: m.toListType,
+              toSlug: m.toSlug,
+              toSection: m.toSection,
+              set: m.set,
+              collectorNumber: m.collectorNumber,
+              finish: m.finish,
+              condition: m.condition,
+            }),
+          ),
+          validateCardNames: true,
+        }
+        const data = await callApiData<MoveCommitResponse>('POST', '/api/move/selected', body)
+        return data
+      }),
   )
 
   server.registerTool(
-    'remove_cards',
+    'remove_selected_cards',
     {
-      title: 'Remove cards',
+      title: 'Remove selected cards',
       description:
         'Remove a batch of cards across lists in one atomic pass. Each item names its entry by ' +
         'listType + slug + cardName, with cardId/copyIndex to pin the exact entry. Unresolvable ' +
@@ -587,20 +681,16 @@ export function registerWriteTools(server: McpServer): void {
       inputSchema: z.object({
         removes: z.array(removeItemSchema).min(1).describe('Cards to remove atomically.'),
       }),
+      outputSchema: fromJsonSchema<RemoveSelectedResult>(REMOVE_SELECTED_CARDS_OUTPUT),
     },
-    async ({ removes }) => {
-      const body: RemoveCommitRequest = {
-        removes: removes.map(
-          (r): RemoveCommitItem => ({
-            listType: r.listType,
-            listSlug: r.slug,
-            name: r.cardName,
-            cardId: r.cardId,
-            copyIndex: r.copyIndex,
-          }),
-        ),
-      }
-      return jsonResult(await callApi('POST', '/api/remove/commit', body))
-    },
+    async ({ removes }) =>
+      runTool(async (): Promise<RemoveSelectedResult> => {
+        const body: RemoveCommitRequest = {
+          removes: removes.map(toEntryTarget),
+          validateCardNames: true,
+        }
+        const data = await callApiData<RemoveCommitResponse>('POST', '/api/remove/commit', body)
+        return data
+      }),
   )
 }

@@ -7,7 +7,10 @@ import {
   type McpHttpServer,
   type RpcErrorBody,
 } from '../../src/mcp/run'
-import { firstText } from '../mcp-test-utils'
+import { expectStructuredOnly, toolData } from '../mcp-test-utils'
+
+/** `list_lists`' result, as far as this transport check reads it. */
+type ListsResult = { lists: { slug: string }[] }
 import { bindWorkspace, writeDeckFile, type BoundWorkspace } from './helpers/workspace'
 import { runCli, withTempDir } from './helpers/cli'
 
@@ -84,11 +87,22 @@ describe('ritual mcp HTTP — bearer auth', () => {
         } else {
           expect(client.getProtocolEra()).not.toBe('modern')
         }
+        // This leg builds one server instance per request and tears it down with
+        // the response, so a resources/list_changed notification would have no
+        // connection to reach — it must not claim the capability. (Stdio does;
+        // see test/integration/mcp-stdio.test.ts.)
+        expect(client.getServerCapabilities()?.resources).toEqual({
+          listChanged: false,
+          subscribe: false,
+        })
         const { tools } = await client.listTools()
         expect(tools.map((t) => t.name)).toContain('list_lists')
 
         const listed = await client.callTool({ name: 'list_lists', arguments: {} })
-        expect(firstText(listed)).toContain('starter')
+        // `structuredContent` must survive this transport in both eras — the one
+        // property only a transport test can pin.
+        expectStructuredOnly(listed)
+        expect(toolData<ListsResult>(listed).lists.map((l) => l.slug)).toContain('starter')
       } finally {
         await client.close()
       }

@@ -7,6 +7,13 @@ import {
   ProtocolErrorCode,
 } from '@modelcontextprotocol/server'
 import { serveStdio } from '@modelcontextprotocol/server/stdio'
+import {
+  CONFLICT_ERROR_CODE,
+  NOT_FOUND_ERROR_CODE,
+  UNAUTHORIZED_ERROR_CODE,
+  type NotProtocolCode,
+  type RitualWireErrorCode,
+} from './error-codes'
 import { isLoopbackHost } from './host'
 import { buildMcpServer } from './server'
 import { divertConsoleLogToStderr } from './stdout-guard'
@@ -21,7 +28,9 @@ import { divertConsoleLogToStderr } from './stdout-guard'
  */
 export function runStdioServer(): void {
   divertConsoleLogToStderr()
-  const handle = serveStdio(() => buildMcpServer(), {
+  // Stdio pins one server instance per connection, so it is the transport that
+  // can actually deliver a resources/list_changed notification.
+  const handle = serveStdio(() => buildMcpServer({ notifyListChanged: true }), {
     onerror: (error) => console.error('MCP stdio error:', error),
   })
   const closeHandle = (): void => {
@@ -60,27 +69,16 @@ export type McpHttpServer = {
   [Symbol.asyncDispose](): Promise<void>
 }
 
-/** Rejects any code the SDK's `ProtocolErrorCode` enum already claims. */
-type NotProtocolCode<C extends number> = C extends ProtocolErrorCode ? never : C
-
-/**
- * Implementation-defined JSON-RPC error codes for Ritual's pre-transport
- * rejections. MCP 2026-07-28 reserves `-32020..-32099` for the spec and
- * grandfathers existing SDK codes inside `-32000..-32019` (the SDK owns e.g.
- * `-32002` for resource-not-found there), so Ritual's codes must sit in that
- * implementation band *and* avoid the SDK's own — `NotProtocolCode` turns a
- * future collision into a compile error.
- */
-export const UNAUTHORIZED_ERROR_CODE = -32_010 satisfies NotProtocolCode<-32_010>
-export const NOT_FOUND_ERROR_CODE = -32_011 satisfies NotProtocolCode<-32_011>
-
-/** Error codes Ritual's HTTP wrapper may emit on its own JSON-RPC rejections. */
-export type RitualRpcErrorCode = typeof UNAUTHORIZED_ERROR_CODE | typeof NOT_FOUND_ERROR_CODE
+// Ritual's error codes live in `error-codes.ts` so the tool layer (which raises
+// the conflict code) and this transport wrapper share one registry. Re-exported
+// because this module has been their import site.
+export { NOT_FOUND_ERROR_CODE, UNAUTHORIZED_ERROR_CODE, CONFLICT_ERROR_CODE }
+export type { NotProtocolCode, RitualWireErrorCode }
 
 /** The JSON-RPC error envelope Ritual's pre-transport rejections put on the wire. */
 export type RpcErrorBody = {
   jsonrpc: '2.0'
-  error: { code: RitualRpcErrorCode | ProtocolErrorCode; message: string }
+  error: { code: RitualWireErrorCode | ProtocolErrorCode; message: string }
   id: null
 }
 
@@ -89,7 +87,7 @@ const MCP_PATH = '/mcp'
 
 function rpcErrorResponse(
   status: number,
-  code: RitualRpcErrorCode | ProtocolErrorCode,
+  code: RitualWireErrorCode | ProtocolErrorCode,
   message: string,
 ): Response {
   const body: RpcErrorBody = { jsonrpc: '2.0', error: { code, message }, id: null }
@@ -118,6 +116,11 @@ function isAuthorized(request: Request, auth: McpHttpAuth): boolean {
  * sessions and no `Mcp-Session-Id`, so 2025-era clients (which still work — they
  * are served on the handler's legacy leg) get `405` for the standalone `GET /mcp`
  * SSE stream and `DELETE /mcp` session teardown, neither of which Ritual uses.
+ *
+ * That statelessness is also why this leg does **not** advertise
+ * `resources.listChanged` while stdio does: a notification sent from a server
+ * instance that is torn down with its response has no client connection to
+ * reach, so claiming the capability here would be a promise Ritual cannot keep.
  */
 export async function runHttpServer(options: HttpServerOptions): Promise<McpHttpServer> {
   const { port, host, auth } = options

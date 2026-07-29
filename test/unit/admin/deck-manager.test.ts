@@ -2,13 +2,24 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { handleDeckCreate } from '../../../src/admin/api/deck-create'
-import { handleDeckRename } from '../../../src/admin/api/deck-rename'
-import { handleDeckDelete } from '../../../src/admin/api/deck-delete'
+import {
+  handleListDelete,
+  handleListRename,
+  type ListLifecycleConfig,
+} from '../../../src/admin/api/list-lifecycle'
+import { resolveDeckFile } from '../../../src/admin/api/list-file'
 import { parseDeckFrontMatter, type DeckFrontMatter } from '../../../src/deck-file'
 import { setBaseDir } from '../../../src/base-dir'
 
 const testDir = path.join(import.meta.dir, '../../.test-deck-manager')
 const decksDir = path.join(testDir, 'decks')
+
+const DECK_CFG: ListLifecycleConfig = {
+  kind: 'deck',
+  getDir: () => decksDir,
+  label: 'deck',
+  resolveFile: resolveDeckFile,
+}
 
 function makeRequest(method: string, urlPath: string, body?: unknown): Request {
   const url = `http://localhost${urlPath}`
@@ -142,7 +153,7 @@ describe('deck-rename handler', () => {
 
   test('renames deck file and updates frontmatter', async () => {
     const req = makeRequest('POST', '/api/deck/old-deck/rename', { newName: 'New Deck Name' })
-    const resp = await handleDeckRename(req)
+    const resp = await handleListRename(req, DECK_CFG)
     const data = (await resp.json()) as { success: boolean; newSlug: string }
 
     expect(resp.status).toBe(200)
@@ -163,7 +174,7 @@ describe('deck-rename handler', () => {
     await Bun.write(path.join(decksDir, 'old-deck.changes.md'), '# Changelog for Old Deck\n')
 
     const req = makeRequest('POST', '/api/deck/old-deck/rename', { newName: 'New Deck Name' })
-    await handleDeckRename(req)
+    await handleListRename(req, DECK_CFG)
 
     const newChangelog = await Bun.file(path.join(decksDir, 'New Deck Name.changes.md')).exists()
     expect(newChangelog).toBe(true)
@@ -174,7 +185,7 @@ describe('deck-rename handler', () => {
 
   test('returns 404 when deck does not exist', async () => {
     const req = makeRequest('POST', '/api/deck/nonexistent/rename', { newName: 'Whatever' })
-    const resp = await handleDeckRename(req)
+    const resp = await handleListRename(req, DECK_CFG)
     const data = (await resp.json()) as { success: boolean; message: string }
 
     expect(resp.status).toBe(404)
@@ -183,7 +194,7 @@ describe('deck-rename handler', () => {
 
   test('returns 400 for missing new name', async () => {
     const req = makeRequest('POST', '/api/deck/old-deck/rename', { newName: '' })
-    const resp = await handleDeckRename(req)
+    const resp = await handleListRename(req, DECK_CFG)
     const data = (await resp.json()) as { success: boolean; message: string }
 
     expect(resp.status).toBe(400)
@@ -194,7 +205,7 @@ describe('deck-rename handler', () => {
     await Bun.write(path.join(decksDir, 'Existing Deck.md'), '# Existing\n')
 
     const req = makeRequest('POST', '/api/deck/old-deck/rename', { newName: 'Existing Deck' })
-    const resp = await handleDeckRename(req)
+    const resp = await handleListRename(req, DECK_CFG)
     const data = (await resp.json()) as { success: boolean; message: string }
 
     expect(resp.status).toBe(409)
@@ -222,7 +233,7 @@ describe('deck-delete handler', () => {
 
   test('deletes deck file when confirmation matches', async () => {
     const req = makeRequest('DELETE', '/api/deck/test-deck', { confirmName: 'Test Deck' })
-    const resp = await handleDeckDelete(req)
+    const resp = await handleListDelete(req, DECK_CFG)
     const data = (await resp.json()) as { success: boolean; message: string }
 
     expect(resp.status).toBe(200)
@@ -236,7 +247,7 @@ describe('deck-delete handler', () => {
     await Bun.write(path.join(decksDir, 'test-deck.changes.md'), '# Changelog\n')
 
     const req = makeRequest('DELETE', '/api/deck/test-deck', { confirmName: 'Test Deck' })
-    await handleDeckDelete(req)
+    await handleListDelete(req, DECK_CFG)
 
     const exists = await Bun.file(path.join(decksDir, 'test-deck.changes.md')).exists()
     expect(exists).toBe(false)
@@ -244,7 +255,7 @@ describe('deck-delete handler', () => {
 
   test('returns 400 when confirmation does not match', async () => {
     const req = makeRequest('DELETE', '/api/deck/test-deck', { confirmName: 'Wrong Name' })
-    const resp = await handleDeckDelete(req)
+    const resp = await handleListDelete(req, DECK_CFG)
     const data = (await resp.json()) as { success: boolean; message: string }
 
     expect(resp.status).toBe(400)
@@ -258,7 +269,7 @@ describe('deck-delete handler', () => {
 
   test('returns 404 when deck does not exist', async () => {
     const req = makeRequest('DELETE', '/api/deck/nonexistent', { confirmName: 'Nonexistent' })
-    const resp = await handleDeckDelete(req)
+    const resp = await handleListDelete(req, DECK_CFG)
     const data = (await resp.json()) as { success: boolean; message: string }
 
     expect(resp.status).toBe(404)
@@ -267,7 +278,7 @@ describe('deck-delete handler', () => {
 
   test('returns 400 when confirmName is missing', async () => {
     const req = makeRequest('DELETE', '/api/deck/test-deck', {})
-    const resp = await handleDeckDelete(req)
+    const resp = await handleListDelete(req, DECK_CFG)
     const data = (await resp.json()) as { success: boolean; message: string }
 
     expect(resp.status).toBe(400)

@@ -3,7 +3,6 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
   Client,
-  InMemoryTransport,
   StreamableHTTPClientTransport,
   type CallToolResult,
 } from '@modelcontextprotocol/client'
@@ -13,9 +12,21 @@ import { CSV_UPLOAD_THRESHOLD } from '../../../src/collection-sync/csv'
 import { NEVER_CACHE, STATIC_CATALOG_CACHE } from '../../../src/mcp/cache-hints'
 import { DECK_ONLY_FORMAT_MESSAGE } from '../../../src/mcp/schemas'
 import { buildMcpServer } from '../../../src/mcp/server'
-import { expectSchemaRejection, firstText, toolJson } from '../../mcp-test-utils'
+import { MCP_TOOL_NAMES } from '../../../src/mcp/tools/names'
+import {
+  expectSchemaRejection,
+  expectStructuredOnly,
+  firstText,
+  toolData,
+  toolError,
+} from '../../mcp-test-utils'
 import { makeScryfallCard } from '../../test-utils'
-import { setupRitualTestEnv, type RitualTestEnv } from './harness'
+import {
+  setupMcpClient,
+  setupRitualTestEnv,
+  type McpTestSession,
+  type RitualTestEnv,
+} from './harness'
 
 // In registration order (read → write → destructive, as server.ts registers
 // them) — the catalogue test asserts ordered equality to pin `tools/list`
@@ -23,34 +34,32 @@ import { setupRitualTestEnv, type RitualTestEnv } from './harness'
 const EXPECTED_TOOLS = [
   // read
   'list_lists',
-  'deck_sync_status',
-  'collection_sync_status',
-  'load_list',
-  'search_cards',
+  'get_sync_status',
+  'get_list',
+  'search_scryfall',
   'autocomplete_card',
-  'card_printings',
-  'card_price',
-  'price_report',
-  'load_history',
+  'find_cards',
+  'get_card_details',
+  'get_card_printings',
+  'get_card_price',
+  'get_price_report',
+  'get_history',
   'get_config',
-  'get_audit_log',
+  'get_cache_status',
   'diff_lists',
   'export_cards',
   // write
   'create_list',
   'import_deck',
   'import_csv',
-  'import_changes',
+  'import_change_bundle',
+  'set_list_metadata',
   'add_card',
   'remove_card',
-  'set_card_note',
   'set_card_printing',
-  'set_card_section',
-  'set_commander',
-  'unset_commander',
   'apply_changes',
-  'move_cards',
-  'remove_cards',
+  'move_selected_cards',
+  'remove_selected_cards',
   // destructive
   'rename_list',
   'delete_list',
@@ -66,15 +75,19 @@ const EXPECTED_TOOLS = [
 const MUTATION_TOOLS = [
   'add_card',
   'remove_card',
-  'set_card_note',
   'set_card_printing',
-  'set_card_section',
-  'set_commander',
-  'unset_commander',
   'apply_changes',
-  'move_cards',
-  'remove_cards',
+  'move_selected_cards',
+  'remove_selected_cards',
+  'set_list_metadata',
 ]
+
+/** The parts of an emitted JSON Schema the conversion test reaches into. */
+type JsonSchemaNode = {
+  properties?: Record<string, JsonSchemaNode>
+  items?: JsonSchemaNode
+  oneOf?: JsonSchemaNode[]
+}
 
 type ConfigView = {
   defaultCurrency?: string
@@ -94,24 +107,22 @@ async function callTool(
 }
 
 describe('Ritual MCP server (in-memory transport)', () => {
+  let session: McpTestSession
   let env: RitualTestEnv
   let client: Client
 
   beforeEach(async () => {
-    env = await setupRitualTestEnv()
-    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
-    await buildMcpServer().connect(serverTransport)
-    client = new Client({ name: 'ritual-test', version: '0.0.0' })
-    await client.connect(clientTransport)
+    session = await setupMcpClient()
+    env = session.env
+    client = session.client
   })
 
   afterEach(async () => {
-    await client.close()
-    await env.cleanup()
+    await session.close()
   })
 
   async function loadDeck(slug: string): Promise<LoadedDeck> {
-    return toolJson(await callTool(client, 'load_list', { listType: 'deck', slug })) as LoadedDeck
+    return toolData<LoadedDeck>(await callTool(client, 'get_list', { listType: 'deck', slug }))
   }
 
   function deckCardNames(data: LoadedDeck): string[] {
@@ -138,8 +149,12 @@ describe('Ritual MCP server (in-memory transport)', () => {
     // deterministic (stable ordering keeps client prompt caches warm), and
     // EXPECTED_TOOLS is written in registration order.
     expect(tools.map((t) => t.name)).toEqual(EXPECTED_TOOLS)
+    // Two independent pins on purpose: EXPECTED_TOOLS is the hand-written order
+    // record above, and MCP_TOOL_NAMES is the const the skills guard reads — so
+    // neither can drift from the live catalogue without a failure here.
+    expect(tools.map((t) => t.name)).toEqual([...MCP_TOOL_NAMES])
 
-    const loadList = tools.find((t) => t.name === 'load_list')
+    const loadList = tools.find((t) => t.name === 'get_list')
     expect(loadList?.inputSchema.type).toBe('object')
     expect(loadList?.inputSchema.required).toContain('listType')
     expect(loadList?.inputSchema.required).toContain('slug')
@@ -161,11 +176,18 @@ describe('Ritual MCP server (in-memory transport)', () => {
     const addCard = schemaOf('add_card')
     const props = addCard.properties as Record<string, Record<string, unknown>>
     // A `.toLowerCase()` transform must still advertise as a plain string, not
-    // as a pipe/intersection an agent cannot fill in.
+    // as a pipe/intersection an agent cannot fill in. The normalization is
+    // invisible in the JSON either way, and `setField` emits identically under
+    // `io: 'input'` and `io: 'output'` — only the prose says it lowercases.
     expect(props.set).toMatchObject({ type: 'string' })
-    // A defaulted field carries its default and stays out of `required`.
+    // A defaulted field carries its default and stays **out** of `required`
+    // under `io: 'input'`. Under `io: 'output'` the same zod field would be IN
+    // `required` (a defaulted field is always present after parsing) — which is
+    // why `quantityField` must never be reused in an output schema, and why the
+    // output schemas are hand-authored JSON rather than derived from these.
     expect(props.quantity).toMatchObject({ type: 'integer', default: 1 })
     expect(addCard.required).toEqual(['listType', 'slug', 'cardName'])
+    expect(addCard.required as string[]).not.toContain('quantity')
     // `.describe()` text must survive the conversion — it is the agent's only
     // documentation for a field.
     expect(props.cardName?.description).toContain('Card name')
@@ -192,6 +214,48 @@ describe('Ritual MCP server (in-memory transport)', () => {
       'ignoreUnreadableLines',
     )
     expect(Object.keys(schemaOf('sync_decks').properties as object)).toContain('only')
+
+    // apply_changes' discriminated union emits as a fully-written-out oneOf, so
+    // every field on the shared base costs one copy per branch. id/timestamp are
+    // server-stamped and must not appear in any of them.
+    const branches = (schemaOf('apply_changes').properties as Record<string, JsonSchemaNode>)
+      .changes?.items?.oneOf
+    expect(branches?.length).toBeGreaterThan(1)
+    for (const branch of branches ?? []) {
+      expect(Object.keys(branch.properties ?? {})).not.toContain('id')
+      expect(Object.keys(branch.properties ?? {})).not.toContain('timestamp')
+    }
+
+    // Every integer field carries a meaningful bound, so no schema advertises
+    // JavaScript's MAX_SAFE_INTEGER as a maximum an agent should read. This is a
+    // whole-catalogue substring check, so it now covers the hand-authored
+    // **output** schemas too — which is why those carry no numeric bounds at all
+    // (bounds guide a caller, and an output schema has none).
+    expect(JSON.stringify(tools)).not.toContain('9007199254740991')
+  })
+
+  test('a successful result is structured-only, with no duplicate text block', async () => {
+    // The SEP-2106 auto-append fires only for a non-object `structuredContent`,
+    // and every Ritual output schema is object-rooted — so writing a text block
+    // ourselves would put the same JSON on the wire twice.
+    const result = await callTool(client, 'list_lists', {})
+    expectStructuredOnly(result)
+    expect(toolData<{ lists: unknown[] }>(result).lists.length).toBeGreaterThan(0)
+  })
+
+  test('a failure carries a structured payload whose message matches its text block', async () => {
+    // End-to-end over the transport: the payload shape, and the agreement
+    // between the one-line text a legacy client shows and the structured
+    // `message` a modern one reads.
+    const result = await callTool(client, 'add_card', {
+      listType: 'deck',
+      slug: 'no-such-deck',
+      cardName: 'Sol Ring',
+    })
+    const payload = toolError(result)
+    expect(payload.code).toBe('invalid-request')
+    expect(payload.message).toContain('no-such-deck')
+    expect(payload.conflict).toBeUndefined()
   })
 
   test('flags every data-destroying tool with destructiveHint', async () => {
@@ -215,7 +279,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
         'refresh_cache',
         'import_deck',
         'import_csv',
-        'import_changes',
+        'import_change_bundle',
         'apply_changes',
       ]),
     )
@@ -224,30 +288,30 @@ describe('Ritual MCP server (in-memory transport)', () => {
   })
 
   test('list_lists returns every list and filters by listType', async () => {
-    const all = toolJson(await callTool(client, 'list_lists', {})) as {
+    const all = toolData<{
       lists: { listType: string; slug: string }[]
-    }
+    }>(await callTool(client, 'list_lists', {}))
     expect(all.lists.map((l) => `${l.listType}:${l.slug}`).sort()).toEqual([
       'collection:shoebox',
       'deck:test-deck',
       'wanted:wishlist',
     ])
 
-    const decksOnly = toolJson(await callTool(client, 'list_lists', { listType: 'deck' })) as {
+    const decksOnly = toolData<{
       lists: unknown[]
-    }
+    }>(await callTool(client, 'list_lists', { listType: 'deck' }))
     expect(decksOnly.lists).toEqual([{ listType: 'deck', slug: 'test-deck', name: 'Test Deck' }])
   })
 
-  test('load_list returns deck contents without the heavy card payload', async () => {
-    const result = await callTool(client, 'load_list', { listType: 'deck', slug: 'test-deck' })
+  test('get_list returns deck contents without the heavy card payload', async () => {
+    const result = await callTool(client, 'get_list', { listType: 'deck', slug: 'test-deck' })
     expect(result.isError).toBeFalsy()
-    const data = toolJson(result) as LoadedDeck
+    const data = toolData<LoadedDeck>(result)
     expect(deckCardNames(data)).toContain('Sol Ring')
     expect(data.cards).toBeUndefined()
   })
 
-  test('load_list returns flat-list entries', async () => {
+  test('get_list returns flat-list entries', async () => {
     const added = await callTool(client, 'add_card', {
       listType: 'wanted',
       slug: 'wishlist',
@@ -255,11 +319,256 @@ describe('Ritual MCP server (in-memory transport)', () => {
     })
     expect(added.isError).toBeFalsy()
 
-    const data = toolJson(
-      await callTool(client, 'load_list', { listType: 'wanted', slug: 'wishlist' }),
-    ) as { entries: { name: string }[]; cards?: unknown }
+    const data = toolData<{ entries: { name: string }[]; cards?: unknown }>(
+      await callTool(client, 'get_list', { listType: 'wanted', slug: 'wishlist' }),
+    )
     expect(data.entries.map((e) => e.name)).toContain('Brainstorm')
     expect(data.cards).toBeUndefined()
+  })
+
+  test('search_scryfall warms the local cache and promotes a whole-name match', async () => {
+    // The harness answers every non-symbology request with a 404; swap in a
+    // search page for this call only.
+    const previousFetch = globalThis.fetch
+    const page = {
+      object: 'list',
+      has_more: false,
+      data: [
+        makeScryfallCard({ id: 'p1', name: 'Shocking Grasp', set: 'lea' }),
+        makeScryfallCard({ id: 'p2', name: 'Shock', set: 'lea' }),
+      ],
+    }
+    globalThis.fetch = ((input: string | URL | Request) => {
+      const url = String(input instanceof Request ? input.url : input)
+      if (url.includes('/cards/search')) return Promise.resolve(Response.json(page))
+      return previousFetch(input)
+    }) as typeof fetch
+
+    try {
+      const data = toolData<{ warmed: boolean; cards: { name: string }[] }>(
+        await callTool(client, 'search_scryfall', { query: 'Shock', warm: true }),
+      )
+      expect(data.warmed).toBe(true)
+      // The whole-name match leads, even though Scryfall answered it second.
+      expect(data.cards.map((c) => c.name)).toEqual(['Shock', 'Shocking Grasp'])
+      expect(await cardCache.get('Shocking Grasp')).not.toBeNull()
+    } finally {
+      globalThis.fetch = previousFetch
+    }
+  })
+
+  test('get_list view "summary" returns counts only', async () => {
+    const data = toolData<{
+      listType: string
+      counts: { entryCount: number; sections: { name: string }[] }
+    }>(
+      await callTool(client, 'get_list', {
+        listType: 'deck',
+        slug: 'test-deck',
+        view: 'summary',
+      }),
+    )
+    expect(data.listType).toBe('deck')
+    expect(data.counts.entryCount).toBe(2)
+    expect(data.counts.sections.map((s) => s.name)).toEqual(['Commander', 'Main'])
+  })
+
+  test('get_list filters narrow the entries and report the pre-limit total', async () => {
+    const data = toolData<LoadedDeck & { totalCount: number }>(
+      await callTool(client, 'get_list', {
+        listType: 'deck',
+        slug: 'test-deck',
+        section: 'Main',
+      }),
+    )
+    expect(deckCardNames(data)).toEqual(['Lightning Bolt'])
+    expect(data.totalCount).toBe(1)
+  })
+
+  test('nameContains, limit, and offset all travel from the tool to the route', async () => {
+    // Only `section` used to be exercised, so a query-string key spelled wrong
+    // in `buildListLoadQuery` would have gone unnoticed for the other three.
+    const filtered = toolData<LoadedDeck & { totalCount: number }>(
+      await callTool(client, 'get_list', {
+        listType: 'deck',
+        slug: 'test-deck',
+        nameContains: 'sol',
+      }),
+    )
+    expect(deckCardNames(filtered)).toEqual(['Sol Ring'])
+
+    const firstPage = toolData<LoadedDeck & { totalCount: number }>(
+      await callTool(client, 'get_list', { listType: 'deck', slug: 'test-deck', limit: 1 }),
+    )
+    const secondPage = toolData<LoadedDeck & { totalCount: number }>(
+      await callTool(client, 'get_list', {
+        listType: 'deck',
+        slug: 'test-deck',
+        limit: 1,
+        offset: 1,
+      }),
+    )
+    expect(deckCardNames(firstPage)).toHaveLength(1)
+    expect(deckCardNames(secondPage)).toHaveLength(1)
+    expect(deckCardNames(secondPage)).not.toEqual(deckCardNames(firstPage))
+    // totalCount is the whole list either way — that is what makes it pageable.
+    expect(firstPage.totalCount).toBe(2)
+    expect(secondPage.totalCount).toBe(2)
+  })
+
+  test('find_cards reports where a card physically lives', async () => {
+    const data = toolData<{
+      cards: { listType: string; listSlug: string; name: string }[]
+      lists?: unknown[]
+      warnings: string[]
+    }>(await callTool(client, 'find_cards', { name: 'sol ring' }))
+    expect(data.cards.map((c) => `${c.listType}:${c.listSlug}:${c.name}`)).toEqual([
+      'deck:test-deck:Sol Ring',
+    ])
+    expect(data.warnings).toEqual([])
+    // The roster is opt-in, so a plain lookup does not pay for it.
+    expect(data.lists).toBeUndefined()
+
+    const withLists = toolData<{ lists?: { slug: string }[] }>(
+      await callTool(client, 'find_cards', { name: 'sol ring', includeLists: true }),
+    )
+    expect(withLists.lists?.map((l) => l.slug).sort()).toEqual(['shoebox', 'test-deck', 'wishlist'])
+  })
+
+  test('get_card_details returns the cached card report', async () => {
+    const data = toolData<{
+      name: string
+      printingCount: number
+    }>(await callTool(client, 'get_card_details', { name: 'Sol Ring' }))
+    expect(data.name).toBe('Sol Ring')
+    expect(data.printingCount).toBeGreaterThan(0)
+  })
+
+  test('autocomplete_card suggests names from the seeded cache', async () => {
+    const data = toolData<{ names: string[] }>(
+      await callTool(client, 'autocomplete_card', { query: 'sol' }),
+    )
+    expect(data.names).toContain('Sol Ring')
+  })
+
+  test('get_card_price reports the representative and cheapest printings', async () => {
+    const data = toolData<{
+      name: string
+      representative: { set: string } | null
+      lowestUsd: { set: string } | null
+      lowestEur: unknown
+      lowestTix: unknown
+    }>(await callTool(client, 'get_card_price', { name: 'Sol Ring' }))
+    expect(data.name).toBe('Sol Ring')
+    // The four slots are always present, so a client reads them without probing;
+    // an uncached currency is null rather than missing.
+    expect(Object.keys(data).sort()).toEqual([
+      'lowestEur',
+      'lowestTix',
+      'lowestUsd',
+      'name',
+      'representative',
+    ])
+    expect(data.representative?.set).toBeDefined()
+  })
+
+  test('get_cache_status reports the cache the pricing tools depend on', async () => {
+    const data = toolData<{
+      empty: boolean
+      cardCount: number
+      priceStale: boolean
+    }>(await callTool(client, 'get_cache_status', {}))
+    expect(data.empty).toBe(false)
+    expect(data.cardCount).toBeGreaterThan(0)
+    // The harness seeds through `bulkSet`, which stamps the refresh time, so the
+    // prices this cache carries are fresh by the 24h convention.
+    expect(data.priceStale).toBe(false)
+  })
+
+  test('get_card_printings projects identity only unless prices are asked for', async () => {
+    const lean = toolData<{
+      name: string
+      printings: Record<string, unknown>[]
+    }>(await callTool(client, 'get_card_printings', { name: 'Sol Ring' }))
+    expect(lean.name).toBe('Sol Ring')
+    expect(lean.printings[0]).toHaveProperty('set')
+    expect(lean.printings[0]).not.toHaveProperty('prices')
+
+    const priced = toolData<{ printings: Record<string, unknown>[] }>(
+      await callTool(client, 'get_card_printings', { name: 'Sol Ring', includePrices: true }),
+    )
+    expect(priced.printings[0]).toHaveProperty('prices')
+  })
+
+  test('import_deck writes a deck from pasted decklist text', async () => {
+    const data = toolData<{ message: string; deckName: string }>(
+      await callTool(client, 'import_deck', {
+        mode: 'text',
+        name: 'Imported Deck',
+        content: '1 Sol Ring\n1 Lightning Bolt\n',
+      }),
+    )
+    expect(data.deckName).toBe('Imported Deck')
+    const onDisk = await fs.readFile(path.join(env.dir, 'decks', 'Imported Deck.md'), 'utf-8')
+    expect(onDisk).toContain('Sol Ring')
+  })
+
+  test('set_card_printing pins a printing and reports the effect', async () => {
+    const data = toolData<{
+      applied: number
+      effects: { action: string; cardId: number; printing?: { set?: string } }[]
+    }>(
+      await callTool(client, 'set_card_printing', {
+        listType: 'deck',
+        slug: 'test-deck',
+        cardName: 'Lightning Bolt',
+        set: 'LEA',
+        collectorNumber: '161',
+      }),
+    )
+    expect(data.applied).toBe(1)
+    expect(data.effects).toHaveLength(1)
+    // Set codes stay lowercase in a data payload, however the caller spelled them.
+    expect(data.effects[0]).toMatchObject({
+      action: 'updated',
+      cardId: 2,
+      printing: { set: 'lea', collectorNumber: '161' },
+    })
+  })
+
+  test('set_list_metadata writes deck front matter and clears a field with null', async () => {
+    const set = await callTool(client, 'set_list_metadata', {
+      listType: 'deck',
+      slug: 'test-deck',
+      description: 'A synthetic test deck',
+      tags: ['test'],
+    })
+    expect(set.isError).toBeFalsy()
+    const written = await fs.readFile(path.join(env.dir, 'decks', 'test-deck.md'), 'utf-8')
+    expect(written).toContain('A synthetic test deck')
+
+    const cleared = await callTool(client, 'set_list_metadata', {
+      listType: 'deck',
+      slug: 'test-deck',
+      description: null,
+    })
+    expect(cleared.isError).toBeFalsy()
+    expect(await fs.readFile(path.join(env.dir, 'decks', 'test-deck.md'), 'utf-8')).not.toContain(
+      'A synthetic test deck',
+    )
+  })
+
+  test('export_cards write mode returns a file path instead of the content', async () => {
+    const result = await callTool(client, 'export_cards', {
+      lists: [{ listType: 'deck', name: 'test-deck' }],
+      write: true,
+    })
+    expect(result.isError).toBeFalsy()
+    const data = toolData<{ mode: string; path: string; bytes: number }>(result)
+    expect(data.mode).toBe('file')
+    expect(data.path.startsWith('exports/')).toBe(true)
+    expect(data.bytes).toBeGreaterThan(0)
+    expect(await fs.exists(path.join(env.dir, data.path))).toBe(true)
   })
 
   test('export_cards renders the selected list with chosen columns', async () => {
@@ -270,13 +579,13 @@ describe('Ritual MCP server (in-memory transport)', () => {
       quoteAll: true,
     })
     expect(result.isError).toBeFalsy()
-    const data = toolJson(result) as {
+    const data = toolData<{
       mode: string
       entryCount: number
       content: string
       warnings: string[]
-    }
-    // The tool never asks for `write`, so the response is always the inline arm.
+    }>(result)
+    // Without `write`, the response is the inline arm.
     expect(data.mode).toBe('content')
     expect(data.entryCount).toBe(2)
     expect(data.content.split('\n')).toEqual([
@@ -296,7 +605,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
       dialect: 'archidekt',
     })
     expect(result.isError).toBeFalsy()
-    const data = toolJson(result) as { content: string }
+    const data = toolData<{ content: string }>(result)
     expect(data.content.split('\n')[0]).toBe('Name,Variant,Condition')
     expect(data.content.split('\n')[1]).toBe('Sol Ring,Normal,NM')
   })
@@ -315,7 +624,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
       format: 'text',
     })
     expect(result.isError).toBeFalsy()
-    const data = toolJson(result) as { format: string; content: string }
+    const data = toolData<{ format: string; content: string }>(result)
     expect(data.format).toBe('text')
     expect(data.content.split('\n')).toEqual(['1 Sol Ring', '1 Lightning Bolt'])
   })
@@ -326,7 +635,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
       format: 'md',
     })
     expect(result.isError).toBeFalsy()
-    const data = toolJson(result) as { format: string; content: string }
+    const data = toolData<{ format: string; content: string }>(result)
     expect(data.format).toBe('md')
     expect(data.content).toContain('# test-deck')
     expect(data.content).toContain('## Commander')
@@ -356,18 +665,18 @@ describe('Ritual MCP server (in-memory transport)', () => {
       b: { name: 'wishlist' },
     })
     expect(result.isError).toBeFalsy()
-    const data = toolJson(result) as {
-      success: boolean
-      a: { type: string; slug: string }
-      b: { type: string; slug: string }
+    const data = toolData<{
+      a: { listType: string; slug: string }
+      b: { listType: string; slug: string }
       by: string
       matches: { name: string }[]
       onlyInA: { name: string }[]
       onlyInB: unknown[]
-    }
-    expect(data.success).toBe(true)
-    expect(data.a).toMatchObject({ type: 'deck', slug: 'test-deck' })
-    expect(data.b).toMatchObject({ type: 'wanted', slug: 'wishlist' })
+    }>(result)
+    // One list-naming vocabulary across the tools: a diff side comes back with
+    // the same `listType` + `slug` pair every tool takes as arguments.
+    expect(data.a).toMatchObject({ listType: 'deck', slug: 'test-deck' })
+    expect(data.b).toMatchObject({ listType: 'wanted', slug: 'wishlist' })
     expect(data.by).toBe('name')
     expect(data.matches.map((m) => m.name)).toEqual(['Sol Ring'])
     expect(data.onlyInA.map((o) => o.name)).toEqual(['Lightning Bolt'])
@@ -397,12 +706,25 @@ describe('Ritual MCP server (in-memory transport)', () => {
       cardName: 'Counterspell',
     })
     expect(added.isError).toBeFalsy()
+    // Every edit tool reports a structured result, not bare prose, so a caller
+    // can tell what happened without parsing a sentence.
+    const data = toolData<{
+      applied: number
+      listType: string
+      slug: string
+      effects: { action: string; cardId: number; name: string }[]
+    }>(added)
+    expect(data).toMatchObject({ applied: 1, listType: 'deck', slug: 'test-deck' })
+    expect(data.effects).toHaveLength(1)
+    expect(data.effects[0]).toMatchObject({ action: 'added', name: 'Counterspell' })
 
     expect(deckCardNames(await loadDeck('test-deck'))).toContain('Counterspell')
 
     const onDisk = await fs.readFile(path.join(env.dir, 'decks', 'test-deck.md'), 'utf-8')
-    // The card must be written with a freshly allocated &N id (1 and 2 are taken).
-    expect(onDisk).toMatch(/Counterspell &\d+/)
+    // The reported id must be the id actually written: that agreement is the
+    // whole reason `effects` exists, and a `/Counterspell &\d+/` match would
+    // hold just as well if the response invented a different number.
+    expect(onDisk).toContain(`Counterspell &${data.effects[0]?.cardId}`)
   })
 
   test('add_card quantity adds all copies in one save with one changelog block', async () => {
@@ -508,12 +830,13 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expectSchemaRejection(result, /one entry per physical card/)
   })
 
-  test('set_card_section moves a deck card into a (created) section', async () => {
-    const moved = await callTool(client, 'set_card_section', {
+  // Notes, sections, and the commander used to have tools of their own; they are
+  // apply_changes actions now, so their coverage lives here rather than being lost.
+  test('apply_changes set-section moves a deck card into a (created) section', async () => {
+    const moved = await callTool(client, 'apply_changes', {
       listType: 'deck',
       slug: 'test-deck',
-      cardName: 'Lightning Bolt',
-      section: 'Sideboard',
+      changes: [{ action: 'set-section', cardName: 'Lightning Bolt', section: 'Sideboard' }],
     })
     expect(moved.isError).toBeFalsy()
     const data = await loadDeck('test-deck')
@@ -521,10 +844,11 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(sideboard?.cards.map((c) => c.name)).toEqual(['Lightning Bolt'])
   })
 
-  test('unset_commander moves the commander back to the main section', async () => {
-    const result = await callTool(client, 'unset_commander', {
+  test('apply_changes unset-commander moves the commander back to the main section', async () => {
+    const result = await callTool(client, 'apply_changes', {
+      listType: 'deck',
       slug: 'test-deck',
-      cardName: 'Sol Ring',
+      changes: [{ action: 'unset-commander', cardName: 'Sol Ring' }],
     })
     expect(result.isError).toBeFalsy()
     const data = await loadDeck('test-deck')
@@ -532,6 +856,28 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(commander?.cards ?? []).toHaveLength(0)
     const main = data.deck.sections.find((s) => s.name === 'Main')
     expect(main?.cards.map((c) => c.name)).toContain('Sol Ring')
+  })
+
+  test('apply_changes set-note sets a note, and an empty string clears it', async () => {
+    const set = await callTool(client, 'apply_changes', {
+      listType: 'deck',
+      slug: 'test-deck',
+      changes: [{ action: 'set-note', cardName: 'Lightning Bolt', note: 'signed' }],
+    })
+    expect(set.isError).toBeFalsy()
+    expect(await fs.readFile(path.join(env.dir, 'decks', 'test-deck.md'), 'utf-8')).toContain(
+      'signed',
+    )
+
+    const cleared = await callTool(client, 'apply_changes', {
+      listType: 'deck',
+      slug: 'test-deck',
+      changes: [{ action: 'set-note', cardName: 'Lightning Bolt', note: '' }],
+    })
+    expect(cleared.isError).toBeFalsy()
+    expect(await fs.readFile(path.join(env.dir, 'decks', 'test-deck.md'), 'utf-8')).not.toContain(
+      'signed',
+    )
   })
 
   test('apply_changes applies an ordered batch in one save with one changelog block', async () => {
@@ -570,8 +916,8 @@ describe('Ritual MCP server (in-memory transport)', () => {
     }
   })
 
-  test('move_cards moves an identity-addressed card between lists', async () => {
-    const result = await callTool(client, 'move_cards', {
+  test('move_selected_cards moves an identity-addressed card between lists', async () => {
+    const result = await callTool(client, 'move_selected_cards', {
       moves: [
         {
           listType: 'deck',
@@ -584,7 +930,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
       ],
     })
     expect(result.isError).toBeFalsy()
-    const data = toolJson(result) as { moved: number; requested: number; skipped: number }
+    const data = toolData<{ moved: number; requested: number; skipped: number }>(result)
     expect(data.moved).toBe(1)
     expect(data.requested).toBe(1)
     expect(data.skipped).toBe(0)
@@ -594,8 +940,11 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(wishlist).toContain('Lightning Bolt')
   })
 
-  test('move_cards skips an unresolvable item and still applies the rest', async () => {
-    const result = await callTool(client, 'move_cards', {
+  test('move_selected_cards skips an unresolvable item and still applies the rest', async () => {
+    // The second item names a real card that simply is not in this deck under
+    // that id — an unresolvable *entry*, which is skipped. (A name no cache
+    // knows is a different failure: it is refused outright, see below.)
+    const result = await callTool(client, 'move_selected_cards', {
       moves: [
         {
           listType: 'deck',
@@ -608,7 +957,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
         {
           listType: 'deck',
           slug: 'test-deck',
-          cardName: 'Phantom Card',
+          cardName: 'Counterspell',
           cardId: 99,
           toListType: 'wanted',
           toSlug: 'wishlist',
@@ -616,12 +965,62 @@ describe('Ritual MCP server (in-memory transport)', () => {
       ],
     })
     expect(result.isError).toBeFalsy()
-    const data = toolJson(result) as { moved: number; requested: number; skipped: number }
+    const data = toolData<{ moved: number; requested: number; skipped: number }>(result)
     expect(data).toMatchObject({ moved: 1, requested: 2, skipped: 1 })
   })
 
-  test('move_cards rejects toSection for a non-deck destination', async () => {
-    const result = await callTool(client, 'move_cards', {
+  test('move_selected_cards reports a note the destination could not keep', async () => {
+    // `droppedNotes` is the one field of this result no other test reaches: it
+    // fills only when a deck quantity-merge lands a noted card on an existing
+    // line whose single note slot already says something else. Seed exactly that.
+    await fs.writeFile(
+      path.join(env.dir, 'collections', 'shoebox.md'),
+      '# Shoebox\n\n- Lightning Bolt (LEA:161) {signed by the artist} &1\n',
+    )
+    // The merge is by name + printing, so pin the deck line to the same one.
+    await callTool(client, 'apply_changes', {
+      listType: 'deck',
+      slug: 'test-deck',
+      changes: [
+        {
+          action: 'set-printing',
+          cardName: 'Lightning Bolt',
+          set: 'lea',
+          collectorNumber: '161',
+        },
+        { action: 'set-note', cardName: 'Lightning Bolt', note: 'the deck copy' },
+      ],
+    })
+
+    const result = await callTool(client, 'move_selected_cards', {
+      moves: [
+        {
+          listType: 'collection',
+          slug: 'shoebox',
+          cardName: 'Lightning Bolt',
+          cardId: 1,
+          toListType: 'deck',
+          toSlug: 'test-deck',
+        },
+      ],
+    })
+    expect(result.isError).toBeFalsy()
+    const data = toolData<{
+      moved: number
+      droppedNotes: { cardName: string; cardId?: number; note: string }[]
+    }>(result)
+    expect(data.moved).toBe(1)
+    expect(data.droppedNotes).toEqual([
+      { cardName: 'Lightning Bolt', cardId: 1, note: 'signed by the artist' },
+    ])
+    // The deck line's own note is what survives the merge.
+    const onDisk = await fs.readFile(path.join(env.dir, 'decks', 'test-deck.md'), 'utf-8')
+    expect(onDisk).toContain('the deck copy')
+    expect(onDisk).not.toContain('signed by the artist')
+  })
+
+  test('move_selected_cards rejects toSection for a non-deck destination', async () => {
+    const result = await callTool(client, 'move_selected_cards', {
       moves: [
         {
           listType: 'deck',
@@ -636,131 +1035,134 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expectSchemaRejection(result, /toSection/)
   })
 
-  test('remove_cards removes an identity-addressed batch', async () => {
-    const result = await callTool(client, 'remove_cards', {
+  test('remove_selected_cards removes an identity-addressed batch', async () => {
+    const result = await callTool(client, 'remove_selected_cards', {
       removes: [{ listType: 'deck', slug: 'test-deck', cardName: 'Sol Ring', cardId: 1 }],
     })
     expect(result.isError).toBeFalsy()
-    const data = toolJson(result) as { removed: number; skipped: number }
+    const data = toolData<{ removed: number; skipped: number }>(result)
     expect(data.removed).toBe(1)
     expect(data.skipped).toBe(0)
     expect(deckCardNames(await loadDeck('test-deck'))).not.toContain('Sol Ring')
   })
 
-  test('remove_cards skips an unresolvable item and still applies the rest', async () => {
-    const result = await callTool(client, 'remove_cards', {
+  test('remove_selected_cards skips an unresolvable item and still applies the rest', async () => {
+    const result = await callTool(client, 'remove_selected_cards', {
       removes: [
         { listType: 'deck', slug: 'test-deck', cardName: 'Sol Ring', cardId: 1 },
-        { listType: 'deck', slug: 'test-deck', cardName: 'Phantom Card', cardId: 99 },
+        { listType: 'deck', slug: 'test-deck', cardName: 'Counterspell', cardId: 99 },
       ],
     })
     expect(result.isError).toBeFalsy()
-    const data = toolJson(result) as { removed: number; requested: number; skipped: number }
+    const data = toolData<{ removed: number; requested: number; skipped: number }>(result)
     expect(data).toMatchObject({ removed: 1, requested: 2, skipped: 1 })
   })
 
-  test('price_report summarizes every list and details one list', async () => {
+  test('get_price_report summarizes every list and details one list', async () => {
     // Seed one priced printing so the cache is non-empty; the other synthetic
     // cards resolve to no printings via the offline stub and price as missing.
     await cardCache.bulkSet({
       'Sol Ring': [makeScryfallCard({ name: 'Sol Ring', prices: { usd: '2.50', eur: '4.00' } })],
     })
 
-    const summary = toolJson(await callTool(client, 'price_report', {})) as {
-      success: boolean
+    const summary = toolData<{
+      mode: string
       currency: string
       lists: { type: string }[]
-    }
-    expect(summary.success).toBe(true)
+    }>(await callTool(client, 'get_price_report', {}))
+    // `mode` is what discriminates the two price bodies for a client.
+    expect(summary.mode).toBe('summary')
     expect(summary.currency).toBe('usd')
     expect(summary.lists.length).toBeGreaterThan(0)
 
     // Shape-only wiring checks: the exact totals are pinned by the price-report
     // engine tests and the admin handler tests, not re-computed here.
-    const detail = toolJson(
-      await callTool(client, 'price_report', {
+    const detail = toolData<{
+      mode: string
+      currency: string
+      list?: { name: string; total: number }
+      cards: unknown[]
+    }>(
+      await callTool(client, 'get_price_report', {
         listType: 'deck',
         slug: 'test-deck',
         currency: 'eur',
       }),
-    ) as {
-      success: boolean
-      currency: string
-      list?: { name: string; total: number }
-      cards: unknown[]
-    }
-    expect(detail.success).toBe(true)
+    )
+    expect(detail.mode).toBe('list')
     expect(detail.currency).toBe('eur')
     expect(detail.list?.name).toBe('test-deck')
     expect(typeof detail.list?.total).toBe('number')
     expect(detail.cards.length).toBeGreaterThan(0)
   })
 
-  test('price_report scopes the summary to one list type with listType alone', async () => {
+  test('get_price_report scopes the summary to one list type with listType alone', async () => {
     await cardCache.bulkSet({
       'Sol Ring': [makeScryfallCard({ name: 'Sol Ring', prices: { usd: '2.50', eur: '4.00' } })],
     })
 
-    const summary = toolJson(await callTool(client, 'price_report', { listType: 'deck' })) as {
-      success: boolean
+    const summary = toolData<{
       lists: { type: string }[]
-    }
-    expect(summary.success).toBe(true)
+    }>(await callTool(client, 'get_price_report', { listType: 'deck' }))
     expect(summary.lists.length).toBeGreaterThan(0)
     expect(summary.lists.every((l) => l.type === 'deck')).toBe(true)
   })
 
-  test('price_report rejects a slug without a listType', async () => {
-    const result = await callTool(client, 'price_report', { slug: 'test-deck' })
+  test('get_price_report rejects a slug without a listType', async () => {
+    const result = await callTool(client, 'get_price_report', { slug: 'test-deck' })
     expectSchemaRejection(result, /slug requires listType/)
   })
 
-  test('load_history returns the change sets for a list', async () => {
+  test('get_history returns the change sets for a list', async () => {
     await callTool(client, 'add_card', {
       listType: 'deck',
       slug: 'test-deck',
       cardName: 'Counterspell',
     })
-    const data = toolJson(
-      await callTool(client, 'load_history', { listType: 'deck', slug: 'test-deck' }),
-    ) as { success: boolean; sets: { lines: string[] }[] }
-    expect(data.success).toBe(true)
+    const data = toolData<{ sets: { lines: string[] }[] }>(
+      await callTool(client, 'get_history', { listType: 'deck', slug: 'test-deck' }),
+    )
     expect(data.sets).toHaveLength(1)
     expect(data.sets[0]?.lines.join('\n')).toContain('Counterspell')
   })
 
-  test('deck_sync_status reports linked decks and the Archidekt login', async () => {
-    // Which decks qualify is owned by test/integration/deck-sync-api.test.ts; the
-    // fixture workspace has no Archidekt-linked deck and no stored login.
-    const result = await callTool(client, 'deck_sync_status', {})
+  test('get_sync_status reports both halves when target is omitted', async () => {
+    // Which decks/lists qualify is owned by the deck-sync and collection-sync
+    // integration suites; this pins the wiring and the two-key shape. The fixture
+    // workspace has no Archidekt-linked deck and no stored login.
+    const result = await callTool(client, 'get_sync_status', {})
     expect(result.isError).toBeFalsy()
-    const data = toolJson(result) as {
-      decks: unknown[]
-      archidekt: { loginRequired: boolean }
-    }
-    expect(data.decks).toEqual([])
-    expect(data.archidekt.loginRequired).toBe(true)
-  })
-
-  test('collection_sync_status reports the lists, the pull target, and the login', async () => {
-    // Which lists qualify is owned by test/integration/collection-sync-api.test.ts;
-    // this pins the wiring and the shape.
-    const result = await callTool(client, 'collection_sync_status', {})
-    expect(result.isError).toBeFalsy()
-    const data = toolJson(result) as {
-      lists: { slug: string }[]
-      pullTarget: string
-      csvThreshold: number
-      lastSynced: string | null
-      archidekt: { loginRequired: boolean }
-    }
-    expect(data.lists.map((list) => list.slug)).toEqual(['shoebox'])
-    expect(data.pullTarget).toBe('Inbox')
+    const data = toolData<{
+      decks: { decks: unknown[]; archidekt: { loginRequired: boolean } }
+      collection: {
+        lists: { slug: string }[]
+        pullTarget: string
+        csvThreshold: number
+        lastSynced: string | null
+        archidekt: { loginRequired: boolean }
+      }
+    }>(result)
+    expect(data.decks.decks).toEqual([])
+    expect(data.decks.archidekt.loginRequired).toBe(true)
+    expect(data.collection.lists.map((list) => list.slug)).toEqual(['shoebox'])
+    expect(data.collection.pullTarget).toBe('Inbox')
     // The count above which a push must be told to upload its new cards, so a
     // caller can explain the `csv` field without hardcoding the engine's number.
-    expect(data.csvThreshold).toBe(CSV_UPLOAD_THRESHOLD)
-    expect(data.lastSynced).toBeNull()
-    expect(data.archidekt.loginRequired).toBe(true)
+    expect(data.collection.csvThreshold).toBe(CSV_UPLOAD_THRESHOLD)
+    expect(data.collection.lastSynced).toBeNull()
+    expect(data.collection.archidekt.loginRequired).toBe(true)
+  })
+
+  test('get_sync_status returns only the half target names', async () => {
+    const decksOnly = toolData<Record<string, unknown>>(
+      await callTool(client, 'get_sync_status', { target: 'decks' }),
+    )
+    expect(Object.keys(decksOnly)).toEqual(['decks'])
+
+    const collectionOnly = toolData<Record<string, unknown>>(
+      await callTool(client, 'get_sync_status', { target: 'collection' }),
+    )
+    expect(Object.keys(collectionOnly)).toEqual(['collection'])
   })
 
   test('sync_decks rejects an unknown direction and errors without a login', async () => {
@@ -860,8 +1262,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
       columns: 'name=1',
     })
     expect(result.isError).toBeFalsy()
-    const data = toolJson(result) as { success: boolean; cardCount: number }
-    expect(data.success).toBe(true)
+    const data = toolData<{ cardCount: number }>(result)
     expect(data.cardCount).toBe(1)
 
     const onDisk = await fs.readFile(path.join(env.dir, 'wanted', 'csv-wants.md'), 'utf-8')
@@ -879,7 +1280,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expectSchemaRejection(result, DECK_ONLY_FORMAT_MESSAGE)
   })
 
-  test('import_changes applies a change bundle to the target lists', async () => {
+  test('import_change_bundle applies a change bundle to the target lists', async () => {
     // Apply semantics (retargeting, conflicts, partial failures) are owned by
     // test/unit/import-changes.test.ts and test/integration/import-changes.test.ts,
     // which exercise the same applyChangeBundle engine; this pins the MCP wiring
@@ -903,29 +1304,63 @@ describe('Ritual MCP server (in-memory transport)', () => {
         },
       ],
     }
-    const result = await callTool(client, 'import_changes', { json: JSON.stringify(bundle) })
+    const result = await callTool(client, 'import_change_bundle', { json: JSON.stringify(bundle) })
     expect(result.isError).toBeFalsy()
-    const data = toolJson(result) as {
-      success: boolean
+    const data = toolData<{
       lists: { slug: string; applied: number }[]
-    }
-    expect(data.success).toBe(true)
+    }>(result)
     expect(data.lists.map((l) => l.applied)).toEqual([1, 1])
 
     const deckOnDisk = await fs.readFile(path.join(env.dir, 'decks', 'test-deck.md'), 'utf-8')
     expect(deckOnDisk).toMatch(/Counterspell &\d+/)
   })
 
-  test('import_changes rejects malformed JSON with a clear error', async () => {
+  test('import_change_bundle reports a partly-failed bundle instead of erroring', async () => {
+    // The per-list report is the whole point of this tool, and a partial failure
+    // is exactly when it matters — so a list that could not be resolved must
+    // come back inside a *successful* result rather than collapsing the call
+    // into an isError whose payload carries none of it.
+    const bundle = {
+      format: 'ritual-change-bundle',
+      version: 1,
+      exportedAt: '2026-06-04T00:00:00.000Z',
+      lists: [
+        {
+          kind: 'deck',
+          slug: 'test-deck',
+          name: 'Test Deck',
+          changes: [{ id: 'a1', timestamp: 1, action: 'add', cardName: 'Counterspell' }],
+        },
+        {
+          kind: 'wanted',
+          slug: 'no-such-list',
+          name: 'No Such List',
+          changes: [{ id: 'a2', timestamp: 2, action: 'add', cardName: 'Brainstorm' }],
+        },
+      ],
+    }
+    const result = await callTool(client, 'import_change_bundle', { json: JSON.stringify(bundle) })
+    expect(result.isError).toBeFalsy()
+    const data = toolData<{
+      failedCount: number
+      lists: { slug: string; applied: number; error?: string }[]
+    }>(result)
+    expect(data.failedCount).toBe(1)
+    expect(data.lists.map((l) => l.applied)).toEqual([1, 0])
+    expect(data.lists[0]?.error).toBeUndefined()
+    expect(data.lists[1]?.error).toBeTruthy()
+  })
+
+  test('import_change_bundle rejects malformed JSON with a clear error', async () => {
     // Pins the tool's local pre-validation branch (bundle parse failures are
     // covered in test/unit/change-bundle.test.ts; the isError mapping is not).
-    const result = await callTool(client, 'import_changes', { json: '{"format":"other"}' })
+    const result = await callTool(client, 'import_change_bundle', { json: '{"format":"other"}' })
     expect(result.isError).toBe(true)
     expect(firstText(result)).toContain('Invalid change bundle')
   })
 
   test('returns an isError result for a missing list', async () => {
-    const result = await callTool(client, 'load_list', { listType: 'deck', slug: 'no-such-deck' })
+    const result = await callTool(client, 'get_list', { listType: 'deck', slug: 'no-such-deck' })
     expect(result.isError).toBe(true)
     expect(firstText(result).toLowerCase()).toContain('not found')
   })
@@ -953,7 +1388,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
     const message = firstText(result)
     expect(message).toContain('sol ring')
     expect(message).toContain('Nothing was saved')
-    expect(message).toContain('load_list')
+    expect(message).toContain('get_list')
 
     // Neither the deck file nor a changelog was written.
     expect(await fs.readFile(deckPath, 'utf-8')).toBe(before)
@@ -961,8 +1396,8 @@ describe('Ritual MCP server (in-memory transport)', () => {
   })
 
   test('remove_card that matches nothing in a collection errors via the save handler', async () => {
-    // Seed an entry first so a wrong-case miss is distinguishable from an
-    // empty list, then prove the miss leaves the seeded state untouched.
+    // Seed an entry first so a miss is distinguishable from an empty list, then
+    // prove the miss leaves the seeded state untouched.
     const seeded = await callTool(client, 'add_card', {
       listType: 'collection',
       slug: 'shoebox',
@@ -974,8 +1409,26 @@ describe('Ritual MCP server (in-memory transport)', () => {
     const collPath = path.join(env.dir, 'collections', 'shoebox.md')
     const before = await fs.readFile(collPath, 'utf-8')
 
-    // Collections replay changes server-side, so the miss is rejected by the
+    // A real card that is simply not in this list: name validation passes, and
+    // collections replay changes server-side, so the miss is rejected by the
     // collection-save handler (400) rather than the MCP-side apply.
+    const result = await callTool(client, 'remove_card', {
+      listType: 'collection',
+      slug: 'shoebox',
+      cardName: 'Counterspell',
+    })
+    expect(result.isError).toBe(true)
+    const message = firstText(result)
+    expect(message).toContain('Counterspell')
+    expect(message).toContain('Nothing was saved')
+
+    expect(await fs.readFile(collPath, 'utf-8')).toBe(before)
+  })
+
+  test('a wrong-case card name is refused up front, with the cached spelling offered', async () => {
+    // Targeting is exact and case-sensitive, so "sol ring" would have missed
+    // anyway; catching it against the card cache first is what turns an
+    // unhelpful "nothing matched" into a name the agent can act on.
     const result = await callTool(client, 'remove_card', {
       listType: 'collection',
       slug: 'shoebox',
@@ -984,19 +1437,37 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(result.isError).toBe(true)
     const message = firstText(result)
     expect(message).toContain('sol ring')
-    expect(message).toContain('Nothing was saved')
+    expect(message).toContain('Sol Ring')
+  })
 
-    expect(await fs.readFile(collPath, 'utf-8')).toBe(before)
+  test('a card already in the list stays editable even though no cache knows it', async () => {
+    // The list file is the authority on what is in it, which is what keeps a
+    // custom or unreleased card removable.
+    await fs.writeFile(
+      path.join(env.dir, 'collections', 'shoebox.md'),
+      '# Shoebox\n\n- Homemade Proxy Beast (XXX:1) &1\n',
+    )
+    const result = await callTool(client, 'remove_card', {
+      listType: 'collection',
+      slug: 'shoebox',
+      cardName: 'Homemade Proxy Beast',
+    })
+    expect(result.isError).toBeFalsy()
+    expect(
+      await fs.readFile(path.join(env.dir, 'collections', 'shoebox.md'), 'utf-8'),
+    ).not.toContain('Homemade Proxy Beast')
   })
 
   test('remove_card that matches nothing in a wanted list errors and saves nothing', async () => {
+    // A real card that is simply not on this list, so the refusal comes from the
+    // MCP-side apply rather than from name validation.
     const result = await callTool(client, 'remove_card', {
       listType: 'wanted',
       slug: 'wishlist',
-      cardName: 'Definitely Not A Card',
+      cardName: 'Brainstorm',
     })
     expect(result.isError).toBe(true)
-    expect(firstText(result)).toContain('Definitely Not A Card')
+    expect(firstText(result)).toContain('Brainstorm')
     expect(await fs.exists(path.join(env.dir, 'wanted', 'wishlist.changes.md'))).toBe(false)
   })
 
@@ -1050,16 +1521,16 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(await fs.readFile(deckPath, 'utf-8')).toBe(before)
   })
 
-  test('create_list creates a list of each addressable type', async () => {
+  test('create_list creates a collection the list roster then reports', async () => {
     const created = await callTool(client, 'create_list', {
       listType: 'collection',
       name: 'Trade Binder',
     })
     expect(created.isError).toBeFalsy()
 
-    const lists = toolJson(await callTool(client, 'list_lists', { listType: 'collection' })) as {
+    const lists = toolData<{
       lists: { slug: string }[]
-    }
+    }>(await callTool(client, 'list_lists', { listType: 'collection' }))
     expect(lists.lists.map((l) => l.slug)).toContain('Trade Binder')
   })
 
@@ -1081,7 +1552,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expectSchemaRejection(result, DECK_ONLY_FORMAT_MESSAGE)
   })
 
-  test('exposes lists as readable resources with the load_list projection', async () => {
+  test('exposes lists as readable resources with the get_list projection', async () => {
     const { resources } = await client.listResources()
     const uris = resources.map((r) => r.uri)
     expect(uris).toContain('ritual://deck/test-deck')
@@ -1093,7 +1564,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
     const text = entry && 'text' in entry ? entry.text : ''
     const parsed = JSON.parse(String(text)) as { deck: { name: string }; cards?: unknown }
     expect(parsed.deck.name).toBe('Test Deck')
-    // Same projection as load_list: the heavy editor payload never leaks through.
+    // Same projection as get_list: the heavy editor payload never leaks through.
     expect(parsed.cards).toBeUndefined()
   })
 
@@ -1104,9 +1575,9 @@ describe('Ritual MCP server (in-memory transport)', () => {
       newName: 'Big Wants',
     })
     expect(renamed.isError).toBeFalsy()
-    const lists = toolJson(await callTool(client, 'list_lists', { listType: 'wanted' })) as {
+    const lists = toolData<{
       lists: { slug: string }[]
-    }
+    }>(await callTool(client, 'list_lists', { listType: 'wanted' }))
     expect(lists.lists.map((l) => l.slug)).toContain('Big Wants')
     expect(lists.lists.map((l) => l.slug)).not.toContain('wishlist')
   })
@@ -1126,9 +1597,9 @@ describe('Ritual MCP server (in-memory transport)', () => {
     })
     expect(right.isError).toBeFalsy()
 
-    const lists = toolJson(await callTool(client, 'list_lists', { listType: 'deck' })) as {
+    const lists = toolData<{
       lists: { slug: string }[]
-    }
+    }>(await callTool(client, 'list_lists', { listType: 'deck' }))
     expect(lists.lists.map((l) => l.slug)).not.toContain('test-deck')
   })
 
@@ -1140,9 +1611,9 @@ describe('Ritual MCP server (in-memory transport)', () => {
     })
     expect(rewritten.isError).toBeFalsy()
 
-    const data = toolJson(
-      await callTool(client, 'load_history', { listType: 'deck', slug: 'test-deck' }),
-    ) as { sets: { lines: string[] }[] }
+    const data = toolData<{ sets: { lines: string[] }[] }>(
+      await callTool(client, 'get_history', { listType: 'deck', slug: 'test-deck' }),
+    )
     expect(data.sets).toHaveLength(1)
     expect(data.sets[0]?.lines).toEqual(['- Added Sol Ring'])
   })
@@ -1156,7 +1627,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
     })
     expect(updated.isError).toBeFalsy()
 
-    const got = toolJson(await callTool(client, 'get_config', {})) as { config: ConfigView }
+    const got = toolData<{ config: ConfigView }>(await callTool(client, 'get_config', {}))
     expect(got.config.defaultCurrency).toBe('eur')
 
     const rejected = await callTool(client, 'update_config', { config: { bogusKey: true } })
@@ -1216,9 +1687,9 @@ describe('Ritual MCP server (2026-07-28 era)', () => {
 
     // The read runs on a *different* per-request instance than the write — the
     // stateless leg only works because all state lives on disk.
-    const data = toolJson(
-      await callTool(client, 'load_list', { listType: 'deck', slug: 'test-deck' }),
-    ) as LoadedDeck
+    const data = toolData<LoadedDeck>(
+      await callTool(client, 'get_list', { listType: 'deck', slug: 'test-deck' }),
+    )
     expect(data.deck.sections.flatMap((s) => s.cards.map((c) => c.name))).toContain('Counterspell')
 
     const read = await client.readResource({ uri: 'ritual://deck/test-deck' })

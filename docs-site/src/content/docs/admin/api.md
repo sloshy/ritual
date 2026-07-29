@@ -6,6 +6,19 @@ The admin site exposes these API endpoints for deck and collection editing. All 
 
 For general admin API endpoints (authentication, config, audit log, etc.), see the [admin command reference](/commands/admin/#http-api-reference).
 
+## Error responses
+
+Every route refuses a request with the same body, whatever the status:
+
+```json
+{
+  "success": false,
+  "message": "…"
+}
+```
+
+A handful of routes carry extra fields on failure, and only where they are a wire contract rather than duplication: [Card Details](#card-details) adds `card: null`, [Card Search](#card-search) keeps its paging fields and an empty `cards` array, and [Card Autocomplete](#card-autocomplete) and [Card Printings](#card-printings) fold success and failure into one shape. A save that loses an optimistic-concurrency race additionally carries `conflict: true` with its `409`.
+
 ## Create Deck
 
 ```
@@ -43,6 +56,21 @@ returns `400` and the deck is not created.
   "slug": "My Commander Deck"
 }
 ```
+
+### List lifecycle responses
+
+Create, rename, and delete answer identically for **every** list type — decks, collections, and
+wanted lists share one handler apiece, differing only in how a slug resolves to a file:
+
+| Operation | Success body                          |
+| --------- | ------------------------------------- |
+| Create    | `{ success: true, message, slug }`    |
+| Rename    | `{ success: true, message, newSlug }` |
+| Delete    | `{ success: true, message }`          |
+
+A refusal is the shared error envelope (`{ success: false, message }`) at the status the refusal
+carries: `400` for a missing or invalid argument, `404` for a list that is not there, `409` for a
+target name already taken.
 
 ## Rename Deck
 
@@ -125,45 +153,106 @@ Returns up to 20 results, ranked by how directly each name answers the query: a 
 ## Load Deck
 
 ```
-GET /api/deck/:slug
+GET /api/deck/:slug?view=<full|cards|summary>&section=<name>&nameContains=<terms>&limit=<n>&offset=<n>
 ```
 
-Load a deck with full card data, printings, and mana symbol map.
+Load a deck, at the depth `view` asks for. The same parameters apply to [Load Collection](#load-collection) and [Load Wanted List](#load-wanted-list).
 
-**Response:**
+### List load parameters
+
+| Parameter      | Description                                                                                                         | Required |
+| -------------- | ------------------------------------------------------------------------------------------------------------------- | -------- |
+| `view`         | `full` (default), `cards`, or `summary`. Anything else is a `400` naming the three                                  | No       |
+| `section`      | Exact `## Section` heading, matched case-sensitively. A section that does not exist yields no entries, not an error | No       |
+| `nameContains` | Whitespace-separated name terms; every term must appear, in any order (as `/api/autocomplete` matches)              | No       |
+| `limit`        | Max entries returned. A positive integer; anything else is a `400`                                                  | No       |
+| `offset`       | Entries to skip before `limit` applies. A non-negative integer (`0` is allowed)                                     | No       |
+
+`view` is what makes the filters worth using. `summary` and `cards` return **before** the changelog-name pass, the Scryfall card/printing/price load, and the mana-symbol fetch — the expensive part of a load — so a filtered read costs the server almost nothing rather than merely returning less. `full` still applies the filters and then loads card data for the filtered names only.
+
+`totalCount` is always present: the number of entries that matched **before** `limit`/`offset` applied — the list's whole line count when nothing was filtered — so a client can page. `offset`/`limit` count lines, and a line is never split: a `4 Lightning Bolt` deck entry travels whole.
+
+Any of `section`, `nameContains`, `limit`, or `offset` makes the body a **slice**: the `cards` and `full` responses then carry `"partial": true` and **no** `contentHash`. That is deliberate — the deck and wanted save routes persist the payload they are handed, so saving a slice back would truncate the file. Reload without the filters to get a hash you can save with. (`view=summary` always carries the hash: a summary is not a save payload in the first place.)
+
+A missing list is a `404` whose message names `GET /api/lists` as the way to find the real slugs. A slug carrying a path separator is a `400` (`Invalid list slug`) on all three routes.
+
+**Response (`view=full`, the default):**
 
 ```json
 {
   "success": true,
+  "view": "full",
   "deck": { "name": "...", "sections": [] },
+  "totalCount": 42,
   "cards": { "Sol Ring": {} },
   "printings": { "Sol Ring": [] },
   "symbolMap": { "{W}": "https://..." },
   "frontMatter": {},
-  "slug": "my-deck"
+  "slug": "my-deck",
+  "contentHash": "..."
 }
 ```
+
+**Response (`view=cards`):**
+
+```json
+{
+  "success": true,
+  "slug": "my-deck",
+  "view": "cards",
+  "deck": { "name": "...", "sections": [] },
+  "frontMatter": {},
+  "totalCount": 42,
+  "contentHash": "..."
+}
+```
+
+Front matter travels with the deck's `cards` view because the save route re-sends it; a collection or wanted list returns `entries` + `sectionOrder` instead. A narrowed request replaces `contentHash` with `"partial": true`.
+
+**Response (`view=summary`):**
+
+```json
+{
+  "success": true,
+  "slug": "my-deck",
+  "view": "summary",
+  "counts": {
+    "entryCount": 42,
+    "cardCount": 99,
+    "sections": [{ "name": "Commander", "entryCount": 1, "cardCount": 1 }]
+  },
+  "contentHash": "..."
+}
+```
+
+`entryCount` is lines, `cardCount` is copies (summed quantity). Collections and wanted lists hold one card per line, so the two are equal there. A summary honours `section`/`nameContains` and ignores `limit`/`offset` — the counts describe the whole filtered set.
 
 ## Card Printings
 
 ```
-GET /api/card-printings?name=<cardName>
+GET /api/card-printings?name=<cardName>&limit=<n>
 ```
 
-Get all printings of a card. Uses the card cache with fallback to Scryfall API.
+Get the printings of a card, newest first. Uses the card cache with fallback to the Scryfall API.
 
 **Query Parameters:**
 
-| Parameter | Description     | Required |
-| --------- | --------------- | -------- |
-| `name`    | Exact card name | Yes      |
+| Parameter | Description                                                          | Required |
+| --------- | -------------------------------------------------------------------- | -------- |
+| `name`    | Exact card name                                                      | Yes      |
+| `limit`   | Max printings returned. A positive integer; anything else is a `400` | No       |
+
+`limit` is **opt-in**: omitting it returns every printing, which is what the public/hosted site's printing pickers depend on. When it truncates the list, `totalPrintings` reports how many there were.
+
+There is deliberately no `includePrices` parameter — dropping a printing's price block is a projection, and each client projects what it needs from one honest response (the MCP `get_card_printings` tool does exactly that).
 
 **Response:**
 
 ```json
 {
   "success": true,
-  "printings": [{ "id": "...", "set": "2xm" }]
+  "printings": [{ "id": "...", "set": "2xm" }],
+  "totalPrintings": 37
 }
 ```
 
@@ -256,29 +345,40 @@ A multi-faced card also carries `faces`, one `{ name, manaCost, typeLine, oracle
 ## Card Search
 
 ```
-GET /api/card-search?q=<query>&page=<n>
+GET /api/card-search?q=<query>&page=<n>&limit=<n>&warm=<true|false>
 ```
 
 Run a raw [Scryfall search query](https://scryfall.com/docs/syntax) and return one page of card summaries, most popular first — the same lookup the [`scry`](/commands/scry/) CLI command performs.
 
 Exactly one page is fetched per request. Walk further pages by incrementing `page` while `hasMore` is `true`.
 
-This route differs from [`POST /api/search-cards`](/commands/admin/#http-api-reference) in three ways:
+### Plain read vs `warm=true`
 
-- It **does not write to the local card cache** at all. (`/api/search-cards` warms the cache: it writes cards under names the cache does not already hold, and leaves already-cached names untouched.)
-- It returns Scryfall's page **verbatim**: tokens, Arena-only printings, and Art Series cards are _not_ filtered out, and a page carries up to 175 cards rather than 20.
-- It does not promote whole-name matches; the order is Scryfall's own.
+This route carries both halves of what used to be two routes (the cache-warming `POST /api/search-cards` has been folded in and removed).
+
+By default the route returns Scryfall's page **verbatim** and touches no cache: tokens, Arena-only printings, and Art Series cards are _not_ filtered out, the order is Scryfall's own, and a page carries up to 175 cards.
+
+With `warm=true` it instead:
+
+- filters the page to **real printings** and maps them to the cache's card shape;
+- writes each result into the local card cache under any name the cache does not already hold, leaving an already-cached name untouched (this is a warm-up, not a refresh);
+- promotes a card whose **whole name** the query spells out ahead of Scryfall's popularity order;
+- caps the result at **20** cards unless `limit` says otherwise.
+
+The response's `warmed` field says which contract ran. The **error** contract is the strict one in both modes — see below.
 
 **Query Parameters:**
 
-| Parameter | Description                           | Required |
-| --------- | ------------------------------------- | -------- |
-| `q`       | Scryfall search query                 | Yes      |
-| `page`    | 1-based page number (defaults to `1`) | No       |
+| Parameter | Description                                                                                    | Required |
+| --------- | ---------------------------------------------------------------------------------------------- | -------- |
+| `q`       | Scryfall search query                                                                          | Yes      |
+| `page`    | 1-based page number (defaults to `1`)                                                          | No       |
+| `limit`   | Max cards returned, at most `175`. Defaults to `20` when `warm=true`, otherwise the whole page | No       |
+| `warm`    | `true` or `false` (default). Any other value is a `400` — it is validated, never coerced       | No       |
 
-A missing or blank `q` is a `400`; `q` is trimmed before it is sent on. `page` may be omitted or left blank (both mean page 1); any other value that is not a positive integer is a `400`.
+A missing or blank `q` is a `400`; `q` is trimmed before it is sent on. `page` and `limit` may be omitted or left blank; any other value that is not a positive integer is a `400`.
 
-A Scryfall `404` (no matches) is a `200` with an empty `cards` array — an empty result set is not an error. A query Scryfall itself refuses (a syntax error, an unknown filter) is a `400` whose `message` carries Scryfall's own explanation; a failure on Scryfall's side (a `5xx`, a network error) is a `500`. Every error response keeps the success shape — `success: false`, the requested `page`, `hasMore: false`, an empty `cards` array — plus a `message`.
+A Scryfall `404` (no matches) is a `200` with an empty `cards` array — an empty result set is not an error. A query Scryfall itself refuses (a syntax error, an unknown filter) is a `400` whose `message` carries Scryfall's own explanation; a failure on Scryfall's side (a `5xx`, a network error) is a `500`. Every error response keeps the success shape — `success: false`, the requested `page`, `hasMore: false`, an empty `cards` array — plus a `message`. This holds for `warm=true` too: a Scryfall server error is a `500`, never an empty `200`.
 
 **Response:**
 
@@ -288,6 +388,7 @@ A Scryfall `404` (no matches) is a `200` with an empty `cards` array — an empt
   "page": 1,
   "hasMore": true,
   "totalCards": 412,
+  "warmed": false,
   "cards": [
     {
       "scryfallId": "...",
@@ -360,11 +461,15 @@ Price every deck, collection, and wanted list from the local card cache and retu
 
 An unknown `type` or `currency` returns `400`.
 
+`mode` discriminates the two price bodies — `"summary"` here, `"list"` on
+[Price List](#price-list) — so a client that can receive either reads one field to know which it got.
+
 **Response:**
 
 ```json
 {
   "success": true,
+  "mode": "summary",
   "currency": "usd",
   "lastRefreshedAt": 1752600000000,
   "lists": [
@@ -411,6 +516,7 @@ Price a single list and return its summary plus every priced card entry (in file
 ```json
 {
   "success": true,
+  "mode": "list",
   "currency": "usd",
   "lastRefreshedAt": 1752600000000,
   "list": {
@@ -462,18 +568,61 @@ Save deck changes. Writes the updated deck file and appends to the changelog. Pa
   "deck": { "name": "...", "sections": [] },
   "frontMatter": {},
   "contentHash": "…",
-  "continueSession": false
+  "continueSession": false,
+  "validateCardNames": false
 }
 ```
+
+### `validateCardNames`
+
+The three save routes and both [Move Selected Cards](#move-selected-cards) / [Remove Cards](#remove-cards) routes accept an optional boolean `validateCardNames`, default `false`. It is validated, never coerced: any non-boolean value is a `400`.
+
+With it set, every card name the request mentions is checked against the local Scryfall card cache before anything is written:
+
+- A name **already present in the affected list** is accepted with no lookup at all — the file is the authority on what is in it, which is what keeps a custom, proxied, or unreleased card removable and editable.
+- Any other name must be one the cache knows. An unknown one is a `400` naming up to three of the closest cached spellings.
+- An **empty** cache is also a `400`, with a message naming both remedies (the MCP `refresh_cache` tool, or `ritual cache preload-all`). This differs from [Price List](#price-list)'s `503` deliberately: `validateCardNames: true` is a precondition the _client_ asserted, so a request the server cannot satisfy as asked is a client error — whereas a cold cache blocks the price routes' whole purpose regardless of what the caller asked.
+
+Off by default so the admin UI's behavior is unchanged: it only ever sends names it read from a list, and it cannot assume a warm cache. The MCP write tools set it on every request they build (the import tools excepted — their engines already report per-row failures).
 
 **Response:**
 
 ```json
 {
   "success": true,
-  "message": "Saved 3 changes to My Deck"
+  "message": "Saved 3 changes to My Deck",
+  "contentHash": "…",
+  "droppedNotes": [],
+  "effects": [
+    {
+      "action": "added",
+      "cardId": 7,
+      "name": "Sol Ring",
+      "section": "Main",
+      "quantity": 1,
+      "printing": { "set": "c21", "collectorNumber": "167" }
+    }
+  ]
 }
 ```
+
+### `effects`
+
+All three save routes answer with an `effects` array describing what the save did to individual card
+lines, and a `contentHash` for the next save. Each entry is
+`{ action, cardId, name, section?, quantity, printing?, previousCardId? }`, where `action` is
+`added`, `removed`, or `updated`.
+
+`previousCardId` appears only on an `updated` effect whose line was **renumbered**: another entry in
+the same save arrived claiming its `&N` (a cross-list move carrying its source id, a replayed change
+bundle), so the serializer handed the older line a fresh number. Without it, a card the list has held
+all along would be reported as newly `added`.
+
+The response is the **only** place these ids can appear: a card's persistent `&N` id is allocated at
+serialization time, inside the save, so a client that added a card cannot know the id its line got
+until the response says so. That is what removes the follow-up load an MCP agent (or any API client)
+would otherwise make just to learn one number. Set codes inside `printing` are lowercase, per the
+project's data-payload convention.
 
 ## List Collections
 
@@ -498,18 +647,22 @@ Returns the list of available collections.
 GET /api/collection/:slug
 ```
 
-Load a collection with full card data, printings, and mana symbol map.
+Load a collection with full card data, printings, and mana symbol map. Accepts the same [list load parameters](#list-load-parameters) as [Load Deck](#load-deck); the `cards` view returns `entries` + `sectionOrder` rather than a deck.
 
 **Response:**
 
 ```json
 {
   "success": true,
-  "collection": { "name": "...", "cards": [] },
+  "view": "full",
+  "entries": [{ "name": "Sol Ring", "set": "2xm", "collectorNumber": "270", "cardId": 1 }],
+  "sectionOrder": ["Main"],
+  "totalCount": 42,
   "cards": { "Sol Ring": {} },
   "printings": { "Sol Ring": [] },
   "symbolMap": { "{W}": "https://..." },
-  "slug": "my-collection"
+  "slug": "my-collection",
+  "contentHash": "..."
 }
 ```
 
@@ -519,7 +672,7 @@ Load a collection with full card data, printings, and mana symbol map.
 POST /api/collection/:slug/save
 ```
 
-Save collection changes. Writes the updated collection file and creates a changelog entry. Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session. Every collection entry must carry a printing: an `add`, `move-to`, or `set-printing` change missing `set` or `collectorNumber` returns `400` and leaves the file untouched. A change whose target entry does not exist (matching is exact and case-sensitive on name, with `cardId` taking priority) also returns `400` naming the unapplied changes, and nothing is written — a save must never report success while dropping changes.
+Save collection changes. Writes the updated collection file and creates a changelog entry. Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session. Every collection entry must carry a printing: an `add`, `move-to`, or `set-printing` change missing `set` or `collectorNumber` returns `400` and leaves the file untouched. A change whose target entry does not exist (matching is exact and case-sensitive on name, with `cardId` taking priority) also returns `400` naming the unapplied changes, and nothing is written — a save must never report success while dropping changes. The optional [`validateCardNames`](#validatecardnames) flag applies here too.
 
 **Request Body:**
 
@@ -541,9 +694,14 @@ file's parsed order is kept.
 ```json
 {
   "success": true,
-  "message": "Saved 3 changes to My Collection"
+  "message": "Saved 3 changes to My Collection",
+  "contentHash": "…",
+  "droppedNotes": [],
+  "effects": [{ "action": "removed", "cardId": 4, "name": "Lightning Bolt", "quantity": 1 }]
 }
 ```
+
+See [`effects`](#effects) for what the array reports and why it is the response's job.
 
 ## Create Collection
 
@@ -645,18 +803,22 @@ Returns the list of available wanted lists.
 GET /api/wanted/:slug
 ```
 
-Load a wanted list with full card data, printings, and mana symbol map.
+Load a wanted list with full card data, printings, and mana symbol map. Accepts the same [list load parameters](#list-load-parameters) as [Load Deck](#load-deck); the `cards` view returns `entries` + `sectionOrder` rather than a deck.
 
 **Response:**
 
 ```json
 {
   "success": true,
-  "entries": [{ "name": "Sol Ring", "set": "2xm", "collectorNumber": "270" }],
+  "view": "full",
+  "entries": [{ "name": "Sol Ring", "set": "2xm", "collectorNumber": "270", "cardId": 1 }],
+  "sectionOrder": ["Main"],
+  "totalCount": 42,
   "cards": { "Sol Ring": {} },
   "printings": { "Sol Ring": [] },
   "symbolMap": { "{W}": "https://..." },
-  "slug": "high-priority"
+  "slug": "high-priority",
+  "contentHash": "..."
 }
 ```
 
@@ -666,7 +828,7 @@ Load a wanted list with full card data, printings, and mana symbol map.
 POST /api/wanted/:slug/save
 ```
 
-Save wanted list changes. Writes the updated wanted list file and appends to the changelog. Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session.
+Save wanted list changes. Writes the updated wanted list file and appends to the changelog. Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session. The optional [`validateCardNames`](#validatecardnames) flag applies here too.
 
 **Request Body:**
 
@@ -684,9 +846,14 @@ Save wanted list changes. Writes the updated wanted list file and appends to the
 ```json
 {
   "success": true,
-  "message": "Saved 3 changes to high-priority"
+  "message": "Saved 3 changes to high-priority",
+  "contentHash": "…",
+  "droppedNotes": [],
+  "effects": [{ "action": "added", "cardId": 9, "name": "Sol Ring", "quantity": 1 }]
 }
 ```
+
+See [`effects`](#effects) for what the array reports and why it is the response's job.
 
 ## Create Wanted List
 
@@ -781,9 +948,11 @@ Returns every list (deck, collection, wanted) and every physical card across the
 | `name`     | Whitespace-separated name terms, matched as [autocomplete](#card-autocomplete) matches them: case-, accent-, and punctuation-insensitive, in any order (`in tre` finds "In the Trenches") |
 | `listType` | `deck`, `collection`, or `wanted`; anything else is a `400`                                                                                                                               |
 | `slug`     | Exact list slug (the file basename); a value with a path separator is a `400`                                                                                                             |
-| `set`      | Set code, matched lowercase — `LEA` and `lea` both match a card stored as `lea`                                                                                                           |
+| `set`      | Set code, matched lowercase — `LEA` and `lea` both match a card stored as `lea`. A malformed code (anything but letters and digits) is a `400`                                            |
 
 Only `cards` is filtered. `lists` is **always** the full roster, because clients render move destinations from it.
+
+`warnings` is **always present** (possibly empty), so a client can tell "nothing went wrong" from "this server does not report warnings". It names each list file that could not be fully read — an unparseable card line, or a deck file that could not be read at all — so an empty result is never silently wrong. One bad file never fails the whole index; the other lists are still returned.
 
 **Response:**
 
@@ -805,7 +974,8 @@ Only `cards` is filtered. `lists` is **always** the full roster, because clients
       "cardId": 1,
       "copyIndex": 0
     }
-  ]
+  ],
+  "warnings": ["decks/burn.md: could not be read or parsed; its cards are missing from the index."]
 }
 ```
 
@@ -849,9 +1019,12 @@ Apply a batch of queued moves atomically. The move state is rebuilt from disk an
   "requested": 1,
   "skipped": 0,
   "droppedNotes": [{ "cardName": "Sol Ring", "cardId": 3, "note": "from trade" }],
+  "warnings": [],
   "message": "Moved 1 card."
 }
 ```
+
+`warnings` is **always present** (possibly empty): it names each list file that could not be fully read while the card index this route resolves against was rebuilt, so a skipped move is never silently unexplained.
 
 ## Move Selected Cards
 
@@ -859,7 +1032,7 @@ Apply a batch of queued moves atomically. The move state is rebuilt from disk an
 POST /api/move/selected
 ```
 
-Move a batch of selected cards across lists atomically — backs the cross-list **Move all selected** multi-select action. Each item addresses its source card by list + identity (the same `cardId`/`copyIndex` scheme as [Remove Cards](#remove-cards)) and its destination by `toType` + `toSlug`. The optional printing fields and `toSection` behave exactly as in [Commit Moves](#commit-moves). Cards or destinations that can no longer be resolved — or whose destination is the list they already live in — are skipped and reported.
+Move a batch of selected cards across lists atomically — backs the cross-list **Move all selected** multi-select action. Each item addresses its source card by list + identity (the same `cardId`/`copyIndex` scheme as [Remove Cards](#remove-cards)) and its destination by `toType` + `toSlug`. The optional printing fields and `toSection` behave exactly as in [Commit Moves](#commit-moves). Cards or destinations that can no longer be resolved — or whose destination is the list they already live in — are skipped and reported. The optional [`validateCardNames`](#validatecardnames) flag applies here too.
 
 **Request Body:**
 
@@ -890,9 +1063,12 @@ Move a batch of selected cards across lists atomically — backs the cross-list 
   "requested": 1,
   "skipped": 0,
   "droppedNotes": [],
+  "warnings": [],
   "message": "Moved 1 card."
 }
 ```
+
+`warnings` is **always present** (possibly empty): it names each list file that could not be fully read while the card index this route resolves against was rebuilt, so a skipped move is never silently unexplained.
 
 ## Remove Cards
 
@@ -900,7 +1076,7 @@ Move a batch of selected cards across lists atomically — backs the cross-list 
 POST /api/remove/commit
 ```
 
-Remove a batch of cards across lists atomically — backs the cross-list **Remove all selected** multi-select action. The state is rebuilt from disk, each requested card is resolved to its physical key and marked for removal, and the source files and their changelogs are written in a single pass. Deck copies are addressed by `copyIndex` (one item per copy); collection and wanted entries use their `cardId` at `copyIndex` 0. Cards that can no longer be resolved are skipped and reported. When git auto-commit is enabled, the written files are committed in a single commit (`Remove N cards`).
+Remove a batch of cards across lists atomically — backs the cross-list **Remove all selected** multi-select action. The state is rebuilt from disk, each requested card is resolved to its physical key and marked for removal, and the source files and their changelogs are written in a single pass. Deck copies are addressed by `copyIndex` (one item per copy); collection and wanted entries use their `cardId` at `copyIndex` 0. Cards that can no longer be resolved are skipped and reported. The optional [`validateCardNames`](#validatecardnames) flag applies here too. When git auto-commit is enabled, the written files are committed in a single commit (`Remove N cards`).
 
 **Request Body:**
 
@@ -926,9 +1102,12 @@ Remove a batch of cards across lists atomically — backs the cross-list **Remov
   "removed": 1,
   "requested": 1,
   "skipped": 0,
+  "warnings": [],
   "message": "Removed 1 card."
 }
 ```
+
+`warnings` is **always present** (possibly empty): it names each list file that could not be fully read while the card index this route resolves against was rebuilt, so a skipped removal is never silently unexplained.
 
 ## List All Lists
 
@@ -973,8 +1152,8 @@ A missing `a`/`b`, an invalid `by`, or a name that resolves to no list (or ambig
 ```json
 {
   "success": true,
-  "a": { "type": "deck", "slug": "burn", "name": "Burn" },
-  "b": { "type": "collection", "slug": "binder", "name": "Binder" },
+  "a": { "listType": "deck", "slug": "burn", "name": "Burn" },
+  "b": { "listType": "collection", "slug": "binder", "name": "Binder" },
   "by": "name",
   "matches": [
     {
@@ -1130,7 +1309,7 @@ GET /api/deck-sync
 
 Returns every Archidekt-linked deck that can be synced — those whose front matter has both an
 Archidekt `sourceUrl` and a `sourceId` — plus the stored Archidekt login. Backs the
-[Sync Decks](/admin/sync-decks/) page and the MCP `deck_sync_status` tool.
+[Sync Decks](/admin/sync-decks/) page and the MCP `get_sync_status` tool.
 
 **Response:**
 
@@ -1514,7 +1693,7 @@ Rows that fail validation are returned in `failures` while the valid rows still 
 POST /api/import-changes
 ```
 
-Apply a change bundle exported from the site editor to the underlying lists. Used by the admin site's **Import Changes** page and exposed as the MCP `import_changes` tool; shares its apply engine with the [`import-changes`](/commands/import-changes/) CLI command.
+Apply a change bundle exported from the site editor to the underlying lists. Used by the admin site's **Import Changes** page and exposed as the MCP `import_change_bundle` tool; shares its apply engine with the [`import-changes`](/commands/import-changes/) CLI command.
 
 **Request Body:** the exported JSON, verbatim — a `ritual-change-bundle` covering one or more lists:
 
@@ -1540,6 +1719,7 @@ Apply a change bundle exported from the site editor to the underlying lists. Use
 {
   "success": true,
   "message": "Applied 1 change across 1 list",
+  "failedCount": 0,
   "lists": [
     {
       "kind": "deck",
@@ -1552,7 +1732,7 @@ Apply a change bundle exported from the site editor to the underlying lists. Use
 }
 ```
 
-Each list is loaded fresh and its changes re-targeted to the current card IDs (by ID when it still exists, otherwise by card name). Changes whose target card no longer exists are skipped and reported in that list's `conflicts` (`{ change, reason: "target-not-found" }`). A list that fails to load or save carries an `error` string (and `applied: 0`) without stopping the remaining lists; `success` is `true` only when no list errored. `move-from` changes also write their destination lists, and every applied list gets a changelog entry — the same save path as the editors. The response is `400` when the body is not a valid change bundle.
+Each list is loaded fresh and its changes re-targeted to the current card IDs (by ID when it still exists, otherwise by card name). Changes whose target card no longer exists — or whose action cannot apply to that list, such as a commander change aimed at a collection — are skipped and reported in that list's `conflicts` (`{ change, reason }`, where `reason` is `"target-not-found"` or `"not-applicable"`). A list that fails to load or save carries an `error` string (and `applied: 0`) without stopping the remaining lists, and is counted in `failedCount`. `success` stays `true` on a partial import — the request was processed, and the per-list report is what says which lists failed. Read `failedCount` (and each list's `error`), not the envelope. `move-from` changes also write their destination lists, and every applied list gets a changelog entry — the same save path as the editors. The response is `400` when the body is not a valid change bundle.
 
 ## Export Cards
 

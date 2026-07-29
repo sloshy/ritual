@@ -8,7 +8,8 @@ import {
   countLabel,
   parseChangeBundle,
 } from '../../../editor/change-bundle'
-import type { BundleImportResult } from '../../api/import-changes'
+import type { BundleImportResponse, BundleImportResult } from '../../api/import-changes'
+import type { ApiErrorResponse } from '../../api/save-helpers'
 import { PageHeading } from '../components/PageHeading'
 
 type SourceMethod = 'upload' | 'text'
@@ -20,8 +21,13 @@ const METHODS: MethodOption[] = [
   { id: 'text', label: 'Paste Text' },
 ]
 
-/** The import route's response: per-list outcomes plus a human-readable summary. */
-type ApplyResponse = BundleImportResult & { message: string }
+/**
+ * The import route's response: per-list outcomes plus a human-readable summary,
+ * or the shared refusal envelope when the bundle never got as far as applying.
+ * A partial import answers 200 with `success: true` and a non-zero
+ * `failedCount`, so the per-list report survives to be rendered.
+ */
+type ApplyResponse = BundleImportResponse | ApiErrorResponse
 
 /**
  * Admin page to apply a change bundle exported from the public site's
@@ -83,12 +89,15 @@ export function ImportChanges(): JSX.Element {
         body: content(),
       })
       const data = (await resp.json()) as ApplyResponse
-      if (Array.isArray(data.lists)) setResult(data)
-      if (data.success) {
-        setStatus(data.message ?? 'Changes applied')
-      } else {
-        setError(data.message ?? 'Failed to apply changes')
+      if (!data.success) {
+        setError(data.message || 'Failed to apply changes')
+        return
       }
+      setResult(data)
+      // A list that failed to load or save still leaves a report worth showing,
+      // so the banner is the only thing that changes.
+      if (data.failedCount > 0) setError(data.message)
+      else setStatus(data.message || 'Changes applied')
     } catch {
       setError('Failed to apply changes')
     } finally {

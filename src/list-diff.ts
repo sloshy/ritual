@@ -185,7 +185,13 @@ export function isListDiffEmpty(result: ListDiffResult): boolean {
  * the load endpoints) plus the human-facing display name.
  */
 export type DiffListRef = {
-  type: ListType
+  /**
+   * Spelled `listType` rather than `type` on purpose: it is the same vocabulary
+   * every list-addressing surface uses (`list_lists`, the MCP tools' arguments,
+   * `find_cards`' roster), so one side of a diff can be handed straight back to
+   * whatever names a list.
+   */
+  listType: ListType
   slug: string
   name: string
 }
@@ -196,7 +202,11 @@ export type DiffListRef = {
  * to the file basename when neither parses.
  */
 export async function loadDiffListRef(location: ListLocation): Promise<DiffListRef> {
-  return { type: location.type, slug: location.name, name: await loadListDisplayName(location) }
+  return {
+    listType: location.type,
+    slug: location.name,
+    name: await loadListDisplayName(location),
+  }
 }
 
 async function loadListDisplayName(location: ListLocation): Promise<string> {

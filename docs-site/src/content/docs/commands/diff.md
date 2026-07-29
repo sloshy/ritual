@@ -84,8 +84,8 @@ Identical lists (no one-sided entries, no quantity mismatches) print
 
 ```json
 {
-  "a": { "type": "deck", "slug": "burn", "name": "Burn" },
-  "b": { "type": "collection", "slug": "binder", "name": "Binder" },
+  "a": { "listType": "deck", "slug": "burn", "name": "Burn" },
+  "b": { "listType": "collection", "slug": "binder", "name": "Binder" },
   "by": "name",
   "matches": [
     {

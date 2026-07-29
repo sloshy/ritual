@@ -712,6 +712,34 @@ export class ScryfallClient implements PricingBackend {
   }
 
   /**
+   * Project raw Scryfall search items to real printings and warm the local cache
+   * with the names it does not already hold.
+   *
+   * Both halves matter and travel together: the cache stores `ScryfallCard`, not
+   * raw Scryfall JSON, so warming without `mapScryfallCard` would poison it, and
+   * `isRealPrinting` keeps tokens, art series, and other non-printings out.
+   * An existing name is never overwritten — a warm-up may not replace a full
+   * printing list built by a preload with the one printing a search happened to
+   * return.
+   */
+  async cacheRealPrintings(items: readonly ScryfallCard[]): Promise<ScryfallCard[]> {
+    const cards: ScryfallCard[] = []
+    for (const item of items) {
+      if (!isRealPrinting(item)) continue
+
+      const card = mapScryfallCard(item)
+
+      const existing = await this.cardCache.get(card.name)
+      if (!existing) {
+        await this.cardCache.set(card.name, [card])
+      }
+
+      cards.push(card)
+    }
+    return cards
+  }
+
+  /**
    * Run a Scryfall search and cache every real printing it returns.
    *
    * Walks at most {@link SearchCardsOptions.maxPages} result pages — one by
@@ -740,18 +768,7 @@ export class ScryfallClient implements PricingBackend {
           const json = (await response.json()) as ScryfallList<ScryfallCard>
           const data = json.data || []
 
-          for (const item of data) {
-            if (!isRealPrinting(item)) continue
-
-            const card = mapScryfallCard(item)
-
-            const existing = await this.cardCache.get(card.name)
-            if (!existing) {
-              await this.cardCache.set(card.name, [card])
-            }
-
-            allCards.push(card)
-          }
+          allCards.push(...(await this.cacheRealPrintings(data)))
 
           if (json.has_more && json.next_page && pagesFetched < maxPages) {
             nextUrl = json.next_page

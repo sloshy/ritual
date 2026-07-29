@@ -4,8 +4,10 @@ import type { DeckData, ScryfallCard } from '../../../types'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../../site/data-types'
 import { createChangeId } from '../../../change-event'
 import { formatDroppedNotesSuffix } from '../../../editor/dropped-notes'
-import type { MoveCommitResponse, MoveErrorResponse, MovePhysicalCard } from '../../api/move'
-import type { CardIndexErrorResponse, CardIndexResponse } from '../../api/card-index'
+import type { MoveCommitResponse } from '../../api/move'
+import type { MovePhysicalCard } from '../../../card-index-types'
+import type { CardIndexResponse } from '../../api/card-index'
+import type { ApiErrorResponse } from '../../api/save-helpers'
 import type { ListInfo } from '../../../list-info'
 import {
   type PendingMove,
@@ -197,7 +199,7 @@ export function useMoveSession(): UseMoveSessionResult {
   const reloadBulk = async (): Promise<void> => {
     try {
       const resp = await fetch('/api/card-index', { credentials: 'same-origin' })
-      const data = (await resp.json()) as CardIndexResponse | CardIndexErrorResponse
+      const data = (await resp.json()) as CardIndexResponse | ApiErrorResponse
       if (!data.success) {
         setError(data.message)
         return
@@ -446,7 +448,7 @@ export function useMoveSession(): UseMoveSessionResult {
           })),
         }),
       })
-      const json = (await resp.json()) as MoveCommitResponse | MoveErrorResponse
+      const json = (await resp.json()) as MoveCommitResponse | ApiErrorResponse
       if (!json.success) {
         setError(json.message)
         return

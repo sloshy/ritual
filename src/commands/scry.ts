@@ -10,6 +10,7 @@ import {
   ExitCode,
   normalizeScriptingOptions,
   projectFields,
+  projectFieldsArray,
   rejectFieldsWithTextOutput,
   renderCardSummary,
   type ScriptingOptions,
@@ -84,6 +85,16 @@ export function validateScryUsage(input: ScryUsageInput): string | null {
   return null
 }
 
+/**
+ * The most result pages one `scry` run will fetch, interactive or not. Each page
+ * is a separate paced Scryfall request, so this is a courtesy bound on their API
+ * as much as a guard against a typo'd `--pages`.
+ */
+export const MAX_SCRY_PAGES = 20
+
+/** The most random cards one `--random --count` run will fetch, for the same reason. */
+export const MAX_SCRY_RANDOM_COUNT = 50
+
 export function registerScryCommand(program: Command): void {
   addScriptingOptions(
     addFieldsOption(
@@ -94,14 +105,14 @@ export function registerScryCommand(program: Command): void {
         .option('--csv', 'Output as CSV', false)
         .option(
           '--pages <number>',
-          'Fetch up to this many pages without prompting (default 1 when prompts are unavailable)',
-          parsePages,
+          `Fetch up to this many pages without prompting (default 1 when prompts are unavailable, max ${MAX_SCRY_PAGES})`,
+          parseScryPages,
         )
         .option('--random', 'Fetch random cards instead of searching', false)
         .option(
           '--count <number>',
-          'Number of random cards to fetch with --random (default 1)',
-          parseCount,
+          `Number of random cards to fetch with --random (default 1, max ${MAX_SCRY_RANDOM_COUNT})`,
+          parseScryCount,
         ),
     ),
     'json',
@@ -147,8 +158,26 @@ export function registerScryCommand(program: Command): void {
       pagesFlag: options.pages,
     })
     // Interactive paging keeps fetching until the user declines; otherwise the
-    // explicit `--pages` cap applies, defaulting to a single page.
-    const maxPages = options.pages ?? (interactivePaging ? Number.MAX_SAFE_INTEGER : 1)
+    // explicit `--pages` cap applies, defaulting to a single page. Even the
+    // interactive path is bounded — a held-down Enter must not walk a result set
+    // forever at one paced request per page.
+    const maxPages = options.pages ?? (interactivePaging ? MAX_SCRY_PAGES : 1)
+
+    /**
+     * Cards collected for a single `--output json` document.
+     *
+     * `json` must emit ONE document, and always the same one: a scripted run
+     * writes exactly one array of cards whether it fetched one page or five, so
+     * a caller can `JSON.parse` stdout without knowing how many pages there
+     * were. `ndjson` streams per page — that is its contract — and `csv`
+     * concatenates rows, so only this mode buffers.
+     *
+     * Interactive paging is the one exception: the whole point of the prompt is
+     * seeing each page before asking for the next, so those runs keep printing
+     * per page.
+     */
+    const jsonCards: unknown[] = []
+    const bufferJson = format === 'json' && scriptingOptions.output === 'json' && !interactivePaging
 
     /** Report a page that could not be fetched, and set the runtime exit code. */
     const failPage = (message: string): void => {
@@ -188,7 +217,9 @@ export function registerScryCommand(program: Command): void {
         }
 
         if (format === 'json' && data) {
-          if (scriptingOptions.output === 'ndjson') {
+          if (bufferJson) {
+            jsonCards.push(...projectFieldsArray(data.data, options.fields))
+          } else if (scriptingOptions.output === 'ndjson') {
             emitOutput(projectFields(data.data, options.fields), scriptingOptions)
           } else if (options.fields && options.fields.length > 0) {
             emitOutput(projectFields(data.data, options.fields), scriptingOptions)
@@ -223,6 +254,14 @@ export function registerScryCommand(program: Command): void {
         failPage(getErrorMessage(e))
         break
       }
+    }
+
+    // One document for the whole run, however many pages it took — including the
+    // empty array for a run that found nothing or failed on its first page, so
+    // stdout parses as the same shape no matter how the run went (the failure
+    // itself is on stderr and in the exit code).
+    if (bufferJson) {
+      emitOutput(jsonCards, scriptingOptions)
     }
   })
 }
@@ -272,21 +311,30 @@ async function runRandom(
   emitOutput(projectFields(count === 1 ? cards[0] : cards, fields), scriptingOptions)
 }
 
-/** Reject non-numeric and non-positive flag values at parse time. */
-function parsePositiveInt(value: string, label: string): number {
+/**
+ * Reject non-numeric, non-positive, and unbounded flag values at parse time.
+ *
+ * Every page is a paced Scryfall request, so an accidental `--pages 100000`
+ * would spend the rate limit for an hour before anyone noticed. The cap is named
+ * in the message so a caller who really wants more knows what the ceiling is.
+ */
+function parseBoundedInt(value: string, label: string, max: number): number {
   const parsed = parsePositiveInteger(value)
   if (parsed === undefined) {
     throw new InvalidArgumentError(`${label} must be a positive integer.`)
   }
+  if (parsed > max) {
+    throw new InvalidArgumentError(`${label} must be at most ${max}.`)
+  }
   return parsed
 }
 
-/** Commander argParser for --pages. */
-function parsePages(value: string): number {
-  return parsePositiveInt(value, 'Pages')
+/** Commander argParser for `--pages`; exported so its bound is pinned directly. */
+export function parseScryPages(value: string): number {
+  return parseBoundedInt(value, 'Pages', MAX_SCRY_PAGES)
 }
 
-/** Commander argParser for --count. */
-function parseCount(value: string): number {
-  return parsePositiveInt(value, 'Count')
+/** Commander argParser for `--count`; exported so its bound is pinned directly. */
+export function parseScryCount(value: string): number {
+  return parseBoundedInt(value, 'Count', MAX_SCRY_RANDOM_COUNT)
 }

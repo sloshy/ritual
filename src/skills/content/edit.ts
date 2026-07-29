@@ -218,10 +218,13 @@ ritual import-changes edits.json --yes    # apply without the confirmation promp
 
 Agents and scripts must always pass \`--yes\`: when stdin is not a terminal the
 command refuses with exit code 2 instead of prompting. With \`--output json\` the
-preview is suppressed and the apply report (\`{success, lists, message}\` —
-byte-identical to the admin \`/api/import-changes\` response and the MCP
-\`import_changes\` tool) is emitted on stdout; \`--yes\` is required there too, since
-the confirmation prompt only exists in text mode.
+preview is suppressed and the apply report (\`{success, failedCount, lists, message}\`
+— byte-identical to the admin \`/api/import-changes\` response; the MCP
+\`import_change_bundle\` tool returns the same fields without the constant \`success\`)
+is emitted on stdout; \`--yes\` is required there too, since the confirmation prompt
+only exists in text mode. \`success\` is always \`true\` on a report that was produced
+at all — read \`failedCount\`, and each list's own \`error\`, to tell a clean import
+from a partial one.
 
 Changes are re-targeted to each list's current \`&N\` card IDs (by ID when it still
 exists, else by card name); changes whose target card no longer exists are skipped

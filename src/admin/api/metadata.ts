@@ -5,7 +5,12 @@ import { parseDeckFrontMatter, writeDeckFrontMatter, type DeckFrontMatter } from
 import { invalidDeckFormatMessage, parseDeckFormat, type DeckFormatKey } from '../../deck-format'
 import { parseListTarget } from './target'
 import { resolveListFile } from './list-info'
-import { autoCommitAndPush, validateBodySize, validateContentHash } from './save-helpers'
+import {
+  apiError,
+  autoCommitAndPush,
+  readJsonObjectBody,
+  validateContentHash,
+} from './save-helpers'
 
 /**
  * `PUT /api/metadata/:type/:slug` — write a list's front matter.
@@ -58,8 +63,6 @@ export type MetadataResponse = {
   contentHash: string
 }
 
-type MetadataErrorResponse = { success: false; message: string }
-
 /** The keys a metadata write accepts, in the order the error message lists them. */
 export const DECK_METADATA_KEYS = [
   'description',
@@ -81,23 +84,18 @@ const REJECTED_KEYS: Record<string, string> = {
   lastSynced: 'lastSynced is stamped by deck sync and cannot be edited.',
 }
 
-function errorResponse(message: string, status: number): Response {
-  const body: MetadataErrorResponse = { success: false, message }
-  return Response.json(body, { status })
-}
-
 /**
- * Validate an untrusted request body into a {@link ParsedDeckMetadataBody}, or
- * return the error message explaining why it is not usable. Unknown keys are
- * refused outright so a typo silently writing nothing is impossible, and
+ * Validate an untrusted request body object into a {@link ParsedDeckMetadataBody},
+ * or return the error message explaining why it is not usable. The object guard
+ * itself is the shared route prologue's job ({@link readJsonObjectBody}); this
+ * validates the fields. Unknown keys are refused outright so a typo silently
+ * writing nothing is impossible, and
  * `contentHash` is validated here rather than recovered by the handler — a
  * malformed token must fail the request, not quietly skip the concurrency check.
  */
-export function parseDeckMetadataBody(body: unknown): ParsedDeckMetadataBody | string {
-  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
-    return 'Request body must be a JSON object.'
-  }
-  const raw = body as Record<string, unknown>
+export function parseDeckMetadataBody(
+  raw: Record<string, unknown>,
+): ParsedDeckMetadataBody | string {
   const patch: DeckMetadataPatch = {}
 
   for (const key of Object.keys(raw)) {
@@ -228,29 +226,22 @@ function mergeFrontMatter(existing: DeckFrontMatter, patch: DeckMetadataPatch): 
 export async function handleMetadataSave(req: Request): Promise<Response> {
   try {
     const target = parseListTarget(req)
-    if (target instanceof Response) return target
+    if (typeof target === 'string') return apiError(target, 400)
     if (target.type !== 'deck') {
-      return errorResponse(
+      return apiError(
         'Collections and wanted lists carry no metadata. Use POST /api/<type>/:slug/rename to change the display name.',
         400,
       )
     }
 
-    const sizeError = validateBodySize(req)
-    if (sizeError) return sizeError
+    const read = await readJsonObjectBody(req)
+    if (!read.ok) return read.response
 
-    let body: unknown
-    try {
-      body = await req.json()
-    } catch {
-      return errorResponse('Request body must be JSON.', 400)
-    }
-
-    const parsed = parseDeckMetadataBody(body)
-    if (typeof parsed === 'string') return errorResponse(parsed, 400)
+    const parsed = parseDeckMetadataBody(read.body)
+    if (typeof parsed === 'string') return apiError(parsed, 400)
 
     const filePath = await resolveListFile('deck', target.slug)
-    if (!filePath) return errorResponse(`Deck '${target.slug}' not found`, 404)
+    if (!filePath) return apiError(`Deck '${target.slug}' not found`, 404)
 
     if (parsed.contentHash !== undefined) {
       const validation = await validateContentHash(filePath, parsed.contentHash, 'Deck')
@@ -275,6 +266,6 @@ export async function handleMetadataSave(req: Request): Promise<Response> {
     }
     return Response.json(response)
   } catch (error) {
-    return errorResponse(getErrorMessage(error), 500)
+    return apiError(getErrorMessage(error), 500)
   }
 }

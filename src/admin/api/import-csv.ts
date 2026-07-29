@@ -5,7 +5,7 @@ import { convertCsvRows, parseColumnsSpec, parseCsv, type CsvRowFailure } from '
 import { applyCsvImport, type CsvImportMode } from '../../importers/csv-apply'
 import { dirForType } from '../../resolve-list'
 import { apiHandler } from '../utils'
-import { autoCommitAndPush } from './save-helpers'
+import { autoCommitAndPush, readJsonObjectBody } from './save-helpers'
 
 /**
  * CSV import request from the admin site (and, through the in-process dispatch,
@@ -59,7 +59,9 @@ function badRequest(message: string, failures?: CsvRowFailure[]): Response {
 
 export function handleImportCsv(req: Request): Promise<Response> {
   return apiHandler(async () => {
-    const body: unknown = await req.json()
+    const parsedBody = await readJsonObjectBody(req)
+    if (!parsedBody.ok) return parsedBody.response
+    const body: unknown = parsedBody.body
     if (!isImportCsvRequest(body)) {
       return badRequest(
         'Invalid request: expected listType, name, content, and columns (with optional mode, format, hasHeader)',

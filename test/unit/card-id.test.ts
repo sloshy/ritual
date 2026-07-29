@@ -1,5 +1,8 @@
 import { describe, test, expect } from 'bun:test'
 import {
+  assignDeckCardIds,
+  assignEntryIds,
+  assignMissingEntryIds,
   createIdPool,
   allocateId,
   releaseId,
@@ -406,6 +409,101 @@ describe('assignMissingDeckCardIds', () => {
     const deck = makeDeck('Empty', [])
     const result = assignMissingDeckCardIds(deck)
     expect(result.sections).toEqual([])
+  })
+})
+
+describe('assignMissingEntryIds', () => {
+  type FlatEntry = { name: string; cardId?: number }
+
+  test('gives every id-less entry a distinct id, so two copies stay addressable', () => {
+    // The move/remove key scheme falls back to the card *name* when there is no
+    // id, so two id-less copies of one card collapse to the same key and only
+    // one of them can ever be moved or removed.
+    const result = assignMissingEntryIds<FlatEntry>([{ name: 'Sol Ring' }, { name: 'Sol Ring' }])
+    expect(result.map((entry) => entry.cardId)).toEqual([1, 2])
+  })
+
+  test('preserves ids that are already there, filling the gaps', () => {
+    const result = assignMissingEntryIds<FlatEntry>([
+      { name: 'Sol Ring', cardId: 1 },
+      { name: 'Bolt' },
+      { name: 'Mana Crypt', cardId: 3 },
+    ])
+    expect(result.map((entry) => entry.cardId)).toEqual([1, 2, 3])
+  })
+
+  test('a repeated id is reallocated — first claimant keeps it', () => {
+    // How a `move-to` carrying its source list's id, or a replayed change
+    // bundle, would otherwise write two `&5` lines. The second entry draws from
+    // the pool like any id-less one, so it takes the smallest free number.
+    const result = assignMissingEntryIds<FlatEntry>([
+      { name: 'Sol Ring', cardId: 5 },
+      { name: 'Arcane Signet', cardId: 5 },
+    ])
+    expect(result.map((entry) => entry.cardId)).toEqual([5, 1])
+  })
+
+  test('does not mutate the input, and reuses entries whose id was usable', () => {
+    const kept: FlatEntry = { name: 'Sol Ring', cardId: 1 }
+    const bare: FlatEntry = { name: 'Bolt' }
+    const result = assignMissingEntryIds([kept, bare])
+    expect(result[0]).toBe(kept)
+    expect(bare.cardId).toBeUndefined()
+  })
+})
+
+describe('assignDeckCardIds / assignEntryIds report their assignments', () => {
+  test('a deck assignment names the section, the index, and the id each line got', () => {
+    const deck: DeckData = {
+      name: 'Test',
+      sections: [
+        { name: 'Commander', cards: [{ quantity: 1, name: 'Atraxa', cardId: 4 }] },
+        { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
+      ],
+    }
+    const { deck: assigned, assignments } = assignDeckCardIds(deck)
+    expect(assigned.sections[1]!.cards[0]!.cardId).toBe(1)
+    expect(assignments).toEqual([
+      { sectionIndex: 0, cardIndex: 0, cardId: 4 },
+      { sectionIndex: 1, cardIndex: 0, cardId: 1 },
+    ])
+  })
+
+  test('a reallocated deck id reports the id the line arrived with', () => {
+    const deck: DeckData = {
+      name: 'Test',
+      sections: [
+        {
+          name: 'Main',
+          cards: [
+            { quantity: 1, name: 'Sol Ring', cardId: 5 },
+            { quantity: 1, name: 'Arcane Signet', cardId: 5 },
+          ],
+        },
+      ],
+    }
+    const { assignments } = assignDeckCardIds(deck)
+    expect(assignments[1]).toEqual({
+      sectionIndex: 0,
+      cardIndex: 1,
+      cardId: 1,
+      previousCardId: 5,
+    })
+  })
+
+  test('a flat assignment names the index and the id each entry got', () => {
+    type FlatEntry = { name: string; cardId?: number }
+    const { entries, assignments } = assignEntryIds<FlatEntry>([
+      { name: 'Sol Ring', cardId: 5 },
+      { name: 'Arcane Signet', cardId: 5 },
+      { name: 'Bolt' },
+    ])
+    expect(entries.map((entry) => entry.cardId)).toEqual([5, 1, 2])
+    expect(assignments).toEqual([
+      { index: 0, cardId: 5 },
+      { index: 1, cardId: 1, previousCardId: 5 },
+      { index: 2, cardId: 2 },
+    ])
   })
 })
 

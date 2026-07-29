@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
 import { handleAutocomplete } from '../../src/api/autocomplete'
-import { handleSearchCards, type SearchCardsResponse } from '../../src/admin/api/search-cards'
 import {
+  DEFAULT_WARM_LIMIT,
   handleCardSearch,
   type CardSearchFailure,
   type CardSearchResponse,
@@ -9,16 +9,25 @@ import {
 } from '../../src/api/card-search'
 import { cardCache } from '../../src/cache'
 import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
-import { makeScryfallCard } from '../test-utils'
+import { stubFetch, type StubbedFetch } from './helpers/stub-fetch'
+import { makeScryfallCard, seedCardNames } from '../test-utils'
 import type { ScryfallCard, ScryfallList } from '../../src/types'
 
 /**
- * The card-search endpoints behind the admin editor's search modal and the MCP
- * `autocomplete_card` / `search_cards` tools, plus the raw-Scryfall-syntax
- * `GET /api/card-search`. Autocomplete reads the on-disk Scryfall cache (seeded
- * here in a throwaway workspace); the other two proxy Scryfall itself (stubbed
- * here). Autocomplete and search-cards must both offer a card whose whole name
- * the query spells out ahead of the popular cards that merely contain it.
+ * The card-lookup endpoints behind the admin editor's search modal and the MCP
+ * `autocomplete_card` / `search_scryfall` tools.
+ *
+ * `GET /api/autocomplete` reads the on-disk Scryfall cache (seeded here in a
+ * throwaway workspace). `GET /api/card-search` proxies Scryfall itself (stubbed
+ * here) and carries both halves of what used to be two routes: a plain read that
+ * returns the page as Scryfall ordered it and touches no cache, and
+ * `warm=true`, which filters to real printings, writes names the cache lacks
+ * into it, promotes whole-name matches ahead of Scryfall's popularity order, and
+ * caps the result. The strict error contract — a refused query is a 400, a
+ * Scryfall server error is a 500, never an empty 200 — applies to both modes.
+ *
+ * Autocomplete and a warming search must both offer a card whose whole name the
+ * query spells out ahead of the popular cards that merely contain it.
  */
 
 /** Scryfall's error object, as it answers a search that matched nothing. */
@@ -26,6 +35,26 @@ type ScryfallErrorBody = { object: 'error' }
 
 /** Scryfall's error object when it explains itself (a malformed query). */
 type ScryfallErrorDetails = { object: 'error'; details: string }
+
+/** Anything Scryfall can answer a search with, as these tests stage it. */
+type ScryfallSearchBody = ScryfallList<ScryfallCard> | ScryfallErrorBody | ScryfallErrorDetails
+
+/** The installed stub, so both describes read the URLs it recorded the same way. */
+let scryfall: StubbedFetch
+
+/**
+ * Answer every Scryfall search with `body`, at `status`, discarding whatever the
+ * previous test staged. One helper for both modes: the two describes stub the
+ * same endpoint and differ only in what they assert about the answer.
+ */
+function stubScryfall(body: ScryfallSearchBody, status = 200): void {
+  scryfall = stubFetch({ 'https://api.scryfall.com': () => Response.json(body, { status }) })
+}
+
+/** The URLs the current stub has been asked for, in order. */
+function requestedUrls(): string[] {
+  return scryfall.sent.map((request) => request.url)
+}
 
 // "The End" is an unpopular card whose name the popular ones all contain. The
 // "Ach!" pair is the case that only whole-name promotion can get right in the
@@ -47,14 +76,6 @@ const CARD_NAMES = [
   'Intrepid Paleontologist',
 ]
 
-/** Seed the card cache with the fixture, which also stands in for a completed preload. */
-async function seedCardCache(): Promise<void> {
-  const entries: Record<string, ScryfallCard[]> = Object.fromEntries(
-    CARD_NAMES.map((name) => [name, [makeScryfallCard({ name })]]),
-  )
-  await cardCache.bulkSet(entries)
-}
-
 describe('handleAutocomplete', () => {
   type AutocompleteBody = { success: boolean; names: string[] }
 
@@ -62,7 +83,7 @@ describe('handleAutocomplete', () => {
 
   beforeAll(async () => {
     workspace = await bindWorkspace({ init: true, clearCardCache: true })
-    await seedCardCache()
+    await seedCardNames(...CARD_NAMES)
   })
 
   afterAll(async () => {
@@ -123,108 +144,16 @@ describe('handleAutocomplete', () => {
   })
 })
 
-describe('handleSearchCards', () => {
-  const originalFetch = globalThis.fetch
-  let workspace: BoundWorkspace
-
-  beforeAll(async () => {
-    workspace = await bindWorkspace({ init: true, clearCardCache: true })
-    // Scryfall is queried with order=edhrec, so it answers popular cards first.
-    const stub = (_input: string | URL | Request): Promise<Response> =>
-      Promise.resolve(
-        Response.json({
-          object: 'list',
-          has_more: false,
-          data: CARD_NAMES.map((name) => makeScryfallCard({ name })),
-        }),
-      )
-    globalThis.fetch = stub as typeof fetch
-    // A populated cache also keeps the search off the "pre-cache Scryfall?" prompt.
-    await seedCardCache()
-  })
-
-  afterAll(async () => {
-    globalThis.fetch = originalFetch
-    await workspace.dispose()
-  })
-
-  async function search(query: string): Promise<string[]> {
-    const req = new Request('http://localhost/api/search-cards', {
-      method: 'POST',
-      body: JSON.stringify({ query }),
-    })
-    const resp = await handleSearchCards(req)
-    expect(resp.status).toBe(200)
-    const body = (await resp.json()) as SearchCardsResponse
-    expect(body.success).toBe(true)
-    return body.cards.map((c) => c.name)
-  }
-
-  test('each result carries the oracle-level fields, not just a name', async () => {
-    const req = new Request('http://localhost/api/search-cards', {
-      method: 'POST',
-      body: JSON.stringify({ query: 'The End' }),
-    })
-    const body = (await (await handleSearchCards(req)).json()) as SearchCardsResponse
-    expect(body.cards[0]).toMatchObject({
-      name: 'The End',
-      // makeScryfallCard's neutral defaults, projected to the wire vocabulary.
-      set: 'tst',
-      collectorNumber: '1',
-      typeLine: 'Artifact',
-      cmc: 0,
-      colorIdentity: [],
-    })
-  })
-
-  test("a whole-name match leads Scryfall's popularity order", async () => {
-    // Scryfall answered with "The End" third; the rest keep their popularity order.
-    expect(await search('The End')).toEqual([
-      'The End',
-      ...CARD_NAMES.filter((name) => name !== 'The End'),
-    ])
-  })
-
-  test('a query matching no name in full keeps the popularity order', async () => {
-    expect(await search('The En')).toEqual(CARD_NAMES)
-  })
-
-  test('a missing query is a 400', async () => {
-    const req = new Request('http://localhost/api/search-cards', {
-      method: 'POST',
-      body: JSON.stringify({}),
-    })
-    expect((await handleSearchCards(req)).status).toBe(400)
-  })
-})
-
 /**
- * `GET /api/card-search` runs one page of a raw Scryfall query. Unlike
- * `/api/search-cards` it neither promotes whole-name matches nor writes to the
- * card cache — it hands back exactly the page Scryfall returned.
+ * The plain read: one page of a raw Scryfall query, handed back exactly as
+ * Scryfall ordered it, with no promotion and no cache write.
  */
 describe('handleCardSearch', () => {
-  const originalFetch = globalThis.fetch
-  let requestedUrls: string[]
-
   // No workspace and no seeded cache: this route neither reads nor writes the
   // card cache, so the only external it has is `fetch`.
   afterAll(() => {
-    globalThis.fetch = originalFetch
+    scryfall.restore()
   })
-
-  /** Answer every Scryfall search with `body`, recording the URLs asked for. */
-  function stubScryfall(
-    body: ScryfallList<ScryfallCard> | ScryfallErrorBody | ScryfallErrorDetails,
-    status = 200,
-  ): void {
-    requestedUrls = []
-    const stub = (input: string | URL | Request): Promise<Response> => {
-      requestedUrls.push(input instanceof Request ? input.url : String(input))
-      return Promise.resolve(Response.json(body, { status }))
-    }
-    globalThis.fetch = stub as typeof fetch
-  }
 
   type SearchRun = { status: number; body: CardSearchResponse }
 
@@ -262,8 +191,8 @@ describe('handleCardSearch', () => {
     expect(page.cards).toHaveLength(1)
     expect(page.cards[0]).toMatchObject({ name: 'The End', manaCost: '{4}{B}{B}', cmc: 6 })
     // Exactly one request, for the page asked for — the route never crawls.
-    expect(requestedUrls).toHaveLength(1)
-    expect(requestedUrls[0]).toContain('page=2')
+    expect(requestedUrls()).toHaveLength(1)
+    expect(requestedUrls()[0]).toContain('page=2')
   })
 
   test('a Scryfall 404 is an empty result, not an error', async () => {
@@ -286,7 +215,7 @@ describe('handleCardSearch', () => {
     stubScryfall({ object: 'list', has_more: false, data: [] })
 
     await search('q=%20%20t%3Asaga%20%20')
-    expect(requestedUrls[0]).toContain(`q=${encodeURIComponent('t:saga')}&`)
+    expect(requestedUrls()[0]).toContain(`q=${encodeURIComponent('t:saga')}&`)
   })
 
   test.each([
@@ -297,6 +226,161 @@ describe('handleCardSearch', () => {
 
     const resp = await handleCardSearch(new Request(url))
     expect(resp.status).toBe(400)
-    expect(requestedUrls).toEqual([])
+    expect(requestedUrls()).toEqual([])
+  })
+})
+
+/**
+ * The warming mode, folded in from what used to be `POST /api/search-cards`.
+ * Everything the old route did must still happen — real-printing filtering,
+ * cache warming that never overwrites, whole-name promotion, the 20-result cap —
+ * and the strict error contract it lacked now applies to it too.
+ */
+describe('handleCardSearch with warm=true', () => {
+  let workspace: BoundWorkspace
+
+  beforeAll(async () => {
+    workspace = await bindWorkspace({ init: true, clearCardCache: true })
+  })
+
+  afterAll(async () => {
+    scryfall.restore()
+    await workspace.dispose()
+  })
+
+  /** Scryfall answers popular cards first, since the route queries with order=edhrec. */
+  function stubPopularityOrder(names: string[] = CARD_NAMES): void {
+    stubScryfall({
+      object: 'list',
+      has_more: false,
+      data: names.map((name) => makeScryfallCard({ name })),
+    })
+  }
+
+  async function warmSearch(query: string, extra = ''): Promise<CardSearchSuccess> {
+    const resp = await handleCardSearch(
+      new Request(
+        `http://localhost/api/card-search?warm=true&q=${encodeURIComponent(query)}${extra}`,
+      ),
+    )
+    expect(resp.status).toBe(200)
+    const body = (await resp.json()) as CardSearchResponse
+    expect(body.success).toBeTrue()
+    if (!body.success) throw new Error('expected the success arm')
+    return body
+  }
+
+  test('each result carries the oracle-level fields, not just a name', async () => {
+    stubPopularityOrder(['The End'])
+
+    const body = await warmSearch('The End')
+    expect(body.warmed).toBeTrue()
+    expect(body.cards[0]).toMatchObject({
+      name: 'The End',
+      // makeScryfallCard's neutral defaults, projected to the wire vocabulary.
+      set: 'tst',
+      collectorNumber: '1',
+      typeLine: 'Artifact',
+      cmc: 0,
+      colorIdentity: [],
+    })
+  })
+
+  test("a whole-name match leads Scryfall's popularity order", async () => {
+    stubPopularityOrder()
+
+    // Scryfall answered with "The End" third; the rest keep their popularity order.
+    const body = await warmSearch('The End')
+    expect(body.cards.map((card) => card.name)).toEqual([
+      'The End',
+      ...CARD_NAMES.filter((name) => name !== 'The End'),
+    ])
+  })
+
+  test('a query matching no name in full keeps the popularity order', async () => {
+    stubPopularityOrder()
+
+    expect((await warmSearch('The En')).cards.map((card) => card.name)).toEqual(CARD_NAMES)
+  })
+
+  test(`results are capped at ${DEFAULT_WARM_LIMIT} unless limit says otherwise`, async () => {
+    const many = Array.from({ length: DEFAULT_WARM_LIMIT + 5 }, (_, i) => `Filler Card ${i}`)
+    stubPopularityOrder(many)
+
+    expect((await warmSearch('filler')).cards).toHaveLength(DEFAULT_WARM_LIMIT)
+    expect((await warmSearch('filler', '&limit=3')).cards).toHaveLength(3)
+  })
+
+  test('a name the cache lacks is written into it', async () => {
+    stubPopularityOrder(['Warmed Newcomer'])
+    expect(await cardCache.get('Warmed Newcomer')).toBeNull()
+
+    await warmSearch('Warmed Newcomer')
+
+    const cached = await cardCache.get('Warmed Newcomer')
+    expect(cached).not.toBeNull()
+    expect(cached?.[0]?.name).toBe('Warmed Newcomer')
+  })
+
+  test('a non-printing is filtered out and never reaches the cache', async () => {
+    // Scryfall answers searches with tokens and art series alongside real cards;
+    // `cacheRealPrintings` drops them, which has to hold on both halves — the
+    // result the caller sees AND what the warm-up wrote.
+    stubScryfall({
+      object: 'list',
+      has_more: false,
+      data: [
+        makeScryfallCard({ name: 'Real Warmed Card' }),
+        makeScryfallCard({ name: 'Goblin Token', layout: 'token', type_line: 'Token Creature' }),
+      ],
+    })
+
+    const body = await warmSearch('warmed')
+    expect(body.cards.map((card) => card.name)).toEqual(['Real Warmed Card'])
+    expect(await cardCache.get('Goblin Token')).toBeNull()
+  })
+
+  test('an already-cached name is left as it is — this is a warm-up, not a refresh', async () => {
+    await cardCache.set('Held Card', [
+      makeScryfallCard({ name: 'Held Card', set: 'old', collector_number: '99' }),
+      makeScryfallCard({ name: 'Held Card', set: 'older', collector_number: '98' }),
+    ])
+    stubPopularityOrder(['Held Card'])
+
+    await warmSearch('Held Card')
+
+    const cached = await cardCache.get('Held Card')
+    expect(cached).toHaveLength(2)
+    expect(cached?.[0]?.set).toBe('old')
+  })
+
+  test('the plain read leaves the cache untouched', async () => {
+    stubPopularityOrder(['Untouched Card'])
+
+    const resp = await handleCardSearch(
+      new Request('http://localhost/api/card-search?q=Untouched%20Card'),
+    )
+    const body = (await resp.json()) as CardSearchResponse
+    expect(body.success).toBeTrue()
+    if (body.success) expect(body.warmed).toBeFalse()
+    expect(await cardCache.get('Untouched Card')).toBeNull()
+  })
+
+  test('a Scryfall server error is a 500, never an empty result set', async () => {
+    stubScryfall({ object: 'error' }, 500)
+
+    const resp = await handleCardSearch(
+      new Request('http://localhost/api/card-search?warm=true&q=bolt'),
+    )
+    expect(resp.status).toBe(500)
+    const body = (await resp.json()) as CardSearchResponse
+    expect(body.success).toBeFalse()
+  })
+
+  test('a missing q is a 400', async () => {
+    stubPopularityOrder()
+
+    const resp = await handleCardSearch(new Request('http://localhost/api/card-search?warm=true'))
+    expect(resp.status).toBe(400)
   })
 })

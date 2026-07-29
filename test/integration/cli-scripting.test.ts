@@ -10,6 +10,7 @@ import { registerScryCommand } from '../../src/commands/scry'
 import { setNoInputOverride } from '../../src/no-input'
 import { makeScryfallCard } from '../test-utils'
 import { runCli, withTempDir } from './helpers/cli'
+import { stubFetch, type StubbedFetch } from './helpers/stub-fetch'
 import { writeDeckFile } from './helpers/workspace'
 
 describe('CLI scripting behavior (Integration)', () => {
@@ -411,27 +412,26 @@ name: "Conflict Deck"
  * the interactive side lives in test/unit/commands/scry.test.ts.
  */
 describe('scry paging (Integration)', () => {
-  const originalFetch = globalThis.fetch
   const originalWrite = process.stdout.write.bind(process.stdout)
-  let fetchedPages: number
+  let scryfall: StubbedFetch
   let stdout: string
+
+  /** Pages this run fetched — one request per page, so the record is the count. */
+  const fetchedPages = (): number => scryfall.sent.length
 
   beforeAll(() => {
     setNoInputOverride(true)
-    const stub = (input: string | URL | Request): Promise<Response> => {
-      fetchedPages++
-      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-      const page = new URL(url).searchParams.get('page') ?? '?'
-      // Always more pages: only the cap (or a prompt decline) may stop the loop.
-      return Promise.resolve(
-        Response.json({
+    scryfall = stubFetch({
+      'https://api.scryfall.com': (request) => {
+        const page = new URL(request.url).searchParams.get('page') ?? '?'
+        // Always more pages: only the cap (or a prompt decline) may stop the loop.
+        return Response.json({
           object: 'list',
           has_more: true,
           data: [makeScryfallCard({ name: `Page ${page} Card` })],
-        }),
-      )
-    }
-    globalThis.fetch = stub as typeof fetch
+        })
+      },
+    })
     process.stdout.write = (chunk: string | Uint8Array): boolean => {
       stdout += typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk)
       return true
@@ -440,7 +440,7 @@ describe('scry paging (Integration)', () => {
 
   afterAll(() => {
     setNoInputOverride(undefined)
-    globalThis.fetch = originalFetch
+    scryfall.restore()
     process.stdout.write = originalWrite
   })
 
@@ -449,7 +449,7 @@ describe('scry paging (Integration)', () => {
   })
 
   async function runScry(args: string[]): Promise<void> {
-    fetchedPages = 0
+    scryfall.sent.length = 0
     stdout = ''
     const program = new Command()
     registerScryCommand(program)
@@ -459,7 +459,7 @@ describe('scry paging (Integration)', () => {
   test('fetches exactly one page when prompts are unavailable', async () => {
     await runScry(['type:creature'])
 
-    expect(fetchedPages).toBe(1)
+    expect(fetchedPages()).toBe(1)
     expect(stdout).toContain('Page 1 Card')
     expect(process.exitCode ?? 0).toBe(0)
   })
@@ -467,7 +467,7 @@ describe('scry paging (Integration)', () => {
   test('--pages caps the fetch without prompting', async () => {
     await runScry(['type:creature', '--pages', '3'])
 
-    expect(fetchedPages).toBe(3)
+    expect(fetchedPages()).toBe(3)
     expect(stdout).toContain('Page 3 Card')
     expect(process.exitCode ?? 0).toBe(0)
   })
@@ -475,7 +475,7 @@ describe('scry paging (Integration)', () => {
   test('--quiet does not change paging: still one page, no prompt', async () => {
     await runScry(['type:creature', '--quiet'])
 
-    expect(fetchedPages).toBe(1)
+    expect(fetchedPages()).toBe(1)
     expect(process.exitCode ?? 0).toBe(0)
   })
 })

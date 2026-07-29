@@ -91,7 +91,8 @@ export function applyChangeToDeck(
       targetSection.cards.push({
         quantity: 1,
         name: change.cardName,
-        set: change.set,
+        // Normalized on the way into in-memory state, per the set-code rule.
+        set: change.set?.toLowerCase(),
         collectorNumber: change.collectorNumber,
         finish: change.finish,
         condition: change.condition && isCondition(change.condition) ? change.condition : undefined,
@@ -179,7 +180,7 @@ export function applyChangeToDeck(
     case 'set-printing': {
       const found = findCard(sections)
       if (found) {
-        found.card.set = change.set
+        found.card.set = change.set?.toLowerCase()
         found.card.collectorNumber = change.collectorNumber
         found.card.finish = change.finish
         if (change.condition !== undefined) {

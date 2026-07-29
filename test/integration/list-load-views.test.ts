@@ -1,0 +1,327 @@
+import path from 'node:path'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { handleCollectionLoad } from '../../src/admin/api/collection-load'
+import { handleDeckLoad } from '../../src/admin/api/deck-load'
+import { handleDeckSave } from '../../src/admin/api/deck-save'
+import { handleWantedListLoad } from '../../src/admin/api/wanted-load'
+import type {
+  DeckLoadResult,
+  ListSummaryLoadResult,
+  WantedLoadResult,
+} from '../../src/admin/api/load-results'
+import { seedCardNames } from '../test-utils'
+import { callJson } from './helpers/request'
+import { stubFetch, type StubbedFetch } from './helpers/stub-fetch'
+import {
+  bindWorkspace,
+  writeCollectionFile,
+  writeDeckFile,
+  writeWantedFile,
+  type BoundWorkspace,
+} from './helpers/workspace'
+
+/**
+ * The `?view=` short-circuit on the three list load routes.
+ *
+ * Filter semantics are pinned on the pure parser in
+ * test/unit/admin/list-load-params.test.ts. What this covers is the part only
+ * the handler can prove: that `summary` and `cards` return **before** the
+ * changelog-name pass, the Scryfall card/printing/price load, and the symbol-map
+ * fetch — the expensive work that makes these views worth having — and that
+ * `full` is unchanged.
+ */
+
+let ws: BoundWorkspace
+
+beforeEach(async () => {
+  ws = await bindWorkspace({ config: false, clearCardCache: true })
+  await writeDeckFile(ws.dir, 'burn', {
+    frontMatter: { name: 'Burn', format: 'modern', tags: ['aggro'] },
+    sections: [
+      {
+        name: 'Main',
+        cards: [
+          { quantity: 4, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 },
+          { quantity: 3, name: 'Lava Spike', cardId: 2 },
+        ],
+      },
+      { name: 'Sideboard', cards: [{ quantity: 2, name: 'Smash to Smithereens', cardId: 3 }] },
+    ],
+  })
+  await writeCollectionFile(ws.dir, 'binder', {
+    title: 'Binder',
+    entries: [
+      { name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 1 },
+      { name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 2 },
+    ],
+  })
+  await writeWantedFile(ws.dir, 'wishlist', {
+    title: 'Wishlist',
+    entries: [
+      { name: 'Mana Crypt', cardId: 1 },
+      { name: 'Sol Ring', cardId: 2 },
+    ],
+  })
+})
+
+afterEach(async () => {
+  await ws.dispose()
+})
+
+/** The expensive payload a cheap view must not carry. */
+const EXPENSIVE_KEYS = ['cards', 'printings', 'symbolMap']
+
+describe('view=summary', () => {
+  test('a deck reports counts and none of the expensive payload', async () => {
+    const { status, body } = await callJson<ListSummaryLoadResult>(
+      handleDeckLoad,
+      'GET',
+      '/api/deck/burn?view=summary',
+    )
+    expect(status).toBe(200)
+    expect(body.view).toBe('summary')
+    expect(body.slug).toBe('burn')
+    expect(body.counts).toEqual({
+      entryCount: 3,
+      cardCount: 9,
+      sections: [
+        { name: 'Main', entryCount: 2, cardCount: 7 },
+        { name: 'Sideboard', entryCount: 1, cardCount: 2 },
+      ],
+    })
+    for (const key of [...EXPENSIVE_KEYS, 'deck']) {
+      expect(Object.keys(body)).not.toContain(key)
+    }
+  })
+
+  test('a collection reports counts only', async () => {
+    const { body } = await callJson<ListSummaryLoadResult>(
+      handleCollectionLoad,
+      'GET',
+      '/api/collection/binder?view=summary',
+    )
+    expect(body.counts.entryCount).toBe(2)
+    expect(body.counts.cardCount).toBe(2)
+    for (const key of [...EXPENSIVE_KEYS, 'entries']) {
+      expect(Object.keys(body)).not.toContain(key)
+    }
+  })
+
+  test('a wanted list reports counts only', async () => {
+    const { body } = await callJson<ListSummaryLoadResult>(
+      handleWantedListLoad,
+      'GET',
+      '/api/wanted/wishlist?view=summary',
+    )
+    expect(body.counts.entryCount).toBe(2)
+    expect(Object.keys(body)).not.toContain('entries')
+  })
+
+  test('a summary honours the filters, so it counts what was asked for', async () => {
+    const { body } = await callJson<ListSummaryLoadResult>(
+      handleDeckLoad,
+      'GET',
+      '/api/deck/burn?view=summary&section=Main',
+    )
+    expect(body.counts.entryCount).toBe(2)
+    expect(body.counts.sections.map((s) => s.name)).toEqual(['Main'])
+  })
+
+  test('a summary ignores paging — the counts describe the whole filtered set', async () => {
+    // `limit=1` would otherwise report "1 card", which is the client's own page
+    // size dressed up as a fact about the deck and useless for deciding how many
+    // pages there are.
+    const { body } = await callJson<ListSummaryLoadResult>(
+      handleDeckLoad,
+      'GET',
+      '/api/deck/burn?view=summary&limit=1&offset=1',
+    )
+    expect(body.counts).toEqual({
+      entryCount: 3,
+      cardCount: 9,
+      sections: [
+        { name: 'Main', entryCount: 2, cardCount: 7 },
+        { name: 'Sideboard', entryCount: 1, cardCount: 2 },
+      ],
+    })
+  })
+})
+
+describe('view=cards', () => {
+  test('a filtered deck returns the matching lines, totalCount, and its front matter', async () => {
+    const { body } = await callJson<DeckLoadResult & { success: true }>(
+      handleDeckLoad,
+      'GET',
+      '/api/deck/burn?view=cards&section=Main&limit=1',
+    )
+    expect(body.view).toBe('cards')
+    expect(body.deck.sections.flatMap((s) => s.cards.map((c) => c.name))).toEqual([
+      'Lightning Bolt',
+    ])
+    // totalCount is the match count before the limit, so a client can page.
+    expect(body.totalCount).toBe(2)
+    // Front matter travels with the cards view: the deck save flow re-sends it,
+    // and dropping it here would silently blank the file's YAML.
+    expect(body.frontMatter).toMatchObject({ name: 'Burn', format: 'modern' })
+    for (const key of EXPENSIVE_KEYS) expect(Object.keys(body)).not.toContain(key)
+  })
+
+  test('an unfiltered load is not partial, and carries the hash a save needs', async () => {
+    const { body } = await callJson<DeckLoadResult & { success: true }>(
+      handleDeckLoad,
+      'GET',
+      '/api/deck/burn?view=cards',
+    )
+    expect(typeof body.contentHash).toBe('string')
+    expect(Object.keys(body)).not.toContain('partial')
+    expect(body.totalCount).toBe(3)
+  })
+
+  test('a collection cards view filters by name terms', async () => {
+    const { body } = await callJson<{ entries: { name: string }[]; totalCount: number }>(
+      handleCollectionLoad,
+      'GET',
+      '/api/collection/binder?view=cards&nameContains=sol',
+    )
+    expect(body.entries.map((e) => e.name)).toEqual(['Sol Ring'])
+    expect(body.totalCount).toBe(1)
+  })
+
+  test('a wanted cards view returns its entries and section order', async () => {
+    const { body } = await callJson<WantedLoadResult & { success: true }>(
+      handleWantedListLoad,
+      'GET',
+      '/api/wanted/wishlist?view=cards',
+    )
+    expect(body.view).toBe('cards')
+    expect(body.entries.map((e) => e.name)).toEqual(['Mana Crypt', 'Sol Ring'])
+    expect(body.sectionOrder).toEqual(['Main'])
+    for (const key of EXPENSIVE_KEYS) expect(Object.keys(body)).not.toContain(key)
+  })
+})
+
+describe('a narrowed load is not a save payload', () => {
+  test.each([
+    ['a section filter', '/api/deck/burn?view=cards&section=Main'],
+    ['a name filter', '/api/deck/burn?view=cards&nameContains=bolt'],
+    ['a limit', '/api/deck/burn?view=cards&limit=1'],
+    ['an offset', '/api/deck/burn?view=cards&offset=1'],
+  ])('%s marks the body partial and withholds the content hash', async (_label, path) => {
+    const { body } = await callJson<DeckLoadResult & { success: true }>(handleDeckLoad, 'GET', path)
+    expect(body.partial).toBeTrue()
+    expect(Object.keys(body)).not.toContain('contentHash')
+  })
+
+  test('the save route refuses a body with no content hash, and says why', async () => {
+    const { body: loaded } = await callJson<DeckLoadResult & { success: true }>(
+      handleDeckLoad,
+      'GET',
+      '/api/deck/burn?view=cards&limit=1',
+    )
+    // Exactly the round trip the omission exists to prevent: save back what a
+    // narrowed load returned, which would leave the file holding one line.
+    const { status, body } = await callJson<{ message: string }>(
+      handleDeckSave,
+      'POST',
+      '/api/deck/burn/save',
+      { changes: [], deck: loaded.deck, frontMatter: loaded.frontMatter },
+    )
+    expect(status).toBe(400)
+    expect(body.message).toContain('partial')
+    // The file still holds every line.
+    const onDisk = await Bun.file(path.join(ws.dir, 'decks', 'burn.md')).text()
+    expect(onDisk).toContain('Lava Spike')
+    expect(onDisk).toContain('Smash to Smithereens')
+  })
+})
+
+describe('view=full', () => {
+  let stubbed: StubbedFetch
+
+  beforeEach(async () => {
+    // Seeding stamps the cache's bulk-refresh time too, which is what keeps the
+    // full load from deciding it needs a Scryfall bulk download.
+    await seedCardNames('Lightning Bolt', 'Lava Spike', 'Smash to Smithereens')
+    // The only remaining external is symbology; answer it with an empty list.
+    stubbed = stubFetch({ 'https://api.scryfall.com': () => Response.json({ data: [] }) })
+  })
+
+  afterEach(() => {
+    stubbed.restore()
+  })
+
+  test('is the default and still carries the editor payload', async () => {
+    const { body } = await callJson<Record<string, unknown>>(
+      handleDeckLoad,
+      'GET',
+      '/api/deck/burn',
+    )
+    expect(body.view).toBe('full')
+    for (const key of EXPENSIVE_KEYS) expect(Object.keys(body)).toContain(key)
+    expect(Object.keys(body)).toContain('lowestPriceCards')
+    expect(Object.keys(body)).toContain('frontMatter')
+  })
+
+  test('filters apply in full too — the card data is loaded for the survivors only', async () => {
+    const { body } = await callJson<{
+      deck: { sections: { name: string }[] }
+      cards: Record<string, unknown>
+      totalCount: number
+      partial?: true
+    }>(handleDeckLoad, 'GET', '/api/deck/burn?section=Main&nameContains=bolt')
+    expect(body.deck.sections.map((s) => s.name)).toEqual(['Main'])
+    expect(body.totalCount).toBe(1)
+    // The filtered-out names never reach the Scryfall load, which is what makes
+    // a narrow filter cheap in this view rather than merely small.
+    expect(Object.keys(body.cards)).toEqual(['Lightning Bolt'])
+    expect(body.partial).toBeTrue()
+  })
+})
+
+describe('refusals', () => {
+  test('an unknown view is a 400 that names the choices', async () => {
+    const { status, body } = await callJson<{ message: string }>(
+      handleDeckLoad,
+      'GET',
+      '/api/deck/burn?view=everything',
+    )
+    expect(status).toBe(400)
+    expect(body.message).toContain('full, cards, summary')
+  })
+
+  test('view is matched case-insensitively, as every other enum field is', async () => {
+    const { status, body } = await callJson<ListSummaryLoadResult>(
+      handleDeckLoad,
+      'GET',
+      '/api/deck/burn?view=Summary',
+    )
+    expect(status).toBe(200)
+    expect(body.view).toBe('summary')
+  })
+
+  test('a malformed slug is refused the same way on all three routes', async () => {
+    for (const [handler, area] of [
+      [handleDeckLoad, 'deck'],
+      [handleCollectionLoad, 'collection'],
+      [handleWantedListLoad, 'wanted'],
+    ] as const) {
+      const { status, body } = await callJson<{ message: string }>(
+        handler,
+        'GET',
+        `/api/${area}/${encodeURIComponent('../secret')}`,
+      )
+      expect(status).toBe(400)
+      expect(body.message).toBe('Invalid list slug')
+    }
+  })
+
+  test('a missing list names the way to find the real slugs', async () => {
+    const { status, body } = await callJson<{ message: string }>(
+      handleDeckLoad,
+      'GET',
+      '/api/deck/nope',
+    )
+    expect(status).toBe(404)
+    expect(body.message).toContain('/api/lists')
+  })
+})

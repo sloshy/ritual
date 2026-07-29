@@ -3,6 +3,7 @@ import path from 'node:path'
 import { InvalidArgumentError, type Command } from 'commander'
 import type { ErrorCode } from '../types'
 import { ExitCode, type ExitCodeValue } from '../errors'
+import { parseEnumField } from '../parse-enum'
 import { formatResolveListError, type ResolveListError } from '../resolve-list'
 import { getAtPath } from '../utils'
 
@@ -22,20 +23,22 @@ export interface ScriptingOptions {
 }
 
 /**
- * Commander argParser body for an enum-valued flag: lowercase the value,
- * require membership in `values`, and reject anything else with the shared
+ * Commander argParser body for an enum-valued flag: match the value against
+ * `values` case-insensitively and reject anything else with the shared
  * `Invalid <label> '<value>'. Use one of: ...` message.
+ *
+ * The rule itself lives in `src/parse-enum.ts` so the HTTP handlers accept
+ * exactly the same spellings; this wrapper only converts the refusal into the
+ * exception commander expects from an argParser.
  */
 export function parseEnumFlag<T extends string>(
   value: string,
   values: readonly T[],
   label: string,
 ): T {
-  const normalized = value.toLowerCase()
-  if ((values as readonly string[]).includes(normalized)) {
-    return normalized as T
-  }
-  throw new InvalidArgumentError(`Invalid ${label} '${value}'. Use one of: ${values.join(', ')}.`)
+  const parsed = parseEnumField(value, values, label)
+  if (!parsed.ok) throw new InvalidArgumentError(parsed.message)
+  return parsed.value
 }
 
 export function parseOutputFormat(value: string): OutputFormat {
@@ -282,18 +285,23 @@ function projectRecordFields(
   return projected
 }
 
+/**
+ * {@link projectFields} for a list of items: an array in, an array out. Kept as
+ * its own export rather than an overload so a caller holding a card list — the
+ * common case — never has to assert the result back into one.
+ */
+export function projectFieldsArray(items: readonly unknown[], fields?: string[]): unknown[] {
+  if (!fields || fields.length === 0) return [...items]
+  return items.map((entry) => (isRecord(entry) ? projectRecordFields(entry, fields) : entry))
+}
+
 export function projectFields(data: unknown, fields?: string[]): unknown {
   if (!fields || fields.length === 0) {
     return data
   }
 
   if (Array.isArray(data)) {
-    return data.map((entry) => {
-      if (isRecord(entry)) {
-        return projectRecordFields(entry, fields)
-      }
-      return entry
-    })
+    return projectFieldsArray(data, fields)
   }
 
   if (isRecord(data)) {

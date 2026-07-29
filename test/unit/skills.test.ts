@@ -8,6 +8,7 @@ import {
   validateSkill,
 } from '../../src/skills/catalog'
 import { classifyInstalledSkill } from '../../src/skills/install'
+import { MCP_TOOL_NAMES, RETIRED_MCP_TOOL_NAMES } from '../../src/mcp/tools/names'
 import type { RitualSkill } from '../../src/skills/types'
 import { version } from '../../src/version'
 
@@ -32,6 +33,62 @@ describe('skill catalog invariants', () => {
     for (const skill of SKILLS) {
       expect(skill.body.trim().startsWith('# ')).toBe(true)
     }
+  })
+})
+
+/**
+ * Tokens that look like a tool name but are not one. Adding to this set is a
+ * deliberate act — the guard below exists precisely because a stale or
+ * misspelled tool name in a skill body is invisible until an agent tries it.
+ */
+const ALLOWED_NON_TOOL_TOKENS = new Set<string>()
+
+/** `snake_case` identifiers, the shape every MCP tool name has. */
+const TOOL_NAME_SHAPED = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g
+
+describe('skill bodies name only tools that exist', () => {
+  // Skills teach the CLI, so tool names barely appear in them — which is exactly
+  // why a rename would go unnoticed. Bare mentions count: only one of the
+  // handful that exist is backticked.
+  // The description is what a client shows in its skill picker, so a stale name
+  // there is *more* visible than one in the body — both are scanned.
+  function skillText(skill: RitualSkill): string {
+    return `${skill.description}\n${skill.body}`
+  }
+
+  test('no skill mentions a retired tool name', () => {
+    for (const skill of SKILLS) {
+      for (const retired of RETIRED_MCP_TOOL_NAMES) {
+        const found = new RegExp(`\\b${retired}\\b`).test(skillText(skill))
+        expect({ skill: skill.name, retired, found }) //
+          .toEqual({ skill: skill.name, retired, found: false })
+      }
+    }
+  })
+
+  test('every tool-name-shaped token in a skill is a registered tool', () => {
+    const registered = new Set<string>(MCP_TOOL_NAMES)
+    const seen: string[] = []
+    for (const skill of SKILLS) {
+      for (const [token] of skillText(skill).matchAll(TOOL_NAME_SHAPED)) {
+        seen.push(token)
+        const known = registered.has(token) || ALLOWED_NON_TOOL_TOKENS.has(token)
+        expect({
+          skill: skill.name,
+          token,
+          known,
+          hint: 'Not a registered MCP tool. Fix the mention, or add it to ALLOWED_NON_TOOL_TOKENS on purpose.',
+        }).toEqual({
+          skill: skill.name,
+          token,
+          known: true,
+          hint: 'Not a registered MCP tool. Fix the mention, or add it to ALLOWED_NON_TOOL_TOKENS on purpose.',
+        })
+      }
+    }
+    // Vacuity guard: a regex that stopped matching, or skill bodies that stopped
+    // naming tools, would leave the loop above asserting nothing at all.
+    expect(seen.length).toBeGreaterThan(0)
   })
 })
 

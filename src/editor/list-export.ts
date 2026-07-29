@@ -10,6 +10,7 @@ import {
   variantKey,
   type Aggregated,
 } from '../card-line'
+import { assignMissingEntryIds } from '../card-id'
 import { csvCell } from '../csv'
 import { DEFAULT_EXPORT_COLUMNS, EXPORT_PROPERTY_LABELS } from '../export/render'
 
@@ -51,13 +52,25 @@ export function serializeWantedListEntry(entry: WantedListCardEntry): string {
   return formatWantedListLine(entry.name, printing, entry.finish, entry.note, entry.cardId)
 }
 
-/** Serialize a whole collection (sectioned, with an `# H1` title) to markdown. */
+/**
+ * Serialize a whole collection (sectioned, with an `# H1` title) to markdown.
+ *
+ * Entries without a `&N` id — or repeating one an earlier entry already claimed
+ * — are healed by {@link assignMissingEntryIds} first, so a collection file is
+ * never written with an id-less or ambiguous card line. Mirrors the invariant
+ * `serializeDeckToMarkdown` enforces for decks.
+ */
 export function collectionToMarkdown(
   title: string,
   entries: CollectionCardEntry[],
   sectionOrder: string[],
 ): string {
-  return serializeSectionedList(title, entries, sectionOrder, serializeCollectionEntry)
+  return serializeSectionedList(
+    title,
+    assignMissingEntryIds(entries),
+    sectionOrder,
+    serializeCollectionEntry,
+  )
 }
 
 /** Serialize a whole wanted list (sectioned, with an `# H1` title) to markdown. */
@@ -66,7 +79,12 @@ export function wantedToMarkdown(
   entries: WantedListCardEntry[],
   sectionOrder: string[],
 ): string {
-  return serializeSectionedList(title, entries, sectionOrder, serializeWantedListEntry)
+  return serializeSectionedList(
+    title,
+    assignMissingEntryIds(entries),
+    sectionOrder,
+    serializeWantedListEntry,
+  )
 }
 
 /**

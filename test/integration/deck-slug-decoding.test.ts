@@ -1,8 +1,17 @@
 import { describe, expect, test, beforeAll, afterAll } from 'bun:test'
 import path from 'node:path'
 import { handleDeckLoad } from '../../src/admin/api/deck-load'
-import { handleDeckRename } from '../../src/admin/api/deck-rename'
+import { handleListRename, type ListLifecycleConfig } from '../../src/admin/api/list-lifecycle'
+import { resolveDeckFile } from '../../src/admin/api/list-file'
 import { bindWorkspace, writeDeckFile, type BoundWorkspace } from './helpers/workspace'
+import { getDecksDir } from '../../src/ritual-config'
+
+const DECK_CFG: ListLifecycleConfig = {
+  kind: 'deck',
+  getDir: getDecksDir,
+  label: 'deck',
+  resolveFile: resolveDeckFile,
+}
 
 type DeckApiResult = { success: boolean; message?: string }
 
@@ -45,12 +54,13 @@ describe('admin deck API slug decoding', () => {
   })
 
   test('resolves an existing deck via a percent-encoded slug (rename)', async () => {
-    const resp = await handleDeckRename(
+    const resp = await handleListRename(
       new Request('http://localhost/api/deck/My%20Test%20Deck/rename', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ newName: 'My Renamed Deck' }),
       }),
+      DECK_CFG,
     )
     const body = (await resp.json()) as DeckApiResult
     expect(resp.status).toBe(200)

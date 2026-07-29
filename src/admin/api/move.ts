@@ -15,19 +15,19 @@ import {
 } from '../../commands/move-helpers'
 import type { DroppedNote } from '../../commands/move-io'
 import { listSlug } from '../../list-info'
-import { validateBodySize, autoCommitAndPush } from './save-helpers'
+import { indexPhysicalCards, moveCardKey, type MovePhysicalCard } from '../../card-index-types'
+import { refuseUnknownCardNames } from './card-name-check'
+import { autoCommitAndPush, apiError, badRequest, readJsonObjectBody } from './save-helpers'
 
-/** Error body every move/remove endpoint returns on validation failure or a thrown error. */
-export type MoveErrorResponse = { success: false; message: string }
-
-function errorResponse(message: string, status: number): Response {
-  const body: MoveErrorResponse = { success: false, message }
-  return Response.json(body, { status })
-}
+// The index vocabulary lives in `src/card-index-types.ts` — the index is the
+// general shape and this move flow is one of its consumers. Re-exported so the
+// admin site keeps its single import path.
+export { moveCardKey }
+export type { MovePhysicalCard }
 
 /**
  * The one message for a `toSection` aimed at a non-deck destination, shared by
- * the admin endpoints and the MCP `move_cards` schema so the wording never drifts.
+ * the admin endpoints and the MCP `move_selected_cards` schema so the wording never drifts.
  */
 export const TO_SECTION_DECK_ONLY_MESSAGE =
   'toSection is only valid when the destination is a deck.'
@@ -35,42 +35,6 @@ export const TO_SECTION_DECK_ONLY_MESSAGE =
 /** True when a move item carries a `toSection` but its destination is not a deck. */
 export function isToSectionInvalid(toSection: unknown, toType: unknown): boolean {
   return toSection !== undefined && toType !== 'deck'
-}
-
-/**
- * One movable physical card. Mirrors the CLI's `PhysicalCard` but uses a
- * slug-based, path-free `key` so the browser can echo it back on commit without
- * ever seeing absolute server paths. Deck entries with quantity > 1 expand to one
- * card per copy (distinguished by `copyIndex`).
- */
-export type MovePhysicalCard = {
-  key: string
-  listType: ListType
-  listSlug: string
-  name: string
-  set?: string
-  collectorNumber?: string
-  finish?: Finish
-  condition?: Condition
-  note?: string
-  cardId?: number
-  copyIndex?: number
-}
-
-/**
- * Stable, path-free key for a physical card within a move session. Reconstructed
- * identically on the server at commit time (from the unchanged files) so the
- * browser only ever round-trips the opaque key. Matches the shape of the CLI's
- * `PhysicalCard.key` but keyed on `type:slug` rather than the absolute file path.
- */
-export function moveCardKey(
-  type: ListType,
-  slug: string,
-  cardId: number | undefined,
-  name: string,
-  copyIndex: number | undefined,
-): string {
-  return `${type}:${slug}:${cardId ?? name}:${copyIndex ?? 0}`
 }
 
 /** A single queued move, identified by the source card's session key and a destination list. */
@@ -93,13 +57,22 @@ export type MoveCommitItem = {
 
 export type MoveCommitRequest = { moves: MoveCommitItem[] }
 
-/** POST /api/move/commit success body. */
+/**
+ * POST /api/move/commit success body.
+ *
+ * `warnings` carries the read/parse problems hit while rebuilding the card index
+ * this commit resolves keys against — the same list `GET /api/card-index`
+ * reports. A list that could not be read holds no movable cards, which is
+ * indistinguishable from "that card was already moved" unless the failure is
+ * named. Always present, possibly empty.
+ */
 export type MoveCommitResponse = {
   success: true
   moved: number
   requested: number
   skipped: number
   droppedNotes: DroppedNote[]
+  warnings: string[]
   message: string
 }
 
@@ -117,12 +90,11 @@ type RawCommitBody = { moves?: unknown }
  */
 export async function handleMoveCommit(req: Request): Promise<Response> {
   try {
-    const sizeError = validateBodySize(req)
-    if (sizeError) return sizeError
-
-    const raw = (await req.json()) as RawCommitBody
-    if (raw === null || typeof raw !== 'object' || !Array.isArray(raw.moves)) {
-      return errorResponse('moves array is required', 400)
+    const parsedBody = await readJsonObjectBody(req)
+    if (!parsedBody.ok) return parsedBody.response
+    const raw = parsedBody.body as unknown as RawCommitBody
+    if (!Array.isArray(raw.moves)) {
+      return badRequest('moves array is required')
     }
     for (const m of raw.moves as unknown[]) {
       const item = m as Record<string, unknown>
@@ -134,29 +106,22 @@ export async function handleMoveCommit(req: Request): Promise<Response> {
         (item.toSection !== undefined &&
           (typeof item.toSection !== 'string' || item.toSection.trim() === ''))
       ) {
-        return errorResponse('Invalid move request', 400)
+        return badRequest('Invalid move request')
       }
       if (isToSectionInvalid(item.toSection, item.toType)) {
-        return errorResponse(TO_SECTION_DECK_ONLY_MESSAGE, 400)
+        return badRequest(TO_SECTION_DECK_ONLY_MESSAGE)
       }
     }
     const body = raw as MoveCommitRequest
 
     const lists = await loadAllLists()
-    const physical = await loadPhysicalCards(lists)
+    const { cards: physical, warnings } = await loadPhysicalCards(lists)
     const state = buildVirtualState(physical)
     const slugByPath = new Map(lists.map((l) => [l.filePath, listSlug(l.filePath)]))
 
     // Reconstruct the same client-facing keys the load endpoint produced, mapping each
     // back to the internal `PhysicalCard.key` that the virtual state is keyed on.
-    const internalByClient = new Map<string, string>()
-    for (const pc of physical) {
-      const slug = slugByPath.get(pc.listEntry.filePath)!
-      internalByClient.set(
-        moveCardKey(pc.listEntry.ref.type, slug, pc.cardId, pc.name, pc.copyIndex),
-        pc.key,
-      )
-    }
+    const internalByClient = indexPhysicalCards(physical, slugByPath)
 
     const findDest = (type: ListType, slug: string): ListEntry | undefined =>
       lists.find((l) => l.ref.type === type && slugByPath.get(l.filePath) === slug)
@@ -213,11 +178,12 @@ export async function handleMoveCommit(req: Request): Promise<Response> {
       requested: body.moves.length,
       skipped,
       droppedNotes,
+      warnings,
       message: `Moved ${moved} card${moved === 1 ? '' : 's'}.`,
     }
     return Response.json(responseBody)
   } catch (error) {
-    return errorResponse(getErrorMessage(error), 500)
+    return apiError(getErrorMessage(error), 500)
   }
 }
 
@@ -234,19 +200,28 @@ export type RemoveCommitItem = {
   copyIndex?: number
 }
 
-export type RemoveCommitRequest = { removes: RemoveCommitItem[] }
+export type RemoveCommitRequest = {
+  removes: RemoveCommitItem[]
+  /**
+   * Refuse the request when an item names a card the local Scryfall cache does
+   * not know. Off by default; names already present in the affected lists are
+   * accepted regardless, so a custom or unreleased card stays removable.
+   */
+  validateCardNames?: boolean
+}
 
-/** POST /api/remove/commit success body. */
+/** POST /api/remove/commit success body. See {@link MoveCommitResponse.warnings}. */
 export type RemoveCommitResponse = {
   success: true
   removed: number
   requested: number
   skipped: number
+  warnings: string[]
   message: string
 }
 
 /** Untrusted request body shape, validated before narrowing to {@link RemoveCommitRequest}. */
-type RawRemoveBody = { removes?: unknown }
+type RawRemoveBody = { removes?: unknown; validateCardNames?: unknown }
 
 /**
  * POST /api/remove/commit — remove a batch of cards across lists atomically.
@@ -259,12 +234,11 @@ type RawRemoveBody = { removes?: unknown }
  */
 export async function handleRemoveCommit(req: Request): Promise<Response> {
   try {
-    const sizeError = validateBodySize(req)
-    if (sizeError) return sizeError
-
-    const raw = (await req.json()) as RawRemoveBody
-    if (raw === null || typeof raw !== 'object' || !Array.isArray(raw.removes)) {
-      return errorResponse('removes array is required', 400)
+    const parsedBody = await readJsonObjectBody(req)
+    if (!parsedBody.ok) return parsedBody.response
+    const raw = parsedBody.body as unknown as RawRemoveBody
+    if (!Array.isArray(raw.removes)) {
+      return badRequest('removes array is required')
     }
     for (const r of raw.removes as unknown[]) {
       const item = r as Record<string, unknown>
@@ -276,25 +250,24 @@ export async function handleRemoveCommit(req: Request): Promise<Response> {
         (item.cardId !== undefined && typeof item.cardId !== 'number') ||
         (item.copyIndex !== undefined && typeof item.copyIndex !== 'number')
       ) {
-        return errorResponse('Invalid remove request', 400)
+        return badRequest('Invalid remove request')
       }
     }
     const body = raw as RemoveCommitRequest
 
     const lists = await loadAllLists()
-    const physical = await loadPhysicalCards(lists)
+    const { cards: physical, warnings } = await loadPhysicalCards(lists)
+    const nameError = await refuseUnknownCardNames(
+      raw.validateCardNames,
+      body.removes.map((r) => r.name),
+      () => physical.map((pc) => pc.name),
+    )
+    if (nameError) return nameError
     const state = buildVirtualState(physical)
     const slugByPath = new Map(lists.map((l) => [l.filePath, listSlug(l.filePath)]))
 
     // Reconstruct the same physical-card keys the load endpoint produced.
-    const internalByClient = new Map<string, string>()
-    for (const pc of physical) {
-      const slug = slugByPath.get(pc.listEntry.filePath)!
-      internalByClient.set(
-        moveCardKey(pc.listEntry.ref.type, slug, pc.cardId, pc.name, pc.copyIndex),
-        pc.key,
-      )
-    }
+    const internalByClient = indexPhysicalCards(physical, slugByPath)
 
     let skipped = 0
     for (const r of body.removes) {
@@ -320,11 +293,12 @@ export async function handleRemoveCommit(req: Request): Promise<Response> {
       removed,
       requested: body.removes.length,
       skipped,
+      warnings,
       message: `Removed ${removed} card${removed === 1 ? '' : 's'}.`,
     }
     return Response.json(responseBody)
   } catch (error) {
-    return errorResponse(getErrorMessage(error), 500)
+    return apiError(getErrorMessage(error), 500)
   }
 }
 
@@ -351,12 +325,16 @@ export type SelectedMoveItem = {
   condition?: Condition
 }
 
-export type SelectedMoveRequest = { moves: SelectedMoveItem[] }
+export type SelectedMoveRequest = {
+  moves: SelectedMoveItem[]
+  /** See {@link RemoveCommitRequest.validateCardNames}. */
+  validateCardNames?: boolean
+}
 
 /** POST /api/move/selected success body — the same shape as {@link MoveCommitResponse}. */
 export type SelectedMoveResponse = MoveCommitResponse
 
-type RawSelectedMoveBody = { moves?: unknown }
+type RawSelectedMoveBody = { moves?: unknown; validateCardNames?: unknown }
 
 /**
  * POST /api/move/selected — move a batch of selected cards across lists atomically.
@@ -369,12 +347,11 @@ type RawSelectedMoveBody = { moves?: unknown }
  */
 export async function handleSelectedMove(req: Request): Promise<Response> {
   try {
-    const sizeError = validateBodySize(req)
-    if (sizeError) return sizeError
-
-    const raw = (await req.json()) as RawSelectedMoveBody
-    if (raw === null || typeof raw !== 'object' || !Array.isArray(raw.moves)) {
-      return errorResponse('moves array is required', 400)
+    const parsedBody = await readJsonObjectBody(req)
+    if (!parsedBody.ok) return parsedBody.response
+    const raw = parsedBody.body as unknown as RawSelectedMoveBody
+    if (!Array.isArray(raw.moves)) {
+      return badRequest('moves array is required')
     }
     for (const m of raw.moves as unknown[]) {
       const item = m as Record<string, unknown>
@@ -391,27 +368,26 @@ export async function handleSelectedMove(req: Request): Promise<Response> {
         (item.cardId !== undefined && typeof item.cardId !== 'number') ||
         (item.copyIndex !== undefined && typeof item.copyIndex !== 'number')
       ) {
-        return errorResponse('Invalid move request', 400)
+        return badRequest('Invalid move request')
       }
       if (isToSectionInvalid(item.toSection, item.toType)) {
-        return errorResponse(TO_SECTION_DECK_ONLY_MESSAGE, 400)
+        return badRequest(TO_SECTION_DECK_ONLY_MESSAGE)
       }
     }
     const body = raw as SelectedMoveRequest
 
     const lists = await loadAllLists()
-    const physical = await loadPhysicalCards(lists)
+    const { cards: physical, warnings } = await loadPhysicalCards(lists)
+    const nameError = await refuseUnknownCardNames(
+      raw.validateCardNames,
+      body.moves.map((m) => m.name),
+      () => physical.map((pc) => pc.name),
+    )
+    if (nameError) return nameError
     const state = buildVirtualState(physical)
     const slugByPath = new Map(lists.map((l) => [l.filePath, listSlug(l.filePath)]))
 
-    const internalByClient = new Map<string, string>()
-    for (const pc of physical) {
-      const slug = slugByPath.get(pc.listEntry.filePath)!
-      internalByClient.set(
-        moveCardKey(pc.listEntry.ref.type, slug, pc.cardId, pc.name, pc.copyIndex),
-        pc.key,
-      )
-    }
+    const internalByClient = indexPhysicalCards(physical, slugByPath)
 
     const findDest = (type: ListType, slug: string): ListEntry | undefined =>
       lists.find((l) => l.ref.type === type && slugByPath.get(l.filePath) === slug)
@@ -465,10 +441,11 @@ export async function handleSelectedMove(req: Request): Promise<Response> {
       requested: body.moves.length,
       skipped,
       droppedNotes,
+      warnings,
       message: `Moved ${moved} card${moved === 1 ? '' : 's'}.`,
     }
     return Response.json(responseBody)
   } catch (error) {
-    return errorResponse(getErrorMessage(error), 500)
+    return apiError(getErrorMessage(error), 500)
   }
 }

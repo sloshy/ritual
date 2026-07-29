@@ -16,6 +16,7 @@ import type {
   ArchidektRawDeckResponse,
 } from '../../src/importers/archidekt-types'
 import { signIn as storeLogin } from './helpers/archidekt'
+import { stubFetch } from './helpers/stub-fetch'
 import { bindWorkspace, writeDeckFile, type BoundWorkspace } from './helpers/workspace'
 
 /**
@@ -51,16 +52,6 @@ let originalFetch: typeof globalThis.fetch
 /** Store an Archidekt login the same way `ritual login archidekt` does. */
 async function signIn(): Promise<void> {
   await storeLogin(tmpDir, { id: 1, username: 'testuser' })
-}
-
-/** Route Archidekt URLs to `routes`; anything else (or anything unrouted) fails. */
-function stubFetch(routes: Record<string, () => Response>): void {
-  globalThis.fetch = ((input: string | URL | Request) => {
-    const url = String(input instanceof Request ? input.url : input)
-    const route = routes[url]
-    if (route) return Promise.resolve(route())
-    return Promise.reject(new Error(`Unexpected fetch: ${url}`))
-  }) as typeof globalThis.fetch
 }
 
 /** Serve the one Archidekt endpoint a pull needs. */

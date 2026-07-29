@@ -14,6 +14,7 @@ import {
   writeWantedFile,
   type BoundWorkspace,
 } from './helpers/workspace'
+import { callJson } from './helpers/request'
 
 /**
  * End-to-end coverage for the admin move endpoints. Exercises the slug-based key
@@ -34,8 +35,8 @@ afterEach(async () => {
 })
 
 async function loadData(): Promise<CardIndexResponse> {
-  const resp = await handleCardIndex(new Request('http://localhost/api/card-index'))
-  return (await resp.json()) as CardIndexResponse
+  const { body } = await callJson<CardIndexResponse>(handleCardIndex, 'GET', '/api/card-index')
+  return body
 }
 
 function findCard(data: CardIndexResponse, name: string): MovePhysicalCard {
@@ -52,13 +53,10 @@ type CommitResult = {
 }
 
 async function commit(moves: unknown[]): Promise<CommitResult> {
-  const req = new Request('http://localhost/api/move/commit', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ moves }),
+  const { body } = await callJson<CommitResult>(handleMoveCommit, 'POST', '/api/move/commit', {
+    moves,
   })
-  const resp = await handleMoveCommit(req)
-  return (await resp.json()) as CommitResult
+  return body
 }
 
 describe('move API', () => {

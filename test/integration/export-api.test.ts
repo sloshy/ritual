@@ -4,6 +4,7 @@ import path from 'node:path'
 import { handleExport, type ExportResponse } from '../../src/admin/api/export'
 import { EXPORTS_DIR_NAME, writeExportFile } from '../../src/export/file'
 import { bindWorkspace, writeCollectionFile, type BoundWorkspace } from './helpers/workspace'
+import { callJson } from './helpers/request'
 
 /**
  * `POST /api/export` — the two output modes. Selection and rendering are covered
@@ -31,15 +32,8 @@ afterEach(async () => {
 
 type ExportCall = { status: number; body: ExportResponse }
 
-async function post(body: unknown): Promise<ExportCall> {
-  const resp = await handleExport(
-    new Request('http://localhost/api/export', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }),
-  )
-  return { status: resp.status, body: (await resp.json()) as ExportResponse }
+function post(body: unknown): Promise<ExportCall> {
+  return callJson<ExportResponse>(handleExport, 'POST', '/api/export', body)
 }
 
 describe('handleExport', () => {
@@ -49,6 +43,37 @@ describe('handleExport', () => {
     expect(body).toMatchObject({ success: true, mode: 'content', format: 'csv', entryCount: 2 })
     if (!('content' in body)) throw new Error('expected content mode')
     expect(body.content).toContain('Lightning Bolt')
+  })
+
+  // The CLI lowercases `--format` before validating; the route now shares that
+  // rule through `parseEnumField`, so the same spelling works on both surfaces.
+  test('an uppercase format is accepted, as it is on the CLI', async () => {
+    const { status, body } = await post({
+      lists: [{ type: 'collection', name: 'binder' }],
+      format: 'CSV',
+    })
+    expect(status).toBe(200)
+    expect(body).toMatchObject({ success: true, format: 'csv' })
+  })
+
+  test('an uppercase filters.finish and set code are accepted and normalized', async () => {
+    const { status, body } = await post({
+      lists: [{ type: 'collection', name: 'binder' }],
+      filters: { finish: 'NonFoil', set: 'LEA' },
+    })
+    expect(status).toBe(200)
+    // Accepting the casing is only half of it: the normalized values must then
+    // *match*, so the LEA card comes back and the C21 one does not.
+    expect(body).toMatchObject({ entryCount: 1 })
+  })
+
+  test('a malformed set filter is a 400 rather than a filter matching nothing', async () => {
+    const { status, body } = await post({
+      lists: [{ type: 'collection', name: 'binder' }],
+      filters: { set: '../etc' },
+    })
+    expect(status).toBe(400)
+    expect(body).toMatchObject({ success: false })
   })
 
   test('write mode lands a file under exports/ and reports its relative path', async () => {

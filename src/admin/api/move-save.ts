@@ -8,6 +8,7 @@ import {
   type MoveFromChange,
 } from '../../change-event'
 import { loadAllLists, type ListEntry, type PhysicalCard } from '../../commands/move-helpers'
+import type { SaveEffect } from '../../editor/save-effects'
 import {
   loadStagedFile,
   applyAddToStaged,
@@ -26,6 +27,14 @@ export type ListSaveResponse = {
   message: string
   contentHash: string
   droppedNotes: DroppedNote[]
+  /**
+   * What the save did to individual entries, with the `&N` ids it allocated.
+   *
+   * The response is the only place these can appear: ids are assigned at
+   * serialization time, so a client that added a card learns its id here rather
+   * than by re-reading the list.
+   */
+  effects: SaveEffect[]
 }
 
 type DestGroup = {

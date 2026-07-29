@@ -125,13 +125,40 @@ export async function loadAllLists(): Promise<ListEntry[]> {
   return lists
 }
 
-export async function loadPhysicalCards(lists: ListEntry[]): Promise<PhysicalCard[]> {
+/** Physical cards plus every read/parse problem encountered building them. */
+export interface PhysicalCardLoad {
+  cards: PhysicalCard[]
+  /**
+   * One line per list that could not be fully read, phrased for an API client
+   * (`decks/burn.md: could not be read or parsed; ...`). Without these a
+   * malformed line — or an entire unreadable deck — is invisible to a caller,
+   * which reads as "that card is not in any list".
+   */
+  warnings: string[]
+}
+
+/**
+ * Build the cross-list physical-card index: one entry per copy, with deck
+ * quantities expanded. A list that cannot be read is skipped rather than failing
+ * the whole index (one bad file must not hide every other list), but never
+ * silently: every skip and every unparseable line is reported in `warnings`.
+ */
+export async function loadPhysicalCards(lists: ListEntry[]): Promise<PhysicalCardLoad> {
   const cards: PhysicalCard[] = []
+  const warnings: string[] = []
+  /** Name a list the way a user would find it on disk: `<dir>/<file>`. */
+  const label = (filePath: string): string =>
+    `${path.basename(path.dirname(filePath))}/${path.basename(filePath)}`
 
   for (const listEntry of lists) {
     if (listEntry.ref.type === 'deck') {
       const deckData = await importFromTextFile(listEntry.filePath).catch(() => null)
-      if (!deckData) continue
+      if (!deckData) {
+        warnings.push(
+          `${label(listEntry.filePath)}: could not be read or parsed; its cards are missing from the index.`,
+        )
+        continue
+      }
       for (const section of deckData.sections) {
         for (const card of section.cards) {
           // Expand deck cards to individual copies
@@ -153,9 +180,18 @@ export async function loadPhysicalCards(lists: ListEntry[]): Promise<PhysicalCar
         }
       }
     } else if (listEntry.ref.type === 'collection') {
-      const content = await fs.readFile(listEntry.filePath, 'utf-8').catch(() => '')
-      const { entries } = parseCollectionFile(content)
-      for (const entry of entries) {
+      const content = await fs.readFile(listEntry.filePath, 'utf-8').catch(() => null)
+      if (content === null) {
+        warnings.push(
+          `${label(listEntry.filePath)}: could not be read or parsed; its cards are missing from the index.`,
+        )
+        continue
+      }
+      const parsed = parseCollectionFile(content)
+      for (const warning of parsed.warnings) {
+        warnings.push(`${label(listEntry.filePath)}: ${warning}`)
+      }
+      for (const entry of parsed.entries) {
         const key = `${listEntry.filePath}:${entry.cardId ?? entry.name}:0`
         cards.push({
           key,
@@ -170,9 +206,18 @@ export async function loadPhysicalCards(lists: ListEntry[]): Promise<PhysicalCar
         })
       }
     } else {
-      const content = await fs.readFile(listEntry.filePath, 'utf-8').catch(() => '')
-      const { entries } = parseWantedListFile(content)
-      for (const entry of entries) {
+      const content = await fs.readFile(listEntry.filePath, 'utf-8').catch(() => null)
+      if (content === null) {
+        warnings.push(
+          `${label(listEntry.filePath)}: could not be read or parsed; its cards are missing from the index.`,
+        )
+        continue
+      }
+      const parsed = parseWantedListFile(content)
+      for (const warning of parsed.warnings) {
+        warnings.push(`${label(listEntry.filePath)}: ${warning}`)
+      }
+      for (const entry of parsed.entries) {
         const key = `${listEntry.filePath}:${entry.cardId ?? entry.name}:0`
         cards.push({
           key,
@@ -188,7 +233,7 @@ export async function loadPhysicalCards(lists: ListEntry[]): Promise<PhysicalCar
     }
   }
 
-  return cards
+  return { cards, warnings }
 }
 
 export function buildVirtualState(physicalCards: PhysicalCard[]): Map<string, VirtualCard> {

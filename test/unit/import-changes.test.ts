@@ -33,6 +33,40 @@ describe('retargetImportedChanges', () => {
     expect(retargeted[1]).toMatchObject({ action: 'set-finish', cardId: 4 })
   })
 
+  it('gives move-to changes fresh IDs even when the exported ID exists here', () => {
+    // A `move-to` *creates* an entry in the destination, so its exported id is a
+    // source-list id — reusing it would collide with the card that already holds
+    // it in this list.
+    const changes: ChangeEvent[] = [
+      {
+        id: '1',
+        timestamp: 1,
+        action: 'move-to',
+        cardName: 'Sol Ring',
+        cardId: 7,
+        from: { type: 'collection', name: 'Binder' },
+      },
+      {
+        id: '2',
+        timestamp: 2,
+        action: 'set-note',
+        cardName: 'Sol Ring',
+        cardId: 7,
+        note: 'traded',
+      },
+    ]
+    const { retargeted, conflicts } = retargetImportedChanges({
+      changes,
+      currentIds: new Set([7]),
+      allocateId: allocator(20),
+      findIdByName: () => 7,
+    })
+    expect(conflicts).toHaveLength(0)
+    expect(retargeted[0]).toMatchObject({ action: 'move-to', cardId: 20 })
+    // The later change that named the exported id follows the remap.
+    expect(retargeted[1]).toMatchObject({ action: 'set-note', cardId: 20 })
+  })
+
   it('keeps a target ID that still exists in the current list', () => {
     const changes: ChangeEvent[] = [
       { id: '1', timestamp: 1, action: 'remove', cardName: 'Llanowar Elves', cardId: 7 },

@@ -41,9 +41,19 @@ Scryfall returns search results in pages. How many `scry` fetches:
 
 `--quiet` does not affect paging; it only suppresses non-essential output.
 
+Either way a run fetches at most **20 pages**. Each page is a separately paced Scryfall request, so the cap is a courtesy to their API as much as a guard against a typo'd `--pages`; a larger `--pages` value is rejected at parse time with a message naming the cap. `--count` is capped at **50** for the same reason.
+
 :::note
-Use the global `--no-input` flag to guarantee no prompting, and `--pages <n>` to fetch a fixed number of pages. There is no fetch-all flag — pass a suitably large `--pages` value if you truly want everything.
+Use the global `--no-input` flag to guarantee no prompting, and `--pages <n>` to fetch a fixed number of pages. There is no fetch-all flag.
 :::
+
+### Output across pages
+
+A scripted `--output json` run (the default) emits **one** JSON array of cards, always — one page or five, matches or none. The pages are collected and written once at the end, so nothing about the document's shape depends on how many pages the run happened to walk; a run that fails partway still emits the cards that arrived, and a run that found nothing emits `[]` (with the error on stderr and a non-zero exit code).
+
+The exception is interactive paging, where the whole point of the prompt is seeing each page before asking for the next: those runs print each page as it arrives.
+
+`--output ndjson` streams one document per card as each page arrives, which is its contract, and `--csv` concatenates the pages' rows (the header is written once).
 
 ## Random Cards
 
@@ -135,4 +145,4 @@ This command uses [Scryfall's search syntax](https://scryfall.com/docs/syntax). 
 | `2`  | Usage error (missing query without `--random`, `--random` with `--pages` or `--csv`, `--count` without `--random`, `--fields` with `--csv` or text output) |
 | `3`  | No search results found, or no card matched the random filter                                                                                              |
 
-`--pages` and `--count` must be positive integers; any other value is rejected with a usage error.
+`--pages` and `--count` must be positive integers within their caps (20 and 50 respectively); any other value is rejected with a usage error.

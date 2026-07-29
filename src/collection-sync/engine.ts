@@ -720,7 +720,7 @@ export async function runCollectionSync(
   // 5. Record when the account last synced. A dry run changed nothing, and
   //    neither did a run that aborted before applying anything — stamping the
   //    state file for either would have the status page and
-  //    `collection_sync_status` report a sync that wrote nothing at all.
+  //    `get_sync_status` report a sync that wrote nothing at all.
   if (!dryRun && !outcome.aborted) {
     try {
       await stateStore.write({

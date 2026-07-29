@@ -6,10 +6,24 @@ import {
   type FileSystemClient,
   type ExclusiveWriteResult,
 } from '../src/interfaces'
-import { streamFromBatchResults } from '../src/cache'
+import { cardCache, streamFromBatchResults } from '../src/cache'
 import { MemoryLogger, resetLogger, setLogger } from '../src/logger'
 import type { ScryfallCard } from '../src/types'
 import type { CardData } from '../src/site/card-sorting'
+
+/**
+ * Seed the card cache with one neutral printing per name.
+ *
+ * Through `bulkSet`, which is also what stamps the cache's bulk-refresh time —
+ * so a seeded cache reads as freshly preloaded and nothing downstream decides it
+ * needs a Scryfall download. For tests whose question is "does this name resolve",
+ * not "what is behind it"; a test that cares about the printing builds its own.
+ */
+export async function seedCardNames(...names: string[]): Promise<void> {
+  await cardCache.bulkSet(
+    Object.fromEntries(names.map((name) => [name, [makeScryfallCard({ name })]])),
+  )
+}
 
 /** Overrides for {@link makeScryfallCard}. `prices` may be partial; it is merged over all-null defaults. */
 export type ScryfallCardOverrides = Partial<Omit<ScryfallCard, 'prices'>> & {

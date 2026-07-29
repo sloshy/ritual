@@ -122,20 +122,49 @@ export function newDeckMarkdown(name: string, format: DeckFormatKey): string {
 }
 
 /**
- * Parse the front matter from a deck file. `format` is validated against the
- * canonical key set, so an unrecognized value is dropped rather than handed on as
- * a format key; the deck then falls back to section detection. Every other key is
- * taken as YAML found it, so unknown and user-authored keys round-trip untouched.
+ * Validate raw YAML front matter into a {@link DeckFrontMatter}, dropping any
+ * named field whose value is not the type that field promises.
+ *
+ * Front matter is arbitrary user-authored YAML, so a `description:` holding a
+ * nested map or a `tags:` holding a string is entirely possible — and this shape
+ * ships out over the API (`MetadataResponse.frontMatter`, `DeckLoadResult`), so
+ * asserting it would push a lie downstream. A bad field is dropped rather than
+ * refused, which is exactly what a deck save already does with an unparseable
+ * `format`; unknown keys pass through untouched so user-authored YAML round-trips.
  */
-export async function parseDeckFrontMatter(filePath: string): Promise<DeckFrontMatter> {
-  const content = await fs.readFile(filePath, 'utf-8')
+export function validateDeckFrontMatter(raw: Record<string, unknown>): DeckFrontMatter {
   // Copied, not used in place: gray-matter memoizes by content string and hands
   // the same `data` object back on a repeat parse, so mutating it would leak.
-  const frontMatter = { ...matter(content).data } as DeckFrontMatter
+  const frontMatter: DeckFrontMatter = { ...raw }
+
+  for (const key of ['name', 'description', 'sourceId', 'sourceUrl', 'created', 'lastSynced']) {
+    if (key in frontMatter && typeof frontMatter[key] !== 'string') delete frontMatter[key]
+  }
+
+  const tags = frontMatter.tags
+  if (tags !== undefined) {
+    const valid =
+      Array.isArray(tags) && tags.every((tag) => typeof tag === 'string' && tag.length > 0)
+    if (valid) frontMatter.tags = tags
+    else delete frontMatter.tags
+  }
+
   const format = parseDeckFormat(frontMatter.format)
   if (format) frontMatter.format = format
   else delete frontMatter.format
+
   return frontMatter
+}
+
+/**
+ * Parse the front matter from a deck file. Every named field is validated by
+ * {@link validateDeckFrontMatter} — `format` against the canonical key set (the
+ * deck then falls back to section detection), the rest against their declared
+ * types. Unknown and user-authored keys round-trip untouched.
+ */
+export async function parseDeckFrontMatter(filePath: string): Promise<DeckFrontMatter> {
+  const content = await fs.readFile(filePath, 'utf-8')
+  return validateDeckFrontMatter(matter(content).data)
 }
 
 /**

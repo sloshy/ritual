@@ -3,12 +3,12 @@ import type { PrintingTuple } from '../../change-event'
 import type { NamedListRef } from '../../site/combined-list'
 import { promptForPrinting } from '../../site/printing-prompt'
 import type {
-  MoveErrorResponse,
   RemoveCommitItem,
   RemoveCommitResponse,
   SelectedMoveItem,
   SelectedMoveResponse,
 } from '../api/move'
+import type { ApiErrorResponse } from '../api/save-helpers'
 
 /** Destination + resolved printing shared by every per-copy {@link SelectedMoveItem} of one card. */
 type MoveDestination = Pick<
@@ -17,10 +17,10 @@ type MoveDestination = Pick<
 >
 
 /** Full response from POST /api/remove/commit. */
-export type RemoveCommitResult = RemoveCommitResponse | MoveErrorResponse
+export type RemoveCommitResult = RemoveCommitResponse | ApiErrorResponse
 
 /** Full response from POST /api/move/selected. */
-export type SelectedMoveResult = SelectedMoveResponse | MoveErrorResponse
+export type SelectedMoveResult = SelectedMoveResponse | ApiErrorResponse
 
 /**
  * Expand a multi-select into per-copy remove items for the cross-list endpoint.
@@ -132,6 +132,7 @@ export async function moveSelectedAdmin(
       requested: 0,
       skipped: 0,
       droppedNotes: [],
+      warnings: [],
       message: 'No cards to move.',
     }
   }

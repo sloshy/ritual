@@ -1,7 +1,7 @@
 import { loadExportEntries } from '../../export/entries'
 import {
   diffLists,
-  isDiffBy,
+  DIFF_BY_MODES,
   loadDiffListRef,
   type DiffBy,
   type DiffListRef,
@@ -15,7 +15,9 @@ import {
   resolveList,
   type ListLocation,
 } from '../../resolve-list'
+import { parseEnumField } from '../../parse-enum'
 import { apiHandler } from '../utils'
+import { badRequest } from './save-helpers'
 
 /** `GET /api/diff` success body — the CLI `diff --output json` shape plus `success`. */
 export type DiffResponseBody = {
@@ -27,13 +29,6 @@ export type DiffResponseBody = {
   onlyInA: DiffOnly[]
   onlyInB: DiffOnly[]
   warnings: string[]
-}
-
-export type DiffErrorResponse = { success: false; message: string }
-
-function badRequest(message: string): Response {
-  const body: DiffErrorResponse = { success: false, message }
-  return Response.json(body, { status: 400 })
 }
 
 /** Resolve one side's `[type:]name` query value to a list file, or a 400 response. */
@@ -60,10 +55,10 @@ export function handleDiff(req: Request): Promise<Response> {
       return badRequest("Query parameters 'a' and 'b' are required ([type:]name).")
     }
 
-    const rawBy = url.searchParams.get('by') ?? 'name'
-    if (!isDiffBy(rawBy)) {
-      return badRequest(`Invalid by '${rawBy}'. Use 'name' or 'printing'.`)
-    }
+    // Through the shared enum parser so `?by=Printing` is accepted here exactly
+    // as `--by Printing` is on the CLI, and the refusal reads the same.
+    const parsedBy = parseEnumField(url.searchParams.get('by') ?? 'name', DIFF_BY_MODES, 'by')
+    if (!parsedBy.ok) return badRequest(parsedBy.message)
 
     const locationA = await resolveSide(rawA)
     if (locationA instanceof Response) return locationA
@@ -75,7 +70,7 @@ export function handleDiff(req: Request): Promise<Response> {
       loadExportEntries([locationA]),
       loadExportEntries([locationB]),
     ])
-    const result = diffLists(sideA.entries, sideB.entries, rawBy)
+    const result = diffLists(sideA.entries, sideB.entries, parsedBy.value)
 
     const body: DiffResponseBody = {
       success: true,

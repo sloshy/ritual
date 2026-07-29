@@ -92,7 +92,9 @@ export function applyChangeToCollection(
     case 'add': {
       const newEntry: CollectionCardEntry = {
         name: change.cardName,
-        set: change.set ?? '',
+        // Normalized on the way into in-memory state, per the set-code rule: a
+        // change may arrive from a CLI flag or an agent spelling it upper-case.
+        set: change.set?.toLowerCase() ?? '',
         collectorNumber: change.collectorNumber ?? '',
         finish: change.finish ?? 'nonfoil',
         condition: change.condition ?? 'NM',
@@ -132,7 +134,7 @@ export function applyChangeToCollection(
         i === idx
           ? {
               ...e,
-              set: change.set ?? '',
+              set: change.set?.toLowerCase() ?? '',
               collectorNumber: change.collectorNumber ?? '',
               finish: change.finish ?? e.finish,
               condition: change.condition ?? e.condition,

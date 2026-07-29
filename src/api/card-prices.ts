@@ -1,4 +1,5 @@
 import { cardCache } from '../cache'
+import { apiError, readJsonObjectBody } from '../admin/api/save-helpers'
 import { fetchRepresentativePrints } from '../scryfall'
 import { getErrorMessage } from '../errors'
 import type { ScryfallCard } from '../types'
@@ -12,17 +13,13 @@ const ALL_CURRENCIES: PriceCurrency[] = [...VALID_CURRENCIES]
 export const MAX_PRICE_NAMES = 500
 
 export type CardPricesResponse = {
-  success: boolean
+  success: true
   /** Union of every requested name's cached printings after the staleness-gated refresh. */
   cards: ScryfallCard[]
-  message?: string
 }
 
-function parseNamesBody(body: unknown): string[] | string {
-  if (typeof body !== 'object' || body === null) {
-    return 'body must be a JSON object'
-  }
-  const names = (body as Record<string, unknown>).names
+function parseNamesBody(body: Record<string, unknown>): string[] | string {
+  const { names } = body
   if (!Array.isArray(names) || !names.every((name) => typeof name === 'string')) {
     return '"names" must be an array of strings'
   }
@@ -39,17 +36,10 @@ function parseNamesBody(body: unknown): string[] | string {
  */
 export async function handleCardPrices(req: Request): Promise<Response> {
   try {
-    let body: unknown
-    try {
-      body = await req.json()
-    } catch {
-      body = null
-    }
-    const names = parseNamesBody(body)
-    if (typeof names === 'string') {
-      const resp: CardPricesResponse = { success: false, cards: [], message: names }
-      return Response.json(resp, { status: 400 })
-    }
+    const parsed = await readJsonObjectBody(req)
+    if (!parsed.ok) return parsed.response
+    const names = parseNamesBody(parsed.body)
+    if (typeof names === 'string') return apiError(names, 400)
 
     const cards: ScryfallCard[] = []
     for (const name of [...new Set(names)]) {
@@ -71,7 +61,6 @@ export async function handleCardPrices(req: Request): Promise<Response> {
     const resp: CardPricesResponse = { success: true, cards }
     return Response.json(resp)
   } catch (error) {
-    const resp: CardPricesResponse = { success: false, cards: [], message: getErrorMessage(error) }
-    return Response.json(resp, { status: 500 })
+    return apiError(getErrorMessage(error), 500)
   }
 }

@@ -38,7 +38,7 @@ import { listLocations } from '../../resolve-list'
 import { getCollectionSyncPullTarget, getCollectionsDir } from '../../ritual-config'
 import { sseResponse } from '../../sse'
 import { apiHandler } from '../utils'
-import { autoCommitAndPush, validateBodySize } from './save-helpers'
+import { autoCommitAndPush, readJsonObjectBody } from './save-helpers'
 import {
   isRecord,
   parseNameArray,
@@ -405,15 +405,9 @@ function runRefused(message: string, status: number, loginRequired = false): Res
 
 export function handleCollectionSyncRun(req: Request): Promise<Response> {
   return apiHandler(async () => {
-    const sizeError = validateBodySize(req)
-    if (sizeError) return sizeError
-
-    let raw: unknown
-    try {
-      raw = await req.json()
-    } catch {
-      return runRefused('Request body must be JSON.', 400)
-    }
+    const parsedBody = await readJsonObjectBody(req)
+    if (!parsedBody.ok) return parsedBody.response
+    const raw: unknown = parsedBody.body
 
     const parsed = parseCollectionSyncBody(raw)
     if (typeof parsed === 'string') {

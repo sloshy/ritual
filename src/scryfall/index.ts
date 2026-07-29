@@ -71,6 +71,16 @@ export function searchCards(query: string, options?: SearchCardsOptions): Promis
   return scryfallClient.searchCards(query, options)
 }
 
+/**
+ * Project raw Scryfall search items to real printings and warm the local cache
+ * with the names it does not already hold. Exposed so a handler that fetches its
+ * own page (`GET /api/card-search?warm=true`) can warm the cache exactly as
+ * {@link searchCards} does without inheriting its error-swallowing.
+ */
+export function cacheRealPrintings(items: readonly ScryfallCard[]): Promise<ScryfallCard[]> {
+  return scryfallClient.cacheRealPrintings(items)
+}
+
 export function fetchSearchPage(
   query: string,
   page: number,

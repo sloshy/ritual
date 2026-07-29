@@ -169,7 +169,7 @@ auto-commit.
 The admin's **Import Changes** page applies a change-list JSON exported from the
 public site's edit mode (a bundle covering one or more lists) with a per-list
 preview before applying — the same operation as \`ritual import-changes\` (see the
-**ritual-edit** skill) and the MCP \`import_changes\` tool.
+**ritual-edit** skill) and the MCP \`import_change_bundle\` tool.
 
 The admin's **Sync Decks** page runs \`deck-sync\` in the browser: pick a
 direction, narrow the run to additions or removals only (the \`--only\` flag's
@@ -179,7 +179,7 @@ synced, and the page signs in to Archidekt inline when the stored token has
 expired. A deck whose file holds lines the parser cannot read is refused (a sync
 would delete them) and shown with a "Sync anyway" confirmation. Same operation as
 \`ritual deck-sync\` (see the **ritual-decks** skill) and the MCP
-\`deck_sync_status\` / \`sync_decks\` tools.
+\`get_sync_status\` / \`sync_decks\` tools.
 
 The admin's **Sync Collection** page is its counterpart for collections, running
 \`ritual collection-sync\`: pick a direction, scope the run to the whole

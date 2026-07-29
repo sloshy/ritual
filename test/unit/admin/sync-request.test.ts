@@ -15,32 +15,12 @@ import {
  */
 
 describe('parseEnumField', () => {
-  const values = ['push', 'pull'] as const
-
-  test('matches case-insensitively and returns the canonical member', () => {
-    for (const raw of ['push', 'PUSH', 'Push']) {
-      expect(parseEnumField(raw, values, 'direction')).toEqual({ ok: true, value: 'push' })
-    }
-  })
-
-  test('refuses a non-string, naming the choices', () => {
-    expect(parseEnumField(7, values, 'direction')).toEqual({
-      ok: false,
-      message: 'direction must be one of: push, pull.',
-    })
-  })
-
-  test('refuses an unknown member, echoing what was sent', () => {
-    expect(parseEnumField('sideways', values, 'direction')).toEqual({
-      ok: false,
-      message: "Invalid direction 'sideways'. Use one of: push, pull.",
-    })
-  })
-
-  test('matches a member that is not itself lowercase', () => {
-    expect(parseEnumField('mixed', ['Mixed'] as const, 'mode')).toEqual({
+  // The rule itself is pinned in test/unit/parse-enum.test.ts; this only proves
+  // the sync modules still reach it through this module's re-export.
+  test('is the shared layer-neutral matcher', () => {
+    expect(parseEnumField('PUSH', ['push', 'pull'] as const, 'direction')).toEqual({
       ok: true,
-      value: 'Mixed',
+      value: 'push',
     })
   })
 })

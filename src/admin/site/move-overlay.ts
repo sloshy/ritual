@@ -7,7 +7,7 @@ import { applyChangeToDeck } from '../../editor/deck-changes'
 import { applyChangeToCollection } from '../../editor/collection-changes'
 import { applyChangeToWantedList } from '../../editor/wanted-changes'
 import type { ListInfo } from '../../list-info'
-import type { MovePhysicalCard } from '../api/move'
+import type { MovePhysicalCard } from '../../card-index-types'
 import { type ListId, listId, listInfoId } from './list-grouping'
 
 /** Identity of the card a pending move acts on (its printing at the source). */

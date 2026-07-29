@@ -1,43 +1,36 @@
 import { getDecksDir } from '../../ritual-config'
-import { createList, isListLifecycleError, listLifecycleErrorStatus } from '../../list-lifecycle'
+import { createList, isListLifecycleError } from '../../list-lifecycle'
 import { apiHandler } from '../utils'
-import { autoCommitAndPush, validateBodySize } from './save-helpers'
+import { lifecycleErrorResponse, type ListCreateResponse } from './list-lifecycle'
+import { apiError, autoCommitAndPush, readJsonObjectBody } from './save-helpers'
 
 export interface DeckCreateRequest {
   name: string
   format?: string
 }
 
-interface DeckCreateResponse {
-  success: boolean
-  message: string
-  slug?: string
-}
-
+/**
+ * `POST /api/deck/create` — the one lifecycle route decks do not share with
+ * collections and wanted lists, because a deck can be created with a `format`.
+ * Its response is the shared {@link ListCreateResponse}.
+ */
 export function handleDeckCreate(req: Request): Promise<Response> {
   return apiHandler(async () => {
-    const tooLarge = validateBodySize(req)
-    if (tooLarge) return tooLarge
-
-    const body = (await req.json()) as DeckCreateRequest
-    const { name, format } = body
+    const parsed = await readJsonObjectBody(req)
+    if (!parsed.ok) return parsed.response
+    const { name, format } = parsed.body as unknown as DeckCreateRequest
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      const resp: DeckCreateResponse = { success: false, message: 'Deck name is required' }
-      return Response.json(resp, { status: 400 })
+      return apiError('Deck name is required', 400)
     }
 
     const trimmedName = name.trim()
     const result = await createList('deck', trimmedName, format)
-    if (isListLifecycleError(result)) {
-      const { status, message } = listLifecycleErrorStatus(result)
-      const resp: DeckCreateResponse = { success: false, message }
-      return Response.json(resp, { status })
-    }
+    if (isListLifecycleError(result)) return lifecycleErrorResponse(result)
 
     await autoCommitAndPush(getDecksDir(), result.touchedFiles, `Create deck: ${trimmedName}`)
 
-    const resp: DeckCreateResponse = {
+    const resp: ListCreateResponse = {
       success: true,
       message: `Created deck '${trimmedName}'`,
       slug: result.slug,

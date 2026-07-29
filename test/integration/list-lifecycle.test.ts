@@ -2,28 +2,41 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
-  handleSimpleListCreate,
-  handleSimpleListRename,
-  handleSimpleListDelete,
-  type SimpleListConfig,
-} from '../../../src/admin/api/simple-list-helpers'
-import { parseTitleFromContent } from '../../../src/section-format'
-import { setBaseDir } from '../../../src/base-dir'
+  handleListCreate,
+  handleListRename,
+  handleListDelete,
+  type ListLifecycleConfig,
+} from '../../src/admin/api/list-lifecycle'
+import { resolveFlatListFile } from '../../src/admin/api/list-file'
+import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 
-const testDir = path.join(import.meta.dir, '../../.test-simple-list')
-const collectionsDir = path.join(testDir, 'collections')
-const wantedDir = path.join(testDir, 'wanted')
+/**
+ * The create/rename/delete handlers write real files, so they belong here rather
+ * than in the unit suite — and on a throwaway workspace rather than a fixed
+ * directory under `test/`, which two suites running at once would share.
+ *
+ * Both flat list types run through here; the **deck** arm of the same fold
+ * (`resolveDeckFile` instead of `resolveFlatListFile`, which is the only thing
+ * the three list types differ by) is exercised in
+ * `test/integration/deck-slug-decoding.test.ts`.
+ */
 
-const COLLECTION_CFG: SimpleListConfig = {
+let ws: BoundWorkspace
+let collectionsDir: string
+let wantedDir: string
+
+const COLLECTION_CFG: ListLifecycleConfig = {
   kind: 'collection',
   getDir: () => collectionsDir,
   label: 'collection',
+  resolveFile: resolveFlatListFile,
 }
 
-const WANTED_CFG: SimpleListConfig = {
+const WANTED_CFG: ListLifecycleConfig = {
   kind: 'wanted',
   getDir: () => wantedDir,
   label: 'wanted list',
+  resolveFile: resolveFlatListFile,
 }
 
 type SuccessBody = {
@@ -42,41 +55,22 @@ function makeRequest(method: string, urlPath: string, body?: unknown): Request {
   })
 }
 
-describe('parseTitleFromContent', () => {
-  test('extracts the first H1 line', () => {
-    expect(parseTitleFromContent('# My Title\n\nbody')).toBe('My Title')
-  })
-
-  test('returns null when no H1 is present', () => {
-    expect(parseTitleFromContent('## Subhead only\n')).toBe(null)
-  })
-
-  test('returns the first H1 even when multiple exist', () => {
-    expect(parseTitleFromContent('# First\n\n# Second\n')).toBe('First')
-  })
-
-  test('trims trailing whitespace', () => {
-    expect(parseTitleFromContent('# Title  \n')).toBe('Title')
-  })
+beforeEach(async () => {
+  ws = await bindWorkspace({ config: false })
+  collectionsDir = path.join(ws.dir, 'collections')
+  wantedDir = path.join(ws.dir, 'wanted')
+  await fs.mkdir(collectionsDir, { recursive: true })
+  await fs.mkdir(wantedDir, { recursive: true })
 })
 
-describe('simple-list create handler', () => {
-  const originalCwd = process.cwd()
+afterEach(async () => {
+  await ws.dispose()
+})
 
-  beforeEach(async () => {
-    await fs.mkdir(collectionsDir, { recursive: true })
-    await fs.mkdir(wantedDir, { recursive: true })
-    setBaseDir(testDir)
-  })
-
-  afterEach(async () => {
-    setBaseDir(originalCwd)
-    await fs.rm(testDir, { recursive: true, force: true })
-  })
-
+describe('list-lifecycle create handler', () => {
   test('creates a collection file with the H1 heading', async () => {
     const req = makeRequest('POST', '/api/collection/create', { name: 'My Collection' })
-    const resp = await handleSimpleListCreate(req, COLLECTION_CFG)
+    const resp = await handleListCreate(req, COLLECTION_CFG)
     const data = (await resp.json()) as SuccessBody
 
     expect(resp.status).toBe(200)
@@ -89,7 +83,7 @@ describe('simple-list create handler', () => {
 
   test('creates a wanted list file with the H1 heading', async () => {
     const req = makeRequest('POST', '/api/wanted/create', { name: 'My Wanted' })
-    const resp = await handleSimpleListCreate(req, WANTED_CFG)
+    const resp = await handleListCreate(req, WANTED_CFG)
     const data = (await resp.json()) as SuccessBody
 
     expect(data.success).toBe(true)
@@ -101,7 +95,7 @@ describe('simple-list create handler', () => {
 
   test('returns 400 for missing name', async () => {
     const req = makeRequest('POST', '/api/collection/create', { name: '' })
-    const resp = await handleSimpleListCreate(req, COLLECTION_CFG)
+    const resp = await handleListCreate(req, COLLECTION_CFG)
     const data = (await resp.json()) as SuccessBody
 
     expect(resp.status).toBe(400)
@@ -113,7 +107,7 @@ describe('simple-list create handler', () => {
     await Bun.write(path.join(collectionsDir, 'Existing.md'), '# Existing\n')
 
     const req = makeRequest('POST', '/api/collection/create', { name: 'Existing' })
-    const resp = await handleSimpleListCreate(req, COLLECTION_CFG)
+    const resp = await handleListCreate(req, COLLECTION_CFG)
     const data = (await resp.json()) as SuccessBody
 
     expect(resp.status).toBe(409)
@@ -123,7 +117,7 @@ describe('simple-list create handler', () => {
 
   test('strips reserved filesystem characters from the slug', async () => {
     const req = makeRequest('POST', '/api/collection/create', { name: 'Foo/Bar:Baz' })
-    const resp = await handleSimpleListCreate(req, COLLECTION_CFG)
+    const resp = await handleListCreate(req, COLLECTION_CFG)
     const data = (await resp.json()) as SuccessBody
 
     expect(data.success).toBe(true)
@@ -134,25 +128,16 @@ describe('simple-list create handler', () => {
   })
 })
 
-describe('simple-list rename handler', () => {
-  const originalCwd = process.cwd()
-
+describe('list-lifecycle rename handler', () => {
   beforeEach(async () => {
-    await fs.mkdir(collectionsDir, { recursive: true })
-    setBaseDir(testDir)
     await Bun.write(path.join(collectionsDir, 'old-collection.md'), '# Old Collection\n\n')
-  })
-
-  afterEach(async () => {
-    setBaseDir(originalCwd)
-    await fs.rm(testDir, { recursive: true, force: true })
   })
 
   test('renames file and rewrites the H1', async () => {
     const req = makeRequest('POST', '/api/collection/old-collection/rename', {
       newName: 'New Collection',
     })
-    const resp = await handleSimpleListRename(req, COLLECTION_CFG)
+    const resp = await handleListRename(req, COLLECTION_CFG)
     const data = (await resp.json()) as SuccessBody
 
     expect(resp.status).toBe(200)
@@ -177,7 +162,7 @@ describe('simple-list rename handler', () => {
     const req = makeRequest('POST', '/api/collection/old-collection/rename', {
       newName: 'New Collection',
     })
-    await handleSimpleListRename(req, COLLECTION_CFG)
+    await handleListRename(req, COLLECTION_CFG)
 
     const newSidecar = await Bun.file(
       path.join(collectionsDir, 'New Collection.changes.md'),
@@ -191,7 +176,7 @@ describe('simple-list rename handler', () => {
 
   test('returns 404 when source does not exist', async () => {
     const req = makeRequest('POST', '/api/collection/missing/rename', { newName: 'Whatever' })
-    const resp = await handleSimpleListRename(req, COLLECTION_CFG)
+    const resp = await handleListRename(req, COLLECTION_CFG)
     expect(resp.status).toBe(404)
   })
 
@@ -199,7 +184,7 @@ describe('simple-list rename handler', () => {
     await Bun.write(path.join(collectionsDir, 'taken.md'), '# Taken\n')
 
     const req = makeRequest('POST', '/api/collection/old-collection/rename', { newName: 'taken' })
-    const resp = await handleSimpleListRename(req, COLLECTION_CFG)
+    const resp = await handleListRename(req, COLLECTION_CFG)
     expect(resp.status).toBe(409)
   })
 
@@ -212,7 +197,7 @@ describe('simple-list rename handler', () => {
     const req = makeRequest('POST', '/api/collection/old-collection/rename', {
       newName: 'New Collection',
     })
-    await handleSimpleListRename(req, COLLECTION_CFG)
+    await handleListRename(req, COLLECTION_CFG)
 
     const content = await fs.readFile(path.join(collectionsDir, 'New Collection.md'), 'utf-8')
     expect(content).toContain('- Sol Ring (C19:221) &1')
@@ -225,7 +210,7 @@ describe('simple-list rename handler', () => {
     const req = makeRequest('POST', '/api/collection/old-collection/rename', {
       newName: 'old-collection',
     })
-    const resp = await handleSimpleListRename(req, COLLECTION_CFG)
+    const resp = await handleListRename(req, COLLECTION_CFG)
     expect(resp.status).toBe(200)
 
     const filePath = path.join(collectionsDir, 'old-collection.md')
@@ -237,25 +222,16 @@ describe('simple-list rename handler', () => {
   })
 })
 
-describe('simple-list delete handler', () => {
-  const originalCwd = process.cwd()
-
+describe('list-lifecycle delete handler', () => {
   beforeEach(async () => {
-    await fs.mkdir(collectionsDir, { recursive: true })
-    setBaseDir(testDir)
     await Bun.write(path.join(collectionsDir, 'My Collection.md'), '# My Collection\n\n')
-  })
-
-  afterEach(async () => {
-    setBaseDir(originalCwd)
-    await fs.rm(testDir, { recursive: true, force: true })
   })
 
   test('deletes the file when confirmation matches the H1', async () => {
     const req = makeRequest('DELETE', '/api/collection/My%20Collection', {
       confirmName: 'My Collection',
     })
-    const resp = await handleSimpleListDelete(req, COLLECTION_CFG)
+    const resp = await handleListDelete(req, COLLECTION_CFG)
     const data = (await resp.json()) as SuccessBody
 
     expect(resp.status).toBe(200)
@@ -270,7 +246,7 @@ describe('simple-list delete handler', () => {
     const req = makeRequest('DELETE', '/api/collection/My%20Collection', {
       confirmName: 'My Collection',
     })
-    await handleSimpleListDelete(req, COLLECTION_CFG)
+    await handleListDelete(req, COLLECTION_CFG)
 
     const exists = await Bun.file(path.join(collectionsDir, 'My Collection.changes.md')).exists()
     expect(exists).toBe(false)
@@ -280,7 +256,7 @@ describe('simple-list delete handler', () => {
     const req = makeRequest('DELETE', '/api/collection/My%20Collection', {
       confirmName: 'Wrong Name',
     })
-    const resp = await handleSimpleListDelete(req, COLLECTION_CFG)
+    const resp = await handleListDelete(req, COLLECTION_CFG)
     expect(resp.status).toBe(400)
 
     const exists = await Bun.file(path.join(collectionsDir, 'My Collection.md')).exists()
@@ -289,7 +265,7 @@ describe('simple-list delete handler', () => {
 
   test('returns 404 when the file does not exist', async () => {
     const req = makeRequest('DELETE', '/api/collection/missing', { confirmName: 'missing' })
-    const resp = await handleSimpleListDelete(req, COLLECTION_CFG)
+    const resp = await handleListDelete(req, COLLECTION_CFG)
     expect(resp.status).toBe(404)
   })
 })

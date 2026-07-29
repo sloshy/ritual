@@ -19,13 +19,13 @@ import {
 import { parseExportPresets } from '../../export/presets'
 import { shouldAutoCommit, commitFiles } from '../git'
 import { apiHandler } from '../utils'
-import { MAX_BODY_SIZE } from '../validation'
+import { badRequest, readJsonObjectBody } from './save-helpers'
 import { getBaseDir } from '../../base-dir'
 
-interface ConfigResponse {
-  success: boolean
-  config?: RitualConfig
-  message?: string
+/** `GET /api/config` and `PUT /api/config` — the config as it now stands on disk. */
+export interface ConfigResponse {
+  success: true
+  config: RitualConfig
 }
 
 /** Marks every RitualConfig key; `satisfies` keeps the allowlist exhaustive. */
@@ -88,11 +88,6 @@ function applyScalarUpdate<K extends ScalarConfigKey>(
   return null
 }
 
-function badRequest(message: string): Response {
-  const resp: ConfigResponse = { success: false, message }
-  return Response.json(resp, { status: 400 })
-}
-
 export async function handleGetConfig(): Promise<Response> {
   const config = await loadRitualConfig()
   const resp: ConfigResponse = { success: true, config }
@@ -101,15 +96,9 @@ export async function handleGetConfig(): Promise<Response> {
 
 export function handleUpdateConfig(req: Request): Promise<Response> {
   return apiHandler(async () => {
-    const contentLength = Number(req.headers.get('Content-Length') ?? '0')
-    if (contentLength > MAX_BODY_SIZE) {
-      return Response.json({ success: false, message: 'Request body too large' }, { status: 413 })
-    }
-    const body = (await req.json()) as unknown
-    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
-      return badRequest('Config update must be a JSON object')
-    }
-    const raw = body as Record<string, unknown>
+    const parsedBody = await readJsonObjectBody(req)
+    if (!parsedBody.ok) return parsedBody.response
+    const raw = parsedBody.body
 
     // Validate every present top-level key before merging, so an invalid value
     // is rejected with feedback here instead of persisted and then silently

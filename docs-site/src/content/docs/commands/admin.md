@@ -152,7 +152,7 @@ When creating, an **Overwrite if a list with this name exists** checkbox replace
 
 The **Import Changes** page applies a change bundle exported from the public site's [in-browser editor](/commands/build-site/#editing-on-the-public-site) — a `ritual-change-bundle` JSON covering one or more lists (the export panel's **This list** and **All lists** scopes both produce it). Upload the file or paste its contents; the page parses it in the browser and shows a full **preview of every pending change grouped by target list**, with per-list and total counts. Nothing is written until you press **Apply N changes to K lists**.
 
-Applying re-targets each list's changes to its current card IDs (by ID when it still exists, otherwise by card name), writes the list files and their changelogs, and reports a per-list outcome: applied count, changes skipped because their target card no longer exists, and any list that failed entirely (which does not stop the others). This is the same engine as the [`import-changes`](/commands/import-changes/) CLI command and the MCP `import_changes` tool.
+Applying re-targets each list's changes to its current card IDs (by ID when it still exists, otherwise by card name), writes the list files and their changelogs, and reports a per-list outcome: applied count, changes skipped because their target card no longer exists, and any list that failed entirely (which does not stop the others). This is the same engine as the [`import-changes`](/commands/import-changes/) CLI command and the MCP `import_change_bundle` tool.
 
 #### Loading changes into an editor
 
@@ -542,50 +542,13 @@ Move a batch of selected cards across lists atomically — the server side of th
 }
 ```
 
-**Response:** `{ "success": true, "moved": 1, "requested": 1, "skipped": 0, "droppedNotes": [], "message": "Moved 1 card." }`. Cards whose source or destination can no longer be resolved (or whose destination is their own list) are skipped and counted.
+**Response:** `{ "success": true, "moved": 1, "requested": 1, "skipped": 0, "droppedNotes": [], "warnings": [], "message": "Moved 1 card." }`. Cards whose source or destination can no longer be resolved (or whose destination is their own list) are skipped and counted. `warnings` is always present (possibly empty) and names each list file that could not be fully read while the card index was rebuilt, so a skipped move is never silently unexplained.
 
-### `POST /api/search-cards`
+### `GET /api/card-search`
 
 **Auth required:** Yes
 
-Search Scryfall with its raw query syntax. Returns up to 20 card summaries, most popular (by EDHRec rank) first — except that a card whose whole name the query spells out is returned first. One result page is fetched. Cards returned under a name the local card cache does not already hold are written to it on the way through — an already-cached name is left as it is, so this warms the cache but never refreshes it. Use [`GET /api/card-search`](/admin/api/#card-search) to walk further pages without touching the cache at all.
-
-**Request body:**
-
-```json
-{
-  "query": "Lightning Bolt"
-}
-```
-
-A body that is not a JSON object, or a missing or blank `query`, is a `400`. Every failure keeps the same envelope — `success: false`, an empty `cards` array, and a `message` explaining the problem.
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "cards": [
-    {
-      "scryfallId": "...",
-      "name": "Lightning Bolt",
-      "set": "2xm",
-      "collectorNumber": "129",
-      "rarity": "uncommon",
-      "releasedAt": "2020-08-07",
-      "finishes": ["nonfoil"],
-      "prices": { "usd": "1.23" },
-      "manaCost": "{R}",
-      "cmc": 1,
-      "typeLine": "Instant",
-      "oracleText": "Lightning Bolt deals 3 damage to any target.",
-      "colorIdentity": ["R"]
-    }
-  ]
-}
-```
-
-Set codes are returned lowercase (the internal representation).
+Search Scryfall with its raw query syntax, one page per request. With `warm=true` the results are also written into the local card cache (under names it does not already hold), whole-name matches are promoted, and the page is capped at 20 — the behavior the removed `POST /api/search-cards` route provided. See [Card Search](/admin/api/#card-search) for the full parameter list, the response shape, and the error contract that applies to both modes.
 
 ### `POST /api/import-deck`
 

@@ -20,6 +20,7 @@
  */
 
 import { isRecord } from '../../json'
+import { parseEnumField, type EnumFieldResult } from '../../parse-enum'
 import {
   SYNC_CHANGE_FILTERS,
   SYNC_DIRECTIONS,
@@ -31,30 +32,13 @@ import {
 // this module and the wire parsers narrow unknown JSON the same way.
 export { isRecord }
 
-/** The outcome of {@link parseEnumField}: the canonical member, or why it was refused. */
-export type EnumFieldResult<T extends string> =
-  | { ok: true; value: T }
-  | { ok: false; message: string }
-
-/**
- * Match a value against a string enum case-insensitively, as the CLI's
- * `parseEnumFlag` does, so the same spelling is accepted whichever surface it is
- * typed into.
- */
-export function parseEnumField<T extends string>(
-  raw: unknown,
-  values: readonly T[],
-  field: string,
-): EnumFieldResult<T> {
-  const choices = values.join(', ')
-  if (typeof raw !== 'string') return { ok: false, message: `${field} must be one of: ${choices}.` }
-  const normalized = raw.toLowerCase()
-  // Both sides are lowercased, so the promise of case-insensitivity holds even
-  // for a future member that is not itself all-lowercase.
-  const match = values.find((candidate) => candidate.toLowerCase() === normalized)
-  if (!match) return { ok: false, message: `Invalid ${field} '${raw}'. Use one of: ${choices}.` }
-  return { ok: true, value: match }
-}
+// The case-insensitive enum matcher now lives in `src/parse-enum.ts`, beside
+// `parse-number.ts`, so the CLI's `parseEnumFlag` and every handler share one
+// acceptance rule (an uppercase `format` means the same thing on both). Kept
+// re-exported here because the two sync routes and their tests import it from
+// this module.
+export { parseEnumField }
+export type { EnumFieldResult }
 
 /** The fields every sync request carries, whichever engine it drives. */
 export type SyncRequestCore = {

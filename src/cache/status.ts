@@ -13,6 +13,17 @@ import { getConfiguredCacheServerAddress } from './config'
  * commander and the CLI's subcommand registration.
  */
 
+/**
+ * How to fix an empty card cache, phrased for every surface at once.
+ *
+ * An MCP agent cannot run a CLI command and a CLI user has no `refresh_cache`
+ * tool, so naming both beats projecting per client. Composed into each route's
+ * own sentence (which says what the empty cache cost *that* caller) rather than
+ * being the whole message. Ends without punctuation so a caller can continue it.
+ */
+export const CACHE_REFRESH_REMEDY =
+  'Refresh it first (MCP: the refresh_cache tool; CLI: `ritual cache preload-all`)'
+
 /** Where card data is being read from: the on-disk cache or a configured cache server. */
 export type CacheSource = 'local' | 'cache-server'
 

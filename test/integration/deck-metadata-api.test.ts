@@ -5,6 +5,7 @@ import matter from 'gray-matter'
 import { handleMetadataSave, type MetadataResponse } from '../../src/admin/api/metadata'
 import { bindWorkspace, writeCollectionFile, writeDeckFile } from './helpers/workspace'
 import type { BoundWorkspace } from './helpers/workspace'
+import { callJson } from './helpers/request'
 
 /**
  * `PUT /api/metadata/:type/:slug` — front-matter writes against real deck files.
@@ -36,15 +37,8 @@ type MetadataBody = MetadataResponse | { success: false; message: string }
 
 type MetadataCall = { status: number; body: MetadataBody }
 
-async function put(target: string, body: unknown): Promise<MetadataCall> {
-  const resp = await handleMetadataSave(
-    new Request(`http://localhost/api/metadata/${target}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }),
-  )
-  return { status: resp.status, body: (await resp.json()) as MetadataBody }
+function put(target: string, body: unknown): Promise<MetadataCall> {
+  return callJson<MetadataBody>(handleMetadataSave, 'PUT', `/api/metadata/${target}`, body)
 }
 
 /** Narrow a response to its success arm, failing the test when the write was refused. */

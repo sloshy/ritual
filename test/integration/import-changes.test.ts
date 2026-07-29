@@ -233,14 +233,13 @@ describe('import-changes command (Integration)', () => {
     })
   }, 60_000)
 
-  test('--output json keeps the cold-cache data-layer chatter off stdout', async () => {
+  test('--output json stays pure JSON on a cold cache with Scryfall unreachable', async () => {
     await withTempDir(async (dir) => {
-      // No cache pre-warm: the cold cache makes the data layer log its
-      // Scryfall chatter ("Fetching ...") during the run, which the
-      // STDERR_LOGGER must divert off stdout. The offline env keeps Scryfall
-      // unreachable, so the apply outcome varies (per-card fetches time out) —
-      // stdout purity must hold either way. An empty deck and a single change
-      // keep the number of doomed 15s card fetches minimal.
+      // No cache pre-warm and no network: the harshest conditions for stdout
+      // purity, since anything the data layer decides to say must go to stderr.
+      // The apply itself loads `?view=cards`, which does no Scryfall work at
+      // all, so a run here should be silent — and stdout must still be nothing
+      // but the payload.
       await writeDeckFile(dir, 'test-deck', {
         frontMatter: { name: 'Test Deck', format: 'commander' },
         cards: [],
@@ -264,13 +263,13 @@ describe('import-changes command (Integration)', () => {
         OFFLINE_ENV,
       )
 
-      // The data-layer chatter happened and landed on stderr — never on stdout.
-      expect(result.stderr).toContain('Fetching')
+      // Whatever the data layer said went to stderr, never to stdout.
       expect(result.stdout).not.toContain('Fetching')
-      // Anything stdout does carry must be the pure JSON payload.
-      if (result.stdout !== '') {
-        expect(() => JSON.parse(result.stdout)).not.toThrow()
-      }
+      // And stdout carries the payload, entire: a chatter line prepended to it
+      // would make this parse throw.
+      const report = JSON.parse(result.stdout)
+      expect(report).toMatchObject({ success: true })
+      expect(report.lists[0]).toMatchObject({ kind: 'deck', slug: 'test-deck', applied: 1 })
     })
   }, 240_000)
 
@@ -360,7 +359,7 @@ describe('import-changes command (Integration)', () => {
       // Called directly (as the admin route and MCP tool do), with no CLI
       // suppression wrapper: the save handler's auto-commit must fire.
       const result = await applyChangeBundle(bundle)
-      expect(result.success).toBe(true)
+      expect(result.failedCount).toBe(0)
 
       const subject = execSync('git log -1 --pretty=%s', { cwd: ws.dir, encoding: 'utf-8' }).trim()
       expect(subject).toBe('Edit deck: Test Deck (1 changes)')
@@ -424,7 +423,7 @@ describe('import-changes command (Integration)', () => {
       if (typeof bundle === 'string') throw new Error(`invalid fixture bundle: ${bundle}`)
 
       const result = await applyChangeBundle(bundle)
-      expect(result.success).toBe(true)
+      expect(result.failedCount).toBe(0)
 
       // The commit landed in the deck repo, covering the rewritten deck file...
       const subject = execSync('git log -1 --pretty=%s', {

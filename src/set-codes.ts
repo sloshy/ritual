@@ -21,13 +21,19 @@ export function parseSetCodesInput(value: string): string[] {
 export type SetCodeParseResult = { ok: true; code: string } | { ok: false; error: string }
 
 /**
- * Parse a single user-supplied set code: trimmed, lowercased, and required to
- * be plain alphanumeric (`mkm`, `2xm`, ...). The canonical validation for every
- * `--set`-style flag, so all surfaces reject the same malformed input.
+ * Parse a single user-supplied set code: trimmed, lowercased, and required to be
+ * alphanumeric with underscores (`mkm`, `2xm`, `pip_promo`, ...). The canonical
+ * validation for every `--set`-style flag, so all surfaces reject the same
+ * malformed input.
+ *
+ * Underscores are accepted because `DECK_CARD_LINE_RE` accepts them: Scryfall
+ * uses them for playtest and art-series sets, so a code this rejected could
+ * still be sitting in a list file, leaving those printings unnameable by every
+ * `set` filter.
  */
 export function parseSetCode(raw: string): SetCodeParseResult {
   const code = raw.trim().toLowerCase()
-  if (!/^[a-z0-9]+$/.test(code)) {
+  if (!/^[a-z0-9_]+$/.test(code)) {
     return { ok: false, error: `Invalid set code '${raw}'.` }
   }
   return { ok: true, code }

@@ -1,69 +1,25 @@
-import path from 'node:path'
-import { getContentHash } from '../../content-hash'
 import { parseCollectionFile } from '../../collection-file'
-import { getErrorMessage } from '../../errors'
-import { isPathWithinDir } from '../../path-validation'
 import { getCollectionsDir } from '../../ritual-config'
-import { addChangelogCardNames, fetchSymbolMap, loadEntryCardData } from './card-data-loader'
+import { handleFlatListLoad, type FlatListLoadConfig, type FlatListParseResult } from './list-load'
+import type { CollectionEntry } from './load-results'
 
-export async function handleCollectionLoad(req: Request): Promise<Response> {
-  try {
-    const url = new URL(req.url)
-    const pathParts = url.pathname.split('/')
-    const rawSlug = pathParts[3]
-
-    if (!rawSlug) {
-      return Response.json(
-        { success: false, message: 'Collection slug is required' },
-        { status: 400 },
-      )
-    }
-
-    const slug = decodeURIComponent(rawSlug)
-    const collectionsDir = getCollectionsDir()
-    const filePath = path.join(collectionsDir, slug + '.md')
-    if (!isPathWithinDir(filePath, collectionsDir)) {
-      return Response.json({ success: false, message: 'Invalid collection slug' }, { status: 400 })
-    }
-    const file = Bun.file(filePath)
-
-    if (!(await file.exists())) {
-      return Response.json(
-        { success: false, message: `Collection '${slug}' not found` },
-        { status: 404 },
-      )
-    }
-
-    const content = await file.text()
-    const { entries: rawEntries, sectionOrder } = parseCollectionFile(content)
-
-    // Normalize set codes to lowercase so they match Scryfall card keys
-    const entries = rawEntries.map((e) => ({ ...e, set: e.set.toLowerCase() }))
-
-    // Collect unique card names
-    const cardNames = new Set<string>()
-    for (const entry of entries) {
-      cardNames.add(entry.name)
-    }
-
-    await addChangelogCardNames(filePath, cardNames)
-
-    const { cards, printings } = await loadEntryCardData(cardNames)
-    const symbolMap = await fetchSymbolMap()
-
-    const contentHash = await getContentHash(filePath, content)
-
-    return Response.json({
-      success: true,
-      entries,
+const COLLECTION_LOAD_CFG: FlatListLoadConfig<CollectionEntry> = {
+  label: 'collection',
+  getDir: getCollectionsDir,
+  parse: (content): FlatListParseResult<CollectionEntry> => {
+    const { entries, sectionOrder } = parseCollectionFile(content)
+    // Set codes are normalized to lowercase so they match Scryfall card keys.
+    return {
+      entries: entries.map((entry) => ({ ...entry, set: entry.set.toLowerCase() })),
       sectionOrder,
-      cards,
-      printings,
-      symbolMap,
-      slug,
-      contentHash,
-    })
-  } catch (error) {
-    return Response.json({ success: false, message: getErrorMessage(error) }, { status: 500 })
-  }
+    }
+  },
+}
+
+/**
+ * `GET /api/collection/:slug` — a collection, at the depth `?view=` asks for.
+ * See `deck-load.ts` for the view/filter contract, which is identical.
+ */
+export function handleCollectionLoad(req: Request): Promise<Response> {
+  return handleFlatListLoad(req, COLLECTION_LOAD_CFG)
 }

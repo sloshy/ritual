@@ -2,6 +2,7 @@ import { dispatchRoute, type RequestContext } from '../admin/server'
 import type { HttpMethod } from '../routing'
 import { buildSyntheticRequest } from '../synthetic-request'
 import { apiErrorToMcp, type ApiErrorBody } from './errors'
+import type { OmitSuccess } from './types'
 
 /**
  * Synthetic request context for in-process calls. The MCP server is a local,
@@ -67,4 +68,28 @@ export async function callApi(method: HttpMethod, path: string, body?: unknown):
     throw apiErrorToMcp(response.status === 200 ? 400 : response.status, errorBody(data, 400))
   }
   return data
+}
+
+/** The envelope key every admin body carries, and the only one a tool strips. */
+type SuccessEnvelope = { success?: unknown }
+
+/**
+ * {@link callApi} for the common case: a handler body that is the tool's result
+ * once the `success` envelope is off.
+ *
+ * The key is a constant on every body that gets this far — `callApi` throws on a
+ * non-2xx *and* on a 2xx carrying `success: false` — so echoing it would tell an
+ * agent nothing and cost a field on every one of two dozen tools. The strip used
+ * to be written out at each of those call sites, one `const { success: _success,
+ * ...rest }` at a time; one place is one place for the reasoning to live, and
+ * {@link OmitSuccess} keeps the returned type honest.
+ */
+export async function callApiData<T extends object>(
+  method: HttpMethod,
+  path: string,
+  body?: unknown,
+): Promise<OmitSuccess<T>> {
+  const data = (await callApi(method, path, body)) as T & SuccessEnvelope
+  const { success: _success, ...rest } = data
+  return rest as OmitSuccess<T>
 }

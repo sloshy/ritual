@@ -45,9 +45,16 @@ ritual scry "c:blue" --csv                              # CSV output
 
 Paging never blocks a script: \`--pages <n>\` fetches up to \`n\` pages without
 prompting, and everywhere prompts are unavailable (piped output, the global
-\`--no-input\` flag, or \`RITUAL_NO_INPUT\`) exactly one page is fetched. There is
-no fetch-all flag — pass a large \`--pages\` value to get everything. A query with
-no matches exits 3; a Scryfall error exits 1.
+\`--no-input\` flag, or \`RITUAL_NO_INPUT\`) exactly one page is fetched. A run
+fetches at most 20 pages either way (each page is a separately paced Scryfall
+request), and \`--count\` is capped at 50; a larger value is refused at parse
+time. There is no fetch-all flag.
+
+\`--output json\` (the default) emits ONE array of cards on a scripted run,
+whatever the page count — a single-page run and a five-page run produce the same
+shape, and a run that matched nothing emits \`[]\`. Interactive paging prints each
+page as it arrives instead. \`--output ndjson\` streams one document per card as
+pages arrive. A query with no matches exits 3; a Scryfall error exits 1.
 
 ## Random cards
 
@@ -62,7 +69,8 @@ ritual scry --random --output text
 \`\`\`
 
 With a single pick (the default) the output is one bare card object. \`--count\`
-requires \`--random\`, and \`--random\` cannot be combined with \`--pages\` or \`--csv\`.
+requires \`--random\` (max 50), and \`--random\` cannot be combined with \`--pages\`
+or \`--csv\`.
 
 ## Live queries vs. the local cache
 

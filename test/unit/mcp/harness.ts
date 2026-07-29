@@ -1,15 +1,36 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
 import { getBaseDir, setBaseDir } from '../../../src/base-dir'
+import { buildMcpServer } from '../../../src/mcp/server'
 import { cardCache } from '../../../src/cache'
 import { MemoryLogger, resetLogger, setLogger } from '../../../src/logger'
 import { initRitualConfig, resetRitualConfigCache } from '../../../src/ritual-config'
+import { makeScryfallCard } from '../../test-utils'
+
+/**
+ * Card names the seeded cache knows.
+ *
+ * The write tools validate every card name they are given against the local
+ * cache, so a wiring test that adds a card needs the cache to know it. Names
+ * outside this list ("Definitely Not A Card") are what the unknown-name legs
+ * use, so keep it to cards the suite actually means to succeed with.
+ */
+export const CACHED_CARD_NAMES = [
+  'Sol Ring',
+  'Lightning Bolt',
+  'Counterspell',
+  'Brainstorm',
+  'Llanowar Elves',
+  'Arcane Signet',
+]
 
 /**
  * A temp Ritual workspace for MCP tests: synthetic deck/collection/wanted files
  * under a throwaway base dir, with Scryfall stubbed offline and the card cache
- * marked fresh so the load endpoints never trigger a network download.
+ * seeded with a handful of real names (and thereby marked fresh, so the load
+ * endpoints never trigger a network download).
  */
 export type RitualTestEnv = {
   dir: string
@@ -48,6 +69,42 @@ function stubScryfallFetch(input: string | URL | Request): Promise<Response> {
   )
 }
 
+/**
+ * A workspace plus a client already talking to a server over it.
+ *
+ * `close` tears both down in the right order (client first, so the transport is
+ * not closed under an in-flight request), which is the half every suite that
+ * drives real tool calls had to write out for itself.
+ */
+export type McpTestSession = {
+  env: RitualTestEnv
+  client: Client
+  close: () => Promise<void>
+}
+
+/**
+ * {@link setupRitualTestEnv} wired to an in-memory client/server pair.
+ *
+ * `InMemoryTransport` links 2025-era instances only, so this is the legacy leg —
+ * the modern (2026-07-28) leg has no in-memory serving entry and is driven
+ * through `createMcpHandler`'s own fetch instead. Suites that pin era behavior
+ * assert it explicitly rather than assuming what this returns.
+ */
+export async function setupMcpClient(clientName = 'ritual-test'): Promise<McpTestSession> {
+  const env = await setupRitualTestEnv()
+  const client = new Client({ name: clientName, version: '0.0.0' })
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+  await Promise.all([buildMcpServer().connect(serverTransport), client.connect(clientTransport)])
+  return {
+    env,
+    client,
+    close: async () => {
+      await client.close()
+      await env.cleanup()
+    },
+  }
+}
+
 export async function setupRitualTestEnv(): Promise<RitualTestEnv> {
   const originalBase = getBaseDir()
   const originalFetch = globalThis.fetch
@@ -69,9 +126,14 @@ export async function setupRitualTestEnv(): Promise<RitualTestEnv> {
   // Silence the offline-stub's "card not found" / symbology chatter from the logger.
   setLogger(new MemoryLogger())
   globalThis.fetch = stubScryfallFetch as typeof fetch
-  // Mark the card cache as freshly bulk-downloaded so ensureCacheForCards skips the
-  // (network) bulk preload; the small synthetic decks stay under the fetch threshold.
-  await cardCache.bulkSet({})
+  // Seeding also marks the cache as freshly bulk-downloaded, so ensureCacheForCards
+  // skips the (network) bulk preload; the small synthetic decks stay under the
+  // fetch threshold.
+  await cardCache.bulkSet(
+    Object.fromEntries(
+      CACHED_CARD_NAMES.map((name) => [name, [makeScryfallCard({ name, set: 'lea' })]]),
+    ),
+  )
 
   return {
     dir,

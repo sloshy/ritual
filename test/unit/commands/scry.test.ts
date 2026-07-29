@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  MAX_SCRY_PAGES,
+  MAX_SCRY_RANDOM_COUNT,
+  parseScryCount,
+  parseScryPages,
   shouldPageInteractively,
   validateScryUsage,
   type ScryPagingInput,
@@ -76,5 +80,32 @@ describe('validateScryUsage', () => {
     ],
   ])('%s is a usage error', (_label, value, message) => {
     expect(validateScryUsage(value)).toBe(message)
+  })
+})
+
+/**
+ * Both flags drive a run of separately paced Scryfall requests, so both are
+ * bounded — an accidental `--pages 100000` would spend the rate limit for an
+ * hour before anyone noticed. The message names the cap so a caller who wants
+ * more knows the ceiling.
+ */
+describe('scry flag bounds', () => {
+  test('--pages accepts a value up to the cap and refuses more', () => {
+    expect(parseScryPages(String(MAX_SCRY_PAGES))).toBe(MAX_SCRY_PAGES)
+    expect(() => parseScryPages(String(MAX_SCRY_PAGES + 1))).toThrow(
+      `Pages must be at most ${MAX_SCRY_PAGES}.`,
+    )
+  })
+
+  test('--count accepts a value up to the cap and refuses more', () => {
+    expect(parseScryCount(String(MAX_SCRY_RANDOM_COUNT))).toBe(MAX_SCRY_RANDOM_COUNT)
+    expect(() => parseScryCount(String(MAX_SCRY_RANDOM_COUNT + 1))).toThrow(
+      `Count must be at most ${MAX_SCRY_RANDOM_COUNT}.`,
+    )
+  })
+
+  test('both still refuse a non-positive or non-integer value', () => {
+    expect(() => parseScryPages('0')).toThrow('Pages must be a positive integer.')
+    expect(() => parseScryCount('1.5')).toThrow('Count must be a positive integer.')
   })
 })

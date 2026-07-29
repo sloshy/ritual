@@ -3,6 +3,8 @@ import {
   detailCard,
   summarizeCard,
   summarizePrinting,
+  summarizePrintingIdentity,
+  summarizePrintingIdentityOrNull,
   summarizePrintingOrNull,
 } from '../../../src/api/card-summary'
 import { makeScryfallCard } from '../../test-utils'
@@ -56,6 +58,35 @@ describe('summarizePrinting', () => {
 
   test('lowercases the set code, since raw Scryfall JSON is not normalized on ingest', () => {
     expect(summarizePrinting(makeScryfallCard({ set: 'MKM' })).set).toBe('mkm')
+  })
+})
+
+describe('summarizePrintingIdentity', () => {
+  const card = makeScryfallCard({
+    id: 'abc',
+    name: 'Lightning Bolt',
+    set: 'LEA',
+    collector_number: '161',
+    prices: { usd: '1.50' },
+  })
+
+  test('is summarizePrinting minus the price block, and nothing else', () => {
+    const identity = summarizePrintingIdentity(card)
+    const summary = summarizePrinting(card)
+    expect(identity).not.toHaveProperty('prices')
+    const { prices, ...rest } = summary
+    expect(prices).toBeDefined()
+    expect(identity).toEqual(rest)
+  })
+
+  test('normalizes the set code like the full projection does', () => {
+    expect(summarizePrintingIdentity(card).set).toBe('lea')
+  })
+
+  test('summarizePrintingIdentityOrNull passes both null and undefined through', () => {
+    expect(summarizePrintingIdentityOrNull(null)).toBeNull()
+    expect(summarizePrintingIdentityOrNull(undefined)).toBeNull()
+    expect(summarizePrintingIdentityOrNull(card)?.name).toBe('Lightning Bolt')
   })
 })
 

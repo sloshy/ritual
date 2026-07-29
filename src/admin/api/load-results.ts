@@ -1,12 +1,18 @@
 import type { Condition, DeckData, Finish } from '../../types'
 import type { ParsedWantedEntry } from '../../editor/wanted-entries'
+import type { DeckCardLoadResult, EntryCardLoadResult } from './card-data-loader'
+import type { ListCounts, ListLoadView, ListSectionCount } from './list-load-params'
+
+export type { ListCounts, ListLoadView, ListSectionCount }
 
 /**
- * Response shapes of the deck/collection/wanted load endpoints, as consumed by
- * in-process callers — the MCP layer and the change-bundle import engine. Each
- * captures only the fields those callers actually read; the handlers return
- * more (card data, printings, symbol maps). Kept in one place so the two
- * consumers can never drift apart in how they describe the same endpoints.
+ * Response shapes of the deck/collection/wanted load endpoints.
+ *
+ * Every body the three handlers return is declared here and annotated at its
+ * `return`, so a field a client reads cannot quietly stop being sent. In-process
+ * callers — the MCP layer and the change-bundle import engine — cast the parsed
+ * JSON to these same types, which is what keeps the consumers from drifting
+ * apart in how they describe the same endpoint.
  */
 
 /** A collection entry as returned by `GET /api/collection/:slug`. */
@@ -21,23 +27,99 @@ export interface CollectionEntry {
   section?: string
 }
 
-/** `GET /api/deck/:slug` — the fields the deck read and mutation flows consume. */
-export interface DeckLoadResult {
+/** Fields every non-summary load body carries, whatever the list type. */
+export interface ListLoadBase {
+  success: true
+  slug: string
+  /**
+   * Lines that matched the filters, before `limit`/`offset` applied. Always
+   * present; on an unfiltered load it is the list's whole line count.
+   */
+  totalCount: number
+  /**
+   * Present, and only ever `true`, when `section`/`nameContains`/`limit`/`offset`
+   * narrowed the body — i.e. it describes a slice of the list rather than the
+   * list.
+   */
+  partial?: true
+  /**
+   * The file's content hash, which the save routes require. Deliberately
+   * **omitted on a `partial` body**: the deck and wanted save routes persist the
+   * payload they are handed, so saving a slice back would truncate the file.
+   * Withholding the hash makes that round trip impossible rather than merely
+   * ill-advised.
+   */
+  contentHash?: string
+}
+
+/** `GET /api/deck/:slug?view=cards` — the deck's lines and front matter. */
+export interface DeckCardsLoadResult extends ListLoadBase {
+  view: 'cards'
   deck: DeckData
   frontMatter: Record<string, unknown>
-  contentHash: string
 }
+
+/** `GET /api/deck/:slug` (`view=full`) — the editor payload: the cards view plus Scryfall data. */
+export interface DeckFullLoadResult extends ListLoadBase, DeckCardLoadResult {
+  view: 'full'
+  deck: DeckData
+  frontMatter: Record<string, unknown>
+  symbolMap: Record<string, string>
+}
+
+/** `GET /api/deck/:slug` — the fields the deck read and mutation flows consume. */
+export type DeckLoadResult = DeckCardsLoadResult | DeckFullLoadResult
+
+/**
+ * `?view=cards` body for a flat (collection | wanted) list — entries plus the
+ * section order. Generic in the entry type so the shared flat-list load handler
+ * can be typed once; the two concrete aliases below are what clients import.
+ */
+export interface FlatCardsLoadResult<T> extends ListLoadBase {
+  view: 'cards'
+  entries: T[]
+  sectionOrder?: string[]
+}
+
+/** `view=full` body for a flat list — the cards view plus Scryfall data. */
+export interface FlatFullLoadResult<T> extends ListLoadBase, EntryCardLoadResult {
+  view: 'full'
+  entries: T[]
+  sectionOrder?: string[]
+  symbolMap: Record<string, string>
+}
+
+/** `GET /api/collection/:slug?view=cards` — entries plus the section order. */
+export type CollectionCardsLoadResult = FlatCardsLoadResult<CollectionEntry>
+
+/** `GET /api/collection/:slug` (`view=full`) — the cards view plus Scryfall data. */
+export type CollectionFullLoadResult = FlatFullLoadResult<CollectionEntry>
 
 /** `GET /api/collection/:slug` — entries plus the section order and content hash. */
-export interface CollectionLoadResult {
-  entries: CollectionEntry[]
-  sectionOrder?: string[]
-  contentHash: string
-}
+export type CollectionLoadResult = CollectionCardsLoadResult | CollectionFullLoadResult
+
+/** `GET /api/wanted/:slug?view=cards` — entries plus the section order. */
+export type WantedCardsLoadResult = FlatCardsLoadResult<ParsedWantedEntry>
+
+/** `GET /api/wanted/:slug` (`view=full`) — the cards view plus Scryfall data. */
+export type WantedFullLoadResult = FlatFullLoadResult<ParsedWantedEntry>
 
 /** `GET /api/wanted/:slug` — entries plus the section order and content hash. */
-export interface WantedLoadResult {
-  entries: ParsedWantedEntry[]
-  sectionOrder?: string[]
+export type WantedLoadResult = WantedCardsLoadResult | WantedFullLoadResult
+
+/**
+ * `?view=summary` body for any list type: how much is in the list (after any
+ * `section`/`nameContains` filter) and nothing else. Cheap by construction — the
+ * handler returns it before loading any Scryfall data.
+ *
+ * The counts describe the whole filtered set: `limit`/`offset` page the *cards*
+ * views and are ignored here, so a paging client can read the total it pages
+ * against out of the same response.
+ */
+export interface ListSummaryLoadResult {
+  success: true
+  slug: string
+  view: 'summary'
+  counts: ListCounts
   contentHash: string
 }

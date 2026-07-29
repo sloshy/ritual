@@ -10,11 +10,8 @@ import {
   type ChangeSet,
 } from '../../../changelog-blocks'
 import type { ListInfo } from '../../../list-info'
-import type {
-  HistoryLoadResponse,
-  HistorySaveResponse,
-  HistoryErrorResponse,
-} from '../../api/history'
+import type { HistoryLoadResponse, HistorySaveResponse } from '../../api/history'
+import type { ApiErrorResponse } from '../../api/save-helpers'
 import type { ListsResponse } from '../../api/lists'
 import { type ListId, listInfoId } from '../list-grouping'
 
@@ -102,7 +99,7 @@ export function useHistorySession(): UseHistorySessionResult {
   const reloadLists = async (): Promise<void> => {
     try {
       const resp = await fetch('/api/lists', { credentials: 'same-origin' })
-      const data = (await resp.json()) as ListsResponse | HistoryErrorResponse
+      const data = (await resp.json()) as ListsResponse | ApiErrorResponse
       if (!data.success) {
         setError(data.message)
         return
@@ -125,7 +122,7 @@ export function useHistorySession(): UseHistorySessionResult {
         `/api/history/${encodeURIComponent(list.type)}/${encodeURIComponent(list.slug)}`,
         { credentials: 'same-origin' },
       )
-      const data = (await resp.json()) as HistoryLoadResponse | HistoryErrorResponse
+      const data = (await resp.json()) as HistoryLoadResponse | ApiErrorResponse
       if (!data.success) {
         setError(data.message)
         return
@@ -220,7 +217,7 @@ export function useHistorySession(): UseHistorySessionResult {
           body: JSON.stringify({ sets: sets() }),
         },
       )
-      const data = (await resp.json()) as HistorySaveResponse | HistoryErrorResponse
+      const data = (await resp.json()) as HistorySaveResponse | ApiErrorResponse
       if (!data.success) {
         setError(data.message)
         return

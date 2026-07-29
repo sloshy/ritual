@@ -27,10 +27,10 @@ import { applyChangeToCollection, toCollectionCardEntries } from '../../editor/c
 import { applyChangeToDeck } from '../../editor/deck-changes'
 import { applyChangeToWantedList } from '../../editor/wanted-changes'
 import { toWantedCardEntries } from '../../editor/wanted-entries'
-import { getErrorMessage } from '../../errors'
 import { buildSyntheticRequest } from '../../synthetic-request'
 import type { CollectionLoadResult, DeckLoadResult, WantedLoadResult } from './load-results'
-import { validateBodySize } from './save-helpers'
+import { apiHandler } from '../utils'
+import { badRequest, validateBodySize } from './save-helpers'
 import { handleDeckLoad } from './deck-load'
 import { handleDeckSave } from './deck-save'
 import { handleCollectionLoad } from './collection-load'
@@ -56,10 +56,29 @@ export type ListImportResult = {
 
 /** The outcome of applying a whole change bundle. */
 export type BundleImportResult = {
-  /** True when every list applied without a load/save error (conflicts are not errors). */
-  success: boolean
+  /**
+   * Lists that could not be loaded or saved (conflicts are not errors). Each
+   * one's reason is on its own {@link ListImportResult.error}; this is the count
+   * a caller branches on. It is deliberately **not** a `success: false` flag on
+   * the response: a partially-failed import is still a processed request whose
+   * per-list report is the whole point, and folding it into the envelope is what
+   * made every client that treats `success: false` as "throw" discard that
+   * report exactly when it mattered.
+   */
+  failedCount: number
   lists: ListImportResult[]
 }
+
+/**
+ * `POST /api/import-changes` body: the engine's result plus its summary line.
+ *
+ * Declared rather than assembled inline at the `return`, so the CLI's
+ * `--output json` payload and the MCP `import_change_bundle` result can be typed
+ * against the same shape instead of each restating it. `success` is the envelope
+ * flag every admin route carries and is always `true` here — read `failedCount`
+ * (and each list's `error`) to tell a clean import from a partial one.
+ */
+export type BundleImportResponse = BundleImportResult & { success: true; message: string }
 
 type ApiCallResult<T> = { ok: true; data: T } | { ok: false; error: string }
 
@@ -69,7 +88,7 @@ type ApiCallResult<T> = { ok: true; data: T } | { ok: false; error: string }
  * an error string. This reuses the exact load/save code paths the admin editors
  * (and the MCP server) go through — content hashing, changelogs, and cross-list
  * moves behave identically. Git auto-commit depends on the surface: the admin
- * route and the MCP `import_changes` tool honor the `admin.git*` keys, while the
+ * route and the MCP `import_change_bundle` tool honor the `admin.git*` keys, while the
  * `ritual import-changes` CLI wraps its apply in `suppressAutoCommit` so the CLI
  * never creates commits.
  */
@@ -164,7 +183,13 @@ function splitApplicable<TData>(
 
 async function applyToDeck(slug: string, changes: ChangeEvent[]): Promise<ApplyOutcome> {
   const encoded = encodeURIComponent(slug)
-  const loaded = await call<DeckLoadResult>(handleDeckLoad, 'GET', `/api/deck/${encoded}`)
+  // `view=cards` for the same reason the MCP mutations use it: this reads only
+  // the deck lines, front matter, and content hash, never the Scryfall payload.
+  const loaded = await call<DeckLoadResult>(
+    handleDeckLoad,
+    'GET',
+    `/api/deck/${encoded}?view=cards`,
+  )
   if (!loaded.ok) return { retargeted: [], conflicts: [], error: loaded.error }
   const { deck, frontMatter, contentHash } = loaded.data
 
@@ -196,7 +221,7 @@ async function applyToCollection(slug: string, changes: ChangeEvent[]): Promise<
   const loaded = await call<CollectionLoadResult>(
     handleCollectionLoad,
     'GET',
-    `/api/collection/${encoded}`,
+    `/api/collection/${encoded}?view=cards`,
   )
   if (!loaded.ok) return { retargeted: [], conflicts: [], error: loaded.error }
   const { entries, sectionOrder, contentHash } = loaded.data
@@ -229,7 +254,11 @@ async function applyToCollection(slug: string, changes: ChangeEvent[]): Promise<
 
 async function applyToWanted(slug: string, changes: ChangeEvent[]): Promise<ApplyOutcome> {
   const encoded = encodeURIComponent(slug)
-  const loaded = await call<WantedLoadResult>(handleWantedListLoad, 'GET', `/api/wanted/${encoded}`)
+  const loaded = await call<WantedLoadResult>(
+    handleWantedListLoad,
+    'GET',
+    `/api/wanted/${encoded}?view=cards`,
+  )
   if (!loaded.ok) return { retargeted: [], conflicts: [], error: loaded.error }
   const { contentHash, sectionOrder } = loaded.data
   const entries = toWantedCardEntries(loaded.data.entries)
@@ -329,13 +358,13 @@ export async function applyChangeBundle(bundle: ChangeBundle): Promise<BundleImp
   for (const list of bundle.lists) {
     lists.push(await applyList(list))
   }
-  return { success: lists.every((l) => l.error === undefined), lists }
+  return { failedCount: lists.filter((l) => l.error !== undefined).length, lists }
 }
 
 /**
  * Build the one-line human summary of a bundle import ("Applied 3 changes
  * across 2 lists"). Shared verbatim by the admin `POST /api/import-changes`
- * response, the MCP `import_changes` tool (which calls that route), and the
+ * response, the MCP `import_change_bundle` tool (which calls that route), and the
  * CLI's `--output json` payload, so all three surfaces report identically.
  */
 export function bundleImportMessage(result: BundleImportResult): string {
@@ -343,10 +372,9 @@ export function bundleImportMessage(result: BundleImportResult): string {
     result.lists.reduce((sum, l) => sum + l.applied, 0),
     'change',
   )
-  const failed = result.lists.filter((l) => l.error !== undefined).length
-  return result.success
+  return result.failedCount === 0
     ? `Applied ${applied} across ${countLabel(result.lists.length, 'list')}`
-    : `Applied ${applied}; ${countLabel(failed, 'list')} failed`
+    : `Applied ${applied}; ${countLabel(result.failedCount, 'list')} failed`
 }
 
 /**
@@ -354,19 +382,23 @@ export function bundleImportMessage(result: BundleImportResult): string {
  * raw exported JSON; the response reports per-list
  * applied counts, skipped conflicts, and errors.
  */
-export async function handleImportChanges(req: Request): Promise<Response> {
-  try {
+export function handleImportChanges(req: Request): Promise<Response> {
+  // `readJsonObjectBody` does not fit here: the body is the bundle's raw text,
+  // which `parseChangeBundle` parses and validates itself. The size cap it also
+  // performs is therefore applied on its own.
+  return apiHandler(async () => {
     const sizeError = validateBodySize(req)
     if (sizeError) return sizeError
 
     const bundle = parseChangeBundle(await req.text())
-    if (typeof bundle === 'string') {
-      return Response.json({ success: false, message: bundle }, { status: 400 })
-    }
+    if (typeof bundle === 'string') return badRequest(bundle)
 
     const result = await applyChangeBundle(bundle)
-    return Response.json({ ...result, message: bundleImportMessage(result) })
-  } catch (error) {
-    return Response.json({ success: false, message: getErrorMessage(error) }, { status: 500 })
-  }
+    const body: BundleImportResponse = {
+      success: true,
+      ...result,
+      message: bundleImportMessage(result),
+    }
+    return Response.json(body)
+  })
 }

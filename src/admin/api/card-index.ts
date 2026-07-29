@@ -1,10 +1,13 @@
 import { getErrorMessage } from '../../errors'
-import { isListType, type ListType } from '../../list-type'
+import { parseEnumField } from '../../parse-enum'
+import { LIST_TYPES, type ListType } from '../../list-type'
 import { loadAllLists, loadPhysicalCards } from '../../commands/move-helpers'
 import { listSlug, type ListInfo } from '../../list-info'
 import { matchesNameTerms, normalizeCardName, splitNameTerms } from '../../term-match'
-import { moveCardKey, type MovePhysicalCard } from './move'
+import { moveCardKey, type MovePhysicalCard } from '../../card-index-types'
 import { isValidListSlug } from './target'
+import { apiError, badRequest } from './save-helpers'
+import { parseSetCode } from '../../set-codes'
 
 /**
  * `GET /api/card-index` — every list plus every physical card across them, with
@@ -15,10 +18,13 @@ export type CardIndexResponse = {
   success: true
   lists: ListInfo[]
   cards: MovePhysicalCard[]
+  /**
+   * Read/parse problems hit while building the index — an unreadable list file,
+   * a malformed card line. Always present (possibly empty) so a client can tell
+   * "nothing went wrong" from "this server does not report warnings".
+   */
+  warnings: string[]
 }
-
-/** `GET /api/card-index` failure body. */
-export type CardIndexErrorResponse = { success: false; message: string }
 
 /** Validated `GET /api/card-index` query filters; every field is optional. */
 export type CardIndexFilters = {
@@ -28,11 +34,6 @@ export type CardIndexFilters = {
   slug?: string
   /** Lowercase set code. */
   set?: string
-}
-
-function errorResponse(message: string, status: number): Response {
-  const body: CardIndexErrorResponse = { success: false, message }
-  return Response.json(body, { status })
 }
 
 /**
@@ -51,8 +52,11 @@ export function parseCardIndexFilters(params: URLSearchParams): CardIndexFilters
 
   const listType = params.get('listType')?.trim()
   if (listType) {
-    if (!isListType(listType)) return `Invalid list type '${listType}'.`
-    filters.listType = listType
+    // Through the shared enum parser, so `?listType=Deck` is accepted here as
+    // every other surface accepts it.
+    const parsed = parseEnumField(listType, LIST_TYPES, 'list type')
+    if (!parsed.ok) return parsed.message
+    filters.listType = parsed.value
   }
 
   const slug = params.get('slug')?.trim()
@@ -62,8 +66,14 @@ export function parseCardIndexFilters(params: URLSearchParams): CardIndexFilters
   }
 
   const set = params.get('set')?.trim()
-  // Set codes are lowercase internally; a caller may send either casing.
-  if (set) filters.set = set.toLowerCase()
+  // Set codes are lowercase internally; a caller may send either casing. Through
+  // the canonical parser so a malformed code is refused rather than silently
+  // matching nothing.
+  if (set) {
+    const parsed = parseSetCode(set)
+    if (!parsed.ok) return parsed.error
+    filters.set = parsed.code
+  }
 
   return filters
 }
@@ -75,7 +85,7 @@ export function parseCardIndexFilters(params: URLSearchParams): CardIndexFilters
  */
 async function loadCardIndex(): Promise<CardIndexResponse> {
   const lists = await loadAllLists()
-  const physical = await loadPhysicalCards(lists)
+  const { cards: physical, warnings } = await loadPhysicalCards(lists)
   const slugByPath = new Map(lists.map((l) => [l.filePath, listSlug(l.filePath)]))
 
   const listInfos: ListInfo[] = lists.map((l) => ({
@@ -101,7 +111,7 @@ async function loadCardIndex(): Promise<CardIndexResponse> {
     }
   })
 
-  return { success: true, lists: listInfos, cards }
+  return { success: true, lists: listInfos, cards, warnings }
 }
 
 /** Apply filters to an already-built index. Every filter given must match (they intersect). */
@@ -128,7 +138,7 @@ export function filterCardIndex(
 export async function handleCardIndex(req: Request): Promise<Response> {
   try {
     const filters = parseCardIndexFilters(new URL(req.url).searchParams)
-    if (typeof filters === 'string') return errorResponse(filters, 400)
+    if (typeof filters === 'string') return badRequest(filters)
 
     const index = await loadCardIndex()
     const body: CardIndexResponse = {
@@ -137,6 +147,6 @@ export async function handleCardIndex(req: Request): Promise<Response> {
     }
     return Response.json(body)
   } catch (error) {
-    return errorResponse(getErrorMessage(error), 500)
+    return apiError(getErrorMessage(error), 500)
   }
 }

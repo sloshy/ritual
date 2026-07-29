@@ -3,6 +3,7 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { createAddChange, createRemoveChange, type ChangeEvent } from '../../src/change-event'
 import { handleCollectionSave } from '../../src/admin/api/collection-save'
+import type { ListSaveResponse } from '../../src/admin/api/move-save'
 import { computeHash } from '../../src/content-hash'
 import { bindWorkspace, writeCollectionFile, type BoundWorkspace } from './helpers/workspace'
 
@@ -22,9 +23,15 @@ let contentHash: string
 beforeEach(async () => {
   ws = await bindWorkspace({ config: false })
   tmpDir = ws.dir
+  // Two entries, so `&1` and `&2` are both taken: an add that *requests* `&2`
+  // can then only come back as `&3`, and a handler that echoed the requested id
+  // instead of allocating one would be caught.
   filePath = await writeCollectionFile(tmpDir, 'binder', {
     title: 'Binder',
-    entries: [{ name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 }],
+    entries: [
+      { name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 },
+      { name: 'Counterspell', set: 'lea', collectorNumber: '55', cardId: 2 },
+    ],
   })
   contentHash = computeHash(await fs.readFile(filePath, 'utf-8'))
 })
@@ -80,6 +87,56 @@ describe('POST /api/collection/:slug/save', () => {
 
     expect(resp.status).toBe(200)
     const content = await fs.readFile(filePath, 'utf-8')
-    expect(content).toContain('- Sol Ring (C21:167) &2')
+    // `&3`, not the requested `&2`: that number is already this list's.
+    expect(content).toContain('- Sol Ring (C21:167) &3')
+  })
+
+  test('refuses a slug that would escape the collections directory', async () => {
+    const req = new Request('http://localhost/api/collection/..%2Fescape/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ changes: [], contentHash }),
+    })
+    const resp = await handleCollectionSave(req)
+    expect(resp.status).toBe(400)
+    // Refused by the shared slug rule before the file is ever resolved;
+    // `resolveFlatListFile`'s own containment check is the second line.
+    expect(((await resp.json()) as { message: string }).message).toBe('Invalid list slug')
+  })
+
+  test('the response reports the effects of an add and of a removal', async () => {
+    // `&N` ids are allocated at serialization, inside the handler, so the
+    // response is the only place a client can learn the id its add received.
+    const added = await save([
+      createAddChange('Sol Ring', { set: 'c21', collectorNumber: '167', cardId: 2 }),
+    ])
+    expect(added.status).toBe(200)
+    const addedBody = (await added.json()) as ListSaveResponse
+    expect(addedBody.effects).toEqual([
+      {
+        action: 'added',
+        cardId: 3,
+        name: 'Sol Ring',
+        section: 'Main',
+        quantity: 1,
+        printing: {
+          set: 'c21',
+          collectorNumber: '167',
+          finish: 'nonfoil',
+          condition: 'NM',
+        },
+      },
+    ])
+
+    contentHash = addedBody.contentHash
+    const removed = await save([createRemoveChange('Lightning Bolt', { cardId: 1 })])
+    expect(removed.status).toBe(200)
+    const removedBody = (await removed.json()) as ListSaveResponse
+    expect(removedBody.effects).toHaveLength(1)
+    expect(removedBody.effects[0]).toMatchObject({
+      action: 'removed',
+      cardId: 1,
+      name: 'Lightning Bolt',
+    })
   })
 })

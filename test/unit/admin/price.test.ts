@@ -8,10 +8,10 @@ import { resetRitualConfigCache } from '../../../src/ritual-config'
 import {
   handlePriceList,
   handlePriceSummary,
-  type PriceErrorResponse,
   type PriceListDetailResponse,
   type PriceSummaryResponse,
 } from '../../../src/admin/api/price'
+import type { ApiErrorResponse } from '../../../src/admin/api/save-helpers'
 import { makeScryfallCard } from '../../test-utils'
 
 /**
@@ -72,7 +72,7 @@ describe('GET /api/price/summary', () => {
     await writeLists()
     const resp = await handlePriceSummary(summaryRequest())
     expect(resp.status).toBe(503)
-    const body = (await resp.json()) as PriceErrorResponse
+    const body = (await resp.json()) as ApiErrorResponse
     expect(body.success).toBe(false)
     expect(body.message).toContain('cache is empty')
   })
@@ -80,13 +80,13 @@ describe('GET /api/price/summary', () => {
   test('returns 400 for an invalid type', async () => {
     const resp = await handlePriceSummary(summaryRequest('?type=bogus'))
     expect(resp.status).toBe(400)
-    expect(((await resp.json()) as PriceErrorResponse).success).toBe(false)
+    expect(((await resp.json()) as ApiErrorResponse).success).toBe(false)
   })
 
   test('returns 400 for an invalid currency', async () => {
     const resp = await handlePriceSummary(summaryRequest('?currency=gbp'))
     expect(resp.status).toBe(400)
-    expect(((await resp.json()) as PriceErrorResponse).success).toBe(false)
+    expect(((await resp.json()) as ApiErrorResponse).success).toBe(false)
   })
 
   test('prices every list with per-type and grand totals', async () => {
@@ -135,14 +135,14 @@ describe('GET /api/price/:type/:slug', () => {
   test('returns 400 for an invalid list type in the path', async () => {
     const resp = await handlePriceList(listRequest('bogus', 'binder'))
     expect(resp.status).toBe(400)
-    expect(((await resp.json()) as PriceErrorResponse).success).toBe(false)
+    expect(((await resp.json()) as ApiErrorResponse).success).toBe(false)
   })
 
   test('returns 404 for an unknown slug', async () => {
     await writeLists()
     const resp = await handlePriceList(listRequest('collection', 'ghost'))
     expect(resp.status).toBe(404)
-    const body = (await resp.json()) as PriceErrorResponse
+    const body = (await resp.json()) as ApiErrorResponse
     expect(body.success).toBe(false)
     expect(body.message).toContain('ghost')
   })
@@ -151,7 +151,7 @@ describe('GET /api/price/:type/:slug', () => {
     await writeLists()
     const resp = await handlePriceList(listRequest('collection', 'binder'))
     expect(resp.status).toBe(503)
-    expect(((await resp.json()) as PriceErrorResponse).message).toContain('cache is empty')
+    expect(((await resp.json()) as ApiErrorResponse).message).toContain('cache is empty')
   })
 
   test('prices a single list in the requested currency', async () => {

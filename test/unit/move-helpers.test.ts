@@ -2,6 +2,7 @@ import { describe, test, expect } from 'bun:test'
 import {
   applyVirtualMove,
   buildVirtualState,
+  loadPhysicalCards,
   getPendingMoves,
   buildCardSearchChoices,
   getToggleState,
@@ -34,6 +35,31 @@ function makePhysicalCard(
     ...overrides,
   }
 }
+
+// ── loadPhysicalCards ─────────────────────────────────────────────────────────
+
+describe('loadPhysicalCards', () => {
+  // Every list type takes a different read path, and each one used to swallow a
+  // failure into "this list is empty" — which reads to a caller as "that card is
+  // not in any list", the exact confusion `warnings` exists to prevent.
+  test.each([
+    ['deck', 'decks'],
+    ['collection', 'collections'],
+    ['wanted', 'wanted'],
+  ] as const)(
+    'an unreadable %s file is named in warnings, not silently empty',
+    async (type, dir) => {
+      const missing = makeListEntry(type, 'Gone', `/nonexistent-${dir}/${dir}/gone.md`)
+
+      const { cards, warnings } = await loadPhysicalCards([missing])
+
+      expect(cards).toEqual([])
+      expect(warnings).toHaveLength(1)
+      expect(warnings[0]).toContain(`${dir}/gone.md`)
+      expect(warnings[0]).toContain('could not be read')
+    },
+  )
+})
 
 // ── applyVirtualMove ──────────────────────────────────────────────────────────
 

@@ -2,7 +2,7 @@ import { parseDeckText } from '../../importers/text-file'
 import { fetchDeckFromUrl } from '../../importers/url-dispatch'
 import { saveDeck } from '../../commands/import'
 import { listFilePath } from '../../resolve-list'
-import { autoCommitAndPush } from './save-helpers'
+import { autoCommitAndPush, badRequest, readJsonObjectBody } from './save-helpers'
 import { apiHandler } from '../utils'
 import type { DeckData } from '../../types'
 import { getDecksDir } from '../../ritual-config'
@@ -16,10 +16,12 @@ type ImportDeckRequest =
   | { mode: 'url'; url: string; overwrite?: boolean }
   | { mode: 'text'; content: string; name?: string; overwrite?: boolean }
 
-interface ImportDeckResponse {
-  success: boolean
+/** `POST /api/import-deck` — the deck that was written. */
+export interface ImportDeckResponse {
+  success: true
   message: string
-  deckName?: string
+  /** Name of the imported deck, which is also its slug. */
+  deckName: string
 }
 
 function isImportDeckRequest(value: unknown): value is ImportDeckRequest {
@@ -30,14 +32,11 @@ function isImportDeckRequest(value: unknown): value is ImportDeckRequest {
   return false
 }
 
-function badRequest(message: string): Response {
-  const resp: ImportDeckResponse = { success: false, message }
-  return Response.json(resp, { status: 400 })
-}
-
 export function handleImportDeck(req: Request): Promise<Response> {
   return apiHandler(async () => {
-    const body: unknown = await req.json()
+    const parsedBody = await readJsonObjectBody(req)
+    if (!parsedBody.ok) return parsedBody.response
+    const body: unknown = parsedBody.body
     if (!isImportDeckRequest(body)) {
       return badRequest('Invalid request: expected mode "url" (with url) or "text" (with content)')
     }

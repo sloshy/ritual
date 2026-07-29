@@ -91,7 +91,7 @@ type SideLabels = { a: string; b: string }
 
 function sideLabels(a: DiffListRef, b: DiffListRef): SideLabels {
   if (a.name === b.name) {
-    return { a: `${a.type}:${a.slug}`, b: `${b.type}:${b.slug}` }
+    return { a: `${a.listType}:${a.slug}`, b: `${b.listType}:${b.slug}` }
   }
   return { a: a.name, b: b.name }
 }

@@ -3,17 +3,33 @@ import type { ListType } from '../list-type'
 import {
   applyChangesCollectingMisses,
   describeUnmatchedChanges,
+  listUnmatchedChanges,
   type UnmatchedChange,
 } from '../editor/apply-batch'
 import { applyChangeToDeck } from '../editor/deck-changes'
 import { applyChangeToWantedList } from '../editor/wanted-changes'
 import { toWantedCardEntries } from '../editor/wanted-entries'
 import { callApi } from './dispatch'
-import { apiErrorToMcp } from './errors'
-import type { CollectionLoadResult, DeckLoadResult, SaveResult, WantedLoadResult } from './types'
+import { apiErrorToMcp, isConflictError, type McpErrorDetail } from './errors'
+import type {
+  CollectionLoadResult,
+  DeckLoadResult,
+  ListSaveResponse,
+  SaveEffect,
+  WantedLoadResult,
+} from './types'
 
 function slugPath(slug: string): string {
   return encodeURIComponent(slug)
+}
+
+/**
+ * The load every mutation opens with. `view=cards` skips the Scryfall card,
+ * printing, price, and symbol-map work a mutation never reads — for a deck it
+ * still carries `frontMatter`, which the save re-sends.
+ */
+function loadPath(type: ListType, slug: string): string {
+  return `/api/${type}/${slugPath(slug)}?view=cards`
 }
 
 /**
@@ -28,11 +44,36 @@ function assertAllApplied(
   slug: string,
 ): void {
   if (unmatched.length === 0) return
-  throw apiErrorToMcp(400, {
-    message:
-      describeUnmatchedChanges(unmatched, { type, slug }) +
-      ' Call load_list to see the current entries and their cardIds.',
-  })
+  // The per-change descriptions ride along as structured detail so the tool
+  // wrapper can report them as `unmatched` rather than only in the message.
+  throw apiErrorToMcp(
+    400,
+    {
+      message:
+        describeUnmatchedChanges(unmatched, { type, slug }) +
+        ' Call get_list to see the current entries and their cardIds.',
+    },
+    { unmatched: listUnmatchedChanges(unmatched) } satisfies McpErrorDetail,
+  )
+}
+
+/**
+ * Run a load→apply→save attempt, retrying **once** when the list changed under
+ * it.
+ *
+ * The retry re-runs the whole attempt, load included, so the changes are applied
+ * to the content that actually won — a retry that resent the stale hash would
+ * only lose again. A second conflict propagates: two losses in a row mean a live
+ * concurrent editor, and retrying forever would let the agent overwrite work it
+ * never saw.
+ */
+export async function withConflictRetry<T>(attempt: () => Promise<T>): Promise<T> {
+  try {
+    return await attempt()
+  } catch (error) {
+    if (!isConflictError(error)) throw error
+    return await attempt()
+  }
 }
 
 /**
@@ -43,20 +84,23 @@ function assertAllApplied(
  * sees or manages the content hash; a concurrent edit surfaces as a 409 → tool
  * error.
  */
-export async function mutateDeck(slug: string, changes: ChangeEvent[]): Promise<SaveResult> {
-  const loaded = (await callApi('GET', `/api/deck/${slugPath(slug)}`)) as DeckLoadResult
-  const { data: deck, unmatched } = applyChangesCollectingMisses(
-    loaded.deck,
-    changes,
-    applyChangeToDeck,
-  )
-  assertAllApplied(unmatched, 'deck', slug)
-  return (await callApi('POST', `/api/deck/${slugPath(slug)}/save`, {
-    changes,
-    deck,
-    frontMatter: loaded.frontMatter,
-    contentHash: loaded.contentHash,
-  })) as SaveResult
+export function mutateDeck(slug: string, changes: ChangeEvent[]): Promise<ListSaveResponse> {
+  return withConflictRetry(async () => {
+    const loaded = (await callApi('GET', loadPath('deck', slug))) as DeckLoadResult
+    const { data: deck, unmatched } = applyChangesCollectingMisses(
+      loaded.deck,
+      changes,
+      applyChangeToDeck,
+    )
+    assertAllApplied(unmatched, 'deck', slug)
+    return (await callApi('POST', `/api/deck/${slugPath(slug)}/save`, {
+      changes,
+      deck,
+      frontMatter: loaded.frontMatter,
+      contentHash: loaded.contentHash,
+      validateCardNames: true,
+    })) as ListSaveResponse
+  })
 }
 
 /**
@@ -66,30 +110,36 @@ export async function mutateDeck(slug: string, changes: ChangeEvent[]): Promise<
  * change that misses its target is rejected by the handler (400 → tool error
  * naming the unapplied changes); nothing is saved.
  */
-export async function mutateCollection(slug: string, changes: ChangeEvent[]): Promise<SaveResult> {
-  const loaded = (await callApi('GET', `/api/collection/${slugPath(slug)}`)) as CollectionLoadResult
-  return (await callApi('POST', `/api/collection/${slugPath(slug)}/save`, {
-    changes,
-    contentHash: loaded.contentHash,
-    sectionOrder: loaded.sectionOrder,
-  })) as SaveResult
+export function mutateCollection(slug: string, changes: ChangeEvent[]): Promise<ListSaveResponse> {
+  return withConflictRetry(async () => {
+    const loaded = (await callApi('GET', loadPath('collection', slug))) as CollectionLoadResult
+    return (await callApi('POST', `/api/collection/${slugPath(slug)}/save`, {
+      changes,
+      contentHash: loaded.contentHash,
+      sectionOrder: loaded.sectionOrder,
+      validateCardNames: true,
+    })) as ListSaveResponse
+  })
 }
 
 /** Apply an ordered batch of changes to a wanted list atomically (see {@link toWantedCardEntries}). */
-export async function mutateWanted(slug: string, changes: ChangeEvent[]): Promise<SaveResult> {
-  const loaded = (await callApi('GET', `/api/wanted/${slugPath(slug)}`)) as WantedLoadResult
-  const { data: entries, unmatched } = applyChangesCollectingMisses(
-    toWantedCardEntries(loaded.entries),
-    changes,
-    applyChangeToWantedList,
-  )
-  assertAllApplied(unmatched, 'wanted', slug)
-  return (await callApi('POST', `/api/wanted/${slugPath(slug)}/save`, {
-    changes,
-    entries,
-    contentHash: loaded.contentHash,
-    sectionOrder: loaded.sectionOrder,
-  })) as SaveResult
+export function mutateWanted(slug: string, changes: ChangeEvent[]): Promise<ListSaveResponse> {
+  return withConflictRetry(async () => {
+    const loaded = (await callApi('GET', loadPath('wanted', slug))) as WantedLoadResult
+    const { data: entries, unmatched } = applyChangesCollectingMisses(
+      toWantedCardEntries(loaded.entries),
+      changes,
+      applyChangeToWantedList,
+    )
+    assertAllApplied(unmatched, 'wanted', slug)
+    return (await callApi('POST', `/api/wanted/${slugPath(slug)}/save`, {
+      changes,
+      entries,
+      contentHash: loaded.contentHash,
+      sectionOrder: loaded.sectionOrder,
+      validateCardNames: true,
+    })) as ListSaveResponse
+  })
 }
 
 /** Apply an ordered change batch to a list of the given type via its load→mutate→save flow. */
@@ -97,8 +147,50 @@ export function mutateList(
   type: ListType,
   slug: string,
   changes: ChangeEvent[],
-): Promise<SaveResult> {
+): Promise<ListSaveResponse> {
   if (type === 'deck') return mutateDeck(slug, changes)
   if (type === 'collection') return mutateCollection(slug, changes)
   return mutateWanted(slug, changes)
+}
+
+/**
+ * What a mutation did, as the write tools report it.
+ *
+ * `applied` is the batch size, which is honest under the all-or-nothing
+ * contract: a call that returns at all applied every change it was given.
+ */
+export interface MutationResult {
+  applied: number
+  message: string
+  listType: ListType
+  slug: string
+  /**
+   * What the save did to individual entries, with the `&N` ids it allocated —
+   * the round trip to `get_list` this used to require.
+   */
+  effects: SaveEffect[]
+  /**
+   * Changes that did not apply. Always empty on a returning call: single-list
+   * edits are all-or-nothing, so a batch with a miss fails with a structured
+   * error carrying the same list (`ToolErrorPayload.unmatched`). Present so the
+   * success and failure shapes speak one vocabulary.
+   */
+  unmatched: string[]
+}
+
+/** {@link mutateList}, reported as the structured result the write tools return. */
+export async function applyMutation(
+  type: ListType,
+  slug: string,
+  changes: ChangeEvent[],
+): Promise<MutationResult> {
+  const saved = await mutateList(type, slug, changes)
+  return {
+    applied: changes.length,
+    message: saved.message,
+    listType: type,
+    slug,
+    effects: saved.effects,
+    unmatched: [],
+  }
 }

@@ -7,6 +7,7 @@ import {
   writeWantedFile,
   type BoundWorkspace,
 } from './helpers/workspace'
+import { callJson } from './helpers/request'
 
 /**
  * `GET /api/card-index` — the cross-list physical-card index that backs the
@@ -41,11 +42,13 @@ afterEach(async () => {
 })
 
 async function index(query = ''): Promise<CardIndexResponse> {
-  const resp = await handleCardIndex(
-    new Request(`http://localhost/api/card-index${query ? `?${query}` : ''}`),
+  const { status, body } = await callJson<CardIndexResponse>(
+    handleCardIndex,
+    'GET',
+    `/api/card-index${query ? `?${query}` : ''}`,
   )
-  expect(resp.status).toBe(200)
-  return (await resp.json()) as CardIndexResponse
+  expect(status).toBe(200)
+  return body
 }
 
 describe('handleCardIndex', () => {
@@ -80,8 +83,29 @@ describe('handleCardIndex', () => {
   test.each([
     ['an invalid list type', 'listType=binder'],
     ['a slug carrying a path separator', 'slug=..%2Fsecret'],
+    ['a malformed set code', 'set=..%2Fetc'],
   ])('%s is a 400', async (_label, query) => {
     const resp = await handleCardIndex(new Request(`http://localhost/api/card-index?${query}`))
     expect(resp.status).toBe(400)
+  })
+
+  test('warnings is always present, and empty when every list read cleanly', async () => {
+    const data = await index()
+    expect(Object.keys(data)).toContain('warnings')
+    expect(data.warnings).toEqual([])
+  })
+
+  test('a list whose lines cannot be parsed is named in warnings, not silently dropped', async () => {
+    await Bun.write(
+      `${ws.dir}/collections/broken.md`,
+      '# Broken\n\n- this line is not a card entry at all\n',
+    )
+
+    const data = await index()
+    expect(data.warnings).toHaveLength(1)
+    expect(data.warnings[0]).toContain('collections/broken.md')
+    // The other lists are still indexed — one bad file must not hide the rest.
+    // Two collection entries, one wanted entry, and a deck line of quantity 2.
+    expect(data.cards).toHaveLength(5)
   })
 })

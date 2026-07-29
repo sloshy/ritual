@@ -14,7 +14,7 @@ import {
 } from '../../commands/history-helpers'
 import { resolveListFile } from './list-info'
 import { listSlug } from '../../list-info'
-import { validateBodySize, autoCommitAndPush } from './save-helpers'
+import { autoCommitAndPush, apiError, badRequest, readJsonObjectBody } from './save-helpers'
 import { parseListTarget } from './target'
 
 export type HistoryLoadResponse = {
@@ -27,17 +27,11 @@ export type HistoryLoadResponse = {
   defaultLines: string[]
 }
 export type HistorySaveResponse = { success: true; message: string; setCount: number }
-export type HistoryErrorResponse = { success: false; message: string }
 
 /** Untrusted save body, validated before narrowing to `{ sets: ChangeSet[] }`. */
 type RawSaveBody = { sets?: unknown }
 
 const CHANGE_LINE = /^-\s+/
-
-function error(message: string, status: number): Response {
-  const body: HistoryErrorResponse = { success: false, message }
-  return Response.json(body, { status })
-}
 
 /**
  * GET /api/history/:type/:slug — the list's parsed change sets (newest first) plus
@@ -48,10 +42,10 @@ function error(message: string, status: number): Response {
 export async function handleHistoryLoad(req: Request): Promise<Response> {
   try {
     const target = parseListTarget(req)
-    if (target instanceof Response) return target
+    if (typeof target === 'string') return apiError(target, 400)
 
     const filePath = await resolveListFile(target.type, target.slug)
-    if (!filePath) return error(`List '${target.slug}' not found`, 404)
+    if (!filePath) return apiError(`List '${target.slug}' not found`, 404)
 
     const changesPath = changesPathFor(filePath)
     let content = ''
@@ -74,31 +68,29 @@ export async function handleHistoryLoad(req: Request): Promise<Response> {
     }
     return Response.json(body)
   } catch (err) {
-    return error(getErrorMessage(err), 500)
+    return apiError(getErrorMessage(err), 500)
   }
 }
 
-/** Validate the raw save body, returning typed sets or an error Response. */
-function validateSets(raw: RawSaveBody): ChangeSet[] | Response {
-  if (!Array.isArray(raw.sets)) return error('sets array is required', 400)
+/**
+ * Parse the raw save body's `sets` into typed change sets, or return the message
+ * explaining the refusal. A parser, per the project convention — the HTTP status
+ * and envelope belong to the handler, not here.
+ */
+function parseSets(raw: RawSaveBody): ChangeSet[] | string {
+  if (!Array.isArray(raw.sets)) return 'sets array is required'
   const sets: ChangeSet[] = []
   for (const item of raw.sets as unknown[]) {
-    if (item === null || typeof item !== 'object') {
-      return error('Each change set must be an object', 400)
-    }
+    if (item === null || typeof item !== 'object') return 'Each change set must be an object'
     const { timestamp, lines } = item as Record<string, unknown>
     if (typeof timestamp !== 'string' || !isValidIso8601(timestamp.trim())) {
-      return error('Each change set needs a valid ISO-8601 timestamp', 400)
+      return 'Each change set needs a valid ISO-8601 timestamp'
     }
     if (!Array.isArray(lines) || !lines.every((l): l is string => typeof l === 'string')) {
-      return error('Each change set needs a lines array of strings', 400)
+      return 'Each change set needs a lines array of strings'
     }
-    if (lines.length === 0) {
-      return error('Each change set must have at least one change line', 400)
-    }
-    if (!lines.every((l) => CHANGE_LINE.test(l))) {
-      return error('Every change line must start with "- "', 400)
-    }
+    if (lines.length === 0) return 'Each change set must have at least one change line'
+    if (!lines.every((l) => CHANGE_LINE.test(l))) return 'Every change line must start with "- "'
     sets.push({ timestamp: timestamp.trim(), lines })
   }
   return sets
@@ -112,18 +104,17 @@ function validateSets(raw: RawSaveBody): ChangeSet[] | Response {
  */
 export async function handleHistorySave(req: Request): Promise<Response> {
   try {
-    const tooLarge = validateBodySize(req)
-    if (tooLarge) return tooLarge
-
     const target = parseListTarget(req)
-    if (target instanceof Response) return target
+    if (typeof target === 'string') return apiError(target, 400)
 
-    const raw = (await req.json()) as RawSaveBody
-    const sets = validateSets(raw)
-    if (sets instanceof Response) return sets
+    const parsedBody = await readJsonObjectBody(req)
+    if (!parsedBody.ok) return parsedBody.response
+    const raw = parsedBody.body as unknown as RawSaveBody
+    const sets = parseSets(raw)
+    if (typeof sets === 'string') return badRequest(sets)
 
     const filePath = await resolveListFile(target.type, target.slug)
-    if (!filePath) return error(`List '${target.slug}' not found`, 404)
+    if (!filePath) return apiError(`List '${target.slug}' not found`, 404)
 
     const changesPath = changesPathFor(filePath)
     let existing = ''
@@ -145,6 +136,6 @@ export async function handleHistorySave(req: Request): Promise<Response> {
     }
     return Response.json(body)
   } catch (err) {
-    return error(getErrorMessage(err), 500)
+    return apiError(getErrorMessage(err), 500)
   }
 }

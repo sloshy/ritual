@@ -6,8 +6,9 @@ import { sseResponse } from '../../sse'
 import { apiHandler } from '../utils'
 import { collectCacheStatus, type CacheStatusResult } from '../../cache/status'
 
-interface CacheRefreshResponse {
-  success: boolean
+/** `POST /api/cache/refresh` — the card cache was rebuilt from Scryfall. */
+export interface CacheRefreshResponse {
+  success: true
   message: string
 }
 

@@ -10,6 +10,7 @@ import {
   parseChangeBundle,
 } from '../editor/change-bundle'
 import {
+  type BundleImportResponse,
   type BundleImportResult,
   applyChangeBundle,
   bundleImportMessage,
@@ -33,12 +34,15 @@ type ImportChangesOptions = {
 } & Partial<ScriptingOptions>
 
 /**
- * The `--output json`/`ndjson` payload: the shared {@link BundleImportResult}
- * plus its summary message — byte-for-byte the body the admin
- * `POST /api/import-changes` route (and therefore the MCP `import_changes`
- * tool) responds with.
+ * The `--output json`/`ndjson` payload: byte-for-byte the body the admin
+ * `POST /api/import-changes` route responds with, `success: true` envelope
+ * included. The MCP `import_change_bundle` tool returns the same fields minus
+ * that constant key, which the MCP layer strips from every result. A partial
+ * import is still a success on all three surfaces — `failedCount`, and each
+ * list's own `error`, are what report the failures; the CLI additionally exits
+ * non-zero.
  */
-type ImportChangesReport = BundleImportResult & { message: string }
+type ImportChangesReport = BundleImportResponse
 
 function listHeading(list: ChangeBundleList): string {
   return `${LIST_TYPE_DISPLAY[list.kind].icon} ${list.name} (${listTypeLabel(list.kind)} '${list.slug}')`
@@ -153,10 +157,14 @@ export function registerImportChangesCommand(program: Command): void {
     if (scripting.output === 'text') {
       printResults(result, scripting.quiet)
     } else {
-      const report: ImportChangesReport = { ...result, message: bundleImportMessage(result) }
+      const report: ImportChangesReport = {
+        success: true,
+        ...result,
+        message: bundleImportMessage(result),
+      }
       emitOutput(report, scripting)
     }
-    if (!result.success) {
+    if (result.failedCount > 0) {
       process.exitCode = ExitCode.RuntimeError
     }
   })

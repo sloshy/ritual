@@ -54,7 +54,7 @@ describe('parseCardIndexFilters', () => {
 
   test('an unknown list type is refused', () => {
     expect(parseCardIndexFilters(new URLSearchParams('listType=binder'))).toBe(
-      "Invalid list type 'binder'.",
+      "Invalid list type 'binder'. Use one of: deck, collection, wanted.",
     )
   })
 

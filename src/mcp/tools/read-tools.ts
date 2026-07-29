@@ -1,60 +1,173 @@
-import type { McpServer } from '@modelcontextprotocol/server'
+import { fromJsonSchema, type McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
-import { callApi } from '../dispatch'
-import { loadProjectedList } from '../projection'
-import { jsonResult } from '../result'
+import { callApi, callApiData } from '../dispatch'
+import { loadProjectedList, type ListProjection } from '../projection'
+import { runTool } from '../result'
+import {
+  AUTOCOMPLETE_CARD_OUTPUT,
+  CONFIG_OUTPUT,
+  DIFF_LISTS_OUTPUT,
+  EXPORT_CARDS_OUTPUT,
+  FIND_CARDS_OUTPUT,
+  GET_CACHE_STATUS_OUTPUT,
+  GET_CARD_DETAILS_OUTPUT,
+  GET_CARD_PRICE_OUTPUT,
+  GET_CARD_PRINTINGS_OUTPUT,
+  GET_HISTORY_OUTPUT,
+  GET_LIST_OUTPUT,
+  GET_PRICE_REPORT_OUTPUT,
+  GET_SYNC_STATUS_OUTPUT,
+  LIST_LISTS_OUTPUT,
+  SEARCH_SCRYFALL_OUTPUT,
+} from '../schema-json'
 import {
   currencySchema,
   finishSchema,
   listRefSchema,
   listTypeSchema,
+  setField,
   slugField,
   type ListRefInput,
 } from '../schemas'
+import type { AutocompleteResponse } from '../../api/autocomplete'
+import type { CardDetailsSuccess } from '../../api/card-details'
 import type { CardPriceResponse } from '../../api/card-price'
-import type { CardPrintingsResponse } from '../../api/card-printings'
-import type { ExportRequestBody } from '../../admin/api/export'
+import type { CardPrintingsSuccess } from '../../api/card-printings'
+import type { CardSearchSuccess } from '../../api/card-search'
+import type { CacheStatusResponse } from '../../admin/api/cache'
+import type { CardIndexResponse } from '../../admin/api/card-index'
+import type { ConfigResponse } from '../../admin/api/config'
+import type { DiffResponseBody } from '../../admin/api/diff'
+import type { HistoryLoadResponse } from '../../admin/api/history'
+import type { PriceListDetailResponse, PriceSummaryResponse } from '../../admin/api/price'
+import type {
+  CollectionSyncList,
+  CollectionSyncStatusResponse,
+} from '../../admin/api/collection-sync'
+import type { DeckSyncStatusResponse } from '../../admin/api/deck-sync'
+import type { ExportRequestBody, ExportResponseBody } from '../../admin/api/export'
+import type { ArchidektLoginStatus } from '../../auth/interfaces'
+import type { MovePhysicalCard } from '../../card-index-types'
+import type { SyncableDeck } from '../../deck-sync/engine'
 import { EXPORT_FORMATS } from '../../export/presets'
 import { EXPORT_DIALECTS, EXPORT_PROPERTIES } from '../../export/render'
 import { VALID_CONDITIONS } from '../../finish-condition'
 import { DIFF_BY_MODES } from '../../list-diff'
+import type { ListInfo } from '../../list-info'
 import type { ListType } from '../../list-type'
-import type { ListsResponse } from '../types'
+import type {
+  CacheStatusResult,
+  CardDetails,
+  ConfigResult,
+  ListsResponse,
+  OmitSuccess,
+  PrintingListing,
+  PrintingSummary,
+} from '../types'
 import {
   summarizePrinting,
+  summarizePrintingIdentity,
   summarizePrintingOrNull,
-  type PrintingSummary,
 } from '../../api/card-summary'
 
-/** One list as `list_lists` returns it (the tool vocabulary uses `listType`, not `type`). */
-interface ListSummaryResult {
+/**
+ * How every tool names a list: `listType` + `slug`, exactly the pair the tools
+ * take as arguments, plus the display name. One vocabulary across `list_lists`,
+ * `find_cards`' roster, and both sides of `diff_lists`, so a list named by one
+ * can be handed straight to another. The engine-side `ListInfo` still spells the
+ * first field `type`; this is where that is normalized for the tool surface.
+ */
+export interface ListRefResult {
   listType: ListType
   slug: string
   name: string
 }
 
-/** `list_lists` result: every (optionally type-filtered) list as a summary. */
-interface ListListsResult {
-  lists: ListSummaryResult[]
+/** Project the engine's list summary into the tool vocabulary. */
+function toListRef(list: ListInfo): ListRefResult {
+  return { listType: list.type, slug: list.slug, name: list.name }
 }
 
-/** `card_printings` result: identity + prices for every printing of one card. */
-interface CardPrintingsResult {
-  name: string
-  printings: PrintingSummary[]
+/** `list_lists` result: every (optionally type-filtered) list as a summary. */
+export interface ListListsResult {
+  lists: ListRefResult[]
 }
 
 /**
- * `card_price` result. The route's `lowestPriceCard*` fields are renamed to the
+ * `get_card_printings` result. Printings carry prices only when the caller asked
+ * for them: the price block is roughly half a printing's bytes and is beside the
+ * point when the question is "which printings exist".
+ */
+export interface CardPrintingsResult {
+  name: string
+  printings: PrintingListing[]
+  /** Printings found before `limit` truncated the list; absent when nothing was dropped. */
+  totalPrintings?: number
+}
+
+/** `get_sync_status`, decks half — what `GET /api/deck-sync` returns, minus `success`. */
+export interface DeckSyncStatusSection {
+  decks: SyncableDeck[]
+  archidekt: ArchidektLoginStatus
+}
+
+/** `get_sync_status`, collection half — what `GET /api/collection-sync` returns, minus `success`. */
+export interface CollectionSyncStatusSection {
+  lists: CollectionSyncList[]
+  archidekt: ArchidektLoginStatus
+  lastSynced: string | null
+  pullTarget: string
+  csvThreshold: number
+}
+
+/**
+ * `get_sync_status` result: whichever halves `target` asked for. Deliberately
+ * two keys rather than one merged shape — the account has one Archidekt
+ * collection but many linked decks, so the two halves genuinely differ.
+ */
+export interface SyncStatusResult {
+  decks?: DeckSyncStatusSection
+  collection?: CollectionSyncStatusSection
+}
+
+/** `find_cards` result: the matching physical cards, plus the list roster when asked for. */
+export interface FindCardsResult {
+  cards: MovePhysicalCard[]
+  /** Every list, unfiltered — only present when `includeLists` was set. */
+  lists?: ListRefResult[]
+  /** Read/parse problems hit while building the index; empty when every list read cleanly. */
+  warnings: string[]
+}
+
+/**
+ * `get_card_price` result. The route's `lowestPriceCard*` fields are renamed to the
  * tool vocabulary here, so this type is the only record of that mapping.
  */
-interface CardPriceResult {
+export interface CardPriceResult {
   name: string
   representative: PrintingSummary | null
   lowestUsd: PrintingSummary | null
   lowestEur: PrintingSummary | null
   lowestTix: PrintingSummary | null
 }
+
+/** `search_scryfall` result: one page of a raw Scryfall search. */
+export type CardSearchResult = OmitSuccess<CardSearchSuccess>
+
+/** `autocomplete_card` result: matching card names from the local cache. */
+export type AutocompleteResult = OmitSuccess<AutocompleteResponse>
+
+/** `get_price_report` result: the summary or the single-list body, keyed by `mode`. */
+export type PriceReportResult = OmitSuccess<PriceSummaryResponse | PriceListDetailResponse>
+
+/** `get_history` result: a list's change sets plus the default-rewrite lines. */
+export type HistoryResult = OmitSuccess<HistoryLoadResponse>
+
+/** `diff_lists` result: the two sides, the matches, and each side's exclusives. */
+export type DiffResult = OmitSuccess<DiffResponseBody>
+
+/** `export_cards` result: the rendered content, or the file written. */
+export type ExportResult = OmitSuccess<ExportResponseBody>
 
 /** The `[type:]name` query value the admin diff route expects for one side. */
 function diffSideParam(side: ListRefInput): string {
@@ -77,72 +190,160 @@ export function registerReadTools(server: McpServer): void {
       inputSchema: z.object({
         listType: listTypeSchema.optional().describe('Only return lists of this type.'),
       }),
+      outputSchema: fromJsonSchema<ListListsResult>(LIST_LISTS_OUTPUT),
       annotations: { readOnlyHint: true },
     },
-    async ({ listType }) => {
-      const data = (await callApi('GET', '/api/lists')) as ListsResponse
-      const lists = listType ? data.lists.filter((l) => l.type === listType) : data.lists
-      const result: ListListsResult = {
-        lists: lists.map((l) => ({ listType: l.type, slug: l.slug, name: l.name })),
-      }
-      return jsonResult(result)
-    },
+    async ({ listType }) =>
+      runTool(async (): Promise<ListListsResult> => {
+        const data = (await callApi('GET', '/api/lists')) as ListsResponse
+        const lists = listType ? data.lists.filter((l) => l.type === listType) : data.lists
+        return { lists: lists.map(toListRef) }
+      }),
   )
 
   server.registerTool(
-    'deck_sync_status',
+    'get_sync_status',
     {
-      title: 'Deck sync status',
+      title: 'Get sync status',
       description:
-        'List the decks linked to Archidekt (slug, name, sourceId, sourceUrl, lastSynced) ' +
-        'along with the stored Archidekt login, whose loginRequired flag says whether ' +
-        'sync_decks can run.',
-      inputSchema: z.object({}),
+        'Report what an Archidekt sync can cover, and whether one can run at all. Omit target ' +
+        'for both halves: decks are what sync_decks operates on, collection is what a ' +
+        'sync_collection run can cover. Both halves carry the stored Archidekt login, whose ' +
+        'loginRequired flag says whether the matching sync tool can run.',
+      inputSchema: z.object({
+        target: z
+          .enum(['decks', 'collection'])
+          .optional()
+          .describe('Which half to report; omit for both.'),
+      }),
+      outputSchema: fromJsonSchema<SyncStatusResult>(GET_SYNC_STATUS_OUTPUT),
       annotations: { readOnlyHint: true },
     },
-    async () => jsonResult(await callApi('GET', '/api/deck-sync')),
+    async ({ target }) =>
+      runTool(async (): Promise<SyncStatusResult> => {
+        const result: SyncStatusResult = {}
+        if (target === undefined || target === 'decks') {
+          const data = (await callApi('GET', '/api/deck-sync')) as DeckSyncStatusResponse
+          result.decks = { decks: data.decks, archidekt: data.archidekt }
+        }
+        if (target === undefined || target === 'collection') {
+          const data = (await callApi(
+            'GET',
+            '/api/collection-sync',
+          )) as CollectionSyncStatusResponse
+          result.collection = {
+            lists: data.lists,
+            archidekt: data.archidekt,
+            lastSynced: data.lastSynced,
+            pullTarget: data.pullTarget,
+            csvThreshold: data.csvThreshold,
+          }
+        }
+        return result
+      }),
   )
 
   server.registerTool(
-    'collection_sync_status',
+    'get_list',
     {
-      title: 'Collection sync status',
+      title: 'Get list',
       description:
-        'List the collection lists a sync can cover (slug, name), the list a pull adds new ' +
-        'cards to by default, and when the account last synced — along with the stored ' +
-        'Archidekt login, whose loginRequired flag says whether sync_collection can run.',
-      inputSchema: z.object({}),
+        'Read one list. view "summary" returns counts only — cheap, and the right first call on ' +
+        'a list you have not seen. section and nameContains filter in either view; limit and ' +
+        'offset page the cards view and are ignored by summary, whose counts always describe the ' +
+        'whole filtered set. totalCount reports how many entries matched before limit and offset ' +
+        'applied, so you can page.',
+      inputSchema: z.object({
+        listType: listTypeSchema,
+        slug: slugField,
+        view: z
+          .enum(['cards', 'summary'])
+          .optional()
+          .describe('"summary" returns counts only (default "cards").'),
+        section: z
+          .string()
+          .min(1)
+          .optional()
+          .describe('Exact section name (the markdown "## Section" heading); omit for all.'),
+        nameContains: z
+          .string()
+          .min(1)
+          .optional()
+          .describe('Whitespace-separated name terms; every term must appear, in any order.'),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(10_000)
+          .optional()
+          .describe('Max entries returned; totalCount reports the full match count.'),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .max(1_000_000)
+          .optional()
+          .describe('Entries to skip (with limit, for paging).'),
+      }),
+      outputSchema: fromJsonSchema<ListProjection>(GET_LIST_OUTPUT),
       annotations: { readOnlyHint: true },
     },
-    async () => jsonResult(await callApi('GET', '/api/collection-sync')),
+    async ({ listType, slug, ...query }) =>
+      runTool((): Promise<ListProjection> => loadProjectedList(listType, slug, query)),
   )
 
   server.registerTool(
-    'load_list',
+    'search_scryfall',
     {
-      title: 'Load list',
+      title: 'Search Scryfall',
       description:
-        'Load one list. Decks return { slug, deck, frontMatter }; collections and wanted ' +
-        'lists return { slug, entries, sectionOrder }.',
-      inputSchema: z.object({ listType: listTypeSchema, slug: slugField }),
-      annotations: { readOnlyHint: true },
-    },
-    async ({ listType, slug }) => jsonResult(await loadProjectedList(listType, slug)),
-  )
-
-  server.registerTool(
-    'search_cards',
-    {
-      title: 'Search cards',
-      description:
-        'Search Scryfall with its raw query syntax and return up to 20 card summaries ' +
-        '(name, set, collector number, rarity, mana cost, CMC, type line, oracle text, ' +
-        'color identity, prices), most popular first. A query that spells out a card name ' +
-        'in full is returned first.',
-      inputSchema: z.object({ query: z.string().min(1).describe('Search text.') }),
+        'Search the live Scryfall API with its raw query syntax (e.g. "t:goblin c:r cmc<=2") and ' +
+        'return card summaries — name, set, collector number, rarity, mana cost, CMC, type line, ' +
+        'oracle text, color identity, prices — most popular first. The name says the data ' +
+        'source: this always goes to the network, unlike find_cards (your own lists) and ' +
+        'autocomplete_card (the local card cache). ' +
+        'warm additionally writes results into the local card cache under names it does not ' +
+        'already hold, and moves a card whose whole name the query spells out to the front; it ' +
+        'writes to the cache only, never to your lists. One result page is fetched per call; ' +
+        'walk further pages with page while hasMore is true.',
+      inputSchema: z.object({
+        query: z.string().min(1).describe('Scryfall query syntax, e.g. "t:goblin c:r cmc<=2".'),
+        page: z
+          .number()
+          .int()
+          .min(1)
+          .max(1_000)
+          .optional()
+          .describe('1-based result page (default 1).'),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(175)
+          .optional()
+          .describe('Max cards returned (default 20 when warm, otherwise the whole page).'),
+        warm: z
+          .boolean()
+          .optional()
+          .describe(
+            'Also cache the results under names the local cache lacks, and promote full-name ' +
+              'matches. Default false.',
+          ),
+      }),
+      outputSchema: fromJsonSchema<CardSearchResult>(SEARCH_SCRYFALL_OUTPUT),
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
-    async ({ query }) => jsonResult(await callApi('POST', '/api/search-cards', { query })),
+    async ({ query, page, limit, warm }) =>
+      runTool(async (): Promise<CardSearchResult> => {
+        const params = new URLSearchParams({ q: query })
+        if (page !== undefined) params.set('page', String(page))
+        if (limit !== undefined) params.set('limit', String(limit))
+        if (warm !== undefined) params.set('warm', String(warm))
+        // The success variant: `callApi` throws on a non-2xx, so a failure body
+        // never reaches here.
+        const rest = await callApiData<CardSearchSuccess>('GET', `/api/card-search?${params}`)
+        return rest
+      }),
   )
 
   server.registerTool(
@@ -155,62 +356,160 @@ export function registerReadTools(server: McpServer): void {
         '"in tre" finds "In the Trenches". Closest matches first: a name spelled out in full, ' +
         'then names the query prefixes, then names whose words the terms begin.',
       inputSchema: z.object({ query: z.string().min(1).describe('Partial card name.') }),
+      outputSchema: fromJsonSchema<AutocompleteResult>(AUTOCOMPLETE_CARD_OUTPUT),
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     async ({ query }) =>
-      jsonResult(await callApi('GET', `/api/autocomplete?q=${encodeURIComponent(query)}`)),
+      runTool(async (): Promise<AutocompleteResult> => {
+        const data = (await callApi(
+          'GET',
+          `/api/autocomplete?q=${encodeURIComponent(query)}`,
+        )) as AutocompleteResponse
+        return { names: data.names }
+      }),
   )
 
   server.registerTool(
-    'card_printings',
+    'find_cards',
     {
-      title: 'Card printings',
+      title: 'Find cards in your lists',
       description:
-        'List the printings of a card (set, collector number, rarity, finishes, prices).',
+        'Find where a card physically lives across every deck, collection, and wanted list — the ' +
+        'local cross-list index, no network. Each result is one physical copy (a deck line with ' +
+        'quantity 3 yields three), carrying exactly the fields move_selected_cards and ' +
+        'remove_selected_cards address entries by. Filters intersect: name matches every ' +
+        'whitespace-separated term in any order (as autocomplete_card matches), listType/slug/set ' +
+        'match exactly. warnings names any list file that could not be fully read, so an empty ' +
+        'result is never silently wrong.',
+      inputSchema: z.object({
+        name: z.string().min(1).optional().describe('Whitespace-separated name terms.'),
+        listType: listTypeSchema.optional().describe('Only cards in lists of this type.'),
+        slug: slugField.optional().describe('Only cards in this list.'),
+        set: setField.describe('Only cards of this set code.'),
+        includeLists: z
+          .boolean()
+          .optional()
+          .describe(
+            'Also return every list as { listType, slug, name } — the destinations a move can ' +
+              'name. Default false; the roster does not depend on the filters.',
+          ),
+      }),
+      outputSchema: fromJsonSchema<FindCardsResult>(FIND_CARDS_OUTPUT),
+      annotations: { readOnlyHint: true },
+    },
+    async ({ name, listType, slug, set, includeLists }) =>
+      runTool(async (): Promise<FindCardsResult> => {
+        const params = new URLSearchParams()
+        if (name !== undefined) params.set('name', name)
+        if (listType !== undefined) params.set('listType', listType)
+        if (slug !== undefined) params.set('slug', slug)
+        if (set !== undefined) params.set('set', set)
+        const query = params.size > 0 ? `?${params}` : ''
+        const data = (await callApi('GET', `/api/card-index${query}`)) as CardIndexResponse
+        const result: FindCardsResult = { cards: data.cards, warnings: data.warnings }
+        if (includeLists === true) result.lists = data.lists.map(toListRef)
+        return result
+      }),
+  )
+
+  server.registerTool(
+    'get_card_details',
+    {
+      title: 'Get card details',
+      description:
+        'Everything known about one card from the local Scryfall cache: oracle text, type line, ' +
+        'mana cost and CMC, colors and color identity, keywords, format legalities, Scryfall ' +
+        'Tagger oracle/art tags, the faces of a multi-faced card, and how many printings exist. ' +
+        'Names are matched exactly and case-sensitively — resolve a partial name with ' +
+        'autocomplete_card first.',
       inputSchema: z.object({ name: z.string().min(1).describe('Exact card name.') }),
+      outputSchema: fromJsonSchema<CardDetails>(GET_CARD_DETAILS_OUTPUT),
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
-    async ({ name }) => {
-      const data = (await callApi(
-        'GET',
-        `/api/card-printings?name=${encodeURIComponent(name)}`,
-      )) as CardPrintingsResponse
-      const result: CardPrintingsResult = {
-        name,
-        printings: data.printings.map(summarizePrinting),
-      }
-      return jsonResult(result)
-    },
+    async ({ name }) =>
+      runTool(async (): Promise<CardDetails> => {
+        // The success variant, for the same reason as `get_card_printings`: a
+        // failure body is thrown by `callApi`, so `card` is never null here.
+        const data = (await callApi(
+          'GET',
+          `/api/card-details?name=${encodeURIComponent(name)}`,
+        )) as CardDetailsSuccess
+        return data.card
+      }),
   )
 
   server.registerTool(
-    'card_price',
+    'get_card_printings',
     {
-      title: 'Card price',
+      title: 'Get card printings',
+      description:
+        'List the printings of a card, newest first, which is what a set/collectorNumber ' +
+        'argument on the edit tools needs. Capped at 20 by default. Prices are left out unless ' +
+        'includePrices is set; use get_card_price for the cheapest and representative printings ' +
+        'instead.',
+      inputSchema: z.object({
+        name: z.string().min(1).describe('Exact card name.'),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(1_000)
+          .optional()
+          .describe('Max printings returned (default 20, newest first).'),
+        includePrices: z
+          .boolean()
+          .optional()
+          .describe('Include each printing’s price block. Default false.'),
+      }),
+      outputSchema: fromJsonSchema<CardPrintingsResult>(GET_CARD_PRINTINGS_OUTPUT),
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    async ({ name, limit, includePrices }) =>
+      runTool(async (): Promise<CardPrintingsResult> => {
+        const params = new URLSearchParams({ name, limit: String(limit ?? 20) })
+        // The success variant: `callApi` throws on a non-2xx, so a failure body
+        // never reaches here.
+        const data = (await callApi('GET', `/api/card-printings?${params}`)) as CardPrintingsSuccess
+        const result: CardPrintingsResult = {
+          name,
+          printings: data.printings.map(
+            includePrices === true ? summarizePrinting : summarizePrintingIdentity,
+          ),
+        }
+        if (data.totalPrintings !== undefined) result.totalPrintings = data.totalPrintings
+        return result
+      }),
+  )
+
+  server.registerTool(
+    'get_card_price',
+    {
+      title: 'Get card price',
       description:
         'Get a card’s representative printing and cheapest printing per currency. ' +
         'An unknown card name is an error.',
       inputSchema: z.object({ name: z.string().min(1).describe('Exact card name.') }),
+      outputSchema: fromJsonSchema<CardPriceResult>(GET_CARD_PRICE_OUTPUT),
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
-    async ({ name }) => {
-      const data = (await callApi(
-        'GET',
-        `/api/card-price?name=${encodeURIComponent(name)}`,
-      )) as CardPriceResponse
-      const result: CardPriceResult = {
-        name,
-        representative: summarizePrintingOrNull(data.representative),
-        lowestUsd: summarizePrintingOrNull(data.lowestPriceCard),
-        lowestEur: summarizePrintingOrNull(data.lowestPriceCardEur),
-        lowestTix: summarizePrintingOrNull(data.lowestPriceCardTix),
-      }
-      return jsonResult(result)
-    },
+    async ({ name }) =>
+      runTool(async (): Promise<CardPriceResult> => {
+        const data = (await callApi(
+          'GET',
+          `/api/card-price?name=${encodeURIComponent(name)}`,
+        )) as CardPriceResponse
+        return {
+          name,
+          representative: summarizePrintingOrNull(data.representative),
+          lowestUsd: summarizePrintingOrNull(data.lowestPriceCard),
+          lowestEur: summarizePrintingOrNull(data.lowestPriceCardEur),
+          lowestTix: summarizePrintingOrNull(data.lowestPriceCardTix),
+        }
+      }),
   )
 
   server.registerTool(
-    'price_report',
+    'get_price_report',
     {
       title: 'Price report',
       description:
@@ -236,33 +535,45 @@ export function registerReadTools(server: McpServer): void {
             })
           }
         }),
+      outputSchema: fromJsonSchema<PriceReportResult>(GET_PRICE_REPORT_OUTPUT),
       annotations: { readOnlyHint: true },
     },
-    async ({ listType, slug, currency }) => {
-      if (listType !== undefined && slug !== undefined) {
-        const query = currency === undefined ? '' : `?currency=${currency}`
-        return jsonResult(
-          await callApi('GET', `/api/price/${listType}/${encodeURIComponent(slug)}${query}`),
-        )
-      }
-      const params = new URLSearchParams()
-      if (listType !== undefined) params.set('type', listType)
-      if (currency !== undefined) params.set('currency', currency)
-      const query = params.size > 0 ? `?${params}` : ''
-      return jsonResult(await callApi('GET', `/api/price/summary${query}`))
-    },
+    async ({ listType, slug, currency }) =>
+      runTool(async (): Promise<PriceReportResult> => {
+        if (listType !== undefined && slug !== undefined) {
+          const query = currency === undefined ? '' : `?currency=${currency}`
+          const detail = await callApiData<PriceListDetailResponse>(
+            'GET',
+            `/api/price/${listType}/${encodeURIComponent(slug)}${query}`,
+          )
+          return detail
+        }
+        const params = new URLSearchParams()
+        if (listType !== undefined) params.set('type', listType)
+        if (currency !== undefined) params.set('currency', currency)
+        const query = params.size > 0 ? `?${params}` : ''
+        const summary = await callApiData<PriceSummaryResponse>('GET', `/api/price/summary${query}`)
+        return summary
+      }),
   )
 
   server.registerTool(
-    'load_history',
+    'get_history',
     {
-      title: 'Load change history',
+      title: 'Get change history',
       description: 'Load a list’s change history (newest first) plus the default-rewrite lines.',
       inputSchema: z.object({ listType: listTypeSchema, slug: slugField }),
+      outputSchema: fromJsonSchema<HistoryResult>(GET_HISTORY_OUTPUT),
       annotations: { readOnlyHint: true },
     },
     async ({ listType, slug }) =>
-      jsonResult(await callApi('GET', `/api/history/${listType}/${encodeURIComponent(slug)}`)),
+      runTool(async (): Promise<HistoryResult> => {
+        const rest = await callApiData<HistoryLoadResponse>(
+          'GET',
+          `/api/history/${listType}/${encodeURIComponent(slug)}`,
+        )
+        return rest
+      }),
   )
 
   server.registerTool(
@@ -271,25 +582,36 @@ export function registerReadTools(server: McpServer): void {
       title: 'Get config',
       description: 'Get the current Ritual configuration.',
       inputSchema: z.object({}),
+      outputSchema: fromJsonSchema<ConfigResult>(CONFIG_OUTPUT),
       annotations: { readOnlyHint: true },
     },
-    async () => jsonResult(await callApi('GET', '/api/config')),
+    async () =>
+      runTool(async (): Promise<ConfigResult> => {
+        const data = (await callApi('GET', '/api/config')) as ConfigResponse
+        return { config: data.config }
+      }),
   )
 
   server.registerTool(
-    'get_audit_log',
+    'get_cache_status',
     {
-      title: 'Get audit log',
-      description: 'Get recent admin activity (login attempts, etc.).',
-      inputSchema: z.object({
-        limit: z.number().int().min(1).max(1000).optional().describe('Max entries (default 100).'),
-      }),
+      title: 'Get card cache status',
+      description:
+        'Report the local Scryfall card cache: whether it is empty, how many cards it holds, ' +
+        'when it was last refreshed, how old its prices are and whether they are stale, whether ' +
+        'Scryfall Tagger tags are present, and where the cache is served from. ' +
+        'Check empty and priceStale before pricing: an empty or stale cache is exactly what ' +
+        'get_price_report errors on, and refresh_cache is the fix. Diagnostic only — reading ' +
+        'this never refreshes or writes the cache.',
+      inputSchema: z.object({}),
+      outputSchema: fromJsonSchema<CacheStatusResult>(GET_CACHE_STATUS_OUTPUT),
       annotations: { readOnlyHint: true },
     },
-    async ({ limit }) => {
-      const query = limit === undefined ? '' : `?limit=${limit}`
-      return jsonResult(await callApi('GET', `/api/audit-log${query}`))
-    },
+    async () =>
+      runTool(async (): Promise<CacheStatusResult> => {
+        const rest = await callApiData<CacheStatusResponse>('GET', '/api/cache/status')
+        return rest
+      }),
   )
 
   server.registerTool(
@@ -300,22 +622,24 @@ export function registerReadTools(server: McpServer): void {
         'Compare two lists (any mix of deck/collection/wanted). by "name" (default) matches on ' +
         'the card name, aggregating printings per side; by "printing" matches on name + set + ' +
         'collector number + finish (a missing finish counts as nonfoil, and lines with no ' +
-        'printing form their own bucket). Returns { a, b, by, matches, onlyInA, onlyInB, ' +
-        'warnings } with quantities summed across all sections.',
+        'printing form their own bucket). Quantities are summed across all sections.',
       inputSchema: z.object({
         a: listRefSchema.describe('First list.'),
         b: listRefSchema.describe('Second list.'),
         by: z.enum(DIFF_BY_MODES).optional().describe('Identity to compare by (default "name").'),
       }),
+      outputSchema: fromJsonSchema<DiffResult>(DIFF_LISTS_OUTPUT),
       annotations: { readOnlyHint: true },
     },
-    async ({ a, b, by }) => {
-      const params = new URLSearchParams()
-      params.set('a', diffSideParam(a))
-      params.set('b', diffSideParam(b))
-      if (by !== undefined) params.set('by', by)
-      return jsonResult(await callApi('GET', `/api/diff?${params}`))
-    },
+    async ({ a, b, by }) =>
+      runTool(async (): Promise<DiffResult> => {
+        const params = new URLSearchParams()
+        params.set('a', diffSideParam(a))
+        params.set('b', diffSideParam(b))
+        if (by !== undefined) params.set('by', by)
+        const rest = await callApiData<DiffResponseBody>('GET', `/api/diff?${params}`)
+        return rest
+      }),
   )
 
   server.registerTool(
@@ -327,8 +651,10 @@ export function registerReadTools(server: McpServer): void {
         'and wanted lists. Select whole lists and/or pick cards by name terms; filter by name, ' +
         'set, finish, or condition; choose the columns and their order (csv/json only — text ' +
         'and md have fixed line formats). With no lists and no cards, every list is exported. ' +
-        'Returns { mode: "content", format, entryCount, content, warnings } — the content ' +
-        'string is the rendered export (nothing is written to disk).',
+        'By default the rendered export comes back inline and nothing is written to disk; with ' +
+        'write: true it instead writes a server-named file under exports/ in the base dir and ' +
+        'returns its path (an existing file is never overwritten). Registered with the read tools ' +
+        'because content mode is the common case; write mode is why it carries no readOnlyHint.',
       inputSchema: z.object({
         lists: z.array(listRefSchema).optional().describe('Lists to export whole.'),
         cards: z
@@ -384,15 +710,27 @@ export function registerReadTools(server: McpServer): void {
             'Start from a saved or built-in export preset; explicit fields override it. ' +
               "Built-in: archidekt (the CSV Archidekt's collection importer takes).",
           ),
+        write: z
+          .boolean()
+          .optional()
+          .describe(
+            'Write the export to a server-named file under exports/ and return its path ' +
+              'instead of the content. Default false.',
+          ),
       }),
-      annotations: { readOnlyHint: true },
+      outputSchema: fromJsonSchema<ExportResult>(EXPORT_CARDS_OUTPUT),
+      // No readOnlyHint: write mode touches the filesystem. No destructiveHint
+      // either — the writer never overwrites an existing file.
+      annotations: {},
     },
-    async ({ lists, ...rest }) => {
-      const body: ExportRequestBody = {
-        ...rest,
-        lists: lists?.map((l) => ({ type: l.listType, name: l.name })),
-      }
-      return jsonResult(await callApi('POST', '/api/export', body))
-    },
+    async ({ lists, ...rest }) =>
+      runTool(async (): Promise<ExportResult> => {
+        const body: ExportRequestBody = {
+          ...rest,
+          lists: lists?.map((l) => ({ type: l.listType, name: l.name })),
+        }
+        const response = await callApiData<ExportResponseBody>('POST', '/api/export', body)
+        return response
+      }),
   )
 }

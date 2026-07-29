@@ -22,6 +22,12 @@ import { cardCache } from '../../../src/cache'
 import { scryfallIdIndex } from '../../../src/cache/scryfall-id-index'
 import type { ArchidektToken } from '../../../src/auth/interfaces'
 import { printing, printingId, TEST_ACCOUNT } from '../../unit/collection-sync/fixtures'
+import { stubFetch, type StubbedRequest, type StubRoute } from './stub-fetch'
+
+// The request/route vocabulary lives in `stub-fetch.ts` (every network-free
+// suite speaks it, not just the sync ones); re-exported so this harness stays
+// one import site for its users.
+export type { StubbedRequest, StubRoute }
 
 export { TEST_ACCOUNT }
 
@@ -60,18 +66,6 @@ export async function signIn(base: string, user?: ArchidektToken['user']): Promi
   await fs.writeFile(path.join(loginsDir, 'archidekt.json'), JSON.stringify(token))
 }
 
-/** One request a run made, as the assertions read it. */
-export type StubbedRequest = {
-  method: string
-  url: string
-  body: unknown
-  /**
-   * The multipart form of a CSV upload; JSON writes carry {@link body} instead.
-   * Read the file cell to assert what was uploaded.
-   */
-  form?: FormData
-}
-
 /** The data rows (header excluded) of the CSV a run uploaded, or `[]` if it uploaded none. */
 export async function uploadedCsvRows(requests: readonly StubbedRequest[]): Promise<string[]> {
   const upload = requests.find((request) => request.url.startsWith(UPLOAD_URL))
@@ -80,34 +74,18 @@ export async function uploadedCsvRows(requests: readonly StubbedRequest[]): Prom
   return (await file.text()).trimEnd().split('\n').slice(1)
 }
 
-/** Serves one Archidekt endpoint; anything unrouted fails the run loudly. */
-export type StubRoute = (request: StubbedRequest) => Response
-
 /**
- * Install a stubbed `fetch` serving `routes` by URL **prefix**, in declaration
- * order (the collection read carries a query string). Returns the array every
- * request is recorded into, so a push can assert what went to Archidekt.
+ * Install a stubbed `fetch` serving `routes` by URL **prefix**, longest first
+ * (the collection read carries a query string; a nested path like
+ * `/decks/1/modifyCards/` must beat the `/decks/1/` it starts with). Returns the
+ * array every request is recorded into, so a push can assert what went to
+ * Archidekt.
  *
- * Callers restore `globalThis.fetch` themselves — the original has to be
- * captured before the first stub, which is the test's own `beforeEach`.
+ * The Archidekt-flavoured name for the shared {@link stubFetch}; callers restore
+ * `globalThis.fetch` themselves.
  */
 export function stubArchidekt(routes: Record<string, StubRoute>): StubbedRequest[] {
-  const sent: StubbedRequest[] = []
-  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input instanceof Request ? input.url : input)
-    const request: StubbedRequest = {
-      method: init?.method ?? 'GET',
-      url,
-      body: typeof init?.body === 'string' ? (JSON.parse(init.body) as unknown) : undefined,
-    }
-    if (init?.body instanceof FormData) request.form = init.body
-    sent.push(request)
-    for (const [prefix, route] of Object.entries(routes)) {
-      if (url.startsWith(prefix)) return route(request)
-    }
-    throw new Error(`Unexpected fetch: ${request.method} ${url}`)
-  }) as typeof globalThis.fetch
-  return sent
+  return stubFetch(routes).sent
 }
 
 /**

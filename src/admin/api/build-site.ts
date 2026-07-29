@@ -2,8 +2,9 @@ import { execSync } from 'node:child_process'
 import { apiHandler } from '../utils'
 import { getBaseDir } from '../../base-dir'
 
-interface BuildSiteResponse {
-  success: boolean
+/** `POST /api/build-site` — the site build finished. */
+export interface BuildSiteResponse {
+  success: true
   message: string
 }
 

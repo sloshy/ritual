@@ -3,8 +3,8 @@ import { runCli, withTempDir } from './helpers/cli'
 import { writeCollectionFile, writeDeckFile } from './helpers/workspace'
 
 type DiffJsonBody = {
-  a: { type: string; slug: string; name: string }
-  b: { type: string; slug: string; name: string }
+  a: { listType: string; slug: string; name: string }
+  b: { listType: string; slug: string; name: string }
   by: string
   matches: { name: string; a: { quantity: number }; b: { quantity: number } }[]
   onlyInA: { name: string; quantity: number }[]
@@ -106,8 +106,8 @@ describe('diff command (Integration)', () => {
 
       expect(result.exitCode).toBe(0)
       const body = JSON.parse(result.stdout) as DiffJsonBody
-      expect(body.a).toEqual({ type: 'deck', slug: 'burn', name: 'Burn' })
-      expect(body.b).toEqual({ type: 'collection', slug: 'binder', name: 'Binder' })
+      expect(body.a).toEqual({ listType: 'deck', slug: 'burn', name: 'Burn' })
+      expect(body.b).toEqual({ listType: 'collection', slug: 'binder', name: 'Binder' })
       expect(body.by).toBe('name')
       expect(body.matches.map((m) => m.name)).toEqual(['Lightning Bolt'])
       expect(body.matches[0]?.a.quantity).toBe(2)

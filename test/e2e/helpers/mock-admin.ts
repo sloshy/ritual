@@ -678,6 +678,7 @@ const MOVE_DATA = {
       copyIndex: 0,
     },
   ],
+  warnings: [],
 } satisfies CardIndexResponse
 
 /**

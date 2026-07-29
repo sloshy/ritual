@@ -5,7 +5,7 @@ import type { ScryfallCard } from '../types'
  *
  * The cached `ScryfallCard` carries image URLs, per-face image blocks, and other
  * payload no API client needs; these projections are what the card routes
- * (`/api/card-details`, `/api/card-search`, `/api/search-cards`) and the MCP
+ * (`/api/card-details`, `/api/card-search`, `/api/card-printings`) and the MCP
  * tools built over them return instead. Keeping them here means the printing
  * shape the price tools read and the card shape the search routes emit can never
  * drift apart.
@@ -19,8 +19,12 @@ import type { ScryfallCard } from '../types'
 /** The Scryfall price block, as the cache stores it. */
 export type CardPrices = ScryfallCard['prices']
 
-/** Printing identity + prices: the lean projection the price tools use. */
-export interface PrintingSummary {
+/**
+ * Which printing this is, without its price block — the projection a client
+ * that is choosing between printings wants, since the price block is roughly
+ * half a printing's bytes and means nothing to that decision.
+ */
+export interface PrintingIdentity {
   scryfallId: string
   name: string
   /** Lowercase set code. */
@@ -30,8 +34,21 @@ export interface PrintingSummary {
   /** Absent on the rare printing Scryfall reports without a release date. */
   releasedAt?: string
   finishes: string[]
+}
+
+/** Printing identity + prices: the lean projection the price tools use. */
+export interface PrintingSummary extends PrintingIdentity {
   prices: CardPrices
 }
+
+/**
+ * One printing in a *list* of them, where prices ride along only if the caller
+ * asked for them (`get_card_printings`' `includePrices`). The union of the two
+ * projections above, and the honest element type for that response: describing
+ * it as bare {@link PrintingIdentity} told a caller the prices it explicitly
+ * requested were not there.
+ */
+export type PrintingListing = PrintingIdentity & { prices?: CardPrices }
 
 /** A printing plus the oracle-level fields that make a search result actionable. */
 export interface CardSummary extends PrintingSummary {
@@ -65,8 +82,8 @@ export interface CardDetails extends CardSummary {
   printingCount: number
 }
 
-/** Project a full Scryfall card to printing identity + prices, dropping image URLs etc. */
-export function summarizePrinting(card: ScryfallCard): PrintingSummary {
+/** Project a full Scryfall card to printing identity alone, dropping prices and image URLs. */
+export function summarizePrintingIdentity(card: ScryfallCard): PrintingIdentity {
   return {
     scryfallId: card.id,
     name: card.name,
@@ -77,8 +94,19 @@ export function summarizePrinting(card: ScryfallCard): PrintingSummary {
     rarity: card.rarity,
     releasedAt: card.released_at,
     finishes: card.finishes,
-    prices: card.prices,
   }
+}
+
+/** {@link summarizePrintingIdentity} over a nullable card. */
+export function summarizePrintingIdentityOrNull(
+  card: ScryfallCard | null | undefined,
+): PrintingIdentity | null {
+  return card === null || card === undefined ? null : summarizePrintingIdentity(card)
+}
+
+/** Project a full Scryfall card to printing identity + prices, dropping image URLs etc. */
+export function summarizePrinting(card: ScryfallCard): PrintingSummary {
+  return { ...summarizePrintingIdentity(card), prices: card.prices }
 }
 
 /** {@link summarizePrinting} over a nullable card, for the price tools' optional prints. */

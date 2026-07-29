@@ -48,6 +48,20 @@ import type { ListType } from '../list-type'
 type MoveSelectionResponse = { selection?: string }
 
 /**
+ * Print the card index's read/parse warnings to stderr.
+ *
+ * A list that could not be read contributes no cards, which looks exactly like
+ * an empty list — so a move session that silently dropped a whole deck would
+ * leave the user hunting for a card that is right there on disk. stderr, not
+ * stdout, so a scripted run's payload stays parseable.
+ */
+function reportIndexWarnings(warnings: readonly string[]): void {
+  for (const warning of warnings) {
+    process.stderr.write(`Warning: ${warning}\n`)
+  }
+}
+
+/**
  * The move menu's sentinel values. Matched by exact membership rather than a
  * `__` prefix check, since a card choice's value is a physical-card key and must
  * never be mistaken for a menu item.
@@ -220,7 +234,8 @@ async function runInteractiveMove(sourceFilterPath: string | undefined): Promise
   }
 
   console.log('Loading cards...')
-  const physicalCards = await loadPhysicalCards(allLists)
+  const { cards: physicalCards, warnings } = await loadPhysicalCards(allLists)
+  reportIndexWarnings(warnings)
 
   if (physicalCards.length === 0) {
     console.log('No cards found in any list.')
@@ -457,7 +472,9 @@ async function runHeadlessMove(args: HeadlessMoveArgs, scripting: ScriptingOptio
     )
   }
 
-  const state = buildVirtualState(await loadPhysicalCards([fromEntry]))
+  const loaded = await loadPhysicalCards([fromEntry])
+  reportIndexWarnings(loaded.warnings)
+  const state = buildVirtualState(loaded.cards)
   const selected = selectCopies(state, fromEntry, selection)
 
   // Collection destinations require a concrete printing. Resolve it BEFORE any

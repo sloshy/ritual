@@ -91,7 +91,8 @@ default stdio transport; passing them there prints a warning on stderr and they 
 On 2026-07-28 responses, the catalog surfaces (`tools/list`, `resources/templates/list`,
 `server/discover`) advertise a one-hour private cache hint; list enumerations and reads
 (`resources/list`, `resources/read`) are marked never-cacheable, since their contents change with
-every edit. Ritual declares no list-changed notifications and no resource subscriptions.
+every edit. Ritual declares no tool-list-changed notifications and no resource subscriptions; see
+[Resources](#resources) for the transport-dependent `resources.listChanged`.
 
 ### Embedding in a running admin server
 
@@ -101,6 +102,58 @@ and an MCP endpoint (on `--mcp-port`, default `8765`), sharing the same config, 
 the **same bearer-token auth** as this command: a token (`--mcp-token` or `RITUAL_MCP_TOKEN`) is required
 there (since the admin binds `0.0.0.0` by default) and is independent of the browser admin login.
 
+## Results and errors
+
+Both halves of the tool-result contract are transport-independent — they hold identically over
+stdio, over Streamable HTTP, and on either protocol era.
+
+### Structured results
+
+Every tool declares an `outputSchema` and answers with `structuredContent`. **Read
+`structuredContent`, not `content[0].text`** — a successful result carries an empty `content` array
+on purpose, so the same JSON is never put on the wire twice. Only a failure carries a text block, and
+it holds the `message` below.
+
+A tool's `outputSchema`, as returned by `tools/list`, **is the authoritative field-level
+documentation of its response**: every field, its type, whether it is always present, and a
+description of what it means. This page describes the tools; the schemas describe their replies, and
+they are what the client validates against. The one exception is the failure payload — `isError`
+results are exempt from output-schema validation, so no schema carries it and it is documented in
+prose below instead.
+
+### Tool errors
+
+A failed tool call is **not** a JSON-RPC error. It comes back as a normal result with
+`isError: true`, carrying a one-line text block (the message) **and** a structured payload:
+
+```json
+{
+  "error": true,
+  "code": "conflict",
+  "message": "Deck has been modified since you loaded it. Please reload.",
+  "conflict": true,
+  "recovery": "Re-read the list with get_list, then re-apply your change."
+}
+```
+
+| Field       | Meaning                                                                               |
+| ----------- | ------------------------------------------------------------------------------------- |
+| `code`      | `conflict` \| `invalid-request` \| `internal`.                                        |
+| `conflict`  | Present (and `true`) only on `code: "conflict"` — a lost optimistic-concurrency race. |
+| `recovery`  | The next concrete action, when there is one.                                          |
+| `unmatched` | Changes that did not apply, when an all-or-nothing batch was rejected whole.          |
+
+Ritual's internal conflict code `-32012` is **never visible to a client**: Ritual itself catches
+every error thrown inside a tool call and converts it into the `isError` result above, so the
+numeric code is spent before the SDK — let alone a client — ever sees it. It survives only as the
+internal signal that drives the one automatic retry. The `-32010` / `-32011` codes in the HTTP
+[Errors](#errors) table are different — they are emitted by the HTTP wrapper before the request
+reaches the protocol layer, so they _are_ wire-visible, and correspondingly never appear inside a
+tool result.
+
+(One error is deliberately re-raised rather than structured: a URL-elicitation request is a protocol
+handshake the client must answer, not a tool failure.)
+
 ## Tools
 
 Every tool that addresses a list takes the same two fields: `listType` (`deck` | `collection` |
@@ -108,80 +161,194 @@ Every tool that addresses a list takes the same two fields: `listType` (`deck` |
 
 ### Read (read-only)
 
-| Tool                                | Description                                                                                                                                                                                                                                                                                               |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `list_lists`                        | Every list as `{ listType, slug, name }`, optionally filtered by `listType`.                                                                                                                                                                                                                              |
-| `load_list`                         | Load one list: decks return `{ slug, deck, frontMatter }`; collections and wanted lists return `{ slug, entries, sectionOrder }`.                                                                                                                                                                         |
-| `search_cards`, `autocomplete_card` | Find cards — `search_cards` runs a [Scryfall query](https://scryfall.com/docs/syntax) and returns card summaries (name, printing, mana cost, type line, oracle text, prices); `autocomplete_card` matches every whitespace-separated term against the local cache's names (`in tre` → "In the Trenches"). |
-| `card_printings`, `card_price`      | A card's printings and per-currency prices (an unknown card name is an error).                                                                                                                                                                                                                            |
-| `price_report`                      | [Price](/commands/price/) one list (`listType` + `slug`), one list type (`listType` alone), or every list (no arguments).                                                                                                                                                                                 |
-| `load_history`                      | A list's change history.                                                                                                                                                                                                                                                                                  |
-| `deck_sync_status`                  | The Archidekt-linked decks (with each deck's `lastSynced`) plus the stored Archidekt login — what `sync_decks` can act on.                                                                                                                                                                                |
-| `collection_sync_status`            | The collection lists a sync can cover, the list a pull adds new cards to by default, the CSV threshold (`csvThreshold`), when the account last synced, and the stored Archidekt login — what `sync_collection` can act on.                                                                                |
-| `get_config`, `get_audit_log`       | Configuration and admin activity.                                                                                                                                                                                                                                                                         |
-| `export_cards`                      | Render a CSV, JSON, plain-text, or Markdown [export](/commands/export/) of lists and/or card picks, with filters (and, for `csv`/`json`, column selection, a value `dialect`, and saved or built-in `preset`s).                                                                                           |
-| `diff_lists`                        | Compare two lists by card name or exact printing — the [`diff`](/commands/diff/) command as a tool.                                                                                                                                                                                                       |
+| Tool                                   | Description                                                                                                                                                                                                                                                                                                           |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_lists`                           | Every list as `{ listType, slug, name }`, optionally filtered by `listType`.                                                                                                                                                                                                                                          |
+| `get_sync_status`                      | What an Archidekt sync can cover. `target: "decks"` returns the linked decks (with each deck's `lastSynced`); `target: "collection"` returns the coverable lists, the default pull target, the CSV threshold, and when the account last synced. Omit `target` for both halves. Both carry the login.                  |
+| `get_list`                             | Read one list. The result is discriminated by `view` (`"cards"` \| `"summary"`) and `listType`: a deck's cards view carries `deck` + `frontMatter`, a flat list's carries `entries` + `sectionOrder`, and `view: "summary"` carries `counts` only. `section` / `nameContains` / `limit` / `offset` narrow the result. |
+| `search_scryfall`                      | Run a live [Scryfall query](https://scryfall.com/docs/syntax) and return card summaries (name, printing, mana cost, type line, oracle text, prices). `warm: true` also caches the results locally and promotes a whole-name match.                                                                                    |
+| `autocomplete_card`                    | Match every whitespace-separated term against the local cache's card names (`in tre` → "In the Trenches").                                                                                                                                                                                                            |
+| `find_cards`                           | Find where a card physically lives across your lists — one result per copy, carrying the fields the move/remove tools address entries by. `includeLists` adds the full roster as `{ listType, slug, name }`.                                                                                                          |
+| `get_card_details`                     | Everything the local cache knows about one card: oracle text, type line, colors, keywords, legalities, Scryfall Tagger tags, faces, printing count.                                                                                                                                                                   |
+| `get_card_printings`, `get_card_price` | A card's printings and per-currency prices (an unknown card name is an error).                                                                                                                                                                                                                                        |
+| `get_price_report`                     | [Price](/commands/price/) one list (`listType` + `slug`), one list type (`listType` alone), or every list (no arguments). The result is discriminated by `mode`: `"list"` carries `list` + `cards`, `"summary"` carries `lists` + `typeTotals` + `totals`.                                                            |
+| `get_history`                          | A list's change history.                                                                                                                                                                                                                                                                                              |
+| `get_config`, `get_cache_status`       | Configuration, and the state of the local Scryfall card cache.                                                                                                                                                                                                                                                        |
+| `diff_lists`                           | Compare two lists by card name or exact printing — the [`diff`](/commands/diff/) command as a tool.                                                                                                                                                                                                                   |
+| `export_cards`                         | Render a CSV, JSON, plain-text, or Markdown [export](/commands/export/) of lists and/or card picks, with filters (and, for `csv`/`json`, column selection, a value `dialect`, and saved or built-in `preset`s). `write: true` writes a file instead.                                                                  |
+
+#### Network vs local
+
+Three tools find cards, and their names say where the data comes from:
+
+- **`search_scryfall`** always queries the live Scryfall API, using Scryfall's own query syntax. One
+  page per call — walk a large result set with `page` while `hasMore` is true; `limit` caps the cards
+  returned (max 175, defaulting to 20 when `warm: true` and to the whole page otherwise). With
+  `warm: true` it additionally writes results into the local card cache under names the cache does
+  not already hold (never overwriting one), and moves a card whose whole name the query spells out
+  ahead of Scryfall's popularity order. It writes to the _cache_ only, never to your lists, which is
+  why it still carries `readOnlyHint`.
+- **`find_cards`** searches **your own lists** — the cross-list physical-card index — and never
+  touches the network. Each result is one physical copy (a deck line with quantity 3 yields three),
+  carrying `listType`, `listSlug`, `name`, printing, `cardId`, and `copyIndex`: exactly the fields
+  `move_selected_cards` and `remove_selected_cards` address entries by. Filters intersect (`name`
+  matches every whitespace-separated term in any order; `listType`/`slug`/`set` match exactly), and
+  `includeLists: true` adds the full list roster (the move destinations) — off by default, since it
+  does not depend on the filters. `warnings` names any list file that could not be fully read, so an
+  empty result is never silently wrong.
+- **`autocomplete_card`** reads the local card cache, also with no network.
+
+#### Reading part of a list
+
+`get_list` defaults to the whole list. To read less:
+
+- `view: "summary"` returns `{ slug, listType, counts }` — total lines, total copies, and a
+  per-section breakdown — and nothing else. It is the cheapest call on a list you have not seen, and
+  the right first one on a large collection.
+- `section` matches a markdown `## Section` heading exactly (case-sensitively); a section that does
+  not exist yields no entries rather than an error.
+- `nameContains` matches every whitespace-separated term, in any order, the way `autocomplete_card`
+  matches.
+- `limit` and `offset` page through the matches in the default (`cards`) view. `view: "summary"`
+  ignores them: its counts always describe the whole filtered set, which is what you page against.
+- `totalCount` is always present — the number of entries that matched **before** `limit`/`offset`
+  applied, or the list's whole line count when nothing was filtered — so you can tell a full page
+  from the end of the list.
+
+These are route parameters, not a client-side trim: a `summary` or filtered read returns before the
+server loads any Scryfall card data, printings, prices, or the mana-symbol map.
+
+#### Cards and prices
+
+`get_card_printings` returns the newest 20 printings by default, as identity only — set, collector
+number, rarity, release date, and finishes. Pass `limit` for more or fewer (`totalPrintings` reports
+how many there were when the list was truncated), and `includePrices: true` when you actually want
+each printing's price block; `get_card_price` is usually the better answer for a price question.
+
+`get_cache_status` reports whether the local card cache is `empty`, how many cards it holds, when it
+was last refreshed, its price age and whether prices are `priceStale`, whether Scryfall Tagger tags
+are present, and where the cache is served from. Check `empty` and `priceStale` before pricing: a
+stale or empty cache is exactly what `get_price_report` errors on, and `refresh_cache` is the fix.
 
 `diff_lists` takes two sides (`a` and `b`, each `{ listType?, name }` — names resolve like CLI list
 arguments, with `listType` pinning an ambiguous name) plus an optional `by` (`name`, the default, or
 `printing`) and returns `{ a, b, by, matches, onlyInA, onlyInB, warnings }` with quantities summed
-across all sections. See [`diff`](/commands/diff/) for the identity rules (nonfoil folding, the
+across all sections. Each side comes back as `{ listType, slug, name }` — the same vocabulary
+`list_lists` and `find_cards`' roster use, so a diff side can be handed straight to any tool that
+names a list. See [`diff`](/commands/diff/) for the identity rules (nonfoil folding, the
 no-printing bucket).
 
-`price_report` takes both `listType` and `slug` (one list's summary plus its priced card entries),
+`get_price_report` takes both `listType` and `slug` (one list's summary plus its priced card entries),
 `listType` alone (per-list totals across every list of that type, like the CLI's `price --deck
 --summary`), or neither (per-list totals across every list) — a `slug` without a `listType` is a
 validation error. The optional `currency` (`usd` | `eur` | `tix`) defaults to the configured
-`defaultCurrency`. Prices come strictly from the local card cache; an empty cache is an error (run
-`refresh_cache` first).
+`defaultCurrency`. The result is discriminated by `mode`: `"list"` carries `list` + `cards`,
+`"summary"` carries `lists` + `typeTotals` + `totals`. Prices come strictly from the local card
+cache; an empty cache is an error (check `get_cache_status` first, then run `refresh_cache`).
+
+`export_cards` returns `{ mode: "content", format, entryCount, warnings, content }` by default —
+the rendered export inline, with nothing written to disk. With `write: true` it instead writes a
+server-named file under `exports/` in the base dir and returns
+`{ mode: "file", format, entryCount, warnings, path, bytes }`; an existing file is never
+overwritten. Because of that write mode it carries no `readOnlyHint` (it is not flagged destructive
+either — the writer never replaces a file), even though it is registered with the read tools.
 
 ### Write
 
-| Tool                                 | Description                                                                                                                                                             |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `create_list`                        | Create a new, empty list. `format` (from the fixed set of deck formats) applies to decks only.                                                                          |
-| `import_deck`                        | Import a deck from a URL or pasted decklist text.                                                                                                                       |
-| `import_csv`                         | Import CSV text into a new or existing list (create/overwrite/append) with a column-mapping spec. `format` applies to decks only.                                       |
-| `import_changes`                     | Apply a change bundle exported from the site editor to the underlying lists.                                                                                            |
-| `add_card`                           | Add a card to any list; `quantity` adds that many copies in one save. `condition` is rejected for wanted lists; collections require `set` + `collectorNumber` together. |
-| `remove_card`                        | Remove a card from any list; `quantity` (decks only) removes that many copies. Flat lists remove one entry a time.                                                      |
-| `set_card_note`, `set_card_printing` | Edit a card in place. `set_card_printing` can omit `set`/`collectorNumber` to clear a deck or wanted-list card's printing, but not a collection's — that's rejected.    |
-| `set_card_section`                   | Move a card to a section of its list (created when missing).                                                                                                            |
-| `set_commander`, `unset_commander`   | Move a card into / out of a deck's Commander section.                                                                                                                   |
-| `apply_changes`                      | Apply an ordered batch of card-level changes to one list atomically (one save, one changelog block).                                                                    |
-| `move_cards`                         | Move a batch of identity-addressed cards between lists atomically.                                                                                                      |
-| `remove_cards`                       | Remove a batch of identity-addressed cards across lists atomically.                                                                                                     |
+| Tool                    | Description                                                                                                                                                                                                                                                     |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create_list`           | Create a new, empty list. `format` (from the fixed set of deck formats) applies to decks only.                                                                                                                                                                  |
+| `import_deck`           | Import a deck from a URL or pasted decklist text.                                                                                                                                                                                                               |
+| `import_csv`            | Import CSV text into a new or existing list (create/overwrite/append) with a column-mapping spec. `format` applies to decks only.                                                                                                                               |
+| `import_change_bundle`  | Apply a change bundle exported from the site editor to the underlying lists. Answers with `{ message, lists, failedCount }`; a list that could not be loaded or saved is reported in its own `lists[].error` rather than failing the call.                      |
+| `set_list_metadata`     | Write a deck's front matter: `description`, `tags`, `format`, `sourceId`, `sourceUrl`. Only the fields you send are touched; `null` clears one. Answers with `{ slug, frontMatter }` — the route's `contentHash` is dropped, since an agent never supplies one. |
+| `add_card`              | Add a card to any list; `quantity` adds that many copies in one save. `condition` is rejected for wanted lists; collections require `set` + `collectorNumber` together.                                                                                         |
+| `remove_card`           | Remove a card from any list; `quantity` (decks only) removes that many copies. Flat lists remove one entry a time.                                                                                                                                              |
+| `set_card_printing`     | Set a card's printing in place. It can omit `set`/`collectorNumber` to clear a deck or wanted-list card's printing, but not a collection's — that's rejected.                                                                                                   |
+| `apply_changes`         | Apply an ordered batch of card-level changes to one list atomically (one save, one changelog block). The only route to note, section, and commander edits.                                                                                                      |
+| `move_selected_cards`   | Move a batch of identity-addressed cards between lists atomically.                                                                                                                                                                                              |
+| `remove_selected_cards` | Remove a batch of identity-addressed cards across lists atomically.                                                                                                                                                                                             |
 
 Card edits load the list, apply the change, and save in a single call, so **you never supply a content
-hash** — conflict detection is handled internally (a concurrent web-UI edit surfaces as an error you can
-retry).
+hash** — conflict detection is handled internally. A concurrent web-UI edit is retried once
+automatically (the retry re-reads the list, so your changes land on the content that won); a second
+conflict in a row surfaces as a structured `conflict` error result (see
+[Tool errors](#tool-errors)), since two losses mean a live concurrent editor and retrying further
+would overwrite work you never saw.
+
+The four single-list edit tools (`add_card`, `remove_card`, `set_card_printing`, `apply_changes`)
+answer with `{ applied, message, listType, slug, effects, unmatched }`. **`effects` removes the
+post-write `get_list` round trip**: it lists every entry the save created, dropped, or changed as
+`{ action, cardId, name, section?, quantity, printing?, previousCardId? }`, with the `&N` `cardId`
+the save allocated — which the caller could not know beforehand, since ids are assigned at write
+time. `previousCardId` appears only on an `updated` effect whose line was **renumbered**, because
+another entry arrived claiming the same `&N` (a cross-list move carrying its source id, a replayed
+change bundle): without it, a card you have had all along would read as newly added. `unmatched` is
+always empty on a returning call (a miss fails the whole batch and surfaces as a structured error
+carrying the same list). The cross-list tools `move_selected_cards` and `remove_selected_cards` keep
+their own `{ moved | removed, requested, skipped, warnings }` vocabulary and do **not** carry
+`effects`.
 
 Card targeting is **exact and case-sensitive** on `cardName`, with `cardId` (the `&N` id shown by
-`load_list`) taking priority. For the single-list edit tools (`add_card` through `apply_changes`), a
-change whose target does not exist **fails the whole call**: nothing is saved, no changelog entry is
-written, and the error names each change that did not apply. In an `apply_changes` batch this is
-atomic — one miss rejects the batch — while a later change may still target a card an earlier change
-in the same batch added. The cross-list batch tools (`move_cards`, `remove_cards`) and
-`import_changes` use the same exact targeting but **skip and report** unresolvable items instead of
-failing, as documented below.
+`get_list`) taking priority. For the single-list edit tools (`add_card`, `remove_card`,
+`set_card_printing`, `apply_changes`), a change whose target does not exist **fails the whole call**:
+nothing is saved, no changelog entry is written, and the error names each change that did not apply.
+In an `apply_changes` batch this is atomic — one miss rejects the batch — while a later change may
+still target a card an earlier change in the same batch added. The cross-list batch tools
+(`move_selected_cards`, `remove_selected_cards`) and `import_change_bundle` use the same exact
+targeting but **skip and report** unresolvable items instead of failing, as documented below.
+
+#### Card-name validation
+
+Every write that carries a free-text card name — `add_card`, `remove_card`, `set_card_printing`,
+`apply_changes`, `move_selected_cards`, `remove_selected_cards` — has its names checked against the
+local Scryfall card cache before anything is written:
+
+- A name **already present in the list being edited** is accepted with no lookup at all. That is what
+  keeps a custom, proxied, or unreleased card that already lives in a file removable and editable.
+- Any other name must be one the cache knows. An unknown one is rejected with up to three of the
+  closest cached spellings (`'Lightning Bolz' is not a card name the local cache knows. Did you mean:
+Lightning Bolt, ...?`), which is far more actionable than the "nothing matched" the edit would
+  otherwise have produced.
+- If the cache is **empty**, the write is refused with a message naming both remedies (the
+  `refresh_cache` tool here, `ritual cache preload-all` on the CLI). Check `get_cache_status` first
+  if you are unsure.
+
+`import_deck`, `import_csv`, and `import_change_bundle` are **excluded**: they carry bulk content
+whose per-row failures their own engines already report, and rejecting a whole import over one bad
+row would be worse than reporting it.
 
 Collections track a specific physical printing per entry: `add_card`, `apply_changes`'s `add` and
 `set-printing` actions, and `set_card_printing` all require `set` + `collectorNumber` together when
 the target list is a collection — omitting either one is rejected rather than written as a
 printing-less (or cleared) entry. Decks and wanted lists accept a name-only card.
 
-`move_cards` and `remove_cards` address each card by identity: source `listType` + `slug` +
+`move_selected_cards` and `remove_selected_cards` address each card by identity: source `listType` + `slug` +
 `cardName`, plus `cardId` (the persistent `&N` id — required to match whenever the entry has one;
-`load_list` shows it) and `copyIndex` (0-based, for deck lines with quantity above 1). Each
-`move_cards` item names its destination with `toListType` + `toSlug`, may override the printing on
+`get_list` shows it) and `copyIndex` (0-based, for deck lines with quantity above 1). Each
+`move_selected_cards` item names its destination with `toListType` + `toSlug`, may override the printing on
 arrival (`set`, `collectorNumber`, `finish`, `condition`), and may pick a destination deck section
 with `toSection` (deck destinations only). Unresolvable items are skipped and counted in the
 response; notes a destination cannot keep are reported as `droppedNotes`.
 
-`apply_changes` accepts the card-level change actions (`add`, `remove`, `set-finish`,
-`set-printing`, `set-note`, `set-commander`, `unset-commander`, `set-section`); missing change
-`id`/`timestamp` fields are autofilled. Cross-list moves and section-structural events are rejected —
-use `move_cards` and `set_card_section` instead.
+#### `apply_changes`
+
+`apply_changes` accepts eight card-level change actions: `add`, `remove`, `set-finish`,
+`set-printing`, `set-note`, `set-commander`, `unset-commander`, and `set-section`. It is the **only**
+way to reach the last four — setting or clearing a card note, moving a card to a section, and
+setting or clearing a deck commander have no tool of their own. The commander actions apply to
+**decks only**; on a collection or wanted list they fail at apply time with the not-applicable reason.
+Change `id` and `timestamp` are stamped by the server and are not part of the input. Cross-list moves
+and section-structural events are rejected — use `move_selected_cards` for the former.
+
+`apply_changes` carries `destructiveHint: true` because a batch **can** remove cards in bulk. The
+note, section, and commander actions are themselves additive; the hint reflects the tool's worst-case
+capability, not what any particular batch does.
+
+`set_list_metadata` writes deck front matter only — collections and wanted lists carry none, so use
+`rename_list` to change their display name. Setting `sourceId` together with an `archidekt.com`
+`sourceUrl` is what makes a deck sync-linked, and therefore what `sync_decks` then operates on. No
+changelog entry is recorded: the changelog is card-level, and metadata is not a card change.
 
 ### Destructive
 
@@ -203,8 +370,8 @@ to sync every Archidekt-linked deck), an optional
 [`only`](/commands/deck-sync/#change-filter) (`additions` | `removals`, applying just one side of
 each deck's diff relative to the sync destination), and optional `dryRun` /
 `ignoreUnreadableLines` flags. It needs
-an Archidekt login stored by `ritual login archidekt` or the admin site — check `deck_sync_status`'s
-`archidekt.loginRequired` first. A run that completes reports `success` even when individual decks
+an Archidekt login stored by `ritual login archidekt` or the admin site — check
+`get_sync_status`'s `decks.archidekt.loginRequired` first. A run that completes reports `success` even when individual decks
 failed; read `report.failedCount` and each deck's `status`/`reason`.
 
 A deck whose file holds lines the parser cannot read fails with
@@ -252,7 +419,7 @@ nobody to prompt over MCP, so a run that meets an ambiguous removal without a pr
 that cannot cover it — **fails and writes nothing at all**, naming the cards in `report.errors`. Ask
 the user which binders may lose cards rather than guessing at a priority.
 
-It needs the same Archidekt login (`collection_sync_status`'s `archidekt.loginRequired` reports it;
+It needs the same Archidekt login (`get_sync_status`'s `collection.archidekt.loginRequired` reports it;
 a login stored before the account id was recorded must be renewed), and it refuses a
 collection list with unreadable lines for the same reason — a pull rewrites the file, and a push
 treats the file as the truth, so those cards would be deleted from Archidekt. Its report adds
@@ -265,24 +432,37 @@ changes that shortfall would have manufactured: a pull adds nothing (it would du
 list's cards into the target) and a push removes nothing (it would delete them from Archidekt).
 `report.failedCount` and each list's `status`/`reason` carry per-list failures.
 
-`import_deck`, `import_csv`, `import_changes`, and `apply_changes` (listed under [Write](#write))
-also carry `destructiveHint`: the imports can overwrite an existing list of the same name, and an
-imported or applied change batch can remove cards. Their default, non-overwrite modes are otherwise
-safe.
+`import_deck`, `import_csv`, `import_change_bundle`, and `apply_changes` also carry
+`destructiveHint`, even though they are registered with the [write](#write) tools: the imports can
+overwrite an existing list of the same name, and an imported or applied change batch can remove
+cards. Their default, non-overwrite modes are otherwise safe.
 
-The authentication endpoints (`setup`, `login`, TOTP, Archidekt) are intentionally **not** exposed.
+The authentication endpoints (`setup`, `login`, TOTP, Archidekt) and the login audit log
+(`GET /api/audit-log`) are intentionally **not** exposed: they describe who used the admin server,
+which is not an agent's concern.
 
 ## Resources
 
 Every list is also a readable resource at `ritual://{type}/{slug}` (e.g. `ritual://deck/my-deck`),
-listed via the MCP resources API. A read returns the same projected JSON as the `load_list` tool —
-the list's contents without the heavy editor payload (card data, printings, prices).
+listed via the MCP resources API. A read returns the same projected JSON as the `get_list` tool —
+the list's contents without the heavy editor payload (card data, printings, prices), carrying the
+same `view` and `listType` discriminants. The URI template offers completions for both `{type}` and
+`{slug}`, and a `{type}` already chosen narrows the slugs offered.
+
+**`resources.listChanged` is advertised on stdio only.** Stdio pins one server instance for the life
+of a connection, so a `notifications/resources/list_changed` sent after `create_list`, `import_deck`,
+`import_csv`, `rename_list`, or `delete_list` has a client to reach. The HTTP transport is stateless —
+it builds one server per request and tears it down with the response — so a notification there would
+have nowhere to go, and claiming the capability would be a promise Ritual cannot keep. HTTP clients
+should re-list resources after a list-lifecycle call.
 
 ## Card cache
 
 Unlike `ritual admin`, the MCP server does **not** prompt to refresh the Scryfall cache on startup
 (stdin is reserved for the protocol). It uses whatever cache exists; on a cache miss, card lookups fall
-back to live Scryfall requests. Use the `refresh_cache` tool to warm the cache explicitly.
+back to live Scryfall requests. Call `get_cache_status` to see what state it is in, and the
+`refresh_cache` tool to warm it explicitly. A cold cache is also what makes card-name validation on
+writes and `get_price_report` fail, so it is worth checking first.
 
 ## Client configuration
 

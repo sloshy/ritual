@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import { isRunningFromSource } from '../runtime'
 import { matchRoute, type HttpMethod } from '../routing'
 import { adminUserExists } from './auth'
-import { loadRitualConfig, getCollectionsDir, getWantedDir } from '../ritual-config'
+import { loadRitualConfig, getCollectionsDir, getDecksDir, getWantedDir } from '../ritual-config'
 import { parseSessionCookie, validateSession } from './session'
 import { handleStatus, handleListDecks } from './api/status'
 import { handleImportDeck } from './api/import-deck'
@@ -21,7 +21,6 @@ import {
 import { handleArchidektLogin, handleArchidektStatus } from './api/login'
 import { handleGetConfig, handleUpdateConfig } from './api/config'
 import { handleSetup } from './api/setup'
-import { handleSearchCards } from './api/search-cards'
 import { getBaseDir } from '../base-dir'
 import {
   handleTotpSetup,
@@ -39,8 +38,6 @@ import { handleCardSearch } from '../api/card-search'
 import { handleCardPrice } from '../api/card-price'
 import { handleDeckSave } from './api/deck-save'
 import { handleDeckCreate } from './api/deck-create'
-import { handleDeckRename } from './api/deck-rename'
-import { handleDeckDelete } from './api/deck-delete'
 import { handleListCollections } from './api/collection-list'
 import { handleCollectionLoad } from './api/collection-load'
 import { handleCollectionSave } from './api/collection-save'
@@ -55,22 +52,32 @@ import { handleDiff } from './api/diff'
 import { handleHistoryLoad, handleHistorySave } from './api/history'
 import { handlePriceSummary, handlePriceList } from './api/price'
 import {
-  handleSimpleListCreate,
-  handleSimpleListRename,
-  handleSimpleListDelete,
-  type SimpleListConfig,
-} from './api/simple-list-helpers'
+  handleListCreate,
+  handleListRename,
+  handleListDelete,
+  type ListLifecycleConfig,
+} from './api/list-lifecycle'
+import { resolveDeckFile, resolveFlatListFile } from './api/list-file'
 
-const COLLECTION_CFG: SimpleListConfig = {
+const COLLECTION_CFG: ListLifecycleConfig = {
   kind: 'collection',
   getDir: getCollectionsDir,
   label: 'collection',
+  resolveFile: resolveFlatListFile,
 }
 
-const WANTED_CFG: SimpleListConfig = {
+const WANTED_CFG: ListLifecycleConfig = {
   kind: 'wanted',
   getDir: getWantedDir,
   label: 'wanted list',
+  resolveFile: resolveFlatListFile,
+}
+
+const DECK_CFG: ListLifecycleConfig = {
+  kind: 'deck',
+  getDir: getDecksDir,
+  label: 'deck',
+  resolveFile: resolveDeckFile,
 }
 
 interface AdminServerOptions {
@@ -165,7 +172,6 @@ export const routes: Route[] = [
   },
   { method: 'GET', path: '/api/config', handler: handleGetConfig, requiresAuth: true },
   { method: 'PUT', path: '/api/config', handler: handleUpdateConfig, requiresAuth: true },
-  { method: 'POST', path: '/api/search-cards', handler: handleSearchCards, requiresAuth: true },
   { method: 'POST', path: '/api/totp/setup', handler: handleTotpSetup, requiresAuth: true },
   {
     method: 'POST',
@@ -185,7 +191,7 @@ export const routes: Route[] = [
   {
     method: 'POST',
     path: '/api/collection/create',
-    handler: (req) => handleSimpleListCreate(req, COLLECTION_CFG),
+    handler: (req) => handleListCreate(req, COLLECTION_CFG),
     requiresAuth: true,
   },
   {
@@ -203,20 +209,30 @@ export const routes: Route[] = [
   {
     method: 'POST',
     path: '/api/collection/:slug/rename',
-    handler: (req) => handleSimpleListRename(req, COLLECTION_CFG),
+    handler: (req) => handleListRename(req, COLLECTION_CFG),
     requiresAuth: true,
   },
   {
     method: 'DELETE',
     path: '/api/collection/:slug',
-    handler: (req) => handleSimpleListDelete(req, COLLECTION_CFG),
+    handler: (req) => handleListDelete(req, COLLECTION_CFG),
     requiresAuth: true,
   },
   { method: 'GET', path: '/api/deck/:slug', handler: handleDeckLoad, requiresAuth: true },
   { method: 'POST', path: '/api/deck/create', handler: handleDeckCreate, requiresAuth: true },
   { method: 'POST', path: '/api/deck/:slug/save', handler: handleDeckSave, requiresAuth: true },
-  { method: 'POST', path: '/api/deck/:slug/rename', handler: handleDeckRename, requiresAuth: true },
-  { method: 'DELETE', path: '/api/deck/:slug', handler: handleDeckDelete, requiresAuth: true },
+  {
+    method: 'POST',
+    path: '/api/deck/:slug/rename',
+    handler: (req) => handleListRename(req, DECK_CFG),
+    requiresAuth: true,
+  },
+  {
+    method: 'DELETE',
+    path: '/api/deck/:slug',
+    handler: (req) => handleListDelete(req, DECK_CFG),
+    requiresAuth: true,
+  },
   {
     method: 'GET',
     path: '/api/wanted',
@@ -226,7 +242,7 @@ export const routes: Route[] = [
   {
     method: 'POST',
     path: '/api/wanted/create',
-    handler: (req) => handleSimpleListCreate(req, WANTED_CFG),
+    handler: (req) => handleListCreate(req, WANTED_CFG),
     requiresAuth: true,
   },
   {
@@ -244,13 +260,13 @@ export const routes: Route[] = [
   {
     method: 'POST',
     path: '/api/wanted/:slug/rename',
-    handler: (req) => handleSimpleListRename(req, WANTED_CFG),
+    handler: (req) => handleListRename(req, WANTED_CFG),
     requiresAuth: true,
   },
   {
     method: 'DELETE',
     path: '/api/wanted/:slug',
-    handler: (req) => handleSimpleListDelete(req, WANTED_CFG),
+    handler: (req) => handleListDelete(req, WANTED_CFG),
     requiresAuth: true,
   },
   { method: 'GET', path: '/api/lists', handler: handleLists, requiresAuth: true },

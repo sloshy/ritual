@@ -58,13 +58,18 @@ export const cardNameField = z
   .string()
   .min(1)
   .describe(
-    'Card name. Edits and removals match the entry name exactly (case-sensitive) — copy it from load_list.',
+    'Card name. Edits and removals match the entry name exactly (case-sensitive) — copy it from ' +
+      'get_list. Validated against the local card cache: an unknown name is rejected with the ' +
+      'closest cached names, unless the name is already in the list being edited.',
   )
 
 export const cardIdField = z
   .number()
   .int()
   .positive()
+  // Bounded so the advertised schema shows a meaningful ceiling rather than
+  // JavaScript's MAX_SAFE_INTEGER: &N ids are per-file sequence numbers.
+  .max(1_000_000)
   .optional()
   .describe('Disambiguate by the persistent card ID (the &N suffix in list files).')
 
@@ -96,6 +101,9 @@ export const quantityField = z
   .number()
   .int()
   .min(1)
+  // A bound no real deck or collection edit reaches, so the advertised schema
+  // shows a number an agent can read instead of MAX_SAFE_INTEGER.
+  .max(1_000)
   .default(1)
   .describe('Number of copies (default 1). Applied as one change per copy in a single save.')
 
@@ -103,5 +111,6 @@ export const copyIndexField = z
   .number()
   .int()
   .min(0)
+  .max(10_000)
   .optional()
   .describe('Which copy of a deck line to target (0-based) when its quantity is above 1.')

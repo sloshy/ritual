@@ -36,8 +36,9 @@ const withCardId = (change: ChangeEvent, cardId: number): ChangeEvent =>
  * Re-aim an imported change list at the current list's card IDs. The exported IDs
  * come from the source list at export time and rarely match the live list, so:
  *
- * - `add` changes get a fresh ID from the pool (and later changes that referenced
- *   that added card by its exported ID are remapped to the fresh ID).
+ * - `add` and `move-to` changes get a fresh ID from the pool (both *create* an
+ *   entry in this list, so an exported ID is nothing to target), and later
+ *   changes that referenced that card by its exported ID are remapped to it.
  * - other card changes keep their ID when it still exists, otherwise fall back to
  *   matching by card name; when neither resolves, the change is reported as a
  *   conflict rather than silently retargeted or dropped.
@@ -52,7 +53,7 @@ export function retargetImportedChanges(params: RetargetParams): RetargetResult 
   const conflicts: ImportConflict[] = []
 
   for (const change of changes) {
-    if (change.action === 'add') {
+    if (change.action === 'add' || change.action === 'move-to') {
       const newId = allocateId()
       if (change.cardId !== undefined) idMap.set(change.cardId, newId)
       retargeted.push(withCardId(change, newId))

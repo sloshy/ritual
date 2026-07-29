@@ -9,15 +9,16 @@ import {
   EXPORT_FORMATS,
   exportPresetNames,
   findExportPreset,
-  isExportFormat,
   resolveExportSettings,
   type ExportPreset,
   type ExportSettingsFlags,
 } from '../../export/presets'
-import { EXPORT_DIALECTS, isExportDialect, parseExportColumns } from '../../export/render'
+import { EXPORT_DIALECTS, parseExportColumns } from '../../export/render'
 import { listExistingExports, writeExportFile } from '../../export/file'
-import { isFinish } from '../../finish-condition'
+import { VALID_FINISHES } from '../../finish-condition'
 import { isListType } from '../../list-type'
+import { parseEnumField } from '../../parse-enum'
+import { parseSetCode } from '../../set-codes'
 import {
   formatResolveListError,
   isResolveListError,
@@ -26,7 +27,7 @@ import {
   type ListLocation,
 } from '../../resolve-list'
 import { getExportPresets } from '../../ritual-config'
-import { validateBodySize } from './save-helpers'
+import { apiError, badRequest, readJsonObjectBody, type ApiErrorResponse } from './save-helpers'
 
 /** One list selection in the request body. */
 export type ExportRequestListRef = { type?: string; name: string }
@@ -84,16 +85,8 @@ export type ExportFileResponse = {
 /** `POST /api/export` success body, discriminated by `mode`. */
 export type ExportResponseBody = ExportContentResponse | ExportFileResponse
 
-/** `POST /api/export` failure body. */
-export type ExportErrorResponse = { success: false; message: string }
-
 /** Every body `POST /api/export` can return. */
-export type ExportResponse = ExportResponseBody | ExportErrorResponse
-
-function badRequest(message: string): Response {
-  const body: ExportErrorResponse = { success: false, message }
-  return Response.json(body, { status: 400 })
-}
+export type ExportResponse = ExportResponseBody | ApiErrorResponse
 
 /** Validate the body's output-shape fields into settings flags, or an error string. */
 function parseSettingsFlags(body: ExportRequestBody): ExportSettingsFlags | string {
@@ -107,10 +100,9 @@ function parseSettingsFlags(body: ExportRequestBody): ExportSettingsFlags | stri
     flags.quoteAll = body.quoteAll
   }
   if (body.format !== undefined) {
-    if (typeof body.format !== 'string' || !isExportFormat(body.format)) {
-      return `Invalid format '${String(body.format)}'. Use one of: ${EXPORT_FORMATS.join(', ')}.`
-    }
-    flags.format = body.format
+    const format = parseEnumField(body.format, EXPORT_FORMATS, 'format')
+    if (!format.ok) return format.message
+    flags.format = format.value
   }
   if (body.columns !== undefined) {
     if (!Array.isArray(body.columns)) return 'columns must be an array of property names.'
@@ -119,10 +111,9 @@ function parseSettingsFlags(body: ExportRequestBody): ExportSettingsFlags | stri
     flags.columns = columns
   }
   if (body.dialect !== undefined) {
-    if (typeof body.dialect !== 'string' || !isExportDialect(body.dialect)) {
-      return `Invalid dialect '${String(body.dialect)}'. Use one of: ${EXPORT_DIALECTS.join(', ')}.`
-    }
-    flags.dialect = body.dialect
+    const dialect = parseEnumField(body.dialect, EXPORT_DIALECTS, 'dialect')
+    if (!dialect.ok) return dialect.message
+    flags.dialect = dialect.value
   }
   return flags
 }
@@ -140,13 +131,17 @@ function parseFilters(raw: ExportRequestFilters | undefined): ExportFilters | st
   }
   if (raw.set !== undefined) {
     if (typeof raw.set !== 'string') return 'filters.set must be a string.'
-    filters.set = raw.set
+    // Through the canonical set-code parser so a malformed code is a refusal
+    // rather than a filter that silently matches nothing, and so the stored
+    // value is lowercase like every other in-memory set code.
+    const set = parseSetCode(raw.set)
+    if (!set.ok) return set.error
+    filters.set = set.code
   }
   if (raw.finish !== undefined) {
-    if (typeof raw.finish !== 'string' || !isFinish(raw.finish)) {
-      return `Invalid finish '${String(raw.finish)}'.`
-    }
-    filters.finish = raw.finish
+    const finish = parseEnumField(raw.finish, VALID_FINISHES, 'filters.finish')
+    if (!finish.ok) return finish.message
+    filters.finish = finish.value
   }
   if (raw.conditions !== undefined) {
     if (!Array.isArray(raw.conditions)) {
@@ -174,18 +169,9 @@ function parseFilters(raw: ExportRequestFilters | undefined): ExportFilters | st
  */
 export async function handleExport(req: Request): Promise<Response> {
   try {
-    const sizeError = validateBodySize(req)
-    if (sizeError) return sizeError
-
-    let body: ExportRequestBody
-    try {
-      body = (await req.json()) as ExportRequestBody
-    } catch {
-      return badRequest('Request body must be JSON.')
-    }
-    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
-      return badRequest('Request body must be a JSON object.')
-    }
+    const read = await readJsonObjectBody(req)
+    if (!read.ok) return read.response
+    const body = read.body as ExportRequestBody
 
     let preset: ExportPreset | undefined
     if (body.preset !== undefined) {
@@ -276,7 +262,6 @@ export async function handleExport(req: Request): Promise<Response> {
     }
     return Response.json(payload)
   } catch (error) {
-    const body: ExportErrorResponse = { success: false, message: getErrorMessage(error) }
-    return Response.json(body, { status: 500 })
+    return apiError(getErrorMessage(error), 500)
   }
 }

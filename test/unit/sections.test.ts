@@ -8,6 +8,7 @@ import {
 import { formatCollectionLine } from '../../src/commands/collection-helpers'
 import {
   orderedSections,
+  parseTitleFromContent,
   serializeSectionedList,
   matchSectionHeader,
 } from '../../src/section-format'
@@ -414,5 +415,23 @@ describe('ensureCardIds with section headers', () => {
     const { content, added } = ensureWantedIdsInContent(`# W\n\n## Top\n- Queen Marchesa\n`)
     expect(added).toBe(1)
     expect(content).toContain('## Top')
+  })
+})
+
+describe('parseTitleFromContent', () => {
+  test('extracts the first H1 line', () => {
+    expect(parseTitleFromContent('# My Title\n\nbody')).toBe('My Title')
+  })
+
+  test('returns null when no H1 is present', () => {
+    expect(parseTitleFromContent('## Subhead only\n')).toBe(null)
+  })
+
+  test('returns the first H1 even when multiple exist', () => {
+    expect(parseTitleFromContent('# First\n\n# Second\n')).toBe('First')
+  })
+
+  test('trims trailing whitespace', () => {
+    expect(parseTitleFromContent('# Title  \n')).toBe('Title')
   })
 })
