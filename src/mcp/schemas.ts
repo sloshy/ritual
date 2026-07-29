@@ -4,7 +4,7 @@ import { VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
 import { VALID_CURRENCIES } from '../price-currency'
 
 /**
- * Shared zod field schemas composed into each tool's `inputSchema` raw shape.
+ * Shared zod field schemas composed into each tool's `inputSchema` object.
  * Centralizing them keeps the card-identity and printing fields consistent across
  * the add/remove/set/move tools and their descriptions in one place.
  */
@@ -16,6 +16,38 @@ export const finishSchema = z.enum(VALID_FINISHES)
 export const conditionSchema = z.enum(VALID_CONDITIONS)
 /** Derived from the canonical format list, so the tool schema cannot drift from it. */
 export const deckFormatSchema = z.enum(DECK_FORMAT_KEYS)
+
+export const DECK_ONLY_FORMAT_MESSAGE = 'format is only valid when listType is "deck".'
+
+/** A custom cross-field issue as the shared refinements report it. */
+type RefinementIssue = { code: 'custom'; message: string }
+
+/** The subset of a refinement context the shared refinements need (zod-version-agnostic). */
+type RefinementIssueSink = { addIssue: (issue: RefinementIssue) => void }
+
+/** The fields the deck-only `format` rule inspects. */
+type ListTypeWithFormat = { listType: string; format?: unknown }
+
+/**
+ * Shared cross-field rule: `format` may only accompany `listType: "deck"`.
+ * Used by every tool whose schema pairs a list type with an optional deck format.
+ */
+export function refineDeckOnlyFormat(val: ListTypeWithFormat, ctx: RefinementIssueSink): void {
+  if (val.format !== undefined && val.listType !== 'deck') {
+    ctx.addIssue({ code: 'custom', message: DECK_ONLY_FORMAT_MESSAGE })
+  }
+}
+
+/** One list addressed like CLI list arguments, optionally pinned to a type. */
+export const listRefSchema = z.object({
+  listType: listTypeSchema.optional().describe('Pin the list type of an ambiguous name.'),
+  name: z
+    .string()
+    .min(1)
+    .describe('List name (matched like CLI list arguments; a slug/file basename also works).'),
+})
+
+export type ListRefInput = z.infer<typeof listRefSchema>
 
 export const slugField = z
   .string()

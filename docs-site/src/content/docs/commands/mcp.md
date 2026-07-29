@@ -46,6 +46,11 @@ On the stdio transport, **stdout is the JSON-RPC channel**, so Ritual diverts al
 stderr. Do not pipe other commands' output into `ritual mcp`.
 :::
 
+Over stdio the protocol era is chosen by the connection's opening exchange (a 2025-era `initialize`
+is served on a compatibility path; a 2026-07-28 client is served statelessly), and one server
+instance is pinned for the life of the connection — the per-request stateless model described below
+applies to HTTP only.
+
 ### HTTP (Streamable HTTP)
 
 ```bash
@@ -56,8 +61,14 @@ Serves the MCP [Streamable HTTP](https://modelcontextprotocol.io) transport at `
 for remote/networked clients. It binds to `127.0.0.1` by default. `--port` is validated at parse
 time (1–65535); an invalid value exits with code 2. **If you expose it beyond localhost,
 set a token (`--token` or `RITUAL_MCP_TOKEN`) so every request must send `Authorization: Bearer <token>`**
-— there is no other authentication layer. Each client session is tracked by the `Mcp-Session-Id` header
-negotiated during initialization.
+— there is no other authentication layer.
+
+Ritual implements MCP revision **2026-07-28**, whose Streamable HTTP transport is **stateless**: there is
+no `initialize` handshake and no `Mcp-Session-Id` header. Every POST to `/mcp` is served on its own,
+carrying the protocol version and client capabilities in the request itself. Clients speaking the older
+2025-era protocol (including current Claude Desktop / Claude Code releases) are still served — Ritual
+answers their `initialize` handshake on a compatibility path. On that path the standalone `GET /mcp` SSE
+stream and `DELETE /mcp` session teardown are not available and answer `405`; Ritual uses neither feature.
 
 Without a token, the command **refuses to bind a non-loopback `--host`** (exit code `2`) unless you
 explicitly pass `--allow-unauthenticated` — an unauthenticated MCP endpoint exposed beyond the local
@@ -66,6 +77,21 @@ machine would let anyone on the network edit your lists. Tokenless binds to a lo
 
 The HTTP-only flags (`--port`, `--host`, `--token`, `--allow-unauthenticated`) have no effect under the
 default stdio transport; passing them there prints a warning on stderr and they are ignored.
+
+#### Errors
+
+| Response | When                                                                                                                                                                                                                          |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `401`    | Missing or wrong bearer token. The JSON-RPC body carries implementation-defined code `-32010`.                                                                                                                                |
+| `403`    | On a **loopback bind only**: a request whose `Host` or `Origin` header is not local (DNS-rebinding protection, checked before auth). A deliberately exposed host skips this check and is guarded by the bearer token instead. |
+| `404`    | A path other than `/mcp`. The body carries implementation-defined code `-32011`.                                                                                                                                              |
+| `405`    | `GET`/`DELETE` on `/mcp` — the 2025-era session operations, which stateless serving does not have.                                                                                                                            |
+| `415`    | A POST whose `Content-Type` is not `application/json`.                                                                                                                                                                        |
+
+On 2026-07-28 responses, the catalog surfaces (`tools/list`, `resources/templates/list`,
+`server/discover`) advertise a one-hour private cache hint; list enumerations and reads
+(`resources/list`, `resources/read`) are marked never-cacheable, since their contents change with
+every edit. Ritual declares no list-changed notifications and no resource subscriptions.
 
 ### Embedding in a running admin server
 
@@ -204,8 +230,9 @@ printing the cache does not hold and which were added one at a time. Because tho
 the Scryfall ids the local cache holds, an empty or day-old cache is refreshed automatically before
 the upload is built — the CLI's [`--refresh auto`](/commands/collection-sync/#cache-freshness), since
 there is nobody to ask here either. Quantity changes and removals never ride the CSV, and a pull
-ignores the field. Writing the CSV to a file instead of pushing it is CLI-only: a `csvFile` field is
-rejected, since a server does not write files a caller names.
+ignores the field. Writing the CSV to a file instead of pushing it is CLI-only: the tool has no
+`csvFile` field (an unknown field is stripped before dispatch, never honored), since a server does
+not write files a caller names.
 
 `removalPriority` is the tool's form of the CLI's
 [`--removal-priority`](/commands/collection-sync/#ambiguous-removals): collection list names **in

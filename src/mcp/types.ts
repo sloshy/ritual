@@ -1,4 +1,3 @@
-import type { ListType } from '../list-type'
 import type { ParsedWantedEntry } from '../editor/wanted-entries'
 
 /**
@@ -24,17 +23,12 @@ export interface SaveResult {
   contentHash: string
 }
 
-/** A list summary as returned by `GET /api/lists` (every list across all three types). */
-export interface ListSummary {
-  type: ListType
-  slug: string
-  name: string
-}
-
-/** `GET /api/lists` body — used by the resource enumerator and `list_lists`. */
-export interface ListsResponse {
-  lists: ListSummary[]
-}
+/**
+ * `GET /api/lists` body — used by the resource enumerator and `list_lists`.
+ * Re-exported from the handler so a shape change there breaks MCP at compile
+ * time instead of yielding `undefined` fields at runtime.
+ */
+export type { ListsResponse } from '../admin/api/lists'
 
 /** A compact, agent-friendly projection of one Scryfall printing. */
 export interface PrintingSummary {

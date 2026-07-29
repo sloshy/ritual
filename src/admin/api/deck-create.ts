@@ -3,7 +3,7 @@ import { createList, isListLifecycleError, listLifecycleErrorStatus } from '../.
 import { apiHandler } from '../utils'
 import { autoCommitAndPush, validateBodySize } from './save-helpers'
 
-interface DeckCreateRequest {
+export interface DeckCreateRequest {
   name: string
   format?: string
 }

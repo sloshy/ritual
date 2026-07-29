@@ -1,18 +1,30 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import {
+  Client,
+  InMemoryTransport,
+  StreamableHTTPClientTransport,
+  type CallToolResult,
+} from '@modelcontextprotocol/client'
+import { createMcpHandler } from '@modelcontextprotocol/server'
 import { cardCache } from '../../../src/cache'
 import { CSV_UPLOAD_THRESHOLD } from '../../../src/collection-sync/csv'
+import { NEVER_CACHE, STATIC_CATALOG_CACHE } from '../../../src/mcp/cache-hints'
+import { DECK_ONLY_FORMAT_MESSAGE } from '../../../src/mcp/schemas'
 import { buildMcpServer } from '../../../src/mcp/server'
+import { expectSchemaRejection, firstText, toolJson } from '../../mcp-test-utils'
 import { makeScryfallCard } from '../../test-utils'
 import { setupRitualTestEnv, type RitualTestEnv } from './harness'
 
+// In registration order (read → write → destructive, as server.ts registers
+// them) — the catalogue test asserts ordered equality to pin `tools/list`
+// determinism, so this list must track the registration sequence exactly.
 const EXPECTED_TOOLS = [
   // read
   'list_lists',
+  'deck_sync_status',
+  'collection_sync_status',
   'load_list',
   'search_cards',
   'autocomplete_card',
@@ -20,12 +32,10 @@ const EXPECTED_TOOLS = [
   'card_price',
   'price_report',
   'load_history',
-  'deck_sync_status',
-  'collection_sync_status',
   'get_config',
   'get_audit_log',
-  'export_cards',
   'diff_lists',
+  'export_cards',
   // write
   'create_list',
   'import_deck',
@@ -67,25 +77,7 @@ const MUTATION_TOOLS = [
 ]
 
 type ConfigView = {
-  site?: { bannedPrintings?: string[] }
   defaultCurrency?: string
-  cacheLockTimeoutSeconds?: number
-  cacheSource?: string
-  cacheFeedUrl?: string
-  admin?: { gitEnabled?: boolean; rateLimitEnabled?: boolean; rateLimitMaxAttempts?: number }
-  collectionSync?: { pullTarget?: string }
-}
-
-type AcceptedConfigUpdate = {
-  label: string
-  update: Record<string, unknown>
-  read: (config: ConfigView) => unknown
-  expected: unknown
-}
-
-type RejectedConfigUpdate = {
-  label: string
-  update: Record<string, unknown>
 }
 
 type LoadedDeck = {
@@ -93,21 +85,12 @@ type LoadedDeck = {
   cards?: unknown
 }
 
-function firstText(result: CallToolResult): string {
-  const block = result.content[0]
-  return block && block.type === 'text' ? block.text : ''
-}
-
-function toolJson(result: CallToolResult): unknown {
-  return JSON.parse(firstText(result))
-}
-
 async function callTool(
   client: Client,
   name: string,
   args: Record<string, unknown>,
 ): Promise<CallToolResult> {
-  return (await client.callTool({ name, arguments: args })) as CallToolResult
+  return await client.callTool({ name, arguments: args })
 }
 
 describe('Ritual MCP server (in-memory transport)', () => {
@@ -136,15 +119,25 @@ describe('Ritual MCP server (in-memory transport)', () => {
   }
 
   test('negotiates capabilities and server identity on initialize', () => {
+    // This suite is the legacy-leg coverage: InMemoryTransport links 2025-era
+    // instances, so pin the era in code — if the SDK's default negotiation ever
+    // flips to modern, this suite would silently stop covering the legacy path.
+    expect(client.getProtocolEra()).not.toBe('modern')
     expect(client.getServerVersion()?.name).toBe('ritual')
     const caps = client.getServerCapabilities()
-    expect(caps?.tools).toBeDefined()
-    expect(caps?.resources).toBeDefined()
+    // Ritual never sends list-changed notifications and supports no resource
+    // subscriptions, so it must not advertise either (the SDK defaults
+    // `listChanged` to true for every declared capability).
+    expect(caps?.tools).toEqual({ listChanged: false })
+    expect(caps?.resources).toEqual({ listChanged: false, subscribe: false })
   })
 
-  test('lists the full tool catalogue with valid input schemas', async () => {
+  test('lists the full tool catalogue in registration order with valid input schemas', async () => {
     const { tools } = await client.listTools()
-    expect(new Set(tools.map((t) => t.name))).toEqual(new Set(EXPECTED_TOOLS))
+    // Ordered equality on purpose: the spec asks servers to keep `tools/list`
+    // deterministic (stable ordering keeps client prompt caches warm), and
+    // EXPECTED_TOOLS is written in registration order.
+    expect(tools.map((t) => t.name)).toEqual(EXPECTED_TOOLS)
 
     const loadList = tools.find((t) => t.name === 'load_list')
     expect(loadList?.inputSchema.type).toBe('object')
@@ -158,6 +151,47 @@ describe('Ritual MCP server (in-memory transport)', () => {
       expect({ name, empty: props.length === 0, hasContentHash: props.includes('contentHash') }) //
         .toEqual({ name, empty: false, hasContentHash: false })
     }
+  })
+
+  test('advertises schemas that survive JSON Schema 2020-12 conversion', async () => {
+    const { tools } = await client.listTools()
+    const schemaOf = (name: string): Record<string, unknown> =>
+      tools.find((t) => t.name === name)?.inputSchema as unknown as Record<string, unknown>
+
+    const addCard = schemaOf('add_card')
+    const props = addCard.properties as Record<string, Record<string, unknown>>
+    // A `.toLowerCase()` transform must still advertise as a plain string, not
+    // as a pipe/intersection an agent cannot fill in.
+    expect(props.set).toMatchObject({ type: 'string' })
+    // A defaulted field carries its default and stays out of `required`.
+    expect(props.quantity).toMatchObject({ type: 'integer', default: 1 })
+    expect(addCard.required).toEqual(['listType', 'slug', 'cardName'])
+    // `.describe()` text must survive the conversion — it is the agent's only
+    // documentation for a field.
+    expect(props.cardName?.description).toContain('Card name')
+
+    // A two-arg record advertises as an open object, not as an unusable shape
+    // (`additionalProperties: false` would forbid every key).
+    const config = (schemaOf('update_config').properties as Record<string, unknown>)
+      .config as Record<string, unknown>
+    expect(config.type).toBe('object')
+    expect(config.additionalProperties).not.toBe(false)
+
+    expect(Object.keys(schemaOf('sync_collection').properties as object).sort()).toEqual([
+      'csv',
+      'direction',
+      'dryRun',
+      'ignoreUnreadableLines',
+      'into',
+      'lists',
+      'only',
+      'removalPriority',
+    ])
+    expect(schemaOf('sync_collection').required).toEqual(['direction'])
+    expect(Object.keys(schemaOf('sync_decks').properties as object)).toContain(
+      'ignoreUnreadableLines',
+    )
+    expect(Object.keys(schemaOf('sync_decks').properties as object)).toContain('only')
   })
 
   test('flags every data-destroying tool with destructiveHint', async () => {
@@ -185,10 +219,8 @@ describe('Ritual MCP server (in-memory transport)', () => {
         'apply_changes',
       ]),
     )
-
-    // Purely additive edits stay unflagged.
-    const addCard = tools.find((t) => t.name === 'add_card')
-    expect(addCard?.annotations?.destructiveHint).not.toBe(true)
+    // The exact-set equality above also pins that purely additive edits
+    // (add_card etc.) stay unflagged — no per-tool assertion needed.
   })
 
   test('list_lists returns every list and filters by listType', async () => {
@@ -267,7 +299,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
       lists: [{ listType: 'deck', name: 'test-deck' }],
       dialect: 'moxfield',
     })
-    expect(result.isError).toBe(true)
+    expectSchemaRejection(result, /dialect/)
   })
 
   test('export_cards renders a plain-text export as one flat decklist', async () => {
@@ -339,16 +371,16 @@ describe('Ritual MCP server (in-memory transport)', () => {
     const missingSide = await callTool(client, 'diff_lists', {
       a: { listType: 'deck', name: 'test-deck' },
     })
-    expect(missingSide.isError).toBe(true)
-    expect(firstText(missingSide).toLowerCase()).toContain('validation')
+    // Anchor "b" to the rejection wording so a message merely containing a
+    // stray "b" cannot satisfy it.
+    expectSchemaRejection(missingSide, /\bb\b.*(required|invalid|expected)/i)
 
     const badBy = await callTool(client, 'diff_lists', {
       a: { name: 'test-deck' },
       b: { name: 'wishlist' },
       by: 'set',
     })
-    expect(badBy.isError).toBe(true)
-    expect(firstText(badBy).toLowerCase()).toContain('validation')
+    expectSchemaRejection(badBy, /\bby\b/)
   })
 
   test('add_card persists a new deck card (no content hash exposed)', async () => {
@@ -408,8 +440,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
       cardName: 'Brainstorm',
       condition: 'NM',
     })
-    expect(result.isError).toBe(true)
-    expect(firstText(result).toLowerCase()).toContain('validation')
+    expectSchemaRejection(result, /condition/)
   })
 
   test('remove_card deletes the deck line at quantity zero', async () => {
@@ -467,8 +498,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
       cardName: 'Llanowar Elves',
       quantity: 2,
     })
-    expect(result.isError).toBe(true)
-    expect(firstText(result).toLowerCase()).toContain('validation')
+    expectSchemaRejection(result, /one entry per physical card/)
   })
 
   test('set_card_section moves a deck card into a (created) section', async () => {
@@ -527,7 +557,9 @@ describe('Ritual MCP server (in-memory transport)', () => {
         changes: [{ action, cardName: 'Sol Ring', section: 'X' }],
       })
       expect({ action, isError: result.isError }).toEqual({ action, isError: true })
-      expect(firstText(result).toLowerCase()).toContain('validation')
+      // Name the discriminator, not the SDK's issue-path rendering
+      // ("changes.0.action" vs "changes[0].action" is not contractual).
+      expect(firstText(result)).toMatch(/action/)
     }
   })
 
@@ -594,8 +626,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
         },
       ],
     })
-    expect(result.isError).toBe(true)
-    expect(firstText(result).toLowerCase()).toContain('validation')
+    expectSchemaRejection(result, /toSection/)
   })
 
   test('remove_cards removes an identity-addressed batch', async () => {
@@ -674,8 +705,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
 
   test('price_report rejects a slug without a listType', async () => {
     const result = await callTool(client, 'price_report', { slug: 'test-deck' })
-    expect(result.isError).toBe(true)
-    expect(firstText(result).toLowerCase()).toContain('validation')
+    expectSchemaRejection(result, /slug requires listType/)
   })
 
   test('load_history returns the change sets for a list', async () => {
@@ -728,8 +758,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
 
   test('sync_decks rejects an unknown direction and errors without a login', async () => {
     const badDirection = await callTool(client, 'sync_decks', { direction: 'sideways' })
-    expect(badDirection.isError).toBe(true)
-    expect(firstText(badDirection).toLowerCase()).toContain('validation')
+    expectSchemaRejection(badDirection, /direction/)
 
     const noLogin = await callTool(client, 'sync_decks', { direction: 'pull' })
     expect(noLogin.isError).toBe(true)
@@ -748,8 +777,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(firstText(result)).toContain('Not signed into Archidekt')
 
     const badFilter = await callTool(client, 'sync_decks', { direction: 'pull', only: 'adds' })
-    expect(badFilter.isError).toBe(true)
-    expect(firstText(badFilter).toLowerCase()).toContain('validation')
+    expectSchemaRejection(badFilter, /\bonly\b/)
 
     const { tools } = await client.listTools()
     const schema = tools.find((tool) => tool.name === 'sync_decks')?.inputSchema
@@ -760,20 +788,22 @@ describe('Ritual MCP server (in-memory transport)', () => {
   test('sync_collection rejects invalid input before it reaches the handler', async () => {
     // The schema is the gate: a missing/unknown direction, an unknown filter, and
     // a blank list or target never reach the admin handler at all.
-    const cases: Record<string, unknown>[] = [
-      {},
-      { direction: 'sideways' },
-      { direction: 'pull', only: 'adds' },
-      { direction: 'pull', lists: [''] },
-      { direction: 'pull', into: '' },
-      { direction: 'pull', removalPriority: 'Long Box' },
-      { direction: 'pull', removalPriority: [''] },
-      { direction: 'push', csv: 'yes' },
+    type RejectionCase = { args: Record<string, unknown>; offender: RegExp }
+    const cases: RejectionCase[] = [
+      { args: {}, offender: /direction/ },
+      { args: { direction: 'sideways' }, offender: /direction/ },
+      { args: { direction: 'pull', only: 'adds' }, offender: /only/ },
+      { args: { direction: 'pull', lists: [''] }, offender: /lists/ },
+      { args: { direction: 'pull', into: '' }, offender: /into/ },
+      { args: { direction: 'pull', removalPriority: 'Long Box' }, offender: /removalPriority/ },
+      { args: { direction: 'pull', removalPriority: [''] }, offender: /removalPriority/ },
+      { args: { direction: 'push', csv: 'yes' }, offender: /csv/ },
     ]
-    for (const args of cases) {
+    for (const { args, offender } of cases) {
       const result = await callTool(client, 'sync_collection', args)
-      expect({ args, isError: result.isError, validation: /validation/i.test(firstText(result)) }) //
-        .toEqual({ args, isError: true, validation: true })
+      // Each row must be rejected *for its own reason*, not merely rejected.
+      expect({ args, isError: result.isError }).toEqual({ args, isError: true })
+      expect(firstText(result)).toMatch(offender)
     }
   })
 
@@ -839,8 +869,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
       columns: 'name=1',
       format: 'commander',
     })
-    expect(result.isError).toBe(true)
-    expect(firstText(result).toLowerCase()).toContain('validation')
+    expectSchemaRejection(result, DECK_ONLY_FORMAT_MESSAGE)
   })
 
   test('import_changes applies a change bundle to the target lists', async () => {
@@ -896,8 +925,10 @@ describe('Ritual MCP server (in-memory transport)', () => {
 
   test('rejects invalid arguments before reaching the handler', async () => {
     const result = await callTool(client, 'add_card', {})
-    expect(result.isError).toBe(true)
-    expect(firstText(result).toLowerCase()).toContain('validation')
+    // Every required field must be named in the rejection.
+    for (const field of ['listType', 'slug', 'cardName']) {
+      expectSchemaRejection(result, new RegExp(`\\b${field}\\b`))
+    }
   })
 
   test('create_list creates a list of each addressable type', async () => {
@@ -919,8 +950,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
       name: 'Cube Deck',
       format: 'cube',
     })
-    expect(result.isError).toBe(true)
-    expect(firstText(result).toLowerCase()).toContain('validation')
+    expectSchemaRejection(result, /format/)
   })
 
   test('create_list rejects a format on a non-deck list', async () => {
@@ -929,8 +959,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
       name: 'Wants',
       format: 'commander',
     })
-    expect(result.isError).toBe(true)
-    expect(firstText(result).toLowerCase()).toContain('validation')
+    expectSchemaRejection(result, DECK_ONLY_FORMAT_MESSAGE)
   })
 
   test('exposes lists as readable resources with the load_list projection', async () => {
@@ -999,117 +1028,119 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(data.sets[0]?.lines).toEqual(['- Added Sol Ring'])
   })
 
-  test('update_config accepts valid values and get_config returns them normalized', async () => {
-    // Per-key validation semantics are owned by the ritual-config/`config set` unit
-    // tests; this pins the MCP wiring (handler dispatch + persisted round-trip).
-    const cases: AcceptedConfigUpdate[] = [
-      {
-        label: 'bannedPrintings (set codes lowercased)',
-        update: { site: { bannedPrintings: ['SLD:123', 'mh2:42'] } },
-        read: (config) => config.site?.bannedPrintings,
-        expected: ['sld:123', 'mh2:42'],
-      },
-      {
-        label: 'defaultCurrency (case normalized)',
-        update: { defaultCurrency: 'EUR' },
-        read: (config) => config.defaultCurrency,
-        expected: 'eur',
-      },
-      {
-        label: 'cacheLockTimeoutSeconds',
-        update: { cacheLockTimeoutSeconds: 120 },
-        read: (config) => config.cacheLockTimeoutSeconds,
-        expected: 120,
-      },
-      {
-        label: 'cacheSource',
-        update: { cacheSource: 'feed' },
-        read: (config) => config.cacheSource,
-        expected: 'feed',
-      },
-      {
-        label: 'cacheFeedUrl',
-        update: { cacheFeedUrl: 'https://feed.example/feed.json' },
-        read: (config) => config.cacheFeedUrl,
-        expected: 'https://feed.example/feed.json',
-      },
-      {
-        // The Settings page PUTs the whole config back, so this key has to be on
-        // the allowlist or every save would 400.
-        label: 'collectionSync.pullTarget (trimmed)',
-        update: { collectionSync: { pullTarget: '  Red Binder ' } },
-        read: (config) => config.collectionSync?.pullTarget,
-        expected: 'Red Binder',
-      },
-    ]
-
-    for (const { label, update, read, expected } of cases) {
-      const updated = await callTool(client, 'update_config', { config: update })
-      expect({ label, isError: updated.isError ?? false }).toEqual({ label, isError: false })
-
-      const got = toolJson(await callTool(client, 'get_config', {})) as { config: ConfigView }
-      expect({ label, value: read(got.config) }).toEqual({ label, value: expected })
-    }
-  })
-
-  test('update_config rejects invalid values with an isError result', async () => {
-    const cases: RejectedConfigUpdate[] = [
-      {
-        label: 'malformed bannedPrintings entry',
-        update: { site: { bannedPrintings: ['not-a-printing'] } },
-      },
-      { label: 'invalid defaultCurrency', update: { defaultCurrency: 'gbp' } },
-      { label: 'non-positive cacheLockTimeoutSeconds', update: { cacheLockTimeoutSeconds: 0 } },
-      { label: 'invalid cacheSource', update: { cacheSource: 'torrent' } },
-      {
-        label: 'non-http(s) cacheFeedUrl',
-        update: { cacheFeedUrl: 'ftp://feed.example/feed.json' },
-      },
-      {
-        label: 'blank collectionSync.pullTarget',
-        update: { collectionSync: { pullTarget: '   ' } },
-      },
-      { label: 'unknown top-level key', update: { bogusKey: true } },
-      // Unknown nested admin keys must be rejected, not spread verbatim into
-      // the persisted config (parseAdminConfig silently ignores them).
-      { label: 'unknown nested admin key', update: { admin: { gitEnabled: true, bogusKey: 1 } } },
-      { label: 'wrong-typed admin field', update: { admin: { gitEnabled: 'yes' } } },
-      { label: 'wrong-typed directory key', update: { decksDir: 42 } },
-    ]
-
-    for (const { label, update } of cases) {
-      const result = await callTool(client, 'update_config', { config: update })
-      expect({ label, isError: result.isError }).toEqual({ label, isError: true })
-    }
-  })
-
-  test('update_config deep-merges admin fields without clobbering siblings', async () => {
+  test('update_config and get_config round-trip through the admin config handler', async () => {
+    // Per-key validation and merge semantics belong to the admin handler (see
+    // test/integration/admin-config.test.ts); this pins only the MCP wiring —
+    // the tool reaches the handler and the change is visible through get_config.
     const updated = await callTool(client, 'update_config', {
-      config: { admin: { gitEnabled: true } },
+      config: { defaultCurrency: 'EUR' },
     })
     expect(updated.isError).toBeFalsy()
 
     const got = toolJson(await callTool(client, 'get_config', {})) as { config: ConfigView }
-    expect(got.config.admin?.gitEnabled).toBe(true)
-    // Omitted admin siblings keep their current values, not their defaults.
-    expect(got.config.admin?.rateLimitEnabled).toBe(true)
-    expect(got.config.admin?.rateLimitMaxAttempts).toBe(5)
+    expect(got.config.defaultCurrency).toBe('eur')
+
+    const rejected = await callTool(client, 'update_config', { config: { bogusKey: true } })
+    expect(rejected.isError).toBe(true)
+  })
+})
+
+/**
+ * The suite above runs on `InMemoryTransport`, which only links 2025-era
+ * instances — it is the regression net for the clients that exist today. The
+ * 2026-07-28 leg has no in-memory serving entry, so drive `createMcpHandler`
+ * through its own fetch. Wiring only: that the modern era is reached at all,
+ * and that what only the modern era carries (the cache hints) is on the wire.
+ */
+describe('Ritual MCP server (2026-07-28 era)', () => {
+  let env: RitualTestEnv
+  let handler: ReturnType<typeof createMcpHandler>
+  let client: Client
+
+  beforeEach(async () => {
+    env = await setupRitualTestEnv()
+    // Same options as production (src/mcp/run.ts), so this leg cannot drift
+    // from the configuration `ritual mcp --transport http` actually serves.
+    handler = createMcpHandler(() => buildMcpServer(), { legacy: 'stateless' })
+    const transport = new StreamableHTTPClientTransport(new URL('http://ritual.test/mcp'), {
+      fetch: (url, init) => handler.fetch(new Request(url, init)),
+    })
+    client = new Client(
+      { name: 'ritual-test', version: '0.0.0' },
+      { versionNegotiation: { mode: 'auto' } },
+    )
+    await client.connect(transport)
   })
 
-  test('update_config clears an existing cacheFeedUrl with an empty string', async () => {
-    const set = await callTool(client, 'update_config', {
-      config: { cacheFeedUrl: 'https://feed.example/feed.json' },
-    })
-    expect(set.isError).toBeFalsy()
+  afterEach(async () => {
+    await client.close()
+    await handler.close()
+    await env.cleanup()
+  })
 
-    const cleared = await callTool(client, 'update_config', {
-      config: { cacheFeedUrl: '' },
-    })
-    expect(cleared.isError).toBeFalsy()
+  test('negotiates the modern era and lists a stable catalogue across fresh instances', async () => {
+    expect(client.getProtocolEra()).toBe('modern')
+    // Every request builds a fresh server instance, so cross-request order
+    // stability is only provable on this leg — and it is what keeps client
+    // prompt caches warm. EXPECTED_TOOLS is registration order.
+    expect((await client.listTools()).tools.map((t) => t.name)).toEqual(EXPECTED_TOOLS)
+    expect((await client.listTools()).tools.map((t) => t.name)).toEqual(EXPECTED_TOOLS)
+  })
 
-    const got = toolJson(await callTool(client, 'get_config', {})) as {
-      config: { cacheFeedUrl?: string }
+  test('round-trips a write across per-request server instances', async () => {
+    const added = await callTool(client, 'add_card', {
+      listType: 'deck',
+      slug: 'test-deck',
+      cardName: 'Counterspell',
+    })
+    expect(added.isError).toBeFalsy()
+
+    // The read runs on a *different* per-request instance than the write — the
+    // stateless leg only works because all state lives on disk.
+    const data = toolJson(
+      await callTool(client, 'load_list', { listType: 'deck', slug: 'test-deck' }),
+    ) as LoadedDeck
+    expect(data.deck.sections.flatMap((s) => s.cards.map((c) => c.name))).toContain('Counterspell')
+
+    const read = await client.readResource({ uri: 'ritual://deck/test-deck' })
+    expect(read.contents[0]?.uri).toBe('ritual://deck/test-deck')
+  })
+
+  test('surfaces a schema rejection through the modern envelope', async () => {
+    const result = await callTool(client, 'add_card', {})
+    expectSchemaRejection(result, /cardName/)
+  })
+
+  test('carries the configured cache hints on cacheable results', async () => {
+    // `ttlMs`/`cacheScope` exist only on 2026-era responses, so this is the only
+    // layer that can prove the server's `cacheHints` reach a client. Assert
+    // against the exported constants so policy and test cannot drift apart.
+    type HintedResult = { ttlMs?: number; cacheScope?: string }
+    type CacheableMethod =
+      | 'tools/list'
+      | 'resources/templates/list'
+      | 'resources/list'
+      | 'resources/read'
+    const hintOf = async (
+      method: CacheableMethod,
+      params: Record<string, unknown>,
+    ): Promise<HintedResult> => (await client.request({ method, params })) as HintedResult
+
+    // The catalog surfaces are fixed per binary and carry the long TTL.
+    for (const method of ['tools/list', 'resources/templates/list'] as const) {
+      const result = await hintOf(method, {})
+      expect({ method, ttlMs: result.ttlMs, cacheScope: result.cacheScope }).toEqual({
+        method,
+        ttlMs: STATIC_CATALOG_CACHE.ttlMs,
+        cacheScope: STATIC_CATALOG_CACHE.cacheScope,
+      })
     }
-    expect(got.config.cacheFeedUrl).toBeUndefined()
+
+    // List contents change on every edit, so enumerations and reads never cache.
+    const list = await hintOf('resources/list', {})
+    expect(list.ttlMs).toBe(NEVER_CACHE.ttlMs)
+    const read = await hintOf('resources/read', { uri: 'ritual://deck/test-deck' })
+    expect(read.ttlMs).toBe(NEVER_CACHE.ttlMs)
+    expect(read.cacheScope).toBe(NEVER_CACHE.cacheScope)
   })
 })

@@ -12,7 +12,7 @@ import { autoCommitAndPush } from './save-helpers'
  * the MCP server). Carries the raw CSV text plus the same column-mapping spec
  * the CLI's `--columns` flag uses.
  */
-interface ImportCsvRequest {
+export interface ImportCsvRequest {
   listType: ListType
   /** New list name for create/overwrite, or an existing list for append. */
   name: string

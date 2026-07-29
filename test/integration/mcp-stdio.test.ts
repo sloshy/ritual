@@ -1,19 +1,14 @@
 import { describe, expect, test } from 'bun:test'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { Client, type CallToolResult } from '@modelcontextprotocol/client'
+import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
+import { firstText, toolJson } from '../mcp-test-utils'
 import { binaryPath, ensureBinary, withTempDir } from './helpers/cli'
 import { writeDeckFile } from './helpers/workspace'
 
-type ToolText = { content: { type: string; text?: string }[] }
 type ListsResult = { lists: { slug: string }[] }
 
-function text(result: unknown): string {
-  const block = (result as ToolText).content[0]
-  return block?.text ?? ''
-}
-
-function listSlugs(result: unknown): string[] {
-  return (JSON.parse(text(result)) as ListsResult).lists.map((l) => l.slug)
+function listSlugs(result: CallToolResult): string[] {
+  return (toolJson(result) as ListsResult).lists.map((l) => l.slug)
 }
 
 describe('ritual mcp (stdio)', () => {
@@ -35,6 +30,9 @@ describe('ritual mcp (stdio)', () => {
       // binary — i.e. stdout carried only protocol frames (no log pollution).
       await client.connect(transport)
       try {
+        // This test IS the legacy-leg coverage: pin the era so an SDK default
+        // flip to modern negotiation cannot silently retire it.
+        expect(client.getProtocolEra()).not.toBe('modern')
         const { tools } = await client.listTools()
         expect(tools.map((t) => t.name)).toContain('list_lists')
 
@@ -46,10 +44,40 @@ describe('ritual mcp (stdio)', () => {
           name: 'create_list',
           arguments: { listType: 'deck', name: 'Made By MCP' },
         })
-        expect(text(created)).toContain('Made By MCP')
+        expect(firstText(created)).toContain('Made By MCP')
 
         const after = await client.callTool({ name: 'list_lists', arguments: {} })
         expect(listSlugs(after)).toContain('Made By MCP')
+      } finally {
+        await client.close()
+      }
+    })
+  }, 120_000)
+
+  test('serves a 2026-07-28 client over stdio from the compiled binary', async () => {
+    await ensureBinary()
+    await withTempDir(async (dir) => {
+      await writeDeckFile(dir, 'starter', {
+        frontMatter: { name: 'Starter' },
+        cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
+      })
+
+      const transport = new StdioClientTransport({
+        command: binaryPath,
+        args: ['mcp', '--base-dir', dir],
+        stderr: 'ignore',
+      })
+      // `serveStdio`'s modern leg is new code on the stdio path, and this is the
+      // only coverage that it survives `bun build --compile`.
+      const client = new Client(
+        { name: 'it-stdio-modern', version: '0.0.0' },
+        { versionNegotiation: { mode: 'auto' } },
+      )
+      await client.connect(transport)
+      try {
+        expect(client.getProtocolEra()).toBe('modern')
+        const { tools } = await client.listTools()
+        expect(tools.map((t) => t.name)).toContain('list_lists')
       } finally {
         await client.close()
       }

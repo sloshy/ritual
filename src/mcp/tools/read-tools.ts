@@ -1,9 +1,19 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { callApi } from '../dispatch'
 import { loadProjectedList } from '../projection'
 import { jsonResult } from '../result'
-import { currencySchema, finishSchema, listTypeSchema, slugField } from '../schemas'
+import {
+  currencySchema,
+  finishSchema,
+  listRefSchema,
+  listTypeSchema,
+  slugField,
+  type ListRefInput,
+} from '../schemas'
+import type { CardPriceResponse } from '../../api/card-price'
+import type { CardPrintingsResponse } from '../../api/card-printings'
+import type { ExportRequestBody } from '../../admin/api/export'
 import { EXPORT_FORMATS } from '../../export/presets'
 import { EXPORT_DIALECTS, EXPORT_PROPERTIES } from '../../export/render'
 import { VALID_CONDITIONS } from '../../finish-condition'
@@ -20,17 +30,6 @@ type RawScryfallCard = Partial<
   >
 >
 
-interface CardPriceResponse {
-  representative: RawScryfallCard | null
-  lowestPriceCard: RawScryfallCard | null
-  lowestPriceCardEur: RawScryfallCard | null
-  lowestPriceCardTix: RawScryfallCard | null
-}
-
-interface CardPrintingsResponse {
-  printings: RawScryfallCard[]
-}
-
 /** One list as `list_lists` returns it (the tool vocabulary uses `listType`, not `type`). */
 interface ListSummaryResult {
   listType: ListType
@@ -43,19 +42,8 @@ interface ListListsResult {
   lists: ListSummaryResult[]
 }
 
-/** One side of `diff_lists`: a list name resolved like CLI list arguments. */
-const diffSideSchema = z.object({
-  listType: listTypeSchema.optional().describe('Pin the list type of an ambiguous name.'),
-  name: z
-    .string()
-    .min(1)
-    .describe('List name (matched like CLI list arguments; a slug/file basename also works).'),
-})
-
-type DiffSideInput = z.infer<typeof diffSideSchema>
-
 /** The `[type:]name` query value the admin diff route expects for one side. */
-function diffSideParam(side: DiffSideInput): string {
+function diffSideParam(side: ListRefInput): string {
   return side.listType === undefined ? side.name : `${side.listType}:${side.name}`
 }
 
@@ -87,9 +75,9 @@ export function registerReadTools(server: McpServer): void {
       description:
         'List every deck, collection, and wanted list as { listType, slug, name }, ' +
         'optionally filtered to one list type.',
-      inputSchema: {
+      inputSchema: z.object({
         listType: listTypeSchema.optional().describe('Only return lists of this type.'),
-      },
+      }),
       annotations: { readOnlyHint: true },
     },
     async ({ listType }) => {
@@ -110,7 +98,7 @@ export function registerReadTools(server: McpServer): void {
         'List the decks linked to Archidekt (slug, name, sourceId, sourceUrl, lastSynced) ' +
         'along with the stored Archidekt login, whose loginRequired flag says whether ' +
         'sync_decks can run.',
-      inputSchema: {},
+      inputSchema: z.object({}),
       annotations: { readOnlyHint: true },
     },
     async () => jsonResult(await callApi('GET', '/api/deck-sync')),
@@ -124,7 +112,7 @@ export function registerReadTools(server: McpServer): void {
         'List the collection lists a sync can cover (slug, name), the list a pull adds new ' +
         'cards to by default, and when the account last synced — along with the stored ' +
         'Archidekt login, whose loginRequired flag says whether sync_collection can run.',
-      inputSchema: {},
+      inputSchema: z.object({}),
       annotations: { readOnlyHint: true },
     },
     async () => jsonResult(await callApi('GET', '/api/collection-sync')),
@@ -137,7 +125,7 @@ export function registerReadTools(server: McpServer): void {
       description:
         'Load one list. Decks return { slug, deck, frontMatter }; collections and wanted ' +
         'lists return { slug, entries, sectionOrder }.',
-      inputSchema: { listType: listTypeSchema, slug: slugField },
+      inputSchema: z.object({ listType: listTypeSchema, slug: slugField }),
       annotations: { readOnlyHint: true },
     },
     async ({ listType, slug }) => jsonResult(await loadProjectedList(listType, slug)),
@@ -150,7 +138,7 @@ export function registerReadTools(server: McpServer): void {
       description:
         'Search Scryfall for card names matching a query (up to 20 names), most popular first. ' +
         'A query that spells out a card name in full is returned first.',
-      inputSchema: { query: z.string().min(1).describe('Search text.') },
+      inputSchema: z.object({ query: z.string().min(1).describe('Search text.') }),
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     async ({ query }) => jsonResult(await callApi('POST', '/api/search-cards', { query })),
@@ -165,7 +153,7 @@ export function registerReadTools(server: McpServer): void {
         'punctuation. Every whitespace-separated term must appear in the name, in any order, so ' +
         '"in tre" finds "In the Trenches". Closest matches first: a name spelled out in full, ' +
         'then names the query prefixes, then names whose words the terms begin.',
-      inputSchema: { query: z.string().min(1).describe('Partial card name.') },
+      inputSchema: z.object({ query: z.string().min(1).describe('Partial card name.') }),
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     async ({ query }) =>
@@ -178,7 +166,7 @@ export function registerReadTools(server: McpServer): void {
       title: 'Card printings',
       description:
         'List the printings of a card (set, collector number, rarity, finishes, prices).',
-      inputSchema: { name: z.string().min(1).describe('Exact card name.') },
+      inputSchema: z.object({ name: z.string().min(1).describe('Exact card name.') }),
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     async ({ name }) => {
@@ -197,7 +185,7 @@ export function registerReadTools(server: McpServer): void {
       description:
         'Get a card’s representative printing and cheapest printing per currency. ' +
         'An unknown card name is an error.',
-      inputSchema: { name: z.string().min(1).describe('Exact card name.') },
+      inputSchema: z.object({ name: z.string().min(1).describe('Exact card name.') }),
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     async ({ name }) => {
@@ -264,7 +252,7 @@ export function registerReadTools(server: McpServer): void {
     {
       title: 'Load change history',
       description: 'Load a list’s change history (newest first) plus the default-rewrite lines.',
-      inputSchema: { listType: listTypeSchema, slug: slugField },
+      inputSchema: z.object({ listType: listTypeSchema, slug: slugField }),
       annotations: { readOnlyHint: true },
     },
     async ({ listType, slug }) =>
@@ -276,7 +264,7 @@ export function registerReadTools(server: McpServer): void {
     {
       title: 'Get config',
       description: 'Get the current Ritual configuration.',
-      inputSchema: {},
+      inputSchema: z.object({}),
       annotations: { readOnlyHint: true },
     },
     async () => jsonResult(await callApi('GET', '/api/config')),
@@ -287,9 +275,9 @@ export function registerReadTools(server: McpServer): void {
     {
       title: 'Get audit log',
       description: 'Get recent admin activity (login attempts, etc.).',
-      inputSchema: {
+      inputSchema: z.object({
         limit: z.number().int().min(1).max(1000).optional().describe('Max entries (default 100).'),
-      },
+      }),
       annotations: { readOnlyHint: true },
     },
     async ({ limit }) => {
@@ -308,11 +296,11 @@ export function registerReadTools(server: McpServer): void {
         'collector number + finish (a missing finish counts as nonfoil, and lines with no ' +
         'printing form their own bucket). Returns { a, b, by, matches, onlyInA, onlyInB, ' +
         'warnings } with quantities summed across all sections.',
-      inputSchema: {
-        a: diffSideSchema.describe('First list.'),
-        b: diffSideSchema.describe('Second list.'),
+      inputSchema: z.object({
+        a: listRefSchema.describe('First list.'),
+        b: listRefSchema.describe('Second list.'),
         by: z.enum(DIFF_BY_MODES).optional().describe('Identity to compare by (default "name").'),
-      },
+      }),
       annotations: { readOnlyHint: true },
     },
     async ({ a, b, by }) => {
@@ -335,23 +323,8 @@ export function registerReadTools(server: McpServer): void {
         'and md have fixed line formats). With no lists and no cards, every list is exported. ' +
         'Returns { format, entryCount, content, warnings } — the content string is the ' +
         'rendered export (nothing is written to disk).',
-      inputSchema: {
-        lists: z
-          .array(
-            z.object({
-              listType: listTypeSchema
-                .optional()
-                .describe('Pin the list type of an ambiguous name.'),
-              name: z
-                .string()
-                .min(1)
-                .describe(
-                  'List name (matched like CLI list arguments; a slug/file basename also works).',
-                ),
-            }),
-          )
-          .optional()
-          .describe('Lists to export whole.'),
+      inputSchema: z.object({
+        lists: z.array(listRefSchema).optional().describe('Lists to export whole.'),
         cards: z
           .array(z.string().min(1))
           .optional()
@@ -405,15 +378,15 @@ export function registerReadTools(server: McpServer): void {
             'Start from a saved or built-in export preset; explicit fields override it. ' +
               "Built-in: archidekt (the CSV Archidekt's collection importer takes).",
           ),
-      },
+      }),
       annotations: { readOnlyHint: true },
     },
-    async ({ lists, ...rest }) =>
-      jsonResult(
-        await callApi('POST', '/api/export', {
-          ...rest,
-          lists: lists?.map((l) => ({ type: l.listType, name: l.name })),
-        }),
-      ),
+    async ({ lists, ...rest }) => {
+      const body: ExportRequestBody = {
+        ...rest,
+        lists: lists?.map((l) => ({ type: l.listType, name: l.name })),
+      }
+      return jsonResult(await callApi('POST', '/api/export', body))
+    },
   )
 }

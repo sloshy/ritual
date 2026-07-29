@@ -1,4 +1,4 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import {
   createAddChange,
@@ -21,6 +21,8 @@ import {
   type SelectedMoveItem,
   type SelectedMoveRequest,
 } from '../../admin/api/move'
+import type { DeckCreateRequest } from '../../admin/api/deck-create'
+import type { ImportCsvRequest } from '../../admin/api/import-csv'
 import { callApi } from '../dispatch'
 import { mutateDeck, mutateList } from '../mutations'
 import { jsonResult, textResult } from '../result'
@@ -36,10 +38,25 @@ import {
   finishSchema,
   listTypeSchema,
   quantityField,
+  refineDeckOnlyFormat,
   sectionField,
   setField,
   slugField,
 } from '../schemas'
+
+/**
+ * `POST /api/import-deck` body as the MCP tool builds it. Looser than the
+ * handler's `ImportDeckRequest` union on purpose: the tool schema leaves
+ * `url`/`content` optional so a missing one surfaces as the handler's own
+ * 400 rather than a schema rejection with less context.
+ */
+type ImportDeckBody = {
+  mode: 'url' | 'text'
+  url?: string
+  content?: string
+  name?: string
+  overwrite?: boolean
+}
 
 /**
  * One card move, addressed by identity: source list + card name (plus cardId /
@@ -196,17 +213,10 @@ export function registerWriteTools(server: McpServer): void {
             .optional()
             .describe('Deck format (decks only; defaults to commander).'),
         })
-        .superRefine((val, ctx) => {
-          if (val.format !== undefined && val.listType !== 'deck') {
-            ctx.addIssue({
-              code: 'custom',
-              message: 'format is only valid when listType is "deck".',
-            })
-          }
-        }),
+        .superRefine(refineDeckOnlyFormat),
     },
     async ({ listType, name, format }) => {
-      const body = listType === 'deck' ? { name, format } : { name }
+      const body: DeckCreateRequest = listType === 'deck' ? { name, format } : { name }
       return jsonResult(await callApi('POST', `/api/${listType}/create`, body))
     },
   )
@@ -216,17 +226,18 @@ export function registerWriteTools(server: McpServer): void {
     {
       title: 'Import deck',
       description: 'Import a deck from a supported URL or from pasted decklist text.',
-      inputSchema: {
+      inputSchema: z.object({
         mode: z.enum(['url', 'text']).describe('Import source.'),
         url: z.string().optional().describe('Deck URL (mode "url").'),
         content: z.string().optional().describe('Decklist text (mode "text").'),
         name: z.string().optional().describe('Name for the imported deck (mode "text").'),
         overwrite: z.boolean().optional().describe('Overwrite an existing deck of the same name.'),
-      },
+      }),
       annotations: { destructiveHint: true },
     },
     async ({ mode, url, content, name, overwrite }) => {
-      const body = mode === 'url' ? { mode, url, overwrite } : { mode, content, name, overwrite }
+      const body: ImportDeckBody =
+        mode === 'url' ? { mode, url, overwrite } : { mode, content, name, overwrite }
       return jsonResult(await callApi('POST', '/api/import-deck', body))
     },
   )
@@ -265,28 +276,21 @@ export function registerWriteTools(server: McpServer): void {
             .optional()
             .describe('Whether the first row is a header row. Defaults to true.'),
         })
-        .superRefine((val, ctx) => {
-          if (val.format !== undefined && val.listType !== 'deck') {
-            ctx.addIssue({
-              code: 'custom',
-              message: 'format is only valid when listType is "deck".',
-            })
-          }
-        }),
+        .superRefine(refineDeckOnlyFormat),
       annotations: { destructiveHint: true },
     },
-    async ({ listType, name, mode, format, content, columns, hasHeader }) =>
-      jsonResult(
-        await callApi('POST', '/api/import-csv', {
-          listType,
-          name,
-          mode,
-          format,
-          content,
-          columns,
-          hasHeader,
-        }),
-      ),
+    async ({ listType, name, mode, format, content, columns, hasHeader }) => {
+      const body: ImportCsvRequest = {
+        listType,
+        name,
+        mode,
+        format,
+        content,
+        columns,
+        hasHeader,
+      }
+      return jsonResult(await callApi('POST', '/api/import-csv', body))
+    },
   )
 
   server.registerTool(
@@ -298,9 +302,9 @@ export function registerWriteTools(server: McpServer): void {
         'one or more lists) to the underlying lists. Changes are re-targeted to current ' +
         'card IDs; ones whose target card no longer exists are reported as skipped conflicts. ' +
         'The response lists per-list applied counts, conflicts, and errors.',
-      inputSchema: {
+      inputSchema: z.object({
         json: z.string().min(1).describe('The exported change JSON, verbatim.'),
-      },
+      }),
       annotations: { destructiveHint: true },
     },
     async ({ json }) => {
@@ -416,13 +420,13 @@ export function registerWriteTools(server: McpServer): void {
     {
       title: 'Set card note',
       description: 'Set (or, with an empty string, clear) the note on a card in any list.',
-      inputSchema: {
+      inputSchema: z.object({
         listType: listTypeSchema,
         slug: slugField,
         cardName: cardNameField,
         cardId: cardIdField,
         note: z.string().describe('Note text. Empty string clears the note.'),
-      },
+      }),
     },
     async ({ listType, slug, cardName, cardId, note }) => {
       const change = createSetNoteChange(cardName, { note, cardId })
@@ -438,7 +442,7 @@ export function registerWriteTools(server: McpServer): void {
         'Set the printing (set/collector number/finish/condition) of a card in any list. ' +
         'Omit set and collectorNumber to clear the specific printing on a deck or wanted-list ' +
         'card; collections require both together, so omitting them there is rejected.',
-      inputSchema: {
+      inputSchema: z.object({
         listType: listTypeSchema,
         slug: slugField,
         cardName: cardNameField,
@@ -447,7 +451,7 @@ export function registerWriteTools(server: McpServer): void {
         collectorNumber: collectorNumberField,
         finish: finishField,
         condition: conditionField,
-      },
+      }),
     },
     async ({ listType, slug, cardName, cardId, set, collectorNumber, finish, condition }) => {
       const change = createSetPrintingChange(cardName, {
@@ -466,13 +470,13 @@ export function registerWriteTools(server: McpServer): void {
     {
       title: 'Set card section',
       description: 'Move a card to a section of its list (the section is created when missing).',
-      inputSchema: {
+      inputSchema: z.object({
         listType: listTypeSchema,
         slug: slugField,
         cardName: cardNameField,
         cardId: cardIdField,
         section: z.string().min(1).describe('Target section name (exact; created when missing).'),
-      },
+      }),
     },
     async ({ listType, slug, cardName, cardId, section }) => {
       const change = createSetSectionChange(cardName, section, cardId)
@@ -485,7 +489,7 @@ export function registerWriteTools(server: McpServer): void {
     {
       title: 'Set commander',
       description: 'Move a card into a deck’s Commander section.',
-      inputSchema: { slug: slugField, cardName: cardNameField, cardId: cardIdField },
+      inputSchema: z.object({ slug: slugField, cardName: cardNameField, cardId: cardIdField }),
     },
     async ({ slug, cardName, cardId }) => {
       const change = createSetCommanderChange(cardName, { cardId })
@@ -498,7 +502,7 @@ export function registerWriteTools(server: McpServer): void {
     {
       title: 'Unset commander',
       description: 'Move a card out of a deck’s Commander section back into the main section.',
-      inputSchema: { slug: slugField, cardName: cardNameField, cardId: cardIdField },
+      inputSchema: z.object({ slug: slugField, cardName: cardNameField, cardId: cardIdField }),
     },
     async ({ slug, cardName, cardId }) => {
       const change = createUnsetCommanderChange(cardName, { cardId })
@@ -516,11 +520,11 @@ export function registerWriteTools(server: McpServer): void {
         'one save, one changelog block. Missing change ids/timestamps are autofilled. On a ' +
         'collection, add and set-printing require set + collectorNumber together. For ' +
         'cross-list moves use move_cards.',
-      inputSchema: {
+      inputSchema: z.object({
         listType: listTypeSchema,
         slug: slugField,
         changes: z.array(applyChangeSchema).min(1).describe('Changes to apply, in order.'),
-      },
+      }),
       // Like import_changes: a change batch can remove cards in bulk.
       annotations: { destructiveHint: true },
     },
@@ -540,7 +544,9 @@ export function registerWriteTools(server: McpServer): void {
         'destination list; set/collectorNumber/finish/condition override the printing on ' +
         'arrival, and toSection picks a destination deck section. Unresolvable moves are ' +
         'skipped and counted; notes that a destination cannot keep are reported in droppedNotes.',
-      inputSchema: { moves: z.array(moveItemSchema).min(1).describe('Moves to apply atomically.') },
+      inputSchema: z.object({
+        moves: z.array(moveItemSchema).min(1).describe('Moves to apply atomically.'),
+      }),
     },
     async ({ moves }) => {
       const body: SelectedMoveRequest = {
@@ -573,9 +579,9 @@ export function registerWriteTools(server: McpServer): void {
         'Remove a batch of cards across lists in one atomic pass. Each item names its entry by ' +
         'listType + slug + cardName, with cardId/copyIndex to pin the exact entry. Unresolvable ' +
         'items are skipped and counted.',
-      inputSchema: {
+      inputSchema: z.object({
         removes: z.array(removeItemSchema).min(1).describe('Cards to remove atomically.'),
-      },
+      }),
     },
     async ({ removes }) => {
       const body: RemoveCommitRequest = {

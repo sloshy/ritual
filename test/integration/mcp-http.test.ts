@@ -1,27 +1,30 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import type { Server } from 'node:http'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import { runHttpServer } from '../../src/mcp/run'
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
+import {
+  runHttpServer,
+  NOT_FOUND_ERROR_CODE,
+  UNAUTHORIZED_ERROR_CODE,
+  type McpHttpServer,
+  type RpcErrorBody,
+} from '../../src/mcp/run'
+import { firstText } from '../mcp-test-utils'
 import { bindWorkspace, writeDeckFile, type BoundWorkspace } from './helpers/workspace'
 import { runCli, withTempDir } from './helpers/cli'
 
 const TOKEN = 'integration-secret'
 
-type ToolText = { content: { type: string; text?: string }[] }
-
-function text(result: unknown): string {
-  return (result as ToolText).content[0]?.text ?? ''
+function serverBase(server: McpHttpServer): string {
+  return `http://127.0.0.1:${server.port}`
 }
 
-function serverBase(server: Server): string {
-  const address = server.address()
-  const port = typeof address === 'object' && address ? address.port : 0
-  return `http://127.0.0.1:${port}`
-}
-
-function endpoint(server: Server): URL {
+function endpoint(server: McpHttpServer): URL {
   return new URL(`${serverBase(server)}/mcp`)
+}
+
+/** The JSON-RPC error envelope Ritual answers its own pre-transport rejections with. */
+async function rpcErrorCode(response: Response): Promise<number | undefined> {
+  const body = (await response.json()) as RpcErrorBody
+  return body.error?.code
 }
 
 // No Scryfall fetch stub on purpose: these tests exercise the HTTP transport (the
@@ -36,15 +39,15 @@ async function makeWorkspace(): Promise<BoundWorkspace> {
   return ws
 }
 
-async function teardown(ws: BoundWorkspace, server: Server): Promise<void> {
-  server.closeAllConnections?.()
-  await new Promise<void>((resolve) => server.close(() => resolve()))
+async function teardown(ws: BoundWorkspace, server: McpHttpServer): Promise<void> {
+  // `runHttpServer` wraps stop() so this also tears the MCP handler down.
+  await server.stop(true)
   await ws.dispose()
 }
 
 describe('ritual mcp HTTP — bearer auth', () => {
   let ws: BoundWorkspace
-  let server: Server
+  let server: McpHttpServer
 
   beforeEach(async () => {
     ws = await makeWorkspace()
@@ -56,22 +59,41 @@ describe('ritual mcp HTTP — bearer auth', () => {
   })
   afterEach(async () => teardown(ws, server))
 
-  test('drives the protocol over HTTP with a valid bearer token', async () => {
-    const transport = new StreamableHTTPClientTransport(endpoint(server), {
-      requestInit: { headers: { Authorization: `Bearer ${TOKEN}` } },
-    })
-    const client = new Client({ name: 'it-http', version: '0.0.0' })
-    await client.connect(transport)
-    try {
-      const { tools } = await client.listTools()
-      expect(tools.map((t) => t.name)).toContain('list_lists')
+  // The two eras are different code paths end to end (per-request envelope,
+  // Mcp-Method/Mcp-Name headers, no session on the modern leg; the legacy
+  // stateless fallback on the 2025 leg). Each leg asserts its own era so a
+  // future SDK default flip cannot silently collapse them onto one path.
+  const eras = [
+    { label: '2025-era', options: undefined, modern: false },
+    {
+      label: '2026-07-28',
+      options: { versionNegotiation: { mode: 'auto' as const } },
+      modern: true,
+    },
+  ]
+  for (const { label, options, modern } of eras) {
+    test(`drives the protocol over HTTP as a ${label} client`, async () => {
+      const transport = new StreamableHTTPClientTransport(endpoint(server), {
+        requestInit: { headers: { Authorization: `Bearer ${TOKEN}` } },
+      })
+      const client = new Client({ name: `it-http-${label}`, version: '0.0.0' }, options)
+      await client.connect(transport)
+      try {
+        if (modern) {
+          expect(client.getProtocolEra()).toBe('modern')
+        } else {
+          expect(client.getProtocolEra()).not.toBe('modern')
+        }
+        const { tools } = await client.listTools()
+        expect(tools.map((t) => t.name)).toContain('list_lists')
 
-      const listed = await client.callTool({ name: 'list_lists', arguments: {} })
-      expect(text(listed)).toContain('starter')
-    } finally {
-      await client.close()
-    }
-  })
+        const listed = await client.callTool({ name: 'list_lists', arguments: {} })
+        expect(firstText(listed)).toContain('starter')
+      } finally {
+        await client.close()
+      }
+    })
+  }
 
   test('returns 401 for a request with a missing or wrong bearer token', async () => {
     const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })
@@ -85,6 +107,7 @@ describe('ritual mcp HTTP — bearer auth', () => {
       body,
     })
     expect(missing.status).toBe(401)
+    expect(await rpcErrorCode(missing)).toBe(UNAUTHORIZED_ERROR_CODE)
 
     const wrong = await fetch(endpoint(server), {
       method: 'POST',
@@ -96,9 +119,12 @@ describe('ritual mcp HTTP — bearer auth', () => {
       body,
     })
     expect(wrong.status).toBe(401)
+    expect(await rpcErrorCode(wrong)).toBe(UNAUTHORIZED_ERROR_CODE)
   })
 
-  test('returns 400 for a POST without a session before initialize', async () => {
+  test('serves a bare tools/list POST with no initialize and no session', async () => {
+    // Serving is stateless now: what used to be a 400 ("send an initialize
+    // request first") is the ordinary way to call the server.
     const res = await fetch(endpoint(server), {
       method: 'POST',
       headers: {
@@ -108,7 +134,71 @@ describe('ritual mcp HTTP — bearer auth', () => {
       },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
     })
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(200)
+    // The stateless invariant on the wire: no session is minted, ever.
+    expect(res.headers.get('mcp-session-id')).toBeNull()
+    expect(await res.text()).toContain('list_lists')
+  })
+
+  test('returns 405 for the legacy standalone SSE stream and session teardown', async () => {
+    // GET /mcp and DELETE /mcp are 2025 session operations; stateless serving
+    // has no sessions, and Ritual uses neither feature.
+    const get = await fetch(endpoint(server), {
+      headers: {
+        Accept: 'text/event-stream',
+        Authorization: `Bearer ${TOKEN}`,
+      },
+    })
+    expect(get.status).toBe(405)
+
+    const del = await fetch(endpoint(server), {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    })
+    expect(del.status).toBe(405)
+  })
+
+  test('rejects a foreign Host header on a loopback bind (DNS rebinding)', async () => {
+    // Host validation runs before auth on loopback binds; a rebinding page
+    // reaches 127.0.0.1 under its own hostname and must be turned away.
+    const res = await fetch(endpoint(server), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+        Authorization: `Bearer ${TOKEN}`,
+        Host: 'evil.example',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+    })
+    expect(res.status).toBe(403)
+  })
+
+  test('rejects a non-local Origin header on a loopback bind', async () => {
+    const res = await fetch(endpoint(server), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+        Authorization: `Bearer ${TOKEN}`,
+        Origin: 'http://evil.example',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+    })
+    expect(res.status).toBe(403)
+  })
+
+  test('returns 415 for a POST that is not application/json', async () => {
+    const res = await fetch(endpoint(server), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain',
+        Accept: 'application/json, text/event-stream',
+        Authorization: `Bearer ${TOKEN}`,
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+    })
+    expect(res.status).toBe(415)
   })
 
   test('returns 404 for a non-/mcp path', async () => {
@@ -116,12 +206,13 @@ describe('ritual mcp HTTP — bearer auth', () => {
       headers: { Authorization: `Bearer ${TOKEN}` },
     })
     expect(res.status).toBe(404)
+    expect(await rpcErrorCode(res)).toBe(NOT_FOUND_ERROR_CODE)
   })
 })
 
 describe('ritual mcp HTTP — no auth', () => {
   let ws: BoundWorkspace
-  let server: Server
+  let server: McpHttpServer
 
   beforeEach(async () => {
     ws = await makeWorkspace()

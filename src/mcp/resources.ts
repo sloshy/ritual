@@ -1,5 +1,6 @@
-import { ResourceTemplate, type McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { ResourceTemplate, type McpServer } from '@modelcontextprotocol/server'
 import { isListType } from '../list-type'
+import { NEVER_CACHE } from './cache-hints'
 import { callApi } from './dispatch'
 import { apiErrorToMcp } from './errors'
 import { loadProjectedList } from './projection'
@@ -36,6 +37,8 @@ export function registerResources(server: McpServer): void {
     {
       title: 'Ritual list',
       description: 'A deck, collection, or wanted list, addressed as ritual://{type}/{slug}.',
+      // List contents change on every edit, so a read is never cacheable.
+      cacheHint: NEVER_CACHE,
     },
     async (uri, variables) => {
       const type = firstValue(variables.type)

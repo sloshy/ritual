@@ -1,4 +1,4 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import type { CollectionSyncRequest } from '../../admin/api/collection-sync'
 import { callApi } from '../dispatch'
@@ -74,7 +74,7 @@ export function registerDestructiveTools(server: McpServer): void {
     {
       title: 'Rename list',
       description: 'Rename a deck, collection, or wanted list (changes its display name and slug).',
-      inputSchema: { listType: listTypeSchema, slug: slugField, newName: newNameField },
+      inputSchema: z.object({ listType: listTypeSchema, slug: slugField, newName: newNameField }),
       annotations: { destructiveHint: true },
     },
     async ({ listType, slug, newName }) =>
@@ -89,7 +89,11 @@ export function registerDestructiveTools(server: McpServer): void {
       title: 'Delete list',
       description:
         'Delete a deck, collection, or wanted list. confirmName must match its display name.',
-      inputSchema: { listType: listTypeSchema, slug: slugField, confirmName: confirmNameField },
+      inputSchema: z.object({
+        listType: listTypeSchema,
+        slug: slugField,
+        confirmName: confirmNameField,
+      }),
       annotations: { destructiveHint: true, idempotentHint: true },
     },
     async ({ listType, slug, confirmName }) =>
@@ -105,11 +109,11 @@ export function registerDestructiveTools(server: McpServer): void {
       description:
         'Replace a list’s entire change log with the supplied sets (newest or oldest order is ' +
         'preserved as given). Only the .changes.md file is rewritten; the list itself is untouched.',
-      inputSchema: {
+      inputSchema: z.object({
         listType: listTypeSchema,
         slug: slugField,
         sets: z.array(changeSetSchema).describe('The full set of change sets to write.'),
-      },
+      }),
       annotations: { destructiveHint: true },
     },
     async ({ listType, slug, sets }) =>
@@ -129,9 +133,9 @@ export function registerDestructiveTools(server: McpServer): void {
         'or site.bannedPrintings — "SET:COLLECTOR" printings barred from auto-selection as a ' +
         'card\'s default printing). Nested "admin" fields merge; other top-level keys replace. ' +
         'Unknown keys — top-level or nested in "admin" — are rejected.',
-      inputSchema: {
+      inputSchema: z.object({
         config: z.record(z.string(), z.unknown()).describe('Partial RitualConfig object to merge.'),
-      },
+      }),
       annotations: { destructiveHint: true },
     },
     async ({ config }) => jsonResult(await callApi('PUT', '/api/config', config)),
@@ -142,7 +146,7 @@ export function registerDestructiveTools(server: McpServer): void {
     {
       title: 'Build site',
       description: 'Rebuild the public static site from the current lists.',
-      inputSchema: {},
+      inputSchema: z.object({}),
       annotations: { destructiveHint: true },
     },
     async () => jsonResult(await callApi('POST', '/api/build-site')),
@@ -157,7 +161,7 @@ export function registerDestructiveTools(server: McpServer): void {
         '(recording them in each changelog), "push" sends local changes to decks you own on ' +
         'Archidekt. Omit decks to sync every linked deck. Returns a per-deck report; ' +
         'a run with failures still reports success — check report.failedCount.',
-      inputSchema: {
+      inputSchema: z.object({
         direction: z.enum(SYNC_DIRECTIONS).describe(SYNC_DIRECTION_DESCRIPTION),
         decks: z
           .array(z.string().min(1))
@@ -169,7 +173,7 @@ export function registerDestructiveTools(server: McpServer): void {
           .optional()
           .describe(ignoreUnreadableDescription('decks')),
         only: z.enum(SYNC_CHANGE_FILTERS).optional().describe(changeFilterDescription('each deck')),
-      },
+      }),
       annotations: { destructiveHint: true, openWorldHint: true },
     },
     async ({ direction, decks, dryRun, ignoreUnreadableLines, only }) =>
@@ -202,7 +206,7 @@ export function registerDestructiveTools(server: McpServer): void {
         'fails without pushing anything unless csv: true lets it upload them as one CSV import ' +
         '(report.csv then says what that import did). Returns a per-list report; a run with ' +
         'failures still reports success — check report.failedCount.',
-      inputSchema: {
+      inputSchema: z.object({
         direction: z.enum(SYNC_DIRECTIONS).describe(SYNC_DIRECTION_DESCRIPTION),
         lists: z
           .array(z.string().min(1))
@@ -260,7 +264,7 @@ export function registerDestructiveTools(server: McpServer): void {
               'Quantity changes and removals never ride the CSV, and a pull ignores the field. ' +
               'Writing the CSV to a file instead of pushing it is CLI-only (--csv-file).',
           ),
-      },
+      }),
       annotations: { destructiveHint: true, openWorldHint: true },
     },
     async ({
@@ -296,7 +300,7 @@ export function registerDestructiveTools(server: McpServer): void {
       title: 'Refresh card cache',
       description:
         'Refresh the local Scryfall card cache (downloads bulk card data and oracle/art tags; may take a while).',
-      inputSchema: {},
+      inputSchema: z.object({}),
       annotations: { destructiveHint: true, openWorldHint: true },
     },
     async () => jsonResult(await callApi('POST', '/api/cache/refresh')),

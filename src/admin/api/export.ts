@@ -28,7 +28,7 @@ import { getExportPresets } from '../../ritual-config'
 import { validateBodySize } from './save-helpers'
 
 /** One list selection in the request body. */
-type ExportRequestListRef = { type?: string; name: string }
+export type ExportRequestListRef = { type?: string; name: string }
 
 /** The request body's filter block (validated into {@link ExportFilters}). */
 type ExportRequestFilters = {
@@ -40,7 +40,7 @@ type ExportRequestFilters = {
 }
 
 /** `POST /api/export` request body; every field is optional. */
-type ExportRequestBody = {
+export type ExportRequestBody = {
   /** Lists to export whole; names are resolved like CLI list arguments. */
   lists?: ExportRequestListRef[]
   /** Card-pick terms searched across every list (each adds its matches). */

@@ -14,7 +14,7 @@ const MCP_CONTEXT: RequestContext = { clientIp: 'mcp', sessionToken: null }
 const SYNTHETIC_ORIGIN = 'http://ritual-mcp'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function errorBody(data: unknown, status: number): ApiErrorBody {
@@ -32,7 +32,7 @@ function errorBody(data: unknown, status: number): ApiErrorBody {
  * socket, auth, and IP filtering are all bypassed; the same route handlers that
  * back the web admin run directly here (see {@link dispatchRoute}). A non-2xx
  * response, a `{ success: false }` body, or an unmatched route is thrown as an
- * {@link import('@modelcontextprotocol/sdk/types.js').McpError} so the calling
+ * {@link import('@modelcontextprotocol/server').ProtocolError} so the calling
  * tool surfaces it as an `isError` result rather than a silent failure.
  */
 export async function callApi(method: HttpMethod, path: string, body?: unknown): Promise<unknown> {
@@ -45,7 +45,18 @@ export async function callApi(method: HttpMethod, path: string, body?: unknown):
   const response = dispatched.response
 
   const text = await response.text()
-  const data: unknown = text.length > 0 ? JSON.parse(text) : null
+  let data: unknown = null
+  if (text.length > 0) {
+    try {
+      data = JSON.parse(text)
+    } catch {
+      // A handler returned a non-JSON body (e.g. a bare-text error response);
+      // keep the documented contract of throwing a ProtocolError.
+      throw apiErrorToMcp(502, {
+        message: `Admin route ${method} ${path} returned a non-JSON body (HTTP ${response.status}).`,
+      })
+    }
+  }
 
   if (!response.ok) {
     throw apiErrorToMcp(response.status, errorBody(data, response.status))

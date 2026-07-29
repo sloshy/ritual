@@ -1,17 +1,36 @@
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import { randomUUID } from 'node:crypto'
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
-import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
+import {
+  createMcpHandler,
+  hostHeaderValidationResponse,
+  localhostAllowedHostnames,
+  localhostAllowedOrigins,
+  originValidationResponse,
+  ProtocolErrorCode,
+} from '@modelcontextprotocol/server'
+import { serveStdio } from '@modelcontextprotocol/server/stdio'
+import { isLoopbackHost } from './host'
 import { buildMcpServer } from './server'
 import { divertConsoleLogToStderr } from './stdout-guard'
 
-/** Run the MCP server over stdio (the default transport for local agent clients). */
-export async function runStdioServer(): Promise<void> {
+/**
+ * Run the MCP server over stdio (the default transport for local agent clients).
+ *
+ * `serveStdio` pins one server instance per connection and picks the protocol era
+ * from the opening exchange: a 2025-era `initialize` is served on the legacy leg
+ * (the default `legacy: 'serve'`), a 2026-07-28 client is served statelessly.
+ * Returns once the handle is up; the open stdin keeps the process alive.
+ */
+export function runStdioServer(): void {
   divertConsoleLogToStderr()
-  const server = buildMcpServer()
-  const transport = new StdioServerTransport()
-  await server.connect(transport)
+  const handle = serveStdio(() => buildMcpServer(), {
+    onerror: (error) => console.error('MCP stdio error:', error),
+  })
+  const closeHandle = (): void => {
+    void Promise.resolve(handle.close()).catch((error: unknown) =>
+      console.error('MCP stdio teardown failed:', error),
+    )
+  }
+  process.on('SIGINT', closeHandle)
+  process.on('SIGTERM', closeHandle)
 }
 
 /**
@@ -28,137 +47,139 @@ export interface HttpServerOptions {
   auth: McpHttpAuth
 }
 
-function writeJson(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, { 'Content-Type': 'application/json' })
-  res.end(JSON.stringify(body))
+/**
+ * A running MCP HTTP endpoint: the Bun listener plus the MCP handler whose
+ * lifetime is tied to it. `stop` closes the listener first (no new
+ * connections), then tears the handler down so in-flight per-request server
+ * instances are not abandoned mid-exchange.
+ */
+export type McpHttpServer = {
+  readonly server: Bun.Server<undefined>
+  readonly port: number
+  stop(closeActiveConnections?: boolean): Promise<void>
+  [Symbol.asyncDispose](): Promise<void>
 }
 
-type JsonRpcErrorBody = { code: number; message: string }
-type JsonRpcError = { jsonrpc: '2.0'; error: JsonRpcErrorBody; id: null }
+/** Rejects any code the SDK's `ProtocolErrorCode` enum already claims. */
+type NotProtocolCode<C extends number> = C extends ProtocolErrorCode ? never : C
 
-function rpcError(code: number, message: string): JsonRpcError {
-  return { jsonrpc: '2.0', error: { code, message }, id: null }
+/**
+ * Implementation-defined JSON-RPC error codes for Ritual's pre-transport
+ * rejections. MCP 2026-07-28 reserves `-32020..-32099` for the spec and
+ * grandfathers existing SDK codes inside `-32000..-32019` (the SDK owns e.g.
+ * `-32002` for resource-not-found there), so Ritual's codes must sit in that
+ * implementation band *and* avoid the SDK's own — `NotProtocolCode` turns a
+ * future collision into a compile error.
+ */
+export const UNAUTHORIZED_ERROR_CODE = -32_010 satisfies NotProtocolCode<-32_010>
+export const NOT_FOUND_ERROR_CODE = -32_011 satisfies NotProtocolCode<-32_011>
+
+/** Error codes Ritual's HTTP wrapper may emit on its own JSON-RPC rejections. */
+export type RitualRpcErrorCode = typeof UNAUTHORIZED_ERROR_CODE | typeof NOT_FOUND_ERROR_CODE
+
+/** The JSON-RPC error envelope Ritual's pre-transport rejections put on the wire. */
+export type RpcErrorBody = {
+  jsonrpc: '2.0'
+  error: { code: RitualRpcErrorCode | ProtocolErrorCode; message: string }
+  id: null
 }
 
-function readBody(req: IncomingMessage): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    const chunks: Buffer[] = []
-    req.on('data', (chunk: Buffer) => chunks.push(chunk))
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')))
-    req.on('error', reject)
-  })
-}
+/** The single path the MCP Streamable HTTP endpoint is served from. */
+const MCP_PATH = '/mcp'
 
-function headerValue(value: string | string[] | undefined): string | undefined {
-  return Array.isArray(value) ? value[0] : value
+function rpcErrorResponse(
+  status: number,
+  code: RitualRpcErrorCode | ProtocolErrorCode,
+  message: string,
+): Response {
+  const body: RpcErrorBody = { jsonrpc: '2.0', error: { code, message }, id: null }
+  return Response.json(body, { status })
 }
 
 /** Authorize a request against the configured strategy. */
-function isAuthorized(req: IncomingMessage, auth: McpHttpAuth): boolean {
+function isAuthorized(request: Request, auth: McpHttpAuth): boolean {
   switch (auth.kind) {
     case 'bearer':
-      return headerValue(req.headers.authorization) === `Bearer ${auth.token}`
+      return request.headers.get('authorization') === `Bearer ${auth.token}`
     case 'none':
       return true
   }
 }
 
 /**
- * Handle one Streamable-HTTP request. A POST carrying an `initialize` message
- * spins up a fresh transport + server and registers it under the generated
- * session ID; subsequent POST/GET/DELETE requests are routed by the
- * `Mcp-Session-Id` header. GET opens the SSE stream; DELETE ends the session.
- */
-async function handleHttp(
-  req: IncomingMessage,
-  res: ServerResponse,
-  transports: Map<string, StreamableHTTPServerTransport>,
-  auth: McpHttpAuth,
-): Promise<void> {
-  const url = new URL(req.url ?? '/', 'http://localhost')
-  if (url.pathname !== '/mcp') {
-    writeJson(res, 404, { error: 'Not found. Use the /mcp endpoint.' })
-    return
-  }
-  if (!isAuthorized(req, auth)) {
-    writeJson(res, 401, rpcError(-32001, 'Unauthorized'))
-    return
-  }
-
-  const sessionId = headerValue(req.headers['mcp-session-id'])
-
-  if (req.method === 'POST') {
-    const raw = await readBody(req)
-    const body: unknown = raw.length > 0 ? JSON.parse(raw) : undefined
-    const existing = sessionId ? transports.get(sessionId) : undefined
-    if (existing) {
-      await existing.handleRequest(req, res, body)
-      return
-    }
-    if (!isInitializeRequest(body)) {
-      writeJson(
-        res,
-        400,
-        rpcError(-32000, 'No valid session ID; send an initialize request first.'),
-      )
-      return
-    }
-    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => randomUUID() })
-    transport.onclose = () => {
-      const id = transport.sessionId
-      if (id) transports.delete(id)
-    }
-    const server = buildMcpServer()
-    await server.connect(transport)
-    await transport.handleRequest(req, res, body)
-    // The session ID is assigned while handling the initialize request above.
-    const id = transport.sessionId
-    if (id) {
-      transports.set(id, transport)
-    } else {
-      console.error('MCP HTTP: no session ID assigned after initialize; dropping transport.')
-    }
-    return
-  }
-
-  if (req.method === 'GET' || req.method === 'DELETE') {
-    const transport = sessionId ? transports.get(sessionId) : undefined
-    if (!transport) {
-      writeJson(res, 400, { error: 'Unknown or missing Mcp-Session-Id.' })
-      return
-    }
-    await transport.handleRequest(req, res)
-    return
-  }
-
-  writeJson(res, 405, { error: 'Method not allowed.' })
-}
-
-/**
  * Run the MCP server over Streamable HTTP at `http://<host>:<port>/mcp`. Binds to
  * localhost by default; set a bearer token (and an exposed host) only when you
- * intend remote clients to connect. Resolves to the listening server so callers
- * (and tests) can read its address and shut it down; the process stays alive on
- * the open server regardless.
+ * intend remote clients to connect. Resolves to a handle exposing the bound port
+ * and a `stop` that also tears the MCP handler down; the process stays alive on
+ * the open listener regardless.
+ *
+ * Serving is stateless: `createMcpHandler` builds one {@link buildMcpServer}
+ * instance per HTTP request and tears it down with the response. There are no
+ * sessions and no `Mcp-Session-Id`, so 2025-era clients (which still work — they
+ * are served on the handler's legacy leg) get `405` for the standalone `GET /mcp`
+ * SSE stream and `DELETE /mcp` session teardown, neither of which Ritual uses.
  */
-export async function runHttpServer(options: HttpServerOptions): Promise<Server> {
+export async function runHttpServer(options: HttpServerOptions): Promise<McpHttpServer> {
   const { port, host, auth } = options
-  const transports = new Map<string, StreamableHTTPServerTransport>()
 
-  const httpServer = createServer((req, res) => {
-    void handleHttp(req, res, transports, auth).catch((error: unknown) => {
-      console.error('MCP HTTP request failed:', error)
-      if (!res.headersSent) {
-        writeJson(res, 500, rpcError(-32603, 'Internal server error'))
+  const handler = createMcpHandler(() => buildMcpServer(), {
+    // The default; spelled out because it is what keeps 2025-era clients working.
+    legacy: 'stateless',
+    onerror: (error) => console.error('MCP HTTP error:', error),
+  })
+
+  // The SDK's allowlists cover `localhost`, `127.0.0.1`, and `[::1]`. A bind to
+  // any other loopback address (`isLoopbackHost` accepts all of 127.0.0.0/8)
+  // must still accept its own name, or every request would be rejected as a
+  // rebinding attempt.
+  const allowedHosts = [...new Set([...localhostAllowedHostnames(), host])]
+  const allowedOrigins = [...new Set([...localhostAllowedOrigins(), host])]
+  const loopbackOnly = isLoopbackHost(host)
+
+  const server = Bun.serve({
+    port,
+    hostname: host,
+    fetch: async (request) => {
+      const url = new URL(request.url)
+      if (url.pathname !== MCP_PATH) {
+        return rpcErrorResponse(
+          404,
+          NOT_FOUND_ERROR_CODE,
+          `Not found. Use the ${MCP_PATH} endpoint.`,
+        )
       }
-    })
+      // DNS-rebinding protection (Host + Origin, per the SDK's own mounting
+      // guidance) applies to loopback binds only; a deliberately exposed host
+      // is reached by its own name and guarded by the bearer token.
+      if (loopbackOnly) {
+        const rejection =
+          hostHeaderValidationResponse(request, allowedHosts) ??
+          originValidationResponse(request, allowedOrigins)
+        if (rejection) return rejection
+      }
+      if (!isAuthorized(request, auth)) {
+        return rpcErrorResponse(401, UNAUTHORIZED_ERROR_CODE, 'Unauthorized')
+      }
+      try {
+        return await handler.fetch(request)
+      } catch (error) {
+        console.error('MCP HTTP request failed:', error)
+        return rpcErrorResponse(500, ProtocolErrorCode.InternalError, 'Internal server error')
+      }
+    },
   })
 
-  await new Promise<void>((resolve) => {
-    httpServer.listen(port, host, resolve)
-  })
-  const address = httpServer.address()
-  const boundPort = typeof address === 'object' && address ? address.port : port
-  console.error(`Ritual MCP server (HTTP) listening at http://${host}:${boundPort}/mcp`)
-  return httpServer
+  // Stop the listener before closing the handler: the reverse order aborts
+  // in-flight exchanges while the socket still accepts new connections.
+  const stop = async (closeActiveConnections?: boolean): Promise<void> => {
+    try {
+      await server.stop(closeActiveConnections)
+    } finally {
+      await handler.close()
+    }
+  }
+
+  const boundPort = server.port ?? port
+  console.error(`Ritual MCP server (HTTP) listening at http://${host}:${boundPort}${MCP_PATH}`)
+  return { server, port: boundPort, stop, [Symbol.asyncDispose]: () => stop(true) }
 }

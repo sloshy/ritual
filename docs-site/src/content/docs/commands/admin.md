@@ -41,6 +41,8 @@ ritual admin --mcp --mcp-token "$MCP_TOKEN"
 
 This is one process — not a second `ritual mcp` instance — so it shares the same config, card cache, and data directory. Authentication uses the **same bearer-token model as the standalone server**: a token is **required** — pass `--mcp-token <secret>` or set the `RITUAL_MCP_TOKEN` environment variable (the admin binds `0.0.0.0` by default, so an unauthenticated MCP endpoint would be exposed). Every MCP request must then send `Authorization: Bearer <token>`; requests without it get `401`. The token is independent of the browser admin login.
 
+The endpoint is stateless and serves both the 2026-07-28 and the 2025-era protocol — see [`ritual mcp` → HTTP](/commands/mcp/#http-streamable-http) for what that means for sessions, `GET`/`DELETE`, and error responses.
+
 The standalone [`ritual mcp`](/commands/mcp/) command is still the way to run MCP without the web admin (over stdio, or HTTP with a bearer token).
 
 ## First-Time Setup

@@ -1,4 +1,5 @@
 import { Command, Option } from 'commander'
+import { isLoopbackHost } from '../mcp/host'
 import { runHttpServer, runStdioServer } from '../mcp/run'
 import { resolveMcpToken } from '../mcp/token'
 import { ExitCode, parsePort } from './scripting'
@@ -22,12 +23,6 @@ const HTTP_ONLY_OPTIONS: readonly HttpOnlyOption[] = [
   { name: 'token', flag: '--token' },
   { name: 'allowUnauthenticated', flag: '--allow-unauthenticated' },
 ]
-
-/** Whether a bind host is loopback-only (no exposure beyond the local machine). */
-function isLoopbackHost(host: string): boolean {
-  if (host === 'localhost' || host === '::1') return true
-  return /^127(\.\d{1,3}){3}$/.test(host)
-}
 
 export function registerMcpCommand(program: Command): void {
   program
@@ -91,6 +86,6 @@ export function registerMcpCommand(program: Command): void {
           `Warning: ${ignoredFlags.join(', ')} only apply to --transport http and are ignored under stdio.`,
         )
       }
-      await runStdioServer()
+      runStdioServer()
     })
 }

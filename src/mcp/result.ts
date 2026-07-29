@@ -1,4 +1,4 @@
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import type { CallToolResult } from '@modelcontextprotocol/server'
 
 /** Wrap JSON-serializable data as a single pretty-printed text content block. */
 export function jsonResult(data: unknown): CallToolResult {

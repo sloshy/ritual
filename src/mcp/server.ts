@@ -1,5 +1,6 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { McpServer } from '@modelcontextprotocol/server'
 import { version } from '../version'
+import { NEVER_CACHE, STATIC_CATALOG_CACHE } from './cache-hints'
 import { registerResources } from './resources'
 import { registerDestructiveTools } from './tools/destructive-tools'
 import { registerReadTools } from './tools/read-tools'
@@ -75,7 +76,25 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
 export function buildMcpServer(): McpServer {
   const server = new McpServer(
     { name: 'ritual', version },
-    { capabilities: { tools: {}, resources: {} }, instructions: INSTRUCTIONS },
+    {
+      // The SDK defaults declared capabilities to `listChanged: true`. Ritual
+      // never sends list-changed notifications (nor supports subscriptions), so
+      // advertising them would be a lie — opt out explicitly.
+      capabilities: {
+        tools: { listChanged: false },
+        resources: { listChanged: false, subscribe: false },
+      },
+      instructions: INSTRUCTIONS,
+      // See cache-hints.ts for the policy rationale. `server/discover` is as
+      // fixed per binary as the tool catalog, so it shares the long TTL.
+      cacheHints: {
+        'tools/list': STATIC_CATALOG_CACHE,
+        'resources/templates/list': STATIC_CATALOG_CACHE,
+        'server/discover': STATIC_CATALOG_CACHE,
+        'resources/list': NEVER_CACHE,
+        'resources/read': NEVER_CACHE,
+      },
+    },
   )
   registerReadTools(server)
   registerWriteTools(server)

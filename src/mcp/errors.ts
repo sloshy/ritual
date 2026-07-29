@@ -1,4 +1,4 @@
-import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
+import { ProtocolError, ProtocolErrorCode } from '@modelcontextprotocol/server'
 
 /** Error fields the admin handlers include in their non-OK JSON responses. */
 export interface ApiErrorBody {
@@ -7,17 +7,18 @@ export interface ApiErrorBody {
 }
 
 /**
- * Translate an admin HTTP status + error body into an {@link McpError}. Client
+ * Translate an admin HTTP status + error body into a {@link ProtocolError}. Client
  * errors (400/404/409) map to `InvalidParams` so the agent learns the call was
  * malformed or the target is gone/stale; everything else maps to `InternalError`.
- * A thrown McpError inside a tool handler is surfaced by the SDK as an `isError`
- * tool result carrying this message, so the text is the agent-facing explanation.
+ * A thrown `ProtocolError` inside a tool handler is surfaced by the SDK as an
+ * `isError` tool result carrying this message, so the text is the agent-facing
+ * explanation.
  */
-export function apiErrorToMcp(status: number, body: ApiErrorBody): McpError {
+export function apiErrorToMcp(status: number, body: ApiErrorBody): ProtocolError {
   const message = body.message ?? `Admin request failed (HTTP ${status})`
   const code =
     status === 400 || status === 404 || status === 409
-      ? ErrorCode.InvalidParams
-      : ErrorCode.InternalError
-  return new McpError(code, message)
+      ? ProtocolErrorCode.InvalidParams
+      : ProtocolErrorCode.InternalError
+  return new ProtocolError(code, message)
 }
