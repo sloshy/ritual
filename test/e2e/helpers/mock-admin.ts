@@ -15,6 +15,12 @@ import type {
 import { CSV_UPLOAD_THRESHOLD } from '../../../src/collection-sync/csv'
 import type { AmbiguousRemoval } from '../../../src/collection-sync/describe'
 import type { CardIndexResponse } from '../../../src/admin/api/card-index'
+import {
+  type BundleImportResponse,
+  type BundleImportResult,
+  type ListImportResult,
+  bundleImportMessage,
+} from '../../../src/admin/api/import-changes'
 import type { BuildSiteResponse } from '../../../src/admin/api/build-site'
 import type {
   CollectionFullLoadResult,
@@ -200,36 +206,31 @@ export async function mockImportCsvApi(
   })
 }
 
-/** One list's outcome in a mocked import-changes response. */
-type MockImportChangesListResult = {
-  kind: string
-  slug: string
-  name: string
-  applied: number
-  conflicts: { change: Record<string, unknown>; reason: string }[]
-  error?: string
-}
-
 /**
  * Mock the import-changes API endpoint. Pass `onRequest` to capture the parsed
  * request body, and `lists` to control the per-list outcomes reported back.
+ *
+ * A partially-failed import is still a 200 with `success: true` — the failure
+ * count rides on `failedCount` so the per-list report survives — so the envelope
+ * and summary line are built by the route's own helper rather than restated here.
  */
 export async function mockImportChangesApi(
   page: Page,
-  lists: MockImportChangesListResult[],
+  lists: ListImportResult[],
   onRequest?: (body: unknown) => void,
 ): Promise<void> {
   await fulfillJson(page, '**/api/import-changes', (route: Route) => {
     onRequest?.(route.request().postDataJSON())
-    const success = lists.every((l) => l.error === undefined)
-    const applied = lists.reduce((sum, l) => sum + l.applied, 0)
-    return {
-      success,
+    const result: BundleImportResult = {
+      failedCount: lists.filter((l) => l.error !== undefined).length,
       lists,
-      message: success
-        ? `Applied ${applied} changes across ${lists.length} lists`
-        : `Applied ${applied} changes; some lists failed`,
     }
+    const body: BundleImportResponse = {
+      success: true,
+      ...result,
+      message: bundleImportMessage(result),
+    }
+    return body
   })
 }
 
