@@ -4,7 +4,7 @@ title: 'history'
 
 Interactively compact and rewrite the change history (`.changes.md`) for a deck, collection, or wanted list.
 
-Sometimes a list's change log gets noisy — many small sessions before a commit, mistimed entries, or sets you'd rather merge. `history` is a menu-driven editor for the change log **only**. It never touches the list's own `.md` file: every action operates on the change sets, and nothing is written until you explicitly choose to save.
+Sometimes a list's change log gets noisy — many small sessions before a commit, mistimed entries, or sets you'd rather merge. `history` is a menu-driven editor for the change log **only**. It never edits the list's own `.md` file: every action operates on the change sets, and nothing is written until you explicitly choose to save. (Opening the editor does run the standard [card-ID backfill](/#the-card-id-backfill) first, since the _Rewrite with defaults_ action embeds `&N` IDs in the lines it generates; the read-only `--show` path skips it.)
 
 For scripts (or a quick look), `--show` prints the history read-only and exits without opening the editor — see [Read-only output with --show](#read-only-output-with---show).
 
@@ -40,7 +40,7 @@ The admin site offers the same editor in the browser — see the [Change History
 
 ## Read-only output with `--show`
 
-`--show` skips the editor entirely and prints the change history newest-first, then exits. Nothing is ever written.
+`--show` skips the editor entirely and prints the change history newest-first, then exits. Nothing is ever written — not even the [card-ID backfill](/#the-card-id-backfill) that runs when the editor opens.
 
 ```bash
 ./ritual history my-deck --show
@@ -111,7 +111,7 @@ Apart from combine's compaction, change lines — including their `&N` card IDs 
 
 ### Only the change log is modified
 
-Every action edits the `.changes.md` file alongside the list. The list's own `.md` file is never read for mutation (only "rewrite with defaults" reads it, to describe its current state) and never written.
+Every action edits the `.changes.md` file alongside the list. The list's own `.md` file is never read for mutation (only "rewrite with defaults" reads it, to describe its current state) and never edited — the only write outside the changelog is the startup [card-ID backfill](/#the-card-id-backfill) noted above.
 
 ## Exit Codes
 

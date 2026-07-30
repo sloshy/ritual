@@ -13,7 +13,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import matter from 'gray-matter'
-import { hashPath, writeFileWithHash } from './content-hash'
+import { hashPath, isRitualClean, writeFileWithHash } from './content-hash'
 import { newDeckMarkdown, parseDeckFrontMatter } from './deck-file'
 import { invalidDeckFormatMessage, parseDeckFormat } from './deck-format'
 import { sanitizeListFileName, unusableFileNameMessage } from './list-file-name'
@@ -166,8 +166,9 @@ export async function createList(
  * Rename a list: re-derive the slug from the new display name, rewrite the
  * display name inside the file (front-matter `name` + legacy H1 for decks, the
  * first H1 for flat lists), move the file and its changelog/primer sidecars,
- * and drop the old `.sha256` (the new one is written with the new content).
- * When the new name sanitizes to the same slug, the file is updated in place.
+ * and drop the old `.sha256` (a new one is written only when the old file was
+ * Ritual-clean). When the new name sanitizes to the same slug, the file is
+ * updated in place.
  */
 export async function renameList(
   type: ListType,
@@ -210,22 +211,36 @@ export async function renameList(
     updatedContent = replaceFirstH1(existingContent, trimmedName)
   }
 
+  // A rename rewrites the display name only; card lines pass through untouched.
+  // Refresh the .sha256 sidecar only when it matched the file before the rename
+  // — stamping a file that holds unrecorded hand edits would make
+  // git-detect-changes skip it and drop the edits' changelog entries.
+  const wasRitualClean = await isRitualClean(filePath, existingContent)
   const touchedFiles: string[] = []
   if (newFilePath !== filePath) {
-    // Write the new file with updated content, then remove the old file and its
-    // hash sidecar (the new hash was just written by writeFileWithHash).
-    await writeFileWithHash(newFilePath, updatedContent)
+    // Write the new file, then remove the old file and its hash sidecar.
+    if (wasRitualClean) {
+      await writeFileWithHash(newFilePath, updatedContent)
+      touchedFiles.push(hashPath(newFilePath))
+    } else {
+      await fs.writeFile(newFilePath, updatedContent)
+    }
     await fs.unlink(filePath)
     await fs.unlink(hashPath(filePath)).catch(() => undefined)
-    touchedFiles.push(filePath, hashPath(filePath), newFilePath, hashPath(newFilePath))
+    touchedFiles.push(filePath, hashPath(filePath), newFilePath)
 
     for (const { from, to } of await moveListSidecars(filePath, newFilePath)) {
       touchedFiles.push(from, to)
     }
   } else {
     // Same slug — just update the display name in the file.
-    await writeFileWithHash(filePath, updatedContent)
-    touchedFiles.push(filePath, hashPath(filePath))
+    if (wasRitualClean) {
+      await writeFileWithHash(filePath, updatedContent)
+      touchedFiles.push(filePath, hashPath(filePath))
+    } else {
+      await fs.writeFile(filePath, updatedContent)
+      touchedFiles.push(filePath)
+    }
   }
 
   return { newSlug, newFilePath, oldName, touchedFiles }

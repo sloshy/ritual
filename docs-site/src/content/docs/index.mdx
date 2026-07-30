@@ -115,6 +115,14 @@ RITUAL_NO_INPUT=1 ritual cleanup --skip-formats
 ritual import ./decklist.txt --type deck --no-input
 ```
 
+## The card-ID backfill
+
+Every card line in a deck, collection, or wanted list file carries a stable internal ID — the `&N` suffix (e.g. `1 Sol Ring &5`). The tools manage these IDs; never hand-author or renumber them. When a file is missing IDs (typically after a hand edit), Ritual backfills them automatically before running any command that **rewrites list card lines or needs every line to already carry an ID**: the editors (`edit`, `history`'s editor mode, `admin` — the server itself, not its `setup`/`reset-password`/`disable-totp` subcommands — `mcp`, and `serve --build`/`--api`), the one-shot card commands (`add-card`, `remove-card`, `set-card`, `note`, `move`), the importers and syncs (`import`, `import-account`, `import-changes`, `deck-sync`, `collection-sync`), and the whole-workspace passes (`cleanup`, `build-site`).
+
+No other command triggers the backfill, so none of them ever rewrites the card lines in your list files. That covers the read-only commands (`lists`, `diff`, `price`, `export`, `get-primer`, `history --show`, `list-all-cards`, `scry`, `card`, ...), the lifecycle commands (`new`, `rename`, `delete`), and utilities like `hash` and `git-detect-changes` — the latter deliberately, since a backfill would rewrite the very files it is inspecting. (Some of these still write files of their own, of course: `hash` writes `.sha256` sidecars, and `new`/`rename`/`delete` create, move, or remove list files as their whole purpose.) `-n`/`--dry-run` suppresses the backfill too: a dry run writes nothing.
+
+The backfill also never disturbs change tracking for hand-edited files: it refreshes a file's `.sha256` sidecar only when the sidecar already matched the file, so [`git-detect-changes`](/commands/git-detect-changes/) still sees your hand edits and records their changelog entries.
+
 ## Features
 
 - **List Management**: Create and organize your decks, collections, and wanted lists

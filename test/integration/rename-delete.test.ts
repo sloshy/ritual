@@ -1,18 +1,24 @@
 import { describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { computeHash } from '../../src/content-hash'
 import { runCli } from './helpers/cli'
 import { withWorkspace, writeCollectionFile, writeDeckFile } from './helpers/workspace'
 
 const exists = (filePath: string): Promise<boolean> => Bun.file(filePath).exists()
 
-/** Seed deck `test` (display name 'Test Deck') with every sidecar type. */
+/**
+ * Seed deck `test` (display name 'Test Deck') with every sidecar type. The
+ * .sha256 matches the content (Ritual-clean), so a rename writes a fresh hash
+ * for the new content — the stale-sidecar path is pinned in
+ * test/unit/list-lifecycle.test.ts.
+ */
 async function seedDeckWithSidecars(dir: string): Promise<string> {
   const filePath = await writeDeckFile(dir, 'test', {
     frontMatter: { name: 'Test Deck', format: 'commander' },
     cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
   })
-  await fs.writeFile(`${filePath}.sha256`, 'stale-hash\n')
+  await fs.writeFile(`${filePath}.sha256`, computeHash(await fs.readFile(filePath, 'utf-8')) + '\n')
   await fs.writeFile(path.join(dir, 'decks', 'test.changes.md'), '# Changelog\n')
   await fs.writeFile(path.join(dir, 'decks', 'test.primer.md'), '# Primer\n')
   return filePath
@@ -29,7 +35,7 @@ describe('rename CLI (Integration)', () => {
       const decksDir = path.join(dir, 'decks')
       const newPath = path.join(decksDir, 'Fresh Name.md')
 
-      // Old file and sidecars are gone — including the stale .sha256.
+      // Old file and sidecars are gone — including the old .sha256.
       expect(await exists(path.join(decksDir, 'test.md'))).toBe(false)
       expect(await exists(path.join(decksDir, 'test.md.sha256'))).toBe(false)
       expect(await exists(path.join(decksDir, 'test.changes.md'))).toBe(false)

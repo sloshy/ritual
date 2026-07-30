@@ -6,6 +6,8 @@ Print a deduplicated, alphabetically sorted manifest of every card known to your
 
 The manifest **excludes** quantities, finishes, conditions, notes, and card IDs. If a card appears in multiple lists or with the same printing in different decks, it is collapsed into a single entry.
 
+The command is strictly read-only: it never writes to list files (it is exempt from the [card-ID backfill](/#the-card-id-backfill)), so running it in CI never dirties the checkout.
+
 ## Usage
 
 ```bash

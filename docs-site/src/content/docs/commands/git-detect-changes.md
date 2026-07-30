@@ -103,6 +103,8 @@ Every time Ritual writes a list file (via the admin UI, `deck-sync`, `add-card`,
 
 This makes the command idempotent and lets a repository freely mix Ritual edits with raw git edits. Running it twice over the same range is a no-op the second time, because the first run brings every sidecar up to date.
 
+The [card-ID backfill](/#the-card-id-backfill) cooperates with this scheme from the other side: when a list-writing command persists missing `&N` IDs into a hand-edited file, it refreshes the `.sha256` sidecar only if the sidecar already matched the file. A hand edit therefore keeps its stale or absent sidecar, and detection still records it. (`git-detect-changes` itself never runs the backfill — it must see the working tree exactly as you committed it.)
+
 > **Limitation:** the sidecar reflects a file's _final_ state across the diff range, not its per-commit history. If a single range mixes a Ritual edit and a raw edit to the **same** file, the comparison only sees the final content: a range ending in a raw edit re-records the whole diff (including the part Ritual already logged), and a range ending in a Ritual edit is skipped entirely (dropping the raw edit's changelog). To keep changelogs exact, avoid mixing both kinds of edit to one file within a single detection range — in the CI workflow, that range is one push.
 
 ### Dry Run

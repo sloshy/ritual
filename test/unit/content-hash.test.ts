@@ -5,9 +5,9 @@ import {
   computeHash,
   hashPath,
   isHashCurrent,
+  isRitualClean,
   loadHash,
   saveHash,
-  getContentHash,
   writeFileWithHash,
   appendFileWithHash,
 } from '../../src/content-hash'
@@ -69,30 +69,25 @@ describe('saveHash / loadHash', () => {
   })
 })
 
-describe('getContentHash', () => {
-  it('returns cached hash from sidecar when available', async () => {
-    const filePath = path.join(tmpDir, 'cached.md')
-    const content = '# Test\n'
-    const hash = computeHash(content)
+describe('isRitualClean', () => {
+  it('is true when the sidecar matches the content', async () => {
+    const filePath = path.join(tmpDir, 'clean.md')
+    const content = '# Deck\n- Sol Ring &1\n'
+    await writeFileWithHash(filePath, content)
 
-    // Pre-save the hash
-    await saveHash(filePath, hash)
-
-    const result = await getContentHash(filePath, content)
-    expect(result).toBe(hash)
+    expect(await isRitualClean(filePath, content)).toBe(true)
   })
 
-  it('computes and saves hash when sidecar is missing', async () => {
-    const filePath = path.join(tmpDir, 'fresh.md')
-    const content = '# Fresh\n'
-    const expected = computeHash(content)
+  it('is false when the sidecar is stale (hand edit after a Ritual write)', async () => {
+    const filePath = path.join(tmpDir, 'stale.md')
+    await writeFileWithHash(filePath, '# Deck\n- Sol Ring &1\n')
 
-    const result = await getContentHash(filePath, content)
-    expect(result).toBe(expected)
+    expect(await isRitualClean(filePath, '# Deck\n- Sol Ring &1\n- Time Walk\n')).toBe(false)
+  })
 
-    // Sidecar should now exist
-    const saved = await loadHash(filePath)
-    expect(saved).toBe(expected)
+  it('is false when no sidecar exists', async () => {
+    const filePath = path.join(tmpDir, 'unstamped.md')
+    expect(await isRitualClean(filePath, 'anything')).toBe(false)
   })
 })
 

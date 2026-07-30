@@ -65,7 +65,10 @@ marks a list file "ritual-clean" (Ritual last wrote it and already recorded its
 changelog), so it is skipped; after appending, the sidecar is refreshed, making
 detection idempotent. \`-n\`/\`--dry-run\` previews without writing; \`--output
 json\` reports \`{commit, dryRun, changelogsUpdated, renames, results}\`; exit 1
-on failure. With change detection enabled, the generated workflow diffs against
+on failure. The card-ID backfill that list-writing commands run refreshes a
+file's \`.sha256\` only when the sidecar already matched the file, so a hand
+edit keeps its stale or absent sidecar and \`git-detect-changes\` still records
+it. With change detection enabled, the generated workflow diffs against
 the pushed-from commit (falling back to the previous commit), commits any
 updated changelogs back as \`github-actions[bot]\`, and skips the rest of the
 build — that push re-triggers the workflow, and the second run builds from the

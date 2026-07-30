@@ -497,6 +497,9 @@ should re-list resources after a list-lifecycle call.
 
 ## Card cache
 
+Like `ritual admin`, server startup runs the standard [card-ID backfill](/#the-card-id-backfill), persisting
+any missing `&N` card IDs into the list files before the first request is served.
+
 Unlike `ritual admin`, the MCP server does **not** prompt to refresh the Scryfall cache on startup
 (stdin is reserved for the protocol). It uses whatever cache exists; on a cache miss, card lookups fall
 back to live Scryfall requests. Call `get_cache_status` to see what state it is in, and the

@@ -37,7 +37,7 @@ import { CardCommandError } from '../errors'
 import { requireInteractive } from './card-target'
 import { parsePositiveInteger } from '../parse-number'
 
-type HistoryOptions = ListTypeFlags &
+export type HistoryOptions = ListTypeFlags &
   Partial<ScriptingOptions> & {
     show?: boolean
     limit?: number

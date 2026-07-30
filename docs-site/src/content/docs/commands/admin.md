@@ -27,7 +27,7 @@ Run bare, `ritual admin` starts the web admin server. The `setup`, `reset-passwo
 | `--mcp-port <number>`  | Port for the embedded MCP server (only with `--mcp`)                                                                                                                                           | `8765`    |
 | `--mcp-token <secret>` | Bearer token required on the embedded MCP endpoint (with `--mcp`)                                                                                                                              |           |
 
-On startup, `admin` checks whether the Scryfall card cache is missing or stale and prompts to refresh it. Pass `--refresh auto` (or `no-bulk` / `never`) to answer that prompt non-interactively — an explicit mode is required when running under `bun run dev admin` (see [Development → Dev Workflow](/development/#dev-workflow)). Under the default `--refresh ask`, a run where prompts are unavailable (stdin is not a TTY, or the global `--no-input` flag is in force) skips the refresh instead of prompting.
+On startup, `admin` runs the standard [card-ID backfill](/#the-card-id-backfill), persisting any missing `&N` card IDs into the list files (the editors rely on them). It then checks whether the Scryfall card cache is missing or stale and prompts to refresh it. Pass `--refresh auto` (or `no-bulk` / `never`) to answer that prompt non-interactively — an explicit mode is required when running under `bun run dev admin` (see [Development → Dev Workflow](/development/#dev-workflow)). Under the default `--refresh ask`, a run where prompts are unavailable (stdin is not a TTY, or the global `--no-input` flag is in force) skips the refresh instead of prompting.
 
 ## Embedded MCP Server
 

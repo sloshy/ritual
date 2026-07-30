@@ -1,4 +1,4 @@
-import { loadHash, computeHash, hashPath, writeFileWithHash } from '../../content-hash'
+import { computeHash, hashPath, writeFileWithHash } from '../../content-hash'
 import { appendChangelog } from '../../changelog-writer'
 import { isRecord } from '../../json'
 import { listTypeLabel, type ListType } from '../../list-type'
@@ -126,7 +126,10 @@ export async function validateContentHash(
   entityLabel: string,
 ): Promise<HashValidationResult> {
   const content = await Bun.file(filePath).text()
-  const existingHash = (await loadHash(filePath)) ?? computeHash(content)
+  // Hashed from the content itself, matching what the load routes handed the
+  // client — a stale or absent sidecar must produce neither a spurious 409 nor
+  // a missed conflict.
+  const existingHash = computeHash(content)
   if (existingHash !== clientHash) {
     const body: ApiConflictResponse = {
       success: false,

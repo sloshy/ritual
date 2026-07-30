@@ -6,6 +6,8 @@ Compute and save SHA-256 hashes for all deck, collection, and wanted list files.
 
 Ritual stores a `.sha256` sidecar file alongside each list file so that content hashes do not need to be recomputed on every request. Hashes are automatically updated whenever a file is saved through the CLI or admin UI. Use this command to recompute and persist hashes for all lists at once — for example after editing files externally or restoring from a backup.
 
+`hash` only ever writes `.sha256` sidecars — it never modifies list file content (it is exempt from the [card-ID backfill](/#the-card-id-backfill)), so a `--dry-run` preview always shows exactly the hashes a real run would write.
+
 ## Usage
 
 ```bash

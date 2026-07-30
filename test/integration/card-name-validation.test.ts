@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { getContentHash } from '../../src/content-hash'
+import { computeHash } from '../../src/content-hash'
 import { handleCollectionSave } from '../../src/admin/api/collection-save'
 import { handleDeckSave } from '../../src/admin/api/deck-save'
 import { handleRemoveCommit, handleSelectedMove } from '../../src/admin/api/move'
@@ -43,17 +43,17 @@ beforeEach(async () => {
       { name: 'Homemade Proxy Beast', set: 'xxx', collectorNumber: '1', cardId: 2 },
     ],
   })
-  collectionHash = await getContentHash(filePath, await Bun.file(filePath).text())
+  collectionHash = computeHash(await Bun.file(filePath).text())
   deckPath = await writeDeckFile(ws.dir, 'burn', {
     frontMatter: { name: 'Burn' },
     cards: [{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 1 }],
   })
-  deckHash = await getContentHash(deckPath, await Bun.file(deckPath).text())
+  deckHash = computeHash(await Bun.file(deckPath).text())
   const wantedPath = await writeWantedFile(ws.dir, 'wishlist', {
     title: 'Wishlist',
     entries: [{ name: 'Mana Crypt', cardId: 1 }],
   })
-  wantedHash = await getContentHash(wantedPath, await Bun.file(wantedPath).text())
+  wantedHash = computeHash(await Bun.file(wantedPath).text())
 })
 
 afterEach(async () => {

@@ -52,6 +52,7 @@ import {
 import { setBaseDir } from './src/base-dir'
 import { resolveNoInput, setNoInputOverride } from './src/no-input'
 import { ensureCardIdsForAllLists } from './src/ensure-card-ids'
+import { shouldBackfillCardIds } from './src/commands/id-backfill'
 import { initRitualConfig } from './src/ritual-config'
 import { ExitCode } from './src/commands/scripting'
 import { getErrorMessage } from './src/errors'
@@ -75,42 +76,6 @@ program.option(
 )
 // Commander stores `--no-input` as `input: false` (attribute `input`, default true).
 type GlobalOptions = { cacheServer?: string; baseDir?: string; input?: boolean }
-type DryRunOptions = { dryRun?: boolean }
-
-const COMMANDS_WITHOUT_LIST_IDS = new Set([
-  'login',
-  // 'cache' covers every nested subcommand (status, preloads, server, feed
-  // host/fetch) because the skip check walks the full ancestor chain.
-  'cache',
-  'card',
-  'scry',
-  'license',
-  'dep-license',
-  'git-detect-changes',
-  'config',
-  'skills',
-  // Read-only list commands must not trigger the file-writing ID backfill.
-  'lists',
-  'diff',
-  // Admin account subcommands never touch list files (leaf names; bare
-  // 'admin' still backfills, which suits the server).
-  'setup',
-  'reset-password',
-  'disable-totp',
-])
-
-/** Every command name from the action command up to (excluding) the root program. */
-function commandChainNames(command: Command): string[] {
-  const names: string[] = []
-  let current: Command | null = command
-  while (current && current.parent) {
-    names.push(current.name())
-    current = current.parent
-  }
-  return names
-}
-
-type ServeBuildOptions = { build?: boolean; api?: boolean }
 
 // Commander passes the hooked command first (always the root program here) and
 // the command whose action is about to run second — everything per-invocation
@@ -142,24 +107,9 @@ program.hook('preAction', async (_program, actionCommand) => {
 
   await initRitualConfig()
 
-  const chain = commandChainNames(actionCommand)
-  if (chain.some((name) => COMMANDS_WITHOUT_LIST_IDS.has(name))) {
-    return
+  if (shouldBackfillCardIds(actionCommand)) {
+    await ensureCardIdsForAllLists()
   }
-  // Plain `serve` only serves a prebuilt dist/ and must not write; with
-  // --build it rebuilds from the list files, and with --api it reads them
-  // live — the backfill applies to both.
-  if (actionCommand.name() === 'serve') {
-    const serveOptions = actionCommand.opts<ServeBuildOptions>()
-    if (serveOptions.build !== true && serveOptions.api !== true) {
-      return
-    }
-  }
-  // A dry run must write nothing — including the card-ID backfill.
-  if (actionCommand.opts<DryRunOptions>().dryRun === true) {
-    return
-  }
-  await ensureCardIdsForAllLists()
 })
 
 program.commandsGroup('Lists')

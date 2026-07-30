@@ -12,8 +12,12 @@ import type { Card, Condition, DeckData, Finish } from '../types'
  *
  * Pure and deterministic: both sides are keyed by `cardId`, which every entry
  * has — the *after* side because it is post-assignment, the *before* side
- * because `ensureCardIdsForAllLists()` backfills every list file before any
- * command runs. The id alone is not enough to pair two lines, though: the pool
+ * because `ensureCardIdsForAllLists()` runs at startup for every command in
+ * `COMMANDS_WITH_ID_BACKFILL` — `admin` and `mcp`, which host these save
+ * routes, are both in it. (A hand edit made while the server is running can
+ * still introduce an id-less line; the flatten helpers below skip such lines,
+ * so a violated invariant degrades to a shorter effects list, not an error.)
+ * The id alone is not enough to pair two lines, though: the pool
  * hands a freed `&N` to a new entry inside the very same save, so the card name
  * decides whether a shared id means "one entry, edited" or "one entry gone,
  * another arrived in its place".

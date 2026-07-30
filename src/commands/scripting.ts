@@ -59,6 +59,9 @@ export function addScriptingOptions(
     .option('--quiet', 'Suppress non-essential output', false)
 }
 
+/** The option attribute {@link addDryRunOption} registers. */
+export type DryRunOptions = { dryRun?: boolean }
+
 /** Register the shared `-n, --dry-run` flag with a command-specific description. */
 export function addDryRunOption(command: Command, description: string): Command {
   return command.option('-n, --dry-run', description)

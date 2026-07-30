@@ -1,4 +1,4 @@
-import { getContentHash } from '../../content-hash'
+import { computeHash } from '../../content-hash'
 import { apiHandler } from '../utils'
 import { addChangelogCardNames, fetchSymbolMap, loadEntryCardData } from './card-data-loader'
 import {
@@ -142,7 +142,8 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
 
     const content = await Bun.file(filePath).text()
     const { entries: allEntries, sectionOrder, warnings } = cfg.parse(content)
-    const contentHash = await getContentHash(filePath, content)
+    // Hashed from the content itself, never the sidecar — see deck-load.ts.
+    const contentHash = computeHash(content)
 
     if (params.view === 'summary') {
       // Counted over the filtered-but-unpaged entries: see `deck-load.ts`.

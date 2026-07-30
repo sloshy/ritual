@@ -10,7 +10,7 @@ type ParsedDepLicenseListEntry = {
 }
 
 // dep-license reads only the bundled license data — no workspace files — so an
-// empty temp dir is a sufficient cwd (it is in COMMANDS_WITHOUT_LIST_IDS).
+// empty temp dir is a sufficient cwd (it is not in COMMANDS_WITH_ID_BACKFILL).
 describe('dep-license command (Integration)', () => {
   test('--list prints the grouped text listing', async () => {
     await withTempDir(async (dir) => {

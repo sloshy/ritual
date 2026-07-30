@@ -17,7 +17,8 @@ import { parseWantedListFile } from './wanted-helpers'
 import { appendChangelog } from '../changelog-writer'
 import { formatChange, type ChangeEvent } from '../change-event'
 import { getBaseDir } from '../base-dir'
-import { computeHash, isHashCurrent, loadHash, saveHash } from '../content-hash'
+import { computeHash, isRitualClean, saveHash } from '../content-hash'
+import { parseCardIdsFromContent } from '../card-id'
 import { getErrorMessage } from '../errors'
 import {
   addDryRunOption,
@@ -72,6 +73,21 @@ type DetectChangesReport = {
 
 function entityNameFromContent(content: string, fallbackPath: string): string {
   return parseTitleFromContent(content) ?? path.basename(fallbackPath, '.md')
+}
+
+/**
+ * A revision written before Ritual assigned `&N` IDs has no IDs to match on.
+ * Diffing it against a since-backfilled working tree would key the two sides
+ * differently (composite vs `id:N`) and report every card as removed and
+ * re-added, so when the old side carries no IDs at all, strip them from the
+ * new side and let both sides pair by the composite key. The change events for
+ * such a file carry no `&N` — the IDs the backfill assigned have no old-side
+ * counterpart to be matched against, so inventing pairings here would be worse.
+ */
+function alignIdsForDiff(oldContent: string | null, newContent: string): string {
+  if (oldContent === null) return newContent
+  if (parseCardIdsFromContent(oldContent).length > 0) return newContent
+  return newContent.replace(/[^\S\n]+&\d+[^\S\n]*$/gm, '')
 }
 
 // ── Per-file diffing ─────────────────────────────────────────────────
@@ -154,23 +170,24 @@ export async function detectChanges(commit: string, cwd: string): Promise<Detect
       // sidecar, Ritual itself last wrote this exact state and already recorded
       // the corresponding changelog entries locally. Re-diffing would
       // double-record those changes, so skip detection for this file.
-      if (isHashCurrent(newContent, await loadHash(newPath))) {
+      if (await isRitualClean(newPath, newContent)) {
         results.push({ file: fc.path, kind, status: fc.status, changes: [], ritualClean: true })
         continue
       }
 
       const oldContent = fc.status === 'A' ? null : getFileAtCommit(commit, fc.oldPath, cwd)
+      const alignedNewContent = alignIdsForDiff(oldContent, newContent)
 
       let changes: ChangeEvent[]
       switch (kind) {
         case 'deck':
-          changes = await diffDeck(oldContent, newContent)
+          changes = await diffDeck(oldContent, alignedNewContent)
           break
         case 'collection':
-          changes = diffCollection(oldContent, newContent)
+          changes = diffCollection(oldContent, alignedNewContent)
           break
         case 'wanted':
-          changes = diffWanted(oldContent, newContent)
+          changes = diffWanted(oldContent, alignedNewContent)
           break
         default: {
           const _exhaustive: never = kind

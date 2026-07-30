@@ -80,8 +80,11 @@ Deck card lines start with a quantity; collection and wanted lines start with \`
   lines may be name-only, as \`1 Sol Ring &5\` and \`- Counterspell &3\` above.
 - \`[foil]\`/\`[etched]\` is the finish, \`[LP]\`/\`[MP]\`/\`[HP]\`/\`[DMG]\` the condition (the default \`NM\` is not written), \`{...}\` a note.
 - \`&N\` is a **stable internal card ID**. Never hand-author or renumber these — the tools manage them.
-  Any list-touching command backfills missing IDs on startup and persists them to the
-  files — except under \`-n\`/\`--dry-run\`, which writes nothing, including that backfill.
+  Commands that add or edit card lines (editors, card mutations, imports, syncs, \`cleanup\`,
+  the site build, and the admin/MCP servers) backfill missing IDs on startup and persist
+  them to the files. Read-only commands (\`lists\`, \`diff\`, \`price\`, \`export\`,
+  \`list-all-cards\`, \`history --show\`, ...) and the \`new\`/\`rename\`/\`delete\` lifecycle
+  never touch card lines, and \`-n\`/\`--dry-run\` writes nothing, including that backfill.
 
 A deck's YAML front matter carries its \`format:\` (a fixed set of keys — see the
 **ritual-decks** skill). A deck with no \`format:\` is treated as Commander when it

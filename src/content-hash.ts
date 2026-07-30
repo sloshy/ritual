@@ -51,16 +51,14 @@ export async function saveHash(filePath: string, hash: string): Promise<void> {
 }
 
 /**
- * Load the content hash for a file, reading from the sidecar if available.
- * Falls back to computing from the file content if the sidecar is missing.
+ * Whether Ritual itself last wrote this exact file state: the `.sha256` sidecar
+ * exists and matches `content`. A false result means the file holds a hand edit
+ * Ritual has not recorded yet — writers must not refresh the sidecar in that
+ * case, or `git-detect-changes` would treat the file as already recorded and
+ * drop the edit's changelog entries.
  */
-export async function getContentHash(filePath: string, content: string): Promise<string> {
-  const cached = await loadHash(filePath)
-  if (cached) return cached
-
-  const hash = computeHash(content)
-  await saveHash(filePath, hash)
-  return hash
+export async function isRitualClean(filePath: string, content: string): Promise<boolean> {
+  return isHashCurrent(content, await loadHash(filePath))
 }
 
 /**

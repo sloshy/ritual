@@ -13,6 +13,7 @@ import {
   type RenameListSuccess,
 } from '../../src/list-lifecycle'
 import { parseDeckFrontMatter } from '../../src/deck-file'
+import { computeHash } from '../../src/content-hash'
 import { setBaseDir } from '../../src/base-dir'
 
 const testDir = path.join(import.meta.dir, '../.test-list-lifecycle')
@@ -95,11 +96,11 @@ describe('list-lifecycle engine', () => {
   describe('renameList', () => {
     test('moves the file with its changelog and primer sidecars and drops the old .sha256', async () => {
       const oldPath = path.join(decksDir, 'Old Deck.md')
-      await fs.writeFile(
-        oldPath,
-        '---\nname: "Old Deck"\nformat: commander\n---\n\n# Old Deck\n\n## Main\n',
-      )
-      await fs.writeFile(`${oldPath}.sha256`, 'stale-hash\n')
+      const oldContent = '---\nname: "Old Deck"\nformat: commander\n---\n\n# Old Deck\n\n## Main\n'
+      await fs.writeFile(oldPath, oldContent)
+      // A current sidecar: the file is Ritual-clean, so the rename writes a
+      // fresh hash for the new content.
+      await fs.writeFile(`${oldPath}.sha256`, computeHash(oldContent) + '\n')
       await fs.writeFile(path.join(decksDir, 'Old Deck.changes.md'), '# Changelog\n')
       await fs.writeFile(path.join(decksDir, 'Old Deck.primer.md'), '# Primer\n')
 
@@ -128,6 +129,23 @@ describe('list-lifecycle engine', () => {
       expect(content).toContain('name: New Deck')
       expect(content).toContain('# New Deck')
       expect(content).not.toContain('Old Deck')
+    })
+
+    test('a hand-edited file (stale sidecar) is renamed without stamping a new .sha256', async () => {
+      const oldPath = path.join(decksDir, 'Edited Deck.md')
+      await fs.writeFile(
+        oldPath,
+        '---\nname: "Edited Deck"\nformat: commander\n---\n\n## Main\n\n1 Sol Ring &1\n',
+      )
+      // A stale sidecar: the file holds hand edits Ritual has not recorded.
+      // Writing a fresh hash here would make git-detect-changes skip them.
+      await fs.writeFile(`${oldPath}.sha256`, computeHash('some earlier content') + '\n')
+
+      const result = unwrap<RenameListSuccess>(await renameList('deck', oldPath, 'Renamed Deck'))
+
+      expect(await exists(result.newFilePath)).toBe(true)
+      expect(await exists(`${result.newFilePath}.sha256`)).toBe(false)
+      expect(await exists(`${oldPath}.sha256`)).toBe(false)
     })
 
     test('a new name containing quotes yields valid YAML front matter', async () => {

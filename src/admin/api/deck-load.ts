@@ -1,4 +1,4 @@
-import { getContentHash } from '../../content-hash'
+import { computeHash } from '../../content-hash'
 import { loadDeckFile } from '../../importers/text-file'
 import { parseDeckFrontMatter } from '../../deck-file'
 import { apiHandler } from '../utils'
@@ -36,7 +36,11 @@ export function handleDeckLoad(req: Request): Promise<Response> {
     const rawContent = await Bun.file(filePath).text()
     const { deck: loaded, warnings } = await loadDeckFile(filePath)
     const frontMatter = await parseDeckFrontMatter(filePath)
-    const contentHash = await getContentHash(filePath, rawContent)
+    // Hashed from the content itself, never read from (or persisted to) the
+    // .sha256 sidecar: a load must not stamp a hand-edited file Ritual-clean,
+    // and a stale sidecar must not hand the client a hash the save-side
+    // validation would reject.
+    const contentHash = computeHash(rawContent)
 
     if (params.view === 'summary') {
       // Counted over the filtered-but-unpaged deck: a count that shrank with the

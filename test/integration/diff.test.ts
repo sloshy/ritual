@@ -15,7 +15,7 @@ type DiffJsonBody = {
 /**
  * Seed a deck and a collection with a partial overlap (Lightning Bolt LEA:161
  * on both sides, 2 copies vs 1). No card-cache seeding is needed: `diff` never
- * touches the cache and skips the card-ID backfill (COMMANDS_WITHOUT_LIST_IDS).
+ * touches the cache and, as a read-only command, never runs the card-ID backfill.
  */
 async function seedWorkspace(dir: string): Promise<void> {
   await writeDeckFile(dir, 'burn', {

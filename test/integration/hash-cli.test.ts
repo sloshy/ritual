@@ -11,8 +11,10 @@ type ParsedHashEntry = {
   hash: string
 }
 
-/** Seed a deck and a collection (with card IDs, so the ID backfill is a no-op). */
-async function seedLists(dir: string): Promise<{ deckPath: string; collectionPath: string }> {
+type SeededLists = { deckPath: string; collectionPath: string }
+
+/** Seed a deck and a collection. `hash` hashes files exactly as they are on disk. */
+async function seedLists(dir: string): Promise<SeededLists> {
   const deckPath = await writeDeckFile(dir, 'test-deck', {
     frontMatter: { name: 'Test Deck', format: 'commander' },
     cards: [{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 }],

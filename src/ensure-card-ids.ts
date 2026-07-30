@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { writeFileWithHash } from './content-hash'
+import { isRitualClean, writeFileWithHash } from './content-hash'
 import { allocateId, createIdPool, parseCardIdsFromContent } from './card-id'
 import { DECK_CARD_LINE_RE, isDeckFile } from './importers/text-file'
 import { COLLECTION_CARD_LINE_RE } from './collection-file'
@@ -110,7 +110,16 @@ async function ensureIdsInDir(
     }
     const { content: newContent, added } = ensureFn(content)
     if (added > 0) {
-      await writeFileWithHash(filePath, newContent)
+      // The pre-backfill content is what the sidecar has to match: only then
+      // are the ID additions Ritual's own write and safe to stamp. Otherwise
+      // the file holds an unrecorded hand edit — leave the sidecar stale or
+      // absent so git-detect-changes still records the edit's changelog.
+      const wasRitualClean = await isRitualClean(filePath, content)
+      if (wasRitualClean) {
+        await writeFileWithHash(filePath, newContent)
+      } else {
+        await fs.writeFile(filePath, newContent)
+      }
     }
   }
 }

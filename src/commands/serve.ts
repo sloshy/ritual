@@ -8,7 +8,7 @@ import { applyBuildSiteOptions, runBuildSite, type BuildSiteOptions } from './bu
 import { ExitCode, parsePort } from './scripting'
 import { serveStaticSite } from './serve-helpers'
 
-type ServeCliOptions = BuildSiteOptions & {
+export type ServeCliOptions = BuildSiteOptions & {
   port: number
   host: string
   build?: boolean
