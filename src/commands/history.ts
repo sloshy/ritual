@@ -215,6 +215,7 @@ async function runHistoryShow(
       `${set.timestamp}  (${set.lines.length} change${set.lines.length === 1 ? '' : 's'}):`,
     )
     for (const line of set.lines) lines.push(`  ${line}`)
+    for (const line of set.trailing ?? []) lines.push(`  ${line}`)
   }
   emitOutput(lines.join('\n'), scripting)
 }
@@ -369,6 +370,10 @@ async function handleSet(state: EditorState, index: number): Promise<void> {
     `\n${set.timestamp}  (${set.lines.length} change${set.lines.length === 1 ? '' : 's'}):`,
   )
   for (const line of set.lines) console.log(`  ${line}`)
+  if (set.trailing !== undefined && set.trailing.length > 0) {
+    // Preserved hand-written text — it travels with the set (and is deleted with it).
+    for (const line of set.trailing) console.log(`  ${line}`)
+  }
   console.log('')
 
   const action = await selectMenu('Action for this change set:', [
@@ -439,8 +444,13 @@ async function handleRetime(state: EditorState, index: number): Promise<void> {
 }
 
 async function handleRewrite(state: EditorState, location: ListLocation): Promise<void> {
+  // Rewrite discards every set — including any preserved hand-written text
+  // attached to them. Say so up front rather than losing it silently.
+  const droppedProse = state.sets.reduce((n, s) => n + (s.trailing?.length ?? 0), 0)
+  const proseWarning =
+    droppedProse > 0 ? ` ${droppedProse} hand-written line(s) will be discarded.` : ''
   const confirm = await selectMenu(
-    'Replace ALL change sets with a single set describing the list as it stands now?',
+    `Replace ALL change sets with a single set describing the list as it stands now?${proseWarning}`,
     [
       { title: '✅ Yes, rewrite with defaults', value: 'yes' },
       { title: '← No, cancel', value: 'no' },

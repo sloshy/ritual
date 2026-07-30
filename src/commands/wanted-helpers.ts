@@ -38,6 +38,7 @@ export function parseWantedListFile(content: string): WantedListParseResult {
   const sectionOrder: string[] = []
   const warnings: string[] = []
   let currentSection = DEFAULT_SECTION
+  let titleSeen = false
 
   const registerSection = (name: string): void => {
     if (!sectionOrder.includes(name)) sectionOrder.push(name)
@@ -45,6 +46,7 @@ export function parseWantedListFile(content: string): WantedListParseResult {
 
   for (const line of content.split('\n')) {
     const trimmed = line.trim()
+    if (trimmed === '') continue
 
     const header = matchSectionHeader(trimmed)
     if (header) {
@@ -53,7 +55,17 @@ export function parseWantedListFile(content: string): WantedListParseResult {
       continue
     }
 
-    if (!trimmed.startsWith('- ')) continue
+    // The first `# Title` H1 is the list's title; any other non-bullet line is
+    // content a re-serializing save would delete, so it must warn — the
+    // unreadable-lines gates (sync, cleanup, admin saves) all key off these.
+    if (!trimmed.startsWith('- ')) {
+      if (trimmed.startsWith('# ') && !titleSeen) {
+        titleSeen = true
+        continue
+      }
+      warnings.push(`Skipped malformed line: ${trimmed}`)
+      continue
+    }
 
     const match = trimmed.match(WANTED_CARD_LINE_RE)
     if (!match) {

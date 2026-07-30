@@ -6,6 +6,8 @@ Set, replace, or clear the note on a card that already exists in a deck, collect
 
 Notes are stored in list files as `{note text}` between the bracketed metadata and the `&N` card ID.
 
+The edit is line-preserving: only the targeted card's line is rewritten. Everything else in the file — prose, comments, lines the parser cannot read — stays byte-for-byte intact.
+
 ## Usage
 
 ```bash

@@ -104,6 +104,29 @@ describe('history API', () => {
     expect(status).toBe(404)
   })
 
+  test('hand-written prose loads as trailing and survives a save round trip', async () => {
+    await writeBinder()
+    const withProse = BINDER_CHANGES.replace(
+      '- Added "Sol Ring" (C21:240) &1',
+      '- Added "Sol Ring" (C21:240) &1\n\nNOTE: FNM tuning session.',
+    )
+    await fs.writeFile(path.join(tmpDir, 'collections', 'binder.changes.md'), withProse)
+
+    const loaded = await load('collection', 'binder')
+    // Newest-first: the prose-bearing 2026-01 set is second.
+    expect(loaded.body.sets[1]!.trailing).toEqual(['NOTE: FNM tuning session.'])
+
+    const { status } = await save('collection', 'binder', loaded.body.sets)
+    expect(status).toBe(200)
+    const written = await fs.readFile(
+      path.join(tmpDir, 'collections', 'binder.changes.md'),
+      'utf-8',
+    )
+    expect(written).toContain('NOTE: FNM tuning session.')
+    const reloaded = await load('collection', 'binder')
+    expect(reloaded.body.sets[1]!.trailing).toEqual(['NOTE: FNM tuning session.'])
+  })
+
   test('saves change sets to the changelog without touching the list file', async () => {
     await writeBinder()
     const sets: ChangeSet[] = [
@@ -158,6 +181,30 @@ describe('history API', () => {
     {
       description: 'a set missing the lines field',
       sets: [{ timestamp: '2026-03-01T00:00:00.000Z' }],
+    },
+    {
+      description: 'a trailing field that is not an array of strings',
+      sets: [{ timestamp: '2026-03-01T00:00:00.000Z', lines: ['- Added "X" &1'], trailing: [42] }],
+    },
+    {
+      description: 'a trailing line that looks like a change line',
+      sets: [
+        {
+          timestamp: '2026-03-01T00:00:00.000Z',
+          lines: ['- Added "X" &1'],
+          trailing: ['- Removed "X" &1'],
+        },
+      ],
+    },
+    {
+      description: 'a trailing line with an embedded newline (a smuggled set header)',
+      sets: [
+        {
+          timestamp: '2026-03-01T00:00:00.000Z',
+          lines: ['- Added "X" &1'],
+          trailing: ['note\n## 2026-04-01T00:00:00.000Z'],
+        },
+      ],
     },
   ]
 

@@ -5,10 +5,11 @@
  * Unlike {@link ./changelog-parser}, which decodes each line into structured
  * fields (and discards the `&N` card-ID suffix), this module treats each change
  * line as opaque text. A changelog is a header followed by an ordered list of
- * change sets, each a timestamp plus its raw `- ` lines. Round-tripping through
+ * change sets, each a timestamp plus its raw `- ` lines (and any hand-written
+ * `trailing` text that followed them). Round-tripping through
  * {@link parseChangeSets} and {@link serializeChangeSets} preserves every line
- * verbatim — including card IDs — so the editing operations here never corrupt
- * the data they move around.
+ * verbatim — including card IDs and non-change prose — so the editing
+ * operations here never corrupt or destroy the data they move around.
  *
  * The one place lines are interpreted is {@link combineSetsInto}: when two sets
  * merge it parses each line just far enough to cancel opposite changes (an add
@@ -27,6 +28,16 @@ export type ChangeSet = {
   timestamp: string
   /** Raw change lines, each including its leading `- `. */
   lines: string[]
+  /**
+   * Hand-written non-change lines that followed this set's change lines in the
+   * file (prose, notes — anything that is not a `- ` line or a `## ` header).
+   * Preserved through a parse→serialize round trip so saving an edited history
+   * never destroys them — each line is kept as written (indentation included),
+   * though blank lines between them are dropped and the block is re-emitted
+   * after the set's change lines. They travel with their set through
+   * retime/combine, and are deleted with it. Absent when the set has none.
+   */
+  trailing?: string[]
 }
 
 /** A parsed changelog: the leading header text plus its change sets. */
@@ -39,6 +50,20 @@ export type Changelog = {
 
 const TIMESTAMP_HEADER = /^##\s+(.*)$/
 const CHANGE_LINE = /^-\s+/
+
+/**
+ * Whether a (trimmed) line is a `- ` change line in the changelog grammar.
+ * Exported so validators (e.g. the admin history save route) test against the
+ * exact grammar the parser uses, rather than a second copy of the regex.
+ */
+export function isChangeLine(trimmedLine: string): boolean {
+  return CHANGE_LINE.test(trimmedLine)
+}
+
+/** Whether a (trimmed) line is a `## ` set header in the changelog grammar. */
+export function isSetHeaderLine(trimmedLine: string): boolean {
+  return TIMESTAMP_HEADER.test(trimmedLine)
+}
 
 /**
  * Validate an ISO-8601 date-time string. Requires a full calendar date and time
@@ -61,7 +86,9 @@ function timestampOrder(timestamp: string): number {
  * Parse changelog file content into a {@link Changelog}. Lines before the first
  * `## ` header become the header (falling back to `# Changelog for <name>` when
  * empty). Each `## ` line opens a new set; the `- ` lines beneath it are captured
- * verbatim. Non-change lines between sets (blank lines, stray text) are dropped.
+ * verbatim, and any other non-blank text is preserved as the set's `trailing`
+ * lines. Only blank lines between sets are dropped (they are re-created as
+ * canonical spacing on serialize).
  */
 export function parseChangeSets(content: string, fallbackName: string): Changelog {
   const lines = content.split('\n')
@@ -83,13 +110,35 @@ export function parseChangeSets(content: string, fallbackName: string): Changelo
       current.lines.push(trimmed)
       continue
     }
-    if (!seenHeader) headerLines.push(line)
+    if (!seenHeader) {
+      headerLines.push(line)
+      continue
+    }
+    // Hand-written text inside or after a set — keep it attached to the set,
+    // untrimmed, so indentation (nested lists, code blocks) survives.
+    if (current && trimmed !== '') {
+      current.trailing = [...(current.trailing ?? []), line]
+    }
   }
 
-  const header = headerLines.join('\n').trim() || `# Changelog for ${fallbackName}`
-  // Drop sets that ended up with no change lines — they carry no information and
-  // the writer never emits them.
-  return { header, sets: sets.filter((s) => s.lines.length > 0) }
+  let header = headerLines.join('\n').trim() || `# Changelog for ${fallbackName}`
+  // Drop sets that ended up with no change lines — they carry no information
+  // and the writer never emits them. Prose attached to a dropped set is
+  // reattached to the previous surviving set (or the header) so it is never
+  // silently destroyed.
+  const kept: ChangeSet[] = []
+  for (const set of sets) {
+    if (set.lines.length > 0) {
+      kept.push(set)
+      continue
+    }
+    const orphaned = set.trailing ?? []
+    if (orphaned.length === 0) continue
+    const previous = kept[kept.length - 1]
+    if (previous) previous.trailing = [...(previous.trailing ?? []), ...orphaned]
+    else header += `\n\n${orphaned.join('\n')}`
+  }
+  return { header, sets: kept }
 }
 
 /**
@@ -106,6 +155,9 @@ export function serializeChangeSets(log: Changelog): string {
   let out = log.header.replace(/\n+$/, '') + '\n'
   for (const set of ordered) {
     out += `\n## ${set.timestamp}\n\n${set.lines.join('\n')}\n`
+    if (set.trailing !== undefined && set.trailing.length > 0) {
+      out += `\n${set.trailing.join('\n')}\n`
+    }
   }
   return out
 }
@@ -117,7 +169,15 @@ export function sortNewestFirst(sets: ChangeSet[]): ChangeSet[] {
 
 /** Deep-copy a set array so it can be pushed onto an undo stack safely. */
 export function cloneSets(sets: ChangeSet[]): ChangeSet[] {
-  return sets.map((s) => ({ timestamp: s.timestamp, lines: [...s.lines] }))
+  return sets.map(cloneSet)
+}
+
+function cloneSet(set: ChangeSet): ChangeSet {
+  return {
+    timestamp: set.timestamp,
+    lines: [...set.lines],
+    ...(set.trailing !== undefined ? { trailing: [...set.trailing] } : {}),
+  }
 }
 
 /** Remove the set at `index`, returning a new array. */
@@ -127,7 +187,7 @@ export function deleteSetAt(sets: ChangeSet[], index: number): ChangeSet[] {
 
 /** Replace the timestamp of the set at `index`, returning a new array. */
 export function retimeSetAt(sets: ChangeSet[], index: number, timestamp: string): ChangeSet[] {
-  return sets.map((s, i) => (i === index ? { ...s, lines: [...s.lines], timestamp } : s))
+  return sets.map((s, i) => (i === index ? { ...cloneSet(s), timestamp } : s))
 }
 
 /**
@@ -217,24 +277,34 @@ export function combineSetsInto(
   const other = sets[otherIndex]
   if (!target || !other || targetIndex === otherIndex) return cloneSets(sets)
 
-  const [olderLines, newerLines] =
-    timestampOrder(other.timestamp) < timestampOrder(target.timestamp)
-      ? [other.lines, target.lines]
-      : [target.lines, other.lines]
+  const otherIsOlder = timestampOrder(other.timestamp) < timestampOrder(target.timestamp)
+  const [older, newer] = otherIsOlder ? [other, target] : [target, other]
+  // Trailing prose merges older-first, matching the change-line ordering.
+  const mergedTrailing = [...(older.trailing ?? []), ...(newer.trailing ?? [])]
   const merged: ChangeSet = {
     timestamp: target.timestamp,
-    lines: compactLines([...olderLines, ...newerLines]),
+    lines: compactLines([...older.lines, ...newer.lines]),
+    ...(mergedTrailing.length > 0 ? { trailing: mergedTrailing } : {}),
   }
 
   const result: ChangeSet[] = []
+  // Prose from a fully-cancelled combine reattaches to a neighbouring set
+  // rather than vanishing — the same rescue rule parseChangeSets applies.
+  let orphaned: string[] = []
   for (let i = 0; i < sets.length; i++) {
     if (i === otherIndex) continue
     if (i === targetIndex) {
-      // A combine that fully cancels out leaves nothing to keep — drop the set.
+      // A combine that fully cancels out leaves nothing to keep — drop the set,
+      // but never its hand-written prose.
       if (merged.lines.length > 0) result.push(merged)
+      else orphaned = mergedTrailing
     } else {
-      result.push({ timestamp: sets[i]!.timestamp, lines: [...sets[i]!.lines] })
+      result.push(cloneSet(sets[i]!))
     }
+  }
+  if (orphaned.length > 0 && result.length > 0) {
+    const last = result[result.length - 1]!
+    last.trailing = [...(last.trailing ?? []), ...orphaned]
   }
   return result
 }

@@ -102,7 +102,7 @@ function etagFor(body: string): string {
   return `"${Bun.hash(body).toString(16)}"`
 }
 
-/** Malformed lines are skipped by the parsers; say so in the server log rather than silently. */
+/** Lines the parsers cannot read (malformed cards, prose) are skipped; say so in the server log rather than silently. */
 function logParseWarnings(kind: ListType, basename: string, warnings: readonly string[]): void {
   for (const warning of warnings) {
     console.warn(`[${kind}:${basename}] ${warning}`)
@@ -233,6 +233,7 @@ export function createLiveSiteData(): LiveSiteData {
     if (kind === 'deck') {
       const loaded = await loadDeckSource(dir, basename)
       if (typeof loaded === 'string') return null
+      logParseWarnings(kind, basename, loaded.warnings)
       const ctx = await makeContext(await collectDeckNames(loaded), config)
       const artifacts = await buildDeckArtifacts(loaded, ctx)
       slug = artifacts.slug

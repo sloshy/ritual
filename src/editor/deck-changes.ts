@@ -2,7 +2,12 @@ import type { DeckData } from '../types'
 import type { ChangeInput, PrintingTuple } from '../change-event'
 import type { ApplyChangeOptions } from './apply-batch'
 import { isSamePrinting } from '../change-event'
-import { findOrCreateSection, isCommanderSection, resolveDefaultAddSection } from '../deck-format'
+import {
+  COMMANDER_SECTION,
+  findOrCreateSection,
+  isCommanderSection,
+  resolveDefaultAddSection,
+} from '../deck-format'
 import { isCondition } from '../finish-condition'
 import { noteOrUndefined } from '../note-helpers'
 
@@ -133,7 +138,7 @@ export function applyChangeToDeck(
             if (commanderSection) {
               commanderSection.cards.push(removed)
             } else {
-              sections.unshift({ name: 'Commander', cards: [removed] })
+              sections.unshift({ name: COMMANDER_SECTION, cards: [removed] })
             }
           }
           return { ...deck, sections }

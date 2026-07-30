@@ -83,19 +83,36 @@ describe('parseWantedListFile', () => {
     expect(entries[0]!.collectorNumber).toBe('1489★')
   })
 
-  test('skips non-list lines', () => {
+  test('skips non-list lines, warning on each so no gate misses them', () => {
     const content = '# My Wanted List\n\nSome text\n- Lightning Bolt\n'
-    const { entries } = parseWantedListFile(content)
+    const { entries, warnings } = parseWantedListFile(content)
     expect(entries).toHaveLength(1)
+    expect(warnings).toEqual(['Skipped malformed line: Some text'])
   })
 
-  test('silently skips nearly-empty list lines (no content after "- ")', () => {
-    // '- \n' trims to '-', which does not start with '- ', so it is skipped without a warning.
-    // The regex is permissive: any line starting with '- ' followed by at least one character
-    // will always parse successfully, so warnings are only produced for edge cases.
+  test('warns on nearly-empty list lines (no content after "- ")', () => {
+    // '- \n' trims to '-', which does not start with '- ' — a re-serializing
+    // save would delete it, so it must be reported like any unreadable line.
     const { entries, warnings } = parseWantedListFile('- \n')
     expect(entries).toHaveLength(0)
-    expect(warnings).toHaveLength(0)
+    expect(warnings).toEqual(['Skipped malformed line: -'])
+  })
+
+  test('warns on prose and other non-bullet lines, but not the title or blanks', () => {
+    const { entries, warnings } = parseWantedListFile(
+      '# Wants\n\n// sort these later\nsome prose\n### deep heading\n- Sol Ring &1\n',
+    )
+    expect(entries).toHaveLength(1)
+    expect(warnings).toEqual([
+      'Skipped malformed line: // sort these later',
+      'Skipped malformed line: some prose',
+      'Skipped malformed line: ### deep heading',
+    ])
+  })
+
+  test('warns on a second H1 — only the first is the title', () => {
+    const { warnings } = parseWantedListFile('# Wants\n\n- Sol Ring &1\n# Another Title\n')
+    expect(warnings).toEqual(['Skipped malformed line: # Another Title'])
   })
 
   test('handles empty content', () => {

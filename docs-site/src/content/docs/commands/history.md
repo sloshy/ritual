@@ -48,7 +48,7 @@ The admin site offers the same editor in the browser — see the [Change History
 ./ritual history my-deck --show --output json
 ```
 
-Text output starts with a header line — `Change history for Deck 'my-deck' — 4 change set(s).` (the count is the full history, before any `--limit` truncation) — followed by each printed set: its timestamp and line count, then its raw change lines indented two spaces **verbatim**, including the leading `- ` and the `&N` card IDs. A list with no recorded history prints `No change history recorded.` and still exits `0`.
+Text output starts with a header line — `Change history for Deck 'my-deck' — 4 change set(s).` (the count is the full history, before any `--limit` truncation) — followed by each printed set: its timestamp and line count, then its raw change lines indented two spaces **verbatim**, including the leading `- ` and the `&N` card IDs, then any preserved hand-written lines attached to the set (see [Lossless editing](#lossless-editing)), indented the same way. A list with no recorded history prints `No change history recorded.` and still exits `0`.
 
 `--limit <n>` keeps only the newest `n` sets, applied after the newest-first sort.
 
@@ -67,7 +67,7 @@ With `--output json`, the payload is deliberately the same shape as the admin si
 ```
 
 - `header` — everything before the first change set in the `.changes.md` file.
-- `sets` — the change sets newest first (truncated to `--limit`), each `{ timestamp, lines }` with the raw `- ` lines verbatim. An empty history emits `"sets": []`.
+- `sets` — the change sets newest first (truncated to `--limit`), each `{ timestamp, lines }` with the raw `- ` lines verbatim, plus a `trailing` array when hand-written text follows the set's change lines (see [Lossless editing](#lossless-editing)). An empty history emits `"sets": []`.
 
 Because `--show` output is meant for scripts, invoking it without a `[listName]` when stdin is not a terminal is a usage error (exit `2`) rather than a hang — the interactive list picker only runs on a TTY.
 
@@ -108,6 +108,8 @@ When two change sets are combined, their lines are interleaved by age — the ol
 ### Lossless editing
 
 Apart from combine's compaction, change lines — including their `&N` card IDs — are moved around verbatim; the editor never re-parses or reformats them. The "rewrite with defaults" action regenerates lines from the current list contents.
+
+Hand-written text between change sets is preserved too: non-change lines are attached to the set they follow (shown beneath its change lines, and carried in `--show`'s JSON as the set's `trailing` array), travel with that set through timestamp edits and combines, and are re-emitted on save — each line kept as written (indentation included), though blank lines between them are not kept and the block always lands after the set's change lines. Deleting a set deletes its attached text with it, and **Rewrite with defaults** discards every set's attached text along with the sets themselves (the confirmation says how many lines that is); text before the first set belongs to the header and always survives.
 
 ### Only the change log is modified
 

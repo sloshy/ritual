@@ -396,12 +396,15 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
         console.error(`Failed to load deck '${source}': ${result}`)
         continue
       }
-      loaded = { data: result, changelog: [], fileMtime: undefined }
+      loaded = { data: result, changelog: [], warnings: [], fileMtime: undefined }
     } else {
       const result = await loadDeckSource(decksDir, source)
       if (typeof result === 'string') {
         console.error(`Failed to load deck '${source}': ${result}`)
         continue
+      }
+      for (const warning of result.warnings) {
+        console.warn(`  ⚠️  ${source}: ${warning}`)
       }
       loaded = result
     }

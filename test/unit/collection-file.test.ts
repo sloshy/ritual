@@ -59,11 +59,28 @@ describe('parseCollectionFile', () => {
     expect(entries[0]!.name).toBe('Elesh Norn // The Argent Etchings')
   })
 
-  test('skips non-card lines', () => {
+  test('skips non-card lines, warning on each so no gate misses them', () => {
     const content = `# Header\n\nSome text\n- Actual Card (SET:1)\n`
-    const { entries } = parseCollectionFile(content)
+    const { entries, warnings } = parseCollectionFile(content)
     expect(entries).toHaveLength(1)
     expect(entries[0]!.name).toBe('Actual Card')
+    expect(warnings).toEqual(['Skipped malformed line: Some text'])
+  })
+
+  test('warns on prose, comments, and deep headings, but not the title or blanks', () => {
+    const content = `# Binder\n\n// sort these later\n### deep heading\n## Page 1\n- Opt (XLN:65) &1\n`
+    const { entries, warnings, sectionOrder } = parseCollectionFile(content)
+    expect(entries).toHaveLength(1)
+    expect(sectionOrder).toEqual(['Page 1'])
+    expect(warnings).toEqual([
+      'Skipped malformed line: // sort these later',
+      'Skipped malformed line: ### deep heading',
+    ])
+  })
+
+  test('warns on a second H1 — only the first is the title', () => {
+    const { warnings } = parseCollectionFile('# Binder\n\n- Opt (XLN:65) &1\n# Another\n')
+    expect(warnings).toEqual(['Skipped malformed line: # Another'])
   })
 
   test('handles collector numbers with letters', () => {

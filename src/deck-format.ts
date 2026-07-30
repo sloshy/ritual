@@ -1,4 +1,4 @@
-import type { DeckData, DeckSection } from './types'
+import { DEFAULT_SECTION, type DeckData, type DeckSection } from './types'
 
 /**
  * The canonical deck formats. This is the *only* vocabulary a deck's `format`
@@ -98,6 +98,13 @@ export function formatHasCommandZone(format: DeckFormatKey): boolean {
   return FORMAT_INFO[format].hasCommandZone
 }
 
+/**
+ * The section name created when a card is set as commander and no
+ * commander-named section exists — shared by the editor engine and the
+ * line-preserving mutation path so both create the same section.
+ */
+export const COMMANDER_SECTION = 'Commander'
+
 export function isCommanderSection(name: string): boolean {
   return name.toLowerCase().includes('commander')
 }
@@ -127,7 +134,7 @@ export function findOrCreateSection(sections: DeckSection[], name: string): Deck
 export function resolveDefaultAddSection(sections: DeckSection[]): DeckSection {
   const existing = sections.find((s) => !isCommanderSection(s.name) && !isSideboardSection(s.name))
   if (existing) return existing
-  const created: DeckSection = { name: 'Main', cards: [] }
+  const created: DeckSection = { name: DEFAULT_SECTION, cards: [] }
   sections.push(created)
   return created
 }

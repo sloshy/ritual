@@ -1,12 +1,15 @@
 import { getErrorMessage } from '../../errors'
 import { getBaseDir } from '../../base-dir'
 import {
+  isChangeLine,
+  isSetHeaderLine,
   isValidIso8601,
   parseChangeSets,
   serializeChangeSets,
   sortNewestFirst,
   type ChangeSet,
 } from '../../changelog-blocks'
+import { isStringArray } from '../../json'
 import {
   buildDefaultChangeLines,
   changesPathFor,
@@ -31,7 +34,13 @@ export type HistorySaveResponse = { success: true; message: string; setCount: nu
 /** Untrusted save body, validated before narrowing to `{ sets: ChangeSet[] }`. */
 type RawSaveBody = { sets?: unknown }
 
-const CHANGE_LINE = /^-\s+/
+/** Untrusted change-set item, validated before narrowing to `ChangeSet`. */
+type RawChangeSet = { timestamp?: unknown; lines?: unknown; trailing?: unknown }
+
+/** An embedded line break would smuggle extra lines past the per-line checks. */
+function hasLineBreak(value: string): boolean {
+  return /[\r\n]/.test(value)
+}
 
 /**
  * GET /api/history/:type/:slug — the list's parsed change sets (newest first) plus
@@ -82,16 +91,35 @@ function parseSets(raw: RawSaveBody): ChangeSet[] | string {
   const sets: ChangeSet[] = []
   for (const item of raw.sets as unknown[]) {
     if (item === null || typeof item !== 'object') return 'Each change set must be an object'
-    const { timestamp, lines } = item as Record<string, unknown>
+    const { timestamp, lines, trailing } = item as RawChangeSet
     if (typeof timestamp !== 'string' || !isValidIso8601(timestamp.trim())) {
       return 'Each change set needs a valid ISO-8601 timestamp'
     }
-    if (!Array.isArray(lines) || !lines.every((l): l is string => typeof l === 'string')) {
-      return 'Each change set needs a lines array of strings'
-    }
+    if (!isStringArray(lines)) return 'Each change set needs a lines array of strings'
     if (lines.length === 0) return 'Each change set must have at least one change line'
-    if (!lines.every((l) => CHANGE_LINE.test(l))) return 'Every change line must start with "- "'
-    sets.push({ timestamp: timestamp.trim(), lines })
+    // Lines are stored trimmed by parseChangeSets, and an embedded line break
+    // would smuggle a fabricated header or change line past these checks.
+    const trimmedLines = lines.map((l) => l.trim())
+    if (!trimmedLines.every((l) => isChangeLine(l) && !hasLineBreak(l))) {
+      return 'Every change line must start with "- " and be a single line'
+    }
+    // `trailing` carries a set's preserved hand-written prose. A line that looks
+    // like a change line or a `## ` header would be re-parsed as one on the next
+    // load, silently changing meaning — refuse rather than reinterpret.
+    if (trailing !== undefined) {
+      if (!isStringArray(trailing)) {
+        return 'A change set trailing field must be an array of strings'
+      }
+      if (trailing.some(hasLineBreak)) return 'Trailing lines must each be a single line'
+      if (trailing.some((l) => isChangeLine(l.trim()) || isSetHeaderLine(l.trim()))) {
+        return 'Trailing lines must not look like change lines or "## " headers'
+      }
+    }
+    sets.push({
+      timestamp: timestamp.trim(),
+      lines: trimmedLines,
+      ...(trailing !== undefined && trailing.length > 0 ? { trailing } : {}),
+    })
   }
   return sets
 }

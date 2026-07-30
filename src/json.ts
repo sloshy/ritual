@@ -10,6 +10,11 @@
  * read. Arrays and `null` are objects to `typeof` but not to any caller of this,
  * so both are excluded.
  */
+/** Narrows `unknown` to `string[]` — `Array.isArray` alone only yields `any[]`. */
+export function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string')
+}
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

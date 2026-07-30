@@ -516,17 +516,21 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(priced.printings[0]).toHaveProperty('prices')
   })
 
-  test('import_deck writes a deck from pasted decklist text', async () => {
-    const data = toolData<{ message: string; deckName: string }>(
+  test('import_deck writes a deck from pasted decklist text and reports skipped lines', async () => {
+    const data = toolData<{ message: string; deckName: string; warnings: string[] }>(
       await callTool(client, 'import_deck', {
         mode: 'text',
         name: 'Imported Deck',
-        content: '1 Sol Ring\n1 Lightning Bolt\n',
+        content: '1 Sol Ring\n1 Lightning Bolt\nnot a card line\n',
       }),
     )
     expect(data.deckName).toBe('Imported Deck')
+    // A line the parser skipped is content the import lost — reported, never silent.
+    expect(data.warnings).toEqual(['Skipped malformed line: not a card line'])
+    expect(data.message).toContain('1 line(s) could not be parsed')
     const onDisk = await fs.readFile(path.join(env.dir, 'decks', 'Imported Deck.md'), 'utf-8')
     expect(onDisk).toContain('Sol Ring')
+    expect(onDisk).not.toContain('not a card line')
   })
 
   test('set_card_printing pins a printing and reports the effect', async () => {
@@ -1620,18 +1624,27 @@ describe('Ritual MCP server (in-memory transport)', () => {
   })
 
   test('rewrite_history replaces the change log via listType addressing', async () => {
+    // `trailing` must survive the zod schema — z.object strips unknown keys, so
+    // this round trip is what pins the field's presence in the input schema.
     const rewritten = await callTool(client, 'rewrite_history', {
       listType: 'deck',
       slug: 'test-deck',
-      sets: [{ timestamp: '2026-01-01T00:00:00.000Z', lines: ['- Added Sol Ring'] }],
+      sets: [
+        {
+          timestamp: '2026-01-01T00:00:00.000Z',
+          lines: ['- Added Sol Ring'],
+          trailing: ['NOTE: preserved prose.'],
+        },
+      ],
     })
     expect(rewritten.isError).toBeFalsy()
 
-    const data = toolData<{ sets: { lines: string[] }[] }>(
+    const data = toolData<{ sets: { lines: string[]; trailing?: string[] }[] }>(
       await callTool(client, 'get_history', { listType: 'deck', slug: 'test-deck' }),
     )
     expect(data.sets).toHaveLength(1)
     expect(data.sets[0]?.lines).toEqual(['- Added Sol Ring'])
+    expect(data.sets[0]?.trailing).toEqual(['NOTE: preserved prose.'])
   })
 
   test('update_config and get_config round-trip through the admin config handler', async () => {

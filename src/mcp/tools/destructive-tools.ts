@@ -67,6 +67,12 @@ const changeSetSchema = z.object({
     .array(z.string())
     .min(1)
     .describe('Change lines, each starting with "- " (e.g. "- Added Sol Ring").'),
+  trailing: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'Hand-written non-change lines to preserve after this set’s change lines (must not start with "- " or "## ").',
+    ),
 })
 
 // ── Wording shared by the two Archidekt sync tools ────────────────────
@@ -168,7 +174,9 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
       title: 'Rewrite change history',
       description:
         'Replace a list’s entire change log with the supplied sets (newest or oldest order is ' +
-        'preserved as given). Only the .changes.md file is rewritten; the list itself is untouched.',
+        'preserved as given). Only the .changes.md file is rewritten; the list itself is untouched. ' +
+        'Sets you did not author should be echoed back exactly as get_history returned them — ' +
+        'including each set’s `trailing` array — or the hand-written text it holds is deleted.',
       inputSchema: z.object({
         listType: listTypeSchema,
         slug: slugField,

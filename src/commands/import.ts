@@ -3,7 +3,7 @@ import path from 'node:path'
 import * as fs from 'node:fs/promises'
 import { promptUser } from '../utils'
 import { listFileName, unusableFileNameMessage } from '../list-file-name'
-import { importFromTextFile, listDeckFiles } from '../importers/text-file'
+import { listDeckFiles, loadDeckFile } from '../importers/text-file'
 import { fetchDeckFromUrl, resolveImportSourceUrl } from '../importers/url-dispatch'
 import {
   applyCsvImport,
@@ -111,6 +111,12 @@ type ImportJsonResult = {
   filePath: string
   action: SaveListAction
   dryRun: boolean
+  /**
+   * Parse warnings from a text-file source — one per skipped line or dropped
+   * empty section. Always present; URL imports have nothing to parse and carry
+   * an empty array. Any entry means content was lost, and the command exits 1.
+   */
+  warnings: string[]
 }
 
 /** One failed CSV row in the `--output json`/`ndjson` result. */
@@ -490,6 +496,7 @@ function emitImportSummary(
   outcome: SaveListOutcome,
   dryRun: boolean,
   scripting: ScriptingOptions,
+  warnings: string[] = [],
 ): void {
   if (outcome.status === 'cancelled') {
     emitCancelled(scripting)
@@ -503,8 +510,28 @@ function emitImportSummary(
     filePath: outcome.filePath,
     action: outcome.action,
     dryRun,
+    warnings,
   }
   emitOutput(payload, scripting)
+}
+
+/**
+ * Report a text-file source's parse warnings — lines the parser skipped are
+ * content the import silently lost, so they are listed on stderr (mirroring
+ * the CSV path's per-row failure report) and the run exits 1 even though the
+ * import was written.
+ */
+function reportSkippedLines(warnings: string[], scripting: ScriptingOptions): void {
+  if (warnings.length === 0) return
+  if (scripting.output === 'text') {
+    const logger = getLogger()
+    logger.error(`${warnings.length} line(s) could not be imported:`)
+    for (const warning of warnings) {
+      logger.error(`  ${warning}`)
+    }
+  }
+  // A partial import still writes the list, but the run must not look clean.
+  process.exitCode = ExitCode.RuntimeError
 }
 
 // ── CSV source flow ─────────────────────────────────────────────────
@@ -1021,7 +1048,7 @@ export function registerImportCommand(program: Command): void {
       }
 
       logger.info(`Reading cards from file: ${source}...`)
-      const deckData = await importFromTextFile(source)
+      const { deck: deckData, warnings } = await loadDeckFile(source)
 
       const listType = await resolveImportListType(typeFlag)
       if (listType === undefined) {
@@ -1033,7 +1060,8 @@ export function registerImportCommand(program: Command): void {
         listType === 'deck'
           ? await saveDeck(deckData, getDecksDir(), saveOptions)
           : await saveFlatList(deckData, listType, saveOptions)
-      emitImportSummary(source, listType, outcome, saveOptions.dryRun === true, scripting)
+      emitImportSummary(source, listType, outcome, saveOptions.dryRun === true, scripting, warnings)
+      if (outcome.status === 'saved') reportSkippedLines(warnings, scripting)
     } catch (error) {
       // The prompt guards throw a structured usage error when input is
       // needed but prompts are unavailable (no terminal, or --no-input);

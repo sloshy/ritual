@@ -306,7 +306,10 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
     'import_deck',
     {
       title: 'Import deck',
-      description: 'Import a deck from a supported URL or from pasted decklist text.',
+      description:
+        'Import a deck from a supported URL or from pasted decklist text. Text lines the ' +
+        'parser cannot read are skipped and reported in `warnings` — check it, because a ' +
+        'non-empty array means part of the pasted text was not imported.',
       inputSchema: z.object({
         mode: z.enum(['url', 'text']).describe('Import source.'),
         url: z.string().optional().describe('Deck URL (mode "url").'),

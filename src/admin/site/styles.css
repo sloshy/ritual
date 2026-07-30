@@ -1723,6 +1723,23 @@
   color: var(--text-secondary);
 }
 
+/* Preserved hand-written text attached to a set — distinct from change lines. */
+.history-set-trailing {
+  margin: 0;
+  padding: 0 12px 12px 2.25rem;
+  list-style: none;
+  font-size: 0.8125rem;
+  font-style: italic;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+}
+
+/* A long unbroken token (URL, path) must wrap, not clip against the set's overflow. */
+.history-trailing-line {
+  margin: 2px 0;
+  overflow-wrap: anywhere;
+}
+
 .history-line {
   margin: 2px 0;
   word-break: break-word;

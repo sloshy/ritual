@@ -252,6 +252,14 @@ then the review, save, and exit items.
 ## Saving
 
 Changes accumulate **in memory per list**; nothing is written to any file as you add or edit cards.
+
+A save re-serializes the whole list file in canonical form, so any line the parser could not read —
+prose, comments, malformed card lines — is dropped by the save. Such lines are printed as
+warnings when the session loads the list, so check the session output before saving a hand-edited
+file (or run [`cleanup --check`](/commands/cleanup/) first to find them). For an edit that must
+leave such lines untouched, use the line-preserving one-shot commands
+([`set-card`](/commands/set-card/), [`remove-card`](/commands/remove-card/), [`note`](/commands/note/)).
+
 The save actions cover all open lists:
 
 - `💾 Save all changes (N across M lists)` writes every open list's file and appends each list's

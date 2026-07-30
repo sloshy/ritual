@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { importFromTextFile } from '../../importers/text-file'
+import { loadDeckFile } from '../../importers/text-file'
 import { extractChangelogCardNames } from '../../changelog-parser'
 import type { ChangelogPage } from '../../changelog-parser'
 import { extractPrimerCardNames } from '../../primer-parser'
@@ -16,6 +16,8 @@ import type { SiteDetailContext } from './types'
 export type LoadedDeck = {
   data: DeckData
   changelog: ChangelogPage[]
+  /** Lines the deck parser could not read — reported by callers, never fatal. */
+  warnings: string[]
   /** ISO timestamp of the deck file's mtime, or undefined for non-file sources. */
   fileMtime?: string
 }
@@ -30,8 +32,11 @@ export async function loadDeckSource(
 ): Promise<LoadedDeck | string> {
   const fileName = path.basename(source.endsWith('.md') ? source : `${source}.md`)
   let data: DeckData
+  let warnings: string[]
   try {
-    data = await importFromTextFile(path.join(decksDir, fileName))
+    const parsed = await loadDeckFile(path.join(decksDir, fileName))
+    data = parsed.deck
+    warnings = parsed.warnings
   } catch (e) {
     return getErrorMessage(e)
   }
@@ -44,7 +49,7 @@ export async function loadDeckSource(
     path.join(decksDir, deckFileName),
   )
 
-  return { data, changelog, fileMtime }
+  return { data, changelog, warnings, fileMtime }
 }
 
 export type DeckArtifacts = { slug: string; detail: DeckDetail; summary: DeckSummary }

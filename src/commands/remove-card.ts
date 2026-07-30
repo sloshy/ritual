@@ -1,7 +1,8 @@
 import { Command, InvalidArgumentError } from 'commander'
 import path from 'node:path'
 import { createRemoveChange } from '../change-event'
-import { applyChangesToListFile, type CardMutationChange } from '../list-mutate'
+import type { CardMutationChange } from '../list-mutate'
+import { applyTargetedChanges } from './line-mutate'
 import {
   addScriptingOptions,
   emitOutput,
@@ -162,7 +163,7 @@ async function runRemoveCard(input: RunInput, scripting: ScriptingOptions): Prom
       }),
     )
   }
-  await applyChangesToListFile(type, filePath, changes)
+  await applyTargetedChanges(type, filePath, target, changes)
 
   if (scripting.output === 'text') {
     if (!scripting.quiet) {

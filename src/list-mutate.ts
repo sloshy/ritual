@@ -1,41 +1,36 @@
 /**
- * Direct-to-file ChangeEvent application for one-shot CLI commands
- * (`remove-card`, `set-card`, ...).
+ * Direct-to-file ChangeEvent application for collection-sync pulls.
  *
  * The admin save handlers implement the same apply semantics but wrap them in
  * content-hash conflict checks, full Scryfall load payloads, and git
- * auto-commit; the MCP mutations reuse those handlers in-process. One-shot CLI
- * commands use this module instead: read the list file, apply the events
- * through the shared editor engines, re-serialize, write through the `.sha256`
- * sidecar helpers, and append one changelog block per invocation. Like the
- * other CLI paths (note-edit, add-card) there is no content-hash conflict
+ * auto-commit; the MCP mutations reuse those handlers in-process. The one-shot
+ * CLI commands (`set-card`, `remove-card`, `note`) use the line-preserving
+ * path in `commands/line-mutate.ts` instead. This module remains the
+ * whole-file apply for `collection-sync`, whose pulls add and remove entries
+ * in bulk: read the collection file, apply the events through the shared
+ * editor engine, re-serialize, write through the `.sha256` sidecar helpers,
+ * and append one changelog block per invocation. No content-hash conflict
  * check and no git side effect.
  *
- * Flat lists are re-serialized to canonical sectioned form — exactly what an
- * admin save does — so a one-line change can reformat a legacy file as a side
- * effect.
+ * The file is re-serialized to canonical sectioned form — exactly what an
+ * admin save does — so any line the parser could not read is dropped by the
+ * write. The sync engine's unreadable-lines gate is the guard: a list whose
+ * parse produced warnings is held back until the user accepts the loss.
  *
- * Callers must resolve the target entry first (see `card-target.ts`). As
- * defense in depth, a change that still misses its target during apply aborts
- * the whole mutation before anything is written — the file and its changelog
- * must never claim an edit that did not happen.
+ * As defense in depth, a change that misses its target during apply aborts the
+ * whole mutation before anything is written — the file and its changelog must
+ * never claim an edit that did not happen.
  */
 
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
-import { importFromTextFile } from './importers/text-file'
-import { parseDeckFrontMatter, serializeDeckToMarkdown } from './deck-file'
 import { parseCollectionFile } from './collection-file'
-import { parseWantedListFile } from './commands/wanted-helpers'
-import { toWantedCardEntries } from './editor/wanted-entries'
-import { applyChangeToDeck } from './editor/deck-changes'
 import {
   applyChangeToCollection,
   findCollectionPrintingError,
   toCollectionCardEntries,
 } from './editor/collection-changes'
-import { applyChangeToWantedList } from './editor/wanted-changes'
-import { collectionToMarkdown, wantedToMarkdown } from './editor/list-export'
+import { collectionToMarkdown } from './editor/list-export'
 import { parseTitleFromContent } from './section-format'
 import { writeFileWithHash, hashPath } from './content-hash'
 import { appendChangelog } from './changelog-writer'
@@ -48,7 +43,6 @@ import {
   type UnmatchedChange,
   type UnmatchedTarget,
 } from './editor/apply-batch'
-import type { ListType } from './list-type'
 
 /** The change kinds this module applies — moves belong to the move engine. */
 export type CardMutationChange = Exclude<ChangeEvent, MoveFromChange | MoveToChange>
@@ -64,35 +58,27 @@ export type MutateListResult = {
 }
 
 /**
- * Apply `changes` to the list file and persist the result, appending one new
- * changelog block (no session merging — each one-shot invocation is its own
- * block). Move events are not supported here; cross-list moves go through the
- * move engine (`move-helpers.ts`), which owns both sides of the transfer.
+ * Apply `changes` to the collection file and persist the result, appending one
+ * new changelog block (no session merging — each invocation is its own block).
+ * Move events are not supported here; cross-list moves go through the move
+ * engine (`move-helpers.ts`), which owns both sides of the transfer.
  */
-export async function applyChangesToListFile(
-  type: ListType,
+export async function applyChangesToCollectionFile(
   filePath: string,
   changes: CardMutationChange[],
 ): Promise<MutateListResult> {
   // Defense in depth for callers that cast around the type-level exclusion.
   for (const change of changes as ChangeEvent[]) {
     if (change.action === 'move-from' || change.action === 'move-to') {
-      throw new Error('applyChangesToListFile does not handle move events; use the move engine.')
+      throw new Error(
+        'applyChangesToCollectionFile does not handle move events; use the move engine.',
+      )
     }
   }
 
-  // The applied changes, not the requested ones: a flat-list `add` is stamped
-  // with the `&N` it will carry on disk, so the changelog names the same id the
-  // line does.
-  let applied: CardMutationChange[]
-  if (type === 'deck') {
-    await applyToDeck(filePath, changes)
-    applied = changes
-  } else if (type === 'collection') {
-    applied = await applyToCollection(filePath, changes)
-  } else {
-    applied = await applyToWanted(filePath, changes)
-  }
+  // The applied changes, not the requested ones: an `add` is stamped with the
+  // `&N` it will carry on disk, so the changelog names the same id the line does.
+  const applied = await applyToCollection(filePath, changes)
 
   const slug = path.basename(filePath, '.md')
   const changelogPath = await appendChangelog(filePath, slug, applied)
@@ -146,14 +132,6 @@ function stampAddIds(
   )
 }
 
-async function applyToDeck(filePath: string, changes: CardMutationChange[]): Promise<void> {
-  const loaded = await importFromTextFile(filePath)
-  const frontMatter = await parseDeckFrontMatter(filePath)
-  const { data: deck, unmatched } = applyChangesCollectingMisses(loaded, changes, applyChangeToDeck)
-  assertAllApplied(unmatched, { type: 'deck', slug: path.basename(filePath, '.md') })
-  await writeFileWithHash(filePath, serializeDeckToMarkdown(deck, frontMatter))
-}
-
 async function applyToCollection(
   filePath: string,
   changes: CardMutationChange[],
@@ -173,20 +151,5 @@ async function applyToCollection(
   })
   const title = parseTitleFromContent(content) ?? path.basename(filePath, '.md')
   await writeFileWithHash(filePath, collectionToMarkdown(title, result.data, parsed.sectionOrder))
-  return applied
-}
-
-async function applyToWanted(
-  filePath: string,
-  changes: CardMutationChange[],
-): Promise<CardMutationChange[]> {
-  const content = await fs.readFile(filePath, 'utf-8')
-  const parsed = parseWantedListFile(content)
-  const entries = toWantedCardEntries(parsed.entries)
-  const applied = stampAddIds(changes, entries)
-  const result = applyChangesCollectingMisses(entries, applied, applyChangeToWantedList)
-  assertAllApplied(result.unmatched, { type: 'wanted', slug: path.basename(filePath, '.md') })
-  const title = parseTitleFromContent(content) ?? path.basename(filePath, '.md')
-  await writeFileWithHash(filePath, wantedToMarkdown(title, result.data, parsed.sectionOrder))
   return applied
 }

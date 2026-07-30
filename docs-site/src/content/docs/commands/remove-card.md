@@ -4,6 +4,8 @@ title: 'remove-card'
 
 Remove a card from a deck, collection, or wanted list without opening an editor — a one-shot counterpart to removing a card in `ritual edit` or the admin site.
 
+The edit is line-preserving: only the targeted card's line is removed (or its deck quantity rewritten). Everything else in the file — prose, comments, lines the parser cannot read — stays byte-for-byte intact.
+
 ## Usage
 
 ```bash

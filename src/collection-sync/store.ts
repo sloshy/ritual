@@ -5,7 +5,7 @@
  * {@link CollectionListStore}: it names lists, never paths, so the sync
  * semantics can be exercised against an in-memory store while the disk-backed
  * implementation here keeps every write on the same path the editors use —
- * `applyChangesToListFile` for card changes (so `&N` allocation, changelog
+ * `applyChangesToCollectionFile` for card changes (so `&N` allocation, changelog
  * blocks, and `.sha256` sidecars behave identically) and `createList` for the
  * pull target a run has to conjure.
  */
@@ -15,7 +15,7 @@ import path from 'node:path'
 import { parseCollectionFile, type CollectionEntry } from '../collection-file'
 import { getErrorMessage } from '../errors'
 import { createList, isListLifecycleError } from '../list-lifecycle'
-import { applyChangesToListFile, type CardMutationChange } from '../list-mutate'
+import { applyChangesToCollectionFile, type CardMutationChange } from '../list-mutate'
 import {
   isResolveListError,
   listLocations,
@@ -124,7 +124,7 @@ export function createDiskCollectionListStore(): CollectionListStore {
 
     async apply(name: string, changes: CardMutationChange[]): Promise<string[]> {
       const filePath = await requirePath(name)
-      const result = await applyChangesToListFile('collection', filePath, changes)
+      const result = await applyChangesToCollectionFile(filePath, changes)
       return result.writtenFiles
     },
 

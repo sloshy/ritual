@@ -338,6 +338,12 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
     {
       timestamp: str('ISO-8601 timestamp from the change set’s "## " header.'),
       lines: arr(str(), 'Raw change lines, each including its leading "- ".'),
+      trailing: arr(
+        str(),
+        'Hand-written non-change lines preserved after this set’s change lines (must not start ' +
+          'with "- " or "## "). Absent when the set has none; echo it back on rewrite_history or ' +
+          'the text is deleted.',
+      ),
     },
     ['timestamp', 'lines'],
   ),
@@ -837,8 +843,15 @@ export const CREATE_LIST_OUTPUT: JsonSchemaType = obj(
 )
 
 export const IMPORT_DECK_OUTPUT: JsonSchemaType = obj(
-  { message: str(), deckName: str('Name of the imported deck, which is also its slug.') },
-  ['message', 'deckName'],
+  {
+    message: str(),
+    deckName: str('Name of the imported deck, which is also its slug.'),
+    warnings: arr(
+      str(),
+      'Text-import lines the parser skipped — content that was NOT imported. Empty for URL imports.',
+    ),
+  },
+  ['message', 'deckName', 'warnings'],
 )
 
 export const IMPORT_CSV_OUTPUT: JsonSchemaType = withDefs(

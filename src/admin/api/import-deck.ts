@@ -22,6 +22,12 @@ export interface ImportDeckResponse {
   message: string
   /** Name of the imported deck, which is also its slug. */
   deckName: string
+  /**
+   * Parse warnings from a text import — one per skipped line or dropped empty
+   * section, meaning content from the pasted text was NOT imported. Always
+   * present; URL imports have nothing to parse and carry an empty array.
+   */
+  warnings: string[]
 }
 
 function isImportDeckRequest(value: unknown): value is ImportDeckRequest {
@@ -43,6 +49,7 @@ export function handleImportDeck(req: Request): Promise<Response> {
     const overwrite = body.overwrite ?? false
 
     let deckData: DeckData
+    let warnings: string[] = []
 
     if (body.mode === 'url') {
       const url = body.url.trim()
@@ -54,7 +61,11 @@ export function handleImportDeck(req: Request): Promise<Response> {
       const content = body.content.trim()
       if (!content) return badRequest('content is required')
       const fallbackName = body.name?.trim() || 'Imported Deck'
-      deckData = parseDeckText(content, fallbackName).deck
+      const parsed = parseDeckText(content, fallbackName)
+      deckData = parsed.deck
+      // Skipped lines are content the import silently lost — the client must
+      // be able to report them (the CLI's text path exits 1 on the same class).
+      warnings = parsed.warnings
       if (deckData.sections.length === 0) {
         return badRequest('No valid card lines found in the provided text.')
       }
@@ -76,10 +87,17 @@ export function handleImportDeck(req: Request): Promise<Response> {
 
     await autoCommitAndPush(decksDir, [filePath], `Import deck: ${deckData.name}`)
 
+    // The admin UI surfaces only `message`, so a lossy text import says so
+    // there too; API clients get the individual lines in `warnings`.
+    const skippedNote =
+      warnings.length > 0
+        ? ` — ${warnings.length} line(s) could not be parsed and were skipped`
+        : ''
     const resp: ImportDeckResponse = {
       success: true,
-      message: `Successfully imported '${deckData.name}'`,
+      message: `Successfully imported '${deckData.name}'${skippedNote}`,
       deckName: deckData.name,
+      warnings,
     }
     return Response.json(resp)
   })

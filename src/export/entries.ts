@@ -3,7 +3,7 @@ import { isCondition, VALID_CONDITIONS } from '../finish-condition'
 import type { Condition, Finish } from '../types'
 import type { ListType } from '../list-type'
 import type { ListLocation } from '../resolve-list'
-import { importFromTextFile } from '../importers/text-file'
+import { loadDeckFile } from '../importers/text-file'
 import { parseCollectionFile, type CollectionEntry } from '../collection-file'
 import { parseWantedListFile, type WantedListEntry } from '../commands/wanted-helpers'
 import { matchesAllTerms } from '../term-match'
@@ -59,7 +59,8 @@ export async function loadExportEntries(locations: ListLocation[]): Promise<Load
 
   for (const location of locations) {
     if (location.type === 'deck') {
-      const deck = await importFromTextFile(location.filePath)
+      const { deck, warnings: deckWarnings } = await loadDeckFile(location.filePath)
+      warnings.push(...deckWarnings.map((w) => `${location.name}: ${w}`))
       let fileOrder = 0
       for (const section of deck.sections) {
         for (const card of section.cards) {

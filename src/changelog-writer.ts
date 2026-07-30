@@ -23,14 +23,25 @@ export type AppendChangelogOptions = {
   continueSession?: boolean
 }
 
-/** Pull the `- ` change lines out of the changelog's final block, if any. */
-function lastBlockLines(content: string): string[] {
+/** The final block's `- ` change lines and its other non-blank (prose) lines. */
+type LastBlockContent = {
+  changeLines: string[]
+  /** Hand-written non-change lines — preserved, re-emitted after the change lines. */
+  proseLines: string[]
+}
+
+/** Split the changelog's final block into change lines and preserved prose. */
+function lastBlockContent(content: string): LastBlockContent {
   const headerIndex = content.lastIndexOf('\n## ')
-  if (headerIndex === -1) return []
-  return content
-    .slice(headerIndex)
-    .split('\n')
-    .filter((line) => line.startsWith('- '))
+  if (headerIndex === -1) return { changeLines: [], proseLines: [] }
+  const changeLines: string[] = []
+  const proseLines: string[] = []
+  // Skip the `## ` header itself (the first line of the slice).
+  for (const line of content.slice(headerIndex).split('\n').slice(1)) {
+    if (line.startsWith('- ')) changeLines.push(line)
+    else if (line.trim() !== '' && !line.trim().startsWith('## ')) proseLines.push(line)
+  }
+  return { changeLines, proseLines }
 }
 
 /**
@@ -69,10 +80,14 @@ export async function appendChangelog(
     const headerIndex = existingContent.lastIndexOf('\n## ')
     if (headerIndex !== -1) {
       // Rewrite the final block in place: keep its prior lines, append the new
-      // ones, and bump the header timestamp to now.
+      // ones, and bump the header timestamp to now. Hand-written prose in the
+      // block survives, re-emitted after the merged change lines (the same
+      // placement the history editor's `trailing` preservation uses).
       const preceding = existingContent.slice(0, headerIndex)
-      const mergedLines = [...lastBlockLines(existingContent), ...changeLines]
-      const mergedBlock = `\n## ${timestamp}\n\n${mergedLines.join('\n')}\n`
+      const { changeLines: priorLines, proseLines } = lastBlockContent(existingContent)
+      const mergedLines = [...priorLines, ...changeLines]
+      const proseBlock = proseLines.length > 0 ? `\n${proseLines.join('\n')}\n` : ''
+      const mergedBlock = `\n## ${timestamp}\n\n${mergedLines.join('\n')}\n${proseBlock}`
       await fs.writeFile(changelogPath, preceding + mergedBlock)
       return changelogPath
     }

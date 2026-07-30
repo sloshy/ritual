@@ -174,7 +174,7 @@ Load a deck, at the depth `view` asks for. The same parameters apply to [Load Co
 
 Any of `section`, `nameContains`, `limit`, or `offset` makes the body a **slice**: the response then carries `"partial": true` and **no** `contentHash`. That is deliberate — the deck and wanted save routes persist the payload they are handed, so saving a slice back would truncate the file. Reload without the filters to get a hash you can save with. This applies to **every** view, `summary` included: a filtered summary's counts describe the slice, and the hash is the token the save routes read as "this is the whole file".
 
-`warnings` is always present on all three views: the body lines the file's parser could not read, as an array of messages (empty for a clean file). It is an always-present array rather than an optional one on purpose — a list holding an unreadable line would otherwise load as merely shorter, and a client that never checks an optional field would never learn the difference.
+`warnings` is always present on all three views: the body lines the file's parser could not read — malformed card lines, but also prose, comments, or any other text the list grammar does not model — as an array of messages (empty for a clean file). It is an always-present array rather than an optional one on purpose — a list holding an unreadable line would otherwise load as merely shorter, and a client that never checks an optional field would never learn the difference.
 
 **A non-empty `warnings` also blocks saving that list.** The three save routes re-serialize the whole file from parsed entries, so a line the parse could not read is a line the write would delete — releasing its `&N` id back into the reuse pool for some other card. Rather than let that happen, a save whose _baseline_ (the file as it stands on disk) parses with any warnings is refused with `400`, naming the file, the count, and each warning. The file is left untouched; fix the line and retry. MCP mutations surface the same refusal as a tool error.
 
@@ -1206,7 +1206,7 @@ as interesting. `warnings` carries list parse warnings from either side.
 GET /api/history/:type/:slug
 ```
 
-Returns the parsed change sets of a list's change log (newest first) plus the raw change lines a "rewrite with defaults" would produce. `:type` is `deck`, `collection`, or `wanted`. The list file is read only to derive `defaultLines`; a list with no change log yet returns an empty `sets` array.
+Returns the parsed change sets of a list's change log (newest first) plus the raw change lines a "rewrite with defaults" would produce. `:type` is `deck`, `collection`, or `wanted`. The list file is read only to derive `defaultLines`; a list with no change log yet returns an empty `sets` array. A set that is followed by hand-written non-change text carries it in a `trailing` array (absent otherwise) — the text is preserved through an edit-and-save round trip (each line kept as written, re-emitted after the set's change lines; blank lines between them are not kept).
 
 **Response:**
 
@@ -1217,7 +1217,8 @@ Returns the parsed change sets of a list's change log (newest first) plus the ra
   "sets": [
     {
       "timestamp": "2026-05-29T12:00:00.000Z",
-      "lines": ["- Added \"Sol Ring\" (LEA:1) &1"]
+      "lines": ["- Added \"Sol Ring\" (LEA:1) &1"],
+      "trailing": ["NOTE TO SELF: the FNM tuning session."]
     }
   ],
   "defaultLines": ["- Added \"Sol Ring\" (LEA:1) &1"]
@@ -1230,7 +1231,7 @@ Returns the parsed change sets of a list's change log (newest first) plus the ra
 POST /api/history/:type/:slug/save
 ```
 
-Overwrite the list's change log with the supplied change sets. Each set needs a valid ISO-8601 `timestamp` and a `lines` array of strings, each starting with `- `. Only the `.changes.md` file is written; the list's own `.md` is never touched, and the existing header is preserved. When git auto-commit is enabled, the change log is committed (`Rewrite change history for <slug>`).
+Overwrite the list's change log with the supplied change sets. Each set needs a valid ISO-8601 `timestamp` and a `lines` array of strings, each starting with `- `. A set may also carry a `trailing` array of preserved hand-written lines — these must **not** start with `- ` or `## ` (they would be re-parsed as change lines or set headers on the next load), and are written back verbatim after the set's change lines. Only the `.changes.md` file is written; the list's own `.md` is never touched, and the existing header is preserved. When git auto-commit is enabled, the change log is committed (`Rewrite change history for <slug>`).
 
 **Request Body:**
 

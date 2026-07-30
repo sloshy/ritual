@@ -2,9 +2,8 @@ import { Command, Option } from 'commander'
 import prompts from 'prompts'
 import path from 'node:path'
 import type { PromptState } from './prompts-types'
-import { appendChangelog } from '../changelog-writer'
 import { createSetNoteChange } from '../change-event'
-import { applyChangesToListFile } from '../list-mutate'
+import { applyTargetedChanges } from './line-mutate'
 import {
   addScriptingOptions,
   emitOutput,
@@ -13,7 +12,6 @@ import {
   type ScriptingOptions,
 } from './scripting'
 import { normalizeNote } from '../note-helpers'
-import { applyNoteUpdate } from './note-edit'
 import { CardCommandError } from '../errors'
 import {
   parseCardIdFlag,
@@ -102,26 +100,17 @@ type NoteClearResult = CardCommandResultBase & {
 }
 
 /**
- * Persist a note value (`''` clears) onto the target card. Decks go through the
- * shared change engine, which both rewrites the file and appends the changelog;
- * flat lists keep the line-preserving rewrite in `note-edit.ts` plus an
- * explicit changelog append.
+ * Persist a note value (`''` clears) onto the target card. All three list
+ * types go through the line-preserving apply path, which rewrites only the
+ * target's line and appends the changelog in the same call.
  */
 async function persistNote(
   type: ListType,
   filePath: string,
-  listSlug: string,
   target: EntryRef,
   noteText: string,
 ): Promise<void> {
-  if (type === 'deck') {
-    await applyChangesToListFile('deck', filePath, [
-      createSetNoteChange(target.name, { note: noteText, cardId: target.cardId }),
-    ])
-    return
-  }
-  await applyNoteUpdate(type, filePath, target, noteText === '' ? undefined : noteText)
-  await appendChangelog(filePath, listSlug, [
+  await applyTargetedChanges(type, filePath, target, [
     createSetNoteChange(target.name, { note: noteText, cardId: target.cardId }),
   ])
 }
@@ -141,7 +130,7 @@ async function runNote(input: RunInput, scripting: ScriptingOptions): Promise<vo
 
   const noteText = await resolveNoteText(input.note, target.note)
 
-  await persistNote(type, filePath, listSlug, target, noteText)
+  await persistNote(type, filePath, target, noteText)
 
   if (scripting.output === 'text') {
     if (!scripting.quiet) {
@@ -197,7 +186,7 @@ async function runClear(
 
   const previousNote = target.note
 
-  await persistNote(type, filePath, listSlug, target, '')
+  await persistNote(type, filePath, target, '')
 
   if (scripting.output === 'text') {
     if (!scripting.quiet) {

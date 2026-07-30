@@ -108,6 +108,7 @@ describe('buildDeckArtifacts', () => {
       ],
     },
     changelog: [],
+    warnings: [],
     fileMtime: '2026-07-01T00:00:00.000Z',
   }
 

@@ -310,6 +310,13 @@ export function History(): JSX.Element {
                             {(line) => <li class="history-line">{lineText(line)}</li>}
                           </For>
                         </ul>
+                        <Show when={(set.trailing?.length ?? 0) > 0}>
+                          <ul class="history-set-trailing">
+                            <For each={set.trailing}>
+                              {(line) => <li class="history-trailing-line">{line}</li>}
+                            </For>
+                          </ul>
+                        </Show>
                       </Show>
                     </div>
                   )}

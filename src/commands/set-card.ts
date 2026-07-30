@@ -7,7 +7,8 @@ import {
   createSetSectionChange,
   createUnsetCommanderChange,
 } from '../change-event'
-import { applyChangesToListFile, type CardMutationChange } from '../list-mutate'
+import type { CardMutationChange } from '../list-mutate'
+import { applyTargetedChanges } from './line-mutate'
 import {
   addScriptingOptions,
   emitOutput,
@@ -265,7 +266,7 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
     applied.push('not commander')
   }
 
-  await applyChangesToListFile(type, filePath, changes)
+  await applyTargetedChanges(type, filePath, target, changes)
 
   if (scripting.output === 'text') {
     if (!scripting.quiet) {

@@ -593,9 +593,12 @@ Import a deck from a supported URL, or from decklist text supplied directly (pas
 {
   "success": true,
   "message": "Successfully imported 'My Deck'",
-  "deckName": "My Deck"
+  "deckName": "My Deck",
+  "warnings": []
 }
 ```
+
+`warnings` lists any text lines the parser skipped — content that was **not** imported (always empty for URL imports). When any line was skipped, `message` also notes the count, so the admin UI's status alert shows the loss.
 
 ### `POST /api/import-csv`
 

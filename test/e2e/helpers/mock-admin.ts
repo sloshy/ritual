@@ -790,10 +790,15 @@ const HISTORY_LISTS = {
 const HISTORY_DETAIL = {
   success: true,
   header: '# Changelog for History Deck',
-  // Returned newest-first by the real endpoint.
+  // Returned newest-first by the real endpoint. The older set carries preserved
+  // hand-written prose in `trailing`, so specs can pin its display + round trip.
   sets: [
     { timestamp: '2026-02-01T00:00:00.000Z', lines: ['- Added "Mana Crypt" &2'] },
-    { timestamp: '2026-01-01T00:00:00.000Z', lines: ['- Added "Sol Ring" (LEA:1) &1'] },
+    {
+      timestamp: '2026-01-01T00:00:00.000Z',
+      lines: ['- Added "Sol Ring" (LEA:1) &1'],
+      trailing: ['NOTE: the FNM tuning session.'],
+    },
   ],
   defaultLines: ['- Added "Sol Ring" (LEA:1) &1', '- Added "Mana Crypt" &2'],
 }

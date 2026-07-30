@@ -106,11 +106,15 @@ With `--output json` (or `ndjson`), a URL or text-file import emits a summary on
   "name": "binder",
   "filePath": "collections/binder.md",
   "action": "created",
-  "dryRun": false
+  "dryRun": false,
+  "warnings": []
 }
 ```
 
 `action` is `created`, `overwritten`, or `renamed` (the interactive rename resolution).
+`warnings` lists any text-file lines the parser skipped (always empty for URL imports);
+a non-empty array means content was lost and the command exits `1` (see
+[Partial Failures](#partial-failures)).
 
 A CSV import emits a structured result instead:
 
@@ -223,14 +227,16 @@ CSV exports differ between tools, so cell values are normalized during import (a
 
 Rows that fail validation (missing name, missing printing for a collection, unrecognized condition/finish/quantity) do **not** abort the import: every valid row is imported, and each failed row is reported with its line number, raw text, and reason. When any row fails, the command exits non-zero (`1`) even though the import was written — check stderr for the failed lines.
 
+Text-file imports behave the same way: a body line that is neither a section header nor a card line (see [Local Text File Format](#local-text-file-format)) is skipped and reported — on stderr in text mode (`N line(s) could not be imported:` followed by each `Skipped malformed line: ...`), or in the JSON `warnings` array under `--output json`/`ndjson` — and makes the command exit `1` in every mode even though the import was written. `--dry-run` reports the same warnings, so a preview reveals the loss too.
+
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                                    |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | Success — the import was written, or fully previewed under `--dry-run`                                                                                     |
-| `1`  | Runtime failure — a fetch or parse error, a conflict in a headless run without `--overwrite`/`--yes`, or a partial CSV failure (some rows imported)        |
-| `2`  | Usage error — invalid or misapplied flags, an unsupported URL, a required prompt when input is unavailable, or a cancelled prompt (`Cancelled.` on stderr) |
-| `3`  | Not found — the source file does not exist                                                                                                                 |
+| Code | Meaning                                                                                                                                                     |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Success — the import was written, or fully previewed under `--dry-run`                                                                                      |
+| `1`  | Runtime failure — a fetch or parse error, a conflict in a headless run without `--overwrite`/`--yes`, or a partial failure (CSV rows or text lines skipped) |
+| `2`  | Usage error — invalid or misapplied flags, an unsupported URL, a required prompt when input is unavailable, or a cancelled prompt (`Cancelled.` on stderr)  |
+| `3`  | Not found — the source file does not exist                                                                                                                  |
 
 ## Examples
 
@@ -336,3 +342,8 @@ matching how those lists track individual physical cards.
 Collection imports require a printing (`(SET:123)`) on every line, since
 collection entries always reference a specific physical printing. Wanted list
 entries may be name-only.
+
+Any body line matching none of the above — a bare card name with no leading
+quantity, a stray `Sideboard` marker without `##`, prose — is **skipped**, not
+imported. Every skipped line is reported and the command exits `1` so a lossy
+import never looks clean (see [Partial Failures](#partial-failures)).

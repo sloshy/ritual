@@ -253,7 +253,9 @@ export function textImportSection(options: TextImportSectionOptions): string {
   const closing = wrapProse(
     `Without \`--type\` an interactive run prompts for the list type; under the ` +
       `global \`--no-input\` flag the type defaults to a deck, so agents should ` +
-      `always pass \`--type ${options.typeFlag}\`.` +
+      `always pass \`--type ${options.typeFlag}\`. A body line that is neither a ` +
+      `section header nor a card line is skipped, listed on stderr, carried in ` +
+      `the JSON \`warnings\` array, and exits 1 — the import is still written.` +
       (options.extra === undefined ? '' : ` ${options.extra}`),
   )
   return `${intro}\n\n\`\`\`bash\n${options.examples}\n\`\`\`\n\n${closing}`

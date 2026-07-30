@@ -380,6 +380,23 @@ describe('cleanup CLI (Integration)', () => {
     })
   })
 
+  test('a collection with hand-written prose is rewrite-blocked, not silently stripped', async () => {
+    await withWorkspace(async (dir) => {
+      // Non-bullet lines now warn in the flat parsers, arming the same
+      // rewrite-block guard that already protected decks.
+      const filePath = path.join(dir, 'collections', 'Bad.md')
+      const content = '# Bad\n\n- Opt (XLN:65) &1\nthis is not a card line\n'
+      await fs.writeFile(filePath, content)
+
+      const result = await runCli(['cleanup', '--skip-formats'], dir)
+
+      expect(result.exitCode).toBe(1)
+      expect(result.stderr).toContain('Skipped malformed line: this is not a card line')
+      expect(result.stderr).toContain('not rewritten')
+      expect(await fs.readFile(filePath, 'utf-8')).toBe(content)
+    })
+  })
+
   test('a real run blocked by parse warnings exits 1', async () => {
     await withWorkspace(async (dir) => {
       // The malformed line is not a card line, so the CLI-wide card-ID

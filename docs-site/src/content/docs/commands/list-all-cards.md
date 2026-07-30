@@ -60,7 +60,7 @@ Each line is a `- name (SET:CN)` entry, with the parenthesized printing omitted 
 
 A list file that cannot be read or parsed (for example a deck with broken YAML front matter) does not abort the run: the file is skipped, a `warning: skipped <file>: <reason>` line goes to stderr, the manifest is still emitted from the remaining files, and the command exits `1` so CI can tell the manifest is incomplete.
 
-Non-fatal parser warnings (such as a malformed card line inside an otherwise readable file) are also printed to stderr but do not affect the exit code.
+Non-fatal parser warnings (a malformed card line, prose, or a comment inside an otherwise readable file) are also printed to stderr but do not affect the exit code — the manifest is still deterministic over the lines that did parse.
 
 ## Exit Codes
 

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { mockChangeHistoryApi } from '../helpers/mock-admin'
 
-type SaveBody = { sets: { timestamp: string; lines: string[] }[] }
+type SaveBody = { sets: { timestamp: string; lines: string[]; trailing?: string[] }[] }
 
 test.describe('Change History page', () => {
   test.beforeEach(async ({ page }) => {
@@ -50,6 +50,33 @@ test.describe('Change History page', () => {
     await expect.poll(() => saved).not.toBeNull()
     expect(saved!.sets).toHaveLength(1)
     expect(saved!.sets[0]!.timestamp).toBe('2026-02-01T00:00:00.000Z')
+  })
+
+  test('shows preserved hand-written text under its set and round-trips it on save', async ({
+    page,
+  }) => {
+    let saved: SaveBody | null = null
+    await mockChangeHistoryApi(page, (body) => {
+      saved = body as SaveBody
+    })
+    await openDeckHistory(page)
+
+    // Expanding the older set shows its change lines and its preserved prose.
+    const older = page.locator('.history-set', { hasText: '2026-01-01' })
+    await older.locator('.history-set-main').click()
+    await expect(older.locator('.history-trailing-line')).toHaveText([
+      'NOTE: the FNM tuning session.',
+    ])
+
+    // An unrelated edit (delete the other set) then save must echo the prose back.
+    await page
+      .locator('.history-set', { hasText: '2026-02-01' })
+      .locator('button:has-text("Delete")')
+      .click()
+    await page.locator('.btn-save').click()
+    await expect.poll(() => saved).not.toBeNull()
+    expect(saved!.sets).toHaveLength(1)
+    expect(saved!.sets[0]!.trailing).toEqual(['NOTE: the FNM tuning session.'])
   })
 
   test('combines one change set into another', async ({ page }) => {

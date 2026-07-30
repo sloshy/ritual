@@ -11,6 +11,8 @@ The **one-shot commands** — \`add-card\`, \`remove-card\`, \`set-card\`, \`not
 scripted form of \`move\` — are how agents and scripts edit decks, collections, and
 wanted lists: each is a single non-interactive invocation. They keep the \`&N\` card
 IDs and the \`.changes.md\` changelog correct — prefer them over hand-editing files.
+\`remove-card\`, \`set-card\`, and \`note\` are line-preserving: they touch only the
+targeted card's line, so hand-written prose or comments elsewhere in the file survive.
 The interactive editor TUI (\`ritual edit\`, below) is the alternative when a human
 is driving.
 

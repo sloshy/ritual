@@ -4,6 +4,8 @@ title: 'set-card'
 
 Update a card in place — its printing, finish, condition, deck section, or commander status — in a deck, collection, or wanted list, without opening an editor.
 
+The edit is line-preserving: only the targeted card's line is rewritten (or moved, for section and commander changes). Everything else in the file — prose, comments, unusual headings, even lines the parser cannot read — stays intact. (A `--section`/`--commander` move may additionally create the destination's `## Section` heading when it does not exist yet.)
+
 ## Usage
 
 ```bash

@@ -4,7 +4,7 @@ import path from 'node:path'
 import { getBaseDir } from '../base-dir'
 import { printingSuffix } from '../card-line'
 import { getCollectionsDir, getDecksDir, getWantedDir } from '../ritual-config'
-import { importFromTextFile, listDeckFiles } from '../importers/text-file'
+import { listDeckFiles, loadDeckFile } from '../importers/text-file'
 import { parseCollectionFile } from '../collection-file'
 import { parseWantedListFile } from './wanted-helpers'
 import { CardCommandError, getErrorMessage } from '../errors'
@@ -107,7 +107,9 @@ async function collectFromDecks(dir: string, ctx: CollectContext): Promise<void>
     const filePath = path.join(dir, fileName)
     let deck: DeckData
     try {
-      deck = await importFromTextFile(filePath)
+      const loaded = await loadDeckFile(filePath)
+      deck = loaded.deck
+      ctx.warnings.push(...loaded.warnings.map((w) => `${relativeToBase(filePath)}: ${w}`))
     } catch (err) {
       ctx.skipped.push({ file: relativeToBase(filePath), reason: getErrorMessage(err) })
       continue

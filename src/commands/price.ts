@@ -18,7 +18,7 @@ import {
   type PriceSortField,
   type PriceSummaryPayload,
 } from '../price-report'
-import { loadAndBuildPriceReport } from '../price-runtime'
+import { loadAndBuildPriceReport, type LoadedPriceReport } from '../price-runtime'
 import {
   isResolveListError,
   listTypeFromFlags,
@@ -116,6 +116,7 @@ function sortedEntries(
 function emitSummary(
   built: BuiltPriceReport,
   lastRefreshedAt: number | null,
+  warnings: string[],
   scriptingOptions: ScriptingOptions,
 ): void {
   const { report } = built
@@ -126,6 +127,7 @@ function emitSummary(
       lists: report.lists,
       typeTotals: report.typeTotals,
       totals: report.totals,
+      warnings,
     }
     emitOutput(payload, scriptingOptions)
     return
@@ -154,6 +156,7 @@ function emitListDetail(
   currency: PriceCurrency,
   sort: PriceSortField,
   descending: boolean,
+  warnings: string[],
   scriptingOptions: ScriptingOptions,
 ): void {
   const summary = built.report.lists.find((list) => list.name === listName)
@@ -164,7 +167,7 @@ function emitListDetail(
   )
 
   if (scriptingOptions.output === 'json') {
-    const payload: PriceListDetailPayload = { currency, list: summary, cards: entries }
+    const payload: PriceListDetailPayload = { currency, list: summary, cards: entries, warnings }
     emitOutput(payload, scriptingOptions)
     return
   }
@@ -312,25 +315,25 @@ export function registerPriceCommand(program: Command): void {
       const buildScoped = async (
         reportCurrency: PriceCurrency,
         locations?: ListLocation[],
-      ): Promise<BuiltPriceReport> => {
-        const { built, warnings } = await loadAndBuildPriceReport(type, locations, reportCurrency)
+      ): Promise<LoadedPriceReport> => {
+        const result = await loadAndBuildPriceReport(type, locations, reportCurrency)
         if (scriptingOptions.output === 'text' && !scriptingOptions.quiet) {
-          for (const warning of warnings) console.warn(`⚠️  ${warning}`)
+          for (const warning of result.warnings) console.warn(`⚠️  ${warning}`)
         }
-        return built
+        return result
       }
 
       if (!scriptingOptions.quiet && scriptingOptions.output === 'text') {
         console.log('Calculating prices...')
       }
-      const built = await buildScoped(currency, scope)
+      const { built, warnings } = await buildScoped(currency, scope)
 
       if (interactive) {
         await runPriceBrowser({
           built,
           currency,
           lastRefreshedAt: freshness.lastRefreshedAt,
-          rebuild: (nextCurrency) => buildScoped(nextCurrency),
+          rebuild: (nextCurrency) => buildScoped(nextCurrency).then((result) => result.built),
           refreshPrices: refreshCardCache,
           getLastRefreshedAt: () => cardCache.getLastRefreshedAt(),
           openList,
@@ -345,10 +348,10 @@ export function registerPriceCommand(program: Command): void {
         return
       }
       if (openList) {
-        emitListDetail(built, openList.name, currency, sort, descending, scriptingOptions)
+        emitListDetail(built, openList.name, currency, sort, descending, warnings, scriptingOptions)
         return
       }
-      emitSummary(built, freshness.lastRefreshedAt, scriptingOptions)
+      emitSummary(built, freshness.lastRefreshedAt, warnings, scriptingOptions)
     } catch (e) {
       const message = getErrorMessage(e)
       emitError('runtime_error', message, scriptingOptions, e)

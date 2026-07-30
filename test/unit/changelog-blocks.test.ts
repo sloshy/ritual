@@ -54,6 +54,43 @@ describe('parseChangeSets', () => {
     expect(log.sets).toHaveLength(1)
     expect(log.sets[0]!.timestamp).toBe('2026-01-02T00:00:00.000Z')
   })
+
+  it('preserves hand-written prose as the set it follows, surviving a round trip', () => {
+    const content =
+      '# H\n\n## 2026-01-01T00:00:00.000Z\n\n- Added "X" &1\n\nNOTE TO SELF: this was the FNM tuning session.\n\n## 2026-01-02T00:00:00.000Z\n\n- Removed "X" &1\n'
+    const log = parseChangeSets(content, 'n')
+    expect(log.sets[0]!.trailing).toEqual(['NOTE TO SELF: this was the FNM tuning session.'])
+    expect(log.sets[1]!.trailing).toBeUndefined()
+    expect(parseChangeSets(serializeChangeSets(log), 'n')).toEqual(log)
+  })
+
+  it('keeps prose indentation through a round trip', () => {
+    const content =
+      '# H\n\n## 2026-01-01T00:00:00.000Z\n\n- Added "X" &1\n\n  - a nested hand-written list item\n    with a continuation\n'
+    const log = parseChangeSets(content, 'n')
+    // The indented `- ` line trims to a change line by grammar; the deeper
+    // continuation stays trailing prose, indentation intact.
+    expect(log.sets[0]!.trailing).toEqual(['    with a continuation'])
+    expect(parseChangeSets(serializeChangeSets(log), 'n')).toEqual(log)
+  })
+
+  it('reattaches prose from a dropped empty set to the previous surviving set', () => {
+    const log = parseChangeSets(
+      '# H\n\n## 2026-01-01T00:00:00.000Z\n\n- Added "X" &1\n\n## not-a-real-set\n\nstray text here\n',
+      'n',
+    )
+    expect(log.sets).toHaveLength(1)
+    expect(log.sets[0]!.trailing).toEqual(['stray text here'])
+  })
+
+  it('reattaches prose to the header when no set survives before it', () => {
+    const log = parseChangeSets(
+      '# H\n\n## not-a-real-set\n\norphaned prose\n\n## 2026-01-02T00:00:00.000Z\n\n- Added "X" &1\n',
+      'n',
+    )
+    expect(log.sets).toHaveLength(1)
+    expect(log.header).toBe('# H\n\norphaned prose')
+  })
 })
 
 describe('serializeChangeSets', () => {
@@ -118,6 +155,40 @@ describe('editing operations', () => {
     const copy = cloneSets(base)
     copy[0]!.lines.push('- mutated')
     expect(base[0]!.lines).toHaveLength(1)
+  })
+
+  it('combineSetsInto merges trailing prose older-first and keeps it on the merged set', () => {
+    const withProse: ChangeSet[] = [
+      {
+        timestamp: '2026-03-09T10:00:00.000Z',
+        lines: ['- Added "Sol Ring" &1'],
+        trailing: ['newer note'],
+      },
+      {
+        timestamp: '2026-03-07T22:01:21.452Z',
+        lines: ['- Added "Bolt" &2'],
+        trailing: ['older note'],
+      },
+    ]
+    const combined = combineSetsInto(withProse, 0, 1)
+    expect(combined).toHaveLength(1)
+    expect(combined[0]!.trailing).toEqual(['older note', 'newer note'])
+  })
+
+  it('a fully-cancelled combine reattaches its prose instead of eating it', () => {
+    const cancelling: ChangeSet[] = [
+      { timestamp: '2026-03-05T00:00:00.000Z', lines: ['- Added "Opt" &9'] },
+      {
+        timestamp: '2026-03-09T10:00:00.000Z',
+        lines: ['- Added "Sol Ring" &1'],
+        trailing: ['do not lose me'],
+      },
+      { timestamp: '2026-03-07T22:01:21.452Z', lines: ['- Removed "Sol Ring" &1'] },
+    ]
+    const combined = combineSetsInto(cancelling, 1, 2)
+    expect(combined).toHaveLength(1)
+    expect(combined[0]!.lines).toEqual(['- Added "Opt" &9'])
+    expect(combined[0]!.trailing).toEqual(['do not lose me'])
   })
 
   it('deleteSetAt removes the indexed set without touching others', () => {

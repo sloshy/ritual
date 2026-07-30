@@ -1,14 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
-import { applyChangesToListFile } from '../../src/list-mutate'
-import {
-  createAddChange,
-  createRemoveChange,
-  createSetPrintingChange,
-} from '../../src/change-event'
+import { applyChangesToCollectionFile } from '../../src/list-mutate'
+import { createAddChange, createRemoveChange } from '../../src/change-event'
 import { withTempDir } from './helpers/cli'
-import { setBaseDir } from '../../src/base-dir'
 
 async function writeList(dir: string, relative: string, content: string): Promise<string> {
   const filePath = path.join(dir, relative)
@@ -17,16 +12,19 @@ async function writeList(dir: string, relative: string, content: string): Promis
   return filePath
 }
 
-describe('applyChangesToListFile (Integration)', () => {
+describe('applyChangesToCollectionFile (Integration)', () => {
   test('aborts before writing anything when a change misses its target', async () => {
     await withTempDir(async (dir) => {
-      setBaseDir(dir)
-      const filePath = await writeList(dir, 'decks/Burn.md', '## Main\n\n2 Lightning Bolt &1\n')
+      const filePath = await writeList(
+        dir,
+        'collections/Binder.md',
+        '# Binder\n\n- Lightning Bolt (LEA:161) &1\n',
+      )
       const before = await fs.readFile(filePath, 'utf-8')
 
       let thrown: unknown
       try {
-        await applyChangesToListFile('deck', filePath, [createRemoveChange('Sol Ring')])
+        await applyChangesToCollectionFile(filePath, [createRemoveChange('Sol Ring')])
       } catch (error) {
         thrown = error
       }
@@ -35,95 +33,48 @@ describe('applyChangesToListFile (Integration)', () => {
       // File, sidecar, and changelog are all untouched.
       expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
       expect(await fs.exists(`${filePath}.sha256`)).toBe(false)
-      expect(await fs.exists(path.join(dir, 'decks/Burn.changes.md'))).toBe(false)
+      expect(await fs.exists(path.join(dir, 'collections/Binder.changes.md'))).toBe(false)
     })
   })
 
-  test('deck remove decrements quantity, writes sidecar and changelog', async () => {
+  test('add stamps a pool-allocated id, writes sidecar and changelog, and rejects moves', async () => {
     await withTempDir(async (dir) => {
-      setBaseDir(dir)
-      const filePath = await writeList(
-        dir,
-        'decks/Burn.md',
-        '## Main\n\n2 Lightning Bolt &1\n1 Fireblast &2\n',
-      )
-
-      const result = await applyChangesToListFile('deck', filePath, [
-        createRemoveChange('Lightning Bolt', { cardId: 1 }),
-      ])
-
-      const content = await fs.readFile(filePath, 'utf-8')
-      expect(content).toContain('1 Lightning Bolt &1')
-      expect(content).toContain('1 Fireblast &2')
-      expect(result.writtenFiles).toContain(filePath)
-      expect((await fs.readFile(`${filePath}.sha256`, 'utf-8')).trim()).toHaveLength(64)
-      const changelog = await fs.readFile(path.join(dir, 'decks/Burn.changes.md'), 'utf-8')
-      expect(changelog).toContain('Lightning Bolt')
-    })
-  })
-
-  test('collection set-printing rewrites the entry line', async () => {
-    await withTempDir(async (dir) => {
-      setBaseDir(dir)
       const filePath = await writeList(
         dir,
         'collections/Binder.md',
-        '# Binder\n\n- Lightning Bolt (LEA:161) [NM] &1\n',
+        '# Binder\n\n- Lightning Bolt (LEA:161) &1\n',
       )
 
-      await applyChangesToListFile('collection', filePath, [
-        createSetPrintingChange('Lightning Bolt', {
-          set: '2xm',
-          collectorNumber: '117',
-          cardId: 1,
-        }),
+      const result = await applyChangesToCollectionFile(filePath, [
+        createAddChange('Sol Ring', { set: 'c21', collectorNumber: '263' }),
       ])
 
       const content = await fs.readFile(filePath, 'utf-8')
-      expect(content).toContain('(2XM:117)')
-      expect(content).not.toContain('(LEA:161)')
-    })
-  })
-
-  test('wanted remove deletes the entry and rejects move events', async () => {
-    await withTempDir(async (dir) => {
-      setBaseDir(dir)
-      const filePath = await writeList(
-        dir,
-        'wanted/Wants.md',
-        '# Wants\n\n- Lightning Bolt &1\n- Fireblast &2\n',
-      )
-
-      await applyChangesToListFile('wanted', filePath, [
-        createRemoveChange('Lightning Bolt', { cardId: 1 }),
-      ])
-
-      const content = await fs.readFile(filePath, 'utf-8')
-      expect(content).not.toContain('Lightning Bolt')
-      expect(content).toContain('Fireblast')
+      expect(content).toContain('- Sol Ring (C21:263) &2')
+      expect(result.writtenFiles).toContain(filePath)
+      expect((await fs.readFile(`${filePath}.sha256`, 'utf-8')).trim()).toHaveLength(64)
+      const changelog = await fs.readFile(path.join(dir, 'collections/Binder.changes.md'), 'utf-8')
+      expect(changelog).toContain('Added "Sol Ring" (C21:263) &2')
 
       const move = {
-        ...createRemoveChange('Fireblast', { cardId: 2 }),
+        ...createRemoveChange('Sol Ring', { cardId: 2 }),
         action: 'move-from' as const,
       }
       // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's rejects matcher resolves at runtime but its type doesn't expose Promise.
-      await expect(applyChangesToListFile('wanted', filePath, [move as never])).rejects.toThrow(
+      await expect(applyChangesToCollectionFile(filePath, [move as never])).rejects.toThrow(
         'does not handle move events',
       )
     })
   })
 
-  test('collection add without a printing throws and leaves the file untouched', async () => {
+  test('add without a printing throws and leaves the file untouched', async () => {
     await withTempDir(async (dir) => {
-      setBaseDir(dir)
       const original = '# Binder\n\n- Lightning Bolt (LEA:161) &1\n'
       const filePath = await writeList(dir, 'collections/Binder.md', original)
 
       // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's rejects matcher resolves at runtime but its type doesn't expose Promise.
       await expect(
-        applyChangesToListFile('collection', filePath, [
-          createAddChange('Sol Ring', { cardId: 2 }),
-        ]),
+        applyChangesToCollectionFile(filePath, [createAddChange('Sol Ring', { cardId: 2 })]),
       ).rejects.toThrow('Cannot add "Sol Ring" to a collection without set and collector number')
 
       expect(await fs.readFile(filePath, 'utf-8')).toBe(original)

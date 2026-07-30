@@ -85,7 +85,7 @@ Three views, chosen by the flags:
 ./ritual price --name "sol ring"
 ```
 
-Each view supports `--output json` (one structured document) and `--output ndjson` (one JSON line per list or card). The summary JSON includes `lastRefreshedAt`, per-list summaries, per-type totals, and grand totals; card listings include per-entry prices, lowest prices, and unpriced reasons.
+Each view supports `--output json` (one structured document) and `--output ndjson` (one JSON line per list or card). The summary JSON includes `lastRefreshedAt`, per-list summaries, per-type totals, grand totals, and a `warnings` array of lines the list parsers could not read (prose, comments, malformed card lines — such lines are not priced); the single-list JSON carries the same `warnings` field. In text mode those warnings print to stderr instead (suppressed by `--quiet`). Card listings include per-entry prices, lowest prices, and unpriced reasons.
 
 ```bash
 ./ritual price --summary --output json

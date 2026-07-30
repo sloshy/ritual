@@ -320,6 +320,33 @@ describe('set-card CLI (Integration)', () => {
     expect(changelog).toContain('Moved "Sol Ring" to section "Sideboard" &1')
   })
 
+  test('preserves hand-written prose in the file — only the target line changes', async () => {
+    // The audit's exact repro: prose under the front matter and inside a
+    // section must survive a one-shot mutation byte-for-byte.
+    const deckPath = path.join(dir, 'decks', 'prose.md')
+    const before = [
+      '---',
+      'name: Prose Deck',
+      '---',
+      '',
+      'Some prose the user wrote under the front matter.',
+      '',
+      '## Main',
+      '1 Sol Ring &1',
+      'a note between cards',
+      '',
+    ].join('\n')
+    await fs.writeFile(deckPath, before)
+
+    const result = await runCli(
+      ['set-card', '--deck', 'prose', 'Sol', 'Ring', '--finish', 'foil'],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const after = await fs.readFile(deckPath, 'utf-8')
+    expect(after).toBe(before.replace('1 Sol Ring &1', '1 Sol Ring [foil] &1'))
+  })
+
   test('rejects --section on a collection', async () => {
     const result = await runCli(
       [

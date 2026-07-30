@@ -583,7 +583,7 @@ export function applyRemovalAssignments(
 /** The name a pulled printing is written under; see `pulledNameResolver` in the engine. */
 export type PulledCardName = (addition: PullAddition) => string
 
-/** One list's share of a pull, ready for `applyChangesToListFile`. */
+/** One list's share of a pull, ready for `applyChangesToCollectionFile`. */
 export type PullListChanges = {
   list: string
   changes: CardMutationChange[]

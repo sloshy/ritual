@@ -25,7 +25,7 @@ import * as fs from 'node:fs/promises'
 import { findPrinting, hasSpecificPrinting } from './card-printing'
 import { parseCollectionFile, resolveFinish } from './collection-file'
 import { isExtraSection } from './deck-format'
-import { importFromTextFile } from './importers/text-file'
+import { loadDeckFile } from './importers/text-file'
 import { LIST_TYPES, type ListType } from './list-type'
 import {
   findCheapestPrinting,
@@ -166,6 +166,8 @@ export type PriceSummaryPayload = {
   lists: ListPriceSummary[]
   typeTotals: ListTypeTotals[]
   totals: PriceReportTotals
+  /** List parse warnings (prefixed with the list name) — lines pricing could not read. */
+  warnings: string[]
 }
 
 /**
@@ -176,6 +178,8 @@ export type PriceListDetailPayload = {
   currency: PriceCurrency
   list: ListPriceSummary | undefined
   cards: PricedEntry[]
+  /** List parse warnings (prefixed with the list name) — lines pricing could not read. */
+  warnings: string[]
 }
 
 /** The JSON contract of the CLI's card-search view (`--output json`). */
@@ -224,7 +228,8 @@ export async function loadPriceListInputs(
 
   for (const location of resolvedLocations) {
     if (location.type === 'deck') {
-      const deck = await importFromTextFile(location.filePath)
+      const { deck, warnings: deckWarnings } = await loadDeckFile(location.filePath)
+      warnings.push(...deckWarnings.map((w) => `${location.name}: ${w}`))
       inputs.push({ type: 'deck', name: location.name, entries: deckPriceEntries(deck) })
       continue
     }

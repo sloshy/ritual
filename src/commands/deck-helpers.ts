@@ -21,7 +21,7 @@ import {
   serializeDeckToMarkdown,
   type DeckFrontMatter,
 } from '../deck-file'
-import { importFromTextFile, listDeckFiles, readDeckName } from '../importers/text-file'
+import { listDeckFiles, loadDeckFile, readDeckName } from '../importers/text-file'
 import { assignMissingDeckCardIds, repackSessionIds } from '../card-id'
 import { applyChangeToDeck } from '../editor/deck-changes'
 import {
@@ -121,7 +121,12 @@ export async function promptDeckFormat(
 
 /** Load a deck file into structured data plus its front matter for later re-serialization. */
 export async function loadDeck(filePath: string): Promise<LoadedDeck> {
-  const deck = assignMissingDeckCardIds(await importFromTextFile(filePath))
+  const { deck: parsed, warnings } = await loadDeckFile(filePath)
+  // Parity with the flat-list sessions: a session save re-serializes the whole
+  // file, so any line the parser skipped would be dropped by that save. Warn
+  // up front rather than losing them silently.
+  for (const warning of warnings) console.warn(`${path.basename(filePath)}: ${warning}`)
+  const deck = assignMissingDeckCardIds(parsed)
   const frontMatter = await parseDeckFrontMatter(filePath)
   return { deck, frontMatter }
 }
