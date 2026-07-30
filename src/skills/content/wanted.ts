@@ -28,12 +28,14 @@ or a \`wanted:\` prefix — creates the list if it does not exist yet. Every wan
 add chooses a specificity: \`--name-only\` (any copy), a specific printing via
 \`--set\`/\`--collector-number\`, or \`--specific\` (open the interactive printing
 picker; needs a terminal). A terminal prompts when none is given; a
-non-interactive run without one exits 2:
+non-interactive run without one exits 2. A specific-printing add also needs
+\`-f\` when that printing comes in several finishes — headless runs never guess
+one:
 
 \`\`\`bash
 ritual add-card "To Buy" "Mox Ruby" --wanted --name-only
 ritual add-card "To Buy" "Lightning Bolt" --wanted --name-only -f foil   # -f finish (optional)
-ritual add-card "To Buy" "Demonic Tutor" --wanted --set sta --collector-number 90
+ritual add-card "To Buy" "Demonic Tutor" --wanted --set sta --collector-number 90 -f nonfoil
 ritual remove-card "To Buy" "Mox Ruby" --wanted              # one entry
 ritual set-card "To Buy" "Lightning Bolt" --wanted --finish foil
 ritual note "To Buy" "Mox Ruby" --wanted -n "budget copy only"

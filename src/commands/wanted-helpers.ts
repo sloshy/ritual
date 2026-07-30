@@ -6,6 +6,7 @@ import { finishChoices, finishRows, isFinish } from './collection-helpers'
 import { getWantedDir } from '../ritual-config'
 import { listFileName, unusableFileNameMessage } from '../list-file-name'
 import { ensureListFile, type SessionConfig } from './card-session'
+import { requireInteractive } from '../no-input'
 
 export type WantedListEntry = {
   name: string
@@ -146,6 +147,8 @@ export async function promptWantedFinish(
     const only = availableFinishes[0]
     return only !== undefined ? only : 'nopreference'
   }
+
+  requireInteractive(`--finish <${availableFinishes.join('|')}>`)
 
   const choices = finishChoices<WantedFinishChoiceValue>(
     [

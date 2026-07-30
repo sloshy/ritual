@@ -38,7 +38,7 @@ import {
   type ListLocation,
 } from '../resolve-list'
 import { getExportPresets } from '../ritual-config'
-import { isNoInput } from '../no-input'
+import { promptsUnavailable } from '../no-input'
 import {
   emitError,
   emitResolveListError,
@@ -362,8 +362,7 @@ export function registerExportCommand(program: Command): void {
       if (!flags) return
 
       try {
-        const interactiveAvailable =
-          process.stdout.isTTY === true && process.stdin.isTTY === true && !isNoInput()
+        const interactiveAvailable = process.stdout.isTTY === true && !promptsUnavailable()
         if (shouldRunExportInteractive(flags, listArgs, interactiveAvailable)) {
           await runExportWizard()
           return

@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import {
-  canPromptDuringSync,
   confirmUnreadableSync,
   describeUnreadable,
   loggerFor,
@@ -98,45 +97,6 @@ describe('loggerFor', () => {
 })
 
 const TEXT: ScriptingOptions = { output: 'text', quiet: false }
-
-/**
- * `bun test` never has a terminal, so every case here supplies one and then
- * takes away one condition at a time — otherwise the gate reads `false` for the
- * wrong reason and any clause could be deleted without a failure.
- */
-describe('canPromptDuringSync', () => {
-  let originalIsTty: boolean | undefined
-
-  beforeEach(() => {
-    originalIsTty = process.stdin.isTTY
-    process.stdin.isTTY = true
-  })
-
-  afterEach(() => {
-    process.stdin.isTTY = originalIsTty === true
-    setNoInputOverride(undefined)
-  })
-
-  test('text output on a terminal with prompts enabled can ask', () => {
-    expect(canPromptDuringSync(TEXT)).toBe(true)
-  })
-
-  test('--no-input answers every question up front', () => {
-    setNoInputOverride(true)
-    expect(canPromptDuringSync(TEXT)).toBe(false)
-  })
-
-  test('scripted output owns stdout, so there is nowhere to prompt', () => {
-    for (const output of ['json', 'ndjson'] as const) {
-      expect(canPromptDuringSync({ output, quiet: false })).toBe(false)
-    }
-  })
-
-  test('a piped stdin has nobody to answer', () => {
-    process.stdin.isTTY = false
-    expect(canPromptDuringSync(TEXT)).toBe(false)
-  })
-})
 
 describe('confirmUnreadableSync', () => {
   let originalIsTty: boolean | undefined

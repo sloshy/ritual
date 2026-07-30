@@ -79,8 +79,10 @@ For URL and text-file imports:
 
 - A text file import without `--type` defaults to a **deck** (logged, so the defaulting is
   visible). Pass `--type` to import a collection or wanted list.
-- A name/ID conflict with an existing list fails (exit code `1`) instead of prompting —
-  pass `--overwrite` or `--yes` to replace the existing list.
+- A name/ID conflict with an existing list fails with a usage error (exit code `2`) instead of
+  prompting — pass `--overwrite` or `--yes` to replace the existing list. The same error and
+  exit code apply whenever [prompts are unavailable](/#when-prompts-are-unavailable), including
+  a plain piped run without `--no-input`.
 
 For CSV imports, prompts are unavailable — and every required value must come from a flag —
 when any of the following holds:
@@ -93,7 +95,12 @@ A scripted CSV run missing `--type`, `--name`, `--columns`, or (when creating a 
 `--deck-format` fails with a usage error (exit code `2`) instead of prompting.
 
 Without `--no-input`, a run whose stdin is not a terminal fails with a usage error
-(exit code `2`) whenever a prompt would be required.
+(exit code `2`) whenever a prompt would be required — the two causes are treated identically
+(see [when prompts are unavailable](/#when-prompts-are-unavailable)).
+
+The one deliberate exception is the missing-`--type` default above: it applies only under an
+explicit `--no-input`/`RITUAL_NO_INPUT`. A piped run without `--type` is a usage error, since
+nothing said which list type was intended.
 
 ## JSON Output
 
@@ -178,7 +185,9 @@ By default the import **creates** a new list and refuses to touch an existing on
 (`--overwrite` and `--append` are mutually exclusive). `--yes` auto-answers an existing-file
 conflict with overwrite, like it does for URL and text-file imports. Interactively, when a
 list with the chosen name already exists, the wizard asks whether to append, overwrite, or
-cancel — cancelling exits `2` with `Cancelled.` on stderr.
+cancel — cancelling exits `2` with `Cancelled.` on stderr. In a scripted run (see
+[when prompts are unavailable](/#when-prompts-are-unavailable), or any run with `--columns`)
+the same conflict is a usage error (exit `2`) naming `--append`, `--overwrite`, and `--yes`.
 
 Appending:
 
@@ -231,12 +240,12 @@ Text-file imports behave the same way: a body line that is neither a section hea
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                                     |
-| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | Success — the import was written, or fully previewed under `--dry-run`                                                                                      |
-| `1`  | Runtime failure — a fetch or parse error, a conflict in a headless run without `--overwrite`/`--yes`, or a partial failure (CSV rows or text lines skipped) |
-| `2`  | Usage error — invalid or misapplied flags, an unsupported URL, a required prompt when input is unavailable, or a cancelled prompt (`Cancelled.` on stderr)  |
-| `3`  | Not found — the source file does not exist                                                                                                                  |
+| Code | Meaning                                                                                                                                                                                                                 |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Success — the import was written, or fully previewed under `--dry-run`                                                                                                                                                  |
+| `1`  | Runtime failure — a fetch or parse error, or a partial failure (CSV rows or text lines skipped)                                                                                                                         |
+| `2`  | Usage error — invalid or misapplied flags, an unsupported URL, a name/ID conflict with no `--overwrite`/`--append`/`--yes`, a required prompt when input is unavailable, or a cancelled prompt (`Cancelled.` on stderr) |
+| `3`  | Not found — the source file does not exist                                                                                                                                                                              |
 
 ## Examples
 

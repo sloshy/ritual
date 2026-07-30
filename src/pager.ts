@@ -1,7 +1,14 @@
+import { promptsUnavailable } from './no-input'
+
 export type PagerMode = 'interactive' | 'plain'
 
+/**
+ * `less` waits for a keypress to advance and to quit, so it is an interactive
+ * prompt by another name: a run with prompts unavailable (`--no-input`, or no
+ * terminal on stdin) would block forever instead of printing the text.
+ */
 export function resolvePagerMode(plain: boolean): PagerMode {
-  if (plain || !process.stdout.isTTY) return 'plain'
+  if (plain || !process.stdout.isTTY || promptsUnavailable()) return 'plain'
   return 'interactive'
 }
 

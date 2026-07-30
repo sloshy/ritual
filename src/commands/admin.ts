@@ -30,7 +30,8 @@ import {
 } from '../themes'
 import { buildFlameSvg } from '../flame'
 import { CardCommandError } from '../errors'
-import { requireInteractive, runCommandAction } from './card-target'
+import { runCommandAction } from './card-target'
+import { requireInteractive } from '../no-input'
 import { readPasswordFromStdin } from './prompts-helpers'
 import {
   addScriptingOptions,

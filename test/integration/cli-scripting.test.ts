@@ -69,7 +69,7 @@ describe('CLI scripting behavior (Integration)', () => {
     })
   })
 
-  test('import conflict under --no-input returns runtime exit code', async () => {
+  test('import conflict without a resolution flag is a usage error', async () => {
     await withTempDir(async (dir) => {
       const decksDir = path.join(dir, 'decks')
       await fs.mkdir(decksDir, { recursive: true })
@@ -89,10 +89,16 @@ name: "Conflict Deck"
 `,
       )
 
-      const result = await runCli(['import', sourcePath, '--no-input'], dir)
+      // Piped stdin alone (no --no-input) is enough: the conflict prompt can
+      // never run, so it must be the documented usage error either way.
+      const noInput = await runCli(['import', sourcePath, '--no-input'], dir)
+      expect(noInput.exitCode).toBe(2)
+      expect(noInput.stderr).toContain('Import conflict')
+      expect(noInput.stderr).toContain('--overwrite or --yes')
 
-      expect(result.exitCode).toBe(1)
-      expect(result.stderr).toContain('Import conflict')
+      const piped = await runCli(['import', sourcePath, '--type', 'deck'], dir)
+      expect(piped.exitCode).toBe(2)
+      expect(piped.stderr).toContain('Import conflict')
     })
   })
 

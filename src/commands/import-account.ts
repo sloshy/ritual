@@ -13,7 +13,7 @@ import { CardCommandError, getErrorMessage } from '../errors'
 import { promptForLoginOutcome } from '../auth/login-helper'
 import { getDecksDir } from '../ritual-config'
 import { ask } from './prompts-helpers'
-import { isNoInput } from '../no-input'
+import { promptsUnavailable, promptsUnavailableReason } from '../no-input'
 
 type ImportAccountOptions = {
   all?: boolean
@@ -39,9 +39,9 @@ export function registerImportAccountCommand(program: Command): void {
     try {
       // Deck selection is a prompt; with prompts disabled the run must say
       // which decks it wants up front. Fail before any network work.
-      if (options.all !== true && isNoInput()) {
+      if (options.all !== true && promptsUnavailable()) {
         console.error(
-          'Error: deck selection requires a prompt. Pass --all to import every deck when prompts are disabled (--no-input / RITUAL_NO_INPUT).',
+          `Error: deck selection requires a prompt. Pass --all to import every deck (${promptsUnavailableReason()}).`,
         )
         process.exitCode = ExitCode.UsageError
         return
@@ -68,7 +68,7 @@ export function registerImportAccountCommand(program: Command): void {
       const ensureToken = async () => {
         token = (await auth.getToken()) ?? undefined
         if (!token) {
-          if (isNoInput() || !process.stdin.isTTY) {
+          if (promptsUnavailable()) {
             console.log('Session expired or invalid. Use `ritual login archidekt` before retrying.')
             return undefined
           }
@@ -128,9 +128,8 @@ export function registerImportAccountCommand(program: Command): void {
       if (options.all === true) {
         selectedDecks = decks
       } else {
-        // ask() throws a usage error when prompts are unavailable (piped
-        // stdin without --no-input); the --all pre-check above already gave
-        // the friendlier message for the explicit --no-input case.
+        // Reachable only with prompts available — the --all pre-check above
+        // already refused every non-interactive run with a friendlier message.
         const selection = await ask<ArchidektDeckSimple[]>({
           type: 'multiselect',
           message: 'Select decks to import',
@@ -164,7 +163,6 @@ export function registerImportAccountCommand(program: Command): void {
           const decksDir = getDecksDir()
           await saveDeck(deckData, decksDir, {
             forceOverwrite: options.overwrite === true,
-            noPrompts: isNoInput(),
             assumeYes: options.yes === true,
             dryRun: options.dryRun === true,
           })
@@ -173,7 +171,9 @@ export function registerImportAccountCommand(program: Command): void {
         } catch (e: unknown) {
           const msg = getErrorMessage(e)
           console.error(`  - Failed to import ${deck.name}:`, msg)
-          process.exitCode = ExitCode.RuntimeError
+          // A per-deck conflict that needs --overwrite/--yes is a usage error;
+          // keep its code rather than reporting it as a runtime failure.
+          process.exitCode = e instanceof CardCommandError ? e.exitCode : ExitCode.RuntimeError
         }
       }
 

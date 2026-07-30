@@ -1,4 +1,9 @@
-import { expect, test as bunTest } from 'bun:test'
+import {
+  afterAll as bunAfterAll,
+  beforeEach as bunBeforeEach,
+  expect,
+  test as bunTest,
+} from 'bun:test'
 import type { ApplyChange, MissReason } from '../src/editor/apply-batch'
 import {
   type HttpClient,
@@ -397,4 +402,28 @@ export function runMissMatrix<TData, TChange>(
       }
     })
   }
+}
+
+/** Which streams {@link stubTty} pretends are (or are not) terminals. */
+export type TtyStubs = { stdin?: boolean; stdout?: boolean }
+
+/**
+ * Simulate terminals for the current test file: `bun test` never runs on one,
+ * so the `!isTTY` half of every prompt gate would trip on its own and the
+ * `--no-input` half could be deleted without a failure.
+ *
+ * The stubs are re-applied before each test — a case that flips a stream to
+ * prove the other half of a gate needs no `finally` — and the real values are
+ * restored when the file finishes, so nothing leaks into the next one.
+ */
+export function stubTty(streams: TtyStubs): void {
+  const original = { stdin: process.stdin.isTTY, stdout: process.stdout.isTTY }
+  bunBeforeEach(() => {
+    if (streams.stdin !== undefined) process.stdin.isTTY = streams.stdin
+    if (streams.stdout !== undefined) process.stdout.isTTY = streams.stdout
+  })
+  bunAfterAll(() => {
+    process.stdin.isTTY = original.stdin
+    process.stdout.isTTY = original.stdout
+  })
 }

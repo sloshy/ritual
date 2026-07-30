@@ -6,6 +6,7 @@ import { ExitCode, type ExitCodeValue } from '../errors'
 import { parseEnumField } from '../parse-enum'
 import { formatResolveListError, type ResolveListError } from '../resolve-list'
 import { getAtPath } from '../utils'
+import { promptsUnavailable } from '../no-input'
 
 // The exit-code vocabulary lives in src/errors.ts (the dependency-free leaf so
 // CardCommandError can carry an ExitCodeValue); command modules keep importing
@@ -20,6 +21,18 @@ export type OutputFormat = (typeof OUTPUT_FORMATS)[number]
 export interface ScriptingOptions {
   output: OutputFormat
   quiet: boolean
+}
+
+/**
+ * Whether a command may open a prompt while producing this output: prompting
+ * has to be possible at all ({@link promptsUnavailable}) *and* the command must
+ * own stdout — JSON/NDJSON output cannot share it with prompt UI. Every command
+ * whose prompt competes with a machine-readable stream asks this one question,
+ * so no copy can drop half the condition. Callers add their own extra
+ * conditions (a dry run resolves nothing, `--yes` answers up front).
+ */
+export function canPromptWithOutput(scripting: ScriptingOptions): boolean {
+  return scripting.output === 'text' && !promptsUnavailable()
 }
 
 /**

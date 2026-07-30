@@ -169,6 +169,25 @@ describe('history --show (Integration)', () => {
     })
   })
 
+  test('editor mode on a non-TTY is a usage error pointing at --show', async () => {
+    await withWorkspace(async (dir) => {
+      await seedDeck(dir, CHANGELOG)
+      const result = await runCli(['history', 'test'], dir)
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain('interactive history editor is unavailable')
+      expect(result.stderr).toContain('--show')
+    })
+  })
+
+  test('structured output without --show is a usage error', async () => {
+    await withWorkspace(async (dir) => {
+      await seedDeck(dir, CHANGELOG)
+      const result = await runCli(['history', 'test', '--output', 'json'], dir)
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain('--output json requires --show')
+    })
+  })
+
   test('--limit without --show is a usage error', async () => {
     await withWorkspace(async (dir) => {
       await seedDeck(dir, CHANGELOG)
@@ -198,7 +217,7 @@ describe('history CLI error paths (Integration)', () => {
         frontMatter: { name: 'Other' },
         cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
       })
-      const result = await runCli(['history', '--deck', 'nonexistent'], dir)
+      const result = await runCli(['history', '--deck', 'nonexistent', '--show'], dir)
       expect(result.exitCode).toBe(3)
       expect(result.stderr).toContain('nonexistent')
     })

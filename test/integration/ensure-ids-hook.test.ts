@@ -57,9 +57,9 @@ describe('card-ID backfill preAction hook (Integration)', () => {
 
   test('an allowlisted command backfills ids (without stamping the sidecar) before its action runs', async () => {
     await withIdlessDeck(async (deckPath, dir) => {
-      // `history` (editor mode) is in the allowlist; resolving a missing list
-      // fails the action fast, after the hook already ran.
-      const result = await runCli(['history', 'no-such-list'], dir)
+      // `note` is in the allowlist; resolving a missing list fails the action
+      // fast, after the hook already ran.
+      const result = await runCli(['note', 'no-such-list', 'Sol Ring', '--clear'], dir)
       expect(result.exitCode).toBe(ExitCode.NotFound)
       expect(await fs.readFile(deckPath, 'utf-8')).toBe(backfilledDeck)
       // No sidecar existed, so the file is a hand edit Ritual hasn't recorded —

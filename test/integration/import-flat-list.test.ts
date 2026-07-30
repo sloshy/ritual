@@ -3,6 +3,7 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { saveFlatList } from '../../src/commands/import'
 import { importFromTextFile } from '../../src/importers/text-file'
+import { ExitCode } from '../../src/errors'
 import { MemoryLogger, resetLogger, setLogger } from '../test-utils'
 import { bindWorkspace, writeWantedFile, type BoundWorkspace } from './helpers/workspace'
 
@@ -112,10 +113,14 @@ describe('import text file into flat lists (Integration)', () => {
     const source = await writeSource('wants.txt', '1 Black Lotus\n')
     const deckData = await importFromTextFile(source)
 
+    // A conflict is the caller's to fix (pass overwrite), so it must carry the
+    // usage classification the CLI turns into exit 2 — not a bare runtime error.
     // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
-    await expect(saveFlatList(deckData, 'wanted', { noPrompts: true })).rejects.toThrow(
-      'Import conflict',
-    )
+    await expect(saveFlatList(deckData, 'wanted', { noPrompts: true })).rejects.toMatchObject({
+      message: expect.stringContaining('Import conflict'),
+      code: 'usage_error',
+      exitCode: ExitCode.UsageError,
+    })
 
     // The pre-existing list must be untouched by the failed import.
     const content = await fs.readFile(wantsPath, 'utf-8')

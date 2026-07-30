@@ -55,15 +55,17 @@ import { getDecksDir } from '../ritual-config'
 import { listFilePath } from '../resolve-list'
 import { isListType, listTypeLabel, LIST_TYPES, type ListType } from '../list-type'
 import { ask, promptListType } from './prompts-helpers'
-import { isNoInput } from '../no-input'
+import { isNoInput, promptsUnavailable } from '../no-input'
 import { CardCommandError, getErrorMessage } from '../errors'
 
 interface SaveListOptions {
   forceOverwrite?: boolean
   /**
-   * Refuse to prompt on a name/ID conflict and throw instead. The CLI passes
-   * `isNoInput()`; programmatic callers (the admin import handler) always pass
-   * true since there is no terminal to resolve a conflict on.
+   * Refuse to prompt on a name/ID conflict and throw instead. Defaults to
+   * `promptsUnavailable()`, so every caller — the CLI, `import-account`, the
+   * admin import handler — gets the actionable conflict error rather than a
+   * prompt guard firing deep inside the save. Programmatic callers (the admin
+   * import handler) pass true explicitly since there is never a terminal there.
    */
   noPrompts?: boolean
   /** Auto-answer the overwrite confirmation with yes when a conflict comes up. */
@@ -135,10 +137,23 @@ type ImportCsvJsonResult = {
 function normalizeSaveListOptions(options?: SaveListOptions): Required<SaveListOptions> {
   return {
     forceOverwrite: options?.forceOverwrite ?? false,
-    noPrompts: options?.noPrompts ?? false,
+    noPrompts: options?.noPrompts ?? promptsUnavailable(),
     assumeYes: options?.assumeYes ?? false,
     dryRun: options?.dryRun ?? false,
   }
+}
+
+/**
+ * The one refusal for an import that would replace an existing list without
+ * being told to. Shared by the deck and flat-list saves (and matched by the CSV
+ * path's own wording) so the advice and the usage exit code never diverge.
+ */
+function importConflictError(target: string): CardCommandError {
+  return new CardCommandError(
+    'usage_error',
+    `Import conflict for '${target}'. Re-run with --overwrite or --yes to replace it.`,
+    ExitCode.UsageError,
+  )
 }
 
 type ConflictResolution =
@@ -228,9 +243,7 @@ export async function saveDeck(
     }
   } else if (conflictFile && !shouldOverwrite) {
     if (resolvedOptions.noPrompts) {
-      throw new Error(
-        `Import conflict for '${conflictFile}'. Re-run with --overwrite or --yes to replace it.`,
-      )
+      throw importConflictError(conflictFile)
     }
 
     if (conflictReason === 'id') {
@@ -385,9 +398,7 @@ export async function saveFlatList(
     }
   } else if (exists) {
     if (resolvedOptions.noPrompts) {
-      throw new Error(
-        `Import conflict for '${path.basename(filePath)}'. Re-run with --overwrite or --yes to replace it.`,
-      )
+      throw importConflictError(path.basename(filePath))
     }
 
     getLogger().info(`\nFile already exists (Name Conflict): ${path.basename(filePath)}`)
@@ -716,7 +727,7 @@ async function runCsvImport(
 
   // Prompts are unavailable when they are disabled (--no-input), when stdin
   // is not a terminal, or when --columns says the user is scripting.
-  const scripted = isNoInput() || !process.stdin.isTTY || options.columns !== undefined
+  const scripted = promptsUnavailable() || options.columns !== undefined
   const flagMode: CsvImportMode | undefined =
     options.append === true ? 'append' : options.overwrite === true ? 'overwrite' : undefined
 
@@ -788,12 +799,14 @@ async function runCsvImport(
     } else if (options.yes === true) {
       mode = 'overwrite'
     } else if (scripted) {
+      // Same class of refusal as the URL/text conflict above — a usage error,
+      // not a runtime failure — with the extra `--append` option CSV has.
       emitError(
-        'runtime_error',
-        `File already exists: ${targetPath}. Re-run with --append to add to it or --overwrite to replace it.`,
+        'usage_error',
+        `Import conflict for '${path.basename(targetPath)}'. Re-run with --append to add to it, or --overwrite/--yes to replace it.`,
         scripting,
       )
-      process.exitCode = ExitCode.RuntimeError
+      process.exitCode = ExitCode.UsageError
       return
     } else {
       const picked = await ask<CsvImportMode | 'cancel'>({
@@ -1015,7 +1028,6 @@ export function registerImportCommand(program: Command): void {
 
     const saveOptions: SaveListOptions = {
       forceOverwrite: options.overwrite === true,
-      noPrompts: isNoInput(),
       assumeYes: options.yes === true,
       dryRun: options.dryRun === true,
     }

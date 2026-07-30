@@ -13,6 +13,7 @@ import { unreadableConsequence, type SyncChangeFilter, type SyncDirection } from
 import { decideCsvUpload } from './decide-csv'
 import { resolveAmbiguousRemovals } from './resolve-ambiguity'
 import {
+  canPromptWithOutput,
   addScriptingOptions,
   emitError,
   emitOutput,
@@ -22,7 +23,6 @@ import {
 } from './scripting'
 import {
   addSyncOptions,
-  canPromptDuringSync,
   confirmUnreadableSync,
   describeUnreadable,
   loggerFor,
@@ -244,7 +244,7 @@ export function registerCollectionSyncCommand(program: Command): void {
       // runs, which never resolve anything. (The engine owns that dry-run
       // precedence too: belt and braces, so a preview cannot reach a prompt by
       // some route this command has not thought of.)
-      const canPrompt = canPromptDuringSync(scripting) && options.dryRun !== true
+      const canPrompt = canPromptWithOutput(scripting) && options.dryRun !== true
 
       const { report } = await runCollectionSync({
         direction,

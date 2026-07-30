@@ -12,10 +12,10 @@ import {
   type ScriptingOptions,
 } from './scripting'
 import { normalizeNote } from '../note-helpers'
+import { requireInteractive } from '../no-input'
 import { CardCommandError } from '../errors'
 import {
   parseCardIdFlag,
-  requireInteractive,
   resolveListSelection,
   resolveListTypeFlag,
   resolveTarget,

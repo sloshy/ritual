@@ -32,7 +32,8 @@ import {
   type ListLocation,
   type ListTypeFlags,
 } from '../resolve-list'
-import { promptsUnavailable, resolveListTypeFlag } from './card-target'
+import { resolveListTypeFlag } from './card-target'
+import { inputRequiredError, promptsUnavailable } from '../no-input'
 import { readDeckName } from '../importers/text-file'
 import { emitError, emitResolveListError, ExitCode, type ScriptingOptions } from './scripting'
 import {
@@ -246,7 +247,9 @@ export function registerEditCommand(program: Command): void {
     if (promptsUnavailable()) {
       emitError(
         'usage_error',
-        'Input required: the interactive editor is unavailable without a terminal or with --no-input. Use the one-shot commands (add-card, remove-card, set-card, note, move) to edit lists from scripts.',
+        inputRequiredError(
+          'the interactive editor is unavailable — use the one-shot commands (add-card, remove-card, set-card, note, move) to edit lists from scripts',
+        ).message,
         PLAIN_TEXT_OUTPUT,
       )
       process.exitCode = ExitCode.UsageError

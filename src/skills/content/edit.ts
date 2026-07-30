@@ -54,7 +54,11 @@ ritual add-card "Winota Stax" "Lightning Bolt" --exact --output json
   finishes that printing offers.
 - \`-q\` quantity (deck only), \`-f\` finish (nonfoil/foil/etched — collection and wanted
   only), \`-c\` condition (NM/LP/MP/HP/DMG, or \`NONE\` to record no condition —
-  collection only). A flag the target type does not support is an error.
+  collection only). A flag the target type does not support is an error. Neither
+  finish nor condition has an implicit default: without a terminal a collection add
+  needs \`-c\`, and any specific-printing add whose printing comes in several finishes
+  needs \`-f\` — otherwise the run exits 2 naming the flag instead of writing a
+  half-specified line.
 - Wanted adds must choose a specificity: \`--name-only\` (any copy), a printing pin via
   \`--set\`/\`--collector-number\`, or \`--specific\` (interactive picker). Non-interactive
   runs without one exit 2.
@@ -293,7 +297,9 @@ error, 3 unknown list/preset.
 ## Read or compact change history
 
 \`ritual history\` interactively compacts and rewrites a list's \`.changes.md\` log.
-Only the changelog is touched — the list file itself is never modified:
+Only the changelog is touched — the list file itself is never modified. The editor
+needs a terminal: without one (or under \`--no-input\`) it exits 2 pointing at
+\`--show\` rather than opening, and \`--output json\`/\`ndjson\` requires \`--show\` too:
 
 \`\`\`bash
 ritual history "Winota Stax"

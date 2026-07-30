@@ -128,7 +128,7 @@ The interactive printing picker lists each printing's price in your configured [
 
 `--finish` values are validated twice: the flag itself must be `nonfoil`, `foil`, or `etched` (rejected at parse time otherwise), and once a printing is resolved, a finish that printing isn't offered in fails with a usage error listing the finishes that do exist (also `details.availableFinishes` in JSON).
 
-`--condition` accepts the usual grades plus `NONE`, which explicitly records **no** condition and skips the condition prompt — the scripting equivalent of answering "Don't Care".
+`--condition` accepts the usual grades plus `NONE`, which explicitly records **no** condition and skips the condition prompt — the scripting equivalent of answering "Don't Care". It is not optional in a scripted run: with no terminal to prompt on, a collection add without `--condition` fails rather than guessing.
 
 ### Cache Freshness
 
@@ -158,13 +158,17 @@ Deck entries record the card name and quantity, plus the set code and collector 
 3. Finish and condition come from `--finish`/`--condition`, or you are prompted.
 4. The entry is appended to the collection file in `collections/`.
 
-Collection entries always record the specific printing (set code and collector number), since collection cards have monetary value tied to the exact printing. Condition defaults to unknown ("Don't Care") if not specified.
+Collection entries always record the specific printing (set code and collector number), since collection cards have monetary value tied to the exact printing.
+
+There is no implicit condition — pass `--condition NONE` to record none. When [prompts are unavailable](/#when-prompts-are-unavailable), a run missing `--condition`, or missing `--finish` on a printing that comes in more than one finish, is a usage error (exit `2`) naming the flag rather than a silent no-op: an exit `0` always means a line was written.
 
 ### Wanted List Mode
 
 1. Card is selected via autocomplete from the cache (or `--exact`).
 2. Specificity comes from `--name-only`, `--specific`, or a printing pin; with none of them you are prompted: **Name only (any copy)** appends just the card name, while **Choose specific printing** enters the printing selection flow followed by a finish prompt. When prompts are unavailable (stdin is not a terminal, or `--no-input` / `RITUAL_NO_INPUT`), one of the flags is required — instead of prompting, the command exits with code `2`.
 3. The entry is appended to the wanted list file in `wanted/`.
+
+As with collection adds, a specific-printing add whose printing comes in more than one finish requires `--finish` when [prompts are unavailable](/#when-prompts-are-unavailable) (exit `2`). Only the name-only flow is finish-optional.
 
 In the specific flow, a printing that cannot be resolved (no pin and no way to ask) is an **error** — the command never silently degrades a specific request to a name-only entry. Wanted list entries require only the card name; the printing and finish are optional (see the [card states](/commands/edit/#card-states)). A default finish can be specified with `-f`.
 
@@ -189,9 +193,9 @@ Deck adds include `quantity`; wanted adds omit the fields that weren't recorded.
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                                                                                                          |
-| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | Card added                                                                                                                                                                                                                       |
-| `1`  | Runtime error (card cache unavailable, printing unresolvable in the specific flow, file write failure)                                                                                                                           |
-| `2`  | Usage error (invalid or conflicting flags, unknown printing pin, unavailable finish, cancelled prompt, missing wanted-specificity flag when prompts are unavailable — stdin not a terminal, or `--no-input` / `RITUAL_NO_INPUT`) |
-| `3`  | Not found (missing deck, no exact card-name match, no cards matching the search)                                                                                                                                                 |
+| Code | Meaning                                                                                                                                                                                                                              |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `0`  | Card added                                                                                                                                                                                                                           |
+| `1`  | Runtime error (card cache unavailable, printing unresolvable in the specific flow, file write failure)                                                                                                                               |
+| `2`  | Usage error (invalid or conflicting flags, unknown printing pin, unavailable finish, cancelled prompt, or a missing `--finish`/`--condition`/wanted-specificity flag when [prompts are unavailable](/#when-prompts-are-unavailable)) |
+| `3`  | Not found (missing deck, no exact card-name match, no cards matching the search)                                                                                                                                                     |

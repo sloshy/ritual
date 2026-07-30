@@ -18,6 +18,7 @@ import {
 import { suppressAutoCommit } from '../admin/git'
 import { ask } from './prompts-helpers'
 import {
+  canPromptWithOutput,
   type ScriptingOptions,
   addScriptingOptions,
   classifyFileReadError,
@@ -26,7 +27,6 @@ import {
   ExitCode,
   normalizeScriptingOptions,
 } from './scripting'
-import { isNoInput } from '../no-input'
 import { STDERR_LOGGER, setLogger } from '../logger'
 
 type ImportChangesOptions = {
@@ -123,12 +123,8 @@ export function registerImportChangesCommand(program: Command): void {
     }
 
     if (!options.yes) {
-      // The confirm prompt needs a terminal, enabled prompting, and ownership
-      // of stdout (JSON/NDJSON output cannot share it with a prompt); without
-      // this guard a piped stdin would silently resolve false or hang.
-      const interactive =
-        scripting.output === 'text' && !isNoInput() && process.stdin.isTTY === true
-      if (!interactive) {
+      // Without this guard a piped stdin would silently resolve false or hang.
+      if (!canPromptWithOutput(scripting)) {
         emitError(
           'usage_error',
           'Confirmation required: pass --yes to apply changes non-interactively.',

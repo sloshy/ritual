@@ -28,7 +28,7 @@ import {
   type ResolveListError,
 } from '../resolve-list'
 import { formatPrintingAnnotation } from '../change-event'
-import { isNoInput } from '../no-input'
+import { requireInteractive } from '../no-input'
 import { matchFinishPin, matchPrintingPin } from './collection-helpers'
 import { getCardPrintings } from '../scryfall'
 import { CardCommandError, getErrorMessage } from '../errors'
@@ -299,34 +299,6 @@ export function describeEntry(entry: EntryRef): string {
   const annotation = formatPrintingAnnotation(entry)
   const id = entry.cardId !== undefined ? ` &${entry.cardId}` : ''
   return `${entry.name}${annotation}${id}`
-}
-
-/**
- * Whether interactive prompting is unavailable for this process: `--no-input`
- * (or `RITUAL_NO_INPUT`) disabled prompts, or stdin is not a terminal. The
- * single source of truth for the prompt gate — commands must consult this (or
- * {@link requireInteractive}) rather than re-deriving the condition inline, so
- * the `--no-input` half can never be dropped from one copy.
- */
-export function promptsUnavailable(): boolean {
-  return isNoInput() || !process.stdin.isTTY
-}
-
-/**
- * Refuse to open an interactive picker when prompting is unavailable — stdin
- * is not a terminal, or `--no-input` disabled prompts. Without this, a script
- * that omits a selector either exits 0 having done nothing (closed stdin: the
- * prompt never resolves and the event loop drains) or blocks — never an
- * acceptable one-shot contract.
- */
-export function requireInteractive(what: string): void {
-  if (promptsUnavailable()) {
-    throw new CardCommandError(
-      'usage_error',
-      `Input required: pass ${what} (interactive selection is unavailable without a terminal or with --no-input).`,
-      ExitCode.UsageError,
-    )
-  }
 }
 
 async function promptCardSelection(entries: EntryRef[]): Promise<EntryRef> {

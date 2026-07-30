@@ -45,13 +45,13 @@ import {
 } from '../resolve-list'
 import {
   ensureFinishAvailable,
-  promptsUnavailable,
   resolveListTypeFlag,
   resolvePinnedPrinting,
   runCommandAction,
   type PrintingPin,
 } from './card-target'
 import { parsePositiveInteger } from '../parse-number'
+import { inputRequiredError, promptsUnavailable } from '../no-input'
 import {
   addScriptingOptions,
   emitOutput,
@@ -333,10 +333,8 @@ function validateTargetFlags(
     pin === undefined &&
     promptsUnavailable()
   ) {
-    throw new CardCommandError(
-      'usage_error',
-      'Wanted-list adds are interactive by default. Pass --name-only, --specific, or --set/--collector-number when prompts are unavailable (stdin is not a terminal, or --no-input).',
-      ExitCode.UsageError,
+    throw inputRequiredError(
+      'wanted-list adds are interactive by default — pass --name-only, --specific, or --set/--collector-number',
     )
   }
 }
@@ -455,10 +453,8 @@ async function resolveCardName(
         ExitCode.NotFound,
       )
     }
-    throw new CardCommandError(
-      'usage_error',
-      `Interactive card selection needs a terminal with prompts enabled, and '${cardNameInput}' does not exactly match a cached card name. Pass the full card name.`,
-      ExitCode.UsageError,
+    throw inputRequiredError(
+      `pass the full card name — '${cardNameInput}' does not exactly match a cached card name, and the card picker cannot open`,
     )
   }
 

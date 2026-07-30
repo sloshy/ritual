@@ -33,8 +33,8 @@ import {
   type ScriptingOptions,
 } from './scripting'
 import { promptExitMenu } from './prompts-helpers'
-import { CardCommandError } from '../errors'
-import { requireInteractive } from './card-target'
+import { inputRequiredError, promptsUnavailable, requireInteractive } from '../no-input'
+import { runCommandAction } from './card-target'
 import { parsePositiveInteger } from '../parse-number'
 
 export type HistoryOptions = ListTypeFlags &
@@ -139,30 +139,36 @@ export function registerHistoryCommand(program: Command): void {
       return
     }
 
-    // A --show run without a list name needs a terminal for the list picker —
-    // never let an interactive prompt run into machine-readable output.
-    if (options.show && listNameArg === undefined) {
-      try {
-        requireInteractive('a list name')
-      } catch (err) {
-        if (err instanceof CardCommandError) {
-          emitError(err.code, err.message, scripting, err.details)
-          process.exitCode = err.exitCode
-          return
-        }
-        throw err
-      }
-    }
-
-    const location = await resolveLocation(listNameArg, type)
-    if (!location) return
-
-    if (options.show) {
-      await runHistoryShow(location, options.limit, scripting)
+    // Structured output belongs to the read-only fork: the editor writes prompt
+    // UI to stdout, so `history <list> --output json` without --show could only
+    // ever produce ANSI noise where a payload was expected.
+    if (options.output !== undefined && options.output !== 'text' && !options.show) {
+      emitError('usage_error', `--output ${options.output} requires --show.`, scripting)
+      process.exitCode = ExitCode.UsageError
       return
     }
 
-    await runHistoryEditor(location)
+    // Both forks can need a prompt: --show without a list name opens the list
+    // picker, and the editor is interactive from its first screen. Refuse up
+    // front rather than exiting 0 having done nothing.
+    await runCommandAction(scripting, async () => {
+      if (listNameArg === undefined) requireInteractive('a list name')
+      if (!options.show && promptsUnavailable()) {
+        throw inputRequiredError(
+          'the interactive history editor is unavailable — use --show to print the change history from a script',
+        )
+      }
+
+      const location = await resolveLocation(listNameArg, type)
+      if (!location) return
+
+      if (options.show) {
+        await runHistoryShow(location, options.limit, scripting)
+        return
+      }
+
+      await runHistoryEditor(location)
+    })
   })
 }
 

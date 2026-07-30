@@ -138,6 +138,10 @@ ritual import-account someuser --all      # import every deck
 ritual import-account --all               # use the logged-in account
 \`\`\`
 
+Deck selection is a prompt, so \`--all\` is mandatory for an agent: without a
+terminal (or under \`--no-input\`) the run exits 2 before fetching anything.
+Existing decks conflict unless \`--overwrite\`/\`--yes\` says what to do.
+
 ## Sync with Archidekt
 
 The first argument is the sync direction — \`pull\` (Archidekt → local) or \`push\`

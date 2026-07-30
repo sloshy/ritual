@@ -22,6 +22,7 @@ import {
 import { getCollectionsDir, getDefaultCurrency } from '../ritual-config'
 import { listFileName, unusableFileNameMessage } from '../list-file-name'
 import { ensureListFile } from './card-session'
+import { requireInteractive } from '../no-input'
 
 export {
   VALID_FINISHES,
@@ -322,6 +323,7 @@ export async function promptFinishAndCondition(
   if (!forcePrompts && config.finish && availableFinishes.includes(config.finish)) {
     selectedFinish = config.finish
   } else if (availableFinishes.length > 1) {
+    requireInteractive(`--finish <${availableFinishes.join('|')}>`)
     const choices = finishChoices(finishRows(availableFinishes), selectedPrinting)
     const finishResponse = (await prompts({
       type: 'select',
@@ -342,6 +344,9 @@ export async function promptFinishAndCondition(
   if (!forcePrompts && config.condition !== undefined) {
     selectedCondition = config.condition === 'NONE' ? undefined : config.condition
   } else {
+    // There is no non-interactive default: a run that cannot answer this must
+    // say so, not exit 0 with the prompt unanswered and nothing written.
+    requireInteractive(`--condition <${[...VALID_CONDITIONS, 'NONE'].join('|')}>`)
     const conditionResponse = (await prompts({
       type: 'select',
       name: 'condition',

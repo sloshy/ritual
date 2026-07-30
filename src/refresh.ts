@@ -1,6 +1,6 @@
 import prompts from 'prompts'
 import { Command } from 'commander'
-import { isNoInput } from './no-input'
+import { promptsUnavailable } from './no-input'
 import { parseEnumFlag } from './commands/scripting'
 
 /**
@@ -67,7 +67,7 @@ export async function shouldBulkRefresh(
 ): Promise<boolean> {
   if (mode === 'auto') return true
   if (mode === 'no-bulk' || mode === 'never') return false
-  if (isNoInput() || !process.stdin.isTTY) return false
+  if (promptsUnavailable()) return false
   const response = await prompts({ type: 'confirm', name: 'value', message, initial })
   return response.value === true
 }

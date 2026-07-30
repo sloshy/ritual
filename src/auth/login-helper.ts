@@ -1,9 +1,8 @@
 import prompts from 'prompts'
 import { ArchidektAuth } from './ArchidektAuth'
 import type { ArchidektCredentials } from './interfaces'
-import { CardCommandError, getErrorMessage } from '../errors'
-import { isNoInput } from '../no-input'
-import { ExitCode } from '../commands/scripting'
+import { getErrorMessage } from '../errors'
+import { inputRequiredError, promptsUnavailable } from '../no-input'
 
 /** How a credentialed login attempt ended (credentials already in hand). */
 export type LoginOutcome = 'success' | 'failed'
@@ -35,11 +34,9 @@ export async function loginWithCredentials(
 export async function promptForLoginOutcome(auth: ArchidektAuth): Promise<LoginPromptOutcome> {
   // Returning 'cancelled' here would be a silent no-op; a headless run must
   // fail loudly and point at the non-interactive credential flags instead.
-  if (isNoInput() || !process.stdin.isTTY) {
-    throw new CardCommandError(
-      'usage_error',
-      'Input required: Archidekt login credentials (prompts are disabled). Pass --username and --password-stdin instead.',
-      ExitCode.UsageError,
+  if (promptsUnavailable()) {
+    throw inputRequiredError(
+      'Archidekt login credentials — pass --username and --password-stdin instead',
     )
   }
   const response = await prompts([

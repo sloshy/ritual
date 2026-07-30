@@ -470,6 +470,60 @@ describe('add-card CLI (Integration)', () => {
       expect(content).not.toContain('Sol Ring')
     })
 
+    test('a multi-finish pin without --finish fails instead of leaving the prompt unanswered', async () => {
+      const result = await runCli(
+        [
+          'add-card',
+          '--collection',
+          'main',
+          'Lightning',
+          'Bolt',
+          '--exact',
+          '--set',
+          'sta',
+          '--collector-number',
+          '42',
+          '--condition',
+          'NONE',
+          '--output',
+          'json',
+        ],
+        dir,
+      )
+      expect(result.exitCode).toBe(2)
+      const err = JSON.parse(result.stderr) as CliErrorPayload
+      expect(err.error.code).toBe('usage_error')
+      expect(err.error.message).toContain('--finish')
+      const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
+      expect(content).not.toContain('Lightning Bolt (STA:42)')
+    })
+
+    test('a missing --condition fails instead of leaving the prompt unanswered', async () => {
+      const result = await runCli(
+        [
+          'add-card',
+          '--collection',
+          'main',
+          'Sol',
+          'Ring',
+          '--exact',
+          '--set',
+          'lea',
+          '--collector-number',
+          '270',
+          '--output',
+          'json',
+        ],
+        dir,
+      )
+      expect(result.exitCode).toBe(2)
+      const err = JSON.parse(result.stderr) as CliErrorPayload
+      expect(err.error.code).toBe('usage_error')
+      expect(err.error.message).toContain('--condition')
+      const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
+      expect(content).not.toContain('Sol Ring')
+    })
+
     test('rejects a valid --finish the printing is not offered in', async () => {
       const result = await runCli(
         [
@@ -555,6 +609,32 @@ describe('add-card CLI (Integration)', () => {
       expect(result.exitCode).toBe(0)
       const content = await fs.readFile(path.join(dir, 'wanted', 'needs.md'), 'utf-8')
       expect(content).toContain('- Lightning Bolt (STA:42) [foil] &2')
+    })
+
+    test('a wanted multi-finish pin without --finish fails instead of leaving the prompt unanswered', async () => {
+      const result = await runCli(
+        [
+          'add-card',
+          '--wanted',
+          'needs',
+          'Lightning',
+          'Bolt',
+          '--exact',
+          '--set',
+          'sta',
+          '--collector-number',
+          '42',
+          '--output',
+          'json',
+        ],
+        dir,
+      )
+      expect(result.exitCode).toBe(2)
+      const err = JSON.parse(result.stderr) as CliErrorPayload
+      expect(err.error.code).toBe('usage_error')
+      expect(err.error.message).toContain('--finish')
+      const content = await fs.readFile(path.join(dir, 'wanted', 'needs.md'), 'utf-8')
+      expect(content).not.toContain('- Lightning Bolt (STA:42)')
     })
 
     test('--specific auto-accepts a single printing without prompting', async () => {
@@ -650,7 +730,7 @@ describe('add-card CLI (Integration)', () => {
       expect(result.exitCode).toBe(2)
       const err = JSON.parse(result.stderr) as CliErrorPayload
       expect(err.error.code).toBe('usage_error')
-      expect(err.error.message).toContain('needs a terminal')
+      expect(err.error.message).toContain('pass the full card name')
       // Nothing may have been written from a silent first-suggestion pick.
       const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
       expect(deckContent).not.toContain('Sol Ring')
@@ -666,7 +746,7 @@ describe('add-card CLI (Integration)', () => {
       )
       expect(result.exitCode).toBe(2)
       const err = JSON.parse(result.stderr) as CliErrorPayload
-      expect(err.error.message).toContain('needs a terminal')
+      expect(err.error.message).toContain('pass the full card name')
     })
 
     test('a full card name without --exact still resolves when non-interactive', async () => {

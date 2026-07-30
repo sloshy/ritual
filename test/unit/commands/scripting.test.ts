@@ -1,7 +1,8 @@
-import { describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, test } from 'bun:test'
 import { Command } from 'commander'
 import {
   addDryRunOption,
+  canPromptWithOutput,
   classifyFileReadError,
   emitError,
   emitOutput,
@@ -12,6 +13,9 @@ import {
   parseOutputFormat,
   projectFields,
 } from '../../../src/commands/scripting'
+import type { ScriptingOptions } from '../../../src/commands/scripting'
+import { setNoInputOverride } from '../../../src/no-input'
+import { stubTty } from '../../test-utils'
 
 type WritableTarget = {
   write: (chunk: string | Uint8Array, ...args: unknown[]) => boolean
@@ -155,5 +159,37 @@ describe('scripting command helpers', () => {
       errorCode: 'runtime_error',
       exitCode: ExitCode.RuntimeError,
     })
+  })
+})
+
+/**
+ * `bun test` never has a terminal, so the gate is supplied one and then loses a
+ * single condition per case — otherwise it reads `false` for the wrong reason
+ * and any clause could be deleted without a failure.
+ */
+describe('canPromptWithOutput', () => {
+  stubTty({ stdin: true })
+  afterEach(() => setNoInputOverride(undefined))
+
+  const TEXT: ScriptingOptions = { output: 'text', quiet: false }
+
+  test('text output on a terminal with prompts enabled can ask', () => {
+    expect(canPromptWithOutput(TEXT)).toBe(true)
+  })
+
+  test('--no-input answers every question up front', () => {
+    setNoInputOverride(true)
+    expect(canPromptWithOutput(TEXT)).toBe(false)
+  })
+
+  test('scripted output owns stdout, so there is nowhere to prompt', () => {
+    for (const output of ['json', 'ndjson'] as const) {
+      expect(canPromptWithOutput({ output, quiet: false })).toBe(false)
+    }
+  })
+
+  test('a piped stdin has nobody to answer', () => {
+    process.stdin.isTTY = false
+    expect(canPromptWithOutput(TEXT)).toBe(false)
   })
 })

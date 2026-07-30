@@ -12,7 +12,7 @@ The edit is line-preserving: only the targeted card's line is removed (or its de
 ./ritual remove-card [listName] [cardName...] [options]
 ```
 
-`[listName]` is resolved across all three list types (see [List Resolution](/commands/list-resolution/)); pass a `--deck`, `--collection`, or `--wanted` flag (or a `deck:`/`collection:`/`wanted:` prefix on the name) to pin the type or disambiguate. If invoked with no list name, the command runs interactively, prompting you to pick a list and then a card. Both prompts require a terminal — without one, omitting `[listName]` or a card selector (`[cardName...]`/`--card-id`) exits with a usage error (code `2`) instead of prompting.
+`[listName]` is resolved across all three list types (see [List Resolution](/commands/list-resolution/)); pass a `--deck`, `--collection`, or `--wanted` flag (or a `deck:`/`collection:`/`wanted:` prefix on the name) to pin the type or disambiguate. If invoked with no list name, the command runs interactively, prompting you to pick a list and then a card. Both prompts need a terminal with prompting enabled — when [prompts are unavailable](/#when-prompts-are-unavailable) (piped stdin, or `--no-input` / `RITUAL_NO_INPUT`), omitting `[listName]` or a card selector (`[cardName...]`/`--card-id`) exits with a usage error (code `2`) instead of prompting.
 
 ## Arguments
 
@@ -83,9 +83,9 @@ Each removal is recorded in the list's `.changes.md` changelog (one `Removed "<C
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                                                    |
-| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | Success                                                                                                                                                                    |
-| `2`  | Usage error (conflicting flags, ambiguous list or card, `-q` on a flat list, `-q` above the deck line quantity, no terminal available for interactive list/card selection) |
-| `3`  | Not found (missing list file, missing card, missing card ID)                                                                                                               |
-| `1`  | Runtime error                                                                                                                                                              |
+| Code | Meaning                                                                                                                                                                  |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `0`  | Success                                                                                                                                                                  |
+| `2`  | Usage error (conflicting flags, ambiguous list or card, `-q` on a flat list, `-q` above the deck line quantity, prompts unavailable for interactive list/card selection) |
+| `3`  | Not found (missing list file, missing card, missing card ID)                                                                                                             |
+| `1`  | Runtime error                                                                                                                                                            |

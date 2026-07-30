@@ -10,12 +10,8 @@ import {
 import { listTypeLabel, type ListType } from '../list-type'
 import { type ListTypeFlags } from '../resolve-list'
 import { CardCommandError } from '../errors'
-import {
-  requireInteractive,
-  resolveListSelection,
-  resolveListTypeFlag,
-  runCommandAction,
-} from './card-target'
+import { resolveListSelection, resolveListTypeFlag, runCommandAction } from './card-target'
+import { requireInteractive } from '../no-input'
 import { lifecycleErrorToCommandError } from './lifecycle'
 import type { PromptState } from './prompts-types'
 import {

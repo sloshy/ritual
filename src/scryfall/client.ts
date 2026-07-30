@@ -10,7 +10,7 @@ import {
 import type { PriceCurrency } from '../price-currency'
 import { getPriceField } from '../price-currency'
 import { getBannedPrintings } from '../ritual-config'
-import { isNoInput } from '../no-input'
+import { promptsUnavailable } from '../no-input'
 import { getLogger } from '../logger'
 import { getErrorMessage, throwHttpError } from '../errors'
 import path from 'node:path'
@@ -312,7 +312,7 @@ export class ScryfallClient implements PricingBackend {
 
     // With prompts unavailable, proceed without preloading — downstream
     // cache-miss paths fetch (or fail) per card instead.
-    if (isNoInput() || !process.stdin.isTTY) return
+    if (promptsUnavailable()) return
 
     if (this.cardCache.isEmpty && (await this.cardCache.isEmpty())) {
       const response = await prompts({

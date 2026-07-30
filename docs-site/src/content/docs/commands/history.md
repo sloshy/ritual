@@ -36,7 +36,7 @@ The admin site offers the same editor in the browser — see the [Change History
 | `--output <format>` | Output format for `--show`: `text` (default), `json`, or `ndjson`         |
 | `--quiet`           | Suppress non-essential output                                             |
 
-`--deck`, `--collection`, and `--wanted` are mutually exclusive. `--limit` requires `--show`.
+`--deck`, `--collection`, and `--wanted` are mutually exclusive. `--limit` and `--output json`/`ndjson` both require `--show`.
 
 ## Read-only output with `--show`
 
@@ -69,7 +69,9 @@ With `--output json`, the payload is deliberately the same shape as the admin si
 - `header` — everything before the first change set in the `.changes.md` file.
 - `sets` — the change sets newest first (truncated to `--limit`), each `{ timestamp, lines }` with the raw `- ` lines verbatim, plus a `trailing` array when hand-written text follows the set's change lines (see [Lossless editing](#lossless-editing)). An empty history emits `"sets": []`.
 
-Because `--show` output is meant for scripts, invoking it without a `[listName]` when stdin is not a terminal is a usage error (exit `2`) rather than a hang — the interactive list picker only runs on a TTY.
+Because `--show` output is meant for scripts, invoking it without a `[listName]` when [prompts are unavailable](/#when-prompts-are-unavailable) is a usage error (exit `2`) rather than a hang — the interactive list picker only runs on a TTY.
+
+`--show` is also the only fork available to a script: the editor is interactive from its first screen, so running `history <list>` without `--show` when prompts are unavailable exits `2` (`Input required: the interactive history editor is unavailable …`) instead of rendering prompt UI and exiting `0` having changed nothing. For the same reason `--output json`/`ndjson` requires `--show`.
 
 ## The editor
 
@@ -117,8 +119,8 @@ Every action edits the `.changes.md` file alongside the list. The list's own `.m
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                          |
-| ---- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | Success (saved, discarded, or nothing to save; with `--show`, printed — even an empty history)                                   |
-| `2`  | Usage error (conflicting type flags, ambiguous list name, `--limit` without `--show`, `--show` without a list name on a non-TTY) |
-| `3`  | Not found (no matching list, or no lists at all)                                                                                 |
+| Code | Meaning                                                                                                                                                                                                                                                   |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Success (saved, discarded, or nothing to save; with `--show`, printed — even an empty history)                                                                                                                                                            |
+| `2`  | Usage error (conflicting type flags, ambiguous list name, `--limit` or `--output json`/`ndjson` without `--show`, or a run needing a prompt when [prompts are unavailable](/#when-prompts-are-unavailable) — the editor, or `--show` without a list name) |
+| `3`  | Not found (no matching list, or no lists at all)                                                                                                                                                                                                          |

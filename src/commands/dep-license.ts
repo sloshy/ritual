@@ -2,6 +2,7 @@ import { Command } from 'commander'
 import prompts, { type Choice } from 'prompts'
 import { depLicenses, type DepLicenseEntry } from '../generated/dep-licenses'
 import { displayWithPager, resolvePagerMode } from '../pager'
+import { promptsUnavailable, promptsUnavailableReason } from '../no-input'
 import {
   addScriptingOptions,
   emitError,
@@ -109,10 +110,12 @@ export function registerDepLicenseCommand(program: Command): void {
       return
     }
 
-    if (!process.stdout.isTTY) {
+    // The dependency picker is a prompt: it needs a terminal on both ends —
+    // stdin to read the selection, stdout so its UI does not land in a pipe.
+    if (promptsUnavailable() || !process.stdout.isTTY) {
       emitError(
         'usage_error',
-        'Provide a package name argument or use --list when not in a TTY.',
+        `Provide a package name argument or use --list (${promptsUnavailableReason()}).`,
         scripting,
       )
       process.exitCode = ExitCode.UsageError

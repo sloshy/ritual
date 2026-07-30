@@ -1,17 +1,12 @@
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 import prompts, { type Choice } from 'prompts'
 import { ask, promptExitMenu, suggestByTitleTerms } from '../../src/commands/prompts-helpers'
 import { setNoInputOverride } from '../../src/no-input'
+import { stubTty } from '../test-utils'
 
 // `ask` refuses to prompt without a terminal; these tests simulate an
 // interactive session via prompts.inject, so pretend stdin is a TTY.
-const originalIsTty = process.stdin.isTTY
-beforeAll(() => {
-  process.stdin.isTTY = true
-})
-afterAll(() => {
-  process.stdin.isTTY = originalIsTty
-})
+stubTty({ stdin: true })
 
 describe('suggestByTitleTerms', () => {
   const choices: Choice[] = [
@@ -32,7 +27,7 @@ describe('ask under --no-input', () => {
     try {
       // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's rejects matcher resolves at runtime but its type doesn't expose Promise.
       await expect(ask<string>({ type: 'text', message: 'Card name?' })).rejects.toThrow(
-        'Input required: Card name? (prompts are disabled)',
+        'Input required: Card name? (prompts are disabled by --no-input / RITUAL_NO_INPUT)',
       )
     } finally {
       setNoInputOverride(undefined)

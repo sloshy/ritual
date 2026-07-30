@@ -28,8 +28,11 @@ Import all public decks from an Archidekt user account.
 ## Scripting Without Prompts
 
 The global `--no-input` flag (or `RITUAL_NO_INPUT`) disables all prompts. Deck selection is
-a prompt, so a headless run must pass `--all` explicitly — `--no-input` without `--all` is a
-usage error (exit code `2`) before anything is fetched. `-y, --yes` only answers the
+a prompt, so a headless run must pass `--all` explicitly — omitting it whenever
+[prompts are unavailable](/#when-prompts-are-unavailable) (including a plain piped run) is a
+usage error (exit code `2`) before anything is fetched. A per-deck name conflict in such a run
+reports the same `--overwrite`/`--yes` guidance [import](/commands/import/) gives, and the run
+exits `2`. `-y, --yes` only answers the
 overwrite confirmation on conflicts — for that purpose it is equivalent to `--overwrite`,
 matching [import](/commands/import/) — and it does not imply `--all`.
 

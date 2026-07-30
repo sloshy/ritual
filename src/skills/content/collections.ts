@@ -40,7 +40,10 @@ ritual move "Sol Ring" --from "collection:Main Binder" --to deck:burn
 \`-f\` finish (nonfoil/foil/etched), \`-c\` condition (NM/LP/MP/HP/DMG, or \`NONE\` to
 record no condition). Collections track specific physical printings, so pin one
 with \`--set\` + \`--collector-number\` — a non-interactive add without a pin only
-succeeds when the card has a single paper printing.
+succeeds when the card has a single paper printing. Neither finish nor condition
+is defaulted: a headless add always needs \`-c\`, and needs \`-f\` whenever the
+pinned printing comes in more than one finish — otherwise it exits 2 naming the
+missing flag rather than writing a half-specified line.
 
 ## Interactive management
 

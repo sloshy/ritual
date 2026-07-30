@@ -2,9 +2,7 @@ import prompts, { type Choice } from 'prompts'
 import type { PromptState } from './prompts-types'
 import { LIST_TYPES, type ListType } from '../list-type'
 import { matchesAllTerms } from '../term-match'
-import { isNoInput } from '../no-input'
-import { CardCommandError } from '../errors'
-import { ExitCode } from './scripting'
+import { inputRequiredError, promptsUnavailable } from '../no-input'
 
 type PromptAnswer = { value?: unknown }
 
@@ -28,13 +26,9 @@ export async function suggestByTitleTerms(rawInput: unknown, choices: Choice[]):
 export async function ask<T>(
   question: Omit<prompts.PromptObject<'value'>, 'name'>,
 ): Promise<T | undefined> {
-  if (isNoInput() || !process.stdin.isTTY) {
+  if (promptsUnavailable()) {
     const label = typeof question.message === 'string' ? question.message : 'interactive input'
-    throw new CardCommandError(
-      'usage_error',
-      `Input required: ${label} (prompts are disabled)`,
-      ExitCode.UsageError,
-    )
+    throw inputRequiredError(label)
   }
   let exited = false
   const response = (await prompts({

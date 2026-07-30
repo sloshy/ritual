@@ -28,8 +28,12 @@ Without a package name, opens an interactive list showing all bundled dependenci
 | `--quiet`           | Suppress non-essential output                              | `false` |
 
 `--list` cannot be combined with a package name argument. It never prompts, so it also works
-outside a TTY — without either a package name or `--list`, a non-TTY invocation is a usage
-error (exit `2`).
+outside a TTY — without either a package name or `--list`, an invocation that cannot open the
+picker is a usage error (exit `2`). That covers a non-TTY stdout and every case where
+[prompts are unavailable](/#when-prompts-are-unavailable), including `--no-input`.
+
+A license printed for a named package is paged the same way [`license`](/commands/license/) is:
+`less` only when both ends are a terminal and prompts are available, plain stdout otherwise.
 
 ## Examples
 
@@ -91,8 +95,8 @@ package's complete license text.
 
 ## Exit Codes
 
-| Code | Meaning                                                                    |
-| ---- | -------------------------------------------------------------------------- |
-| `0`  | Success                                                                    |
-| `2`  | Usage error (no package name and no `--list` outside a TTY, or both given) |
-| `3`  | Package not found                                                          |
+| Code | Meaning                                                                                                                                            |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Success                                                                                                                                            |
+| `2`  | Usage error (no package name and no `--list` when [prompts are unavailable](/#when-prompts-are-unavailable) or stdout is not a TTY, or both given) |
+| `3`  | Package not found                                                                                                                                  |

@@ -16,12 +16,12 @@ import { parseDeckFrontMatter, serializeDeckToMarkdown } from '../deck-file'
 import { parseDeckText } from '../importers/text-file'
 import { moveListSidecars } from '../list-sidecars'
 import { collectionToMarkdown, wantedToMarkdown } from '../editor/list-export'
-import { isNoInput } from '../no-input'
 import { CardCommandError } from '../errors'
 import { runCommandAction } from './card-target'
 import { promptDeckFormat } from './deck-helpers'
 import { readCollectionFile, readWantedFile } from './flat-list-session'
 import {
+  canPromptWithOutput,
   addDryRunOption,
   addScriptingOptions,
   emitOutput,
@@ -328,9 +328,7 @@ async function runCleanup(
   const baseDir = getBaseDir()
   const prefix = check ? '[check] ' : dryRun ? '[dry-run] ' : ''
 
-  // The interactive format prompt needs a terminal, enabled prompting, and
-  // ownership of stdout (JSON/NDJSON output cannot share it with a prompt).
-  const interactive = scripting.output === 'text' && !isNoInput() && process.stdin.isTTY === true
+  const interactive = canPromptWithOutput(scripting)
 
   // A real run over a formatless deck needs the prompt. When prompts are
   // unavailable, refuse up front — before any file is touched — instead of

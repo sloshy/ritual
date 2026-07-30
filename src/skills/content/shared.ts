@@ -51,9 +51,13 @@ export function asBullet(paragraph: string): string {
  */
 export const NO_INPUT_GUARANTEE = wrapProse(
   `\`--no-input\` — **the** headless switch (the \`RITUAL_NO_INPUT\` environment ` +
-    `variable does the same): works on **every** command and guarantees no ` +
-    `prompting; where input would be required the command fails fast (or uses a ` +
-    `documented default) instead of hanging. There are no per-command ` +
+    `variable does the same, and a falsy value — \`0\`/\`false\`/\`no\`/\`off\` — ` +
+    `counts as unset): works on **every** command and guarantees no prompting; ` +
+    `where input would be required the command fails fast with exit code 2 and a ` +
+    `\`Input required: pass <flag> (...)\` message naming the flag (or uses a ` +
+    `documented default) instead of hanging or exiting 0 having done nothing. A ` +
+    `non-terminal stdin — every agent invocation — is treated exactly the same ` +
+    `way, so the flag is never strictly required. There are no per-command ` +
     `non-interactive flags.`,
 )
 

@@ -22,7 +22,7 @@ import { computeMigrations, isActiveManagedFile } from '../managed-files'
 import { compareVersions } from '../semver'
 import { getBaseDir } from '../base-dir'
 import { fileExists } from '../utils'
-import { isNoInput } from '../no-input'
+import { promptsUnavailable } from '../no-input'
 import { version as ritualVersion } from '../version'
 import { SKILLS } from '../skills/catalog'
 import { installSkills, refreshInstalledSkills, resolveSkillsDir } from '../skills/install'
@@ -346,11 +346,6 @@ export type InitSiteCommandOptions = {
   overwriteReadme?: boolean
 }
 
-/** Whether interactive prompts can run: prompting enabled and stdin is a terminal. */
-function promptsAvailable(): boolean {
-  return !isNoInput() && process.stdin.isTTY === true
-}
-
 /** The usage error raised when a prompt is needed but prompts are unavailable. */
 function missingFlagError(flag: string, what: string): CardCommandError {
   return new CardCommandError(
@@ -474,7 +469,7 @@ async function writeFileWithOverwritePrompt(
   opts: ForceOption = { force: false },
 ): Promise<'written' | 'skipped'> {
   if (!opts.force && (await fileExists(filePath))) {
-    if (!promptsAvailable()) {
+    if (promptsUnavailable()) {
       throw usageError(
         `${path.relative(getBaseDir(), filePath)} already exists and prompts are unavailable; ` +
           'pass --force to overwrite generated files.',
@@ -508,7 +503,7 @@ async function writeReadme(
     const decision = opts.overwriteReadme ?? (opts.force ? true : undefined)
     if (decision === false) return 'skipped'
     if (decision === undefined) {
-      if (!promptsAvailable()) {
+      if (promptsUnavailable()) {
         throw usageError(
           'README.md already exists and prompts are unavailable; ' +
             'pass --overwrite-readme or --no-overwrite-readme.',
@@ -702,7 +697,7 @@ async function runInitSite(options: InitSiteCommandOptions): Promise<void> {
 
     // Newer build: prompt unless --upgrade was passed
     if (!options.upgrade) {
-      if (!promptsAvailable()) {
+      if (promptsUnavailable()) {
         throw usageError(
           `Ritual has been upgraded (${loaded.version} → ${ritualVersion}) and prompts are ` +
             'unavailable; pass --upgrade to regenerate tracked managed files.',
@@ -825,7 +820,7 @@ async function resolveDefaultCurrency(
   options: InitSiteCommandOptions,
 ): Promise<PriceCurrency | null> {
   if (options.currency !== undefined) return options.currency
-  if (!promptsAvailable()) {
+  if (promptsUnavailable()) {
     throw missingFlagError('--currency <currency>', 'A default price currency')
   }
   return promptDefaultCurrency()
@@ -871,7 +866,7 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
 
   let ciSystem = options.ci
   if (ciSystem === undefined) {
-    if (!promptsAvailable()) throw missingFlagError('--ci <system>', 'A CI system')
+    if (promptsUnavailable()) throw missingFlagError('--ci <system>', 'A CI system')
     const ciResponse = await prompts(
       {
         type: 'select',
@@ -915,7 +910,7 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
 
   let deployMode = options.deploy
   if (deployMode === undefined) {
-    if (!promptsAvailable()) throw missingFlagError('--deploy <mode>', 'A deploy mode')
+    if (promptsUnavailable()) throw missingFlagError('--deploy <mode>', 'A deploy mode')
     const modeResponse = await prompts(
       {
         type: 'select',
@@ -953,7 +948,7 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
 
     let distDir = options.distDir
     if (distDir === undefined) {
-      if (!promptsAvailable())
+      if (promptsUnavailable())
         throw missingFlagError('--dist-dir <dir>', 'The built-site directory')
       const dirResponse = await prompts(
         {
@@ -982,7 +977,7 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
 
   let detectChanges = options.changeDetection
   if (detectChanges === undefined) {
-    if (!promptsAvailable()) {
+    if (promptsUnavailable()) {
       throw missingFlagError(
         '--change-detection/--no-change-detection',
         'Automatic change detection',

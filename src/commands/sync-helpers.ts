@@ -13,7 +13,6 @@
 import { ArchidektAuth } from '../auth/ArchidektAuth'
 import { FileTokenStore } from '../auth/FileTokenStore'
 import { getLogger, STDERR_LOGGER, type Logger } from '../logger'
-import { isNoInput } from '../no-input'
 import {
   SYNC_CHANGE_FILTERS,
   SYNC_DIRECTIONS,
@@ -23,6 +22,7 @@ import {
 } from '../sync-common'
 import { ask } from './prompts-helpers'
 import {
+  canPromptWithOutput,
   addDryRunOption,
   emitError,
   ExitCode,
@@ -93,18 +93,6 @@ export function loggerFor(scripting: ScriptingOptions): Logger {
 }
 
 export type { UnreadableSource }
-
-/**
- * Whether a sync command can prompt at all: it owns stdout (text output rather
- * than a JSON/NDJSON report), prompts are enabled, and there is a terminal to
- * ask on. Shared by every question a sync asks — the unreadable-lines
- * confirmation and the ambiguous-removal session — so the two can never disagree
- * about whether a run is interactive. Callers add their own extra conditions
- * (a dry run resolves nothing, `--yes` answers up front).
- */
-export function canPromptDuringSync(scripting: ScriptingOptions): boolean {
-  return scripting.output === 'text' && !isNoInput() && process.stdin.isTTY === true
-}
 
 /** A resolved Archidekt session: the access token, plus the account it belongs to. */
 export type ArchidektSession = {
@@ -218,7 +206,7 @@ export async function confirmUnreadableSync(
   const { sources, subject, cost, yes, scripting, logger } = confirmation
   if (yes) return true
 
-  if (!canPromptDuringSync(scripting)) {
+  if (!canPromptWithOutput(scripting)) {
     logger.error(
       `Confirmation required: pass --yes to sync these ${subject.many} non-interactively (${cost}), or fix the lines first.`,
     )
