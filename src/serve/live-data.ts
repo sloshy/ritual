@@ -23,8 +23,7 @@ import { loadWantedSource, buildWantedArtifacts } from '../site/details/wanted'
 import type { SiteDetailContext } from '../site/details/types'
 import { extractPrimerCardNames } from '../primer-parser'
 import { extractChangelogCardNames } from '../changelog-parser'
-import { isNoEntryError } from '../ensure-card-ids'
-import { getErrorMessage } from '../errors'
+import { getErrorMessage, hasErrorCode } from '../errors'
 import { createCacheCardSource } from './card-source'
 import type {
   CollectionSummary,
@@ -304,7 +303,7 @@ export function createLiveSiteData(): LiveSiteData {
     } catch (e) {
       // A missing list directory is a normal empty category; anything else
       // (permissions, I/O) deserves a log line rather than a silent empty site.
-      if (!isNoEntryError(e)) {
+      if (!hasErrorCode(e, 'ENOENT')) {
         console.warn(`Failed to enumerate ${kind} sources: ${getErrorMessage(e)}`)
       }
       return []

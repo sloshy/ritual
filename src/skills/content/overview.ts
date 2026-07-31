@@ -24,7 +24,9 @@ workspace if it contains \`decks/\`, \`collections/\`, or \`wanted/\` folders, o
 - \`collections/<name>.md\` — collections of owned cards
 - \`wanted/<name>.md\` — cards you want to acquire
 - \`<name>.changes.md\` — append-only changelog next to each list (auto-maintained)
-- \`ritual.config.json\` — configuration
+- \`ritual.config.json\` — configuration (optional: reading config never creates
+  it, so a workspace only has one once \`config set\`/\`unset\`, \`init-site\`, the
+  admin Settings page, or the MCP \`update_config\` tool writes it)
 
 A list is addressed by its **name** = the file basename without \`.md\`
 (e.g. \`decks/Winota Stax.md\` → \`Winota Stax\`). Most commands resolve a name across
@@ -110,6 +112,10 @@ formats, leaving formatless decks untouched and reported).
 ## Global options (work on every command)
 
 - \`--base-dir <path>\` — operate on a workspace other than the current directory
+  (the \`RITUAL_BASE_DIR\` environment variable does the same; the flag wins). The
+  path must already be an existing directory — Ritual never creates it, and a
+  path that is missing, not a directory, or unreadable is a usage error
+  (exit 2), so a typo can never read as an empty workspace
 - \`--cache-server <host:port>\` — share a card/price cache with other instances
   (the \`RITUAL_CACHE_SERVER\` environment variable does the same; host one with
   \`ritual cache server\`)
@@ -142,6 +148,12 @@ ritual cache feed host            # host a P2P feed of the raw Scryfall bulk fil
 ritual cache feed fetch           # sync the cache from a feed, then seed to peers
 ritual config set cacheSource feed  # make all cache refreshes sync via the feed
 \`\`\`
+
+\`ritual.config.json\` is created only by a genuine write — \`config set\`/\`unset\`,
+\`init-site\`, the admin Settings page, or the MCP \`update_config\` tool — reading
+config never does. If the file exists but is not valid JSON, every command fails with exit 1
+and a message naming the path; the file is never rewritten, so fix (or delete)
+it rather than trying to overwrite it with \`config set\`.
 
 Cache refreshes take an exclusive lock (\`cache/.ritual-cache-lock\`); a refresh
 started while another process is refreshing waits up to the configurable

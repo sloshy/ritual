@@ -79,7 +79,13 @@ export async function handlePriceSummary(req: Request): Promise<Response> {
     if (unavailable) return unavailable
 
     const lastRefreshedAt = await cardCache.getLastRefreshedAt()
-    const { built, warnings } = await loadAndBuildPriceReport(type, undefined, currency)
+    // `refresh: 'never'` makes the lookup cache-only, honoring this module's
+    // "prices come strictly from the local cache" contract: a server handler
+    // must not fire (and wait on) a per-card Scryfall fetch for every name the
+    // cache happens not to hold.
+    const { built, warnings } = await loadAndBuildPriceReport(type, undefined, currency, {
+      refresh: 'never',
+    })
     const body: PriceSummaryResponse = {
       success: true,
       mode: 'summary',
@@ -116,7 +122,9 @@ export async function handlePriceList(req: Request): Promise<Response> {
 
     const lastRefreshedAt = await cardCache.getLastRefreshedAt()
     const location: ListLocation = { type: target.type, name: listSlug(filePath), filePath }
-    const { built, warnings } = await loadAndBuildPriceReport(target.type, [location], currency)
+    const { built, warnings } = await loadAndBuildPriceReport(target.type, [location], currency, {
+      refresh: 'never',
+    })
     const body: PriceListDetailResponse = {
       success: true,
       mode: 'list',

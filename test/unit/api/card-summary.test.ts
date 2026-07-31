@@ -152,6 +152,7 @@ describe('detailCard', () => {
         ],
       }),
       7,
+      true,
     )
 
     expect(details.layout).toBe('transform')
@@ -161,6 +162,7 @@ describe('detailCard', () => {
     expect(details.oracleTags).toEqual(['card-draw'])
     expect(details.artTags).toEqual(['human'])
     expect(details.printingCount).toBe(7)
+    expect(details.printingsComplete).toBe(true)
     expect(details.faces).toEqual([
       {
         name: 'Delver of Secrets',
@@ -178,6 +180,15 @@ describe('detailCard', () => {
   })
 
   test('a single-faced card reports no faces at all', () => {
-    expect(detailCard(makeScryfallCard({ name: 'Sol Ring' }), 1).faces).toBeUndefined()
+    expect(detailCard(makeScryfallCard({ name: 'Sol Ring' }), 1, true).faces).toBeUndefined()
+  })
+
+  test('an incomplete printing list marks the count as untrustworthy', () => {
+    // One printing from a single-card fallback lookup is not "this card has one
+    // printing" — the flag is what stops a client saying so.
+    const details = detailCard(makeScryfallCard({ name: 'Sol Ring' }), 1, false)
+
+    expect(details.printingCount).toBe(1)
+    expect(details.printingsComplete).toBe(false)
   })
 })

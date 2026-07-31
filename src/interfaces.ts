@@ -1,4 +1,5 @@
 import * as fs from 'node:fs/promises'
+import { hasErrorCode } from './errors'
 import type { PriceCurrency } from './price-currency'
 
 /** A wrapper for making fetch requests and being able to mock responses. */
@@ -67,7 +68,7 @@ export function createDefaultFileSystemClient(): FileSystemClient {
         await fs.writeFile(filePath, data, { flag: 'wx' })
         return 'created'
       } catch (e) {
-        if ((e as NodeJS.ErrnoException).code === 'EEXIST') return 'exists'
+        if (hasErrorCode(e, 'EEXIST')) return 'exists'
         throw e
       }
     },
@@ -76,7 +77,7 @@ export function createDefaultFileSystemClient(): FileSystemClient {
       try {
         await fs.unlink(filePath)
       } catch (e) {
-        if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
+        if (!hasErrorCode(e, 'ENOENT')) throw e
       }
     },
     access: (filePath) => fs.access(filePath),

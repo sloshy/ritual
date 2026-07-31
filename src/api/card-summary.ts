@@ -80,6 +80,12 @@ export interface CardDetails extends CardSummary {
   faces?: CardFaceSummary[]
   /** How many printings of this card the cache (or Scryfall) reported. */
   printingCount: number
+  /**
+   * Whether {@link printingCount} is the card's real printing total. False when
+   * the local card cache holds no bulk-downloaded entry for the name: the count
+   * is then whatever a single Scryfall lookup returned (always 1).
+   */
+  printingsComplete: boolean
 }
 
 /** Project a full Scryfall card to printing identity alone, dropping prices and image URLs. */
@@ -139,9 +145,15 @@ function summarizeFace(face: NonNullable<ScryfallCard['card_faces']>[number]): C
 /**
  * The full card report: {@link summarizeCard} plus colors, keywords, format
  * legalities, Scryfall Tagger tags, and the card's faces. `printingCount` is
- * how many printings the caller found — the projection never counts them itself.
+ * how many printings the caller found — the projection never counts them itself
+ * — and `printingsComplete` says whether that count can be trusted as the
+ * card's total.
  */
-export function detailCard(card: ScryfallCard, printingCount: number): CardDetails {
+export function detailCard(
+  card: ScryfallCard,
+  printingCount: number,
+  printingsComplete: boolean,
+): CardDetails {
   return {
     ...summarizeCard(card),
     layout: card.layout,
@@ -152,5 +164,6 @@ export function detailCard(card: ScryfallCard, printingCount: number): CardDetai
     artTags: card.artTags,
     faces: card.card_faces?.map(summarizeFace),
     printingCount,
+    printingsComplete,
   }
 }

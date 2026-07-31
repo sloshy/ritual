@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { execSync } from 'node:child_process'
 import { getBaseDir, setBaseDir } from '../../../src/base-dir'
 import { cardCache } from '../../../src/cache/instances'
-import { initRitualConfig, resetRitualConfigCache } from '../../../src/ritual-config'
+import { refreshRitualConfig, resetRitualConfigCache } from '../../../src/ritual-config'
 import { serializeDeckToMarkdown, type DeckFrontMatter } from '../../../src/deck-file'
 import { serializeSectionedList } from '../../../src/section-format'
 import { formatCollectionLine, formatWantedListLine } from '../../../src/card-line'
@@ -80,7 +80,7 @@ export async function withWorkspace(
 }
 
 export type BoundWorkspaceOptions = WorkspaceOptions & {
-  /** Also initRitualConfig() after switching, for code that reads the sync config getters. */
+  /** Also refreshRitualConfig() after switching, for code that reads the sync config getters. */
   init?: boolean
   /**
    * Clear the `cardCache` singleton on bind and again on dispose. `cardCache`
@@ -106,7 +106,7 @@ export async function bindWorkspace(options: BoundWorkspaceOptions = {}): Promis
   const dir = await createWorkspace(options)
   setBaseDir(dir)
   resetRitualConfigCache()
-  if (options.init) await initRitualConfig()
+  if (options.init) await refreshRitualConfig()
   if (options.clearCardCache) await cardCache.clear()
   return {
     dir,

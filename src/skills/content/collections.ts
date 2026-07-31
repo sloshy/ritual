@@ -178,7 +178,9 @@ ${wrapProse(
     'NM/LP/MP/HP/DMG round-trip as-is. A line with no explicit finish resolves ' +
     'against the card cache first, so an etched-only printing compares as ' +
     'etched; a printing the cache does not hold syncs as nonfoil with a warning ' +
-    'naming the line. Language, tags, and purchase price have no local ' +
+    'naming the line (that lookup is cache-only — a sync never fetches cards ' +
+    'one at a time, so preload the cache first if finishes matter). Language, ' +
+    'tags, and purchase price have no local ' +
     'representation: records Ritual creates are English, untagged, and ' +
     'priceless, while existing values survive a quantity change. The game is ' +
     'fixed to Paper (no MTGO/Arena), and sections and notes are local-only — a ' +

@@ -673,8 +673,12 @@ export const GET_CARD_DETAILS_OUTPUT: JsonSchemaType = withDefs(
       artTags: arr(str()),
       faces: arr(ref('CardFaceSummary')),
       printingCount: int(),
+      printingsComplete: bool(
+        'False when the card cache holds no printing list for this name: printingCount is then ' +
+          'just what one Scryfall lookup returned.',
+      ),
     },
-    [...PRINTING_IDENTITY_REQUIRED, 'prices', 'printingCount'],
+    [...PRINTING_IDENTITY_REQUIRED, 'prices', 'printingCount', 'printingsComplete'],
   ),
   'CardFaceSummary',
 )
@@ -688,8 +692,12 @@ export const GET_CARD_PRINTINGS_OUTPUT: JsonSchemaType = withDefs(
         'Newest first. `prices` is present only when includePrices was set.',
       ),
       totalPrintings: int('Printings found before limit truncated the list.'),
+      complete: bool(
+        'False when the card cache holds no printing list for this name: the printings shown are ' +
+          'whatever one Scryfall lookup returned, not the card’s full set.',
+      ),
     },
-    ['name', 'printings'],
+    ['name', 'printings', 'complete'],
   ),
   'PrintingListing',
 )
@@ -769,7 +777,12 @@ export const GET_HISTORY_OUTPUT: JsonSchemaType = withDefs(
 )
 
 export const CONFIG_OUTPUT: JsonSchemaType = obj(
-  { config: openObject('The whole ritual.config.json object as it now stands on disk.') },
+  {
+    config: openObject(
+      'The effective Ritual configuration: ritual.config.json merged over the ' +
+        'built-in defaults (the file is optional and may not exist yet).',
+    ),
+  },
   ['config'],
 )
 

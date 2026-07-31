@@ -199,6 +199,7 @@ export function registerCollectionSyncCommand(program: Command): void {
           "Write a push's new cards to this CSV file for a manual upload instead of pushing them",
           parseCsvFile,
         ),
+      "Card cache refresh policy when a push's new cards take the CSV path: ask (prompt; without a terminal, fails the run like never), auto, no-bulk, never",
     ),
   ).action(
     async (direction: SyncDirection, lists: string[], options: CollectionSyncCommandOptions) => {

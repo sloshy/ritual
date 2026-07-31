@@ -316,7 +316,9 @@ export function registerPriceCommand(program: Command): void {
         reportCurrency: PriceCurrency,
         locations?: ListLocation[],
       ): Promise<LoadedPriceReport> => {
-        const result = await loadAndBuildPriceReport(type, locations, reportCurrency)
+        const result = await loadAndBuildPriceReport(type, locations, reportCurrency, {
+          refresh: refreshMode,
+        })
         if (scriptingOptions.output === 'text' && !scriptingOptions.quiet) {
           for (const warning of result.warnings) console.warn(`⚠️  ${warning}`)
         }

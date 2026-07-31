@@ -5,13 +5,8 @@ import { allocateId, createIdPool, parseCardIdsFromContent } from './card-id'
 import { DECK_CARD_LINE_RE, isDeckFile } from './importers/text-file'
 import { COLLECTION_CARD_LINE_RE } from './collection-file'
 import { WANTED_CARD_LINE_RE } from './commands/wanted-helpers'
-import { getErrorMessage } from './errors'
+import { getErrorMessage, hasErrorCode } from './errors'
 import { getCollectionsDir, getDecksDir, getWantedDir } from './ritual-config'
-
-/** Whether a caught filesystem error is a plain "no such file or directory". */
-export function isNoEntryError(err: unknown): boolean {
-  return typeof err === 'object' && err !== null && 'code' in err && err.code === 'ENOENT'
-}
 
 export type EnsureIdsResult = { content: string; added: number }
 
@@ -95,7 +90,7 @@ async function ensureIdsInDir(
   } catch (err) {
     // A missing directory is normal — the user may not have set up decks/collections/wanted.
     // Other errors (permission denied, I/O) are real and worth surfacing so files don't go un-IDed.
-    if (isNoEntryError(err)) return
+    if (hasErrorCode(err, 'ENOENT')) return
     console.warn(`ensure-card-ids: failed to read ${dir}: ${getErrorMessage(err)}`)
     return
   }

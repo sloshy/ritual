@@ -38,7 +38,8 @@ import { parsePositiveInteger } from '../parse-number'
 import { requireInteractive } from '../no-input'
 import { isResolveListError, parseListArgument, resolveList } from '../resolve-list'
 import { matchByNormalizedName } from '../term-match'
-import { getCardPrintings } from '../scryfall'
+import { getCardPrintingsResult } from '../scryfall'
+import { printingsAreComplete } from '../card-printing'
 import { isFinish, normalizeFinishValue, VALID_FINISHES } from '../finish-condition'
 import { parseSetCode } from '../set-codes'
 import type { Finish } from '../types'
@@ -691,17 +692,22 @@ async function resolvePrintingForCollection(
     )
   }
 
-  const printings = await getCardPrintings(cardName)
+  // Cache-only: only the cache's own printing list is exhaustive. A cache miss
+  // would fall back to a single `/cards/named` fetch, whose one result says
+  // nothing about how many printings exist — auto-accepting it would silently
+  // record an arbitrary printing, so it is not worth fetching in the first place.
+  const result = await getCardPrintingsResult(cardName, { network: false })
+  const printings = result.printings
+  if (!printingsAreComplete(result)) {
+    throw new CardCommandError(
+      'usage_error',
+      `No printings of '${cardName}' are known from the card cache, so its printing can't be determined. Pass --set and --collector-number to assign one for the collection destination, or run 'ritual cache preload-all'.`,
+      ExitCode.UsageError,
+    )
+  }
   if (printings.length === 1) {
     const p = printings[0]!
     return { set: p.set.toLowerCase(), collectorNumber: p.collector_number }
-  }
-  if (printings.length === 0) {
-    throw new CardCommandError(
-      'usage_error',
-      `No printings of '${cardName}' found in the card cache. Pass --set and --collector-number to assign one for the collection destination.`,
-      ExitCode.UsageError,
-    )
   }
   const lines = printings
     .slice(0, 10)

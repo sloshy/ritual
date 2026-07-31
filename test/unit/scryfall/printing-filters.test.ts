@@ -131,3 +131,80 @@ describe('cache printing exclusions', () => {
     expect((await cache.get('Ghalta, Primal Hunger'))?.map((c) => c.id)).toEqual(['real-1'])
   })
 })
+
+/**
+ * The provenance of a printings list is what tells "this card has exactly one
+ * printing" apart from "one fallback fetch answered". Callers that assign or
+ * validate printings branch on it, so each source is pinned here.
+ */
+describe('getCardPrintingsResult provenance', () => {
+  const NAMED_URL = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent('Ghalta, Primal Hunger')}`
+  let http: MockHttpClient
+  let cache: InMemoryCacheManager<ScryfallCard[]>
+  let client: ScryfallClient
+
+  beforeEach(() => {
+    setLogger(new MemoryLogger())
+    http = new MockHttpClient()
+    cache = new InMemoryCacheManager<ScryfallCard[]>(0)
+    client = new ScryfallClient(http, cache, new MemoryFileSystemClient())
+  })
+
+  afterEach(() => {
+    resetLogger()
+  })
+
+  test("a bulk-backed cache entry is the card's complete printing list", async () => {
+    await cache.set('Ghalta, Primal Hunger', [REAL_PRINTING])
+    await cache.markRefreshed()
+
+    const result = await client.getCardPrintingsResult('Ghalta, Primal Hunger')
+
+    expect(result.source).toBe('complete')
+    expect(result.printings.map((c) => c.id)).toEqual(['real-1'])
+  })
+
+  test('a cache miss answered by the single-card fetch is only partial', async () => {
+    http.mock(NAMED_URL, () => Response.json(REAL_PRINTING))
+
+    const result = await client.getCardPrintingsResult('Ghalta, Primal Hunger')
+
+    expect(result.source).toBe('partial')
+    expect(result.printings.map((c) => c.id)).toEqual(['real-1'])
+  })
+
+  test('a fallback fetch does not leave behind a list the next lookup calls complete', async () => {
+    // `fetchCardData` writes its single result into the cache, so without the
+    // bulk-download check the very next command would read that one printing as
+    // the card's whole printing list — the bug this provenance exists to stop,
+    // one command later.
+    http.mock(NAMED_URL, () => Response.json(REAL_PRINTING))
+    await client.getCardPrintingsResult('Ghalta, Primal Hunger')
+
+    const second = await client.getCardPrintingsResult('Ghalta, Primal Hunger', { network: false })
+
+    expect(second.source).toBe('partial')
+  })
+
+  test('an entry in a never-bulk-downloaded cache is partial: it was one such fetch', async () => {
+    await cache.set('Ghalta, Primal Hunger', [REAL_PRINTING])
+
+    const result = await client.getCardPrintingsResult('Ghalta, Primal Hunger')
+
+    expect(result.source).toBe('partial')
+    expect(result.printings.map((c) => c.id)).toEqual(['real-1'])
+  })
+
+  test('network: false never fetches — a cache miss resolves to no printings', async () => {
+    let fetches = 0
+    http.mockDefault(() => {
+      fetches++
+      return Response.json(REAL_PRINTING)
+    })
+
+    const result = await client.getCardPrintingsResult('Ghalta, Primal Hunger', { network: false })
+
+    expect(result).toEqual({ printings: [], source: 'none' })
+    expect(fetches).toBe(0)
+  })
+})

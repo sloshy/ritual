@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test'
-import { findPrinting, hasSpecificPrinting } from '../../src/card-printing'
+import { findPrinting, hasSpecificPrinting, printingsAreComplete } from '../../src/card-printing'
 import type { ScryfallCard } from '../../src/types'
 import { makeScryfallCard } from '../test-utils'
 
@@ -71,5 +71,16 @@ describe('hasSpecificPrinting', () => {
     } else {
       throw new Error('expected hasSpecificPrinting to be true')
     }
+  })
+})
+
+describe('printingsAreComplete', () => {
+  test('only a bulk-backed cache list may be read as the card\u2019s whole printing set', () => {
+    const printings = [printing('lea', '161')]
+
+    expect(printingsAreComplete({ printings, source: 'complete' })).toBe(true)
+    // One printing from a fallback fetch is not "this card has one printing".
+    expect(printingsAreComplete({ printings, source: 'partial' })).toBe(false)
+    expect(printingsAreComplete({ printings: [], source: 'none' })).toBe(false)
   })
 })

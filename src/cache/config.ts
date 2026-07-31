@@ -1,3 +1,5 @@
+import { resolveStringOverride } from '../env-override'
+
 const CACHE_SERVER_PROTOCOL_RE = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//
 
 let cacheServerOverride: string | undefined
@@ -13,9 +15,7 @@ export function resolveCacheServerAddress(
   cliValue: string | undefined,
   envValue: string | undefined = process.env.RITUAL_CACHE_SERVER,
 ): string | undefined {
-  const cli = normalizeCacheServerAddress(cliValue)
-  if (cli) return cli
-  return normalizeCacheServerAddress(envValue)
+  return resolveStringOverride(cliValue, envValue)
 }
 
 export function toCacheServerBaseUrl(address: string): string {

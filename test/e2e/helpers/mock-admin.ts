@@ -778,6 +778,7 @@ export async function mockMoveCardsApi(
   await fulfillJson(page, '**/api/card-printings*', {
     success: true,
     printings: [MOVE_BOLT_CARD],
+    complete: true,
   })
 }
 

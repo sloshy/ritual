@@ -78,7 +78,9 @@ export function registerCacheCommand(program: Command): void {
         const query = `set:${normalizedSetCode}`
         // The one caller that wants every result page: a set is preloaded whole,
         // while every other search stops at the bounded default of one page.
-        const cards = await searchCards(query, { maxPages: ALL_PAGES })
+        // `offerPreload: false`: this command's whole point is caching one set,
+        // so it must not open with an offer to bulk-download every card.
+        const cards = await searchCards(query, { maxPages: ALL_PAGES, offerPreload: false })
         console.log(
           `Successfully cached ${cards.length} cards for set '${normalizedSetCode.toUpperCase()}'`,
         )

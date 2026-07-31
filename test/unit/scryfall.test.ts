@@ -96,7 +96,7 @@ describe('ScryfallClient', () => {
         return new Response(JSON.stringify({ data: mockData }))
       })
 
-      const result = await client.fetchSymbology(true)
+      const result = await client.fetchSymbology({ force: true })
 
       expect(result).toEqual(mockData)
       expect(writeFileMock).toHaveBeenCalled()
@@ -133,6 +133,23 @@ describe('ScryfallClient', () => {
       expect(mkdirMock).toHaveBeenCalled()
       expect(writeFileMock).toHaveBeenCalled()
     })
+
+    test('network: false returns no symbols instead of downloading them', async () => {
+      readFileMock.mockImplementationOnce(async () => {
+        throw new Error('ENOENT: no such file or directory')
+      })
+      let fetches = 0
+      mockHttp.mock('https://api.scryfall.com/symbology', () => {
+        fetches++
+        return new Response(JSON.stringify({ data: [] }))
+      })
+
+      const result = await client.fetchSymbology({ network: false })
+
+      expect(result).toEqual([])
+      expect(fetches).toBe(0)
+      expect(writeFileMock).not.toHaveBeenCalled()
+    })
   })
 
   describe('fetchCardData', () => {
@@ -158,6 +175,59 @@ describe('ScryfallClient', () => {
       expect(cached).toBeArray()
       expect(cached).toHaveLength(1)
       expect(cached?.[0]?.name).toBe('Test Card')
+    })
+  })
+
+  describe('fetchPrintingByCollectorNumber', () => {
+    const PRINTING_URL = 'https://api.scryfall.com/cards/sta/90'
+
+    test('lowercases the set code and caches the printing it verifies', async () => {
+      const card = makeScryfallCard({ id: 'sta-90', name: 'Demonic Tutor', set: 'sta' })
+      mockHttp.mock(PRINTING_URL, () => Response.json(card))
+
+      const result = await client.fetchPrintingByCollectorNumber('STA', '90')
+
+      expect(result?.id).toBe('sta-90')
+      expect((await mockCache.get('Demonic Tutor'))?.map((c) => c.id)).toEqual(['sta-90'])
+    })
+
+    test('merges into an existing printing list instead of replacing it', async () => {
+      const cached = makeScryfallCard({ id: 'cmm-150', name: 'Demonic Tutor', set: 'cmm' })
+      await mockCache.set('Demonic Tutor', [cached])
+      const card = makeScryfallCard({ id: 'sta-90', name: 'Demonic Tutor', set: 'sta' })
+      mockHttp.mock(PRINTING_URL, () => Response.json(card))
+
+      await client.fetchPrintingByCollectorNumber('sta', '90')
+
+      // Overwriting here would shrink a full printing list down to one printing.
+      expect((await mockCache.get('Demonic Tutor'))?.map((c) => c.id)).toEqual([
+        'cmm-150',
+        'sta-90',
+      ])
+    })
+
+    test('a 404 means no such printing — the caller has to tell that from a failure', async () => {
+      mockHttp.mock(PRINTING_URL, () => new Response('', { status: 404 }))
+
+      expect(await client.fetchPrintingByCollectorNumber('sta', '90')).toBeNull()
+    })
+
+    test('a non-404 failure throws rather than reading as "no such printing"', async () => {
+      mockHttp.mock(PRINTING_URL, () => new Response('', { status: 503 }))
+
+      expect(client.fetchPrintingByCollectorNumber('sta', '90')).rejects.toThrow()
+    })
+
+    test('an excluded printing (art series) is refused', async () => {
+      const art = makeScryfallCard({
+        id: 'art-1',
+        name: 'Demonic Tutor',
+        set: 'asta',
+        layout: 'art_series',
+      })
+      mockHttp.mock(PRINTING_URL, () => Response.json(art))
+
+      expect(await client.fetchPrintingByCollectorNumber('sta', '90')).toBeNull()
     })
   })
 

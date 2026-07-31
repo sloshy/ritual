@@ -49,13 +49,13 @@ import {
   setCacheServerAddressOverride,
   toCacheServerBaseUrl,
 } from './src/cache/config'
-import { setBaseDir } from './src/base-dir'
+import { isBaseDirError, parseBaseDir, resolveBaseDir, setBaseDir } from './src/base-dir'
 import { resolveNoInput, setNoInputOverride } from './src/no-input'
 import { ensureCardIdsForAllLists } from './src/ensure-card-ids'
 import { shouldBackfillCardIds } from './src/commands/id-backfill'
-import { initRitualConfig } from './src/ritual-config'
+import { refreshRitualConfig } from './src/ritual-config'
 import { ExitCode } from './src/commands/scripting'
-import { getErrorMessage } from './src/errors'
+import { CardCommandError, getErrorMessage } from './src/errors'
 
 const program = new Command()
 // Subcommands created after this inherit the override, so commander throws
@@ -90,8 +90,16 @@ program.hook('preAction', async (_program, actionCommand) => {
   }
 
   const options = actionCommand.optsWithGlobals<GlobalOptions>()
-  if (options.baseDir) {
-    setBaseDir(options.baseDir)
+  // A base dir that isn't an existing directory is a usage error, not an empty
+  // workspace: reading a typo would report "(no lists)" and writing one would
+  // fork the user's data into a stray tree.
+  const requestedBaseDir = resolveBaseDir(options.baseDir, process.env.RITUAL_BASE_DIR)
+  if (requestedBaseDir !== undefined) {
+    const parsed = await parseBaseDir(requestedBaseDir)
+    if (isBaseDirError(parsed)) {
+      throw new CardCommandError('usage_error', parsed.error, ExitCode.UsageError)
+    }
+    setBaseDir(parsed)
   }
   const resolved = resolveCacheServerAddress(options.cacheServer, process.env.RITUAL_CACHE_SERVER)
   if (resolved) {
@@ -105,7 +113,7 @@ program.hook('preAction', async (_program, actionCommand) => {
     resolveNoInput(options.input === false ? true : undefined, process.env.RITUAL_NO_INPUT),
   )
 
-  await initRitualConfig()
+  await refreshRitualConfig()
 
   if (shouldBackfillCardIds(actionCommand)) {
     await ensureCardIdsForAllLists()
@@ -176,6 +184,12 @@ async function main(): Promise<void> {
     if (error instanceof CommanderError) {
       // Commander already printed its message (usage error, help, or version).
       process.exitCode = error.exitCode === 0 ? 0 : ExitCode.UsageError
+    } else if (error instanceof CardCommandError) {
+      // A structured failure that escaped its command (or came from the
+      // preAction hook) carries its own exit code — 2 for usage errors — which
+      // the generic branch below would flatten to 1.
+      process.stderr.write(`${error.message}\n`)
+      process.exitCode = error.exitCode
     } else {
       process.stderr.write(`${getErrorMessage(error)}\n`)
       if (!process.exitCode) process.exitCode = ExitCode.RuntimeError

@@ -4,7 +4,7 @@ import path from 'node:path'
 import { tmpdir } from 'node:os'
 import { getBaseDir, setBaseDir } from '../../src/base-dir'
 import { cardCache } from '../../src/cache'
-import { initRitualConfig, resetRitualConfigCache } from '../../src/ritual-config'
+import { refreshRitualConfig, resetRitualConfigCache } from '../../src/ritual-config'
 import { runBuildSite } from '../../src/commands/build-site'
 import { createSyntheticWorkspace } from '../e2e/helpers/synthetic-workspace'
 import type { SiteIndex } from '../../src/site/data-types'
@@ -29,14 +29,14 @@ describe('build-site index baking (Integration)', () => {
     await fs.writeFile(configPath, JSON.stringify(config, null, 2))
     setBaseDir(dir)
     resetRitualConfigCache()
-    await initRitualConfig()
+    await refreshRitualConfig()
     cardCache.invalidate()
   })
 
   afterAll(async () => {
     setBaseDir(originalBase)
     resetRitualConfigCache()
-    await initRitualConfig()
+    await refreshRitualConfig()
     cardCache.invalidate()
     await fs.rm(dir, { recursive: true, force: true })
   })

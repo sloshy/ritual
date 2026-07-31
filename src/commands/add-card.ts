@@ -3,7 +3,13 @@ import prompts from 'prompts'
 import type { PromptState } from './prompts-types'
 import path from 'node:path'
 import * as fs from 'node:fs/promises'
-import { getAllCardNames, getCardPrintings, isDigitalOnlySet } from '../scryfall'
+import {
+  getAllCardNames,
+  getCardPrintings,
+  getCardPrintingsResult,
+  isDigitalOnlySet,
+} from '../scryfall'
+import { printingsAreComplete } from '../card-printing'
 import { addCardToDeckFile } from '../deck-file'
 import {
   resolveCardPrinting,
@@ -647,7 +653,13 @@ async function resolveInteractivePrinting(
   makeFailure: () => CardCommandError,
 ): Promise<ScryfallCard> {
   if (promptsUnavailable()) {
-    const printings = (await getCardPrintings(cardName)).filter((p) => !isDigitalOnlySet(p.set))
+    // Cache-only, and only when the cache holds the card's whole printing list:
+    // a cache-miss `/cards/named` fallback always returns exactly one printing,
+    // and accepting it would pin an arbitrary printing rather than the card's
+    // only one. Without that list there is nothing to auto-accept.
+    const result = await getCardPrintingsResult(cardName, { network: false })
+    if (!printingsAreComplete(result)) throw makeFailure()
+    const printings = result.printings.filter((p) => !isDigitalOnlySet(p.set))
     if (printings.length === 1) return printings[0]!
     throw makeFailure()
   }

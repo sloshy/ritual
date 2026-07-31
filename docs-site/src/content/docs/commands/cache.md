@@ -55,6 +55,8 @@ Preload all cards from a specific set into the cache.
 | ----------- | ---------------------------------------- | -------- |
 | `<setCode>` | Set code to preload (e.g., `khm`, `lea`) | Yes      |
 
+Caches exactly that set and nothing else: unlike the interactive card lookups, it never offers to bulk-download every English card first — picking this command is already a statement about how much you want cached. Use [`preload-all`](#preload-all) when you do want the whole database.
+
 ### preload-all
 
 Download and cache the full Scryfall bulk card data. This also downloads the

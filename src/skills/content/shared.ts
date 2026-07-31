@@ -62,6 +62,16 @@ export const NO_INPUT_GUARANTEE = wrapProse(
 )
 
 /**
+ * The `--dry-run` side-effect guarantee for imports. One constant so every
+ * list-type skill makes the same promise — it holds for all three types.
+ */
+export const IMPORT_DRY_RUN_GUARANTEE = wrapProse(
+  `\`--dry-run\` resolves and validates everything but leaves the workspace ` +
+    `byte-for-byte untouched — it does not even create the \`decks/\`, ` +
+    `\`collections/\`, or \`wanted/\` directory it would have written into.`,
+)
+
+/**
  * The `--refresh <mode>` explanation scoped to an interactive edit session
  * (the variant the decks/collections/wanted skills print next to their
  * `ritual edit` examples).
@@ -83,10 +93,14 @@ export const REFRESH_COMMANDS = wrapProse(
   `Commands that read the Scryfall card cache (\`add-card\`, \`edit\`, \`price\`, ` +
     `\`build-site\`, \`serve --build\`, \`admin\`) share a \`--refresh <mode>\` option ` +
     `controlling cache freshness: \`ask\` (the default — prompt about stale or ` +
-    `empty caches; the prompt is skipped when prompts are unavailable), \`auto\` ` +
+    `empty caches, skipping the prompt when prompts are unavailable; ` +
+    `\`build-site\` is the exception, bulk-downloading an empty or week-old cache ` +
+    `without asking, since it cannot build a site without card data), \`auto\` ` +
     `(refresh stale data without asking, bulk download allowed), \`no-bulk\` ` +
     `(refresh stale prices per-card, never a bulk download), and \`never\` (use ` +
-    `the cache as-is).`,
+    `the cache as-is, making no request of any kind — under \`never\`, \`price\` ` +
+    `reports uncached cards as unpriced instead of fetching them, and a ` +
+    `\`build-site\` run with no cached symbology renders without mana symbols).`,
 )
 
 /** The real per-type differences in the interactive edit-session description. */
@@ -262,7 +276,7 @@ export function textImportSection(options: TextImportSectionOptions): string {
       `the JSON \`warnings\` array, and exits 1 — the import is still written.` +
       (options.extra === undefined ? '' : ` ${options.extra}`),
   )
-  return `${intro}\n\n\`\`\`bash\n${options.examples}\n\`\`\`\n\n${closing}`
+  return `${intro}\n\n\`\`\`bash\n${options.examples}\n\`\`\`\n\n${closing}\n\n${IMPORT_DRY_RUN_GUARANTEE}`
 }
 
 /** Options for {@link csvImportSection}. */

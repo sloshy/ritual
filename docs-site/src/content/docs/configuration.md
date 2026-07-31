@@ -2,7 +2,7 @@
 title: 'Configuration'
 ---
 
-Ritual reads its configuration from `ritual.config.json` in the base directory (the current working directory by default, or the path passed to `--base-dir`). The file is created automatically with sane defaults the first time you run any Ritual command, so you only need to edit it when you want to change something.
+Ritual reads its configuration from `ritual.config.json` in the base directory (the current working directory by default, or the path passed to `--base-dir`). The file is **optional** — every setting has a built-in default, so a workspace with no config file works exactly like one holding the defaults.
 
 ## Location
 
@@ -11,7 +11,37 @@ Ritual reads its configuration from `ritual.config.json` in the base directory (
 
 When you pass `--base-dir`, Ritual loads the config from that directory and resolves all directory paths in the file relative to it.
 
-## Default file
+## When the file is created
+
+Reading the config never creates it. The file appears only when something actually **writes** a setting:
+
+- [`ritual config set`](/commands/config/) (or `config unset`)
+- [`ritual init-site`](/commands/init-site/), which records the `site` key
+- the admin server's **Settings** page or the MCP `update_config` tool (both `PUT /api/config`), and other admin writes such as the **Manage Lists** visibility toggles
+- [`ritual export --save-preset`](/commands/export/#presets)
+
+So a plain `ritual lists` in a fresh directory leaves that directory untouched. A workspace is defined by its `decks/`, `collections/`, and `wanted/` folders — not by the presence of a config file. (Older builds seeded a defaults file on every invocation, which made any directory you happened to run a command in look like a workspace.)
+
+The first write materializes the full defaulted document, not just the key you set — see [`config list`](/commands/config/#config-list) on why `(default)` markers say nothing about which keys are on disk.
+
+## Malformed files are a hard error
+
+If `ritual.config.json` exists but is not valid JSON — or parses to something other than a JSON object — the command **fails** rather than falling back to defaults, and the file is never rewritten:
+
+```
+$ ritual lists
+ritual.config.json is not valid JSON: /home/you/mtg/ritual.config.json
+  JSON Parse error: Property name must be a string literal
+Fix the file (or delete it to fall back to defaults) and try again.
+```
+
+The exit code is `1`. Failing loudly is the point: silently treating a broken file as "no config" would run the command against defaults and let the next write replace settings you still have on disk. Fix the syntax, or delete the file to start again from defaults.
+
+Note that this applies to the _document_: an individual field with a bad value is a softer failure — see [Validation](#validation) below.
+
+## Default settings
+
+These are the values Ritual uses when there is no config file, and what a first write puts on disk:
 
 ```json
 {
@@ -194,7 +224,7 @@ The corresponding `build-site` flags (`--decks`, `--collections`, `--wanted-list
 
 ## Editing the file
 
-You can edit the directory keys and the nested `admin` settings in `ritual.config.json` by hand, or — when running the admin server — use the **Settings** page in the web UI. Saving via the UI also refreshes the in-memory config so any later admin or CLI command picks up the change immediately.
+You can edit the directory keys and the nested `admin` settings in `ritual.config.json` by hand, or — when running the admin server — use the **Settings** page in the web UI. If the file does not exist yet, create it by hand (a `{}` document is valid and means "all defaults") or let `config set` write the first one for you. Saving via the UI also refreshes the in-memory config so any later admin or CLI command picks up the change immediately.
 
 The deployment portion of the `site` key is owned by `ritual init-site`; let that command manage it. The publish lists (`site.includeDecks`, `site.includeCollections`, `site.includeWantedLists` and their `site.exclude*` counterparts) are the exception — they are user settings you can edit from the admin **Settings** page, the **Manage Lists** visibility toggles, or with `config set`.
 
@@ -202,4 +232,4 @@ If a field is missing from the file, Ritual falls back to the default for that f
 
 ### Validation
 
-Invalid values are rejected at the point of entry: [`config set`](/commands/config/) refuses them with an error, and saving from the admin **Settings** page (`PUT /api/config`) rejects the whole update — including unknown top-level keys and wrong-typed fields — before anything is persisted. Values edited into the file by hand are instead validated when the config is loaded: a malformed field (or an invalid `admin` or `site` object) is ignored with a warning and its default applies for that run. Fix the file to clear the warning.
+Invalid values are rejected at the point of entry: [`config set`](/commands/config/) refuses them with an error, and saving from the admin **Settings** page (`PUT /api/config`) rejects the whole update — including unknown top-level keys and wrong-typed fields — before anything is persisted. Values edited into the file by hand are instead validated when the config is loaded: a malformed field (or an invalid `admin` or `site` object) is ignored with a warning and its default applies for that run. Fix the file to clear the warning. A file whose **JSON itself** is broken is not recoverable this way and fails the command outright — see [Malformed files are a hard error](#malformed-files-are-a-hard-error).

@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getBaseDir } from '../base-dir'
+import { hasErrorCode } from '../errors'
 import { sanitizeListFileName } from '../list-file-name'
 import type { ListLocation } from '../resolve-list'
 import { EXPORT_FORMAT_EXTENSIONS, type ExportFormat } from './presets'
@@ -90,11 +91,6 @@ export async function listExistingExports(): Promise<Set<string>> {
  */
 const MAX_NAME_ATTEMPTS = 100
 
-/** Narrow a rejected `fs` operation's reason to the errno shape carrying `code`. */
-function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
-  return typeof error === 'object' && error !== null && 'code' in error
-}
-
 /**
  * Write a rendered export under `<baseDir>/exports/`, creating the directory and
  * choosing the name itself via {@link buildExportFileName}. The content is
@@ -132,7 +128,7 @@ export async function writeExportFile(
         bytes: Buffer.byteLength(payload),
       }
     } catch (error) {
-      if (!isErrnoException(error) || error.code !== 'EEXIST') throw error
+      if (!hasErrorCode(error, 'EEXIST')) throw error
       taken.add(name)
     }
   }

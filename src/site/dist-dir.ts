@@ -94,7 +94,7 @@ export function currentRitualArgvEnv(): RitualArgvEnv {
  * with, which is exactly what {@link isRunningFromSource} reads when it says this
  * is a checkout. Resolving `index.ts` against the *data* directory instead
  * assumed the Ritual directory and the checkout are the same place, which they
- * are not whenever `RITUAL_DIR` (or the config's base dir) points elsewhere.
+ * are not whenever `--base-dir` (or `RITUAL_BASE_DIR`) points elsewhere.
  */
 export function ritualArgv(args: string[], env: RitualArgvEnv = currentRitualArgvEnv()): string[] {
   return env.fromSource ? [env.execPath, 'run', env.main, ...args] : [env.execPath, ...args]

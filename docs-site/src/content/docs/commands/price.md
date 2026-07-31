@@ -58,6 +58,8 @@ Selecting a list opens a card browser over that list; **🔎 Search all cards** 
 
 Prices come from the local Scryfall card cache; the shared `--refresh <mode>` option decides how its freshness is handled. On launch, `price` reports when the cache was last refreshed. If prices are more than a day old, `ask` (the default) prompts to update them (default no), `auto` updates them without prompting, and `no-bulk` / `never` leave them alone. When the cache is empty, `ask` offers to download the card database (default yes) and `auto` downloads it outright; declining — or an empty cache under `no-bulk` / `never` — exits with an error, since nothing can be priced.
 
+Under `never` the report is built from the cache **only**: a card the cache does not hold is reported as unpriced rather than fetched one card at a time. (`ask`, `auto`, and `no-bulk` still fill such gaps with a per-card lookup.) That is what makes `--refresh never` usable offline — otherwise every uncached name waits out the full Scryfall request timeout in turn.
+
 Prompts never fire when they can't be answered: under `--no-input` / `RITUAL_NO_INPUT` or a non-TTY stdin the `ask` prompts are declined, and in structured-output (`--output json`/`ndjson`) runs `ask` downgrades to `never` so the output stays parseable.
 
 ## How Cards Are Priced

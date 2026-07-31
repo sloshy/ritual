@@ -17,6 +17,8 @@ export {
   ALL_PAGES,
   DEFAULT_SEARCH_MAX_PAGES,
   type SearchCardsOptions,
+  type FetchSymbologyOptions,
+  type GetCardPrintingsOptions,
   type FetchCardOutcome,
   type ScryfallSymbol,
   type CurrencyPrint,
@@ -32,10 +34,13 @@ import type { ScryfallCard } from '../types'
 import { cardCache } from '../cache/instances'
 import { defaultHttpClient } from '../http'
 import { ScryfallClient, type BulkCacheFiles } from './client'
+import type { CardPrintingsResult } from '../card-printing'
 import type {
   ScryfallSymbol,
   RepresentativePrintsResult,
   FetchCardDataOptions,
+  FetchSymbologyOptions,
+  GetCardPrintingsOptions,
   FetchNamedCardOptions,
   FetchCardResult,
   SearchCardsOptions,
@@ -58,8 +63,8 @@ export type MinMaxPrice = { min: number; max: number }
 export const scryfallClient = new ScryfallClient(defaultHttpClient, cardCache)
 
 // Helper wrappers for backward compatibility
-export function fetchSymbology(forceRefresh = false): Promise<ScryfallSymbol[]> {
-  return scryfallClient.fetchSymbology(forceRefresh)
+export function fetchSymbology(options?: FetchSymbologyOptions): Promise<ScryfallSymbol[]> {
+  return scryfallClient.fetchSymbology(options)
 }
 
 export function downloadSymbol(symbol: ScryfallSymbol, destDir: string): Promise<string> {
@@ -119,9 +124,42 @@ export function downloadTagIndex(): Promise<TagIndex | null> {
   return scryfallClient.downloadTagIndex()
 }
 
-export async function getCardPrintings(name: string): Promise<ScryfallCard[]> {
-  const cards = await scryfallClient.getCardPrintings(name)
+export async function getCardPrintings(
+  name: string,
+  options?: GetCardPrintingsOptions,
+): Promise<ScryfallCard[]> {
+  const cards = await scryfallClient.getCardPrintings(name, options)
   return cards.sort(comparePrintings)
+}
+
+/**
+ * {@link getCardPrintings} with {@link PrintingsSource} provenance, so a caller
+ * can tell the cache's complete printing list apart from the single arbitrary
+ * printing a cache-miss `/cards/named` fallback returns.
+ */
+export async function getCardPrintingsResult(
+  name: string,
+  options?: GetCardPrintingsOptions,
+): Promise<CardPrintingsResult> {
+  const result = await scryfallClient.getCardPrintingsResult(name, options)
+  return { ...result, printings: result.printings.sort(comparePrintings) }
+}
+
+/**
+ * A cache-only printings lookup: a name the cache does not hold resolves to no
+ * printings instead of a live Scryfall fetch. The shape commands pass wherever
+ * a run promised not to touch the network (`--refresh never`, sync resolution).
+ */
+export function getCachedCardPrintings(name: string): Promise<ScryfallCard[]> {
+  return getCardPrintings(name, { network: false })
+}
+
+/** Fetch one printing by set code and collector number, caching it. */
+export function fetchPrintingByCollectorNumber(
+  set: string,
+  collectorNumber: string,
+): Promise<ScryfallCard | null> {
+  return scryfallClient.fetchPrintingByCollectorNumber(set, collectorNumber)
 }
 
 export function fetchNamedCard(

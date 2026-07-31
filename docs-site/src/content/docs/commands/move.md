@@ -114,6 +114,8 @@ Collections require a concrete printing. When the selected card already has one,
 2. The card's **single** known printing in the local Scryfall cache, auto-accepted.
 3. Otherwise the command exits with a usage error listing the cached printings to pick from.
 
+Both steps read the **local card cache only**: a name the cache holds no entry for has no known printing list, so step 2 cannot apply and the command asks for `--set`/`--collector-number` rather than guessing. When a pin is given for such a card, Ritual verifies that one printing directly with Scryfall (a single request) instead of validating it against an incomplete list — so the purchase flow above works on a workspace whose cache has never been bulk-downloaded, as long as it is online. Offline, that verification fails with exit code `1`. Running [`ritual cache preload-all`](/commands/cache/) once removes both round trips.
+
 The resolution happens before anything is written — a failure here leaves both lists untouched.
 
 ## Interactive Session

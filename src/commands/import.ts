@@ -56,7 +56,7 @@ import { listFilePath } from '../resolve-list'
 import { isListType, listTypeLabel, LIST_TYPES, type ListType } from '../list-type'
 import { ask, promptListType } from './prompts-helpers'
 import { isNoInput, promptsUnavailable } from '../no-input'
-import { CardCommandError, getErrorMessage } from '../errors'
+import { CardCommandError, getErrorMessage, hasErrorCode } from '../errors'
 
 interface SaveListOptions {
   forceOverwrite?: boolean
@@ -197,12 +197,20 @@ export async function saveDeck(
   let conflictFile: string | null = null
   let conflictReason: 'id' | 'name' | null = null
 
-  await fs.mkdir(decksDir, { recursive: true })
+  // A dry run must leave a pristine directory byte-for-byte untouched, so the
+  // decks dir is only created on the path that actually writes into it; the
+  // conflict scan below already tolerates a missing directory.
+  if (!resolvedOptions.dryRun) {
+    await fs.mkdir(decksDir, { recursive: true })
+  }
 
   let existingFiles: string[]
   try {
     existingFiles = await listDeckFiles(decksDir)
-  } catch {
+  } catch (error) {
+    // A dry run (or a first import) legitimately finds no decks dir; any other
+    // read failure must not be mistaken for "no conflicts".
+    if (!hasErrorCode(error, 'ENOENT')) throw error
     existingFiles = []
   }
 

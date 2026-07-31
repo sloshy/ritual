@@ -309,6 +309,10 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     }
   }
 
+  // How the cache refresh question is answered for this run (--refresh <mode>,
+  // interactive by default).
+  const mode = options.refresh ?? 'ask'
+
   console.log('Building static site...')
   if (cacheImages) {
     console.log('Caching deck card images locally and using dist/images paths.')
@@ -322,9 +326,17 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
   await fs.mkdir(symbolsDir, { recursive: true })
   await Bun.write(path.join(distDir, 'app.svg'), siteSpaAssets.appSvg)
 
-  // Fetch and download symbols
+  // Fetch and download symbols. `never` means "use the existing cache as-is",
+  // so an uncached symbology is left uncached rather than downloaded — the site
+  // then renders without mana symbols, which the warning says out loud.
   console.log('Fetching and downloading mana symbols...')
-  let symbols = await fetchSymbology()
+  const symbologyNetwork = refreshStaleAllowed(mode)
+  let symbols = await fetchSymbology({ network: symbologyNetwork })
+  if (symbols.length === 0 && !symbologyNetwork) {
+    console.warn(
+      '⚠️  No cached symbology and --refresh never: mana symbols will be missing from the site. Re-run with --refresh auto to download them.',
+    )
+  }
   const symbolMap: Record<string, string> = {} // { "{W}": "images/symbols/W.svg" }
   const missingSymbols = new Set<string>()
 
@@ -358,8 +370,12 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     }
 
     if (needsRefresh) {
+      if (!symbologyNetwork) {
+        for (const m of matches) if (!symbolMap[m]) missingSymbols.add(m)
+        return
+      }
       console.log('Found new symbols in text. Refreshing symbology...')
-      symbols = await fetchSymbology(true)
+      symbols = await fetchSymbology({ force: true })
       await updateSymbolMap()
 
       // Mark still-missing symbols as missing so we don't retry loop
@@ -478,16 +494,21 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
   const totalCards = uniqueCards.length
   console.log(`\nFound ${totalCards} unique cards.`)
 
-  // How the cache refresh question is answered for this run (--refresh <mode>,
-  // interactive by default).
-  const mode = options.refresh ?? 'ask'
-
   // Ensure the full card cache has been bulk-downloaded at least once per week,
   // and trigger a bulk refresh if many cards are missing. Suppressed when bulk
   // downloads aren't permitted, leaving the per-card loop below to fill gaps.
-  const { refreshed: cacheJustRefreshed } = await ensureCacheForCards(allCardNames, undefined, {
-    allowBulk: bulkAllowed(mode),
-  })
+  // A failed download must not abort a build the existing cache can still
+  // serve — the same treatment the price-refresh gate below gives it.
+  let cacheJustRefreshed = false
+  try {
+    ;({ refreshed: cacheJustRefreshed } = await ensureCacheForCards(allCardNames, undefined, {
+      allowBulk: bulkAllowed(mode),
+    }))
+  } catch (e) {
+    console.error(
+      `Card cache download failed; building with the existing cache. ${getErrorMessage(e)}`,
+    )
+  }
 
   // Collect missing card names (for verbose output and individual fetching)
   const missingCards: string[] = []
@@ -911,7 +932,10 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
  * Shared by `build-site` and `serve --build` so the two stay in sync.
  */
 export function applyBuildSiteOptions(command: Command): Command {
-  return addRefreshOption(command)
+  return addRefreshOption(
+    command,
+    'Card cache refresh policy: ask (default; bulk-downloads an empty or stale cache without asking, prompts for the price and tag refreshes), auto, no-bulk, never',
+  )
     .option('-v, --verbose', 'Show list of cards to be fetched')
     .option(
       '--cache-images',

@@ -1,8 +1,8 @@
 // An HTTP handler module that is server-agnostic: `src/api/` means "handlers no
 // server owns", not "handlers both servers mount". This one is mounted on both
 // the admin server and the public/hosted site server.
-import { getCardPrintings } from '../scryfall'
-import { cardCache } from '../cache'
+import { getCardPrintingsResult } from '../scryfall'
+import { printingsAreComplete } from '../card-printing'
 import { getErrorMessage } from '../errors'
 import { invalidLimitMessage, parsePositiveInteger } from '../parse-number'
 import type { ScryfallCard } from '../types'
@@ -13,6 +13,13 @@ export type CardPrintingsSuccess = {
   printings: ScryfallCard[]
   /** Printings found before `limit` truncated the list; absent when nothing was dropped. */
   totalPrintings?: number
+  /**
+   * Whether the list is the card's complete printing set. False when the local
+   * card cache holds no bulk-downloaded entry for the name and a single-card
+   * Scryfall lookup supplied the one printing shown — a client must not present
+   * that as "the only printing of this card".
+   */
+  complete: boolean
 }
 
 /**
@@ -76,11 +83,16 @@ export async function handleCardPrintings(req: Request): Promise<Response> {
     const parsed = parseCardPrintingsParams(new URL(req.url).searchParams)
     if (typeof parsed === 'string') return failure(parsed, 400)
 
-    // Try cache first
-    const cached = await cardCache.get(parsed.name)
-    const printings = cached && cached.length > 0 ? cached : await getCardPrintings(parsed.name)
+    // The cache first; a name it does not hold falls back to a single-card
+    // Scryfall lookup, whose one result is reported as incomplete.
+    const result = await getCardPrintingsResult(parsed.name)
+    const printings = result.printings
 
-    const body: CardPrintingsSuccess = { success: true, printings }
+    const body: CardPrintingsSuccess = {
+      success: true,
+      printings,
+      complete: printingsAreComplete(result),
+    }
     if (parsed.limit !== undefined && printings.length > parsed.limit) {
       body.printings = printings.slice(0, parsed.limit)
       body.totalPrintings = printings.length

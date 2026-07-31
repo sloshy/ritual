@@ -3,7 +3,14 @@ import fs from 'node:fs/promises'
 import { isRunningFromSource } from '../runtime'
 import { matchRoute, type HttpMethod } from '../routing'
 import { adminUserExists } from './auth'
-import { loadRitualConfig, getCollectionsDir, getDecksDir, getWantedDir } from '../ritual-config'
+import {
+  loadRitualConfig,
+  getCollectionsDir,
+  getDecksDir,
+  getWantedDir,
+  RitualConfigParseError,
+  type RitualConfig,
+} from '../ritual-config'
 import { parseSessionCookie, validateSession } from './session'
 import { handleStatus, handleListDecks } from './api/status'
 import { handleImportDeck } from './api/import-deck'
@@ -482,8 +489,19 @@ async function handleRequest(
     return handleDevReload(url.pathname)
   }
 
-  // Load config first — needed for trustProxy and filtering
-  const config = await loadRitualConfig()
+  // Load config first — needed for trustProxy and filtering. The re-read means
+  // a config hand-edited into invalid JSON while the server runs fails every
+  // request; answer with the actionable parse message rather than letting the
+  // throw reach Bun's error hook as a contentless 500.
+  let config: RitualConfig
+  try {
+    config = await loadRitualConfig()
+  } catch (error) {
+    if (error instanceof RitualConfigParseError) {
+      return Response.json({ success: false, message: error.message }, { status: 500 })
+    }
+    throw error
+  }
   const clientIp = getClientIp(req, server, config.admin.trustProxy)
   const userAgent = req.headers.get('User-Agent') ?? ''
 

@@ -186,12 +186,13 @@ Unsetting a key that is already at its default (or was never set) succeeds with 
 | Code | Meaning                                                                                         |
 | ---- | ----------------------------------------------------------------------------------------------- |
 | `0`  | Success (including idempotent `unset` of an already-default key)                                |
+| `1`  | Runtime error (including a `ritual.config.json` that is not valid JSON)                         |
 | `2`  | Usage error (unknown property, invalid value, `--add`/`--remove` misuse, init-site-managed key) |
 | `3`  | Not found (`get` on an optional key that is not set)                                            |
-| `1`  | Runtime error                                                                                   |
 
 ## Notes
 
-- Changes are written to `ritual.config.json` immediately.
+- Changes are written to `ritual.config.json` immediately. `config set`/`unset` are what **create** the file if it does not exist yet — reading config never does; see [Configuration](/configuration/#when-the-file-is-created).
+- If the existing file is not valid JSON, every subcommand — including `set` — fails with exit `1` and leaves the file untouched, so a hand-edit typo can never be overwritten with defaults.
 - A running admin server picks up config changes on its next request; it does not need to be restarted.
-- Use `--base-dir` to target a config file in a directory other than the current working directory.
+- Use `--base-dir` to target a config file in a directory other than the current working directory. The directory must already exist.

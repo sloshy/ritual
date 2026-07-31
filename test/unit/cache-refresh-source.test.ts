@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { refreshCardCache, resolveFeedUrl } from '../../src/cache/refresh-source'
 import { DEFAULT_FEED_URL } from '../../src/cache-feed/fetch'
-import { initRitualConfig, resetRitualConfigCache } from '../../src/ritual-config'
+import { refreshRitualConfig, resetRitualConfigCache } from '../../src/ritual-config'
 import { setBaseDir } from '../../src/base-dir'
 import { MemoryLogger, resetLogger, setLogger } from '../test-utils'
 
@@ -26,7 +26,7 @@ describe('resolveFeedUrl', () => {
   })
 
   test('falls back to the built-in default when neither explicit nor config is set', async () => {
-    await initRitualConfig()
+    await refreshRitualConfig()
     expect(resolveFeedUrl()).toBe(DEFAULT_FEED_URL)
   })
 
@@ -35,7 +35,7 @@ describe('resolveFeedUrl', () => {
       configPath,
       JSON.stringify({ cacheFeedUrl: 'https://feed.example/feed.json' }),
     )
-    await initRitualConfig()
+    await refreshRitualConfig()
     expect(resolveFeedUrl()).toBe('https://feed.example/feed.json')
   })
 
@@ -44,7 +44,7 @@ describe('resolveFeedUrl', () => {
       configPath,
       JSON.stringify({ cacheFeedUrl: 'https://feed.example/feed.json' }),
     )
-    await initRitualConfig()
+    await refreshRitualConfig()
     expect(resolveFeedUrl('https://explicit.example/feed.json')).toBe(
       'https://explicit.example/feed.json',
     )

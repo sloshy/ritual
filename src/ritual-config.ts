@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getBaseDir } from './base-dir'
+import { CardCommandError, ExitCode, getErrorMessage, hasErrorCode } from './errors'
 import {
   DEFAULT_CURRENCY,
   isPriceCurrency,
@@ -765,14 +766,51 @@ function applyDefaults(parsed: ParsedConfig): RitualConfig {
   return merged
 }
 
-async function readConfigFromDisk(): Promise<RitualConfig | null> {
-  try {
-    const content = await fs.readFile(getRitualConfigPath(), 'utf-8')
-    const parsed = JSON.parse(content) as ParsedConfig
-    return applyDefaults(parsed)
-  } catch {
-    return null
+/**
+ * Thrown when ritual.config.json exists but does not contain a JSON object.
+ * Hand-editing the file is the documented workflow, so a syntax error must stop
+ * the command with the file path and the parser's complaint — treating it as
+ * "no config" would silently run against defaults and, worse, let the next
+ * write replace settings the user still has on disk.
+ */
+export class RitualConfigParseError extends CardCommandError {
+  readonly configPath: string
+  constructor(configPath: string, reason: string) {
+    super(
+      'runtime_error',
+      `ritual.config.json is not valid JSON: ${configPath}\n  ${reason}\n` +
+        'Fix the file (or delete it to fall back to defaults) and try again.',
+      ExitCode.RuntimeError,
+    )
+    this.name = 'RitualConfigParseError'
+    this.configPath = configPath
   }
+}
+
+/**
+ * Read ritual.config.json, or `null` when the file does not exist. Only absence
+ * is benign: a malformed file raises {@link RitualConfigParseError} and any
+ * other read failure propagates as-is.
+ */
+async function readConfigFromDisk(): Promise<RitualConfig | null> {
+  const configPath = getRitualConfigPath()
+  let content: string
+  try {
+    content = await fs.readFile(configPath, 'utf-8')
+  } catch (error) {
+    if (hasErrorCode(error, 'ENOENT')) return null
+    throw error
+  }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(content)
+  } catch (error) {
+    throw new RitualConfigParseError(configPath, getErrorMessage(error))
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new RitualConfigParseError(configPath, 'the file must contain a JSON object')
+  }
+  return applyDefaults(parsed)
 }
 
 /**
@@ -801,36 +839,22 @@ export async function saveRitualConfig(config: RitualConfig): Promise<void> {
  */
 export async function savePartialRitualConfig(config: Partial<RitualConfig>): Promise<void> {
   await writeRitualConfigFile(config)
-  await reloadRitualConfig()
+  await refreshRitualConfig()
 }
 
 /**
- * Initialize the cached ritual config. Reads ritual.config.json from the base
- * dir, or creates it with default settings if it does not exist. Must be
- * called after setBaseDir() and before any sync getter is used.
+ * Read ritual.config.json from the base dir into the process-wide cache,
+ * falling back to defaults when the file does not exist. Run once per CLI
+ * invocation (after setBaseDir(), before any sync getter) and again whenever a
+ * write path persists an update, so subsequent reads reflect the new values.
+ *
+ * Reading never creates the file: a workspace is defined by its list
+ * directories, not by a config file, and seeding one into every directory a
+ * command happens to run in (including `license`) made stray directories look
+ * like workspaces. The file is materialized only by an actual write —
+ * {@link saveRitualConfig} / {@link savePartialRitualConfig}.
  */
-export async function initRitualConfig(): Promise<RitualConfig> {
-  const fromDisk = await readConfigFromDisk()
-  if (fromDisk) {
-    cachedConfig = fromDisk
-    return fromDisk
-  }
-  const defaults = getDefaultRitualConfig()
-  try {
-    await saveRitualConfig(defaults)
-  } catch {
-    // If we can't persist (e.g. read-only fs), still cache defaults so the
-    // current invocation works.
-    cachedConfig = defaults
-  }
-  return defaults
-}
-
-/**
- * Re-read ritual.config.json into the cache. Use after the admin server
- * persists a config update so subsequent reads reflect the new values.
- */
-export async function reloadRitualConfig(): Promise<RitualConfig> {
+export async function refreshRitualConfig(): Promise<RitualConfig> {
   const fromDisk = await readConfigFromDisk()
   cachedConfig = fromDisk ?? getDefaultRitualConfig()
   return cachedConfig
@@ -838,7 +862,7 @@ export async function reloadRitualConfig(): Promise<RitualConfig> {
 
 /**
  * Sync access to the cached ritual config. Falls back to defaults if
- * initRitualConfig() was never called (e.g. in tests that bypass index.ts).
+ * refreshRitualConfig() was never called (e.g. in tests that bypass index.ts).
  */
 export function getRitualConfig(): RitualConfig {
   return cachedConfig ?? getDefaultRitualConfig()

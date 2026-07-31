@@ -7,6 +7,7 @@ import {
   type FileSystemClient,
   createDefaultFileSystemClient,
 } from '../interfaces'
+import type { CardPrintingsResult } from '../card-printing'
 import type { PriceCurrency } from '../price-currency'
 import { getPriceField } from '../price-currency'
 import { getBannedPrintings } from '../ritual-config'
@@ -56,6 +57,13 @@ export const ALL_PAGES = Number.POSITIVE_INFINITY
 export type SearchCardsOptions = {
   /** Result pages to walk, from page 1. Defaults to {@link DEFAULT_SEARCH_MAX_PAGES}. */
   maxPages?: number
+  /**
+   * Whether an empty cache may trigger the "pre-cache every English card?"
+   * offer. Defaults to true; `cache preload-set` passes `false`, since a user
+   * who picked the bounded per-set command has already said how much they want
+   * cached.
+   */
+  offerPreload?: boolean
 }
 
 /** How long a single Scryfall API request may take before it is aborted. */
@@ -108,6 +116,28 @@ export type MinMaxPrice = {
 }
 
 export type FetchCardDataOptions = { silent?: boolean }
+
+/** Options for {@link ScryfallClient.fetchSymbology}. */
+export type FetchSymbologyOptions = {
+  /** Refetch even when a cached symbology file exists. */
+  force?: boolean
+  /**
+   * Whether Scryfall may be contacted at all. `false` returns the cached
+   * symbology, or no symbols when nothing is cached — what `--refresh never`
+   * ("use the existing cache as-is") promises.
+   */
+  network?: boolean
+}
+
+/** Options for {@link ScryfallClient.getCardPrintings}. */
+export type GetCardPrintingsOptions = {
+  /**
+   * Whether a cache miss may fall back to a single-card Scryfall fetch.
+   * Defaults to true; pass `false` for a cache-only lookup (`--refresh never`,
+   * the collection sync's finish resolution) that must never hit the network.
+   */
+  network?: boolean
+}
 export type FetchNamedCardOptions = { fuzzy?: boolean; set?: string }
 type ScryfallErrorBody = { details: string }
 
@@ -243,6 +273,17 @@ export interface ScryfallSymbol {
   colors: string[]
 }
 
+/**
+ * Whether a value read back from `symbology.json` is usable as a symbol. The
+ * cache file is parsed, so a malformed one must be rejected rather than handed
+ * to the symbol downloader as an array of anything.
+ */
+function isScryfallSymbol(value: unknown): value is ScryfallSymbol {
+  if (!value || typeof value !== 'object') return false
+  const symbol = value as Record<string, unknown>
+  return typeof symbol['symbol'] === 'string' && typeof symbol['svg_uri'] === 'string'
+}
+
 interface ScryfallCollectionResponse {
   data: ScryfallCard[]
   not_found?: Array<{ name?: string }>
@@ -278,6 +319,8 @@ export class ScryfallClient implements PricingBackend {
   }
 
   private hasPrompted = false
+  /** Memoized {@link cacheIsBulkBacked} answer; only ever flips false → true. */
+  private bulkBacked = false
   /** undefined = not yet loaded; null = loaded but no cache file; TagIndex = loaded. */
   private tagIndex: TagIndex | null | undefined
 
@@ -319,7 +362,7 @@ export class ScryfallClient implements PricingBackend {
         type: 'confirm',
         name: 'value',
         message:
-          'MTG CLI runs faster and hits rate limits less often if data is cached up front. Would you like to pre-cache Scryfall data for all English MTG cards?',
+          'Ritual runs faster and hits rate limits less often if data is cached up front. Would you like to pre-cache Scryfall data for all English MTG cards?',
         initial: true,
       })
 
@@ -335,18 +378,24 @@ export class ScryfallClient implements PricingBackend {
     }
   }
 
-  async fetchSymbology(forceRefresh = false): Promise<ScryfallSymbol[]> {
+  async fetchSymbology(options?: FetchSymbologyOptions): Promise<ScryfallSymbol[]> {
+    const offline = options?.network === false
+    // `force` asks for a refetch, but offline there is nothing to refetch with —
+    // so the cache is still read rather than answering "no symbols" while a
+    // perfectly good symbology file sits on disk.
+    const forceRefresh = options?.force === true && !offline
     const cachePath = path.join(getCacheDir(), 'symbology.json')
 
     if (!forceRefresh) {
       try {
-        const cached = await this.fileSystem.readFile(cachePath, 'utf-8')
-        const data = JSON.parse(cached)
-        if (data && Array.isArray(data)) return data
+        const cached: unknown = JSON.parse(await this.fileSystem.readFile(cachePath, 'utf-8'))
+        if (Array.isArray(cached) && cached.every(isScryfallSymbol)) return cached
       } catch {
         // Cache miss or corrupt JSON — fall through to fetch from API
       }
     }
+
+    if (offline) return []
 
     getLogger().info('Fetching symbology from Scryfall...')
     const response = await this.fetchWithTimeout('https://api.scryfall.com/symbology')
@@ -425,7 +474,20 @@ export class ScryfallClient implements PricingBackend {
     return representativeCards.map((c) => c.name)
   }
 
-  async getCardPrintings(name: string): Promise<ScryfallCard[]> {
+  async getCardPrintings(name: string, options?: GetCardPrintingsOptions): Promise<ScryfallCard[]> {
+    return (await this.getCardPrintingsResult(name, options)).printings
+  }
+
+  /**
+   * Like {@link getCardPrintings}, but reports where the list came from so
+   * callers can tell the cache's complete printing list apart from the single
+   * arbitrary printing a `/cards/named` fallback returns. Pass
+   * `{ network: false }` for a cache-only lookup that never touches Scryfall.
+   */
+  async getCardPrintingsResult(
+    name: string,
+    options?: GetCardPrintingsOptions,
+  ): Promise<CardPrintingsResult> {
     const cached = await this.cardCache.get(name)
     if (cached) {
       for (const c of cached) {
@@ -438,10 +500,70 @@ export class ScryfallClient implements PricingBackend {
           getLogger().warn(`Failed to evict excluded printings for '${name}':`, e)
         })
       }
-      return filtered
+      // An entry left holding nothing usable (every printing excluded — tokens,
+      // art series) is not a printing list anyone can act on, so it reports as
+      // `none`. It still short-circuits the fetch: the entry's existence is the
+      // record that this name was already looked up.
+      if (filtered.length === 0) return { printings: [], source: 'none' }
+      // A cache entry is the card's *whole* printing list only when the cache
+      // was filled by a bulk download. In a never-bulk-downloaded workspace
+      // every entry was written by a single-card fetch, so a one-entry list
+      // there means "one printing was looked up once", not "one printing exists".
+      const source = (await this.cacheIsBulkBacked()) ? 'complete' : 'partial'
+      return { printings: filtered, source }
     }
+    if (options?.network === false) return { printings: [], source: 'none' }
     const single = await this.fetchCardData(name, { silent: true })
-    return single ? [single] : []
+    return single ? { printings: [single], source: 'partial' } : { printings: [], source: 'none' }
+  }
+
+  /**
+   * Whether the card cache has ever completed a bulk download. Memoized once
+   * true — a bulk download is not undone by anything short of a cache clear,
+   * and the remote cache backend answers this over HTTP.
+   */
+  private async cacheIsBulkBacked(): Promise<boolean> {
+    if (this.bulkBacked) return true
+    const lastRefreshedAt = await this.cardCache.getLastRefreshedAt?.()
+    this.bulkBacked = typeof lastRefreshedAt === 'number'
+    return this.bulkBacked
+  }
+
+  /**
+   * Fetch one specific printing by set code and collector number
+   * (`/cards/{set}/{number}`), caching it like any other fetched card.
+   *
+   * Exists so a `--set`/`--collector-number` pin can be verified against
+   * Scryfall itself when the local cache holds no printing list for the card —
+   * validating the pin against a single-card fallback list would reject real
+   * printings and print a fabricated "available printings" list.
+   */
+  async fetchPrintingByCollectorNumber(
+    set: string,
+    collectorNumber: string,
+  ): Promise<ScryfallCard | null> {
+    const url = `https://api.scryfall.com/cards/${encodeURIComponent(set.toLowerCase())}/${encodeURIComponent(collectorNumber)}`
+    // A request failure propagates: "Scryfall says there is no such printing"
+    // (404 → null) and "Scryfall could not be reached, or answered 429/5xx"
+    // (throw) are different answers to the caller's question, and only the first
+    // one is the user's mistake.
+    const response = await this.fetchWithTimeout(url)
+    await Bun.sleep(RATE_LIMIT_MS)
+    if (response.status === 404) return null
+    if (!response.ok) throwHttpError(response, 'Failed to fetch printing')
+
+    const card = mapScryfallCard((await response.json()) as ScryfallCard)
+    if (!isRealPrinting(card)) return null
+
+    const tagIndex = await this.loadTagIndex()
+    if (tagIndex) attachTags(card, tagIndex)
+
+    // Merge rather than overwrite: the cache entry is the card's printing list,
+    // and this is one printing of it.
+    const existing = (await this.cardCache.get(card.name)) ?? []
+    const merged = existing.some((p) => p.id === card.id) ? existing : [...existing, card]
+    await this.cardCache.set(card.name, merged)
+    return card
   }
 
   /**
@@ -758,7 +880,7 @@ export class ScryfallClient implements PricingBackend {
     // as "no pages" — the first page is always fetched, and only the continue
     // condition consults the bound. `ALL_PAGES` (Infinity) survives the trunc.
     const maxPages = Math.max(1, Math.trunc(options.maxPages ?? DEFAULT_SEARCH_MAX_PAGES))
-    await this.checkAndPromptPreload()
+    if (options.offerPreload !== false) await this.checkAndPromptPreload()
     getLogger().info(`Searching for: ${query}`)
     try {
       // Use order=edhrec to prioritize popular cards

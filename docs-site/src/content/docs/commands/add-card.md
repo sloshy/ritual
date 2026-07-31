@@ -118,6 +118,8 @@ When prompts are unavailable (stdin is **not a terminal**, or `--no-input` / `RI
 
 The pair is validated strictly against the card's known printings — a set/collector-number combination that doesn't exist fails with a usage error listing up to 10 available printings (also carried as `details.available` in JSON error output). There is no fuzzy or fallback matching.
 
+When the local card cache holds no entry for the card at all, there is no printing list to validate against, so the pinned printing is verified directly with Scryfall instead (a single request). It is accepted when Scryfall confirms it belongs to that card, a usage error when it does not, and a runtime error (exit `1`) when Scryfall cannot be reached.
+
 Without a pin, a run where prompts are unavailable (stdin is **not a terminal**, or `--no-input` / `RITUAL_NO_INPUT` is in force) only succeeds when the card has a single paper printing; several candidates fail with an error instead of guessing.
 
 ### Printing and Finish Prices

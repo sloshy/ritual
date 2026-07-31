@@ -46,7 +46,8 @@ ritual note "To Buy" "Mox Ruby" --wanted -n "budget copy only"
 \`ritual move\` with \`--from\`/\`--to\` records a purchase in one command: the entry
 leaves the wanted list and lands in the collection. Collections need a concrete
 printing, so a name-only entry takes it from \`--set\`/\`--collector-number\` (or its
-single known printing); already-pinned entries move as-is:
+single known printing in the local card cache — a card the cache does not hold has
+no printing list, so pass the flags); already-pinned entries move as-is:
 
 \`\`\`bash
 ritual move "Demonic Tutor" --from "wanted:To Buy" --to "collection:Main Binder" \\

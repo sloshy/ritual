@@ -91,6 +91,8 @@ Cards are matched the same way as [`note`](/commands/note/): fuzzy name match (c
 
 `--set` and `--collector-number` must be given together, and the pair is validated against the card's printings in the local Scryfall cache: an unknown pair is a usage error listing the available printings (up to 10). When `--finish` accompanies a printing change, the chosen printing must actually offer that finish (per Scryfall's finish data), otherwise the command lists the finishes it does offer. If the printing lookup itself fails (empty or unreachable cache), the command exits with a runtime error — refresh the cache with [`cache`](/commands/cache/).
 
+When the local card cache holds no entry for the card at all, there is no printing list to validate against, so the pinned printing is verified directly with Scryfall (a single request): accepted when Scryfall confirms it belongs to that card, a usage error when it belongs to a different one (`STA:90 is 'Other Card', not 'This Card'`), and a runtime error (exit `1`) when Scryfall cannot be reached.
+
 When you change the printing **without** `--finish`, the card's current finish is preserved. The current finish is _not_ re-validated against the new printing.
 
 ### Condition Updates

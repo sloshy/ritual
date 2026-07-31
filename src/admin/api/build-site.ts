@@ -35,7 +35,11 @@ export interface BuildSiteResponse {
 /** Builds the child-process command line for a build publishing into `outDir`. */
 export type BuildSiteArgv = (outDir: string) => string[]
 
-const DEFAULT_ARGV: BuildSiteArgv = (outDir) => ritualArgv(['build-site', '--out-dir', outDir])
+// The base dir is passed explicitly: the child inherits this process's
+// environment, so without the flag an exported RITUAL_BASE_DIR would outrank
+// the spawn's `cwd` and silently build a different workspace than the server's.
+const DEFAULT_ARGV: BuildSiteArgv = (outDir) =>
+  ritualArgv(['--base-dir', getBaseDir(), 'build-site', '--out-dir', outDir])
 
 /**
  * One build at a time. A second concurrent build would race the swap and fight

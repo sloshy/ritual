@@ -13,7 +13,7 @@ import {
   getSiteDeployConfig,
   getSiteSelectionConfig,
   loadRitualConfig,
-  reloadRitualConfig,
+  refreshRitualConfig,
   saveRitualConfig,
 } from '../ritual-config'
 import { VALID_CURRENCIES, type PriceCurrency } from '../price-currency'
@@ -785,7 +785,7 @@ async function persistSiteConfig(
     config.site = { ...getSiteSelectionConfig(config.site), ...deploy }
     if (defaultCurrency !== undefined) config.defaultCurrency = defaultCurrency
     await saveRitualConfig(config)
-    await reloadRitualConfig()
+    await refreshRitualConfig()
     return true
   } catch (err) {
     console.error(

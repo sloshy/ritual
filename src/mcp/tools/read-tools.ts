@@ -103,6 +103,12 @@ export interface CardPrintingsResult {
   printings: PrintingListing[]
   /** Printings found before `limit` truncated the list; absent when nothing was dropped. */
   totalPrintings?: number
+  /**
+   * Whether the list is the card's complete printing set. False when the local
+   * card cache holds no bulk-downloaded entry for the name — the one printing
+   * shown then came from a single Scryfall lookup and is not "the only one".
+   */
+  complete: boolean
 }
 
 /** `get_sync_status`, decks half — what `GET /api/deck-sync` returns, minus `success`. */
@@ -420,6 +426,8 @@ export function registerReadTools(server: McpServer): void {
         'Everything known about one card from the local Scryfall cache: oracle text, type line, ' +
         'mana cost and CMC, colors and color identity, keywords, format legalities, Scryfall ' +
         'Tagger oracle/art tags, the faces of a multi-faced card, and how many printings exist. ' +
+        'A false `printingsComplete` means the cache holds no printing list for the name, so ' +
+        '`printingCount` is only what one Scryfall lookup returned. ' +
         'Names are matched exactly and case-sensitively — resolve a partial name with ' +
         'autocomplete_card first.',
       inputSchema: z.object({ name: z.string().min(1).describe('Exact card name.') }),
@@ -446,7 +454,9 @@ export function registerReadTools(server: McpServer): void {
         'List the printings of a card, newest first, which is what a set/collectorNumber ' +
         'argument on the edit tools needs. Capped at 20 by default. Prices are left out unless ' +
         'includePrices is set; use get_card_price for the cheapest and representative printings ' +
-        'instead.',
+        'instead. When `complete` is false the local card cache holds no printing list for this ' +
+        'name, so the printings shown are whatever one lookup returned — run refresh_cache before ' +
+        'concluding a card has only one printing.',
       inputSchema: z.object({
         name: z.string().min(1).describe('Exact card name.'),
         limit: z
@@ -475,6 +485,7 @@ export function registerReadTools(server: McpServer): void {
           printings: data.printings.map(
             includePrices === true ? summarizePrinting : summarizePrintingIdentity,
           ),
+          complete: data.complete,
         }
         if (data.totalPrintings !== undefined) result.totalPrintings = data.totalPrintings
         return result

@@ -418,7 +418,10 @@ The join key is the **printing** (set code and collector number) plus **finish**
 Ritual's five conditions are exactly Archidekt's, so `NM`/`LP`/`MP`/`HP`/`DMG` round-trip as-is. A
 line with no explicit finish is resolved against the card cache first, so an etched-only printing
 compares as etched rather than as a nonfoil copy of the same number. A printing the cache does not
-hold is synced as nonfoil, with a warning naming the line.
+hold is synced as nonfoil, with a warning naming the line. That resolution is **cache-only** — a sync
+never fetches cards from Scryfall one at a time, so a cold cache means many nonfoil warnings rather
+than hundreds of live requests. Run [`ritual cache preload-all`](/commands/cache/) before a first
+sync to get finishes resolved.
 
 The following have no local representation and are **lossy** — they are preserved on records that
 already exist, but nothing local can set them:

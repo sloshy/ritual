@@ -30,8 +30,11 @@ ritual mcp [options]
 
 `--token` may also be supplied via the `RITUAL_MCP_TOKEN` environment variable (the flag takes
 precedence); this keeps the secret out of the process list. The global `--base-dir <path>` option
-selects which Ritual workspace (decks/collections/wanted dirs) the server operates on;
-`--cache-server <host:port>` is also honoured.
+selects which Ritual workspace (decks/collections/wanted dirs) the server operates on — the
+`RITUAL_BASE_DIR` environment variable does the same, which is handy in an MCP client's `env` block,
+and the directory must already exist or the server exits `2` before starting. Likewise, a
+[malformed `ritual.config.json`](/configuration/#malformed-files-are-a-hard-error) aborts the server
+with exit `1` before the transport opens. `--cache-server <host:port>` is also honoured.
 
 ## Transports
 
@@ -257,6 +260,12 @@ server loads any Scryfall card data, printings, prices, or the mana-symbol map.
 number, rarity, release date, and finishes. Pass `limit` for more or fewer (`totalPrintings` reports
 how many there were when the list was truncated), and `includePrices: true` when you actually want
 each printing's price block; `get_card_price` is usually the better answer for a price question.
+
+Both `get_card_printings` and `get_card_details` report whether the printing list can be trusted as
+complete (`complete` / `printingsComplete`). It is `false` when the local card cache holds no
+printing list for the name — the one printing shown then came from a single Scryfall lookup, so a
+`printingCount` of 1 says nothing about the card. Run `refresh_cache` (or
+[`ritual cache preload-all`](/commands/cache/)) before concluding a card has only one printing.
 
 `get_cache_status` reports whether the local card cache is `empty`, how many cards it holds, when it
 was last refreshed, its price age and whether prices are `priceStale`, whether Scryfall Tagger tags

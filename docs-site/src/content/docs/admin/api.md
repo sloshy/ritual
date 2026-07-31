@@ -259,9 +259,12 @@ There is deliberately no `includePrices` parameter — dropping a printing's pri
 {
   "success": true,
   "printings": [{ "id": "...", "set": "2xm" }],
-  "totalPrintings": 37
+  "totalPrintings": 37,
+  "complete": true
 }
 ```
+
+`complete` is `false` when the card cache holds no printing list for the name and the response came from the single-card Scryfall fallback: the one printing returned is whatever that lookup found, **not** the card's only printing. A client must not present such a list as exhaustive — run [`ritual cache preload-all`](/commands/cache/) to get a real one.
 
 ## Card Price
 
@@ -305,7 +308,7 @@ GET /api/card-details?name=<cardName>
 
 Everything Ritual knows about one card: oracle text, type line, mana cost and CMC, colors and color identity, keyword abilities, format legalities, and Scryfall Tagger oracle/art tags. The local card cache is read first, falling back to a single-card Scryfall fetch when the cache holds no printings for the name.
 
-Oracle-level fields are identical across printings, so the response describes _the card_ — the identity fields (`set`, `collectorNumber`, `prices`) come from its **most recent** printing, and `printingCount` reports how many printings were found. Set codes are returned lowercase.
+Oracle-level fields are identical across printings, so the response describes _the card_ — the identity fields (`set`, `collectorNumber`, `prices`) come from its **most recent** printing, and `printingCount` reports how many printings were found. `printingsComplete` is `false` when that count came from the single-card fallback rather than the cache's own printing list, in which case `printingCount` is always `1` and means nothing about the card. Set codes are returned lowercase.
 
 `colors`, `keywords`, and `legalities` are only present on cards written by a cache from this version onward; run [`ritual cache preload-all`](/commands/cache/) to backfill them.
 
@@ -457,7 +460,7 @@ Report the card cache's size, freshness, tag coverage, and source — the same p
 GET /api/price/summary
 ```
 
-Price every deck, collection, and wanted list from the local card cache and return per-list, per-type, and grand totals plus any list-parser warnings — the same payload as [`price --summary --output json`](/commands/price/). Prices are read strictly from the cache: when it is empty the endpoint returns `503` without downloading anything (run [`ritual cache preload-all`](/commands/cache/) first). `lastRefreshedAt` is the cache's last bulk-refresh time in Unix milliseconds, or `null` when unknown.
+Price every deck, collection, and wanted list from the local card cache and return per-list, per-type, and grand totals plus any list-parser warnings — the same payload as [`price --summary --output json`](/commands/price/). Prices are read strictly from the cache: when it is empty the endpoint returns `503` without downloading anything (run [`ritual cache preload-all`](/commands/cache/) first), and a card the cache does not hold is reported as unpriced rather than fetched from Scryfall one card at a time. `lastRefreshedAt` is the cache's last bulk-refresh time in Unix milliseconds, or `null` when unknown.
 
 **Query Parameters:**
 

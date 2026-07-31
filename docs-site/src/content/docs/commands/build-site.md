@@ -22,7 +22,7 @@ By default, deck card images use Scryfall URLs from card data. This can be overr
 | `--collections [names...]`      | Collection names to include in the site (default: the `site.includeCollections` config selection)                                                                                                                                                                                                                                       |
 | `--wanted-lists [names...]`     | Wanted list names to include in the site (default: the `site.includeWantedLists` config selection)                                                                                                                                                                                                                                      |
 | `--currencies <list>`           | Comma-separated currencies to include on the site: `usd`, `eur`, `tix` (default: all three)                                                                                                                                                                                                                                             |
-| `--refresh <mode>`              | Card cache refresh policy: `ask` (default — prompt; skip when prompts are unavailable), `auto`, `no-bulk`, or `never`. See [Card Cache Refresh](#card-cache-refresh).                                                                                                                                                                   |
+| `--refresh <mode>`              | Card cache refresh policy: `ask` (default — bulk-downloads an empty or stale cache **without asking**, prompts for the price and tag refreshes), `auto`, `no-bulk`, or `never`. See [Card Cache Refresh](#card-cache-refresh).                                                                                                          |
 | `--theme <name>`                | Initial theme served to first-time visitors (built-in name or a custom name from `--theme-file`). Defaults to `default`.                                                                                                                                                                                                                |
 | `--theme-file <path...>`        | Load one or more custom theme JSON files; each is added to the runtime theme list under its declared `name`.                                                                                                                                                                                                                            |
 | `--moxfield-user-agent <agent>` | Moxfield-approved unique User-Agent string (required for Moxfield deck URLs unless `MOXFIELD_USER_AGENT` is set)                                                                                                                                                                                                                        |
@@ -345,24 +345,28 @@ A build pulls card data and prices from three places, in order:
 3. **Per-card fetch** — every card whose cached price is stale (>24h) is then refetched individually; cards with fresh prices are reused from cache.
 4. **Tag download** — if none of the build's cards carry oracle/art tags (needed by the site's [tag filters](/public-site/filtering/)), `build-site` offers to download them and bake them into the cache. It is gated by the same `--refresh` mode as the bulk download — `auto` accepts it and `no-bulk` / `never` skip it (leaving the tag filters empty for that build) — but its prompt defaults to **Yes**, since the filters are unusable without it.
 
-When prompts are unavailable (stdin is not a TTY, or the global `--no-input` flag / `RITUAL_NO_INPUT` is in force), every prompt is **declined** — never resolved to its on-screen default — so a headless run can't be surprised by a multi-MB download.
+When prompts are unavailable (stdin is not a TTY, or the global `--no-input` flag / `RITUAL_NO_INPUT` is in force), every prompt is **declined** — never resolved to its on-screen default. That covers steps 2 and 4, which are prompts.
+
+Step 1 is **not** a prompt: under `ask` (the default) and `auto`, an empty, week-old, or badly incomplete cache is bulk-downloaded automatically, headless or not — a build has no usable card data otherwise, and filling the gap card by card is far slower than the one bulk request. A run that must never make that download should pass `--refresh no-bulk` or `--refresh never`, which suppress it.
 
 ### The `--refresh` mode
 
 The shared `--refresh <mode>` option answers the prompts non-interactively and controls the bulk download:
 
-| Mode                | Automatic bulk download (step 1) | Bulk price-refresh prompt (step 2)   | Per-card refresh of stale prices (step 3) | Tag download (step 4)                |
-| ------------------- | -------------------------------- | ------------------------------------ | ----------------------------------------- | ------------------------------------ |
-| `ask` (the default) | Allowed                          | Prompts (declined when unanswerable) | Yes                                       | Prompts (declined when unanswerable) |
-| `auto`              | Allowed                          | Yes, without prompting               | Yes                                       | Yes, without prompting               |
-| `no-bulk`           | **Suppressed**                   | **Skipped**                          | Yes                                       | **Skipped**                          |
-| `never`             | **Suppressed**                   | **Skipped**                          | **No** (uses cached prices as-is)         | **Skipped**                          |
+| Mode                | Automatic bulk download (step 1) | Bulk price-refresh prompt (step 2)   | Per-card refresh of stale prices (step 3) | Tag download (step 4)                | Symbology download                   |
+| ------------------- | -------------------------------- | ------------------------------------ | ----------------------------------------- | ------------------------------------ | ------------------------------------ |
+| `ask` (the default) | Runs automatically               | Prompts (declined when unanswerable) | Yes                                       | Prompts (declined when unanswerable) | Yes, when not cached                 |
+| `auto`              | Runs automatically               | Yes, without prompting               | Yes                                       | Yes, without prompting               | Yes, when not cached                 |
+| `no-bulk`           | **Suppressed**                   | **Skipped**                          | Yes                                       | **Skipped**                          | Yes, when not cached                 |
+| `never`             | **Suppressed**                   | **Skipped**                          | **No** (uses cached prices as-is)         | **Skipped**                          | **Skipped** (warns; symbols missing) |
 
 ```bash
 ./ritual build-site --refresh auto     # fastest full refresh, no prompts
 ./ritual build-site --refresh no-bulk  # refresh prices without the big download
-./ritual build-site --refresh never    # build entirely from the existing cache
+./ritual build-site --refresh never    # build from the existing cache
 ```
+
+> **Note on `never`:** it makes no bulk, price, tag, or symbology request — but a card the cache does not hold is still fetched individually by step 3's per-card loop, since a card with no data cannot be rendered at all. With no cached symbology, the build prints a warning and the site renders without mana symbols; re-run with `--refresh auto` to download them.
 
 > **Note:** `--refresh no-bulk` and `--refresh never` also suppress the _automatic_ bulk download (step 1). On an empty or very stale cache this forces every card to be fetched individually, which is slow and can hit Scryfall rate limits — use them when you already have a populated cache.
 

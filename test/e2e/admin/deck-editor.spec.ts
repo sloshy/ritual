@@ -164,6 +164,7 @@ test.describe('Deck Editor Page', () => {
       await fulfillJson(page, '**/api/card-printings*', {
         success: true,
         printings: [MOCK_BOLT_CARD],
+        complete: true,
       })
 
       await openListEditor(page, 'deck')

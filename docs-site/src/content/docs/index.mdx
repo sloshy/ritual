@@ -84,11 +84,13 @@ Then open http://localhost:3000 to view your deck collection.
 
 These options are available on every command:
 
-| Option                       | Description                                                                 |
-| ---------------------------- | --------------------------------------------------------------------------- |
-| `--base-dir <path>`          | Use this directory instead of the current working directory                 |
-| `--cache-server <host:port>` | Use a remote cache server instead of local cache files                      |
-| `--no-input`                 | Never prompt; fail or use documented defaults where input would be required |
+| Option                       | Environment variable  | Description                                                                 |
+| ---------------------------- | --------------------- | --------------------------------------------------------------------------- |
+| `--base-dir <path>`          | `RITUAL_BASE_DIR`     | Use this directory instead of the current working directory                 |
+| `--cache-server <host:port>` | `RITUAL_CACHE_SERVER` | Use a remote cache server instead of local cache files                      |
+| `--no-input`                 | `RITUAL_NO_INPUT`     | Never prompt; fail or use documented defaults where input would be required |
+
+In every case the flag wins when both are given, and an empty or whitespace-only environment variable counts as **not set**.
 
 ### `--base-dir`
 
@@ -103,6 +105,26 @@ ritual --base-dir /projects/mtg price "My Deck"
 ```
 
 This affects all file paths: decks, collections, wanted lists, cache, config files, and the output `dist/` directory. The directory locations themselves can be customized via [`ritual.config.json`](/configuration/) — paths in that file are interpreted relative to `--base-dir`.
+
+The `RITUAL_BASE_DIR` environment variable does the same thing and is used whenever `--base-dir` itself is not passed, so a shell session or a service unit can pin a workspace once:
+
+```bash
+export RITUAL_BASE_DIR=~/my-collection
+ritual lists                              # operates on ~/my-collection
+ritual --base-dir /projects/mtg lists     # the flag wins for this one run
+```
+
+**The directory must already exist.** Ritual never creates a base directory: a path that is missing, or that is not a directory, is a usage error (exit code `2`) and nothing is read or written:
+
+```
+base directory does not exist: /home/you/my-collectoin
+base directory is not a directory: /home/you/notes.txt
+base directory is not readable: /srv/private — EACCES: permission denied, stat '/srv/private'
+```
+
+The third form covers permission problems and any other filesystem failure while checking the path.
+
+This is deliberate — a typo'd `--base-dir` used to read as a perfectly empty workspace (`(no lists)`) and a write would have forked your data into a stray tree.
 
 ### `--no-input`
 
@@ -132,7 +154,7 @@ Input required: pass --finish <nonfoil|foil|etched> (prompts are disabled by --n
 
 The parenthetical names which of the two causes applied, since the remedies differ — supply the missing flags, or reconsider `--no-input`. Interactive-only surfaces (`edit`, `history`'s editor, `move`'s session, `dep-license`'s picker) refuse to open at all and point at their headless equivalent; `license` and `dep-license <package>` print their text straight to stdout instead of paging it through `less`.
 
-Where a question has a documented default, that default is used instead of failing — each command's page says which: `--refresh ask` is declined rather than answered (never a surprise multi-MB download), and a text `import` without `--type` falls back to a deck **under an explicit `--no-input`** (a merely piped run still errors, since nothing said which type was meant).
+Where a question has a documented default, that default is used instead of failing — each command's page says which: `--refresh ask` is declined rather than answered wherever it is a prompt (never a surprise multi-MB download) — two commands document their own reading: [`build-site`](/commands/build-site/#card-cache-refresh) still bulk-downloads an empty or stale cache automatically, since it cannot build without card data, and [`collection-sync`](/commands/collection-sync/#cache-freshness) fails the run instead of skipping, and a text `import` without `--type` falls back to a deck **under an explicit `--no-input`** (a merely piped run still errors, since nothing said which type was meant).
 
 ## The card-ID backfill
 

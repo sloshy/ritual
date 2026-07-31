@@ -56,6 +56,10 @@ export async function runCli(
     stderr: 'pipe',
     env: {
       ...process.env,
+      // The suite's contract is cwd-as-workspace: an ambient RITUAL_BASE_DIR
+      // exported in the developer's shell must not redirect every spawned CLI.
+      // Tests that exercise the variable opt back in through `env`.
+      RITUAL_BASE_DIR: undefined,
       ...env,
     },
   })

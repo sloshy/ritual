@@ -70,6 +70,17 @@ Cancelling any interactive prompt — the conflict prompt's **Cancel**, the list
 prompt, or any step of the CSV wizard — aborts the import with `Cancelled.` on stderr
 and exit code `2`; in JSON modes nothing is written to stdout.
 
+## Dry Runs
+
+`-n, --dry-run` previews an import: the source is fetched or read, every card is resolved
+and validated, and the summary reports exactly what would be written — but **nothing on
+disk changes**. That includes directories: a dry run does not create the `decks/`,
+`collections/`, or `wanted/` directory it would have written into, so previewing an import
+in a fresh directory leaves that directory holding only the file you imported from.
+
+Warnings still surface and still affect the exit code — see
+[Partial Failures](#partial-failures).
+
 ## Scripting Without Prompts
 
 The global `--no-input` flag (or the `RITUAL_NO_INPUT` environment variable) is the headless

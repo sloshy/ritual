@@ -1,6 +1,7 @@
 import type { RitualSkill } from '../types'
 import {
   csvImportSection,
+  IMPORT_DRY_RUN_GUARANTEE,
   interactiveEditIntro,
   moxfieldUserAgentNote,
   PRICE_CURRENCY_COMMENT,
@@ -112,6 +113,8 @@ ritual import <url> --no-input           # never prompt (fail if input is requir
 URLs always import decks. A text file import prompts for the list type (deck,
 collection, or wanted list) unless \`--type\` is passed; under the global
 \`--no-input\` flag a run without \`--type\` defaults to a deck.
+
+${IMPORT_DRY_RUN_GUARANTEE}
 
 ${wrapProse(moxfieldUserAgentNote({ subject: 'imports' }))}
 

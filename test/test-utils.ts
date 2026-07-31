@@ -304,10 +304,24 @@ interface CachedItem<T> {
 export class InMemoryCacheManager<T> implements CacheManager<T> {
   private cache = new Map<string, CachedItem<T>>()
   private expirationMs: number
+  private lastRefreshedAt: number | null = null
 
   constructor(expirationMs: number = 86400000) {
     // Default 24hrs
     this.expirationMs = expirationMs
+  }
+
+  /**
+   * Stamp the cache as bulk-downloaded, the way a completed preload does. It is
+   * what tells a cached printing list "this is every printing of the card"
+   * apart from "one card was fetched into an otherwise cold cache".
+   */
+  async markRefreshed(at: number = Date.now()): Promise<void> {
+    this.lastRefreshedAt = at
+  }
+
+  async getLastRefreshedAt(): Promise<number | null> {
+    return this.lastRefreshedAt
   }
 
   async get(key: string): Promise<T | null> {

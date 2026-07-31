@@ -141,6 +141,9 @@ ritual move --card-id 7 --from "wanted:To Buy" --to deck:storm --output json
 - Moving into a **collection** requires a concrete printing: a card without one (a
   name-only wanted entry) takes it from \`--set\`/\`--collector-number\`, or from its
   single known printing; otherwise the command errors listing the cached printings.
+  "Known printings" means the local card cache only — a card the cache has no entry
+  for has no printing list, so pass \`--set\`/\`--collector-number\` (verified against
+  Scryfall directly) or run \`ritual cache preload-all\` first.
 - Moving into a **deck**, \`--to-section <name>\` targets that section (exact name,
   created if missing) instead of the default; it errors on non-deck destinations.
 - Deck sources decrement quantity, notes travel with the card, both lists get

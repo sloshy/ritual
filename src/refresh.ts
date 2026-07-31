@@ -27,11 +27,18 @@ export function parseRefreshFlag(value: string): RefreshMode {
  * Register the shared `--refresh <mode>` option (default `ask`). Every command
  * that touches card-cache freshness uses this so the vocabulary never drifts.
  * (The `cache feed` subcommands' unrelated `--refresh <interval>` is not this.)
+ *
+ * `description` overrides the help text for commands where `ask` does not mean
+ * "skip when prompts are unavailable" — `collection-sync`'s CSV-upload gate
+ * fails the run instead, and `build-site`'s empty/stale-cache bulk download
+ * runs without asking. A command whose help describes the wrong behavior is
+ * worse than no help.
  */
-export function addRefreshOption(command: Command): Command {
+export function addRefreshOption(command: Command, description?: string): Command {
   return command.option(
     '--refresh <mode>',
-    'Card cache refresh policy: ask (prompt; skip when prompts are unavailable), auto, no-bulk, never',
+    description ??
+      'Card cache refresh policy: ask (prompt; skip when prompts are unavailable), auto, no-bulk, never',
     parseRefreshFlag,
     'ask' as RefreshMode,
   )

@@ -6,7 +6,7 @@ import { getBaseDir, setBaseDir } from '../../../src/base-dir'
 import { buildMcpServer } from '../../../src/mcp/server'
 import { cardCache } from '../../../src/cache'
 import { MemoryLogger, resetLogger, setLogger } from '../../../src/logger'
-import { initRitualConfig, resetRitualConfigCache } from '../../../src/ritual-config'
+import { refreshRitualConfig, resetRitualConfigCache } from '../../../src/ritual-config'
 import { makeScryfallCard } from '../../test-utils'
 
 /**
@@ -121,7 +121,7 @@ export async function setupRitualTestEnv(): Promise<RitualTestEnv> {
 
   setBaseDir(dir)
   resetRitualConfigCache()
-  await initRitualConfig()
+  await refreshRitualConfig()
 
   // Silence the offline-stub's "card not found" / symbology chatter from the logger.
   setLogger(new MemoryLogger())

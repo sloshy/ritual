@@ -2,7 +2,7 @@ import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { InvalidArgumentError, type Command } from 'commander'
 import type { ErrorCode } from '../types'
-import { ExitCode, type ExitCodeValue } from '../errors'
+import { ExitCode, hasErrorCode, type ExitCodeValue } from '../errors'
 import { parseEnumField } from '../parse-enum'
 import { formatResolveListError, type ResolveListError } from '../resolve-list'
 import { getAtPath } from '../utils'
@@ -237,7 +237,7 @@ export type FileReadFailure = { errorCode: ErrorCode; exitCode: ExitCodeValue }
  * not-found, anything else (permissions, directory, IO) is a runtime error.
  */
 export function classifyFileReadError(error: unknown): FileReadFailure {
-  const missing = (error as NodeJS.ErrnoException).code === 'ENOENT'
+  const missing = hasErrorCode(error, 'ENOENT')
   return missing
     ? { errorCode: 'not_found', exitCode: ExitCode.NotFound }
     : { errorCode: 'runtime_error', exitCode: ExitCode.RuntimeError }

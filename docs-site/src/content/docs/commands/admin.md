@@ -239,7 +239,7 @@ View a chronological log of all login attempts, including timestamp, IP address,
 
 ## Configuration File
 
-Settings are stored in `ritual.config.json` in the base directory. The file is shared by the entire app — see [Configuration](/configuration/) for the full reference and how it interacts with `--base-dir`.
+Settings are stored in `ritual.config.json` in the base directory. The file is shared by the entire app — see [Configuration](/configuration/) for the full reference and how it interacts with `--base-dir`. It is created the first time something writes a setting (a **Settings** page save, `config set`, `init-site`); until then the defaults below apply with no file on disk.
 
 ```json
 {

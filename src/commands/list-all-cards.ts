@@ -7,7 +7,7 @@ import { getCollectionsDir, getDecksDir, getWantedDir } from '../ritual-config'
 import { listDeckFiles, loadDeckFile } from '../importers/text-file'
 import { parseCollectionFile } from '../collection-file'
 import { parseWantedListFile } from './wanted-helpers'
-import { CardCommandError, getErrorMessage } from '../errors'
+import { CardCommandError, getErrorMessage, hasErrorCode } from '../errors'
 import { runCommandAction } from './card-target'
 import {
   addScriptingOptions,
@@ -71,10 +71,6 @@ function relativeToBase(filePath: string): string {
   return path.relative(getBaseDir(), filePath)
 }
 
-function isMissingDirError(err: unknown): boolean {
-  return (err as NodeJS.ErrnoException).code === 'ENOENT'
-}
-
 /**
  * List the markdown files of a flat-list directory. A missing directory is
  * normal (the user may not have set one up); any other readdir failure is
@@ -85,7 +81,7 @@ async function readMarkdownFiles(dir: string, ctx: CollectContext): Promise<stri
   try {
     files = await fs.readdir(dir)
   } catch (err) {
-    if (!isMissingDirError(err)) {
+    if (!hasErrorCode(err, 'ENOENT')) {
       ctx.skipped.push({ file: relativeToBase(dir), reason: getErrorMessage(err) })
     }
     return []
@@ -98,7 +94,7 @@ async function collectFromDecks(dir: string, ctx: CollectContext): Promise<void>
   try {
     files = await listDeckFiles(dir)
   } catch (err) {
-    if (!isMissingDirError(err)) {
+    if (!hasErrorCode(err, 'ENOENT')) {
       ctx.skipped.push({ file: relativeToBase(dir), reason: getErrorMessage(err) })
     }
     return

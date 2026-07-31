@@ -3,6 +3,7 @@ import os from 'node:os'
 import type { FileSystemClient } from '../interfaces'
 import { getCacheDir } from './file-cache'
 import { getCacheLockTimeoutSeconds } from '../ritual-config'
+import { hasErrorCode } from '../errors'
 import { getLogger } from '../logger'
 import { formatDuration } from '../utils'
 
@@ -85,7 +86,7 @@ function defaultIsPidAlive(pid: number): boolean {
     return true
   } catch (e) {
     // EPERM means the process exists but belongs to another user.
-    return (e as NodeJS.ErrnoException).code === 'EPERM'
+    return hasErrorCode(e, 'EPERM')
   }
 }
 

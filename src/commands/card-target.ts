@@ -30,7 +30,12 @@ import {
 import { formatPrintingAnnotation } from '../change-event'
 import { requireInteractive } from '../no-input'
 import { matchFinishPin, matchPrintingPin } from './collection-helpers'
-import { getCardPrintings } from '../scryfall'
+import {
+  fetchPrintingByCollectorNumber,
+  getCardPrintingsResult,
+  getFrontFaceName,
+} from '../scryfall'
+import { printingsAreComplete } from '../card-printing'
 import { CardCommandError, getErrorMessage } from '../errors'
 import { parsePositiveInteger } from '../parse-number'
 import type { Condition, Finish, ScryfallCard } from '../types'
@@ -348,12 +353,60 @@ export function listTypeLabel(type: ListType): string {
 /** A strict `--set`/`--collector-number` printing pin (set code lowercase). */
 export type PrintingPin = { set: string; collectorNumber: string }
 
+/** Case-insensitive name match tolerating a front-face-only spelling. */
+function sameCardName(a: string, b: string): boolean {
+  if (a.toLowerCase() === b.toLowerCase()) return true
+  return getFrontFaceName(a).toLowerCase() === getFrontFaceName(b).toLowerCase()
+}
+
+/**
+ * Verify a pin the local cache cannot vouch for by asking Scryfall for that
+ * exact printing.
+ *
+ * Without this, a workspace whose cache has never been bulk-downloaded
+ * validates pins against a single-card `/cards/named` fallback — so every real
+ * printing but the one Scryfall happened to return is rejected, under a message
+ * asserting it is the card's only "available printing".
+ */
+async function verifyPinAgainstScryfall(cardName: string, pin: PrintingPin): Promise<ScryfallCard> {
+  const advice = `The card cache holds no printing list for '${cardName}'. Run 'ritual cache preload-all' to download it.`
+  let printing: ScryfallCard | null
+  try {
+    printing = await fetchPrintingByCollectorNumber(pin.set, pin.collectorNumber)
+  } catch (err) {
+    throw new CardCommandError(
+      'runtime_error',
+      `Failed to verify printing ${pin.set.toUpperCase()}:${pin.collectorNumber}: ${getErrorMessage(err)}. ${advice}`,
+      ExitCode.RuntimeError,
+    )
+  }
+  if (!printing) {
+    throw new CardCommandError(
+      'usage_error',
+      `Could not verify printing ${pin.set.toUpperCase()}:${pin.collectorNumber} of '${cardName}' with Scryfall. ${advice}`,
+      ExitCode.UsageError,
+    )
+  }
+  if (!sameCardName(printing.name, cardName)) {
+    throw new CardCommandError(
+      'usage_error',
+      `${pin.set.toUpperCase()}:${pin.collectorNumber} is '${printing.name}', not '${cardName}'.`,
+      ExitCode.UsageError,
+    )
+  }
+  return printing
+}
+
 /**
  * Resolve a strict `--set`/`--collector-number` pin against the card's known
  * printings. A failed cache lookup is a runtime error; a pin that matches no
  * printing is a usage error listing the printings that do exist — deliberately
  * not routed through `resolveCardPrinting`'s soft set filter, which falls back
  * to all printings instead of failing.
+ *
+ * The listing is only trustworthy when it came from the card cache. When the
+ * cache holds no entry for the name, the pin is verified against Scryfall
+ * directly rather than against the one printing a fallback fetch returned.
  */
 export async function resolvePinnedPrinting(
   cardName: string,
@@ -361,8 +414,14 @@ export async function resolvePinnedPrinting(
 ): Promise<ScryfallCard> {
   let printings: ScryfallCard[]
   try {
-    printings = await getCardPrintings(cardName)
+    // Cache-only: a `/cards/named` fallback could not be trusted to validate the
+    // pin anyway, so the miss goes straight to verifying the pinned printing
+    // itself — one request instead of two.
+    const result = await getCardPrintingsResult(cardName, { network: false })
+    if (!printingsAreComplete(result)) return await verifyPinAgainstScryfall(cardName, pin)
+    printings = result.printings
   } catch (err) {
+    if (err instanceof CardCommandError) throw err
     throw new CardCommandError(
       'runtime_error',
       `Failed to look up printings for '${cardName}': ${getErrorMessage(err)}`,

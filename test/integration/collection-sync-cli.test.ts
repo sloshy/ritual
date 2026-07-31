@@ -7,7 +7,7 @@ import { scryfallIdIndex } from '../../src/cache/scryfall-id-index'
 import { registerCollectionSyncCommand } from '../../src/commands/collection-sync'
 import type { ArchidektCollectionRecord } from '../../src/importers/archidekt-collection'
 import { MemoryLogger, resetLogger, setLogger } from '../../src/logger'
-import { reloadRitualConfig } from '../../src/ritual-config'
+import { refreshRitualConfig } from '../../src/ritual-config'
 import { collectionPage, record } from '../unit/collection-sync/fixtures'
 import {
   BOLT,
@@ -149,6 +149,24 @@ describe('collection-sync CLI (Integration)', () => {
     expect(logged()).toContain('Synced: +1 added, -0 removed (additions into "binder").')
   })
 
+  test('a local card the cache does not hold is resolved without any Scryfall lookup', async () => {
+    // The finish-resolution lookup is cache-only: before that, an uncached name
+    // fired a live `/cards/named` request per distinct name — hundreds on a
+    // first sync — and blocklisted every 404 for a week. The stub rejects any
+    // unrouted URL, so a reintroduced fetch fails this test rather than passing
+    // it slowly.
+    await writeCollectionFile(dir, 'binder', {
+      entries: [{ name: 'Zzz Uncached Card', set: 'zzz', collectorNumber: '1', cardId: 1 }],
+    })
+    stubCollection()
+
+    const exitCode = await runSync(['pull'])
+
+    expect(exitCode).toBe(0)
+    expect(logged()).toContain('is not in the Scryfall cache; syncing it as nonfoil')
+    expect(sent.some((request) => request.url.includes('scryfall.com'))).toBe(false)
+  })
+
   test('a pull that both removes and adds gives the new line its own id', async () => {
     await writeCollectionFile(dir, 'binder', {
       entries: [
@@ -173,7 +191,7 @@ describe('collection-sync CLI (Integration)', () => {
     await writeConfig(dir, { collectionSync: { pullTarget: 'Overflow' } })
     // The command reads the config through the process-wide cache, which the
     // workspace primed at bind time.
-    await reloadRitualConfig()
+    await refreshRitualConfig()
     stubCollection(record(SOL_RING), record(BOLT))
 
     expect(await runSync(['pull'])).toBe(0)

@@ -25,13 +25,16 @@ type ErrorJson = {
  */
 async function seedCardCache(dir: string, cards: Record<string, ScryfallCard[]>): Promise<void> {
   type CacheEntry = { timestamp: number; data: ScryfallCard[] }
+  const now = Date.now()
   const entries: Record<string, CacheEntry> = Object.fromEntries(
-    Object.entries(cards).map(([name, data]) => [name, { timestamp: Date.now(), data }]),
+    Object.entries(cards).map(([name, data]) => [name, { timestamp: now, data }]),
   )
   await fs.mkdir(path.join(dir, 'cache'), { recursive: true })
   await fs.writeFile(
     path.join(dir, 'cache', 'cache.json'),
-    JSON.stringify({ prices: {}, cards: entries }),
+    // The metadata stamp is what a completed bulk download leaves behind, and
+    // what makes a cached entry count as the card's *complete* printing list.
+    JSON.stringify({ prices: {}, cards: entries, metadata: { cards: { lastRefreshedAt: now } } }),
   )
 }
 
@@ -220,7 +223,9 @@ describe('set-card CLI (Integration)', () => {
       expect(result.exitCode).toBe(1)
       const err = JSON.parse(result.stderr) as ErrorJson
       expect(err.error.code).toBe('runtime_error')
-      expect(err.error.message).toContain('Lightning Bolt')
+      // The lookup-failure branch specifically — not the pin-verification one,
+      // whose message also names the card.
+      expect(err.error.message).toContain('Failed to look up printings for')
     } finally {
       await stub.stop(true)
     }

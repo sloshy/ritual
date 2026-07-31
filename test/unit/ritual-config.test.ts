@@ -10,7 +10,7 @@ import {
   getRitualConfig,
   getSiteDeployConfig,
   getSiteSelectionConfig,
-  initRitualConfig,
+  refreshRitualConfig,
   isConfigParseError,
   loadRitualConfig,
   normalizeBannedPrintings,
@@ -26,6 +26,7 @@ import {
   parseSiteApiBaseUrl,
   parseSiteConfig,
   resetRitualConfigCache,
+  RitualConfigParseError,
   saveRitualConfig,
   type RitualConfig,
   type SiteConfig,
@@ -35,6 +36,19 @@ import { setBaseDir } from '../../src/base-dir'
 
 const testDir = path.join(import.meta.dir, '../.test-ritual-config')
 const configPath = path.join(testDir, 'ritual.config.json')
+
+/** What bun:test's `toThrow` accepts: an error class, instance, or message match. */
+type ThrowMatcher = string | RegExp | Error | (new (...args: never[]) => Error)
+
+/**
+ * Assert `load` rejects with `expected` (an error class, or a message
+ * substring). Wraps the carve-out bun:test's `rejects` chain needs: it resolves
+ * at runtime but the Matchers type doesn't expose a Promise.
+ */
+async function expectRejection(load: Promise<unknown>, expected: ThrowMatcher): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
+  await expect(load).rejects.toThrow(expected)
+}
 
 /** Assert `result` is the shared ConfigParseError branch naming `substring`. */
 function expectParseError(result: unknown, substring: string): void {
@@ -77,10 +91,28 @@ describe('ritual config', () => {
     expect(config.admin.gitEnabled).toBe(false)
   })
 
-  test('loadRitualConfig falls back to defaults when file is malformed JSON', async () => {
+  test('loadRitualConfig rejects a malformed config file instead of ignoring it', async () => {
+    await fs.writeFile(configPath, '{ "decksDir": "./my-decks",')
+    await expectRejection(loadRitualConfig(), RitualConfigParseError)
+    // The message has to name the file and the parser's complaint — the user
+    // has to know which file to fix.
+    await expectRejection(loadRitualConfig(), configPath)
+    await expectRejection(loadRitualConfig(), 'JSON Parse error')
+  })
+
+  test('refreshRitualConfig rejects a malformed config file rather than caching defaults', async () => {
     await fs.writeFile(configPath, '{ not valid json }')
-    const config = await loadRitualConfig()
-    expect(config).toEqual(getDefaultRitualConfig())
+    await expectRejection(refreshRitualConfig(), RitualConfigParseError)
+  })
+
+  test('a JSON document that is not an object is a config parse error', async () => {
+    await fs.writeFile(configPath, '["decksDir"]')
+    await expectRejection(loadRitualConfig(), 'must contain a JSON object')
+  })
+
+  test('an empty config object loads as the defaults', async () => {
+    await fs.writeFile(configPath, '{}')
+    expect(await loadRitualConfig()).toEqual(getDefaultRitualConfig())
   })
 
   test('saveRitualConfig and loadRitualConfig round-trip', async () => {
@@ -282,23 +314,18 @@ describe('ritual config', () => {
     expect(config.exportPresets).toBeUndefined()
   })
 
-  test('initRitualConfig creates ritual.config.json with defaults when missing', async () => {
-    const config = await initRitualConfig()
-    expect(config.decksDir).toBe('./decks')
-    expect(config.wantedDir).toBe('./wanted')
-
-    const written = await fs.readFile(configPath, 'utf-8')
-    const parsed = JSON.parse(written)
-    expect(parsed.decksDir).toBe('./decks')
-    expect(parsed.wantedDir).toBe('./wanted')
+  test('refreshRitualConfig caches defaults without creating the file when missing', async () => {
+    const config = await refreshRitualConfig()
+    expect(config).toEqual(getDefaultRitualConfig())
+    expect(await Bun.file(configPath).exists()).toBeFalse()
   })
 
-  test('initRitualConfig populates the cache for sync getters', async () => {
+  test('refreshRitualConfig populates the cache for sync getters', async () => {
     await fs.writeFile(
       configPath,
       JSON.stringify({ decksDir: './custom-decks', wantedDir: './custom-wanted' }),
     )
-    await initRitualConfig()
+    await refreshRitualConfig()
     const cached = getRitualConfig()
     expect(cached.decksDir).toBe('./custom-decks')
     expect(cached.wantedDir).toBe('./custom-wanted')
@@ -313,7 +340,7 @@ describe('ritual config', () => {
         wantedDir: '../shared-wanted',
       }),
     )
-    await initRitualConfig()
+    await refreshRitualConfig()
     expect(getDecksDir()).toBe(path.join(testDir, 'my-decks'))
     expect(getCollectionsDir()).toBe(path.join(testDir, 'collections'))
     expect(getWantedDir()).toBe(path.resolve(testDir, '../shared-wanted'))

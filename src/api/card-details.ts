@@ -1,7 +1,8 @@
 // An HTTP handler module that is server-agnostic: `src/api/` means "handlers no
 // server owns", not "handlers both servers mount". This one is currently mounted
 // on the admin server only.
-import { getCardPrintings } from '../scryfall'
+import { getCardPrintingsResult } from '../scryfall'
+import { printingsAreComplete } from '../card-printing'
 import { getErrorMessage } from '../errors'
 import { detailCard, type CardDetails } from './card-summary'
 
@@ -37,7 +38,8 @@ function errorResponse(message: string, status: number): Response {
  * printings, so the response describes *the card*, with the **most recent**
  * printing's identity (`set`, `collectorNumber`, `prices`) attached —
  * `getCardPrintings` sorts newest first — and `printingCount` reporting how many
- * printings were found.
+ * printings were found. `printingsComplete` is false when that count came from
+ * the single-card fallback rather than the cache's own printing list.
  *
  * `colors`, `keywords`, and `legalities` are only present on cards written by a
  * cache from this version onward — run `ritual cache preload-all` to backfill.
@@ -49,7 +51,8 @@ export async function handleCardDetails(req: Request): Promise<Response> {
     const name = new URL(req.url).searchParams.get('name')?.trim()
     if (!name) return errorResponse('name is required.', 400)
 
-    const printings = await getCardPrintings(name)
+    const result = await getCardPrintingsResult(name)
+    const printings = result.printings
     if (printings.length === 0) {
       return errorResponse(
         `No card named '${name}'. Names are matched exactly — resolve a partial name with /api/autocomplete (MCP: the autocomplete_card tool).`,
@@ -59,7 +62,7 @@ export async function handleCardDetails(req: Request): Promise<Response> {
 
     const body: CardDetailsSuccess = {
       success: true,
-      card: detailCard(printings[0]!, printings.length),
+      card: detailCard(printings[0]!, printings.length, printingsAreComplete(result)),
     }
     return Response.json(body)
   } catch (error) {

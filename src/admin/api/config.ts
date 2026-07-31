@@ -11,7 +11,7 @@ import {
   parseDefaultCurrency,
   parseSearchDebounceMs,
   parseSiteConfig,
-  reloadRitualConfig,
+  refreshRitualConfig,
   saveRitualConfig,
   type ConfigParseError,
   type RitualConfig,
@@ -22,7 +22,11 @@ import { apiHandler } from '../utils'
 import { badRequest, readJsonObjectBody } from './save-helpers'
 import { getBaseDir } from '../../base-dir'
 
-/** `GET /api/config` and `PUT /api/config` — the config as it now stands on disk. */
+/**
+ * `GET /api/config` and `PUT /api/config` — the effective configuration:
+ * ritual.config.json merged over the built-in defaults (the file is optional
+ * and may not exist yet).
+ */
 export interface ConfigResponse {
   success: true
   config: RitualConfig
@@ -88,10 +92,14 @@ function applyScalarUpdate<K extends ScalarConfigKey>(
   return null
 }
 
-export async function handleGetConfig(): Promise<Response> {
-  const config = await loadRitualConfig()
-  const resp: ConfigResponse = { success: true, config }
-  return Response.json(resp)
+export function handleGetConfig(): Promise<Response> {
+  // apiHandler so a config file hand-edited into invalid JSON while the server
+  // runs answers with its actionable parse message, not a contentless 500.
+  return apiHandler(async () => {
+    const config = await loadRitualConfig()
+    const resp: ConfigResponse = { success: true, config }
+    return Response.json(resp)
+  })
 }
 
 export function handleUpdateConfig(req: Request): Promise<Response> {
@@ -212,7 +220,7 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
       delete merged.cacheFeedUrl
     }
     await saveRitualConfig(merged)
-    await reloadRitualConfig()
+    await refreshRitualConfig()
 
     if (shouldAutoCommit(merged, getBaseDir())) {
       commitFiles([getRitualConfigPath()], 'Update ritual configuration')

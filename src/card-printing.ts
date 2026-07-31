@@ -12,6 +12,39 @@ type SpecificPrinting = { set: string; collectorNumber: string }
 export type CardPrintingsLookup = (name: string) => Promise<ScryfallCard[]>
 
 /**
+ * How much a printings list can be trusted to be the whole story — the
+ * difference between "these are all the printings that exist" and "this is what
+ * happened to be at hand".
+ *
+ * - `complete`: the list came from a bulk-downloaded card cache, so it holds
+ *   every printing of the card. Only this source may be read as exhaustive
+ *   (e.g. "length === 1 means a single-printing card").
+ * - `partial`: one or more printings, with no guarantee there aren't others —
+ *   a single-card `/cards/named` fallback fetch, or a cache entry in a
+ *   workspace whose cache has never been bulk-downloaded (where every entry was
+ *   written by exactly such a fetch).
+ * - `none`: nothing was found — an unknown name, a cache-only lookup that
+ *   missed, or a failed fetch.
+ */
+export type PrintingsSource = 'complete' | 'partial' | 'none'
+
+/** A printings lookup result carrying {@link PrintingsSource} provenance. */
+export type CardPrintingsResult = {
+  printings: ScryfallCard[]
+  source: PrintingsSource
+}
+
+/**
+ * Whether a printings list may be read as the card's complete printing set.
+ * A `partial` list may hold a single arbitrary printing, so treating it as
+ * exhaustive assigns printings the user never chose and rejects pins that
+ * really exist.
+ */
+export function printingsAreComplete(result: CardPrintingsResult): boolean {
+  return result.source === 'complete'
+}
+
+/**
  * Returns true when an entry is pinned to a specific printing — i.e. it has both
  * a set code and a collector number. A set or collector number alone does not
  * identify a printing. Doubles as a type guard narrowing both fields to `string`.

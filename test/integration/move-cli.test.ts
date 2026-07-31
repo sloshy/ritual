@@ -25,13 +25,16 @@ async function seedCardCache(
   cards: Record<string, ScryfallCard[]>,
 ): Promise<void> {
   type CacheEntry = { timestamp: number; data: ScryfallCard[] }
+  const now = Date.now()
   const entries: Record<string, CacheEntry> = Object.fromEntries(
-    Object.entries(cards).map(([name, data]) => [name, { timestamp: Date.now(), data }]),
+    Object.entries(cards).map(([name, data]) => [name, { timestamp: now, data }]),
   )
   await fs.mkdir(path.join(workspace, 'cache'), { recursive: true })
   await fs.writeFile(
     path.join(workspace, 'cache', 'cache.json'),
-    JSON.stringify({ prices: {}, cards: entries }),
+    // The metadata stamp is what a completed bulk download leaves behind, and
+    // what makes a cached entry count as the card's *complete* printing list.
+    JSON.stringify({ prices: {}, cards: entries, metadata: { cards: { lastRefreshedAt: now } } }),
   )
 }
 
@@ -202,6 +205,82 @@ describe('move CLI headless mode (Integration)', () => {
     const collection = await fs.readFile(path.join(dir, 'collections', 'binder.md'), 'utf-8')
     expect(collection).not.toContain('Demonic Tutor')
   })
+
+  test('wanted → collection refuses to assign a printing the cache knows nothing about', async () => {
+    // The cache exists but holds no entry for this card, so a lookup can only
+    // fall back to a single `/cards/named` result — which says nothing about how
+    // many printings exist and must never be auto-accepted.
+    await seedCardCache(dir, { 'Some Other Card': DEMONIC_TUTOR_PRINTINGS })
+    const result = await runCli(
+      [
+        'move',
+        'Demonic',
+        'Tutor',
+        '--from',
+        'wanted:needs',
+        '--to',
+        'collection:binder',
+        '--output',
+        'json',
+      ],
+      dir,
+      OFFLINE_ENV,
+    )
+    expect(result.exitCode).toBe(2)
+    const err = JSON.parse(result.stderr) as MoveErrorPayload
+    expect(err.error.code).toBe('usage_error')
+    expect(err.error.message).toContain('are known from the card cache')
+
+    // Nothing moved: the printing is resolved before any write.
+    const wanted = await fs.readFile(path.join(dir, 'wanted', 'needs.md'), 'utf-8')
+    expect(wanted).toContain('Demonic Tutor')
+    const collection = await fs.readFile(path.join(dir, 'collections', 'binder.md'), 'utf-8')
+    expect(collection).not.toContain('Demonic Tutor')
+  })
+
+  test('a pin the cache cannot vouch for is verified against Scryfall, not a fallback list', async () => {
+    // Offline, that verification cannot happen — the error says so rather than
+    // rejecting the pin against a fabricated one-entry "available printings" list.
+    await seedCardCache(dir, { 'Some Other Card': DEMONIC_TUTOR_PRINTINGS })
+    const result = await runCli(
+      [
+        'move',
+        'Demonic',
+        'Tutor',
+        '--from',
+        'wanted:needs',
+        '--to',
+        'collection:binder',
+        '--set',
+        'sta',
+        '--collector-number',
+        '90',
+        '--output',
+        'json',
+      ],
+      dir,
+      OFFLINE_ENV,
+    )
+    // Deliberately not pinned to one exit code or message: whether an
+    // unreachable Scryfall surfaces as a thrown request (runtime error) or a
+    // non-ok response (usage error) is a property of the network stack, not of
+    // this command. What must hold is that the pin is never rejected against a
+    // fabricated one-entry printing list, and that the remedy is named.
+    // `fetchPrintingByCollectorNumber`'s own branches are unit-tested.
+    expect(result.exitCode).not.toBe(0)
+    const err = JSON.parse(result.stderr) as MoveErrorPayload
+    expect(err.error.message).toContain('STA:90')
+    expect(err.error.message).not.toContain('Available printings')
+    expect(err.error.message).toContain('ritual cache preload-all')
+
+    // The failure happens before anything is written.
+    const wanted = await fs.readFile(path.join(dir, 'wanted', 'needs.md'), 'utf-8')
+    expect(wanted).toContain('Demonic Tutor')
+    const collection = await fs.readFile(path.join(dir, 'collections', 'binder.md'), 'utf-8')
+    expect(collection).not.toContain('Demonic Tutor')
+    // Generous: the verification request is real, and offline it runs out the
+    // client's own 15s Scryfall timeout before the error can be reported.
+  }, 30_000)
 
   test('wanted → collection without printing flags and no cached printings fails cleanly', async () => {
     await seedCardCache(dir, { 'Zzz Fake Test Card': [] })

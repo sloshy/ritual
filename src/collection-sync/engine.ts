@@ -32,7 +32,7 @@ import type {
 } from '../importers/archidekt-collection'
 import { formatResolveListError, normalizeListName } from '../resolve-list'
 import { scryfallIdIndex } from '../cache/scryfall-id-index'
-import { getCardPrintings } from '../scryfall'
+import { getCachedCardPrintings } from '../scryfall'
 import {
   describeSkippedChanges,
   type ConfirmUnreadable,
@@ -610,7 +610,12 @@ export async function runCollectionSync(
       emit({ kind: 'log', level: 'warn', list: null, message }),
     )
   const store = options.store ?? createDiskCollectionListStore()
-  const lookupPrintings = options.lookupPrintings ?? getCardPrintings
+  // Cache-only by design: names are "resolved against the local card cache"
+  // (docs), and a miss takes the documented nonfoil-with-warning path. The
+  // network-falling-back lookup would fire one Scryfall request per distinct
+  // uncached name — hundreds on a first sync, even under --dry-run — and
+  // blocklist every 404 for a week.
+  const lookupPrintings = options.lookupPrintings ?? getCachedCardPrintings
   const lookupByScryfallId =
     options.lookupByScryfallId ?? ((ids: readonly string[]) => scryfallIdIndex.lookup(ids))
   const stateStore = options.state ?? createFileCollectionSyncStateStore()
