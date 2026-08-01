@@ -131,7 +131,8 @@ ritual skills list
 | Option              | Description                                | Default |
 | ------------------- | ------------------------------------------ | ------- |
 | `--output <format>` | Output format: `text`, `json`, or `ndjson` | `text`  |
-| `--quiet`           | Suppress non-essential output              | `false` |
+
+`list` deliberately has **no `--quiet`**: its entire output is the skill list itself, and the [shared convention](/#scripting-conventions) is that `--quiet` never suppresses the payload — so there would be nothing for the flag to do. Redirect stdout if you want silence.
 
 With `--output json` each skill is one `{ name, description }` object
 (`ndjson` emits the same rows one object per line):

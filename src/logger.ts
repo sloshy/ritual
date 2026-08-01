@@ -80,6 +80,24 @@ export const STDERR_LOGGER: Logger = {
   },
 }
 
+/**
+ * {@link STDERR_LOGGER} for a `--quiet` run: info and progress are the
+ * non-essential chatter `--quiet` exists to suppress, so they are dropped
+ * entirely, while warnings and errors still reach stderr. Commands install this
+ * so data-layer chatter (cache "Fetching: …" notices, blocklist additions)
+ * obeys the flag without each call site having to know about it.
+ */
+export const QUIET_STDERR_LOGGER: Logger = {
+  info(): void {},
+  warn(message?: unknown, ...optionalParams: unknown[]): void {
+    console.warn(message, ...optionalParams)
+  },
+  error(message?: unknown, ...optionalParams: unknown[]): void {
+    console.error(message, ...optionalParams)
+  },
+  progress(): void {},
+}
+
 const defaultLogger = new ConsoleLogger()
 let activeLogger: Logger = defaultLogger
 

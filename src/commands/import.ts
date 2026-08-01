@@ -40,6 +40,8 @@ import { parseMoxfieldPrimer } from '../primer-parser'
 import {
   addDryRunOption,
   addScriptingOptions,
+  installScriptingLogger,
+  markStdoutClosed,
   classifyFileReadError,
   emitError,
   emitOutput,
@@ -48,7 +50,7 @@ import {
   type OutputFormat,
   type ScriptingOptions,
 } from './scripting'
-import { getLogger, setLogger, STDERR_LOGGER } from '../logger'
+import { getLogger } from '../logger'
 import { writeFileWithHash } from '../content-hash'
 import { isPathWithinDir } from '../path-validation'
 import { getDecksDir } from '../ritual-config'
@@ -56,7 +58,7 @@ import { listFilePath } from '../resolve-list'
 import { isListType, listTypeLabel, LIST_TYPES, type ListType } from '../list-type'
 import { ask, promptListType } from './prompts-helpers'
 import { isNoInput, promptsUnavailable } from '../no-input'
-import { CardCommandError, getErrorMessage, hasErrorCode } from '../errors'
+import { CardCommandError, getErrorMessage, hasErrorCode, isBrokenPipeError } from '../errors'
 
 interface SaveListOptions {
   forceOverwrite?: boolean
@@ -71,6 +73,13 @@ interface SaveListOptions {
   /** Auto-answer the overwrite confirmation with yes when a conflict comes up. */
   assumeYes?: boolean
   dryRun?: boolean
+  /**
+   * Suppress progress and confirmation chatter ("Overwriting …", "Successfully
+   * imported … to …"), matching the repo-wide `--quiet` convention. Errors and
+   * the interactive conflict messages are never suppressed — silence must not
+   * hide that a file is about to be replaced.
+   */
+  quiet?: boolean
 }
 
 type DeckFileFrontmatter = {
@@ -140,7 +149,14 @@ function normalizeSaveListOptions(options?: SaveListOptions): Required<SaveListO
     noPrompts: options?.noPrompts ?? promptsUnavailable(),
     assumeYes: options?.assumeYes ?? false,
     dryRun: options?.dryRun ?? false,
+    quiet: options?.quiet ?? false,
   }
+}
+
+/** `getLogger().info` gated on a save's `quiet` option. */
+function saveInfo(resolvedOptions: Required<SaveListOptions>, message: string): void {
+  if (resolvedOptions.quiet) return
+  getLogger().info(message)
 }
 
 /**
@@ -247,7 +263,7 @@ export async function saveDeck(
     filePath = path.join(decksDir, conflictFile)
     action = 'overwritten'
     if (!resolvedOptions.dryRun) {
-      getLogger().info(`Overwriting ${conflictFile}...`)
+      saveInfo(resolvedOptions, `Overwriting ${conflictFile}...`)
     }
   } else if (conflictFile && !shouldOverwrite) {
     if (resolvedOptions.noPrompts) {
@@ -288,7 +304,7 @@ export async function saveDeck(
       // Overwrite existing file.
       filePath = path.join(decksDir, conflictFile)
       action = 'overwritten'
-      getLogger().info(`Overwriting ${conflictFile}...`)
+      saveInfo(resolvedOptions, `Overwriting ${conflictFile}...`)
     }
   }
 
@@ -314,19 +330,19 @@ export async function saveDeck(
   const outcome: SaveListOutcome = { status: 'saved', filePath, name: deckData.name, action }
 
   if (resolvedOptions.dryRun) {
-    getLogger().info(`[dry-run] Would save deck to: ${filePath}`)
+    saveInfo(resolvedOptions, `[dry-run] Would save deck to: ${filePath}`)
     if (primerMarkdown) {
-      getLogger().info(`[dry-run] Would save primer to: ${primerPath}`)
+      saveInfo(resolvedOptions, `[dry-run] Would save primer to: ${primerPath}`)
     }
     return outcome
   }
 
   await writeFileWithHash(filePath, fileContent)
-  getLogger().info(`Successfully imported deck to: ${filePath}`)
+  saveInfo(resolvedOptions, `Successfully imported deck to: ${filePath}`)
 
   if (primerMarkdown) {
     await Bun.write(primerPath, primerMarkdown + '\n')
-    getLogger().info(`Successfully saved primer to: ${primerPath}`)
+    saveInfo(resolvedOptions, `Successfully saved primer to: ${primerPath}`)
   }
 
   return outcome
@@ -402,7 +418,7 @@ export async function saveFlatList(
     mode = 'overwrite'
     action = 'overwritten'
     if (!resolvedOptions.dryRun) {
-      getLogger().info(`Overwriting ${path.basename(filePath)}...`)
+      saveInfo(resolvedOptions, `Overwriting ${path.basename(filePath)}...`)
     }
   } else if (exists) {
     if (resolvedOptions.noPrompts) {
@@ -427,12 +443,12 @@ export async function saveFlatList(
     } else {
       mode = 'overwrite'
       action = 'overwritten'
-      getLogger().info(`Overwriting ${path.basename(filePath)}...`)
+      saveInfo(resolvedOptions, `Overwriting ${path.basename(filePath)}...`)
     }
   }
 
   if (resolvedOptions.dryRun) {
-    getLogger().info(`[dry-run] Would save ${label} to: ${filePath}`)
+    saveInfo(resolvedOptions, `[dry-run] Would save ${label} to: ${filePath}`)
     return { status: 'saved', filePath, name, action }
   }
 
@@ -441,7 +457,7 @@ export async function saveFlatList(
     throw new Error(result.error)
   }
 
-  getLogger().info(`Successfully imported ${label} to: ${result.filePath}`)
+  saveInfo(resolvedOptions, `Successfully imported ${label} to: ${result.filePath}`)
   return { status: 'saved', filePath: result.filePath, name, action }
 }
 
@@ -988,10 +1004,10 @@ export function registerImportCommand(program: Command): void {
     ),
   ).action(async (source: string, options: ImportCommandOptions) => {
     const scripting = normalizeScriptingOptions(options)
-    // JSON modes keep stdout for the payload; info chatter goes to stderr.
-    if (scripting.output !== 'text') {
-      setLogger(STDERR_LOGGER)
-    }
+    // The importer and the data layer log through getLogger(): JSON modes keep
+    // stdout for the payload, and `--quiet` drops info chatter entirely, so
+    // engine progress obeys the same convention as this command's own lines.
+    installScriptingLogger(scripting)
     const logger = getLogger()
 
     let typeFlag: ListType | undefined
@@ -1038,6 +1054,7 @@ export function registerImportCommand(program: Command): void {
       forceOverwrite: options.overwrite === true,
       assumeYes: options.yes === true,
       dryRun: options.dryRun === true,
+      quiet: scripting.quiet,
     }
 
     try {
@@ -1049,7 +1066,9 @@ export function registerImportCommand(program: Command): void {
       if (sourceUrl !== undefined) {
         const result = await fetchDeckFromUrl(sourceUrl, {
           moxfieldUserAgent: options.moxfieldUserAgent,
-          onProgress: (message) => logger.info(message),
+          onProgress: (message) => {
+            if (!scripting.quiet) logger.info(message)
+          },
         })
         if (typeof result === 'string') {
           emitError('usage_error', result, scripting)
@@ -1067,7 +1086,7 @@ export function registerImportCommand(program: Command): void {
         return
       }
 
-      logger.info(`Reading cards from file: ${source}...`)
+      if (!scripting.quiet) logger.info(`Reading cards from file: ${source}...`)
       const { deck: deckData, warnings } = await loadDeckFile(source)
 
       const listType = await resolveImportListType(typeFlag)
@@ -1089,6 +1108,11 @@ export function registerImportCommand(program: Command): void {
       if (error instanceof CardCommandError) {
         emitError(error.code, error.message, scripting, error.details)
         process.exitCode = error.exitCode
+        return
+      }
+      // A `… | head` broken pipe ends the run quietly rather than failing.
+      if (isBrokenPipeError(error)) {
+        markStdoutClosed()
         return
       }
       emitError('runtime_error', `Failed to import: ${getErrorMessage(error)}`, scripting)

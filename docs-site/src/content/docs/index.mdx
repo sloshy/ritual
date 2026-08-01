@@ -198,3 +198,33 @@ Avoid interactive prompts in CI:
 - Prefer `--output json` or `--output ndjson` for script parsing.
 - Use `--fields` to project stable subsets of data.
 - Add the global `--no-input` flag (or set `RITUAL_NO_INPUT`) in headless environments so no command ever prompts; pass `--yes` where a confirmation is required.
+
+## Scripting conventions
+
+Three flags and one exit-code vocabulary behave the same way on every command that has them.
+
+### `--output` always means the scripting format
+
+`--output text|json|ndjson` selects the **envelope** the command writes to stdout — never a file format, never a destination. `json` emits exactly one document per run (a batch of card lookups or a multi-page search is still one array); `ndjson` streams one JSON object per line; `text` is the human rendering. Two commands widen the value list rather than redefining the flag: [`scry`](/commands/scry/) adds `--output csv` (Scryfall renders the CSV itself), and [`export`](/commands/export/) has no `--output` at all — its stdout payload _is_ the export, chosen with `--format csv|json|text|md` and redirected with `--out <file>`.
+
+Errors always go to **stderr**, structured to match: `{"error": {"code", "message", "details"}}` under `json`/`ndjson`, a plain line under `text`. stdout stays parseable in every case.
+
+### `--quiet` suppresses chatter, never data
+
+`--quiet` removes progress and status messages — "Reading cards from file…", "Successfully imported…", applied counts, confirmations. It never removes:
+
+- the **structured payload**: `--output json`/`ndjson` stdout is always emitted, so `--quiet --output json` is a JSON document with no chatter around it. Scripts that want total silence redirect stdout.
+- **errors**, and **warnings that mean content was lost** — a card line the parser could not read, a change skipped as a conflict, a result set truncated by the page cap. These always print to stderr, `--quiet` or not, because nothing else would tell you.
+
+A command with no non-essential output does not register the flag at all rather than advertising an inert one. `card`, `diff`, `scry`, `cache status`, `dep-license`, `history`, `login status`, and `skills list` therefore accept `--output` but no `--quiet`: everything they print is either the payload or a warning that has to survive anyway.
+
+### Exit codes
+
+| Code | Meaning                                                                                                             |
+| ---- | ------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Success                                                                                                             |
+| `1`  | Runtime error — the work was attempted and failed                                                                   |
+| `2`  | Usage error — a bad flag value or an impossible combination, including a malformed `--base-dir` or `--cache-server` |
+| `3`  | Not found — a named list, file, card, or other resource does not exist                                              |
+
+A closed stdout pipe is not a failure: `ritual … --output ndjson | head` stops quietly and exits `0`, like any standard Unix tool.

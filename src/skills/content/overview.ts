@@ -123,11 +123,32 @@ formats, leaving formatless decks untouched and reported).
   (exit 2), so a typo can never read as an empty workspace
 - \`--cache-server <host:port>\` — share a card/price cache with other instances
   (the \`RITUAL_CACHE_SERVER\` environment variable does the same; host one with
-  \`ritual cache server\`)
+  \`ritual cache server\`). A malformed address is a usage error (exit 2)
 ${asBullet(NO_INPUT_GUARANTEE)}
 
 Exit codes are uniform across commands: **1** runtime error, **2** usage error,
-**3** not found.
+**3** not found. A missing resource — a list, file, or sidecar that is simply
+not there — is always **3**, never 1.
+
+## Scripting conventions (uniform across commands)
+
+- \`--output text|json|ndjson\` always selects the **stdout envelope**, never a
+  file format or destination. \`json\` emits exactly one document per run (a
+  card batch or a multi-page search is still one array); \`ndjson\` streams one
+  object per line. Errors go to stderr as
+  \`{"error":{"code","message","details"}}\` in the structured modes. Two
+  exceptions, both deliberate: \`scry\` adds a fourth value \`--output csv\`, and
+  \`export\` has no \`--output\` at all (its stdout payload *is* the export —
+  pick the format with \`--format csv|json|text|md\`, redirect with \`--out\`).
+- \`--quiet\` suppresses progress and status chatter **only**. The structured
+  payload always emits, so \`--quiet --output json\` is clean JSON with no
+  surrounding noise. Errors and data-loss warnings (an unparseable card line, a
+  change skipped as a conflict, a truncated result set) always reach stderr
+  regardless. A command with no chatter does not register the flag at all
+  (\`card\`, \`diff\`, \`scry\`, \`cache status\`, \`dep-license\`, \`history\`,
+  \`login status\`, \`skills list\`).
+- Piping structured output into an early-closing reader (\`… --output ndjson |
+  head\`) is a clean exit 0, not a crash.
 
 ${REFRESH_COMMANDS}
 

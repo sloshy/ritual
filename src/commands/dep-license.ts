@@ -4,7 +4,7 @@ import { depLicenses, type DepLicenseEntry } from '../generated/dep-licenses'
 import { displayWithPager, resolvePagerMode } from '../pager'
 import { promptsUnavailable, promptsUnavailableReason } from '../no-input'
 import {
-  addScriptingOptions,
+  addOutputOption,
   emitError,
   emitOutput,
   normalizeScriptingOptions,
@@ -70,7 +70,9 @@ export function formatDepLicenseList(entries: readonly DepLicenseEntry[]): strin
 }
 
 export function registerDepLicenseCommand(program: Command): void {
-  addScriptingOptions(
+  // `--output` only: the license listing (or a package's license text) is the
+  // whole output, so `--quiet` would have nothing to suppress.
+  addOutputOption(
     program
       .command('dep-license')
       .description('Show licenses of dependencies bundled with Ritual')

@@ -4,22 +4,23 @@ import { classifyFetchCard, scryfallClient } from '../scryfall'
 import { getErrorMessage } from '../errors'
 import {
   addFieldsOption,
-  addScriptingOptions,
+  addOutputOption,
   classifyFileReadError,
   emitError,
   emitOutput,
   ExitCode,
   normalizeScriptingOptions,
+  OUTPUT_FORMATS,
   projectFields,
   rejectFieldsWithTextOutput,
   renderCardSummary,
+  type OutputFormat,
 } from './scripting'
 
 type CardCommandOptions = {
   fuzzy: boolean
   set?: string
-  output?: 'text' | 'json' | 'ndjson'
-  quiet?: boolean
+  output?: OutputFormat
   stdin?: boolean
   fromFile?: string
   fields?: string[]
@@ -46,7 +47,9 @@ function parseInputNames(raw: string): string[] {
 }
 
 export function registerCardCommand(program: Command): void {
-  addScriptingOptions(
+  // `--output` only: every line `card` prints is payload or an error, so there
+  // is no non-essential chatter for `--quiet` to suppress.
+  addOutputOption(
     addFieldsOption(
       program
         .command('card')
@@ -57,6 +60,7 @@ export function registerCardCommand(program: Command): void {
         .option('--stdin', 'Read card names from stdin (one per line)')
         .option('--from-file <path>', 'Read card names from file (one per line)'),
     ),
+    OUTPUT_FORMATS,
     'json',
   ).action(async (name: string | undefined, options: CardCommandOptions) => {
     const scriptingOptions = normalizeScriptingOptions(options, 'json')
@@ -102,13 +106,15 @@ export function registerCardCommand(program: Command): void {
     }
 
     const batchMode = names.length > 1
-    const effectiveOptions = {
-      ...scriptingOptions,
-      output:
-        batchMode && scriptingOptions.output === 'json'
-          ? ('ndjson' as const)
-          : scriptingOptions.output,
-    }
+    /**
+     * `--output json` emits ONE document, batch or not — the same contract
+     * `scry` documents. A batch buffers its cards into a single array so the
+     * shape never depends on how many lines the input happened to contain;
+     * `--output ndjson` stays the opt-in streaming mode. A single lookup keeps
+     * emitting the bare card object.
+     */
+    const bufferJson = batchMode && scriptingOptions.output === 'json'
+    const jsonCards: unknown[] = []
     let hadMissing = false
     let hadFailure = false
 
@@ -124,26 +130,38 @@ export function registerCardCommand(program: Command): void {
         emitError(
           'runtime_error',
           `Failed to fetch card '${cardName}': ${outcome.message}`,
-          effectiveOptions,
+          scriptingOptions,
         )
         hadFailure = true
         continue
       }
 
       if (outcome.kind === 'not-found') {
-        emitError('not_found', `Card '${cardName}' not found.`, effectiveOptions)
+        emitError('not_found', `Card '${cardName}' not found.`, scriptingOptions)
         hadMissing = true
         continue
       }
 
       const card = outcome.card
 
-      if (effectiveOptions.output === 'text') {
-        emitOutput(renderCardSummary(card), effectiveOptions)
+      if (scriptingOptions.output === 'text') {
+        emitOutput(renderCardSummary(card), scriptingOptions)
         continue
       }
 
-      emitOutput(projectFields(card, options.fields), effectiveOptions)
+      if (bufferJson) {
+        jsonCards.push(projectFields(card, options.fields))
+        continue
+      }
+
+      emitOutput(projectFields(card, options.fields), scriptingOptions)
+    }
+
+    // One array for the whole batch, however many names it held — including the
+    // empty array when every lookup failed, so stdout parses as the same shape
+    // no matter how the run went (failures are on stderr and in the exit code).
+    if (bufferJson) {
+      emitOutput(jsonCards, scriptingOptions)
     }
 
     // A request failure outranks a genuine not-found when both occur in one batch.

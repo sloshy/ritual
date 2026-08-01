@@ -19,17 +19,19 @@ Run a raw Scryfall card search, or fetch random cards with `--random`.
 
 ## Options
 
-| Option              | Description                                       | Default                                    |
-| ------------------- | ------------------------------------------------- | ------------------------------------------ |
-| `--csv`             | Output results as CSV                             | `false`                                    |
-| `--pages <number>`  | Fetch up to this many pages, without prompting    | `1` when interactive paging is unavailable |
-| `--random`          | Fetch random cards instead of searching           | `false`                                    |
-| `--count <number>`  | Number of random cards to fetch (`--random` only) | `1`                                        |
-| `--fields <list>`   | Comma-separated fields for `json`/`ndjson` output | -                                          |
-| `--output <format>` | Output format (`json`, `ndjson`, or `text`)       | `json`                                     |
-| `--quiet`           | Suppress non-essential output                     | `false`                                    |
+| Option              | Description                                        | Default                                    |
+| ------------------- | -------------------------------------------------- | ------------------------------------------ |
+| `--pages <number>`  | Fetch up to this many pages, without prompting     | `1` when interactive paging is unavailable |
+| `--random`          | Fetch random cards instead of searching            | `false`                                    |
+| `--count <number>`  | Number of random cards to fetch (`--random` only)  | `1`                                        |
+| `--fields <list>`   | Comma-separated fields for `json`/`ndjson` output  | -                                          |
+| `--output <format>` | Output format (`json`, `ndjson`, `text`, or `csv`) | `json`                                     |
 
-`--random` cannot be combined with `--pages` or `--csv`, and `--count` requires `--random`; either combination is rejected with a usage error. Without `--random`, a search query is required.
+`scry` registers no `--quiet`: results are the payload and the truncation notice below is a content-loss warning, and [the convention](/#scripting-conventions) lets `--quiet` hide neither.
+
+`scry` is the one command whose `--output` accepts a fourth value, `csv` — Scryfall renders the CSV server-side, so it is a format of the same payload rather than a separate flag. Everything else follows the [shared scripting conventions](/#scripting-conventions).
+
+`--random` cannot be combined with `--pages` or `--output csv`, and `--count` requires `--random`; either combination is rejected with a usage error. Without `--random`, a search query is required.
 
 ## Paging
 
@@ -39,7 +41,7 @@ Scryfall returns search results in pages. How many `scry` fetches:
 - **Without `--pages`, in an interactive terminal** (stdout and stdin are both TTYs and prompting is allowed), `scry` asks "Fetch next page?" after each page until you decline or the results run out.
 - **Everywhere else** — piped output, scripts, or the global `--no-input` flag (or the `RITUAL_NO_INPUT` environment variable) — exactly one page is fetched.
 
-`--quiet` does not affect paging; it only suppresses non-essential output.
+When a non-interactive run stops with results still available, one line goes to stderr — `Fetched 175 of 4210 results (page 1); use --pages <n> for more.` — so a capped run is never mistaken for a complete one. That notice always prints, in every output mode: it means results were lost, and nothing else would tell you.
 
 Either way a run fetches at most **20 pages**. Each page is a separately paced Scryfall request, so the cap is a courtesy to their API as much as a guard against a typo'd `--pages`; a larger `--pages` value is rejected at parse time with a message naming the cap. `--count` is capped at **50** for the same reason.
 
@@ -53,7 +55,7 @@ A scripted `--output json` run (the default) emits **one** JSON array of cards, 
 
 The exception is interactive paging, where the whole point of the prompt is seeing each page before asking for the next: those runs print each page as it arrives.
 
-`--output ndjson` streams one document per card as each page arrives, which is its contract, and `--csv` concatenates the pages' rows (the header is written once).
+`--output ndjson` streams one document per card as each page arrives, which is its contract; `--output text` prints one `Name (SET)` line per card as each page arrives; and `--output csv` concatenates the pages' rows (the header is written once).
 
 ## Random Cards
 
@@ -102,7 +104,7 @@ Search for cards legal in Commander under $5:
 Export search results to CSV:
 
 ```bash
-./ritual scry "set:mh2 type:creature" --csv > creatures.csv
+./ritual scry "set:mh2 type:creature" --output csv > creatures.csv
 ```
 
 Force text output:
@@ -138,11 +140,11 @@ This command uses [Scryfall's search syntax](https://scryfall.com/docs/syntax). 
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                                    |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | Results printed                                                                                                                                            |
-| `1`  | Request failure while fetching a page or a random card                                                                                                     |
-| `2`  | Usage error (missing query without `--random`, `--random` with `--pages` or `--csv`, `--count` without `--random`, `--fields` with `--csv` or text output) |
-| `3`  | No search results found, or no card matched the random filter                                                                                              |
+| Code | Meaning                                                                                                                                                                  |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `0`  | Results printed                                                                                                                                                          |
+| `1`  | Request failure while fetching a page or a random card                                                                                                                   |
+| `2`  | Usage error (missing query without `--random`, `--random` with `--pages` or `--output csv`, `--count` without `--random`, `--fields` with `--output csv` or text output) |
+| `3`  | No search results found, or no card matched the random filter                                                                                                            |
 
 `--pages` and `--count` must be positive integers within their caps (20 and 50 respectively); any other value is rejected with a usage error.

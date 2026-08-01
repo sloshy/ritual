@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import { importFromTextFile } from '../importers/text-file'
 import { MoxfieldClient } from '../importers/moxfield-client'
 import { parseMoxfieldPrimer } from '../primer-parser'
-import { ExitCode } from './scripting'
+import { classifyFileReadError, ExitCode, writeStdout } from './scripting'
 import { getLogger } from '../logger'
 import {
   matchDeckUrl,
@@ -50,12 +50,13 @@ export function registerGetPrimerCommand(program: Command): void {
           const primer = await client.fetchPrimer(deck.id ?? deckId)
           const rawText = primer?.content ?? deck.primer ?? deck.description
           if (!rawText) {
+            // An absent primer is a missing resource, not a runtime failure.
             logger.error('No primer found for this deck.')
-            process.exitCode = ExitCode.RuntimeError
+            process.exitCode = ExitCode.NotFound
             return
           }
           const { markdown } = parseMoxfieldPrimer(rawText)
-          process.stdout.write(markdown + '\n')
+          writeStdout(markdown + '\n')
         })
         return
       }
@@ -72,19 +73,24 @@ export function registerGetPrimerCommand(program: Command): void {
       try {
         deckData = await importFromTextFile(resolved.filePath)
       } catch (e) {
-        logger.error(`Failed to read deck file '${resolved.name}.md':`, e)
-        process.exitCode = ExitCode.RuntimeError
+        // A deck file that vanished between resolution and read is a not-found;
+        // a permission/IO failure stays a runtime error.
+        const { exitCode } = classifyFileReadError(e)
+        logger.error(`Failed to read deck file '${resolved.filePath}':`, e)
+        process.exitCode = exitCode
         return
       }
 
       const primerText = deckData.primer
       if (!primerText) {
-        logger.error(`Deck '${deckData.name}' has no primer field.`)
-        process.exitCode = ExitCode.RuntimeError
+        // The primer lives in a `.primer.md` sidecar, not in the deck's
+        // frontmatter — an absent one is a missing resource (exit 3).
+        logger.error(`Deck '${deckData.name}' has no primer (.primer.md sidecar).`)
+        process.exitCode = ExitCode.NotFound
         return
       }
 
       // The primer stored in the file is already parsed Markdown — output directly.
-      process.stdout.write(primerText + '\n')
+      writeStdout(primerText + '\n')
     })
 }

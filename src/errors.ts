@@ -10,7 +10,16 @@ export function getErrorMessage(error: unknown): string {
  * `string` so a typo'd code (`'ENONET'`) is a compile error instead of a
  * permanently-dead branch.
  */
-export type ErrnoCode = 'ENOENT' | 'ENOTDIR' | 'EEXIST' | 'EPERM'
+export type ErrnoCode = 'ENOENT' | 'ENOTDIR' | 'EEXIST' | 'EPERM' | 'EPIPE'
+
+/**
+ * Whether a failure is "the reader closed the pipe" — the `… | head` case.
+ * Standard Unix tools stop quietly and exit 0 there, so every stdout write path
+ * treats this as a normal end of output rather than a runtime error.
+ */
+export function isBrokenPipeError(error: unknown): boolean {
+  return hasErrorCode(error, 'EPIPE')
+}
 
 /**
  * Whether `error` is a Node system error carrying `code` (e.g. `'ENOENT'`).
@@ -38,6 +47,11 @@ export function throwHttpError(response: Response, action: string): never {
  * of these (never a bare numeric literal, never a hard exit call) and return.
  */
 export const ExitCode = {
+  /**
+   * A clean run. Rarely set explicitly — an untouched `process.exitCode` is
+   * already 0 — but named so the mapping in index.ts never spells a bare `0`.
+   */
+  Success: 0,
   RuntimeError: 1,
   UsageError: 2,
   NotFound: 3,

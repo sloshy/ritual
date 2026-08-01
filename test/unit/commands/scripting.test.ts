@@ -6,12 +6,16 @@ import {
   classifyFileReadError,
   emitError,
   emitOutput,
+  emitWarnings,
   ExitCode,
+  markStdoutClosed,
+  resetStdoutClosed,
   normalizeScriptingOptions,
   parseEnumFlag,
   parseFields,
   parseOutputFormat,
   projectFields,
+  writeStdout,
 } from '../../../src/commands/scripting'
 import type { ScriptingOptions } from '../../../src/commands/scripting'
 import { setNoInputOverride } from '../../../src/no-input'
@@ -191,5 +195,57 @@ describe('canPromptWithOutput', () => {
   test('a piped stdin has nobody to answer', () => {
     process.stdin.isTTY = false
     expect(canPromptWithOutput(TEXT)).toBe(false)
+  })
+})
+
+/**
+ * The `--quiet` convention has exactly two tiers: chatter, which `--quiet`
+ * removes, and warnings the user would otherwise lose silently, which it never
+ * does. Both always go to stderr so a structured stdout payload stays parseable.
+ */
+describe('emitWarnings', () => {
+  const json: ScriptingOptions = { output: 'json', quiet: false }
+  const quietJson: ScriptingOptions = { output: 'json', quiet: true }
+
+  test('writes to stderr in structured modes, one line per warning', async () => {
+    const stderr = await captureOutput('stderr', () => emitWarnings(['a', 'b'], json))
+    expect(stderr).toBe('a\nb\n')
+  })
+
+  test('never touches stdout', async () => {
+    const stdout = await captureOutput('stdout', () => emitWarnings(['a'], json))
+    expect(stdout).toBe('')
+  })
+
+  test('--quiet drops non-essential warnings but keeps essential ones', async () => {
+    expect(await captureOutput('stderr', () => emitWarnings(['a'], quietJson))).toBe('')
+    expect(
+      await captureOutput('stderr', () => emitWarnings(['a'], quietJson, { essential: true })),
+    ).toBe('a\n')
+  })
+
+  test('an empty warning list writes nothing', async () => {
+    expect(await captureOutput('stderr', () => emitWarnings([], json))).toBe('')
+  })
+})
+
+/**
+ * `ritual … --output ndjson | head` closes stdout mid-stream. The writer records
+ * that and goes quiet so the run can finish with exit 0 instead of crashing —
+ * the end-to-end pipeline is pinned in test/integration/broken-pipe.test.ts.
+ */
+describe('writeStdout after a broken pipe', () => {
+  afterEach(() => {
+    resetStdoutClosed()
+  })
+
+  test('a recorded broken pipe silences every later write', async () => {
+    const stdout = await captureOutput('stdout', () => {
+      writeStdout('before\n')
+      markStdoutClosed()
+      writeStdout('after\n')
+      emitOutput([{ a: 1 }, { a: 2 }], { output: 'ndjson', quiet: false })
+    })
+    expect(stdout).toBe('before\n')
   })
 })

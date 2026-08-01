@@ -24,7 +24,7 @@ The same JSON can also be applied in the [admin site](/commands/admin/#import-ch
 | ------------------- | ------------------------------------------ | ------- |
 | `-y, --yes`         | Apply without asking for confirmation      | `false` |
 | `--output <format>` | Output format: `text`, `json`, or `ndjson` | `text`  |
-| `--quiet`           | Suppress non-essential output              | `false` |
+| `--quiet`           | Suppress the preview and applied counts    | `false` |
 
 ## Format
 
@@ -47,7 +47,7 @@ Before anything is applied, the command prints every pending change grouped by i
 
 Pass `--yes` to skip the prompt (for scripts and agents). When stdin is not a terminal, prompts are disabled globally (`--no-input` / `RITUAL_NO_INPUT`), or `--output json`/`ndjson` owns stdout, `--yes` is required — instead of prompting, the command exits with code `2`.
 
-`--quiet` suppresses the preview and the per-list applied/skipped lines; list failures are still reported on stderr.
+`--quiet` suppresses the preview and the per-list applied counts. It never hides **skipped conflicts**: a quiet run that skipped changes prints a one-line `⚠ <list>: N changes skipped (card not found: 2, not applicable to this list: 1)` summary to stderr, because nothing else reports them and they do not affect the exit code. List failures are always reported on stderr too. Even without `--quiet`, the per-change `⚠ Skipped (card not found): …` / `⚠ Skipped (not applicable to this list): …` lines go to stderr, keeping stdout the applied-counts report.
 
 ## How Changes Are Applied
 

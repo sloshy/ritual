@@ -34,7 +34,8 @@ The admin site offers the same editor in the browser — see the [Change History
 | `--show`            | Print the change history and exit instead of opening the editor           |
 | `--limit <n>`       | With `--show`: print only the newest `<n>` change sets (positive integer) |
 | `--output <format>` | Output format for `--show`: `text` (default), `json`, or `ndjson`         |
-| `--quiet`           | Suppress non-essential output                                             |
+
+`--show` prints its payload and the editor needs a terminal, so `history` registers no `--quiet` ([shared convention](/#scripting-conventions)).
 
 `--deck`, `--collection`, and `--wanted` are mutually exclusive. `--limit` and `--output json`/`ndjson` both require `--show`.
 

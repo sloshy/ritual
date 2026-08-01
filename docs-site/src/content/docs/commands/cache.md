@@ -20,13 +20,14 @@ prompts, never downloads or refreshes anything, and exits `0` even when the
 cache is empty — branch on the `empty` field, not the exit code.
 
 ```bash
-./ritual cache status [--output text|json|ndjson] [--quiet]
+./ritual cache status [--output text|json|ndjson]
 ```
 
 | Option              | Description                                          |
 | ------------------- | ---------------------------------------------------- |
 | `--output <format>` | Output format: `text` (default), `json`, or `ndjson` |
-| `--quiet`           | Suppress non-essential output                        |
+
+The status report is the command's entire output, so there is no `--quiet` ([shared convention](/#scripting-conventions)).
 
 Text output is aligned `key: value` lines; `json`/`ndjson` emit an object with
 these fields:

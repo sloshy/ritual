@@ -8,8 +8,8 @@ Login to a supported website to save authentication tokens for future requests, 
 
 ```bash
 ./ritual login archidekt [options]
-./ritual login status [--output <format>] [--quiet]
-./ritual login logout
+./ritual login status [--output <format>]
+./ritual login logout [--output <format>] [--quiet]
 ```
 
 ## Subcommands
@@ -70,10 +70,10 @@ Reports whether an Archidekt login token is stored and for which user. Never tou
 
 Without a stored login the text output is `Not logged in.` and the JSON payload is `{ "loggedIn": false }`.
 
-`--quiet` suppresses all output in every format, so scripts can branch purely on the exit code:
+The status line is the command's entire payload, so `status` registers no `--quiet` ([shared convention](/#scripting-conventions)). To branch purely on the exit code, redirect stdout:
 
 ```bash
-./ritual login status --quiet && echo "logged in" || echo "not logged in"
+./ritual login status > /dev/null && echo "logged in" || echo "not logged in"
 ```
 
 ### Exit Codes
@@ -85,12 +85,23 @@ Without a stored login the text output is `Not logged in.` and the JSON payload 
 
 ## `login logout`
 
-Deletes the stored Archidekt token file. Reports the username that was logged out, or that there was nothing to clear; both cases exit `0`.
+Deletes the stored Archidekt token file. Reports the username that was logged out, or that there was nothing to clear; both cases exit `0`. It takes the same `--output` flag as `status`, plus `--quiet`, which drops the text confirmation line while still emitting the structured payload under `--output json`/`ndjson`.
 
 ```bash
 ./ritual login logout
 # Logged out of Archidekt (was myuser). Stored token cleared.
+
+./ritual login logout --output json
 ```
+
+```json
+{
+  "loggedOut": true,
+  "username": "myuser"
+}
+```
+
+With nothing stored the payload is `{ "loggedOut": false }`.
 
 ## Notes
 

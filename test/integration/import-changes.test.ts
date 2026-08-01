@@ -88,7 +88,9 @@ describe('import-changes command (Integration)', () => {
       // Applied counts plus the skipped conflict for the missing card.
       expect(result.stdout).toContain('applied 2 changes')
       expect(result.stdout).toContain('applied 1 change')
-      expect(result.stdout).toContain('Skipped (card not found): Remove Not In Deck')
+      // Skipped conflicts are a data-loss signal, so they go to stderr and
+      // keep stdout the applied-counts report.
+      expect(result.stderr).toContain('Skipped (card not found): Remove Not In Deck')
 
       const deck = await fs.readFile(path.join(dir, 'decks', 'test-deck.md'), 'utf-8')
       expect(deck).toMatch(/Counterspell &\d+/)
@@ -101,6 +103,60 @@ describe('import-changes command (Integration)', () => {
       // Each applied list gets a changelog entry.
       const deckLog = await fs.readFile(path.join(dir, 'decks', 'test-deck.changes.md'), 'utf-8')
       expect(deckLog).toContain('Counterspell')
+    })
+  }, 60_000)
+
+  // `--quiet` drops the preview and the applied counts, but a skipped change is
+  // data loss that nothing else reports and that does not move the exit code.
+  test('--quiet keeps the skipped-conflict summary and names the real reason', async () => {
+    await withTempDir(async (dir) => {
+      await seedWorkspace(dir)
+      const bundlePath = path.join(dir, 'edits.json')
+      await fs.writeFile(bundlePath, JSON.stringify(BUNDLE, null, 2))
+
+      const result = await runCli(['import-changes', 'edits.json', '--yes', '--quiet'], dir)
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toBe('')
+      expect(result.stderr).toContain('Test Deck: 1 change skipped (card not found: 1)')
+
+      // The changes themselves still applied.
+      const deck = await fs.readFile(path.join(dir, 'decks', 'test-deck.md'), 'utf-8')
+      expect(deck).toMatch(/Counterspell &\d+/)
+    })
+  }, 60_000)
+
+  // A conflict is not always "card not found": an action that can never apply
+  // to the list's type must be reported as such, quiet or not.
+  test('reports a not-applicable conflict with its own reason', async () => {
+    await withTempDir(async (dir) => {
+      await seedWorkspace(dir)
+      await writeCollectionFile(dir, 'binder', {
+        title: 'Binder',
+        entries: [{ name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 1 }],
+      })
+      const bundle = {
+        ...BUNDLE,
+        lists: [
+          {
+            kind: 'collection',
+            slug: 'binder',
+            name: 'Binder',
+            changes: [
+              { id: 'c1', timestamp: 1, action: 'set-commander', cardName: 'Sol Ring', cardId: 1 },
+            ],
+          },
+        ],
+      }
+      const bundlePath = path.join(dir, 'edits.json')
+      await fs.writeFile(bundlePath, JSON.stringify(bundle, null, 2))
+
+      const result = await runCli(['import-changes', 'edits.json', '--yes'], dir)
+      expect(result.exitCode).toBe(0)
+      expect(result.stderr).toContain('Skipped (not applicable to this list)')
+
+      const quiet = await runCli(['import-changes', 'edits.json', '--yes', '--quiet'], dir)
+      expect(quiet.stderr).toContain('Binder: 1 change skipped (not applicable to this list: 1)')
     })
   }, 60_000)
 

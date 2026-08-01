@@ -7,7 +7,9 @@ export const cardsSkill: RitualSkill = {
   body: `# Looking up cards with Ritual
 
 These commands query Scryfall and print **JSON by default**, so they are easy to
-parse. All accept \`--output json|ndjson|text\`, \`--fields <list>\`, and \`--quiet\`.
+parse. All accept \`--output json|ndjson|text\` and \`--fields <list>\`. Neither
+registers \`--quiet\`: everything they print is payload, an error, or a
+content-loss warning.
 
 ## Look up one card
 
@@ -26,10 +28,12 @@ ritual card --from-file names.txt
 cat names.txt | ritual card --stdin
 \`\`\`
 
-A batch run silently upgrades the default \`json\` output to \`ndjson\` (one object
-per line, emitted as results arrive). A name that cannot be found makes the run
-exit 3; a fetch failure exits 1, and in a batch the failure code outranks
-not-found.
+A batch's output shape depends only on the flag, never on the input's line
+count: \`--output json\` (the default) emits ONE array of cards for the whole
+batch, and \`--output ndjson\` streams one object per line as results arrive.
+(A single-name lookup emits a bare card object.) A name that cannot be found
+makes the run exit 3; a fetch failure exits 1, and in a batch the failure code
+outranks not-found.
 
 ## Raw Scryfall search
 
@@ -40,7 +44,7 @@ ritual scry "c:red cmc<=2 t:instant"
 ritual scry "set:fdn r:mythic" --output ndjson
 ritual scry "o:draw t:creature" --no-input              # no pagination prompts, one page
 ritual scry "t:land" --pages 3                          # fetch the first 3 pages, no prompts
-ritual scry "c:blue" --csv                              # CSV output
+ritual scry "c:blue" --output csv                       # CSV, rendered by Scryfall
 \`\`\`
 
 Paging never blocks a script: \`--pages <n>\` fetches up to \`n\` pages without
@@ -54,7 +58,12 @@ time. There is no fetch-all flag.
 whatever the page count — a single-page run and a five-page run produce the same
 shape, and a run that matched nothing emits \`[]\`. Interactive paging prints each
 page as it arrives instead. \`--output ndjson\` streams one document per card as
-pages arrive. A query with no matches exits 3; a Scryfall error exits 1.
+pages arrive, and \`--output text\` prints one \`Name (SET)\` line per card.
+\`scry\` is the only command whose \`--output\` takes a fourth value, \`csv\`.
+When a non-interactive run stops with results left, one line always goes to
+stderr (\`Fetched X of Y results (page 1); use --pages <n> for more.\`) so a
+capped run is never mistaken for a complete one. A query with no matches exits
+3; a Scryfall error exits 1.
 
 ## Random cards
 
@@ -70,7 +79,7 @@ ritual scry --random --output text
 
 With a single pick (the default) the output is one bare card object. \`--count\`
 requires \`--random\` (max 50), and \`--random\` cannot be combined with \`--pages\`
-or \`--csv\`.
+or \`--output csv\`.
 
 ## Live queries vs. the local cache
 

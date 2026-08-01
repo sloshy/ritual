@@ -1,7 +1,6 @@
 import { Command } from 'commander'
 import { cardCache } from '../cache'
 import { emptyCacheAdvice, ensureFreshPriceData } from '../cache/freshness'
-import { getErrorMessage } from '../errors'
 import { listTypeLabel } from '../list-type'
 import { parseCurrencyFlagOrError, type PriceCurrency } from '../price-currency'
 import {
@@ -39,10 +38,13 @@ import {
 } from './price-browser'
 import {
   addScriptingOptions,
+  emitActionError,
   emitError,
   emitOutput,
   emitResolveListError,
+  emitWarnings,
   ExitCode,
+  installScriptingLogger,
   normalizeScriptingOptions,
   parseEnumFlag,
   type OutputFormat,
@@ -138,15 +140,15 @@ function emitSummary(
   }
 
   for (const line of formatReportHeaderLines(report, lastRefreshedAt, Date.now())) {
-    console.log(line)
+    emitOutput(line, scriptingOptions)
   }
-  console.log('')
+  emitOutput('', scriptingOptions)
   for (const summary of report.lists) {
-    console.log(formatListChoiceTitle(summary, report.currency))
+    emitOutput(formatListChoiceTitle(summary, report.currency), scriptingOptions)
   }
   if (!scriptingOptions.quiet) {
-    console.log('')
-    console.log(PRICE_DISCLAIMER)
+    emitOutput('', scriptingOptions)
+    emitOutput(PRICE_DISCLAIMER, scriptingOptions)
   }
 }
 
@@ -176,17 +178,20 @@ function emitListDetail(
     return
   }
 
-  console.log(`[${listName}]`)
+  emitOutput(`[${listName}]`, scriptingOptions)
   for (const entry of entries) {
-    console.log(`  ${formatEntryChoiceTitle(entry, currency, false)}`)
+    emitOutput(`  ${formatEntryChoiceTitle(entry, currency, false)}`, scriptingOptions)
   }
   if (summary) {
-    console.log('')
-    console.log(`  ${summary.cardCount} cards · ${formatTotalsSegment(summary, currency)}`)
+    emitOutput('', scriptingOptions)
+    emitOutput(
+      `  ${summary.cardCount} cards · ${formatTotalsSegment(summary, currency)}`,
+      scriptingOptions,
+    )
   }
   if (!scriptingOptions.quiet) {
-    console.log('')
-    console.log(PRICE_DISCLAIMER)
+    emitOutput('', scriptingOptions)
+    emitOutput(PRICE_DISCLAIMER, scriptingOptions)
   }
 }
 
@@ -196,6 +201,7 @@ function emitCardSearch(
   currency: PriceCurrency,
   sort: PriceSortField,
   descending: boolean,
+  warnings: string[],
   scriptingOptions: ScriptingOptions,
 ): void {
   const matches = sortedEntries(
@@ -206,7 +212,7 @@ function emitCardSearch(
   const totals = sumPricedEntries(matches)
 
   if (scriptingOptions.output === 'json') {
-    const payload: PriceCardSearchPayload = { currency, filters, cards: matches, totals }
+    const payload: PriceCardSearchPayload = { currency, filters, cards: matches, totals, warnings }
     emitOutput(payload, scriptingOptions)
     return
   }
@@ -216,10 +222,13 @@ function emitCardSearch(
   }
 
   for (const entry of matches) {
-    console.log(formatEntryChoiceTitle(entry, currency, true))
+    emitOutput(formatEntryChoiceTitle(entry, currency, true), scriptingOptions)
   }
-  console.log('')
-  console.log(`${matches.length} matching entries · ${formatTotalsSegment(totals, currency)}`)
+  emitOutput('', scriptingOptions)
+  emitOutput(
+    `${matches.length} matching entries · ${formatTotalsSegment(totals, currency)}`,
+    scriptingOptions,
+  )
 }
 
 export function registerPriceCommand(program: Command): void {
@@ -246,6 +255,10 @@ export function registerPriceCommand(program: Command): void {
     ),
   ).action(async (listName: string | undefined, options: PriceCommandOptions) => {
     const scriptingOptions = normalizeScriptingOptions(options, 'text')
+    // Pricing walks the card cache, which logs through getLogger() (cold-cache
+    // fetches, blocklist additions). Those are info lines: keep them off stdout
+    // so `--output json` stays parseable, and drop them under `--quiet`.
+    installScriptingLogger(scriptingOptions)
 
     const currency = parseCurrencyFlagOrError(
       options.prices,
@@ -293,8 +306,9 @@ export function registerPriceCommand(program: Command): void {
       // run only needs the one being printed.
       scope = interactive ? undefined : [resolved]
       if (!scriptingOptions.quiet && scriptingOptions.output === 'text') {
-        console.log(
+        emitOutput(
           `Pricing ${listTypeLabel(resolved.type)} "${resolved.name}"${interactive ? '' : '...'}`,
+          scriptingOptions,
         )
       }
     }
@@ -319,14 +333,19 @@ export function registerPriceCommand(program: Command): void {
         const result = await loadAndBuildPriceReport(type, locations, reportCurrency, {
           refresh: refreshMode,
         })
-        if (scriptingOptions.output === 'text' && !scriptingOptions.quiet) {
-          for (const warning of result.warnings) console.warn(`⚠️  ${warning}`)
-        }
+        // A skipped card line means the totals exclude cards. That is data
+        // loss, so it always reaches stderr — in every output mode and under
+        // --quiet — while the structured payloads also carry `warnings`.
+        emitWarnings(
+          result.warnings.map((warning) => `⚠️  ${warning}`),
+          scriptingOptions,
+          { essential: true },
+        )
         return result
       }
 
       if (!scriptingOptions.quiet && scriptingOptions.output === 'text') {
-        console.log('Calculating prices...')
+        emitOutput('Calculating prices...', scriptingOptions)
       }
       const { built, warnings } = await buildScoped(currency, scope)
 
@@ -346,7 +365,7 @@ export function registerPriceCommand(program: Command): void {
       const sort = options.sort ?? 'name'
       const descending = options.descending ?? false
       if (hasActiveFilters(filters)) {
-        emitCardSearch(built, filters, currency, sort, descending, scriptingOptions)
+        emitCardSearch(built, filters, currency, sort, descending, warnings, scriptingOptions)
         return
       }
       if (openList) {
@@ -355,9 +374,9 @@ export function registerPriceCommand(program: Command): void {
       }
       emitSummary(built, freshness.lastRefreshedAt, warnings, scriptingOptions)
     } catch (e) {
-      const message = getErrorMessage(e)
-      emitError('runtime_error', message, scriptingOptions, e)
-      process.exitCode = ExitCode.RuntimeError
+      // A `… | head` broken pipe is a normal end of output, not a runtime
+      // failure — emitActionError keeps those apart.
+      emitActionError(e, scriptingOptions)
     }
   })
 }

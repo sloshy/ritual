@@ -42,21 +42,21 @@ engine.
 
 ## Options
 
-| Option                          | Applies to | Description                                                                                                             |
-| ------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `-t, --type <type>`             | files      | List type for a file import: `deck`, `collection`, or `wanted`. Skips the interactive prompt. URLs always import decks. |
-| `--name <name>`                 | CSV        | Name of the list to create or append to                                                                                 |
-| `--deck-format <format>`        | CSV        | Deck format when creating a deck (e.g. `commander`, `modern`)                                                           |
-| `-c, --columns <mapping>`       | CSV        | Column mapping (see below). Skips the interactive setup wizard.                                                         |
-| `--no-header`                   | CSV        | Treat the first row as data instead of a header row                                                                     |
-| `--append`                      | CSV        | Append the cards to an existing list instead of creating a new one                                                      |
-| `--csv`                         | files      | Treat the source file as CSV regardless of its extension                                                                |
-| `-o, --overwrite`               | all        | Overwrite existing lists without prompting                                                                              |
-| `-y, --yes`                     | all        | Automatically answer yes to the overwrite confirmation when an import conflicts with an existing list                   |
-| `-n, --dry-run`                 | all        | Preview actions without writing files                                                                                   |
-| `--moxfield-user-agent <agent>` | URLs       | Moxfield-approved unique User-Agent string (required for Moxfield imports unless env is set)                            |
-| `--output <format>`             | all        | Output format: `text` (default), `json`, or `ndjson`                                                                    |
-| `--quiet`                       | all        | Suppress non-essential output                                                                                           |
+| Option                          | Applies to | Description                                                                                                                                                        |
+| ------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `-t, --type <type>`             | files      | List type for a file import: `deck`, `collection`, or `wanted`. Skips the interactive prompt. URLs always import decks.                                            |
+| `--name <name>`                 | CSV        | Name of the list to create or append to                                                                                                                            |
+| `--deck-format <format>`        | CSV        | Deck format when creating a deck (e.g. `commander`, `modern`)                                                                                                      |
+| `-c, --columns <mapping>`       | CSV        | Column mapping (see below). Skips the interactive setup wizard.                                                                                                    |
+| `--no-header`                   | CSV        | Treat the first row as data instead of a header row                                                                                                                |
+| `--append`                      | CSV        | Append the cards to an existing list instead of creating a new one                                                                                                 |
+| `--csv`                         | files      | Treat the source file as CSV regardless of its extension                                                                                                           |
+| `-o, --overwrite`               | all        | Overwrite existing lists without prompting                                                                                                                         |
+| `-y, --yes`                     | all        | Automatically answer yes to the overwrite confirmation when an import conflicts with an existing list                                                              |
+| `-n, --dry-run`                 | all        | Preview actions without writing files                                                                                                                              |
+| `--moxfield-user-agent <agent>` | URLs       | Moxfield-approved unique User-Agent string (required for Moxfield imports unless env is set)                                                                       |
+| `--output <format>`             | all        | Output format: `text` (default), `json`, or `ndjson`                                                                                                               |
+| `--quiet`                       | all        | Suppress progress and confirmation lines on every source kind (URL, text, CSV); never the structured payload, errors, conflict prompts, or the skipped-line report |
 
 Flags are validated against the resolved source: a CSV-only flag on a URL or text-file
 import, or `--moxfield-user-agent` on a CSV import, fails with a usage error (exit code

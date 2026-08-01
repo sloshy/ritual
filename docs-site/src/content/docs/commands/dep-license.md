@@ -25,7 +25,8 @@ Without a package name, opens an interactive list showing all bundled dependenci
 | `--list`            | List every bundled dependency with its version and license | `false` |
 | `--plain`           | Output license text directly to stdout                     | `false` |
 | `--output <format>` | Output format for `--list`: `text`, `json`, or `ndjson`    | `text`  |
-| `--quiet`           | Suppress non-essential output                              | `false` |
+
+The listing (or a package's license text) is the command's entire output, so there is no `--quiet` ([shared convention](/#scripting-conventions)).
 
 `--list` cannot be combined with a package name argument. It never prompts, so it also works
 outside a TTY — without either a package name or `--list`, an invocation that cannot open the

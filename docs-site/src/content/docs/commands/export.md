@@ -11,13 +11,13 @@ Export any grouping of cards from your decks, collections, and wanted lists as *
 ./ritual export
 
 # Everything, as JSON on stdout
-./ritual export --output json > all-cards.json
+./ritual export --format json > all-cards.json
 
 # One deck to a CSV file with custom columns
 ./ritual export deck:burn --out burn.csv --columns name,quantity,listName
 
 # One flat decklist of everything you own
-./ritual export --collection --output text
+./ritual export --collection --format text
 
 # Cherry-pick cards across lists, filtered
 ./ritual export --card "sol ring" --card "lightning bolt" --finish foil
@@ -32,7 +32,7 @@ Export any grouping of cards from your decks, collections, and wanted lists as *
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------------- | -------- |
 | `[lists...]` | Lists to export. Names resolve like every list command; a `deck:` / `collection:` / `wanted:` prefix pins the type of an ambiguous name | No       |
 
-When no lists and no `--card` picks are given, a headless run exports **every list** (so `ritual export --output json` dumps everything). A completely bare `ritual export` instead opens the [interactive wizard](#interactive-wizard) — or, where prompting is unavailable, fails with a usage error asking for `--all` or another flag.
+When no lists and no `--card` picks are given, a headless run exports **every list** (so `ritual export --format json` dumps everything). A completely bare `ritual export` instead opens the [interactive wizard](#interactive-wizard) — or, where prompting is unavailable, fails with a usage error asking for `--all` or another flag.
 
 ## Options
 
@@ -61,7 +61,7 @@ Filters apply to the assembled set — list entries and card picks alike.
 
 | Option                 | Description                                                                 |
 | ---------------------- | --------------------------------------------------------------------------- |
-| `--output <format>`    | `csv` (default), `json`, `text`, or `md`                                    |
+| `--format <format>`    | `csv` (default), `json`, `text`, or `md`                                    |
 | `--columns <list>`     | Comma-separated properties in output order (`csv`/`json` only)              |
 | `--dialect <name>`     | Value spellings for finish and condition: `ritual` (default) or `archidekt` |
 | `--no-header`          | Omit the CSV header row                                                     |
@@ -69,9 +69,9 @@ Filters apply to the assembled set — list entries and card picks alike.
 | `--out <file>`         | Write to this file instead of stdout                                        |
 | `--preset <name>`      | Export with a saved or built-in preset (explicit flags override its values) |
 | `--save-preset <name>` | Save the resolved format/columns/CSV options as a named preset              |
-| `--quiet`              | Suppress warnings and confirmations                                         |
+| `--quiet`              | Suppress progress and status messages (never the payload or the warnings)   |
 
-Unlike the shared scripting `--output text|json|ndjson` convention on other commands, here `--output` selects the **export payload format** itself — the rendered export goes to stdout (or `--out`) raw, with no envelope.
+The rendered export goes to stdout (or `--out`) raw, with no envelope — `export` has no scripting `--output` flag, because its stdout payload _is_ the export.
 
 The same engine backs the admin API's [`POST /api/export`](/admin/api/#export-cards). That route returns the rendered export inline by default, or — with `write: true` — writes it to a server-named file under a gitignored `exports/` directory in the base dir and returns the relative path. Files written that way are byte-identical to what `--out` produces.
 
@@ -112,7 +112,7 @@ The canonical list markdown, grouped by source: a `# List Name` H1 per list (in 
 
 ### Conflicts
 
-`--columns`, `--dialect`, `--no-header`, and `--quote-all` only shape `csv`/`json` output. Giving any of them **explicitly** alongside `--output text` or `--output md` is a usage error (exit `2`). A preset whose stored columns accompany a `text`/`md` format is fine — the columns are simply unused.
+`--columns`, `--dialect`, `--no-header`, and `--quote-all` only shape `csv`/`json` output. Giving any of them **explicitly** alongside `--format text` or `--format md` is a usage error (exit `2`). A preset whose stored columns accompany a `text`/`md` format is fine — the columns are simply unused.
 
 ## Properties
 
@@ -202,5 +202,5 @@ Because the CSV is keyed by Scryfall ID, rows never need name matching — but a
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `0`  | Export written                                                                                                                                                                                                     |
 | `1`  | Runtime error (for example, the output file could not be written)                                                                                                                                                  |
-| `2`  | Usage error (conflicting type flags, unknown column or dialect, invalid filter, column/dialect/CSV flags with `--output text`/`--output md`, ambiguous list name, or a bare `export` where the wizard cannot open) |
+| `2`  | Usage error (conflicting type flags, unknown column or dialect, invalid filter, column/dialect/CSV flags with `--format text`/`--format md`, ambiguous list name, or a bare `export` where the wizard cannot open) |
 | `3`  | Not found (unknown list or preset)                                                                                                                                                                                 |

@@ -8,7 +8,7 @@ import { type CacheSource as ConfiguredCacheSource } from '../ritual-config'
 import { registerCacheFeedSubcommand } from './cache-feed'
 import { registerCacheServerSubcommand } from './cache-server'
 import {
-  addScriptingOptions,
+  addOutputOption,
   emitOutput,
   ExitCode,
   normalizeScriptingOptions,
@@ -48,13 +48,14 @@ function formatCacheStatusText(status: CacheStatusResult): string {
 export function registerCacheCommand(program: Command): void {
   const cache = program.command('cache').description('Manage card cache')
 
-  addScriptingOptions(
+  // `--output` only: the status report *is* the command's output, so there is
+  // no non-essential chatter for `--quiet` to suppress.
+  addOutputOption(
     cache
       .command('status')
       .description(
         'Report card-cache state (size, freshness, tags, source) without prompting or refreshing',
       ),
-    'text',
   ).action(async (options: Partial<ScriptingOptions>) => {
     const scripting = normalizeScriptingOptions(options, 'text')
     const status = await collectCacheStatus()

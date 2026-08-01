@@ -4,6 +4,8 @@ import {
   getCacheServerBaseUrl,
   resolveCacheServerAddress,
   setCacheServerAddressOverride,
+  isCacheServerAddressError,
+  parseCacheServerBaseUrl,
   toCacheServerBaseUrl,
 } from '../../src/cache/config'
 
@@ -35,6 +37,21 @@ describe('cache server config helpers', () => {
     expect(() => toCacheServerBaseUrl('localhost')).toThrow(
       'Cache server must include hostname and port',
     )
+  })
+
+  // The `--cache-server` argParser turns this refusal into commander's
+  // InvalidArgumentError, so a bad address exits 2 like every other flag value.
+  test('parseCacheServerBaseUrl describes a bad address instead of throwing', () => {
+    expect(parseCacheServerBaseUrl('localhost:4000')).toBe('http://localhost:4000')
+
+    const bare = parseCacheServerBaseUrl('garbage')
+    expect(isCacheServerAddressError(bare)).toBe(true)
+    expect(isCacheServerAddressError(bare) ? bare.error : '').toContain(
+      'Cache server must include hostname and port',
+    )
+
+    const empty = parseCacheServerBaseUrl('   ')
+    expect(isCacheServerAddressError(empty)).toBe(true)
   })
 
   test('getCacheServerBaseUrl uses override before env var', () => {

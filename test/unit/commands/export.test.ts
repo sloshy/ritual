@@ -77,7 +77,7 @@ describe('export wizard gating', () => {
     ['list args', flags(), ['Burn']],
     ['--all', flags({ all: true }), []],
     ['--card', flags({ cards: ['bolt'] }), []],
-    ['--output', flags({ format: 'json' }), []],
+    ['--format', flags({ format: 'json' }), []],
     ['--columns', flags({ columns: ['name'] }), []],
     ['--no-header', flags({ header: false }), []],
     ['--quote-all', flags({ quoteAll: true }), []],

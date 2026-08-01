@@ -1,6 +1,5 @@
 import path from 'node:path'
 import type { Command } from 'commander'
-import { getErrorMessage } from '../errors'
 import { countLabel } from '../editor/change-bundle'
 import { isFinish, VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
 import { type ListType } from '../list-type'
@@ -23,7 +22,6 @@ import {
   exportFormatUsesColumns,
   exportPresetNames,
   findExportPreset,
-  isExportFormat,
   resolveExportSettings,
   type ExportFormat,
   type ExportPreset,
@@ -40,15 +38,19 @@ import {
 import { getExportPresets } from '../ritual-config'
 import { promptsUnavailable } from '../no-input'
 import {
+  addQuietOption,
+  emitActionError,
   emitError,
   emitResolveListError,
   emitToFileOrStdout,
+  emitWarnings,
   ExitCode,
+  parseEnumFlag,
   type ScriptingOptions,
 } from './scripting'
 import { runExportWizard } from './export-wizard'
 
-/** Raw commander option values; output/columns/finish/condition are validated in the action. */
+/** Raw commander option values; format/columns/finish/condition are validated in the action. */
 type ExportCommandOptions = {
   deck?: boolean
   collection?: boolean
@@ -59,8 +61,8 @@ type ExportCommandOptions = {
   set?: string
   finish?: string
   condition?: string
-  /** The `--output <format>` export format; validated into `ParsedExportFlags.format`. */
-  output?: string
+  /** The `--format <format>` export format, validated by its argParser. */
+  format?: ExportFormat
   columns?: string
   dialect?: string
   /** Commander stores `--no-header` as `header: false` (true when not given). */
@@ -149,18 +151,6 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
     filters.conditions = conditions
   }
 
-  let format: ExportFormat | undefined
-  if (options.output !== undefined) {
-    const lower = options.output.toLowerCase()
-    if (!isExportFormat(lower)) {
-      usageError(
-        `Invalid output format '${options.output}'. Use one of: ${EXPORT_FORMATS.join(', ')}.`,
-      )
-      return undefined
-    }
-    format = lower
-  }
-
   let columns: ExportProperty[] | undefined
   if (options.columns !== undefined) {
     const parsed = parseColumnsFlag(options.columns)
@@ -181,6 +171,8 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
     dialect = lower
   }
 
+  const format = options.format
+
   // The column/CSV-shape flags conflict with an explicit fixed-line format.
   // Only explicit flags conflict — a preset whose stored columns accompany a
   // text/md format is fine (the columns are simply unused).
@@ -192,7 +184,7 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
     if (options.dialect !== undefined) conflicting.push('--dialect')
     if (conflicting.length > 0) {
       usageError(
-        `${conflicting.join(' and ')} cannot be combined with --output ${format}: ${format} exports have a fixed line format. Columns, CSV options, and the value dialect apply to csv/json output only.`,
+        `${conflicting.join(' and ')} cannot be combined with --format ${format}: ${format} exports have a fixed line format. Columns, CSV options, and the value dialect apply to csv/json output only.`,
       )
       return undefined
     }
@@ -289,9 +281,14 @@ async function runFlagExport(
 
   // Card picks search every list in scope, not just the selected ones.
   const selection = await buildExportSelection(selected, scope, flags.cards, flags.filters)
-  if (!quiet) {
-    for (const warning of selection.warnings) console.warn(`⚠️  ${warning}`)
-  }
+  // A skipped card line (or a card term that matched nothing) means the export
+  // is missing cards, so these always reach stderr — `--quiet` silences
+  // confirmations, never a signal that content was lost.
+  emitWarnings(
+    selection.warnings.map((warning) => `⚠️  ${warning}`),
+    { output: 'text', quiet },
+    { essential: true },
+  )
 
   if (flags.savePreset !== undefined) {
     await saveExportPreset(flags.savePreset, settings)
@@ -299,86 +296,92 @@ async function runFlagExport(
   }
 
   const rendered = await renderExport(selection.entries, settings)
-  if (!quiet) {
-    for (const warning of rendered.warnings) console.warn(`⚠️  ${warning}`)
-  }
+  emitWarnings(
+    rendered.warnings.map((warning) => `⚠️  ${warning}`),
+    { output: 'text', quiet },
+    { essential: true },
+  )
 
   await emitExport(rendered.content, selection.entries.length, flags.out, quiet)
 }
 
 export function registerExportCommand(program: Command): void {
-  program
-    .command('export')
-    .description(
-      'Export cards from decks, collections, and wanted lists as CSV, JSON, plain text, or Markdown',
-    )
-    .argument(
-      '[lists...]',
-      'Lists to export; an optional deck:/collection:/wanted: prefix pins the type',
-    )
-    .option('--deck', 'Only decks (also disambiguates list names)')
-    .option('--collection', 'Only collections (also disambiguates list names)')
-    .option('--wanted', 'Only wanted lists (also disambiguates list names)')
-    .option('--all', 'Export every list (the default when no lists or --card are given)')
-    .option(
-      '--card <terms>',
-      'Add cards whose name matches every term (repeatable)',
-      (value: string, previous: string[]) => [...previous, value],
-      [] as string[],
-    )
-    .option('--name <terms>', 'Only cards whose name contains every term')
-    .option('--set <code>', 'Only cards from this set code')
-    .option('--finish <finish>', `Only cards with this finish: ${VALID_FINISHES.join(', ')}`)
-    .option(
-      '--condition <list>',
-      `Only cards with one of these conditions (comma-separated): ${VALID_CONDITIONS.join(', ')}, none (no condition marked)`,
-    )
-    // No commander default and no argParser: `undefined` must mean "not given"
-    // so a preset's stored format can fill it in (tri-state precedence).
-    .option('--output <format>', `Export format: ${EXPORT_FORMATS.join(', ')} (default: csv)`)
-    .option(
-      '--columns <list>',
-      `Comma-separated columns in output order (csv/json only). Available: ${describeExportProperties()}`,
-    )
-    .option(
-      '--dialect <name>',
-      `Value spellings for finish and condition (csv/json only): ${EXPORT_DIALECTS.join(', ')} (default: ritual)`,
-    )
-    .option('--no-header', 'Omit the CSV header row')
-    .option('--quote-all', 'Quote every CSV cell instead of only cells that need it')
-    .option('--out <file>', 'Write to this file instead of stdout')
-    .option(
-      '--preset <name>',
-      'Export with a saved or built-in preset (explicit flags override its values)',
-    )
-    .option('--save-preset <name>', 'Save the resolved format/columns/CSV options as a preset')
-    .option('--quiet', 'Suppress warnings and confirmations')
-    .action(async (listArgs: string[], options: ExportCommandOptions) => {
-      const type = listTypeFromFlags(options)
-      if (type === 'conflict') {
-        usageError('Use only one of --deck, --collection, or --wanted.')
+  addQuietOption(
+    program
+      .command('export')
+      .description(
+        'Export cards from decks, collections, and wanted lists as CSV, JSON, plain text, or Markdown',
+      )
+      .argument(
+        '[lists...]',
+        'Lists to export; an optional deck:/collection:/wanted: prefix pins the type',
+      )
+      .option('--deck', 'Only decks (also disambiguates list names)')
+      .option('--collection', 'Only collections (also disambiguates list names)')
+      .option('--wanted', 'Only wanted lists (also disambiguates list names)')
+      .option('--all', 'Export every list (the default when no lists or --card are given)')
+      .option(
+        '--card <terms>',
+        'Add cards whose name matches every term (repeatable)',
+        (value: string, previous: string[]) => [...previous, value],
+        [] as string[],
+      )
+      .option('--name <terms>', 'Only cards whose name contains every term')
+      .option('--set <code>', 'Only cards from this set code')
+      .option('--finish <finish>', `Only cards with this finish: ${VALID_FINISHES.join(', ')}`)
+      .option(
+        '--condition <list>',
+        `Only cards with one of these conditions (comma-separated): ${VALID_CONDITIONS.join(', ')}, none (no condition marked)`,
+      )
+      // Validated by the shared argParser, but deliberately given no commander
+      // default: `undefined` must keep meaning "not given" so a preset's stored
+      // format can fill it in (tri-state precedence).
+      .option(
+        '--format <format>',
+        `Export format: ${EXPORT_FORMATS.join(', ')} (default: csv)`,
+        (value: string) => parseEnumFlag(value, EXPORT_FORMATS, 'export format'),
+      )
+      .option(
+        '--columns <list>',
+        `Comma-separated columns in output order (csv/json only). Available: ${describeExportProperties()}`,
+      )
+      .option(
+        '--dialect <name>',
+        `Value spellings for finish and condition (csv/json only): ${EXPORT_DIALECTS.join(', ')} (default: ritual)`,
+      )
+      .option('--no-header', 'Omit the CSV header row')
+      .option('--quote-all', 'Quote every CSV cell instead of only cells that need it')
+      .option('--out <file>', 'Write to this file instead of stdout')
+      .option(
+        '--preset <name>',
+        'Export with a saved or built-in preset (explicit flags override its values)',
+      )
+      .option('--save-preset <name>', 'Save the resolved format/columns/CSV options as a preset'),
+  ).action(async (listArgs: string[], options: ExportCommandOptions) => {
+    const type = listTypeFromFlags(options)
+    if (type === 'conflict') {
+      usageError('Use only one of --deck, --collection, or --wanted.')
+      return
+    }
+
+    const flags = parseExportFlags(options)
+    if (!flags) return
+
+    try {
+      const interactiveAvailable = process.stdout.isTTY === true && !promptsUnavailable()
+      if (shouldRunExportInteractive(flags, listArgs, interactiveAvailable)) {
+        await runExportWizard()
         return
       }
-
-      const flags = parseExportFlags(options)
-      if (!flags) return
-
-      try {
-        const interactiveAvailable = process.stdout.isTTY === true && !promptsUnavailable()
-        if (shouldRunExportInteractive(flags, listArgs, interactiveAvailable)) {
-          await runExportWizard()
-          return
-        }
-        if (!hasExportRunSignal(flags, listArgs)) {
-          usageError(
-            'The export wizard needs an interactive terminal, and prompts are unavailable. Specify what to export instead — e.g. --all for every list, list names, --card picks, or filters.',
-          )
-          return
-        }
-        await runFlagExport(listArgs, type, flags)
-      } catch (e) {
-        emitError('runtime_error', getErrorMessage(e), textOptions, e)
-        process.exitCode = ExitCode.RuntimeError
+      if (!hasExportRunSignal(flags, listArgs)) {
+        usageError(
+          'The export wizard needs an interactive terminal, and prompts are unavailable. Specify what to export instead — e.g. --all for every list, list names, --card picks, or filters.',
+        )
+        return
       }
-    })
+      await runFlagExport(listArgs, type, flags)
+    } catch (e) {
+      emitActionError(e, textOptions)
+    }
+  })
 }

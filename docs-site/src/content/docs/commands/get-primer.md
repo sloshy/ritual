@@ -57,6 +57,17 @@ Save the parsed primer to a file:
 ./ritual get-primer winota-snowball-stax > primer.md
 ```
 
+## Exit Codes
+
+| Code | Meaning                                                                                                                                     |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | The primer was printed                                                                                                                      |
+| `1`  | Runtime error (the Moxfield request failed, or the deck file could not be read)                                                             |
+| `2`  | Usage error (an ambiguous deck name, or a Moxfield URL with no user agent configured)                                                       |
+| `3`  | Not found — no deck matched the name, the local deck has no primer (its `.primer.md` sidecar is absent), or the Moxfield deck has no primer |
+
+A deck with no primer is a **missing resource**, not a failure: it exits `3`, so a script can tell "this deck has no primer" from "fetching the primer broke".
+
 ## Site Integration
 
 When a deck has a primer sidecar file (`<deck>.primer.md`, written automatically by the `import` command for Moxfield decks), the built site renders it with:

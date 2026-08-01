@@ -245,10 +245,9 @@ fails. The same JSON can also be applied in the web admin's **Import Changes** p
 ## Export cards (CSV, JSON, text, Markdown)
 
 \`ritual export\` renders any grouping of cards in one of four formats, chosen with
-\`--output csv|json|text|md\` (default \`csv\`). On this command \`--output\` is the
-**export format** itself — not the shared \`text|json|ndjson\` envelope other
-commands use — and the raw payload goes to stdout unless \`--out <file>\` writes it
-to a file. \`text\` merges everything into **one flat decklist** (\`1 Name (SET:CN)\`
+\`--format csv|json|text|md\` (default \`csv\`). There is no scripting \`--output\`
+flag here: the raw payload on stdout *is* the export, unless \`--out <file>\`
+writes it to a file instead. \`text\` merges everything into **one flat decklist** (\`1 Name (SET:CN)\`
 lines, quantities aggregated across lists); \`md\` is canonical list markdown
 grouped by list and section, **without** \`&N\` ids. Bare \`ritual export\` in a
 terminal opens an interactive wizard; agents should always pass flags (any
@@ -256,10 +255,10 @@ source, filter, or output flag runs non-interactively). With no lists and no
 \`--card\` picks, **every list** is exported:
 
 \`\`\`bash
-ritual export --output json > all-cards.json          # everything, JSON on stdout
+ritual export --format json > all-cards.json          # everything, JSON on stdout
 ritual export deck:burn --out burn.csv                # one deck to a CSV file
-ritual export --all --output text                     # one merged decklist on stdout
-ritual export --all --output md --out cards.md        # canonical markdown, no &N ids
+ritual export --all --format text                     # one merged decklist on stdout
+ritual export --all --format md --out cards.md        # canonical markdown, no &N ids
 ritual export "Main Binder" wishlist --set MKM        # two lists, filtered by set
 ritual export --card "sol ring" --card "mana crypt"   # cherry-pick cards across lists
 ritual export --collection --finish foil --condition NM
@@ -281,7 +280,7 @@ from the local Scryfall cache — an uncached printing exports an empty cell plu
 warning), \`finish\`, \`isFoil\` (true when foil or etched), \`condition\`, \`note\`,
 \`section\`, \`listName\`, \`listType\`. Columns apply to
 csv/json only: giving \`--columns\`, \`--dialect\`, \`--no-header\`, or \`--quote-all\`
-alongside an explicit \`--output text|md\` is a usage error (a preset's stored
+alongside an explicit \`--format text|md\` is a usage error (a preset's stored
 columns with a text/md format are simply unused). Set codes are lowercase in JSON
 and UPPERCASE in CSV, text, and md output.
 
@@ -318,7 +317,7 @@ how agents read a changelog:
 \`\`\`bash
 ritual history "Winota Stax" --show
 ritual history "Winota Stax" --show --limit 3
-ritual history "Winota Stax" --show --output json --quiet
+ritual history "Winota Stax" --show --output json
 \`\`\`
 
 Combining two change sets orders the merged lines oldest-set-first (newest changes

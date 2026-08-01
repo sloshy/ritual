@@ -96,6 +96,10 @@ export default [
         },
       ],
       'no-unused-vars': 'off', // ts-eslint's variant supersedes the core rule
+      // The core rule reads a TypeScript overload set as a redeclaration; the
+      // ts-eslint variant understands overload signatures.
+      'no-redeclare': 'off',
+      '@typescript-eslint/no-redeclare': 'error',
       'prefer-const': 'error',
       'no-empty': ['error', { allowEmptyCatch: true }],
       'no-useless-escape': 'error',

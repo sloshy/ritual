@@ -7,6 +7,7 @@ import { CardCommandError } from '../errors'
 import { runCommandAction } from './card-target'
 import { readPasswordFromStdin } from './prompts-helpers'
 import {
+  addOutputOption,
   addScriptingOptions,
   emitOutput,
   ExitCode,
@@ -20,11 +21,18 @@ type LoginArchidektOptions = {
   passwordStdin?: boolean
 }
 
-type LoginStatusOptions = Partial<ScriptingOptions>
+/** Both `login status` and `login logout` take only the scripting flags. */
+type LoginScriptingOptions = Partial<ScriptingOptions>
 
 /** JSON payload for `login status`: the stored Archidekt login, if any. */
 type LoginStatusOutput = {
   loggedIn: boolean
+  username?: string
+}
+
+/** JSON payload for `login logout`: whether a stored login was actually cleared. */
+type LoginLogoutOutput = {
+  loggedOut: boolean
   username?: string
 }
 
@@ -92,14 +100,12 @@ async function runArchidektLogin(options: LoginArchidektOptions): Promise<void> 
 
 async function runLoginStatus(scripting: ScriptingOptions): Promise<void> {
   const user = await makeAuth().getStoredUser()
-  // Exit 3 (NotFound) when no login is stored so scripts can branch on the
-  // exit code alone; --quiet suppresses ALL output (every format) for exactly
-  // that use case: `ritual login status --quiet && ...`.
+  // Exit 3 (NotFound) when no login is stored so scripts can branch on the exit
+  // code alone. The status line is the command's entire payload, so it prints
+  // in every mode — `login status` registers no `--quiet` to hide it with, and
+  // a script that wants pure silence redirects stdout.
   if (!user) {
     process.exitCode = ExitCode.NotFound
-  }
-  if (scripting.quiet) {
-    return
   }
   if (scripting.output === 'text') {
     emitOutput(user ? `Logged in to Archidekt as ${user.username}` : 'Not logged in.', scripting)
@@ -111,15 +117,26 @@ async function runLoginStatus(scripting: ScriptingOptions): Promise<void> {
   emitOutput(payload, scripting)
 }
 
-async function runLoginLogout(): Promise<void> {
+async function runLoginLogout(scripting: ScriptingOptions): Promise<void> {
   const auth = makeAuth()
   const user = await auth.getStoredUser()
   await auth.logout()
-  console.log(
-    user
-      ? `Logged out of Archidekt (was ${user.username}). Stored token cleared.`
-      : 'No stored Archidekt login to clear.',
-  )
+  // The text line is a confirmation of an action, not a payload: `--quiet`
+  // drops it, while the structured payload always emits.
+  if (scripting.output === 'text') {
+    if (scripting.quiet) return
+    emitOutput(
+      user
+        ? `Logged out of Archidekt (was ${user.username}). Stored token cleared.`
+        : 'No stored Archidekt login to clear.',
+      scripting,
+    )
+    return
+  }
+  const payload: LoginLogoutOutput = user
+    ? { loggedOut: true, username: user.username }
+    : { loggedOut: false }
+  emitOutput(payload, scripting)
 }
 
 export function registerLoginCommand(program: Command): void {
@@ -135,17 +152,19 @@ export function registerLoginCommand(program: Command): void {
       await runCommandAction(TEXT_SCRIPTING, () => runArchidektLogin(options))
     })
 
-  addScriptingOptions(
+  // `--output` only: the status line is the whole payload, so there is no
+  // non-essential chatter for `--quiet` to suppress.
+  addOutputOption(
     loginCommand.command('status').description('Show the stored Archidekt login, if any'),
-  ).action(async (options: LoginStatusOptions) => {
+  ).action(async (options: LoginScriptingOptions) => {
     const scripting = normalizeScriptingOptions(options)
     await runCommandAction(scripting, () => runLoginStatus(scripting))
   })
 
-  loginCommand
-    .command('logout')
-    .description('Clear the stored Archidekt login')
-    .action(async () => {
-      await runCommandAction(TEXT_SCRIPTING, () => runLoginLogout())
-    })
+  addScriptingOptions(
+    loginCommand.command('logout').description('Clear the stored Archidekt login'),
+  ).action(async (options: LoginScriptingOptions) => {
+    const scripting = normalizeScriptingOptions(options)
+    await runCommandAction(scripting, () => runLoginLogout(scripting))
+  })
 }

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   MAX_SCRY_PAGES,
   MAX_SCRY_RANDOM_COUNT,
+  formatTruncationNotice,
   parseScryCount,
   parseScryPages,
   shouldPageInteractively,
@@ -44,7 +45,7 @@ function usage(overrides: Partial<ScryUsageInput> = {}): ScryUsageInput {
     query: 'type:creature',
     random: false,
     countFlag: undefined,
-    csv: false,
+    output: 'json',
     pagesFlag: undefined,
     ...overrides,
   }
@@ -53,7 +54,7 @@ function usage(overrides: Partial<ScryUsageInput> = {}): ScryUsageInput {
 describe('validateScryUsage', () => {
   test.each<[string, ScryUsageInput]>([
     ['a plain search query', usage()],
-    ['a search with --csv and --pages', usage({ csv: true, pagesFlag: 3 })],
+    ['a search with --output csv and --pages', usage({ output: 'csv', pagesFlag: 3 })],
     ['--random without a query', usage({ query: undefined, random: true })],
     ['--random with a query filter', usage({ random: true })],
     ['--random with --count', usage({ query: undefined, random: true, countFlag: 3 })],
@@ -74,9 +75,9 @@ describe('validateScryUsage', () => {
       '--pages cannot be used with --random.',
     ],
     [
-      '--random with --csv',
-      usage({ random: true, csv: true }),
-      '--csv cannot be used with --random.',
+      '--random with --output csv',
+      usage({ random: true, output: 'csv' }),
+      '--output csv cannot be used with --random.',
     ],
   ])('%s is a usage error', (_label, value, message) => {
     expect(validateScryUsage(value)).toBe(message)
@@ -107,5 +108,33 @@ describe('scry flag bounds', () => {
   test('both still refuse a non-positive or non-integer value', () => {
     expect(() => parseScryPages('0')).toThrow('Pages must be a positive integer.')
     expect(() => parseScryCount('1.5')).toThrow('Count must be a positive integer.')
+  })
+})
+
+/**
+ * A capped run that stopped with results left must say so, or it is
+ * indistinguishable from a complete one. The line goes to stderr (never the
+ * payload) and names the flag that fetches more.
+ */
+describe('formatTruncationNotice', () => {
+  test('names the fetched and total counts for a single page', () => {
+    expect(formatTruncationNotice(175, 4210, 1)).toBe(
+      'Fetched 175 of 4210 results (page 1); use --pages <n> for more.',
+    )
+  })
+
+  test('names the page range when more than one page was fetched', () => {
+    expect(formatTruncationNotice(350, 4210, 2)).toBe(
+      'Fetched 350 of 4210 results (pages 1-2); use --pages <n> for more.',
+    )
+  })
+
+  test('degrades to a countless notice when the counts are unknown (CSV output)', () => {
+    expect(formatTruncationNotice(undefined, undefined, 1)).toBe(
+      'More results remain (fetched page 1); use --pages <n> for more.',
+    )
+    expect(formatTruncationNotice(175, undefined, 1)).toBe(
+      'More results remain (fetched page 1); use --pages <n> for more.',
+    )
   })
 })

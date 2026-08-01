@@ -98,7 +98,7 @@ describe('export command (Integration)', () => {
     await withTempDir(async (dir) => {
       await seedWorkspace(dir)
 
-      const result = await runCli(['export', '--output', 'json'], dir)
+      const result = await runCli(['export', '--format', 'json'], dir)
 
       expect(result.exitCode).toBe(0)
       const records = parseJsonExport(result.stdout)
@@ -208,11 +208,11 @@ describe('export command (Integration)', () => {
     })
   }, 60_000)
 
-  test('--output text emits one merged flat decklist', async () => {
+  test('--format text emits one merged flat decklist', async () => {
     await withTempDir(async (dir) => {
       await seedWorkspace(dir)
 
-      const result = await runCli(['export', 'deck:burn', '--output', 'text', '--quiet'], dir)
+      const result = await runCli(['export', 'deck:burn', '--format', 'text', '--quiet'], dir)
 
       expect(result.exitCode).toBe(0)
       // Aggregated `qty Name (SET:CN)` lines with no headers or sections; the
@@ -224,12 +224,12 @@ describe('export command (Integration)', () => {
     })
   }, 60_000)
 
-  test('--output md writes grouped canonical markdown without &N ids', async () => {
+  test('--format md writes grouped canonical markdown without &N ids', async () => {
     await withTempDir(async (dir) => {
       await seedWorkspace(dir)
 
       const result = await runCli(
-        ['export', 'deck:burn', 'binder', '--output', 'md', '--out', 'cards.md', '--quiet'],
+        ['export', 'deck:burn', 'binder', '--format', 'md', '--out', 'cards.md', '--quiet'],
         dir,
       )
 
@@ -245,15 +245,15 @@ describe('export command (Integration)', () => {
     })
   }, 60_000)
 
-  test('--columns with --output md is a usage error naming the conflict', async () => {
+  test('--columns with --format md is a usage error naming the conflict', async () => {
     await withTempDir(async (dir) => {
       await seedWorkspace(dir)
 
-      const result = await runCli(['export', '--all', '--output', 'md', '--columns', 'name'], dir)
+      const result = await runCli(['export', '--all', '--format', 'md', '--columns', 'name'], dir)
 
       expect(result.exitCode).toBe(2)
       expect(result.stderr).toContain('--columns')
-      expect(result.stderr).toContain('--output md')
+      expect(result.stderr).toContain('--format md')
     })
   }, 60_000)
 
@@ -280,7 +280,7 @@ describe('export command (Integration)', () => {
       await withTempDir(async (dir) => {
         await seedWorkspace(dir)
 
-        const result = await runCli(['export', '--output', 'json', ...filterArgs], dir)
+        const result = await runCli(['export', '--format', 'json', ...filterArgs], dir)
 
         expect(result.exitCode).toBe(0)
         expect(parseJsonExport(result.stdout).map((r) => r.name)).toEqual(expectedNames)
@@ -303,7 +303,7 @@ describe('export command (Integration)', () => {
           'lightning bolt',
           '--card',
           'black lotus',
-          '--output',
+          '--format',
           'json',
           '--columns',
           'name,listName',
@@ -333,7 +333,7 @@ describe('export command (Integration)', () => {
       await seedWorkspace(dir)
 
       const save = await runCli(
-        ['export', '--output', 'json', '--columns', 'name', '--save-preset', 'mini', '--quiet'],
+        ['export', '--format', 'json', '--columns', 'name', '--save-preset', 'mini', '--quiet'],
         dir,
       )
       expect(save.exitCode).toBe(0)
@@ -357,11 +357,11 @@ describe('export command (Integration)', () => {
       await seedWorkspace(dir)
 
       await runCli(
-        ['export', '--output', 'json', '--columns', 'name', '--save-preset', 'mini', '--quiet'],
+        ['export', '--format', 'json', '--columns', 'name', '--save-preset', 'mini', '--quiet'],
         dir,
       )
       const result = await runCli(
-        ['export', '--preset', 'mini', '--all', '--output', 'csv', '--no-header', '--quiet'],
+        ['export', '--preset', 'mini', '--all', '--format', 'csv', '--no-header', '--quiet'],
         dir,
       )
 
@@ -377,11 +377,11 @@ describe('export command (Integration)', () => {
     ['conflicting type flags', ['export', '--deck', '--collection'], 2],
     ['invalid finish', ['export', '--all', '--finish', 'shiny'], 2],
     ['invalid condition', ['export', '--all', '--condition', 'OK'], 2],
-    ['invalid output format', ['export', '--all', '--output', 'xml'], 2],
+    ['invalid export format', ['export', '--all', '--format', 'xml'], 2],
     ['invalid dialect', ['export', '--all', '--dialect', 'moxfield'], 2],
     [
       'dialect with a fixed-line format',
-      ['export', '--all', '--output', 'md', '--dialect', 'archidekt'],
+      ['export', '--all', '--format', 'md', '--dialect', 'archidekt'],
       2,
     ],
   ])(

@@ -33,7 +33,8 @@ otherwise asks you to type more of the name — see
 | ------------------- | -------------------------------------------- | ------- |
 | `--by <mode>`       | Identity to compare by: `name` or `printing` | `name`  |
 | `--output <format>` | Output format: `text`, `json`, or `ndjson`   | `text`  |
-| `--quiet`           | Suppress list parse warnings                 | `false` |
+
+A diff prints its payload plus parse warnings and nothing else, so it registers no `--quiet` ([shared convention](/#scripting-conventions)).
 
 ## Identity modes
 
@@ -122,7 +123,8 @@ Set codes are lowercase in JSON (a data format) and uppercase in text output, ma
 surface. `printings` entries omit `set`/`collectorNumber` for the no-printing bucket, and `finish`
 is always concrete (unmarked lines fold to `"nonfoil"`). Results keep a stable order: identities
 appear in first-seen file order, side A before side B. `warnings` carries list parse warnings from
-either side.
+either side; the same warnings also print to stderr in every output mode,
+since a skipped line means the diff compared incomplete lists.
 
 ## Exit Codes
 

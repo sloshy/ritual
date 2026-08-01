@@ -18,23 +18,54 @@ export function resolveCacheServerAddress(
   return resolveStringOverride(cliValue, envValue)
 }
 
-export function toCacheServerBaseUrl(address: string): string {
+/** A rejected `--cache-server` / `RITUAL_CACHE_SERVER` value and why. */
+export type CacheServerAddressError = { error: string }
+
+export function isCacheServerAddressError(
+  value: string | CacheServerAddressError,
+): value is CacheServerAddressError {
+  return typeof value !== 'string'
+}
+
+/**
+ * Parse a cache-server address into its base URL, or describe why it is not a
+ * usable one. Both the `--cache-server` argParser and the env-var path go
+ * through this so a bad value is a usage error either way.
+ */
+export function parseCacheServerBaseUrl(address: string): string | CacheServerAddressError {
   const normalizedAddress = normalizeCacheServerAddress(address)
   if (!normalizedAddress) {
-    throw new Error('Cache server must be a non-empty hostname and port (example: localhost:4000).')
+    return { error: 'Cache server must be a non-empty hostname and port (example: localhost:4000).' }
   }
 
   const withProtocol = CACHE_SERVER_PROTOCOL_RE.test(normalizedAddress)
     ? normalizedAddress
     : `http://${normalizedAddress}`
-  const parsed = new URL(withProtocol)
+  let parsed: URL
+  try {
+    parsed = new URL(withProtocol)
+  } catch {
+    return {
+      error:
+        'Cache server must include hostname and port (example: localhost:4000 or http://localhost:4000).',
+    }
+  }
   if (!parsed.hostname || !parsed.port) {
-    throw new Error(
-      'Cache server must include hostname and port (example: localhost:4000 or http://localhost:4000).',
-    )
+    return {
+      error:
+        'Cache server must include hostname and port (example: localhost:4000 or http://localhost:4000).',
+    }
   }
 
   return `${parsed.protocol}//${parsed.host}`
+}
+
+export function toCacheServerBaseUrl(address: string): string {
+  const parsed = parseCacheServerBaseUrl(address)
+  if (isCacheServerAddressError(parsed)) {
+    throw new Error(parsed.error)
+  }
+  return parsed
 }
 
 export function setCacheServerAddressOverride(address: string | undefined): void {

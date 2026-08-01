@@ -11,15 +11,18 @@ import {
 } from '../skills/install'
 import type { RitualSkill } from '../skills/types'
 import {
+  addOutputOption,
   addScriptingOptions,
   emitError,
   emitOutput,
   normalizeScriptingOptions,
   ExitCode,
+  type OutputFormat,
   type ScriptingOptions,
 } from './scripting'
 
-type SkillsListOptions = Partial<ScriptingOptions>
+/** `skills list` registers only `--output`; see the registration comment. */
+type SkillsListOptions = { output?: OutputFormat }
 
 /** Shared flags of the `skills install` and `skills update` subcommands. */
 type SkillsWriteCommandOptions = {
@@ -191,25 +194,28 @@ export function registerSkillsCommand(program: Command): void {
       'Install Claude Code agent skills that teach AI agents how to drive Ritual from a local workspace',
     )
 
-  addScriptingOptions(
-    skills.command('list').description('List the available Ritual skills'),
-  ).action((options: SkillsListOptions) => {
-    const scripting = normalizeScriptingOptions(options)
+  // `list` gets `--output` but no `--quiet`: its whole output is the payload,
+  // so there is no non-essential chatter to suppress and an inert flag would
+  // only advertise a behavior the command does not have.
+  addOutputOption(skills.command('list').description('List the available Ritual skills')).action(
+    (options: SkillsListOptions) => {
+      const scripting = normalizeScriptingOptions(options)
 
-    if (scripting.output !== 'text') {
-      const entries = SKILLS.map(
-        (skill): SkillListEntry => ({ name: skill.name, description: skill.description }),
-      )
-      emitOutput(entries, scripting)
-      return
-    }
+      if (scripting.output !== 'text') {
+        const entries = SKILLS.map(
+          (skill): SkillListEntry => ({ name: skill.name, description: skill.description }),
+        )
+        emitOutput(entries, scripting)
+        return
+      }
 
-    for (const skill of SKILLS) {
-      console.log(skill.name)
-      console.log(`  ${skill.description}`)
-      console.log('')
-    }
-  })
+      for (const skill of SKILLS) {
+        console.log(skill.name)
+        console.log(`  ${skill.description}`)
+        console.log('')
+      }
+    },
+  )
 
   addSkillsWriteOptions(
     skills

@@ -4,29 +4,52 @@ import { classifyFetchCard, fetchRandomCard, fetchSearchPage } from '../scryfall
 import { isNoInput } from '../no-input'
 import {
   addFieldsOption,
-  addScriptingOptions,
+  addOutputOption,
   emitError,
   emitOutput,
   ExitCode,
-  normalizeScriptingOptions,
   projectFields,
   projectFieldsArray,
   rejectFieldsWithTextOutput,
   renderCardSummary,
+  writeStderr,
+  writeStdout,
+  type OutputFormat,
   type ScriptingOptions,
 } from './scripting'
 import { getErrorMessage } from '../errors'
 import { parsePositiveInteger } from '../parse-number'
 import { ask } from './prompts-helpers'
 
+/**
+ * `scry` speaks the shared scripting vocabulary plus one extra value: `csv`,
+ * which Scryfall itself renders server-side. It is a fourth `--output` value
+ * rather than a separate `--csv` boolean so exactly one flag owns the format.
+ */
+export const SCRY_OUTPUT_FORMATS = ['text', 'json', 'ndjson', 'csv'] as const
+
+export type ScryOutputFormat = (typeof SCRY_OUTPUT_FORMATS)[number]
+
 type ScryCommandOptions = {
-  csv: boolean
   random: boolean
   pages?: number
   count?: number
-  output?: 'text' | 'json' | 'ndjson'
-  quiet?: boolean
+  output?: ScryOutputFormat
   fields?: string[]
+}
+
+/**
+ * The scripting envelope `scry` reports errors and notices through. `csv` has no
+ * error envelope of its own, so it reports like text — plain messages on stderr.
+ */
+export type ScryScriptingInput = {
+  output?: ScryOutputFormat
+}
+
+export function scryScriptingOptions(options: ScryScriptingInput): ScriptingOptions {
+  const output: OutputFormat =
+    options.output === undefined || options.output === 'csv' ? 'text' : options.output
+  return { output, quiet: false }
 }
 
 /** The inputs that decide whether scry offers the page-by-page confirm prompt. */
@@ -42,8 +65,6 @@ export type ScryPagingInput = {
  * Interactive "fetch next page?" paging needs a full terminal (stdout AND
  * stdin), prompting must be allowed, and no explicit `--pages` cap may be
  * given — an explicit cap means "fetch exactly this many, no questions".
- * `--quiet` deliberately has no say here: it suppresses non-essential chatter,
- * not interaction.
  */
 export function shouldPageInteractively(input: ScryPagingInput): boolean {
   return input.stdoutIsTTY && input.stdinIsTTY && !input.noInput && input.pagesFlag === undefined
@@ -55,7 +76,8 @@ export type ScryUsageInput = {
   random: boolean
   /** The explicit `--count` value, or undefined when the flag was not given. */
   countFlag: number | undefined
-  csv: boolean
+  /** The resolved `--output` value. */
+  output: ScryOutputFormat
   /** The explicit `--pages` value, or undefined when the flag was not given. */
   pagesFlag: number | undefined
 }
@@ -71,8 +93,8 @@ export function validateScryUsage(input: ScryUsageInput): string | null {
     if (input.pagesFlag !== undefined) {
       return '--pages cannot be used with --random.'
     }
-    if (input.csv) {
-      return '--csv cannot be used with --random.'
+    if (input.output === 'csv') {
+      return '--output csv cannot be used with --random.'
     }
     return null
   }
@@ -96,13 +118,14 @@ export const MAX_SCRY_PAGES = 20
 export const MAX_SCRY_RANDOM_COUNT = 50
 
 export function registerScryCommand(program: Command): void {
-  addScriptingOptions(
+  // `--output` only: results and the truncation notice are all payload or
+  // content-loss warnings, neither of which `--quiet` may hide.
+  addOutputOption(
     addFieldsOption(
       program
         .command('scry')
         .description('Run a raw Scryfall card search or fetch random cards')
         .argument('[query]', 'Scryfall search query (with --random, filters the random pick)')
-        .option('--csv', 'Output as CSV', false)
         .option(
           '--pages <number>',
           `Fetch up to this many pages without prompting (default 1 when prompts are unavailable, max ${MAX_SCRY_PAGES})`,
@@ -115,14 +138,16 @@ export function registerScryCommand(program: Command): void {
           parseScryCount,
         ),
     ),
+    SCRY_OUTPUT_FORMATS,
     'json',
   ).action(async (query: string | undefined, options: ScryCommandOptions) => {
-    const scriptingOptions = normalizeScriptingOptions(options, 'json')
+    const format: ScryOutputFormat = options.output ?? 'json'
+    const scriptingOptions = scryScriptingOptions(options)
     const usageError = validateScryUsage({
       query,
       random: options.random,
       countFlag: options.count,
-      csv: options.csv,
+      output: format,
       pagesFlag: options.pages,
     })
     if (usageError !== null) {
@@ -130,8 +155,8 @@ export function registerScryCommand(program: Command): void {
       process.exitCode = ExitCode.UsageError
       return
     }
-    if (options.fields && options.fields.length > 0 && options.csv) {
-      emitError('usage_error', '--fields cannot be used with --csv.', scriptingOptions)
+    if (options.fields && options.fields.length > 0 && format === 'csv') {
+      emitError('usage_error', '--fields cannot be used with --output csv.', scriptingOptions)
       process.exitCode = ExitCode.UsageError
       return
     }
@@ -149,7 +174,9 @@ export function registerScryCommand(program: Command): void {
     }
 
     let page = 1
-    const format = options.csv ? 'csv' : 'json'
+    // Scryfall renders CSV itself; every other output value is projected from
+    // the JSON envelope, so that is what the wire request asks for.
+    const wireFormat: 'csv' | 'json' = format === 'csv' ? 'csv' : 'json'
 
     const interactivePaging = shouldPageInteractively({
       stdoutIsTTY: process.stdout.isTTY === true,
@@ -177,7 +204,7 @@ export function registerScryCommand(program: Command): void {
      * per page.
      */
     const jsonCards: unknown[] = []
-    const bufferJson = format === 'json' && scriptingOptions.output === 'json' && !interactivePaging
+    const bufferJson = format === 'json' && !interactivePaging
 
     /** Report a page that could not be fetched, and set the runtime exit code. */
     const failPage = (message: string): void => {
@@ -185,11 +212,15 @@ export function registerScryCommand(program: Command): void {
       process.exitCode = ExitCode.RuntimeError
     }
 
+    /** Cards emitted so far and the run's total, for the truncation notice. */
+    let emittedCards = 0
+    let totalCards: number | undefined
+
     while (true) {
       if (page > maxPages) break
 
       try {
-        const result = await fetchSearchPage(query, page, format)
+        const result = await fetchSearchPage(query, page, wireFormat)
         if (result.kind === 'failed') {
           // Scryfall refused the request (a malformed query is a 4xx); its own
           // `details` text is the most useful thing to show.
@@ -216,27 +247,39 @@ export function registerScryCommand(program: Command): void {
           }
         }
 
-        if (format === 'json' && data) {
-          if (bufferJson) {
+        /** Write a raw Scryfall payload (CSV rows, or the JSON list envelope). */
+        const writeRaw = (): void => {
+          writeStdout(output)
+          if (!output.endsWith('\n')) writeStdout('\n')
+        }
+
+        if (format !== 'csv' && data) {
+          emittedCards += data.data.length
+          totalCards = data.total_cards ?? totalCards
+          if (format === 'text') {
+            // The documented text rendering: one `Name (SET)` line per card,
+            // the same summary the --random path prints.
+            for (const card of data.data) {
+              emitOutput(renderCardSummary(card), scriptingOptions)
+            }
+          } else if (bufferJson) {
             jsonCards.push(...projectFieldsArray(data.data, options.fields))
-          } else if (scriptingOptions.output === 'ndjson') {
-            emitOutput(projectFields(data.data, options.fields), scriptingOptions)
-          } else if (options.fields && options.fields.length > 0) {
+          } else if (format === 'ndjson' || (options.fields && options.fields.length > 0)) {
             emitOutput(projectFields(data.data, options.fields), scriptingOptions)
           } else {
-            process.stdout.write(output)
-            if (!output.endsWith('\n')) {
-              process.stdout.write('\n')
-            }
+            writeRaw()
           }
         } else {
-          process.stdout.write(output)
-          if (!output.endsWith('\n')) {
-            process.stdout.write('\n')
-          }
+          writeRaw()
         }
 
         if (!hasMore) break
+
+        // A non-interactive run that stopped with results left says so, once,
+        // on stderr — otherwise a capped run looks like a complete one.
+        if (page >= maxPages && !interactivePaging) {
+          emitTruncationNotice(emittedCards, totalCards, page)
+        }
 
         // The gate guarantees a prompt-capable terminal here, so the guarded
         // ask() never throws; cancelling (Esc / Ctrl-C) stops paging.
@@ -264,6 +307,33 @@ export function registerScryCommand(program: Command): void {
       emitOutput(jsonCards, scriptingOptions)
     }
   })
+}
+
+/**
+ * Build the one-line notice a capped run prints when Scryfall still has results.
+ * `fetched` is `undefined` for CSV output, where rows are not counted — the
+ * notice then just says results remain. Exported so its wording is pinned
+ * without a network round-trip.
+ */
+export function formatTruncationNotice(
+  fetched: number | undefined,
+  total: number | undefined,
+  pages: number,
+): string {
+  const pageLabel = pages === 1 ? 'page 1' : `pages 1-${pages}`
+  if (fetched === undefined || total === undefined) {
+    return `More results remain (fetched ${pageLabel}); use --pages <n> for more.`
+  }
+  return `Fetched ${fetched} of ${total} results (${pageLabel}); use --pages <n> for more.`
+}
+
+/**
+ * Print {@link formatTruncationNotice} to stderr. A capped run silently looks
+ * like a complete one, so this is a content-loss notice: it always prints, in
+ * every output mode, and stays off stdout so the payload keeps parsing.
+ */
+function emitTruncationNotice(fetched: number, total: number | undefined, pages: number): void {
+  writeStderr(`${formatTruncationNotice(fetched > 0 ? fetched : undefined, total, pages)}\n`)
 }
 
 /**

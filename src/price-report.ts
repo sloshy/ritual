@@ -188,6 +188,8 @@ export type PriceCardSearchPayload = {
   filters: PriceEntryFilters
   cards: PricedEntry[]
   totals: PriceTotals
+  /** List parse warnings (prefixed with the list name) — lines pricing could not read. */
+  warnings: string[]
 }
 
 /**

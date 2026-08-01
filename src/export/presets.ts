@@ -34,7 +34,7 @@ export const EXPORT_FORMAT_EXTENSIONS: Record<ExportFormat, string> = {
 /**
  * Whether a format's output shape is a column selection. Text and markdown
  * exports have fixed line formats, so the column and CSV options don't apply
- * to them (giving those flags alongside `--output text|md` is a usage error;
+ * to them (giving those flags alongside `--format text|md` is a usage error;
  * a preset's stored columns are simply unused).
  */
 export function exportFormatUsesColumns(format: ExportFormat): boolean {

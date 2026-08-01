@@ -5,13 +5,29 @@ import path from 'node:path'
 // scryfall/index, which reads `cardCache` at module top level — importing the
 // cache first leaves that binding in its temporal dead zone.
 import '../../src/scryfall'
+import { cardCache } from '../../src/cache'
+import { getBaseDir, setBaseDir } from '../../src/base-dir'
 import { Command } from 'commander'
+import { registerCardCommand } from '../../src/commands/card'
 import { registerScryCommand } from '../../src/commands/scry'
 import { setNoInputOverride } from '../../src/no-input'
 import { makeScryfallCard } from '../test-utils'
 import { runCli, withTempDir } from './helpers/cli'
 import { stubFetch, type StubbedFetch } from './helpers/stub-fetch'
 import { writeDeckFile } from './helpers/workspace'
+
+/** Seed a card cache with priced printings so `price` has something to total. */
+async function seedPriceCache(dir: string): Promise<void> {
+  const originalBase = getBaseDir()
+  setBaseDir(dir)
+  try {
+    await cardCache.bulkSet({
+      'Sol Ring': [makeScryfallCard({ name: 'Sol Ring', prices: { usd: '1.50' } })],
+    })
+  } finally {
+    setBaseDir(originalBase)
+  }
+}
 
 describe('CLI scripting behavior (Integration)', () => {
   test('price returns structured json error with not-found exit code', async () => {
@@ -146,6 +162,19 @@ name: "Conflict Deck"
 
       expect(result.exitCode).toBe(0)
       expect(result.stdout).toContain('importing as a deck')
+      expect(await Bun.file(path.join(dir, 'decks', 'cards.md')).exists()).toBeTrue()
+    })
+  })
+
+  test('import --quiet drops the chatter but still writes the list', async () => {
+    await withTempDir(async (dir) => {
+      const sourcePath = path.join(dir, 'cards.txt')
+      await Bun.write(sourcePath, '1 Sol Ring\n')
+
+      const result = await runCli(['import', sourcePath, '--no-input', '--quiet'], dir)
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toBe('')
       expect(await Bun.file(path.join(dir, 'decks', 'cards.md')).exists()).toBeTrue()
     })
   })
@@ -400,12 +429,67 @@ name: "Conflict Deck"
     })
   })
 
+  // Sub-fix: warnings that mean content was lost survive structured output.
+  // A skipped card line means the totals exclude cards, so the line reaches
+  // stderr in every output mode *and* the payload carries it.
+  test('price reports parser warnings on stderr and in the payload', async () => {
+    await withTempDir(async (dir) => {
+      await fs.mkdir(path.join(dir, 'decks'), { recursive: true })
+      await fs.writeFile(
+        path.join(dir, 'decks', 'scraps.md'),
+        '---\nname: Scraps\nformat: modern\n---\n\n## Main\n1 Sol Ring &1\nsideboard ideas: maybe a counterspell\n',
+      )
+      await seedPriceCache(dir)
+
+      const result = await runCli(['price', 'scraps', '--deck', '--output', 'json'], dir)
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stderr).toContain('sideboard ideas: maybe a counterspell')
+      const payload = JSON.parse(result.stdout) as { warnings: string[] }
+      expect(payload.warnings.join('\n')).toContain('sideboard ideas: maybe a counterspell')
+    })
+  })
+
   test('bare export with prompts disabled is a usage error with a hint', async () => {
     await withTempDir(async (dir) => {
       const result = await runCli(['export'], dir, { RITUAL_NO_INPUT: '1' })
 
       expect(result.exitCode).toBe(2)
       expect(result.stderr).toContain('--all')
+    })
+  })
+
+  // A malformed cache-server address is bad configuration however it arrives:
+  // the flag is rejected by its argParser, the env var by the preAction hook,
+  // and both land on the same usage exit code and message.
+  test('a malformed --cache-server is a usage error', async () => {
+    await withTempDir(async (dir) => {
+      const result = await runCli(['lists', '--cache-server', 'garbage'], dir)
+
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain('hostname and port')
+    })
+  })
+
+  test('a malformed RITUAL_CACHE_SERVER is the same usage error', async () => {
+    await withTempDir(async (dir) => {
+      const result = await runCli(['lists'], dir, { RITUAL_CACHE_SERVER: 'garbage' })
+
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain('hostname and port')
+    })
+  })
+
+  // A blank env var reads as "unset" (the usual environment convention), while
+  // explicitly passing a blank flag value is a bad value like any other.
+  test('a blank RITUAL_CACHE_SERVER is ignored, a blank --cache-server is not', async () => {
+    await withTempDir(async (dir) => {
+      const ignored = await runCli(['lists'], dir, { RITUAL_CACHE_SERVER: '   ' })
+      expect(ignored.exitCode).toBe(0)
+
+      const rejected = await runCli(['lists', '--cache-server', '   '], dir)
+      expect(rejected.exitCode).toBe(2)
+      expect(rejected.stderr).toContain('non-empty hostname and port')
     })
   })
 })
@@ -419,8 +503,10 @@ name: "Conflict Deck"
  */
 describe('scry paging (Integration)', () => {
   const originalWrite = process.stdout.write.bind(process.stdout)
+  const originalErrorWrite = process.stderr.write.bind(process.stderr)
   let scryfall: StubbedFetch
   let stdout: string
+  let stderr: string
 
   /** Pages this run fetched — one request per page, so the record is the count. */
   const fetchedPages = (): number => scryfall.sent.length
@@ -429,11 +515,25 @@ describe('scry paging (Integration)', () => {
     setNoInputOverride(true)
     scryfall = stubFetch({
       'https://api.scryfall.com': (request) => {
-        const page = new URL(request.url).searchParams.get('page') ?? '?'
+        const params = new URL(request.url).searchParams
+        const page = params.get('page') ?? '?'
         // Always more pages: only the cap (or a prompt decline) may stop the loop.
+        if (params.get('format') === 'csv') {
+          // Scryfall renders CSV server-side; scry must pass the body through
+          // untouched apart from stripping repeated headers on later pages. A
+          // full page (175 rows) is what marks a CSV response as "more remain".
+          const rows = Array.from(
+            { length: 175 },
+            (_unused, index) => `Page ${page} Card ${index + 1},tst`,
+          )
+          return new Response(`name,set\n${rows.join('\n')}\n`, {
+            headers: { 'content-type': 'text/csv' },
+          })
+        }
         return Response.json({
           object: 'list',
           has_more: true,
+          total_cards: 4210,
           data: [makeScryfallCard({ name: `Page ${page} Card` })],
         })
       },
@@ -442,12 +542,17 @@ describe('scry paging (Integration)', () => {
       stdout += typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk)
       return true
     }
+    process.stderr.write = (chunk: string | Uint8Array): boolean => {
+      stderr += typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk)
+      return true
+    }
   })
 
   afterAll(() => {
     setNoInputOverride(undefined)
     scryfall.restore()
     process.stdout.write = originalWrite
+    process.stderr.write = originalErrorWrite
   })
 
   afterEach(() => {
@@ -457,7 +562,11 @@ describe('scry paging (Integration)', () => {
   async function runScry(args: string[]): Promise<void> {
     scryfall.sent.length = 0
     stdout = ''
+    stderr = ''
     const program = new Command()
+    // Matches index.ts: a usage error throws instead of calling process.exit,
+    // which would take the test runner down with it.
+    program.exitOverride()
     registerScryCommand(program)
     await program.parseAsync(['scry', ...args], { from: 'user' })
   }
@@ -478,10 +587,131 @@ describe('scry paging (Integration)', () => {
     expect(process.exitCode ?? 0).toBe(0)
   })
 
-  test('--quiet does not change paging: still one page, no prompt', async () => {
-    await runScry(['type:creature', '--quiet'])
+  // A capped run that stopped with results left must say so: the notice is a
+  // content-loss warning, so it goes to stderr in every output mode and there
+  // is no `--quiet` to hide it with.
+  test('a capped run reports the truncation on stderr, keeping stdout parseable', async () => {
+    await runScry(['type:creature', '--pages', '2'])
 
-    expect(fetchedPages()).toBe(1)
+    expect(stderr.trim()).toBe('Fetched 2 of 4210 results (pages 1-2); use --pages <n> for more.')
+    expect(stdout).not.toContain('use --pages')
     expect(process.exitCode ?? 0).toBe(0)
+  })
+
+  test('scry registers no --quiet flag', async () => {
+    const error = await runScry(['type:creature', '--quiet']).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).message).toContain("unknown option '--quiet'")
+  })
+
+  // The search path renders text itself rather than dumping the raw Scryfall
+  // list envelope; the random path's rendering is pinned in scry-random.test.ts.
+  test('--output text renders one `Name (SET)` line per card', async () => {
+    await runScry(['type:creature', '--output', 'text'])
+
+    expect(stdout.trim()).toBe('Page 1 Card (TST)')
+    expect(stdout).not.toContain('"object"')
+    expect(process.exitCode ?? 0).toBe(0)
+  })
+
+  test('--output csv asks Scryfall for CSV and writes it through unchanged', async () => {
+    await runScry(['type:creature', '--output', 'csv'])
+
+    const requested = scryfall.sent[0]
+    expect(requested).toBeDefined()
+    expect(new URL(requested?.url ?? '').searchParams.get('format')).toBe('csv')
+    expect(stdout.split('\n')[0]).toBe('name,set')
+    expect(stdout).toContain('Page 1 Card 1,tst')
+    expect(process.exitCode ?? 0).toBe(0)
+  })
+
+  // Every page carries its own header row; only the first one belongs in a
+  // single concatenated CSV stream.
+  test('--output csv strips the repeated header on later pages', async () => {
+    await runScry(['type:creature', '--output', 'csv', '--pages', '2'])
+
+    expect(fetchedPages()).toBe(2)
+    expect(stdout.split('\n').filter((line) => line === 'name,set')).toHaveLength(1)
+    expect(stdout).toContain('Page 2 Card 1,tst')
+    expect(process.exitCode ?? 0).toBe(0)
+  })
+})
+
+/**
+ * In-process `card` runs against a stubbed Scryfall `cards/named` endpoint. The
+ * batch contract is about output *shape*, which only a captured stdout can pin;
+ * a spawned binary would need real network access to produce any.
+ */
+describe('card batch output (Integration)', () => {
+  const originalWrite = process.stdout.write.bind(process.stdout)
+  let scryfall: StubbedFetch
+  let stdout: string
+
+  beforeAll(() => {
+    scryfall = stubFetch({
+      'https://api.scryfall.com': (request) => {
+        const params = new URL(request.url).searchParams
+        const name = params.get('exact') ?? params.get('fuzzy') ?? 'Unknown'
+        return Response.json(makeScryfallCard({ name }))
+      },
+    })
+    process.stdout.write = (chunk: string | Uint8Array): boolean => {
+      stdout += typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk)
+      return true
+    }
+  })
+
+  afterAll(() => {
+    scryfall.restore()
+    process.stdout.write = originalWrite
+  })
+
+  afterEach(() => {
+    process.exitCode = 0
+  })
+
+  async function runCard(args: string[]): Promise<void> {
+    scryfall.sent.length = 0
+    stdout = ''
+    const program = new Command()
+    program.exitOverride()
+    registerCardCommand(program)
+    await program.parseAsync(['card', ...args], { from: 'user' })
+  }
+
+  test('--output json emits one array for a batch and a bare object for one name', async () => {
+    await withTempDir(async (dir) => {
+      const namesPath = path.join(dir, 'names.txt')
+      await Bun.write(namesPath, 'Sol Ring\nCounterspell\n')
+
+      await runCard(['--from-file', namesPath])
+      const batch = JSON.parse(stdout) as { name: string }[]
+      expect(Array.isArray(batch)).toBeTrue()
+      expect(batch.map((card) => card.name)).toEqual(['Sol Ring', 'Counterspell'])
+
+      await runCard(['Sol Ring'])
+      const single = JSON.parse(stdout) as { name: string }
+      expect(Array.isArray(single)).toBeFalse()
+      expect(single.name).toBe('Sol Ring')
+    })
+  })
+
+  test('--output ndjson streams one document per card', async () => {
+    await withTempDir(async (dir) => {
+      const namesPath = path.join(dir, 'names.txt')
+      await Bun.write(namesPath, 'Sol Ring\nCounterspell\n')
+
+      await runCard(['--from-file', namesPath, '--output', 'ndjson'])
+
+      const lines = stdout.trim().split('\n')
+      expect(lines).toHaveLength(2)
+      expect((JSON.parse(lines[1] ?? '{}') as { name: string }).name).toBe('Counterspell')
+    })
+  })
+
+  test('card registers no --quiet flag', async () => {
+    const error = await runCard(['Sol Ring', '--quiet']).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).message).toContain("unknown option '--quiet'")
   })
 })

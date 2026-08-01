@@ -2,11 +2,18 @@ import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { InvalidArgumentError, type Command } from 'commander'
 import type { ErrorCode } from '../types'
-import { ExitCode, hasErrorCode, type ExitCodeValue } from '../errors'
+import {
+  ExitCode,
+  getErrorMessage,
+  hasErrorCode,
+  isBrokenPipeError,
+  type ExitCodeValue,
+} from '../errors'
 import { parseEnumField } from '../parse-enum'
 import { formatResolveListError, type ResolveHint, type ResolveListError } from '../resolve-list'
 import { getAtPath } from '../utils'
 import { promptsUnavailable } from '../no-input'
+import { QUIET_STDERR_LOGGER, setLogger, STDERR_LOGGER } from '../logger'
 
 // The exit-code vocabulary lives in src/errors.ts (the dependency-free leaf so
 // CardCommandError can carry an ExitCodeValue); command modules keep importing
@@ -17,6 +24,59 @@ export type { ExitCodeValue }
 export const OUTPUT_FORMATS = ['text', 'json', 'ndjson'] as const
 
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number]
+
+/**
+ * Whether the downstream reader has closed stdout. Once that happens every
+ * further write would throw EPIPE, so all shared writers go quiet and the
+ * process is allowed to finish normally (exit 0), like `head`-terminated Unix
+ * tools do.
+ */
+let stdoutClosed = false
+
+/** True once a broken pipe has been observed on stdout. */
+export function isStdoutClosed(): boolean {
+  return stdoutClosed
+}
+
+/**
+ * Record that stdout is closed. Called by the global stdout `error` handler so
+ * an asynchronously-reported broken pipe silences the shared writers too.
+ */
+export function markStdoutClosed(): void {
+  stdoutClosed = true
+}
+
+/** Test seam: forget a recorded broken pipe between cases. */
+export function resetStdoutClosed(): void {
+  stdoutClosed = false
+}
+
+/**
+ * The one stdout write in the scripting surface. A closed pipe (`… | head`) is
+ * not a failure: record it, stop writing, and let the process exit 0 rather
+ * than dumping an EPIPE stack trace. Any other write failure propagates.
+ */
+export function writeStdout(text: string): void {
+  if (stdoutClosed) return
+  try {
+    process.stdout.write(text)
+  } catch (error) {
+    if (isBrokenPipeError(error)) {
+      stdoutClosed = true
+      return
+    }
+    throw error
+  }
+}
+
+/** {@link writeStdout} for the stderr side: a closed stderr is equally benign. */
+export function writeStderr(text: string): void {
+  try {
+    process.stderr.write(text)
+  } catch (error) {
+    if (!isBrokenPipeError(error)) throw error
+  }
+}
 
 export interface ScriptingOptions {
   output: OutputFormat
@@ -58,18 +118,51 @@ export function parseOutputFormat(value: string): OutputFormat {
   return parseEnumFlag(value, OUTPUT_FORMATS, 'output format')
 }
 
+/** Register the shared `--output` and `--quiet` pair. */
 export function addScriptingOptions(
   command: Command,
   defaultOutput: OutputFormat = 'text',
 ): Command {
-  return command
-    .option(
-      '--output <format>',
-      'Output format: text, json, or ndjson',
-      parseOutputFormat,
-      defaultOutput,
-    )
-    .option('--quiet', 'Suppress non-essential output', false)
+  return addQuietOption(addOutputOption(command, OUTPUT_FORMATS, defaultOutput))
+}
+
+/**
+ * Register `--output` alone, for a command whose entire output *is* its payload
+ * (plus warnings that must survive anyway) and therefore has no non-essential
+ * chatter for `--quiet` to suppress — `card`, `diff`, `scry`, `skills list`,
+ * `cache status`, `dep-license`, `history`. Registering an inert `--quiet`
+ * there would advertise a behavior the command does not have.
+ *
+ * The overloads keep the widened vocabulary honest: a command with an extra
+ * `--output` value (`scry --output csv`) passes its own value list and default,
+ * and everything else gets the shared `text|json|ndjson` set.
+ */
+export function addOutputOption(command: Command): Command
+export function addOutputOption<T extends string>(
+  command: Command,
+  formats: readonly T[],
+  defaultOutput: T,
+): Command
+export function addOutputOption(
+  command: Command,
+  formats: readonly string[] = OUTPUT_FORMATS,
+  defaultOutput: string = 'text',
+): Command {
+  return command.option(
+    '--output <format>',
+    `Output format: ${formats.join(', ')}`,
+    (value) => parseEnumFlag(value, formats, 'output format'),
+    defaultOutput,
+  )
+}
+
+/** Register the shared `--quiet` flag with the repo-wide convention's wording. */
+export function addQuietOption(command: Command): Command {
+  return command.option(
+    '--quiet',
+    'Suppress progress and status messages (never the data payload)',
+    false,
+  )
 }
 
 /** The option attribute {@link addDryRunOption} registers. */
@@ -103,20 +196,62 @@ export function emitOutput(data: unknown, options: ScriptingOptions): void {
   if (options.output === 'ndjson') {
     if (Array.isArray(data)) {
       for (const item of data) {
-        process.stdout.write(`${JSON.stringify(item)}\n`)
+        if (isStdoutClosed()) return
+        writeStdout(`${JSON.stringify(item)}\n`)
       }
       return
     }
-    process.stdout.write(`${JSON.stringify(data)}\n`)
+    writeStdout(`${JSON.stringify(data)}\n`)
     return
   }
 
   if (options.output === 'json') {
-    process.stdout.write(`${JSON.stringify(data, null, 2)}\n`)
+    writeStdout(`${JSON.stringify(data, null, 2)}\n`)
     return
   }
 
-  process.stdout.write(`${String(data)}\n`)
+  writeStdout(`${String(data)}\n`)
+}
+
+/**
+ * The one channel for warnings that must survive structured output: a note the
+ * user needs (a skipped card line, a truncated result set) goes to stderr so
+ * stdout stays a parseable payload, and `--quiet` silences it only when it is
+ * genuinely non-essential — data-loss warnings pass `essential: true`.
+ */
+export type WarningEmission = {
+  /** Print even under `--quiet`. Use for anything the user would lose silently. */
+  essential?: boolean
+}
+
+export function emitWarnings(
+  warnings: readonly string[],
+  options: ScriptingOptions,
+  emission: WarningEmission = {},
+): void {
+  if (warnings.length === 0) return
+  if (options.quiet && emission.essential !== true) return
+  for (const warning of warnings) {
+    writeStderr(`${warning}\n`)
+  }
+}
+
+/**
+ * Install the data-layer logger that matches this run's scripting options:
+ * `--quiet` drops info/progress outright, and anything but `text` output keeps
+ * info off stdout so the payload stays parseable. A plain text run keeps the
+ * default console logger. Commands whose own messages go through
+ * `getLogger().info` (rather than `console.log`) must call this before doing
+ * work, so engine chatter can never corrupt or outshout the payload.
+ */
+export function installScriptingLogger(options: ScriptingOptions): void {
+  if (options.quiet) {
+    setLogger(QUIET_STDERR_LOGGER)
+    return
+  }
+  if (options.output !== 'text') {
+    setLogger(STDERR_LOGGER)
+  }
 }
 
 export function emitError(
@@ -126,15 +261,31 @@ export function emitError(
   details?: unknown,
 ): void {
   if (options.output === 'json') {
-    process.stderr.write(`${JSON.stringify({ error: { code, message, details } }, null, 2)}\n`)
+    writeStderr(`${JSON.stringify({ error: { code, message, details } }, null, 2)}\n`)
     return
   }
   if (options.output === 'ndjson') {
-    process.stderr.write(`${JSON.stringify({ error: { code, message, details } })}\n`)
+    writeStderr(`${JSON.stringify({ error: { code, message, details } })}\n`)
     return
   }
 
-  process.stderr.write(`${message}\n`)
+  writeStderr(`${message}\n`)
+}
+
+/**
+ * Report an error caught by a command action. A broken pipe (`… | head` closed
+ * the reader) is a normal end of output rather than a failure: latch it so the
+ * shared writers go quiet and leave the exit code untouched — anything the
+ * command already recorded stands, and an otherwise clean run still exits 0.
+ * Every other error is a runtime failure with the shared envelope.
+ */
+export function emitActionError(error: unknown, options: ScriptingOptions): void {
+  if (isBrokenPipeError(error)) {
+    markStdoutClosed()
+    return
+  }
+  emitError('runtime_error', getErrorMessage(error), options, error)
+  process.exitCode = ExitCode.RuntimeError
 }
 
 /**
@@ -222,9 +373,9 @@ export async function emitToFileOrStdout(
 ): Promise<void> {
   const { outPath, quiet, confirm } = options
   if (outPath === undefined) {
-    process.stdout.write(content)
+    writeStdout(content)
     if (!quiet && confirm?.stdout !== undefined) {
-      process.stderr.write(`${confirm.stdout}\n`)
+      writeStderr(`${confirm.stdout}\n`)
     }
     return
   }

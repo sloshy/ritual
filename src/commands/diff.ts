@@ -1,5 +1,4 @@
 import { Command, InvalidArgumentError } from 'commander'
-import { getErrorMessage } from '../errors'
 import { loadExportEntries } from '../export/entries'
 import {
   diffLists,
@@ -20,18 +19,20 @@ import {
   type ListLocation,
 } from '../resolve-list'
 import {
-  addScriptingOptions,
-  emitError,
+  addOutputOption,
+  emitActionError,
   emitOutput,
+  emitWarnings,
   emitResolveListError,
-  ExitCode,
   normalizeScriptingOptions,
+  type OutputFormat,
   type ScriptingOptions,
 } from './scripting'
 
 type DiffCommandOptions = {
   by: DiffBy
-} & Partial<ScriptingOptions>
+  output?: OutputFormat
+}
 
 /** The JSON body a successful diff emits (mirrored by `GET /api/diff`). */
 type DiffCommandResult = {
@@ -185,10 +186,16 @@ async function runDiff(
   const warnings = [...sideA.warnings, ...sideB.warnings]
   const result = diffLists(sideA.entries, sideB.entries, by)
 
+  // A skipped card line means the diff compared incomplete lists — data loss,
+  // so it always reaches stderr, in every output mode. The structured envelope
+  // additionally carries `warnings` for consumers.
+  emitWarnings(
+    warnings.map((warning) => `⚠️  ${warning}`),
+    scripting,
+    { essential: true },
+  )
+
   if (scripting.output === 'text') {
-    if (!scripting.quiet) {
-      for (const warning of warnings) process.stderr.write(`⚠️  ${warning}\n`)
-    }
     emitOutput(renderTextDiff(refA, refB, result), scripting)
     return
   }
@@ -206,7 +213,10 @@ async function runDiff(
 }
 
 export function registerDiffCommand(program: Command): void {
-  addScriptingOptions(
+  // `--output` only: a diff's entire output is its payload plus the essential
+  // parse warnings, so there is no non-essential chatter for `--quiet` to
+  // suppress and registering it would advertise a behavior diff does not have.
+  addOutputOption(
     program
       .command('diff')
       .description('Compare two lists by card name or exact printing')
@@ -216,15 +226,13 @@ export function registerDiffCommand(program: Command): void {
         'Second list; an optional deck:/collection:/wanted: prefix pins the type',
       )
       .option('--by <mode>', "Identity to compare by: 'name' or 'printing'", parseByFlag, 'name'),
-    'text',
   ).action(async (rawA: string, rawB: string, options: DiffCommandOptions) => {
     const scripting = normalizeScriptingOptions(options, 'text')
     try {
       // A diff with differences is still a successful diff: exit code 0 either way.
       await runDiff(rawA, rawB, options.by, scripting)
     } catch (e) {
-      emitError('runtime_error', getErrorMessage(e), scripting, e)
-      process.exitCode = ExitCode.RuntimeError
+      emitActionError(e, scripting)
     }
   })
 }

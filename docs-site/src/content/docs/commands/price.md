@@ -40,7 +40,7 @@ The name is matched case- and accent-insensitively across all three list types, 
 | `--summary`            | Print the price summary instead of opening the browser                                                                 |
 | `--refresh <mode>`     | Card cache refresh policy: `ask` (default — prompt; skip when prompts are unavailable), `auto`, `no-bulk`, or `never`  |
 | `--output <format>`    | Output format (`text`, `json`, or `ndjson`)                                                                            |
-| `--quiet`              | Suppress non-essential output                                                                                          |
+| `--quiet`              | Suppress progress lines and the price disclaimer; never the payload or the parser warnings                             |
 
 ## The Interactive Browser
 
@@ -87,7 +87,7 @@ Three views, chosen by the flags:
 ./ritual price --name "sol ring"
 ```
 
-Each view supports `--output json` (one structured document) and `--output ndjson` (one JSON line per list or card). The summary JSON includes `lastRefreshedAt`, per-list summaries, per-type totals, grand totals, and a `warnings` array of lines the list parsers could not read (prose, comments, malformed card lines — such lines are not priced); the single-list JSON carries the same `warnings` field. In text mode those warnings print to stderr instead (suppressed by `--quiet`). Card listings include per-entry prices, lowest prices, and unpriced reasons.
+Each view supports `--output json` (one structured document) and `--output ndjson` (one JSON line per list or card). The summary JSON includes `lastRefreshedAt`, per-list summaries, per-type totals, grand totals, and a `warnings` array of lines the list parsers could not read (prose, comments, malformed card lines — such lines are not priced); the single-list and card-search JSON payloads carry the same `warnings` field. The warnings **also** print to stderr in every output mode, including under `--quiet`: a skipped card line means the totals exclude cards, and nothing else would tell you. Card listings include per-entry prices, lowest prices, and unpriced reasons.
 
 ```bash
 ./ritual price --summary --output json

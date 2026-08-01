@@ -6,6 +6,7 @@ import { OFFLINE_ENV } from './helpers/offline-env'
 import { createWorkspace, removeWorkspace } from './helpers/workspace'
 
 type LoginStatusPayload = { loggedIn: boolean; username?: string }
+type LoginLogoutPayload = { loggedOut: boolean; username?: string }
 
 /** Write a stored Archidekt token file the way `FileTokenStore.save` would. */
 async function seedStoredLogin(workspace: string, username: string): Promise<void> {
@@ -92,26 +93,44 @@ describe('login CLI headless paths (Integration)', () => {
     })
   })
 
-  test('status --quiet emits nothing and communicates via the exit code alone', async () => {
-    const loggedOut = await runCli(['login', 'status', '--quiet'], dir, OFFLINE_ENV)
-    expect(loggedOut.exitCode).toBe(3)
-    expect(loggedOut.stdout).toBe('')
-    expect(loggedOut.stderr).toBe('')
+  // The status line is the command's whole payload, so `status` registers no
+  // `--quiet` — the shared convention forbids a flag that would hide it.
+  test('status registers no --quiet flag, and reports absence without one', async () => {
+    const rejected = await runCli(['login', 'status', '--quiet'], dir, OFFLINE_ENV)
+    expect(rejected.exitCode).toBe(2)
+    expect(rejected.stderr).toContain("unknown option '--quiet'")
 
-    // --quiet suppresses json/ndjson payloads too, not just text.
-    const loggedOutJson = await runCli(
-      ['login', 'status', '--quiet', '--output', 'json'],
+    const loggedOut = await runCli(['login', 'status'], dir, OFFLINE_ENV)
+    expect(loggedOut.exitCode).toBe(3)
+    expect(loggedOut.stdout).toContain('Not logged in.')
+
+    const loggedOutJson = await runCli(['login', 'status', '--output', 'json'], dir, OFFLINE_ENV)
+    expect(loggedOutJson.exitCode).toBe(3)
+    // toStrictEqual, not toEqual: `username` must be *absent*, not undefined.
+    expect(JSON.parse(loggedOutJson.stdout) as LoginStatusPayload).toStrictEqual({
+      loggedIn: false,
+    })
+  })
+
+  test('logout --quiet drops the confirmation line but never the payload', async () => {
+    await seedStoredLogin(dir, 'tester')
+    const quiet = await runCli(['login', 'logout', '--quiet'], dir, OFFLINE_ENV)
+    expect(quiet.exitCode).toBe(0)
+    expect(quiet.stdout).toBe('')
+    expect(quiet.stderr).toBe('')
+    expect(await Bun.file(path.join(dir, '.logins', 'archidekt.json')).exists()).toBe(false)
+
+    await seedStoredLogin(dir, 'tester')
+    const quietJson = await runCli(
+      ['login', 'logout', '--quiet', '--output', 'json'],
       dir,
       OFFLINE_ENV,
     )
-    expect(loggedOutJson.exitCode).toBe(3)
-    expect(loggedOutJson.stdout).toBe('')
-
-    await seedStoredLogin(dir, 'tester')
-    const loggedIn = await runCli(['login', 'status', '--quiet'], dir, OFFLINE_ENV)
-    expect(loggedIn.exitCode).toBe(0)
-    expect(loggedIn.stdout).toBe('')
-    expect(loggedIn.stderr).toBe('')
+    expect(quietJson.exitCode).toBe(0)
+    expect(JSON.parse(quietJson.stdout) as LoginLogoutPayload).toStrictEqual({
+      loggedOut: true,
+      username: 'tester',
+    })
   })
 
   test('logout clears the stored token and reports who was logged out', async () => {
@@ -120,6 +139,15 @@ describe('login CLI headless paths (Integration)', () => {
     const result = await runCli(['login', 'logout'], dir, OFFLINE_ENV)
     expect(result.exitCode).toBe(0)
     expect(result.stdout).toContain('tester')
+
+    // logout carries the same scripting flags as its sibling `status`.
+    await seedStoredLogin(dir, 'tester')
+    const json = await runCli(['login', 'logout', '--output', 'json'], dir, OFFLINE_ENV)
+    expect(json.exitCode).toBe(0)
+    expect(JSON.parse(json.stdout) as LoginLogoutPayload).toEqual({
+      loggedOut: true,
+      username: 'tester',
+    })
 
     const tokenExists = await Bun.file(path.join(dir, '.logins', 'archidekt.json')).exists()
     expect(tokenExists).toBe(false)

@@ -26,7 +26,16 @@ Look up a single card by name using Scryfall.
 | `--from-file <path>` | Read card names from a file (one per line)        |
 | `--fields <list>`    | Comma-separated fields for `json`/`ndjson` output |
 | `--output <format>`  | Output format (`json`, `ndjson`, or `text`)       |
-| `--quiet`            | Suppress non-essential output                     |
+
+`card` registers no `--quiet`: everything it prints is either a card or an error, so there would be nothing for the flag to suppress ([shared convention](/#scripting-conventions)).
+
+## Batch output shape
+
+`--stdin` and `--from-file` look up every name in the input. The output shape depends only on the flag you passed, never on how many lines the input happened to hold:
+
+- **`--output json`** (the default) emits **one** JSON array of cards for the whole batch — the same contract [`scry`](/commands/scry/) gives a multi-page search. A run where some lookups failed still emits the cards that were found (the failures go to stderr and set the exit code), and a run where all of them failed emits `[]`. A single-name lookup, batch or not, emits a bare card object.
+- **`--output ndjson`** streams one JSON object per card as it arrives — the opt-in streaming mode for large inputs.
+- **`--output text`** prints one `Name (SET)` line per card.
 
 ## Examples
 
@@ -54,10 +63,16 @@ Get plain text output:
 ./ritual card "Sol Ring" --output text
 ```
 
-Batch lookup from stdin as NDJSON:
+Batch lookup from stdin as one JSON array:
 
 ```bash
-printf "Sol Ring\nArcane Signet\n" | ./ritual card --stdin --output ndjson
+printf "Sol Ring\nArcane Signet\n" | ./ritual card --stdin --output json
+```
+
+Stream a large batch as NDJSON instead:
+
+```bash
+./ritual card --from-file cards.txt --output ndjson --fields name,set,prices.usd
 ```
 
 ## Exit Codes

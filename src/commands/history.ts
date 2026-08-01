@@ -24,7 +24,7 @@ import {
 } from '../changelog-blocks'
 import { buildDefaultChangeLines, changesPathFor, loadListSnapshot } from './history-helpers'
 import {
-  addScriptingOptions,
+  addOutputOption,
   emitError,
   emitOutput,
   emitResolveListError,
@@ -110,7 +110,9 @@ async function autocompleteMenu(
 }
 
 export function registerHistoryCommand(program: Command): void {
-  addScriptingOptions(
+  // `--output` only: `--show` prints its payload and the interactive editor
+  // needs a terminal, so there is no scriptable chatter for `--quiet`.
+  addOutputOption(
     program
       .command('history')
       .description('Compact and rewrite the change history for a deck, collection, or wanted list')
@@ -123,7 +125,6 @@ export function registerHistoryCommand(program: Command): void {
       .option('--wanted', 'Resolve the name as a wanted list')
       .option('--show', 'Print the change history and exit instead of opening the editor', false)
       .option('--limit <n>', 'With --show: print only the newest <n> change sets', parseLimitFlag),
-    'text',
   ).action(async (listNameArg: string | undefined, options: HistoryOptions) => {
     const scripting = normalizeScriptingOptions(options, 'text')
     const type = listTypeFromFlags(options)

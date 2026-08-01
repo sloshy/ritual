@@ -15,19 +15,20 @@ import {
   applyChangeBundle,
   bundleImportMessage,
 } from '../admin/api/import-changes'
+import type { ImportConflict } from '../editor/import-changes'
 import { suppressAutoCommit } from '../admin/git'
 import { ask } from './prompts-helpers'
 import {
   canPromptWithOutput,
   type ScriptingOptions,
   addScriptingOptions,
+  installScriptingLogger,
   classifyFileReadError,
   emitError,
   emitOutput,
   ExitCode,
   normalizeScriptingOptions,
 } from './scripting'
-import { STDERR_LOGGER, setLogger } from '../logger'
 
 type ImportChangesOptions = {
   yes?: boolean
@@ -59,6 +60,27 @@ function printPreview(bundle: ChangeBundle): void {
   console.log('')
 }
 
+/** Why a change was skipped, in the wording the CLI prints. */
+const CONFLICT_REASON_LABEL: Record<ImportConflict['reason'], string> = {
+  'target-not-found': 'card not found',
+  'not-applicable': 'not applicable to this list',
+}
+
+/**
+ * The per-reason breakdown for a list's skipped changes — `card not found: 2,
+ * not applicable to this list: 1` — so a summary never claims a reason the
+ * engine did not report.
+ */
+function summarizeConflictReasons(conflicts: readonly ImportConflict[]): string {
+  const counts = new Map<ImportConflict['reason'], number>()
+  for (const conflict of conflicts) {
+    counts.set(conflict.reason, (counts.get(conflict.reason) ?? 0) + 1)
+  }
+  return [...counts.entries()]
+    .map(([reason, count]) => `${CONFLICT_REASON_LABEL[reason]}: ${count}`)
+    .join(', ')
+}
+
 /** Print per-list applied counts, skipped conflicts, and failures after an apply. */
 function printResults(result: BundleImportResult, quiet: boolean): void {
   for (const list of result.lists) {
@@ -67,10 +89,22 @@ function printResults(result: BundleImportResult, quiet: boolean): void {
       console.error(`✗ ${heading}: ${list.error}`)
       continue
     }
-    if (quiet) continue
+    // Skipped changes are the one thing `--quiet` must never hide: nothing else
+    // reports them and they do not affect the exit code, so a silent run would
+    // look like a clean apply. The applied count is chatter; this is data loss.
+    if (quiet) {
+      if (list.conflicts.length > 0) {
+        console.error(
+          `⚠ ${heading}: ${countLabel(list.conflicts.length, 'change')} skipped (${summarizeConflictReasons(list.conflicts)})`,
+        )
+      }
+      continue
+    }
     console.log(`✓ ${heading}: applied ${countLabel(list.applied, 'change')}`)
     for (const conflict of list.conflicts) {
-      console.log(`  ⚠ Skipped (card not found): ${formatChange(conflict.change)}`)
+      console.error(
+        `  ⚠ Skipped (${CONFLICT_REASON_LABEL[conflict.reason]}): ${formatChange(conflict.change)}`,
+      )
     }
   }
 }
@@ -84,11 +118,10 @@ export function registerImportChangesCommand(program: Command): void {
       .option('-y, --yes', 'Apply without asking for confirmation', false),
   ).action(async (file: string, options: ImportChangesOptions) => {
     const scripting = normalizeScriptingOptions(options)
-    // The apply path resolves cards through the shared data layer, whose
-    // logger writes to stdout; divert it so json/ndjson stdout stays pure.
-    if (scripting.output !== 'text') {
-      setLogger(STDERR_LOGGER)
-    }
+    // The apply path resolves cards through the shared data layer, whose logger
+    // writes to stdout; divert it so json/ndjson stdout stays pure, and drop it
+    // entirely under `--quiet`.
+    installScriptingLogger(scripting)
 
     let text: string
     try {
