@@ -222,4 +222,18 @@ describe('history CLI error paths (Integration)', () => {
       expect(result.stderr).toContain('nonexistent')
     })
   })
+
+  test('a resolution failure under --output json uses the structured error envelope', async () => {
+    await withWorkspace(async (dir) => {
+      await writeDeckFile(dir, 'other', {
+        frontMatter: { name: 'Other' },
+        cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
+      })
+      const result = await runCli(['history', 'nonexistent', '--show', '--output', 'json'], dir)
+      expect(result.exitCode).toBe(3)
+      const payload = JSON.parse(result.stderr) as { error: { code: string; message: string } }
+      expect(payload.error.code).toBe('not_found')
+      expect(payload.error.message).toContain('nonexistent')
+    })
+  })
 })

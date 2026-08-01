@@ -128,10 +128,12 @@ export function resolveListTypeFlag(
 }
 
 function resolveErrorToCommandError(error: ResolveListError): CardCommandError {
+  // Every one-shot card command registers --deck/--collection/--wanted.
+  const message = formatResolveListError(error, 'type-flags')
   if (error.kind === 'ambiguous') {
-    return new CardCommandError('usage_error', formatResolveListError(error), ExitCode.UsageError)
+    return new CardCommandError('usage_error', message, ExitCode.UsageError)
   }
-  return new CardCommandError('not_found', formatResolveListError(error), ExitCode.NotFound)
+  return new CardCommandError('not_found', message, ExitCode.NotFound)
 }
 
 /**
@@ -140,6 +142,11 @@ function resolveErrorToCommandError(error: ResolveListError): CardCommandError {
  * prefix overrides `type` (from a type flag), matching is case-insensitive, and
  * ambiguity is a usage error. When `listName` is omitted, the user picks
  * interactively from the lists in scope.
+ *
+ * **Precondition:** the calling command registers `--deck`/`--collection`/`--wanted`
+ * — the ambiguity error advises those flags. Every one-shot card command
+ * (`add-card`, `remove-card`, `set-card`, `note`, `rename`, `delete`) does; a
+ * flagless command must not use this helper without changing that advice.
  */
 export async function resolveListSelection(
   listName: string | undefined,

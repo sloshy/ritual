@@ -27,8 +27,11 @@ the connection is the logged-in account.
 | `<direction>` | `pull` (Archidekt → local) or `push` (local → Archidekt). Any other value exits with code 2.                    | Yes      |
 | `[lists...]`  | Collection lists to sync (matched case- and accent-insensitively, no `.md`). If omitted, every collection list. | No       |
 
-Each name is matched case- and accent-insensitively with a unique-substring fallback; an ambiguous
-name is reported and skipped. See [List Resolution](/commands/list-resolution/).
+Each name is matched case- and accent-insensitively with a unique-substring fallback, within
+collection lists only. An ambiguous or unknown name is reported as a **failed** list (not
+`skipped`) and the run exits 1; since resolution is already collection-scoped, the error asks you
+to type more of the name rather than suggesting type flags this command does not have. See
+[List Resolution](/commands/list-resolution/).
 
 ## Options
 

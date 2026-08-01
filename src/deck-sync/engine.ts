@@ -503,7 +503,7 @@ async function resolveTargetDecks(
     for (const name of deckNames) {
       const resolved = await resolveList(name, 'deck')
       if (isResolveListError(resolved)) {
-        const message = formatResolveListError(resolved)
+        const message = formatResolveListError(resolved, 'none')
         problem({ name, status: 'failed', reason: message, message, level: 'error' })
         continue
       }

@@ -63,7 +63,7 @@ export function registerGetPrimerCommand(program: Command): void {
       // Local deck file path
       const resolved = await resolveList(source, 'deck')
       if (isResolveListError(resolved)) {
-        logger.error(formatResolveListError(resolved))
+        logger.error(formatResolveListError(resolved, 'none'))
         process.exitCode = resolved.kind === 'ambiguous' ? ExitCode.UsageError : ExitCode.NotFound
         return
       }

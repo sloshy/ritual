@@ -320,7 +320,8 @@ async function resolveListBasename(list: ChangeBundleList): Promise<ApiCallResul
   }
 
   const resolved = await resolveList(list.name, list.kind)
-  if (isResolveListError(resolved)) return { ok: false, error: formatResolveListError(resolved) }
+  if (isResolveListError(resolved))
+    return { ok: false, error: formatResolveListError(resolved, 'none') }
   return { ok: true, data: resolved.name }
 }
 

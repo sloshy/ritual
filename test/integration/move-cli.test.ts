@@ -407,6 +407,22 @@ describe('move CLI headless mode (Integration)', () => {
     expect(err.error.code).toBe('not_found')
   })
 
+  test('an ambiguous --from list advises the type prefix, not the type flags', async () => {
+    // `move` registers no --deck/--collection/--wanted, and could not use them for
+    // two list arguments anyway — the prefix is its only disambiguation mechanism.
+    await writeCollectionFile(dir, 'source', { entries: [] })
+    const result = await runCli(
+      ['move', 'Lightning', 'Bolt', '--from', 'source', '--to', 'deck:target', '--output', 'json'],
+      dir,
+    )
+    expect(result.exitCode).toBe(2)
+    const err = JSON.parse(result.stderr) as MoveErrorPayload
+    expect(err.error.code).toBe('usage_error')
+    expect(err.error.message).toContain("'deck:source'")
+    expect(err.error.message).toContain("'collection:source'")
+    expect(err.error.message).not.toContain('--deck')
+  })
+
   test('requesting more copies than exist exits not_found and moves nothing', async () => {
     const result = await runCli(
       [

@@ -389,7 +389,7 @@ async function resolveAddCardTarget(
 
   throw new CardCommandError(
     resolved.kind === 'ambiguous' ? 'usage_error' : 'not_found',
-    formatResolveListError(resolved),
+    formatResolveListError(resolved, 'type-flags'),
     resolved.kind === 'ambiguous' ? ExitCode.UsageError : ExitCode.NotFound,
   )
 }

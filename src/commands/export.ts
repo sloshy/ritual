@@ -268,7 +268,9 @@ async function runFlagExport(
     const arg = parseListArgument(raw)
     const resolved = await resolveList(arg.name, arg.type ?? type)
     if (isResolveListError(resolved)) {
-      emitResolveListError(resolved, textOptions)
+      // `export` takes any number of list arguments, so the whole-command type
+      // flags cannot scope one of them — the per-argument prefix can.
+      emitResolveListError(resolved, textOptions, 'type-prefix')
       return
     }
     if (!selected.some((l) => l.type === resolved.type && l.name === resolved.name)) {

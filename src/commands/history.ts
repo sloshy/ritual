@@ -3,7 +3,6 @@ import prompts from 'prompts'
 import * as fs from 'node:fs/promises'
 import type { PromptState } from './prompts-types'
 import {
-  formatResolveListError,
   isResolveListError,
   listLocations,
   listTypeFromFlags,
@@ -28,6 +27,7 @@ import {
   addScriptingOptions,
   emitError,
   emitOutput,
+  emitResolveListError,
   ExitCode,
   normalizeScriptingOptions,
   type ScriptingOptions,
@@ -159,7 +159,7 @@ export function registerHistoryCommand(program: Command): void {
         )
       }
 
-      const location = await resolveLocation(listNameArg, type)
+      const location = await resolveLocation(listNameArg, type, scripting)
       if (!location) return
 
       if (options.show) {
@@ -234,12 +234,14 @@ async function runHistoryShow(
 async function resolveLocation(
   listName: string | undefined,
   type: ListType | undefined,
+  scripting: ScriptingOptions,
 ): Promise<ListLocation | null> {
   if (listName !== undefined) {
     const resolved = await resolveList(listName, type)
     if (isResolveListError(resolved)) {
-      console.error(formatResolveListError(resolved))
-      process.exitCode = resolved.kind === 'ambiguous' ? ExitCode.UsageError : ExitCode.NotFound
+      // `history --show --output json` must fail through the structured channel
+      // like every other scripted command; the command registers the type flags.
+      emitResolveListError(resolved, scripting, 'type-flags')
       return null
     }
     return resolved
@@ -247,10 +249,12 @@ async function resolveLocation(
 
   const locations = await listLocations(type)
   if (locations.length === 0) {
-    console.error(
+    emitError(
+      'not_found',
       type
         ? `No ${listTypeLabel(type).toLowerCase()} lists found.`
         : 'No decks, collections, or wanted lists found.',
+      scripting,
     )
     process.exitCode = ExitCode.NotFound
     return null

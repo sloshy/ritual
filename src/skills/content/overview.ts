@@ -31,8 +31,13 @@ workspace if it contains \`decks/\`, \`collections/\`, or \`wanted/\` folders, o
 A list is addressed by its **name** = the file basename without \`.md\`
 (e.g. \`decks/Winota Stax.md\` → \`Winota Stax\`). Most commands resolve a name across
 all three types, ignoring case, accents, and separators (so \`cafe\` matches \`Café\`,
-and \`winota-stax\` matches \`Winota Stax\`); when a name is ambiguous, pass a type
-flag (\`--deck\`, \`--collection\`, \`--wanted\`) or prefix the name (\`deck:staples\`).
+and \`winota-stax\` matches \`Winota Stax\`); when a name matches lists of **different**
+types, pass a type flag (\`--deck\`, \`--collection\`, \`--wanted\`) or prefix the name
+(\`deck:staples\`) — commands taking more than one list (\`diff\`'s two sides,
+\`export\`'s list arguments, \`move\`'s \`--from\`/\`--to\`) suggest the prefix, since one
+whole-command flag cannot scope a single argument. When the matches are all the **same** type, no type
+selector can help: type more of the name. The error's last line always names the
+remedy that actually applies.
 
 **Discovering lists:** \`ritual lists\` is the discovery primitive — it enumerates
 every deck, collection, and wanted list as \`type slug name\` rows. Filter with

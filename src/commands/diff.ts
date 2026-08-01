@@ -18,7 +18,6 @@ import {
   parseListArgument,
   resolveList,
   type ListLocation,
-  type ResolveListError,
 } from '../resolve-list'
 import {
   addScriptingOptions,
@@ -53,26 +52,10 @@ function parseByFlag(value: string): DiffBy {
 }
 
 /**
- * Report a failed side resolution. Ambiguity gets a diff-specific message: the
- * command takes two list arguments, so the usual `--deck`/`--collection`/
- * `--wanted` flags cannot disambiguate one side — the `type:` prefix can.
+ * Resolve one side of the diff. `diff` takes two list arguments, so the usual
+ * `--deck`/`--collection`/`--wanted` flags could not scope one side — its
+ * disambiguation mechanism is the `type:` prefix on each argument.
  */
-function emitDiffResolveError(error: ResolveListError, scripting: ScriptingOptions): void {
-  if (error.kind === 'ambiguous') {
-    const lines = error.matches.map((m) => `  - ${m.type}: ${m.name}`).join('\n')
-    const hints = error.matches.map((m) => `${m.type}:${error.query}`).join(' or ')
-    emitError(
-      'usage_error',
-      `'${error.query}' is ambiguous — it matches multiple lists:\n${lines}\n` +
-        `Disambiguate with a type prefix, e.g. ${hints}.`,
-      scripting,
-    )
-    process.exitCode = ExitCode.UsageError
-    return
-  }
-  emitResolveListError(error, scripting)
-}
-
 async function resolveSide(
   raw: string,
   scripting: ScriptingOptions,
@@ -80,7 +63,7 @@ async function resolveSide(
   const arg = parseListArgument(raw)
   const resolved = await resolveList(arg.name, arg.type)
   if (isResolveListError(resolved)) {
-    emitDiffResolveError(resolved, scripting)
+    emitResolveListError(resolved, scripting, 'type-prefix')
     return undefined
   }
   return resolved

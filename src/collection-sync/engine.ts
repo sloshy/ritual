@@ -775,7 +775,7 @@ async function resolveScope(
   for (const name of names) {
     const location = await store.resolve(name)
     if (isResolveFailure(location)) {
-      const message = formatResolveListError(location)
+      const message = formatResolveListError(location, 'none')
       emit({ kind: 'log', level: 'error', list: null, message })
       results.fail(name, message)
       results.finish(name)

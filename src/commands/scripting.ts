@@ -4,7 +4,7 @@ import { InvalidArgumentError, type Command } from 'commander'
 import type { ErrorCode } from '../types'
 import { ExitCode, hasErrorCode, type ExitCodeValue } from '../errors'
 import { parseEnumField } from '../parse-enum'
-import { formatResolveListError, type ResolveListError } from '../resolve-list'
+import { formatResolveListError, type ResolveHint, type ResolveListError } from '../resolve-list'
 import { getAtPath } from '../utils'
 import { promptsUnavailable } from '../no-input'
 
@@ -164,11 +164,16 @@ export function renderCardSummary(card: CardSummary): string {
 
 /**
  * Emit a list-resolution error through the scripting error channel and set the
- * matching process exit code. Ambiguity is a usage error (the user must pick a
- * type); a missing list or empty directory is a not-found.
+ * matching process exit code. Ambiguity is a usage error (the user must narrow
+ * the name); a missing list or empty directory is a not-found. `hint` names the
+ * disambiguation mechanism this command actually offers — see {@link ResolveHint}.
  */
-export function emitResolveListError(error: ResolveListError, options: ScriptingOptions): void {
-  const message = formatResolveListError(error)
+export function emitResolveListError(
+  error: ResolveListError,
+  options: ScriptingOptions,
+  hint: ResolveHint,
+): void {
+  const message = formatResolveListError(error, hint)
   switch (error.kind) {
     case 'ambiguous':
       emitError('usage_error', message, options)

@@ -214,7 +214,10 @@ export async function handleExport(req: Request): Promise<Response> {
         return badRequest(`Invalid list type '${String(list.type)}'.`)
       }
       const resolved = await resolveList(list.name, list.type)
-      if (isResolveListError(resolved)) return badRequest(formatResolveListError(resolved))
+      // Each ref carries its own optional `type`, so that field — not a longer
+      // name — is what resolves a cross-type ambiguity here.
+      if (isResolveListError(resolved))
+        return badRequest(formatResolveListError(resolved, 'type-field'))
       if (!selected.some((s) => s.type === resolved.type && s.name === resolved.name)) {
         selected.push(resolved)
       }

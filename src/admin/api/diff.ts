@@ -31,11 +31,16 @@ export type DiffResponseBody = {
   warnings: string[]
 }
 
-/** Resolve one side's `[type:]name` query value to a list file, or a 400 response. */
+/**
+ * Resolve one side's `[type:]name` query value to a list file, or a 400 response.
+ * Like the CLI `diff`, each side carries its own `type:` prefix — that prefix is
+ * the disambiguation mechanism this grammar offers, so an ambiguity error names it.
+ */
 async function resolveSide(raw: string): Promise<ListLocation | Response> {
   const arg = parseListArgument(raw)
   const resolved = await resolveList(arg.name, arg.type)
-  if (isResolveListError(resolved)) return badRequest(formatResolveListError(resolved))
+  if (isResolveListError(resolved))
+    return badRequest(formatResolveListError(resolved, 'type-prefix'))
   return resolved
 }
 

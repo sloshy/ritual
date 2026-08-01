@@ -234,7 +234,7 @@ export function registerEditCommand(program: Command): void {
       const query = parseDirectListArgument(listNameArg, flagType)
       const resolved = await resolveList(query.name, query.type)
       if (isResolveListError(resolved)) {
-        emitResolveListError(resolved, PLAIN_TEXT_OUTPUT)
+        emitResolveListError(resolved, PLAIN_TEXT_OUTPUT, 'type-flags')
         return
       }
       directRef = await directOpenRef(resolved)

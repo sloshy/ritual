@@ -336,7 +336,7 @@ async function appendToList(
 ): Promise<CsvImportOutcome> {
   const location = await resolveList(target.name, target.listType)
   if (isResolveListError(location)) {
-    return { error: formatResolveListError(location) }
+    return { error: formatResolveListError(location, 'none') }
   }
 
   const content = await Bun.file(location.filePath).text()

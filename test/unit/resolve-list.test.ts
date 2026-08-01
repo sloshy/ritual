@@ -5,6 +5,7 @@ import {
   formatResolveListError,
   isResolveListError,
   parseListArgument,
+  RESOLVE_HINTS,
   type ListLocation,
   type ResolveListError,
 } from '../../src/resolve-list'
@@ -126,30 +127,146 @@ describe('listTypeFromFlags', () => {
 })
 
 describe('formatResolveListError', () => {
+  function ambiguous(query: string, matches: ListLocation[]): ResolveListError {
+    return { kind: 'ambiguous', query, matches }
+  }
+
   it('formats no-lists with and without a type', () => {
-    expect(formatResolveListError({ kind: 'no-lists' })).toBe(
+    expect(formatResolveListError({ kind: 'no-lists' }, 'type-flags')).toBe(
       'No decks, collections, or wanted lists found.',
     )
-    expect(formatResolveListError({ kind: 'no-lists', type: 'wanted' })).toBe(
+    expect(formatResolveListError({ kind: 'no-lists', type: 'wanted' }, 'type-flags')).toBe(
       'No wanted lists found.',
     )
   })
 
   it('formats not-found with the query name', () => {
     const err: ResolveListError = { kind: 'not-found', query: 'Goblins', type: 'deck' }
-    expect(formatResolveListError(err)).toBe("No deck named 'Goblins' found.")
+    expect(formatResolveListError(err, 'type-flags')).toBe("No deck named 'Goblins' found.")
   })
 
-  it('lists every match and suggests the disambiguating flags for ambiguity', () => {
-    const err: ResolveListError = {
-      kind: 'ambiguous',
-      query: 'Staples',
-      matches: [loc('deck', 'Staples'), loc('collection', 'Staples')],
-    }
-    const message = formatResolveListError(err)
+  it('names all three types in a not-found from an untyped search', () => {
+    const err: ResolveListError = { kind: 'not-found', query: 'Goblins' }
+    expect(formatResolveListError(err, 'type-flags')).toBe(
+      "No deck, collection, or wanted list named 'Goblins' found.",
+    )
+  })
+
+  it('lists every match and suggests the type flags for cross-type ambiguity', () => {
+    const err = ambiguous('Staples', [loc('deck', 'Staples'), loc('collection', 'Staples')])
+    const message = formatResolveListError(err, 'type-flags')
     expect(message).toContain('Deck: Staples')
     expect(message).toContain('Collection: Staples')
-    expect(message).toContain('--deck, --collection, or --wanted')
+    expect(message).toEndWith('Disambiguate with --deck, --collection, or --wanted.')
+  })
+
+  it('advises typing more of the name when every match shares a type', () => {
+    const err = ambiguous('bur', [loc('deck', 'burn'), loc('deck', 'burn-red')])
+    for (const hint of RESOLVE_HINTS) {
+      const message = formatResolveListError(err, hint)
+      expect(message).toEndWith("Type more of the name to narrow the match (e.g. 'burn').")
+      expect(message).not.toContain('--deck')
+      expect(message).not.toContain('type prefix')
+      expect(message).not.toContain("Set the list's type")
+    }
+  })
+
+  it('advises typing more of the name for cross-type ambiguity with no type selector', () => {
+    const err = ambiguous('Staple', [loc('deck', 'Staples'), loc('collection', 'Staple Binder')])
+    const message = formatResolveListError(err, 'none')
+    expect(message).toEndWith("Type more of the name to narrow the match (e.g. 'Staples').")
+  })
+
+  it('suggests one type prefix per type, only for types with a single match', () => {
+    const err = ambiguous('Storm', [
+      loc('deck', 'Storm'),
+      loc('deck', 'Storm Crow'),
+      loc('wanted', 'Storm'),
+    ])
+    const message = formatResolveListError(err, 'type-prefix')
+    expect(message).toContain('Wanted List: Storm')
+    expect(message).toEndWith("Disambiguate with a type prefix, e.g. 'wanted:Storm'.")
+  })
+
+  it('quotes the suggested prefix so a name with a space stays copy-pasteable', () => {
+    const err = ambiguous('high priority', [
+      loc('deck', 'High Priority'),
+      loc('wanted', 'High Priority'),
+    ])
+    expect(formatResolveListError(err, 'type-prefix')).toEndWith(
+      "Disambiguate with a type prefix, e.g. 'deck:high priority' or 'wanted:high priority'.",
+    )
+  })
+
+  it('suggests every qualifying type prefix without repeating a type', () => {
+    const err = ambiguous('b', [loc('deck', 'Burn'), loc('collection', 'Binder')])
+    expect(formatResolveListError(err, 'type-prefix')).toEndWith(
+      "Disambiguate with a type prefix, e.g. 'deck:b' or 'collection:b'.",
+    )
+  })
+
+  it('joins all three qualifying type prefixes', () => {
+    const err = ambiguous('b', [
+      loc('deck', 'Burn'),
+      loc('collection', 'Binder'),
+      loc('wanted', 'Buylist'),
+    ])
+    expect(formatResolveListError(err, 'type-prefix')).toEndWith(
+      "Disambiguate with a type prefix, e.g. 'deck:b' or 'collection:b' or 'wanted:b'.",
+    )
+  })
+
+  it('advises setting the request type field for a structured caller', () => {
+    const err = ambiguous('Staples', [loc('deck', 'Staples'), loc('collection', 'Staples')])
+    expect(formatResolveListError(err, 'type-field')).toEndWith(
+      "Set the list's type to 'deck' or 'collection'.",
+    )
+  })
+
+  it('falls back to name advice for a structured caller when no type resolves it', () => {
+    const err = ambiguous('b', [
+      loc('deck', 'Burn'),
+      loc('deck', 'Binder'),
+      loc('collection', 'Bulk'),
+      loc('collection', 'Boxes'),
+    ])
+    expect(formatResolveListError(err, 'type-field')).toEndWith(
+      "Type more of the name to narrow the match (e.g. 'Burn').",
+    )
+  })
+
+  it('offers no example name when every match normalizes to the query', () => {
+    // `Storm Crow.md` and `storm-crow.md` normalize identically, so suggesting
+    // either one would reproduce this same error.
+    const err = ambiguous('Storm Crow', [loc('deck', 'Storm Crow'), loc('deck', 'storm-crow')])
+    for (const hint of RESOLVE_HINTS) {
+      expect(formatResolveListError(err, hint)).toEndWith(
+        'Type more of the name to narrow the match.',
+      )
+    }
+  })
+
+  it('skips a self-referential example in favor of one that would resolve', () => {
+    const err = ambiguous('storm', [
+      loc('deck', 'Storm Crow'),
+      loc('deck', 'storm-crow'),
+      loc('deck', 'Storm Kiln'),
+    ])
+    expect(formatResolveListError(err, 'type-flags')).toEndWith(
+      "Type more of the name to narrow the match (e.g. 'Storm Kiln').",
+    )
+  })
+
+  it('falls back to name advice when no type prefix would resolve the ambiguity', () => {
+    const err = ambiguous('b', [
+      loc('deck', 'Burn'),
+      loc('deck', 'Burning Vengeance'),
+      loc('collection', 'Binder'),
+      loc('collection', 'Binder2'),
+    ])
+    expect(formatResolveListError(err, 'type-prefix')).toEndWith(
+      "Type more of the name to narrow the match (e.g. 'Burn').",
+    )
   })
 })
 

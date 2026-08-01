@@ -192,7 +192,7 @@ export function registerMoveCommand(program: Command): void {
         const arg = parseListArgument(options.from)
         const resolved = await resolveList(arg.name, arg.type)
         if (isResolveListError(resolved)) {
-          emitResolveListError(resolved, scripting)
+          emitResolveListError(resolved, scripting, 'type-prefix')
           return
         }
         await runInteractiveMove(resolved.filePath)
@@ -433,13 +433,13 @@ async function runHeadlessMove(args: HeadlessMoveArgs, scripting: ScriptingOptio
   const fromArg = parseListArgument(args.fromRaw)
   const fromResolved = await resolveList(fromArg.name, fromArg.type)
   if (isResolveListError(fromResolved)) {
-    emitResolveListError(fromResolved, scripting)
+    emitResolveListError(fromResolved, scripting, 'type-prefix')
     return
   }
   const toArg = parseListArgument(args.toRaw)
   const toResolved = await resolveList(toArg.name, toArg.type)
   if (isResolveListError(toResolved)) {
-    emitResolveListError(toResolved, scripting)
+    emitResolveListError(toResolved, scripting, 'type-prefix')
     return
   }
   if (fromResolved.filePath === toResolved.filePath) {

@@ -15,8 +15,10 @@ side, only in the other, and where quantities differ. The same engine backs the 
 Both list names resolve like every list command (see [List Resolution](/commands/list-resolution/));
 a `deck:` / `collection:` / `wanted:` prefix pins the type. That prefix is the headline move here:
 a deck and a collection sharing a name is exactly the situation you diff them in, so
-`./ritual diff deck:vampires collection:vampires` disambiguates each side (an unprefixed ambiguous
-name is a usage error that suggests the prefixed forms).
+`./ritual diff deck:vampires collection:vampires` disambiguates each side. An unprefixed ambiguous
+name is a usage error; it suggests the prefixed forms when a type holds exactly one match, and
+otherwise asks you to type more of the name — see
+[List Resolution](/commands/list-resolution/#what-the-ambiguity-error-advises).
 
 ## Arguments
 

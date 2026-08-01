@@ -194,8 +194,88 @@ function typeNoun(type: ListType): string {
   return type === 'wanted' ? 'wanted list' : type
 }
 
-/** Render a {@link ResolveListError} as a user-facing message. */
-export function formatResolveListError(error: ResolveListError): string {
+/**
+ * How the caller lets a user disambiguate a list name, which decides the remedy
+ * line on an ambiguity error. The hint describes the caller's **argument grammar**,
+ * not whether it is a CLI:
+ *
+ * - `'type-flags'` — the command registers `--deck` / `--collection` / `--wanted`,
+ *   which scope the whole invocation.
+ * - `'type-prefix'` — the name accepts a `deck:` / `collection:` / `wanted:` prefix
+ *   (`move --from/--to`, `diff`'s two sides, `export`'s list arguments, and the
+ *   admin `GET /api/diff` query parameters, which parse the same prefix). This is
+ *   the mechanism for any surface taking more than one list, where one whole-command
+ *   flag could not scope a single argument.
+ * - `'type-field'` — the request carries a structured, per-list type field (the
+ *   admin `POST /api/export` body's `{ type?, name }` refs, and the MCP `listType`
+ *   that maps onto them).
+ * - `'none'` — no type selector exists: the caller is pinned to one list type
+ *   (`get-primer`, the sync engines, the CSV importer, `POST /api/import-changes`,
+ *   all of which resolve with a known type).
+ *
+ * Whatever the mechanism, a type selector cannot break a tie between lists of the
+ * _same_ type, so a same-type ambiguity always advises typing more of the name.
+ */
+export const RESOLVE_HINTS = ['type-flags', 'type-prefix', 'type-field', 'none'] as const
+
+export type ResolveHint = (typeof RESOLVE_HINTS)[number]
+
+/**
+ * "Type more of the name" advice. The example must be a name that would actually
+ * resolve: when two list files normalize to the same name (`Storm Crow.md` and
+ * `storm-crow.md`), suggesting either one just reproduces this same error, so no
+ * example is offered at all.
+ */
+function typeMoreAdvice(matches: ListLocation[]): string {
+  const example = matches.find(
+    (m) =>
+      matches.filter((other) => normalizeListName(other.name) === normalizeListName(m.name))
+        .length === 1,
+  )?.name
+  const suffix = example === undefined ? '' : ` (e.g. '${example}')`
+  return `Type more of the name to narrow the match${suffix}.`
+}
+
+/**
+ * The types that genuinely resolve the ambiguity — those holding exactly one match
+ * (pinning a type that holds two just produces a second ambiguity error). Empty
+ * when no type qualifies.
+ */
+function resolvingTypes(error: AmbiguousError): ListType[] {
+  return LIST_TYPES.filter((t) => error.matches.filter((m) => m.type === t).length === 1)
+}
+
+/** The remedy line printed under the list of ambiguous matches. */
+function ambiguityAdvice(error: AmbiguousError, hint: ResolveHint): string {
+  const sameType = error.matches.every((m) => m.type === error.matches[0]?.type)
+  // A pinned-type resolution can only produce same-type matches, so this covers it.
+  if (sameType) return typeMoreAdvice(error.matches)
+  switch (hint) {
+    case 'type-flags':
+      return 'Disambiguate with --deck, --collection, or --wanted.'
+    case 'type-prefix': {
+      const types = resolvingTypes(error)
+      if (types.length === 0) return typeMoreAdvice(error.matches)
+      // Quoted: a name with a space must survive being pasted into a shell.
+      const prefixes = types.map((t) => `'${t}:${error.query}'`)
+      return `Disambiguate with a type prefix, e.g. ${prefixes.join(' or ')}.`
+    }
+    case 'type-field': {
+      const types = resolvingTypes(error)
+      if (types.length === 0) return typeMoreAdvice(error.matches)
+      return `Set the list's type to ${types.map((t) => `'${t}'`).join(' or ')}.`
+    }
+    case 'none':
+      return typeMoreAdvice(error.matches)
+  }
+}
+
+/**
+ * Render a {@link ResolveListError} as a user-facing message. `hint` declares the
+ * caller's disambiguation mechanism so the ambiguity remedy names something the
+ * user can actually do — see {@link ResolveHint}.
+ */
+export function formatResolveListError(error: ResolveListError, hint: ResolveHint): string {
   switch (error.kind) {
     case 'no-lists':
       return error.type
@@ -211,7 +291,7 @@ export function formatResolveListError(error: ResolveListError): string {
         .join('\n')
       return (
         `'${error.query}' is ambiguous — it matches multiple lists:\n${lines}\n` +
-        `Disambiguate with --deck, --collection, or --wanted.`
+        ambiguityAdvice(error, hint)
       )
     }
   }

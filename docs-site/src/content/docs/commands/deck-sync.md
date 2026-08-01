@@ -21,7 +21,7 @@ The same sync runs from the admin site's [Sync Decks](/admin/sync-decks/) page a
 | `<direction>` | `pull` (Archidekt → local) or `push` (local → Archidekt). Any other value exits with code 2.                          | Yes      |
 | `[decks...]`  | Deck names to sync (matched case- and accent-insensitively, no `.md`). If omitted, syncs all Archidekt-sourced decks. | No       |
 
-Each name is matched case- and accent-insensitively with a unique-substring fallback; an ambiguous name is reported and skipped. See [List Resolution](/commands/list-resolution/).
+Each name is matched case- and accent-insensitively with a unique-substring fallback, within decks only. An ambiguous or unknown name is reported as a **failed** deck (not `skipped`) and the run exits 1; since resolution is already deck-scoped, the error asks you to type more of the name rather than suggesting type flags this command does not have. See [List Resolution](/commands/list-resolution/).
 
 ## Options
 

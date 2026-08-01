@@ -285,7 +285,7 @@ export function registerPriceCommand(program: Command): void {
     if (listName) {
       const resolved = await resolveList(listName, type)
       if (isResolveListError(resolved)) {
-        emitResolveListError(resolved, scriptingOptions)
+        emitResolveListError(resolved, scriptingOptions, 'type-flags')
         return
       }
       openList = { type: resolved.type, name: resolved.name }
