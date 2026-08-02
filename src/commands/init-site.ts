@@ -38,7 +38,7 @@ import { ExitCode, normalizeScriptingOptions, parseEnumFlag } from './scripting'
  */
 const DETECT_CHANGES_GUARD = `\n        if: steps.detect-changes.outputs.has-changes != 'true'`
 
-/** `with:` block appended to the checkout step so `git-detect-changes` can diff history. */
+/** `with:` block appended to the checkout step so `detect-changes` can diff history. */
 const FULL_HISTORY_CHECKOUT = `\n        with:\n          fetch-depth: 0`
 
 /** Step inserted between "Download Ritual" and "Generate card manifest" in the detect-changes variant. */
@@ -50,7 +50,11 @@ const DETECT_AND_COMMIT_STEP = `
           if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
             BEFORE="HEAD~1"
           fi
-          ./ritual git-detect-changes "$BEFORE"
+          # A per-file problem (e.g. a list file missing from the tree) exits
+          # nonzero after the other files' changelogs are already written, so
+          # capture the status and still commit — then fail the step at the end.
+          DETECT_STATUS=0
+          ./ritual detect-changes "$BEFORE" || DETECT_STATUS=$?
           if [ -n "$(git status --porcelain)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -60,6 +64,7 @@ const DETECT_AND_COMMIT_STEP = `
             git push
             echo "has-changes=true" >> "$GITHUB_OUTPUT"
           fi
+          exit $DETECT_STATUS
 `
 
 /**

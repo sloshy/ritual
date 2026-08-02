@@ -13,10 +13,12 @@ import type { DryRunOptions } from './scripting'
  * Matched on the action command's leaf name, so nested subcommands (e.g.
  * `admin setup`, `cache feed host`) stay exempt unless listed themselves.
  *
- * `git-detect-changes` is deliberately absent even though it reads `&N`: it
- * must see the working tree exactly as the user committed it, so IDs it has no
- * way to match against the old revision are left to a later backfill rather
- * than invented mid-diff.
+ * `detect-changes` is deliberately absent even though it reads `&N`: it must
+ * see the working tree exactly as the user committed it, so IDs it has no way
+ * to match against the old revision are left to a later backfill rather than
+ * invented mid-diff. Its `--hash-only` and `--verify` modes are exempt for the
+ * same reason — a backfill before stamping or reporting would hash content the
+ * user never wrote, and `--verify` must write nothing at all.
  *
  * When editing this list, keep the prose enumerations in sync: the
  * "card-ID backfill" section in docs-site/src/content/docs/index.mdx, the

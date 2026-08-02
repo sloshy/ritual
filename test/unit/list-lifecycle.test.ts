@@ -138,7 +138,7 @@ describe('list-lifecycle engine', () => {
         '---\nname: "Edited Deck"\nformat: commander\n---\n\n## Main\n\n1 Sol Ring &1\n',
       )
       // A stale sidecar: the file holds hand edits Ritual has not recorded.
-      // Writing a fresh hash here would make git-detect-changes skip them.
+      // Writing a fresh hash here would make detect-changes skip them.
       await fs.writeFile(`${oldPath}.sha256`, computeHash('some earlier content') + '\n')
 
       const result = unwrap<RenameListSuccess>(await renameList('deck', oldPath, 'Renamed Deck'))

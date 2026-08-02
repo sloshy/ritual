@@ -96,8 +96,7 @@ export default defineConfig({
               label: 'Utilities',
               items: [
                 'commands/cleanup',
-                'commands/git-detect-changes',
-                'commands/hash',
+                'commands/detect-changes',
                 'commands/list-all-cards',
                 'commands/config',
               ],

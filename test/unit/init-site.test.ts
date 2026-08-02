@@ -90,7 +90,7 @@ describe('generatePublishForMeWorkflow with detectChanges', () => {
   const workflow = parseWorkflow(generatePublishForMeWorkflow(config))
   const job = getJob(workflow, 'build-and-deploy')
 
-  test('grants contents: write and checks out full history for git-detect-changes', () => {
+  test('grants contents: write and checks out full history for detect-changes', () => {
     expect(workflow.permissions.contents).toBe('write')
     const checkout = job.steps[0]
     expect(checkout?.uses).toBe('actions/checkout@v7')
@@ -133,6 +133,30 @@ describe('generatePublishForMeWorkflow with detectChanges', () => {
   test('writes the card manifest to an explicit --out file', () => {
     const step = findStep(job.steps, 'Generate card manifest')
     expect(step?.run).toBe('./ritual list-all-cards --out all-cards.md')
+  })
+
+  describe('the detect-and-commit step body', () => {
+    const run = findStep(job.steps, 'Detect and commit changes')?.run ?? ''
+
+    test('invokes the current command against the pushed-from commit', () => {
+      expect(run).toContain('./ritual detect-changes "$BEFORE"')
+      expect(run).not.toContain('git-detect-changes')
+    })
+
+    test('falls back to HEAD~1 when github.event.before is empty or all zeros', () => {
+      expect(run).toContain('BEFORE="${{ github.event.before }}"')
+      expect(run).toContain(
+        'if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]',
+      )
+      expect(run).toContain('BEFORE="HEAD~1"')
+    })
+
+    test('commits before propagating a nonzero detect status', () => {
+      // The step runs under `bash -e`, so an unguarded nonzero exit would abort
+      // before the commit and strand the changelogs detection just wrote.
+      expect(run).toContain('./ritual detect-changes "$BEFORE" || DETECT_STATUS=$?')
+      expect(run.indexOf('git push')).toBeLessThan(run.indexOf('exit $DETECT_STATUS'))
+    })
   })
 })
 

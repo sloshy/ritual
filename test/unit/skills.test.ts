@@ -56,6 +56,30 @@ describe('skill bodies name only tools that exist', () => {
     return `${skill.description}\n${skill.body}`
   }
 
+  /**
+   * CLI commands that no longer exist. The skills teach the CLI, so a
+   * resurfaced name here is worse than a stale tool name: an agent would run
+   * it. Add a name whenever a command is removed or renamed.
+   */
+  const RETIRED_CLI_COMMANDS = [
+    'git-detect-changes',
+    // `hash` alone is an ordinary word in these bodies, so match the invocation.
+    'ritual hash',
+    'price-deck',
+    'price-collection',
+    'price-wanted-list',
+  ]
+
+  test('no skill mentions a retired CLI command', () => {
+    for (const skill of SKILLS) {
+      for (const retired of RETIRED_CLI_COMMANDS) {
+        const found = new RegExp(`\\b${retired}\\b`).test(skillText(skill))
+        expect({ skill: skill.name, retired, found }) //
+          .toEqual({ skill: skill.name, retired, found: false })
+      }
+    }
+  })
+
   test('no skill mentions a retired tool name', () => {
     for (const skill of SKILLS) {
       for (const retired of RETIRED_MCP_TOOL_NAMES) {

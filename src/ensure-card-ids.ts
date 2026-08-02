@@ -108,7 +108,7 @@ async function ensureIdsInDir(
       // The pre-backfill content is what the sidecar has to match: only then
       // are the ID additions Ritual's own write and safe to stamp. Otherwise
       // the file holds an unrecorded hand edit — leave the sidecar stale or
-      // absent so git-detect-changes still records the edit's changelog.
+      // absent so detect-changes still records the edit's changelog.
       const wasRitualClean = await isRitualClean(filePath, content)
       if (wasRitualClean) {
         await writeFileWithHash(filePath, newContent)

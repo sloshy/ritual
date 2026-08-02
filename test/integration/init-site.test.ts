@@ -50,7 +50,11 @@ describe('init-site CLI (Integration)', () => {
       const workflow = await fs.readFile(path.join(dir, workflowRelPath), 'utf-8')
       expect(workflow).toContain('./ritual build-site --refresh auto')
       expect(workflow).not.toContain('--allow-refresh')
-      expect(workflow).toContain('git-detect-changes')
+      // The exact invocation, not the substring: 'detect-changes' also appears
+      // as the step id and in the has-changes guard, so it cannot tell the
+      // current command from the retired `git-detect-changes`.
+      expect(workflow).toContain('./ritual detect-changes "$BEFORE"')
+      expect(workflow).not.toContain('git-detect-changes')
 
       const config = await readConfig(dir)
       expect(config.site).toMatchObject({

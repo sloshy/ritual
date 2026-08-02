@@ -15,7 +15,7 @@
  * routes own optimistic concurrency). The write refreshes the `.sha256`
  * sidecar: this path records its changelog in the same call, which is exactly
  * what a current sidecar asserts. Mixing a one-shot edit with uncommitted hand
- * edits in one git-detect-changes range remains the documented sidecar
+ * edits in one detect-changes range remains the documented sidecar
  * limitation, unchanged from the whole-file path this replaces.
  */
 

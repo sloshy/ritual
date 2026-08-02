@@ -30,7 +30,7 @@ import { registerInitSiteCommand } from './src/commands/init-site'
 import { registerAdminCommand } from './src/commands/admin'
 import { registerLicenseCommand } from './src/commands/license'
 import { registerDepLicenseCommand } from './src/commands/dep-license'
-import { registerGitDetectChangesCommand } from './src/commands/git-detect-changes'
+import { registerDetectChangesCommand } from './src/commands/detect-changes'
 import { registerDeckSyncCommand } from './src/commands/deck-sync'
 import { registerCollectionSyncCommand } from './src/commands/collection-sync'
 import { registerEditCommand } from './src/commands/edit'
@@ -39,7 +39,6 @@ import { registerHistoryCommand } from './src/commands/history'
 import { registerExportCommand } from './src/commands/export'
 import { registerCleanupCommand } from './src/commands/cleanup'
 import { registerConfigCommand } from './src/commands/config'
-import { registerHashCommand } from './src/commands/hash'
 import { registerListAllCardsCommand } from './src/commands/list-all-cards'
 import { registerMcpCommand } from './src/commands/mcp'
 import { registerSkillsCommand } from './src/commands/skills'
@@ -189,8 +188,7 @@ registerCacheCommand(program)
 
 program.commandsGroup('Utilities')
 registerCleanupCommand(program)
-registerGitDetectChangesCommand(program)
-registerHashCommand(program)
+registerDetectChangesCommand(program)
 registerListAllCardsCommand(program)
 registerConfigCommand(program)
 

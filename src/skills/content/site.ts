@@ -4,7 +4,7 @@ import { moxfieldUserAgentNote, REFRESH_COMMANDS, wrapProse } from './shared'
 export const siteSkill: RitualSkill = {
   name: 'ritual-site',
   description:
-    'Build, serve, and administer the Ritual website, wire up the CI publishing pipeline, and run the MCP server. Use when the user wants to generate the static site, preview it locally, set up publishing or CI (cache keys, changelog change detection for hand edits), open the web admin for editing lists, or expose Ritual to AI agents over MCP.',
+    'Build, serve, and administer the Ritual website, wire up the CI publishing pipeline, and run the MCP server. Use when the user wants to generate the static site, preview it locally, set up publishing or CI (cache keys, changelog change detection for hand edits), verify or stamp list-file .sha256 sidecars to see which lists were hand-edited since Ritual last wrote them, open the web admin for editing lists, or expose Ritual to AI agents over MCP.',
   body: `# Building and serving a Ritual site
 
 Ritual publishes your decks, collections, and wanted lists as a static website, and
@@ -56,29 +56,55 @@ directory keyed on that file's hash (with a prefix fallback to the newest
 previous cache), then runs \`./ritual build-site --refresh auto\` — so the bulk
 download reruns only when the cards the site needs actually changed.
 
-**\`ritual git-detect-changes <commit>\`** (e.g. \`HEAD~1\`) makes hand-edited
+**\`ritual detect-changes <commit>\`** (e.g. \`HEAD~1\`) makes hand-edited
 lists show up in changelogs: it diffs the deck/collection/wanted files between
 that commit and the working tree, appends changelog entries for lists whose
 changes Ritual did not write itself, and renames or deletes \`.changes.md\`
 sidecars to follow moved or deleted lists. A \`.sha256\` content-hash sidecar
-marks a list file "ritual-clean" (Ritual last wrote it and already recorded its
-changelog), so it is skipped; after appending, the sidecar is refreshed, making
-detection idempotent. \`-n\`/\`--dry-run\` previews without writing; \`--output
-json\` reports \`{commit, dryRun, changelogsUpdated, renames, results}\`; exit 1
-on failure. The card-ID backfill that list-writing commands run refreshes a
-file's \`.sha256\` only when the sidecar already matched the file, so a hand
-edit keeps its stale or absent sidecar and \`git-detect-changes\` still records
-it. With change detection enabled, the generated workflow diffs against
-the pushed-from commit (falling back to the previous commit), commits any
-updated changelogs back as \`github-actions[bot]\`, and skips the rest of the
-build — that push re-triggers the workflow, and the second run builds from the
-updated tree.
+means "Ritual wrote this exact content and already recorded its changelog", so
+such a file is skipped; after appending, the sidecar is refreshed, making
+detection idempotent. A file whose diff produced no card changes is *not*
+stamped, so it keeps showing as drifted under \`--verify\` until
+\`--hash-only\` stamps it. \`-n\`/\`--dry-run\` previews without writing;
+\`--output json\` reports \`{mode: 'detect', commit, dryRun,
+changelogsUpdated, renames, results, warnings}\`, where each warning is
+\`{kind: 'missing-file' | 'parse', file, revision?, message}\`. Outside a git
+repo, or with an unknown ref, it fails with a named error (exit 1) instead of
+raw git output — a git failure that is neither is reported as such rather than
+as "not a git repository". A file that changed in the range but is gone from
+the working tree is skipped with a \`missing-file\` warning (the rest still
+runs, exit 1); an unparseable line is a \`parse\` warning that does not change
+the exit code. The card-ID backfill that
+list-writing commands run refreshes a file's \`.sha256\` only when the sidecar
+already matched the file, so a hand edit keeps its stale or absent sidecar and
+\`detect-changes\` still records it — and \`detect-changes\` itself never
+backfills, in any mode. With change detection enabled, the generated workflow
+diffs against the pushed-from commit (falling back to the previous commit),
+commits any updated changelogs back as \`github-actions[bot]\`, and skips the
+rest of the build — that push re-triggers the workflow, and the second run
+builds from the updated tree.
 
-**\`ritual hash\`** stamps the \`.sha256\` sidecar for every list file (never a
-\`.changes.md\`) — the manual "ritual-clean" stamp. Run it after hand edits you
-do **not** want \`git-detect-changes\` to record as changelog entries.
-\`-n\`/\`--dry-run\` prints the hashes without writing; \`--output json\` emits
-\`[{file, hash}]\`.
+**\`ritual detect-changes --hash-only\`** stamps the \`.sha256\` sidecar for
+every list file from its current content (never a \`.changes.md\` or
+\`.primer.md\`), with no git and no changelog entries — the manual
+"ritual-clean" stamp. It is destructive to history: any stamped file whose
+content diverged from its sidecar (or never had one) will never receive
+changelog entries for those edits, so the command names every such file in a
+warning that prints even under \`--quiet\`. Only run it for edits you
+deliberately do **not** want recorded (a restored backup, a bulk mechanical
+rewrite). \`-n\`/\`--dry-run\` previews; \`--output json\` emits
+\`{mode: 'hash-only', dryRun, stamped: [{file, priorState, hash}],
+unrecordedEdits}\` where \`priorState\` is the sidecar state the stamp
+overwrote.
+
+**\`ritual detect-changes --verify\`** answers "which lists have been
+hand-edited since Ritual last wrote them?" — it writes nothing and reports each
+list file as \`clean\`, \`diverged\`, or \`no sidecar\`, exiting 1 when
+anything has drifted (like \`cleanup --check\`, so CI or a pre-commit hook can
+gate on it). \`--output json\` emits \`{mode: 'verify', files, clean,
+diverged, missing}\`. \`--hash-only\` and \`--verify\` cannot be combined,
+\`<commit>\` is not accepted with either, and \`--verify\` rejects
+\`--dry-run\` (usage errors, exit 2).
 
 ## Build the static site
 

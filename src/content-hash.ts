@@ -21,13 +21,55 @@ export function computeHash(content: string): string {
 }
 
 /**
+ * How a list file's on-disk content relates to its `.sha256` sidecar:
+ *
+ * - `clean` — the sidecar matches, so Ritual itself last wrote this exact
+ *   state and already recorded its changelog entries.
+ * - `diverged` — a sidecar exists but does not match: the file holds an edit
+ *   Ritual has not recorded.
+ * - `missing` — no sidecar at all: Ritual has never written (or has never
+ *   stamped) this file, so nothing about it has been recorded.
+ *
+ * `diverged` and `missing` are both "unrecorded" for reporting purposes; they
+ * are kept apart so `detect-changes --verify` can say which of the two it saw.
+ */
+export type SidecarState = 'clean' | 'diverged' | 'missing'
+
+/** A sidecar classification together with the digest it was decided by. */
+export type SidecarClassification = {
+  state: SidecarState
+  /** SHA-256 of `content` — the value a stamp would write. */
+  hash: string
+}
+
+/**
+ * Classify `content` against the hash read from its sidecar, returning the
+ * digest as well. Callers that go on to stamp the sidecar use this so the
+ * state and the hash they write are provably the same pass over the content.
+ * Pure.
+ */
+export function classifySidecarWithHash(
+  content: string,
+  storedHash: string | null,
+): SidecarClassification {
+  const hash = computeHash(content)
+  if (storedHash === null) return { state: 'missing', hash }
+  return { state: storedHash === hash ? 'clean' : 'diverged', hash }
+}
+
+/** Classify `content` against the hash read from its sidecar. Pure. */
+export function classifySidecar(content: string, storedHash: string | null): SidecarState {
+  return classifySidecarWithHash(content, storedHash).state
+}
+
+/**
  * Returns true when `storedHash` already reflects `content` — i.e. the sidecar
  * is up to date and the file hasn't been modified since Ritual last wrote it.
  *
  * A `null` storedHash (missing sidecar) is never considered current.
  */
 export function isHashCurrent(content: string, storedHash: string | null): boolean {
-  return storedHash !== null && storedHash === computeHash(content)
+  return classifySidecar(content, storedHash) === 'clean'
 }
 
 /**
@@ -54,7 +96,7 @@ export async function saveHash(filePath: string, hash: string): Promise<void> {
  * Whether Ritual itself last wrote this exact file state: the `.sha256` sidecar
  * exists and matches `content`. A false result means the file holds a hand edit
  * Ritual has not recorded yet — writers must not refresh the sidecar in that
- * case, or `git-detect-changes` would treat the file as already recorded and
+ * case, or `detect-changes` would treat the file as already recorded and
  * drop the edit's changelog entries.
  */
 export async function isRitualClean(filePath: string, content: string): Promise<boolean> {

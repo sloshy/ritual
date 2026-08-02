@@ -34,14 +34,14 @@ describe('shouldBackfillCardIds', () => {
     'export',
     'get-primer',
     'list-all-cards',
-    'hash',
     'scry',
     'card',
     'new',
     'rename',
     'delete',
-    // Deliberately exempt: it must see the working tree exactly as committed.
-    'git-detect-changes',
+    // Deliberately exempt: it must see the working tree exactly as committed —
+    // in every mode, including --hash-only and --verify.
+    'detect-changes',
     'init-site',
     'config',
     'login',

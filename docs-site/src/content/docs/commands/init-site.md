@@ -102,11 +102,11 @@ If you choose "Publish for me", you'll be asked whether to enable automatic chan
 ? Enable automatic change detection? (commits changelogs when list files change) (y/N)
 ```
 
-When enabled, the generated workflow runs [`git-detect-changes`](/commands/git-detect-changes/) before building the site. If any deck, collection, or wanted list files were modified in the push, it generates changelog entries and commits them automatically. The site build is skipped for that run since the new commit will trigger a fresh build with the updated changelogs.
+When enabled, the generated workflow runs [`detect-changes`](/commands/detect-changes/) before building the site, diffing against `github.event.before` (falling back to `HEAD~1` when that is empty or the all-zeros SHA, as on the first push to a branch). If any deck, collection, or wanted list files were modified in the push, it generates changelog entries and commits them automatically. The site build is skipped for that run since the new commit will trigger a fresh build with the updated changelogs. If `detect-changes` itself exited nonzero, the step commits and pushes first and then fails, so a partial run never strands the changelogs it did write.
 
 This is useful when you edit list files directly (outside the admin UI or CLI) and want changelogs to stay up to date without manual intervention.
 
-Detection is **hash-aware**, so it's safe to leave enabled even if you also edit with Ritual locally: files whose contents still match their `.sha256` sidecar (i.e. Ritual itself wrote them and already recorded a changelog) are skipped, and only hand-edited files are processed. See [Hash-aware detection](/commands/git-detect-changes/#hash-aware-detection) for details.
+Detection is **hash-aware**, so it's safe to leave enabled even if you also edit with Ritual locally: files whose contents still match their `.sha256` sidecar (i.e. Ritual itself wrote them and already recorded a changelog) are skipped, and only hand-edited files are processed. See [Hash-aware detection](/commands/detect-changes/#hash-aware-detection) for details.
 
 ### Default currency
 

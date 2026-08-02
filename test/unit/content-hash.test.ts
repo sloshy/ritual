@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
+  classifySidecar,
+  classifySidecarWithHash,
   computeHash,
   hashPath,
   isHashCurrent,
@@ -36,18 +38,48 @@ describe('hashPath', () => {
   })
 })
 
+describe('classifySidecar', () => {
+  const content = '# Deck\n- Sol Ring &1\n'
+
+  it('is clean when the stored hash matches the content', () => {
+    expect(classifySidecar(content, computeHash(content))).toBe('clean')
+  })
+
+  it('is diverged when a sidecar exists but does not match (an unrecorded edit)', () => {
+    expect(classifySidecar(content, computeHash('# Deck\n'))).toBe('diverged')
+  })
+
+  it('is missing when there is no sidecar at all', () => {
+    expect(classifySidecar(content, null)).toBe('missing')
+  })
+})
+
+describe('classifySidecarWithHash', () => {
+  const content = '# Deck\n- Sol Ring &1\n'
+
+  it('returns the digest alongside the state, so a stamp writes what it classified', () => {
+    expect(classifySidecarWithHash(content, computeHash('# Deck\n'))).toEqual({
+      state: 'diverged',
+      hash: computeHash(content),
+    })
+  })
+
+  it('still computes the digest when there is no sidecar to compare against', () => {
+    expect(classifySidecarWithHash(content, null)).toEqual({
+      state: 'missing',
+      hash: computeHash(content),
+    })
+  })
+})
+
 describe('isHashCurrent', () => {
-  it('is true when the stored hash matches the content', () => {
+  // The three-state matrix is pinned by classifySidecar above; this only pins
+  // that isHashCurrent means "clean".
+  it('is true exactly when the sidecar classifies as clean', () => {
     const content = '# Deck\n- Sol Ring\n'
     expect(isHashCurrent(content, computeHash(content))).toBe(true)
-  })
-
-  it('is false when the stored hash is stale', () => {
-    expect(isHashCurrent('new content', computeHash('old content'))).toBe(false)
-  })
-
-  it('is false when there is no stored hash', () => {
-    expect(isHashCurrent('anything', null)).toBe(false)
+    expect(isHashCurrent(content, computeHash('other'))).toBe(false)
+    expect(isHashCurrent(content, null)).toBe(false)
   })
 })
 

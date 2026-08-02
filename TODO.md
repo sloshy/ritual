@@ -18,6 +18,9 @@
 
 - Finish MCP Task migration (groundwork started, see research docs)
 
+- Add support for labels, tags to cards
+- Add ability to move cards on edit cli
+
 ## Misc
 
 - Multi-language support

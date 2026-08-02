@@ -40,7 +40,10 @@ describe('card-ID backfill preAction hook (Integration)', () => {
   const exemptInvocations: ExemptInvocation[] = [
     { args: ['lists'], exitCode: 0 },
     { args: ['list-all-cards'], exitCode: 0 },
-    { args: ['hash', '--quiet'], exitCode: 0 },
+    // Every detect-changes mode is exempt: it must see the tree as committed.
+    { args: ['detect-changes', '--hash-only', '--quiet'], exitCode: 0 },
+    // --verify exits 1 on drift; the id-less deck has no sidecar at all.
+    { args: ['detect-changes', '--verify', '--quiet'], exitCode: ExitCode.RuntimeError },
     { args: ['get-primer', 'no-such-deck'], exitCode: ExitCode.NotFound },
     { args: ['rename', 'no-such-list', 'new-name'], exitCode: ExitCode.NotFound },
   ]
@@ -63,7 +66,7 @@ describe('card-ID backfill preAction hook (Integration)', () => {
       expect(result.exitCode).toBe(ExitCode.NotFound)
       expect(await fs.readFile(deckPath, 'utf-8')).toBe(backfilledDeck)
       // No sidecar existed, so the file is a hand edit Ritual hasn't recorded —
-      // stamping it here would suppress git-detect-changes.
+      // stamping it here would suppress detect-changes.
       expect(await Bun.file(hashPath(deckPath)).exists()).toBe(false)
     })
   })

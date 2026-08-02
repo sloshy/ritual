@@ -1,5 +1,12 @@
 import { describe, test, expect } from 'bun:test'
-import { parseNameStatus, classifyFile, changesPath } from '../../src/git-diff'
+import {
+  parseNameStatus,
+  classifyFile,
+  changesPath,
+  gitStderrSummary,
+  GitCommandError,
+} from '../../src/git-diff'
+import { describeGitFailure } from '../../src/commands/detect-changes'
 
 describe('parseNameStatus', () => {
   test('parses modified deck file', () => {
@@ -113,5 +120,47 @@ describe('changesPath', () => {
   test('converts a list path to its changes path', () => {
     expect(changesPath('decks/my-deck.md')).toBe('decks/my-deck.changes.md')
     expect(changesPath('wanted/sets/mh3.md')).toBe('wanted/sets/mh3.changes.md')
+  })
+})
+
+describe('gitStderrSummary', () => {
+  test('returns the first non-empty stderr line of a failed subprocess', () => {
+    expect(gitStderrSummary({ stderr: "\nfatal: bad revision 'HEAD~9'\nhint: try again\n" })).toBe(
+      "fatal: bad revision 'HEAD~9'",
+    )
+  })
+
+  test('reads a Buffer stderr, as execFileSync produces without an encoding', () => {
+    expect(gitStderrSummary({ stderr: Buffer.from('fatal: detected dubious ownership\n') })).toBe(
+      'fatal: detected dubious ownership',
+    )
+  })
+
+  test('is null when git said nothing — the signal a --quiet probe relies on', () => {
+    expect(gitStderrSummary({ stderr: '   \n\n' })).toBeNull()
+    expect(gitStderrSummary({ status: 1 })).toBeNull()
+    expect(gitStderrSummary(new Error('boom'))).toBeNull()
+    expect(gitStderrSummary(null)).toBeNull()
+  })
+})
+
+describe('describeGitFailure', () => {
+  test('reports the Ritual operation first and git detail on a second line', () => {
+    const error = new GitCommandError('Failed to read decks/a.md at HEAD~1', 'fatal: bad object')
+    expect(describeGitFailure(error, 'unused prefix')).toBe(
+      'Failed to read decks/a.md at HEAD~1\n  git: fatal: bad object',
+    )
+  })
+
+  test('omits the git line when git gave no detail', () => {
+    expect(describeGitFailure(new GitCommandError('Failed to resolve HEAD~1', null), 'p')).toBe(
+      'Failed to resolve HEAD~1',
+    )
+  })
+
+  test('falls back to the prefix for a non-git error', () => {
+    expect(describeGitFailure(new Error('EACCES'), 'Failed to detect changes')).toBe(
+      'Failed to detect changes: EACCES',
+    )
   })
 })

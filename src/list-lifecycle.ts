@@ -214,7 +214,7 @@ export async function renameList(
   // A rename rewrites the display name only; card lines pass through untouched.
   // Refresh the .sha256 sidecar only when it matched the file before the rename
   // — stamping a file that holds unrecorded hand edits would make
-  // git-detect-changes skip it and drop the edits' changelog entries.
+  // detect-changes skip it and drop the edits' changelog entries.
   const wasRitualClean = await isRitualClean(filePath, existingContent)
   const touchedFiles: string[] = []
   if (newFilePath !== filePath) {

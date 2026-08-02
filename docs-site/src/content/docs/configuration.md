@@ -196,7 +196,7 @@ The `site` key holds public-site settings. It has two parts:
 | `ciSystem`           | —       | `github-actions` or `manual`.                                                                    |
 | `deployMode`         | —       | `publish-for-me` or `local-build` (github-actions only).                                         |
 | `distDir`            | —       | The directory containing your built site (github-actions only).                                  |
-| `detectChanges`      | —       | Whether the workflow runs `git-detect-changes` (github-actions only).                            |
+| `detectChanges`      | —       | Whether the workflow runs `detect-changes` (github-actions only).                                |
 | `includeDecks`       | `["*"]` | Which decks `build-site` publishes (see below).                                                  |
 | `includeCollections` | `["*"]` | Which collections `build-site` publishes.                                                        |
 | `includeWantedLists` | `["*"]` | Which wanted lists `build-site` publishes.                                                       |
