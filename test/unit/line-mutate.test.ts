@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test'
-import { applyTargetedChangesToContent } from '../../src/commands/line-mutate'
+import {
+  applyDeckAddToContent,
+  applyTargetedChangesToContent,
+} from '../../src/commands/line-mutate'
 import {
   createRemoveChange,
   createSetCommanderChange,
@@ -296,5 +299,141 @@ describe('applyTargetedChangesToContent', () => {
       createSetFinishChange('Lightning Bolt', { finish: 'etched' }),
     ])
     expect(result).toContain('4 Lightning Bolt (LEA:161) [etched] &1')
+  })
+})
+
+/**
+ * The deck-add core: the same placement and merge rules as the editor engine
+ * (`deck-changes.ts`), applied line-preservingly to markdown.
+ */
+describe('applyDeckAddToContent', () => {
+  const mainboardDeck = [
+    '---',
+    'name: Mainboard Deck',
+    '---',
+    '',
+    '## Mainboard',
+    '1 Mana Crypt &1',
+    '2 Sol Ring &2',
+    '',
+    '## Sideboard',
+    '1 Pyroblast &3',
+    '',
+  ].join('\n')
+
+  test('merges copies onto the existing line for the same card and printing', () => {
+    const { content, outcome } = applyDeckAddToContent(mainboardDeck, { name: 'Sol Ring' }, 3)
+    expect(content).toContain('5 Sol Ring &2')
+    expect(content).not.toContain('3 Sol Ring')
+    expect(outcome).toEqual({ cardId: 2, quantity: 5, section: 'Mainboard', merged: true })
+  })
+
+  test("a merge keeps the destination line's note, which is not part of its printing", () => {
+    // Notes are outside `isSamePrinting`, so an annotated line is a valid merge
+    // target — and rebuilding it from the incoming card would silently delete
+    // text the user wrote.
+    const noted = ['## Main', '2 Sol Ring (LEA:270) {my pet card} &2', ''].join('\n')
+    const { content, outcome } = applyDeckAddToContent(
+      noted,
+      { name: 'Sol Ring', set: 'lea', collectorNumber: '270' },
+      1,
+    )
+    expect(content).toContain('3 Sol Ring (LEA:270) {my pet card} &2')
+    expect(outcome).toEqual({ cardId: 2, quantity: 3, section: 'Main', merged: true })
+  })
+
+  test('a merge onto a line with no &N allocates one rather than reporting none', () => {
+    // Reachable under --dry-run, which deliberately skips the ID backfill.
+    const idLess = ['## Main', '1 Sol Ring (LEA:270)', ''].join('\n')
+    const { content, outcome } = applyDeckAddToContent(
+      idLess,
+      { name: 'Sol Ring', set: 'lea', collectorNumber: '270' },
+      3,
+    )
+    expect(content).toContain('4 Sol Ring (LEA:270) &1')
+    expect(outcome.cardId).toBe(1)
+  })
+
+  test('refuses a copy count below one rather than reporting an unallocated id', () => {
+    expect(() => applyDeckAddToContent(mainboardDeck, { name: 'Sol Ring' }, 0)).toThrow(
+      /at least one copy/,
+    )
+  })
+
+  test('a different printing of the same card becomes its own line', () => {
+    const { content, outcome } = applyDeckAddToContent(
+      mainboardDeck,
+      { name: 'Sol Ring', set: 'c21', collectorNumber: '263' },
+      1,
+    )
+    expect(content).toContain('2 Sol Ring &2')
+    expect(content).toContain('1 Sol Ring (C21:263) &4')
+    expect(outcome.merged).toBe(false)
+  })
+
+  test('a new card appends at the end of the first regular section, creating no ## Main', () => {
+    const { content, outcome } = applyDeckAddToContent(mainboardDeck, { name: 'Brainstorm' }, 1)
+    expect(content).not.toContain('## Main\n')
+    expect(outcome.section).toBe('Mainboard')
+    const lines = content.split('\n')
+    expect(lines[lines.indexOf('2 Sol Ring &2') + 1]).toBe('1 Brainstorm &4')
+  })
+
+  test('--section places the card in a named section, created at the end when missing', () => {
+    const { content, outcome } = applyDeckAddToContent(mainboardDeck, { name: 'Brainstorm' }, 1, {
+      section: 'Maybeboard',
+    })
+    expect(outcome.section).toBe('Maybeboard')
+    expect(content.trimEnd().endsWith('## Maybeboard\n1 Brainstorm &4')).toBe(true)
+    // Exactly one blank line separates the created section from what precedes it.
+    expect(content).toContain('1 Pyroblast &3\n\n## Maybeboard')
+  })
+
+  test('--commander creates the Commander section in front of the others', () => {
+    const { content, outcome } = applyDeckAddToContent(
+      mainboardDeck,
+      { name: 'Kenrith, the Returned King' },
+      1,
+      { commander: true },
+    )
+    expect(outcome.section).toBe('Commander')
+    expect(content.indexOf('## Commander')).toBeLessThan(content.indexOf('## Mainboard'))
+    expect(content).toContain('1 Kenrith, the Returned King &4')
+  })
+
+  test('annotations and the allocated id land on the new line', () => {
+    const { content, outcome } = applyDeckAddToContent(
+      mainboardDeck,
+      {
+        name: 'Lightning Bolt',
+        set: 'sta',
+        collectorNumber: '42',
+        finish: 'foil',
+        condition: 'LP',
+      },
+      2,
+    )
+    expect(content).toContain('2 Lightning Bolt (STA:42) [foil] [LP] &4')
+    expect(outcome).toEqual({ cardId: 4, quantity: 2, section: 'Mainboard', merged: false })
+  })
+
+  test('reuses an id freed by a removal before allocating a new one', () => {
+    const gapDeck = ['## Main', '1 Mana Crypt &1', '1 Sol Ring &3', ''].join('\n')
+    const { outcome } = applyDeckAddToContent(gapDeck, { name: 'Brainstorm' }, 1)
+    expect(outcome.cardId).toBe(2)
+  })
+
+  test('a headless deck body keeps one section instead of gaining a ## Main', () => {
+    const headless = ['1 Mana Crypt &1', ''].join('\n')
+    const { content } = applyDeckAddToContent(headless, { name: 'Brainstorm' }, 1)
+    expect(content).not.toContain('## Main')
+    expect(content).toContain('1 Mana Crypt &1\n1 Brainstorm &2')
+  })
+
+  test('leaves every other byte of the file untouched', () => {
+    const { content } = applyDeckAddToContent(proseDeck, { name: 'Brainstorm' }, 1)
+    expect(content).toContain('Some prose the user wrote under the front matter.')
+    expect(content).toContain('a note between cards')
+    expect(content).toContain('1 Sol Ring {keep} &2')
   })
 })

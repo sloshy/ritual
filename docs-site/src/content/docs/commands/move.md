@@ -102,7 +102,7 @@ Select by card ID and emit a JSON record for scripting:
 ### Card Selection
 
 - **By name**: punctuation-, case-, and accent-insensitive; an exact name match wins, otherwise substring matches are used.
-- **By card ID**: `--card-id <N>` targets an entry by its persistent `&N` suffix in the source list.
+- **By card ID**: `--card-id <N>` targets an entry by its persistent `&N` suffix in the source list. A card name given alongside it must match the ID's entry, or the move is refused with a usage error naming both (`--card-id 2 is 'Brainstorm', which does not match 'Sol Ring'.`) — a stale ID would otherwise move the wrong card. ID-only and name-only selection are unaffected.
 - **Narrowing**: when the name matches several distinct printings (set / collector number / finish), the command refuses to pick one arbitrarily — it exits with a usage error listing the printings. Narrow with `--set`, `--collector-number`, `--finish`, or `--card-id`.
 - **Quantity**: `-q` moves that many copies of the _same_ printing. Requesting more copies than the source list holds is an error, and nothing is moved.
 
@@ -209,9 +209,9 @@ Destination list changelog:
 
 Scripted (`--from` + `--to`) invocations follow the standard exit-code contract:
 
-| Code | Meaning                                                                                                                                                                                                           |
-| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | The requested copies were moved                                                                                                                                                                                   |
-| `1`  | Runtime error, or fewer copies were moved than requested                                                                                                                                                          |
-| `2`  | Usage error: `--to` without `--from`, missing card selector, ambiguous list or printing, unresolvable collection printing, invalid flag values, or an interactive session requested while prompts are unavailable |
-| `3`  | Not found: unknown source or destination list, no matching card, or fewer copies available than requested                                                                                                         |
+| Code | Meaning                                                                                                                                                                                                                                                            |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `0`  | The requested copies were moved                                                                                                                                                                                                                                    |
+| `1`  | Runtime error, or fewer copies were moved than requested                                                                                                                                                                                                           |
+| `2`  | Usage error: `--to` without `--from`, missing card selector, a `--card-id` that disagrees with the card name, ambiguous list or printing, unresolvable collection printing, invalid flag values, or an interactive session requested while prompts are unavailable |
+| `3`  | Not found: unknown source or destination list, no matching card, or fewer copies available than requested                                                                                                                                                          |

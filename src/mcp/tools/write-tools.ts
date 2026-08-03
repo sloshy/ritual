@@ -51,6 +51,8 @@ import {
   collectorNumberField,
   conditionField,
   conditionSchema,
+  conditionUpdateField,
+  conditionUpdateSchema,
   copyIndexField,
   deckFormatSchema,
   finishField,
@@ -224,7 +226,9 @@ const applyChangeSchema = z.discriminatedUnion('action', [
     set: setField,
     collectorNumber: collectorNumberField,
     finish: finishSchema.optional(),
-    condition: conditionSchema.optional(),
+    // The only branch that accepts the `NONE` clear sentinel: an `add` records a
+    // grade and has none to clear, and a `remove` matches on one.
+    condition: conditionUpdateSchema.optional(),
   }),
   z.object({
     action: z.literal('set-note'),
@@ -576,7 +580,8 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       description:
         'Set the printing (set/collector number/finish/condition) of a card in any list. ' +
         'Omit set and collectorNumber to clear the specific printing on a deck or wanted-list ' +
-        'card; collections require both together, so omitting them there is rejected.',
+        'card; collections require both together, so omitting them there is rejected. ' +
+        'condition accepts a grade or "NONE" to clear a recorded grade.',
       inputSchema: z.object({
         listType: listTypeSchema,
         slug: slugField,
@@ -585,7 +590,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         set: setField,
         collectorNumber: collectorNumberField,
         finish: finishField,
-        condition: conditionField,
+        condition: conditionUpdateField,
       }),
       outputSchema: fromJsonSchema<MutationResult>(MUTATION_OUTPUT),
     },

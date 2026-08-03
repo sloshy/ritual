@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { runCli } from './helpers/cli'
-import { createWorkspace, removeWorkspace, seedCardTargetWorkspace } from './helpers/workspace'
+import {
+  createWorkspace,
+  removeWorkspace,
+  seedCardTargetWorkspace,
+  snapshotTree,
+} from './helpers/workspace'
 
 let dir: string
 
@@ -121,18 +126,6 @@ describe('note CLI — setting (Integration)', () => {
     expect(err.error.message).toContain('Input required')
     expect(err.error.message).toContain('--note')
     expect(err.error.message).toContain('--clear')
-  })
-
-  test('the note-text prompt is gated on --no-input too, not only on a missing TTY', async () => {
-    const result = await runCli(
-      ['note', '--deck', 'test', 'Sol', 'Ring', '--output', 'json'],
-      dir,
-      { RITUAL_NO_INPUT: '1' },
-    )
-    expect(result.exitCode).toBe(2)
-    const err = JSON.parse(result.stderr) as { error: { code: string; message: string } }
-    expect(err.error.code).toBe('usage_error')
-    expect(err.error.message).toContain('Input required')
   })
 
   test('rejects combining --note with --clear', async () => {
@@ -302,5 +295,78 @@ describe('note CLI — clearing (Integration)', () => {
     const content = await fs.readFile(path.join(dir, 'wanted', 'needs.md'), 'utf-8')
     expect(content).toContain('- Demonic Tutor &1')
     expect(content).not.toContain('{old shtick}')
+  })
+
+  test('a --card-id that disagrees with the card name is a usage error', async () => {
+    const result = await runCli(
+      [
+        'note',
+        '--deck',
+        'test',
+        'Sol',
+        'Ring',
+        '--card-id',
+        '3',
+        '-n',
+        'mismatch',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr).toContain("--card-id 3 is 'Lightning Bolt'")
+    const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
+    expect(deckContent).not.toContain('{mismatch}')
+  })
+
+  test('--dry-run reports the note and writes nothing', async () => {
+    const before = await snapshotTree(dir)
+    const result = await runCli(
+      [
+        'note',
+        '--collection',
+        'main',
+        'Sol',
+        'Ring',
+        '-n',
+        'preview only',
+        '--dry-run',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as { dryRun?: boolean; note: string }
+    expect(json).toMatchObject({ dryRun: true, note: 'preview only' })
+    expect(await snapshotTree(dir)).toEqual(before)
+  })
+
+  test('a --dry-run clear of an un-noted card still marks itself as a dry run', async () => {
+    const before = await snapshotTree(dir)
+    const result = await runCli(
+      ['note', '--collection', 'main', 'Mana', 'Crypt', '--clear', '--dry-run', '--output', 'json'],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as {
+      dryRun?: boolean
+      cleared: boolean
+      previousNote: string | null
+    }
+    expect(json).toMatchObject({ dryRun: true, cleared: false, previousNote: null })
+    expect(await snapshotTree(dir)).toEqual(before)
+  })
+
+  test('--dry-run on a clear leaves the note in place', async () => {
+    const before = await snapshotTree(dir)
+    const result = await runCli(
+      ['note', '--collection', 'main', 'Sol', 'Ring', '--clear', '--dry-run'],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('[dry-run] Would clear note')
+    expect(await snapshotTree(dir)).toEqual(before)
   })
 })

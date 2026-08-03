@@ -26,13 +26,15 @@ skill for the file format.
 Use the one-shot commands (covered in full by the **ritual-edit** skill).
 \`add-card\` works on collections, and — when the type is pinned with
 \`--collection\` or a \`collection:\` prefix — creates the collection if it does
-not exist yet:
+not exist yet (including in a workspace with no collections at all; the file is
+created only once the add is certain to succeed):
 
 \`\`\`bash
 ritual add-card "Main Binder" "Sol Ring" --collection --set c21 --collector-number 263
 ritual add-card "Main Binder" "Black Lotus" --collection --set lea --collector-number 232 -c LP
 ritual remove-card "Main Binder" "Sol Ring" --collection             # one entry
-ritual set-card "Main Binder" "Sol Ring" --collection --finish foil --condition NM
+ritual set-card "Main Binder" "Sol Ring" --collection --finish foil --condition LP
+ritual set-card "Main Binder" "Sol Ring" --collection --condition NONE   # clear the grade
 ritual note "Main Binder" "Black Lotus" --collection -n "graded"     # or --clear
 ritual move "Sol Ring" --from "collection:Main Binder" --to deck:burn
 \`\`\`

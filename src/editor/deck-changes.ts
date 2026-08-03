@@ -8,7 +8,7 @@ import {
   isCommanderSection,
   resolveDefaultAddSection,
 } from '../deck-format'
-import { isCondition } from '../finish-condition'
+import { applyConditionUpdate } from '../finish-condition'
 import { noteOrUndefined } from '../note-helpers'
 
 /** The card fields commander targeting matches on. */
@@ -100,7 +100,9 @@ export function applyChangeToDeck(
         set: change.set?.toLowerCase(),
         collectorNumber: change.collectorNumber,
         finish: change.finish,
-        condition: change.condition && isCondition(change.condition) ? change.condition : undefined,
+        // `AddChange.condition` is a plain grade (adds have no `NONE` clear),
+        // so it is recorded as-is.
+        condition: change.condition,
         cardId: change.cardId,
       })
       return { ...deck, sections }
@@ -188,9 +190,7 @@ export function applyChangeToDeck(
         found.card.set = change.set?.toLowerCase()
         found.card.collectorNumber = change.collectorNumber
         found.card.finish = change.finish
-        if (change.condition !== undefined) {
-          found.card.condition = isCondition(change.condition) ? change.condition : undefined
-        }
+        found.card.condition = applyConditionUpdate(change.condition, found.card.condition)
         return { ...deck, sections }
       }
       options?.onMiss?.('no-target')

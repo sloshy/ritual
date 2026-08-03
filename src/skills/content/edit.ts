@@ -29,7 +29,13 @@ Conventions shared by every one-shot command:
   \`"in tre"\` finds "In the Trenches" — while the other commands (\`remove-card\`,
   \`set-card\`, \`note\`, \`move\`) match the list's existing entries by exact name first,
   then substring, and when several match disambiguate with \`--card-id <N>\` (the
-  \`&N\` suffix in the file — \`add-card\` has no \`--card-id\`).
+  \`&N\` suffix in the file — \`add-card\` has no \`--card-id\`). Passing a card name
+  **and** \`--card-id\` requires them to agree: a mismatch is a usage error naming
+  both, so a stale ID can never silently hit the wrong card.
+- \`-n\`/\`--dry-run\` (\`--dry-run\` only on \`note\`, whose \`-n\` is \`--note\`) resolves
+  and validates everything, reports what would change (text prefixed
+  \`[dry-run]\`, JSON carrying \`dryRun: true\`), and writes nothing at all — no list
+  file, changelog, sidecar, auto-created list, or card-ID backfill.
 - \`--output json\` (or \`ndjson\`) emits a machine-readable result; \`--quiet\`
   suppresses non-essential text.
 - Nothing blocks on a prompt in a script: when stdin is not a terminal, a missing
@@ -47,15 +53,25 @@ ritual add-card "Main Binder" "Black Lotus" --collection --set lea --collector-n
 ritual add-card "To Buy" "Mox Ruby" --wanted --name-only # any copy
 ritual add-card "To Buy" "Demonic Tutor" --wanted --set sta --collector-number 90
 ritual add-card "Winota Stax" "Lightning Bolt" --exact --output json
+ritual add-card "Winota Stax" "Lightning Bolt" --deck --set sta --collector-number 42 -f foil --section Sideboard
+ritual add-card "Winota Stax" "Kenrith, the Returned King" --deck --commander
+ritual add-card "Winota Stax" "Sol Ring" --deck -q 4 --dry-run   # preview, writes nothing
 \`\`\`
 
-- \`--collection\` / \`--wanted\` create the list if it does not exist (\`--deck\` does not — use \`ritual new deck\`).
+- \`--collection\` / \`--wanted\` create the list if it does not exist — including in a
+  workspace with no lists of that type yet (\`--deck\` does not — use \`ritual new deck\`).
+  The file is created only at write time, so a failed add (or a \`--dry-run\`) leaves none.
+- Deck adds go through the same engine as the editors: copies **merge onto an
+  existing line** for the same card and printing, a new line is appended at the end
+  of the target section (the deck's first regular section by default — never a
+  hardcoded \`## Main\`), and \`-q N\` records N add events in the changelog.
 - \`--set <code>\` + \`--collector-number <cn>\` (always together) pin an exact printing;
   the pair is validated against the card's real printings, and \`-f\` against the
   finishes that printing offers.
-- \`-q\` quantity (deck only), \`-f\` finish (nonfoil/foil/etched — collection and wanted
-  only), \`-c\` condition (NM/LP/MP/HP/DMG, or \`NONE\` to record no condition —
-  collection only). A flag the target type does not support is an error. Neither
+- \`-q\` quantity (deck only), \`-f\` finish (nonfoil/foil/etched — any list type),
+  \`-c\` condition (NM/LP/MP/HP/DMG, or \`NONE\` to record no condition — decks and
+  collections). Decks also take \`--section <name>\` and \`--commander\` to place the
+  new line. A flag the target type does not support is an error. Neither
   finish nor condition has an implicit default: without a terminal a collection add
   needs \`-c\`, and any specific-printing add whose printing comes in several finishes
   needs \`-f\` — otherwise the run exits 2 naming the flag instead of writing a
@@ -99,10 +115,13 @@ ritual set-card "To Buy" "Demonic Tutor" --wanted --finish foil --output json
 - \`--set\` + \`--collector-number\` (always together) change the printing; the pair is
   validated against the card's real printings (an unknown pair is a usage error
   listing what exists). Without \`--finish\` alongside, the current finish is kept.
-- \`--finish nonfoil|foil|etched\` — validated against the chosen printing's finishes
-  when changing the printing too.
-- \`--condition NM|LP|MP|HP|DMG\` — decks and collections only (wanted entries carry
-  no condition).
+- \`--finish nonfoil|foil|etched\` — always validated against the printing the line
+  will carry (the new one when changing the printing, otherwise the entry's own).
+  The check is cache-only: when the card cache cannot vouch for the printing, or the
+  line has no printing at all, it is skipped rather than guessed.
+- \`--condition NM|LP|MP|HP|DMG|NONE\` — decks and collections only (wanted entries
+  carry no condition). \`NONE\` clears a recorded grade; note that \`NM\` is the
+  unrecorded default and writes an ungraded line, exactly like \`NONE\`.
 - Decks only: \`--section <name>\` moves the line to that section (created if
   missing); \`--commander\` / \`--no-commander\` move it into / out of the
   \`## Commander\` section.

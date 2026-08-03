@@ -329,3 +329,29 @@ async function writeListFile(filePath: string, content: string): Promise<string>
   await fs.writeFile(filePath, content)
   return filePath
 }
+
+/**
+ * Every file under `dir` (excluding the git metadata directory) as a
+ * path → contents map. A dry-run assertion compares two snapshots: a run that
+ * "writes nothing" must leave the tree byte-for-byte identical, which no
+ * per-file check can prove — a stray auto-created list or `.sha256` sidecar
+ * only shows up in the whole-tree comparison.
+ */
+export async function snapshotTree(dir: string): Promise<Record<string, string>> {
+  const snapshot: Record<string, string> = {}
+  const walk = async (current: string): Promise<void> => {
+    for (const entry of await fs.readdir(current, { withFileTypes: true })) {
+      if (entry.name === '.git') continue
+      const full = path.join(current, entry.name)
+      if (entry.isDirectory()) {
+        // Recorded too: a run that created an empty `collections/` and wrote no
+        // file in it still changed the tree, and a file-only snapshot would
+        // compare equal.
+        snapshot[`${path.relative(dir, full)}/`] = ''
+        await walk(full)
+      } else snapshot[path.relative(dir, full)] = await fs.readFile(full, 'utf-8')
+    }
+  }
+  await walk(dir)
+  return snapshot
+}

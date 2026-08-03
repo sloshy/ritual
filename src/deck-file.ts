@@ -1,12 +1,12 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import matter from 'gray-matter'
-import { DEFAULT_SECTION, type Card, type DeckData } from './types'
+import { DEFAULT_SECTION, type DeckData } from './types'
 import { parseDeckFormat, resolveDeckFormat, type DeckFormatKey } from './deck-format'
 import { listDeckFiles } from './importers/text-file'
 import { isResolveListError, matchList, type ListLocation } from './resolve-list'
 import { isPathWithinDir } from './path-validation'
-import { allocateNextIdFromContent, assignMissingDeckCardIds } from './card-id'
+import { assignMissingDeckCardIds } from './card-id'
 import { writeFileWithHash } from './content-hash'
 import { serializeCardLine } from './deck-text'
 
@@ -205,28 +205,3 @@ export async function writeDeckFrontMatter(
  * when one was parsed (always `''` here, since no excerpt option is used).
  */
 type FrontMatterFile = { content: string; data: Record<string, unknown>; excerpt?: string }
-
-/**
- * Add a card entry under the ## Main section of a deck file.
- * Creates the section if it doesn't exist.
- * Returns the card ID allocated for the new line, so callers can record it
- * (e.g. in a changelog entry) without re-parsing the file.
- */
-export async function addCardToDeckFile(filePath: string, card: Card): Promise<number> {
-  const fileContent = await fs.readFile(filePath, 'utf-8')
-  const lines = fileContent.split('\n')
-
-  // Parse existing card IDs to find the next available
-  const { nextId: cardId } = allocateNextIdFromContent(fileContent)
-
-  let mainIndex = lines.findIndex((l) => l.trim() === '## Main')
-  if (mainIndex === -1) {
-    lines.push('')
-    lines.push('## Main')
-    mainIndex = lines.length - 1
-  }
-  lines.splice(mainIndex + 1, 0, serializeCardLine({ ...card, cardId }))
-  const content = lines.join('\n')
-  await writeFileWithHash(filePath, content.endsWith('\n') ? content : content + '\n')
-  return cardId
-}

@@ -23,21 +23,22 @@ The edit is line-preserving: only the targeted card's line is rewritten (or move
 
 ## Options
 
-| Option                    | Description                                                                                                 | Default |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------- | ------- |
-| `--deck`                  | Resolve the name as a deck                                                                                  |         |
-| `--collection`            | Resolve the name as a collection                                                                            |         |
-| `--wanted`                | Resolve the name as a wanted list                                                                           |         |
-| `--card-id <id>`          | Disambiguate by card ID (the `&N` suffix in list files). Required when name search hits multiple printings. |         |
-| `--set <code>`            | New set code — must be given together with `--collector-number`                                             |         |
-| `--collector-number <cn>` | New collector number — must be given together with `--set`                                                  |         |
-| `--finish <finish>`       | New finish: `nonfoil`, `foil`, or `etched` (case-insensitive)                                               |         |
-| `--condition <condition>` | New condition: `NM`, `LP`, `MP`, `HP`, or `DMG` (case-insensitive; decks and collections only)              |         |
-| `--section <name>`        | Move the card to this deck section, creating the section if it does not exist (decks only)                  |         |
-| `--commander`             | Move the card to the deck's Commander section (decks only)                                                  |         |
-| `--no-commander`          | Move the card out of the Commander section back to the main section (decks only)                            |         |
-| `--output <format>`       | Output format: `text`, `json`, or `ndjson`                                                                  | `text`  |
-| `--quiet`                 | Suppress non-essential output                                                                               | `false` |
+| Option                    | Description                                                                                                        | Default |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------- |
+| `--deck`                  | Resolve the name as a deck                                                                                         |         |
+| `--collection`            | Resolve the name as a collection                                                                                   |         |
+| `--wanted`                | Resolve the name as a wanted list                                                                                  |         |
+| `--card-id <id>`          | Disambiguate by card ID (the `&N` suffix in list files). Required when name search hits multiple printings.        |         |
+| `--set <code>`            | New set code — must be given together with `--collector-number`                                                    |         |
+| `--collector-number <cn>` | New collector number — must be given together with `--set`                                                         |         |
+| `--finish <finish>`       | New finish: `nonfoil`, `foil`, or `etched` (case-insensitive)                                                      |         |
+| `--condition <condition>` | New condition: `NM`, `LP`, `MP`, `HP`, `DMG`, or `NONE` to clear it (case-insensitive; decks and collections only) |         |
+| `--section <name>`        | Move the card to this deck section, creating the section if it does not exist (decks only)                         |         |
+| `--commander`             | Move the card to the deck's Commander section (decks only)                                                         |         |
+| `--no-commander`          | Move the card out of the Commander section back to the main section (decks only)                                   |         |
+| `-n, --dry-run`           | Report what would change without writing anything                                                                  | `false` |
+| `--output <format>`       | Output format: `text`, `json`, or `ndjson`                                                                         | `text`  |
+| `--quiet`                 | Suppress non-essential output                                                                                      | `false` |
 
 Multiple mutation flags can be combined in one invocation; each is applied and reported.
 
@@ -73,7 +74,7 @@ Move a deck card to the sideboard section and capture JSON output:
 ./ritual set-card --deck "My Deck" "Winota, Joiner of Forces" --section Sideboard --output json
 ```
 
-The JSON payload is `{ type, list, cardName, cardId, applied }`, where `applied` is one entry per change made (e.g. `"printing → 2XM:157"`, `"finish → foil"`, `"condition → LP"`, `"section → Sideboard"`, `"commander"`, `"not commander"`).
+The JSON payload is `{ type, list, cardName, cardId, applied }` (plus `dryRun: true` under `--dry-run`), where `applied` is one entry per change made (e.g. `"printing → 2XM:157"`, `"finish → foil"`, `"condition → LP"`, `"section → Sideboard"`, `"commander"`, `"not commander"`).
 
 Make a card the deck's commander:
 
@@ -87,21 +88,31 @@ Make a card the deck's commander:
 
 Cards are matched the same way as [`note`](/commands/note/): fuzzy name match (case-, accent-, and punctuation-insensitive; exact name preferred, then substring), `--card-id` for a precise target, or an interactive picker when neither is given. An ambiguous name match exits with a `usage_error` listing each candidate.
 
+When a card name **and** `--card-id` are both given they must agree: the ID's entry has to match the name by the same rule the name-only path uses. A disagreement is a usage error naming both (`--card-id 3 is 'Demonic Tutor', which does not match 'Lightning Bolt'.`) — IDs are reused from a pool after a removal, so a stale ID paired with a name is a strong signal the wrong card is about to be touched. ID-only and name-only invocations are unaffected.
+
 ### Printing Validation
 
-`--set` and `--collector-number` must be given together, and the pair is validated against the card's printings in the local Scryfall cache: an unknown pair is a usage error listing the available printings (up to 10). When `--finish` accompanies a printing change, the chosen printing must actually offer that finish (per Scryfall's finish data), otherwise the command lists the finishes it does offer. If the printing lookup itself fails (empty or unreachable cache), the command exits with a runtime error — refresh the cache with [`cache`](/commands/cache/).
+`--set` and `--collector-number` must be given together, and the pair is validated against the card's printings in the local Scryfall cache: an unknown pair is a usage error listing the available printings (up to 10). Whenever `--finish` is given — with a printing change, with `--condition`, or on its own — the finish is validated against the printing the line will carry (the new one when pinned, otherwise the one the entry already has), and a finish that printing is not offered in is a usage error listing the finishes it does offer. If the printing lookup itself fails (empty or unreachable cache), the command exits with a runtime error — refresh the cache with [`cache`](/commands/cache/).
 
 When the local card cache holds no entry for the card at all, there is no printing list to validate against, so the pinned printing is verified directly with Scryfall (a single request): accepted when Scryfall confirms it belongs to that card, a usage error when it belongs to a different one (`STA:90 is 'Other Card', not 'This Card'`), and a runtime error (exit `1`) when Scryfall cannot be reached.
 
-When you change the printing **without** `--finish`, the card's current finish is preserved. The current finish is _not_ re-validated against the new printing.
+When you change the printing **without** `--finish`, the card's current finish is carried onto the new printing — and validated there too, against the pinned printing's finishes. Repinning a `[foil]` entry to a printing that has no foil is a usage error saying the entry already records that finish and to pass `--finish` to record an available one, rather than silently writing a finish the new printing is not offered in.
+
+Validating `--finish` against an entry's **existing** printing is cache-only: no hidden network fetch is made for an in-place edit, and a single-printing fallback fetch could not be trusted as a complete printing list anyway. When the cache cannot vouch for the printing, the check is skipped with a note on stderr and the edit proceeds; the note distinguishes the two reasons, since only one is fixable — a cache that holds no complete printing list for the card (run `ritual cache preload-all`), or an entry pinned to a printing the cache does not know at all (no preload will make it one). Deck lines with no `(SET:CN)` printing are deliberately never finish-validated — there is nothing to validate against.
 
 ### Condition Updates
 
-Condition applies to decks and collections only (wanted-list entries never track condition). Internally there is no standalone "set condition" change event — a condition change rides on the same printing-update event the editors use, carrying the card's current set/collector number/finish, so only the condition (and finish, if also given) actually changes. In the changelog this therefore appears as a printing update, e.g. `Set "Mana Crypt" printing to 2XM:1 [foil] [LP] &2`.
+Condition applies to decks and collections only (wanted-list entries never track condition). `--condition NONE` clears a recorded grade, matching [`add-card`](/commands/add-card/)'s vocabulary.
+
+**`NM` is the unrecorded default.** The line format omits a `[NM]` annotation, so `--condition NM` and `--condition NONE` produce the same line: one with no grade on it. This collapse is intentional — an ungraded card and a card graded Near Mint are one state in Ritual's file format. The success output says so rather than claiming a grade was recorded: `condition → NM (written as an ungraded line — NM is the default)` and `condition → none (grade cleared)`. Internally there is no standalone "set condition" change event — a condition change rides on the same printing-update event the editors use, carrying the card's current set/collector number/finish, so only the condition (and finish, if also given) actually changes. In the changelog this therefore appears as a printing update, e.g. `Set "Mana Crypt" printing to 2XM:1 [foil] [LP] &2`.
 
 ### Sections and Commander
 
 `--section` moves the card to the named deck section; a section that does not exist yet is created at the end of the deck. `--commander` moves the card into the deck's `Commander` section (created at the top if missing); `--no-commander` moves it back out to the first regular section. The two are opposites of one flag — if both appear on one command line, the last one wins.
+
+### Dry Runs
+
+`-n` / `--dry-run` resolves the list and the card and runs every validation, then reports the change it _would_ apply and stops. Nothing is written: no list file, no changelog, no `.sha256` sidecar, and the card-ID backfill is skipped too. Text output is prefixed `[dry-run]`; JSON output carries `"dryRun": true` alongside the usual fields.
 
 ### Change Tracking
 
@@ -109,9 +120,9 @@ Every applied change is recorded in the list's `.changes.md` changelog in a sing
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                                                                                                          |
-| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | Success                                                                                                                                                                                                                          |
-| `2`  | Usage error (no mutation flags, `--set` without `--collector-number`, unknown printing or unavailable finish, flag not valid for the list type, ambiguous list or card, prompts unavailable for interactive list/card selection) |
-| `3`  | Not found (missing list file, missing card, missing card ID)                                                                                                                                                                     |
-| `1`  | Runtime error (Scryfall printing lookup failed, etc.)                                                                                                                                                                            |
+| Code | Meaning                                                                                                                                                                                                                                                                           |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Success                                                                                                                                                                                                                                                                           |
+| `2`  | Usage error (no mutation flags, a `--card-id` that disagrees with the card name, `--set` without `--collector-number`, unknown printing or unavailable finish, flag not valid for the list type, ambiguous list or card, prompts unavailable for interactive list/card selection) |
+| `3`  | Not found (missing list file, missing card, missing card ID)                                                                                                                                                                                                                      |
+| `1`  | Runtime error (Scryfall printing lookup failed, etc.)                                                                                                                                                                                                                             |

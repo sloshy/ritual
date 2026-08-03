@@ -2,6 +2,7 @@ import type { ChangeInput } from '../change-event'
 import type { CollectionCardEntry } from '../site/data-types'
 import { DEFAULT_SECTION } from '../types'
 import { noteOrUndefined } from '../note-helpers'
+import { applyConditionUpdate } from '../finish-condition'
 import { findTargetEntryIndex } from './entry-targeting.js'
 import type { ApplyChangeOptions } from './apply-batch'
 
@@ -137,7 +138,9 @@ export function applyChangeToCollection(
               set: change.set?.toLowerCase() ?? '',
               collectorNumber: change.collectorNumber ?? '',
               finish: change.finish ?? e.finish,
-              condition: change.condition ?? e.condition,
+              // A collection entry always carries a grade in memory; clearing
+              // means NM, which the serializer writes without an annotation.
+              condition: applyConditionUpdate(change.condition, e.condition) ?? 'NM',
             }
           : e,
       )

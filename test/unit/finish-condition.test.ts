@@ -1,5 +1,10 @@
 import { describe, test, expect } from 'bun:test'
-import { defaultPrintingFinish, printingFinishes } from '../../src/finish-condition'
+import {
+  applyConditionUpdate,
+  defaultPrintingFinish,
+  printingFinishes,
+} from '../../src/finish-condition'
+import type { ConditionUpdate } from '../../src/change-event'
 import { makeScryfallCard } from '../test-utils'
 
 describe('printingFinishes', () => {
@@ -41,5 +46,31 @@ describe('defaultPrintingFinish', () => {
   test('falls back to nonfoil when the printing lists no usable finishes', () => {
     expect(defaultPrintingFinish(makeScryfallCard({ finishes: [] }))).toBe('nonfoil')
     expect(defaultPrintingFinish(makeScryfallCard({ finishes: ['glossy'] }))).toBe('nonfoil')
+  })
+})
+
+/**
+ * The one place the `NONE` condition-clear sentinel is interpreted, shared by
+ * every apply path (`set-card`, the editor engines, the admin save).
+ */
+describe('applyConditionUpdate', () => {
+  test('an absent update leaves the current grade alone', () => {
+    expect(applyConditionUpdate(undefined, 'LP')).toBe('LP')
+    expect(applyConditionUpdate(undefined, undefined)).toBeUndefined()
+  })
+
+  test('a grade replaces the current one', () => {
+    expect(applyConditionUpdate('MP', 'LP')).toBe('MP')
+    expect(applyConditionUpdate('NM', undefined)).toBe('NM')
+  })
+
+  test("'NONE' clears the recorded grade", () => {
+    expect(applyConditionUpdate('NONE', 'LP')).toBeUndefined()
+  })
+
+  test('an unrecognized value that crossed a wire boundary clears rather than being written through', () => {
+    // The parameter type rejects this at compile time; the cast stands in for a
+    // value that arrived as untyped JSON from the admin API or an MCP client.
+    expect(applyConditionUpdate('MINT' as ConditionUpdate, 'LP')).toBeUndefined()
   })
 })

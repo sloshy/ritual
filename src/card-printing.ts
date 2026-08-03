@@ -1,6 +1,7 @@
 import type { ScryfallCard } from './types'
 
-type PrintingFields = { set?: string; collectorNumber?: string }
+/** The two fields that together pin a printing; either may be absent. */
+export type PrintingFields = { set?: string; collectorNumber?: string }
 type SpecificPrinting = { set: string; collectorNumber: string }
 
 /**

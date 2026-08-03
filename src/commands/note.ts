@@ -9,6 +9,7 @@ import {
   emitOutput,
   ExitCode,
   normalizeScriptingOptions,
+  type DryRunOptions,
   type ScriptingOptions,
 } from './scripting'
 import { normalizeNote } from '../note-helpers'
@@ -31,6 +32,7 @@ type NoteOptions = {
   clear?: boolean
   cardId?: string
 } & ListTypeFlags &
+  DryRunOptions &
   Partial<ScriptingOptions>
 
 export function registerNoteCommand(program: Command): void {
@@ -55,7 +57,10 @@ export function registerNoteCommand(program: Command): void {
         ).conflicts('clear'),
       )
       .addOption(new Option('--clear', 'Remove the note from the card').conflicts('note'))
-      .option('--card-id <id>', 'Disambiguate by card ID (the &N suffix in list files)'),
+      .option('--card-id <id>', 'Disambiguate by card ID (the &N suffix in list files)')
+      // Long form only: `-n` is already this command's `--note`, and the shared
+      // `addDryRunOption` would claim it.
+      .option('--dry-run', 'Report what the note would become without writing anything'),
     'text',
   ).action(
     async (listNameArg: string | undefined, cardNameParts: string[], options: NoteOptions) => {
@@ -71,6 +76,7 @@ export function registerNoteCommand(program: Command): void {
             note: options.note,
             clear: options.clear ?? false,
             cardId: options.cardId,
+            dryRun: options.dryRun ?? false,
           },
           scripting,
         ),
@@ -86,14 +92,19 @@ type RunInput = {
   note: string | undefined
   clear: boolean
   cardId: string | undefined
+  dryRun: boolean
 }
 
 type NoteSetResult = CardCommandResultBase & {
   note: string
   previousNote: string | undefined
+  /** Present and true when `--dry-run` reported the note without writing it. */
+  dryRun?: true
 }
 
 type NoteClearResult = CardCommandResultBase & {
+  /** Present and true when `--dry-run` reported the clear without performing it. */
+  dryRun?: true
   cleared: boolean
   /** The removed note, or null when there was nothing to clear (idempotent no-op). */
   previousNote: string | null
@@ -124,23 +135,27 @@ async function runNote(input: RunInput, scripting: ScriptingOptions): Promise<vo
   const target = await resolveTarget(type, filePath, { cardId, cardName: input.cardName })
 
   if (input.clear) {
-    await runClear(type, filePath, listSlug, target, scripting)
+    await runClear(type, filePath, listSlug, target, scripting, input.dryRun)
     return
   }
 
   const noteText = await resolveNoteText(input.note, target.note)
 
-  await persistNote(type, filePath, target, noteText)
+  // A dry run resolves the list, the target, and the note text, then stops
+  // before the first write: no list file, no changelog, no sidecar.
+  if (!input.dryRun) await persistNote(type, filePath, target, noteText)
 
   if (scripting.output === 'text') {
     if (!scripting.quiet) {
       const idLabel = target.cardId !== undefined ? ` &${target.cardId}` : ''
-      emitOutput(`Set note on ${target.name}${idLabel} to "${noteText}"`, scripting)
+      const prefix = input.dryRun ? '[dry-run] Would set' : 'Set'
+      emitOutput(`${prefix} note on ${target.name}${idLabel} to "${noteText}"`, scripting)
     }
     return
   }
 
   const result: NoteSetResult = {
+    ...(input.dryRun ? { dryRun: true as const } : {}),
     type,
     list: listSlug,
     cardName: target.name,
@@ -159,6 +174,7 @@ async function runClear(
   listSlug: string,
   target: EntryRef,
   scripting: ScriptingOptions,
+  dryRun: boolean,
 ): Promise<void> {
   const idLabel = target.cardId !== undefined ? ` &${target.cardId}` : ''
 
@@ -168,11 +184,13 @@ async function runClear(
   if (target.note === undefined || target.note === '') {
     if (scripting.output === 'text') {
       if (!scripting.quiet) {
-        emitOutput(`No note on ${target.name}${idLabel}; nothing to clear.`, scripting)
+        const prefix = dryRun ? '[dry-run] ' : ''
+        emitOutput(`${prefix}No note on ${target.name}${idLabel}; nothing to clear.`, scripting)
       }
       return
     }
     const noop: NoteClearResult = {
+      ...(dryRun ? { dryRun: true as const } : {}),
       type,
       list: listSlug,
       cardName: target.name,
@@ -186,16 +204,18 @@ async function runClear(
 
   const previousNote = target.note
 
-  await persistNote(type, filePath, target, '')
+  if (!dryRun) await persistNote(type, filePath, target, '')
 
   if (scripting.output === 'text') {
     if (!scripting.quiet) {
-      emitOutput(`Cleared note on ${target.name}${idLabel}`, scripting)
+      const prefix = dryRun ? '[dry-run] Would clear' : 'Cleared'
+      emitOutput(`${prefix} note on ${target.name}${idLabel}`, scripting)
     }
     return
   }
 
   const result: NoteClearResult = {
+    ...(dryRun ? { dryRun: true as const } : {}),
     type,
     list: listSlug,
     cardName: target.name,

@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { runCli } from './helpers/cli'
-import { createWorkspace, removeWorkspace, seedCardTargetWorkspace } from './helpers/workspace'
+import {
+  createWorkspace,
+  removeWorkspace,
+  seedCardTargetWorkspace,
+  snapshotTree,
+} from './helpers/workspace'
 
 type RemoveCardJson = {
   type: string
@@ -181,6 +186,36 @@ describe('remove-card CLI (Integration)', () => {
     const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
     expect(deckContent).not.toContain('(2XM:157)')
     expect(deckContent).toContain('1 Lightning Bolt (LEA:161) &2')
+  })
+
+  test('a --card-id that disagrees with the card name is a usage error, removing nothing', async () => {
+    const result = await runCli(
+      ['remove-card', '--deck', 'test', 'Sol', 'Ring', '--card-id', '3', '--output', 'json'],
+      dir,
+    )
+    expect(result.exitCode).toBe(2)
+    const err = JSON.parse(result.stderr) as ErrorJson
+    expect(err.error.code).toBe('usage_error')
+    expect(err.error.message).toContain("--card-id 3 is 'Lightning Bolt'")
+    expect(err.error.message).toContain("'Sol Ring'")
+    const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
+    expect(deckContent).toContain('1 Lightning Bolt (2XM:157) &3')
+  })
+
+  test('--dry-run reports the removal and writes nothing', async () => {
+    const before = await snapshotTree(dir)
+    const result = await runCli(
+      ['remove-card', '--deck', 'test', 'Sol', 'Ring', '-q', '2', '-n', '--output', 'json'],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as {
+      dryRun?: boolean
+      removed: number
+      remaining: number
+    }
+    expect(json).toMatchObject({ dryRun: true, removed: 2, remaining: 0 })
+    expect(await snapshotTree(dir)).toEqual(before)
   })
 
   test('returns not_found for a card that is not in the list', async () => {

@@ -10,21 +10,32 @@ import {
   isDigitalOnlySet,
 } from '../scryfall'
 import { printingsAreComplete } from '../card-printing'
-import { addCardToDeckFile } from '../deck-file'
+import {
+  applyDeckAdd,
+  applyDeckAddToContent,
+  type DeckAddOutcome,
+  type DeckAddPlacement,
+} from './line-mutate'
 import {
   resolveCardPrinting,
   promptFinishAndCondition,
   formatCollectionLine,
   ensureCollectionFile,
 } from './collection-helpers'
-import { isCondition, isFinish, normalizeFinishValue, VALID_CONDITIONS } from '../finish-condition'
+import {
+  applyConditionUpdate,
+  isCondition,
+  isFinish,
+  normalizeFinishValue,
+  VALID_CONDITIONS,
+} from '../finish-condition'
 import { parseSetCode } from '../set-codes'
 import { ensureWantedListFile, formatWantedListLine, promptWantedFinish } from './wanted-helpers'
 import { isUsableFileName, unusableFileNameMessage } from '../list-file-name'
 import { emptyCacheAdvice, ensureFreshCardCache } from '../cache/freshness'
 import { addRefreshOption, type RefreshMode } from '../refresh'
 import { appendChangelog } from '../changelog-writer'
-import { createAddChange } from '../change-event'
+import { createAddChange, type ConditionUpdate } from '../change-event'
 import { allocateNextIdFromContent } from '../card-id'
 import { appendFileWithHash } from '../content-hash'
 import {
@@ -32,8 +43,7 @@ import {
   formatSpecificPrintingPrice,
   formatCheapestPrintingDisplay,
 } from '../price-currency'
-import { getDefaultCurrency } from '../ritual-config'
-import type { Card, Condition, Finish, ScryfallCard } from '../types'
+import type { Condition, Finish, ScryfallCard } from '../types'
 import type { ListType } from '../list-type'
 import {
   matchesAllNameTerms,
@@ -54,19 +64,24 @@ import {
   resolveListTypeFlag,
   resolvePinnedPrinting,
   runCommandAction,
+  type EntryRef,
   type PrintingPin,
 } from './card-target'
 import { parsePositiveInteger } from '../parse-number'
 import { inputRequiredError, promptsUnavailable } from '../no-input'
 import {
+  addDryRunOption,
   addScriptingOptions,
   emitOutput,
   ExitCode,
   normalizeScriptingOptions,
+  type DryRunOptions,
   type ScriptingOptions,
 } from './scripting'
 import { divertConsoleLogToStderr } from '../mcp/stdout-guard'
-import { CardCommandError, getErrorMessage } from '../errors'
+import { CardCommandError } from '../errors'
+import { getCollectionsDir, getDefaultCurrency, getWantedDir } from '../ritual-config'
+import { listFileName } from '../list-file-name'
 
 /** Parse existing &N IDs from a file and allocate the next available ID. */
 async function allocateNextIdFromFile(filePath: string): Promise<number> {
@@ -83,18 +98,32 @@ async function allocateNextIdFromFile(filePath: string): Promise<number> {
 type AddCardOptions = {
   quantity: number
   finish?: Finish
-  condition?: Condition | 'NONE'
+  condition?: ConditionUpdate
   exact?: boolean
   set?: string
   collectorNumber?: string
   nameOnly?: boolean
   specific?: boolean
+  section?: string
+  commander?: boolean
   refresh: RefreshMode
 } & ListTypeFlags &
+  DryRunOptions &
   Partial<ScriptingOptions>
 
-/** A resolved (or freshly created) target list for `add-card`. */
-type AddCardTarget = { type: ListType; filePath: string; name: string }
+/**
+ * A resolved target list for `add-card`. A collection or wanted list that does
+ * not exist yet resolves to its would-be path with `requestedName` set: the file
+ * is created at write time (see {@link ensureTargetFile}), so a run that fails
+ * validation — or never writes at all under `--dry-run` — leaves no debris.
+ */
+type AddCardTarget = {
+  type: ListType
+  filePath: string
+  name: string
+  /** The name to create the list under, when it does not exist yet. */
+  requestedName?: string
+}
 
 /** The JSON/NDJSON success payload. Set codes are lowercase (internal form). */
 type AddCardSuccess = {
@@ -107,6 +136,10 @@ type AddCardSuccess = {
   condition?: Condition
   quantity?: number
   cardId: number
+  /** Deck adds only: the section the card's line ended up in. */
+  section?: string
+  /** Present and true when `--dry-run` reported the add without writing it. */
+  dryRun?: true
 }
 
 // ── Flag argParsers (reject invalid values at parse time, exit code 2) ────────
@@ -169,16 +202,14 @@ export function registerAddCardCommand(program: Command): void {
     .option('--collection', 'Resolve the name as a collection (created if missing)')
     .option('--wanted', 'Resolve the name as a wanted list (created if missing)')
     .option('-q, --quantity <number>', 'Number of copies to add (deck only)', parseQuantityFlag, 1)
-    .option(
-      '-f, --finish <finish>',
-      'Card finish: nonfoil, foil, etched (collection/wanted only)',
-      parseFinishFlag,
-    )
+    .option('-f, --finish <finish>', 'Card finish: nonfoil, foil, etched', parseFinishFlag)
     .option(
       '-c, --condition <condition>',
-      'Card condition: NM, LP, MP, HP, DMG, or NONE to record no condition (collection only)',
+      'Card condition: NM, LP, MP, HP, DMG, or NONE to record no condition (decks and collections only)',
       parseConditionFlag,
     )
+    .option('--section <name>', 'Deck section to add to, created if missing (decks only)')
+    .option('--commander', "Add the card to the deck's Commander section (decks only)")
     .option('-e, --exact', 'Use exact matching (skip interactive selection if name matches)', false)
     .option(
       '--set <code>',
@@ -203,6 +234,7 @@ export function registerAddCardCommand(program: Command): void {
     ),
   )
   addRefreshOption(command)
+  addDryRunOption(command, 'Report what would be added without writing anything')
   addScriptingOptions(command).action(
     async (targetName: string, cardNameParts: string[], options: AddCardOptions) => {
       const scripting = normalizeScriptingOptions(options, 'text')
@@ -239,11 +271,10 @@ async function runAddCard(input: RunInput, scripting: ScriptingOptions): Promise
   const listArg = parseListArgument(input.targetName)
   const type = listArg.type ?? input.type
 
-  // With a known target type, validate before the resolver auto-creates a
-  // missing collection/wanted file for a doomed run.
+  // Every check that can refuse the run happens before anything is written —
+  // the target list is only *resolved* here, never created (see
+  // `ensureTargetFile`), so a doomed add leaves the workspace as it found it.
   if (type !== undefined) validateTargetFlags(type, pin, options)
-  const target = await resolveAddCardTarget(listArg.name, type)
-  if (type === undefined) validateTargetFlags(target.type, pin, options)
 
   const cacheResult = await ensureFreshCardCache(options.refresh)
   if (!cacheResult.ready) {
@@ -254,6 +285,9 @@ async function runAddCard(input: RunInput, scripting: ScriptingOptions): Promise
     )
   }
   info(`Loaded ${cacheResult.cardCount} cards from cache.`, scripting)
+
+  const target = await resolveAddCardTarget(listArg.name, type)
+  if (type === undefined) validateTargetFlags(target.type, pin, options)
 
   const cardNames = await getAllCardNames()
   const selectedName = await resolveCardName(
@@ -311,17 +345,17 @@ function validateTargetFlags(
       ExitCode.UsageError,
     )
   }
-  if (type === 'deck' && options.finish !== undefined) {
+  if (type === 'wanted' && options.condition !== undefined) {
     throw new CardCommandError(
       'usage_error',
-      '--finish applies only to collection and wanted list targets.',
+      'Wanted list entries do not track condition — --condition applies to decks and collections only.',
       ExitCode.UsageError,
     )
   }
-  if (type !== 'collection' && options.condition !== undefined) {
+  if (type !== 'deck' && (options.section !== undefined || options.commander)) {
     throw new CardCommandError(
       'usage_error',
-      '--condition applies only to collection targets.',
+      '--section and --commander apply only to deck targets.',
       ExitCode.UsageError,
     )
   }
@@ -349,8 +383,15 @@ function validateTargetFlags(
 
 /**
  * Resolve `name` to an existing deck / collection / wanted list (via the shared
- * resolver), or — when a type flag pins the type — create a missing collection or
- * wanted list on the fly. Decks are never auto-created; a missing deck is an error.
+ * resolver), or — when a type flag (or `collection:`/`wanted:` prefix) pins the
+ * type — to the path a missing collection or wanted list *would* have. Nothing
+ * is created here: {@link ensureTargetFile} creates the file at write time, so a
+ * run that fails afterwards (or never writes, under `--dry-run`) leaves no
+ * half-made list behind.
+ *
+ * A workspace holding no lists of that type at all (`no-lists`) is the same
+ * case as a single missing list — auto-creation matters most on the first run.
+ * Decks are never auto-created; a missing deck is an error on both paths.
  */
 async function resolveAddCardTarget(
   name: string,
@@ -369,8 +410,9 @@ async function resolveAddCardTarget(
     return { type: resolved.type, filePath: resolved.filePath, name: resolved.name }
   }
 
-  // Auto-create only when the type is known and the list simply doesn't exist yet.
-  if (resolved.kind === 'not-found' && type) {
+  // Auto-create only when the type is known and no such list exists yet —
+  // whether that is one missing list or an empty workspace.
+  if ((resolved.kind === 'not-found' || resolved.kind === 'no-lists') && type) {
     if (type === 'deck') {
       throw new CardCommandError(
         'not_found',
@@ -379,12 +421,13 @@ async function resolveAddCardTarget(
       )
     }
     // The list is about to be created, so its name has to be usable as a file name.
-    if (!isUsableFileName(name)) {
+    const fileName = listFileName(name)
+    if (!isUsableFileName(name) || fileName === null) {
       throw new CardCommandError('usage_error', unusableFileNameMessage(name), ExitCode.UsageError)
     }
-    const filePath =
-      type === 'collection' ? await ensureCollectionFile(name) : await ensureWantedListFile(name)
-    return { type, filePath, name: path.basename(filePath, '.md') }
+    const dir = type === 'collection' ? getCollectionsDir() : getWantedDir()
+    const filePath = path.join(dir, fileName)
+    return { type, filePath, name: path.basename(filePath, '.md'), requestedName: name }
   }
 
   throw new CardCommandError(
@@ -392,6 +435,17 @@ async function resolveAddCardTarget(
     formatResolveListError(resolved, 'type-flags'),
     resolved.kind === 'ambiguous' ? ExitCode.UsageError : ExitCode.NotFound,
   )
+}
+
+/**
+ * Create the target list file if the resolver found none. Called immediately
+ * before the first write, so a failure anywhere earlier — and every `--dry-run`
+ * — leaves the workspace untouched.
+ */
+async function ensureTargetFile(target: AddCardTarget): Promise<void> {
+  if (target.requestedName === undefined) return
+  if (target.type === 'collection') await ensureCollectionFile(target.requestedName)
+  else if (target.type === 'wanted') await ensureWantedListFile(target.requestedName)
 }
 
 // ── Card name resolution ──────────────────────────────────────────────────────
@@ -535,31 +589,30 @@ async function addToDeck(
   scripting: ScriptingOptions,
 ): Promise<void> {
   const pinned = pin ? await resolvePinnedPrinting(selectedName, pin) : undefined
-  const card: Card = {
-    quantity: options.quantity,
+  // A finish is validated against the pinned printing when the add pins one.
+  // Without a pin the deck line records no printing, so there is nothing to
+  // validate against — a deliberate gap, documented in add-card.md.
+  if (options.finish !== undefined && pinned) {
+    ensureFinishAvailable(selectedName, pinned, options.finish)
+  }
+  const card: EntryRef = {
     name: selectedName,
     set: pinned?.set.toLowerCase(),
     collectorNumber: pinned?.collector_number,
+    finish: options.finish,
+    condition: applyConditionUpdate(options.condition, undefined),
+  }
+  const placement: DeckAddPlacement = {
+    section: options.section,
+    commander: options.commander === true,
   }
 
-  let cardId: number
-  try {
-    cardId = await addCardToDeckFile(target.filePath, card)
-  } catch (e) {
-    throw new CardCommandError(
-      'runtime_error',
-      `Failed to update deck file: ${getErrorMessage(e)}`,
-      ExitCode.RuntimeError,
-    )
-  }
-
-  await appendChangelog(target.filePath, target.name, [
-    createAddChange(selectedName, {
-      set: card.set,
-      collectorNumber: card.collectorNumber,
-      cardId,
-    }),
-  ])
+  // Same engine as the editors and the admin save: copies merge onto an
+  // existing same-printing line, and a new line is appended at the end of the
+  // target section — one add change event per copy.
+  const outcome = options.dryRun
+    ? previewDeckAdd(await fs.readFile(target.filePath, 'utf-8'), card, options.quantity, placement)
+    : await applyDeckAdd(target.filePath, card, options.quantity, placement)
 
   const printingLabel = pinned ? ` (${pinned.set.toUpperCase()}:${pinned.collector_number})` : ''
   emitSuccess(
@@ -569,12 +622,26 @@ async function addToDeck(
       cardName: selectedName,
       set: card.set,
       collectorNumber: card.collectorNumber,
+      finish: card.finish,
+      condition: card.condition,
       quantity: options.quantity,
-      cardId,
+      cardId: outcome.cardId,
+      section: outcome.section,
     },
-    `Added '${options.quantity} ${selectedName}${printingLabel}' to ${path.basename(target.filePath)}`,
+    `${addVerb(options.dryRun ?? false)} '${options.quantity} ${selectedName}${printingLabel}' to ${path.basename(target.filePath)} (${outcome.section})`,
     scripting,
+    options.dryRun ?? false,
   )
+}
+
+/** The outcome a deck add would have, computed without writing anything. */
+function previewDeckAdd(
+  content: string,
+  card: EntryRef,
+  copies: number,
+  placement: DeckAddPlacement,
+): DeckAddOutcome {
+  return applyDeckAddToContent(content, card, copies, placement).outcome
 }
 
 async function addToCollection(
@@ -609,17 +676,19 @@ async function addToCollection(
     undefined,
     cardId,
   )
-  await appendFileWithHash(target.filePath, line)
-
-  await appendChangelog(target.filePath, target.name, [
-    createAddChange(selectedName, {
-      set: printing.set.toLowerCase(),
-      collectorNumber: printing.collector_number,
-      finish: finishAndCondition.finish,
-      condition: finishAndCondition.condition,
-      cardId,
-    }),
-  ])
+  if (!options.dryRun) {
+    await ensureTargetFile(target)
+    await appendFileWithHash(target.filePath, line)
+    await appendChangelog(target.filePath, target.name, [
+      createAddChange(selectedName, {
+        set: printing.set.toLowerCase(),
+        collectorNumber: printing.collector_number,
+        finish: finishAndCondition.finish,
+        condition: finishAndCondition.condition,
+        cardId,
+      }),
+    ])
+  }
 
   emitSuccess(
     {
@@ -632,8 +701,9 @@ async function addToCollection(
       condition: finishAndCondition.condition,
       cardId,
     },
-    `Added: ${line.trim()}`,
+    `${addVerb(options.dryRun ?? false)}: ${line.trim()}`,
     scripting,
+    options.dryRun ?? false,
   )
   info(
     formatSpecificPrintingPrice(printing, finishAndCondition.finish, getDefaultCurrency()),
@@ -698,10 +768,13 @@ async function addToWanted(
   if (mode === 'name-only') {
     const cardId = await allocateNextIdFromFile(target.filePath)
     const line = formatWantedListLine(selectedName, undefined, options.finish, undefined, cardId)
-    await appendFileWithHash(target.filePath, line)
-    await appendChangelog(target.filePath, target.name, [
-      createAddChange(selectedName, { finish: options.finish, cardId }),
-    ])
+    if (!options.dryRun) {
+      await ensureTargetFile(target)
+      await appendFileWithHash(target.filePath, line)
+      await appendChangelog(target.filePath, target.name, [
+        createAddChange(selectedName, { finish: options.finish, cardId }),
+      ])
+    }
     emitSuccess(
       {
         type: 'wanted',
@@ -710,8 +783,9 @@ async function addToWanted(
         finish: options.finish,
         cardId,
       },
-      `Added: ${line.trim()}`,
+      `${addVerb(options.dryRun ?? false)}: ${line.trim()}`,
       scripting,
+      options.dryRun ?? false,
     )
     await printCheapestPrinting(selectedName, scripting)
     return
@@ -738,16 +812,18 @@ async function addToWanted(
     undefined,
     cardId,
   )
-  await appendFileWithHash(target.filePath, line)
-
-  await appendChangelog(target.filePath, target.name, [
-    createAddChange(selectedName, {
-      set: printing.set.toLowerCase(),
-      collectorNumber: printing.collector_number,
-      finish,
-      cardId,
-    }),
-  ])
+  if (!options.dryRun) {
+    await ensureTargetFile(target)
+    await appendFileWithHash(target.filePath, line)
+    await appendChangelog(target.filePath, target.name, [
+      createAddChange(selectedName, {
+        set: printing.set.toLowerCase(),
+        collectorNumber: printing.collector_number,
+        finish,
+        cardId,
+      }),
+    ])
+  }
 
   emitSuccess(
     {
@@ -759,8 +835,9 @@ async function addToWanted(
       finish,
       cardId,
     },
-    `Added: ${line.trim()}`,
+    `${addVerb(options.dryRun ?? false)}: ${line.trim()}`,
     scripting,
+    options.dryRun ?? false,
   )
   info(formatSpecificPrintingPrice(printing, finish, getDefaultCurrency()), scripting)
 }
@@ -821,12 +898,25 @@ function info(message: string, scripting: ScriptingOptions): void {
   if (scripting.output === 'text' && !scripting.quiet) console.log(message)
 }
 
-function emitSuccess(payload: AddCardSuccess, textLine: string, scripting: ScriptingOptions): void {
+/**
+ * The verb a success line opens with: a dry run reports what *would* happen.
+ * Callers build their own message so the tense reads naturally in each flow.
+ */
+function addVerb(dryRun: boolean): string {
+  return dryRun ? 'Would add' : 'Added'
+}
+
+function emitSuccess(
+  payload: AddCardSuccess,
+  textLine: string,
+  scripting: ScriptingOptions,
+  dryRun: boolean,
+): void {
   if (scripting.output === 'text') {
-    if (!scripting.quiet) emitOutput(textLine, scripting)
+    if (!scripting.quiet) emitOutput(dryRun ? `[dry-run] ${textLine}` : textLine, scripting)
     return
   }
-  emitOutput(payload, scripting)
+  emitOutput(dryRun ? { ...payload, dryRun: true as const } : payload, scripting)
 }
 
 /** Text-mode price hint for a name-only wanted add: the cheapest printing. */

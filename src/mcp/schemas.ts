@@ -14,6 +14,12 @@ export const listTypeSchema = z.enum(['deck', 'collection', 'wanted'])
 export const currencySchema = z.enum(VALID_CURRENCIES)
 export const finishSchema = z.enum(VALID_FINISHES)
 export const conditionSchema = z.enum(VALID_CONDITIONS)
+/**
+ * A condition *update*: a grade, or `NONE` to clear a recorded grade — the same
+ * vocabulary `ritual set-card --condition` accepts. Only the set-printing paths
+ * take it; an `add` records a grade and has none to clear.
+ */
+export const conditionUpdateSchema = z.enum([...VALID_CONDITIONS, 'NONE'])
 /** Derived from the canonical format list, so the tool schema cannot drift from it. */
 export const deckFormatSchema = z.enum(DECK_FORMAT_KEYS)
 
@@ -91,6 +97,14 @@ export const finishField = finishSchema.optional().describe('Finish; defaults to
 export const conditionField = conditionSchema
   .optional()
   .describe('Condition grade; defaults to NM.')
+
+/** The set-printing flavour of {@link conditionField}, which can also clear a grade. */
+export const conditionUpdateField = conditionUpdateSchema
+  .optional()
+  .describe(
+    'Condition grade, or "NONE" to clear a recorded grade. Omit to leave the current grade ' +
+      'alone. NM is the unrecorded default, so setting NM also leaves the line ungraded.',
+  )
 
 export const sectionField = z
   .string()

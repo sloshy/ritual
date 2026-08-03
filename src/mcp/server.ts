@@ -19,7 +19,8 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
 - Lists are addressed by listType ("deck" | "collection" | "wanted") + slug (the file basename
   without ".md"). list_lists enumerates; get_list reads (start with view "summary" on an unfamiliar
   list). Lists are also readable resources at ritual://{type}/{slug}.
-- Card targeting is exact and case-sensitive; cardId (the &N id get_list shows) wins when present.
+- Card targeting is exact and case-sensitive; cardId (the &N id get_list shows) wins when present,
+  so pair it only with a cardName from the same get_list snapshot (ids are recycled after removals).
 - Single-list edits are all-or-nothing; the cross-list batch tools and import_change_bundle skip
   and report instead.
 - Every tool returns structuredContent against its declared outputSchema; read that, not

@@ -33,6 +33,7 @@ The edit is line-preserving: only the targeted card's line is rewritten. Everyth
 | `-n, --note <text>` | Note text. Replaces any existing note. Cannot be empty — use `--clear` to remove a note.                    |         |
 | `--clear`           | Remove the note from the card. Cannot be combined with `--note`.                                            |         |
 | `--card-id <id>`    | Disambiguate by card ID (the `&N` suffix in list files). Required when name search hits multiple printings. |         |
+| `--dry-run`         | Report what the note would become without writing anything (long form only — `-n` is `--note`)              | `false` |
 | `--output <format>` | Output format: `text`, `json`, or `ndjson`                                                                  | `text`  |
 | `--quiet`           | Suppress non-essential output                                                                               | `false` |
 
@@ -119,6 +120,12 @@ When a note is removed, the response includes the removed text:
 - **By name**: the input is fuzzy-matched against the cards in the list. Punctuation, case, and accents are ignored (so `seance` matches `Séance`); substring matches are accepted. If multiple cards match (e.g. two different printings of "Lightning Bolt"), the command exits with a `usage_error` listing each match. Disambiguate with `--card-id` or run interactively.
 - **By card ID**: pass `--card-id <N>` to target an entry by its persistent `&N` suffix. Card IDs are unique within each list file, and must be positive integers.
 
+When a card name **and** `--card-id` are both given they must agree: the ID's entry has to match the name by the same rule the name-only path uses. A disagreement is a usage error naming both (`--card-id 3 is 'Demonic Tutor', which does not match 'Lightning Bolt'.`) — IDs are reused from a pool after a removal, so a stale ID paired with a name is a strong signal the wrong card is about to be touched. ID-only and name-only invocations are unaffected.
+
+### Dry Runs
+
+`--dry-run` resolves the list, the card, and the note text, then reports what the note _would_ become and stops — nothing is written (list file, changelog, `.sha256` sidecar, or the card-ID backfill). The short `-n` is not available here: it is already `--note`. Text output is prefixed `[dry-run]`; JSON output carries `"dryRun": true` — including on the idempotent `--clear` no-op, which reports `cleared: false` and `previousNote: null` whether or not it is a dry run.
+
 ### Quantity Behavior
 
 For deck lists with more than one quantity of any card not separated by printing (e.g. `4 Lightning Bolt`), all copies share a single line and a single `&N` ID, so a single note attaches to all of them. To give one copy a different note, split the line into multiple entries first.
@@ -133,9 +140,9 @@ A set is recorded in the list's `.changes.md` changelog as `Set note on "<Card>"
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                                                                                  |
-| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | Success (note set or cleared, or no-op `--clear` when no note existed)                                                                                                                                   |
-| `2`  | Usage error (conflicting type flags, ambiguous list name, ambiguous card match, empty note, no `--note`/`--clear` when prompts are unavailable, prompts unavailable for interactive list/card selection) |
-| `3`  | Not found (missing list file, missing card, missing card ID)                                                                                                                                             |
-| `1`  | Runtime error (file changed concurrently, etc.)                                                                                                                                                          |
+| Code | Meaning                                                                                                                                                                                                                                                   |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Success (note set or cleared, or no-op `--clear` when no note existed)                                                                                                                                                                                    |
+| `2`  | Usage error (conflicting type flags, a `--card-id` that disagrees with the card name, ambiguous list name, ambiguous card match, empty note, no `--note`/`--clear` when prompts are unavailable, prompts unavailable for interactive list/card selection) |
+| `3`  | Not found (missing list file, missing card, missing card ID)                                                                                                                                                                                              |
+| `1`  | Runtime error (file changed concurrently, etc.)                                                                                                                                                                                                           |

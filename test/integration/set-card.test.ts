@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { runCli } from './helpers/cli'
-import { createWorkspace, removeWorkspace, seedCardTargetWorkspace } from './helpers/workspace'
+import {
+  createWorkspace,
+  removeWorkspace,
+  seedCardTargetWorkspace,
+  snapshotTree,
+} from './helpers/workspace'
 import { makeScryfallCard } from '../test-utils'
 import type { ScryfallCard } from '../../src/types'
 
@@ -434,6 +439,262 @@ describe('set-card CLI (Integration)', () => {
     expect(result.exitCode).toBe(3)
     const err = JSON.parse(result.stderr) as ErrorJson
     expect(err.error.code).toBe('not_found')
+  })
+
+  describe('finish validation without a printing change', () => {
+    // The 2XM:157 entry (&3) is nonfoil/foil; LEA:161 (&2) is nonfoil only.
+    test('rejects an unavailable finish on the finish-only branch', async () => {
+      await seedCardCache(dir, { 'Lightning Bolt': LIGHTNING_BOLT_PRINTINGS })
+      const result = await runCli(
+        ['set-card', '--deck', 'test', '--card-id', '3', '--finish', 'etched', '--output', 'json'],
+        dir,
+      )
+      expect(result.exitCode).toBe(2)
+      const err = JSON.parse(result.stderr) as ErrorJson
+      expect(err.error.code).toBe('usage_error')
+      expect(err.error.message).toContain('not available in etched')
+      const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
+      expect(deckContent).not.toContain('[etched]')
+    })
+
+    test('rejects an unavailable finish on the condition+finish branch too', async () => {
+      await seedCardCache(dir, { 'Lightning Bolt': LIGHTNING_BOLT_PRINTINGS })
+      const result = await runCli(
+        [
+          'set-card',
+          '--deck',
+          'test',
+          '--card-id',
+          '3',
+          '--condition',
+          'LP',
+          '--finish',
+          'etched',
+          '--output',
+          'json',
+        ],
+        dir,
+      )
+      expect(result.exitCode).toBe(2)
+      const err = JSON.parse(result.stderr) as ErrorJson
+      expect(err.error.message).toContain('not available in etched')
+      const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
+      expect(deckContent).not.toContain('[LP]')
+    })
+
+    test("accepts a finish the entry's own printing offers", async () => {
+      await seedCardCache(dir, { 'Lightning Bolt': LIGHTNING_BOLT_PRINTINGS })
+      const result = await runCli(
+        ['set-card', '--deck', 'test', '--card-id', '3', '--finish', 'foil'],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+      const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
+      expect(deckContent).toContain('1 Lightning Bolt (2XM:157) [foil] &3')
+    })
+
+    test('skips validation with a note when the cache cannot vouch for the printing', async () => {
+      // No card cache at all: no complete printing list, so no rejection may be
+      // fabricated — the edit proceeds and says why it was not checked.
+      const result = await runCli(
+        ['set-card', '--deck', 'test', '--card-id', '3', '--finish', 'etched'],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+      expect(result.stderr).toContain('could not verify finish')
+      const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
+      expect(deckContent).toContain('1 Lightning Bolt (2XM:157) [etched] &3')
+    })
+
+    test('names the unknown printing when that, not the cache, is why the check was skipped', async () => {
+      // The cache knows Sol Ring completely; it just does not know C21:240, so
+      // preloading would never enable this check and must not be suggested.
+      await seedCardCache(dir, {
+        'Sol Ring': [makeScryfallCard({ name: 'Sol Ring', set: 'lea', collector_number: '270' })],
+      })
+      const result = await runCli(
+        ['set-card', '--collection', 'main', '--card-id', '1', '--finish', 'etched'],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+      expect(result.stderr).toContain('C21:240 is not a known printing')
+      expect(result.stderr).not.toContain('preload-all')
+    })
+
+    test('a printing-less deck line is not finish-validated at all', async () => {
+      await seedCardCache(dir, { 'Lightning Bolt': LIGHTNING_BOLT_PRINTINGS })
+      const result = await runCli(
+        ['set-card', '--deck', 'test', 'Sol', 'Ring', '--finish', 'etched'],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+      expect(result.stderr).toBe('')
+      const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
+      expect(deckContent).toContain('2 Sol Ring [etched] &1')
+    })
+  })
+
+  describe('finish validation on a printing change', () => {
+    test("refuses a repin whose new printing lacks the entry's carried-over finish", async () => {
+      await seedCardCache(dir, { 'Lightning Bolt': LIGHTNING_BOLT_PRINTINGS })
+      // &2 is LEA:161 recorded as [foil]; 2XM:157 has foil, LEA:161 does not.
+      const result = await runCli(
+        [
+          'set-card',
+          '--deck',
+          'test',
+          '--card-id',
+          '2',
+          '--set',
+          'lea',
+          '--collector-number',
+          '161',
+          '--output',
+          'json',
+        ],
+        dir,
+      )
+      expect(result.exitCode).toBe(2)
+      const err = JSON.parse(result.stderr) as ErrorJson
+      expect(err.error.message).toContain('not available in foil')
+      expect(err.error.message).toContain('--finish')
+      const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
+      expect(deckContent).toContain('1 Lightning Bolt (LEA:161) [foil] &2')
+    })
+
+    test('an explicit --finish the new printing offers repins normally', async () => {
+      await seedCardCache(dir, { 'Lightning Bolt': LIGHTNING_BOLT_PRINTINGS })
+      const result = await runCli(
+        [
+          'set-card',
+          '--deck',
+          'test',
+          '--card-id',
+          '2',
+          '--set',
+          'lea',
+          '--collector-number',
+          '161',
+          '--finish',
+          'nonfoil',
+        ],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+      const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
+      expect(deckContent).toContain('1 Lightning Bolt (LEA:161) &2')
+    })
+  })
+
+  describe('--condition NONE', () => {
+    test('clears a recorded grade', async () => {
+      await runCli(['set-card', '--collection', 'main', '--card-id', '1', '--condition', 'LP'], dir)
+      const result = await runCli(
+        [
+          'set-card',
+          '--collection',
+          'main',
+          '--card-id',
+          '1',
+          '--condition',
+          'NONE',
+          '--output',
+          'json',
+        ],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+      const json = JSON.parse(result.stdout) as SetCardJson
+      expect(json.applied).toEqual(['condition → none (grade cleared)'])
+      const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
+      expect(content).toContain('- Sol Ring (C21:240) &1')
+      expect(content).not.toContain('[LP]')
+    })
+
+    test('reports NM as the ungraded default rather than a recorded grade', async () => {
+      // Starts from a graded entry: setting NM must *clear* the recorded LP, so
+      // a regression that wrote `[NM]` through would fail on the file too.
+      await runCli(['set-card', '--collection', 'main', '--card-id', '1', '--condition', 'LP'], dir)
+      const result = await runCli(
+        [
+          'set-card',
+          '--collection',
+          'main',
+          '--card-id',
+          '1',
+          '--condition',
+          'NM',
+          '--output',
+          'json',
+        ],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+      const json = JSON.parse(result.stdout) as SetCardJson
+      expect(json.applied[0]).toContain('NM is the default')
+      const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
+      expect(content).toContain('- Sol Ring (C21:240) &1')
+      expect(content).not.toContain('[NM]')
+      expect(content).not.toContain('[LP]')
+    })
+
+    test('rejects an unknown condition value at parse time, naming NONE', async () => {
+      const result = await runCli(
+        ['set-card', '--collection', 'main', '--card-id', '1', '--condition', 'MINT'],
+        dir,
+      )
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain('NONE')
+    })
+  })
+
+  test('--dry-run reports the change and writes nothing', async () => {
+    const before = await snapshotTree(dir)
+    const result = await runCli(
+      [
+        'set-card',
+        '--deck',
+        'test',
+        'Sol',
+        'Ring',
+        '--section',
+        'Sideboard',
+        '-n',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as SetCardJson & { dryRun?: boolean }
+    expect(json.dryRun).toBe(true)
+    expect(json.applied).toEqual(['section → Sideboard'])
+    expect(await snapshotTree(dir)).toEqual(before)
+  })
+
+  test('a --card-id that disagrees with the card name is a usage error', async () => {
+    const result = await runCli(
+      [
+        'set-card',
+        '--deck',
+        'test',
+        'Sol',
+        'Ring',
+        '--card-id',
+        '3',
+        '--finish',
+        'foil',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(2)
+    const err = JSON.parse(result.stderr) as ErrorJson
+    expect(err.error.code).toBe('usage_error')
+    expect(err.error.message).toContain("--card-id 3 is 'Lightning Bolt'")
+    const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
+    expect(deckContent).not.toContain('(2XM:157) [foil]')
   })
 
   test('rejects an invalid --finish value at parse time', async () => {

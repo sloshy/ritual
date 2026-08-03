@@ -35,7 +35,13 @@ import {
   getCardPrintingsResult,
   getFrontFaceName,
 } from '../scryfall'
-import { printingsAreComplete } from '../card-printing'
+import {
+  findPrinting,
+  hasSpecificPrinting,
+  printingsAreComplete,
+  type CardPrintingsResult,
+  type PrintingFields,
+} from '../card-printing'
 import { CardCommandError, getErrorMessage } from '../errors'
 import { parsePositiveInteger } from '../parse-number'
 import type { Condition, Finish, ScryfallCard } from '../types'
@@ -263,7 +269,13 @@ export async function resolveTarget(
       )
     }
     // Card IDs are unique per file, so we expect exactly one match.
-    return matches[0]!
+    const matched = matches[0]!
+    ensureCardIdMatchesName({
+      cardId: input.cardId,
+      entryName: matched.name,
+      requestedName: input.cardName,
+    })
+    return matched
   }
 
   if (input.cardName !== undefined) {
@@ -295,6 +307,38 @@ export async function resolveTarget(
   }
 
   return promptCardSelection(entries)
+}
+
+/**
+ * Cross-check a `--card-id` against a card name given alongside it: the two
+ * selectors must agree. IDs are pool-allocated and reused after a removal, so a
+ * script (or an agent) holding a stale ID would otherwise silently mutate — or
+ * destroy — whichever card now carries it, reported as success.
+ *
+ * Matching is the same two-tier rule the name-only path uses
+ * ({@link matchByNormalizedName}), so a partial name that would have found the
+ * card also passes here. Pure-ID and pure-name invocations never reach this.
+ */
+export function ensureCardIdMatchesName(check: CardIdNameCheck): void {
+  const { cardId, entryName, requestedName } = check
+  if (requestedName === undefined) return
+  if (matchByNormalizedName([entryName], requestedName, (name) => name).length > 0) return
+  throw new CardCommandError(
+    'usage_error',
+    `--card-id ${cardId} is '${entryName}', which does not match '${requestedName}'. Pass one selector or the other.`,
+    ExitCode.UsageError,
+    { cardId, entryName, requestedName },
+  )
+}
+
+/** The two selectors {@link ensureCardIdMatchesName} cross-checks. */
+export type CardIdNameCheck = {
+  /** The `--card-id` value that selected the entry. */
+  cardId: number
+  /** The name of the entry that id resolved to. */
+  entryName: string
+  /** The card name the user passed alongside the id, if any. */
+  requestedName: string | undefined
 }
 
 function formatAmbiguityMessage(search: string, matches: EntryRef[]): string {
@@ -445,15 +489,70 @@ export async function resolvePinnedPrinting(
   return match.printing
 }
 
-/** Reject a valid `--finish` the chosen printing is not offered in. */
+/** Why {@link ensureFinishAvailableForEntry} could not check a finish. */
+export type FinishCheckSkip =
+  /** The entry carries no `(SET:CN)` printing — there is nothing to check against. */
+  | 'no-printing'
+  /** The card cache holds no complete printing list for the name. */
+  | 'cache-miss'
+  /** The cache knows the card but not this printing. */
+  | 'printing-unknown'
+
+/** Either the finish was checked, or the reason it could not be. */
+export type FinishCheckResult = { checked: true } | { checked: false; reason: FinishCheckSkip }
+
+/**
+ * Validate a finish against the printing an entry **already** carries.
+ *
+ * Cache-only, deliberately: a `/cards/named` fallback returns a single arbitrary
+ * printing, and rejecting a finish against a list that is not the card's whole
+ * printing set fabricates a refusal. When the cache cannot vouch for the
+ * printing, the check is skipped and the reason reported — a missing local cache
+ * must never turn into a wrong answer, and no in-place edit performs a hidden
+ * network fetch to grade a finish.
+ */
+export async function ensureFinishAvailableForEntry(
+  cardName: string,
+  entry: PrintingFields,
+  finish: Finish,
+): Promise<FinishCheckResult> {
+  if (!hasSpecificPrinting(entry)) return { checked: false, reason: 'no-printing' }
+  let result: CardPrintingsResult
+  try {
+    result = await getCardPrintingsResult(cardName, { network: false })
+  } catch (err) {
+    if (err instanceof CardCommandError) throw err
+    throw new CardCommandError(
+      'runtime_error',
+      `Failed to look up printings for '${cardName}': ${getErrorMessage(err)}`,
+      ExitCode.RuntimeError,
+    )
+  }
+  if (!printingsAreComplete(result)) return { checked: false, reason: 'cache-miss' }
+  const printing = findPrinting(result.printings, entry.set, entry.collectorNumber)
+  if (!printing) return { checked: false, reason: 'printing-unknown' }
+  ensureFinishAvailable(cardName, printing, finish)
+  return { checked: true }
+}
+
+/**
+ * Reject a valid finish the chosen printing is not offered in. `carriedOver`
+ * marks a finish that came from the entry rather than a `--finish` flag, so the
+ * refusal says how to resolve it instead of blaming a flag the user never
+ * passed.
+ */
 export function ensureFinishAvailable(
   cardName: string,
   printing: ScryfallCard,
   finish: Finish,
+  carriedOver = false,
 ): void {
   const match = matchFinishPin(cardName, printing, finish)
   if (!match.ok) {
-    throw new CardCommandError('usage_error', match.message, ExitCode.UsageError, {
+    const message = carriedOver
+      ? `${match.message} The entry already records ${finish}; pass --finish to record an available one.`
+      : match.message
+    throw new CardCommandError('usage_error', message, ExitCode.UsageError, {
       availableFinishes: match.available,
     })
   }

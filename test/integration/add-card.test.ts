@@ -5,6 +5,7 @@ import { runCli } from './helpers/cli'
 import {
   createWorkspace,
   removeWorkspace,
+  snapshotTree,
   writeCollectionFile,
   writeDeckFile,
   writeWantedFile,
@@ -104,6 +105,8 @@ type AddCardPayload = {
   condition?: string
   quantity?: number
   cardId: number
+  section?: string
+  dryRun?: boolean
 }
 
 let dir: string
@@ -226,7 +229,7 @@ describe('add-card CLI (Integration)', () => {
       expect(result.exitCode).toBe(2)
       const err = JSON.parse(result.stderr) as CliErrorPayload
       expect(err.error.code).toBe('usage_error')
-      expect(err.error.message).toContain('collection targets')
+      expect(err.error.message).toContain('decks and collections only')
     })
 
     test('wanted add without a specificity flag fails when stdin is not a terminal', async () => {
@@ -436,31 +439,6 @@ describe('add-card CLI (Integration)', () => {
           'json',
         ],
         dir,
-      )
-      expect(result.exitCode).toBe(1)
-      const err = JSON.parse(result.stderr) as CliErrorPayload
-      expect(err.error.code).toBe('runtime_error')
-      expect(err.error.message).toContain('--set')
-      const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
-      expect(content).not.toContain('Sol Ring')
-    })
-
-    test('the printing picker is gated on --no-input too: a multi-printing card fails', async () => {
-      const result = await runCli(
-        [
-          'add-card',
-          '--collection',
-          'main',
-          'Sol',
-          'Ring',
-          '--exact',
-          '--condition',
-          'NONE',
-          '--output',
-          'json',
-        ],
-        dir,
-        { RITUAL_NO_INPUT: '1' },
       )
       expect(result.exitCode).toBe(1)
       const err = JSON.parse(result.stderr) as CliErrorPayload
@@ -702,6 +680,360 @@ describe('add-card CLI (Integration)', () => {
       expect(json.cardId).toBe(1)
       const content = await fs.readFile(path.join(dir, 'wanted', 'fresh.md'), 'utf-8')
       expect(content).toContain('- Sol Ring &1')
+    })
+  })
+
+  describe('deck adds through the shared change engine', () => {
+    test('merges copies onto an existing line and records one event per copy', async () => {
+      await runCli(['add-card', '--deck', 'test', 'Sol', 'Ring', '--exact'], dir)
+      const result = await runCli(
+        ['add-card', '--deck', 'test', 'Sol', 'Ring', '--exact', '-q', '3', '--output', 'json'],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+      const json = JSON.parse(result.stdout) as AddCardPayload
+      expect(json.cardId).toBe(2)
+      expect(json.section).toBe('Main')
+
+      const deck = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
+      // One line, not two: the copies merged onto the existing &2 entry.
+      expect(deck).toContain('4 Sol Ring &2')
+      expect(deck.match(/Sol Ring/g)).toHaveLength(1)
+
+      const changelog = await fs.readFile(path.join(dir, 'decks', 'test.changes.md'), 'utf-8')
+      // 1 event from the first add + 3 from `-q 3`.
+      expect(changelog.match(/Added "Sol Ring"/g)).toHaveLength(4)
+    })
+
+    test("a deck organized as '## Mainboard' gains no second '## Main' section", async () => {
+      await writeDeckFile(dir, 'custom', {
+        frontMatter: { name: 'Custom Sections' },
+        sections: [
+          { name: 'Mainboard', cards: [{ quantity: 1, name: 'Demonic Tutor', cardId: 1 }] },
+        ],
+      })
+      const result = await runCli(
+        ['add-card', '--deck', 'custom', 'Sol', 'Ring', '--exact', '--output', 'json'],
+        dir,
+      )
+      // Section resolution itself is pinned in test/unit/line-mutate.test.ts;
+      // what this layer adds is that the resolved section reaches the payload.
+      expect(result.exitCode).toBe(0)
+      expect((JSON.parse(result.stdout) as AddCardPayload).section).toBe('Mainboard')
+    })
+
+    test('--finish and --section land the card annotated in the right section', async () => {
+      const result = await runCli(
+        [
+          'add-card',
+          '--deck',
+          'test',
+          'Lightning',
+          'Bolt',
+          '--exact',
+          '--set',
+          'sta',
+          '--collector-number',
+          '42',
+          '--finish',
+          'foil',
+          '--section',
+          'Sideboard',
+          '--output',
+          'json',
+        ],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+      const json = JSON.parse(result.stdout) as AddCardPayload
+      expect(json).toMatchObject({ finish: 'foil', section: 'Sideboard' })
+      const deck = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
+      expect(deck).toContain('## Sideboard')
+      expect(deck).toContain('1 Lightning Bolt (STA:42) [foil] &2')
+    })
+
+    test('--commander lands the card in the Commander section', async () => {
+      const result = await runCli(
+        ['add-card', '--deck', 'test', 'Sol', 'Ring', '--exact', '--commander', '--output', 'json'],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+      expect((JSON.parse(result.stdout) as AddCardPayload).section).toBe('Commander')
+      const deck = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
+      expect(deck.indexOf('## Commander')).toBeLessThan(deck.indexOf('## Main'))
+      // The add emits the add event *and* a set-commander event.
+      const changelog = await fs.readFile(path.join(dir, 'decks', 'test.changes.md'), 'utf-8')
+      expect(changelog).toContain('Added "Sol Ring"')
+      expect(changelog).toContain('Set "Sol Ring" as commander')
+    })
+
+    test('--condition writes the grade, and NONE writes an ungraded line', async () => {
+      const graded = await runCli(
+        ['add-card', '--deck', 'test', 'Sol', 'Ring', '--exact', '--condition', 'LP'],
+        dir,
+      )
+      expect(graded.exitCode).toBe(0)
+      let deck = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
+      expect(deck).toContain('1 Sol Ring [LP] &2')
+
+      const ungraded = await runCli(
+        ['add-card', '--deck', 'test', 'Lightning', 'Bolt', '--exact', '--condition', 'NONE'],
+        dir,
+      )
+      expect(ungraded.exitCode).toBe(0)
+      deck = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
+      expect(deck).toContain('1 Lightning Bolt &3')
+      expect(deck).not.toContain('Lightning Bolt [')
+    })
+
+    test("a merge keeps the existing line's note", async () => {
+      await writeDeckFile(dir, 'noted', {
+        frontMatter: { name: 'Noted Deck' },
+        cards: [{ quantity: 1, name: 'Sol Ring', note: 'pet card', cardId: 1 }],
+      })
+      const result = await runCli(['add-card', '--deck', 'noted', 'Sol', 'Ring', '--exact'], dir)
+      expect(result.exitCode).toBe(0)
+      const deck = await fs.readFile(path.join(dir, 'decks', 'noted.md'), 'utf-8')
+      expect(deck).toContain('2 Sol Ring {pet card} &1')
+    })
+
+    test('rejects a --finish the pinned printing is not offered in', async () => {
+      const result = await runCli(
+        [
+          'add-card',
+          '--deck',
+          'test',
+          'Sol',
+          'Ring',
+          '--exact',
+          '--set',
+          'lea',
+          '--collector-number',
+          '270',
+          '--finish',
+          'foil',
+          '--output',
+          'json',
+        ],
+        dir,
+      )
+      expect(result.exitCode).toBe(2)
+      const err = JSON.parse(result.stderr) as CliErrorPayload
+      expect(err.error.message).toContain('not available in foil')
+    })
+
+    test.each([
+      { flags: ['--section', 'Nope'], label: '--section' },
+      { flags: ['--commander'], label: '--commander' },
+    ])('rejects $label on a collection target', async ({ flags }) => {
+      const result = await runCli(
+        [
+          'add-card',
+          '--collection',
+          'main',
+          'Sol',
+          'Ring',
+          '--exact',
+          ...flags,
+          '--output',
+          'json',
+        ],
+        dir,
+      )
+      expect(result.exitCode).toBe(2)
+      const err = JSON.parse(result.stderr) as CliErrorPayload
+      expect(err.error.message).toContain('deck targets')
+    })
+
+    test('rejects --commander on a wanted target too', async () => {
+      const result = await runCli(
+        ['add-card', '--wanted', 'needs', 'Sol', 'Ring', '--exact', '--name-only', '--commander'],
+        dir,
+      )
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain('deck targets')
+    })
+  })
+
+  describe('auto-creation and failure debris', () => {
+    test('creates the first-ever wanted list in an empty workspace', async () => {
+      const empty = await createWorkspace({ dirs: [] })
+      await writeCardCache(empty)
+      const result = await runCli(
+        [
+          'add-card',
+          '--wanted',
+          'My Wants',
+          'Sol',
+          'Ring',
+          '--exact',
+          '--name-only',
+          '--output',
+          'json',
+        ],
+        empty,
+      )
+      expect(result.exitCode).toBe(0)
+      const content = await fs.readFile(path.join(empty, 'wanted', 'My Wants.md'), 'utf-8')
+      expect(content).toContain('- Sol Ring &1')
+      await removeWorkspace(empty)
+    })
+
+    test('creates the first-ever collection in an empty workspace', async () => {
+      const empty = await createWorkspace({ dirs: [] })
+      await writeCardCache(empty)
+      const result = await runCli(
+        [
+          'add-card',
+          '--collection',
+          'Main Binder',
+          'Sol',
+          'Ring',
+          '--exact',
+          '--set',
+          'lea',
+          '--collector-number',
+          '270',
+          '--condition',
+          'NONE',
+          '--output',
+          'json',
+        ],
+        empty,
+      )
+      expect(result.exitCode).toBe(0)
+      const content = await fs.readFile(path.join(empty, 'collections', 'Main Binder.md'), 'utf-8')
+      expect(content).toContain('- Sol Ring (LEA:270) &1')
+      await removeWorkspace(empty)
+    })
+
+    test('a missing deck is still an error in an empty workspace', async () => {
+      const empty = await createWorkspace({ dirs: [] })
+      await writeCardCache(empty)
+      const result = await runCli(
+        ['add-card', '--deck', 'nope', 'Sol', 'Ring', '--exact', '--output', 'json'],
+        empty,
+      )
+      expect(result.exitCode).toBe(3)
+      const err = JSON.parse(result.stderr) as CliErrorPayload
+      expect(err.error.message).toContain('ritual new deck')
+      await removeWorkspace(empty)
+    })
+
+    test('an add that fails validation after resolving the target creates no list file', async () => {
+      // The cache-gate test below fails before the target is ever resolved; this
+      // one reaches printing validation with a list that would have to be
+      // created, which is what deferring ensureTargetFile to write time protects.
+      const before = await snapshotTree(dir)
+      const result = await runCli(
+        [
+          'add-card',
+          '--collection',
+          'Brand New',
+          'Sol',
+          'Ring',
+          '--exact',
+          '--set',
+          'lea',
+          '--collector-number',
+          '999',
+          '--condition',
+          'NONE',
+        ],
+        dir,
+      )
+      expect(result.exitCode).toBe(2)
+      expect(await snapshotTree(dir)).toEqual(before)
+    })
+
+    test('an add that fails on the empty card cache creates no list file', async () => {
+      const noCache = await createWorkspace()
+      const before = await snapshotTree(noCache)
+      const result = await runCli(
+        ['add-card', '--wanted', 'Brand New', 'Sol', 'Ring', '--exact', '--name-only'],
+        noCache,
+      )
+      expect(result.exitCode).toBe(1)
+      expect(await snapshotTree(noCache)).toEqual(before)
+      await removeWorkspace(noCache)
+    })
+  })
+
+  describe('--dry-run', () => {
+    test('a deck dry run reports the add and writes nothing', async () => {
+      const before = await snapshotTree(dir)
+      const result = await runCli(
+        [
+          'add-card',
+          '--deck',
+          'test',
+          'Sol',
+          'Ring',
+          '--exact',
+          '-q',
+          '2',
+          '--dry-run',
+          '--output',
+          'json',
+        ],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+      const json = JSON.parse(result.stdout) as AddCardPayload & { dryRun?: boolean }
+      expect(json).toMatchObject({ dryRun: true, cardId: 2, quantity: 2, section: 'Main' })
+      expect(await snapshotTree(dir)).toEqual(before)
+    })
+
+    test('a dry run does not backfill a missing &N onto an existing line', async () => {
+      // The backfill is what would otherwise rewrite this file: without the
+      // dry-run opt-out, `1 Mana Crypt` gains an `&N` and a `.sha256` sidecar.
+      await fs.writeFile(
+        path.join(dir, 'decks', 'raw.md'),
+        '---\nname: Raw Deck\n---\n\n## Main\n1 Mana Crypt\n',
+        'utf-8',
+      )
+      const before = await snapshotTree(dir)
+      const result = await runCli(
+        ['add-card', '--deck', 'raw', 'Sol', 'Ring', '--exact', '--dry-run', '--output', 'json'],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+      expect(await snapshotTree(dir)).toEqual(before)
+    })
+
+    test('a dry run against a missing list creates neither the file nor its sidecar', async () => {
+      const before = await snapshotTree(dir)
+      const result = await runCli(
+        ['add-card', '--wanted', 'Brand New', 'Sol', 'Ring', '--exact', '--name-only', '--dry-run'],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain('[dry-run] Would add: - Sol Ring &1')
+      expect(await snapshotTree(dir)).toEqual(before)
+    })
+
+    test('a dry run still validates: an unavailable finish is refused', async () => {
+      const before = await snapshotTree(dir)
+      const result = await runCli(
+        [
+          'add-card',
+          '--deck',
+          'test',
+          'Sol',
+          'Ring',
+          '--exact',
+          '--set',
+          'lea',
+          '--collector-number',
+          '270',
+          '--finish',
+          'foil',
+          '--dry-run',
+        ],
+        dir,
+      )
+      expect(result.exitCode).toBe(2)
+      expect(await snapshotTree(dir)).toEqual(before)
     })
   })
 

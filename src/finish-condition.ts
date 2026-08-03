@@ -1,3 +1,4 @@
+import type { ConditionUpdate } from './change-event'
 import type { Finish, Condition, ScryfallCard } from './types'
 
 export const VALID_FINISHES = ['nonfoil', 'foil', 'etched'] as const satisfies readonly Finish[]
@@ -38,6 +39,23 @@ export function normalizeFinishValue(raw: string): Finish | string {
 
 export function isCondition(value: string | undefined): value is Condition {
   return value !== undefined && (VALID_CONDITIONS as readonly string[]).includes(value)
+}
+
+/**
+ * Resolve a condition update against an entry's current grade: `undefined`
+ * leaves it alone, `'NONE'` clears it, and a grade replaces it. The one place
+ * the `'NONE'` sentinel is interpreted, shared by every apply path.
+ *
+ * Typed on {@link ConditionUpdate} so a caller cannot reach the clearing branch
+ * with an unvalidated string by accident; the runtime {@link isCondition} check
+ * stays as a backstop for values that crossed a wire boundary.
+ */
+export function applyConditionUpdate(
+  update: ConditionUpdate | undefined,
+  current: Condition | undefined,
+): Condition | undefined {
+  if (update === undefined) return current
+  return isCondition(update) ? update : undefined
 }
 
 /**

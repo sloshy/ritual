@@ -357,6 +357,31 @@ describe('move CLI headless mode (Integration)', () => {
     expect(err.error.message).toContain('No card with id 99')
   })
 
+  test('a --card-id that disagrees with the card name is a usage error, moving nothing', async () => {
+    const result = await runCli(
+      [
+        'move',
+        'Sol',
+        'Ring',
+        '--card-id',
+        '1',
+        '--from',
+        'deck:source',
+        '--to',
+        'deck:target',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(2)
+    const err = JSON.parse(result.stderr) as MoveErrorPayload
+    expect(err.error.code).toBe('usage_error')
+    expect(err.error.message).toContain("--card-id 1 is 'Lightning Bolt'")
+    const source = await fs.readFile(path.join(dir, 'decks', 'source.md'), 'utf-8')
+    expect(source).toContain('2 Lightning Bolt (LEA:161) &1')
+  })
+
   test('--to without --from is a usage error', async () => {
     const result = await runCli(
       ['move', 'Sol', 'Ring', '--to', 'deck:target', '--output', 'json'],

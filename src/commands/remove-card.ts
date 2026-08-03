@@ -4,10 +4,12 @@ import { createRemoveChange } from '../change-event'
 import type { CardMutationChange } from '../list-mutate'
 import { applyTargetedChanges } from './line-mutate'
 import {
+  addDryRunOption,
   addScriptingOptions,
   emitOutput,
   ExitCode,
   normalizeScriptingOptions,
+  type DryRunOptions,
   type ScriptingOptions,
 } from './scripting'
 import { CardCommandError } from '../errors'
@@ -30,6 +32,7 @@ type RemoveCardOptions = {
   quantity?: number
   allCopies?: boolean
 } & ListTypeFlags &
+  DryRunOptions &
   Partial<ScriptingOptions>
 
 /** Commander argParser for `-q/--quantity`: positive integers only. */
@@ -42,7 +45,7 @@ function parseQuantityFlag(value: string): number {
 }
 
 export function registerRemoveCardCommand(program: Command): void {
-  addScriptingOptions(
+  const command = addScriptingOptions(
     program
       .command('remove-card')
       .description('Remove a card from a deck, collection, or wanted list')
@@ -58,7 +61,9 @@ export function registerRemoveCardCommand(program: Command): void {
       .option('-q, --quantity <n>', 'Number of copies to remove (decks only)', parseQuantityFlag)
       .option('--all-copies', "Remove every copy on the card's line (decks only)", false),
     'text',
-  ).action(
+  )
+  addDryRunOption(command, 'Report what would be removed without writing anything')
+  command.action(
     async (
       listNameArg: string | undefined,
       cardNameParts: string[],
@@ -76,6 +81,7 @@ export function registerRemoveCardCommand(program: Command): void {
             cardId: options.cardId,
             quantity: options.quantity,
             allCopies: options.allCopies ?? false,
+            dryRun: options.dryRun ?? false,
           },
           scripting,
         ),
@@ -91,11 +97,14 @@ type RunInput = {
   cardId: string | undefined
   quantity: number | undefined
   allCopies: boolean
+  dryRun: boolean
 }
 
 type RemoveCardResult = CardCommandResultBase & {
   removed: number
   remaining: number
+  /** Present and true when `--dry-run` reported the removal without performing it. */
+  dryRun?: true
 }
 
 async function runRemoveCard(input: RunInput, scripting: ScriptingOptions): Promise<void> {
@@ -163,12 +172,15 @@ async function runRemoveCard(input: RunInput, scripting: ScriptingOptions): Prom
       }),
     )
   }
-  await applyTargetedChanges(type, filePath, target, changes)
+  // A dry run resolves the list, the target, and every validation above, then
+  // stops before the first write: no list file, no changelog, no sidecar.
+  if (!input.dryRun) await applyTargetedChanges(type, filePath, target, changes)
 
   if (scripting.output === 'text') {
     if (!scripting.quiet) {
+      const prefix = input.dryRun ? '[dry-run] Would remove' : 'Removed'
       emitOutput(
-        `Removed ${copies} x ${describeEntry(target)} from ${listSlug} (${remaining} remaining)`,
+        `${prefix} ${copies} x ${describeEntry(target)} from ${listSlug} (${remaining} remaining)`,
         scripting,
       )
     }
@@ -176,6 +188,7 @@ async function runRemoveCard(input: RunInput, scripting: ScriptingOptions): Prom
   }
 
   const result: RemoveCardResult = {
+    ...(input.dryRun ? { dryRun: true as const } : {}),
     type,
     list: listSlug,
     cardName: target.name,

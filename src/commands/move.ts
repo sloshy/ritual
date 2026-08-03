@@ -30,6 +30,7 @@ import {
 import { CardCommandError } from '../errors'
 import {
   describeEntry,
+  ensureCardIdMatchesName,
   parseCardIdFlag,
   resolvePinnedPrinting,
   runCommandAction,
@@ -539,6 +540,13 @@ function selectCopies(
         ExitCode.NotFound,
       )
     }
+    // A name given alongside the ID must agree with it — a stale ID would
+    // otherwise move whatever card now carries it, reported as success.
+    ensureCardIdMatchesName({
+      cardId: selection.cardId,
+      entryName: matches[0]!.card.name,
+      requestedName: selection.cardName,
+    })
   } else {
     matches = matchByNormalizedName(all, selection.cardName!, (vc) => vc.card.name)
     if (matches.length === 0) {

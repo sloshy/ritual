@@ -20,6 +20,8 @@
 
 - Add support for labels, tags to cards
 - Add ability to move cards on edit cli
+- Show foil prices next to nonfoil where appropriate on cli edit listings
+- Support alternate language printings
 
 ## Misc
 

@@ -3,11 +3,13 @@ import type { PromptState } from './prompts-types'
 import { getCardPrintings, isDigitalOnlySet } from '../scryfall'
 import type { ScryfallCard, Finish, Condition } from '../types'
 import { capitalize } from '../utils'
+import type { ConditionUpdate } from '../change-event'
 import { findPrinting, hasSpecificPrinting } from '../card-printing'
 import {
   VALID_FINISHES,
   VALID_CONDITIONS,
   CONDITION_LABELS,
+  applyConditionUpdate,
   isFinish,
   isCondition,
   printingFinishes,
@@ -59,7 +61,7 @@ export type PrintingFilterConfig = {
 /** Minimal config used when resolving finish and condition defaults. */
 export type FinishConditionConfig = {
   finish?: Finish
-  condition?: Condition | 'NONE'
+  condition?: ConditionUpdate
 }
 
 /**
@@ -342,7 +344,7 @@ export async function promptFinishAndCondition(
   // Prompt for Condition
   let selectedCondition: Condition | undefined
   if (!forcePrompts && config.condition !== undefined) {
-    selectedCondition = config.condition === 'NONE' ? undefined : config.condition
+    selectedCondition = applyConditionUpdate(config.condition, undefined)
   } else {
     // There is no non-interactive default: a run that cannot answer this must
     // say so, not exit 0 with the prompt unanswered and nothing written.

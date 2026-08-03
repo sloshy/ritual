@@ -1,6 +1,15 @@
 import type { Finish, Condition, Board } from './types'
 import type { ListType } from './list-type'
 
+/**
+ * A condition *update*: a grade to record, or `'NONE'` to clear a recorded
+ * grade. `undefined` means "leave the entry's condition alone" — the engines
+ * only touch condition when the field is defined — so clearing needs a value of
+ * its own rather than an absence. Every apply path funnels the value through
+ * {@link isCondition}, so `'NONE'` lands as an entry with no condition.
+ */
+export type ConditionUpdate = Condition | 'NONE'
+
 // ── Discriminated union types ───────────────────────────────────────
 
 /** Reference to a named list (deck, collection, or wanted list). */
@@ -56,7 +65,8 @@ export type SetPrintingChange = BaseChange & {
   set?: string
   collectorNumber?: string
   finish?: Finish
-  condition?: Condition
+  /** A grade, or `'NONE'` to clear the recorded grade. */
+  condition?: ConditionUpdate
 }
 
 export type SetNoteChange = BaseChange & {
@@ -213,7 +223,8 @@ export type SetPrintingOptions = {
   set?: string
   collectorNumber?: string
   finish?: Finish
-  condition?: Condition
+  /** A grade, or `'NONE'` to clear the recorded grade. */
+  condition?: ConditionUpdate
   cardId?: number
 }
 
@@ -627,9 +638,12 @@ export function isAdditiveChange(action: ChangeAction): boolean {
  * the set-printing description. Empty when both are at their defaults
  * (`nonfoil` / `NM`).
  */
-export function formatFinishConditionTail(finish?: Finish, condition?: Condition): string {
+export function formatFinishConditionTail(finish?: Finish, condition?: ConditionUpdate): string {
   const finishInfo = finish && finish !== 'nonfoil' ? ` [${finish}]` : ''
-  const conditionInfo = condition && condition !== 'NM' ? ` [${condition}]` : ''
+  // `NONE` clears the grade and `NM` is the unrecorded default: neither is
+  // annotated, so the changelog line reads exactly like the line it produced.
+  const conditionInfo =
+    condition && condition !== 'NM' && condition !== 'NONE' ? ` [${condition}]` : ''
   return `${finishInfo}${conditionInfo}`
 }
 

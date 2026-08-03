@@ -6,20 +6,25 @@ import {
   createSetPrintingChange,
   createSetSectionChange,
   createUnsetCommanderChange,
+  type ConditionUpdate,
 } from '../change-event'
 import type { CardMutationChange } from '../list-mutate'
 import { applyTargetedChanges } from './line-mutate'
 import {
+  addDryRunOption,
   addScriptingOptions,
   emitOutput,
+  emitWarnings,
   ExitCode,
   normalizeScriptingOptions,
+  type DryRunOptions,
   type ScriptingOptions,
 } from './scripting'
 import { CardCommandError } from '../errors'
 import {
   describeEntry,
   ensureFinishAvailable,
+  ensureFinishAvailableForEntry,
   parseCardIdFlag,
   resolveListSelection,
   resolveListTypeFlag,
@@ -27,6 +32,8 @@ import {
   resolveTarget,
   runCommandAction,
   type CardCommandResultBase,
+  type EntryRef,
+  type FinishCheckSkip,
 } from './card-target'
 import { type ListTypeFlags } from '../resolve-list'
 import {
@@ -38,18 +45,19 @@ import {
 } from '../finish-condition'
 import { parseSetCode } from '../set-codes'
 import type { ListType } from '../list-type'
-import type { Condition, Finish } from '../types'
+import type { Finish } from '../types'
 
 type SetCardOptions = {
   cardId?: string
   set?: string
   collectorNumber?: string
   finish?: Finish
-  condition?: Condition
+  condition?: ConditionUpdate
   section?: string
   /** true = --commander, false = --no-commander, undefined = neither. */
   commander?: boolean
 } & ListTypeFlags &
+  DryRunOptions &
   Partial<ScriptingOptions>
 
 /** Commander argParser for `--finish`: one of the valid finishes (case-insensitive). */
@@ -70,19 +78,24 @@ function parseSetFlag(value: string): string {
   return result.code
 }
 
-/** Commander argParser for `--condition`: one of the valid conditions (case-insensitive). */
-function parseConditionFlag(value: string): Condition {
+/**
+ * Commander argParser for `--condition`: one of the valid conditions
+ * (case-insensitive), or `NONE` to clear a recorded grade — the same vocabulary
+ * `add-card --condition` accepts.
+ */
+function parseConditionFlag(value: string): ConditionUpdate {
   const normalized = value.toUpperCase()
+  if (normalized === 'NONE') return 'NONE'
   if (!isCondition(normalized)) {
     throw new InvalidArgumentError(
-      `Invalid condition '${value}'. Use one of: ${VALID_CONDITIONS.join(', ')}.`,
+      `Invalid condition '${value}'. Use one of: ${VALID_CONDITIONS.join(', ')}, or NONE to clear the recorded condition.`,
     )
   }
   return normalized
 }
 
 export function registerSetCardCommand(program: Command): void {
-  addScriptingOptions(
+  const command = addScriptingOptions(
     program
       .command('set-card')
       .description(
@@ -102,14 +115,16 @@ export function registerSetCardCommand(program: Command): void {
       .option('--finish <finish>', `New finish: ${VALID_FINISHES.join(', ')}`, parseFinishFlag)
       .option(
         '--condition <condition>',
-        `New condition: ${VALID_CONDITIONS.join(', ')} (decks and collections only)`,
+        `New condition: ${VALID_CONDITIONS.join(', ')}, or NONE to clear it (decks and collections only)`,
         parseConditionFlag,
       )
       .option('--section <name>', 'Move the card to this section, created if missing (decks only)')
       .option('--commander', 'Move the card to the Commander section (decks only)')
       .option('--no-commander', 'Move the card out of the Commander section (decks only)'),
     'text',
-  ).action(
+  )
+  addDryRunOption(command, 'Report what would change without writing anything')
+  command.action(
     async (listNameArg: string | undefined, cardNameParts: string[], options: SetCardOptions) => {
       const scripting = normalizeScriptingOptions(options, 'text')
       const type = resolveListTypeFlag(options, scripting)
@@ -127,6 +142,7 @@ export function registerSetCardCommand(program: Command): void {
             condition: options.condition,
             section: options.section,
             commander: options.commander,
+            dryRun: options.dryRun ?? false,
           },
           scripting,
         ),
@@ -144,13 +160,46 @@ type RunInput = {
   set: string | undefined
   collectorNumber: string | undefined
   finish: Finish | undefined
-  condition: Condition | undefined
+  /** A grade, or `'NONE'` to clear the recorded grade. */
+  condition: ConditionUpdate | undefined
   section: string | undefined
   commander: boolean | undefined
+  dryRun: boolean
 }
 
 type SetCardResult = CardCommandResultBase & {
   applied: string[]
+  /** Present and true when `--dry-run` reported the change without writing it. */
+  dryRun?: true
+}
+
+/**
+ * How an applied condition reads in the success output. `NONE` clears the grade,
+ * and `NM` is the *unrecorded* default the serializer omits — so neither may be
+ * reported as a grade now recorded on the line.
+ */
+function describeConditionUpdate(condition: ConditionUpdate): string {
+  if (condition === 'NONE') return 'condition → none (grade cleared)'
+  if (condition === 'NM') return 'condition → NM (written as an ungraded line — NM is the default)'
+  return `condition → ${condition}`
+}
+
+/**
+ * Why a `--finish` could not be checked against the entry's own printing. The
+ * two skip reasons need different advice: a cache miss is fixable by preloading,
+ * while a printing the cache does not know is a fact about the entry — no amount
+ * of preloading will make `ZZZ:999` a printing of the card.
+ */
+function describeSkippedFinishCheck(
+  finish: Finish,
+  target: EntryRef,
+  reason: FinishCheckSkip,
+): string {
+  const lead = `Note: could not verify finish '${finish}' for ${describeEntry(target)}`
+  if (reason === 'printing-unknown') {
+    return `${lead} — ${target.set?.toUpperCase()}:${target.collectorNumber} is not a known printing of '${target.name}'.`
+  }
+  return `${lead} — the card cache holds no complete printing list for it. Run 'ritual cache preload-all' to enable the check.`
 }
 
 async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise<void> {
@@ -204,12 +253,27 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
 
   const target = await resolveTarget(type, filePath, { cardId, cardName: input.cardName })
 
+  // A finish is validated on every branch that records one — against the pinned
+  // printing when the command pins one, otherwise against the printing the entry
+  // already carries. Only a printing-less line (a bare deck entry) goes
+  // unvalidated, because there is nothing to validate against.
   if (input.set !== undefined && input.collectorNumber !== undefined) {
     const printing = await resolvePinnedPrinting(target.name, {
       set: input.set,
       collectorNumber: input.collectorNumber,
     })
-    if (input.finish !== undefined) ensureFinishAvailable(target.name, printing, input.finish)
+    // The finish the entry ends up with is validated whether it was passed or
+    // carried over: repinning a `[foil]` entry to a nonfoil-only printing would
+    // otherwise record a finish that printing is not offered in.
+    const effectiveFinish = input.finish ?? target.finish
+    if (effectiveFinish !== undefined) {
+      ensureFinishAvailable(target.name, printing, effectiveFinish, input.finish === undefined)
+    }
+  } else if (input.finish !== undefined) {
+    const check = await ensureFinishAvailableForEntry(target.name, target, input.finish)
+    if (!check.checked && check.reason !== 'no-printing') {
+      emitWarnings([describeSkippedFinishCheck(input.finish, target, check.reason)], scripting)
+    }
   }
 
   const changes: CardMutationChange[] = []
@@ -231,7 +295,7 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
     )
     applied.push(`printing → ${input.set.toUpperCase()}:${input.collectorNumber}`)
     if (input.finish !== undefined) applied.push(`finish → ${input.finish}`)
-    if (input.condition !== undefined) applied.push(`condition → ${input.condition}`)
+    if (input.condition !== undefined) applied.push(describeConditionUpdate(input.condition))
   } else if (input.condition !== undefined) {
     // There is no standalone set-condition event; a set-printing carrying the
     // target's current printing updates the condition while leaving the rest
@@ -245,7 +309,7 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
         cardId: target.cardId,
       }),
     )
-    applied.push(`condition → ${input.condition}`)
+    applied.push(describeConditionUpdate(input.condition))
     if (input.finish !== undefined) applied.push(`finish → ${input.finish}`)
   } else if (input.finish !== undefined) {
     changes.push(
@@ -266,12 +330,15 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
     applied.push('not commander')
   }
 
-  await applyTargetedChanges(type, filePath, target, changes)
+  // A dry run resolves the list, the target, and every validation above, then
+  // stops before the first write: no list file, no changelog, no sidecar.
+  if (!input.dryRun) await applyTargetedChanges(type, filePath, target, changes)
 
   if (scripting.output === 'text') {
     if (!scripting.quiet) {
+      const prefix = input.dryRun ? '[dry-run] Would update' : 'Updated'
       emitOutput(
-        `Updated ${describeEntry(target)} in ${listSlug}: ${applied.join(', ')}`,
+        `${prefix} ${describeEntry(target)} in ${listSlug}: ${applied.join(', ')}`,
         scripting,
       )
     }
@@ -279,6 +346,7 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
   }
 
   const result: SetCardResult = {
+    ...(input.dryRun ? { dryRun: true as const } : {}),
     type,
     list: listSlug,
     cardName: target.name,

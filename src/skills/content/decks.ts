@@ -55,12 +55,22 @@ existing deck without a TUI:
 \`\`\`bash
 ritual add-card "Winota Stax" "Sol Ring" --deck
 ritual add-card "Winota Stax" "Lightning Bolt" --deck -q 4         # -q quantity
+ritual add-card "Winota Stax" "Kenrith, the Returned King" --deck --commander
+ritual add-card "Winota Stax" "Pyroblast" --deck --section Sideboard -f foil
 ritual remove-card "Winota Stax" "Lightning Bolt" --deck -q 2      # or --all-copies
 ritual set-card "Winota Stax" "Sol Ring" --deck --section Sideboard
 ritual set-card "Winota Stax" "Winota, Joiner of Forces" --deck --commander
 ritual note "Winota Stax" "Sol Ring" --deck -n "fast mana"         # or --clear
 ritual move "Lightning Bolt" --from "deck:Winota Stax" --to deck:burn
 \`\`\`
+
+Deck adds merge onto an existing line for the same card and printing (never a
+duplicate line, and the merged line keeps its \`&N\` and any \`{note}\`) and append
+new lines at the end of the deck's first regular section unless
+\`--section\`/\`--commander\` says otherwise. Merging wins over placement: when the
+deck already runs the printing, the copies join that line where it is, and
+\`--commander\` then moves the whole line into the Commander section. Add \`-n\`/\`--dry-run\`
+to any one-shot command to preview it without writing anything.
 
 ## Build interactively
 
