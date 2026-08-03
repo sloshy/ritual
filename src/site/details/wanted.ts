@@ -15,7 +15,12 @@ import type {
   WantedListEntryState,
   WantedListSummary,
 } from '../data-types'
-import { includeChangelogCards, loadListSidecars, slugifyListName } from './shared'
+import {
+  includeChangelogCards,
+  listReadErrorMessage,
+  loadListSidecars,
+  slugifyListName,
+} from './shared'
 import type { SiteDetailContext } from './types'
 
 export type LoadedWanted = {
@@ -42,8 +47,10 @@ export async function loadWantedSource(
   let content: string
   try {
     content = await fs.readFile(filePath, 'utf-8')
-  } catch {
-    return `Failed to read wanted list file: ${fileName}`
+  } catch (error) {
+    // Just the reason: the caller owns the "Failed to load <kind> '<name>'"
+    // lead-in, so all three list types report a failed read identically.
+    return listReadErrorMessage(error, filePath)
   }
 
   const { entries, sectionOrder, warnings } = parseWantedListFile(content)

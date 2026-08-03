@@ -102,6 +102,114 @@ describe('init-site CLI (Integration)', () => {
     })
   })
 
+  test('a local-build init generates a README and .gitignore that agree', async () => {
+    await withTempDir(async (dir) => {
+      // The default dist dir with the deploy mode that commits it: the README
+      // said "commit dist/" while the .gitignore in the same run ignored it.
+      const result = await runCli(
+        [
+          'init-site',
+          '--ci',
+          'github-actions',
+          '--deploy',
+          'local-build',
+          '--dist-dir',
+          'dist',
+          '--currency',
+          'usd',
+          '--no-skills',
+        ],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+
+      const readme = await fs.readFile(path.join(dir, 'README.md'), 'utf-8')
+      const gitignore = await fs.readFile(path.join(dir, '.gitignore'), 'utf-8')
+      const ignored = gitignore
+        .split('\n')
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0 && !l.startsWith('#'))
+
+      expect(readme).toContain('Commit the built `dist` directory')
+      expect(ignored).not.toContain('dist/')
+      expect(ignored).toContain('!dist/')
+      // The layout section must not call the committed directory gitignored.
+      expect(readme).not.toContain('`cache/`, `dist/`')
+    })
+  })
+
+  test('a local-build init with a custom dist dir renders --out-dir everywhere', async () => {
+    await withTempDir(async (dir) => {
+      const result = await runCli(
+        [
+          'init-site',
+          '--ci',
+          'github-actions',
+          '--deploy',
+          'local-build',
+          '--dist-dir',
+          'out',
+          '--currency',
+          'usd',
+          '--no-skills',
+        ],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+
+      const readme = await fs.readFile(path.join(dir, 'README.md'), 'utf-8')
+      const workflow = await fs.readFile(path.join(dir, workflowRelPath), 'utf-8')
+      // The workflow uploads `out`, so every instruction must build into `out`.
+      expect(workflow).toContain('path: out')
+      expect(readme).toContain('ritual build-site --out-dir out')
+      expect(readme).toContain('ritual serve --build --out-dir out')
+      expect(readme).not.toMatch(/```sh\nritual build-site\n/)
+      expect(result.stdout).toContain('ritual build-site --out-dir out')
+      expect(await fs.readFile(path.join(dir, '.gitignore'), 'utf-8')).toContain('!out/')
+    })
+  })
+
+  test('--no-change-detection is rejected with --deploy local-build, like --ci manual', async () => {
+    await withTempDir(async (dir) => {
+      const result = await runCli(
+        [
+          'init-site',
+          '--ci',
+          'github-actions',
+          '--deploy',
+          'local-build',
+          '--dist-dir',
+          'dist',
+          '--no-change-detection',
+          '--currency',
+          'usd',
+          '--no-skills',
+        ],
+        dir,
+      )
+
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain('--change-detection/--no-change-detection')
+      expect(result.stderr).toContain('publish-for-me')
+    })
+  })
+
+  test('re-running an up-to-date init is a friendly no-op, not an error', async () => {
+    await withTempDir(async (dir) => {
+      const init = await runCli(
+        ['init-site', '--ci', 'manual', '--currency', 'usd', '--no-skills'],
+        dir,
+      )
+      expect(init.exitCode).toBe(0)
+
+      const rerun = await runCli(['init-site', '--no-skills'], dir)
+
+      expect(rerun.exitCode).toBe(0)
+      expect(rerun.stdout).toContain('Already initialized with the current version')
+      expect(rerun.stdout).toContain('nothing to do')
+    })
+  })
+
   test('a headless manual init needs only --ci and --currency', async () => {
     await withTempDir(async (dir) => {
       const result = await runCli(
@@ -263,6 +371,39 @@ describe('init-site CLI (Integration)', () => {
       expect(result.exitCode).toBe(2)
       expect(result.stderr).toContain('already initialized')
       expect(result.stderr).toContain('--force')
+    })
+  })
+
+  test('an upgrade un-ignores the committed dist of an existing local-build scaffold', async () => {
+    await withTempDir(async (dir) => {
+      // The only delivery path for the un-ignore into an existing scaffold: a
+      // local-build repo initialized before the fix commits its built site, but
+      // its .gitignore still holds the `dist/` line an older init wrote, so the
+      // deploy workflow publishes an empty site.
+      await fs.writeFile(
+        path.join(dir, 'ritual.config.json'),
+        JSON.stringify({
+          site: {
+            version: '0.0.1',
+            ciSystem: 'github-actions',
+            deployMode: 'local-build',
+            distDir: 'dist',
+            detectChanges: false,
+          },
+        }),
+      )
+      await fs.writeFile(path.join(dir, '.gitignore'), 'cache/\ndist/\n')
+
+      const upgraded = await runCli(['init-site', '--upgrade', '--no-skills'], dir)
+      expect(upgraded.exitCode).toBe(0)
+
+      const gitignore = await fs.readFile(path.join(dir, '.gitignore'), 'utf-8')
+      // The pre-existing `dist/` line stays (the file is only appended to), so
+      // the un-ignore is what has to be there to override it.
+      expect(gitignore).toContain('!dist/')
+      // Build scratch directories are the one build residue left in a repo that
+      // deliberately commits dist/.
+      expect(gitignore).toContain('.dist-build-*')
     })
   })
 

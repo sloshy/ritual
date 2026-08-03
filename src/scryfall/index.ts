@@ -14,9 +14,7 @@ export {
   ScryfallClient,
   classifyFetchCard,
   computeRepresentativePrints,
-  ALL_PAGES,
-  DEFAULT_SEARCH_MAX_PAGES,
-  type SearchCardsOptions,
+  SEARCH_ALL_PAGES_MAX,
   type FetchSymbologyOptions,
   type GetCardPrintingsOptions,
   type FetchCardOutcome,
@@ -28,6 +26,8 @@ export {
   type SearchPage,
   type SearchPageFailure,
   type SearchPageResult,
+  type SearchAllPagesSuccess,
+  type SearchAllPagesResult,
 } from './client'
 
 import type { ScryfallCard } from '../types'
@@ -43,8 +43,8 @@ import type {
   GetCardPrintingsOptions,
   FetchNamedCardOptions,
   FetchCardResult,
-  SearchCardsOptions,
   SearchPageResult,
+  SearchAllPagesResult,
 } from './client'
 import { comparePrintings, type CardNameFilter } from './card-utils'
 import type { PriceCurrency } from '../price-currency'
@@ -78,18 +78,23 @@ export function fetchCardData(
   return scryfallClient.fetchCardData(name, options)
 }
 
-export function searchCards(query: string, options?: SearchCardsOptions): Promise<ScryfallCard[]> {
-  return scryfallClient.searchCards(query, options)
-}
-
 /**
  * Project raw Scryfall search items to real printings and warm the local cache
  * with the names it does not already hold. Exposed so a handler that fetches its
- * own page (`GET /api/card-search?warm=true`) can warm the cache exactly as
- * {@link searchCards} does without inheriting its error-swallowing.
+ * own page (`GET /api/card-search?warm=true`) can warm the cache without also
+ * walking every result page.
  */
 export function cacheRealPrintings(items: readonly ScryfallCard[]): Promise<ScryfallCard[]> {
   return scryfallClient.cacheRealPrintings(items)
+}
+
+/**
+ * Walk every page of a Scryfall search, caching results and reporting HTTP
+ * failures as data, for callers that must distinguish "matched nothing" from
+ * "the search failed".
+ */
+export function searchAllPages(query: string): Promise<SearchAllPagesResult> {
+  return scryfallClient.searchAllPages(query)
 }
 
 export function fetchSearchPage(

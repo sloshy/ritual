@@ -10,7 +10,7 @@ Serve the generated static site locally, optionally building it first.
 ./ritual serve [options]
 ```
 
-By default, `serve` serves a previously built `dist/` directory. Pass `--build` to build the site first and then serve the result — the one-shot preview that used to require running [`build-site`](/commands/build-site/) and `serve` separately. Pass `--api` to additionally host a live, read-only data API alongside the site — see [Hosting with a live backend](/public-site/hosted/).
+By default, `serve` serves a previously built `dist/` directory (or the directory given by `--out-dir`). A directory with no `index.html` is **refused** rather than answered with bare 404s — see [Exit Codes](#exit-codes). Pass `--build` to build the site first and then serve the result — the one-shot preview that used to require running [`build-site`](/commands/build-site/) and `serve` separately. Pass `--api` to additionally host a live, read-only data API alongside the site — see [Hosting with a live backend](/public-site/hosted/).
 
 ## Options
 
@@ -20,6 +20,7 @@ By default, `serve` serves a previously built `dist/` directory. Pass `--build` 
 | `--host <address>`    | Host address to bind to. `0.0.0.0` binds all interfaces.                                 | `0.0.0.0` |
 | `--build`             | Build the site before serving it                                                         |           |
 | `--api`               | Serve a live read-only data API alongside the site (see below)                           |           |
+| `--out-dir <path>`    | Serve this directory instead of `dist/` (with `--build`, build into it and serve it)     | `dist`    |
 
 ### Live API mode (`--api`)
 
@@ -46,21 +47,21 @@ Details:
 
 ### Build options (require `--build`)
 
-With `--build`, `serve` accepts the full [`build-site`](/commands/build-site/) option surface. Passing any of these **without** `--build` is a usage error: the command exits with code 2 and an error naming the offending flag(s). The exception is `--refresh`, which is also meaningful with `--api` (cache warming).
+With `--build`, `serve` accepts the full [`build-site`](/commands/build-site/) option surface. Passing any of these **without** `--build` is a usage error: the command exits with code 2 and an error naming the offending flag(s). Two exceptions: `--refresh`, which is also meaningful with `--api` (cache warming), and `--out-dir`, which names the directory to serve whether or not a build runs.
 
-| Option                          | Description                                                                                                                                                                                                                                                                                                                          |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `-v, --verbose`                 | Show list of cards being fetched from Scryfall                                                                                                                                                                                                                                                                                       |
-| `--cache-images`                | Download and use local deck card images in `dist/images` instead of URLs                                                                                                                                                                                                                                                             |
-| `--decks [names...]`            | Deck names or URLs to include in the site (default: the `site.includeDecks` config selection)                                                                                                                                                                                                                                        |
-| `--collections [names...]`      | Collection names to include in the site (default: the `site.includeCollections` config selection)                                                                                                                                                                                                                                    |
-| `--wanted-lists [names...]`     | Wanted list names to include in the site (default: the `site.includeWantedLists` config selection)                                                                                                                                                                                                                                   |
-| `--currencies <list>`           | Comma-separated currencies to include on the site: `usd`, `eur`, `tix` (default: all three)                                                                                                                                                                                                                                          |
-| `--refresh <mode>`              | Card cache refresh policy: `ask` (default — bulk-downloads an empty or stale cache **without asking**, prompts for the price and tag refreshes), `auto`, `no-bulk`, or `never` (see [build-site](/commands/build-site/#card-cache-refresh)).                                                                                         |
-| `--theme <name>`                | Initial theme served to first-time visitors (built-in name or a custom name from `--theme-file`). Defaults to `default`.                                                                                                                                                                                                             |
-| `--theme-file <path...>`        | Load one or more custom theme JSON files; each is added to the runtime theme list under its declared `name`.                                                                                                                                                                                                                         |
-| `--moxfield-user-agent <agent>` | User agent for fetching Moxfield deck URLs (see [build-site](/commands/build-site/)).                                                                                                                                                                                                                                                |
-| `--out-dir <path>`              | Build into this directory instead of `dist/`, **and serve it**. A relative path resolves against the Ritual directory; the directory is cleared before the build, so the Ritual directory itself (or any ancestor of it) is refused with exit code 2. See [build-site](/commands/build-site/#the-output-directory-is-cleared-first). |
+| Option                          | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-v, --verbose`                 | Show list of cards being fetched from Scryfall                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `--cache-images`                | Download and use local deck card images in `dist/images` instead of URLs                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `--decks [names...]`            | Deck names or URLs to include in the site (default: the `site.includeDecks` config selection)                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `--collections [names...]`      | Collection names to include in the site (default: the `site.includeCollections` config selection)                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `--wanted-lists [names...]`     | Wanted list names to include in the site (default: the `site.includeWantedLists` config selection)                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `--currencies <list>`           | Comma-separated currencies to include on the site: `usd`, `eur`, `tix` (default: all three)                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `--refresh <mode>`              | Card cache refresh policy: `ask` (default — bulk-downloads an empty or stale cache **without asking**, prompts for the price and tag refreshes), `auto`, `no-bulk`, or `never` (see [build-site](/commands/build-site/#card-cache-refresh)).                                                                                                                                                                                                                                                                           |
+| `--theme <name>`                | Initial theme served to first-time visitors (built-in name or a custom name from `--theme-file`). Defaults to `default`.                                                                                                                                                                                                                                                                                                                                                                                               |
+| `--theme-file <path...>`        | Load one or more custom theme JSON files; each is added to the runtime theme list under its declared `name`.                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `--moxfield-user-agent <agent>` | User agent for fetching Moxfield deck URLs (see [build-site](/commands/build-site/)).                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `--out-dir <path>`              | Build into this directory instead of `dist/`, **and serve it**. A relative path resolves against the Ritual directory; a build replaces its output directory wholesale, so the Ritual directory itself (or any ancestor of it) is refused with exit code 2 — including without `--build`, since the flag names one directory for both roles. See [build-site](/commands/build-site/#the-output-directory-is-replaced-never-half-written). Valid without `--build`, where it simply names the built directory to serve. |
 
 ## Examples
 
@@ -68,6 +69,13 @@ Serve a previously built site on the default port (3000):
 
 ```bash
 ./ritual serve
+```
+
+Serve a preview directory built earlier, without rebuilding it:
+
+```bash
+./ritual build-site --out-dir preview
+./ritual serve --out-dir preview
 ```
 
 Serve on a custom port:
@@ -102,16 +110,16 @@ Host with a shared cache server providing the card data:
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                            |
-| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | The server ran (it serves until stopped with `Ctrl+C`).                                                                                            |
-| `1`  | The build failed at runtime (e.g. an unreadable `--theme-file`, or a build error). The server is not started.                                      |
-| `2`  | Usage error: invalid `--port`, a build-only flag without `--build`, an invalid `--currencies`/`--theme` value, or `--api` without a built `dist/`. |
+| Code | Meaning                                                                                                                                                                                                     |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | The server ran (it serves until stopped with `Ctrl+C`).                                                                                                                                                     |
+| `1`  | The build failed at runtime (e.g. an unreadable `--theme-file`, or a build error), or there is no built site to serve (no `index.html` in the served directory, in either mode). The server is not started. |
+| `2`  | Usage error: invalid `--port`, a build-only flag without `--build`, or an invalid `--currencies`/`--theme` value.                                                                                           |
 
 ## Notes
 
-- Files are served from the `dist/` directory, or from `--out-dir` when `--build --out-dir <path>` is given — the build and the server always agree on one directory. Without `--build`, run [`build-site`](/commands/build-site/) first to generate the content.
+- Files are served from the `dist/` directory, or from `--out-dir` when given — the build and the server always agree on one directory. Without `--build`, run [`build-site`](/commands/build-site/) first to generate the content; serving a directory with no `index.html` is refused with exit code 1 and a message naming both remedies.
 - With `--build`, the site is built exactly as `build-site` would; if the build fails, the server does not start.
-- `--host` defaults to `0.0.0.0` (all interfaces), matching [`admin`](/commands/admin/). The printed URL always says `http://localhost:<port>`; use the machine's address to reach it from another device.
+- `--host` defaults to `0.0.0.0` (all interfaces), matching [`admin`](/commands/admin/). The printed URL names the address the server actually bound: a wildcard or loopback bind prints `http://localhost:<port>` (use the machine's address to reach it from another device), and an explicit `--host 192.168.1.5` prints that address.
 - Press `Ctrl+C` to stop the server.
 - For an auto-restarting workflow that rebuilds when source or data files change, see [Development → Dev Workflow](/development/#dev-workflow). `bun run dev serve` appends `--build` automatically and requires an explicit `--refresh` mode (`auto`, `no-bulk`, or `never`) so the cache refresh prompt can be answered non-interactively.

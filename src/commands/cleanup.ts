@@ -12,12 +12,13 @@ import {
   type DeckFormatKey,
   type DeckFormatSignal,
 } from '../deck-format'
-import { parseDeckFrontMatter, serializeDeckToMarkdown } from '../deck-file'
+import { parseDeckFrontMatter, serializeDeckToMarkdown, type DeckFrontMatter } from '../deck-file'
+import type { DeckData } from '../types'
 import { unreadableLines } from '../markdown-fence'
 import { parseDeckText } from '../importers/text-file'
 import { moveListSidecars } from '../list-sidecars'
 import { collectionToMarkdown, wantedToMarkdown } from '../editor/list-export'
-import { CardCommandError } from '../errors'
+import { CardCommandError, getErrorMessage } from '../errors'
 import { runCommandAction } from './card-target'
 import { promptDeckFormat } from './deck-helpers'
 import { readCollectionFile, readWantedFile } from './flat-list-session'
@@ -79,12 +80,20 @@ export type CleanupResult = {
    * a re-emit would silently drop them. The file must be fixed by hand.
    */
   rewriteBlocked?: boolean
+  /**
+   * True when the file could not be read or parsed at all (broken YAML front
+   * matter, an unreadable file). Nothing is rewritten or renamed for it, the
+   * reason is in `warnings`, and the run reports failure — but every other list
+   * is still cleaned up, which is the whole point of a per-file failure.
+   */
+  unreadable?: boolean
   warnings: string[]
 }
 
 /** True when the result carries something worth reporting. */
 export function hasCleanupActions(result: CleanupResult): boolean {
   return (
+    result.unreadable === true ||
     result.rewritten ||
     result.renamedTo !== undefined ||
     result.formatSet !== undefined ||
@@ -115,10 +124,22 @@ type ListDocument = {
   missingFormat?: boolean
 }
 
-async function readDeckDocument(
-  location: ListLocation,
-  options: CleanupOptions,
-): Promise<ListDocument> {
+/**
+ * A deck read and parsed, before the format question is asked.
+ *
+ * The split exists so `cleanupList`'s "could not be read" guard can wrap the
+ * read and *only* the read. With the prompt inside it, a `--no-input` run that
+ * needed the deck-format prompt reported the file as unreadable and exited 1,
+ * hiding both the real usage error and the file's actual parse error.
+ */
+type ParsedDeckDocument = {
+  original: string
+  deck: DeckData
+  frontMatter: DeckFrontMatter
+  parseWarnings: string[]
+}
+
+async function readDeckDocument(location: ListLocation): Promise<ParsedDeckDocument> {
   const original = await fs.readFile(location.filePath, 'utf-8')
   // Parsed directly (not via `loadDeck`) for the skipped-line warnings, which
   // gate the rewrite below — a re-emit would drop what the parser skipped.
@@ -130,6 +151,23 @@ async function readDeckDocument(
   // Copy before mutating: gray-matter caches parses by content string, so the
   // parsed front matter object is shared between byte-identical files.
   const frontMatter = { ...(await parseDeckFrontMatter(location.filePath)) }
+  return { original, deck, frontMatter, parseWarnings: warnings }
+}
+
+/**
+ * Ask for a missing deck format (when the caller supplies a prompt) and produce
+ * the document the shared cleanup tail works on.
+ *
+ * Runs outside `cleanupList`'s read guard: a prompt that cannot run is the
+ * command's problem, not the file's, and must reach the caller as a thrown
+ * usage error rather than a per-file warning.
+ */
+async function resolveDeckDocument(
+  parsed: ParsedDeckDocument,
+  options: CleanupOptions,
+): Promise<ListDocument> {
+  const { original, deck, parseWarnings: warnings } = parsed
+  const frontMatter = parsed.frontMatter
   let formatSet: DeckFormatKey | undefined
   let missingFormat: boolean | undefined
   // A declared format stands; anything less — including a format the sections
@@ -216,6 +254,14 @@ async function renameListFile(oldPath: string, newPath: string): Promise<void> {
   await moveListSidecars(oldPath, newPath)
 }
 
+/** Record a file the cleanup could not read, and skip it. */
+function markUnreadable(result: CleanupResult, error: unknown): CleanupResult {
+  result.unreadable = true
+  result.warnings.push(`could not be read: ${getErrorMessage(error)}`)
+  result.warnings.push('skipped: fix the file and rerun cleanup')
+  return result
+}
+
 /** Clean up a single list file. Never throws for per-file problems — they land in `warnings`. */
 export async function cleanupList(
   location: ListLocation,
@@ -228,12 +274,31 @@ export async function cleanupList(
     warnings: [],
   }
 
-  const document =
-    location.type === 'deck'
-      ? await readDeckDocument(location, options)
-      : location.type === 'collection'
-        ? await readCollectionDocument(location)
-        : await readWantedDocument(location)
+  // The read is the one step that can throw for reasons the file itself owns —
+  // broken front matter, bad permissions. `cleanupList` promises those land in
+  // `warnings`, so the whole workspace is not lost to one hand-edited file.
+  // Only the read is guarded. A deck's format prompt runs *after* its read
+  // returns, so a prompt that cannot run stays a usage error the command reports
+  // rather than being relabelled as a broken file.
+  let document: ListDocument
+  if (location.type === 'deck') {
+    let parsed: ParsedDeckDocument
+    try {
+      parsed = await readDeckDocument(location)
+    } catch (error) {
+      return markUnreadable(result, error)
+    }
+    document = await resolveDeckDocument(parsed, options)
+  } else {
+    try {
+      document =
+        location.type === 'collection'
+          ? await readCollectionDocument(location)
+          : await readWantedDocument(location)
+    } catch (error) {
+      return markUnreadable(result, error)
+    }
+  }
   if (document.formatSet) result.formatSet = document.formatSet
   if (document.missingFormat) result.missingFormat = true
 
@@ -409,7 +474,15 @@ async function runCleanup(
           const verb = dryRun ? 'Would clean up' : 'Cleaned up'
           console.log(`\n${verb} ${changing} of ${files(results.length)}.`)
         }
-        const formatOnly = reported.length - changing
+        const unreadable = reported.filter((result) => result.unreadable).length
+        if (unreadable > 0) {
+          console.error(
+            `${unreadable} file${unreadable === 1 ? '' : 's'} could not be read and ${unreadable === 1 ? 'was' : 'were'} skipped (see the warnings above).`,
+          )
+        }
+        // Only decks left without a format count here — a file that was skipped
+        // or merely warned about is not a deck waiting on an answer.
+        const formatOnly = reported.filter((result) => result.missingFormat === true).length
         if (formatOnly > 0) {
           console.log(
             `${formatOnly} deck${formatOnly === 1 ? '' : 's'} still need${formatOnly === 1 ? 's' : ''} a format (run interactively to choose, or pass --skip-formats to leave as-is).`,
@@ -428,17 +501,21 @@ async function runCleanup(
   }
 
   const blocked = results.some((result) => result.rewriteBlocked)
+  // A file cleanup could not read at all fails every mode, including --dry-run:
+  // the workspace is not clean and no run of this command can make it so.
+  const unreadable = results.some((result) => result.unreadable)
   if (check) {
     // `--check` is for hooks/CI: fail when a real run would change any file,
-    // or when a file cannot be brought to canonical form (blocked rewrite).
-    if (results.some(wouldChangeFile) || blocked) {
+    // or when a file cannot be brought to canonical form (blocked rewrite, or a
+    // parse failure — the messages above say which).
+    if (results.some(wouldChangeFile) || blocked || unreadable) {
       process.exitCode = ExitCode.RuntimeError
     }
     return
   }
   // A real run that had to leave a file un-rewritten because its parse skipped
   // lines did not fully clean the workspace — surface that in the exit code.
-  if (!dryRun && blocked) {
+  if (unreadable || (!dryRun && blocked)) {
     process.exitCode = ExitCode.RuntimeError
   }
 }

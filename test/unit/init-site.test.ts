@@ -10,6 +10,10 @@ import {
   generateWorkflow,
   generateReadme,
   generateGitignoreEntries,
+  gitignoreEntriesCovering,
+  classifyInitRerun,
+  buildSiteCommand,
+  servePreviewCommand,
   updateGitignore,
 } from '../../src/commands/init-site'
 import { setBaseDir } from '../../src/base-dir'
@@ -283,8 +287,119 @@ describe('generateGitignoreEntries', () => {
       '.admin-dist/',
       '.logins/',
       'all-cards.md',
+      // Build scratch directories: every build makes one beside its output, and
+      // an interrupted build leaves it there.
+      '.dist-build-*',
+      '.dist-old-*',
       '/ritual',
     ])
+  })
+
+  // The scaffolding matrix: only a local-build deploy commits its built site, so
+  // only that mode may not ignore it. The generated README says so out loud, and
+  // these two files have to agree.
+  const lines = (config?: Parameters<typeof generateGitignoreEntries>[0]): string[] =>
+    generateGitignoreEntries(config)
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0 && !l.startsWith('#'))
+
+  test('a publish-for-me deploy still ignores the built site it never commits', () => {
+    const config = {
+      ciSystem: 'github-actions',
+      deployMode: 'publish-for-me',
+      distDir: 'dist',
+      detectChanges: false,
+    } as const
+    expect(lines(config)).toContain('dist/')
+    expect(lines(config).some((l) => l.startsWith('!'))).toBe(false)
+    expect(generateReadme(config)).not.toContain('Commit the built')
+  })
+
+  test('a local-build deploy of dist/ neither ignores it nor contradicts the README', () => {
+    const config = {
+      ciSystem: 'github-actions',
+      deployMode: 'local-build',
+      distDir: 'dist',
+      detectChanges: false,
+    } as const
+    expect(lines(config)).not.toContain('dist/')
+    // An earlier init only ever appended, so the un-ignore un-does a stale line.
+    expect(lines(config)).toContain('!dist/')
+    const readme = generateReadme(config)
+    expect(readme).toContain('Commit the built `dist` directory')
+    expect(readme).not.toContain('`cache/`, `dist/`')
+  })
+
+  test('a local-build deploy of a custom directory un-ignores it and renders --out-dir', () => {
+    const config = {
+      ciSystem: 'github-actions',
+      deployMode: 'local-build',
+      distDir: 'out',
+      detectChanges: false,
+    } as const
+    expect(lines(config)).toContain('dist/')
+    expect(lines(config)).toContain('!out/')
+    const readme = generateReadme(config)
+    expect(readme).toContain('ritual build-site --out-dir out')
+    expect(readme).toContain('ritual serve --build --out-dir out')
+  })
+
+  test('a manual (no CI) init ignores the default dist/', () => {
+    expect(lines({ ciSystem: 'manual' })).toContain('dist/')
+  })
+})
+
+describe('gitignoreEntriesCovering', () => {
+  test('a plain entry is left to the appended un-ignore', () => {
+    expect(gitignoreEntriesCovering('cache/\ndist/\n', 'dist')).toEqual([])
+  })
+
+  test('a wildcard the un-ignore cannot undo is reported', () => {
+    expect(gitignoreEntriesCovering('di*\n', 'dist')).toEqual(['di*'])
+  })
+
+  // These are the patterns that actually defeat the appended `!<dir>/`: git
+  // still ignores every file inside, so a local-build deploy commits nothing and
+  // publishes an empty site. They never match the bare directory name, which is
+  // why matching only that stayed silent about them.
+  test.each([
+    ['a directory-contents wildcard', 'dist/*\n', 'dist', 'dist/*'],
+    ['a recursive wildcard', 'dist/**\n', 'dist', 'dist/**'],
+    ['a non-default dist directory', 'out/*\n', 'out', 'out/*'],
+  ])('%s is reported', (_label, existing, distDir, expected) => {
+    expect(gitignoreEntriesCovering(existing, distDir)).toEqual([expected])
+  })
+
+  test('a nested dist path is covered by a parent-directory pattern', () => {
+    expect(gitignoreEntriesCovering('build/**\n', 'build/output')).toEqual(['build/**'])
+  })
+
+  test('comments, negations, and unrelated entries are ignored', () => {
+    expect(gitignoreEntriesCovering('# dist\n!dist/\ncache/\n', 'dist')).toEqual([])
+  })
+})
+
+describe('command rendering', () => {
+  test('the default dist directory needs no --out-dir', () => {
+    expect(buildSiteCommand('dist')).toBe('ritual build-site')
+    expect(servePreviewCommand('dist')).toBe('ritual serve --build')
+  })
+
+  test('any other directory renders the flag that actually writes there', () => {
+    expect(buildSiteCommand('out')).toBe('ritual build-site --out-dir out')
+    expect(servePreviewCommand('out')).toBe('ritual serve --build --out-dir out')
+  })
+})
+
+describe('classifyInitRerun', () => {
+  test('the same version is a no-op, not an error', () => {
+    expect(classifyInitRerun('1.2.3', '1.2.3')).toBe('current')
+  })
+
+  test('a newer build upgrades and an older one is a downgrade', () => {
+    expect(classifyInitRerun('1.3.0', '1.2.3')).toBe('upgrade')
+    expect(classifyInitRerun('1.2.0', '1.2.3')).toBe('downgrade')
   })
 })
 

@@ -15,7 +15,7 @@ offers a web admin for editing and an MCP server for AI agents.
 \`\`\`bash
 ritual init-site                 # scaffold the CI workflow + gitignore for publishing
 ritual init-site --force         # regenerate all managed files
-ritual init-site --upgrade       # upgrade tracked workflows to this version
+ritual init-site --upgrade       # upgrade tracked workflows + .gitignore to this version
 \`\`\`
 
 Run bare in a terminal, \`init-site\` walks through its choices interactively. When
@@ -34,9 +34,18 @@ Flags: \`--ci github-actions|manual\`, \`--deploy publish-for-me|local-build\`
 \`--change-detection\`/\`--no-change-detection\` (publish-for-me only),
 \`--currency usd|eur|tix\`, and \`--skills\`/\`--no-skills\` (install the Ritual agent
 skills). Flags that do not apply to the chosen CI system or deploy mode are usage
-errors. An existing \`README.md\` additionally needs \`--overwrite-readme\`,
-\`--no-overwrite-readme\`, or \`--force\`; a pending version upgrade needs
-\`--upgrade\`.
+errors — including either form of \`--change-detection\` outside
+\`--deploy publish-for-me\`. An existing \`README.md\` additionally needs
+\`--overwrite-readme\`, \`--no-overwrite-readme\`, or \`--force\`; a pending version
+upgrade needs \`--upgrade\`.
+
+Re-running \`init-site\` on a repository already initialized with the current
+version is a no-op that exits **0** (\`Already initialized ...; nothing to do.\`),
+so it is safe in an idempotent setup script.
+
+With \`--deploy local-build\` the built site is **committed**, so the generated
+\`.gitignore\` does not ignore it (it appends \`!<distDir>/\`) and every generated
+command renders \`--out-dir <distDir>\` when that directory is not \`dist\`.
 
 ## CI / publishing pipeline
 
@@ -118,11 +127,41 @@ ritual build-site --theme izzet                    # initial theme baked into th
 ritual build-site --theme-file my-theme.json       # load custom theme JSON files (their names become selectable)
 ritual build-site --refresh never                  # build from cached data as-is
 ritual build-site --refresh auto                   # refresh stale cache (bulk download allowed)
-ritual build-site --out-dir ./preview               # build into another directory instead of dist/ (cleared first)
+ritual build-site --out-dir ./preview               # publish into another directory instead of dist/
 \`\`\`
 
 \`--cache-images\` downloads card images locally instead of hot-linking Scryfall;
 \`-v\`/\`--verbose\` lists the cards to be fetched.
+
+${wrapProse(
+  'Every build writes into a scratch directory and swaps it into place only on ' +
+    'success, so a failed build leaves the previously published site untouched ' +
+    '(the CLI, the admin Build Site page, and the `build_site` MCP tool all do this).',
+)}
+
+**When a build fails (exit 1):**
+
+- A list named with \`--decks\`/\`--collections\`/\`--wanted-lists\` that cannot be
+  loaded fails the build. Every skipped source is listed in a closing summary and
+  **nothing is published**. This covers all four ways a named source fails: no
+  such list, a file that exists but cannot be read (the reason printed is the
+  real one, not "no deck named that"), a name two lists answer to, and a deck URL
+  that could not be fetched.
+- Names given to those flags match the display name **or** the file base name,
+  ignoring case, accents and \`-\`/\`_\` separators (so \`--decks winota-stax\`
+  finds \`Winota Stax\`) — the same matching every other list-taking command uses.
+  \`site.include*\` is stricter: display name, exactly.
+- A workspace with no lists at all says so and points at \`ritual new deck\`.
+- Nothing priced reports which cause it was: every selected list empty, or no
+  price data in the cache (remedy: \`ritual cache preload-all\`, or
+  \`--refresh auto\`).
+- A \`site.include*\` entry matching no list is only a **warning** — the build
+  continues without it (rename drift), so check stderr in CI.
+- A list the build **discovered itself** (config selection, not a flag) that
+  cannot be loaded is reported and skipped, and the rest of the site **is**
+  published — exit 0. Check stderr in CI for these too.
+- Passing a selection flag with **no names** (\`ritual build-site --decks\`) is a
+  usage error (exit 2), not "build everything".
 
 ${wrapProse(
   '`--decks` also accepts Archidekt, Moxfield, or MTGGoldfish deck URLs. ' +
@@ -154,16 +193,24 @@ ritual serve -p 8000
 ritual serve --build               # build, then serve
 ritual serve --build -p 8000 --host 127.0.0.1
 ritual serve --build --api         # host the site with a live read-only backend
+ritual serve --out-dir ./preview          # serve a directory built earlier, no rebuild
 ritual serve --build --out-dir ./preview  # build into ./preview and serve THAT directory
 \`\`\`
 
-\`--out-dir\` is honoured by the server too: \`serve --build --out-dir X\` builds
-into X and serves X. The directory is cleared before the build, so the Ritual
-directory itself (or any ancestor of it, like \`.\`) is refused.
+\`--out-dir\` names the directory the server uses, with or without \`--build\`:
+\`serve --out-dir X\` serves an existing build in X, and \`serve --build --out-dir X\`
+builds into X and serves X (a successful build replaces X, so the Ritual
+directory itself — or any ancestor of it, like \`.\` — is refused).
+
+Serving a directory with no \`index.html\` is **refused** (exit 1) rather than
+answered with bare 404s; the message names \`ritual build-site\` and \`--build\`.
+The startup line prints the address actually bound — \`localhost\` for a wildcard
+or loopback bind, the \`--host\` value otherwise.
 
 Build flags (\`--theme\`, \`--currencies\`, ...) only apply together with \`--build\`;
-passing one without it is a usage error. \`--refresh\` is the exception: with
-\`--api\` it also controls the startup cache warming, so it is valid on its own.
+passing one without it is a usage error. \`--refresh\` and \`--out-dir\` are the
+exceptions: \`--refresh\` also controls \`--api\` startup cache warming, and
+\`--out-dir\` names the directory to serve.
 
 ### Hosted mode (\`--api\`)
 

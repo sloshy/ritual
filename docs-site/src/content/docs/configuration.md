@@ -215,12 +215,17 @@ The `site` key holds public-site settings. It has two parts:
 Each `include*` list controls which lists in that category are published when you run [`build-site`](/commands/build-site/):
 
 - `["*"]` — the reserved wildcard meaning **publish everything** in that category. This is the default, and applies even when there is no `site` key at all.
-- An explicit list of **display names** (a deck's `name:` frontmatter or a collection/wanted-list `# Title`, each falling back to the file name) — publishes only the matching lists and filters out the rest. Names must match exactly.
+- An explicit list of **display names** (a deck's `name:` frontmatter or a collection/wanted-list `# Title`, each falling back to the file name) — publishes only the matching lists and filters out the rest. Names must match exactly: unlike the `--decks`-style flags, config names are not folded for case, accents, or separators. An entry that matches no list is a warning, not a failure — the build says so and continues:
+
+  ```
+  ⚠️  site.includeDecks lists 'Old Name', which matches no deck in /home/you/ritual/decks — it may have been renamed or removed.
+  ```
+
 - `[]` — an empty list publishes **none** of that category.
 
 Each category also has a sister `exclude*` list. Any display name in it is dropped even when the `include*` list selects it (including under the wildcard) — **exclusion always wins**. The exclude lists default to `[]` and have no wildcard. This makes "publish everything except a few" easy: keep `includeDecks` at `["*"]` and add the odd one out to `excludeDecks`. The admin **Manage Lists** page's per-list visibility toggles edit only these exclude lists.
 
-The corresponding `build-site` flags (`--decks`, `--collections`, `--wanted-lists`) override these settings for a single run.
+The corresponding `build-site` flags (`--decks`, `--collections`, `--wanted-lists`) override these settings for a single run. They accept a superset of these names — display name or file base name, case- and accent-insensitive — and a name they cannot resolve **fails the build** rather than warning, since it was asked for explicitly. See [When a list will not build](/commands/build-site/#when-a-list-will-not-build).
 
 ## Editing the file
 

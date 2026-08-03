@@ -12,7 +12,7 @@ import {
  * `--out-dir` resolution and the subprocess command line.
  *
  * `resolveOutDir` is a safety boundary rather than a formatting check: the build
- * clears its output directory before writing it, so a value that resolves to the
+ * replaces its output directory wholesale, so a value that resolves to the
  * Ritual directory (or an ancestor of it) would delete the user's decks,
  * collections, and `.git`. Every refusal below is one of those.
  */

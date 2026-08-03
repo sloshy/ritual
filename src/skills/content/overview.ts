@@ -118,9 +118,13 @@ has a \`## Commander\` section, and the tools write that down on the next save.
 \`&N\` IDs and \`.changes.md\` changelog stay correct. Reading files directly for
 inspection is fine. To normalize a whole workspace — canonical formatting, file
 names that match list names, a \`format:\` on every deck — run \`ritual cleanup\`
-(\`-n\`/\`--dry-run\` to preview; \`--check\` to additionally exit 1 when any file
-would change, for hooks and CI; \`--skip-formats\` to never prompt for deck
-formats, leaving formatless decks untouched and reported).
+(\`-n\`/\`--dry-run\` to preview; \`--check\` to also exit 1 when any file would
+change, for hooks and CI; \`--skip-formats\` to never prompt for deck formats,
+leaving formatless decks untouched and reported). A file it cannot read or parse
+is named, skipped, and reported with \`unreadable: true\` while its siblings are
+still cleaned — that exits 1 in **every** mode, including \`--dry-run\`. Under
+\`--no-input\`, a real run that needs the deck-format prompt is a usage error
+(exit 2), not an unreadable file; pass \`--skip-formats\` to avoid the prompt.
 
 ## The ritual-* skills
 
@@ -185,8 +189,8 @@ ritual config list                # print the full effective config (defaults ma
 ritual config unset <prop>        # revert a value to its default
 ritual cache status               # report cache size/freshness/source without refreshing
 ritual cache preload-all          # warm the Scryfall card cache + tags (bulk download)
-ritual cache preload-set khm      # cache all cards of one set (by set code)
-ritual cache refresh-tags         # refresh only the oracle/art tags on cached cards
+ritual cache preload-set khm      # cache all cards of one set (exit 3 = unknown set code, 1 = search failed)
+ritual cache refresh-tags         # refresh only the oracle/art tags on cached cards (exit 1 when the download fails)
 ritual cache server               # host a shared cache server (default 127.0.0.1:4000)
 ritual cache feed host            # host a P2P feed of the raw Scryfall bulk files
 ritual cache feed fetch           # sync the cache from a feed, then seed to peers

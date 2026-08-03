@@ -6,8 +6,23 @@ import {
   type ChangelogPage,
 } from '../../changelog-parser'
 import { computeRepresentativePrints } from '../../scryfall'
+import { getErrorMessage } from '../../errors'
 import type { ScryfallCard } from '../../types'
 import type { SiteDetailContext } from './types'
+
+/**
+ * Why a list file could not be read, as the `Failed to load <kind> '<name>':`
+ * lead-in's reason. An absent file gets the friendly wording; everything else
+ * (`EACCES`, `EISDIR`, `EIO`, a parse failure) reports what actually happened,
+ * since telling a user their present-but-unreadable file is "not found" sends
+ * them looking for the wrong problem.
+ */
+export function listReadErrorMessage(error: unknown, filePath: string): string {
+  if ((error as NodeJS.ErrnoException | null)?.code === 'ENOENT') {
+    return `File not found: ${filePath}`
+  }
+  return getErrorMessage(error)
+}
 
 /** URL-safe slug for a list's display name (also the detail JSON's basename). */
 export function slugifyListName(name: string): string {

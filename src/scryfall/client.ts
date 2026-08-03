@@ -44,27 +44,12 @@ const RATE_LIMIT_MS = 150
 const SCRYFALL_CARDS_PER_PAGE = 175
 
 /**
- * How many result pages {@link ScryfallClient.searchCards} walks by default.
- * One page is 175 cards — enough for any interactive search, and a bounded
- * default keeps a new caller from crawling an entire result set by accident.
+ * Hard page ceiling for {@link ScryfallClient.searchAllPages}. At 175 cards a
+ * page this is far past any real Scryfall result set (the largest set is a few
+ * hundred cards); it exists only so a response that never stops reporting
+ * `has_more` terminates.
  */
-export const DEFAULT_SEARCH_MAX_PAGES = 1
-
-/** Walk every page — for callers that genuinely want the whole result set (`cache preload-set`). */
-export const ALL_PAGES = Number.POSITIVE_INFINITY
-
-/** Paging bound for {@link ScryfallClient.searchCards}. */
-export type SearchCardsOptions = {
-  /** Result pages to walk, from page 1. Defaults to {@link DEFAULT_SEARCH_MAX_PAGES}. */
-  maxPages?: number
-  /**
-   * Whether an empty cache may trigger the "pre-cache every English card?"
-   * offer. Defaults to true; `cache preload-set` passes `false`, since a user
-   * who picked the bounded per-set command has already said how much they want
-   * cached.
-   */
-  offerPreload?: boolean
-}
+export const SEARCH_ALL_PAGES_MAX = 1000
 
 /** How long a single Scryfall API request may take before it is aborted. */
 const SCRYFALL_FETCH_TIMEOUT_MS = 15_000
@@ -200,6 +185,34 @@ export type SearchPageFailure = {
 
 /** The outcome of {@link ScryfallClient.fetchSearchPage}. */
 export type SearchPageResult = SearchPage | SearchPageFailure
+
+/**
+ * A completed {@link ScryfallClient.searchAllPages} walk.
+ *
+ * `matched` and `cards` are deliberately separate. `cards` holds only *real
+ * printings* — tokens and art series are dropped on the way into the cache — so
+ * a genuine token set (`tmkm`) or an Art Series set returns `cards: []` while
+ * having matched plenty. Only `matched === 0` means "Scryfall matched nothing",
+ * which is what an unknown set code produces; a caller that reports a typo must
+ * branch on `matched`, not on `cards.length`.
+ */
+export type SearchAllPagesSuccess = {
+  kind: 'cards'
+  /** Real printings, cached as a side effect of the walk. */
+  cards: ScryfallCard[]
+  /** How many items Scryfall returned in total, before the real-printing filter. */
+  matched: number
+}
+
+/**
+ * The outcome of {@link ScryfallClient.searchAllPages} — what the query matched,
+ * or why the search did not happen.
+ *
+ * The point of the variant is that an HTTP failure comes back as data rather
+ * than as an empty result, so `cache preload-set` can tell a typo'd set code
+ * from a dead network.
+ */
+export type SearchAllPagesResult = SearchAllPagesSuccess | SearchPageFailure
 
 /**
  * Compute representative and cheapest prints from cached card data.
@@ -869,60 +882,31 @@ export class ScryfallClient implements PricingBackend {
   }
 
   /**
-   * Run a Scryfall search and cache every real printing it returns.
+   * Run a Scryfall search across **every** result page, caching each real
+   * printing, and report failure instead of swallowing it.
    *
-   * Walks at most {@link SearchCardsOptions.maxPages} result pages — one by
-   * default, so an interactive search costs a single request. Callers that want
-   * the whole result set (`cache preload-set`) pass {@link ALL_PAGES}.
+   * Built on {@link fetchSearchPage} for exactly that reason: HTTP failures come
+   * back as a `failed` result and transport failures (a dead network, a timeout)
+   * propagate as exceptions, so a caller that promises an exit code can keep it.
+   *
+   * Bounded by {@link SEARCH_ALL_PAGES_MAX}: the walk's only other exits are a
+   * failure and a page that reports no more, so a response that kept setting
+   * `has_more` would loop forever at one request per rate-limit tick.
    */
-  async searchCards(query: string, options: SearchCardsOptions = {}): Promise<ScryfallCard[]> {
-    // Clamped, so a sub-1 or fractional bound behaves as "one page" rather than
-    // as "no pages" — the first page is always fetched, and only the continue
-    // condition consults the bound. `ALL_PAGES` (Infinity) survives the trunc.
-    const maxPages = Math.max(1, Math.trunc(options.maxPages ?? DEFAULT_SEARCH_MAX_PAGES))
-    if (options.offerPreload !== false) await this.checkAndPromptPreload()
+  async searchAllPages(query: string): Promise<SearchAllPagesResult> {
     getLogger().info(`Searching for: ${query}`)
-    try {
-      // Use order=edhrec to prioritize popular cards
-      let nextUrl: string | undefined =
-        `https://api.scryfall.com/cards/search?q=${encodeURIComponent(query)}&order=edhrec`
-      const allCards: ScryfallCard[] = []
-      let pagesFetched = 0
-
-      while (nextUrl) {
-        pagesFetched++
-        const response: Response = await this.fetchWithTimeout(nextUrl)
-
-        if (response.ok) {
-          const json = (await response.json()) as ScryfallList<ScryfallCard>
-          const data = json.data || []
-
-          allCards.push(...(await this.cacheRealPrintings(data)))
-
-          if (json.has_more && json.next_page && pagesFetched < maxPages) {
-            nextUrl = json.next_page
-            // Only the continue path sleeps, so a one-page search costs no delay.
-            await Bun.sleep(RATE_LIMIT_MS)
-          } else {
-            nextUrl = undefined
-          }
-        } else {
-          if (response.status === 404) {
-            // If it's the first page and 404, return empty.
-            if (allCards.length === 0) return []
-            break
-          }
-          getLogger().warn(
-            `Failed to search cards '${query}': ${response.status} ${response.statusText}`,
-          )
-          break
-        }
-      }
-      return allCards
-    } catch (e) {
-      getLogger().error(`Error searching cards '${query}':`, e)
-      return []
+    const cards: ScryfallCard[] = []
+    let matched = 0
+    for (let page = 1; page <= SEARCH_ALL_PAGES_MAX; page++) {
+      const result = await this.fetchSearchPage(query, page, 'json')
+      if (result.kind === 'failed') return result
+      const items = result.data?.data ?? []
+      matched += items.length
+      cards.push(...(await this.cacheRealPrintings(items)))
+      if (!result.hasMore) break
+      await Bun.sleep(RATE_LIMIT_MS)
     }
+    return { kind: 'cards', cards, matched }
   }
 
   async fetchSearchPage(
@@ -1101,8 +1085,11 @@ export class ScryfallClient implements PricingBackend {
     await withCacheLock(this.fileSystem, 'tag refresh', async () => {
       const index = prefetched ?? (await this.downloadTagIndex())
       if (!index) {
-        getLogger().error('Tag refresh aborted: could not download tags.')
-        return
+        // Throws rather than logging and returning: a refresh that did not
+        // happen has to be learnable by the command that promises exit 1 for it.
+        // The best-effort swallow stays where degradation is intended — the tag
+        // bake inside a bulk preload, which uses `downloadTagIndex` directly.
+        throw new Error('Tag refresh aborted: could not download the oracle/art tag bulks.')
       }
 
       const names = await this.cardCache.keys()

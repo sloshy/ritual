@@ -9,7 +9,12 @@ import { getCardPriceForFinish } from '../../price-currency'
 import { resolveCardImageSources } from '../image-sources'
 import type { Finish, ScryfallCard } from '../../types'
 import type { CollectionCardEntry, CollectionDetail, CollectionSummary } from '../data-types'
-import { includeChangelogCards, loadListSidecars, slugifyListName } from './shared'
+import {
+  includeChangelogCards,
+  listReadErrorMessage,
+  loadListSidecars,
+  slugifyListName,
+} from './shared'
 import type { SiteDetailContext } from './types'
 
 export type LoadedCollection = {
@@ -36,8 +41,10 @@ export async function loadCollectionSource(
   let content: string
   try {
     content = await fs.readFile(filePath, 'utf-8')
-  } catch {
-    return `Failed to read collection file: ${fileName}`
+  } catch (error) {
+    // Just the reason: the caller owns the "Failed to load <kind> '<name>'"
+    // lead-in, so all three list types report a failed read identically.
+    return listReadErrorMessage(error, filePath)
   }
 
   const { entries, sectionOrder, warnings } = parseCollectionFile(content)

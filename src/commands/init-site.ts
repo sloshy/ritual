@@ -193,7 +193,33 @@ export function generateWorkflow(config: GitHubActionsSiteConfig): string {
   return generateLocalBuildWorkflow(config.distDir)
 }
 
-const GETTING_STARTED = `## Getting Started
+/**
+ * The build command the scaffolding tells the user to run.
+ *
+ * `build-site` publishes to `dist/` unless `--out-dir` says otherwise, so a
+ * repository configured with any other `distDir` needs the flag spelled out —
+ * the generated README used to print a bare `ritual build-site` and then claim
+ * the site appeared in a directory nothing had written to.
+ */
+export function buildSiteCommand(distDir: string): string {
+  return distDir === 'dist' ? 'ritual build-site' : `ritual build-site --out-dir ${distDir}`
+}
+
+/** The preview command, carrying the same `--out-dir` for a non-default distDir. */
+export function servePreviewCommand(distDir: string): string {
+  return distDir === 'dist' ? 'ritual serve --build' : `ritual serve --build --out-dir ${distDir}`
+}
+
+/**
+ * The shared README preamble. `distDir` is the configured built-site directory
+ * and `committed` says whether it is checked in (local-build deploys) rather
+ * than gitignored — the two facts every command and layout line below depends on.
+ */
+function gettingStarted(distDir: string, committed: boolean): string {
+  const generated = committed
+    ? '`cache/`, `exports/`, and `all-cards.md` — generated artifacts (gitignored)'
+    : `\`cache/\`, \`${distDir}/\`, \`exports/\`, and \`all-cards.md\` — generated artifacts (gitignored)`
+  return `## Getting Started
 
 Ritual manages three kinds of card lists as Markdown files in your repository:
 
@@ -220,7 +246,7 @@ interface instead.
 Build and serve the site on your machine before you deploy:
 
 \`\`\`sh
-ritual serve --build
+${servePreviewCommand(distDir)}
 \`\`\`
 
 Then open <http://localhost:3000> to preview it.
@@ -229,30 +255,36 @@ Then open <http://localhost:3000> to preview it.
 
 - \`decks/\`, \`collections/\`, \`wanted/\` — your card lists as Markdown files
 - \`ritual.config.json\` — site and pricing settings
-- \`cache/\`, \`dist/\`, \`exports/\`, and \`all-cards.md\` — generated artifacts (gitignored)
+- ${generated}${committed ? `\n- \`${distDir}/\` — your built site, committed so the deploy workflow can publish it` : ''}
 
 ## Documentation
 
 For the full list of commands and features, see the
 [Ritual documentation](https://ritual.rpeters.dev/).`
+}
 
 export function generateReadme(config: InitSiteConfig): string {
+  // Only a local-build deploy has a configurable built-site directory (and is
+  // the only mode that commits it); every other mode builds and ignores `dist/`.
+  const committed = committedDistDir(config)
+  const distDir = committed ?? 'dist'
+
   if (config.ciSystem === 'manual') {
     return `# My Ritual Site
 
 A Magic: The Gathering deck site built with [Ritual](https://github.com/sloshy/ritual).
 
-${GETTING_STARTED}
+${gettingStarted(distDir, false)}
 
 ## Building
 
 Install [Ritual](https://github.com/sloshy/ritual) and run:
 
 \`\`\`sh
-ritual build-site
+${buildSiteCommand(distDir)}
 \`\`\`
 
-The generated site is written to \`dist/\`. Deploy it to any static hosting provider.
+The generated site is written to \`${distDir}/\`. Deploy it to any static hosting provider.
 `
   }
 
@@ -277,21 +309,22 @@ set to the release tag (e.g. \`v1.0.0\`).`
 Install [Ritual](https://github.com/sloshy/ritual) and run:
 
 \`\`\`sh
-ritual build-site
+${buildSiteCommand(distDir)}
 \`\`\`
 
-The generated site is written to \`${config.distDir}\`.
+The generated site is written to \`${distDir}\`.
 
 ## Deploying
 
-Commit the built \`${config.distDir}\` directory and push to \`main\`. The
-included GitHub Action deploys it to GitHub Pages automatically.`
+Commit the built \`${distDir}\` directory and push to \`main\`. The
+included GitHub Action deploys it to GitHub Pages automatically. \`${distDir}/\`
+is deliberately **not** gitignored for this deploy mode.`
 
   return `# My Ritual Site
 
 A Magic: The Gathering deck site built with [Ritual](https://github.com/sloshy/ritual).
 
-${GETTING_STARTED}
+${gettingStarted(distDir, committed !== null)}
 
 ${buildInstructions}
 
@@ -304,17 +337,83 @@ Make sure GitHub Pages is enabled in your repository settings:
 `
 }
 
-export function generateGitignoreEntries(): string {
+/**
+ * The built-site directory the scaffolding commits rather than ignores, or null
+ * when nothing is committed. Only a local-build deploy publishes a directory the
+ * user builds and checks in.
+ */
+export function committedDistDir(config?: InitSiteConfig): string | null {
+  if (config === undefined || config.ciSystem !== 'github-actions') return null
+  return config.deployMode === 'local-build' ? config.distDir : null
+}
+
+/**
+ * The `.gitignore` entries the scaffolding maintains.
+ *
+ * A local-build deploy **commits** its built site — the workflow uploads the
+ * checked-in directory — so that directory must not be ignored. The default
+ * `dist/` line is dropped when it is the committed directory, and an explicit
+ * un-ignore is appended so a `dist/` line an earlier init already wrote (this
+ * file is only ever appended to) stops covering it.
+ *
+ * `.dist-build-*`/`.dist-old-*` are the scratch directories every build writes
+ * beside its output (see `src/site/publish.ts`); an interrupted build leaves one
+ * behind for hours. They matter most under a local-build deploy, where `dist/`
+ * is deliberately committed and they would otherwise be the one thing a
+ * `git add -A` swept in.
+ */
+export function generateGitignoreEntries(config?: InitSiteConfig): string {
+  const committed = committedDistDir(config)
+  const generated = [
+    'cache/',
+    'dist/',
+    'exports/',
+    '.admin-dist/',
+    '.logins/',
+    'all-cards.md',
+    '.dist-build-*',
+    '.dist-old-*',
+  ]
+    .filter((entry) => entry !== `${committed}/`)
+    .join('\n')
+  const unignore =
+    committed === null
+      ? ''
+      : `# The built site is committed so the deploy workflow can publish it\n!${committed}/\n`
   return `# Ritual files
-cache/
-dist/
-exports/
-.admin-dist/
-.logins/
-all-cards.md
+${generated}
 # Ritual binary downloaded by the deploy workflow
 /ritual
-`
+${unignore}`
+}
+
+/**
+ * Existing `.gitignore` lines that would keep the committed built-site directory
+ * out of the repository. The appended `!<dir>/` un-ignore handles the plain
+ * cases; anything else (a `*`-style pattern, a nested path) is reported so the
+ * user can fix it rather than discovering it in a failed deploy.
+ *
+ * A pattern is tested against a **file inside** the directory as well as against
+ * the directory itself, because that is the case the un-ignore cannot undo:
+ * `dist/**` and `dist/*` never match the string `dist`, so matching only the
+ * bare name stayed silent about exactly the lines that keep every built file
+ * ignored and deploy an empty site.
+ */
+export function gitignoreEntriesCovering(existing: string, distDir: string): string[] {
+  const direct = new Set([distDir, `${distDir}/`, `/${distDir}`, `/${distDir}/`])
+  // A representative built file. Any name works — the patterns that matter
+  // (`dist/*`, `dist/**`, `di*`) are about the path shape, not the file name.
+  const inside = `${distDir}/index.html`
+  return existing
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('#') && !line.startsWith('!'))
+    .filter((line) => !direct.has(line))
+    .filter((line) => {
+      const pattern = line.replace(/\/$/, '')
+      const glob = new Bun.Glob(pattern)
+      return glob.match(distDir) || glob.match(inside)
+    })
 }
 
 async function promptOverwrite(filePath: string): Promise<boolean> {
@@ -632,6 +731,20 @@ export function registerInitSiteCommand(program: Command): void {
     })
 }
 
+/** What re-running `init-site` in an already-initialized repository means. */
+export type InitRerun = 'current' | 'upgrade' | 'downgrade'
+
+/**
+ * Classify a re-run against the version that last initialized the repository:
+ * the same version is a no-op, a newer build regenerates managed files, and an
+ * older build refuses rather than downgrading generated output.
+ */
+export function classifyInitRerun(currentVersion: string, initializedWith: string): InitRerun {
+  const cmp = compareVersions(currentVersion, initializedWith)
+  if (cmp === 0) return 'current'
+  return cmp > 0 ? 'upgrade' : 'downgrade'
+}
+
 /** True when any flag that configures a fresh init was passed. */
 function freshInitFlagsGiven(options: InitSiteCommandOptions): boolean {
   return (
@@ -679,15 +792,16 @@ async function runInitSite(options: InitSiteCommandOptions): Promise<void> {
       )
     }
 
-    const cmp = compareVersions(ritualVersion, loaded.version)
+    const rerun = classifyInitRerun(ritualVersion, loaded.version)
 
-    if (cmp === 0) {
-      console.error(`Already initialized with the current version (${ritualVersion}).`)
-      process.exitCode = ExitCode.UsageError
+    if (rerun === 'current') {
+      // The success state, not a usage error: `init-site` is safe to run from a
+      // setup script that just wants the repository initialized.
+      console.log(`Already initialized with the current version (${ritualVersion}); nothing to do.`)
       return
     }
 
-    if (cmp < 0) {
+    if (rerun === 'downgrade') {
       console.warn(
         `Warning: The current Ritual build (${ritualVersion}) is older than the version ` +
           `last used to initialize this repository (${loaded.version}).`,
@@ -700,7 +814,7 @@ async function runInitSite(options: InitSiteCommandOptions): Promise<void> {
       return
     }
 
-    // Newer build: prompt unless --upgrade was passed
+    // Newer build (`rerun === 'upgrade'`): prompt unless --upgrade was passed
     if (!options.upgrade) {
       if (promptsUnavailable()) {
         throw usageError(
@@ -737,12 +851,7 @@ async function runInitSite(options: InitSiteCommandOptions): Promise<void> {
     // Keep .gitignore in sync with the current template. This is idempotent
     // (only missing entries are added), so upgrades pick up new exclusions
     // such as the downloaded /ritual binary.
-    const gitignoreResult = await updateGitignore(generateGitignoreEntries())
-    if (gitignoreResult === 'created') {
-      console.log('✓ Created .gitignore')
-    } else if (gitignoreResult === 'updated') {
-      console.log('✓ Updated .gitignore')
-    }
+    await writeGitignore(config)
 
     const updatedSite: SiteDeployConfig = { ...config, version: ritualVersion }
     if (!(await persistSiteConfig(updatedSite))) {
@@ -947,8 +1056,13 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
   }
 
   if (deployMode === 'local-build') {
-    if (options.changeDetection === true) {
-      throw usageError('--change-detection only applies with --deploy publish-for-me.')
+    // Either explicit form is rejected, matching the `--ci manual` branch: the
+    // generated local-build workflow has no detect-changes step to enable *or*
+    // disable, so `--no-change-detection` was accepted and silently ignored.
+    if (options.changeDetection !== undefined) {
+      throw usageError(
+        '--change-detection/--no-change-detection only applies with --deploy publish-for-me.',
+      )
     }
 
     let distDir = options.distDir
@@ -1038,28 +1152,65 @@ async function writeInitFiles(config: InitSiteConfig, opts: WriteInitFilesOption
   }
 
   // Update .gitignore
-  const gitignoreResult = await updateGitignore(generateGitignoreEntries())
-  if (gitignoreResult === 'created') {
+  await writeGitignore(config, { reportUnchanged: true })
+}
+
+/** How `writeGitignore` reports a `.gitignore` that already had every entry. */
+type WriteGitignoreOptions = { reportUnchanged?: boolean }
+
+/**
+ * Bring `.gitignore` up to the current template and report what happened. When
+ * the deploy mode commits the built site, an existing pattern that still covers
+ * that directory is called out — the appended `!<dir>/` un-ignore cannot undo a
+ * wildcard, and a swallowed ignore surfaces as an empty deploy.
+ */
+async function writeGitignore(
+  config: InitSiteConfig,
+  options: WriteGitignoreOptions = {},
+): Promise<void> {
+  const gitignorePath = path.join(getBaseDir(), '.gitignore')
+  const before = (await fileExists(gitignorePath)) ? await fs.readFile(gitignorePath, 'utf-8') : ''
+
+  const result = await updateGitignore(generateGitignoreEntries(config))
+  if (result === 'created') {
     console.log('✓ Created .gitignore')
-  } else if (gitignoreResult === 'updated') {
+  } else if (result === 'updated') {
     console.log('✓ Updated .gitignore')
-  } else {
+  } else if (options.reportUnchanged === true) {
     console.log('⊘ .gitignore already up to date')
+  }
+
+  const committed = committedDistDir(config)
+  if (committed === null) return
+  const covering = gitignoreEntriesCovering(before, committed)
+  if (covering.length > 0) {
+    console.warn(
+      `⚠️  .gitignore still ignores '${committed}/' via ${covering.join(', ')} — ` +
+        'this deploy mode commits the built site, so remove or narrow those patterns.',
+    )
   }
 }
 
 function printNextSteps(config: InitSiteConfig): void {
   console.log()
+  const distDir = config.ciSystem === 'github-actions' ? config.distDir : 'dist'
   console.log('Your site is ready! Next steps:')
   console.log('  1. Add decks to the decks/ directory (ritual new deck "My Deck")')
-  console.log('  2. Preview locally with ritual serve --build')
+  console.log(`  2. Preview locally with ${servePreviewCommand(distDir)}`)
 
   if (config.ciSystem === 'manual') {
-    console.log('  3. Run ritual build-site to build your site')
-    console.log('  4. Deploy the dist/ directory to your hosting provider')
+    console.log(`  3. Run ${buildSiteCommand(distDir)} to build your site`)
+    console.log(`  4. Deploy the ${distDir}/ directory to your hosting provider`)
   } else {
     console.log('  3. Enable GitHub Pages in your repo: Settings → Pages → Source: GitHub Actions')
-    console.log('  4. Push to main to trigger a deploy')
+    if (config.deployMode === 'local-build') {
+      // This mode deploys what you committed, so the build is a step the user
+      // runs — with the flag that actually writes to the configured directory.
+      console.log(`  4. Build with ${buildSiteCommand(distDir)} and commit ${distDir}/`)
+      console.log('  5. Push to main to trigger a deploy')
+    } else {
+      console.log('  4. Push to main to trigger a deploy')
+    }
 
     if (config.deployMode === 'publish-for-me') {
       console.log()

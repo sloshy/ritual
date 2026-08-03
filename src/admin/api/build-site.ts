@@ -8,19 +8,27 @@
  * process — for the several minutes a build takes.
  *
  * The child builds into a scratch directory that is swapped into `dist/` only
- * once it exits cleanly. `runBuildSite` clears its output directory before
- * rebuilding it, so a build interrupted in place used to leave a published site
- * with no `index.html` — broken rather than merely stale. With the swap, `dist/`
- * holds either the previous tree or the new one at every instant.
+ * once it exits cleanly, so `dist/` holds either the previous tree or the new
+ * one at every instant — and a cancelled build leaves the published site
+ * untouched. The mechanism itself lives in `src/site/publish.ts`, shared with
+ * `ritual build-site`, which now takes the same care on its own.
  */
 
 import fs from 'node:fs/promises'
-import path from 'node:path'
 import { apiHandler } from '../utils'
 import { apiError } from './save-helpers'
 import { getBaseDir } from '../../base-dir'
 import { defaultDistDir, ritualArgv } from '../../site/dist-dir'
+import {
+  createBuildScratchDir,
+  publishAtomically,
+  STALE_BUILD_DIR_MAX_AGE_MS,
+} from '../../site/publish'
 import type { RouteProgressSink } from '../../progress'
+
+// Re-exported: the sweep's age rule is shared with the CLI builder now, but this
+// route is where its tests and callers have always addressed it.
+export { STALE_BUILD_DIR_MAX_AGE_MS }
 
 /** `POST /api/build-site` — the site build finished. */
 export interface BuildSiteResponse {
@@ -65,79 +73,6 @@ const BUILD_CANCELLED_MESSAGE = 'The site build was cancelled.'
 const BUILD_STEPS = 3
 
 /**
- * How old a leftover build directory must be before the sweep will remove it.
- *
- * The sweep cannot tell *its* leftovers from another process's live scratch
- * directory — the admin server, `ritual mcp`, and a second admin instance all
- * write `.dist-build-*` under the same base directory, and `publishAtomically`
- * parks the previous site in `.dist-old-*` for the width of two renames. So the
- * rule is age, not name: nothing a concurrent build could still be holding is
- * touched, and a genuinely abandoned directory is collected on the next build.
- */
-export const STALE_BUILD_DIR_MAX_AGE_MS = 6 * 60 * 60 * 1000
-
-/** Scratch/parked directory name prefixes, both swept by {@link sweepStaleBuildDirs}. */
-const BUILD_DIR_PREFIXES = ['.dist-build-', '.dist-old-'] as const
-
-/**
- * Remove leftovers from an interrupted earlier build — those older than
- * {@link STALE_BUILD_DIR_MAX_AGE_MS}, so a concurrent build's scratch directory
- * (and the window in which `.dist-old-*` is the only copy of the published site)
- * is never swept out from under it. Best effort throughout.
- */
-async function sweepStaleBuildDirs(baseDir: string): Promise<void> {
-  try {
-    const entries = await fs.readdir(baseDir)
-    const cutoff = Date.now() - STALE_BUILD_DIR_MAX_AGE_MS
-    await Promise.all(
-      entries
-        .filter((name) => BUILD_DIR_PREFIXES.some((prefix) => name.startsWith(prefix)))
-        .map(async (name) => {
-          const dir = path.join(baseDir, name)
-          const stats = await fs.stat(dir).catch(() => null)
-          if (stats === null || stats.mtimeMs > cutoff) return
-          await fs.rm(dir, { recursive: true, force: true }).catch(() => {})
-        }),
-    )
-  } catch {
-    // The sweep is housekeeping; a build must not fail because of it.
-  }
-}
-
-/**
- * Move `tmpDir` into `distDir`, keeping the published tree present throughout:
- * the previous tree is renamed aside first and removed only after the new one is
- * in place, and is restored if the second rename fails.
- *
- * **The rollback branch is deliberately uncovered.** Reaching it needs the second
- * `rename` to fail after the first succeeded — a cross-device or permissions
- * fault between two operations on the same parent directory, which no seam here
- * can fake without stubbing `node:fs` itself. It is three lines of straight-line
- * code guarding a case where the alternative is a missing `dist/`; a test that
- * mocked the module to reach it would pin the mock, not the behaviour.
- */
-async function publishAtomically(tmpDir: string, distDir: string): Promise<void> {
-  const parked = path.join(path.dirname(distDir), `.dist-old-${process.pid}-${Date.now()}`)
-  const hadPrevious = await fs
-    .stat(distDir)
-    .then(() => true)
-    .catch(() => false)
-
-  if (hadPrevious) await fs.rename(distDir, parked)
-  try {
-    await fs.rename(tmpDir, distDir)
-  } catch (error) {
-    if (hadPrevious) await fs.rename(parked, distDir)
-    throw error
-  }
-  if (hadPrevious) {
-    await fs.rm(parked, { recursive: true, force: true }).catch(() => {
-      console.error(`Could not remove the previous site build at ${parked}.`)
-    })
-  }
-}
-
-/**
  * Run the site build and publish it.
  *
  * `onProgress` reports the three structural steps the handler itself owns rather
@@ -178,9 +113,9 @@ export function handleBuildSite(
       // answer without a scratch directory or a child process being made first.
       if (signal?.aborted) return apiError(BUILD_CANCELLED_MESSAGE, 499)
 
-      await sweepStaleBuildDirs(baseDir)
-      // Same parent as `dist/`, so the publishing rename is a same-filesystem move.
-      tmpDir = await fs.mkdtemp(path.join(baseDir, '.dist-build-'))
+      // Beside `dist/`, so the publishing rename is a same-filesystem move; the
+      // helper sweeps abandoned scratch directories from earlier runs first.
+      tmpDir = await createBuildScratchDir(distDir)
 
       onProgress?.({ progress: 0, total: BUILD_STEPS, message: 'Starting site build…' })
 

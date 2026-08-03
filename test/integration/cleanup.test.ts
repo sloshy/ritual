@@ -295,9 +295,87 @@ describe('cleanup (Integration)', () => {
     expect(result.warnings.join('\n')).toContain('not rewritten')
     expect(await fs.readFile(filePath, 'utf-8')).toBe(content)
   })
+
+  test('a file that cannot be parsed is reported by name and its siblings still clean up', async () => {
+    // Broken YAML front matter used to abort the whole pass with a fileless
+    // js-yaml error — in exactly the hand-edited workspaces cleanup exists for.
+    const brokenPath = path.join(dir(), 'decks', 'Broken.md')
+    await fs.writeFile(brokenPath, '---\nname: [broken\n---\n\n## Main\n1 Sol Ring &1\n')
+    const collectionPath = path.join(dir(), 'collections', 'Binder.md')
+    await fs.writeFile(collectionPath, '- Sol Ring (ltc:284) &1\n')
+
+    const results = await cleanupAllLists()
+
+    const broken = resultFor(results, 'Broken.md')
+    expect(broken.unreadable).toBeTrue()
+    expect(broken.rewritten).toBeFalse()
+    expect(broken.renamedTo).toBeUndefined()
+    expect(broken.warnings.join('\n')).toContain('could not be read')
+    // The file itself is untouched, and every other list was still cleaned up.
+    expect(await fs.readFile(brokenPath, 'utf-8')).toContain('name: [broken')
+    expect(resultFor(results, 'Binder.md').rewritten).toBeTrue()
+    expect(await fs.readFile(collectionPath, 'utf-8')).toBe(
+      '# Binder\n\n## Main\n- Sol Ring (LTC:284) &1\n',
+    )
+  })
 })
 
 describe('cleanup CLI (Integration)', () => {
+  /** A workspace with one unparseable deck and one collection needing cleanup. */
+  async function writeBrokenWorkspace(dir: string): Promise<void> {
+    await fs.writeFile(
+      path.join(dir, 'decks', 'Broken.md'),
+      '---\nname: [broken\n---\n\n## Main\n1 Sol Ring &1\n',
+    )
+    await fs.writeFile(path.join(dir, 'collections', 'Binder.md'), '- Sol Ring (ltc:284) &1\n')
+  }
+
+  test('a format prompt that cannot run under --no-input is a usage error, not a bad file', async () => {
+    await withWorkspace(async (dir) => {
+      // A file the pre-flight format check cannot classify still reaches the
+      // prompt. That prompt used to sit inside `cleanupList`'s per-file read
+      // guard, so its `--no-input` failure was relabelled "Broken.md could not
+      // be read" and exited 1 — blaming a file for the command's own usage
+      // error, and hiding the exit code the docs promise.
+      await writeBrokenWorkspace(dir)
+
+      const result = await runCli(['--no-input', 'cleanup'], dir)
+
+      expect(result.exitCode).toBe(2)
+      const output = `${result.stdout}\n${result.stderr}`
+      expect(output).toContain('Deck format')
+      expect(output).not.toContain('could not be read')
+    })
+  })
+
+  test.each([['--dry-run'], ['--check'], ['']])(
+    'a broken file names itself, exits 1, and does not stop the pass (%s)',
+    async (flag: string) => {
+      const flags = flag === '' ? [] : [flag]
+      await withWorkspace(async (dir) => {
+        await writeBrokenWorkspace(dir)
+
+        const result = await runCli(['cleanup', '--skip-formats', ...flags], dir)
+
+        expect(result.exitCode).toBe(1)
+        const output = `${result.stdout}\n${result.stderr}`
+        expect(output).toContain('Broken.md')
+        expect(output).toContain('could not be read')
+        // Distinct from "needs cleanup": the file was skipped, not rewritten.
+        // Pinned in full — a bare 'skipped' also matches the unrelated 'format
+        // skipped' action phrase that --skip-formats emits for every deck.
+        expect(output).toContain('skipped: fix the file and rerun cleanup')
+        // The sibling collection is still reported (and, in a real run, written).
+        expect(output).toContain('Binder.md')
+        if (flags.length === 0) {
+          expect(await fs.readFile(path.join(dir, 'collections', 'Binder.md'), 'utf-8')).toContain(
+            '(LTC:284)',
+          )
+        }
+      })
+    },
+  )
+
   test('cleans a workspace and reports what changed', async () => {
     await withWorkspace(async (dir) => {
       await writeWantedFile(dir, 'binder', {

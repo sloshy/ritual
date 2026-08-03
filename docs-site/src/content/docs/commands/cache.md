@@ -58,6 +58,19 @@ Preload all cards from a specific set into the cache.
 
 Caches exactly that set and nothing else: unlike the interactive card lookups, it never offers to bulk-download every English card first — picking this command is already a statement about how much you want cached. Use [`preload-all`](#preload-all) when you do want the whole database.
 
+The outcomes are distinguished, so a script can trust the exit code:
+
+| Outcome                                         | Exit | Output                                                                                                     |
+| ----------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------- |
+| Cards cached                                    | `0`  | `Successfully cached N cards for set 'KHM'`                                                                |
+| Set exists but holds no real printings          | `0`  | `Set 'TMKM' matched N items, none of which are real printings (token and Art Series sets are not cached).` |
+| Unknown set code (Scryfall matched nothing)     | `3`  | `No cards found for set 'ZZZZ' — check the set code (see https://scryfall.com/sets)`                       |
+| Search failed (HTTP error, network unreachable) | `1`  | `Failed to preload set 'KHM': <reason>`                                                                    |
+
+Token sets (`tmkm`) and Art Series sets are real sets that cache nothing —
+Ritual stores only real printings — so they are reported as their own outcome
+rather than being mistaken for a typo'd set code.
+
 ### preload-all
 
 Download and cache the full Scryfall bulk card data. This also downloads the
@@ -364,6 +377,7 @@ TCP port (`--torrent-port`) reachable directly.
 | `0`  | Success — including `status` on an empty cache, a `feed fetch --no-seed` sync, and a long-running `server`, `feed host`, or seeding `feed fetch` stopped with Ctrl+C                        |
 | `1`  | Runtime failure — a preload or tag refresh failed, initial feed generation failed with no previous feed, seeding could not start, a server port could not be bound, or the feed sync failed |
 | `2`  | Usage error (invalid option value, e.g. a bad `--port`, `--torrent-port`, `--refresh`, `--source`, or `--url`, or `--url` combined with a non-feed `--source`/`--cache-source`)             |
+| `3`  | Not found — `preload-set` was given a set code Scryfall has no cards for                                                                                                                    |
 
 ## Examples
 

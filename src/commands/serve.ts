@@ -6,7 +6,7 @@ import { startSiteServer } from '../serve/server'
 import { resolveOutDir } from '../site/dist-dir'
 import { applyBuildSiteOptions, runBuildSite, type BuildSiteOptions } from './build-site'
 import { ExitCode, parsePort } from './scripting'
-import { serveStaticSite } from './serve-helpers'
+import { serveStaticSite, serveUrl } from './serve-helpers'
 
 export type ServeCliOptions = BuildSiteOptions & {
   port: number
@@ -41,8 +41,10 @@ export function registerServeCommand(program: Command): void {
       const givenBuildFlags = buildOnlyOptions
         .filter((option) => command.getOptionValueSource(option.attributeName()) === 'cli')
         // --refresh doubles as the cache-warming policy under --api, so it is
-        // valid without --build there.
+        // valid without --build there; --out-dir names the directory to serve,
+        // which is meaningful with or without a build.
         .filter((option) => !(options.api === true && option.attributeName() === 'refresh'))
+        .filter((option) => option.attributeName() !== 'outDir')
         .map((option) => option.long ?? option.name())
       if (givenBuildFlags.length > 0) {
         console.error(
@@ -86,12 +88,20 @@ export function registerServeCommand(program: Command): void {
 
     const { port, host } = options
 
+    // Both modes serve the same tree, so both refuse the same way: a directory
+    // with no index.html answers every request with a bare 404, which reads as a
+    // broken site rather than an unbuilt one.
+    if (!(await Bun.file(path.join(distDir, 'index.html')).exists())) {
+      console.error(
+        `No built site found in ${distDir}. Build it first with \`ritual build-site${
+          options.outDir === undefined ? '' : ` --out-dir ${options.outDir}`
+        }\`, or re-run this command with --build.`,
+      )
+      process.exitCode = ExitCode.RuntimeError
+      return
+    }
+
     if (options.api === true) {
-      if (!(await Bun.file(path.join(distDir, 'index.html')).exists())) {
-        console.error('No built site found. Run with --build (or `ritual build-site`) first.')
-        process.exitCode = ExitCode.UsageError
-        return
-      }
       if (options.cacheImages === true) {
         console.warn(
           'Note: live data always uses Scryfall image URLs; --cache-images only affects static assets.',
@@ -105,12 +115,12 @@ export function registerServeCommand(program: Command): void {
           'Card cache is empty — card search will return no results until the cache is preloaded.',
         )
       }
-      console.log(`Serving site + live API from ${distDir} at http://localhost:${port}...`)
+      console.log(`Serving site + live API from ${distDir} at ${serveUrl(host, port)}...`)
       startSiteServer({ distDir, port, hostname: host })
       return
     }
 
-    console.log(`Serving site from ${distDir} at http://localhost:${port}...`)
+    console.log(`Serving site from ${distDir} at ${serveUrl(host, port)}...`)
     serveStaticSite({ distDir, port, hostname: host })
   })
 }

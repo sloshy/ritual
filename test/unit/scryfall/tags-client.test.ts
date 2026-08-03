@@ -193,6 +193,15 @@ describe('ScryfallClient tag integration', () => {
     expect(sol.artTags).toBeUndefined()
   })
 
+  test('refreshTags throws when the tags cannot be downloaded', async () => {
+    // The command promises exit 1 for a failed refresh, which it can only keep
+    // if the failure reaches it — this used to be logged and swallowed.
+    http.mock(ORACLE_URI, () => new Response('nope', { status: 500 }))
+
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
+    await expect(client.refreshTags()).rejects.toThrow('Tag refresh aborted')
+  })
+
   test('refreshTags uses the cache bulkSet fast path when available', async () => {
     const bulkCache = new BulkSetCacheManager<ScryfallCard[]>(0)
     await bulkCache.set('Sol Ring', [SOL_RING as ScryfallCard])

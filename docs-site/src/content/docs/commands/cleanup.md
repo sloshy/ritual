@@ -18,6 +18,16 @@ One pass over all list files applies three normalizations:
 
 Cleanup never adds changelog entries — a cleaned-up file has the same cards it had before. Two cases are reported with a warning instead of fully acted on: a rename whose target file name is already taken by another list, and a file holding content the canonical rewrite cannot reproduce. The second covers two things: lines the parse skipped — malformed card lines, but also prose, comments, or any other text the list grammar does not model — and [fenced code blocks](/commands/edit/#fenced-code-blocks), which parse cleanly as prose but which the canonical serializers do not emit. In either case the file is still renamed if its name drifted, but its content is left alone (rewriting it would silently drop that content; fix, remove, or accept it and rerun).
 
+A file cleanup cannot read at all — broken YAML front matter, bad permissions — is reported by name and **skipped**: nothing about it is rewritten or renamed, every other list is still cleaned up, and the run exits 1. This is the case cleanup exists for (hand-edited workspaces), so one unparseable file can no longer abort the pass:
+
+```
+[dry-run] decks/Broken.md: warning: could not be read: unexpected end of the stream within a flow collection at line 3, column 1
+[dry-run] decks/Broken.md: warning: skipped: fix the file and rerun cleanup
+1 file could not be read and was skipped (see the warnings above).
+```
+
+Its per-file JSON result carries `"unreadable": true`.
+
 A third case is reported _without_ holding anything back: a collection or wanted-list line whose card name starts with a quantity (`- 1 Sol Ring (C21:240)`) parses as a card literally named `1 Sol Ring`. That line survives the rewrite verbatim, so cleanup canonicalizes the file and names the line anyway — see [Deck-Style Quantity Prefixes](/commands/collection-sync/#deck-style-quantity-prefixes).
 
 ## Usage
@@ -56,9 +66,11 @@ interactively to answer the prompts.
 ./ritual cleanup --check
 ```
 
-It exits 1 when any file would be rewritten, renamed, or is blocked from its
-canonical rewrite by parse warnings or a fenced code block — and 0 when the
-workspace is already clean.
+It exits 1 when any file would be rewritten, renamed, is blocked from its
+canonical rewrite by parse warnings or a fenced code block, or could not be read
+at all — and 0 when the workspace is already clean. The messages say which of
+those it was, so "needs cleanup" and "could not be parsed" are distinguishable
+in a hook's output.
 A formatless deck alone does not fail `--check`: a real run would not change it
 without an interactive answer.
 
@@ -85,11 +97,11 @@ report) and every warning, prefixed with its file:
 
 ## Exit Codes
 
-| Code | Meaning                                                                                        |
-| ---- | ---------------------------------------------------------------------------------------------- |
-| `0`  | Cleanup ran (or previewed) successfully                                                        |
-| `1`  | A real run could not rewrite a file (skipped lines or a fenced block), or `--check` found work |
-| `2`  | A real run needed the deck-format prompt but prompts were unavailable (see `--skip-formats`)   |
+| Code | Meaning                                                                                                                                                                |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Cleanup ran (or previewed) successfully                                                                                                                                |
+| `1`  | A file could not be read or parsed (every mode, including `--dry-run`), a real run could not rewrite a file (skipped lines or a fenced block), or `--check` found work |
+| `2`  | A real run needed the deck-format prompt but prompts were unavailable (see `--skip-formats`)                                                                           |
 
 ## Examples
 

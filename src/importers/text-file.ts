@@ -37,10 +37,22 @@ function resolveDeckName(rawName: unknown, fallbackName: string): string {
 /**
  * Read just a deck file's display name without parsing its full card list.
  * Used to filter discovered decks by the site `includeDecks` selection.
+ *
+ * Throws whatever `gray-matter` throws for unparseable front matter — callers
+ * (see `discoverListSources`) turn that into the reason a list could not be
+ * built.
+ *
+ * The options argument is load-bearing, not decoration: `gray-matter` keeps a
+ * module-level cache keyed on file content, and it stores a *partial* entry even
+ * for input it threw on, so the second parse of the same broken front matter
+ * quietly returns empty data instead of throwing. It only consults that cache
+ * when no options are passed, so passing them makes this read report the same
+ * answer no matter what parsed the file first.
  */
 export async function readDeckName(filePath: string): Promise<string> {
   const rawText = await Bun.file(filePath).text()
-  return resolveDeckName(matter(rawText).data.name, path.basename(filePath, path.extname(filePath)))
+  const data = matter(rawText, { language: 'yaml' }).data
+  return resolveDeckName(data.name, path.basename(filePath, path.extname(filePath)))
 }
 
 /**

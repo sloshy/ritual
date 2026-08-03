@@ -27,9 +27,12 @@ export type OutDirResolution = { ok: true; dir: string } | { ok: false; error: s
 /**
  * Resolve `--out-dir` against the Ritual directory, defaulting to `dist/`.
  *
- * The build **clears its output directory before writing it**, so this is a
- * safety boundary rather than a formatting check: `--out-dir .` would delete the
- * user's decks, collections, and `.git`. Refused, therefore:
+ * A safety boundary rather than a formatting check, and it holds for every
+ * caller of the flag. A build **replaces its output directory wholesale** (it
+ * writes a scratch tree and renames it over the target), so `--out-dir .` would
+ * replace the user's decks, collections, and `.git` with a built site; `serve`
+ * publishes that same directory over HTTP, so it would serve them instead.
+ * Refused, therefore:
  *
  * - a blank value (`--out-dir ''` / whitespace), which would resolve to the base
  *   directory itself;
@@ -51,7 +54,7 @@ export function resolveOutDir(raw: string | undefined): OutDirResolution {
   if (dir === baseDir) {
     return {
       ok: false,
-      error: `--out-dir may not be the Ritual directory itself (${baseDir}) — the build clears its output directory first, which would delete your lists.`,
+      error: `--out-dir may not be the Ritual directory itself (${baseDir}) — it is the site's output directory: a build replaces it wholesale, and serving it would publish your lists.`,
     }
   }
   // `path.relative(dir, baseDir)` never starts with `..` when `dir` contains
@@ -60,7 +63,7 @@ export function resolveOutDir(raw: string | undefined): OutDirResolution {
   if (fromOutDir !== '' && !fromOutDir.startsWith('..') && !path.isAbsolute(fromOutDir)) {
     return {
       ok: false,
-      error: `--out-dir may not contain the Ritual directory (${dir} contains ${baseDir}) — the build clears its output directory first, which would delete your lists.`,
+      error: `--out-dir may not contain the Ritual directory (${dir} contains ${baseDir}) — it is the site's output directory: a build replaces it wholesale, and serving it would publish your lists.`,
     }
   }
   return { ok: true, dir }

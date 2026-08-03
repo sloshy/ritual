@@ -2,7 +2,7 @@
 title: 'build-site'
 ---
 
-Generate a website for your decks and collections.
+Generate a website for your decks, collections, and wanted lists.
 
 ## Usage
 
@@ -14,19 +14,19 @@ Generate a website for your decks and collections.
 
 By default, deck card images use Scryfall URLs from card data. This can be overridden with the `--cache-images` option to download and use local images instead.
 
-| Option                          | Description                                                                                                                                                                                                                                                                                                                             |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-v, --verbose`                 | Show list of cards being fetched from Scryfall                                                                                                                                                                                                                                                                                          |
-| `--cache-images`                | Download and use local deck card images in `dist/images` instead of URLs                                                                                                                                                                                                                                                                |
-| `--decks [names...]`            | Deck names or URLs to include in the site (default: the `site.includeDecks` config selection)                                                                                                                                                                                                                                           |
-| `--collections [names...]`      | Collection names to include in the site (default: the `site.includeCollections` config selection)                                                                                                                                                                                                                                       |
-| `--wanted-lists [names...]`     | Wanted list names to include in the site (default: the `site.includeWantedLists` config selection)                                                                                                                                                                                                                                      |
-| `--currencies <list>`           | Comma-separated currencies to include on the site: `usd`, `eur`, `tix` (default: all three)                                                                                                                                                                                                                                             |
-| `--refresh <mode>`              | Card cache refresh policy: `ask` (default — bulk-downloads an empty or stale cache **without asking**, prompts for the price and tag refreshes), `auto`, `no-bulk`, or `never`. See [Card Cache Refresh](#card-cache-refresh).                                                                                                          |
-| `--theme <name>`                | Initial theme served to first-time visitors (built-in name or a custom name from `--theme-file`). Defaults to `default`.                                                                                                                                                                                                                |
-| `--theme-file <path...>`        | Load one or more custom theme JSON files; each is added to the runtime theme list under its declared `name`.                                                                                                                                                                                                                            |
-| `--moxfield-user-agent <agent>` | Moxfield-approved unique User-Agent string (required for Moxfield deck URLs unless `MOXFIELD_USER_AGENT` is set)                                                                                                                                                                                                                        |
-| `--out-dir <path>`              | Build into this directory instead of `dist/`. A relative path resolves against the Ritual directory. **The directory is cleared before the build**, so it is refused when it is the Ritual directory itself or any ancestor of it (`.`, `..`, `/`) — see [Output](#output). Useful for building a preview alongside the published site. |
+| Option                          | Description                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-v, --verbose`                 | Show list of cards being fetched from Scryfall                                                                                                                                                                                                                                                                                                                                                                        |
+| `--cache-images`                | Download and use local deck card images in `dist/images` instead of URLs                                                                                                                                                                                                                                                                                                                                              |
+| `--decks [names...]`            | Deck names (display name or file base name) or URLs to include in the site (default: the `site.includeDecks` config selection). Passing the flag with no names is a usage error, not "build everything".                                                                                                                                                                                                              |
+| `--collections [names...]`      | Collection names (display name or file base name) to include in the site (default: the `site.includeCollections` config selection). Passing the flag with no names is a usage error, not "build everything".                                                                                                                                                                                                          |
+| `--wanted-lists [names...]`     | Wanted list names (display name or file base name) to include in the site (default: the `site.includeWantedLists` config selection). Passing the flag with no names is a usage error, not "build everything".                                                                                                                                                                                                         |
+| `--currencies <list>`           | Comma-separated currencies to include on the site: `usd`, `eur`, `tix` (default: all three)                                                                                                                                                                                                                                                                                                                           |
+| `--refresh <mode>`              | Card cache refresh policy: `ask` (default — bulk-downloads an empty or stale cache **without asking**, prompts for the price and tag refreshes), `auto`, `no-bulk`, or `never`. See [Card Cache Refresh](#card-cache-refresh).                                                                                                                                                                                        |
+| `--theme <name>`                | Initial theme served to first-time visitors (built-in name or a custom name from `--theme-file`). Defaults to `default`.                                                                                                                                                                                                                                                                                              |
+| `--theme-file <path...>`        | Load one or more custom theme JSON files; each is added to the runtime theme list under its declared `name`.                                                                                                                                                                                                                                                                                                          |
+| `--moxfield-user-agent <agent>` | Moxfield-approved unique User-Agent string (required for Moxfield deck URLs unless `MOXFIELD_USER_AGENT` is set)                                                                                                                                                                                                                                                                                                      |
+| `--out-dir <path>`              | Publish into this directory instead of `dist/`. A relative path resolves against the Ritual directory. **The directory is replaced by the build**, so it is refused when it is the Ritual directory itself or any ancestor of it (`.`, `..`, `/`) — see [Output](#output). Useful for building a preview alongside the published site, which [`serve --out-dir`](/commands/serve/) can then serve without rebuilding. |
 
 ## Examples
 
@@ -112,9 +112,9 @@ Entries passed to `--decks` can be deck URLs instead of local deck names. URL de
 - **Moxfield** — `https://moxfield.com/decks/<id>`
 - **MTGGoldfish** — any `mtggoldfish.com` deck URL
 
-Moxfield requires a unique, Moxfield-approved User-Agent string: pass `--moxfield-user-agent <agent>` or set the `MOXFIELD_USER_AGENT` environment variable. A Moxfield URL given without one is reported as an error for that deck and the build continues without it.
+Moxfield requires a unique, Moxfield-approved User-Agent string: pass `--moxfield-user-agent <agent>` or set the `MOXFIELD_USER_AGENT` environment variable.
 
-An `http(s)` URL that doesn't match a supported service is also reported as an error naming the URL and skipped — the rest of the build continues.
+A URL deck comes from `--decks`, so it is a source you **named**: if it cannot be fetched — a Moxfield URL given without a User-Agent, an `http(s)` URL that matches no supported service, a dead link — the whole build fails with exit code `1` and nothing is published. See [When a list will not build](#when-a-list-will-not-build).
 
 URL decks have no local file, so they carry no changelog and no file timestamp on the generated site.
 
@@ -195,24 +195,101 @@ Generates a single-page application in the `dist/` directory (or the `--out-dir`
 - Navigation bar with "Decks", "Collections", and "Wanted" links always visible
 - Page transition animations
 
-### The output directory is cleared first
+### The output directory is replaced, never half-written
 
-A build removes its output directory and rebuilds it, so the published site is
-never a mixture of two builds. That makes `--out-dir` a destructive flag: it is
-refused with exit code 2 when the path it resolves to is blank, is the Ritual
-directory itself, or **contains** the Ritual directory — `--out-dir .` would
-otherwise delete your decks, collections, and `.git`.
+Every build — the CLI, the admin site's "Build Site" page, and the `build_site`
+MCP tool — writes into a scratch directory beside the target and renames it into
+place only once the build has succeeded. The output directory therefore holds
+either the previous site or the new one at every instant: a build that fails
+partway (an unusable card cache, a cold network, a list that will not load)
+leaves the site you already published exactly as it was.
+
+Because a successful build **replaces** its output directory, `--out-dir` is
+still a destructive flag: it is refused with exit code 2 when the path it
+resolves to is blank, is the Ritual directory itself, or **contains** the Ritual
+directory — `--out-dir .` would otherwise delete your decks, collections, and
+`.git`.
 
 ```
 $ ./ritual build-site --out-dir .
---out-dir may not be the Ritual directory itself (/home/you/ritual) — the build
-clears its output directory first, which would delete your lists.
+--out-dir may not be the Ritual directory itself (/home/you/ritual) — it is the
+site's output directory: a build replaces it wholesale, and serving it would
+publish your lists.
 ```
 
-The admin site's "Build Site" page and the `build_site` MCP tool avoid the
-in-place clear entirely: they build into a scratch directory and swap it into
-`dist/` only once the build has exited cleanly, so `dist/` holds either the
-previous site or the new one at every instant.
+## When a list will not build
+
+A list named on the command line that cannot be loaded **fails the build**:
+every such source is listed in a closing summary, the exit code is `1`, and
+nothing is published — the previous site stays up.
+
+```
+$ ./ritual build-site --decks "Nonexistant Deck"
+Failed to load deck 'Nonexistant Deck': no deck named that in /home/you/ritual/decks
+
+⚠️  1 source could not be built:
+  - deck 'Nonexistant Deck': no deck named that in /home/you/ritual/decks
+The published site was left unchanged.
+```
+
+This covers every way a named source can fail: no such list, a list that exists
+but cannot be read (broken front matter, bad permissions), a name more than one
+list answers to, and a deck URL that could not be fetched. The reason printed is
+the real one — a file that is present but unreadable reports _why_, not "no deck
+named that".
+
+A source the build **discovered for itself** — one selected by `site.include*`
+rather than named on the command line — is treated differently: it is reported
+the same way, but the rest of the site is published without it and the build
+exits `0`.
+
+```
+$ ./ritual build-site
+Failed to load deck 'winota': unexpected end of the stream within a flow collection
+
+⚠️  1 source could not be built:
+  - deck 'winota': unexpected end of the stream within a flow collection
+The site was published without them.
+```
+
+Names given to `--decks`, `--collections` and `--wanted-lists` are matched
+against both the list's **display name** (the deck's `name:` front matter, a
+collection or wanted list's `# Title`) and its **file base name**, ignoring case,
+accents, and `-`/`_` separators — the same matching every other list-taking
+command uses, so `--decks winota-stax` finds a deck titled `Winota Stax`. A
+trailing `.md` is accepted. A name that two lists answer to is reported rather
+than resolved to an arbitrary one:
+
+```
+Failed to load deck 'Burn': matches 2 decks (Burn, Burn) — name one exactly
+```
+
+The `site.include*` config lists match on the **display name, exactly** — no
+folding. Config is written once and deliberately, so a name that has drifted is
+reported rather than quietly resolved to a near neighbour.
+
+A `site.include*` entry that matches no list is a **warning**, not a failure —
+config drifts when a list is renamed, so the build continues without it and says
+so:
+
+```
+⚠️  site.includeDecks lists 'Old Name', which matches no deck in /home/you/ritual/decks — it may have been renamed or removed.
+```
+
+A workspace with no lists at all (including one where `decks/`, `collections/`,
+and `wanted/` do not exist yet) is reported as such and exits `1`:
+
+```
+Nothing to build: no decks, collections, or wanted lists were found. Create one
+with `ritual new deck "My Deck"` (or run `ritual edit`), then build again.
+```
+
+If nothing was priced, the build says which of the two causes it was and exits
+`1`. When the selected lists are all empty there is nothing to price:
+`No cards to price: every selected list is empty, so there is nothing to build.`
+When they hold cards but the cache has no prices for them, it names the remedy:
+`No price data found in the card cache. Run \`ritual cache preload-all\` first,
+or re-run with --refresh auto to download it.`
 
 ## View Modes and Card Size
 
@@ -413,7 +490,7 @@ On the index page, deck and collection entries with missing prices display the t
 
 ## Collections
 
-When `--collections` is specified, collection files from the `collections/` directory are included in the generated site. Each collection card must have a set code and collector number (e.g., `- Sol Ring (C19:221)`). Cards without this information are skipped with a warning.
+Collections are included in the build by default — every list allowed by `site.includeCollections`, or exactly the ones named by `--collections`. Collection files come from the `collections/` directory. Each collection card must have a set code and collector number (e.g., `- Sol Ring (C19:221)`). Cards without this information are skipped with a warning.
 
 Collection pages show:
 
@@ -431,7 +508,7 @@ Collection pages show:
 
 ## Wanted Lists
 
-When `--wanted-lists` is specified, wanted list files from the `wanted/` directory are included in the generated site. Unlike collections, wanted list entries can have varying levels of specificity — from just a card name to a fully pinned printing and finish.
+Wanted lists are included in the build by default — every list allowed by `site.includeWantedLists`, or exactly the ones named by `--wanted-lists`. Wanted list files come from the `wanted/` directory. Unlike collections, wanted list entries can have varying levels of specificity — from just a card name to a fully pinned printing and finish.
 
 Wanted list pages show:
 

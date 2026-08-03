@@ -1,4 +1,6 @@
 import { describe, expect, test } from 'bun:test'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { runCli } from './helpers/cli'
 import { withWorkspace } from './helpers/workspace'
 
@@ -38,9 +40,40 @@ describe('serve command (Integration)', () => {
   test('--refresh is accepted with --api (cache warming), failing later on the missing dist', async () => {
     await withWorkspace(async (dir) => {
       const result = await runCli(['serve', '--api', '--refresh', 'never'], dir)
-      expect(result.exitCode).toBe(2)
+      expect(result.exitCode).toBe(1)
       expect(result.stderr).not.toContain('only appl')
       expect(result.stderr).toContain('No built site found')
+    })
+  })
+
+  test('a dist directory with no index.html is refused instead of serving 404s', async () => {
+    await withWorkspace(async (dir) => {
+      // A build interrupted in place used to leave exactly this: a directory
+      // with assets and no entry point, which `serve` happily served as 404s.
+      await fs.mkdir(path.join(dir, 'dist', 'images'), { recursive: true })
+
+      const result = await runCli(['serve'], dir)
+
+      expect(result.exitCode).toBe(1)
+      expect(result.stderr).toContain('No built site found')
+      expect(result.stderr).toContain('ritual build-site')
+      expect(result.stderr).toContain('--build')
+      expect(result.stdout).not.toContain('Serving site')
+    })
+  })
+
+  test('--out-dir is exempt from the build-only guard and resolved for serving', async () => {
+    await withWorkspace(async (dir) => {
+      // A serving server would block, so the assertion is on what `serve` does
+      // *before* binding: it accepts the flag (rather than demanding --build)
+      // and then fails on the resolved directory's missing index.html.
+      const missing = await runCli(['serve', '--out-dir', 'nope'], dir)
+
+      expect(missing.exitCode).toBe(1)
+      // The build-only rejection would name the flag and tell you to add --build.
+      expect(missing.stderr).not.toContain('only appl')
+      expect(missing.stderr).toContain(path.join(dir, 'nope'))
+      expect(missing.stderr).toContain('--out-dir nope')
     })
   })
 

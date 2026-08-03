@@ -2,7 +2,11 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { resolveDeckSources, resolveListSources } from '../../src/site/list-sources'
+import {
+  discoverListSources,
+  resolveDeckSources,
+  resolveListSources,
+} from '../../src/site/list-sources'
 
 let dir: string
 
@@ -76,5 +80,39 @@ describe('resolveListSources', () => {
   test('exclude drops a list from a wildcard include by H1 title', async () => {
     const sources = await resolveListSources(dir, ['*'], ['Red Binder'])
     expect(sources.sort()).toEqual(['ecl', 'untitled'])
+  })
+})
+
+describe('discoverListSources', () => {
+  // The missing-directory invariant: a workspace with no `decks/` yet is a first
+  // run, not a failure. It used to be the one list type that raised a raw ENOENT.
+  test.each([['deck'], ['flat']] as const)(
+    'a missing %s directory is an empty set',
+    async (kind) => {
+      expect(await discoverListSources(kind, path.join(dir, 'not-there'))).toEqual([])
+    },
+  )
+
+  test('an unreadable file is kept, named after itself, carrying its reason', async () => {
+    // Dropped instead, it became invisible: nothing downstream could report it,
+    // so a default build published without it and exited 0.
+    await write('broken.md', '---\nname: [broken\n---\n')
+    await write('fine.md', '---\nname: Fine Deck\n---\n## Main\n1 Sol Ring\n')
+
+    const entries = await discoverListSources('deck', dir)
+
+    const broken = entries.find((e) => e.basename === 'broken')
+    expect(broken?.displayName).toBe('broken')
+    expect(broken?.readError).toContain('flow collection')
+    expect(entries.find((e) => e.basename === 'fine')?.readError).toBeUndefined()
+  })
+
+  test('an unreadable list is not offered as a servable source', async () => {
+    // `resolveDeckSources` feeds `serve --api`'s live index, which has no
+    // channel to report a reason — so it must not list one it cannot load.
+    await write('broken.md', '---\nname: [broken\n---\n')
+    await write('fine.md', '---\nname: Fine Deck\n---\n## Main\n1 Sol Ring\n')
+
+    expect(await resolveDeckSources(dir, ['*'], [])).toEqual(['fine'])
   })
 })

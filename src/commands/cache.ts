@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import { ALL_PAGES, searchCards, refreshTags } from '../scryfall'
+import { searchAllPages, refreshTags } from '../scryfall'
 import { refreshCardCache } from '../cache/refresh-source'
 import { collectCacheStatus, type CacheStatusResult } from '../cache/status'
 import { addFeedUrlOption, feedUrlSourceConflict, parseCacheSourceFlag } from '../cache/cadence'
@@ -74,19 +74,40 @@ export function registerCacheCommand(program: Command): void {
     .argument('<setCode>', 'Set code to preload (e.g. khm, lea)')
     .action(async (setCode: string) => {
       const normalizedSetCode = setCode.toLowerCase()
-      console.log(`Preloading set '${normalizedSetCode.toUpperCase()}'...`)
+      const displayCode = normalizedSetCode.toUpperCase()
+      console.log(`Preloading set '${displayCode}'...`)
       try {
-        const query = `set:${normalizedSetCode}`
-        // The one caller that wants every result page: a set is preloaded whole,
-        // while every other search stops at the bounded default of one page.
-        // `offerPreload: false`: this command's whole point is caching one set,
-        // so it must not open with an offer to bulk-download every card.
-        const cards = await searchCards(query, { maxPages: ALL_PAGES, offerPreload: false })
-        console.log(
-          `Successfully cached ${cards.length} cards for set '${normalizedSetCode.toUpperCase()}'`,
-        )
+        // A set is preloaded whole (every result page), and an HTTP failure
+        // comes back as data instead of an empty list, so a typo'd set code and
+        // a dead network are no longer both reported as success.
+        const result = await searchAllPages(`set:${normalizedSetCode}`)
+        if (result.kind === 'failed') {
+          console.error(`Failed to preload set '${displayCode}': ${result.message}`)
+          process.exitCode = ExitCode.RuntimeError
+          return
+        }
+        if (result.matched === 0) {
+          // Scryfall answers an unknown set code with "nothing matched"; there is
+          // no such thing as a real, empty set.
+          console.error(
+            `No cards found for set '${displayCode}' — check the set code (see https://scryfall.com/sets).`,
+          )
+          process.exitCode = ExitCode.NotFound
+          return
+        }
+        if (result.cards.length === 0) {
+          // The set exists but holds nothing cacheable — a token or Art Series
+          // set, which `cacheRealPrintings` filters out. Not a typo, so not a
+          // NotFound: the user asked for a real set and got an honest answer.
+          console.log(
+            `Set '${displayCode}' matched ${result.matched} item${result.matched === 1 ? '' : 's'}, none of which are real printings ` +
+              '(token and Art Series sets are not cached).',
+          )
+          return
+        }
+        console.log(`Successfully cached ${result.cards.length} cards for set '${displayCode}'`)
       } catch (e) {
-        console.error('Failed to preload set:', e instanceof Error ? e.message : e)
+        console.error(`Failed to preload set '${displayCode}':`, getErrorMessage(e))
         process.exitCode = ExitCode.RuntimeError
       }
     })
