@@ -154,6 +154,14 @@ export type ParsedFlatListFile<E extends FlatListEntry> = {
   entries: E[]
   sectionOrder: string[]
   warnings: string[]
+  /**
+   * Non-blocking notices about lines that parsed but almost certainly do not say
+   * what the author meant — today, a card name that starts with a quantity.
+   * Kept apart from `warnings` because a re-serialize preserves these lines
+   * verbatim, so they must not gate the whole-file rewrite the way unreadable
+   * lines do.
+   */
+  advisories: string[]
   pool: CardIdPool
 }
 
@@ -163,6 +171,7 @@ type FlatListParse<Raw> = {
   sectionOrder: string[]
   warnings: string[]
   fencedLines: number
+  advisories: string[]
 }
 
 /**
@@ -186,6 +195,7 @@ async function readFlatListFile<Raw, E extends FlatListEntry>(
     // Fenced code blocks join the parse warnings here: every consumer of this
     // read re-serializes the whole file, which would delete the block.
     warnings: unreadableLines(parsed),
+    advisories: parsed.advisories,
     pool: assignMissingIds(entries),
   }
 }
@@ -205,7 +215,7 @@ export function readWantedFile(filePath: string): Promise<ParsedFlatListFile<Wan
 /** Load a collection file into a session model, surfacing any parse warnings. */
 export async function loadCollectionSession(filePath: string): Promise<CollectionSession> {
   const file = await readCollectionFile(filePath)
-  for (const warning of file.warnings) console.warn(warning)
+  for (const warning of [...file.warnings, ...file.advisories]) console.warn(warning)
   return {
     filePath,
     title: file.title,
@@ -221,7 +231,7 @@ export async function loadCollectionSession(filePath: string): Promise<Collectio
 /** Load a wanted-list file into a session model, surfacing any parse warnings. */
 export async function loadWantedSession(filePath: string): Promise<WantedSession> {
   const file = await readWantedFile(filePath)
-  for (const warning of file.warnings) console.warn(warning)
+  for (const warning of [...file.warnings, ...file.advisories]) console.warn(warning)
   return {
     filePath,
     title: file.title,

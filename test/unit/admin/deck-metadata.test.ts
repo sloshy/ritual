@@ -1,9 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import {
-  parseDeckMetadataBody,
-  type DeckMetadataPatch,
-  type ParsedDeckMetadataBody,
-} from '../../../src/admin/api/metadata'
+import { parseDeckMetadataBody, type ParsedDeckMetadataBody } from '../../../src/admin/api/metadata'
+import type { DeckMetadataPatch } from '../../../src/deck-metadata'
 import { invalidDeckFormatMessage } from '../../../src/deck-format'
 
 /**

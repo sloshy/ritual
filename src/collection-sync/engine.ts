@@ -675,6 +675,18 @@ export async function runCollectionSync(
     emit({ kind: 'log', level: 'warn', list: warning.list, message: warning.message })
   }
 
+  // Destination names are validated before the remote fetch: they are local
+  // facts, and a typo must fail in milliseconds rather than after paging in an
+  // entire Archidekt collection. Only a pull has destinations to validate — a
+  // push ignores both flags (the command warns about them).
+  if (direction === 'pull') {
+    const invalid = await validatePullDestinations(store, into, options.removalPriority ?? [])
+    if (invalid !== null) {
+      emit({ kind: 'log', level: 'error', list: null, message: invalid })
+      return report(empty([invalid]), loaded)
+    }
+  }
+
   const fetched = await fetchCollection(client, userId, token)
   if (typeof fetched === 'string') {
     emit({ kind: 'log', level: 'error', list: null, message: fetched })
@@ -828,6 +840,12 @@ async function loadLists(
       complete = false
       continue
     }
+    // Advisories are about lines that parsed: they are reported for every list,
+    // whether or not the list is held back for unreadable lines, and never
+    // decide anything.
+    for (const advisory of loaded.advisories) {
+      emit({ kind: 'log', level: 'warn', list: loaded.name, message: advisory })
+    }
     if (loaded.warnings.length > 0) held.push(loaded)
     else lists.push(loaded)
   }
@@ -918,7 +936,9 @@ async function fetchCollection(
       page++
       if (page > response.totalPages) break
     } catch (error: unknown) {
-      return `Failed to fetch the Archidekt collection (page ${page}): ${getErrorMessage(error)}`
+      // No outer prefix: the client's error already names the page and account
+      // it could not fetch ("Failed to fetch collection page 1 for user 12345: …").
+      return getErrorMessage(error)
     }
   }
 
@@ -963,7 +983,7 @@ async function pullFromArchidekt(
   // Ambiguity is settled before anything is written: a run that cannot place
   // every ambiguous removal writes nothing at all, so a half-made decision can
   // never reach a list file.
-  const priority = await resolveRemovalPriority(flow)
+  const priority = await resolveRemovalPriority(flow.store, flow.removalPriority)
   if (typeof priority === 'string') return abort(priority)
 
   for (const ambiguous of plan.ambiguous) {
@@ -1087,13 +1107,16 @@ async function pullFromArchidekt(
  * quietly take copies out of a neighbouring one. Every bad name is reported at
  * once, so a fixed run does not trip over the next typo.
  */
-async function resolveRemovalPriority(flow: SyncFlow): Promise<string[] | string> {
-  if (flow.removalPriority.length === 0) return []
+async function resolveRemovalPriority(
+  store: CollectionListStore,
+  removalPriority: readonly string[],
+): Promise<string[] | string> {
+  if (removalPriority.length === 0) return []
 
   const resolved: string[] = []
   const problems: string[] = []
-  for (const name of flow.removalPriority) {
-    const matches = await listsNamed(flow.store, name)
+  for (const name of removalPriority) {
+    const matches = await listsNamed(store, name)
     if (matches.length === 0) {
       problems.push(`no collection list is named "${name}"`)
     } else if (matches.length > 1) {
@@ -1201,6 +1224,37 @@ async function listsNamed(store: CollectionListStore, name: string): Promise<str
   return (await store.allLists()).filter((list) => normalizeListName(list) === normalized)
 }
 
+/**
+ * Everything a pull can check about its destination names before touching the
+ * network: the removal priority resolves, and `--into` is not ambiguous.
+ *
+ * Both are purely local, so they run right after the lists load and *before* the
+ * remote collection is paged in — a typo must not cost a multi-minute fetch
+ * first. `--into` naming no list is fine (a pull creates it); `--into` naming
+ * two is not, and only the user can say which they meant. The full target
+ * resolution still happens later, when something is actually being added.
+ *
+ * Deliberately a gate rather than a resolver: the resolved names are recomputed
+ * inside the flow, because `pullFromArchidekt` takes an injected store and must
+ * not depend on this having run — the same reason {@link resolveTarget} repeats
+ * its own ambiguity check. The store caches `allLists()`, so the repeat costs
+ * nothing.
+ */
+export async function validatePullDestinations(
+  store: CollectionListStore,
+  into: string,
+  removalPriority: readonly string[],
+): Promise<string | null> {
+  const priority = await resolveRemovalPriority(store, removalPriority)
+  if (typeof priority === 'string') return priority
+
+  const matches = await listsNamed(store, into)
+  if (matches.length > 1) {
+    return `More than one collection list is named "${into}": ${matches.join(', ')}. Point --into (or collectionSync.pullTarget) at one of them.`
+  }
+  return null
+}
+
 /** The pull target, created when it does not exist yet, or the reason it could not be. */
 type PullTarget = { name: string; writtenFiles: string[] }
 
@@ -1214,7 +1268,10 @@ async function resolveTarget(flow: SyncFlow): Promise<PullTarget | string> {
   if (matches.length === 1) return { name: matches[0]!, writtenFiles: [] }
   if (matches.length > 1) {
     // Two lists answer to the name — creating a third would be worse than
-    // stopping, and only the user can say which they meant.
+    // stopping, and only the user can say which they meant. A run through
+    // `runCollectionSync` has already refused this at
+    // {@link validatePullDestinations}; the branch stands because the store is
+    // injectable and this function must not depend on that gate having run.
     return `More than one collection list is named "${into}": ${matches.join(', ')}. Point --into (or collectionSync.pullTarget) at one of them.`
   }
 

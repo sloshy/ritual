@@ -233,3 +233,21 @@ describe('parseWantedListFile — fenced code blocks', () => {
     expect(entries.map((e) => e.name)).toEqual(['Sol Ring'])
   })
 })
+
+describe('parseWantedListFile — deck-style quantity prefixes', () => {
+  // Wanted lists hold one line per copy exactly like collections, so the same
+  // trap gets the same advisory (and, like there, never blocks a save).
+  test('advises on a leading quantity, without dropping the line', () => {
+    const { entries, warnings, advisories } = parseWantedListFile('- 2 Sol Ring (C21:240)\n')
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.name).toBe('2 Sol Ring')
+    expect(warnings).toHaveLength(0)
+    expect(advisories).toHaveLength(1)
+    expect(advisories[0]).toContain('one line per copy')
+  })
+
+  test('leaves a card name that legitimately starts with a year alone', () => {
+    const { advisories } = parseWantedListFile('- 1996 World Champion (PCEL:1)\n')
+    expect(advisories).toEqual([])
+  })
+})

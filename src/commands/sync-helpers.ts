@@ -42,20 +42,30 @@ export function parseSyncChangeFilter(value: string): SyncChangeFilter {
 }
 
 /**
- * Register the `<direction>` positional and the `--only` / `-y, --yes` /
- * `--dry-run` options both sync commands take, so their spellings, argParsers,
- * and help text cannot drift. `subject` is the plural noun the `--yes` text
- * names (`decks`, `collection lists`); each command adds its own remaining
- * arguments and options around this call.
+ * Register the `<direction>` positional a sync command takes as an argument.
+ *
+ * `collection-sync` takes the direction this way; `deck-sync` spells its two
+ * directions as subcommands instead (it has `link` and `status` alongside them,
+ * and commander resolves a flag declared on both a command and its parent to
+ * the *parent*, so shared flags and subcommands cannot coexist on one command).
+ */
+export function addSyncDirectionArgument(command: Command): Command {
+  return command.argument(
+    '<direction>',
+    "Sync direction: 'push' (local → Archidekt) or 'pull' (Archidekt → local)",
+    parseSyncDirection,
+  )
+}
+
+/**
+ * Register the `--only` / `-y, --yes` / `--dry-run` options every sync surface
+ * takes, so their spellings, argParsers, and help text cannot drift. `subject`
+ * is the plural noun the `--yes` text names (`decks`, `collection lists`); each
+ * command adds its own remaining arguments and options around this call.
  */
 export function addSyncOptions(command: Command, subject: string): Command {
   return addDryRunOption(
     command
-      .argument(
-        '<direction>',
-        "Sync direction: 'push' (local → Archidekt) or 'pull' (Archidekt → local)",
-        parseSyncDirection,
-      )
       .option(
         '-y, --yes',
         `Sync ${subject} with unreadable lines without asking (those lines are lost)`,
@@ -68,6 +78,37 @@ export function addSyncOptions(command: Command, subject: string): Command {
       ),
     'Report what would sync without writing files or pushing changes',
   )
+}
+
+/**
+ * Indentation for the deck/list-scoped lines both sync commands print.
+ *
+ * A scoped line is indented so it sits under the `Syncing "…"` header that
+ * opened its deck or list — but that header is an info line, so `--quiet` and
+ * `--output json` drop it while the warnings and errors below it still print.
+ * Indenting those would leave a hanging indent under nothing, so a scope is
+ * indented only once its header actually reached the terminal.
+ */
+export type ScopedIndenter = {
+  /** Record that a scope's header line was printed. */
+  start(scope: string): void
+  /** The line as it should print: indented only under a header already on screen. */
+  line(scope: string | null, message: string): string
+}
+
+export function createScopedIndenter(scripting: ScriptingOptions): ScopedIndenter {
+  // The headers go through `logger.info`, which {@link loggerFor} drops under
+  // `--quiet` and under structured output.
+  const headersVisible = scripting.output === 'text' && !scripting.quiet
+  const started = new Set<string>()
+  return {
+    start(scope: string): void {
+      if (headersVisible) started.add(scope)
+    },
+    line(scope: string | null, message: string): string {
+      return scope !== null && started.has(scope) ? `  ${message}` : message
+    },
+  }
 }
 
 /** Warnings and errors still print, progress info does not. */

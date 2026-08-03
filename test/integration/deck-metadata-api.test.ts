@@ -6,6 +6,7 @@ import { handleMetadataSave, type MetadataResponse } from '../../src/admin/api/m
 import { bindWorkspace, writeCollectionFile, writeDeckFile } from './helpers/workspace'
 import type { BoundWorkspace } from './helpers/workspace'
 import { callJson } from './helpers/request'
+import { computeHash } from '../../src/content-hash'
 
 /**
  * `PUT /api/metadata/:type/:slug` — front-matter writes against real deck files.
@@ -157,9 +158,52 @@ describe('handleMetadataSave', () => {
     expect(status).toBe(404)
   })
 
-  test('the hash sidecar is written alongside the deck', async () => {
+  test('the hash sidecar is refreshed when it already matched the file', async () => {
+    const sidecarPath = path.join(ws.dir, 'decks', 'my-deck.md.sha256')
+    await fs.writeFile(sidecarPath, computeHash(await fs.readFile(deckPath, 'utf-8')) + '\n')
+
     const { body } = await put('deck/my-deck', { description: 'Hashed' })
-    const sidecar = await fs.readFile(path.join(ws.dir, 'decks', 'my-deck.md.sha256'), 'utf-8')
-    expect(sidecar.trim()).toBe(expectSuccess(body).contentHash)
+    expect((await fs.readFile(sidecarPath, 'utf-8')).trim()).toBe(expectSuccess(body).contentHash)
+  })
+
+  test('an unrecorded hand edit keeps its stale sidecar, so detect-changes still sees it', async () => {
+    // The write is front-matter only and says nothing about the card lines
+    // below. Stamping the sidecar here would make `detect-changes` treat the
+    // hand-added card line as already recorded and drop its changelog entry.
+    const sidecarPath = path.join(ws.dir, 'decks', 'my-deck.md.sha256')
+    const staleHash = computeHash(await fs.readFile(deckPath, 'utf-8'))
+    await fs.writeFile(sidecarPath, staleHash + '\n')
+    await fs.appendFile(deckPath, '1 Mox Ruby &3\n')
+
+    const { body } = await put('deck/my-deck', { description: 'Hand edited' })
+
+    expect((await fs.readFile(sidecarPath, 'utf-8')).trim()).toBe(staleHash)
+    // The returned hash still describes the new content — it is computed, not
+    // read back from the sidecar.
+    expect(expectSuccess(body).contentHash).toBe(computeHash(await fs.readFile(deckPath, 'utf-8')))
+  })
+
+  test('a sourceId that names a different Archidekt deck than sourceUrl is refused', async () => {
+    // A sync addresses the deck by sourceId while every surface shows sourceUrl,
+    // so this pair would push one deck's cards into another.
+    await put('deck/my-deck', {
+      sourceId: '999',
+      sourceUrl: 'https://archidekt.com/decks/999',
+    })
+    const before = await fs.readFile(deckPath, 'utf-8')
+
+    const { status, body } = await put('deck/my-deck', { sourceId: '123' })
+
+    expect(status).toBe(400)
+    expect(JSON.stringify(body)).toContain('must name the same deck')
+    expect(await fs.readFile(deckPath, 'utf-8')).toBe(before)
+  })
+
+  test('a non-Archidekt source is left alone: its id follows the other service', async () => {
+    const { status } = await put('deck/my-deck', {
+      sourceId: 'abc123',
+      sourceUrl: 'https://moxfield.com/decks/abc123',
+    })
+    expect(status).toBe(200)
   })
 })

@@ -11,15 +11,27 @@ The same sync runs from the admin site's [Sync Decks](/admin/sync-decks/) page a
 
 ```bash
 ./ritual deck-sync pull [decks...]
-./ritual deck-sync push [decks...]
+./ritual deck-sync push [decks...] [--force]
+./ritual deck-sync link <deck> <url>
+./ritual deck-sync status
 ```
+
+## Subcommands
+
+| Subcommand | Description                                                         |
+| ---------- | ------------------------------------------------------------------- |
+| `pull`     | Apply Archidekt deck changes to the local deck files                |
+| `push`     | Send local deck changes to the decks you own on Archidekt           |
+| `link`     | Link a local deck to a deck that already exists on Archidekt        |
+| `status`   | Show which decks are linked to Archidekt, and when each last synced |
+
+Anything else is a usage error (exit code `2`).
 
 ## Arguments
 
-| Argument      | Description                                                                                                           | Required |
-| ------------- | --------------------------------------------------------------------------------------------------------------------- | -------- |
-| `<direction>` | `pull` (Archidekt → local) or `push` (local → Archidekt). Any other value exits with code 2.                          | Yes      |
-| `[decks...]`  | Deck names to sync (matched case- and accent-insensitively, no `.md`). If omitted, syncs all Archidekt-sourced decks. | No       |
+| Argument     | Description                                                                                                           | Required |
+| ------------ | --------------------------------------------------------------------------------------------------------------------- | -------- |
+| `[decks...]` | Deck names to sync (matched case- and accent-insensitively, no `.md`). If omitted, syncs all Archidekt-sourced decks. | No       |
 
 Each name is matched case- and accent-insensitively with a unique-substring fallback, within decks only. An ambiguous or unknown name is reported as a **failed** deck (not `skipped`) and the run exits 1; since resolution is already deck-scoped, the error asks you to type more of the name rather than suggesting type flags this command does not have. See [List Resolution](/commands/list-resolution/).
 
@@ -30,8 +42,12 @@ Each name is matched case- and accent-insensitively with a unique-substring fall
 | `-n, --dry-run`     | Report what would sync without writing files or pushing changes           | `false`     |
 | `-y, --yes`         | Sync decks with unreadable lines without asking (those lines are removed) | `false`     |
 | `--only <changes>`  | Apply only `additions` or `removals` (relative to the sync destination)   | all changes |
+| `--force`           | **push only** — overwrite a remote deck that changed since its last sync  | `false`     |
 | `--output <format>` | Output format: `text`, `json`, or `ndjson`                                | `text`      |
 | `--quiet`           | Suppress non-essential output                                             | `false`     |
+
+A pull never writes to Archidekt, so it has no remote changes to overwrite and registers no
+`--force` at all (passing it there is a usage error).
 
 Under `--dry-run`, both directions still fetch the remote deck state (the diff
 needs it), but a pull writes no files and records no changelog entries, and a
@@ -97,6 +113,126 @@ sourced from Archidekt appear as `failed` entries. A deck with an Archidekt
 run, and `failed` when you name it explicitly. Top-level failures (for example,
 not being signed in) are emitted as a structured error on stderr.
 
+## Run Summary
+
+A text-mode run closes with a one-line tally, the counterpart of the report emitted under
+`--output json`:
+
+```
+Synced 4 decks (2 with changes), 1 skipped, 1 failed.
+```
+
+"with changes" separates decks that actually moved cards from decks that were already in sync. A
+dry run says `[dry-run] Would sync …` instead. A run that covered no decks prints only the engine's
+`No Archidekt decks found to sync.`
+
+## Divergence Guard (push)
+
+A push makes Archidekt match your local file: a card added on archidekt.com since your last sync
+reads as "gone from the source" and is set to quantity 0. To stop that from being silent, a push
+compares the remote deck's `updatedAt` against the `sourceUpdatedAt` in the deck's front matter —
+the remote `updatedAt` your last sync observed. If the remote changed since then, that deck
+**fails** and nothing is pushed for it:
+
+```
+Syncing "Winota Stax" (push)...
+  Remote deck changed since last sync (remote: 2026-08-02T12:00:00.000Z, last synced against: 2026-08-01T00:00:00.000Z) — pull first, or pass --force to overwrite remote changes.
+```
+
+Two ways forward: `deck-sync pull` the deck first (adopting the remote edits, after which the push
+has nothing to revert), or `deck-sync push --force <deck>` to overwrite them deliberately.
+
+**Both sides of that comparison are Archidekt's clock**, which is why it is `sourceUpdatedAt` and
+not `lastSynced`: `lastSynced` is your machine's wall clock, and a computer running even a little
+behind the server would otherwise diverge against the very push it had just made, with no way back
+except `--force`.
+
+A pull always records the baseline — including a pull that found **no card changes at all**. Remote
+edits that touch no card (a rename, a category shuffle, another machine's push) still move
+Archidekt's `updatedAt`, so "pull first" has to clear the refusal in that case too. Such a pull
+rewrites only the deck's front matter; the card lines and prose below it are untouched.
+
+`--dry-run` reports the divergence the same way and does not need `--force` to preview it — a
+preview should say what the real run would do. A dry-run pull records nothing.
+
+Two cases cannot diverge, and are pushed normally:
+
+- A deck with no `sourceUpdatedAt` — it has never synced through Ritual, so there is no moment to
+  compare against.
+- A remote response carrying no usable `updatedAt`. The guard cannot run, so the push proceeds, but
+  the run log says so: `Archidekt reported no update timestamp for this deck — pushing without the
+divergence check.`
+
+The admin site's Sync Decks page and the MCP `sync_decks` tool enforce the same guard; the tool
+takes `force: true` for the override, and the admin page has no override — pull first there.
+
+## Linking a Deck (`deck-sync link`)
+
+`push` only operates on decks whose front matter carries `sourceUrl` + `sourceId`, which normally
+only `import`/`import-account` produce. `link` writes those two fields for a deck that already
+exists on Archidekt:
+
+```bash
+./ritual deck-sync link "Winota Stax" https://archidekt.com/decks/123456
+# Linked "Winota Stax" to https://archidekt.com/decks/123456 (deck 123456).
+```
+
+- The URL must be an Archidekt **deck** URL. A trailing deck slug and any query string are dropped —
+  the stored `sourceUrl` is always canonical (`https://archidekt.com/decks/<id>`), which is the
+  spelling `import` writes. A scheme-less `archidekt.com/decks/123456` is accepted. Anything else is
+  a usage error (exit code `2`).
+- Only the front matter is written: the deck's card lines (`&N` ids included), prose, and fenced
+  blocks are preserved byte for byte.
+- Re-linking a deck reports what it was linked to before.
+- `-n, --dry-run` reports the link without writing; `--output json` emits the result, and `--quiet`
+  drops the text confirmation.
+
+This is the same write the admin API's `PUT /api/metadata/deck/:slug` and the MCP `set_list_metadata`
+tool perform — all three go through one front-matter writer, so linking behaves identically wherever
+you do it.
+
+:::note[Creating a deck on Archidekt is not supported]
+
+Linking requires the deck to **already exist** on Archidekt. Archidekt exposes no deck-creation
+endpoint Ritual can call, so there is no way to upload a brand-new local deck; create it on
+archidekt.com first (an empty deck is enough), then `link` it and `push`.
+
+:::
+
+## Sync Status (`deck-sync status`)
+
+A read-only, offline view of the sync surface — which decks are linked, when each last synced, and
+when the account's collection last synced. It requires no Archidekt session and makes no requests.
+
+```bash
+./ritual deck-sync status
+# 2 decks linked to Archidekt:
+#   Winota Stax — https://archidekt.com/decks/123456
+#     last synced: 2026-08-01T00:00:00.000Z
+#   Oops All Soldiers — https://archidekt.com/decks/222
+#     last synced: never
+# Collection: last synced 2026-07-30T00:00:00.000Z (Archidekt user myuser).
+```
+
+`--output json` emits `{ "decks": [...], "collection": {...} | null, "collectionStateError": string | null }`;
+`--output ndjson` emits one tagged row per deck (`{"kind":"deck",...}`) plus one for the collection
+when it has synced.
+
+If the recorded collection state exists but cannot be read, that is reported as such rather than as
+`never synced` — a corrupt record of a sync is not the same claim as no sync:
+
+```
+Collection: sync state unreadable (the file is not valid JSON).
+```
+
+The reason lands in `collectionStateError` under `--output json`, and as a
+`{"kind":"collection-state-error","reason":...}` row under `--output ndjson`. The
+listing is the whole payload, so `status` registers no `--quiet`
+([shared convention](/#scripting-conventions)). Being read-only, it never triggers the card-ID
+backfill.
+
+The same data backs the admin Sync Decks page and the MCP `get_sync_status` tool.
+
 ## Unreadable Lines
 
 Both directions rewrite the deck file, so a line the parser cannot read — a stray comment, a
@@ -154,7 +290,9 @@ You must be signed into Archidekt before syncing:
 ./ritual login archidekt
 ```
 
-Decks must have been imported from Archidekt (i.e., they have `sourceUrl` and `sourceId` in their YAML front matter).
+Decks must be linked to Archidekt — that is, they carry `sourceUrl` and `sourceId` in their YAML
+front matter. `import`/`import-account` write those when they fetch a deck; for a deck you built
+locally, create it on archidekt.com and then [`deck-sync link`](#linking-a-deck-deck-sync-link) it.
 
 ### Pull (`deck-sync pull`)
 
@@ -180,19 +318,25 @@ Decks must have been imported from Archidekt (i.e., they have `sourceUrl` and `s
    and so on). A format Ritual does not model — Custom, Frontier, Future Standard —
    leaves the local format untouched. A format change alone is enough to make the
    deck sync; it is not recorded in the changelog, which tracks cards only
-6. Sets `lastSynced` timestamp in front matter
+6. Sets `lastSynced` and `sourceUpdatedAt` in front matter — including on a pull that found no
+   changes, which rewrites the front matter only
 
 ### Push (`deck-sync push`)
 
 1. Verifies you own the Archidekt deck (skips non-owned decks with a warning)
 2. Fetches the current Archidekt deck state
-3. Compares local cards and quantities against the remote state (by card name only,
+3. Refuses the deck when the remote changed since its `sourceUpdatedAt`, unless `--force` was given
+   — see [Divergence Guard](#divergence-guard-push). A refused deck never gets as far as a diff
+4. Compares local cards and quantities against the remote state (by card name only,
    across all boards — see note below)
-4. Pushes differences to Archidekt via their batch API:
+5. Pushes differences to Archidekt via their batch API:
    - New cards are resolved by name and added
    - Removed cards are set to quantity 0
    - Quantity changes are set to the new absolute value
-5. Sets `lastSynced` timestamp in front matter
+6. Sets `lastSynced` and `sourceUpdatedAt` in front matter — **only for decks that pushed cleanly**.
+   A deck whose cards could not all be turned into upload entries is reported `failed` and keeps its
+   old stamps, so the fields never claim a sync that did not fully happen. `sourceUpdatedAt` is
+   re-read from Archidekt after the push, since the push itself moved it
 
 ### What Is Compared
 
@@ -218,7 +362,7 @@ The following are intentionally ignored at this time:
 
 ### Front Matter
 
-After a successful sync, a `lastSynced` field is added or updated in the deck's YAML front matter:
+After a successful sync, two fields are added or updated in the deck's YAML front matter:
 
 ```yaml
 ---
@@ -227,19 +371,25 @@ format: commander
 sourceId: '12345'
 sourceUrl: 'https://archidekt.com/decks/12345'
 lastSynced: '2026-04-02T12:00:00.000Z'
+sourceUpdatedAt: '2026-04-02T11:59:58.000Z'
 ---
 ```
+
+`lastSynced` is your machine's clock at the moment of the sync — what `deck-sync status` shows.
+`sourceUpdatedAt` is Archidekt's own `updatedAt` for that deck as of the sync, and is the only
+value the [divergence guard](#divergence-guard-push) compares. Neither is hand-authored.
 
 `format` is written on every save, whether it came from Archidekt or was inferred
 from the deck's sections. See [new](/commands/new/#deck-format).
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                              |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `0`  | Every deck synced cleanly (or there was nothing to sync)                                                                             |
-| `1`  | At least one deck failed — including a deck refused for [unreadable lines](#unreadable-lines) — or you are not signed into Archidekt |
-| `2`  | Missing or invalid `<direction>` or `--only` (anything other than push / pull, additions / removals)                                 |
+| Code | Meaning                                                                                                                                              |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Every deck synced cleanly (or there was nothing to sync)                                                                                             |
+| `1`  | At least one deck failed — including a deck refused for [unreadable lines](#unreadable-lines) — or you are not signed into Archidekt                 |
+| `2`  | Unknown subcommand, an invalid `--only` value, a `link` URL that is not an Archidekt deck URL, or a `link` deck name that matches more than one deck |
+| `3`  | `link` named a deck that does not exist                                                                                                              |
 
 ## Examples
 
@@ -283,4 +433,23 @@ Script a pull and inspect per-deck results:
 
 ```bash
 ./ritual deck-sync pull --output json
+```
+
+Link a locally built deck to an empty deck you created on Archidekt, then push it:
+
+```bash
+./ritual deck-sync link "Alpha Deck" https://archidekt.com/decks/123456
+./ritual deck-sync push "Alpha Deck"
+```
+
+See what is linked and when it last synced:
+
+```bash
+./ritual deck-sync status --output json
+```
+
+Overwrite remote edits made since your last sync:
+
+```bash
+./ritual deck-sync push "Winota Stax" --force
 ```

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import {
   confirmUnreadableSync,
+  createScopedIndenter,
   describeUnreadable,
   loggerFor,
   type UnreadableSource,
@@ -127,5 +128,45 @@ describe('confirmUnreadableSync', () => {
     expect(logger.entries.map((entry) => String(entry.args[0]))).toEqual([
       'Confirmation required: pass --yes to sync these collection lists non-interactively (removing those cards from your Archidekt collection), or fix the lines first.',
     ])
+  })
+})
+
+describe('createScopedIndenter', () => {
+  const text: ScriptingOptions = { output: 'text', quiet: false }
+
+  test('indents a scoped line once its header has printed', () => {
+    const indent = createScopedIndenter(text)
+    indent.start('Winota Stax')
+    expect(indent.line('Winota Stax', 'Saved.')).toBe('  Saved.')
+  })
+
+  test('leaves a scoped line flush left before its header printed', () => {
+    // The collection sync's per-line cache warnings arrive before any list
+    // header exists; a hanging indent there sits under nothing.
+    const indent = createScopedIndenter(text)
+    expect(indent.line('Blue Binder', 'Sol Ring (C21:240) is not in the cache')).toBe(
+      'Sol Ring (C21:240) is not in the cache',
+    )
+  })
+
+  test('never indents when the headers themselves are suppressed', () => {
+    // `--quiet` and structured output drop the info-level header while errors
+    // still print, so the error must not be indented under an absent line.
+    for (const scripting of [
+      { output: 'text', quiet: true },
+      { output: 'json', quiet: false },
+    ] satisfies ScriptingOptions[]) {
+      const indent = createScopedIndenter(scripting)
+      indent.start('Winota Stax')
+      expect(indent.line('Winota Stax', 'Failed to fetch.')).toBe('Failed to fetch.')
+    }
+  })
+
+  test('never indents a run-level line', () => {
+    const indent = createScopedIndenter(text)
+    indent.start('Winota Stax')
+    expect(indent.line(null, 'No Archidekt decks found to sync.')).toBe(
+      'No Archidekt decks found to sync.',
+    )
   })
 })

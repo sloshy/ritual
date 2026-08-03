@@ -205,3 +205,40 @@ describe('parseCollectionFile — fenced code blocks', () => {
     expect(entries.map((e) => e.name)).toEqual(['Sol Ring'])
   })
 })
+
+/**
+ * Collections and wanted lists hold one line per copy, so a deck-style quantity
+ * prefix lands in the card name and quietly names a card nothing will match.
+ * It is an *advisory* rather than a warning: the line parsed and a save would
+ * re-emit it verbatim, so it must not trip the whole-file-rewrite gates that
+ * exist for content a save would delete.
+ */
+describe('parseCollectionFile — deck-style quantity prefixes', () => {
+  test('advises on a leading quantity, without dropping the line', () => {
+    const { entries, warnings, advisories } = parseCollectionFile('- 1 Sol Ring (C21:240)\n')
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.name).toBe('1 Sol Ring')
+    expect(warnings).toHaveLength(0)
+    expect(advisories).toHaveLength(1)
+    expect(advisories[0]).toContain("named '1 Sol Ring'")
+    expect(advisories[0]).toContain('one line per copy')
+  })
+
+  test('advises on multi-digit quantities too', () => {
+    const { advisories } = parseCollectionFile('- 12 Lightning Bolt (LEA:161) [foil]\n')
+    expect(advisories).toHaveLength(1)
+  })
+
+  test('leaves a card name that legitimately starts with a year alone', () => {
+    // `1996 World Champion` is a real card: only a 1-3 digit leading integer
+    // reads as a quantity, so four digits parse untouched and unremarked.
+    const { entries, advisories } = parseCollectionFile('- 1996 World Champion (PCEL:1)\n')
+    expect(entries[0]!.name).toBe('1996 World Champion')
+    expect(advisories).toEqual([])
+  })
+
+  test('a bare number is a name, not a quantity', () => {
+    const { advisories } = parseCollectionFile('- 60 (UNF:1)\n')
+    expect(advisories).toEqual([])
+  })
+})

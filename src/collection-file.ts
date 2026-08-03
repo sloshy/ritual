@@ -2,6 +2,7 @@ import { DEFAULT_SECTION, type Condition, type Finish, type ScryfallCard } from 
 import { matchSectionHeader } from './section-format'
 import { defaultPrintingFinish, isCondition, isFinish } from './finish-condition'
 import { createFenceTracker } from './markdown-fence'
+import { quantityPrefixAdvisory } from './card-line'
 
 export type CollectionEntry = {
   name: string
@@ -27,6 +28,17 @@ export type CollectionParseResult = {
    * for why the whole-file save gates still care.
    */
   fencedLines: number
+  /**
+   * Non-fatal per-line advisories: content the parser *did* read, but about
+   * which the user deserves a word — today, a card name that kept a deck's
+   * quantity prefix ({@link quantityPrefixAdvisory}).
+   *
+   * Deliberately **not** part of `warnings`, exactly as on the deck parser:
+   * nothing was lost and a re-serialize preserves the line, so these must not
+   * trip the whole-file-rewrite gates ({@link unreadableLines}), whose refusal
+   * text promises the listed content would be *deleted*.
+   */
+  advisories: string[]
 }
 
 /**
@@ -40,6 +52,7 @@ export function parseCollectionFile(content: string): CollectionParseResult {
   const entries: CollectionEntry[] = []
   const sectionOrder: string[] = []
   const warnings: string[] = []
+  const advisories: string[] = []
   let currentSection = DEFAULT_SECTION
   let titleSeen = false
   // Fenced code blocks are prose: a bullet or `## Heading` inside one is an
@@ -93,6 +106,9 @@ export function parseCollectionFile(content: string): CollectionParseResult {
       continue
     }
 
+    const advisory = quantityPrefixAdvisory(name, trimmed)
+    if (advisory) advisories.push(advisory)
+
     // A card before any explicit header pins the implicit Main section into the order list.
     registerSection(currentSection)
     entries.push({
@@ -107,7 +123,7 @@ export function parseCollectionFile(content: string): CollectionParseResult {
       section: currentSection,
     })
   }
-  return { entries, sectionOrder, warnings, fencedLines }
+  return { entries, sectionOrder, warnings, fencedLines, advisories }
 }
 
 /** An entry's recorded finish preference, if any. */

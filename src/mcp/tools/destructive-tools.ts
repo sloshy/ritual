@@ -7,7 +7,7 @@ import type {
   CollectionSyncRunResponse,
 } from '../../admin/api/collection-sync'
 import type { ConfigResponse } from '../../admin/api/config'
-import type { DeckSyncRunResponse } from '../../admin/api/deck-sync'
+import type { DeckSyncRequest, DeckSyncRunResponse } from '../../admin/api/deck-sync'
 import type { HistorySaveResponse } from '../../admin/api/history'
 import type { ListDeleteResponse, ListRenameResponse } from '../../admin/api/list-lifecycle'
 import { callApi, callApiData } from '../dispatch'
@@ -248,7 +248,9 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
       description:
         'Sync Archidekt-linked decks: "pull" applies remote changes to the local deck files ' +
         '(recording them in each changelog), "push" sends local changes to decks you own on ' +
-        'Archidekt. Omit decks to sync every linked deck. Returns a per-deck report; ' +
+        'Archidekt. Omit decks to sync every linked deck. A push whose remote deck changed ' +
+        'since that deck’s recorded lastSynced fails rather than reverting those remote edits ' +
+        '— pull first, or pass force: true to overwrite them. Returns a per-deck report; ' +
         'a run with failures still reports success — check report.failedCount. ' +
         'Emits one progress notification per deck when the call supplies a progressToken.',
       inputSchema: z.object({
@@ -263,20 +265,44 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
           .optional()
           .describe(ignoreUnreadableDescription('decks')),
         only: z.enum(SYNC_CHANGE_FILTERS).optional().describe(changeFilterDescription('each deck')),
+        force: z
+          .boolean()
+          .optional()
+          .describe(
+            'Push a deck whose remote copy changed since the remote updatedAt its last sync ' +
+              'recorded (sourceUpdatedAt), overwriting those remote changes. Without it such a ' +
+              'deck fails; a pull of that deck records the new baseline — even when it finds no ' +
+              'card changes — after which the push succeeds. Ignored on a pull.',
+          ),
       }),
       outputSchema: fromJsonSchema<DeckSyncResult>(SYNC_DECKS_OUTPUT),
       annotations: { destructiveHint: true, openWorldHint: true },
     },
-    async ({ direction, decks, dryRun, ignoreUnreadableLines, only }, ctx) =>
-      runTool(async (): Promise<DeckSyncResult> => {
+    async ({ direction, decks, dryRun, ignoreUnreadableLines, only, force }, ctx) => {
+      // Typed against the endpoint's own contract, so a field renamed on either
+      // side is a compile error here rather than an option silently dropped on
+      // the way to the handler (which ignores keys it does not know) — the same
+      // reason `sync_collection` below builds its body this way.
+      const body: Partial<DeckSyncRequest> = {
+        direction,
+        decks,
+        dryRun,
+        ignoreUnreadableLines,
+        only,
+        force,
+      }
+      return runTool(async (): Promise<DeckSyncResult> => {
         const data = await callApiData<SyncRunSuccess<DeckSyncRunResponse>>(
           'POST',
           '/api/deck-sync',
-          { direction, decks, dryRun, ignoreUnreadableLines, only },
-          { onProgress: createToolProgressSink(ctx) },
+          body,
+          {
+            onProgress: createToolProgressSink(ctx),
+          },
         )
         return data
-      }),
+      })
+    },
   )
 
   server.registerTool(
@@ -324,7 +350,8 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
           .min(1)
           .optional()
           .describe(
-            'Collection list a pull adds new cards to, created if it does not exist. Defaults ' +
+            'Collection list a pull adds new cards to, created if it does not exist. A name TWO ' +
+              'lists answer to fails the run before anything is fetched or written. Defaults ' +
               'to the collectionSync.pullTarget config key ("Inbox" unless configured). A push ' +
               'ignores it — it writes nothing locally.',
           ),

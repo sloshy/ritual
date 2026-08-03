@@ -1,8 +1,9 @@
 import { getErrorMessage } from '../../errors'
 import { getBaseDir } from '../../base-dir'
-import { hashPath } from '../../content-hash'
-import { parseDeckFrontMatter, writeDeckFrontMatter, type DeckFrontMatter } from '../../deck-file'
-import { invalidDeckFormatMessage, parseDeckFormat, type DeckFormatKey } from '../../deck-format'
+import type { DeckFrontMatter } from '../../deck-file'
+import { applyDeckMetadata, DECK_METADATA_KEYS, type DeckMetadataPatch } from '../../deck-metadata'
+import { checkArchidektLink } from '../../deck-sync/link'
+import { invalidDeckFormatMessage, parseDeckFormat } from '../../deck-format'
 import { parseListTarget } from './target'
 import { resolveListFile } from './list-info'
 import {
@@ -31,23 +32,6 @@ export type DeckMetadataRequest = {
   contentHash?: string
 }
 
-/**
- * The validated patch. An absent key is left alone; a key mapped to `null` is
- * deleted from the front matter; any other value is written. `null` (rather than
- * a present-but-`undefined` key) encodes the clear so the distinction survives
- * structural equality, spreads, and JSON.
- */
-export type DeckMetadataPatch = {
-  description?: string | null
-  tags?: string[] | null
-  format?: DeckFormatKey | null
-  sourceId?: string | null
-  sourceUrl?: string | null
-}
-
-/** A key a metadata write accepts. */
-export type DeckMetadataKey = (typeof DECK_METADATA_KEYS)[number]
-
 /** The validated body: the field patch plus the optional concurrency token. */
 export type ParsedDeckMetadataBody = {
   patch: DeckMetadataPatch
@@ -62,15 +46,6 @@ export type MetadataResponse = {
   frontMatter: DeckFrontMatter
   contentHash: string
 }
-
-/** The keys a metadata write accepts, in the order the error message lists them. */
-export const DECK_METADATA_KEYS = [
-  'description',
-  'tags',
-  'format',
-  'sourceId',
-  'sourceUrl',
-] as const
 
 /** The message for `name`, which must go through the rename route so the file follows. */
 const NAME_REJECTED_MESSAGE =
@@ -185,43 +160,18 @@ export function parseDeckMetadataBody(
 }
 
 /**
- * Apply one patched field to the front matter being built. Absent leaves the
- * existing value alone; `null` deletes the key outright (the write helper dumps
- * the object straight to YAML, so leaving it would persist a literal `null`).
- */
-function applyField<K extends DeckMetadataKey>(
-  target: DeckFrontMatter,
-  key: K,
-  value: DeckMetadataPatch[K],
-): void {
-  if (value === undefined) return
-  if (value === null) delete target[key]
-  // The patch's value type for `key` is exactly the front matter's, but TS cannot
-  // relate two indexed accesses through an unresolved `K`.
-  else (target as Record<DeckMetadataKey, unknown>)[key] = value
-}
-
-/** Merge a validated patch over existing front matter. */
-function mergeFrontMatter(existing: DeckFrontMatter, patch: DeckMetadataPatch): DeckFrontMatter {
-  const merged: DeckFrontMatter = { ...existing }
-  for (const key of DECK_METADATA_KEYS) {
-    applyField(merged, key, patch[key])
-  }
-  return merged
-}
-
-/**
  * `PUT /api/metadata/:type/:slug` — replace the given front-matter fields on a
  * deck, leaving the card lines untouched.
  *
  * Only the fields present in the body are written; a field sent as `null` (or an
- * empty string, for `description`) is deleted. Every other key round-trips, with
- * one exception inherited from `parseDeckFrontMatter`: a `format` the canonical
- * parser rejects is dropped, exactly as a full deck save would drop it. No
+ * empty string, for `description`) is deleted. Every other key round-trips,
+ * except those the stored file spells with the wrong type — dropped by
+ * `parseDeckFrontMatter`, exactly as a full deck save would drop them. No
  * changelog entry is recorded — the changelog is card-level, and metadata is not
  * a card change. Setting `sourceId` + an `archidekt.com` `sourceUrl` is what
  * makes a deck sync-linked, so these fields change what `POST /api/deck-sync`
- * operates on.
+ * operates on — and the two must name the same Archidekt deck once merged (a
+ * mismatch is a 400; see {@link checkArchidektLink}).
  */
 export async function handleMetadataSave(req: Request): Promise<Response> {
   try {
@@ -248,13 +198,15 @@ export async function handleMetadataSave(req: Request): Promise<Response> {
       if (!validation.valid) return validation.response
     }
 
-    const existing = await parseDeckFrontMatter(filePath)
-    const merged = mergeFrontMatter(existing, parsed.patch)
-    const contentHash = await writeDeckFrontMatter(filePath, merged)
+    // The merged result is what is validated, not the patch: a body that sets
+    // only `sourceId` still has to agree with the `sourceUrl` already on the file.
+    const write = await applyDeckMetadata(filePath, parsed.patch, checkArchidektLink)
+    if (typeof write === 'string') return apiError(write, 400)
+    const { frontMatter: merged, contentHash } = write
 
     await autoCommitAndPush(
       getBaseDir(),
-      [filePath, hashPath(filePath)],
+      write.writtenFiles,
       `Update metadata for deck ${target.slug}`,
     )
 

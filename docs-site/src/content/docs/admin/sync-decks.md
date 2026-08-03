@@ -79,9 +79,27 @@ Identical to the CLI, since it is the same engine:
   deck's Archidekt format, records every card change in the deck's `.changes.md`, and stamps
   `lastSynced`.
 - A **push** sends local card changes to Archidekt (ignoring board placement) and stamps
-  `lastSynced`.
+  `lastSynced` — **only for decks that pushed cleanly**.
 
 See [What Is Compared](/commands/deck-sync/#what-is-compared) for the full rules.
+
+## Decks the remote moved on from
+
+A push makes Archidekt match your local file, so a card added on archidekt.com since your last sync
+would be silently reverted. A push therefore **refuses** any deck whose Archidekt `updatedAt` is
+newer than the `sourceUpdatedAt` its last sync recorded:
+
+```
+Remote deck changed since last sync (remote: …, last synced against: …) — pull first, or pass --force to overwrite remote changes.
+```
+
+The deck is reported as failed and the rest of the run continues. The remedy on this page is to
+**pull that deck first** — a pull records the new baseline even when it finds no card changes, after
+which the push goes through. The `--force` override is deliberately not offered here: it is a CLI
+(`deck-sync push --force`) and MCP (`sync_decks` with `force: true`) affordance, since overwriting
+someone's remote edits should take an explicit act rather than a button.
+
+See [Divergence Guard](/commands/deck-sync/#divergence-guard-push) for the full rules.
 
 :::note
 When git auto-commit is enabled in the admin config, deck files written by a sync are committed in a

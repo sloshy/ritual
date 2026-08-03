@@ -437,9 +437,35 @@ describe('deck-sync API', () => {
     expect(pushed).toEqual(['modifyCards'])
 
     const deck = await fs.readFile(path.join(tmpDir, 'decks', 'linked.md'), 'utf-8')
-    expect(deck).not.toContain(LAST_SYNCED)
+    expect(deck).not.toContain(`lastSynced: '${LAST_SYNCED}'`)
+    // The divergence baseline is the remote's own timestamp, re-read after the
+    // push — not the local clock `lastSynced` carries.
+    expect(deck).toContain(`sourceUpdatedAt: '${RAW_DECK.updatedAt}'`)
     // A push sends local state; it must not pull the remote card in.
     expect(deck).not.toContain('Lightning Bolt')
+  })
+
+  test('a diverged deck fails the push unless force is set', async () => {
+    await signIn()
+    const pushed: unknown[] = []
+    stubArchidektPush(pushed)
+    // Record a baseline older than the remote's `updatedAt`: the remote moved on.
+    const deckPath = path.join(tmpDir, 'decks', 'linked.md')
+    const before = await fs.readFile(deckPath, 'utf-8')
+    await fs.writeFile(
+      deckPath,
+      before.replace('---\n\n##', "sourceUpdatedAt: '2026-06-01T00:00:00.000Z'\n---\n\n##"),
+    )
+
+    const refused = await runReport({ direction: 'push', decks: ['linked'] })
+    expect(refused.failedCount).toBe(1)
+    expect(refused.decks[0]?.reason).toContain('Remote deck changed since last sync')
+    expect(pushed).toEqual([])
+
+    // `force` reaches the engine through the shared handler.
+    const forced = await runReport({ direction: 'push', decks: ['linked'], force: true })
+    expect(forced.failedCount).toBe(0)
+    expect(pushed).toEqual(['modifyCards'])
   })
 
   test('skips pushing a deck the account does not own', async () => {

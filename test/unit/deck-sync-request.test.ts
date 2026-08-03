@@ -22,6 +22,7 @@ describe('parseDeckSyncBody', () => {
       decks: [],
       dryRun: false,
       ignoreUnreadableLines: false,
+      force: false,
     } satisfies DeckSyncRequest)
   })
 
@@ -38,6 +39,7 @@ describe('parseDeckSyncBody', () => {
       decks: ['Winota Stax'],
       dryRun: true,
       ignoreUnreadableLines: true,
+      force: false,
     } satisfies DeckSyncRequest)
   })
 
@@ -47,6 +49,7 @@ describe('parseDeckSyncBody', () => {
       decks: [],
       dryRun: false,
       ignoreUnreadableLines: false,
+      force: false,
     } satisfies DeckSyncRequest)
   })
 
@@ -56,6 +59,7 @@ describe('parseDeckSyncBody', () => {
       decks: [],
       dryRun: false,
       ignoreUnreadableLines: false,
+      force: false,
       only: 'additions',
     } satisfies DeckSyncRequest)
   })
@@ -105,6 +109,11 @@ describe('parseDeckSyncBody', () => {
       expected: 'ignoreUnreadableLines must be a boolean',
     },
     {
+      label: 'a non-boolean force',
+      body: { direction: 'push', force: 'yes' },
+      expected: 'force must be a boolean',
+    },
+    {
       label: 'an unknown change filter',
       body: { direction: 'pull', only: 'adds' },
       expected: "Invalid only 'adds'. Use one of: additions, removals.",
@@ -124,15 +133,16 @@ describe('parseDeckSyncBody', () => {
 })
 
 describe('parseDeckSyncQuery', () => {
-  test('reads repeated deck params and both flags', () => {
+  test('reads repeated deck params and every flag', () => {
     const params = new URLSearchParams(
-      'direction=push&deck=one&deck=two&dryRun=true&ignoreUnreadableLines=true',
+      'direction=push&deck=one&deck=two&dryRun=true&ignoreUnreadableLines=true&force=true',
     )
     expect(parseDeckSyncQuery(params)).toEqual({
       direction: 'push',
       decks: ['one', 'two'],
       dryRun: true,
       ignoreUnreadableLines: true,
+      force: true,
     } satisfies DeckSyncRequest)
   })
 
@@ -142,6 +152,7 @@ describe('parseDeckSyncQuery', () => {
       decks: [],
       dryRun: false,
       ignoreUnreadableLines: false,
+      force: false,
       only: 'removals',
     } satisfies DeckSyncRequest)
   })
@@ -158,6 +169,7 @@ describe('parseDeckSyncQuery', () => {
       decks: [],
       dryRun: false,
       ignoreUnreadableLines: false,
+      force: false,
     } satisfies DeckSyncRequest)
   })
 
@@ -169,7 +181,7 @@ describe('parseDeckSyncQuery', () => {
 
   // Both flags decide whether files are rewritten, so an unreadable value is an
   // error rather than a silent "no".
-  const booleanFlags = ['dryRun', 'ignoreUnreadableLines'] as const
+  const booleanFlags = ['dryRun', 'ignoreUnreadableLines', 'force'] as const
   for (const flag of booleanFlags) {
     test(`rejects a ${flag} value it cannot read rather than running for real`, () => {
       expect(parseDeckSyncQuery(new URLSearchParams(`direction=pull&${flag}=1`))).toBe(

@@ -103,6 +103,12 @@ type ListDocument = {
   canonical: string
   /** Parse warnings; a file that produced any is not rewritten (see below). */
   parseWarnings: string[]
+  /**
+   * Notices about lines that parsed but likely do not mean what they say (a card
+   * name starting with a quantity). Reported alongside the warnings but never
+   * blocking: the canonical re-emit preserves these lines exactly.
+   */
+  advisories: string[]
   /** Format stamped onto a deck that had none. */
   formatSet?: DeckFormatKey
   /** True for a deck left without a format (no answer, or dry-run). */
@@ -145,6 +151,9 @@ async function readDeckDocument(
         original,
         canonical: original,
         parseWarnings: warnings,
+        // Decks carry per-line quantities, so the quantity-prefix advisory the
+        // flat lists raise has no deck equivalent.
+        advisories: [],
         missingFormat,
       }
     }
@@ -154,6 +163,7 @@ async function readDeckDocument(
     original,
     canonical: serializeDeckToMarkdown(deck, frontMatter),
     parseWarnings: warnings,
+    advisories: [],
     formatSet,
     missingFormat,
   }
@@ -166,6 +176,7 @@ async function readCollectionDocument(location: ListLocation): Promise<ListDocum
     original: file.content,
     canonical: collectionToMarkdown(file.title, file.entries, file.sectionOrder),
     parseWarnings: file.warnings,
+    advisories: file.advisories,
   }
 }
 
@@ -176,6 +187,7 @@ async function readWantedDocument(location: ListLocation): Promise<ListDocument>
     original: file.content,
     canonical: wantedToMarkdown(file.title, file.entries, file.sectionOrder),
     parseWarnings: file.warnings,
+    advisories: file.advisories,
   }
 }
 
@@ -245,6 +257,13 @@ export async function cleanupList(
       result.renamedTo = targetBase
     }
   }
+
+  // Reported, never blocking: these lines parsed and survive the re-emit
+  // verbatim, so cleanup canonicalizes the file and names them anyway — this is
+  // the surface that reads every list file, and so the one place a
+  // quantity-prefixed line in a collection or wanted list reliably gets said out
+  // loud.
+  result.warnings.push(...document.advisories)
 
   // A file whose parse skipped lines would lose them if re-emitted; leave its
   // content alone (renaming is still safe) and surface the warnings instead.

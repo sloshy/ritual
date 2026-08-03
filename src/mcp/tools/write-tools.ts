@@ -435,7 +435,9 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'Write a deck’s front matter: description, tags, format, and the Archidekt source link. ' +
         'Only the fields you send are touched; null (or "" for description) clears one. Setting ' +
         'sourceId together with an archidekt.com sourceUrl is what makes a deck sync-linked, so ' +
-        'it is what sync_decks then operates on. Collections and wanted lists carry no front ' +
+        'it is what sync_decks then operates on; the two must name the SAME Archidekt deck once ' +
+        'merged over what the file already carries, or the call is rejected. Collections and ' +
+        'wanted lists carry no front ' +
         'matter — use rename_list to change their display name. No changelog entry is recorded: ' +
         'the changelog is card-level, and metadata is not a card change.',
       inputSchema: z.object({
@@ -451,7 +453,10 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
           .min(1)
           .nullable()
           .optional()
-          .describe('The deck’s id on the source service; null unlinks it.'),
+          .describe(
+            'The deck’s id on the source service; null unlinks it. For Archidekt it must be the ' +
+              'deck id sourceUrl names.',
+          ),
         sourceUrl: z
           .string()
           .url()

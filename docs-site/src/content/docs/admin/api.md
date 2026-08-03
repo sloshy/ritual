@@ -1295,6 +1295,12 @@ Only the fields present in the body are written; every other front-matter key (i
 
 Setting `sourceId` together with an `archidekt.com` `sourceUrl` is what makes a deck sync-linked, so these fields change which decks [`POST /api/deck-sync`](#sync-decks) operates on.
 
+The two must name the **same** Archidekt deck once merged over what the file already carries — a
+sync addresses the deck by `sourceId` while every surface shows `sourceUrl`, so a mismatched pair
+would push one deck's cards into another. A request that produces one is a `400`
+(`sourceUrl names Archidekt deck 999 but sourceId is 123. …`) and writes nothing. A `sourceUrl` on
+another service is not constrained: its `sourceId` follows that service's own scheme.
+
 When `contentHash` is supplied and no longer matches the file, the response is `409` with `"conflict": true` — the same optimistic-concurrency contract the editor save endpoints use. Omit it for a plain read-modify-write. Because the write updates the file's hash, an editor that had the deck open sees a conflict on its next save rather than silently clobbering the new metadata.
 
 **Response:**
@@ -1383,6 +1389,14 @@ response is `401` with `loginRequired: true`.
 | `dryRun`                | Report what would sync without writing files or pushing changes (default `false`).                                                                                                                                            | No       |
 | `ignoreUnreadableLines` | Sync decks whose files hold content a rewrite cannot reproduce — unreadable lines or a fenced code block — deleting it (default `false`).                                                                                     | No       |
 | `only`                  | `additions` or `removals` — apply just one side of each deck's diff, relative to the sync destination (see [Change Filter](/commands/deck-sync/#change-filter)). Omitted applies every change; any other value returns `400`. | No       |
+| `force`                 | Push a deck whose remote copy changed since its recorded sync, overwriting those remote changes (default `false`). Must be a boolean or `400`. A pull ignores it.                                                             | No       |
+
+A `push` refuses any deck whose Archidekt `updatedAt` is newer than the `sourceUpdatedAt` its last
+sync recorded — pushing would silently revert the remote edits. Such a deck is reported `failed`
+with `Remote deck changed since last sync (…) — pull first, or pass --force to overwrite remote
+changes.`, and the rest of the run continues. A `pull` of that deck records the new baseline (even
+when it finds no card changes), after which the push succeeds; `force: true` overrides the guard
+outright. See [Divergence Guard](/commands/deck-sync/#divergence-guard-push).
 
 A sync rewrites each deck file, so a line the parser cannot read — or a
 [fenced code block](/commands/edit/#fenced-code-blocks) — would be deleted by the save. There
@@ -1432,8 +1446,8 @@ GET /api/deck-sync/stream?direction=pull&deck=<slug>&deck=<slug>&only=additions&
 The same sync as `POST /api/deck-sync`, streamed as server-sent events. `EventSource` can only issue
 a bodyless `GET`, so the request arrives as query parameters: `direction` is required, `deck` repeats
 once per deck (omit entirely to sync all), `only` takes `additions` or `removals` (omit it to apply
-every change), and `dryRun` / `ignoreUnreadableLines` take `true` or `false` (any other value is
-rejected, so a flag that decides whether files are written can never be misread as "no").
+every change), and `dryRun` / `ignoreUnreadableLines` / `force` take `true` or `false` (any other
+value is rejected, so a flag that decides whether files are written can never be misread as "no").
 
 Three event types are emitted:
 
@@ -1510,16 +1524,16 @@ the fix.
 }
 ```
 
-| Field                   | Description                                                                                                                                                                          | Required |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
-| `direction`             | `pull` (Archidekt → local) or `push` (local → Archidekt). Any other value returns `400`.                                                                                             | Yes      |
-| `lists`                 | Collection list slugs or names, resolved like CLI list arguments. Omitted or empty compares the whole collection; the remote side is always the entire Archidekt collection.         | No       |
-| `into`                  | The list a pull adds new cards to, created if it does not exist. Omitted uses the `collectionSync.pullTarget` config key. A push ignores it.                                         | No       |
-| `only`                  | `additions` or `removals` — apply just one side of the diff, relative to the sync destination. Omitted applies every change; any other value returns `400`.                          | No       |
-| `removalPriority`       | Collection list names **in priority order** — the only lists an ambiguous removal may take copies from (see below). Must be an array of non-blank names or `400`. A push ignores it. | No       |
-| `csv`                   | Upload a push's **new cards** as one CSV import instead of adding them one at a time (see below). Must be a boolean or `400`. A pull ignores it.                                     | No       |
-| `dryRun`                | Report what would sync without writing files or touching Archidekt (default `false`).                                                                                                | No       |
-| `ignoreUnreadableLines` | Sync lists whose files contain lines the parser cannot read, dropping those lines (default `false`).                                                                                 | No       |
+| Field                   | Description                                                                                                                                                                                                                      | Required |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `direction`             | `pull` (Archidekt → local) or `push` (local → Archidekt). Any other value returns `400`.                                                                                                                                         | Yes      |
+| `lists`                 | Collection list slugs or names, resolved like CLI list arguments. Omitted or empty compares the whole collection; the remote side is always the entire Archidekt collection.                                                     | No       |
+| `into`                  | The list a pull adds new cards to, created if it does not exist. A name **two** lists answer to fails the run before anything is fetched or written. Omitted uses the `collectionSync.pullTarget` config key. A push ignores it. | No       |
+| `only`                  | `additions` or `removals` — apply just one side of the diff, relative to the sync destination. Omitted applies every change; any other value returns `400`.                                                                      | No       |
+| `removalPriority`       | Collection list names **in priority order** — the only lists an ambiguous removal may take copies from (see below). Must be an array of non-blank names or `400`. A push ignores it.                                             | No       |
+| `csv`                   | Upload a push's **new cards** as one CSV import instead of adding them one at a time (see below). Must be a boolean or `400`. A pull ignores it.                                                                                 | No       |
+| `dryRun`                | Report what would sync without writing files or touching Archidekt (default `false`).                                                                                                                                            | No       |
+| `ignoreUnreadableLines` | Sync lists whose files contain lines the parser cannot read, dropping those lines (default `false`).                                                                                                                             | No       |
 
 A `csvFile` field is **rejected** with `400`: writing a CSV to a path the caller names is a CLI
 affordance ([`--csv-file`](/commands/collection-sync/#writing-the-csv-instead-of-pushing---csv-file)),

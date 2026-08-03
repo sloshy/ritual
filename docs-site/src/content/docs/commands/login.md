@@ -14,11 +14,11 @@ Login to a supported website to save authentication tokens for future requests, 
 
 ## Subcommands
 
-| Subcommand  | Description                                |
-| ----------- | ------------------------------------------ |
-| `archidekt` | Login to Archidekt for private deck access |
-| `status`    | Show the stored Archidekt login, if any    |
-| `logout`    | Clear the stored Archidekt login token     |
+| Subcommand  | Description                                                   |
+| ----------- | ------------------------------------------------------------- |
+| `archidekt` | Login to Archidekt for private deck access                    |
+| `status`    | Show the stored login and whether its session is still usable |
+| `logout`    | Clear the stored Archidekt login token                        |
 
 ## `login archidekt`
 
@@ -52,36 +52,54 @@ Passing only one of the two flags is a usage error (exit code `2`), as is an emp
 
 ## `login status`
 
-Reports whether an Archidekt login token is stored and for which user. Never touches the network — it reads the stored token only.
+Reports whether an Archidekt login is stored, for which user, and — the question a script is really asking — whether the next sync will authenticate with it. Never touches the network: the validity comes from the stored tokens' own `exp` claims.
+
+An expired **access** token is not a problem on its own; it is refreshed automatically on the next request. Only when the **refresh** token has expired too does the session need a fresh `login archidekt`, which is what `loginRequired` reports.
 
 ```bash
 ./ritual login status
-# Logged in to Archidekt as myuser
+# Logged in to Archidekt as myuser (session valid until 2026-08-03T00:00:00.000Z)
+```
 
+| Stored login                  | Text line                                                                                   |
+| ----------------------------- | ------------------------------------------------------------------------------------------- |
+| Access token valid            | `Logged in to Archidekt as myuser (session valid until <ISO>)`                              |
+| Access expired, refresh OK    | `Logged in to Archidekt as myuser (access token expired; it refreshes on the next request)` |
+| Both expired                  | `Logged in to Archidekt as myuser (session expired — run "ritual login archidekt")`         |
+| Stored, but naming no account | `Logged in to Archidekt (the stored login does not name an account)`                        |
+| None                          | `Not logged in.`                                                                            |
+
+```bash
 ./ritual login status --output json
 ```
 
 ```json
 {
   "loggedIn": true,
-  "username": "myuser"
+  "username": "myuser",
+  "accessTokenExpiration": "2026-08-03T00:00:00.000Z",
+  "accessTokenValid": true,
+  "refreshTokenExpiration": "2026-09-01T00:00:00.000Z",
+  "refreshTokenValid": true,
+  "loginRequired": false
 }
 ```
 
-Without a stored login the text output is `Not logged in.` and the JSON payload is `{ "loggedIn": false }`.
+This is the same payload the admin API serves at `GET /api/login/archidekt` and the same snapshot the MCP `get_sync_status` tool carries as its `archidekt` section, so every surface answers the question identically.
 
 The status line is the command's entire payload, so `status` registers no `--quiet` ([shared convention](/#scripting-conventions)). To branch purely on the exit code, redirect stdout:
 
 ```bash
-./ritual login status > /dev/null && echo "logged in" || echo "not logged in"
+./ritual login status > /dev/null && echo "ready to sync" || echo "sign in first"
 ```
 
 ### Exit Codes
 
-| Code | Meaning                   |
-| ---- | ------------------------- |
-| `0`  | A stored login exists     |
-| `3`  | No stored Archidekt login |
+| Code | Meaning                                                                      |
+| ---- | ---------------------------------------------------------------------------- |
+| `0`  | A stored login whose session can still authenticate (`loginRequired: false`) |
+| `1`  | A stored login whose tokens have all expired — run `ritual login archidekt`  |
+| `3`  | No stored Archidekt login                                                    |
 
 ## `login logout`
 

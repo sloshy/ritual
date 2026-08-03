@@ -181,8 +181,8 @@ unknown user from an account with no public decks, so check the spelling.
 
 ## Sync with Archidekt
 
-The first argument is the sync direction — \`pull\` (Archidekt → local) or \`push\`
-(local → Archidekt); anything else exits with code 2:
+\`deck-sync\` has four subcommands — \`pull\` (Archidekt → local), \`push\`
+(local → Archidekt), \`link\`, and \`status\`; anything else exits with code 2:
 
 \`\`\`bash
 ritual deck-sync pull                        # pull remote changes for all linked decks
@@ -191,7 +191,60 @@ ritual deck-sync push --dry-run              # preview without sending anything
 ritual deck-sync pull --yes                  # accept dropping lines the parser can't read
 ritual deck-sync pull --only additions       # add cards locally, never remove any
 ritual deck-sync push --only removals        # push removals only, add nothing remotely
+ritual deck-sync push "Winota Stax" --force  # overwrite remote edits made since the last sync
+ritual deck-sync status --output json        # what is linked, and when each last synced
+ritual deck-sync link "Alpha Deck" https://archidekt.com/decks/123456  # link an existing remote deck
 \`\`\`
+
+A text-mode run closes with a tally —
+\`Synced 4 decks (2 with changes), 1 skipped, 1 failed.\` — while
+\`--output json\` emits the full per-deck report instead.
+
+### Linking and status
+
+\`push\` only operates on decks whose front matter carries \`sourceUrl\` +
+\`sourceId\`, which \`import\`/\`import-account\` write. For a deck built locally,
+create it on archidekt.com first (Ritual cannot create one — Archidekt has no
+API for it), then link it. \`link\` takes an Archidekt **deck** URL (a bare id or
+another service exits 2), canonicalizes it, and rewrites the front matter only —
+card lines, \`&N\` ids, and prose survive byte for byte. It takes \`--dry-run\`,
+\`--output\`, and \`--quiet\`; the MCP \`set_list_metadata\` tool performs the same
+write (there, \`sourceId\` and \`sourceUrl\` must name the same Archidekt deck or
+the call is rejected). A deck name two decks answer to exits 2, not 3.
+
+\`status\` is read-only and offline (no Archidekt session needed): it lists every
+linked deck with its URL and \`lastSynced\`, plus when the account's collection
+last synced (or, when that record exists but cannot be read,
+\`Collection: sync state unreadable (…)\` rather than \`never synced\`).
+
+### Push divergence guard
+
+A push makes Archidekt match the local file, so cards added on archidekt.com
+since the last sync would be deleted. A push therefore compares the remote deck's
+\`updatedAt\` against the deck's \`sourceUpdatedAt\` — the remote \`updatedAt\` the
+last sync observed — and **fails** that deck when the remote moved on:
+
+\`\`\`
+Remote deck changed since last sync (remote: …, last synced against: …) — pull first, or pass --force to overwrite remote changes.
+\`\`\`
+
+Pull that deck first (the usual fix), or pass \`--force\` to overwrite
+deliberately. A pull records the baseline even when it finds **no card changes**
+— a remote rename or category shuffle moves \`updatedAt\` without giving a pull
+anything to apply, and "pull first" has to clear the refusal in that case too
+(such a pull rewrites the front matter only). \`--dry-run\` reports the same
+refusal without needing \`--force\`. A deck that has never synced has nothing to
+compare against and pushes normally; a remote that reports no usable
+\`updatedAt\` is pushed with a warning saying the guard could not run.
+
+Both sides of the comparison are Archidekt's clock, which is why it is
+\`sourceUpdatedAt\` and not \`lastSynced\` (your machine's wall clock, shown by
+\`status\`): a client running behind the server would otherwise diverge against
+its own push. Never hand-author either field.
+Only decks that pushed cleanly get fresh stamps — a failed deck keeps
+its old ones. \`collection-sync push\` has **no** such guard: it is
+last-writer-wins, so preview it with \`--dry-run\` when you also edit on
+Archidekt.
 
 ${SYNC_CHANGE_FILTER}
 

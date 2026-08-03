@@ -18,6 +18,8 @@ One pass over all list files applies three normalizations:
 
 Cleanup never adds changelog entries — a cleaned-up file has the same cards it had before. Two cases are reported with a warning instead of fully acted on: a rename whose target file name is already taken by another list, and a file holding content the canonical rewrite cannot reproduce. The second covers two things: lines the parse skipped — malformed card lines, but also prose, comments, or any other text the list grammar does not model — and [fenced code blocks](/commands/edit/#fenced-code-blocks), which parse cleanly as prose but which the canonical serializers do not emit. In either case the file is still renamed if its name drifted, but its content is left alone (rewriting it would silently drop that content; fix, remove, or accept it and rerun).
 
+A third case is reported _without_ holding anything back: a collection or wanted-list line whose card name starts with a quantity (`- 1 Sol Ring (C21:240)`) parses as a card literally named `1 Sol Ring`. That line survives the rewrite verbatim, so cleanup canonicalizes the file and names the line anyway — see [Deck-Style Quantity Prefixes](/commands/collection-sync/#deck-style-quantity-prefixes).
+
 ## Usage
 
 ```bash

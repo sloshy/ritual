@@ -165,8 +165,8 @@ ${wrapProse(
   '**Where pulled cards land:** a card that appeared on Archidekt belongs in *some* binder and nothing in the ' +
     'data says which, so every addition goes to one target list, resolved as: ' +
     '`--into <list>` for this run, else the `collectionSync.pullTarget` config ' +
-    'key, else `Inbox`. The list is **created on first use**; an ambiguous name ' +
-    "fails the additions rather than guessing (the run's removals still apply). " +
+    'key, else `Inbox`. The list is **created on first use**; a name two lists ' +
+    'answer to fails the whole run before anything is fetched or written. ' +
     '`--into` applies to a pull only — passing it to a push warns and is ignored.',
 )}
 
@@ -264,9 +264,11 @@ ritual collection-sync pull --removal-priority "Long Box" --removal-priority "Bl
 ${wrapProse(
   'Copies then come **only** from the named lists, walking them in the order ' +
     'given (each list’s last lines first). Names are matched exactly, like ' +
-    '`--into` — never by the unique-substring rule — so an unknown name fails ' +
-    'the run before anything is planned, as does a priority that cannot fully ' +
-    'cover a removal. When a priority is given the run never prompts.',
+    '`--into` — never by the unique-substring rule — so an unknown or ambiguous ' +
+    'name fails the run *before the remote collection is fetched* (the check is ' +
+    'purely local, and so is the `--into` ambiguity check), as does a priority ' +
+    'that cannot fully cover a removal. When a priority is given the run never ' +
+    'prompts.',
 )}
 
 ${wrapProse(
@@ -288,6 +290,24 @@ ${wrapProse(
     'itself (an unknown `--removal-priority` name still fails it): it reports ' +
     'each one, and how a given priority would place it. Other ways out: ' +
     'scope the run to the one list, or `--only additions` to skip removals.',
+)}
+
+${wrapProse(
+  '**Quantity prefixes:** a collection (or wanted) line is one **copy**, so it ' +
+    'carries no quantity — everything between `- ` and the printing is the card ' +
+    'name. A deck-style `- 1 Sol Ring (C21:240)` therefore names a card ' +
+    '`1 Sol Ring`, which matches nothing anywhere. A `collection-sync` run, a ' +
+    '`cleanup` run, and the CLI editors each print an advisory naming the line; ' +
+    'it is advisory only (the line parses and survives a save), ' +
+    'so fix the file rather than expecting a refusal. A name that legitimately ' +
+    'starts with a four-digit year (`1996 World Champion`) is left alone.',
+)}
+
+${wrapProse(
+  '**Push is last-writer-wins:** unlike `deck-sync push`, a collection push has ' +
+    'no divergence guard — cards added on Archidekt since your last sync read as ' +
+    'gone and are deleted. Preview with `--dry-run` (or use `--only additions`) ' +
+    'when you also edit the collection on Archidekt.',
 )}
 
 ${wrapProse(

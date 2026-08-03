@@ -119,8 +119,18 @@ export class ArchidektAuth implements AuthService<ArchidektCredentials> {
 
   // Prefer an explicit expiration field if Archidekt ever returns one, otherwise
   // fall back to the token's own JWT `exp` claim.
-  private getTokenExpiration(explicitIso: string | undefined, jwt: string): Date | null {
-    return explicitIso ? new Date(explicitIso) : getJwtExpiration(jwt)
+  //
+  // `jwt` is declared non-optional on `ArchidektToken` but the token store
+  // JSON-parses whatever is on disk, so a truncated or hand-edited file can hand
+  // this `undefined`. A missing token has no expiry rather than throwing: that
+  // reads as "invalid", which is exactly what `login status` should report about
+  // a token file it cannot make sense of.
+  private getTokenExpiration(
+    explicitIso: string | undefined,
+    jwt: string | undefined,
+  ): Date | null {
+    if (explicitIso) return new Date(explicitIso)
+    return typeof jwt === 'string' ? getJwtExpiration(jwt) : null
   }
 
   private isExpired(token: ArchidektToken): boolean {

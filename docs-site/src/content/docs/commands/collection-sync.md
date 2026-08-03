@@ -145,7 +145,8 @@ The target is matched against your lists **by name only**, never by the unique-s
 list arguments use: a destination that may not exist yet must not quietly resolve to whichever list
 happens to contain the word (a target of `Inbox` landing in `card-inbox`). The list is therefore
 **created on first use** when nothing answers to the name exactly. If two lists do answer to it, the
-additions are reported as failed rather than guessed at — the removals in the same run still apply.
+run fails before anything is written — only you can say which binder was meant (see
+[Ambiguous removals](#ambiguous-removals)).
 
 ### Ambiguous removals
 
@@ -172,8 +173,11 @@ the order given and removing each list's last lines first:
 ```
 
 Names are matched **by name only** (like `--into`), never by the unique-substring rule — a priority
-is a promise about which binders may lose cards. An unknown name fails the run before anything is
-planned. If the priority cannot fully cover a removal (its copies live elsewhere, or the priority
+is a promise about which binders may lose cards. An unknown (or ambiguous) name fails the run
+immediately after the local lists load and **before the remote collection is fetched**: the check is
+purely local, so a typo costs milliseconds rather than a multi-minute paged fetch. `--into` is
+checked at the same moment — a name two lists answer to fails the run there, since only you can say
+which binder was meant (a name no list answers to is fine; a pull creates it). If the priority cannot fully cover a removal (its copies live elsewhere, or the priority
 lists hold too few), the run fails and writes nothing, naming the cards it could not place. Placed
 removals are logged with the list that lost them:
 
@@ -256,6 +260,17 @@ The union of the in-scope lists is the truth, and the account's records are resh
 Deletions batch through Archidekt's own bulk endpoint, 25 records per request — removals never go
 through the CSV path. The "clear collection" endpoint is never used, and a push never writes to your
 list files (the only file it can write is the CSV `--csv-file` asks for).
+
+:::caution[A collection push is last-writer-wins]
+
+Unlike [`deck-sync push`](/commands/deck-sync/#divergence-guard-push), a collection push has **no
+divergence guard**: cards added on archidekt.com since your last sync read as "gone from every list"
+and are deleted. There is no cheap check that would catch it — a collection is a set of records with
+no collection-level timestamp and no tombstones, so a record that was added and one that never
+existed look alike from the local side. Use `--dry-run`, or `--only additions`, when you have been
+editing your collection on Archidekt as well.
+
+:::
 
 ### CSV import for new cards
 
@@ -437,6 +452,26 @@ already exist, but nothing local can set them:
 | Game           | Fixed to **Paper**. MTGO and Arena collections are not synced.                                |
 | Sections       | Local only. A pull adds into the target list's `Main`; a push flattens sections.              |
 | Notes          | Local only, and never sent.                                                                   |
+
+## Deck-Style Quantity Prefixes
+
+Collections hold **one line per copy**, so there is no quantity field on a card line: everything
+between `- ` and the printing is the card name. A deck-style line pasted into a collection —
+`- 1 Sol Ring (C21:240)` — therefore parses as a card _named_ `1 Sol Ring`, which matches nothing in
+the cache, on Scryfall, or on Archidekt.
+
+A `collection-sync` run, a `cleanup` run, and the CLI editors each say so, once per offending line:
+
+```
+Card name starts with a quantity, so the line reads as a card named '1 Sol Ring': - 1 Sol Ring (C21:240) — collections and wanted lists hold one line per copy; remove the leading quantity.
+```
+
+This is an **advisory**, not an [unreadable line](#unreadable-lines): the line parses and a save
+re-emits it verbatim, so it never blocks a sync, a save, or `cleanup` (which reports it while still
+rewriting the file in canonical form) — it just tells you the name
+is not the name you meant. Only a 1–3 digit leading integer triggers it, so a card genuinely named
+`1996 World Champion` parses untouched. Wanted lists, which are also one line per copy, behave the
+same way.
 
 ## Unreadable Lines
 

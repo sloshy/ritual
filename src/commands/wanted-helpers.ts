@@ -3,6 +3,7 @@ import type { PromptState } from './prompts-types'
 import { DEFAULT_SECTION, type Finish, type ScryfallCard } from '../types'
 import { matchSectionHeader } from '../section-format'
 import { createFenceTracker } from '../markdown-fence'
+import { quantityPrefixAdvisory } from '../card-line'
 import { finishChoices, finishRows, isFinish } from './collection-helpers'
 import { getWantedDir } from '../ritual-config'
 import { listFileName, unusableFileNameMessage } from '../list-file-name'
@@ -32,6 +33,17 @@ export type WantedListParseResult = {
    * for why the whole-file save gates still care.
    */
   fencedLines: number
+  /**
+   * Non-fatal per-line advisories: content the parser *did* read, but about
+   * which the user deserves a word — today, a card name that kept a deck's
+   * quantity prefix ({@link quantityPrefixAdvisory}). Wanted lists hold one
+   * line per copy, exactly like collections, so the same trap applies.
+   *
+   * Deliberately **not** part of `warnings`: nothing was lost and a
+   * re-serialize preserves the line, so these must not trip the
+   * whole-file-rewrite gates ({@link unreadableLines}).
+   */
+  advisories: string[]
 }
 
 /**
@@ -45,6 +57,7 @@ export function parseWantedListFile(content: string): WantedListParseResult {
   const entries: WantedListEntry[] = []
   const sectionOrder: string[] = []
   const warnings: string[] = []
+  const advisories: string[] = []
   let currentSection = DEFAULT_SECTION
   let titleSeen = false
   // Fenced code blocks are prose: a bullet or `## Heading` inside one is an
@@ -96,6 +109,9 @@ export function parseWantedListFile(content: string): WantedListParseResult {
     const finish = rawFinish !== undefined && isFinish(rawFinish) ? rawFinish : undefined
     const note = match[5]
 
+    const advisory = quantityPrefixAdvisory(name, trimmed)
+    if (advisory) advisories.push(advisory)
+
     // A card before any explicit header pins the implicit Main section into the order list.
     registerSection(currentSection)
     entries.push({
@@ -109,7 +125,7 @@ export function parseWantedListFile(content: string): WantedListParseResult {
       section: currentSection,
     })
   }
-  return { entries, sectionOrder, warnings, fencedLines }
+  return { entries, sectionOrder, warnings, fencedLines, advisories }
 }
 
 export async function ensureWantedListFile(name: string): Promise<string> {

@@ -200,7 +200,7 @@ Every tool that addresses a list takes the same two fields: `listType` (`deck` |
 | Tool                                   | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `list_lists`                           | Every list as `{ listType, slug, name }`, optionally filtered by `listType`.                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `get_sync_status`                      | What an Archidekt sync can cover. `target: "decks"` returns the linked decks (with each deck's `lastSynced`); `target: "collection"` returns the coverable lists, the default pull target, the CSV threshold, and when the account last synced. Omit `target` for both halves. Both carry the login.                                                                                                                                                                                                                    |
+| `get_sync_status`                      | What an Archidekt sync can cover. `target: "decks"` returns the linked decks (with each deck's `lastSynced` — the same view the CLI's `deck-sync status` prints); `target: "collection"` returns the coverable lists, the default pull target, the CSV threshold, and when the account last synced. Omit `target` for both halves. Both carry the login snapshot, whose `loginRequired` is what `ritual login status` reports.                                                                                          |
 | `get_list`                             | Read one list. The result is discriminated by `view` (`"cards"` \| `"summary"`) and `listType`: a deck's cards view carries `deck` + `frontMatter`, a flat list's carries `entries` + `sectionOrder`, and `view: "summary"` carries `counts` only. Every arm also carries `warnings` — lines the file's parser could not read, always present and empty for a clean file, so a list holding an unreadable line is never mistaken for a shorter list. `section` / `nameContains` / `limit` / `offset` narrow the result. |
 | `search_scryfall`                      | Run a live [Scryfall query](https://scryfall.com/docs/syntax) and return card summaries (name, printing, mana cost, type line, oracle text, prices). `warm: true` also caches the results locally and promotes a whole-name match.                                                                                                                                                                                                                                                                                      |
 | `autocomplete_card`                    | Match every whitespace-separated term against the local cache's card names (`in tre` → "In the Trenches").                                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -400,8 +400,13 @@ capability, not what any particular batch does.
 
 `set_list_metadata` writes deck front matter only — collections and wanted lists carry none, so use
 `rename_list` to change their display name. Setting `sourceId` together with an `archidekt.com`
-`sourceUrl` is what makes a deck sync-linked, and therefore what `sync_decks` then operates on. No
-changelog entry is recorded: the changelog is card-level, and metadata is not a card change.
+`sourceUrl` is what makes a deck sync-linked, and therefore what `sync_decks` then operates on — the
+two must name the **same** Archidekt deck once merged over what the file already carries, or the call
+is rejected (a sync addresses the deck by `sourceId` while every surface shows `sourceUrl`). No
+changelog entry is recorded: the changelog is card-level, and metadata is not a card change. This is
+the same write the CLI's [`deck-sync link`](/commands/deck-sync/#linking-a-deck-deck-sync-link)
+performs — both go through one front-matter writer, so the deck's card lines and prose survive
+byte for byte either way.
 
 ### Destructive
 
@@ -422,10 +427,18 @@ These are flagged with the MCP `destructiveHint` so clients can gate or confirm 
 to sync every Archidekt-linked deck), an optional
 [`only`](/commands/deck-sync/#change-filter) (`additions` | `removals`, applying just one side of
 each deck's diff relative to the sync destination), and optional `dryRun` /
-`ignoreUnreadableLines` flags. It needs
+`ignoreUnreadableLines` / `force` flags. It needs
 an Archidekt login stored by `ritual login archidekt` or the admin site — check
 `get_sync_status`'s `decks.archidekt.loginRequired` first. A run that completes reports `success` even when individual decks
 failed; read `report.failedCount` and each deck's `status`/`reason`.
+
+A **push** whose remote deck changed since that deck's recorded `sourceUpdatedAt` fails with
+`Remote deck changed since last sync (…) — pull first, or pass --force to overwrite remote changes.`
+rather than reverting those remote edits; `force: true` overwrites them deliberately, and a `dryRun`
+reports the same refusal without needing it. Pulling that deck first also clears it — a pull records
+the baseline even when it finds no card changes. See
+[Divergence Guard](/commands/deck-sync/#divergence-guard-push). Only decks that pushed cleanly get
+fresh stamps, so `get_sync_status` never reports a sync that failed.
 
 A deck whose file holds lines the parser cannot read fails with
 `N unreadable lines would be dropped by a sync`, because syncing rewrites the file and would delete

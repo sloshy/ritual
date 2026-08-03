@@ -48,6 +48,8 @@ type FakeListInput = {
   entries?: CollectionEntry[]
   /** Lines the parser could not read — the trigger for the confirmation gate. */
   warnings?: string[]
+  /** Lines that parsed but look wrong; reported, never a gate. */
+  advisories?: string[]
 }
 
 type FakeStore = CollectionListStore & {
@@ -62,11 +64,13 @@ type FakeStore = CollectionListStore & {
 function fakeStore(lists: FakeListInput[], failApplyFor?: string): FakeStore {
   const entriesByList = new Map<string, CollectionEntry[]>()
   const warningsByList = new Map<string, string[]>()
+  const advisoriesByList = new Map<string, string[]>()
   const order: string[] = []
   for (const list of lists) {
     order.push(list.name)
     entriesByList.set(list.name, list.entries ?? [])
     warningsByList.set(list.name, list.warnings ?? [])
+    advisoriesByList.set(list.name, list.advisories ?? [])
   }
 
   const store: FakeStore = {
@@ -94,6 +98,7 @@ function fakeStore(lists: FakeListInput[], failApplyFor?: string): FakeStore {
         file: `${name}.md`,
         entries,
         warnings: warningsByList.get(name) ?? [],
+        advisories: advisoriesByList.get(name) ?? [],
       })
     },
 
@@ -487,7 +492,9 @@ describe('runCollectionSync (pull)', () => {
     const { run } = await sync({ direction: 'pull', client, store, state })
 
     expect(run.report.failedCount).toBe(2)
-    expect(run.report.errors[0]).toContain('Failed to fetch the Archidekt collection')
+    // The client's own error names the page and account; the engine does not
+    // re-prefix it.
+    expect(run.report.errors[0]).toContain('Failed to fetch collection page 1')
     expect(store.applied).toEqual([])
     expect(state.written).toEqual([])
   })
@@ -608,9 +615,9 @@ describe('runCollectionSync (ambiguous removals)', () => {
     )
   })
 
-  test('an unknown priority list name fails the run before anything is planned', async () => {
+  test('an unknown priority list name fails the run before anything is fetched', async () => {
     const store = ambiguousStore()
-    const { client } = oneSolRing()
+    const { client, requests } = oneSolRing()
     const state = fakeState()
 
     const { run } = await sync({
@@ -627,6 +634,9 @@ describe('runCollectionSync (ambiguous removals)', () => {
     expect(run.report.errors[0]).toBe(
       'Cannot use the removal priority: no collection list is named "card-shop".',
     )
+    // The names are local facts, so the refusal costs no network at all — a
+    // typo must not be paid for with a full collection fetch first.
+    expect(requests).toEqual([])
   })
 
   test('a priority naming two lists at once says which they are', async () => {
@@ -959,6 +969,37 @@ describe('runCollectionSync (unreadable lines)', () => {
     expect(asked).toBe(false)
     expect(run.report.failedCount).toBe(0)
     expect(run.report.totals.removed).toBe(1)
+  })
+})
+
+describe('runCollectionSync (advisories)', () => {
+  const ADVISORY =
+    "Card name starts with a quantity, so the line reads as a card named '2 Sol Ring'"
+
+  test('an advisory reaches the run log without holding the list back', async () => {
+    // The whole point of the advisory/warning split: an advisory names a line
+    // that parsed and survives a re-serialize, so unlike `warnings` it must not
+    // gate the sync.
+    const store = fakeStore([
+      {
+        name: 'blue-binder',
+        entries: [entry('Sol Ring', 'ltc', '284', { cardId: 1 })],
+        advisories: [ADVISORY],
+      },
+    ])
+    const { client } = mockArchidekt({ pages: [[]] })
+
+    const { run, logs, events } = await sync({
+      direction: 'pull',
+      client,
+      store,
+      state: fakeState(),
+    })
+
+    expect(logs).toContain(ADVISORY)
+    expect(events.some((event) => event.kind === 'unreadable-lines')).toBe(false)
+    expect(run.report.failedCount).toBe(0)
+    expect(store.applied).toHaveLength(1)
   })
 })
 
@@ -2116,23 +2157,21 @@ describe('runCollectionSync (pull target)', () => {
     expect(store.applied.map((applied) => applied.list)).toEqual(['inbox'])
   })
 
-  test('two lists answering to the target name drop the additions, not the run', async () => {
-    // Both normalize to "inbox", so the run cannot choose between them.
+  test('two lists answering to the target name abort the run before anything is fetched', async () => {
+    // Both normalize to "inbox", so the run cannot choose between them — and
+    // that is a purely local fact, so it is settled before the remote fetch.
     const store = fakeStore([
       { name: 'inbox' },
       { name: 'InBox', entries: [entry('Black Lotus', 'lea', '232', { cardId: 1 })] },
     ])
-    const { client } = remote()
+    const { client, requests } = remote()
 
     const { run } = await sync({ direction: 'pull', client, store, state: fakeState() })
 
     expect(store.created).toEqual([])
-    expect(run.report.failedCount).toBe(1)
-    expect(run.report.lists.find((list) => list.name === 'Inbox')?.reason).toContain(
-      'More than one collection list is named "Inbox"',
-    )
-    // The removal of the out-of-sync Black Lotus still applied.
-    expect(store.applied.map((applied) => applied.list)).toEqual(['InBox'])
+    expect(store.applied).toEqual([])
+    expect(requests).toEqual([])
+    expect(run.report.errors[0]).toContain('More than one collection list is named "Inbox"')
   })
 
   test('a target that cannot be created fails under the requested name', async () => {

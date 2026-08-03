@@ -13,7 +13,12 @@ import { ArchidektClient, createPacedArchidektClient } from '../clients/Archidek
 import { listDeckFiles, parseDeckText, type DeckParseResult } from '../importers/text-file'
 import { unreadableLines } from '../markdown-fence'
 import { getErrorMessage } from '../errors'
-import { parseDeckFrontMatter, serializeDeckToMarkdown, type DeckFrontMatter } from '../deck-file'
+import {
+  parseDeckFrontMatter,
+  serializeDeckToMarkdown,
+  writeDeckFrontMatter,
+  type DeckFrontMatter,
+} from '../deck-file'
 import { getDeckFormatLabel } from '../deck-format'
 import { formatResolveListError, isResolveListError, resolveList } from '../resolve-list'
 import { appendChangelog } from '../changelog-writer'
@@ -44,6 +49,7 @@ import {
   type UnreadableSource,
 } from '../sync-common'
 import { assignMissingDeckCardIds } from '../card-id'
+import { checkDeckDivergence, describeDivergence } from './divergence'
 import { hashPath, writeFileWithHash } from '../content-hash'
 import { getDecksDir } from '../ritual-config'
 
@@ -112,6 +118,13 @@ export type DeckSyncOptions = {
    * every change applies. Skipped changes are still counted and logged.
    */
   only?: SyncChangeFilter
+  /**
+   * Push a deck whose remote copy changed since its recorded `sourceUpdatedAt`,
+   * overwriting those remote changes. Without it such a deck fails; see
+   * {@link checkDeckDivergence}. Meaningless on a pull, which never writes to
+   * Archidekt.
+   */
+  force?: boolean
   onEvent?: DeckSyncEventHandler
   /**
    * Confirm syncing decks whose files carry unreadable lines. Omitted, such
@@ -292,8 +305,9 @@ function findLocalCard(sections: DeckSection[], cardName: string): Card | undefi
 type ArchidektFrontMatter = DeckFrontMatter & { sourceUrl: string }
 
 function isArchidektDeck(frontMatter: DeckFrontMatter): frontMatter is ArchidektFrontMatter {
-  // `parseDeckFrontMatter` only validates `format`, so the declared string type
-  // is optimistic — the runtime check is what makes it a fact.
+  // `parseDeckFrontMatter` already drops a `sourceUrl` that is not a string, so
+  // the `typeof` here is belt-and-braces; what this predicate actually decides is
+  // the `archidekt.com` part, which no parse checks.
   return (
     typeof frontMatter.sourceUrl === 'string' && frontMatter.sourceUrl.includes('archidekt.com')
   )
@@ -599,18 +613,63 @@ async function resolveTargetDecks(
 // ── Persistence helpers ───────────────────────────────────────────────
 
 /**
- * Write the deck back with a fresh `lastSynced`, returning every file the write
+ * The front matter a completed sync stamps: `lastSynced` from the local clock
+ * (what the user is shown), and `sourceUpdatedAt` copied verbatim from the
+ * remote deck (the divergence guard's single-clock baseline — see
+ * {@link checkDeckDivergence}).
+ *
+ * A remote timestamp Archidekt did not report clears the key rather than leaving
+ * a stale one: a baseline older than the sync that just happened would refuse
+ * the *next* push over changes this run already reconciled, and "no baseline"
+ * fails open the way a never-synced deck does.
+ */
+function syncedFrontMatter(
+  frontMatter: DeckFrontMatter,
+  remoteUpdatedAt: string | undefined,
+): DeckFrontMatter {
+  const next: DeckFrontMatter = { ...frontMatter, lastSynced: new Date().toISOString() }
+  if (typeof remoteUpdatedAt === 'string' && remoteUpdatedAt.trim() !== '') {
+    next.sourceUpdatedAt = remoteUpdatedAt
+  } else {
+    delete next.sourceUpdatedAt
+  }
+  return next
+}
+
+/**
+ * Write the deck back with a fresh sync stamp, returning every file the write
  * touched — the deck and its content-hash sidecar — so callers that commit a
  * run (the admin endpoints) stage the same set the editors do.
  */
-async function saveDeckWithSyncTimestamp(target: DeckTarget, deck: DeckData): Promise<string[]> {
-  const updatedFrontMatter: DeckFrontMatter = {
-    ...target.frontMatter,
-    lastSynced: new Date().toISOString(),
-  }
-  const markdown = serializeDeckToMarkdown(deck, updatedFrontMatter)
+async function saveDeckWithSyncTimestamp(
+  target: DeckTarget,
+  deck: DeckData,
+  remoteUpdatedAt: string | undefined,
+): Promise<string[]> {
+  const markdown = serializeDeckToMarkdown(
+    deck,
+    syncedFrontMatter(target.frontMatter, remoteUpdatedAt),
+  )
   await writeFileWithHash(target.filePath, markdown)
   return [target.filePath, hashPath(target.filePath)]
+}
+
+/**
+ * Record a sync that changed no cards: the front matter's stamp moves, the body
+ * does not. Written through {@link writeDeckFrontMatter} rather than the full
+ * serializer so a pull that found nothing to apply does not also canonicalize
+ * every card line — and so an unrecorded hand edit keeps its stale `.sha256`
+ * sidecar, leaving `detect-changes` able to record it.
+ */
+async function stampSyncedFrontMatter(
+  target: DeckTarget,
+  remoteUpdatedAt: string | undefined,
+): Promise<string[]> {
+  const write = await writeDeckFrontMatter(
+    target.filePath,
+    syncedFrontMatter(target.frontMatter, remoteUpdatedAt),
+  )
+  return write.writtenFiles
 }
 
 // ── Run ───────────────────────────────────────────────────────────────
@@ -624,6 +683,8 @@ type SyncFlow = {
   token: string
   dryRun: boolean
   only: SyncChangeFilter | undefined
+  /** Overwrite a remote deck that changed since the last sync (push only). */
+  force: boolean
   emit: DeckSyncEventHandler
 }
 
@@ -655,7 +716,14 @@ export async function runDeckSync(options: DeckSyncOptions): Promise<DeckSyncRun
     emit({ kind: 'log', level: 'info', deck: null, message: 'No Archidekt decks found to sync.' })
   }
 
-  const flow: SyncFlow = { client, token, dryRun, only: options.only, emit }
+  const flow: SyncFlow = {
+    client,
+    token,
+    dryRun,
+    only: options.only,
+    force: options.force ?? false,
+    emit,
+  }
   const outcome: SyncOutcome =
     targets.length === 0
       ? { decks: [], writtenFiles: [] }
@@ -692,6 +760,29 @@ function failDeck(
   finish(results, emit, { name, status: 'failed', reason })
 }
 
+/**
+ * The remote deck's `updatedAt` after a push, for the divergence baseline.
+ *
+ * A push that sent nothing kept `before`; one that sent cards moved the remote
+ * on, so its new value has to be read back. `undefined` on any failure — the
+ * baseline is then cleared and the next push fails open rather than refusing
+ * over a timestamp Ritual made up.
+ */
+async function readRemoteUpdatedAt(
+  client: ArchidektClient,
+  sourceId: string,
+  token: string,
+  pushed: boolean,
+  before: string | undefined,
+): Promise<string | undefined> {
+  if (!pushed) return before
+  try {
+    return (await client.fetchDeckRaw(sourceId, token)).updatedAt
+  } catch {
+    return undefined
+  }
+}
+
 // ── Download flow ─────────────────────────────────────────────────────
 
 async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<SyncOutcome> {
@@ -703,16 +794,16 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
     const name = target.deck.name
     emit({ kind: 'deck-start', deck: name, index, total: targets.length })
 
+    // Fetched with its raw payload: the pull records the remote's `updatedAt` as
+    // the divergence baseline a later push compares against.
     let remoteDeck: DeckData
+    let remoteUpdatedAt: string | undefined
     try {
-      remoteDeck = await client.fetchDeck(target.sourceId, token)
+      const fetched = await client.fetchDeckWithRaw(target.sourceId, token)
+      remoteDeck = fetched.deck
+      remoteUpdatedAt = fetched.raw.updatedAt
     } catch (error: unknown) {
-      failDeck(
-        results,
-        emit,
-        name,
-        `Failed to fetch Archidekt deck ${target.sourceId}: ${getErrorMessage(error)}`,
-      )
+      failDeck(results, emit, name, getErrorMessage(error))
       continue
     }
 
@@ -730,6 +821,14 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
 
     if (isDiffEmpty(diff) && !formatSync.changed) {
       emit({ kind: 'log', level: 'info', deck: name, message: 'No changes detected.' })
+      // The sync still happened, so its stamp is still recorded. Skipping this
+      // is what used to lock a deck out of `push`: a remote edit that touches no
+      // card list (a rename, a category shuffle, another machine's push) moves
+      // Archidekt's `updatedAt` without giving a pull anything to apply, and the
+      // divergence guard's documented remedy — pull first — could never clear it.
+      if (!dryRun && target.frontMatter.sourceUpdatedAt !== remoteUpdatedAt) {
+        writtenFiles.push(...(await stampSyncedFrontMatter(target, remoteUpdatedAt)))
+      }
       finish(results, emit, { name, status: 'synced', reason: 'no changes' })
       continue
     }
@@ -770,7 +869,7 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
     // file with a gap in its audit trail. `ritual history`, the change-bundle
     // export, and the editors' undo all *act on* changelog entries, so a phantom
     // propagates while a gap does not.
-    writtenFiles.push(...(await saveDeckWithSyncTimestamp(target, updatedDeck)))
+    writtenFiles.push(...(await saveDeckWithSyncTimestamp(target, updatedDeck, remoteUpdatedAt)))
 
     // Changes are stamped with their card ID. Added and quantity-changed cards
     // resolve against the post-sync deck; removed cards (no longer present)
@@ -790,7 +889,7 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
 // ── Upload flow ───────────────────────────────────────────────────────
 
 async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<SyncOutcome> {
-  const { client, token, dryRun, only, emit } = flow
+  const { client, token, dryRun, only, force, emit } = flow
   const results: DeckSyncDeckResult[] = []
   const writtenFiles: string[] = []
 
@@ -800,7 +899,9 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
     const ownDecks = await client.fetchOwnDecks(token)
     ownedDeckIds = new Set(ownDecks.map((d) => d.id.toString()))
   } catch (error: unknown) {
-    const reason = `Failed to fetch owned decks: ${getErrorMessage(error)}`
+    // No outer prefix: the client's error already names the operation that
+    // failed ("Failed to fetch own decks: 502 …").
+    const reason = getErrorMessage(error)
     emit({ kind: 'log', level: 'error', deck: null, message: reason })
     // No deck could be synced without the ownership list — all failed.
     for (const target of targets) {
@@ -820,22 +921,47 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
       continue
     }
 
-    // Both fetches are guarded together: a failure in either leaves this deck
-    // unsynced, and the run must move on to the next one rather than abort.
+    // One fetch, read both ways: the raw payload for the upload plan's card ids
+    // and `updatedAt`, the parsed deck for the diff. A failure leaves this deck
+    // unsynced, and the run moves on to the next one rather than aborting.
     let rawDeck: ArchidektRawDeckResponse
     let remoteDeck: DeckData
     try {
-      rawDeck = await client.fetchDeckRaw(target.sourceId, token)
-      // Parse raw response into DeckData for diffing (reuse existing parser).
-      remoteDeck = await client.fetchDeck(target.sourceId, token)
+      const fetched = await client.fetchDeckWithRaw(target.sourceId, token)
+      rawDeck = fetched.raw
+      remoteDeck = fetched.deck
     } catch (error: unknown) {
-      failDeck(
-        results,
-        emit,
-        name,
-        `Failed to fetch Archidekt deck ${target.sourceId}: ${getErrorMessage(error)}`,
-      )
+      failDeck(results, emit, name, getErrorMessage(error))
       continue
+    }
+
+    // A push overwrites the remote deck with the local file, so a remote that
+    // moved on since the recorded sync is quiet data loss unless it was asked
+    // for. A dry run reports the same refusal — that is what a real run would
+    // do — rather than requiring --force to preview it.
+    if (!force) {
+      const check = checkDeckDivergence({
+        remoteUpdatedAt: rawDeck.updatedAt,
+        syncedUpdatedAt:
+          typeof target.frontMatter.sourceUpdatedAt === 'string'
+            ? target.frontMatter.sourceUpdatedAt
+            : null,
+      })
+      if (check.kind === 'diverged') {
+        failDeck(results, emit, name, describeDivergence(check.divergence))
+        continue
+      }
+      // Failing open is deliberate, but silently is not: the push goes ahead
+      // and the run log says the guard could not run. (`unsynced` is the
+      // documented first-push case and needs no line.)
+      if (check.kind === 'unknown') {
+        emit({
+          kind: 'log',
+          level: 'warn',
+          deck: name,
+          message: `${check.reason} — pushing without the divergence check.`,
+        })
+      }
     }
 
     // Uploads diff by name only: the modifyCards API path cannot yet target a
@@ -909,17 +1035,31 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
       }
     }
 
-    // Update lastSynced in front matter
-    writtenFiles.push(...(await saveDeckWithSyncTimestamp(target, target.deck)))
+    // `lastSynced` records a sync that happened, so a deck whose plan could not
+    // be fully built does not get one: it is reported as failed, and stamping it
+    // would have the front matter (and every status surface reading it) claim a
+    // sync the deck never completed.
+    if (deckFailed) {
+      finish(results, emit, { name, status: 'failed', reason: plan.errors.join('; ') })
+      continue
+    }
+
+    // The push itself moved the remote's `updatedAt`, so the pre-push value is
+    // already stale as a divergence baseline — re-read it, or the very next push
+    // would diverge against this run's own changes. A re-read that fails records
+    // no baseline at all (the next push fails open and re-establishes one)
+    // rather than a value known to be wrong.
+    const pushedUpdatedAt = await readRemoteUpdatedAt(
+      client,
+      target.sourceId,
+      token,
+      plan.entries.length > 0,
+      rawDeck.updatedAt,
+    )
+    writtenFiles.push(...(await saveDeckWithSyncTimestamp(target, target.deck, pushedUpdatedAt)))
     emit({ kind: 'log', level: 'info', deck: name, message: 'Updated lastSynced.' })
 
-    finish(
-      results,
-      emit,
-      deckFailed
-        ? { name, status: 'failed', reason: plan.errors.join('; ') }
-        : { name, status: 'synced' },
-    )
+    finish(results, emit, { name, status: 'synced' })
   }
 
   return { decks: results, writtenFiles }

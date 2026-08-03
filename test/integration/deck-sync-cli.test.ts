@@ -5,30 +5,68 @@ import { withWorkspace } from './helpers/workspace'
 
 /**
  * Network-free argument-surface tests for `deck-sync`. The sync flows
- * themselves hit Archidekt and are not exercised here — these pin the
- * `<direction>` positional validation and the unauthenticated failure path.
+ * themselves are exercised against a stubbed Archidekt in
+ * `deck-sync-run.test.ts` — these pin the subcommand surface and the
+ * unauthenticated failure path.
  *
  * Every case resolves before any network call could happen; `OFFLINE_ENV` is the
  * backstop, so a stored or expired token can never turn one of these into a real
  * request to Archidekt (matching `collection-sync-cli.test.ts`).
  */
 describe('deck-sync CLI (Integration)', () => {
-  test('an invalid direction is a usage error', async () => {
+  test('an unknown subcommand is a usage error', async () => {
     await withWorkspace(async (dir) => {
       const result = await runCli(['deck-sync', 'sideways'], dir, OFFLINE_ENV)
 
       expect(result.exitCode).toBe(2)
-      expect(result.stderr).toContain("Invalid direction 'sideways'")
-      expect(result.stderr).toContain('Use one of: push, pull.')
+      expect(result.stderr).toContain("unknown command 'sideways'")
     })
   })
 
-  test('a missing direction is a usage error', async () => {
+  test('a missing subcommand is a usage error', async () => {
     await withWorkspace(async (dir) => {
       const result = await runCli(['deck-sync'], dir, OFFLINE_ENV)
 
       expect(result.exitCode).toBe(2)
-      expect(result.stderr).toContain('direction')
+    })
+  })
+
+  test('every documented subcommand is registered', async () => {
+    await withWorkspace(async (dir) => {
+      const help = await runCli(['deck-sync', '--help'], dir, OFFLINE_ENV)
+
+      expect(help.exitCode).toBe(0)
+      for (const name of ['pull', 'push', 'link', 'status']) {
+        // Matched as a command-list entry, not as a substring anywhere in the
+        // help: "link" also appears inside `status`'s own description, so a
+        // `toContain` would stay green with the `link` subcommand deleted.
+        expect(help.stdout).toMatch(new RegExp(`^\\s+${name}\\s`, 'm'))
+      }
+    })
+  })
+
+  test('--force is a push-only flag', async () => {
+    await withWorkspace(async (dir) => {
+      // A pull never writes to Archidekt, so it has no remote changes to
+      // overwrite and no --force to give.
+      const pull = await runCli(['deck-sync', 'pull', '--force'], dir, OFFLINE_ENV)
+      expect(pull.exitCode).toBe(2)
+      expect(pull.stderr).toContain("unknown option '--force'")
+
+      const push = await runCli(['deck-sync', 'push', '--force'], dir, OFFLINE_ENV)
+      expect(push.exitCode).toBe(1)
+      expect(push.stderr).toContain('Not signed into Archidekt')
+    })
+  })
+
+  test('status reports an empty workspace without a login', async () => {
+    await withWorkspace(async (dir) => {
+      // Read-only and offline: no Archidekt session is required to answer it.
+      const result = await runCli(['deck-sync', 'status'], dir, OFFLINE_ENV)
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain('No Archidekt-linked decks')
+      expect(result.stdout).toContain('Collection: never synced.')
     })
   })
 
@@ -68,7 +106,7 @@ describe('deck-sync CLI (Integration)', () => {
     })
   })
 
-  test('a valid direction without an Archidekt login fails with exit 1', async () => {
+  test('a sync subcommand without an Archidekt login fails with exit 1', async () => {
     await withWorkspace(async (dir) => {
       const result = await runCli(['deck-sync', 'pull'], dir, OFFLINE_ENV)
 

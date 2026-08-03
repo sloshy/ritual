@@ -48,6 +48,12 @@ export type LoadedCollectionList = {
   entries: CollectionEntry[]
   /** One message per line the parser skipped — lines a save would delete. */
   warnings: string[]
+  /**
+   * Lines that parsed but look wrong — today, a card name that kept a deck's
+   * quantity prefix. Reported, never a reason to hold the list back: the line
+   * survives a save, it just names a card nothing will match.
+   */
+  advisories: string[]
 }
 
 /** A newly created list: its slug (which may differ from the requested name) and what was written. */
@@ -122,6 +128,7 @@ export function createDiskCollectionListStore(): CollectionListStore {
         // Both sync directions re-serialize the whole file, so a fenced code
         // block is as much at risk as a line the parser could not read.
         warnings: unreadableLines(parsed),
+        advisories: parsed.advisories,
       }
     },
 

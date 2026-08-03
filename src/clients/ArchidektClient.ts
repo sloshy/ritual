@@ -240,6 +240,12 @@ export function parseRetryAfterMs(header: string | null, nowMs: number): number 
   return delay > 0 ? delay : undefined
 }
 
+/** One deck fetch, in both the shapes deck sync reads it as. */
+export type ArchidektDeckFetch = {
+  deck: DeckData
+  raw: ArchidektRawDeckResponse
+}
+
 /** The exponential backoff for a retry: 1s, 2s, 4s, … capped at {@link BACKOFF_CAP_MS}. */
 function backoffMs(retry: number): number {
   return Math.min(1000 * 2 ** (retry - 1), BACKOFF_CAP_MS)
@@ -421,6 +427,19 @@ export class ArchidektClient {
   async fetchDeckRaw(deckId: string, token?: string): Promise<ArchidektRawDeckResponse> {
     const response = await this.fetchDeckResponse(deckId, token)
     return (await response.json()) as ArchidektRawDeckResponse
+  }
+
+  /**
+   * The parsed deck *and* the response it was parsed from, in one request.
+   *
+   * Deck sync needs both — the sections to diff against, and the raw payload's
+   * `updatedAt`/card ids — and fetching them separately both doubles the calls
+   * and risks the two halves describing different revisions of the deck.
+   */
+  async fetchDeckWithRaw(deckId: string, token?: string): Promise<ArchidektDeckFetch> {
+    const response = await this.fetchDeckResponse(deckId, token)
+    const json = (await response.json()) as ArchidektRawDeckResponse & ArchidektDeckResponse
+    return { deck: parseArchidektDeckResponse(json, deckId), raw: json }
   }
 
   /**

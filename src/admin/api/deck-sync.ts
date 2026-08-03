@@ -45,6 +45,12 @@ export type DeckSyncStatusResponse = {
 export type DeckSyncRequest = SyncRequestCore & {
   /** Deck names/slugs to sync; empty syncs every Archidekt-linked deck. */
   decks: string[]
+  /**
+   * Push a deck whose remote copy changed since its recorded `sourceUpdatedAt`,
+   * overwriting those remote changes. Without it such a deck fails — the CLI
+   * spells this `--force`.
+   */
+  force: boolean
 }
 
 /**
@@ -73,17 +79,22 @@ export function parseDeckSyncBody(value: unknown): DeckSyncRequest | string {
   const decks = parseNameArray(value.decks, { field: 'decks', noun: 'deck names', blanks: 'drop' })
   if (typeof decks === 'string') return decks
 
-  return { ...core, decks }
+  if (value.force !== undefined && typeof value.force !== 'boolean') {
+    return 'force must be a boolean'
+  }
+
+  return { ...core, decks, force: value.force === true }
 }
 
 /**
  * Every boolean field of a request must appear here, or the query string would
  * silently revert it to `false`. `satisfies` makes leaving one out a type error.
  */
-const BOOLEAN_FLAGS = { dryRun: true, ignoreUnreadableLines: true } as const satisfies Record<
-  BooleanFieldsOf<DeckSyncRequest>,
-  true
->
+const BOOLEAN_FLAGS = {
+  dryRun: true,
+  ignoreUnreadableLines: true,
+  force: true,
+} as const satisfies Record<BooleanFieldsOf<DeckSyncRequest>, true>
 
 /**
  * Validate the query string the SSE stream is opened with — `EventSource` can
@@ -164,6 +175,7 @@ async function performSync(
     deckNames: request.decks,
     dryRun: request.dryRun,
     only: request.only,
+    force: request.force,
     onEvent,
     // Nobody to prompt over HTTP: the request either carries the caller's "yes"
     // up front, or decks with unreadable lines fail and the caller retries.

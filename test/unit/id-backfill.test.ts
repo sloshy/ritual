@@ -10,7 +10,11 @@ import { COMMANDS_WITH_ID_BACKFILL, shouldBackfillCardIds } from '../../src/comm
  */
 
 function command(name: string, options: Record<string, unknown> = {}): Command {
-  const cmd = new Command(name)
+  // A qualified name ("deck-sync pull") is built as a real parent/child pair,
+  // since that is how the predicate sees one.
+  const [first, second] = name.split(' ')
+  const cmd = new Command(second ?? first)
+  if (second !== undefined) new Command(first).addCommand(cmd)
   for (const [key, value] of Object.entries(options)) {
     cmd.setOptionValue(key, value)
   }
@@ -54,9 +58,23 @@ describe('shouldBackfillCardIds', () => {
     'setup',
     'reset-password',
     'disable-totp',
+    // `deck-sync` spells its directions as subcommands: only those two write
+    // list files, so the bare parent and the other two subcommands are exempt.
+    'deck-sync',
+    'deck-sync status',
+    'deck-sync link',
+    // A bare `pull`/`push` is not a command at all; only the qualified pair is.
+    'pull',
+    'push',
   ]
   test.each(exempt)('`%s` never backfills', (name) => {
     expect(shouldBackfillCardIds(command(name))).toBe(false)
+  })
+
+  test('`deck-sync pull`/`push` backfill through their qualified names', () => {
+    expect(shouldBackfillCardIds(command('deck-sync pull'))).toBe(true)
+    expect(shouldBackfillCardIds(command('deck-sync push'))).toBe(true)
+    expect(shouldBackfillCardIds(command('deck-sync push', { dryRun: true }))).toBe(false)
   })
 
   test('plain `serve` skips; `serve --build` and `serve --api` backfill', () => {

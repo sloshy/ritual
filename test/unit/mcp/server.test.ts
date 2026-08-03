@@ -211,10 +211,15 @@ describe('Ritual MCP server (in-memory transport)', () => {
       'removalPriority',
     ])
     expect(schemaOf('sync_collection').required).toEqual(['direction'])
-    expect(Object.keys(schemaOf('sync_decks').properties as object)).toContain(
+    expect(Object.keys(schemaOf('sync_decks').properties as object).sort()).toEqual([
+      'decks',
+      'direction',
+      'dryRun',
+      'force',
       'ignoreUnreadableLines',
-    )
-    expect(Object.keys(schemaOf('sync_decks').properties as object)).toContain('only')
+      'only',
+    ])
+    expect(schemaOf('sync_decks').required).toEqual(['direction'])
 
     // apply_changes' discriminated union emits as a fully-written-out oneOf, so
     // every field on the shared base costs one copy per branch. id/timestamp are

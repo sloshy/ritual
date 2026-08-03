@@ -7,7 +7,7 @@ import { listDeckFiles } from './importers/text-file'
 import { isResolveListError, matchList, type ListLocation } from './resolve-list'
 import { isPathWithinDir } from './path-validation'
 import { assignMissingDeckCardIds } from './card-id'
-import { writeFileWithHash } from './content-hash'
+import { computeHash, hashPath, isRitualClean, writeFileWithHash } from './content-hash'
 import { serializeCardLine } from './deck-text'
 
 // Re-exported from `deck-text` (a browser-safe, type-only module) so existing
@@ -63,8 +63,18 @@ export type DeckFrontMatter = {
   description?: string
   sourceId?: string
   sourceUrl?: string
-  /** Set by `deck-sync` after a successful sync with the source service. */
+  /**
+   * Local wall-clock time of the last successful `deck-sync`, for display. Never
+   * compared against a remote timestamp — see {@link sourceUpdatedAt}.
+   */
   lastSynced?: string
+  /**
+   * The source deck's own `updatedAt` as of the last successful sync, copied
+   * verbatim from the service. This is the divergence guard's baseline: both
+   * sides of that comparison are the service's clock, so a local clock running
+   * behind the server cannot manufacture a divergence.
+   */
+  sourceUpdatedAt?: string
 } & Record<string, unknown>
 
 /** Serialize a full deck back to markdown with YAML front matter */
@@ -137,7 +147,15 @@ export function validateDeckFrontMatter(raw: Record<string, unknown>): DeckFront
   // the same `data` object back on a repeat parse, so mutating it would leak.
   const frontMatter: DeckFrontMatter = { ...raw }
 
-  for (const key of ['name', 'description', 'sourceId', 'sourceUrl', 'created', 'lastSynced']) {
+  for (const key of [
+    'name',
+    'description',
+    'sourceId',
+    'sourceUrl',
+    'created',
+    'lastSynced',
+    'sourceUpdatedAt',
+  ]) {
     if (key in frontMatter && typeof frontMatter[key] !== 'string') delete frontMatter[key]
   }
 
@@ -167,9 +185,20 @@ export async function parseDeckFrontMatter(filePath: string): Promise<DeckFrontM
   return validateDeckFrontMatter(matter(content).data)
 }
 
+/** What a front-matter write produced: the new content hash and the files it touched. */
+export type DeckFrontMatterWrite = {
+  contentHash: string
+  /**
+   * The deck file, plus its `.sha256` sidecar when that sidecar was refreshed.
+   * Callers stage exactly this set, so a sidecar deliberately left stale is not
+   * committed as if it had been rewritten.
+   */
+  writtenFiles: string[]
+}
+
 /**
  * Rewrite only a deck file's YAML front matter, leaving the markdown body byte
- * for byte as it was. Returns the new content hash.
+ * for byte as it was.
  *
  * Deliberately not a parse/serialize round trip: `serializeDeckToMarkdown` would
  * canonicalize every card line and assign missing IDs, turning a metadata edit
@@ -181,14 +210,24 @@ export async function parseDeckFrontMatter(filePath: string): Promise<DeckFrontM
  * one, and the front-matter YAML is re-dumped by js-yaml — comments and the
  * original quoting/indentation style are not preserved, though every key and
  * value the caller passes is. Note that callers building `frontMatter` from
- * {@link parseDeckFrontMatter} start from a copy that has already dropped an
- * unparseable `format`, so such a value does not survive the round trip.
+ * {@link parseDeckFrontMatter} start from a copy that has already dropped every
+ * named field whose value was not the type that field promises (see
+ * {@link validateDeckFrontMatter}), so such values do not survive the round trip.
+ *
+ * The `.sha256` sidecar is only refreshed when it matched the file *before* this
+ * write: a front-matter edit says nothing about card lines, so stamping the
+ * sidecar over an unrecorded hand edit would make `detect-changes` treat that
+ * edit as already recorded and drop its changelog entries. The returned hash
+ * always describes the new content either way — the API's optimistic-concurrency
+ * check hashes content, not the sidecar.
  */
 export async function writeDeckFrontMatter(
   filePath: string,
   frontMatter: DeckFrontMatter,
-): Promise<string> {
-  const parsed = matter(await fs.readFile(filePath, 'utf-8'))
+): Promise<DeckFrontMatterWrite> {
+  const original = await fs.readFile(filePath, 'utf-8')
+  const wasRitualClean = await isRitualClean(filePath, original)
+  const parsed = matter(original)
   // The file-object form, not `matter.stringify(parsed.content, ...)`: given a
   // string, gray-matter re-parses it, so a body whose first line is `---` (a
   // horizontal rule) would be swallowed as a second front-matter block and the
@@ -196,7 +235,15 @@ export async function writeDeckFrontMatter(
   // `Object.assign({}, file.data, data)` — carrying the old data forward would
   // resurrect exactly the keys this write means to delete.
   const source: FrontMatterFile = { ...parsed, data: {} }
-  return writeFileWithHash(filePath, matter.stringify(source, frontMatter))
+  const content = matter.stringify(source, frontMatter)
+  if (wasRitualClean) {
+    return {
+      contentHash: await writeFileWithHash(filePath, content),
+      writtenFiles: [filePath, hashPath(filePath)],
+    }
+  }
+  await fs.writeFile(filePath, content)
+  return { contentHash: computeHash(content), writtenFiles: [filePath] }
 }
 
 /**

@@ -224,6 +224,10 @@ export function DeckSync(): JSX.Element {
         dryRun: dryRun(),
         ignoreUnreadableLines,
         only: changeFilterParam(changeFilter()),
+        // No override here yet: a push whose remote deck changed since the last
+        // sync fails with that reason, and pulling first is the remedy this
+        // page can already perform.
+        force: false,
       }
       const resp = await fetch('/api/deck-sync', {
         method: 'POST',

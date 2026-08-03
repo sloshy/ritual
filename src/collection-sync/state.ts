@@ -55,25 +55,47 @@ export function parseCollectionSyncState(raw: unknown): CollectionSyncState | st
 }
 
 /**
- * The recorded sync state, or null when there is none. A file that is missing,
- * unreadable, or not valid state all read as "never synced": the file records
- * when a sync happened, and nothing depends on it enough to fail a run over.
+ * What the state file says, keeping "there is no file" apart from "the file is
+ * there but unreadable".
+ *
+ * Both let a sync proceed, but they are different facts and a read-only status
+ * view must not report the second as the first: "never synced" is a positive
+ * claim, and a corrupt state file is precisely when the user needs to be told
+ * that the record — not the sync — is what is missing.
  */
-export async function readCollectionSyncState(): Promise<CollectionSyncState | null> {
+export type CollectionSyncStateRead =
+  | { kind: 'none' }
+  | { kind: 'unreadable'; reason: string }
+  | { kind: 'state'; state: CollectionSyncState }
+
+/** Read the state file, distinguishing an absent file from an unusable one. */
+export async function readCollectionSyncStateFile(): Promise<CollectionSyncStateRead> {
   let content: string
   try {
     content = await fs.readFile(collectionSyncStatePath(), 'utf-8')
   } catch {
-    return null
+    return { kind: 'none' }
   }
   let raw: unknown
   try {
     raw = JSON.parse(content)
   } catch {
-    return null
+    return { kind: 'unreadable', reason: 'the file is not valid JSON' }
   }
   const parsed = parseCollectionSyncState(raw)
-  return typeof parsed === 'string' ? null : parsed
+  if (typeof parsed === 'string') return { kind: 'unreadable', reason: parsed }
+  return { kind: 'state', state: parsed }
+}
+
+/**
+ * The recorded sync state, or null when there is none usable. This is the shape
+ * a sync run reads — it only needs the timestamp, and a file that is missing,
+ * unreadable, or not valid state all mean "no recorded sync to build on". A
+ * surface that *reports* the state uses {@link readCollectionSyncStateFile}.
+ */
+export async function readCollectionSyncState(): Promise<CollectionSyncState | null> {
+  const read = await readCollectionSyncStateFile()
+  return read.kind === 'state' ? read.state : null
 }
 
 /** Record a completed sync, creating the private logins directory if needed. */

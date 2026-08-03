@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 
 import { ArchidektAuth } from '../auth/ArchidektAuth'
+import type { ArchidektLoginStatus } from '../auth/interfaces'
 import { FileTokenStore } from '../auth/FileTokenStore'
 import { loginWithCredentials, promptForLoginOutcome } from '../auth/login-helper'
 import { CardCommandError } from '../errors'
@@ -24,11 +25,14 @@ type LoginArchidektOptions = {
 /** Both `login status` and `login logout` take only the scripting flags. */
 type LoginScriptingOptions = Partial<ScriptingOptions>
 
-/** JSON payload for `login status`: the stored Archidekt login, if any. */
-type LoginStatusOutput = {
-  loggedIn: boolean
-  username?: string
-}
+/**
+ * JSON payload for `login status`: the stored Archidekt login and how usable it
+ * is. The admin surface (`GET /api/login/archidekt`) answers the same
+ * question from the same {@link ArchidektAuth.getStatus} snapshot, so the two
+ * share one shape rather than each projecting its own subset — the CLI's
+ * question ("will my next sync authenticate?") needs every field.
+ */
+type LoginStatusOutput = ArchidektLoginStatus
 
 /** JSON payload for `login logout`: whether a stored login was actually cleared. */
 type LoginLogoutOutput = {
@@ -98,22 +102,52 @@ async function runArchidektLogin(options: LoginArchidektOptions): Promise<void> 
   }
 }
 
+/** The account half of the status line: whoever the stored token names. */
+function describeAccount(status: ArchidektLoginStatus): string {
+  return status.username === null
+    ? 'Logged in to Archidekt (the stored login does not name an account)'
+    : `Logged in to Archidekt as ${status.username}`
+}
+
+/**
+ * The status line for a stored login, which is about whether the *next* sync
+ * authenticates rather than about the file existing: an expired access token
+ * that a valid refresh token can renew is still a working session, and only a
+ * login where neither token is usable asks for a fresh sign-in.
+ */
+export function describeLoginStatus(status: ArchidektLoginStatus): string {
+  if (!status.loggedIn) return 'Not logged in.'
+  const account = describeAccount(status)
+  if (status.loginRequired) {
+    return `${account} (session expired — run "ritual login archidekt")`
+  }
+  if (!status.accessTokenValid) {
+    return `${account} (access token expired; it refreshes on the next request)`
+  }
+  return status.accessTokenExpiration === null
+    ? account
+    : `${account} (session valid until ${status.accessTokenExpiration})`
+}
+
 async function runLoginStatus(scripting: ScriptingOptions): Promise<void> {
-  const user = await makeAuth().getStoredUser()
-  // Exit 3 (NotFound) when no login is stored so scripts can branch on the exit
-  // code alone. The status line is the command's entire payload, so it prints
-  // in every mode — `login status` registers no `--quiet` to hide it with, and
-  // a script that wants pure silence redirects stdout.
-  if (!user) {
+  // Entirely offline: `getStatus` reads the stored token's own `exp` claims.
+  const status = await makeAuth().getStatus()
+  // Three outcomes, three exit codes, so a script branches on the code alone:
+  // 0 = a session the next sync can use, 1 = a stored login that can no longer
+  // authenticate (re-login needed), 3 = nothing stored at all. The status line
+  // is the command's entire payload, so it prints in every mode — `login
+  // status` registers no `--quiet` to hide it with, and a script that wants
+  // pure silence redirects stdout.
+  if (!status.loggedIn) {
     process.exitCode = ExitCode.NotFound
+  } else if (status.loginRequired) {
+    process.exitCode = ExitCode.RuntimeError
   }
   if (scripting.output === 'text') {
-    emitOutput(user ? `Logged in to Archidekt as ${user.username}` : 'Not logged in.', scripting)
+    emitOutput(describeLoginStatus(status), scripting)
     return
   }
-  const payload: LoginStatusOutput = user
-    ? { loggedIn: true, username: user.username }
-    : { loggedIn: false }
+  const payload: LoginStatusOutput = status
   emitOutput(payload, scripting)
 }
 
@@ -155,7 +189,9 @@ export function registerLoginCommand(program: Command): void {
   // `--output` only: the status line is the whole payload, so there is no
   // non-essential chatter for `--quiet` to suppress.
   addOutputOption(
-    loginCommand.command('status').description('Show the stored Archidekt login, if any'),
+    loginCommand
+      .command('status')
+      .description('Show the stored Archidekt login and whether its session is still usable'),
   ).action(async (options: LoginScriptingOptions) => {
     const scripting = normalizeScriptingOptions(options)
     await runCommandAction(scripting, () => runLoginStatus(scripting))

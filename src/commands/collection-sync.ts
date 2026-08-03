@@ -22,11 +22,14 @@ import {
   type ScriptingOptions,
 } from './scripting'
 import {
+  addSyncDirectionArgument,
   addSyncOptions,
   confirmUnreadableSync,
+  createScopedIndenter,
   describeUnreadable,
   loggerFor,
   requireArchidektSession,
+  type ScopedIndenter,
   type UnreadableSubject,
 } from './sync-helpers'
 
@@ -91,22 +94,27 @@ function unreadableCost(direction: SyncDirection): string {
 
 /**
  * Render one sync event as a console line. List-scoped messages are indented
- * under the `Syncing "…"` line that opened the list; run-level ones (the remote
- * fetch, ambiguous removals, records for cards that live in no list any more)
- * sit flush left. Results themselves are not printed — they are summarized by
- * the report.
+ * under the `Syncing "…"` line that opened the list — but only when that line
+ * actually printed, and only after it did (see {@link createScopedIndenter}):
+ * the per-line cache warnings arrive before any list header exists, and
+ * `--quiet` drops the headers entirely. Run-level messages (the remote fetch,
+ * ambiguous removals, records for cards that live in no list any more) sit
+ * flush left. Results themselves are not printed — they are summarized by the
+ * report.
  */
 function renderSyncEvent(
   direction: SyncDirection,
   logger: Logger,
+  indent: ScopedIndenter,
   event: CollectionSyncEvent,
 ): void {
   switch (event.kind) {
     case 'list-start':
+      indent.start(event.list)
       logger.info(`Syncing "${event.list}" (${direction})...`)
       return
     case 'log': {
-      const line = event.list === null ? event.message : `  ${event.message}`
+      const line = indent.line(event.list, event.message)
       if (event.level === 'warn') logger.warn(line)
       else if (event.level === 'error') logger.error(line)
       else logger.info(line)
@@ -171,7 +179,9 @@ export function registerCollectionSyncCommand(program: Command): void {
   addScriptingOptions(
     addRefreshOption(
       addSyncOptions(
-        program.command('collection-sync').description('Sync collection changes with Archidekt'),
+        addSyncDirectionArgument(
+          program.command('collection-sync').description('Sync collection changes with Archidekt'),
+        ),
         'collection lists',
       )
         .argument(
@@ -207,6 +217,7 @@ export function registerCollectionSyncCommand(program: Command): void {
       // JSON/NDJSON output owns stdout, so per-list progress logging is silenced
       // there; every outcome still lands in the emitted report.
       const logger = loggerFor(scripting)
+      const indent = createScopedIndenter(scripting)
 
       // One says "send the additions to Archidekt", the other "do not send them
       // at all" — there is no reading of the two together, so it is a usage
@@ -272,7 +283,7 @@ export function registerCollectionSyncCommand(program: Command): void {
         ensureCsvCache: ({ log }) =>
           ensureCardCacheForUpload(options.refresh ?? 'ask', { log: (message) => log(message) }),
         dryRun: options.dryRun ?? false,
-        onEvent: (event) => renderSyncEvent(direction, logger, event),
+        onEvent: (event) => renderSyncEvent(direction, logger, indent, event),
         confirmUnreadable: (unreadable) =>
           confirmUnreadableSync({
             sources: unreadable,

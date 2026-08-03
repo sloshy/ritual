@@ -577,7 +577,9 @@ describe('collection-sync CLI (Integration)', () => {
     stubFetch({ [COLLECTION_URL]: () => new Response('nope', { status: 500 }) })
 
     expect(await runSync(['pull', '--into', 'binder'])).toBe(1)
-    expect(logged()).toContain('Failed to fetch the Archidekt collection')
+    // The client's own error names the page and account it failed on; the
+    // engine no longer wraps it in a second "Failed to fetch …" prefix.
+    expect(logged()).toContain('Failed to fetch collection page 1')
   })
 })
 

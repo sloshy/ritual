@@ -49,6 +49,22 @@ describe('cleanup (Integration)', () => {
     expect(await Bun.file(hashPath(filePath)).exists()).toBeTrue()
   })
 
+  test('reports a quantity-prefixed line without refusing to rewrite the file', async () => {
+    // An advisory, not a warning: the line parses and the canonical re-emit
+    // preserves it, so cleanup names it *and* still rewrites. `cleanup` is the
+    // one command that reads every list file, so it is where a wanted list's
+    // advisory reliably surfaces — nothing else touches wanted lists in bulk.
+    const filePath = path.join(dir(), 'wanted', 'Wants.md')
+    await fs.writeFile(filePath, '- 1 Sol Ring (ltc:284) &1\n')
+
+    const result = resultFor(await cleanupAllLists(), 'Wants.md')
+
+    expect(result.rewriteBlocked).toBeUndefined()
+    expect(result.rewritten).toBeTrue()
+    expect(result.warnings.join('\n')).toContain("reads as a card named '1 Sol Ring'")
+    expect(await fs.readFile(filePath, 'utf-8')).toContain('- 1 Sol Ring (LTC:284) &1')
+  })
+
   test('renames a deck file to its front-matter name, moving sidecars', async () => {
     const oldPath = await writeDeckFile(dir(), 'winota-stax', {
       frontMatter: { name: 'Winota Stax', format: 'commander' },

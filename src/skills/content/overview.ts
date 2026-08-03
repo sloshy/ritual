@@ -85,9 +85,14 @@ Deck card lines start with a quantity; collection and wanted lines start with \`
 - **Collection lines always carry a printing** — a printing-less collection line is
   rejected by every write path and skipped (with a warning) on load. Deck and wanted
   lines may be name-only, as \`1 Sol Ring &5\` and \`- Counterspell &3\` above.
+- **Collection and wanted lines hold one copy each** — there is no quantity on the line, so a
+  deck-style \`- 1 Sol Ring (C21:240)\` parses as a card *named* \`1 Sol Ring\`. \`collection-sync\`,
+  \`cleanup\`, and the CLI editors print an advisory naming such a line (a 1-3 digit leading integer; a real name like \`1996 World Champion\`
+  is left alone). It is advisory only: the line parses and survives every save, so fix the file.
 - \`[foil]\`/\`[etched]\` is the finish, \`[LP]\`/\`[MP]\`/\`[HP]\`/\`[DMG]\` the condition (the default \`NM\` is not written), \`{...}\` a note.
 - \`&N\` is a **stable internal card ID**. Never hand-author or renumber these — the tools manage them.
-  Commands that add or edit card lines (editors, card mutations, imports, syncs, \`cleanup\`,
+  Commands that add or edit card lines (editors, card mutations, imports, syncs \`deck-sync pull\`/\`push\`
+  and \`collection-sync\` — not \`deck-sync status\`/\`link\` — \`cleanup\`,
   the site build, and the admin/MCP servers) backfill missing IDs on startup and persist
   them to the files. Read-only commands (\`lists\`, \`diff\`, \`price\`, \`export\`,
   \`list-all-cards\`, \`history --show\`, ...) and the \`new\`/\`rename\`/\`delete\` lifecycle
@@ -158,7 +163,7 @@ not there — is always **3**, never 1.
   change skipped as a conflict, a truncated result set) always reach stderr
   regardless. A command with no chatter does not register the flag at all
   (\`card\`, \`diff\`, \`scry\`, \`cache status\`, \`dep-license\`, \`history\`,
-  \`login status\`, \`skills list\`).
+  \`login status\`, \`deck-sync status\`, \`skills list\`).
 - Piping structured output into an early-closing reader (\`… --output ndjson |
   head\`) is a clean exit 0, not a crash.
 
@@ -169,7 +174,8 @@ ${REFRESH_COMMANDS}
 \`\`\`bash
 ritual login archidekt            # log in to Archidekt (for imports/sync)
 echo "$PASS" | ritual login archidekt --username you --password-stdin  # headless login
-ritual login status               # show the stored Archidekt login (exit 3 when not logged in)
+ritual login status               # stored login + whether its session still authenticates
+                                  #   exit 0 usable, 1 expired (re-login), 3 nothing stored
 ritual login logout               # remove the stored Archidekt session
 ritual config set <prop> <value>  # set a config value (dot notation for nested keys)
 ritual config set defaultCurrency eur  # currency price commands/displays default to (usd | eur | tix)

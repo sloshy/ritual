@@ -5,6 +5,7 @@ import { computeHash, hashPath } from '../../src/content-hash'
 import { ensureCardIdsForAllLists } from '../../src/ensure-card-ids'
 import { ExitCode } from '../../src/commands/scripting'
 import { runCli } from './helpers/cli'
+import { OFFLINE_ENV } from './helpers/offline-env'
 import { bindWorkspace, withWorkspace } from './helpers/workspace'
 
 /**
@@ -46,6 +47,9 @@ describe('card-ID backfill preAction hook (Integration)', () => {
     { args: ['detect-changes', '--verify', '--quiet'], exitCode: ExitCode.RuntimeError },
     { args: ['get-primer', 'no-such-deck'], exitCode: ExitCode.NotFound },
     { args: ['rename', 'no-such-list', 'new-name'], exitCode: ExitCode.NotFound },
+    // A subcommand whose leaf name is not the allowlist entry: `deck-sync
+    // pull/push` backfill, `deck-sync status` must not.
+    { args: ['deck-sync', 'status'], exitCode: 0 },
   ]
 
   for (const { args, exitCode } of exemptInvocations) {
@@ -68,6 +72,16 @@ describe('card-ID backfill preAction hook (Integration)', () => {
       // No sidecar existed, so the file is a hand edit Ritual hasn't recorded —
       // stamping it here would suppress detect-changes.
       expect(await Bun.file(hashPath(deckPath)).exists()).toBe(false)
+    })
+  })
+
+  test('a subcommand is matched by its qualified `<parent> <leaf>` name', async () => {
+    // `deck-sync pull` is allowlisted as the pair, not as the leaf `pull`; the
+    // run then fails on the missing login, which is proof the action ran.
+    await withIdlessDeck(async (deckPath, dir) => {
+      const result = await runCli(['deck-sync', 'pull'], dir, OFFLINE_ENV)
+      expect(result.exitCode).toBe(ExitCode.RuntimeError)
+      expect(await fs.readFile(deckPath, 'utf-8')).toBe(backfilledDeck)
     })
   })
 
