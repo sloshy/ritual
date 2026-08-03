@@ -13,7 +13,9 @@ import type { ListType } from '../../src/list-type'
 import {
   createCardSessionContext,
   saveCardSession,
+  similarCopyInput,
   type CardChoiceInput,
+  type CardChoiceIntent,
   type CardSessionContext,
   type CardSessionStrategy,
   type EditableEntryItem,
@@ -61,11 +63,11 @@ type FakeList = {
   setNew: (isNew: boolean) => void
 }
 
-const addInput = (cardName: string, isEditing = false): CardChoiceInput => ({
+const addInput = (cardName: string, intent: CardChoiceIntent = 'add'): CardChoiceInput => ({
   cardName,
   preselected: null,
   forcePrompts: false,
-  isEditing,
+  intent,
 })
 
 /** Answer the next "Add to which list?" prompt with an existing list. */
@@ -314,8 +316,13 @@ describe('scoped session add mode', () => {
     // The last-added shortcuts are no-ops rather than misrouted adds.
     await session.strategy.addAnotherCopy(createCardSessionContext())
     session.strategy.applyChange(createAddChange('Sol Ring', {}))
+    await session.strategy.handleCard(
+      createCardSessionContext(),
+      similarCopyInput({ name: 'Sol Ring', hasNote: false }),
+    )
     expect(deck.calls.copies + binder.calls.copies).toBe(0)
     expect([...deck.calls.applied, ...binder.calls.applied]).toEqual([])
+    expect([...deck.calls.handled, ...binder.calls.handled]).toEqual([])
   })
 
   test('adding a card asks for a list, then runs that list’s own add flow', async () => {
@@ -434,10 +441,23 @@ describe('scoped session add mode', () => {
     await session.strategy.handleCard(createCardSessionContext(), addInput('Sol Ring'))
 
     // No injected answer: a prompt here would throw rather than pick a list.
-    const edit = addInput('Sol Ring', true)
+    const edit = addInput('Sol Ring', 'edit-last')
     await session.strategy.handleCard(createCardSessionContext(), edit)
 
     expect(deck.calls.handled).toEqual([addInput('Sol Ring'), edit])
+    expect(binder.calls.handled).toEqual([])
+  })
+
+  test('adding a similar copy stays on its list without re-prompting', async () => {
+    const { session, deck, binder } = fixture()
+    pickList(deck.open)
+    await session.strategy.handleCard(createCardSessionContext(), addInput('Sol Ring'))
+
+    // No injected answer: a prompt here would throw rather than pick a list.
+    const similar = similarCopyInput({ name: 'Sol Ring', hasNote: false })
+    await session.strategy.handleCard(createCardSessionContext(), similar)
+
+    expect(deck.calls.handled).toEqual([addInput('Sol Ring'), similar])
     expect(binder.calls.handled).toEqual([])
   })
 

@@ -58,6 +58,7 @@ export type SetsPromptResponse = { sets?: string }
  */
 export const MENU_SENTINELS: ReadonlySet<string> = new Set([
   '__ADD_ANOTHER__',
+  '__ADD_SIMILAR__',
   '__ADD_NOTE__',
   '__SECTION__',
   '__FORMAT__',
@@ -168,6 +169,20 @@ export type SessionAddItem = { label: string; name: string }
  */
 export type SessionChangeItem = { label: string; blocked?: string }
 
+/**
+ * Why the engine is invoking {@link CardSessionStrategy.handleCard}:
+ *
+ * - `add` — a fresh add; a multi-list scope asks which list it should go to.
+ * - `edit-last` — a re-entry of the last added card that replaces its options
+ *   in place rather than adding a copy.
+ * - `similar-copy` — a re-entry of the last added card to add a copy with
+ *   different options.
+ *
+ * Both re-entry intents act on the list the last added card went into, so a
+ * multi-list scope must route them there rather than asking for a destination.
+ */
+export type CardChoiceIntent = 'add' | 'edit-last' | 'similar-copy'
+
 /** Input to {@link CardSessionStrategy.handleCard} once the engine has resolved a selection. */
 export type CardChoiceInput = {
   cardName: string
@@ -175,8 +190,22 @@ export type CardChoiceInput = {
   preselected: ScryfallCard | null
   /** Force the finish/condition prompts even when session defaults would apply. */
   forcePrompts: boolean
-  /** The selection is an edit of the last added card rather than a new add. */
-  isEditing: boolean
+  intent: CardChoiceIntent
+}
+
+/**
+ * The {@link CardChoiceInput} for the Add Similar Copy shortcut: re-enter the
+ * add flow for the last added card with the prompts forced, so the user can
+ * pick a different printing, finish, or condition (and, for a deck without a
+ * pinned target section, a different section) for this copy.
+ */
+export function similarCopyInput(lastAdded: LastAdded): CardChoiceInput {
+  return {
+    cardName: lastAdded.name,
+    preselected: null,
+    forcePrompts: true,
+    intent: 'similar-copy',
+  }
 }
 
 /**
@@ -695,7 +724,7 @@ function buildSaveAndSwitchItems(input: MenuBuildInput): Choice[] {
  * the fold. A new conditional menu item therefore has to be raised here and in
  * the maximal input of the "tallest possible menu" test that guards it.
  */
-export const SESSION_MENU_LIMIT = 15
+export const SESSION_MENU_LIMIT = 16
 
 /**
  * Build the full autocomplete choice list (menu shortcuts first, then cards).
@@ -754,7 +783,11 @@ export function buildMenuChoices(input: MenuBuildInput): Choice[] {
       : [
           ...(lastAdded
             ? [
-                { title: `➕ Add Another Copy (${lastAdded.name})`, value: '__ADD_ANOTHER__' },
+                { title: `➕ Add Exact Copy (${lastAdded.name})`, value: '__ADD_ANOTHER__' },
+                {
+                  title: `➕ Add Similar Copy (${lastAdded.name}, choose new options)`,
+                  value: '__ADD_SIMILAR__',
+                },
                 ...(!lastAdded.hasNote
                   ? [{ title: `📝 Add Note (${lastAdded.name})`, value: '__ADD_NOTE__' }]
                   : []),
@@ -1046,7 +1079,7 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
     const ctx = currentCtx()
     let isExited = false
     let forcePrompts = false
-    let isEditing = false
+    let intent: CardChoiceIntent = 'add'
 
     const activeSet = sessionConfig.collectorSets[sessionConfig.activeSetIndex] || ''
     const cardChoices: Choice[] =
@@ -1173,6 +1206,12 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
       continue
     }
 
+    if (response.cardName === '__ADD_SIMILAR__' && ctx.lastAdded) {
+      console.log(`Adding a similar copy of ${ctx.lastAdded.name}:`)
+      await strategy.handleCard(ctx, similarCopyInput(ctx.lastAdded))
+      continue
+    }
+
     if (response.cardName === '__ADD_NOTE__' && ctx.lastAdded) {
       const target: LastAdded = ctx.lastAdded
       const noteResponse = (await prompts({
@@ -1286,7 +1325,7 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
         if (!ctx.lastAdded) continue
         cardName = ctx.lastAdded.name
         forcePrompts = true
-        isEditing = true
+        intent = 'edit-last'
         console.log(`Editing: ${ctx.lastAdded.name}`)
       }
     } else if (isCollectorChoiceValue(response.cardName)) {
@@ -1300,6 +1339,6 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
       continue
     }
 
-    await strategy.handleCard(ctx, { cardName, preselected, forcePrompts, isEditing })
+    await strategy.handleCard(ctx, { cardName, preselected, forcePrompts, intent })
   }
 }

@@ -195,7 +195,7 @@ in `All Decks` could only ever be a deck, so there is nothing to choose:
     ➕ New Deck
 ```
 
-The last added card's shortcuts (`➕ Add Another Copy`, `📝 Add Note`, `✏️ Edit Previous Card`,
+The last added card's shortcuts (`➕ Add Exact Copy`, `➕ Add Similar Copy`, `📝 Add Note`, `✏️ Edit Previous Card`,
 `↩️ Undo Last Add`) all act on the list that card went into, so you are never asked twice.
 
 **Edit mode spans every list in scope.** `🛠️ Switch to Edit Mode` autocompletes over the entries of
@@ -228,7 +228,8 @@ land on it by overshooting.
 
 | Option                                   | Description                                                                    |
 | ---------------------------------------- | ------------------------------------------------------------------------------ |
-| `➕ Add Another Copy`                    | Add another copy of the last added card                                        |
+| `➕ Add Exact Copy`                      | Add another copy of the last added card, identical options                     |
+| `➕ Add Similar Copy`                    | Add a copy of the last added card, re-prompting its options                    |
 | `📝 Add Note`                            | Attach a note to the last added card                                           |
 | `✏️ Edit Previous Card`                  | Re-enter the last added card with forced prompts                               |
 | `↩️ Undo Last Add`                       | Take back the most recently added card                                         |

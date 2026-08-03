@@ -99,7 +99,7 @@ function originalSnapshot<E extends EditableFlatListEntry>(
 
 /**
  * Editing or removing the "last added" card invalidates the add-mode shortcuts
- * (Add Another Copy would resurrect the pre-edit line), so they reset until the
+ * (Add Exact Copy would resurrect the pre-edit line), so they reset until the
  * next add.
  */
 function resetStaleLastAdded<E extends FlatListEntry>(

@@ -151,7 +151,8 @@ export function createCollectionStrategy(
     },
 
     async handleCard(ctx: CardSessionContext, input): Promise<void> {
-      const { cardName, forcePrompts, isEditing } = input
+      const { cardName, forcePrompts } = input
+      const isEditing = input.intent === 'edit-last'
       let printing = input.preselected
       if (!printing) {
         const result = await resolveCardPrinting(cardName, sessionConfig, excludeDigitalOnly)

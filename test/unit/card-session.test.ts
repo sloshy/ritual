@@ -6,6 +6,7 @@ import {
   buildMenuChoices,
   isMenuChoice,
   SESSION_MENU_LIMIT,
+  similarCopyInput,
   suggestCollectorMode,
   suggestEditMode,
   suggestNameMode,
@@ -14,7 +15,13 @@ import {
 
 describe('isMenuChoice', () => {
   test('recognizes menu sentinel values', () => {
-    for (const value of ['__SAVE__', '__EXIT__', '__SECTION__', '__ADD_ANOTHER__']) {
+    for (const value of [
+      '__SAVE__',
+      '__EXIT__',
+      '__SECTION__',
+      '__ADD_ANOTHER__',
+      '__ADD_SIMILAR__',
+    ]) {
       expect(isMenuChoice({ title: value, value })).toBe(true)
     }
   })
@@ -185,7 +192,31 @@ describe('buildMenuChoices', () => {
     const values = buildMenuChoices({ ...base, lastAdded }).map((c) => c.value)
     expect(values).not.toContain('__ADD_NOTE__')
     // The copy/edit shortcuts stay available regardless of the note state.
-    expect(values.slice(0, 2)).toEqual(['__ADD_ANOTHER__', '__EDIT_LAST__'])
+    expect(values.slice(0, 3)).toEqual(['__ADD_ANOTHER__', '__ADD_SIMILAR__', '__EDIT_LAST__'])
+  })
+
+  test('a similar copy re-enters the add flow with the prompts forced', () => {
+    // This is the input the __ADD_SIMILAR__ shortcut hands to the strategy: a
+    // fresh add (not an edit) of the same card, with no preselected printing
+    // and the prompts forced past any session defaults — otherwise the "choose
+    // new options" promise in the menu label would silently not hold.
+    expect(similarCopyInput({ name: 'Sol Ring', hasNote: true, cardId: 3 })).toEqual({
+      cardName: 'Sol Ring',
+      preselected: null,
+      forcePrompts: true,
+      intent: 'similar-copy',
+    })
+  })
+
+  test('the copy shortcuts disambiguate exact and similar copies', () => {
+    const lastAdded = { name: 'Sol Ring', hasNote: false, cardId: 3 }
+    const choices = buildMenuChoices({ ...base, lastAdded })
+    expect(choices.find((c) => c.value === '__ADD_ANOTHER__')?.title).toBe(
+      '➕ Add Exact Copy (Sol Ring)',
+    )
+    expect(choices.find((c) => c.value === '__ADD_SIMILAR__')?.title).toBe(
+      '➕ Add Similar Copy (Sol Ring, choose new options)',
+    )
   })
 
   test('add mode leads with the last-added shortcuts and ends with Exit', () => {
@@ -201,6 +232,7 @@ describe('buildMenuChoices', () => {
     expect(values).toEqual([
       // Everything about the card just added, then the undo shortcuts...
       '__ADD_ANOTHER__',
+      '__ADD_SIMILAR__',
       '__ADD_NOTE__',
       '__EDIT_LAST__',
       '__UNDO_LAST__',
@@ -236,7 +268,9 @@ describe('buildMenuChoices', () => {
       multiList: { totalChangeCount: 5, listsWithChanges: 2 },
       cardChoices: [],
     })
-    expect(tallest.length).toBeLessThanOrEqual(SESSION_MENU_LIMIT)
+    // Exact equality, so the limit can drift neither below the real maximum
+    // (items fall below the fold) nor above it (dead rows of empty window).
+    expect(tallest.length).toBe(SESSION_MENU_LIMIT)
     expect(tallest.at(-1)?.value).toBe('__EXIT__')
   })
 
@@ -265,6 +299,7 @@ describe('buildMenuChoices', () => {
     ])
     // The add-mode shortcuts must not leak into edit mode, even with a last added card.
     expect(values).not.toContain('__ADD_ANOTHER__')
+    expect(values).not.toContain('__ADD_SIMILAR__')
     expect(values).not.toContain('__EDIT_LAST__')
     expect(values).not.toContain('__CONFIG__')
   })

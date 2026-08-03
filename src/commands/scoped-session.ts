@@ -196,9 +196,12 @@ export function createScopedSession(args: ScopedSessionArgs): ScopedSession {
     },
 
     async handleCard(_ctx: CardSessionContext, input: CardChoiceInput): Promise<void> {
-      // Editing the previous card stays in the list that card was added to;
-      // only a fresh add asks where it should go.
-      if (input.isEditing) {
+      // Editing the previous card, or adding a similar copy of it, stays in the
+      // list that card was added to; only a fresh add asks where it should go.
+      if (input.intent !== 'add') {
+        // No active list is unreachable here: both re-entry shortcuts require a
+        // last added card, and only an add (which sets the active list) can
+        // provide one — so the silent no-op is a type-level formality.
         const open = activeList()
         if (open) await open.strategy.handleCard(open.ctx, input)
         return

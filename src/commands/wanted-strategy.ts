@@ -161,7 +161,8 @@ export function createWantedStrategy(
     },
 
     async handleCard(ctx: CardSessionContext, input): Promise<void> {
-      const { cardName, forcePrompts, isEditing } = input
+      const { cardName, forcePrompts } = input
+      const isEditing = input.intent === 'edit-last'
 
       const specificity = await promptSpecificity(cardName)
       if (!specificity) return
