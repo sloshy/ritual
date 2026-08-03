@@ -207,9 +207,46 @@ export function parseColumnsSpec(spec: string, listType: ListType): ColumnMappin
     }
     partial[key] = Number.parseInt(value, 10) - 1
   }
-  if (partial.name === undefined) return `Missing required field 'name' in column mapping`
-  const mapping = partial as ColumnMapping
+  return finalizeMapping(partial, listType)
+}
+
+/**
+ * Turn a partially-built mapping into a checked {@link ColumnMapping}: prove the
+ * required `name` column is there and run {@link validateMapping}. Shared by
+ * `--columns` parsing and the interactive wizard so both reach `ColumnMapping`
+ * through the same guard rather than an assertion.
+ *
+ * @returns the mapping, or an error message.
+ */
+export function finalizeMapping(
+  partial: Partial<ColumnMapping>,
+  listType: ListType,
+): ColumnMapping | string {
+  const { name } = partial
+  if (name === undefined) return `Missing required field 'name' in column mapping`
+  // Constructed rather than asserted, so a second required field added to
+  // `ColumnMapping` becomes a compile error here instead of a silent hole.
+  const mapping: ColumnMapping = { ...partial, name }
   return validateMapping(mapping, listType) ?? mapping
+}
+
+/**
+ * Validate a column mapping against the file's actual width: a mapped column
+ * the file does not have would otherwise read as an empty cell for every row
+ * and fail each one with `Missing card name`, pointing at the data instead of
+ * at the column number. Returns an error message, or null when every mapped
+ * index exists.
+ *
+ * `columnCount` is the widest row's cell count, so a ragged file's short rows
+ * do not reject a column its other rows do have.
+ */
+export function validateMappingWidth(mapping: ColumnMapping, columnCount: number): string | null {
+  for (const field of CSV_FIELDS) {
+    const index = mapping[FIELD_TO_KEY[field]]
+    if (index === undefined || index < columnCount) continue
+    return `Column ${index + 1} (mapped to '${field}') does not exist: the file has ${columnCount} column(s)`
+  }
+  return null
 }
 
 /** Format a column mapping back into the canonical `--columns` flag value (1-based). */

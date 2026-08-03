@@ -5,6 +5,10 @@ import { saveDeck } from '../../src/commands/import'
 import { parseDeckFrontMatter } from '../../src/deck-file'
 import { sanitizeListFileName } from '../../src/list-file-name'
 import { type DeckData } from '../../src/types'
+import {
+  parseArchidektDeckResponse,
+  type ArchidektDeckResponse,
+} from '../../src/importers/archidekt-types'
 import { MemoryLogger, resetLogger, setLogger } from '../test-utils'
 import { withTempDir } from './helpers/cli'
 
@@ -148,6 +152,47 @@ describe('saveDeck (Integration)', () => {
 
       const content = await readWrittenDeck(dir)
       expect(content).toContain('1 Mana Crypt (2XM:1) [foil] &1')
+    })
+  })
+
+  test('an Archidekt deck response lands on disk with its printings and finishes', async () => {
+    // The URL-import fidelity path end to end: parser -> saveDeck -> file.
+    await withTempDir(async (dir) => {
+      const response: ArchidektDeckResponse = {
+        name: 'Fetched Deck',
+        deckFormat: 3,
+        categories: [{ id: 1, name: 'Commander' }],
+        cards: [
+          {
+            quantity: 1,
+            categories: [1],
+            modifier: 'Foil',
+            card: {
+              name: 'Krenko, Mob Boss',
+              oracleCard: { name: 'Krenko, Mob Boss' },
+              collectorNumber: '149',
+              edition: { editioncode: 'm19' },
+            },
+          },
+          {
+            quantity: 4,
+            modifier: 'Normal',
+            card: {
+              name: 'Lightning Bolt',
+              oracleCard: { name: 'Lightning Bolt' },
+              collectorNumber: '146',
+              edition: { editioncode: 'm10' },
+            },
+          },
+        ],
+      }
+
+      await saveDeck(parseArchidektDeckResponse(response, '7031486'), dir, { noPrompts: true })
+
+      const content = await readWrittenDeck(dir)
+      expect(content).toContain('## Commander\n1 Krenko, Mob Boss (M19:149) [foil] &1')
+      expect(content).toContain('## Main\n4 Lightning Bolt (M10:146) &2')
+      expect(content).toContain('format: commander')
     })
   })
 

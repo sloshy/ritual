@@ -18,12 +18,18 @@ Import all public decks from an Archidekt user account.
 
 ## Options
 
-| Option            | Description                                                                                           |
-| ----------------- | ----------------------------------------------------------------------------------------------------- |
-| `-a, --all`       | Import all decks without interactive selection                                                        |
-| `-o, --overwrite` | Overwrite existing decks without prompting                                                            |
-| `-y, --yes`       | Automatically answer yes to the overwrite confirmation when an import conflicts with an existing deck |
-| `-n, --dry-run`   | Preview imports without writing deck files                                                            |
+| Option              | Description                                                                                           |
+| ------------------- | ----------------------------------------------------------------------------------------------------- |
+| `-a, --all`         | Import all decks without interactive selection                                                        |
+| `-o, --overwrite`   | Overwrite existing decks without prompting                                                            |
+| `-y, --yes`         | Automatically answer yes to the overwrite confirmation when an import conflicts with an existing deck |
+| `-n, --dry-run`     | Preview imports without writing deck files                                                            |
+| `--output <format>` | Output format: `text` (default), `json`, or `ndjson`                                                  |
+| `--quiet`           | Suppress progress lines; never the structured payload, errors, or essential warnings                  |
+
+The account's deck list is fetched **in full**: the Archidekt endpoint paginates, and every
+page is followed (through the same paced, rate-limit-aware client the sync commands use), so
+`Found N decks.` and `--all` cover the whole account rather than its first page.
 
 ## Scripting Without Prompts
 
@@ -35,6 +41,63 @@ reports the same `--overwrite`/`--yes` guidance [import](/commands/import/) give
 exits `2`. `-y, --yes` only answers the
 overwrite confirmation on conflicts — for that purpose it is equivalent to `--overwrite`,
 matching [import](/commands/import/) — and it does not imply `--all`.
+
+## JSON Output
+
+With `--output json` (or `ndjson`) the run emits one structured result:
+
+```json
+{
+  "username": "johndoe",
+  "found": 12,
+  "selected": 12,
+  "imported": 11,
+  "failed": 1,
+  "skipped": 0,
+  "dryRun": false,
+  "decks": [
+    {
+      "id": 7031486,
+      "name": "Bant Ramp",
+      "status": "imported",
+      "action": "created",
+      "filePath": "decks/Bant Ramp.md"
+    },
+    {
+      "id": 7031487,
+      "name": "Burn",
+      "status": "failed",
+      "error": "Import conflict for 'Burn.md'..."
+    }
+  ]
+}
+```
+
+Each deck's `status` is `imported`, `planned` (a `--dry-run` preview), `failed`, or
+`skipped` (a conflict prompt that was cancelled). `action` is the save resolution
+(`created`, `overwritten`, `renamed`) and is absent when nothing was written. Errors are
+emitted on stderr as `{ "error": { "code", "message" } }`.
+
+## Empty Results
+
+Archidekt answers an unknown `ownerUsername` with an empty result set — exactly what a real
+account with no public decks returns — so the two cannot be told apart. A run that finds no
+decks says so honestly:
+
+```
+No public decks found for 'johndoe' — check the spelling; Archidekt does not distinguish an
+unknown user from an account with no public decks. Private decks require `ritual login archidekt`.
+```
+
+That warning goes to stderr and survives `--quiet`. The run still exits `0` — nothing failed.
+
+## Exit Codes
+
+| Code | Meaning                                                                                                                                                                                                |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `0`  | Success — the selected decks were imported, or fully previewed under `--dry-run` (including a run that found no decks)                                                                                 |
+| `1`  | Runtime failure — a fetch or save error on at least one deck                                                                                                                                           |
+| `2`  | Usage error — no username and not logged in, `--all` omitted when prompts are unavailable, a per-deck conflict needing `--overwrite`/`--yes`, or a cancelled selection prompt (`Cancelled.` on stderr) |
 
 ## Examples
 
@@ -56,8 +119,19 @@ Plan an import in CI without prompts:
 ./ritual import-account johndoe --all --no-input --dry-run
 ```
 
+Import every deck and consume the result in a script:
+
+```bash
+./ritual import-account johndoe --all --no-input --output json --quiet
+```
+
 ## Notes
 
 - If you are logged in to your account, you can import your private or unlisted decks
 - Interactive mode allows you to select which decks to import using a checkbox interface
 - All selected decks are imported sequentially
+- Cancelling the selection prompt exits `2` with `Cancelled.` on stderr, matching
+  [import](/commands/import/) and [import-changes](/commands/import-changes/), so a script can
+  tell a cancelled run from a successful one
+- Deck lines keep the printing (set, collector number, and foil/etched finish) Archidekt
+  states for each card

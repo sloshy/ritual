@@ -1,4 +1,4 @@
-import { type DeckData, type DeckSection } from '../types'
+import { type DeckData, type DeckSection, type Finish } from '../types'
 import path from 'node:path'
 import { readdir } from 'node:fs/promises'
 import matter from 'gray-matter'
@@ -51,6 +51,119 @@ export async function readDeckName(filePath: string): Promise<string> {
 export const DECK_CARD_LINE_RE =
   /^(\d+)[xX]?\s+(.+?)(?:\s+\(([A-Za-z0-9_]+):([^)]+)\))?(?:\s+\[(nonfoil|foil|etched)\])?(?:\s+\[(NM|LP|MP|HP|DMG)\])?(?:\s+\{(.*)\})?(?:\s+&(\d+))?$/
 
+/**
+ * Matches an MTG Arena / MTGO export card line's printing suffix:
+ * `4 Lightning Bolt (M10) 146` → name `Lightning Bolt`, set `M10`, number `146`.
+ *
+ * Two deliberate restrictions:
+ *
+ * - The set token excludes `:`, so a canonical `(LEA:161)` line can never match
+ *   — the two grammars stay disjoint.
+ * - **The collector number is required.** A parenthesized token alone is far too
+ *   common in real card names (`Very Cryptic Command (Untap)`, `Hazmat Suit
+ *   (Used)`, `Ineffable Blessing (Cardboard)`) to reinterpret as a set code, and
+ *   a set with no collector number is not a printing the canonical card line can
+ *   express anyway (see {@link resolvePrinting}) — it would be lifted out of the
+ *   name only to be dropped by the serializer. Such a line keeps the name the
+ *   user wrote and gets an advisory instead.
+ */
+const ARENA_PRINTING_RE = /^(.+?)\s+\(([A-Za-z0-9_]{2,10})\)\s+([A-Za-z0-9\-★†]+)$/
+
+/**
+ * A parenthesized set-like token left inside a parsed card name — the shape an
+ * unrecognized export dialect leaves behind (`Lightning Bolt (M10) 146`). Used
+ * for the safety-net advisory, so a dialect nobody taught the parser is never
+ * silent corruption.
+ */
+const SUSPECT_PRINTING_IN_NAME_RE = /\([A-Za-z0-9_]{2,10}\)(?:\s+[A-Za-z0-9\-★†]+)?$/
+
+/**
+ * What a card name's trailing parenthesized token turned out to be. One
+ * recognizer owns the whole grammar so the "lift it" and "warn about it"
+ * decisions can never drift apart.
+ */
+export type ArenaSuffix =
+  /** A complete printing, safe to lift out of the name. */
+  | { kind: 'printing'; name: string; set: string; collectorNumber: string }
+  /** Set-like enough to mention, but not a printing — the name is left alone. */
+  | { kind: 'suspect' }
+  /** An ordinary card name. */
+  | { kind: 'none' }
+
+/**
+ * Classify a parsed card name's trailing parenthesized token. Pure and
+ * exported so the grammar is testable on its own.
+ */
+export function matchArenaSuffix(cardName: string): ArenaSuffix {
+  const printing = cardName.match(ARENA_PRINTING_RE)
+  if (printing?.[1] && printing[2] && printing[3]) {
+    return {
+      kind: 'printing',
+      name: printing[1].trim(),
+      set: printing[2].toLowerCase(),
+      collectorNumber: printing[3],
+    }
+  }
+  if (SUSPECT_PRINTING_IN_NAME_RE.test(cardName)) return { kind: 'suspect' }
+  return { kind: 'none' }
+}
+
+/**
+ * The trailing finish marker Moxfield, Archidekt, and MTGO append to a plain-text
+ * export line: `1 Sol Ring (LTC) 284 *F*` (foil) or `*E*` (etched). Stripped
+ * before the card line is matched, so the marker never lands inside the name.
+ */
+const EXPORT_FINISH_MARKER_RE = /^(.*\S)\s+\*([FE])\*$/i
+
+/**
+ * Bare marker lines an Arena export uses in place of `##` section headers.
+ *
+ * A `Map` rather than an object literal: the key is arbitrary file content, and
+ * an object lookup would resolve inherited keys (`constructor`, `__proto__`)
+ * to something other than `undefined`.
+ */
+const ARENA_SECTION_MARKERS: ReadonlyMap<string, string> = new Map([
+  ['deck', 'Main'],
+  ['sideboard', 'Sideboard'],
+  ['commander', 'Commander'],
+  ['companion', 'Companion'],
+])
+
+/** How a text source should be read. */
+export type ParseDeckTextOptions = {
+  /**
+   * Recognize the MTG Arena / MTGO export dialect: `N Name (SET) NUM` card
+   * lines, bare `Deck`/`Sideboard`/`Commander`/`Companion` section markers, and
+   * an `About` block (whose `Name …` line names the deck).
+   *
+   * Off by default, and deliberately so: this same parser loads Ritual's own
+   * workspace list files, where the grammar must stay strict — a canonical
+   * `(SET:NUM)` line must never be reinterpreted, and a marker word must keep
+   * warning as a skipped line rather than silently starting a section. Only the
+   * import surfaces (`ritual import`, the admin import route) opt in.
+   */
+  arenaDialect?: boolean
+  /**
+   * Read fenced code block content as deck data instead of prose.
+   *
+   * A pasted decklist very often arrives wrapped in a ``` fence — that is how
+   * Discord, Reddit, and GitHub render one — so on the import path the fence is
+   * packaging, not content: its delimiters are dropped and the lines inside are
+   * parsed like any other. Off by default, because in Ritual's own list files a
+   * fenced block is prose the parser must leave alone.
+   */
+  readFencedContent?: boolean
+}
+
+/**
+ * How the import surfaces read a third-party text source. Shared so the CLI and
+ * the admin import route can never disagree about which dialects they accept.
+ */
+export const IMPORT_TEXT_PARSE_OPTIONS: ParseDeckTextOptions = {
+  arenaDialect: true,
+  readFencedContent: true,
+}
+
 /** A parsed deck plus a warning for every body line the parser had to skip. */
 export type DeckParseResult = {
   deck: DeckData
@@ -61,6 +174,17 @@ export type DeckParseResult = {
    * {@link unreadableLines} for why the whole-file save gates still care.
    */
   fencedLines: number
+  /**
+   * Non-fatal per-line advisories: content the parser *did* read, but about
+   * which the user deserves a word — a card name that still carries a
+   * parenthesized set token (an export dialect nobody taught this parser), or an
+   * `About` block line that was skipped.
+   *
+   * Deliberately **not** part of `warnings`: nothing was lost, so these must not
+   * trip the whole-file-rewrite gates ({@link unreadableLines}) that refuse to
+   * re-serialize a file whose content the parser could not read.
+   */
+  advisories: string[]
 }
 
 /**
@@ -83,10 +207,14 @@ export function parseDeckText(
   rawText: string,
   fallbackName: string,
   primer?: string,
+  options?: ParseDeckTextOptions,
 ): DeckParseResult {
   const parsed = matter(rawText)
+  const arenaDialect = options?.arenaDialect === true
+  const readFencedContent = options?.readFencedContent === true
 
-  const name = resolveDeckName(parsed.data.name, fallbackName)
+  const frontMatterName = getString(parsed.data.name)
+  let name = resolveDeckName(parsed.data.name, fallbackName)
 
   const description = getString(parsed.data.description)
   const sourceUrl = getString(parsed.data.sourceUrl)
@@ -109,41 +237,118 @@ export function parseDeckText(
 
   const lines = parsed.content.split(/\r?\n/)
   const warnings: string[] = []
+  const advisories: string[] = []
   // Fenced code blocks are prose: a card-looking line or a `## Heading` inside
   // one is an example, not deck data, and must not warn either.
   const fence = createFenceTracker()
   let fencedLines = 0
+  /** Inside an Arena `About` block, whose lines are deck metadata, not cards. */
+  let inAboutBlock = false
+
+  /** Start (or adopt the leading bucket as) a section, as a header or marker would. */
+  const startSection = (sectionName: string, level: number): void => {
+    if (currentSection.cards.length === 0 && currentSection.name === 'Main') {
+      if (currentSection === syntheticMain) syntheticMainLevel = level
+      currentSection.name = sectionName
+    } else {
+      currentSection = { name: sectionName, cards: [] }
+      sections.push(currentSection)
+    }
+  }
 
   for (const line of lines) {
-    if (fence.feed(line).opaque) {
-      fencedLines++
-      continue
+    const fenceState = fence.feed(line)
+    if (fenceState.opaque) {
+      // On the import path a fence is packaging: its delimiters are dropped and
+      // the lines inside fall through to the ordinary card/section grammar.
+      if (!readFencedContent) {
+        fencedLines++
+        continue
+      }
+      if (fenceState.role !== 'content') continue
     }
     const trimmed = line.trim()
-    if (!trimmed) continue
+    if (!trimmed) {
+      // A blank line closes an `About` block; Arena separates every block with one.
+      inAboutBlock = false
+      continue
+    }
 
     const headerMatch = trimmed.match(/^(#{1,6})\s+(.+)$/)
     if (headerMatch?.[2]) {
-      const sectionName = headerMatch[2].trim()
-
-      if (currentSection.cards.length === 0 && currentSection.name === 'Main') {
-        if (currentSection === syntheticMain) syntheticMainLevel = headerMatch[1]!.length
-        currentSection.name = sectionName
-      } else {
-        currentSection = { name: sectionName, cards: [] }
-        sections.push(currentSection)
-      }
+      inAboutBlock = false
+      startSection(headerMatch[2].trim(), headerMatch[1]!.length)
       continue
     }
 
-    const quantityMatch = trimmed.match(DECK_CARD_LINE_RE)
+    if (arenaDialect) {
+      const marker = ARENA_SECTION_MARKERS.get(trimmed.toLowerCase())
+      if (marker !== undefined) {
+        inAboutBlock = false
+        // Level 2: a marker is a `##`-equivalent, so an empty one warns like one.
+        startSection(marker, 2)
+        continue
+      }
+      if (trimmed.toLowerCase() === 'about') {
+        inAboutBlock = true
+        continue
+      }
+      if (inAboutBlock) {
+        // `Name My Deck` names the deck (frontmatter, when present, still wins);
+        // anything else in the block is metadata this parser does not model.
+        const aboutName = trimmed.match(/^Name\s+(.+)$/i)?.[1]?.trim()
+        if (aboutName && frontMatterName === undefined) {
+          name = aboutName
+        } else if (!aboutName) {
+          advisories.push(`Skipped About line: ${trimmed}`)
+        }
+        continue
+      }
+    }
+
+    // An export's trailing `*F*` / `*E*` finish marker is stripped before the
+    // card line is matched, so it can never end up inside the card name.
+    let body = trimmed
+    let markerFinish: Finish | undefined
+    if (arenaDialect) {
+      const marker = trimmed.match(EXPORT_FINISH_MARKER_RE)
+      if (marker?.[1] && marker[2]) {
+        body = marker[1]
+        markerFinish = marker[2].toLowerCase() === 'f' ? 'foil' : 'etched'
+      }
+    }
+
+    const quantityMatch = body.match(DECK_CARD_LINE_RE)
     if (quantityMatch?.[1] && quantityMatch?.[2]) {
+      let cardName = quantityMatch[2].trim()
+      let set = quantityMatch[3]?.toLowerCase()
+      let collectorNumber = quantityMatch[4]
+
+      // The canonical grammar has no `(SET) NUM` form, so such a suffix lands in
+      // the card name. On the import path a *complete* one is the Arena dialect
+      // and is lifted into the printing; anything short of that is an advisory,
+      // never a silent rewrite of a card name the user wrote.
+      if (set === undefined) {
+        const suffix = matchArenaSuffix(cardName)
+        if (arenaDialect && suffix.kind === 'printing') {
+          cardName = suffix.name
+          set = suffix.set
+          collectorNumber = suffix.collectorNumber
+        } else if (suffix.kind !== 'none') {
+          advisories.push(
+            `Card name still contains a printing token, so the line's format was not recognized: ${trimmed}`,
+          )
+        }
+      }
+
       currentSection.cards.push({
         quantity: Number.parseInt(quantityMatch[1], 10),
-        name: quantityMatch[2].trim(),
-        set: quantityMatch[3]?.toLowerCase(),
-        collectorNumber: quantityMatch[4],
-        finish: quantityMatch[5] && isFinish(quantityMatch[5]) ? quantityMatch[5] : undefined,
+        name: cardName,
+        // Both halves or neither: the two branches above never set one alone
+        // (see `resolvePrinting` for why half a printing cannot be written).
+        set,
+        collectorNumber,
+        finish: quantityMatch[5] && isFinish(quantityMatch[5]) ? quantityMatch[5] : markerFinish,
         condition: quantityMatch[6] && isCondition(quantityMatch[6]) ? quantityMatch[6] : undefined,
         note: quantityMatch[7],
         cardId: quantityMatch[8] ? Number.parseInt(quantityMatch[8], 10) : undefined,
@@ -189,7 +394,7 @@ export function parseDeckText(
     sourceId,
     sections: validSections,
   }
-  return { deck, warnings, fencedLines }
+  return { deck, warnings, fencedLines, advisories }
 }
 
 /**
@@ -200,7 +405,10 @@ export function parseDeckText(
  * that only want the deck; anything that re-serializes the file, or reports what
  * a load actually saw, must go through this one.
  */
-export async function loadDeckFile(filePath: string): Promise<DeckParseResult> {
+export async function loadDeckFile(
+  filePath: string,
+  options?: ParseDeckTextOptions,
+): Promise<DeckParseResult> {
   const file = Bun.file(filePath)
   if (!(await file.exists())) {
     throw new Error(`File not found: ${filePath}`)
@@ -214,7 +422,7 @@ export async function loadDeckFile(filePath: string): Promise<DeckParseResult> {
     ? (await primerFile.text()).trim() || undefined
     : undefined
 
-  return parseDeckText(rawText, path.basename(filePath, path.extname(filePath)), primer)
+  return parseDeckText(rawText, path.basename(filePath, path.extname(filePath)), primer, options)
 }
 
 /**

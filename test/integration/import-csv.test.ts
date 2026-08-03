@@ -242,4 +242,66 @@ describe('admin import-csv handler (Integration)', () => {
     expect(badColumns.status).toBe(400)
     expect(badColumns.error.message).toContain("Unknown field 'rarity'")
   })
+
+  test('a mapped column the file does not have is one 400, not every row failing', async () => {
+    // The CLI exits 2 on the same check. Without it the route answers 200 with
+    // every row failed `Missing card name`, blaming the data for a bad spec.
+    const result = await importCsv({
+      listType: 'collection',
+      name: 'Wide',
+      content: COLLECTION_CSV,
+      columns: 'name=99,set=2,collector-number=3',
+    })
+
+    expect(result.status).toBe(400)
+    expect(result.error.message).toBe(
+      "Column 99 (mapped to 'name') does not exist: the file has 6 column(s)",
+    )
+  })
+
+  test('states which row `hasHeader` skipped, and flags one that does not look like a header', async () => {
+    // An API client has no wizard to ask the header question with, so a
+    // headerless export silently losing its first card is the failure to avoid.
+    const headerless = [
+      'Sol Ring,c19,221,F,Near Mint,2',
+      '"Jace, the Mind Sculptor",WWK,31,,LP,1',
+    ].join('\n')
+    const result = await importCsv({
+      listType: 'collection',
+      name: 'Headerless',
+      content: headerless,
+      columns: COLLECTION_COLUMNS,
+    })
+
+    expect(result.status).toBe(200)
+    expect(result.data.warnings).toHaveLength(2)
+    expect(result.data.warnings[0]).toBe('Skipped header row: Sol Ring,c19,221,F,Near Mint,2')
+    expect(result.data.warnings[1]).toContain('set hasHeader to false')
+  })
+
+  test('a real header row is reported as skipped, with no second-guessing', async () => {
+    const result = await importCsv({
+      listType: 'collection',
+      name: 'Headed',
+      content: COLLECTION_CSV,
+      columns: COLLECTION_COLUMNS,
+    })
+
+    expect(result.data.warnings).toEqual([
+      'Skipped header row: Name,Set,Collector Number,Finish,Condition,Quantity',
+    ])
+  })
+
+  test('hasHeader false imports the first row and reports nothing', async () => {
+    const result = await importCsv({
+      listType: 'collection',
+      name: 'NoHeader',
+      content: 'Sol Ring,c19,221,F,Near Mint,2',
+      columns: COLLECTION_COLUMNS,
+      hasHeader: false,
+    })
+
+    expect(result.data.warnings).toEqual([])
+    expect(result.data.cardCount).toBe(2)
+  })
 })

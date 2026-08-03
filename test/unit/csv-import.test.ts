@@ -11,6 +11,7 @@ import {
   parseColumnsSpec,
   parseCsv,
   validateMapping,
+  validateMappingWidth,
   type ColumnMapping,
   type CsvRow,
 } from '../../src/importers/csv'
@@ -187,6 +188,24 @@ describe('validateMapping', () => {
 
   test('rejects two fields mapped to the same column', () => {
     expect(validateMapping({ name: 0, finish: 0 }, 'deck')).toMatch(/same column 1/)
+  })
+})
+
+describe('validateMappingWidth', () => {
+  test('accepts a mapping whose columns all exist', () => {
+    expect(validateMappingWidth({ name: 0, set: 1, quantity: 2 }, 3)).toBeNull()
+  })
+
+  test('names the out-of-range column, its field, and the file width', () => {
+    expect(validateMappingWidth({ name: 98 }, 6)).toBe(
+      "Column 99 (mapped to 'name') does not exist: the file has 6 column(s)",
+    )
+  })
+
+  test('rejects the first out-of-range field in canonical order', () => {
+    expect(validateMappingWidth({ name: 0, set: 9, quantity: 8 }, 2)).toMatch(
+      /Column 10 \(mapped to 'set'\)/,
+    )
   })
 })
 

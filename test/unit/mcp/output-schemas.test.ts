@@ -236,13 +236,22 @@ describe('MCP output schemas, as authored', () => {
     // an optional pair is exactly how a partially-failed import reads as a clean
     // one to a client that never checks.
     const importCsv = IMPORT_CSV_OUTPUT as unknown as SchemaNode
+    // `warnings` is required for the same reason: an agent has no header wizard,
+    // so the assumption the handler made about the first row must always be there.
     expect(Object.keys(importCsv.properties ?? {})).toEqual([
       'message',
       'cardCount',
       'failures',
       'failedCount',
+      'warnings',
     ])
-    expect(importCsv.required).toEqual(['message', 'cardCount', 'failures', 'failedCount'])
+    expect(importCsv.required).toEqual([
+      'message',
+      'cardCount',
+      'failures',
+      'failedCount',
+      'warnings',
+    ])
   })
 
   test('defsFor closes transitively over $refs', () => {
@@ -295,6 +304,7 @@ describe('MCP output schemas, as authored', () => {
         cardCount: 2,
         failures: [{ lineNumber: 4, raw: 'Arcane Signet,,', reason: 'Missing set code' }],
         failedCount: 1,
+        warnings: ['Skipped header row: name,set,collector_number'],
       }
       expect(await validates(IMPORT_CSV_OUTPUT, sample)).toBe(true)
       // A failure row missing its `reason` is not a report a client can render.

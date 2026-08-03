@@ -1,9 +1,12 @@
-import { describe, test, expect, mock } from 'bun:test'
+import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test'
 import {
   ArchidektClient,
   DEFAULT_CSV_UPLOAD_FILE_NAME,
+  MAX_LIST_PAGES,
+  nextPageUrl,
   type CollectionCsvUploadOptions,
 } from '../../../src/clients/ArchidektClient'
+import { MemoryLogger, resetLogger, setLogger } from '../../test-utils'
 import {
   type ArchidektCardSearchResult,
   type ArchidektDeckResponse,
@@ -181,6 +184,123 @@ describe('ArchidektClient', () => {
 
     const none: ArchidektDeckResponse = { name: 'X', cards: [] }
     expect(parseArchidektDeckResponse(none, '1').format).toBeUndefined()
+  })
+
+  test('carries each entry printing (set, collector number, finish) into the deck', () => {
+    const response: ArchidektDeckResponse = {
+      name: 'Printings',
+      cards: [
+        {
+          quantity: 2,
+          modifier: 'Foil',
+          card: {
+            name: 'Lightning Bolt',
+            oracleCard: { name: 'Lightning Bolt' },
+            collectorNumber: '161',
+            edition: { editioncode: 'LEA' },
+          },
+        },
+        {
+          quantity: 1,
+          modifier: 'Normal',
+          card: {
+            name: 'Lightning Bolt',
+            oracleCard: { name: 'Lightning Bolt' },
+            collectorNumber: '146',
+            edition: { editioncode: 'm10' },
+          },
+        },
+      ],
+    }
+
+    const cards = parseArchidektDeckResponse(response, '1').sections[0]?.cards
+    // Set codes are lowercased internally however Archidekt spells them; the two
+    // printings of the same card stay separate lines.
+    expect(cards).toEqual([
+      {
+        name: 'Lightning Bolt',
+        quantity: 2,
+        set: 'lea',
+        collectorNumber: '161',
+        finish: 'foil',
+      },
+      {
+        name: 'Lightning Bolt',
+        quantity: 1,
+        set: 'm10',
+        collectorNumber: '146',
+        finish: undefined,
+      },
+    ])
+  })
+
+  test('merges entries of the same card and printing in one section', () => {
+    const entry = {
+      quantity: 3,
+      card: {
+        name: 'Mountain',
+        oracleCard: { name: 'Mountain' },
+        collectorNumber: '274',
+        edition: { editioncode: 'm20' },
+      },
+    }
+    const response: ArchidektDeckResponse = { name: 'Merge', cards: [entry, { ...entry }] }
+
+    const cards = parseArchidektDeckResponse(response, '1').sections[0]?.cards
+    expect(cards).toHaveLength(1)
+    expect(cards?.[0]).toMatchObject({ name: 'Mountain', quantity: 6, set: 'm20' })
+  })
+
+  test('maps the etched modifier and tolerates a missing printing', () => {
+    const response: ArchidektDeckResponse = {
+      name: 'Etched',
+      cards: [
+        {
+          quantity: 1,
+          modifier: 'Etched',
+          card: { name: 'Sol Ring', oracleCard: { name: 'Sol Ring' } },
+        },
+      ],
+    }
+    expect(parseArchidektDeckResponse(response, '1').sections[0]?.cards[0]).toEqual({
+      name: 'Sol Ring',
+      quantity: 1,
+      set: undefined,
+      collectorNumber: undefined,
+      finish: 'etched',
+    })
+  })
+
+  test('drops half a printing rather than carrying a set a card line cannot write', () => {
+    // A card line is `(SET:NUM)` or nothing, so an entry with a set but no
+    // collector number would serialize with the set silently gone — and would
+    // compare as a distinct printing, producing two byte-identical lines.
+    const response: ArchidektDeckResponse = {
+      name: 'Half',
+      cards: [
+        { quantity: 3, card: { name: 'Forest', edition: { editioncode: 'UNF' } } },
+        { quantity: 2, card: { name: 'Forest', edition: { editioncode: 'THB' } } },
+      ],
+    }
+    const cards = parseArchidektDeckResponse(response, '1').sections[0]?.cards
+    expect(cards).toHaveLength(1)
+    expect(cards?.[0]).toMatchObject({ name: 'Forest', quantity: 5, set: undefined })
+  })
+
+  test('reports entries it had to skip for having no card name', () => {
+    const logger = new MemoryLogger()
+    setLogger(logger)
+    try {
+      const response: ArchidektDeckResponse = {
+        name: 'Nameless',
+        cards: [{ quantity: 1, card: undefined }, { quantity: 1 }],
+      }
+      expect(parseArchidektDeckResponse(response, '9').sections).toHaveLength(0)
+      expect(logger.entries.filter((e) => e.level === 'warn')).toHaveLength(1)
+      expect(String(logger.entries[0]?.args[0])).toContain('skipped 2 card entries')
+    } finally {
+      resetLogger()
+    }
   })
 
   test('should throw error when fetchDeck fails', async () => {
@@ -851,5 +971,162 @@ describe('ArchidektClient.searchCards printing pinning', () => {
     const result = await client.searchCards('Some Other Card', undefined, 'mytoken')
 
     expect(result).toBe('Card not found on Archidekt: Some Other Card')
+  })
+})
+
+// ── Deck list pagination ────────────────────────────────────────────────
+
+function deckPage(id: number, next: string | null): string {
+  return JSON.stringify({
+    count: 3,
+    next,
+    results: [
+      { id, name: `Deck ${id}`, updatedAt: '2023-01-01', deckFormat: 3, owner: { username: 'u' } },
+    ],
+  })
+}
+
+describe('ArchidektClient deck list pagination', () => {
+  let logger: MemoryLogger
+
+  beforeEach(() => {
+    logger = new MemoryLogger()
+    setLogger(logger)
+  })
+
+  afterEach(() => {
+    resetLogger()
+  })
+
+  const warnings = (): string[] =>
+    logger.entries.filter((e) => e.level === 'warn').map((e) => String(e.args[0]))
+
+  test('follows every `next` link and returns all pages', async () => {
+    const urls: string[] = []
+    const mockFetch = mock(async (url: string | URL) => {
+      const asString = url.toString()
+      urls.push(asString)
+      if (asString.includes('page=3')) return new Response(deckPage(3, null))
+      if (asString.includes('page=2')) {
+        return new Response(deckPage(2, 'http://archidekt.com/api/decks/v3/?page=3'))
+      }
+      return new Response(deckPage(1, 'http://archidekt.com/api/decks/v3/?page=2'))
+    })
+
+    const client = new ArchidektClient({ fetch: mockFetch }, { minRequestIntervalMs: 0 })
+    const decks = await client.fetchPublicDecks('user1')
+
+    expect(decks.map((d) => d.id)).toEqual([1, 2, 3])
+    expect(urls).toHaveLength(3)
+    // The http:// link Archidekt serves is upgraded, so no page costs a redirect.
+    expect(urls[1]).toBe('https://archidekt.com/api/decks/v3/?page=2')
+    expect(warnings()).toEqual([])
+  })
+
+  test('fetchOwnDecks paginates too, keeping the auth header on every page', async () => {
+    const seenAuth: (string | undefined)[] = []
+    const mockFetch = mock(async (url: string | URL, init?: RequestInit) => {
+      seenAuth.push((init?.headers as Record<string, string> | undefined)?.Authorization)
+      return url.toString().includes('page=2')
+        ? new Response(deckPage(2, null))
+        : new Response(deckPage(1, 'https://archidekt.com/api/decks/curated/self/?page=2'))
+    })
+
+    const client = new ArchidektClient({ fetch: mockFetch }, { minRequestIntervalMs: 0 })
+    const decks = await client.fetchOwnDecks('mytoken')
+
+    expect(decks.map((d) => d.id)).toEqual([1, 2])
+    expect(seenAuth).toEqual(['JWT mytoken', 'JWT mytoken'])
+  })
+
+  test('stops and warns when the server repeats a page link', async () => {
+    const mockFetch = mock(
+      async () => new Response(deckPage(1, 'https://archidekt.com/api/decks/v3/?page=2')),
+    )
+
+    const client = new ArchidektClient({ fetch: mockFetch }, { minRequestIntervalMs: 0 })
+    const decks = await client.fetchPublicDecks('user1')
+
+    // Page 1 -> page 2 -> page 2 again: the walk ends rather than looping.
+    expect(decks).toHaveLength(2)
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+    expect(warnings()[0]).toContain('already served')
+  })
+
+  test('stops and warns at the page cap', async () => {
+    let page = 0
+    const mockFetch = mock(async () => {
+      page++
+      return new Response(deckPage(page, `https://archidekt.com/api/decks/v3/?page=${page + 1}`))
+    })
+
+    const client = new ArchidektClient({ fetch: mockFetch }, { minRequestIntervalMs: 0 })
+    const decks = await client.fetchPublicDecks('user1')
+
+    expect(decks).toHaveLength(MAX_LIST_PAGES)
+    expect(warnings()[0]).toContain(`Stopped after ${MAX_LIST_PAGES} pages`)
+  })
+
+  test('a missing `next` ends the walk without a warning', async () => {
+    // Nothing to follow is the normal end of a walk, not a truncation.
+    expect(nextPageUrl(null)).toBeUndefined()
+    expect(nextPageUrl('')).toBeUndefined()
+    expect(warnings()).toEqual([])
+  })
+
+  test.each([
+    ['not a url', 'unparseable'],
+    ['https://evil.example.com/api/decks/v3/?page=2', 'unexpected host'],
+  ])('a `next` of %p is declined out loud', (next, reason) => {
+    // A silently-declined link is a truncated list that looks complete.
+    expect(nextPageUrl(next)).toBeUndefined()
+    expect(warnings()).toHaveLength(1)
+    expect(warnings()[0]).toContain(reason)
+  })
+
+  test('an http link is upgraded, and a subdomain is still Archidekt', () => {
+    expect(nextPageUrl('http://archidekt.com/api/decks/v3/?page=2')).toBe(
+      'https://archidekt.com/api/decks/v3/?page=2',
+    )
+    expect(nextPageUrl('https://api.archidekt.com/api/decks/v3/?page=2')).toBe(
+      'https://api.archidekt.com/api/decks/v3/?page=2',
+    )
+    expect(warnings()).toEqual([])
+  })
+
+  test('a relative `next` is resolved against the page it arrived on', () => {
+    expect(nextPageUrl('/api/decks/v3/?page=2', 'https://archidekt.com/api/decks/v3/')).toBe(
+      'https://archidekt.com/api/decks/v3/?page=2',
+    )
+    expect(warnings()).toEqual([])
+  })
+
+  test('a failure mid-walk aborts rather than returning a short list', async () => {
+    const mockFetch = mock(async (url: string | URL) =>
+      url.toString().includes('page=2')
+        ? new Response('boom', { status: 500 })
+        : new Response(deckPage(1, 'https://archidekt.com/api/decks/v3/?page=2')),
+    )
+    const client = new ArchidektClient({ fetch: mockFetch }, { minRequestIntervalMs: 0 })
+    // Returning page 1 alone would be exactly the truncation the walk guards against.
+    expect(client.fetchPublicDecks('user1')).rejects.toThrow('Failed to fetch public decks')
+  })
+
+  test('a page with no `results` array is an error, not an empty page', async () => {
+    const mockFetch = mock(async () => new Response(JSON.stringify({ count: 0 })))
+    const client = new ArchidektClient({ fetch: mockFetch }, { minRequestIntervalMs: 0 })
+    expect(client.fetchPublicDecks('user1')).rejects.toThrow('no `results` array')
+  })
+
+  test('percent-encodes the username in the first page URL', async () => {
+    const requested: string[] = []
+    const mockFetch = mock(async (url: string | URL) => {
+      requested.push(url.toString())
+      return new Response(deckPage(1, null))
+    })
+    const client = new ArchidektClient({ fetch: mockFetch }, { minRequestIntervalMs: 0 })
+    await client.fetchPublicDecks('a b&c')
+
+    expect(requested[0]).toContain('ownerUsername=a%20b%26c')
   })
 })

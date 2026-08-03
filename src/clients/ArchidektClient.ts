@@ -31,12 +31,41 @@ import {
 import { parseCsv } from '../importers/csv'
 
 import { describeRateLimitWait, type RateLimitWait } from '../sync-common'
+import { getLogger } from '../logger'
 
 export { type ArchidektDeckSimple, getArchidektFormat } from '../importers/archidekt-types'
 
+/**
+ * One page of a paginated list endpoint, as the wire actually serves it — every
+ * field optional, because nothing has validated it yet. {@link parseListPage}
+ * turns it into the checked shape.
+ */
+interface ArchidektListPageBody<T> {
+  results?: T[]
+  count?: number
+  /** Absolute URL of the next page, or null on the last one. */
+  next?: string | null
+}
+
+/** A validated list page. */
 interface ArchidektListResponse<T> {
   results: T[]
-  count: number
+  next?: string | null
+}
+
+/**
+ * Validate one page of a list response. A page whose `results` is missing or is
+ * not an array is an error, not an empty page: silently treating it as empty
+ * would end the walk and make a truncated list look complete.
+ *
+ * @returns the checked page, or an error message.
+ */
+export function parseListPage<T>(json: unknown): ArchidektListResponse<T> | string {
+  if (typeof json !== 'object' || json === null) return 'response body was not an object'
+  const body = json as ArchidektListPageBody<T>
+  if (!Array.isArray(body.results)) return 'response body had no `results` array'
+  const next = typeof body.next === 'string' ? body.next : null
+  return { results: body.results, next }
 }
 
 interface ArchidektSearchResponse {
@@ -65,6 +94,49 @@ export type CollectionCsvUploadOptions = {
   header: boolean
   /** Defaults to {@link DEFAULT_CSV_UPLOAD_FILE_NAME}. */
   fileName?: string
+}
+
+/**
+ * Hard cap on pages a list endpoint is followed for. Far above any real
+ * account (a page is 50 decks), so reaching it means the server is looping
+ * rather than paginating — the fetch stops and says so instead of running
+ * forever.
+ */
+export const MAX_LIST_PAGES = 100
+
+/**
+ * The URL of a list response's next page, or undefined when there is none.
+ *
+ * Archidekt serves `next` as an absolute `http://archidekt.com/...` URL, which
+ * is upgraded to https here to avoid a redirect on every page. A relative link
+ * is resolved against `baseUrl` (the page it arrived on) when one is given, so a
+ * server that switches to relative links keeps paginating.
+ *
+ * A link pointing anywhere but Archidekt, or one that will not parse, ends the
+ * walk — and says so on the warning channel, since a truncated list must never
+ * look complete.
+ *
+ * @param baseUrl The URL the page was fetched from; only relative links need it.
+ */
+export function nextPageUrl(next: string | null | undefined, baseUrl?: string): string | undefined {
+  if (typeof next !== 'string' || next.trim() === '') return undefined
+  const decline = (reason: string): undefined => {
+    getLogger().warn(
+      `Archidekt served a next-page link that will not be followed (${reason}): ${next}. The list may be incomplete.`,
+    )
+    return undefined
+  }
+  let url: URL
+  try {
+    url = new URL(next, baseUrl)
+  } catch {
+    return decline('unparseable')
+  }
+  if (url.hostname !== 'archidekt.com' && !url.hostname.endsWith('.archidekt.com')) {
+    return decline(`unexpected host ${url.hostname}`)
+  }
+  if (url.protocol === 'http:') url.protocol = 'https:'
+  return url.toString()
 }
 
 /** Milliseconds enforced between consecutive requests of one client instance. */
@@ -178,12 +250,17 @@ function backoffMs(retry: number): number {
  * shared {@link describeRateLimitWait} line — the construction both sync
  * engines (and any future consumer with a progress channel) share. `options`
  * exists for the seams; an `onRateLimitWait` given there is overridden.
+ *
+ * @param httpClient Transport seam. Defaults to the real one; a test injects a
+ * mock here so a command that builds its client through this factory can be
+ * driven end to end without a network.
  */
 export function createPacedArchidektClient(
   onWait: (message: string) => void,
   options?: ArchidektClientOptions,
+  httpClient?: HttpClient,
 ): ArchidektClient {
-  return new ArchidektClient(undefined, {
+  return new ArchidektClient(httpClient, {
     ...options,
     onRateLimitWait: (wait) => onWait(describeRateLimitWait(wait)),
   })
@@ -270,30 +347,69 @@ export class ArchidektClient {
     return response
   }
 
-  async fetchPublicDecks(username: string): Promise<ArchidektDeckSimple[]> {
-    const url = `https://archidekt.com/api/decks/v3/?ownerUsername=${username}`
-    const response = await this.request(url)
+  /**
+   * Walk a paginated list endpoint from `firstUrl`, following each response's
+   * `next` link through the same paced/retrying funnel as any other request,
+   * and return every page's results.
+   *
+   * Two guards keep a misbehaving server from looping forever: a URL already
+   * fetched ends the walk, and so does {@link MAX_LIST_PAGES}. Both say so on
+   * the warning channel — a truncated list must never look complete.
+   */
+  private async fetchAllPages<T>(
+    firstUrl: string,
+    init: RequestInit | undefined,
+    errorMessage: string,
+  ): Promise<T[]> {
+    const results: T[] = []
+    const seen = new Set<string>()
+    let url: string | undefined = firstUrl
 
-    if (!response.ok) {
-      throwHttpError(response, 'Failed to fetch public decks')
+    for (let page = 1; url !== undefined; page++) {
+      if (seen.has(url)) {
+        getLogger().warn(
+          `Archidekt returned a next-page link it had already served (${url}); stopping after ${results.length} result(s).`,
+        )
+        break
+      }
+      seen.add(url)
+
+      const response = await this.request(url, init)
+      if (!response.ok) {
+        throwHttpError(response, errorMessage)
+      }
+      const body = parseListPage<T>(await response.json())
+      if (typeof body === 'string') {
+        throw new Error(`${errorMessage}: ${body}`)
+      }
+      results.push(...body.results)
+
+      const next = nextPageUrl(body.next, url)
+      if (next !== undefined && page >= MAX_LIST_PAGES) {
+        getLogger().warn(
+          `Stopped after ${MAX_LIST_PAGES} pages; the list may be incomplete (${results.length} result(s) so far).`,
+        )
+        break
+      }
+      url = next
     }
 
-    const data = (await response.json()) as ArchidektListResponse<ArchidektDeckSimple>
-    return data.results || []
+    return results
   }
 
+  /** Every public deck of a user, following the endpoint's pagination to the end. */
+  async fetchPublicDecks(username: string): Promise<ArchidektDeckSimple[]> {
+    const url = `https://archidekt.com/api/decks/v3/?ownerUsername=${encodeURIComponent(username)}`
+    return this.fetchAllPages<ArchidektDeckSimple>(url, undefined, 'Failed to fetch public decks')
+  }
+
+  /** Every deck of the logged-in user, following the endpoint's pagination to the end. */
   async fetchOwnDecks(token: string): Promise<ArchidektDeckSimple[]> {
-    const url = 'https://archidekt.com/api/decks/curated/self/'
-    const response = await this.request(url, {
-      headers: this.authHeaders(token),
-    })
-
-    if (!response.ok) {
-      throwHttpError(response, 'Failed to fetch own decks')
-    }
-
-    const data = (await response.json()) as ArchidektListResponse<ArchidektDeckSimple>
-    return data.results || []
+    return this.fetchAllPages<ArchidektDeckSimple>(
+      'https://archidekt.com/api/decks/curated/self/',
+      { headers: this.authHeaders(token) },
+      'Failed to fetch own decks',
+    )
   }
 
   async fetchDeck(deckId: string, token?: string): Promise<DeckData> {

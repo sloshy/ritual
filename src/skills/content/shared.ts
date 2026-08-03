@@ -273,7 +273,15 @@ export function textImportSection(options: TextImportSectionOptions): string {
       `global \`--no-input\` flag the type defaults to a deck, so agents should ` +
       `always pass \`--type ${options.typeFlag}\`. A body line that is neither a ` +
       `section header nor a card line is skipped, listed on stderr, carried in ` +
-      `the JSON \`warnings\` array, and exits 1 — the import is still written.` +
+      `the JSON \`warnings\` array, and exits 1 — the import is still written. ` +
+      `Ritual's own format and the MTG Arena/MTGO export dialect ` +
+      `(\`4 Lightning Bolt (M10) 146\`, bare \`Deck\`/\`Sideboard\` markers, a ` +
+      `trailing \`*F*\`/\`*E*\` foil marker) are both read, as is the inside of a ` +
+      `\`\`\` fence — on the import path only, since a pasted decklist usually ` +
+      `arrives wrapped in one. A \`(SET)\` with no collector number is left in the ` +
+      `card name rather than read as a printing; a line that imports but still ` +
+      `holds a printing token in its name prints an advisory (stderr, JSON ` +
+      `\`advisories\`) without failing the run.` +
       (options.extra === undefined ? '' : ` ${options.extra}`),
   )
   return `${intro}\n\n\`\`\`bash\n${options.examples}\n\`\`\`\n\n${closing}\n\n${IMPORT_DRY_RUN_GUARANTEE}`
@@ -307,11 +315,15 @@ export function csvImportSection(options: CsvImportSectionOptions): string {
     `\`--columns\` maps fields to 1-based column numbers (fields: \`name\`, ` +
       `\`set\`, \`collector-number\`, \`condition\`, \`finish\`, \`section\`, ` +
       `\`quantity\`); ${options.requiredColumns}. Add \`--no-header\` when the ` +
-      `first row is data, \`--overwrite\` to replace an existing ` +
+      `first row is data — a scripted run without it drops the first row as a ` +
+      `header and warns when that row looks like data. Add \`--overwrite\` to replace an existing ` +
       `${options.typeNoun}, or \`--append\` to add to one (${options.appendNote}).` +
       (options.typeNotes === undefined ? '' : ` ${options.typeNotes}`) +
-      ` Failed rows are reported with line numbers on stderr and the rest still ` +
-      `import (exit code 1 on partial failure).`,
+      ` Rows naming the same card and printing merge into one line (create and ` +
+      `append agree), and a \`--columns\` number the file has no column for is a ` +
+      `usage error (exit 2) instead of a per-row failure. Failed rows are reported ` +
+      `with line numbers on stderr and the rest still import (exit code 1 on ` +
+      `partial failure).`,
   )
   return `${intro}\n\n\`\`\`bash\n${options.examples}\n\`\`\`\n\n${closing}`
 }

@@ -4,9 +4,26 @@ import { throwHttpError } from '../errors'
 
 const MOXFIELD_BASE_URL = 'https://api2.moxfield.com'
 
+/**
+ * The card object a board entry names, i.e. the printing the deck picked. `set`
+ * and `cn` are optional: older or partial responses may omit either.
+ */
+export type MoxfieldCardPrinting = {
+  name: string
+  /** Set code, as Moxfield spells it (any case). */
+  set?: string
+  /** Collector number. */
+  cn?: string
+}
+
+/** The finish slugs Moxfield reports; `nonFoil` and `glossy` are not modelled by Ritual. */
+export type MoxfieldFinish = 'nonFoil' | 'foil' | 'etched' | 'glossy'
+
+/** One board entry in a v3 deck response. */
 type MoxfieldCardEntry = {
   quantity: number
-  card: { name: string }
+  card: MoxfieldCardPrinting
+  finish?: MoxfieldFinish
 }
 
 type MoxfieldBoard = {

@@ -34,6 +34,26 @@ describe('skill catalog invariants', () => {
       expect(skill.body.trim().startsWith('# ')).toBe(true)
     }
   })
+
+  /**
+   * Import behavior an agent cannot discover by trial and error: what the text
+   * importer silently would or would not read. Each phrase is one behavior the
+   * CLI actually has, so a change to the parser that leaves this prose behind
+   * fails here rather than misleading an agent.
+   */
+  test.each([
+    ['ritual-decks', 'MTG Arena/MTGO export dialect'],
+    ['ritual-decks', '*F*'],
+    ['ritual-decks', 'no collector number'],
+    ['ritual-decks', 'advisories'],
+    ['ritual-decks', '--moxfield-user-agent'],
+    ['ritual-collections', 'advisories'],
+    ['ritual', 'Fenced code blocks are prose'],
+  ])('the %s skill documents %p', (skillName, phrase) => {
+    const skill = SKILLS.find((s) => s.name === skillName)
+    expect(skill).toBeDefined()
+    expect(skill!.body).toContain(phrase)
+  })
 })
 
 /**

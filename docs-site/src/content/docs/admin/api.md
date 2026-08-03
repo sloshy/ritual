@@ -1700,11 +1700,16 @@ Import cards from CSV text into a deck, collection, or wanted list. Used by the 
       "reason": "Missing set code (required for collections)"
     }
   ],
-  "failedCount": 1
+  "failedCount": 1,
+  "warnings": ["Skipped header row: Name,Set,Collector Number,Quantity"]
 }
 ```
 
-`cardCount`, `failures`, and `failedCount` are **always** present. Rows that fail validation are returned in `failures` while the valid rows still import, and `success` is a pure envelope flag: a request where _every_ row failed is still a `200` carrying `cardCount: 0` and the per-row report, since the report is the whole point of the call. The response is `400` only when the **request** is invalid (bad body shape, unknown `listType`/`format`, an unparseable column spec or CSV, no data rows, or an append to a list that does not exist). Appends record each added card in the list's changelog. When git auto-commit is enabled, the list file (and changelog) are committed.
+In a **deck**, rows naming the same card **and** the same printing merge into one line with their quantities summed, whether the list is created, overwritten, or appended to — the same file always produces the same list. **Collections and wanted lists** keep one line per physical copy in every mode, so N rows of the same printing stay N lines.
+
+`warnings` reports what `hasHeader` caused, since there is no wizard here to ask: the row that was skipped as a header, plus a second entry when that row does not look like one (`… — set hasHeader to false to import it as a card.`). It is empty when `hasHeader` is `false`.
+
+`cardCount`, `failures`, `failedCount`, and `warnings` are **always** present. Rows that fail validation are returned in `failures` while the valid rows still import, and `success` is a pure envelope flag: a request where _every_ row failed is still a `200` carrying `cardCount: 0` and the per-row report, since the report is the whole point of the call. The response is `400` only when the **request** is invalid (bad body shape, unknown `listType`/`format`, an unparseable column spec, a mapped column number the file has no column for (`Column 99 (mapped to 'name') does not exist: the file has 6 column(s)`), an unparseable CSV, no data rows, or an append to a list that does not exist). Appends record each added card in the list's changelog. When git auto-commit is enabled, the list file (and changelog) are committed.
 
 ## Import Changes
 

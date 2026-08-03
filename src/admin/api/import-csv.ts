@@ -1,7 +1,14 @@
 import { hashPath } from '../../content-hash'
 import { isListType, LIST_TYPES, type ListType } from '../../list-type'
 import { invalidDeckFormatMessage, parseDeckFormat, type DeckFormatKey } from '../../deck-format'
-import { convertCsvRows, parseColumnsSpec, parseCsv, type CsvRowFailure } from '../../importers/csv'
+import {
+  convertCsvRows,
+  guessHasHeader,
+  parseColumnsSpec,
+  parseCsv,
+  validateMappingWidth,
+  type CsvRowFailure,
+} from '../../importers/csv'
 import { applyCsvImport, type CsvImportMode } from '../../importers/csv-apply'
 import { dirForType } from '../../resolve-list'
 import { apiHandler } from '../utils'
@@ -53,6 +60,13 @@ export interface ImportCsvResponse {
    * client can branch on it without walking the array.
    */
   failedCount: number
+  /**
+   * Notices about the import as a whole, as opposed to a single row: today, what
+   * `hasHeader` caused. A client has no wizard to ask the header question with,
+   * so the assumption is stated out loud — dropping a data row as a header is a
+   * lost card that would otherwise look like a clean import. Always present.
+   */
+  warnings: string[]
 }
 
 const MODES: readonly CsvImportMode[] = ['create', 'overwrite', 'append']
@@ -119,7 +133,25 @@ export function handleImportCsv(req: Request): Promise<Response> {
     const mapping = parseColumnsSpec(body.columns, listType)
     if (typeof mapping === 'string') return badRequest(mapping)
 
+    // A mapped column the file has no column for is one bad *request*, not a
+    // per-row 'Missing card name' for every row — the CLI exits 2 on the same
+    // check (see `validateMappingWidth`), and this is the shared engine's rule.
+    const columnCount = Math.max(...parsed.rows.map((row) => row.cells.length))
+    const widthError = validateMappingWidth(mapping, columnCount)
+    if (widthError !== null) return badRequest(widthError)
+
     const hasHeader = body.hasHeader ?? true
+    const warnings: string[] = []
+    const firstRow = parsed.rows[0]
+    if (hasHeader && firstRow !== undefined) {
+      warnings.push(`Skipped header row: ${firstRow.raw}`)
+      if (!guessHasHeader(firstRow.cells)) {
+        warnings.push(
+          `The first row does not look like a header but was skipped as one: ${firstRow.raw}` +
+            ' — set hasHeader to false to import it as a card.',
+        )
+      }
+    }
     const dataRows = hasHeader ? parsed.rows.slice(1) : parsed.rows
     if (dataRows.length === 0) return badRequest('CSV contains no data rows')
 
@@ -133,6 +165,7 @@ export function handleImportCsv(req: Request): Promise<Response> {
         cardCount: 0,
         failures,
         failedCount: failures.length,
+        warnings,
       }
       return Response.json(empty)
     }
@@ -160,6 +193,7 @@ export function handleImportCsv(req: Request): Promise<Response> {
       cardCount: result.cardCount,
       failures,
       failedCount: failures.length,
+      warnings,
     }
     return Response.json(resp)
   })

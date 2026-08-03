@@ -517,20 +517,60 @@ describe('Ritual MCP server (in-memory transport)', () => {
   })
 
   test('import_deck writes a deck from pasted decklist text and reports skipped lines', async () => {
-    const data = toolData<{ message: string; deckName: string; warnings: string[] }>(
+    const data = toolData<{
+      message: string
+      deckName: string
+      warnings: string[]
+      advisories: string[]
+    }>(
       await callTool(client, 'import_deck', {
         mode: 'text',
         name: 'Imported Deck',
-        content: '1 Sol Ring\n1 Lightning Bolt\nnot a card line\n',
+        // The Arena dialect is read on this surface too: the `(M10) 146` suffix
+        // becomes a printing rather than part of the card name.
+        content: '1 Sol Ring\n4 Lightning Bolt (M10) 146\nnot a card line\n',
       }),
     )
     expect(data.deckName).toBe('Imported Deck')
     // A line the parser skipped is content the import lost — reported, never silent.
     expect(data.warnings).toEqual(['Skipped malformed line: not a card line'])
+    expect(data.advisories).toEqual([])
     expect(data.message).toContain('1 line(s) could not be parsed')
     const onDisk = await fs.readFile(path.join(env.dir, 'decks', 'Imported Deck.md'), 'utf-8')
     expect(onDisk).toContain('Sol Ring')
+    expect(onDisk).toContain('4 Lightning Bolt (M10:146)')
     expect(onDisk).not.toContain('not a card line')
+  })
+
+  test('import_deck reports advisories in the payload and in the message', async () => {
+    // The non-empty advisory leg: a line that WAS imported but whose shape says
+    // the dialect was not understood. Not loss, so it must not read as one.
+    const data = toolData<{ message: string; warnings: string[]; advisories: string[] }>(
+      await callTool(client, 'import_deck', {
+        mode: 'text',
+        name: 'Advised Deck',
+        content: '4 Lightning Bolt (M10) 146\n4 (M10) 146\n',
+      }),
+    )
+    expect(data.warnings).toEqual([])
+    expect(data.advisories).toHaveLength(1)
+    expect(data.advisories[0]).toContain('still contains a printing token')
+    expect(data.message).toContain('1 line(s) may not have been understood')
+  })
+
+  test('import_deck reads a decklist wrapped in a fenced block', async () => {
+    // Pasted-from-Discord text arrives fenced; reading it as prose imported
+    // nothing while still reporting success.
+    const data = toolData<{ deckName: string; warnings: string[] }>(
+      await callTool(client, 'import_deck', {
+        mode: 'text',
+        name: 'Fenced Deck',
+        content: '```\n4 Lightning Bolt (M10) 146\n```\n',
+      }),
+    )
+    expect(data.warnings).toEqual([])
+    const onDisk = await fs.readFile(path.join(env.dir, 'decks', 'Fenced Deck.md'), 'utf-8')
+    expect(onDisk).toContain('4 Lightning Bolt (M10:146)')
   })
 
   test('set_card_printing pins a printing and reports the effect', async () => {

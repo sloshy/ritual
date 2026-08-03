@@ -311,9 +311,10 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
     {
       title: 'Import deck',
       description:
-        'Import a deck from a supported URL or from pasted decklist text. Text lines the ' +
-        'parser cannot read are skipped and reported in `warnings` — check it, because a ' +
-        'non-empty array means part of the pasted text was not imported.',
+        "Import a deck from a supported URL or from pasted decklist text (Ritual's own " +
+        'format and MTG Arena/MTGO exports). Text lines the parser cannot read are skipped and ' +
+        'reported in `warnings` — check it, because a non-empty array means part of the pasted ' +
+        'text was not imported; `advisories` reports lines that imported but looked off.',
       inputSchema: z.object({
         mode: z.enum(['url', 'text']).describe('Import source.'),
         url: z.string().optional().describe('Deck URL (mode "url").'),
@@ -369,7 +370,9 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
           hasHeader: z
             .boolean()
             .optional()
-            .describe('Whether the first row is a header row. Defaults to true.'),
+            .describe(
+              "Whether the first row is a header row. Defaults to true; the result's `warnings` state which row that skipped and whether it actually looked like one, so pass false for a headerless export rather than losing its first card.",
+            ),
         })
         .superRefine(refineDeckOnlyFormat),
       outputSchema: fromJsonSchema<ImportCsvResult>(IMPORT_CSV_OUTPUT),

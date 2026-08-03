@@ -140,7 +140,7 @@ Import a deck three ways, selected with a segmented control:
 
 - **URL** — fetch from Archidekt, Moxfield, or MTGGoldfish.
 - **Upload File** — choose a decklist or exported deck file (markdown or plain text); it is read in the browser and parsed server-side.
-- **Paste Text** — paste a decklist directly (`QTY Name` per line, `## Heading` lines start new sections).
+- **Paste Text** — paste a decklist directly (`QTY Name` per line, `## Heading` lines start new sections). MTG Arena/MTGO exports are understood too, printings included.
 
 For upload and paste, an optional **Deck Name** is used unless the text defines its own `name:` in frontmatter. Optionally overwrite an existing deck on conflict.
 
@@ -594,11 +594,14 @@ Import a deck from a supported URL, or from decklist text supplied directly (pas
   "success": true,
   "message": "Successfully imported 'My Deck'",
   "deckName": "My Deck",
-  "warnings": []
+  "warnings": [],
+  "advisories": []
 }
 ```
 
-`warnings` lists any text lines the parser skipped — content that was **not** imported (always empty for URL imports). When any line was skipped, `message` also notes the count, so the admin UI's status alert shows the loss.
+`warnings` lists any text lines the parser skipped — content that was **not** imported (always empty for URL imports). `advisories` lists lines that **were** imported but looked off — a card name still carrying a printing token, or a skipped MTG Arena `About` line. When either array is non-empty, `message` notes the count, so the admin UI's status alert shows it.
+
+Pasted/uploaded text is read with the same dialects as [`ritual import`](/commands/import/#mtg-arena--mtgo-exports): Ritual's own format plus MTG Arena/MTGO exports (`4 Lightning Bolt (M10) 146`, bare `Deck`/`Sideboard` markers).
 
 ### `POST /api/import-csv`
 

@@ -863,8 +863,12 @@ export const IMPORT_DECK_OUTPUT: JsonSchemaType = obj(
       str(),
       'Text-import lines the parser skipped — content that was NOT imported. Empty for URL imports.',
     ),
+    advisories: arr(
+      str(),
+      'Non-fatal notices about text that WAS imported (e.g. a card name still carrying a printing token). Empty for URL imports.',
+    ),
   },
-  ['message', 'deckName', 'warnings'],
+  ['message', 'deckName', 'warnings', 'advisories'],
 )
 
 export const IMPORT_CSV_OUTPUT: JsonSchemaType = withDefs(
@@ -876,8 +880,12 @@ export const IMPORT_CSV_OUTPUT: JsonSchemaType = withDefs(
       ),
       failures: arr(ref('CsvRowFailure'), 'Rows that failed validation; the rest still imported.'),
       failedCount: int('failures.length, so a client can branch without walking the array.'),
+      warnings: arr(
+        str(),
+        'Whole-import notices, not per-row ones: what hasHeader caused (the header row that was skipped, and whether it actually looked like a header).',
+      ),
     },
-    ['message', 'cardCount', 'failures', 'failedCount'],
+    ['message', 'cardCount', 'failures', 'failedCount', 'warnings'],
   ),
   'CsvRowFailure',
 )

@@ -95,17 +95,31 @@ function buildDeckMarkdown(
 ): string {
   const sectionsByName = new Map<string, Card[]>()
   for (const entry of entries) {
-    const card: Card = {
+    let cards = sectionsByName.get(entry.section)
+    if (!cards) {
+      cards = []
+      sectionsByName.set(entry.section, cards)
+    }
+    // Rows naming the same card and the same printing merge into one deck line,
+    // exactly as `appendToDeck` merges them into an existing one — real CSV
+    // exports repeat a card across rows, and create/append must not disagree
+    // about what the same file means. A different printing stays its own line.
+    const existing = cards.find(
+      (card) => card.name.toLowerCase() === entry.name.toLowerCase() && isSamePrinting(card, entry),
+    )
+    if (existing) {
+      existing.quantity += entry.quantity
+      continue
+    }
+    cards.push({
       quantity: entry.quantity,
       name: entry.name,
       set: entry.set,
       collectorNumber: entry.collectorNumber,
       finish: entry.finish,
       condition: entry.condition,
-    }
-    const cards = sectionsByName.get(entry.section)
-    if (cards) cards.push(card)
-    else sectionsByName.set(entry.section, [card])
+      note: entry.note,
+    })
   }
   const sections: DeckSection[] = [...sectionsByName.entries()].map(([sectionName, cards]) => ({
     name: sectionName,
@@ -281,6 +295,7 @@ function appendToDeck(
         collectorNumber: entry.collectorNumber,
         finish: entry.finish,
         condition: entry.condition,
+        note: entry.note,
         cardId,
       })
     }

@@ -1,17 +1,32 @@
-import { BOARDS, type DeckData, type DeckSection } from '../types'
+import { BOARDS, type Card, type DeckData, type DeckSection, type Finish } from '../types'
 import { getDeckFormatLabel, parseDeckFormat, type DeckFormatKey } from '../deck-format'
+import { resolvePrinting } from '../card-line'
+import { getLogger } from '../logger'
 
 export interface ArchidektCategory {
   id: number
   name: string
 }
 
+/**
+ * The printing a deck entry names. The deck endpoint is looser than the raw
+ * card payload — `collectorNumber` and `edition` are absent on some entries —
+ * so the shared {@link ArchidektEdition} / {@link ArchidektOracleCard} shapes
+ * are widened rather than restated.
+ */
+export interface ArchidektDeckCardPrinting {
+  oracleCard?: Partial<ArchidektOracleCard>
+  name: string
+  /** Collector number of the printing the deck names. */
+  collectorNumber?: string
+  edition?: Partial<ArchidektEdition>
+}
+
 export interface ArchidektCardEntry {
-  card?: {
-    oracleCard?: { name: string }
-    name: string
-  }
+  card?: ArchidektDeckCardPrinting
   quantity?: number
+  /** Finish of this deck entry: `Normal`, `Foil`, or `Etched`. */
+  modifier?: ArchidektCardModifier
   categories?: number[] // Array of category IDs
 }
 
@@ -24,14 +39,17 @@ export interface ArchidektDeckResponse {
   cards?: ArchidektCardEntry[]
 }
 
+/** The owner block a deck listing carries. */
+export interface ArchidektDeckOwner {
+  username: string
+}
+
 export interface ArchidektDeckSimple {
   id: number
   name: string
   updatedAt: string
   deckFormat: number
-  owner: {
-    username: string
-  }
+  owner: ArchidektDeckOwner
 }
 
 export const ARCHIDEKT_FORMATS: Record<number, string> = {
@@ -143,14 +161,41 @@ export interface ModifyCardEntry {
   deckRelationId?: number // Required for "modify" and "remove" actions
 }
 
+/** The oracle block a card-search hit carries; `defaultCategory` is always present here. */
+export interface ArchidektSearchOracleCard {
+  name: string
+  defaultCategory: string
+}
+
 export interface ArchidektCardSearchResult {
   id: number
   collectorNumber: string
   options: ArchidektCardModifier[]
-  oracleCard: { name: string; defaultCategory: string }
+  oracleCard: ArchidektSearchOracleCard
 }
 
-/** Parse an Archidekt deck response into a DeckData object. */
+/**
+ * Map an Archidekt entry modifier onto Ritual's finish. `Normal` (and a missing
+ * modifier) is the default finish, which serializes as a bare line.
+ */
+function archidektFinish(modifier: ArchidektCardModifier | undefined): Finish | undefined {
+  if (modifier === 'Foil') return 'foil'
+  if (modifier === 'Etched') return 'etched'
+  return undefined
+}
+
+/**
+ * Parse an Archidekt deck response into a DeckData object.
+ *
+ * The printing each entry names — set code, collector number, and foil/etched
+ * modifier — is carried through as stated by Archidekt, at the same trust level
+ * as a CSV import: nothing is verified against Scryfall. Set codes are
+ * lowercased for the in-memory representation; the markdown serializer
+ * uppercases them on the way out.
+ *
+ * Entries of the same card AND the same printing in one section merge into a
+ * single line; different printings stay separate lines.
+ */
 export function parseArchidektDeckResponse(json: ArchidektDeckResponse, deckId: string): DeckData {
   // Categories map: ID -> Name
   const categoryIdMap = new Map<string, string>()
@@ -162,14 +207,20 @@ export function parseArchidektDeckResponse(json: ArchidektDeckResponse, deckId: 
 
   // Group by Section Name
   // Common Archidekt categories: "Commander", "Sideboard", "Maybeboard", "Mainboard" (default)
-  const sectionsMap = new Map<string, Map<string, number>>()
+  const sectionsMap = new Map<string, Map<string, Card>>()
+
+  /** Entries carrying no resolvable card name; reported rather than dropped in silence. */
+  let unnamedEntries = 0
 
   if (json.cards && Array.isArray(json.cards)) {
     for (const entry of json.cards) {
       const cardName = entry.card?.oracleCard?.name || entry.card?.name
       const quantity = entry.quantity ?? 1
 
-      if (!cardName) continue
+      if (!cardName) {
+        unnamedEntries++
+        continue
+      }
 
       let sectionName = 'Main'
 
@@ -198,12 +249,34 @@ export function parseArchidektDeckResponse(json: ArchidektDeckResponse, deckId: 
         }
       }
 
+      // Both halves of the printing or neither: a card line cannot express a set
+      // without a collector number, so lifting one alone would be a silent loss.
+      const printing = resolvePrinting(
+        entry.card?.edition?.editioncode,
+        entry.card?.collectorNumber,
+      )
+      const set = printing?.set
+      const collectorNumber = printing?.collectorNumber
+      const finish = archidektFinish(entry.modifier)
+
       if (!sectionsMap.has(sectionName)) {
         sectionsMap.set(sectionName, new Map())
       }
       const sectionCards = sectionsMap.get(sectionName)!
-      sectionCards.set(cardName, (sectionCards.get(cardName) || 0) + quantity)
+      const key = `${cardName.toLowerCase()}|${set ?? ''}|${collectorNumber ?? ''}|${finish ?? ''}`
+      const existing = sectionCards.get(key)
+      if (existing) {
+        existing.quantity += quantity
+      } else {
+        sectionCards.set(key, { name: cardName, quantity, set, collectorNumber, finish })
+      }
     }
+  }
+
+  if (unnamedEntries > 0) {
+    getLogger().warn(
+      `Archidekt deck ${deckId}: skipped ${unnamedEntries} card entr${unnamedEntries === 1 ? 'y' : 'ies'} with no card name.`,
+    )
   }
 
   const sections: DeckSection[] = []
@@ -212,11 +285,7 @@ export function parseArchidektDeckResponse(json: ArchidektDeckResponse, deckId: 
   const sortOrder: readonly string[] = BOARDS
 
   for (const [name, cardMap] of sectionsMap.entries()) {
-    const cards = Array.from(cardMap.entries()).map(([cName, qty]) => ({
-      name: cName,
-      quantity: qty,
-    }))
-    sections.push({ name, cards })
+    sections.push({ name, cards: Array.from(cardMap.values()) })
   }
 
   sections.sort((a, b) => {

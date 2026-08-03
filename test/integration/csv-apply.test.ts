@@ -108,6 +108,35 @@ describe('applyCsvImport', () => {
     expect(changelog).toContain('Added "Pyroblast" to Sideboard &3')
   })
 
+  test('create merges identical rows into one deck line, like append does', async () => {
+    // Real CSV exports repeat a card across rows; create and append must not
+    // disagree about what the same file means.
+    const { entries } = prepareEntries(
+      [
+        '2,Lightning Bolt,lea,161,,main',
+        '2,Lightning Bolt,lea,161,,main',
+        '1,Lightning Bolt,m10,146,,main',
+        '1,Lightning Bolt,lea,161,F,main',
+        '3,Pyroblast,,,,side',
+      ].join('\n'),
+      'quantity=1,name=2,set=3,collector-number=4,finish=5,section=6',
+      'deck',
+    )
+    const result = await applyCsvImport(
+      { listType: 'deck', name: 'Burn', mode: 'create', format: 'modern' },
+      entries,
+    )
+    if ('error' in result) throw new Error(result.error)
+    expect(result.cardCount).toBe(9)
+
+    const content = await fs.readFile(result.filePath, 'utf-8')
+    // Same printing merges; a different set or finish stays its own line.
+    expect(content).toContain('4 Lightning Bolt (LEA:161) &1')
+    expect(content).toContain('1 Lightning Bolt (M10:146) &2')
+    expect(content).toContain('1 Lightning Bolt (LEA:161) [foil] &3')
+    expect(content).toContain('3 Pyroblast &4')
+  })
+
   test('dry-run create reports the target without writing the file', async () => {
     const { entries } = prepareEntries('Lightning Bolt,2', 'name=1,quantity=2', 'wanted')
     const result = await applyCsvImport(

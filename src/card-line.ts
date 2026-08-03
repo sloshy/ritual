@@ -16,6 +16,26 @@ export function printingSuffix(
   return ` (${set.toUpperCase()}:${collectorNumber})`
 }
 
+/**
+ * A printing, but only when both halves are present — otherwise `undefined`.
+ *
+ * A printing is a *pair*: {@link printingSuffix} can express `(LEA:161)` and
+ * nothing else, so a set with no collector number cannot be written to a card
+ * line at all. Carrying half of one in memory is therefore a silent loss waiting
+ * to happen: the entry serializes as a bare name with the set gone, while
+ * comparing as a distinct printing (so two entries differing only by a
+ * collector-number-less set become two byte-identical lines). Sources that may
+ * report one half without the other — third-party APIs, export dialects —
+ * normalize through here: both fields, or neither.
+ */
+export function resolvePrinting(
+  set: string | undefined,
+  collectorNumber: string | undefined,
+): CardPrinting | undefined {
+  if (!set || !collectorNumber) return undefined
+  return { set: set.toLowerCase(), collectorNumber }
+}
+
 /** One grouped item plus its summed quantity, preserving first-seen order. */
 export type Aggregated<E> = { entry: E; quantity: number }
 

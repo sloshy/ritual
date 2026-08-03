@@ -1,9 +1,24 @@
-import { MoxfieldClient } from './moxfield-client'
-import { type DeckData, type DeckSection } from '../types'
+import { MoxfieldClient, type MoxfieldFinish } from './moxfield-client'
+import { type Card, type DeckData, type DeckSection, type Finish } from '../types'
 import { parseDeckFormat } from '../deck-format'
 import { getLogger } from '../logger'
+import { resolvePrinting } from '../card-line'
 
-type ImportedCard = { quantity: number; name: string }
+/**
+ * Map a Moxfield finish slug onto Ritual's finish. `nonFoil` and `glossy` (which
+ * Ritual does not model) both fall back to the default finish, which serializes
+ * as a bare line.
+ */
+function moxfieldFinish(finish: MoxfieldFinish | undefined): Finish | undefined {
+  switch (finish) {
+    case 'foil':
+      return 'foil'
+    case 'etched':
+      return 'etched'
+    default:
+      return undefined
+  }
+}
 
 export async function fetchMoxfieldDeck(
   deckId: string,
@@ -17,18 +32,34 @@ export async function fetchMoxfieldDeck(
     const processBoard = (boardName: string, targetSectionName: string) => {
       const board = deck.boards[boardName]
       if (board?.cards) {
-        const cards: ImportedCard[] = []
+        const cards: Card[] = []
 
         for (const value of Object.values(board.cards)) {
           const quantity = value.quantity
           const cardName = value.card?.name
 
           if (cardName && quantity) {
-            const existing = cards.find((c) => c.name === cardName)
+            // The printing Moxfield states is carried through as-is (set codes
+            // lowercased internally, uppercased by the serializer) — the same
+            // trust level as a CSV import, with no Scryfall verification. A
+            // response naming only one half of a printing yields neither, since
+            // a card line cannot express half of one.
+            const printing = resolvePrinting(value.card.set, value.card.cn)
+            const set = printing?.set
+            const collectorNumber = printing?.collectorNumber
+            const finish = moxfieldFinish(value.finish)
+            // Same card AND same printing merge; a different printing is its own line.
+            const existing = cards.find(
+              (c) =>
+                c.name === cardName &&
+                c.set === set &&
+                c.collectorNumber === collectorNumber &&
+                c.finish === finish,
+            )
             if (existing) {
               existing.quantity += quantity
             } else {
-              cards.push({ quantity, name: cardName })
+              cards.push({ quantity, name: cardName, set, collectorNumber, finish })
             }
           }
         }

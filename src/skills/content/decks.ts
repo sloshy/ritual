@@ -124,6 +124,25 @@ URLs always import decks. A text file import prompts for the list type (deck,
 collection, or wanted list) unless \`--type\` is passed; under the global
 \`--no-input\` flag a run without \`--type\` defaults to a deck.
 
+Archidekt and Moxfield imports keep each card's printing (set, collector number,
+and foil/etched finish) exactly as the source states it; MTGGoldfish carries no
+printing data, so those stay name-only.
+
+Text imports read Ritual's own format and the MTG Arena/MTGO export dialect —
+\`4 Lightning Bolt (M10) 146\` lines plus bare \`Deck\`/\`Sideboard\`/\`Commander\`/
+\`Companion\`/\`About\` markers, a trailing \`*F*\`/\`*E*\` foil marker, and the
+inside of a \`\`\` fence (a decklist pasted from Discord or GitHub arrives wrapped
+in one, so on the import path — and only there — the fence is packaging, not
+prose). A \`(SET)\` with no collector number is **not** read as a printing: half a
+printing cannot be written to a card line, and \`Very Cryptic Command (Untap)\` is
+a real card name, so the name is kept verbatim and an advisory is printed.
+Lines the parser cannot read are skipped and reported (exit 1); lines that import
+but look wrong (a name still holding a printing token) print an advisory on
+stderr and appear in the JSON \`advisories\` array without changing the exit code.
+
+\`--moxfield-user-agent\` applies to URL imports only — passing it with a CSV or
+text-file source is a usage error (exit 2).
+
 ${IMPORT_DRY_RUN_GUARANTEE}
 
 ${wrapProse(moxfieldUserAgentNote({ subject: 'imports' }))}
@@ -149,11 +168,16 @@ ritual import more.csv --type deck --name "Burn" --append \\
 ritual import-account someuser            # interactively pick decks
 ritual import-account someuser --all      # import every deck
 ritual import-account --all               # use the logged-in account
+ritual import-account someuser --all --output json --quiet   # structured result
 \`\`\`
 
 Deck selection is a prompt, so \`--all\` is mandatory for an agent: without a
 terminal (or under \`--no-input\`) the run exits 2 before fetching anything.
-Existing decks conflict unless \`--overwrite\`/\`--yes\` says what to do.
+Existing decks conflict unless \`--overwrite\`/\`--yes\` says what to do. The whole
+account is fetched (every page), and \`--output json\` reports
+\`found\`/\`selected\`/\`imported\`/\`failed\`/\`skipped\` plus a per-deck array.
+A username with no results is reported honestly: Archidekt cannot distinguish an
+unknown user from an account with no public decks, so check the spelling.
 
 ## Sync with Archidekt
 
